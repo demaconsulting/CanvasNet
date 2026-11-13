@@ -474,12 +474,32 @@ denies the dot-dot reference with `AccessDenied` naming the `roots` policy.
 
 Exercises the references that no policy can allow: under `AllowAll`, `NoSymlinks`, and a `UnderRoots` policy that
 includes the referenced folders, a UNC path is `NetworkPath`, a `\\?\` device path and an alternate data stream are
-`InvalidPath`, a directory is `NotARegularFile`, and on Linux and macOS `/dev/null` is `NotARegularFile`; no refusal
-message contains the temporary directory.
+`InvalidPath`, a directory is `NotARegularFile`, on Linux and macOS `/dev/null` is `NotARegularFile`, and on Windows
+`folder/NUL` (a legacy device name) is `InvalidPath`; no refusal message contains the temporary directory.
+
+### Integration: Combined and Delegate Policies Decide Nested References
+
+**Test**: `CanvasNet_SystemIntegration_FileReferences_CombinedAndDelegatePoliciesDecideNestedReferences`
+
+Exercises the policy model through its public API: with `Combine(UnderRoots(docs), NoSymlinks)` a file in a subfolder
+is read and so is a reference relative to it, a file reached through a directory link inside `docs` is `AccessDenied`
+naming `roots+no-symlinks`, and a dot-dot escape is denied. After the referring file's folder is replaced by a link to
+another folder inside `docs` (so only the no-symlinks part can refuse), a reference relative to the referring file is
+`AccessDenied` by `roots+no-symlinks` with a link reason: the anchor is the host-chosen base directory, never the
+referrer's folder. A `FromDelegate("only-txt", ...)` policy reads a `.txt` file and denies a `.bin` file naming
+`only-txt`, without its reason in the message.
+
+### Integration: A Link Swapped Into the Sandbox Before the Open Is Refused
+
+**Test**: `CanvasNet_SystemIntegration_SandboxedFiles_LinkSwappedInBeforeTheOpenIsRefused` (Windows, Linux, macOS)
+
+Exercises the folder sandbox with the tree changed inside its `BeforeOpen` seam: after the link check, the folder of
+the file is moved aside and replaced by a junction or symbolic link to an outside folder; the resolve is
+`SandboxException` with `ThroughLink` naming `sub/a.txt`, and its message contains no host directory.
 
 ## Acceptance Criteria
 
-A system-level test run passes when all forty scenarios above pass without error or
+A system-level test run passes when all forty-two scenarios above pass without error or
 exception beyond those explicitly asserted. Any unexpected exception, wrong exception type, or
 wrong return value constitutes a failure.
 

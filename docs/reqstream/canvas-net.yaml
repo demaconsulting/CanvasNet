@@ -1280,7 +1280,9 @@ sections:
           - SandboxedFileResolver_Resolve_HostilePathTextIsRejectedWithoutAnyAccess
           - SandboxedFileResolver_Resolve_LinkedDirectoryIsRejectedBeforeOpen
           - SandboxException_Constructor_EveryKind_KeepsFactsAndHidesHostPath
-          - SandboxedFileResolver_Resolve_LinkSwappedInAfterTheWalk_IsRejectedAsThroughLink
+          - "windows@CanvasNet_SystemIntegration_SandboxedFiles_LinkSwappedInBeforeTheOpenIsRefused"
+          - "ubuntu@CanvasNet_SystemIntegration_SandboxedFiles_LinkSwappedInBeforeTheOpenIsRefused"
+          - "macos@CanvasNet_SystemIntegration_SandboxedFiles_LinkSwappedInBeforeTheOpenIsRefused"
 
   - title: Referenced File Access API
     requirements:
@@ -1309,8 +1311,8 @@ sections:
           policy that is asked after the file was opened and before any byte is read, about the path as written
           and the real path of the opened file, and shall provide built-in policies that allow every file, that
           allow only files inside chosen folders (following a link only when it stays inside), and that refuse
-          files reached through a symbolic link or junction, which can be combined with each other and with a
-          policy made from the caller's own function.
+          files reached through a symbolic link or junction, trusting only folders the host chose, which can be
+          combined with each other and with a policy made from the caller's own function.
         tags: [system, security]
         justification: |
           The right confinement depends on the host: a desktop converter reads what its user can, a build server
@@ -1322,15 +1324,17 @@ sections:
           - CanvasNet-Files-RaceFreeCheck
         tests:
           - CanvasNet_SystemIntegration_FileReferences_DefaultReadsAnywhereAndRootsPolicyConfines
+          - CanvasNet_SystemIntegration_FileReferences_CombinedAndDelegatePoliciesDecideNestedReferences
 
       - id: CanvasNet-Lib-FileReferenceSafety
         title: >-
           The library shall refuse, under every file-access policy, a referenced path that names a network
-          location, a device path, an alternate data stream or contains a control character, and a referenced
-          file that is not a regular file (without blocking on a named pipe); shall refuse a file when a
-          restrictive policy needs its real path and the platform cannot tell it; and shall report every refusal
-          as an exception that identifies the rule or the policy without revealing a host directory in its
-          message.
+          location (including, on Windows, a local path whose opened file lies on a network share), a device
+          (including a Windows legacy device name), an alternate data stream or contains a control character,
+          and a referenced file that is not a regular file (without blocking on a named pipe); shall refuse a
+          file when a restrictive policy needs its real path and the platform cannot tell it; and shall report
+          every refusal as an exception that identifies the rule or the policy without revealing a host
+          directory in its message.
         tags: [system, security]
         justification: |
           Network paths can leak credentials, devices and named pipes can hang or flood a reader, and a policy

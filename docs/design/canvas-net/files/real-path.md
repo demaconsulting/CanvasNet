@@ -7,7 +7,7 @@ five internal source files in the `DemaConsulting.CanvasNet.Files` namespace:
 
 - `RealPath.cs` - `RealPath` (internal static partial class): the dispatch per operating system, the open, the handle
   facts (`HandleFacts`), the real location of a folder, short-name expansion, and the path comparison rules
-- `RealPath.Windows.cs` - the Windows facts of an open handle
+- `RealPath.Windows.cs` - the Windows facts of an open handle, and whether a path is a network location
 - `RealPath.Unix.cs` - the Linux facts of an open handle
 - `NativeMethods.cs` - `NativeMethods` (internal static class): the private `DllImport` declarations and the wrappers
   that add buffer growth, prefix stripping, error translation, and structure offsets
@@ -23,15 +23,16 @@ system. It also opens files without blocking on Linux and macOS and tells a regu
 a named pipe, which .NET cannot do for an open handle either.
 
 The unit's behavior is specified by the `CanvasNet-Files-RealPath-*` requirements (`FinalPath`, `Unavailable`,
-`RegularFile`, `NonBlockingOpen`, `CanonicalDirectory`, and `Comparison`) in
+`RegularFile`, `NonBlockingOpen`, `CanonicalDirectory`, `NetworkLocation`, and `Comparison`) in
 `docs/reqstream/canvas-net/files/real-path.yaml`.
 
 #### Data Model
 
 **`HandleFacts`** (readonly record struct): `IsRegularFile` (`bool?`) and `FinalPath` (`string?`); `null` means the
 platform cannot tell. **`PathComparison`** / **`PathComparer`**: `OrdinalIgnoreCase` on Windows and macOS, `Ordinal`
-elsewhere. The unit is stateless except for one cached flag in `NativeMethods` that remembers whether the C library
-exports `fstat`.
+elsewhere. On a case-sensitive volume or directory of Windows or macOS this comparison is a known limit (see
+_FileAccessPolicy Unit Design_). The unit is stateless except for one cached flag in `NativeMethods` that remembers
+whether the C library exports `fstat`.
 
 #### Key Methods
 
@@ -43,7 +44,13 @@ exports `fstat`.
   `/proc/self/fd/<fd>`. macOS: `vip_path` from `proc_pidfdinfo`.
 - `TryGetCanonicalDirectory` - Windows: `CreateFileW` with backup semantics and no access rights, then the final path
   of that handle. Linux: `open` with `O_PATH | O_CLOEXEC` (no read permission needed), then the `/proc` link. macOS:
-  `open`, then `proc_pidfdinfo`.
+  `realpath(3)` with a caller-owned buffer of `PATH_MAX` (1024) bytes; it resolves by name and needs only search
+  permission on the components, never read permission, so a folder that may be searched but not read (execute-only)
+  has a real location too. `NULL` (failure) is no location.
+- `IsNetworkLocation` - Windows only (`false` elsewhere): a path that starts with `\\` and is not in a device
+  namespace (`\\.\`, `\\?\`) is a UNC path; a path on a drive whose `DriveInfo.DriveType` is `Network` (a mapped
+  network drive) is a network location too, so a host working on `Z:\` keeps working; a drive that cannot be asked is
+  treated as local. A mapped drive cannot be created on CI, so that branch is covered by review only.
 - `ExpandShortNames` - Windows: `GetLongPathNameW`; elsewhere the path is returned unchanged.
 
 Per system:
@@ -65,7 +72,10 @@ Per system:
   offset 176. The structure has no pointer- or `long`-sized field, so the layout is the same on x64 and Arm64; a call
   that fills fewer than 1200 bytes gives no path, and the type then comes from `fstat` (on Arm64, whose `struct stat`
   has the 16-bit `st_mode` at offset 4), so a device or named pipe is still recognized. The flags are `O_NONBLOCK` 0x4,
-  `O_NOCTTY` 0x20000, `O_CLOEXEC` 0x01000000. Paths are compared in Unicode composed form.
+  `O_NOCTTY` 0x20000, `O_CLOEXEC` 0x01000000 (`OpenNonBlocking` ignores its `pathOnly` argument on macOS, which has no
+  `O_PATH`; folders are canonicalized with `realpath` instead). `realpath` is imported non-variadic as
+  `realpath(byte[] path, byte[] resolved)` returning a pointer; the result is decoded as UTF-8 up to the first NUL of
+  the caller's buffer, and nothing is freed. Paths are compared in Unicode composed form.
 - **Other systems**: `File.OpenHandle` (blocking) and unknown facts; a restrictive policy then fails closed.
 - `NativeMethods.WithDescriptor` is the one place that reads the raw descriptor of a handle (for the C calls and the
   `/proc` link), inside `DangerousAddRef`/`DangerousRelease`, so the descriptor cannot be closed and reused meanwhile.
@@ -74,7 +84,8 @@ Per system:
 
 **Imports**: `kernel32.dll` with `DefaultDllImportSearchPaths(System32)` and explicit `CharSet.Unicode`; `libc` (the
 runtime maps it to the C library on Linux and to `/usr/lib/libc.dylib`, which re-exports `libSystem`, on macOS) with
-`SafeDirectories`. Strings for the C library are passed as NUL-terminated UTF-8 byte arrays; no unsafe code is used.
+`SafeDirectories`. The macOS imports are `open`, `proc_pidfdinfo`, `fstat` (fallback for the type), and `realpath`.
+Strings for the C library are passed as NUL-terminated UTF-8 byte arrays; no unsafe code is used.
 
 #### Error Handling
 

@@ -46,9 +46,10 @@ sections:
               - id: CanvasNet-Files-FileAccessPolicy-NoSymlinks
                 title: >-
                   The FileAccessPolicy class shall provide a policy named "no-symlinks" that allows a file only when
-                  its real path equals the path as written below the deepest folder shared by that path and the base
-                  directory, trusting that folder and everything above it, and comparing a path written with short
-                  (8.3) names in its long spelling.
+                  its real path equals the path as written below the deepest folder shared by that path and the
+                  request's base directory (the trusted, host-chosen folder the chain of references started from),
+                  trusting that folder and everything above it, and comparing a path written with short (8.3) names
+                  in its long spelling.
                 justification: |
                   Some hosts refuse links altogether, as the folder sandbox did; folders the host chose (and their
                   links, such as the macOS temporary folder) are trusted, and a short spelling is not a link.

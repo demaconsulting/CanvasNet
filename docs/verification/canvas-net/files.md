@@ -9,8 +9,8 @@ Each unit is verified by its own unit tests (see _FileReferenceResolver Unit Ver
 Unit Verification Design_, _RealPath Unit Verification Design_, and _SandboxedFileResolver Unit Verification Design_).
 The subsystem tests in `FilesTests.cs` exercise the units together through their public types: a resolver with the
 default policy and with combined built-in policies over real temporary trees, the race-free check of both resolvers
-with the tree changed inside the open seams, the references that are refused under every policy, and the facts a
-denial carries.
+with the tree changed inside the open seams, the references that are refused under every policy, the resolver
+callback of the reference resolver, the file limit of both resolvers, and the facts a denial carries.
 
 `FilesTests.cs` also holds a **source-tree guard**: it scans the text of `src/**/*.cs` (comment lines ignored) for
 direct file opens (`new FileStream(`, `File.Open*(`, `File.ReadAll*(`, `File.ReadLines(`) and fails when one appears
@@ -36,7 +36,8 @@ translated into their own located error; they do not repeat the subsystem's mech
   scenarios run everywhere; a file symbolic link needs a privilege on Windows, so the one scenario that needs it skips
   there with the reason
 - **Operating-system scenarios**: named pipes (`mkfifo`) and devices (`/dev/null`) on Linux and macOS, the null device
-  and short (8.3) names on Windows, the `/private` location of the temporary folder on macOS; each skips on the other
+  and short (8.3) names on Windows, the `/private` location of the temporary folder on macOS, and execute-only folders
+  on Linux and macOS (skipped where permissions are not enforced, as root); each skips on the other
   systems and is linked to its requirement with a source filter
 
 ### Acceptance Criteria
@@ -72,7 +73,24 @@ before the open: the file is `ThroughLink`. The scenario runs on Windows, Linux,
 **Test**: `Files_AlwaysRefused_NetworkDeviceAndNonRegularReferences_AreRefusedUnderAllowAll`
 
 A UNC path and a `//host` path are `NetworkPath`, a `\\.\` device path and an alternate data stream are `InvalidPath`,
-a directory is `NotARegularFile`, and on Linux and macOS `/dev/zero` is `NotARegularFile`.
+a directory is `NotARegularFile`, and on Linux and macOS `/dev/zero` is `NotARegularFile`. On Windows, `folder/NUL` (a
+legacy device name) is `InvalidPath`, and a real local file whose real path is reported (through the `RealPathOf` seam)
+as a network share is `NetworkPath` under the default policy.
+
+#### The Reference Resolver Uses Only Its Callback
+
+**Test**: `Files_ResolverCallback_ReferenceResolverUsesOnlyTheCallbackAndReportsItsFailure`
+
+With a resolver callback, a backslash reference and a reference relative to the file it found reach the callback as the
+normalized logical paths `dir/main.txt` and `dir/x.txt`, and a policy that would fail the test is never asked; a
+callback that throws is `CannotRead`, and a cancellation it raises passes through.
+
+#### The File Limit Refuses the Extra File Before It Is Opened
+
+**Test**: `Files_BoundedReading_FileLimit_RefusesTheExtraFileBeforeItIsOpened`
+
+With `MaxFiles = 1`, the reference resolver and the sandbox each read `a.txt` and refuse `b.txt` with `TooManyFiles`;
+the open seams of both record that only `a.txt` was ever opened.
 
 #### A Denial Carries Its Facts Without a Host Path in the Message
 

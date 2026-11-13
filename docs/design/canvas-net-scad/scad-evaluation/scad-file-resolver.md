@@ -92,20 +92,19 @@ example `a/../b.scad` and `b.scad`) are one file; file-name case is significant 
 Windows and macOS (the platform comparer is used for the file keys and the root checks).
 
 - **File-system mode** (no `FileResolver`): the sandbox accepts a candidate only if it lies under the root it was
-  derived from (`..` that stays inside the root is allowed) and refuses it when **any component strictly below its
-  root, including the file itself, is a symbolic link or junction, whatever the target, a dangling link included**
-  (the link rule, its fail-closed probe, the top-down walk, the trusted root and the residual risks are specified at the
-  core unit: _SandboxedFileResolver Unit Design_). A link raises `Include file '…' passes through a link ('<component
-  below the root>'); links are not followed inside the allowed directories`, and a link check that cannot be completed
-  raises `Include file '…' cannot be checked for links and is not read`. To use linked content, a caller adds the real
-  directory as a library path. **Residual risk (documented, accepted):** the sandbox protects against path-based
-  escapes in static file trees; it is **not a security boundary against a concurrent local attacker with write access to
-  the included folders**, and **hard links cannot be detected**; keeping the allowed directories free of hard links to
-  files outside them is the caller's responsibility, as is controlling who may write there; neither the requirement nor
-  the tests claim protection against either case. A **directory in place of a file** (and any file that exists but
-  cannot be opened) is a located `Include file '…' cannot be read` error, never a silently missing file. Files are
-  opened read-only with shared access. The bytes the sandbox returns are decoded by `ScadDocument` with the shared
-  bounded rules (UTF-8 with byte-order mark detection, at most 4,194,304 characters).
+  derived from (`..` that stays inside the root is allowed) and refuses it when **any component strictly below its root,
+  including the file itself, is a symbolic link or junction, whatever the target, a dangling link included** (the link
+  rule, its fail-closed probe, the top-down walk, the trusted root and the residual risks are specified at the core
+  unit: _SandboxedFileResolver Unit Design_). A link raises `Include file '…' passes through a link ('<component below
+  the root>'); links are not followed inside the allowed directories`, and a link check that cannot be completed raises
+  `Include file '…' cannot be checked for links and is not read`. To use linked content, a caller adds the real
+  directory as a library path. A link swapped in between the walk and the open is refused by the core sandbox's
+  verification of the open file. **Residual risk (documented, accepted):** **hard links cannot be detected**; keeping
+  the allowed directories free of hard links to files outside them is the caller's responsibility, as is controlling who
+  may write there; neither the requirement nor the tests claim protection against it. A **directory in place of a file**
+  (and any file that exists but cannot be opened) is a located `Include file '…' cannot be read` error, never a silently
+  missing file. Files are opened read-only with shared access. The bytes the sandbox returns are decoded by
+  `ScadDocument` with the shared bounded rules (UTF-8 with byte-order mark detection, at most 4,194,304 characters).
 - **Resolver mode** (`FileResolver` supplied): **no file-system access at all.** Each candidate is a
   normalized **logical path** (forward slashes, no leading `/`, `..` collapsed) handed to the callback; the first
   non-null stream wins; the sandbox reads it with its bounded reader and then disposes of it. Library paths

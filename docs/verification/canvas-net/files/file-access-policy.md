@@ -61,7 +61,9 @@ root, and no root at all are rejected; an upper-case spelling is allowed on Wind
 
 A real path equal to the written path below the base directory is allowed and the name is `no-symlinks`; a different
 real path below the anchor is denied with a reason naming a symbolic link or junction and a hint; a base directory that
-is itself a link is trusted; a path written with short (8.3) names is allowed when its long spelling matches.
+is itself a link is trusted; a path written with short (8.3) names is allowed when its long spelling matches. That the
+base directory a resolver passes is the trusted chain origin, never a referring document's folder, is verified with
+the resolver (`CanvasNet-Files-FileReferenceResolver-ChainOrigin`).
 
 ##### CanvasNet-Files-FileAccessPolicy-Combine: Composition
 

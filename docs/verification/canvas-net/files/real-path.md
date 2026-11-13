@@ -75,9 +75,20 @@ missing folder or a file used as a folder is a "not found" exception.
 
 ##### CanvasNet-Files-RealPath-CanonicalDirectory: The Real Location of a Folder
 
-**Tests**: `RealPath_TryGetCanonicalDirectory_LinkedDirectory_ReturnsTheTarget`
+**Tests**: `RealPath_TryGetCanonicalDirectory_LinkedDirectory_ReturnsTheTarget`,
+`RealPath_TryGetCanonicalDirectory_ExecuteOnlyDirectory_ReturnsItsLocation` (Linux, macOS)
 
-A linked folder reports the real location of its target; a missing folder reports none.
+A linked folder reports the real location of its target; a missing folder reports none. A folder made execute-only
+(mode 0100: it may be searched but not listed) reports the same real location it had while readable, which proves
+that Linux (`O_PATH`) and macOS (`realpath`) need no read permission; the test restores the mode afterwards and skips
+when permissions are not enforced (a process running as root).
+
+##### CanvasNet-Files-RealPath-NetworkLocation: Network Locations
+
+**Tests**: `RealPath_IsNetworkLocation_UncAndLocalPaths_AreClassified` (Windows)
+
+A UNC path is a network location; a local temporary file, an extended-length local path (`\\?\C:\x`) and a device path
+(`\\.\NUL`) are not. A mapped network drive cannot be created on CI, so that branch is covered by review.
 
 ##### CanvasNet-Files-RealPath-Comparison: Comparison Rules
 

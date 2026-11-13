@@ -1100,6 +1100,7 @@ words:
   - xlink
   - linecap
   # Operating-system calls, flags, errno names and structures of the file-access real-path unit
+  - APFS
   - CLOEXEC
   - CREAT
   - EACCES
@@ -1111,6 +1112,7 @@ words:
   - fdinfowithpath
   - fsid
   - fstat
+  - fsutil
   - fxstat
   - IFMT
   - IFREG
@@ -1122,6 +1124,7 @@ words:
   - pidfdinfo
   - PIDFDVNODEPATHINFO
   - RDONLY
+  - realpath
   - vinfo
   - vnode
 # Percent-escapes in URL and file-name examples (such as "flow%2Emmd" for "flow.mmd"): the escape and the letters

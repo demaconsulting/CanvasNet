@@ -169,7 +169,10 @@ next scenario).
 (Windows, Linux, macOS),
 `SandboxedFileResolverRaceTests.SandboxedFileResolver_Resolve_RealPathOutsideTheRoot_IsRejectedAsThroughLink`,
 `SandboxedFileResolverRaceTests.SandboxedFileResolver_Resolve_RealPathUnavailable_FailsClosedAsLinkCheckFailed`,
-`SandboxedFileResolverRaceTests.SandboxedFileResolver_Resolve_NonRegularFile_IsCannotRead` (Windows, Linux, macOS)
+`SandboxedFileResolverRaceTests.SandboxedFileResolver_Resolve_NonRegularFile_IsCannotRead` (Windows, Linux, macOS),
+`SandboxedFileResolverRaceTests.SandboxedFileResolver_Resolve_RootRealLocationUnavailable_FailsClosedAsLinkCheckFailed`
+(Linux, macOS), `SandboxedFileResolverRaceTests.SandboxedFileResolver_Resolve_ExecuteOnlyRoot_ReadsTheFile` (Linux,
+macOS)
 
 The post-open verification is proven through the `FileOpenHooks` seams of the internal constructor, with no timing:
 inside `BeforeOpen` (after the link walk passed, before any handle exists, so Windows allows the rename) the folder of
@@ -177,7 +180,11 @@ the file is renamed and replaced by a junction or symbolic link to an outside fo
 the resolve is `ThroughLink` naming the file below the root, with no host directory in the message. An outside real
 path injected through `RealPathOf` is `ThroughLink`; no real path is `LinkCheckFailed` (fail closed). A handle that is
 not a regular file is `CannotRead`: a named pipe created with `mkfifo` on Linux and macOS (which also proves the open
-does not block), and on Windows the null device handed in through the `Open` seam.
+does not block), and on Windows the null device handed in through the `Open` seam. On Linux and macOS, the root
+renamed away inside `AfterOpen` (allowed there while the file is open) leaves the root without a real location, which
+is `LinkCheckFailed`, not `ThroughLink`; Windows does not allow renaming the folder of an open file, so the scenario
+does not exist there. A root made execute-only (mode 0100) still serves its file, because its real location needs no
+read permission; the test restores the mode afterwards and skips when permissions are not enforced (root).
 
 ##### CanvasNet-Files-SandboxedFileResolver-ResolverCallback: Callback Mode
 

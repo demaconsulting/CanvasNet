@@ -122,8 +122,10 @@ a cancellation or an argument error is a `SandboxException`.
   FileShare.Delete` on Windows; non-blocking and not inherited on Linux and macOS), asks `RealPath.Inspect` for the
   facts of the **open handle**, and only then reads from that handle: a handle that is not a regular file (a device, a
   named pipe) is `CannotRead`; a handle whose real path cannot be determined is `LinkCheckFailed` (fail closed); and
-  the `FileAccessPolicy.NoSymlinks` rule, anchored at the candidate's root, must accept the real path - that is, the
-  real path must be the real location of the root followed by the path below the root - otherwise the file is
+  the link match of the `NoSymlinks` policy (`FileAccessPolicy.MatchesWithoutLinks`), anchored at the candidate's root,
+  must accept the real path - that is, the real path must be the real location of the root followed by the path below
+  the root. When the real location of the root cannot be determined the file is `LinkCheckFailed` (fail closed; a root
+  the process may search but not read has a real location); when the real path differs the file is
   `ThroughLink` with the root-relative path **of the file** as the detail (the handle cannot tell which component is
   the link). This repeats the walk's rule on the file that is actually read, so a component swapped for a link after
   the walk is refused. `ThroughLink` and `LinkCheckFailed` from this step are thrown like walk refusals: they are not
@@ -181,7 +183,8 @@ directory as a search path.
 Every failure is a `SandboxException` (never an empty result for a refusal): the path text is refused (`EmptyPath`,
 `ControlCharacter`, `ColonInPath`, `AbsolutePath`) or leaves its root (`OutsideRoot`), a configured directory is not a
 valid path (`InvalidRoot`), a component is a link (`ThroughLink`, also when the real path of the open handle shows a
-link) or the link check fails (`LinkCheckFailed`, also when the real path of the open handle cannot be determined), the
+link) or the link check fails (`LinkCheckFailed`, also when the real path of the open handle or the real location of
+its root cannot be determined), the
 file exists but cannot be read - a directory where a file is expected, an open handle that is not a regular file, an
 open that fails with an `IOException` or `UnauthorizedAccessException`, a stream that fails while being read, a
 callback that throws, or a callback stream whose disposal throws (`CannotRead`) - or the file is longer than
@@ -203,7 +206,8 @@ unit reads a snapshot and does not defend against a concurrent writer of the fil
 #### Dependencies
 
 - **RealPath** (same subsystem) - the verified open (`OpenForRead`) and the facts of the open handle (`Inspect`).
-- **FileAccessPolicy** (same subsystem) - the `NoSymlinks` rule that checks the real path of the open handle.
+- **FileAccessPolicy** (same subsystem) - the `NoSymlinks` link match (`MatchesWithoutLinks`) that checks the real
+  path of the open handle.
 - **FileReferenceResolver** (same subsystem) - the shared bounded read (`ReadBounded`).
 - **.NET base class library** - `System.IO` (`File`, `Directory`, `FileInfo.LinkTarget`, `DirectoryInfo.LinkTarget`,
   `FileStream`, `Path`) and `System.Collections.Generic`.

@@ -9,7 +9,7 @@ lets the host decide which files may be read, and reads a bounded number of byte
 `RealPath` unit (the operating-system facts of an open file), and `SandboxedFileResolver` (the public folder sandbox
 that predates the policy model and is now verified on the open file as well).
 
-### Purpose
+### Overview
 
 The `Files` subsystem exists so that the rules for files named by documents are implemented, tested, and reviewed
 once, instead of in every format package. It is public core API, not an internal helper: a library user that reads
@@ -23,11 +23,24 @@ relative paths to caller-chosen folders and refuses links, and is what the `Imag
 `CanvasNetVegaLite` and `CanvasNetScad` systems use today; its link check now also runs on the open file through the
 same `RealPath` unit.
 
-Whatever the model or policy, the subsystem refuses network paths (UNC and `//host`), device paths, alternate data
+Whatever the model or policy, the subsystem refuses network paths (UNC and `//host`), device paths (on Windows also a
+reference the system maps to a device, such as a legacy device name like `NUL` in a component), alternate data
 streams, control characters, and anything that is not a regular file (a directory, a device, a named pipe, opened
 without blocking on Linux and macOS), and it keeps every resource limit: the byte limit of one file
 (`MaxFileBytes`, 16 MiB by default) and an optional limit on the number of distinct files one resolver opens
 (`MaxFiles`). Any other limit (include depth, cycles, text length) belongs to the caller.
+
+On Windows, `FileReferenceResolver` also refuses, under every policy, a file whose path as written is local but
+whose opened file lies on a network share (a symbolic link to a UNC target); a path the host itself placed on a
+mapped network drive or share is not affected. Opening the file is what follows the link, so the open itself may
+already contact the share (and offer the user's credentials) before the check refuses the file; Windows evaluates
+local-to-remote symbolic links according to `fsutil behavior set SymlinkEvaluation` (local-to-remote is enabled by
+default). Hosts that let untrusted parties create symbolic links in folders documents are read from should disable
+it (`L2R:0`). Junctions cannot target a share, and creating a symbolic link needs a privilege or Developer Mode.
+
+Known limit: paths are compared case-insensitively on Windows and macOS (their default file systems). On a
+case-sensitive volume or directory of those systems, a sibling folder whose name differs from a root only in letter
+case counts as inside that root; hosts should not configure roots next to such folders.
 
 ### Units
 
@@ -53,7 +66,7 @@ without blocking on Linux and macOS), and it keeps every resource limit: the byt
 
 The subsystem exposes the public types listed above in the `DemaConsulting.CanvasNet.Files` namespace. It consumes
 only the .NET base class library and, through the `RealPath` unit alone, the operating system: `kernel32.dll` on
-Windows, the C library and `/proc/self/fd` on Linux, and the C library (`proc_pidfdinfo`) on macOS.
+Windows, the C library and `/proc/self/fd` on Linux, and the C library (`proc_pidfdinfo` and `realpath`) on macOS.
 
 ### Design
 
@@ -65,6 +78,7 @@ flowchart LR
     Caller --> SandboxedFileResolver
     FileReferenceResolver --> FileAccessPolicy
     FileReferenceResolver --> RealPath
+    SandboxedFileResolver --> FileReferenceResolver
     SandboxedFileResolver --> RealPath
     SandboxedFileResolver --> FileAccessPolicy
     FileAccessPolicy --> RealPath
@@ -72,10 +86,12 @@ flowchart LR
 
 `FileReferenceResolver` validates the text, builds the candidates, lets the policy refuse a path as written before
 the open, opens the candidate through `RealPath`, asks `RealPath` for the facts of the open handle, asks the policy,
-and reads from the handle. `SandboxedFileResolver` keeps its own search, link walk, and cache, and delegates the open,
-the handle facts, and the post-open link check (the `NoSymlinks` policy anchored at the root) to the same code, plus
-the bounded read of `FileReferenceResolver`. The built-in policies use `RealPath` to compare paths and to find the
-real location of a root or anchor folder.
+and reads from the handle. The policy's base directory is the host-chosen directory the chain of references started
+from, never a referring document's folder. `SandboxedFileResolver` keeps its own search, link walk, and cache, and
+delegates the open, the handle facts, and the post-open link check (the link match of the `NoSymlinks` policy,
+`MatchesWithoutLinks`, anchored at the root) to the same code, plus the bounded read of `FileReferenceResolver`
+(`ReadBounded`). The built-in policies use `RealPath` to compare paths and to find the real location of a root or
+anchor folder.
 
 ### Dependencies
 

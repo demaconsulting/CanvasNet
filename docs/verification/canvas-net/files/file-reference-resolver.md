@@ -69,12 +69,17 @@ segments give the same instance; a drive path is absolute on Windows and invalid
 ##### CanvasNet-Files-FileReferenceResolver-PathText: Text That Is Never Allowed
 
 **Tests**: `FileReferenceResolver_Resolve_HostilePathText_IsRejectedWithoutAnyAccess`,
-`FileReferenceResolver_Resolve_NullPath_ThrowsArgumentNullException`
+`FileReferenceResolver_Resolve_NullPath_ThrowsArgumentNullException`,
+`FileReferenceResolver_Resolve_LegacyDeviceName_IsInvalidPathAndNoDeviceIsOpened` (Windows)
 
 A theory over empty and white-space text, NUL, a line feed, DEL, a C1 control, an alternate data stream, a
 drive-relative path, UNC paths in both slash styles, and `\\?\` and `\\.\` device paths asserts the matching kind in
 file-system and callback mode, a printable reference, a message that says the path is not allowed, and that nothing was
-opened or requested. A null reference is an `ArgumentNullException`.
+opened or requested. A null reference is an `ArgumentNullException`. On Windows a theory over `x/NUL`, `NUL`,
+`x/NUL` (trailing space), `x/CON`, `x/COM1` and `x/LPT1` asserts that a name the running Windows version maps to a
+device (`Path.GetFullPath` gives `\\.\`) is `InvalidPath` with the reason "the path names a device" and nothing
+opened, that a name it does not map is an ordinary missing file, that `x/NUL` is `InvalidPath` on every version, and
+that no device path is ever opened.
 
 ##### CanvasNet-Files-FileReferenceResolver-MissingFiles: Not Found Is Not a Failure
 
@@ -93,12 +98,39 @@ through to it; "not found" from the open tries the next candidate; a resolver wi
 `FileReferenceResolver_Resolve_CachedFile_IsReCheckedOnEveryResolveButReadOnce`,
 `FileReferenceResolver_Resolve_UnderRootsPreCheck_DeniesBeforeTheOpen`
 
-The request carries the reference, the configured referrer (top level) or the referring file's key, the base directory,
-the requested path, and the real path (the real location of the folder plus the file name); a denial carries the
-reason, hint, policy name and both paths, and its message names the policy but neither the temporary directory nor the
-reason; a denial ends the search; a throwing or `null`-returning policy denies and a cancellation passes through; a
-cached file is opened once while the policy is asked on every resolve and a later denial wins; a roots policy refuses a
-path written outside its roots before the open, which does not count against the file limit.
+The request carries the reference, the configured referrer (top level) or the referring file's key, the base directory
+(the chain origin, also for the nested reference), the requested path, and the real path (the real location of the
+folder plus the file name); a denial carries the reason, hint, policy name and both paths, and its message names the
+policy but neither the temporary directory nor the reason; a denial ends the search; a throwing or `null`-returning
+policy denies and a cancellation passes through; a cached file is opened once while the policy is asked on every resolve
+and a later denial wins; a roots policy refuses a path written outside its roots before the open, which does not count
+against the file limit.
+
+##### CanvasNet-Files-FileReferenceResolver-ChainOrigin: The Policy's Base Directory Is the Chain Origin
+
+**Tests**: `FileReferenceResolver_Resolve_ReferrerFolderSwappedForLinkAfterItWasRead_IsAccessDeniedUnderNoSymlinks`
+(Windows, Linux and macOS), `FileReferenceResolver_Resolve_NestedReference_RequestBaseDirectoryIsTheChainOrigin`,
+`FileReferenceResolver_Resolve_RelativeToFromAnotherResolver_ThrowsArgumentException`
+
+A document is read from `base/sub` under `NoSymlinks`; just before the referenced open (a `BeforeOpen` seam that fires
+only for the referenced file), `base/sub` is replaced by a directory link to an outside folder holding the referenced
+name: the nested reference is `AccessDenied` by `no-symlinks` and nothing is returned (the same test is allowed when the
+anchor is taken from the referrer's folder, which is the defect it guards against). With a base directory and a search
+path, a file found under the search path and a reference relative to it both give the policy the search path as the
+base directory, and the second request names the first file as the referrer. A file returned by one resolver is an
+`ArgumentException` (parameter `relativeTo`) as the starting point of another resolver over the same tree, even one
+that has read the same file, while that resolver's own file is accepted.
+
+##### CanvasNet-Files-FileReferenceResolver-NetworkTarget: A Link to a Share Is Refused
+
+**Tests**: `FileReferenceResolver_Resolve_LocalPathWhoseRealPathIsANetworkShare_IsNetworkPathUnderEveryPolicy`
+(Windows)
+
+A real local file whose real path is reported (through the `RealPathOf` seam) as `\\server\share\a.txt` is
+`NetworkPath` under `AllowAll`, `NoSymlinks` and `UnderRoots`, with that real path, the reason "it leads to a network
+location", and no temporary directory in the message; a second resolve fails the same way without opening the file
+again. A real link to a share and a mapped network drive cannot be created on CI, so the exemption of a written path
+that is itself a network location is covered by `RealPath-NetworkLocation` and by review.
 
 ##### CanvasNet-Files-FileReferenceResolver-RaceFree: The Decision Follows the Open Handle
 

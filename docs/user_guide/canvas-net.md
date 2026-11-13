@@ -2205,7 +2205,8 @@ callback paths and case-insensitive for full paths on Windows and macOS).
 its check: before a single byte is read, the **open file** is verified - its real path, asked of the operating
 system for the open handle (not the name), must be the root's real location followed by the path below the root,
 otherwise the file is `ThroughLink`; where the system cannot tell the real path of an open file, the file is
-refused (`LinkCheckFailed`). Devices and named pipes below a root are `CannotRead`, and opening a named pipe never
+refused (`LinkCheckFailed`), also when the real location of the root cannot be determined (a root you may search
+but not read has one). Devices and named pipes below a root are `CannotRead`, and opening a named pipe never
 blocks. A hard link to a file outside the directories is still read like any other file (a hard link is the file
 itself), so point the sandbox only at directories that untrusted parties cannot write to, or serve the files
 yourself with `FileResolver`.
@@ -2355,15 +2356,27 @@ The policy is asked **after the file was opened and before a byte is read**, abo
 (`FileAccessRequest.RealPath`), and the bytes are read from that same open file. A link that another process swaps in
 or out after a check therefore cannot change what is read. `UnderRoots` also refuses a path written outside its
 folders before the file is opened. `NoSymlinks` trusts the deepest folder shared by the written path and the base
-directory and everything above it (so a linked home or temporary folder is fine) and refuses any link below it. A hard
-link is the file itself and is not detected.
+directory or search path the chain of references started from - never a referring document's folder - and everything
+above it (so a linked home or temporary folder is fine), and refuses any link below it. A hard link is the file itself
+and is not detected. On Windows and macOS paths are compared without regard to letter case: on a case-sensitive volume
+or directory of those systems, a sibling folder whose name differs from a root only in letter case counts as inside
+it, so do not configure roots next to such folders.
 
 Under **every** policy the resolver refuses a network path (`\\server\share`, `//host`) as `NetworkPath`, a device path
-(`\\?\`, `\\.\`) or an alternate data stream (any colon other than a Windows drive) as `InvalidPath`, a control
+(`\\?\`, `\\.\`), a Windows legacy device name (such as `NUL` in a component), or an alternate data stream (any colon
+other than a Windows drive) as `InvalidPath`, a control
 character, and anything that is not a regular file (a directory, a device such as `/dev/zero`, a named pipe, which never
 blocks the open) as `NotARegularFile`, and it keeps `MaxFileBytes` and `MaxFiles`. A policy other than `AllowAll` needs
 the real path of the open file: Windows, Linux (with `/proc` mounted), and macOS provide it; elsewhere such a policy
 refuses every file with `RealPathUnavailable`. A policy that throws or returns no decision denies the file.
+
+On Windows, a path written as a local path whose opened file lies on a network share (a symbolic link to a UNC
+target) is refused under every policy as `NetworkPath`; files you place on a mapped network drive or share yourself
+keep working. Opening the file is what follows the link, so the open itself may already contact the share (and offer
+the user's credentials) before the check refuses the file. Windows evaluates local-to-remote symbolic links according
+to `fsutil behavior set SymlinkEvaluation` (local-to-remote is enabled by default); if untrusted parties can create
+symbolic links in folders documents are read from, disable it (`L2R:0`). Junctions cannot target a share, and creating
+a symbolic link needs a privilege or Developer Mode.
 
 A denial is a `FileReferenceException` with `Kind == AccessDenied`, the policy's `PolicyName`, `Reason` and `Hint`, and
 the `RequestedPath` and `RealPath`. **The message names the reference and the policy but never a host directory or the
@@ -2390,7 +2403,8 @@ try
 }
 catch (FileReferenceException ex) when (ex.Kind == FileReferenceFailureKind.AccessDenied)
 {
-    Console.WriteLine($"{ex.Message} ({ex.Reason}; {ex.Hint})");
+    Console.WriteLine(ex.Message); // safe to show to the document's author
+    System.Diagnostics.Trace.TraceWarning($"{ex.Reason}; {ex.Hint}"); // host log only: may name host folders
 }
 ```
 
@@ -2400,8 +2414,8 @@ catch (FileReferenceException ex) when (ex.Kind == FileReferenceFailureKind.Acce
   and by `Resolve` when `reference` is null.
 - `ArgumentOutOfRangeException`: Thrown by the constructor when `MaxFileBytes` is not positive or `MaxFiles` is
   negative.
-- `ArgumentException`: Thrown by `Resolve` when `relativeTo` comes from the other mode (file system or callback), and by
-  the policy factories for invalid arguments.
+- `ArgumentException`: Thrown by `Resolve` when `relativeTo` was not returned by this resolver (including one from the
+  other mode, file system or callback), and by the policy factories for invalid arguments.
 - `FileReferenceException`: Thrown by `Resolve` for every refusal and read failure described above.
 - `OperationCanceledException`: Thrown by `Resolve` when the token is canceled.
 

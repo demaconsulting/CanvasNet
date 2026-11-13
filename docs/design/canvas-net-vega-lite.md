@@ -525,21 +525,21 @@ input:
   CanvasNetTool
   maps them to `vega-lite-error`, `corrupt-input` (as for an overlong SCAD model), `budget-exceeded`, and `size-limit`
   respectively; no other argument failure is a size or a usage problem.
-- **Sandboxed local data, no network.** Opening reads only the text it is given. A data `url` is read only by
-  `Measure` and `Render`, and only when it is a relative local path: a URL with a scheme, a drive letter, an absolute
-  path, or a network path reports `vl-data-remote-url`, is **never fetched and never handed to the file resolver or
-  the callback**, and uses an empty dataset (strict mode throws). A relative path is confined to a root (the base
-  directory, then each data path, in order) by normalizing `.` and `..` and refusing a path that leaves its root;
-  rooted, drive, UNC, colon, empty, and control-character paths are refused outright; every component below a root
-  is checked before the file is opened and a symbolic link or junction is refused, and the check fails closed when
-  it cannot answer. With a `FileResolver` callback no file-system access happens at all. A file is read as bytes under
-  `MaxDataBytes` and decoded as strict UTF-8, and each call reads each distinct file at most once. A local file that
-  cannot be used (including an existing directory in place of a file, an open that fails, and a callback or callback
-  stream that throws) is a `VegaLiteRenderException`, in lenient and strict mode alike, never an empty dataset. The
-  residual risk is a concurrent writer that replaces a checked path with a link before it is opened; the resolver
-  does not defend against it, and a deployment that renders files an attacker can modify must not share the
-  directory with them. No code in the specification is ever executed: an expression is text that a bounded interpreter
-  runs over data values (see _Closed-world expressions_ below), never host code.
+- **Sandboxed local data, no network.** Opening reads only the text it is given. A data `url` is read only by `Measure`
+  and `Render`, and only when it is a relative local path: a URL with a scheme, a drive letter, an absolute path, or a
+  network path reports `vl-data-remote-url`, is **never fetched and never handed to the file resolver or the callback**,
+  and uses an empty dataset (strict mode throws). A relative path is confined to a root (the base directory, then each
+  data path, in order) by normalizing `.` and `..` and refusing a path that leaves its root; rooted, drive, UNC, colon,
+  empty, and control-character paths are refused outright; every component below a root is checked before the file is
+  opened and a symbolic link or junction is refused, and the check fails closed when it cannot answer. With a
+  `FileResolver` callback no file-system access happens at all. A file is read as bytes under `MaxDataBytes` and decoded
+  as strict UTF-8, and each call reads each distinct file at most once. A local file that cannot be used (including an
+  existing directory in place of a file, an open that fails, and a callback or callback stream that throws) is a
+  `VegaLiteRenderException`, in lenient and strict mode alike, never an empty dataset. A link swapped into the tree
+  after the check is refused, because the sandbox verifies the open file before reading it; the residual risk is a hard
+  link (which is the file itself) to a file outside the folders, so a deployment that renders files an attacker can
+  modify must not share the directory with them. No code in the specification is ever executed: an expression is text
+  that a bounded interpreter runs over data values (see _Closed-world expressions_ below), never host code.
 - **Closed-world expressions.** The expression language is a subset of JavaScript that an interpreter written for this
   package runs: there is no reflection, `eval`, assignment, `new`, function expression, file or network access, clock,
   or

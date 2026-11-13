@@ -815,7 +815,8 @@ across all target frameworks, with one documented exception: the `RealPath` unit
 subsystem asks the operating system for the real path and the type of an **open file handle**, which no
 BCL API provides and which a race-free file-access check needs. It calls `kernel32.dll` on Windows
 (`GetFinalPathNameByHandleW`, `GetFileType`, `CreateFileW`, `GetLongPathNameW`), the C library on Linux
-(`open`, `fstat`) together with `/proc/self/fd`, and the C library on macOS (`open`, `proc_pidfdinfo`).
+(`open`, `fstat`) together with `/proc/self/fd`, and the C library on macOS (`open`, `proc_pidfdinfo`,
+`fstat`, `realpath`).
 These calls are confined to that one unit (see _RealPath Unit Design_), use no unsafe code, and fail
 closed: where they are unavailable, the default file-access policy still works and every restrictive
 policy refuses the file. No other platform-specific native interop or framework-version-specific feature

@@ -38,15 +38,17 @@ sections:
                   The FileReferenceResolver class shall refuse, before any file-system access or callback request
                   and under every policy, an empty or white-space reference, a reference with a control character
                   (including NUL, DEL and the C1 range), a device path, a network path (UNC or a leading double
-                  slash), and a reference with a colon other than the drive of an absolute Windows path, each with
-                  a FileReferenceException of the matching kind, and shall reject a null reference with
-                  ArgumentNullException.
+                  slash), a reference with a colon other than the drive of an absolute Windows path, and, on Windows,
+                  a reference whose full path the system maps to a device (a legacy device name such as NUL in a
+                  component), each with a FileReferenceException of the matching kind, and shall reject a null
+                  reference with ArgumentNullException.
                 justification: |
                   These forms are never a safe local file: network paths can leak credentials, device paths and
                   alternate data streams reach things that are not files, and control characters hide the real text.
                 tests:
                   - FileReferenceResolver_Resolve_HostilePathText_IsRejectedWithoutAnyAccess
                   - FileReferenceResolver_Resolve_NullPath_ThrowsArgumentNullException
+                  - "windows@FileReferenceResolver_Resolve_LegacyDeviceName_IsInvalidPathAndNoDeviceIsOpened"
 
               - id: CanvasNet-Files-FileReferenceResolver-MissingFiles
                 title: >-
@@ -65,7 +67,8 @@ sections:
                 title: >-
                   The FileReferenceResolver class shall ask the configured file-access policy about every file it
                   opens, before reading it, with the reference as written, the referring file (or the configured
-                  referrer path), the base directory, the path that was opened and the real path of the opened file;
+                  referrer path), the host-chosen directory the chain of references started from, the path that was
+                  opened and the real path of the opened file;
                   shall read the file only when the policy allows it; shall end the search on a denial; shall treat a
                   policy that throws or returns no decision as a denial while letting a cancellation pass through;
                   shall ask the policy again whenever a cached file is resolved again; and shall let a policy refuse
@@ -79,6 +82,34 @@ sections:
                   - FileReferenceResolver_Resolve_ThrowingOrNullPolicy_IsAccessDeniedAndCancellationPassesThrough
                   - FileReferenceResolver_Resolve_CachedFile_IsReCheckedOnEveryResolveButReadOnce
                   - FileReferenceResolver_Resolve_UnderRootsPreCheck_DeniesBeforeTheOpen
+
+              - id: CanvasNet-Files-FileReferenceResolver-ChainOrigin
+                title: >-
+                  The FileReferenceResolver class shall give the file-access policy, as the base directory of every
+                  request, the host-chosen base directory or search path where the chain of references started -
+                  never the directory of a referring document - and shall reject with ArgumentException a
+                  starting-point file that this resolver instance did not return.
+                justification: |
+                  A referring document's folder can be swapped for a link after the document was read, so it must
+                  not become a trusted anchor, and a file from another resolver carries another resolver's trust.
+                tests:
+                  - "windows@FileReferenceResolver_Resolve_ReferrerFolderSwappedForLinkAfterItWasRead_IsAccessDeniedUnderNoSymlinks"
+                  - "ubuntu@FileReferenceResolver_Resolve_ReferrerFolderSwappedForLinkAfterItWasRead_IsAccessDeniedUnderNoSymlinks"
+                  - "macos@FileReferenceResolver_Resolve_ReferrerFolderSwappedForLinkAfterItWasRead_IsAccessDeniedUnderNoSymlinks"
+                  - FileReferenceResolver_Resolve_NestedReference_RequestBaseDirectoryIsTheChainOrigin
+                  - FileReferenceResolver_Resolve_RelativeToFromAnotherResolver_ThrowsArgumentException
+
+              - id: CanvasNet-Files-FileReferenceResolver-NetworkTarget
+                title: >-
+                  On Windows the FileReferenceResolver class shall refuse with NetworkPath, under every policy and
+                  without reading it, an opened file whose real path is a network location while the path as written
+                  is not (a link to a share), and shall read files whose path as written is itself on a mapped network
+                  drive or share.
+                justification: |
+                  A link from a local folder to a share would make a document reach the network (and offer the
+                  user's credentials) where the host expected a local file; a host working on a share keeps working.
+                tests:
+                  - "windows@FileReferenceResolver_Resolve_LocalPathWhoseRealPathIsANetworkShare_IsNetworkPathUnderEveryPolicy"
 
               - id: CanvasNet-Files-FileReferenceResolver-RaceFree
                 title: >-
