@@ -73,6 +73,38 @@ sections:
           - SourceLoader_Probe_Vsdx_ListsPagesWithNamesAndSizes
           - SourceLoader_Probe_ModelWithDirectives_ListsModulesFunctionsAndDirectives
 
+      - id: CanvasNetViewer-Imaging-SourceLoader-FileAccess
+        title: >-
+          The SourceOptions class shall carry the file-access policy of a load (FileAccess, the allow-all policy by
+          default, null refused), and the SourceLoader class shall apply it to every file a loaded file references,
+          also while it probes the file during the load; the SourceLoader class shall offer Probe overloads that
+          take a policy for a path and for an input and apply it to the files a probe reads besides the named file
+          (the data files of a chart, the includes of a model), the overloads without a policy using the allow-all
+          policy; and it shall never judge the file the caller named.
+        justification: |
+          A probe that reads further files must not be a way around the policy of the host, and the caller chose
+          the named file itself.
+        tests:
+          - FlattenMontageAndSourceOptions_FileAccess_DefaultToAllowAllAndRejectNull
+          - SourceLoader_Load_IncludeOutsideTheRoots_ThrowsFileAccessDenied
+          - SourceLoader_Load_VegaLiteDataOutsideTheRoots_ThrowsFileAccessDenied
+          - CanvasNetViewer_SystemIntegration_FileAccess_DefaultFollowsAndPolicyConfinesEveryReferenceKind
+
+      - id: CanvasNetViewer-Imaging-SourceLoader-FileAccessDenied
+        title: >-
+          The SourceLoader class shall report a reference the file-access policy denied as a ViewerException with the
+          code file-access-denied - for an include of a model and a data file of a chart always, and for a link of an
+          SVG file, a chart, or a diagram in strict mode - with a message that names the reference, the policy and its
+          reason but no host directory.
+        justification: |
+          A script must be able to tell a refused file from a missing or broken one and fix the policy or the
+          document accordingly.
+        tests:
+          - SourceLoader_Load_IncludeOutsideTheRoots_ThrowsFileAccessDenied
+          - SourceLoader_Load_VegaLiteDataOutsideTheRoots_ThrowsFileAccessDenied
+          - SourceLoader_Load_MermaidPictureOutsideTheRoots_IsAccessDeniedAndStrictFails
+          - CanvasNetViewer_Render_StrictDeniedLink_ThrowsFileAccessDenied
+
       - id: CanvasNetViewer-Imaging-SourceLoader-Raster
         title: >-
           The SourceLoader class shall decode a PNG, JPEG, BMP, TIFF, GIF, or JPEG 2000 file at its own
@@ -101,16 +133,17 @@ sections:
           The SourceLoader class shall, when it loads an SVG file, hand the SVG library the image resolver that
           CanvasNetViewer creates for the folder of the SVG file the user named (so that an image element with a
           relative href draws a raster, an SVG file, an OpenSCAD model, a Vega-Lite chart, a Mermaid diagram, or the
-          first page of a PDF, PPTX, or VSDX document from that folder and below only, decided by the file name
-          extension, with the sandbox, nesting, and count limits of the core library); shall not pass the outer sizing,
+          first page of a PDF, PPTX, or VSDX document relative to that folder, decided by the file name extension,
+          under the file-access policy of the source options and with the nesting and count limits of the core
+          library); shall not pass the outer sizing,
           page, resolution, and model options on to an embedded file; shall add the notes and printed lines of an
           embedded file to the result, each note starting with the href; and shall list each file that the SVG file
           itself embeds, and no file embedded further down, as an embed operation.
         justification: |
           A diagram is often the place where a model, a chart, and a picture belong together; the tool wires in
-          the one resolver the library provides, so rendering a diagram from an untrusted source cannot read other
-          folders, the behavior is the same as for an application that uses the library, and the tool carries no
-          second copy of the rules.
+          the one resolver the library provides, so rendering a diagram from an untrusted source under a confining
+          policy cannot read other folders, the behavior is the same as for an application that uses the library,
+          and the tool carries no second copy of the rules.
         tests:
           - SourceLoader_Load_SvgEmbeddingPng_DrawsPictureAndListsEmbedOperation
           - SourceLoader_Load_SvgEmbeddingScad_DrawsModelOverTransparentBackground
@@ -125,11 +158,12 @@ sections:
       - id: CanvasNetViewer-Imaging-SourceLoader-SvgEmbeddingUnresolved
         title: >-
           The SourceLoader class shall report an image href of an SVG file that is not drawn (a file that
-          is missing, outside the folder, behind a link, or of an unknown format, a network URL, a cycle, or a
-          limit) as the warning svg-image-unresolved naming the href and the reason, and a picture that is too
+          is missing or of an unknown format, a network URL, a cycle, or a limit) as the warning
+          svg-image-unresolved naming the href and the reason, a link the file-access policy denies as the warning
+          image-access-denied naming the href, the policy and its reason, and a picture that is too
           large for the pixel budget of the render (refused by the resolver before it is decoded) as the warning
           svg-image-too-large, leaving the rest of the drawing unchanged, and in strict mode either as an
-          unsupported-feature error instead.
+          unsupported-feature error instead (file-access-denied for a denied link).
         justification: |
           An image that silently lacks part of the diagram misleads the agent that looks at it; the warning
           says which reference was left out and why, and strict mode is for callers that cannot accept the
@@ -329,13 +363,15 @@ sections:
       - id: CanvasNetViewer-Imaging-SourceLoader-ScadIncludes
         title: >-
           The SourceLoader class shall read the files named by the include and use directives of an
-          OpenSCAD model relative to the folder of the file that names them and only inside the folder
-          of the model and below it (never following a link, and never reading a file outside), and
-          shall report a directive whose file cannot be found, a path that leaves the folder, an include
-          cycle, and a syntax error in an included file as scad-error errors that name the place.
+          OpenSCAD model relative to the folder of the file that names them under the file-access policy
+          of the source options (by default anywhere, as OpenSCAD does), shall report a directive whose
+          file the policy denies as a file-access-denied error, and shall report a directive whose file
+          cannot be found, an include cycle, and a syntax error in an included file as scad-error errors
+          that name the place.
         justification: |
-          Models are split into files, but a model must not be able to read other files of the machine,
-          and a picture drawn without a file the model asked for would be wrong without saying so.
+          Models are split into files; a host that renders untrusted models must be able to keep them from
+          reading other files of the machine, and a picture drawn without a file the model asked for would
+          be wrong without saying so.
         tests:
           - SourceLoader_Load_IncludeAndUse_AreReadFromTheModelFolderAndBelow
           - SourceLoader_Load_NestedInclude_IsRelativeToTheIncludingFile
@@ -426,19 +462,19 @@ sections:
       - id: CanvasNetViewer-Imaging-SourceLoader-VegaLiteData
         title: >-
           The SourceLoader class shall measure and draw a Vega-Lite chart whose data is in a local file named by
-          a relative url by opening the specification by its path, so that the data is read from the folder of
-          the specification and below it (never the current directory, another folder, or the network), exactly
-          as the same chart with inline rows, and shall name the data file in the chart facts; shall report a
-          local data file that is missing, outside the folder of the specification, or not valid text as a
-          vega-lite-error in lenient and strict mode alike, never as an empty chart; shall report remote data
+          a local url by opening the specification by its path, so that a relative url is read from the folder of
+          the specification under the file-access policy of the source options (never the current directory or the
+          network), exactly as the same chart with inline rows, and shall name the data file in the chart facts;
+          shall report a local data file the policy denies as file-access-denied and one that is missing or not
+          valid text as a vega-lite-error in lenient and strict mode alike, never as an empty chart; shall report remote data
           only as a diagnostic (an unsupported-feature error with the strict switch) and never fetch it; and
           shall report a data limit of the library (rows or bytes of a file) as budget-exceeded and every other
           data failure as vega-lite-error.
         justification: |
           A chart is only as useful as its data, and the data of a chart that an agent was given sits beside it;
-          reading exactly that folder keeps the result independent of the working directory and keeps an
-          untrusted chart from reaching other files or hosts, while a coded error for a missing or oversized
-          file tells a script what to fix.
+          resolving from that folder keeps the result independent of the working directory, a confining policy
+          keeps an untrusted chart from reaching other files, and the network is never used, while a coded error
+          for a missing, denied, or oversized file tells a script what to fix.
         tests:
           - SourceLoader_Probe_VegaLiteLocalDataIsMeasuredFromSpecFolder
           - SourceLoader_Load_VegaLiteMissingDataMapsToVegaLiteError
@@ -766,18 +802,18 @@ sections:
 
       - id: CanvasNetViewer-Imaging-SourceLoader-ChartImages
         title: >-
-          The SourceLoader class shall give the image marks of a Vega-Lite chart the sandboxed image resolver of the
-          viewer, rooted at the folder of the chart (or the resolver of the embedding document when the chart is
+          The SourceLoader class shall give the image marks of a Vega-Lite chart the image resolver of the
+          viewer, for the folder of the chart (or the resolver of the embedding document when the chart is
           embedded), so that a url draws a raster, an SVG file, a model, a page of a document (report.pdf#page=2), or
-          another chart and never a file outside the folder or a remote resource, list each drawn file as an embed
+          another chart under the file-access policy and never a remote resource, list each drawn file as an embed
           operation and the echo of a model, report a link that was not drawn as the warning of the resolver
-          (svg-image-unresolved, svg-image-too-large, image-fragment-*, image-page-out-of-range) without the library's
+          (svg-image-unresolved, image-access-denied, svg-image-too-large, image-fragment-*, image-page-out-of-range) without the library's
           duplicate warning for the same link, fail with unsupported-feature naming the chart and the link for such a
           link when the strict option is set, name both files when a picture that is found cannot be loaded, report a
           chart with more pictures than the limit as budget-exceeded, and measure a chart without loading any picture.
         justification: |
           A chart on the command line must show the files beside it exactly as an SVG diagram does, under the same
-          sandbox, notes, and strict policy, so a specification can never read a file outside its folder.
+          file-access policy, notes, and strict policy, so a specification can never read a file the policy denies.
         tests:
           - SourceLoader_Load_VegaLiteImagePngAndScad_DrawsBothAndListsEmbedOperations
           - SourceLoader_Load_VegaLiteImagePdfPage_DrawsTheChosenPage
@@ -795,13 +831,13 @@ sections:
 
       - id: CanvasNetViewer-Imaging-SourceLoader-MermaidImages
         title: >-
-          The SourceLoader class shall give the picture nodes of a Mermaid diagram (@{ img: ... }) the sandboxed image
-          resolver of the viewer, rooted at the folder of the diagram (or the resolver of the embedding document when
+          The SourceLoader class shall give the picture nodes of a Mermaid diagram (@{ img: ... }) the image
+          resolver of the viewer, for the folder of the diagram (or the resolver of the embedding document when
           the diagram is embedded), so that a link draws a raster (stretched to the box of its node), an SVG file, a
-          model, a chart, a page of a document, or another diagram and never a file outside the folder, an absolute
-          path, or a remote resource; list each drawn file once as an embed operation at the size it was drawn and
+          model, a chart, a page of a document, or another diagram under the file-access policy and never a remote
+          resource; list each drawn file once as an embed operation at the size it was drawn and
           report each note of the resolver once; report a link that was not drawn (including a diagram that shows
-          itself) as the warning of the resolver (svg-image-unresolved) without the library's duplicate warning
+          itself) as the warning of the resolver (svg-image-unresolved or image-access-denied) without the library's duplicate warning
           mermaid-image-unresolved for the same link; fail with unsupported-feature naming the diagram and the link for
           such a link when the strict option is set; name both files when a picture that is found cannot be loaded;
           and, when a picture node without its w and h makes a diagram drawn at its natural size larger than the probe
@@ -809,7 +845,7 @@ sections:
           report the natural size of the drawn diagram (the drawn size over the scale).
         justification: |
           A diagram on the command line must show the files beside it exactly as an SVG drawing and a chart do, under
-          the same sandbox, notes, and strict policy, so a diagram can never read a file outside its folder, and an
+          the same file-access policy, notes, and strict policy, so a diagram can never read a file the policy denies, and an
           agent reads one note and one operation for each picture. The pixel budget must hold for the picture that is
           returned, not for the size guessed without the pictures, and the reported natural size must describe it.
         tests:

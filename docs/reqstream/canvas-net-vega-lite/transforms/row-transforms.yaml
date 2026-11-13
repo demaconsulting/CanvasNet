@@ -219,7 +219,7 @@ sections:
                   and skipping a lookup whose source is a parameter.
                 justification: |
                   Lookup joins a second table into the chart data; the first-match rule and the shared loader
-                  make the result deterministic and keep the file sandbox in force.
+                  make the result deterministic and keep the file-access policy in force.
                 tests:
                   - RowTransforms_Apply_LookupCopiesFieldsOfTheFirstMatch
                   - RowTransforms_Apply_LookupDefaultNamesTextKeysAndWholeRows

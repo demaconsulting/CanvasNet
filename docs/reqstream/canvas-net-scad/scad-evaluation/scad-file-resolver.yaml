@@ -7,11 +7,12 @@
 # ScadFileResolver.Paths, ScadSourceUnit) in the DemaConsulting.CanvasNet.Scad.Evaluation namespace.
 #
 # The resolver is the only code that touches the file system or calls the caller's file resolver, and it does
-# so only through the core sandboxed file resolver (CanvasNet-Files-SandboxedFileResolver-*, which carries the
-# requirements and tests of the sandbox mechanics): environment variables are never consulted, and a path may
-# only name a file under the base directory or a library path (file-system mode) or a logical path handed to
-# the caller's callback (resolver mode). The requirements here cover what is specific to OpenSCAD (search
-# context, cycles and limits, decoding, and the wording and location of each refusal). Each "tests" entry
+# so only through the core file-access engine (CanvasNet-Files-FileReferenceResolver-* and
+# CanvasNet-Files-FileAccessPolicy-*, which carry the requirements and tests of the engine): environment
+# variables are never consulted, a path on disk is judged by the file-access policy of the open options, and
+# a logical path is handed to the caller's callback (resolver mode). The requirements here cover what is
+# specific to OpenSCAD (search context, cycles and limits, decoding, and the wording and location of each
+# refusal). Each "tests" entry
 # cites an existing test method in the
 # DemaConsulting.CanvasNet.Scad.Tests project; see
 # docs/verification/canvas-net-scad/scad-evaluation/scad-file-resolver.md for the test-evidence mapping.
@@ -84,29 +85,25 @@ sections:
                   - ScadFileResolver_Load_TwoSpellingsOfOnePath_AreOneFile
                   - ScadFileResolver_Load_FileNameCase_FollowsPlatform
 
-              - id: CanvasNetScad-ScadEvaluation-ScadFileResolver-Sandbox
+              - id: CanvasNetScad-ScadEvaluation-ScadFileResolver-FileAccess
                 title: >-
-                  The ScadFileResolver unit shall confine every file access to the base directory and
-                  the configured library paths by delegating to the core sandboxed file resolver, and
-                  shall report each of its refusals as an evaluation error located at the directive,
-                  without asking the caller's resolver or the file system: an absolute path, a drive or
-                  colon, an empty path, a control character (including the C1 range), a path that
-                  climbs above its root, and a configured directory that is not a valid path, while
-                  allowing dot-dot segments that stay inside the root; it shall refuse an existing
-                  file outside every root, including a sibling folder that merely shares a name
-                  prefix with a root; in file-system mode it shall also refuse a file that is, or
-                  that lies beneath a directory that is, a symbolic link or junction below its root,
-                  whatever the link's target and including a dangling link (reported as a link error,
-                  not as a missing file), without reading the file or revealing whether it exists,
-                  naming the link relative to its root, and failing closed when the link check cannot
-                  be completed; a file that is found through two overlapping roots shall be parsed and
-                  confined once per root, so its own relative includes are always judged against the root
-                  it was found under.
+                  The ScadFileResolver unit shall read every included or used file through the core
+                  file-access engine under the file-access policy of the open options (by default every
+                  regular local file, also through dot-dot, an absolute path, and a symbolic link or
+                  junction), and shall report as an evaluation error located at the directive, without
+                  asking the caller's resolver or the file system, a path that is never allowed (a UNC
+                  path, an alternate data stream, a control character including the C1 range, an empty
+                  path, a path that is not valid on the platform, and in resolver mode an absolute path
+                  or one that climbs above its root) and a configured directory that is not a valid path;
+                  it shall report a file the policy denies (an existing file outside the roots of a
+                  confining policy, including a sibling folder that merely shares a name prefix with a
+                  root, or a link refused by the no-links policy) as an evaluation error located at the
+                  directive that names the policy, its reason and its hint, without revealing whether
+                  the file exists, and shall report a dangling link as a missing file.
                 justification: |
-                  A document may come from an untrusted source; an include path must never be a way to
-                  read arbitrary files of the host. A link inside an allowed directory can point
-                  anywhere, so a link is refused instead of being followed; the author must be told
-                  which rule the path broke.
+                  Includes resolve the way OpenSCAD resolves them by default; a host that evaluates
+                  untrusted models confines them with a policy, and an include path must then never be a
+                  way to read a file the policy denies. The author must be told which rule the path broke.
                 tests:
                   - ScadFileResolver_Load_HostilePath_InResolverMode_ThrowsWithoutAskingResolver
                   - ScadFileResolver_Load_HostilePath_InFileSystemMode_Throws
@@ -122,6 +119,15 @@ sections:
                   - ScadFileResolver_Load_SameFileThroughOverlappingRoots_IsJudgedByThePolicyRoots
                   - ScadFileResolverLink_Translate_EveryFailureKind_ProducesLocatedWording
                   - ScadFileResolverLink_Translate_TooLarge_IsSourceTooLong
+                  - ScadFileResolverLink_Load_RealDanglingLink_IsMissingUnderEveryPolicy
+                  - ScadFileResolverLink_Load_RealDirectoryLink_EscapingRoot_Default_IsFollowed
+                  - ScadFileResolverLink_Load_RealDirectoryLink_EscapingRoot_NoSymlinks_IsDenied
+                  - ScadFileResolverLink_Load_RealDirectoryLink_EscapingRoot_UnderRoots_IsDenied
+                  - ScadFileResolverLink_Load_RealDirectoryLink_InsideRoot_NoSymlinks_IsDenied
+                  - ScadFileResolverLink_Load_RealDirectoryLink_InsideRoot_UnderRoots_IsAllowed
+                  - ScadFileResolverLink_Load_RealFileLink_Default_IsFollowed
+                  - ScadFileResolverLink_Load_RealFileLink_NoSymlinks_IsDenied
+                  - ScadFileResolverLink_Load_RealLinkedBaseDirectoryItself_IsAllowed
 
               - id: CanvasNetScad-ScadEvaluation-ScadFileResolver-ResolverCallback
                 title: >-
@@ -150,8 +156,8 @@ sections:
                   When no resolver is supplied, the ScadFileResolver unit shall read included files
                   from the file system as UTF-8 with byte-order-mark detection, resolving relative
                   includes against the folder of an opened file, and shall report a directory in
-                  place of a file as an evaluation error located at the directive (it exists but
-                  cannot be read, so it is not a missing file).
+                  place of a file as an evaluation error located at the directive saying it is not a
+                  regular file (it exists but cannot be read, so it is not a missing file).
                 justification: |
                   Opening a model from disk and including its neighbors is the common case and must
                   work without any callback.
@@ -175,6 +181,17 @@ sections:
                   - ScadFileResolver_Load_DiamondInclude_IsNotACycle
                   - ScadFileResolver_Load_MainFileIncludingItself_IsACycle
                   - ScadFileResolver_Load_IncludeBackToMain_IsACycle
+
+              - id: CanvasNetScad-ScadEvaluation-ScadFileResolver-AliasCycle
+                title: >-
+                  The ScadFileResolver unit shall recognize an included file by its real path as well as
+                  by the path as written, so that a cycle that returns to a file through a symbolic link
+                  or junction is rejected as an include cycle.
+                justification: |
+                  When links are followed, one file can be reached under several names; recognizing it by
+                  its real path keeps cycles finite.
+                tests:
+                  - ScadFileResolver_Load_IncludeCycleThroughLink_IsDetectedByRealPath
 
               - id: CanvasNetScad-ScadEvaluation-ScadFileResolver-DepthLimit
                 title: >-

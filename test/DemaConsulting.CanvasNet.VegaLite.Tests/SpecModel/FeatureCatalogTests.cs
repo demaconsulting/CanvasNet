@@ -251,7 +251,7 @@ public class FeatureCatalogTests
     ///     with a host and a text that is not a <c>file:</c> URI have none.
     /// </summary>
     [Fact]
-    public void FeatureCatalog_LocalPathOfFileUri_ReturnsThePathOfAHostlessUri()
+    public void FeatureCatalog_LocalPathOfFileUri_ReturnsThePathOfAUriWithoutHost()
     {
         // Arrange
         var path = Path.Combine(Path.GetTempPath(), "my data", "a.csv");

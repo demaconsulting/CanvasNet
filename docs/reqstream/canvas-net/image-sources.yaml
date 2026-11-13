@@ -4,7 +4,7 @@
 #
 # These requirements decompose the CanvasNet system's linked-picture support into the ImageSources subsystem's own
 # responsibility: letting a document that links to other pictures (an SVG image element, for example) draw them
-# through one resolver that confines every file link to a folder, hands the file (or the link, for a URI scheme a
+# through one resolver that reads every file link under a file-access policy, hands the file (or the link, for a URI scheme a
 # source claims) to the pluggable source that claims it, bounds the work, and reports what happened, without the
 # renderer or the resolver knowing any format (the ImageSourceContract, FolderImageResolver, and RasterImageSource
 # units). Each requirement here links down to the unit requirements that implement it.
@@ -37,22 +37,26 @@ sections:
               - ImageSourceRequest_SizeFor_AppliesSizingRule
               - ImageSourceResult_Constructor_RequiresSurfaceAndDefaultsToEmpty
 
-          - id: CanvasNet-ImageSources-Confinement
+          - id: CanvasNet-ImageSources-FileAccess
             title: >-
-              The ImageSources subsystem shall confine every file link to the folder of the resolver: it shall refuse
-              an absolute, drive, UNC, alternate-stream, control-character, outside-the-folder (also when
-              percent-encoded), network, or symbolic-link path without reading the file it names, accept a file: URI
-              only when it names a file inside the folder, and decode percent-encoded relative paths after cutting
-              off a query and a fragment (RFC 3986) so that neither can change the path or open a way out of the
-              folder.
+              The ImageSources subsystem shall resolve every file link relative to the folder of the file that contains
+              it and read the file only when the caller's file-access policy allows the opened file (by default every
+              regular local file, also through dot-dot, an absolute or drive path, a local file: URI or a symbolic link),
+              shall refuse a UNC, network, file URI with a host, alternate-stream, or control-character path under every
+              policy without reading the file it names, shall pass the policy, judged from the origin of the chain, to
+              every source it calls, and shall decode percent-encoded relative paths after cutting off a query and a
+              fragment (RFC 3986) so that neither can change the path or open a way past the policy.
             justification: |
-              A link comes from an untrusted document and must never become a way to read arbitrary files of the host
-              or to reach the network.
+              Links resolve the way Pandoc resolves them, while the host decides which files a document may read; a link
+              must never reach the network, and a policy must also hold for the files the linked models and charts read.
             children:
-              - CanvasNet-ImageSources-FolderImageResolver-Confinement
+              - CanvasNet-ImageSources-FolderImageResolver-FileAccess
               - CanvasNet-ImageSources-FolderImageResolver-FileUri
               - CanvasNet-ImageSources-FolderImageResolver-UriReference
+              - CanvasNet-ImageSources-FolderImageResolver-PolicyPropagation
+              - CanvasNet-ImageSources-ImageSourceContract-Request
             tests:
+              - FolderImageResolver_Resolve_FileRequest_CarriesThePolicyAnchoredAtTheChainOrigin
               - FolderImageResolver_Resolve_NeverAllowedReference_IsUnresolvedWarning
               - FolderImageResolver_Resolve_EscapingReference_UnderRoots_IsAccessDeniedWarning
               - FolderImageResolver_Resolve_EscapingReference_Default_IsDrawn

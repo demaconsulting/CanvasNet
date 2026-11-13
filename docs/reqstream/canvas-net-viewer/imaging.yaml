@@ -333,7 +333,7 @@ sections:
       - id: CanvasNetViewer-Imaging-ChartImages
         title: >-
           The Imaging subsystem shall show the pictures that the image marks of a Vega-Lite chart name through the
-          same sandboxed resolver, notes, operations, and strict policy as the pictures of an SVG file.
+          same image resolver, file-access policy, notes, operations, and strict policy as the pictures of an SVG file.
         justification: |
           One rule for what a document may link keeps the tool from reading files that the user did not mean to
           expose.
@@ -346,7 +346,7 @@ sections:
       - id: CanvasNetViewer-Imaging-DiagramImages
         title: >-
           The Imaging subsystem shall show the pictures that the nodes of a Mermaid diagram name through the same
-          sandboxed resolver, notes, operations, and strict policy as the pictures of an SVG file.
+          image resolver, file-access policy, notes, operations, and strict policy as the pictures of an SVG file.
         justification: |
           One rule for what a document may link keeps the tool from reading files that the user did not mean to
           expose, whether the link is written in a drawing, a chart, or a diagram.
@@ -357,3 +357,21 @@ sections:
           - SourceLoader_Load_MermaidPictureUnresolvable_IsRefused
           - SourceLoader_Load_MermaidPictureOutsideTheRoots_IsAccessDeniedAndStrictFails
           - SourceLoader_Load_MermaidPictureInTheParentFolder_IsDrawnByDefault
+
+      - id: CanvasNetViewer-Imaging-FileAccess
+        title: >-
+          The Imaging subsystem shall apply one file-access policy, chosen by the caller for each probe, load,
+          flatten, and montage (the allow-all policy by default), to every file a named file references, shall never
+          judge the named file itself, and shall report a denied reference with the code file-access-denied where
+          the operation fails on it.
+        justification: |
+          Every operation of the tool reads documents that may name other files; one policy for all of them lets a
+          host decide once.
+        children:
+          - CanvasNetViewer-Imaging-SourceLoader-FileAccess
+          - CanvasNetViewer-Imaging-SourceLoader-FileAccessDenied
+          - CanvasNetViewer-Imaging-SvgFlattener-Limits
+          - CanvasNetViewer-Imaging-MontageBuilder-FileAccess
+        tests:
+          - CanvasNetViewer_SystemIntegration_FileAccess_DefaultFollowsAndPolicyConfinesEveryReferenceKind
+          - MontageBuilder_Build_FileAccess_AppliesToEveryCell

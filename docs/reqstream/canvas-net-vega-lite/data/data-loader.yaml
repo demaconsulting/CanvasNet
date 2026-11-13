@@ -34,8 +34,9 @@ sections:
                 title: >-
                   The DataLoader unit shall return an empty table, without opening, resolving, or
                   fetching anything, for a missing data object, an empty values array, a remote URL (one
-                  with a scheme, or an absolute, rooted, drive, or network path), text or object values,
-                  and a geographic source, leaving their report to the feature catalog.
+                  with a scheme other than file, a file: URI with a host, or a network path of either
+                  operating system family), text or object values, and a geographic source, leaving their
+                  report to the feature catalog.
                 justification: |
                   Sources that are not supported must never be fetched or resolved, and the chart must
                   still render so that the report can explain the empty result.
@@ -47,13 +48,14 @@ sections:
 
               - id: CanvasNetVegaLite-Data-DataLoader-LocalFiles
                 title: >-
-                  The DataLoader unit shall read a relative local url through the file resolver as JSON, CSV,
+                  The DataLoader unit shall read a local url (a relative, absolute or drive path, or a file:
+                  URI without a host, which is read as its local path) through the file resolver as JSON, CSV,
                   TSV, or DSV, taking the format from format.type and otherwise from the extension (.csv
                   and .tsv in any case, anything else JSON), using the single-character delimiter of a DSV
                   format, selecting the rows of a JSON file by a dotted format.property path (also through
                   an array index), reading each distinct file once per call, and keeping the JSON types of
-                  a JSON file. A resolver failure (not found, cannot be read, outside the sandbox) is
-                  reported with the location of the url.
+                  a JSON file. A resolver failure (not found, cannot be read, denied by the file-access
+                  policy) is reported with the location of the url.
                 justification: |
                   Local files are the data source of most real charts; the format rules must be the ones
                   Vega-Lite documents so that a specification means the same thing in both.
@@ -62,6 +64,19 @@ sections:
                   - DataLoader_InferFormatType_UsesTheExtension
                   - DataLoader_Load_JsonPropertyAndExplicitParseAreApplied
                   - DataLoader_Load_FileIsReadOnceWhenNamedAgain
+                  - DataLoader_Load_LocalFileUriAndAbsolutePath_AreReadAsLocalFiles
+
+              - id: CanvasNetVegaLite-Data-DataLoader-LocalFileUri
+                title: >-
+                  The DataLoader unit shall read an absolute path and a file: URI without a host as a local file
+                  (the URI as its local path) under the file-access policy, naming the url as written in a failure,
+                  and shall report an absolute path in resolver-callback mode as a located error rather than as
+                  remote data.
+                justification: |
+                  Vega-Lite reads such urls as local files; reading them under the policy keeps the chart the same
+                  while the host stays in control, and a callback has no meaning for an absolute host path.
+                tests:
+                  - DataLoader_Load_LocalFileUriAndAbsolutePath_AreReadAsLocalFiles
 
               - id: CanvasNetVegaLite-Data-DataLoader-NamedDatasets
                 title: >-
@@ -219,11 +234,11 @@ sections:
               - id: CanvasNetVegaLite-Data-DataLoader-LookupSources
                 title: >-
                   The DataLoader unit shall load the secondary source of a lookup transform with the same Load
-                  method, sandbox, per-call file cache, file and byte limits, and row budget as the main data of
+                  method, file-access policy, per-call file cache, file and byte limits, and row budget as the main data of
                   the view, locating a failure at the lookup source.
                 justification: |
                   A lookup source is untrusted data like any other; it must not escape the limits and the
-                  sandbox that bound the main data.
+                  policy that bound the main data.
                 tests:
                   - DataLoader_Load_LookupSourcesShareTheSandboxCacheAndBudgetOfTheCall
 

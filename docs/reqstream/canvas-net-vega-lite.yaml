@@ -12,7 +12,7 @@
 # dependency on any Vega or d3 package. It supports a deliberately small, documented subset - a single view or the
 # layers of a layered view (with the composite marks boxplot, errorbar, and errorband) whose data is inline, a local
 # CSV, TSV, DSV, or JSON
-# file read from a sandbox, a named dataset, or a generated
+# file read under the file-access policy of the host, a named dataset, or a generated
 # sequence, the transforms calculate, filter, fold, flatten, sample, pivot, lookup, aggregate, joinaggregate,
 # window, bin, timeUnit, stack, impute, regression, loess, density, quantile, and extent with a closed subset of
 # the Vega expression language (including
@@ -136,6 +136,7 @@ sections:
           and immutability makes a shared options instance safe to use from several threads.
         children:
           - CanvasNetVegaLite-VegaLiteDocument-Options
+          - CanvasNetVegaLite-VegaLiteDocument-FileAccessOption
         tests:
           - CanvasNetVegaLite_SystemIntegration_Options_AreValidatedAndImmutable
 
@@ -301,20 +302,22 @@ sections:
           - DataLoader_Load_MissingNamedDataIsHardFailure
           - DataLoader_Load_SequenceZeroOrNonFiniteStepIsLocatedFailure
 
-      - id: CanvasNetVegaLite-DataSandbox
+      - id: CanvasNetVegaLite-DataFileAccess
         title: >-
-          The library shall confine the reading of data files to the base directory, the data paths, or
-          the caller's callback: it shall refuse an absolute, rooted, drive, UNC, empty, colon, or
-          control-character path and a path that leaves its root, shall refuse a file reached through a
-          symbolic link or junction below a root, shall never touch the file system while the callback is
-          set, and shall treat a failure to decide as a refusal.
+          The library shall read data files under the file-access policy of the open options (by default
+          every regular local file, also through dot-dot, an absolute path, a file: URI without a host, and
+          a symbolic link or junction, as Vega-Lite does) or through the caller's callback: it shall refuse
+          a UNC, empty, or control-character path and a file the policy denies with a located error, shall
+          never touch the file system while the callback is set, and shall treat a failure to decide as a
+          refusal.
         tags: [system, security]
         justification: |
-          A specification may come from an untrusted source; a data url must never become a way to read
-          arbitrary files of the host.
+          A specification may come from an untrusted source; a host that renders one confines it with a
+          policy, and a data url must then never become a way to read a file the policy denies.
         children:
-          - CanvasNetVegaLite-Data-Sandbox
+          - CanvasNetVegaLite-Data-FileAccess
         tests:
+          - CanvasNetVegaLite_SystemIntegration_Data_DefaultPolicy_ReadsParentAbsoluteAndFileUriPaths
           - CanvasNetVegaLite_SystemIntegration_Data_MissingOrBlockedFileThrowsRenderException
           - CanvasNetVegaLite_SystemIntegration_Data_LocalFileLoadsFromOpenedSpecFolder
           - DataFileResolver_Translate_EveryFailureKind_ProducesLocatedWording
@@ -322,7 +325,7 @@ sections:
       - id: CanvasNetVegaLite-DataErrors
         title: >-
           The library shall fail with a VegaLiteRenderException located at the data url or name, in
-          lenient and strict mode alike, when a local data file is missing, refused by the sandbox,
+          lenient and strict mode alike, when a local data file is missing, denied by the file-access policy,
           unreadable (including a directory in place of a file, an open failure, and a failing resolver
           callback or stream), not valid UTF-8, or not valid data, and shall never render such a chart as
           an empty one.
@@ -340,7 +343,7 @@ sections:
       - id: CanvasNetVegaLite-NoNetwork
         title: >-
           The library shall never use the network: a remote URL in the data of a specification - one with
-          a scheme, or an absolute, rooted, drive, or network path - shall be reported with the stable
+          a scheme other than file, a file: URI with a host, or a network path - shall be reported with the stable
           vl-data-remote-url identifier as an unsupported feature, the data shall be treated as empty, and
           the URL shall never be fetched, opened, or given to the file callback.
         tags: [system]
@@ -352,6 +355,7 @@ sections:
         tests:
           - CanvasNetVegaLite_SystemIntegration_Data_RemoteUrlIsReportedNotFetched
           - FeatureCatalog_Visit_RemoteUrlsRemainVlDataRemoteUrl
+          - FeatureCatalog_IsRemoteDataUrl_ClassifiesUrls
 
       - id: CanvasNetVegaLite-Diagnostics
         title: >-
@@ -977,7 +981,7 @@ sections:
           sample, pivot (with every aggregate operation), and lookup of the drawn view, together with the transforms
           aggregate, joinaggregate, window, bin, stack, and impute, in their written order to the loaded
           data before any scale is resolved, shall order a category by an aggregate of the transformed
-          rows, and shall load the secondary source of a lookup through the same sandbox and budget as the
+          rows, and shall load the secondary source of a lookup through the same file-access policy and budget as the
           main data, so that the chart draws the transformed rows.
         tags: [system]
         justification: |
@@ -1157,7 +1161,7 @@ sections:
           The library shall bound the rows, fields, cells, string lengths, and evaluation steps that
           transforms and expressions create, counting the rows of a derived table and of a lookup source in
           the same budget as the loaded rows and reserving them before they are allocated, shall keep the
-          data sandbox in force for a lookup source, shall fail closed with a located
+          file-access policy in force for a lookup source, shall fail closed with a located
           VegaLiteRenderException when a limit is exceeded, and shall observe the cancellation token between
           transforms and at least every 1,024 rows.
         tags: [system, security]
@@ -2218,8 +2222,8 @@ sections:
       - id: CanvasNetVegaLite-ImageSource
         title: >-
           The library shall provide an image source for .vl and .vl.json files, for the image resolver of the core
-          package, that lays the chart out at the size its placement asks for on its own background and reports
-          the notes of the library.
+          package, that lays the chart out at the size its placement asks for on its own background, reads its data
+          files under the file-access policy of the request, and reports the notes of the library.
         tags: [system]
         justification: |
           A diagram that links to a chart (an SVG image element, for example) needs the Vega-Lite renderer as one
@@ -2229,6 +2233,7 @@ sections:
           - CanvasNetVegaLite-VegaLiteDocument-ImageSourceParameters
         tests:
           - VegaLiteImageSource_Render_RequestedSize_DrawsAtThatSize
+          - VegaLiteImageSource_Render_RequestPolicy_AppliesToDataFiles
 
       - id: CanvasNetVegaLite-ImageMark
         title: >-

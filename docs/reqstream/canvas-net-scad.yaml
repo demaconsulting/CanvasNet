@@ -22,7 +22,7 @@
 # module names, function names) or the first syntax error with its file, line, and column. Phase 5
 # added evaluation: ScadDocument.Evaluate runs a document - values, scoping, functions,
 # modules and children, control flow, comprehensions, built-in functions, include/use resolution
-# inside a sandbox, variable overrides, resource limits, cancellation, and echo, warning, and
+# under a file-access policy, variable overrides, resource limits, cancellation, and echo, warning, and
 # unsupported-feature reporting - into an internal, geometry-agnostic instantiation tree and returns
 # the echo output, diagnostics, unsupported-feature reports, and instance count. Phase 6 added geometry
 # and rendering: ScadDocument.BuildScene turns the instantiation tree into a
@@ -82,6 +82,7 @@ sections:
           several threads.
         children:
           - CanvasNetScad-ScadDocument-OpenOptions
+          - CanvasNetScad-ScadDocument-FileAccessOption
         tests:
           - CanvasNetScad_SystemIntegration_Options_AreValidatedAndImmutable
 
@@ -131,7 +132,7 @@ sections:
         tags: [system]
         justification: |
           Recording directives without touching the file system lets a caller inspect a document's
-          dependencies safely; resolution is an explicit, sandboxed part of evaluation and must
+          dependencies safely; resolution is an explicit, policy-governed part of evaluation and must
           never happen implicitly during parsing.
         children:
           - CanvasNetScad-ScadLanguage-Directives
@@ -262,19 +263,23 @@ sections:
       - id: CanvasNetScad-IncludeUse
         title: >-
           The library shall resolve include and use directives when a document is evaluated -
-          textually for include, definitions only for use - from the file system or through a
-          caller-supplied resolver, confined to the base directory and library paths (or to the
-          logical paths handed to the resolver), and shall reject any path that escapes them.
+          textually for include, definitions only for use - from the file system under the
+          file-access policy of the open options (by default every regular local file, as OpenSCAD
+          does; a confining policy refuses a file outside its roots or reached through a link) or
+          through a caller-supplied resolver (confined to the logical paths handed to it), and shall
+          reject a path the policy denies or that escapes the logical paths with a located
+          evaluation error.
         tags: [system]
         justification: |
           A document may come from an untrusted source and include resolution is the one place
-          where evaluation reaches outside it; the access must be explicit, confined, and
-          verifiable.
+          where evaluation reaches outside it; the access must be explicit, governed by the policy
+          the host chose, and verifiable.
         children:
           - CanvasNetScad-ScadDocument-IncludeUse
           - CanvasNetScad-ScadEvaluation-FileResolution
         tests:
           - CanvasNetScad_SystemIntegration_IncludeUse_ResolverAndSandbox
+          - CanvasNetScad_SystemIntegration_IncludeUse_FileAccessPolicy
 
       - id: CanvasNetScad-EvaluationLimits
         title: >-
@@ -760,7 +765,8 @@ sections:
           The library shall provide an image source for .scad files, for the image resolver of the core package,
           that draws the model with the view the library chooses for it (isometric for a 3D model, top-down for a
           flat 2D one, or the view of the model's own viewport variables) at the size its placement asks for over a
-          transparent background and reports the notes and printed text of the model.
+          transparent background, reads its includes under the file-access policy of the request, and reports the
+          notes and printed text of the model.
         tags: [system]
         justification: |
           A diagram that links to a model (an SVG image element, for example) needs the OpenSCAD renderer as one of
@@ -770,3 +776,4 @@ sections:
           - CanvasNetScad-ScadDocument-ImageSourceDefines
         tests:
           - ScadImageSource_Render_RequestedSize_DrawsAtThatSize
+          - ScadImageSource_Render_RequestPolicy_AppliesToIncludes

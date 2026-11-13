@@ -100,6 +100,21 @@ sections:
                   - FileReferenceResolver_Resolve_NestedReference_RequestBaseDirectoryIsTheChainOrigin
                   - FileReferenceResolver_Resolve_RelativeToFromAnotherResolver_ThrowsArgumentException
 
+              - id: CanvasNet-Files-FileReferenceResolver-TopLevelFile
+                title: >-
+                  The FileReferenceResolver class shall read the top-level file of an operation, which the caller
+                  chose, without asking the file-access policy, while still refusing a path that is never allowed,
+                  a file that is not a regular file, and a file over the size limit, counting it against the file
+                  limit, and judging the references resolved relative to it by the policy as usual; a later
+                  reference to the same file shall be judged by the policy like any other.
+                justification: |
+                  The policy protects against what a document references, not against the file the user asked to
+                  render; the limits still bound the work.
+                tests:
+                  - FileReferenceResolver_ResolveTopLevel_DenyingPolicy_ReadsTheFileAndChecksItsReferences
+                  - FileReferenceResolver_ResolveTopLevel_Directory_IsNotARegularFile
+                  - FileReferenceResolver_ResolveTopLevel_TakesAFileSlot
+
               - id: CanvasNet-Files-FileReferenceResolver-NetworkTarget
                 title: >-
                   On Windows the FileReferenceResolver class shall refuse with NetworkPath, under every policy and

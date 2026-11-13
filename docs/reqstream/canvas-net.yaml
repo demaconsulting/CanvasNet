@@ -1250,7 +1250,8 @@ sections:
         justification: |
           Programs that read files named by untrusted text (include directives, data URLs) need one
           deterministic, bounded way to find and read them, and library users should not have to write it
-          again.
+          again. The folder sandbox is now an obsolete facade, kept unchanged for one release so that callers
+          can move to the file-access policy; the library itself no longer uses it.
         children:
           - CanvasNet-Files-Resolution
           - CanvasNet-Files-ResolverCallback
@@ -1271,7 +1272,8 @@ sections:
         justification: |
           A path may come from an untrusted source and must never become a way to read arbitrary files of
           the host; callers need to tell the author which rule the path broke. Another process that can change
-          the directory tree must not be able to redirect a read through a link after the check.
+          the directory tree must not be able to redirect a read through a link after the check. The guarantee
+          stays for the obsolete facade until it is removed.
         children:
           - CanvasNet-Files-Confinement
           - CanvasNet-Files-LinkRefusal
@@ -1374,27 +1376,44 @@ sections:
 
       - id: CanvasNet-Lib-LinkedImageSafety
         title: >-
-          The library shall confine the links of a document to one folder, never reading a file outside it, through a
-          symbolic link, or from the network unless a source that the caller supplies claims the scheme, shall bound
-          the nesting depth, the cycles, and the number of images of one render, shall support cancellation, and shall
-          report every unresolved link as a warning, every note of a source with the embedding link in front, and
-          every broken file as an exception that names the link and the embedding file.
+          The library shall resolve the links of a document relative to the document and read a linked file only when
+          the file-access policy of the caller allows the file that was opened (by default every regular local file,
+          as Pandoc does), shall never read from the network unless a source that the caller supplies claims the
+          scheme, shall bound the nesting depth, the cycles (also through a link), and the number of images of one
+          render whatever the policy, shall support cancellation, and shall report every link the policy denied as
+          the warning image-access-denied, every other unresolved link as a warning, every note of a source with the
+          embedding link in front, and every broken file as an exception that names the link and the embedding file.
         tags: [system, security]
         justification: |
-          A link comes from an untrusted document; a hostile document must not read arbitrary files, reach the
-          network, or make a render recurse or fan out without bound, and authors need to know which file a note or an
-          error belongs to.
+          Documents link pictures the way Pandoc documents do (relative, with dot-dot, absolute), so the default reads
+          them; a host that renders untrusted documents chooses a restrictive policy instead. A hostile document must
+          never reach the network or make a render recurse or fan out without bound, and authors need to know which
+          file a note or an error belongs to and which policy refused a link.
         children:
-          - CanvasNet-ImageSources-Confinement
+          - CanvasNet-ImageSources-FileAccess
           - CanvasNet-ImageSources-Limits
           - CanvasNet-ImageSources-Reporting
           - CanvasNet-ImageSources-Fragments
         tests:
-          - FolderImageResolver_Resolve_NeverAllowedReference_IsUnresolvedWarning
-          - FolderImageResolver_Resolve_EscapingReference_UnderRoots_IsAccessDeniedWarning
-          - FolderImageResolver_Resolve_EscapingReference_Default_IsDrawn
+          - CanvasNet_SystemIntegration_LinkedImages_DefaultFollowsParentAbsoluteAndFileUriLinks
+          - CanvasNet_SystemIntegration_LinkedImages_RestrictivePolicyDeniesAndReachesNestedSources
           - FolderImageResolver_Resolve_TooDeep_TerminatesWithWarning
           - FolderImageResolver_Resolve_SourceThrows_WrapsInImageSourceException
+
+      - id: CanvasNet-Lib-LinkedFilePolicyPropagation
+        title: >-
+          The library shall give every source the file-access policy of the render, judged from the folder the chain
+          of links started from, so that the files a linked model or chart reads itself are allowed or denied by the
+          same policy as the links of the document.
+        tags: [system, security]
+        justification: |
+          A restrictive policy that only covered the links of the top-level document would be bypassed by a linked
+          model that includes, or a linked chart that reads, a file the policy denies; judging from the origin of the
+          chain keeps a nested folder that was swapped for a link from widening what is trusted.
+        children:
+          - CanvasNet-ImageSources-FileAccess
+        tests:
+          - CanvasNet_SystemIntegration_LinkedImages_RestrictivePolicyDeniesAndReachesNestedSources
 
   # Note: SVG rasterization is provided by the separate CanvasNetSvg system (its own package,
   # DemaConsulting.CanvasNet.Svg) - see docs/reqstream/canvas-net-svg.yaml, not this system.

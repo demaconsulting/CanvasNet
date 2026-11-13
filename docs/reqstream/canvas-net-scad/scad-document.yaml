@@ -147,12 +147,14 @@ sections:
           - id: CanvasNetScad-ScadDocument-OpenOptions
             title: >-
               The ScadOpenOptions class shall be immutable with init-only properties BaseDirectory,
-              LibraryPaths, FileResolver, and SourceName, shall validate each value when it is
+              LibraryPaths, FileResolver, SourceName, and FileAccess (the file-access policy, the allow-all
+              policy by default, null refused, and kept by every copy the document makes of the
+              options), shall validate each value when it is
               initialized (null or non-whitespace for the text values; a non-null list with no
               null or whitespace entries for LibraryPaths), shall copy the supplied library paths,
               and shall default to unset values and an empty list; the base directory, library
-              paths, and file resolver are not consumed by parsing - they govern include and use
-              resolution when the document is evaluated.
+              paths, file resolver, and file-access policy are not consumed by parsing - they govern
+              include and use resolution when the document is evaluated.
             justification: |
               Validated, immutable options let every consumer trust an instance, and keeping the
               evaluation-time options out of parsing keeps parsing free of file access.
@@ -165,6 +167,7 @@ sections:
               - ScadOpenOptions_LibraryPaths_AreCopied
               - ScadOpenOptions_EvaluationOnlySettings_DoNotAffectParse
               - ScadOpenOptions_Properties_AreInitOnly
+              - ScadOpenOptions_FileAccess_DefaultsToAllowAllRejectsNullAndSurvivesWithEffective
 
           - id: CanvasNetScad-ScadDocument-SourceLimit
             title: >-
@@ -290,16 +293,17 @@ sections:
 
           - id: CanvasNetScad-ScadDocument-IncludeUse
             title: >-
-              The ScadDocument Evaluate method shall confine file access during include and use
-              resolution to the base directory and library paths of the open options, or, when a
-              resolver is supplied, shall pass the resolver only normalized logical paths and shall
-              never let a hostile path reach it, shall reject a path that escapes its root with an
+              The ScadDocument Evaluate method shall read the files of include and use directives from
+              the base directory and library paths of the open options under their file-access policy (by
+              default every regular local file), rejecting a file the policy denies with an evaluation
+              error, or, when a resolver is supplied, shall pass the resolver only normalized logical
+              paths, never let a hostile path reach it, and reject a path that escapes its root with an
               evaluation error, and shall reject include cycles and excessive include depth or file
               counts with an evaluation error.
             justification: |
               A document may come from an untrusted source; include resolution is the one place where
-              evaluation reaches outside the document, so its public behavior must be confined and
-              verifiable.
+              evaluation reaches outside the document, so its public behavior must follow the policy of
+              the host and be verifiable.
             tests:
               - ScadDocument_Evaluate_FileSystemRootsPolicy_EscapesAreDenied
               - ScadDocument_Evaluate_FileSystemDefault_ParentAndAbsoluteIncludesAreRead
@@ -309,6 +313,19 @@ sections:
               - ScadDocument_Evaluate_ResolverMode_RequestsNormalizedLogicalPaths
               - ScadDocument_Evaluate_IncludeLimitsAndCycles_ThrowEvaluationException
               - ScadFixtureEvaluation_IncludeMain_ThroughResolver_MatchesExpectedEcho
+
+          - id: CanvasNetScad-ScadDocument-FileAccessOption
+            title: >-
+              The ScadOpenOptions class shall carry the file-access policy of include and use resolution
+              (FileAccess, the allow-all policy by default, null refused, and kept by every copy the document
+              makes of the options), and the ScadImageSource class shall evaluate a model with the policy of
+              its request.
+            justification: |
+              The host chooses which files a model may read, and a model embedded in another document must
+              follow the policy of the whole render.
+            tests:
+              - ScadOpenOptions_FileAccess_DefaultsToAllowAllRejectsNullAndSurvivesWithEffective
+              - ScadImageSource_Render_RequestPolicy_AppliesToIncludes
 
           - id: CanvasNetScad-ScadDocument-Cancellation
             title: >-
@@ -754,7 +771,8 @@ sections:
               The Scad package shall provide an image source for .scad files (claiming that extension and no URI
               scheme, and declaring no fragment parameter other than the def. prefix of the ImageSourceDefines
               requirement) that parses the model from the bytes of the request, resolves its include and use
-              directives against the folder of the request (a missing file is a scad-warning note, and a request
+              directives against the folder of the request under the file-access policy of the request (a missing
+              file is a scad-warning note, a denied file fails with ScadEvaluationException, and a request
               without a folder fails a model that uses include or use with ScadEvaluationException), draws it
               from the view the library chooses for the model (the fitted isometric view for a model with 3D
               objects, the flat top-down view for a model that is entirely 2D, or the view of the model's own $vpr,
@@ -769,8 +787,8 @@ sections:
               canceled request.
             justification: |
               Models are linked from diagrams; the source leaves the choice of the view to the library, as a
-              rendering of the model on its own does, so the result is the same everywhere, and keeps the include
-              confinement of the Scad library.
+              rendering of the model on its own does, so the result is the same everywhere, and applies to the
+              includes the policy the host chose for the whole render.
             tests:
               - ScadImageSource_Render_NoRequestedSize_DrawsNaturalSizeOnTransparentBackground
               - ScadImageSource_Render_RequestedSize_DrawsAtThatSize
@@ -780,6 +798,7 @@ sections:
               - ScadImageSource_Render_ModelWithEchoAndUnsupportedFeature_ReturnsEchoAndDiagnostics
               - ScadImageSource_Render_UnsupportedFeatureWhenStrict_ThrowsUnsupportedFeatureException
               - ScadImageSource_Render_Include_ResolvesFromDirectoryOfRequest
+              - ScadImageSource_Render_RequestPolicy_AppliesToIncludes
               - ScadImageSource_Render_InvalidInput_Throws
               - ScadImageSource_Properties_NameExtensionAndNoSchemes
               - ScadImageSource_Render_ModelWithAnchors_DrawsTheSamePictureAndEchoesTheDeclaration

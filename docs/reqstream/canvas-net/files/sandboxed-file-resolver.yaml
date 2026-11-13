@@ -267,3 +267,14 @@ sections:
                   - SandboxException_Constructor_EveryKind_KeepsFactsAndHidesHostPath
                   - SandboxException_Constructor_NullPath_ThrowsArgumentNullException
                   - SandboxedFileResolver_Constructor_InvalidArguments_Throw
+
+              - id: CanvasNet-Files-SandboxedFileResolver-Deprecated
+                title: >-
+                  The SandboxedFileResolver, SandboxOptions, SandboxedFile, SandboxException, and SandboxFailureKind
+                  types shall be marked obsolete with a message that points to FileReferenceResolver and
+                  FileAccessPolicy, while keeping their behavior unchanged for this release.
+                justification: |
+                  The consumers of the library moved to the file-access engine; callers of the folder sandbox get a
+                  warning and one release to migrate instead of a break.
+                tests:
+                  - SandboxedFileResolver_Types_AreObsoleteWithTheMigrationMessage

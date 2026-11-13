@@ -15,38 +15,60 @@ sections:
         sections:
           - title: FolderImageResolver Requirements
             requirements:
-              - id: CanvasNet-ImageSources-FolderImageResolver-Confinement
+              - id: CanvasNet-ImageSources-FolderImageResolver-FileAccess
                 title: >-
                   The FolderImageResolver class shall resolve a link without a URI scheme as a path relative to the
-                  folder it was created with (relative to the folder of the embedding file for a link inside an
-                  embedded file) through the sandbox, and shall report as an unresolved warning, without reading the
-                  file and without calling a source, a link that is absolute, a drive or UNC path, an alternate data
-                  stream, contains a control character, leaves the folder (also percent-encoded), reaches a file
-                  through a symbolic link, or names a file that does not exist.
+                  folder of the file that contains it (the folder it was created with for the top-level document), or
+                  as an absolute or (on Windows) drive path, through the file-access engine under the policy of its
+                  options (by default every regular local file, also through dot-dot, also percent-encoded, and
+                  through a symbolic link or junction), shall report a link the policy denies, or cannot apply, as the
+                  warning image-access-denied, and shall report as an unresolved warning, in both cases without
+                  calling a source, a link that is a UNC path, an alternate data stream, contains a control character,
+                  is not a valid local path on the platform, or names a file that does not exist.
                 justification: |
-                  A link comes from an untrusted document; no spelling of a path may read a file outside the folder.
+                  Links resolve the way Pandoc resolves them by default; a host that renders untrusted documents
+                  confines them with a policy, and no spelling of a path may then read a file the policy denies.
                 tests:
                   - FolderImageResolver_Resolve_RelativeFile_PassesCompleteRequestToSource
                   - FolderImageResolver_Resolve_NeverAllowedReference_IsUnresolvedWarning
                   - FolderImageResolver_Resolve_EscapingReference_UnderRoots_IsAccessDeniedWarning
                   - FolderImageResolver_Resolve_EscapingReference_Default_IsDrawn
+                  - "windows@FolderImageResolver_Resolve_DrivePath_IsLocalOnWindowsAndInvalidElsewhere"
+                  - "ubuntu@FolderImageResolver_Resolve_DrivePath_IsLocalOnWindowsAndInvalidElsewhere"
+                  - "macos@FolderImageResolver_Resolve_DrivePath_IsLocalOnWindowsAndInvalidElsewhere"
                   - FolderImageResolver_Resolve_SymbolicLink_NoSymlinks_IsAccessDeniedWarning
                   - FolderImageResolver_Resolve_DirectoryLink_NoSymlinks_IsAccessDeniedWarning
                   - FolderImageResolver_Resolve_SymbolicLink_Default_FollowsTheLink
                   - FolderImageResolver_Resolve_SymbolicLink_UnderRoots_LinkLeavingTheRootsIsDenied
                   - FolderImageResolver_Resolve_MissingAndUnknownFiles_AreWarnings
 
+              - id: CanvasNet-ImageSources-FolderImageResolver-PolicyPropagation
+                title: >-
+                  The FolderImageResolver class shall set the file-access policy of every request it hands a source:
+                  for a file link and a direct render the policy of its options judged from the folder the chain of
+                  links started from (the folder of the resolver, or the folder of the top-level file of a render by
+                  path), and for a scheme-claimed link the policy itself.
+                justification: |
+                  A source that reads further files (an include, a data file) must apply the same policy, and judging
+                  from the outer origin keeps a nested folder swapped for a link from widening what is trusted.
+                tests:
+                  - FolderImageResolver_Resolve_FileRequest_CarriesThePolicyAnchoredAtTheChainOrigin
+                  - FolderImageResolver_Render_Stream_RequestCarriesThePolicy
+                  - FolderImageResolver_Resolve_RelativeFile_PassesCompleteRequestToSource
+
               - id: CanvasNet-ImageSources-FolderImageResolver-FileUri
                 title: >-
-                  The FolderImageResolver class shall accept a file: URI only when it names a file inside the folder
-                  (a URI with a host, a URI outside the folder, and a malformed URI are unresolved warnings), shall
-                  treat the file scheme as a path inside the folder even when sources claim schemes, and shall decode
-                  percent-encoded characters of a relative path.
+                  The FolderImageResolver class shall read a file: URI without a host as its absolute local path,
+                  judged by the policy like any other link (a URI with a host, localhost included, and a malformed URI
+                  are unresolved warnings, never read), shall treat the file scheme as a local path even when sources
+                  claim schemes, and shall decode percent-encoded characters of a relative path.
                 justification: |
-                  Documents written by tools use file: URIs and percent-encoded names; they must work inside the
-                  folder and must not become a way out of it.
+                  Documents written by tools use file: URIs and percent-encoded names; they must work like the paths
+                  they stand for and must never reach a network share.
                 tests:
                   - FolderImageResolver_Resolve_FileUriAndEncodedPath_InsideFolderIsDrawnOutsideIsNot
+                  - FolderImageResolver_Resolve_FileUriOutsideFolder_Default_IsDrawn
+                  - FolderImageResolver_Resolve_NeverAllowedReference_IsUnresolvedWarning
                   - FolderImageResolver_Resolve_FileUriWithControlCharacter_IsUnresolvedWarning
                   - FolderImageResolver_Resolve_FileScheme_IsHandledByResolverNotSources
 
@@ -56,14 +78,14 @@ sections:
                   reference: it shall cut off the query (from the first question mark before a number sign) and the
                   fragment (from the first number sign) before it decodes percent-encoding, so that an encoded %23 or
                   %3F stays a literal character of the file name; shall choose the source by the extension of what is
-                  left and resolve it through the sandbox with every refusal unchanged; shall report a link that is
+                  left and resolve it through the file-access engine with every refusal unchanged; shall report a link that is
                   nothing but a query or a fragment as an unresolved warning; shall hand the source the link as
                   written (the fragment parsed into the request, see the Fragment requirement); and shall hand a
                   link of a claimed scheme to its source as written, without cutting anything off.
                 justification: |
                   Documents link files with cache-busting queries and fragments (image.png?v=2, report.pdf#page=2);
                   the order of stripping and decoding is what keeps an encoded character from changing the path and
-                  keeps every escape of the folder refused.
+                  keeps every escape of a confining policy refused.
                 tests:
                   - FolderImageResolver_Resolve_RelativeLinkWithQueryOrFragment_NamesTheFile
                   - FolderImageResolver_Resolve_EncodedHash_IsLiteralCharacterOfTheFileName
@@ -236,14 +258,15 @@ sections:
 
               - id: CanvasNet-ImageSources-FolderImageResolver-Limits
                 title: >-
-                  The FolderImageResolver class shall stop a file that embeds itself directly or through other files
-                  (a cycle, found before the depth for a scheme-claimed link), refuse to nest more than the
+                  The FolderImageResolver class shall stop a file that embeds itself directly, through other files or
+                  through another spelling of its path such as a symbolic link or junction (a cycle, found by the real
+                  path of the file, and before the depth for a scheme-claimed link), refuse to nest more than the
                   configured number of levels (four
                   by default) and to load more than the configured number of images in total (64 by default, counting
                   every call that reaches a source, including repeated links and scheme-claimed pictures), check the
                   depth and the image count before it opens the file of an embedded image (so an image over a limit
-                  is never read), let the sandbox read at most the configured number of images plus the top-level file
-                  of a render by path, and report
+                  is never read), let the file-access engine read at most the configured number of images plus the
+                  top-level file of a render by path, whatever the policy, and report
                   each as an unresolved warning while the render carries on.
                 justification: |
                   A document tree can embed itself or fan out; the limits bound the work of one render, including the
@@ -256,6 +279,7 @@ sections:
                   - FolderImageResolver_Resolve_ClaimedSchemeLinks_CountAgainstImageLimit
                   - FolderImageResolver_Resolve_ImageCountExhausted_NeverReadsTheEmbeddedFile
                   - FolderImageResolver_Render_PathAndStream_SandboxFileSlotsMatchTheImageLimit
+                  - FolderImageResolver_Resolve_LinkAliasCycle_StopsAtTheRealPath
 
               - id: CanvasNet-ImageSources-FolderImageResolver-PixelBudget
                 title: >-
@@ -303,7 +327,7 @@ sections:
                 title: >-
                   The FolderImageResolver class shall check the cancellation token before every image it renders and
                   before every file it reads, pass it to every source, and let OperationCanceledException of the
-                  sandbox or a source pass through unchanged.
+                  file-access engine or a source pass through unchanged.
                 justification: |
                   A caller must be able to abandon a render of many or slow pictures.
                 tests:
@@ -313,8 +337,10 @@ sections:
               - id: CanvasNet-ImageSources-FolderImageResolver-Diagnostics
                 title: >-
                   The FolderImageResolver class shall collect, in render order, a warning with the code
-                  svg-image-unresolved naming the link and the reason for every link that was not drawn (and a warning
-                  with the code svg-image-too-large for every picture over the pixel budget), and the notes
+                  svg-image-unresolved naming the link and the reason for every link that was not drawn, a warning with
+                  the code image-access-denied for every link the file-access policy denied (naming the link, the
+                  policy, its reason and its hint, with the requested and real paths only in the detail of the note),
+                  a warning with the code svg-image-too-large for every picture over the pixel budget, and the notes
                   the sources return (with the embedding link and a colon in front of each message and the source,
                   severity and code kept), collect the printed text of the sources, and list every image that was
                   loaded with its link, format (the format the source reported or its name), size and depth.
@@ -325,7 +351,7 @@ sections:
                   - FolderImageResolver_Resolve_SourceWithNotes_ForwardsDiagnosticsEchoAndEmbedded
                   - FolderImageResolver_Resolve_NeverAllowedReference_IsUnresolvedWarning
                   - FolderImageResolver_Resolve_EscapingReference_UnderRoots_IsAccessDeniedWarning
-                  - FolderImageResolver_Resolve_EscapingReference_Default_IsDrawn
+                  - FolderImageResolver_Resolve_DeniedLink_ReportsPolicyReasonHintAndDetailWithoutReading
                   - FolderImageResolver_Resolve_TooDeep_TerminatesWithWarning
 
               - id: CanvasNet-ImageSources-FolderImageResolver-DiagnosticOrigin
@@ -389,16 +415,20 @@ sections:
 
               - id: CanvasNet-ImageSources-FolderImageResolver-DirectRender
                 title: >-
-                  The FolderImageResolver class shall draw a file of the folder by path, or a file given as a stream
-                  (read up to 16 MiB), as the top-level picture and return what the source returned with the format
-                  filled in, and shall fail with FileNotFoundException for a missing file, SandboxException for a
-                  refused path, NotSupportedException (naming the extensions) when no source claims the extension,
-                  ImageSourceException when the source fails, InvalidOperationException when there is no folder for a
-                  path, and InvalidDataException for an oversize stream.
+                  The FolderImageResolver class shall draw a file by path (relative to the folder or absolute,
+                  wherever it lies and without judging it by the file-access policy, while the links inside it are
+                  judged from its own folder), or a file given as a stream (read up to 16 MiB), as the top-level
+                  picture and return what the source returned with the format filled in, and shall fail with
+                  FileNotFoundException for a missing file, FileReferenceException for a path that is not a regular
+                  file, too large or unreadable, NotSupportedException (naming the extensions) when no source claims
+                  the extension, ImageSourceException when the source fails, InvalidOperationException when there is
+                  no folder for a path, and InvalidDataException for an oversize stream.
                 justification: |
-                  A caller that renders one file wants the same sources, sandbox, and limits as embedding, with errors
-                  instead of warnings.
+                  The caller chose the top-level file, so the policy that protects against the links of a document does
+                  not judge it; a caller that renders one file wants the same sources, policy, and limits as embedding,
+                  with errors instead of warnings.
                 tests:
+                  - FolderImageResolver_RenderPath_OutsideFolder_IsDrawnWhateverThePolicyButItsLinksAreChecked
                   - FolderImageResolver_RenderPath_File_ReturnsResultWithFormat
                   - FolderImageResolver_RenderPath_SourceWithoutFormat_UsesSourceName
                   - FolderImageResolver_RenderPath_Failures_ThrowSpecificExceptions
@@ -409,7 +439,8 @@ sections:
               - id: CanvasNet-ImageSources-FolderImageResolver-Configuration
                 title: >-
                   The FolderImageResolver class shall list the extensions and schemes its sources claim, sorted and
-                  without duplicates, and shall reject a null sequence, an empty or white-space folder, a negative
+                  without duplicates, shall take the file-access policy from its options (the allow-all policy by
+                  default, null refused), and shall reject a null sequence, an empty or white-space folder, a negative
                   limit, a source that makes an invalid claim, and a null link.
                 justification: |
                   Misconfiguration must fail at once, and callers need the list of what can be embedded for messages
@@ -419,3 +450,4 @@ sections:
                   - FolderImageResolver_Collections_AreReadOnly
                   - FolderImageResolver_Constructor_InvalidArguments_Throw
                   - FolderImageResolver_Constructor_MaxDecodedPixels_DefaultNegativeAndZero
+                  - FolderImageResolverOptions_FileAccess_DefaultsToAllowAllAndRejectsNull
