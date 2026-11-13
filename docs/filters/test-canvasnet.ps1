@@ -8,7 +8,9 @@
     the source, an included file, a chart's data file, or an attribute draws a new picture, other pictures are
     left alone without starting the tool, wrong attributes and a missing file are clear errors, a path that
     leaves the document's folder renders (the filter has no containment rule), a dependency outside the folder is
-    read under the tool's default file-access policy, and a model the tool cannot draw stops the build with the tool's message.
+    read under the tool's default file-access policy and refused under CANVASNET_FILE_ACCESS=roots (CANVASNET_ROOTS is a
+    PATH-like list, both are hashed, a denied picture stops the build, and a bad value is an error), an absolute or
+    file: data url and an absolute SVG link are hashed, and a model the tool cannot draw stops the build with the tool's message.
     Mermaid diagrams are drawn from code blocks and from .mmd/.mermaid pictures (the pictures of their nodes are
     hashed), sequence, class, state, ER, pie, gantt, mindmap, packet, and git graph diagrams are drawn by the filter itself, a diagram
     type the tool does not draw is left as written (shown as code) with a warning, and the defaults-file filters run
@@ -98,6 +100,21 @@ function Invoke-Filter([string]$Name, [string]$Markdown, [string]$Format = 'html
         Log      = $log
         HtmlPath = $htmlPath
         Html     = $(if (Test-Path -LiteralPath $htmlPath) { Get-Content -LiteralPath $htmlPath -Raw } else { '' })
+    }
+}
+
+# Runs Invoke-Filter with environment variables set for the run (the child process inherits them), then removes them.
+function Invoke-FilterWith([hashtable]$Environment, [string]$Name, [string]$Markdown) {
+    try {
+        foreach ($key in $Environment.Keys) {
+            Set-Item -Path "env:$key" -Value $Environment[$key]
+        }
+        Invoke-Filter $Name $Markdown
+    }
+    finally {
+        foreach ($key in $Environment.Keys) {
+            Remove-Item -Path "env:$key" -ErrorAction SilentlyContinue
+        }
     }
 }
 
@@ -822,6 +839,78 @@ journey
         Write-Result ($run.ExitCode -eq 0 -and $run.Html -match 'generated/canvasnet/') `
             "a dependency outside the folder is read by default ($dep)" $run.Log
     }
+
+    # --- Opt-in file access: CANVASNET_FILE_ACCESS and CANVASNET_ROOTS ------------------------------------
+    # Under a restrictive mode the same dependencies are denied by the tool, and the build stops.
+    foreach ($dep in 'm.scad', 'c.vl.json') {
+        $run = Invoke-FilterWith @{ CANVASNET_FILE_ACCESS = 'roots'; CANVASNET_ROOTS = $sub } ('esc-roots-' + ($dep -replace '\W', '-')) "![x](esc/$dep)"
+        Write-Result ($run.ExitCode -ne 0 -and $run.Log -match 'denied') `
+            "CANVASNET_FILE_ACCESS=roots refuses a dependency outside the roots ($dep)" $run.Log
+    }
+
+    # CANVASNET_ROOTS is a list separated like PATH; the include is in the second folder
+    $rootList = $sub + [System.IO.Path]::PathSeparator + $guide
+    $listed = Invoke-FilterWith @{ CANVASNET_ROOTS = $rootList } 'esc-list' '![x](esc/m.scad)'
+    Write-Result ($listed.ExitCode -eq 0 -and $listed.Html -match 'generated/canvasnet/') `
+        'CANVASNET_ROOTS takes folders separated like PATH' $listed.Log
+
+    # The variables are part of every picture's name: the same picture under roots is drawn again
+    Invoke-Filter 'access-hash' '![m](t.scad)' | Out-Null
+    $hashBefore = @(Get-Pictures).Count
+    $hashed = Invoke-FilterWith @{ CANVASNET_FILE_ACCESS = 'roots' } 'access-hash' '![m](t.scad)'
+    $hashAfter = @(Get-Pictures).Count
+    Write-Result ($hashed.ExitCode -eq 0 -and $hashAfter -eq $hashBefore + 1) `
+        'the file-access variables are part of the hash' "before $hashBefore, after $hashAfter`n$($hashed.Log)"
+
+    # A picture the mode denies is only a warning of the tool, but it stops a restrictive build
+    $deny = Join-Path $guide 'deny'
+    New-Item -ItemType Directory -Force -Path $deny | Out-Null
+    Copy-Item (Join-Path $guide 'x.png') (Join-Path $guide 'outside-pic.png')
+    Set-Content (Join-Path $guide 'outside-flow.mmd') -Value "flowchart LR`n    A[Out] --> B[Side]"
+    Set-Content (Join-Path $deny 'd.mmd') -Value "flowchart LR`n    A[Start] --> p@{ img: `"../outside-pic.png`", w: 40, h: 40, constraint: `"on`" }"
+    Set-Content (Join-Path $deny 'f.svg') -Value (
+        '<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><image href="../outside-flow.mmd" width="50" height="50"/></svg>')
+    $deniedRender = Invoke-FilterWith @{ CANVASNET_ROOTS = $deny } 'deny-render' '![d](deny/d.mmd)'
+    Write-Result ($deniedRender.ExitCode -ne 0 -and $deniedRender.Log -match 'denied by CANVASNET_FILE_ACCESS/CANVASNET_ROOTS') `
+        'a picture the mode denies stops the build (render)' $deniedRender.Log
+    $markersBefore = @(Get-ChildItem -LiteralPath $cache -Filter '*.plain').Count
+    $deniedFlatten = Invoke-FilterWith @{ CANVASNET_ROOTS = $deny } 'deny-flatten' '![f](deny/f.svg)'
+    Write-Result ($deniedFlatten.ExitCode -ne 0 -and $deniedFlatten.Log -match 'denied by CANVASNET_FILE_ACCESS/CANVASNET_ROOTS' -and
+        @(Get-ChildItem -LiteralPath $cache -Filter '*.plain').Count -eq $markersBefore -and
+        @(Get-ChildItem -LiteralPath $cache -Filter 'f-*.svg').Count -eq 0) `
+        'a picture the mode denies stops the build and leaves no marker (flatten)' $deniedFlatten.Log
+
+    # A mistake in the variables stops the build before the tool runs
+    $unknownMode = Invoke-FilterWith @{ CANVASNET_FILE_ACCESS = 'everything' } 'access-unknown' '![m](t.scad)'
+    Write-Result ($unknownMode.ExitCode -ne 0 -and $unknownMode.Log -match "CANVASNET_FILE_ACCESS is 'everything'") `
+        'an unknown CANVASNET_FILE_ACCESS stops the build' $unknownMode.Log
+    $conflict = Invoke-FilterWith @{ CANVASNET_FILE_ACCESS = 'any'; CANVASNET_ROOTS = $guide } 'access-conflict' '![m](t.scad)'
+    Write-Result ($conflict.ExitCode -ne 0 -and $conflict.Log -match 'CANVASNET_ROOTS cannot be used with CANVASNET_FILE_ACCESS=any') `
+        'CANVASNET_ROOTS with CANVASNET_FILE_ACCESS=any stops the build' $conflict.Log
+
+    # An absolute data url and a file: URI without a host are local files the tool reads, so they are hashed
+    $absCsv = (Join-Path $root 'abs.csv') -replace '\\', '/'
+    $fileUri = 'file://' + $(if ($absCsv.StartsWith('/')) { $absCsv } else { '/' + $absCsv })
+    Set-Content (Join-Path $guide 'abs.vl.json') -Value $urlSpec.Replace('URL', $absCsv)
+    Set-Content (Join-Path $guide 'uri.vl.json') -Value $urlSpec.Replace('URL', $fileUri)
+    foreach ($case in @(@('abs', 'an absolute data url is hashed'), @('uri', 'a file: data url is hashed'))) {
+        Set-Content (Join-Path $root 'abs.csv') -Value "k,v`na,1`nb,2"
+        $absFirst = Invoke-Filter "data-$($case[0])" "![c]($($case[0]).vl.json)"
+        $absBefore = @(Get-Pictures).Count
+        Set-Content (Join-Path $root 'abs.csv') -Value "k,v`na,1`nb,$(7 + $case[0].Length)"
+        $absRun = Invoke-Filter "data-$($case[0])" "![c]($($case[0]).vl.json)"
+        $absAfter = @(Get-Pictures).Count
+        Write-Result ($absFirst.ExitCode -eq 0 -and $absRun.ExitCode -eq 0 -and $absAfter -eq $absBefore + 1) $case[1] `
+            "before $absBefore, after $absAfter`n$($absFirst.Log)`n$($absRun.Log)"
+    }
+
+    # An SVG drawing that links a diagram by an absolute path is composite, so it is flattened
+    $absFlow = (Join-Path $svgDir 'flow.mmd') -replace '\\', '/'
+    Set-Content (Join-Path $svgDir 'abs-link.svg') -Value (
+        '<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><image href="' + $absFlow + '" width="50" height="50"/></svg>')
+    $absLink = Invoke-Filter 'svg-abs-link' '![a](svg/abs-link.svg)'
+    Write-Result ($absLink.ExitCode -eq 0 -and $absLink.Html -match 'generated/canvasnet/abs-link-[0-9a-f]+\.svg') `
+        'an SVG that links a diagram by an absolute path is flattened' "$($absLink.Log)`n$($absLink.Html)"
 
     # An include cycle ends in the filter, and the tool then reports the cycle.
     Set-Content (Join-Path $guide 'cyc-a.scad') -Value "include <cyc-b.scad>`ncube(3);"

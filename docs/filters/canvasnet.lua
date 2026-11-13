@@ -52,7 +52,7 @@ SVG drawings. An SVG reader such as WeasyPrint draws nothing for an <image href=
 and the .svg files it links (as the tool does: the href of every image element, or its xlink:href (an href in the
 XLink namespace, under any prefix bound to it) when it has no href,
 entities decoded, a query and a fragment cut off and then the rest percent-decoded, as the tool reads a link, remote and
-data: links skipped; comments, CDATA sections, processing
+data: links skipped, an absolute path and a file: URI without a host followed; comments, CDATA sections, processing
 instructions and a DOCTYPE hold no links, and a ">" in a quoted attribute does not end a tag); when none of them links
 such a file, the picture is left alone and the tool is not started, so a plain SVG drawing stays a vector picture
 exactly as before. A link to such a file that does not exist counts too, so the tool reports it (svg-image-unresolved)
@@ -101,8 +101,9 @@ How it works. The filter has two jobs only:
 
 The filter is NOT a security boundary. It runs the author's own documents with the author's permissions,
 and Pandoc itself embeds pictures from any path. What a model, a chart or a diagram may read is decided by the tool's
-own sandbox when the picture is drawn; the filter does no containment check of its own. A dependency the
-tool refuses still stops the build, with the tool's own message. The filter does not resolve symbolic
+file-access mode when the picture is drawn: by default every regular local file, as Pandoc reads images; the opt-in
+variables below (File access) confine it. The filter does no containment check of its own. A dependency the tool
+cannot read still stops the build, with the tool's own message. The filter does not resolve symbolic
 links. Paths are used and compared exactly as written (collapsing "." and ".."), so a file reached through
 two spellings is simply hashed twice, which is harmless.
 
@@ -114,7 +115,8 @@ that decides the picture:
   - the file, and every file it pulls in that exists: for a model every file named by include <...> or
     use <...> (followed recursively, relative to the including file, an absolute name as it is; at most 512
     files, counting the model); for a chart every local data file named by a "url" in a "data" object of the specification
-    (relative to the specification's folder; a remote URL, which the tool never reads, is skipped), and every
+    (relative to the specification's folder; a remote URL, which the tool never reads, is skipped; an absolute path
+    or a file: URI without a host is hashed), and every
     local picture that an image mark names (the "url" of the mark, the literal "value" or "datum" of a "url" channel,
     and the links that the "url" field holds in the inline rows; a model with its includes, a chart with its own
     files, any other file as it is; a fragment such as "#page=2" or "#def.width=20" is dropped, and since the link is part of the
@@ -132,7 +134,8 @@ that decides the picture:
     copy lead from there to it;
   - the drawing attributes, with the defaults this filter adds;
   - the tool: its --version text, the CANVASNET_TOOL text, and, for a local build named by that text, a
-    fingerprint of the DLLs beside it; and this filter's version.
+    fingerprint of the DLLs beside it; the CANVASNET_FILE_ACCESS and CANVASNET_ROOTS arguments; and this filter's
+    version.
 
 An unchanged source is therefore not drawn again, and a changed one always is. Each picture is written
 under a temporary name and then renamed, so two builds running at once never read a half-written file.
@@ -157,6 +160,24 @@ backslash escapes, so a Windows path needs none:
     CANVASNET_TOOL=dotnet src/DemaConsulting.CanvasNet.Tool/bin/Release/net10.0/DemaConsulting.CanvasNet.Tool.dll
     CANVASNET_TOOL="C:/Tools/canvasnet/canvasnet.exe"
 
+File access. By default the filter passes no file-access mode, so a document reads its pictures, includes and data
+as Pandoc reads its images: any regular local file. Two environment variables opt in to a restrictive mode for a
+build of documents you do not fully trust:
+
+    CANVASNET_FILE_ACCESS   roots, no-symlinks, or roots,no-symlinks (any is the default), passed as --file-access
+                            to every render and flatten
+    CANVASNET_ROOTS         folders separated like PATH (";" on Windows, ":" elsewhere), each passed as
+                            --allow-root (a relative folder is taken from the working directory); it implies roots
+
+An unknown mode, or CANVASNET_ROOTS with CANVASNET_FILE_ACCESS=any or no-symlinks, stops the build before the tool
+runs. In a restrictive mode a picture the mode denies (the tool's warning image-access-denied) stops the build, and
+so does a denied include or data file (the tool's error file-access-denied). Both variables are part of every
+picture's name, so a picture drawn without them is not reused with them. A CI build can confine every picture to
+the documentation folders:
+
+    CANVASNET_FILE_ACCESS=roots CANVASNET_ROOTS="$PWD/docs:$PWD/assets" dotnet pandoc --defaults docs/x/definition.yaml
+    (PowerShell: $env:CANVASNET_FILE_ACCESS = 'roots'; $env:CANVASNET_ROOTS = "$PWD\docs;$PWD\assets")
+
 After rebuilding a local tool, whose version text may not change, delete docs/generated/canvasnet
 if the pictures do not follow (a DLL beside a "dotnet ...Tool.dll" override is detected on its own).
 
@@ -179,7 +200,9 @@ with the same organization (header, helpers, hash, render, rewrite), to draw eve
 -- again. 12: a diagram type the tool does not draw is left as written with a warning, no longer for another filter.
 -- 13: packet diagrams are drawn, so a marker that left one as written is no longer used.
 -- 14: git graphs are drawn, so a marker that left one as written is no longer used.
-local FILTER_VERSION = "14"
+-- 15: CANVASNET_FILE_ACCESS and CANVASNET_ROOTS pass --file-access and --allow-root and are part of every name, and an
+-- absolute path or a file: URI without a host is hashed, as the tool reads it.
+local FILTER_VERSION = "15"
 local SCAD_DEFAULT_SIZE = "1600x1200"
 local DEFAULT_BACKGROUND = "white"
 -- The same limit DocPilot's preview uses, so a model that previews also builds.
@@ -447,6 +470,80 @@ local function find_tool()
   return tool
 end
 
+-- The modes CANVASNET_FILE_ACCESS may name, as the tool's --file-access reads them.
+local FILE_ACCESS_MODES = {
+  any = true,
+  roots = true,
+  ["no-symlinks"] = true,
+  ["roots,no-symlinks"] = true,
+  ["no-symlinks,roots"] = true,
+}
+
+-- The code of the tool's warning for a picture the file-access mode denies.
+local ACCESS_DENIED = "image-access-denied"
+
+-- The file-access arguments of every render and flatten, read once from CANVASNET_FILE_ACCESS and CANVASNET_ROOTS:
+-- "args" (--file-access and one --allow-root per folder, as absolute paths), "restrictive" (a mode other than any,
+-- or folders), and "key" (the arguments as part of every picture's name). An unknown mode, or folders with the mode
+-- any or no-symlinks, stops the build before the tool runs.
+local access = nil
+
+local function find_file_access()
+  if access then
+    return access
+  end
+  local mode = os.getenv("CANVASNET_FILE_ACCESS")
+  mode = mode and mode:match("^%s*(.-)%s*$"):lower():gsub("%s*,%s*", ",") or nil
+  if mode == "" then
+    mode = nil
+  end
+  if mode and not FILE_ACCESS_MODES[mode] then
+    fail("CANVASNET_FILE_ACCESS is '" .. mode .. "'; use roots, no-symlinks, roots,no-symlinks, or any")
+  end
+  local roots = {}
+  local list = os.getenv("CANVASNET_ROOTS")
+  if list and list:match("%S") then
+    for _, entry in ipairs(pandoc.path.split_search_path(list)) do
+      if entry:match("%S") then
+        table.insert(roots, absolute(entry))
+      end
+    end
+  end
+  if #roots > 0 and (mode == "any" or mode == "no-symlinks") then
+    fail("CANVASNET_ROOTS cannot be used with CANVASNET_FILE_ACCESS=" .. mode .. "; use roots or roots,no-symlinks")
+  end
+  local args = {}
+  if mode then
+    table.insert(args, "--file-access")
+    table.insert(args, mode)
+  end
+  for _, root in ipairs(roots) do
+    table.insert(args, "--allow-root")
+    table.insert(args, root)
+  end
+  access = {
+    args = args,
+    restrictive = #roots > 0 or (mode ~= nil and mode ~= "any"),
+    key = "file-access\n" .. table.concat(args, "\n"),
+  }
+  return access
+end
+
+-- Stops the build for a picture the file-access mode denied, when CANVASNET_FILE_ACCESS or CANVASNET_ROOTS made the
+-- mode restrictive: a document must not be published with a picture silently missing. The partial file is removed.
+local function fail_on_denial(doc, name, partial)
+  if not find_file_access().restrictive then
+    return
+  end
+  for _, diagnostic in ipairs(doc.diagnostics or {}) do
+    if diagnostic.code == ACCESS_DENIED then
+      os.remove(partial)
+      fail("drawing '" .. name .. "' failed: " .. tostring(diagnostic.message)
+        .. " (denied by CANVASNET_FILE_ACCESS/CANVASNET_ROOTS)")
+    end
+  end
+end
+
 -- docs/filters/canvasnet.lua -> docs/generated/canvasnet.
 local filters_dir = pandoc.path.directory(absolute(PANDOC_SCRIPT_FILE))
 local out_dir = pandoc.path.join({ pandoc.path.directory(filters_dir), "generated", "canvasnet" })
@@ -549,21 +646,64 @@ local function collect_data_urls(node, urls, depth)
   end
 end
 
--- Whether a data url is remote, which the tool never reads: the tool's own rule (FeatureCatalog.IsSchemeBearingUrl)
--- is a leading slash or backslash, a rooted path, or a scheme (a letter, then letters, digits, "+", "-" or ".",
--- then a colon; a drive letter counts).
-local function is_remote_url(url)
-  local text = url:gsub("^%s+", "")
-  return text:match("^[/\\]") ~= nil or pandoc.path.is_absolute(text) or text:match("^%a[%w+.-]*:") ~= nil
+-- The local path of a file: URI without a host (file:///x, file:/x, file:///C:/x), percent-decoded, or nil for a URI
+-- with a host (localhost included) or another form: the tool's own rule (FileReferenceResolver.ParseFileUri).
+local function file_uri_path(text)
+  local rest = text:match("^[fF][iI][lL][eE]:(.*)$")
+  if not rest then
+    return nil
+  end
+  local path
+  if rest:sub(1, 3) == "///" then
+    path = rest:sub(3)
+  elseif rest:sub(1, 1) == "/" and rest:sub(2, 2) ~= "/" then
+    path = rest
+  else
+    return nil
+  end
+  path = decode_percent(path)
+  if path:match("^[/\\][/\\]") then
+    return nil
+  end
+  -- "/C:/x" is the drive path C:/x
+  if path:match("^/%a:") then
+    path = path:sub(2)
+  end
+  return path
 end
 
--- The data file a chart names: the url (a backslash is a slash), taken from the specification's folder, or
--- nil when the url is blank or remote.
+-- Whether a url or link is remote, which the tool never reads: the tool's own rule (FeatureCatalog.IsRemoteDataUrl,
+-- which the image links share) is two leading slashes or backslashes (a network or device path), a scheme of two or
+-- more characters other than file (a letter, then letters, digits, "+", "-" or "."; one letter is a drive), or a file:
+-- URI with a host. Everything else is a local path: relative, absolute, rooted, a drive path, or a file: URI without a
+-- host.
+local function is_remote_url(url)
+  local text = url:gsub("^%s+", "")
+  if text:match("^[/\\][/\\]") then
+    return true
+  end
+  local scheme = text:match("^(%a[%w+.-]*):")
+  if not scheme or #scheme <= 1 then
+    return false
+  end
+  return scheme:lower() ~= "file" or file_uri_path(text) == nil
+end
+
+-- The file a url names: a file: URI without a host by its path; an absolute path as it is; a path rooted without a
+-- drive on the drive of the folder; otherwise taken from the folder (a backslash is a slash); nil when blank or remote.
 local function local_data_file(folder, url)
   if url:match("^%s*$") or is_remote_url(url) then
     return nil
   end
-  return collapse(pandoc.path.join({ folder, (url:gsub("\\", "/")) }))
+  local path = file_uri_path((url:gsub("^%s+", ""))) or url
+  path = path:gsub("\\", "/")
+  if pandoc.path.is_absolute(path) then
+    return collapse(path)
+  end
+  if path:match("^/") then
+    return collapse((folder:match("^%a:") or "") .. path)
+  end
+  return collapse(pandoc.path.join({ folder, path }))
 end
 
 -- Collects what the "url" channel of an image mark names in its subtree: the literal links of a "value" or a
@@ -779,8 +919,8 @@ local function collect_mermaid_links(content, links)
 end
 
 -- Adds a Mermaid diagram and the local pictures its nodes name to the hash input: a link is taken from the
--- diagram's folder without its fragment ("#page=2", "#theme=dark") or query, a remote or absolute link (which
--- the tool refuses) is skipped, and a linked model, chart or diagram adds its own files. A diagram that names
+-- diagram's folder without its fragment ("#page=2", "#theme=dark") or query, a remote link (which the tool never
+-- reads) is skipped (an absolute path and a file: URI without a host are files), and a linked model, chart or diagram adds its own files. A diagram that names
 -- more than MAX_DEPENDENCIES different local pictures stops the build, as for a chart.
 function add_mermaid_sources(path, root, parts, seen, depth)
   seen[path] = true
@@ -990,8 +1130,8 @@ end
 
 -- Adds an SVG drawing and the local files its image elements link to the hash input, and tells whether it links a
 -- file that only the tool draws (a model, chart, diagram, or document page), directly or through a nested .svg file.
--- A link is taken from the drawing's folder without its fragment or query, a remote, data: or absolute link (which
--- the tool never reads) is skipped, a nested .svg file is followed with its own links, and a linked model, chart or
+-- A link is taken from the drawing's folder without its fragment or query, a remote or data: link (which the tool
+-- never reads) is skipped (an absolute path and a file: URI without a host are files), a nested .svg file is followed with its own links, and a linked model, chart or
 -- diagram adds its own files. A link to such a file that is missing makes the drawing composite too (the tool reports
 -- it) and adds a "missing" entry to the hash. While a drawing is being read its entry in "seen" is true, and afterwards
 -- "composite" or "plain", so a drawing linked twice is read once and a cycle ends. More than MAX_DEPENDENCIES files
@@ -1023,7 +1163,13 @@ function add_svg_sources(path, root, parts, seen, depth)
     -- data: link is skipped. A link to a file only the tool draws that is missing still makes the drawing one to
     -- flatten, so the tool reports the link instead of leaving it broken
     local reference = link:gsub("[#?].*$", "")
-    local resolved = local_data_file(folder, reference) and local_data_file(folder, decode_percent(reference))
+    local resolved
+    if reference:match("^%s*[fF][iI][lL][eE]:") then
+      -- A file: URI is percent-decoded as it is read
+      resolved = local_data_file(folder, reference)
+    else
+      resolved = local_data_file(folder, reference) and local_data_file(folder, decode_percent(reference))
+    end
     if resolved and not unique[resolved] then
       if file_exists(resolved) then
         unique[resolved] = true
@@ -1296,6 +1442,7 @@ end
 local function draw(name, source, kind, attributes, stem)
   local options, keep = build_options(name, kind, attributes)
   local command = find_tool()
+  local file_access = find_file_access()
 
   local root = pandoc.path.directory(source)
   local sources = {}
@@ -1317,6 +1464,7 @@ local function draw(name, source, kind, attributes, stem)
     "canvasnet.lua " .. FILTER_VERSION,
     kind,
     command.identity,
+    file_access.key,
     table.concat(options, ";"),
     table.concat(sources, "\n\0\n"),
   }, "\n\0\n"))
@@ -1346,6 +1494,9 @@ local function draw(name, source, kind, attributes, stem)
   for _, option in ipairs(options) do
     table.insert(args, option)
   end
+  for _, arg in ipairs(file_access.args) do
+    table.insert(args, arg)
+  end
   table.insert(args, "--output")
   table.insert(args, partial)
   table.insert(args, "--json")
@@ -1357,6 +1508,7 @@ local function draw(name, source, kind, attributes, stem)
   end
 
   local doc = decode(result) or {}
+  fail_on_denial(doc, name, partial)
   for _, diagnostic in ipairs(doc.diagnostics or {}) do
     -- Only the diagram itself being a type the tool does not draw leaves the picture alone; the same report about
     -- a picture embedded in it (which carries the chain of embedding files in "origin") is an ordinary note.
@@ -1427,6 +1579,7 @@ local function flatten_svg(img)
   end
 
   local command = find_tool()
+  local file_access = find_file_access()
   -- The links the tool rebases in the copy lead from the cache folder to the drawing's folder, so the same drawing in
   -- another folder (or a renamed folder) is another copy. The folder is taken relative to the cache folder, so the
   -- name does not depend on where the repository is checked out (the full path when there is no relative one).
@@ -1434,6 +1587,7 @@ local function flatten_svg(img)
     "canvasnet.lua " .. FILTER_VERSION,
     "svg",
     command.identity,
+    file_access.key,
     table.concat(options, ";"),
     "folder " .. (relative_path(out_dir, root) or root),
     table.concat(sources, "\n\0\n"),
@@ -1460,6 +1614,9 @@ local function flatten_svg(img)
     for _, arg in ipairs({ "flatten", source, table.unpack(options) }) do
       table.insert(args, arg)
     end
+    for _, arg in ipairs(file_access.args) do
+      table.insert(args, arg)
+    end
     for _, arg in ipairs({ "--output", partial, "--json" }) do
       table.insert(args, arg)
     end
@@ -1471,6 +1628,8 @@ local function flatten_svg(img)
     end
 
     local doc = decode(result) or {}
+    -- A denial stops the build before a marker or a copy is written
+    fail_on_denial(doc, name, partial)
     local warnings = {}
     for _, diagnostic in ipairs(doc.diagnostics or {}) do
       local message = tostring(diagnostic.message):gsub("[\r\n]+", " ")
