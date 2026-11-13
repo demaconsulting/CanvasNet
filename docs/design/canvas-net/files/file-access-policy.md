@@ -91,7 +91,9 @@ other code, with no open in progress) is evaluated by resolving now.
   reads itself through its own resolver (a linked model's includes, a linked chart's data). That resolver's base
   directory is the folder of the nested file, which may have been swapped for a link after the outer check; without
   an anchor, `NoSymlinks` would trust it. The private `AnchoredPolicy` keeps the inner policy's `Name`,
-  `RequiresRealPath` and `PreCheck` and hands every request to it with `BaseDirectory` replaced by the origin. A
+  `RequiresRealPath` and `PreCheck`, hands every request to it with `BaseDirectory` replaced by the origin, and answers
+  `AnchorsOf` with the inner policy's folders for that same origin, so the nested resolver captures, before its open,
+  exactly the folder the anchored check compares against (otherwise `NoSymlinks` would deny every nested file). A
   policy that needs no real path (`AllowAll`) is returned as it is, and an anchored policy returns itself, so the
   outermost origin wins. `FolderImageResolver` sets `ImageSourceRequest.FileAccess` to its policy anchored at the
   origin of the chain.

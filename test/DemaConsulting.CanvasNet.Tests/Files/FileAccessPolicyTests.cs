@@ -451,4 +451,28 @@ public class FileAccessPolicyTests
         Assert.NotNull(anchored.PreCheck(Path.Combine(inner, "a.txt")));
         Assert.Throws<ArgumentNullException>(() => FileAccessPolicy.NoSymlinks.AnchoredAt(null!));
     }
+
+    /// <summary>
+    ///     Validates that a no-symlinks policy anchored at an outer origin names the anchor of that origin as the folder
+    ///     to capture before the open, whatever base directory the nested resolver passes, so the nested resolver
+    ///     captures exactly the folder the anchored check compares against.
+    /// </summary>
+    [Fact]
+    public void FileAccessPolicy_AnchoredAt_AnchorsOf_NamesTheAnchorOfTheOuterOrigin()
+    {
+        // Arrange
+        using var directory = new SandboxTempDirectory();
+        var outer = Directory.CreateDirectory(directory.Combine("outer")).FullName;
+        var nested = Directory.CreateDirectory(directory.Combine("outer/site/models")).FullName;
+        var requested = Path.Combine(nested, "lib.scad");
+        var anchored = FileAccessPolicy.Combine(FileAccessPolicy.UnderRoots(outer), FileAccessPolicy.NoSymlinks).AnchoredAt(outer);
+
+        // Act
+        var plain = FileAccessPolicy.NoSymlinks.AnchorsOf(requested, nested).ToList();
+        var fromOuter = anchored.AnchorsOf(requested, nested).ToList();
+
+        // Assert
+        Assert.True(RealPath.PathsEqual(nested, Assert.Single(plain)));
+        Assert.True(RealPath.PathsEqual(outer, Assert.Single(fromOuter)));
+    }
 }

@@ -390,6 +390,15 @@ public abstract partial class FileAccessPolicy
         internal override FileAccessDecision? PreCheck(string requestedPath) => inner.PreCheck(requestedPath);
 
         /// <inheritdoc/>
+        /// <remarks>
+        ///     The folders are those of the outer chain's origin, the same base directory <see cref="Check"/> hands to
+        ///     the inner policy, so the resolver of the nested document captures exactly what the inner policy compares
+        ///     against.
+        /// </remarks>
+        internal override IEnumerable<string> AnchorsOf(string requestedPath, string baseDirectory) =>
+            inner.AnchorsOf(requestedPath, origin);
+
+        /// <inheritdoc/>
         internal override FileAccessPolicy AnchoredAt(string origin)
         {
             // The outermost origin wins: a nested document never moves the anchor of its outer chain

@@ -95,6 +95,7 @@ switch, and a canceled token.
 `CanvasNetViewer_Render_PathThroughSymbolicLink_IsRenderedWhateverThePolicy`,
 `CanvasNetViewer_Render_LinkThroughDirectoryLink_NoSymlinks_IsAccessDenied`,
 `CanvasNetViewer_Render_NestedModelInclude_IsCheckedByTheRenderPolicy`,
+`CanvasNetViewer_Render_NestedModelInclude_NoSymlinks_ReadsPlainIncludeAndDeniesLink` (Windows, Linux, macOS),
 `CanvasNetViewer_Render_NestedChartData_IsCheckedByTheRenderPolicy`,
 `ViewerRenderOptions_FileAccess_DefaultsToAllowAllAndRejectsNull`
 
@@ -105,7 +106,10 @@ default and under `NoSymlinks`; that under `NoSymlinks` a link of the rendered f
 on Windows) is the one `image-access-denied` warning with nothing drawn, while the default policy draws it; that the
 policy of the render reaches a model and a chart that an SVG file embeds: under `UnderRoots(site)` an include or a data
 file of the parent folder fails the render with an `ImageSourceException` whose chain of inner exceptions holds a
-`FileReferenceException` of kind `AccessDenied`, while the default draws both; and that `ViewerRenderOptions.FileAccess`
+`FileReferenceException` of kind `AccessDenied`, while the default draws both; that under `NoSymlinks` a model an SVG
+file embeds reads a plain include of its folder (the nested resolver captures the outer origin's folder before its
+open) while an include through a directory link (a junction on Windows) fails the render with the denial; and that
+`ViewerRenderOptions.FileAccess`
 is `AllowAll` by default, keeps another policy, and refuses `null`.
 
 #### CanvasNetViewer-CanvasNetViewer-FileAccessDenied: A Denied Link Under The Strict Option

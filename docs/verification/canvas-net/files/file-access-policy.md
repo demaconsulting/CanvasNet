@@ -72,7 +72,8 @@ the resolver (`CanvasNet-Files-FileReferenceResolver-ChainOrigin`).
 ##### CanvasNet-Files-FileAccessPolicy-AnchoredAt: A Nested Request Is Judged From the Outer Origin
 
 **Tests**: `FileAccessPolicy_AnchoredAt_NoSymlinks_JudgesFromTheOuterOrigin`,
-`FileAccessPolicy_AnchoredAt_AllowAllAndAnchored_ReturnTheSameInstance`
+`FileAccessPolicy_AnchoredAt_AllowAllAndAnchored_ReturnTheSameInstance`,
+`FileAccessPolicy_AnchoredAt_AnchorsOf_NamesTheAnchorOfTheOuterOrigin`
 
 These tests verify the internal `AnchoredAt` that a resolver uses to give a source the policy of its chain
 (`CanvasNet-ImageSources-FolderImageResolver-PolicyPropagation`). With `outer/lib` a directory link (a junction on
@@ -80,7 +81,9 @@ Windows, so the test never skips), a nested request whose base directory is `out
 `NoSymlinks` and denied, with a reason naming a symbolic link or junction, once the policy is anchored at `outer`; the
 anchored policy keeps the name `no-symlinks` and needs a real path. Anchoring `AllowAll`, or a policy that is already
 anchored, returns the same instance (the outermost origin wins); the pre-check of an anchored `roots` policy is that of
-the inner one; a null origin is rejected.
+the inner one; a null origin is rejected. An anchored `roots+no-symlinks` policy names, for a nested request whose base
+directory is a folder below `outer`, the anchor of `outer` as the only folder to capture before the open, where plain
+`NoSymlinks` names the nested folder, so the nested resolver captures exactly what the anchored check compares against.
 
 ##### CanvasNet-Files-FileAccessPolicy-Combine: Composition
 

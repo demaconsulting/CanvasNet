@@ -465,6 +465,36 @@ public class CanvasNetViewerTests
     }
 
     /// <summary>
+    ///     Test that the no-symlinks policy works through a nested source: a model an SVG file embeds reads a plain
+    ///     include under the policy (judged from the folder of the outer document, whose real location the nested
+    ///     resolver captures before its open), while an include through a directory link (a junction on Windows, so the
+    ///     test needs no privilege) is denied.
+    /// </summary>
+    [Fact]
+    public void CanvasNetViewer_Render_NestedModelInclude_NoSymlinks_ReadsPlainIncludeAndDeniesLink()
+    {
+        // Arrange: site/doc.svg embeds site/part.scad (plain include) and site/linked.scad (include through site/libs,
+        // a directory link to a folder beside the site)
+        using var folder = new ViewerTestFolder();
+        folder.WriteText("site/lib.scad", "module part() { cube(8, center = true); }\n");
+        folder.WriteText("real/lib.scad", "module part() { cube(8, center = true); }\n");
+        folder.WriteText("site/part.scad", "include <lib.scad>\npart();\n");
+        folder.WriteText("site/linked.scad", "include <libs/lib.scad>\npart();\n");
+        folder.CreateDirectoryLinkOrSkip("site/libs", "real");
+        var plain = folder.WriteText("site/doc.svg", ViewerFixtures.Svg(ViewerFixtures.Cell("part.scad", 0)));
+        var linked = folder.WriteText("site/linked.svg", ViewerFixtures.Svg(ViewerFixtures.Cell("linked.scad", 0)));
+        var noLinks = new ViewerRenderOptions { FileAccess = FileAccessPolicy.NoSymlinks };
+
+        // Act
+        using var drawn = CanvasNetViewer.Render(plain, noLinks);
+        var ex = Assert.Throws<ImageSourceException>(() => CanvasNetViewer.Render(linked, noLinks));
+
+        // Assert
+        Assert.Single(drawn.Embedded);
+        Assert.Equal(FileReferenceFailureKind.AccessDenied, FindDenial(ex)?.Kind);
+    }
+
+    /// <summary>
     ///     Test that the file-access option of a render is the allow-all policy by default and refuses null.
     /// </summary>
     [Fact]

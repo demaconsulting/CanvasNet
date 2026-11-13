@@ -163,6 +163,9 @@ sections:
             tests:
               - ViewerRenderOptions_FileAccess_DefaultsToAllowAllAndRejectsNull
               - CanvasNetViewer_Render_NestedModelInclude_IsCheckedByTheRenderPolicy
+              - "windows@CanvasNetViewer_Render_NestedModelInclude_NoSymlinks_ReadsPlainIncludeAndDeniesLink"
+              - "ubuntu@CanvasNetViewer_Render_NestedModelInclude_NoSymlinks_ReadsPlainIncludeAndDeniesLink"
+              - "macos@CanvasNetViewer_Render_NestedModelInclude_NoSymlinks_ReadsPlainIncludeAndDeniesLink"
               - CanvasNetViewer_Render_NestedChartData_IsCheckedByTheRenderPolicy
               - CanvasNetViewer_Render_LinkThroughDirectoryLink_NoSymlinks_IsAccessDenied
 
