@@ -72,8 +72,9 @@ are embedded PNG pictures, so a browser, WeasyPrint, or any other PDF pipeline s
 > `file:` URIs and symbolic links, as Pandoc does. To keep the old folder confinement, set
 > `FileAccess = FileAccessPolicy.Combine(FileAccessPolicy.UnderRoots(folder), FileAccessPolicy.NoSymlinks)` on the
 > options of the operation. The `SandboxedFileResolver` family is obsolete. The `canvasnet` tool follows the same
-> default: add `--file-access roots,no-symlinks` (and `--allow-root <folder>` for other folders) to restore the old
-> confinement, for example for a document you do not trust. The Pandoc filter stays unrestricted unless
+> default. Exactly the old confinement is `--file-access roots,no-symlinks --allow-root <folder of the input>`;
+> without `--allow-root`, `roots` also allows everything under the current folder. For a document you do not trust,
+> add `--allow-root <the document's folder>`. The Pandoc filter stays unrestricted unless
 > `CANVASNET_FILE_ACCESS` and `CANVASNET_ROOTS` opt in. See *Migrating from the Folder Sandbox* in
 > the [core library user guide](https://github.com/demaconsulting/CanvasNet/blob/main/docs/user_guide/canvas-net.md#migrating-from-the-folder-sandbox).
 

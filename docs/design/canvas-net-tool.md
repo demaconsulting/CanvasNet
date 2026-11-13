@@ -209,8 +209,10 @@ loaded.
 The files a document references (SVG images, Mermaid pictures, Vega-Lite image marks and data files, OpenSCAD
 includes, linked pages) are a disclosure risk: by default (`--file-access any`) the tool reads every regular local file
 the user can read, as Pandoc reads images, so a document can make a picture of a file elsewhere on the machine. The
-threat model is the user's own documents; for a document that is not trusted, `--file-access roots,no-symlinks` (with
-`--allow-root` for the folders it may use) confines every reference of every reading command, through one
+threat model is the user's own documents; for a document that is not trusted,
+`--file-access roots,no-symlinks --allow-root <the document's folder>` (one more `--allow-root` for each other folder
+it may use) confines every reference of every reading command. Without `--allow-root`, `roots` also allows everything
+under the working directory (`DefaultRoots`), so it is not a confinement to the document's folder. The policy is one
 `FileAccessPolicy` per invocation that `RenderCommand.ReadFileAccess` builds and every probe and load receives (a test
 scans the source so that no probe or request is built without it). In every mode the tool never reads the network, a UNC
 path, a `file:` URI with a host, or a device path, and every size and count limit holds; the inputs named on the command

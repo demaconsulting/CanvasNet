@@ -2767,8 +2767,9 @@ The contract, in short (every member is documented in the XML documentation):
 > ```
 >
 > The property is on `FolderImageResolverOptions`, `ScadOpenOptions`, `VegaLiteOpenOptions`, `ViewerRenderOptions`,
-> `SourceOptions`, `FlattenRequest` and `MontageRequest`. On the command line, add
-> `canvasnet ... --file-access roots,no-symlinks` (and `--allow-root <folder>` for other folders).
+> `SourceOptions`, `FlattenRequest` and `MontageRequest`. On the command line, exactly the old confinement is
+> `canvasnet ... --file-access roots,no-symlinks --allow-root <folder of the input>`; without `--allow-root`, `roots`
+> also allows everything under the current folder.
 
 What changed:
 
@@ -2797,8 +2798,10 @@ What changed:
    `file-access-denied` (`ErrorCodes.FileAccessDenied`) for a denied include or data file, and for a denied link in
    strict mode.
 10. **The command line follows the same default.** `canvasnet` reads referenced files like Pandoc;
-    `--file-access roots,no-symlinks` (with `--allow-root <folder>`) restores the old confinement for `render` and its
-    verbs, `inspect`, `compare`, `montage`, and `flatten`, and the Pandoc filter opts in with `CANVASNET_FILE_ACCESS`
+    `--file-access roots,no-symlinks --allow-root <folder of the input>` restores exactly the old confinement for
+    `render` and its verbs, `inspect`, `compare`, `montage`, and `flatten` (without `--allow-root`, `roots` also allows
+    everything under the current folder, so for a document you do not trust name its folder with `--allow-root`), and
+    the Pandoc filter opts in with `CANVASNET_FILE_ACCESS`
     and `CANVASNET_ROOTS`. See *File Access* in the tool user guide and `canvasnet help files`.
 
 ## Examples

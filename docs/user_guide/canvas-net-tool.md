@@ -1624,8 +1624,9 @@ A value that does not match its grammar is a `usage-error` that quotes the value
 
 > **Breaking change.** Earlier versions read the files a document references only from the folder of the input and
 > below it, and never through a symbolic link. The tool now reads them as Pandoc reads images: any regular local
-> file, relative to the file that names it. To get the old confinement back, add `--file-access roots,no-symlinks`
-> (and `--allow-root <folder>` for other folders); see *Migrating from the Folder Sandbox* in the CanvasNet User Guide.
+> file, relative to the file that names it. Exactly the old confinement is
+> `--file-access roots,no-symlinks --allow-root <folder of the input>`. Without `--allow-root`, `roots` also allows
+> everything under the current folder. See *Migrating from the Folder Sandbox* in the CanvasNet User Guide.
 
 A document can reference other files: the `<image href>` of an SVG drawing, the pictures of a Mermaid diagram, the
 image marks and the data files of a Vega-Lite chart, the `include` and `use` files of an OpenSCAD model, and the pages
@@ -1636,9 +1637,11 @@ verbs, `inspect`, `compare`, `montage`, and `flatten`:
   drive path, a local `file:` URI, and a symbolic link or junction.
 - **`roots`** reads only files inside the allowed folders. `--allow-root <folder>` names them (repeatable; a relative
   folder is taken from the current folder); without it, the folders are the **current folder and the folder of each
-  input**. Both the path as written and the real path of the opened file must be inside.
+  input**, so `roots` alone also allows everything under the current folder. Both the path as written and the real
+  path of the opened file must be inside. For a document you do not trust, name its folder with `--allow-root`.
 - **`no-symlinks`** refuses a reference that passes through a symbolic link or junction below the folder of the input.
-- **`roots,no-symlinks`** applies both rules (in either order, in any letter case): the confinement of earlier versions.
+- **`roots,no-symlinks`** applies both rules (in either order, in any letter case). With
+  `--allow-root <folder of the input>` it is exactly the confinement of earlier versions.
 
 `--allow-root` alone implies `roots`. `--allow-root` with `--file-access any` or `--file-access no-symlinks` is a
 `usage-error` that names the conflict, and so is an unknown mode or an `--allow-root` folder that does not exist: the
@@ -1657,8 +1660,8 @@ shows notes to untrusted authors should remove it.
 # Links must stay in the docs and assets folders
 canvasnet render docs/diagram.svg --allow-root docs --allow-root assets -o diagram.png --json
 
-# The confinement of earlier versions: the current folder and the folder of the input, and no symbolic links
-canvasnet render diagram.svg --file-access roots,no-symlinks -o diagram.png
+# Exactly the confinement of earlier versions: the folder of the input and below it, and no symbolic links
+canvasnet render docs/diagram.svg --file-access roots,no-symlinks --allow-root docs -o diagram.png
 
 # Fail instead of leaving out a denied picture
 canvasnet flatten diagram.svg -o flat.svg --file-access roots --strict --json
@@ -1675,7 +1678,7 @@ This table is also the `canvasnet help files` topic, item by item; a test keeps 
 | `any` | The default. A document may reference every regular local file, as Pandoc reads them: a path relative to the file that holds the link, a path with .., an absolute or drive path, a local file: URI, and a symbolic link or junction. |
 | `roots` | Only a file inside a folder named by --allow-root, or, without --allow-root, inside the current folder or the folder of an input. Both the path as written and the real path of the opened file must be inside, so a link that leads out is denied, and so is a path outside that links back in. |
 | `no-symlinks` | A reference may not pass through a symbolic link or junction below the folder of the input it starts from; that folder and the folders above it are trusted. A hard link cannot be detected. |
-| `roots,no-symlinks` | Both rules: the folder confinement that earlier versions applied by default. --file-access roots,no-symlinks restores it, and --allow-root names other folders. |
+| `roots,no-symlinks` | Both rules. Exactly the confinement that earlier versions applied by default is --file-access roots,no-symlinks --allow-root <folder of the input>; without --allow-root, roots also allows every file under the current folder. For a document you do not trust, name its folder with --allow-root. |
 | `--file-access <mode>` | Chooses the mode for render and its verbs, inspect, compare, montage, and flatten: any, roots, no-symlinks, or roots,no-symlinks, in any letter case. Anything else is a usage-error that lists the modes. info always measures under any. |
 | `--allow-root <folder>` | A folder that referenced files may be in; repeatable. It implies --file-access roots and replaces the default folders. A relative folder is taken from the current folder, and a folder that does not exist is a usage-error. With --file-access any or no-symlinks it is a usage-error that names the conflict. |
 | `inputs` | The files named on the command line are never judged by the mode, only the files they reference: images, pictures, data files, includes, and linked pages, at every level. |
@@ -1687,7 +1690,7 @@ This table is also the `canvasnet help files` topic, item by item; a test keeps 
 | `detail` | In the JSON result, the detail of an image-access-denied note holds the reference, the requested and real paths, and the mode. These are host paths: a service that shows notes to untrusted authors should remove them. |
 | `default` | docs/filters/canvasnet.lua passes no mode, so a document reads its pictures, includes, and data as Pandoc reads its images. |
 | `CANVASNET_FILE_ACCESS` | Set it to roots, no-symlinks, or roots,no-symlinks to pass --file-access to every render and flatten of the filter; a picture the mode denies then stops the build. |
-| `CANVASNET_ROOTS` | Folders separated like PATH (; on Windows, : elsewhere), passed as one --allow-root each; it implies roots. Both variables are part of the cache name of every picture, so a picture drawn without them is not reused with them. |
+| `CANVASNET_ROOTS` | Folders separated like PATH (; on Windows, : elsewhere), passed as one --allow-root each as an absolute path (a relative folder is taken from the working directory); it implies roots. Without it, roots gets the working directory and the folder of the picture as --allow-root. These arguments are part of the cache name of every picture, so a picture drawn without them, or from another working directory, is not reused. |
 
 <!-- markdownlint-enable MD013 -->
 
@@ -2070,12 +2073,16 @@ with the tool's message.
 **File access.** Two environment variables opt in to a restrictive mode for a build of documents you do not fully
 trust. `CANVASNET_FILE_ACCESS` (`roots`, `no-symlinks`, or `roots,no-symlinks`; `any` is the default) is passed as
 `--file-access` to every `render` and `flatten` of the filter, and `CANVASNET_ROOTS` holds folders separated like
-`PATH` (`;` on Windows, `:` elsewhere), each passed as `--allow-root`; it implies `roots`. An unknown mode, or
+`PATH` (`;` on Windows, `:` elsewhere), each passed as `--allow-root` as an absolute path (a relative folder is taken
+from the working directory); it implies `roots`. With `roots` and no `CANVASNET_ROOTS`, the filter passes the folders
+the tool would take by default as `--allow-root`: the working directory, and the picture's folder when it is outside
+it. Without `--allow-root`, `roots` allows everything under the working directory, so for documents you do not trust,
+set `CANVASNET_ROOTS` to their folders. An unknown mode, or
 `CANVASNET_ROOTS` with `CANVASNET_FILE_ACCESS` set to `any` or `no-symlinks`, stops the build before the tool runs. In a
 restrictive mode a picture the mode denies stops the build too (it is a warning of the tool, but a document should not
-be published with a picture silently missing), and so does a denied include or data file. Both variables are part of
-the hash of every picture, so a picture drawn without them is not reused with them. A CI build can confine every
-picture to the documentation folders:
+be published with a picture silently missing), and so does a denied include or data file. The file-access arguments
+are part of the hash of every picture, so a picture drawn without them, or from another working directory, is not
+reused with them. A CI build can confine every picture to the documentation folders:
 
 ```bash
 CANVASNET_FILE_ACCESS=roots CANVASNET_ROOTS="$PWD/docs:$PWD/assets" \
@@ -2093,8 +2100,8 @@ never reads it) and the pictures its image marks
 name (a
 fragment such as `#def.width=20` of such a link is part of the specification, so changing it draws the chart again), the
 pictures the nodes of a diagram name (`img:` and `<img src>`), the
-attributes, the tool's version, the `CANVASNET_FILE_ACCESS` and `CANVASNET_ROOTS` arguments, and the filter's own
-version. A picture is written under a temporary name and then
+attributes, the tool's version, the file-access arguments (with the folders the filter passes for `roots`), and the
+filter's own version. A picture is written under a temporary name and then
 renamed, so builds that run at the same time are safe. The `src` of the picture is written relative to the output
 HTML file, so a PDF made from that HTML by WeasyPrint finds it. The tool's failures stop the build with the tool's own
 message, and what the tool leaves out of a picture, and a model's `echo()` lines, are shown as Pandoc warnings.
@@ -2130,8 +2137,9 @@ conventions make this reliable:
   them. To put a model, a chart, or a picture inside a diagram, link it from an SVG with
   `<image href="part.scad" .../>`; `canvasnet help svg` lists the file types, the link rule, and the
   `svg-image-unresolved` warning, and `canvasnet help svg --example embed` prints a diagram.
-- For a document you did not write, add `--file-access roots,no-symlinks` (and `--allow-root <folder>` for the folders
-  its files may come from), so that it cannot make the tool read a file elsewhere on the machine; see
+- For a document you did not write, add `--file-access roots,no-symlinks --allow-root <the document's folder>` (and
+  one more `--allow-root` for each other folder its files may come from), so that it cannot make the tool read a file
+  elsewhere on the machine. Without `--allow-root`, `roots` also allows everything under the current folder; see
   `canvasnet help files`.
 - Always pass `--json` and parse the one line on standard output. Check `ok`, and on a failure branch on
   `error.code`. Read `diagnostics` even on success: they list what was left out of the picture.
@@ -2383,7 +2391,8 @@ pictures side by side.
 - **Security.** The default file-access mode reads any regular local file the user running the tool can read, as
   Pandoc does: a document can name `/etc/passwd` or `..\..\secrets.txt`, and a picture of that file (or the error a
   model or chart reports about it) can show its content. For a document you do not trust, use
-  `--file-access roots,no-symlinks` (or `--allow-root` for the folders it may use). In every mode the tool never reads
+  `--file-access roots,no-symlinks --allow-root <the document's folder>`: without `--allow-root`, `roots` also allows
+  everything under the current folder. In every mode the tool never reads
   the network, a UNC path, a `file:` URI with a host, or a device path, and every size and count limit holds; the inputs
   named on the command line are never judged, and `info` always measures under `any`. The `detail` of an
   `image-access-denied` note holds host paths: remove it before showing notes to an untrusted author.
