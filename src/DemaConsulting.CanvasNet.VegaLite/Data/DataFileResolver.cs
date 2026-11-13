@@ -12,37 +12,39 @@ namespace DemaConsulting.CanvasNet.VegaLite.Data;
 internal sealed record DataFile(string Key, string Display, string Text);
 
 /// <summary>
-///     Finds and reads the local data files that a chart names with <c>data.url</c>, inside a sandbox, and enforces
-///     the data-file limits.
+///     Finds and reads the local data files that a chart names with <c>data.url</c>, under the file-access policy of
+///     the caller, and enforces the data-file limits.
 /// </summary>
 /// <remarks>
 ///     <para>
-///         <b>Scope.</b> The resolver handles relative local paths only. A URL that has a scheme, or that is absolute,
-///         rooted, a drive path or a network path, never reaches it: <see cref="DataLoader"/> classifies such a URL as
-///         remote data (reported by the feature catalog, never fetched) before it asks the resolver for anything. The
-///         sandbox itself also rejects such a path (and an empty path, a control character, a colon and a path that
-///         leaves its root), so the resolver stays safe when used on its own.
+///         <b>Scope.</b> The resolver handles local paths: relative, absolute and drive paths, and the local path of a
+///         <c>file:</c> URI without a host (converted by <see cref="DataLoader"/>). A URL that names remote data (a scheme
+///         other than a local <c>file:</c> URI, or a network path) never reaches it: <see cref="DataLoader"/> classifies it
+///         (see <see cref="SpecModel.FeatureCatalog.IsRemoteDataUrl"/>; reported by the feature catalog, never fetched) before it asks
+///         the resolver for anything. The core engine itself also rejects a network or device path, an empty path, a
+///         control character and a stray colon, so the resolver stays safe when used on its own.
 ///     </para>
 ///     <para>
 ///         <b>Delegation.</b> Everything that makes the access safe is done by the core
-///         <see cref="SandboxedFileResolver"/>: path validation, confinement to the base directory and each data path,
-///         the refusal of symbolic links and junctions, the open and bounded read (with the byte limit
+///         <see cref="FileReferenceResolver"/>: path validation, the file-access policy
+///         (<see cref="VegaLiteOpenOptions.FileAccess"/>, every regular local file by default) judged on the real path of
+///         the opened file, the regular-file check, the open and bounded read (with the byte limit
 ///         <see cref="VegaLiteLimits.MaxDataBytes"/> and the distinct-file limit <see cref="VegaLiteLimits.MaxDataFiles"/>,
-///         the latter enforced before the file beyond it is opened or requested), the resolver-callback mode and the
-///         per-call file cache. This class
+///         the latter enforced before the file beyond it is opened or requested, whatever the policy), the
+///         resolver-callback mode and the per-call file cache. This class
 ///         adds what is specific to Vega-Lite: the search order (base directory, then <see cref="VegaLiteOpenOptions.DataPaths"/>
 ///         in declaration order, or with a <see cref="VegaLiteOpenOptions.FileResolver"/> the normalized logical path under
-///         the logical root and each data path), strict
+///         the logical root and each data path; an absolute path names one file), strict
 ///         UTF-8 decoding (a byte-order mark is removed; invalid UTF-8 is rejected, never replaced by U+FFFD) and the
-///         translation of every <see cref="SandboxException"/> into a located <see cref="VegaLiteRenderException"/> with
-///         Vega-Lite wording. A local data file that cannot be used is never treated as an empty dataset: a file that is
-///         missing, blocked by the sandbox, unreadable or undecodable is a failure. Only a cancellation passes through
-///         unchanged.
+///         translation of every <see cref="FileReferenceException"/> into a located <see cref="VegaLiteRenderException"/>
+///         with Vega-Lite wording and the refusal as its inner exception. A local data file that cannot be used is never
+///         treated as an empty dataset: a file that is missing, denied by the policy, unreadable or undecodable is a
+///         failure. Only a cancellation passes through unchanged.
 ///     </para>
 ///     <para>
 ///         <b>Cache.</b> Each distinct file is requested at most once per instance (a miss is remembered too, so a
 ///         resolver callback sees each logical path at most once) and decoded at most once; it counts once against
-///         <see cref="VegaLiteLimits.MaxDataFiles"/> in the sandbox. An instance serves one measure or render call, runs only on the
+///         <see cref="VegaLiteLimits.MaxDataFiles"/>. An instance serves one measure or render call, runs only on the
 ///         calling thread and is not thread-safe.
 ///     </para>
 /// </remarks>
@@ -51,8 +53,8 @@ internal sealed class DataFileResolver
     /// <summary>The strict UTF-8 decoder: invalid bytes throw instead of becoming U+FFFD.</summary>
     private static readonly UTF8Encoding StrictUtf8 = new(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
 
-    /// <summary>The core sandbox that finds and reads the files.</summary>
-    private readonly SandboxedFileResolver _sandbox;
+    /// <summary>The core engine that finds, checks and reads the files.</summary>
+    private readonly FileReferenceResolver _engine;
 
     /// <summary>The render limits.</summary>
     private readonly VegaLiteLimits _limits;
@@ -73,37 +75,42 @@ internal sealed class DataFileResolver
     {
         _limits = limits;
         _cancellation = cancellation;
-        _sandbox = new SandboxedFileResolver(
-            new SandboxOptions
+        _engine = new FileReferenceResolver(
+            new FileReferenceOptions
             {
                 BaseDirectory = options.BaseDirectory,
                 SearchPaths = options.DataPaths,
                 FileResolver = options.FileResolver,
+                FileAccess = options.FileAccess,
                 MaxFileBytes = limits.MaxDataBytes,
                 MaxFiles = limits.MaxDataFiles,
             },
             cancellation);
-        _files = new Dictionary<string, DataFile>(_sandbox.KeyComparer);
+        _files = new Dictionary<string, DataFile>(_engine.KeyComparer);
     }
 
     /// <summary>
     ///     Gets a value indicating whether at least one way of finding files is configured.
     /// </summary>
-    public bool HasFileSource => _sandbox.HasSource;
+    public bool HasFileSource => _engine.HasSource;
 
     /// <summary>
-    ///     Finds and reads the file a relative path names.
+    ///     Finds and reads the file a local path names.
     /// </summary>
-    /// <param name="path">The path as written in the specification; must be a relative local path.</param>
+    /// <param name="path">The local path: relative, or absolute (the local path of a <c>file:</c> URI included).</param>
     /// <param name="location">The location of the path in the specification, for errors.</param>
+    /// <param name="written">
+    ///     The URL as the specification wrote it, for messages (a <c>file:</c> URI whose local path is
+    ///     <paramref name="path"/>), or <see langword="null"/> when it is <paramref name="path"/> itself.
+    /// </param>
     /// <returns>The file; never <see langword="null"/>.</returns>
     /// <exception cref="VegaLiteRenderException">
-    ///     Thrown when no file source is configured, the path violates the sandbox, a component is a link, the file does
-    ///     not exist, cannot be read, is not valid UTF-8, or exceeds <see cref="VegaLiteLimits.MaxDataBytes"/> or
-    ///     <see cref="VegaLiteLimits.MaxDataFiles"/>.
+    ///     Thrown when no file source is configured, the path is never allowed, the file-access policy denies the file,
+    ///     the file does not exist, is not a regular file, cannot be read, is not valid UTF-8, or exceeds
+    ///     <see cref="VegaLiteLimits.MaxDataBytes"/> or <see cref="VegaLiteLimits.MaxDataFiles"/>.
     /// </exception>
     /// <exception cref="OperationCanceledException">Thrown when the cancellation token is canceled.</exception>
-    public DataFile Load(string path, VegaLiteLocation location)
+    public DataFile Load(string path, VegaLiteLocation location, string? written = null)
     {
         ArgumentNullException.ThrowIfNull(path);
         _cancellation.ThrowIfCancellationRequested();
@@ -112,18 +119,19 @@ internal sealed class DataFileResolver
         if (!HasFileSource)
         {
             throw new VegaLiteRenderException(
-                $"Cannot read the data file '{Printable(path)}': the document has no base directory, data path or file resolver (open the specification from a file, or set VegaLiteOpenOptions.BaseDirectory, DataPaths or FileResolver).",
+                $"Cannot read the data file '{Printable(written ?? path)}': the document has no base directory, data path or file resolver (open the specification from a file, or set VegaLiteOpenOptions.BaseDirectory, DataPaths or FileResolver).",
                 location);
         }
 
-        // The sandbox validates the path, confines it, refuses links and reads the file; its refusals become located errors
-        var display = path.Replace('\\', '/');
-        SandboxedFile? found;
+        // The engine validates the path, asks the policy and reads the file; its refusals become located errors that
+        // name the file as written, never a host directory the author did not write
+        var display = Printable(written ?? path).Replace('\\', '/');
+        FileReference? found;
         try
         {
-            found = _sandbox.Resolve(path);
+            found = _engine.Resolve(path);
         }
-        catch (SandboxException ex)
+        catch (FileReferenceException ex)
         {
             throw Translate(ex, display, location);
         }
@@ -145,28 +153,32 @@ internal sealed class DataFileResolver
     }
 
     /// <summary>
-    ///     Translates a sandbox refusal into the located render exception with Vega-Lite wording.
+    ///     Translates a refusal of the file engine into the located render exception with Vega-Lite wording.
     /// </summary>
-    /// <param name="ex">The sandbox exception.</param>
-    /// <param name="display">The name shown in messages: the path as written, with forward slashes.</param>
+    /// <param name="ex">The refusal.</param>
+    /// <param name="display">The name shown in messages: the URL as written, with forward slashes.</param>
     /// <param name="location">The location of the path, for errors.</param>
-    /// <returns>The exception, ready to throw.</returns>
-    internal VegaLiteRenderException Translate(SandboxException ex, string display, VegaLiteLocation location) => ex.Kind switch
+    /// <returns>The exception, ready to throw, whose inner exception is <paramref name="ex"/>.</returns>
+    internal VegaLiteRenderException Translate(FileReferenceException ex, string display, VegaLiteLocation location) => ex.Kind switch
     {
-        SandboxFailureKind.EmptyPath or SandboxFailureKind.ControlCharacter or SandboxFailureKind.ColonInPath
-            or SandboxFailureKind.AbsolutePath => new($"The data path '{ex.Path}' is not allowed: {ex.Detail}.", location),
-        SandboxFailureKind.OutsideRoot => new($"The data path '{display}' is outside the allowed directories.", location),
-        SandboxFailureKind.ThroughLink => new(
-            $"The data file '{display}' passes through a link ('{ex.Detail}'); links are not followed inside the allowed directories.",
-            location),
-        SandboxFailureKind.LinkCheckFailed => new($"The data file '{display}' cannot be checked for links and is not read.", location),
-        SandboxFailureKind.TooLarge => new(
-            $"The data file '{display}' is larger than the limit of {_limits.MaxDataBytes} bytes (MaxDataBytes).", location),
-        SandboxFailureKind.InvalidRoot => new("A configured data directory (BaseDirectory or DataPaths) is not a valid path.", location),
-        SandboxFailureKind.TooManyFiles => new(
+        FileReferenceFailureKind.EmptyPath or FileReferenceFailureKind.ControlCharacter or FileReferenceFailureKind.InvalidPath
+            or FileReferenceFailureKind.NetworkPath => new($"The data path '{display}' is not allowed: {ex.Reason}.", location, ex),
+        FileReferenceFailureKind.AccessDenied => new(
+            $"The data file '{display}' was denied by the file-access policy '{ex.PolicyName}': {ex.Reason}.", location, ex),
+        FileReferenceFailureKind.RealPathUnavailable => new(
+            $"The data file '{display}' cannot be checked: its real path cannot be determined on this system, so the file-access policy '{ex.PolicyName}' cannot be applied.",
+            location,
+            ex),
+        FileReferenceFailureKind.NotARegularFile => new($"The data file '{display}' is not a regular file.", location, ex),
+        FileReferenceFailureKind.TooLarge => new(
+            $"The data file '{display}' is larger than the limit of {_limits.MaxDataBytes} bytes (MaxDataBytes).", location, ex),
+        FileReferenceFailureKind.InvalidBaseDirectory => new(
+            "A configured data directory (BaseDirectory or DataPaths) is not a valid path.", location, ex),
+        FileReferenceFailureKind.TooManyFiles => new(
             $"The chart reads more than the limit of {_limits.MaxDataFiles} data files (MaxDataFiles); the file '{display}' was not read.",
-            location),
-        _ => new($"The data file '{display}' cannot be read.", location),
+            location,
+            ex),
+        _ => new($"The data file '{display}' cannot be read.", location, ex),
     };
 
     /// <summary>

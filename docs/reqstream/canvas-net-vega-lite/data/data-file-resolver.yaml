@@ -53,7 +53,7 @@ sections:
                 tests:
                   - DataFileResolver_Load_HostilePathTextIsRejectedWithoutAnyAccess
                   - DataFileResolver_Load_DotDotInsideRootNormalizesAndEscapeIsRejected
-                  - DataFileResolver_Translate_EverySandboxKind_ProducesLocatedWording
+                  - DataFileResolver_Translate_EveryFailureKind_ProducesLocatedWording
                   - DataFileResolver_Load_InvalidConfiguredDirectoryIsLocatedFailure
 
               - id: CanvasNetVegaLite-Data-DataFileResolver-Links
@@ -68,7 +68,7 @@ sections:
                   instead of followed; a check that cannot be completed must never fall back to reading the
                   file; the author must be able to find the offending link.
                 tests:
-                  - DataFileResolver_Translate_EverySandboxKind_ProducesLocatedWording
+                  - DataFileResolver_Translate_EveryFailureKind_ProducesLocatedWording
 
               - id: CanvasNetVegaLite-Data-DataFileResolver-ResolverCallback
                 title: >-
@@ -136,7 +136,7 @@ sections:
                   The number of files bounds the work and the memory of the data stage.
                 tests:
                   - DataFileResolver_Load_MaxDataFilesAtLimitAndOneOver
-                  - DataFileResolver_Translate_EverySandboxKind_ProducesLocatedWording
+                  - DataFileResolver_Translate_EveryFailureKind_ProducesLocatedWording
 
               - id: CanvasNetVegaLite-Data-DataFileResolver-ByteLimit
                 title: >-

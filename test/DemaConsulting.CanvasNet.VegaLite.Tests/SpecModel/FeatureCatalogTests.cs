@@ -117,20 +117,25 @@ public class FeatureCatalogTests
     }
 
     /// <summary>
-    ///     Validates that remote data (every scheme-bearing form) reports <c>vl-data-remote-url</c> at the data object
-    ///     and that a relative local path reports nothing.
+    ///     Validates that remote data (every scheme other than a local <c>file:</c> URI, and network paths) reports
+    ///     <c>vl-data-remote-url</c> at the data object and that a local path (relative, absolute, a drive path or a
+    ///     <c>file:</c> URI without a host) reports nothing.
     /// </summary>
     [Fact]
     public void FeatureCatalog_Visit_RemoteUrlsRemainVlDataRemoteUrl()
     {
-        // Arrange: every scheme the contract names, a UNC path and a drive letter, then local relative paths
+        // Arrange: every scheme the contract names, UNC and network paths, then local paths of every form
         string[] remote =
         [
-            "http://example.org/a.csv", "https://example.org/a.csv", "ftp://host/a.csv", "file:///etc/hosts",
-            "data:text/csv,a", "javascript:alert(1)", "//server/share/a.csv", "\\\\server\\share\\a.csv", "C:\\data\\a.csv",
-            "/etc/hosts", "/a.csv", "\\windows\\system32\\a.csv", "C:a.csv", "d:/data/a.csv", "file:///etc/hosts", "file:/etc/hosts", "FILE://host/a.csv",
+            "http://example.org/a.csv", "https://example.org/a.csv", "ftp://host/a.csv", "file://server/share/a.csv",
+            "data:text/csv,a", "javascript:alert(1)", "//server/share/a.csv", "\\\\server\\share\\a.csv",
+            "file://localhost/a.csv", "FILE://host/a.csv",
         ];
-        string[] local = ["a.csv", "data/a.csv", "../a.csv"];
+        string[] local =
+        [
+            "a.csv", "data/a.csv", "../a.csv", "C:\\data\\a.csv", "/etc/hosts", "/a.csv", "\\windows\\system32\\a.csv",
+            "C:a.csv", "d:/data/a.csv", "file:///etc/hosts", "file:/etc/hosts",
+        ];
         var layers = string.Join(",", remote.Concat(local).Select(u => "{\"data\":{\"url\":" + System.Text.Json.JsonSerializer.Serialize(u) + "}}"));
 
         // Act
@@ -145,7 +150,7 @@ public class FeatureCatalogTests
         Assert.All(remoteReports, r => Assert.Equal(FeatureReportKind.UnsupportedFeature, r.Kind));
         Assert.Contains("never fetched", remoteReports[0].Message, StringComparison.Ordinal);
 
-        // Assert: local relative urls are supported and report nothing (the layer composition itself is drawn and not reported)
+        // Assert: local urls are supported and report nothing (the layer composition itself is drawn and not reported)
         Assert.All(reports, r => Assert.Equal("vl-data-remote-url", r.Id));
     }
 
@@ -200,28 +205,31 @@ public class FeatureCatalogTests
     }
 
     /// <summary>
-    ///     Validates the url classification of remote data.
+    ///     Validates the url classification of remote data: schemes other than a local <c>file:</c> URI, <c>file:</c>
+    ///     URIs with a host, and network paths are remote; relative, absolute and drive paths and local <c>file:</c> URIs
+    ///     are local, on every operating system.
     /// </summary>
     /// <param name="url">The URL as written.</param>
-    /// <param name="expected">Whether the URL is scheme-bearing, a network path or a drive path.</param>
+    /// <param name="expected">Whether the URL names remote data.</param>
     [Theory]
     [InlineData("http://example.org/a.csv", true)]
     [InlineData("HTTPS://example.org/a.csv", true)]
-    [InlineData("file:///etc/passwd", true)]
+    [InlineData("file:///etc/passwd", false)]
     [InlineData("data:text/csv,a", true)]
     [InlineData("javascript:alert(1)", true)]
     [InlineData("ftp://host/a.csv", true)]
-    [InlineData("C:\\data\\a.csv", true)]
+    [InlineData("C:\\data\\a.csv", false)]
     [InlineData("//server/share/a.csv", true)]
     [InlineData("\\\\server\\share\\a.csv", true)]
-    [InlineData("/etc/hosts", true)]
-    [InlineData("/", true)]
-    [InlineData("  /etc/hosts", true)]
-    [InlineData("\\windows\\a.csv", true)]
-    [InlineData("C:data.csv", true)]
-    [InlineData("d:/data/a.csv", true)]
-    [InlineData("file:/etc/hosts", true)]
+    [InlineData("/etc/hosts", false)]
+    [InlineData("/", false)]
+    [InlineData("  /etc/hosts", false)]
+    [InlineData("\\windows\\a.csv", false)]
+    [InlineData("C:data.csv", false)]
+    [InlineData("d:/data/a.csv", false)]
+    [InlineData("file:/etc/hosts", false)]
     [InlineData("FILE://host/share/a.csv", true)]
+    [InlineData("file://localhost/a.csv", true)]
     [InlineData("  http://example.org/a.csv", true)]
     [InlineData("a.csv", false)]
     [InlineData("data/a.csv", false)]
@@ -229,13 +237,32 @@ public class FeatureCatalogTests
     [InlineData("a b.csv", false)]
     [InlineData("", false)]
     [InlineData("1:2.csv", false)]
-    public void FeatureCatalog_IsSchemeBearingUrl_ClassifiesUrls(string url, bool expected)
+    public void FeatureCatalog_IsRemoteDataUrl_ClassifiesUrls(string url, bool expected)
     {
         // Arrange / Act
-        var result = FeatureCatalog.IsSchemeBearingUrl(url);
+        var result = FeatureCatalog.IsRemoteDataUrl(url);
 
         // Assert
         Assert.Equal(expected, result);
+    }
+
+    /// <summary>
+    ///     Validates that the local path of a <c>file:</c> URI without a host is its percent-decoded path, and that a URI
+    ///     with a host and a text that is not a <c>file:</c> URI have none.
+    /// </summary>
+    [Fact]
+    public void FeatureCatalog_LocalPathOfFileUri_ReturnsThePathOfAHostlessUri()
+    {
+        // Arrange
+        var path = Path.Combine(Path.GetTempPath(), "my data", "a.csv");
+        var uri = new Uri(path).AbsoluteUri;
+
+        // Act / Assert
+        Assert.Equal(path, FeatureCatalog.LocalPathOfFileUri(uri));
+        Assert.Equal(path, FeatureCatalog.LocalPathOfFileUri("  " + uri));
+        Assert.Null(FeatureCatalog.LocalPathOfFileUri("file://server/share/a.csv"));
+        Assert.Null(FeatureCatalog.LocalPathOfFileUri("data/a.csv"));
+        Assert.Null(FeatureCatalog.LocalPathOfFileUri(path));
     }
 
     /// <summary>

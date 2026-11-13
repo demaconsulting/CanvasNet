@@ -6,15 +6,15 @@ namespace DemaConsulting.CanvasNet.VegaLite.Data;
 ///     file and text readers behind it (<c>DataFileResolver</c>, <c>DelimitedTextParser</c>).
 /// </summary>
 /// <remarks>
-///     The namespace is internal to the package and never uses the network. The only file access is the sandboxed
+///     The namespace is internal to the package and never uses the network. The only file access is the policy-checked
 ///     reading of the local data files a chart names (<c>DataFileResolver</c>, a thin layer over the core
-///     <c>SandboxedFileResolver</c>): relative paths under the base directory
-///     and data paths of the open options, or the caller's resolver callback, with every link rejected and every read
-///     bounded; remote data (a URL with a scheme or an absolute path) is never opened and yields an empty table that the
+///     <c>FileReferenceResolver</c>): local paths relative to the base directory
+///     and data paths of the open options, or the caller's resolver callback, under the file-access policy of the caller and with every read
+///     bounded; remote data (a scheme other than a local <c>file:</c> URI, or a network path) is never opened and yields an empty table that the
 ///     feature catalog reports. Inline rows, local CSV, TSV, DSV and JSON files, named datasets and generated sequences
 ///     are read, with <c>format.parse</c> conversions and per-column type inference for delimited text. The table types are immutable and
 ///     safe for concurrent use once built; a loader and a resolver serve one call on one thread. The loader of a call is
-///     also the context of the row transforms: a lookup loads its source through it (same sandbox, file cache and limits) and
+///     also the context of the row transforms: a lookup loads its source through it (same file-access policy, file cache and limits) and
 ///     the rows of derived tables are reserved in its row budget. A value can also be an immutable array or object, the
 ///     result of an expression. All text formatting is culture invariant. Calendar work (<c>TimeCalendar</c>, its d3-time
 ///     intervals, the Vega-Lite time units <c>TimeUnitSpec</c> and the datetime objects <c>DateTimeObject</c>) uses only the

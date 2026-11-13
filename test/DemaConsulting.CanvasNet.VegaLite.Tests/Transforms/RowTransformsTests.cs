@@ -1082,8 +1082,8 @@ public class RowTransformsTests
     }
 
     /// <summary>
-    ///     Validates lookup in a file beside the specification: the file is read through the sandbox of the call, once, and a path
-    ///     that escapes the sandbox is a located failure.
+    ///     Validates lookup in a file beside the specification: the file is read through the file access of the call, once,
+    ///     and, under a policy confined to the folder, a path that leaves it is a located denial.
     /// </summary>
     [Fact]
     public void RowTransforms_Apply_LookupInFilesUsesTheSandboxAndTheFileCache()
@@ -1092,7 +1092,11 @@ public class RowTransformsTests
         using var directory = new DataTempDirectory();
         directory.Write("root/names.csv", "k,n\n1,one\n2,two\n");
         directory.Write("outside.csv", "k,n\n1,leak\n");
-        var open = new VegaLiteOpenOptions { BaseDirectory = directory.Combine("root") };
+        var open = new VegaLiteOpenOptions
+        {
+            BaseDirectory = directory.Combine("root"),
+            FileAccess = Files.FileAccessPolicy.UnderRoots(directory.Combine("root")),
+        };
         var from = "{\"data\":{\"url\":\"names.csv\"},\"key\":\"k\",\"fields\":[\"n\"]}";
         var json = Spec("[{\"id\":2},{\"id\":1}]", "[{\"lookup\":\"id\",\"from\":" + from + "},{\"lookup\":\"id\",\"from\":" + from + ",\"as\":[\"again\"]}]");
         var escape = Spec("[{\"id\":1}]", "[{\"lookup\":\"id\",\"from\":{\"data\":{\"url\":\"../outside.csv\"},\"key\":\"k\",\"fields\":[\"n\"]}}]");
@@ -1103,7 +1107,7 @@ public class RowTransformsTests
 
         // Assert
         Assert.Equal(["2|two|two", "1|one|one"], Rows(table, "id", "n", "again"));
-        Assert.Contains("outside the allowed directories", blocked.Message, StringComparison.Ordinal);
+        Assert.Contains("denied by the file-access policy 'roots'", blocked.Message, StringComparison.Ordinal);
         Assert.Equal("/transform/0/from/data/url", blocked.Location.Pointer);
     }
 

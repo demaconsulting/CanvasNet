@@ -140,6 +140,52 @@ public class VegaLiteImageSourceTests
     }
 
     /// <summary>
+    ///     Test that the file-access policy of the request applies to the data files of the chart: a policy confined to
+    ///     the folder of the chart denies a data file in the parent folder with a located error whose cause is the denial,
+    ///     and the default policy of a request reads it.
+    /// </summary>
+    [Fact]
+    public void VegaLiteImageSource_Render_RequestPolicy_AppliesToDataFiles()
+    {
+        // Arrange: a data file in the parent of the chart folder
+        var root = Directory.CreateTempSubdirectory("vl-image-policy").FullName;
+        try
+        {
+            var folder = Directory.CreateDirectory(Path.Combine(root, "chart")).FullName;
+            File.WriteAllText(Path.Combine(root, "data.csv"), "a,b\nA,3\nB,5\n");
+            var json = FileChart.Replace("\"data.csv\"", "\"../data.csv\"", StringComparison.Ordinal);
+            var request = Request(json, 100, 80, folder);
+            var confined = new ImageSourceRequest
+            {
+                Href = request.Href,
+                FileName = request.FileName,
+                Content = request.Content,
+                Directory = folder,
+                PixelWidth = 100,
+                PixelHeight = 80,
+                FileAccess = Files.FileAccessPolicy.UnderRoots(folder),
+            };
+            var source = new VegaLiteImageSource();
+
+            // Act
+            using var allowed = source.Render(request).Surface;
+            var ex = Assert.Throws<VegaLiteRenderException>(() => source.Render(confined));
+
+            // Assert
+            Assert.Equal((100, 80), (allowed.Width, allowed.Height));
+            Assert.Contains("denied by the file-access policy 'roots'", ex.Message, StringComparison.Ordinal);
+            Assert.Equal("/data/url", ex.Location.Pointer);
+            Assert.Equal(
+                Files.FileReferenceFailureKind.AccessDenied,
+                Assert.IsType<Files.FileReferenceException>(ex.InnerException).Kind);
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    /// <summary>
     ///     Test that a part of the chart that is not drawn is returned as an unsupported note with the source
     ///     <c>vega-lite</c>, reported once (the library may add warnings of its own), and that the strict request turns it into an exception.
     /// </summary>

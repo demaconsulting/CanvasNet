@@ -72,7 +72,8 @@ sections:
                   supported feature.
                 tests:
                   - FeatureCatalog_Visit_RemoteUrlsRemainVlDataRemoteUrl
-                  - FeatureCatalog_IsSchemeBearingUrl_ClassifiesUrls
+                  - FeatureCatalog_IsRemoteDataUrl_ClassifiesUrls
+                  - FeatureCatalog_LocalPathOfFileUri_ReturnsThePathOfAHostlessUri
 
               - id: CanvasNetVegaLite-SpecModel-FeatureCatalog-DataSources
                 title: >-

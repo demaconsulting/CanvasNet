@@ -182,7 +182,7 @@ public class DataLoaderTests
     [InlineData("""{"url":"rows.topojson","format":{"type":"topojson"}}""", "vl-data-geo")]
     [InlineData("""{"url":"\\\\server\\share\\rows.json"}""", "vl-data-remote-url")]
     [InlineData("""{"url":"https://example.org/rows.csv"}""", "vl-data-remote-url")]
-    [InlineData("""{"url":"/etc/hosts"}""", "vl-data-remote-url")]
+    [InlineData("""{"url":"file://server/share/rows.csv"}""", "vl-data-remote-url")]
     public void DataLoader_Load_OtherSourcesAreEmptyTablesReportedByTheCatalog(string dataJson, string expectedFeature)
     {
         // Arrange: a document with a resolver callback that must never be asked (nothing here may touch a file)
@@ -326,6 +326,35 @@ public class DataLoaderTests
     {
         var tree = Spec(dataJson);
         return CreateLoader(tree, open, limits).Load(tree.Root["data"]);
+    }
+
+    /// <summary>
+    ///     Validates that an absolute <c>url</c> and a <c>file:</c> URI without a host are local files, read under the
+    ///     default policy wherever they lie, that a message names the URI as written, and that in resolver-callback mode
+    ///     an absolute path is a located error instead of remote data.
+    /// </summary>
+    [Fact]
+    public void DataLoader_Load_LocalFileUriAndAbsolutePath_AreReadAsLocalFiles()
+    {
+        // Arrange: a CSV outside the base directory, and a URI of a file that does not exist
+        using var directory = new DataTempDirectory();
+        Directory.CreateDirectory(directory.Combine("base"));
+        var csv = directory.Write("elsewhere/t.csv", "k,v\na,1\n");
+        var missingUri = new Uri(directory.Combine("elsewhere/none.csv")).AbsoluteUri;
+        var open = new VegaLiteOpenOptions { BaseDirectory = directory.Combine("base") };
+        var callback = new VegaLiteOpenOptions { FileResolver = _ => null };
+
+        // Act
+        var absolute = LoadData("{\"url\":" + System.Text.Json.JsonSerializer.Serialize(csv) + "}", open);
+        var fileUri = LoadData("{\"url\":" + System.Text.Json.JsonSerializer.Serialize(new Uri(csv).AbsoluteUri) + "}", open);
+        var missing = Assert.Throws<VegaLiteRenderException>(() => LoadData("{\"url\":" + System.Text.Json.JsonSerializer.Serialize(missingUri) + "}", open));
+        var inCallback = Assert.Throws<VegaLiteRenderException>(() => LoadData("{\"url\":\"/t.csv\"}", callback));
+
+        // Assert
+        Assert.Equal(1, absolute.RowCount);
+        Assert.Equal(1, fileUri.RowCount);
+        Assert.Contains($"The data file '{missingUri}' was not found", missing.Message, StringComparison.Ordinal);
+        Assert.Contains("absolute paths have no meaning for the file source", inCallback.Message, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -1175,13 +1204,14 @@ public class DataLoaderTests
     }
 
     /// <summary>
-    ///     Validates that a second data source of the same call (the source of a lookup) uses the file cache, the sandbox and the
-    ///     row budget of the loader, and that a remote source stays an empty table that the feature catalog reports.
+    ///     Validates that a second data source of the same call (the source of a lookup) uses the file cache, the file
+    ///     access and the row budget of the loader, and that a remote source stays an empty table that the feature catalog
+    ///     reports.
     /// </summary>
     [Fact]
     public void DataLoader_Load_LookupSourcesShareTheSandboxCacheAndBudgetOfTheCall()
     {
-        // Arrange: the main data and the source of a lookup name the same file; another lookup names a file outside the sandbox
+        // Arrange: the main data and the source of a lookup name the same file; another lookup leaves the root of the file source
         var files = new VirtualDataFiles().With("names.csv", "k,n\n1,one\n2,two\n");
         const string Json = """
             {
@@ -1208,7 +1238,7 @@ public class DataLoaderTests
         Assert.Equal((2, 2), (main.RowCount, secondary.RowCount));
         Assert.Equal(["names.csv"], files.Requests);
         Assert.Equal(4, loader.RowsLoaded);
-        Assert.Contains("outside the allowed directories", escape.Message, StringComparison.Ordinal);
+        Assert.Contains("leaves the root of the file source", escape.Message, StringComparison.Ordinal);
         Assert.Equal("/transform/1/from/data/url", escape.Location.Pointer);
 
         // Assert: a remote source is empty, never asked for, and reported by the catalog at its data object

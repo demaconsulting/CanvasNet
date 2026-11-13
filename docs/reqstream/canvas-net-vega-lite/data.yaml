@@ -95,7 +95,7 @@ sections:
             tests:
               - DataLoader_Load_MissingLocalFileIsHardFailure
               - DataFileResolver_Load_HostilePathTextIsRejectedWithoutAnyAccess
-              - DataFileResolver_Translate_EverySandboxKind_ProducesLocatedWording
+              - DataFileResolver_Translate_EveryFailureKind_ProducesLocatedWording
               - CanvasNetVegaLite_SystemIntegration_Data_MissingOrBlockedFileThrowsRenderException
 
           - id: CanvasNetVegaLite-Data-Parsing

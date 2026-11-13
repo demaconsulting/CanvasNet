@@ -703,7 +703,7 @@ public class VegaLiteSystemIntegrationTests
         var resolved = new List<string>();
         var open = new VegaLiteOpenOptions { FileResolver = name => { resolved.Add(name); return null; } };
         var document = VegaLiteDocument.Parse(
-            "{\"layer\":[{\"data\":{\"url\":\"https://example.org/a.csv\"}},{\"data\":{\"url\":\"file:///etc/hosts\"}},{\"data\":{\"values\":[]}}]}",
+            "{\"layer\":[{\"data\":{\"url\":\"https://example.org/a.csv\"}},{\"data\":{\"url\":\"file://server/share/a.csv\"}},{\"data\":{\"values\":[]}}]}",
             open);
         var features = new List<VegaLiteUnsupportedFeature>();
         var warnings = new List<VegaLiteDiagnostic>();
@@ -834,9 +834,9 @@ public class VegaLiteSystemIntegrationTests
     }
 
     /// <summary>
-    ///     Validates that a local file that is missing, outside the sandbox, a directory link, or not valid UTF-8 fails the
-    ///     render with a located <see cref="VegaLiteRenderException"/> in lenient and strict mode, while an absolute path is
-    ///     remote data and is never opened.
+    ///     Validates that, under a policy confined to the folder of the chart, a local file that is missing, outside the
+    ///     folder (also by an absolute path), or not valid UTF-8 fails the render with a located
+    ///     <see cref="VegaLiteRenderException"/> in lenient and strict mode.
     /// </summary>
     [Fact]
     public void CanvasNetVegaLite_SystemIntegration_Data_MissingOrBlockedFileThrowsRenderException()
@@ -846,17 +846,22 @@ public class VegaLiteSystemIntegrationTests
         directory.Write("root/ok.csv", "a\n1\n");
         directory.Write("root/bad.csv", new byte[] { 0x61, 0x0A, 0xFF, 0x0A });
         directory.Write("outside.csv", "a\n1\n");
-        var open = new VegaLiteOpenOptions { BaseDirectory = directory.Combine("root") };
+        var open = new VegaLiteOpenOptions
+        {
+            BaseDirectory = directory.Combine("root"),
+            FileAccess = Files.FileAccessPolicy.UnderRoots(directory.Combine("root")),
+        };
         string Spec(string url) => "{\"data\":{\"url\":" + System.Text.Json.JsonSerializer.Serialize(url) + "},\"mark\":\"point\",\"encoding\":{\"x\":{\"field\":\"a\",\"type\":\"quantitative\"}}}";
 
         // Act / Assert: each failure is located at the url, whatever the mode
         foreach (var (url, expected) in new[]
         {
             ("missing.csv", "was not found"),
-            ("../outside.csv", "outside the allowed directories"),
+            ("../outside.csv", "denied by the file-access policy 'roots'"),
             ("bad.csv", "is not valid UTF-8"),
-            ("dir/../../outside.csv", "outside the allowed directories"),
+            ("dir/../../outside.csv", "denied by the file-access policy 'roots'"),
             ("dir/a:b.csv", "is not allowed"),
+            (directory.Combine("outside.csv"), "denied by the file-access policy 'roots'"),
         })
         {
             var document = VegaLiteDocument.Parse(Spec(url), open);
@@ -869,17 +874,32 @@ public class VegaLiteSystemIntegrationTests
             }
         }
 
-        // Assert: the file that is fine renders, and an absolute path is remote data, never opened (empty chart in lenient mode)
+        // Assert: the file that is fine renders
         using var fine = VegaLiteDocument.Parse(Spec("ok.csv"), open).Render(cancellationToken: Ct);
         Assert.True(fine.Width > 0);
+    }
 
-        var absolute = VegaLiteDocument.Parse(Spec(directory.Combine("outside.csv")), open);
-        var reports = new List<VegaLiteUnsupportedFeature>();
-        using var emptyChart = absolute.Render(new VegaLiteRenderOptions { UnsupportedFeatureHandler = reports.Add }, Ct);
-        Assert.True(emptyChart.Width > 0);
-        Assert.Equal(["vl-data-remote-url"], reports.Select(r => r.Feature));
-        Assert.Throws<VegaLiteUnsupportedFeatureException>(
-            () => absolute.Render(new VegaLiteRenderOptions { ThrowOnUnsupportedFeature = true }, Ct));
+    /// <summary>
+    ///     Validates that, under the default policy, a data file in the parent folder, an absolute path and a local
+    ///     <c>file:</c> URI are read as local files and drawn, without a report.
+    /// </summary>
+    [Fact]
+    public void CanvasNetVegaLite_SystemIntegration_Data_DefaultPolicy_ReadsParentAbsoluteAndFileUriPaths()
+    {
+        // Arrange
+        using var directory = new DataTempDirectory();
+        Directory.CreateDirectory(directory.Combine("root"));
+        var outside = directory.Write("outside.csv", "a\n1\n2\n");
+        var open = new VegaLiteOpenOptions { BaseDirectory = directory.Combine("root") };
+        string Spec(string url) => "{\"data\":{\"url\":" + System.Text.Json.JsonSerializer.Serialize(url) + "},\"mark\":\"point\",\"encoding\":{\"x\":{\"field\":\"a\",\"type\":\"quantitative\"}}}";
+
+        // Act / Assert: strict mode proves that nothing is reported
+        foreach (var url in new[] { "../outside.csv", outside, new Uri(outside).AbsoluteUri })
+        {
+            var document = VegaLiteDocument.Parse(Spec(url), open);
+            using var chart = document.Render(new VegaLiteRenderOptions { ThrowOnUnsupportedFeature = true }, Ct);
+            Assert.True(chart.Width > 0);
+        }
     }
 
     /// <summary>
@@ -1562,9 +1582,9 @@ public class VegaLiteSystemIntegrationTests
     }
 
     /// <summary>
-    ///     Validates that the derived-row limit, the sandbox and the cancellation work through the public API: a fold over the
-    ///     row limit and a lookup that escapes the folder of the specification fail with a location, and a canceled token
-    ///     delivers nothing.
+    ///     Validates that the derived-row limit, a confining file-access policy and the cancellation work through the public
+    ///     API: a fold over the row limit and a lookup that leaves the folder of the specification fail with a location,
+    ///     and a canceled token delivers nothing.
     /// </summary>
     [Fact]
     public void CanvasNetVegaLite_SystemIntegration_Transforms_LimitsSandboxAndCancellationFailClosed()
@@ -1578,7 +1598,9 @@ public class VegaLiteSystemIntegrationTests
             """);
         directory.Write("outside.csv", "k,n\n1,leak\n");
         var fold = VegaLiteDocument.Parse("{\"data\":{\"values\":[{\"a\":1,\"b\":2},{\"a\":3,\"b\":4},{\"a\":5,\"b\":6}]},\"transform\":[{\"fold\":[\"a\",\"b\"]}],\"mark\":\"point\"}");
-        var lookup = VegaLiteDocument.Open(directory.Combine("site/chart.vl.json"));
+        var lookup = VegaLiteDocument.Open(
+            directory.Combine("site/chart.vl.json"),
+            new VegaLiteOpenOptions { FileAccess = Files.FileAccessPolicy.UnderRoots(directory.Combine("site")) });
         var events = 0;
         var counting = new VegaLiteRenderOptions { WarningHandler = _ => events++, UnsupportedFeatureHandler = _ => events++ };
         using var canceled = new CancellationTokenSource();
@@ -1589,10 +1611,10 @@ public class VegaLiteSystemIntegrationTests
         var escape = Assert.Throws<VegaLiteRenderException>(() => lookup.Render(cancellationToken: Ct));
         using var fits = fold.Render(new VegaLiteRenderOptions { Limits = new VegaLiteLimits { MaxDataRows = 9 } }, Ct);
 
-        // Assert: the fold names its limit and its transform; the lookup is refused by the sandbox at the url of its source
+        // Assert: the fold names its limit and its transform; the lookup is denied by the policy at the url of its source
         Assert.Contains("MaxDataRows", rows.Message, StringComparison.Ordinal);
         Assert.Equal("/transform/0", rows.Location.Pointer);
-        Assert.Contains("outside the allowed directories", escape.Message, StringComparison.Ordinal);
+        Assert.Contains("denied by the file-access policy 'roots'", escape.Message, StringComparison.Ordinal);
         Assert.Equal("/transform/0/from/data/url", escape.Location.Pointer);
         Assert.True(fits.Width > 0);
 

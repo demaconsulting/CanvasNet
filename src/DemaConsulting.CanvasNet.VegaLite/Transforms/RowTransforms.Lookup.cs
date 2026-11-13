@@ -48,7 +48,7 @@ internal sealed partial class RowTransforms
 
         var location = Locate(entry);
 
-        // The secondary rows come from the loader of the call: same sandbox, file cache, file and byte limits, row budget
+        // The secondary rows come from the loader of the call: same file-access policy, file cache, file and byte limits, row budget
         var secondary = _context.Loader.Load(source);
         var keyReader = new FieldReader(secondary, from["key"]!.StringValue);
         var index = new Dictionary<string, int>(StringComparer.Ordinal);

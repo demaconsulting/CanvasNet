@@ -317,7 +317,7 @@ sections:
         tests:
           - CanvasNetVegaLite_SystemIntegration_Data_MissingOrBlockedFileThrowsRenderException
           - CanvasNetVegaLite_SystemIntegration_Data_LocalFileLoadsFromOpenedSpecFolder
-          - DataFileResolver_Translate_EverySandboxKind_ProducesLocatedWording
+          - DataFileResolver_Translate_EveryFailureKind_ProducesLocatedWording
 
       - id: CanvasNetVegaLite-DataErrors
         title: >-

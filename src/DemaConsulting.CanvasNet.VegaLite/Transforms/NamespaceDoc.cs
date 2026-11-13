@@ -13,7 +13,7 @@ namespace DemaConsulting.CanvasNet.VegaLite.Transforms;
 ///         sees a table change. The row budget of the call (<c>VegaLiteLimits.MaxDataRows</c>) is shared with the loader:
 ///         a transform that can produce more rows than it reads (fold, flatten) reserves its output before it allocates it,
 ///         the input is released once the output is complete, and a lookup source is loaded through the same loader, so it
-///         has the same sandbox, file cache and limits as the main data. Field counts, string lengths and the evaluation
+///         has the same file-access policy, file cache and limits as the main data. Field counts, string lengths and the evaluation
 ///         steps of expressions are bounded by their limits, cancellation is checked at least every 1,024 rows and between
 ///         transforms, and a failure that depends on the data is a located <c>VegaLiteRenderException</c>.
 ///     </para>
