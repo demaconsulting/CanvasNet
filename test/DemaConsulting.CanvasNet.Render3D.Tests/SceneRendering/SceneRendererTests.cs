@@ -326,7 +326,7 @@ public class SceneRendererTests
     public void SceneRenderer_Render_PreCancelledToken_ThrowsOperationCanceledException()
     {
         // Arrange
-        using var source = new CancellationTokenSource();
+        using var source = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         source.Cancel();
         var scene = Render3DTestHelpers.CreateMixedScene();
 
@@ -345,7 +345,7 @@ public class SceneRendererTests
     public void SceneRenderer_Render_PreCancelledToken_ThrowsBeforeProcessingScene()
     {
         // Arrange: a scene whose transform overflows when applied, so any processing would throw a different exception
-        using var source = new CancellationTokenSource();
+        using var source = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         source.Cancel();
         var scene = CreateOverflowingScene();
 
@@ -363,7 +363,7 @@ public class SceneRendererTests
     public void SceneRenderer_RenderFitted_PreCancelledToken_ThrowsBeforeComputingBounds()
     {
         // Arrange: a scene whose transform overflows when bounds are computed, so any bounds work would throw a different exception
-        using var source = new CancellationTokenSource();
+        using var source = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         source.Cancel();
         var scene = CreateOverflowingScene();
 
@@ -381,7 +381,7 @@ public class SceneRendererTests
     public void SceneRenderer_Render_PreCancelledToken_Parallel_ThrowsOperationCanceledNotAggregate()
     {
         // Arrange
-        using var source = new CancellationTokenSource();
+        using var source = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         source.Cancel();
         var scene = Render3DTestHelpers.CreateMixedScene();
 
@@ -404,7 +404,7 @@ public class SceneRendererTests
     {
         // Arrange: a 256 x 256 render has 64 tiles of 32 pixels; the tile-start seam cancels when the fourth tile starts
         var scene = new Scene(new MeshNode(PrimitiveTessellator.Sphere(1.0, 32)));
-        using var sequentialSource = new CancellationTokenSource();
+        using var sequentialSource = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         var sequentialStarted = 0;
         var sequential = new SceneRenderOptions
         {
@@ -417,7 +417,7 @@ public class SceneRendererTests
                 }
             },
         };
-        using var parallelSource = new CancellationTokenSource();
+        using var parallelSource = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         var parallelStarted = 0;
         var startedAfterCancel = 0;
         var parallel = new SceneRenderOptions

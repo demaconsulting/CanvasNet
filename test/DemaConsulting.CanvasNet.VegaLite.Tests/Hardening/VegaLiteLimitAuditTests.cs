@@ -164,7 +164,7 @@ public class VegaLiteLimitAuditTests
         // Arrange
         var row = Rows[name];
         var document = Open(row);
-        using var canceled = new CancellationTokenSource();
+        using var canceled = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         canceled.Cancel();
 
         // Act / Assert
@@ -190,7 +190,7 @@ public class VegaLiteLimitAuditTests
         var document = VegaLiteDocument.Parse(RunawaySpec(stage));
         var limits = new VegaLiteLimits { MaxEvaluationSteps = long.MaxValue, MaxDataRows = 50_000_000, MaxSceneItems = 50_000_000, MaxViews = 100_000 };
         var hooked = stage == "facet-cells" ? "compose" : stage;
-        using var source = new CancellationTokenSource();
+        using var source = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         var started = false;
         var finished = false;
         VegaLiteDocument.StageHookForCurrentThread = (name, end) =>

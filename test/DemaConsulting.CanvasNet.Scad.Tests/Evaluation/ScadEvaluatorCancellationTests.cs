@@ -28,7 +28,7 @@ public class ScadEvaluatorCancellationTests
     public void ScadEvaluatorCancellation_AlreadyCanceled_ThrowsBeforeAnyResolverCall()
     {
         // Arrange
-        using var cts = new CancellationTokenSource();
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         cts.Cancel();
         var files = new ScadVirtualFiles(("lib.scad", "x = 1;\n"));
         var settings = new ScadEvaluationSettings { Cancellation = cts.Token };
@@ -48,7 +48,7 @@ public class ScadEvaluatorCancellationTests
     public void ScadEvaluatorCancellation_DuringEndlessTailRecursion_StopsAndKeepsEarlierEvents()
     {
         // Arrange: the first echo cancels the token, then the endless recursion runs until the next poll
-        using var cts = new CancellationTokenSource();
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         var settings = new ScadEvaluationSettings
         {
             Cancellation = cts.Token,
@@ -71,7 +71,7 @@ public class ScadEvaluatorCancellationTests
     public void ScadEvaluatorCancellation_DuringHugeLoop_Stops()
     {
         // Arrange: the echo of the first turn cancels the token; nothing else bounds the loop
-        using var cts = new CancellationTokenSource();
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         var settings = new ScadEvaluationSettings
         {
             Cancellation = cts.Token,
@@ -94,7 +94,7 @@ public class ScadEvaluatorCancellationTests
     public void ScadEvaluatorCancellation_DuringIncludeLoading_StopsBeforeNextFile()
     {
         // Arrange
-        using var cts = new CancellationTokenSource();
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         var files = new ScadVirtualFiles(("a.scad", "include <b.scad>\n"), ("b.scad", "x = 1;\n"))
         {
             OnRequest = path =>
@@ -126,7 +126,7 @@ public class ScadEvaluatorCancellationTests
         // cancellation; one that charged without polling would end with the step-limit error
         const string Setup = "v = [for (i = [0 : 99999]) i * 1.5];\n";
         var before = Run(Setup + "s = echo(\"formatting\") 0;").Steps;
-        using var cts = new CancellationTokenSource();
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         var settings = new ScadEvaluationSettings
         {
             Cancellation = cts.Token,
@@ -149,7 +149,7 @@ public class ScadEvaluatorCancellationTests
     public void ScadEvaluatorCancellation_NotCanceled_EvaluatesNormally()
     {
         // Arrange
-        using var cts = new CancellationTokenSource();
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         var settings = new ScadEvaluationSettings { Cancellation = cts.Token };
 
         // Act

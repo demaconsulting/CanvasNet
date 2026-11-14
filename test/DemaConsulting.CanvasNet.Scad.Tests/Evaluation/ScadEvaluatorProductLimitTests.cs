@@ -128,7 +128,7 @@ public class ScadEvaluatorProductLimitTests
     public void ScadEvaluatorProductLimit_MatrixTimesMatrix_DuringProduct_CanBeCanceled()
     {
         // Arrange: 21 products of 27 million multiply-adds each; the echo before the second product cancels the token
-        using var cts = new CancellationTokenSource();
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         var settings = new ScadEvaluationSettings
         {
             Cancellation = cts.Token,

@@ -922,14 +922,14 @@ public class ConvexHullTests
     {
         // Arrange: a valid input and a canceled token
         var points = CubeCorners(Vector3D.Zero, 1.0);
-        using var canceled = new CancellationTokenSource();
+        using var canceled = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         canceled.Cancel();
 
         // Act / Assert: canceled before the call
         Assert.Throws<OperationCanceledException>(() => ConvexHull.Hull3D(points, canceled.Token));
 
         // Arrange / Act / Assert: canceled while a long lazy sequence is consumed (polled every few thousand points)
-        using var during = new CancellationTokenSource();
+        using var during = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         IEnumerable<Vector3D> Lazy()
         {
             for (var i = 0; i < 100_000; i++)
@@ -954,14 +954,14 @@ public class ConvexHullTests
     public void ConvexHull_Hull2D_Canceled_ThrowsOperationCanceledException()
     {
         // Arrange: a canceled token
-        using var canceled = new CancellationTokenSource();
+        using var canceled = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         canceled.Cancel();
 
         // Act / Assert: canceled before the call
         Assert.Throws<OperationCanceledException>(() => ConvexHull.Hull2D([Vector2D.Zero, Vector2D.UnitX, Vector2D.UnitY], canceled.Token));
 
         // Arrange / Act / Assert: canceled while a long lazy sequence is consumed
-        using var during = new CancellationTokenSource();
+        using var during = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         IEnumerable<Vector2D> Lazy()
         {
             for (var i = 0; i < 100_000; i++)

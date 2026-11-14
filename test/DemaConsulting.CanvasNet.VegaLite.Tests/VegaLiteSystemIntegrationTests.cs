@@ -250,7 +250,7 @@ public class VegaLiteSystemIntegrationTests
         var red = new Rgba32(200, 10, 20, 255);
         var calls = 0;
         var invalid = new VegaLiteRenderOptions { WarningHandler = _ => calls++, UnsupportedFeatureHandler = _ => calls++ };
-        using var canceled = new CancellationTokenSource();
+        using var canceled = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         canceled.Cancel();
 
         // Act
@@ -354,7 +354,7 @@ public class VegaLiteSystemIntegrationTests
         var document = VegaLiteDocument.Parse(SampleSpec.Replace("/v5.json", "/v4.json", StringComparison.Ordinal));
         var events = 0;
         var options = new VegaLiteRenderOptions { WarningHandler = _ => events++, UnsupportedFeatureHandler = _ => events++ };
-        using var canceled = new CancellationTokenSource();
+        using var canceled = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         canceled.Cancel();
 
         // Act / Assert: all three entry points throw OperationCanceledException and deliver nothing
@@ -364,7 +364,7 @@ public class VegaLiteSystemIntegrationTests
         Assert.Equal(0, events);
 
         // Assert: the same calls work with a token that is not canceled (the layers are drawn, so the size is that of the chart, not of an empty view)
-        using var live = new CancellationTokenSource();
+        using var live = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         using var surface = document.Render(options, live.Token);
         Assert.False(live.IsCancellationRequested);
         Assert.Equal(document.Measure(cancellationToken: Ct).Width, surface.Width);
@@ -1385,7 +1385,7 @@ public class VegaLiteSystemIntegrationTests
         foreach (var (spec, stage) in new[] { (loess, "loess"), (strokes, "paint") })
         {
             var document = VegaLiteDocument.Parse(spec);
-            using var source = new CancellationTokenSource();
+            using var source = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
             var finished = false;
             VegaLiteDocument.StageHookForCurrentThread = (name, end) =>
             {
@@ -1624,7 +1624,7 @@ public class VegaLiteSystemIntegrationTests
             new VegaLiteOpenOptions { FileAccess = Files.FileAccessPolicy.UnderRoots(directory.Combine("site")) });
         var events = 0;
         var counting = new VegaLiteRenderOptions { WarningHandler = _ => events++, UnsupportedFeatureHandler = _ => events++ };
-        using var canceled = new CancellationTokenSource();
+        using var canceled = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         canceled.Cancel();
 
         // Act

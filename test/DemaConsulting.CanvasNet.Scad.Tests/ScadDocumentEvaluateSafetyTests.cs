@@ -104,7 +104,7 @@ public class ScadDocumentEvaluateSafetyTests
     public void ScadDocument_Evaluate_PreCanceledToken_ThrowsBeforeAnyWork()
     {
         // Arrange
-        using var cts = new CancellationTokenSource();
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         cts.Cancel();
         var files = new ScadVirtualFiles(("lib.scad", "x = 1;\n"));
         var document = ScadDocument.Parse("include <lib.scad>\necho(1);", new ScadOpenOptions { FileResolver = files.Resolve });
@@ -128,7 +128,7 @@ public class ScadDocumentEvaluateSafetyTests
         // Arrange: the token is canceled when the evaluation pass starts (see CancelWhenThePassStarts); the pass echoes
         // and then recurses endlessly. The step budget is far above the 1,024 steps between two polls, so an evaluation
         // that ignored the token would fail with the step-limit error instead of the cancellation
-        using var cts = new CancellationTokenSource();
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         var document = ScadDocument.Parse("echo(\"started\");\nfunction f(n) = f(n + 1);\necho(f(0));");
         var lines = new List<string>();
         var options = new ScadEvaluationOptions
@@ -152,7 +152,7 @@ public class ScadDocumentEvaluateSafetyTests
     public void ScadDocument_Evaluate_CanceledDuringIncludeLoading_StopsBeforeNextFile()
     {
         // Arrange
-        using var cts = new CancellationTokenSource();
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         var files = new ScadVirtualFiles(("a.scad", "include <b.scad>\n"), ("b.scad", "x = 1;\n"))
         {
             OnRequest = path =>

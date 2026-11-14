@@ -677,7 +677,7 @@ public class FileReferenceResolverTests
         // Arrange
         using var directory = new SandboxTempDirectory();
         directory.Write("a.txt", "a");
-        using var source = new CancellationTokenSource();
+        using var source = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         source.Cancel();
         var files = new SandboxVirtualFiles().With("a.txt", "a");
         var opened = new List<string>();

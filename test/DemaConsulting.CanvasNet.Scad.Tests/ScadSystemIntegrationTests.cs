@@ -506,9 +506,9 @@ public class ScadSystemIntegrationTests
         // the evaluation pass starts (see CancelWhenThePassStarts)
         var document = ScadDocument.Parse("echo(\"started\");\nfunction f(n) = f(n + 1);\necho(f(0));");
         var options = new ScadEvaluationOptions { Limits = new ScadLimits { MaxEvaluationSteps = 1_000_000 } };
-        using var already = new CancellationTokenSource();
+        using var already = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         already.Cancel();
-        using var later = new CancellationTokenSource();
+        using var later = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
 
         // Act
         var before = Record.Exception(() => document.Evaluate(options, already.Token));
@@ -710,7 +710,7 @@ public class ScadSystemIntegrationTests
         {
             Evaluation = new ScadEvaluationOptions { Variables = new Dictionary<string, object?> { ["size"] = 8.0 } },
         };
-        using var canceled = new CancellationTokenSource();
+        using var canceled = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         canceled.Cancel();
 
         // Act

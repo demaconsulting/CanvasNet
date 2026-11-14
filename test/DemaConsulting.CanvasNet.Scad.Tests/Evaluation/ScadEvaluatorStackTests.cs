@@ -361,7 +361,7 @@ public class ScadEvaluatorStackTests
         HoldAll(slots);
         try
         {
-            using var cts = new CancellationTokenSource();
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
             var (caller, result) = StartTinyCaller(Shapes["function"].Make(1500), cts.Token, slots);
             SpinWait.SpinUntil(() => slots.Waiting == 1);
 
@@ -427,7 +427,7 @@ public class ScadEvaluatorStackTests
         HoldAll(slots);
         try
         {
-            using var cts = new CancellationTokenSource();
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
             var (caller, result) = StartTinyCaller(Shapes["function"].Make(1500), cts.Token, slots);
             SpinWait.SpinUntil(() => slots.Waiting == 1);
             cts.Cancel();
@@ -456,7 +456,7 @@ public class ScadEvaluatorStackTests
         var other = new ScadEvaluatorFallbackSlots(2);
         HoldAll(mine);
         HoldAll(other);
-        using var cts = new CancellationTokenSource();
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         try
         {
             var (callerOnMine, mineResult) = StartTinyCaller(Shapes["function"].Make(1500), cts.Token, mine);

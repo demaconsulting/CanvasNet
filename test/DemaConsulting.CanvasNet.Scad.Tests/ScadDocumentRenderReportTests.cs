@@ -320,7 +320,7 @@ public class ScadDocumentRenderReportTests
     public void ScadDocumentRenderReport_CanceledDuringEvaluation_StopsBuildAndRender()
     {
         // Arrange
-        using var cts = new CancellationTokenSource();
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         var files = new ScadVirtualFiles(("lib.scad", "x = 1;\n")) { OnRequest = _ => cts.Cancel() };
         var document = ScadDocument.Parse("include <lib.scad>\ncube(1);", new ScadOpenOptions { FileResolver = files.Resolve, SourceName = "main.scad" });
 
@@ -337,7 +337,7 @@ public class ScadDocumentRenderReportTests
     public void ScadDocumentRenderReport_CanceledDuringRendering_StopsTheRender()
     {
         // Arrange: the resolved-view handler runs after the build and right before the scene is drawn; it cancels
-        using var cts = new CancellationTokenSource();
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         var echoes = new List<string>();
         var views = 0;
         var options = new ScadRenderOptions

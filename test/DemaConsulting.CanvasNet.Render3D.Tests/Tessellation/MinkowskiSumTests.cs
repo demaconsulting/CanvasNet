@@ -442,7 +442,7 @@ public class MinkowskiSumTests
         Assert.Throws<ArgumentException>(() => MinkowskiSum.ConvexSumOfVerified(new Mesh([], []), box, token));
         var big = PrimitiveTessellator.Sphere(1.0, 60);
         Assert.Throws<ArgumentException>(() => MinkowskiSum.ConvexSumOfVerified(big, big, token));
-        using var canceled = new CancellationTokenSource();
+        using var canceled = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         canceled.Cancel();
         Assert.Throws<OperationCanceledException>(() => MinkowskiSum.ConvexSumOfVerified(sphere, box, canceled.Token));
         Assert.Throws<OperationCanceledException>(() => MinkowskiSum.RequireConvexSolid(sphere, "sphere", canceled.Token));
@@ -534,7 +534,7 @@ public class MinkowskiSumTests
         // Arrange: valid operands and a canceled token
         var cube = Render3DTestHelpers.CreateBoxMesh(Vector3D.Zero, Vector3D.One);
         var sphere = PrimitiveTessellator.Sphere(1.0, 48);
-        using var canceled = new CancellationTokenSource();
+        using var canceled = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         canceled.Cancel();
 
         // Act / Assert
