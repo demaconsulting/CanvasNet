@@ -359,11 +359,11 @@ public class FileReferenceResolverTests
 
     /// <summary>
     ///     Validates on Linux and macOS that a named pipe without a writer is refused as not a regular file instead of
-    ///     hanging the open. The only wait is a guard that fails the test if the resolver hangs.
+    ///     hanging the open. The resolve runs on the test thread with no time limit: an open that blocked would never
+    ///     return, which the time limit of the CI job reports.
     /// </summary>
-    /// <returns>A task.</returns>
     [Fact]
-    public async Task FileReferenceResolver_Resolve_Fifo_IsNotARegularFileWithoutBlocking()
+    public void FileReferenceResolver_Resolve_Fifo_IsNotARegularFileWithoutBlocking()
     {
         // Arrange
         if (OperatingSystem.IsWindows())
@@ -377,12 +377,10 @@ public class FileReferenceResolverTests
         var resolver = Create(new FileReferenceOptions { BaseDirectory = directory.Path });
 
         // Act
-        var resolve = Task.Run(() => Assert.Throws<FileReferenceException>(() => resolver.Resolve("pipe")), Ct);
-        var first = await Task.WhenAny(resolve, Task.Delay(TimeSpan.FromMinutes(1), Ct));
+        var ex = Assert.Throws<FileReferenceException>(() => resolver.Resolve("pipe"));
 
         // Assert: the resolve returned (it did not block on the pipe) and refused it
-        Assert.Same(resolve, first);
-        Assert.Equal(FileReferenceFailureKind.NotARegularFile, (await resolve).Kind);
+        Assert.Equal(FileReferenceFailureKind.NotARegularFile, ex.Kind);
     }
 
     /// <summary>

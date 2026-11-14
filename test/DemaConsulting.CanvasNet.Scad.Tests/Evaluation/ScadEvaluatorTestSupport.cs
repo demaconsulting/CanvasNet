@@ -10,55 +10,38 @@ namespace DemaConsulting.CanvasNet.Scad.Tests.Evaluation;
 internal static class ScadEvaluatorTestSupport
 {
     /// <summary>
-    ///     Cancels the source after a delay from a dedicated thread.
+    ///     Runs an action that evaluates, canceling the source at a known point inside the evaluation: when the pass
+    ///     starts.
     /// </summary>
     /// <remarks>
-    ///     <see cref="CancellationTokenSource.CancelAfter(TimeSpan)"/> fires its timer on the thread pool. The
-    ///     evaluator blocks pool threads (every evaluation joins a dedicated thread), so with many test classes
-    ///     running in parallel on a loaded machine the pool is starved and the timer callback can be delayed by
-    ///     tens of seconds, which is what made cancellation tests exceed their bound on a loaded CI runner. A
-    ///     dedicated thread does not depend on the pool.
+    ///     The evaluations the calling thread starts skip the inline attempt and go to the dedicated fallback thread
+    ///     (<see cref="ScadEvaluator.ForceFallbackForCurrentThread"/>), and the thread-start seam
+    ///     (<see cref="ScadEvaluator.ThreadStarterForCurrentThread"/>) cancels the source right before it starts that
+    ///     thread. The call has then begun (its own up-front check has passed) and the pass has not polled the token
+    ///     yet, so the pass records its first events and stops at its first poll (every 1,024 steps, and every loop
+    ///     turn). Nothing depends on a clock or on how busy the machine is. Both seams are reset afterwards.
     /// </remarks>
     /// <param name="cts">The source to cancel.</param>
-    /// <param name="delay">The delay before canceling.</param>
-    public static void CancelAfterOnDedicatedThread(CancellationTokenSource cts, TimeSpan delay) =>
-        CancelAfterOnDedicatedThread(cts, delay, null);
-
-    /// <summary>
-    ///     Cancels the source from a dedicated thread once a readiness signal is set, after a further delay.
-    /// </summary>
-    /// <remarks>
-    ///     A fixed delay alone can fire before a cold, slow runner (macOS CI) has even started evaluating; waiting for
-    ///     the signal (for example "the first echo was produced", set from <see cref="ScadEvaluationSink.EchoRecorded"/>)
-    ///     and only then delaying keeps the test deterministic. The signal is thread-safe, unlike polling the sink's
-    ///     buffers. The wait is bounded so a signal that is never set still cancels eventually.
-    /// </remarks>
-    /// <param name="cts">The source to cancel.</param>
-    /// <param name="delay">The delay, after the signal is set, before canceling.</param>
-    /// <param name="ready">The signal to wait for, or <see langword="null"/> to cancel after the delay alone.</param>
-    public static void CancelAfterOnDedicatedThread(CancellationTokenSource cts, TimeSpan delay, ManualResetEventSlim? ready)
+    /// <param name="action">The action that evaluates on the calling thread.</param>
+    /// <returns>The exception the action threw, or <see langword="null"/>.</returns>
+    public static Exception? CancelWhenThePassStarts(CancellationTokenSource cts, Action action)
     {
-        var canceler = new Thread(() =>
+        ScadEvaluator.ForceFallbackForCurrentThread = true;
+        ScadEvaluator.ThreadStarterForCurrentThread = thread =>
         {
-            // The wait is bounded and deliberately not tied to a token (the source may be disposed by then)
-            ready?.Wait(TimeSpan.FromSeconds(60), CancellationToken.None);
-            Thread.Sleep(delay);
-            try
-            {
-                cts.Cancel();
-            }
-            catch (ObjectDisposedException)
-            {
-                // The test already finished and disposed the source; nothing is left to cancel
-            }
-        })
-        {
-            IsBackground = true,
-            Name = "ScadCancellationTestCanceler",
+            cts.Cancel();
+            thread.Start();
         };
-        canceler.Start();
+        try
+        {
+            return Record.Exception(action);
+        }
+        finally
+        {
+            ScadEvaluator.ForceFallbackForCurrentThread = false;
+            ScadEvaluator.ThreadStarterForCurrentThread = null;
+        }
     }
-
     /// <summary>
     ///     Parses and evaluates source text.
     /// </summary>

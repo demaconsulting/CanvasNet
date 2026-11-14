@@ -138,7 +138,10 @@ the sequential and the parallel configuration, and that the exception is never a
 any scene processing would raise a different exception; they prove that `Render` and `RenderFitted`
 observe the token before computing bounds or flattening the scene.
 `SceneRendererTests.SceneRenderer_Render_CancelledDuringRender_ThrowsOperationCanceledException`
-additionally verifies cancellation while a render is in progress.
+additionally verifies cancellation while a render is in progress, without a timer: the internal
+tile-start seam (`SceneRenderOptions.TileStarting`) cancels the token when the fourth of 64 tiles
+starts. Sequentially no further tile starts; with four workers each other worker starts at most the
+one tile it had already passed the check for; both end with a plain `OperationCanceledException`.
 
 ##### CanvasNetRender3D-SceneRendering-SceneRenderer-Options: Options Defaults And Light Handling
 

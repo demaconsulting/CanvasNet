@@ -230,4 +230,16 @@ public sealed class SceneRenderOptions
 
     /// <summary>Gets the lights actually used for shading: <see cref="Lights"/> or, when that is <see langword="null"/>, <see cref="Light.DefaultRig"/>.</summary>
     internal IReadOnlyList<Light> EffectiveLights => _lights ?? Light.DefaultRig;
+
+    /// <summary>
+    ///     Gets an action that is invoked with the row-major tile index right before each tile is rendered, after the
+    ///     cancellation check of that tile, on the thread that renders it; <see langword="null"/> (the default) for none
+    ///     (a test seam).
+    /// </summary>
+    /// <remarks>
+    ///     It lets a test cancel the token at a known point inside the tile loop, instead of after a delay, and count
+    ///     the tiles that start after the cancellation. With parallel rendering it is called concurrently, so it must be
+    ///     thread-safe.
+    /// </remarks>
+    internal Action<int>? TileStarting { get; init; }
 }

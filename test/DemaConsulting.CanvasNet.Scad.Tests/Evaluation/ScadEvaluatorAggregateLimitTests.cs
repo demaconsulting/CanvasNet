@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using DemaConsulting.CanvasNet.Scad.Evaluation;
 using static DemaConsulting.CanvasNet.Scad.Tests.Evaluation.ScadEvaluatorTestSupport;
 
@@ -12,8 +11,6 @@ namespace DemaConsulting.CanvasNet.Scad.Tests.Evaluation;
 /// </summary>
 public class ScadEvaluatorAggregateLimitTests
 {
-    /// <summary>The longest an evaluation that must be refused may take before the test gives up.</summary>
-    private static readonly TimeSpan Generous = TimeSpan.FromSeconds(20);
 
     /// <summary>
     ///     Source that builds seven levels of vectors, each holding a thousand references to the previous level:
@@ -29,24 +26,6 @@ public class ScadEvaluatorAggregateLimitTests
         + "a6 = [for (i = [0 : 999]) a5];\n"
         + "a7 = [for (i = [0 : 999]) a6];\n";
 
-    /// <summary>
-    ///     Runs source that must be refused, failing the test when it takes longer than <see cref="Generous"/>.
-    /// </summary>
-    /// <param name="source">The source text.</param>
-    /// <param name="settings">The settings.</param>
-    /// <param name="elapsed">Receives the time the evaluation took.</param>
-    /// <returns>The evaluation exception.</returns>
-    private static ScadEvaluationException FailsQuickly(string source, ScadEvaluationSettings settings, out TimeSpan elapsed)
-    {
-        // The evaluation runs on a pool thread so that a runaway walk fails the assertion instead of hanging the run
-        var watch = Stopwatch.StartNew();
-        var task = Task.Run(() => Record.Exception(() => Run(source, settings)), TestContext.Current.CancellationToken);
-        var finished = task.Wait(Generous, TestContext.Current.CancellationToken);
-        watch.Stop();
-        elapsed = watch.Elapsed;
-        Assert.True(finished, $"The evaluation was still running after {Generous}");
-        return Assert.IsType<ScadEvaluationException>(task.Result);
-    }
 
     /// <summary>
     ///     Validates that an operator on a deeply shared operand fails with the step-limit error under the default
@@ -66,11 +45,10 @@ public class ScadEvaluatorAggregateLimitTests
         var source = SharedLevels + $"w = {expression};";
 
         // Act
-        var ex = FailsQuickly(source, new ScadEvaluationSettings(), out var elapsed);
+        var ex = Fails(source, new ScadEvaluationSettings());
 
         // Assert
         Assert.Contains("Evaluation step limit exceeded (limit 50000000)", ex.Message, StringComparison.Ordinal);
-        Assert.True(elapsed < Generous, $"elapsed={elapsed}");
     }
 
     /// <summary>
@@ -92,12 +70,11 @@ public class ScadEvaluatorAggregateLimitTests
         var settings = With(new ScadLimits { MaxEvaluationSteps = long.MaxValue });
 
         // Act
-        var ex = FailsQuickly(source, settings, out var elapsed);
+        var ex = Fails(source, settings);
 
         // Assert: the same deterministic diagnostic, at the operator
         Assert.Contains("Operand too large (limit 67108864 nested elements)", ex.Message, StringComparison.Ordinal);
         Assert.Equal(9, ex.Location.Line);
-        Assert.True(elapsed < Generous, $"elapsed={elapsed}");
     }
 
     /// <summary>
@@ -113,8 +90,8 @@ public class ScadEvaluatorAggregateLimitTests
         var source = SharedLevels + "w = -a7;";
 
         // Act
-        var aboveFailure = FailsQuickly(source, above, out _);
-        var belowFailure = FailsQuickly(source, below, out _);
+        var aboveFailure = Fails(source, above);
+        var belowFailure = Fails(source, below);
 
         // Assert
         Assert.Contains("Operand too large", aboveFailure.Message, StringComparison.Ordinal);

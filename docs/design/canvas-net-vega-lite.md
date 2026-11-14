@@ -2097,8 +2097,9 @@ specification, the stage that refuses it, the exception type, the text that the 
 the JSON pointer that the location must start with. A refused row must be located, must name its limit, and must not
 allocate what the specification asked for (less than 96 MiB on its thread: the cost is charged _before_ the
 allocation); every row also gets an already canceled token, and the stages that a budget alone does not stop (density,
-sliding window, aggregate, impute, facet cells) are canceled 150 ms after they start with their budgets lifted. A test
-fails when a `VegaLiteLimits` property has no row.
+sliding window, aggregate, impute, facet cells) are canceled, with their budgets lifted, when they start (through the
+internal stage hook of `VegaLiteDocument`, not a timer) and must stop before they reach their end. A test fails when a
+`VegaLiteLimits` property has no row.
 
 <!-- markdownlint-disable MD013 -->
 | Input-controlled cost | Bound | Audit row |
@@ -2136,15 +2137,13 @@ each case under tight limits (20,000 rows, 50,000 scene items, 5,000,000 steps, 
 `InvalidDataException`; (2) measuring and rendering throw only `VegaLiteRenderException` or `VegaLiteSpecException`
 with a
 location, `VegaLiteUnsupportedFeatureException` in strict mode, or the documented `ArgumentOutOfRangeException` for the
-options; (3) the case does not reach the hang guard (a cancellation by the guard's token is reported as a hang with the
-message "Hang guard"): the guard is 120 seconds, orders of magnitude above any case under these limits, and
-`CANVASNET_VL_HANG_GUARD_SECONDS` sets another number of seconds for a very slow machine; the tests assert outcomes and
-never elapsed time, because the machines that run them can be heavily loaded (a calibration of the work meter against
-seconds is measured by the benchmark harness, not asserted); (4) the thread allocates less
-than 4 GiB gross over the parse and the four passes (a runaway detector; a rendering allocates about thirty kilobytes of
-short-lived memory per painted symbol); (5) two runs give the same pixels and the same ordered reports, or the same
-error, and `Measure` equals the size of `Render`. The default run is 300 cases with a fixed seed and takes about ten
-seconds on each target framework. A larger run is opt-in through `CANVASNET_VL_FUZZ_CASES` (the total, split evenly
+options; (3) the thread allocates less than 4 GiB gross over the parse and the four passes (a runaway detector; a
+rendering allocates about thirty kilobytes of short-lived memory per painted symbol); (4) two runs give the same pixels
+and the same ordered reports, or the same error, and `Measure` equals the size of `Render`. No case is timed: the tests
+assert outcomes and never elapsed time, because the machines that run them can be heavily loaded; the tight limits
+bound every case, a case that never ended would be reported by the time limit of the CI job, and a calibration of the
+work meter against seconds is measured by the benchmark harness, not asserted. The default run is 300 cases with a
+fixed seed. A larger run is opt-in through `CANVASNET_VL_FUZZ_CASES` (the total, split evenly
 over the three kinds), `CANVASNET_VL_FUZZ_SEED` and `CANVASNET_VL_FUZZ_DUMP_DIR` (a folder that receives every failing
 specification and a summary of the outcomes). The discovery oracle for a missed cast is to run a large fuzz with
 `<CheckForOverflowUnderflow>true</CheckForOverflowUnderflow>` set temporarily in the library project (after a clean

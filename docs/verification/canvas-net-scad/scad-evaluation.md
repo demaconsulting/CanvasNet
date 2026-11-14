@@ -120,9 +120,9 @@ thread observation constitutes a failure.
   `ScadEvaluatorCancellationTests.ScadEvaluatorCancellation_AlreadyCanceled_ThrowsBeforeAnyResolverCall`,
   `ScadEvaluatorCancellationTests.ScadEvaluatorCancellation_DuringEndlessTailRecursion_StopsAndKeepsEarlierEvents`,
   `ScadEvaluatorCancellationTests.ScadEvaluatorCancellation_DuringIncludeLoading_StopsBeforeNextFile` — asserts
-  that an already canceled token throws before any resolver call, that cancellation during endless tail recursion
-  stops promptly with the earlier events kept, and that cancellation while files are loading stops before the next
-  file.
+  that an already canceled token throws before any resolver call, that cancellation from the first echo of an
+  endless tail recursion stops it at the next poll (before a step limit far above the poll interval) with the
+  earlier events kept, and that cancellation while files are loading stops before the next file.
 - **Variable Overrides Reach Included Files** (requirement `CanvasNetScad-ScadEvaluation-Overrides`):
   `ScadEvaluatorIncludeUseTests.ScadEvaluatorIncludeUse_Overrides_ReplaceIncludedAssignmentsButNotLibraries` —
   asserts that an override replaces the assignments of the main file and of the files it includes, and leaves a

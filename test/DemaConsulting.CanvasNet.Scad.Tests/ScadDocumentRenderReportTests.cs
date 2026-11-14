@@ -330,23 +330,35 @@ public class ScadDocumentRenderReportTests
     }
 
     /// <summary>
-    ///     Validates that canceling a long render stops it promptly with <see cref="OperationCanceledException"/>.
+    ///     Validates that a token canceled once the program has been evaluated and built, right before the drawing,
+    ///     stops the render with <see cref="OperationCanceledException"/> and no surface, and still delivers the echo.
     /// </summary>
     [Fact]
-    public async Task ScadDocumentRenderReport_CanceledDuringRendering_StopsTheRender()
+    public void ScadDocumentRenderReport_CanceledDuringRendering_StopsTheRender()
     {
-        // Arrange: a large, finely supersampled image takes far longer than the delay before the cancellation
-        using var cts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
-        var options = new ScadRenderOptions { SceneOptions = new SceneRenderOptions { Supersampling = 4 } };
-        var document = ScadDocument.Parse("difference() { sphere(10, $fn = 64); translate([0, 0, 5]) sphere(8, $fn = 64); }");
+        // Arrange: the resolved-view handler runs after the build and right before the scene is drawn; it cancels
+        using var cts = new CancellationTokenSource();
+        var echoes = new List<string>();
+        var views = 0;
+        var options = new ScadRenderOptions
+        {
+            SceneOptions = new SceneRenderOptions { Supersampling = 4 },
+            Evaluation = new ScadEvaluationOptions { EchoHandler = echoes.Add },
+            ResolvedViewHandler = _ =>
+            {
+                views++;
+                cts.Cancel();
+            },
+        };
+        var document = ScadDocument.Parse("echo(1);\ndifference() { sphere(10, $fn = 64); translate([0, 0, 5]) sphere(8, $fn = 64); }");
 
         // Act
-        var render = Task.Run(() => document.Render(3000, 3000, options, cts.Token), TestContext.Current.CancellationToken);
-        await Task.Delay(150, TestContext.Current.CancellationToken);
-        await cts.CancelAsync();
+        var ex = Record.Exception(() => document.Render(3000, 3000, options, cts.Token));
 
-        // Assert
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => render);
+        // Assert: the drawing honored the token (an uncanceled render of this size returns a surface)
+        Assert.IsType<OperationCanceledException>(ex);
+        Assert.Equal(1, views);
+        Assert.Equal(["ECHO: 1"], echoes);
     }
 
     /// <summary>

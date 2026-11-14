@@ -501,23 +501,22 @@ public class ScadSystemIntegrationTests
     [Fact]
     public void CanvasNetScad_SystemIntegration_Cancellation_StopsEvaluation()
     {
-        // Arrange
+        // Arrange: an endless evaluation whose step budget is far above the 1,024 steps between two polls, so an
+        // evaluation that ignored the token would fail with the step-limit error; the second token is canceled when
+        // the evaluation pass starts (see CancelWhenThePassStarts)
         var document = ScadDocument.Parse("echo(\"started\");\nfunction f(n) = f(n + 1);\necho(f(0));");
-        var options = new ScadEvaluationOptions { Limits = new ScadLimits { MaxEvaluationSteps = long.MaxValue } };
+        var options = new ScadEvaluationOptions { Limits = new ScadLimits { MaxEvaluationSteps = 1_000_000 } };
         using var already = new CancellationTokenSource();
         already.Cancel();
-        using var later = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
-        Evaluation.ScadEvaluatorTestSupport.CancelAfterOnDedicatedThread(later, TimeSpan.FromMilliseconds(150));
-        var started = DateTime.UtcNow;
+        using var later = new CancellationTokenSource();
 
         // Act
         var before = Record.Exception(() => document.Evaluate(options, already.Token));
-        var during = Record.Exception(() => document.Evaluate(options, later.Token));
+        var during = Evaluation.ScadEvaluatorTestSupport.CancelWhenThePassStarts(later, () => document.Evaluate(options, later.Token));
 
         // Assert
         Assert.IsType<OperationCanceledException>(before);
         Assert.IsType<OperationCanceledException>(during);
-        Assert.True(DateTime.UtcNow - started < TimeSpan.FromSeconds(20));
     }
 
     /// <summary>

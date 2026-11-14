@@ -375,9 +375,10 @@ kind `AccessDenied`.
 `ScadDocumentEvaluateSafetyTests.ScadDocument_Evaluate_CanceledDuringIncludeLoading_StopsBeforeNextFile`
 
 Asserts that an already canceled token throws `OperationCanceledException` before any resolver call or handler
-call; that a token canceled during endless recursion stops the evaluation promptly and the earlier echo lines are
-still delivered; and that a token canceled by the resolver while a file is being loaded stops before the next file
-is requested.
+call; that a token canceled when the evaluation pass starts stops an endless recursion at the next cancellation poll
+(the step limit of one million, which an evaluation that ignored the token would reach, is not reached) and the
+earlier echo lines are still delivered; and that a token canceled by the resolver while a file is being loaded stops
+before the next file is requested.
 
 #### CanvasNetScad-ScadDocument-Limits: ScadLimits Is Validated And Enforced
 
@@ -610,8 +611,8 @@ documented identifier.
 `ScadDocumentRenderReportTests.ScadDocumentRenderReport_CanceledDuringRendering_StopsTheRender`
 
 Asserts that an already canceled token throws `OperationCanceledException` before any resolver call, and that a
-token canceled while the evaluation is running, or while the image is being rendered, stops the work with the
-plain exception.
+token canceled while the evaluation is running (by the resolver), or after the build right before the drawing (by
+the resolved-view handler), stops the work with the plain exception, with no surface and with the echo delivered.
 
 #### CanvasNetScad-ScadDocument-RenderDeterminism: Renders Are Reproducible On Any Stack
 

@@ -133,6 +133,7 @@ internal sealed partial class RowTransforms
                 continue;
             }
 
+            VegaLiteDocument.ReportStage(operation.Name!, finished: false);
             table = operation.Name switch
             {
                 "calculate" => Calculate(table, entry, operation),
@@ -149,6 +150,7 @@ internal sealed partial class RowTransforms
                 // The aggregating transforms (aggregate, joinaggregate, window, bin, stack, impute) are the aggregate transform unit's
                 _ => AggregateTransforms.Apply(table, entry, operation, _context),
             };
+            VegaLiteDocument.ReportStage(operation.Name!, finished: true);
         }
 
         Cancellation.ThrowIfCancellationRequested();

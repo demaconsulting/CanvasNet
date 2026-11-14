@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using DemaConsulting.CanvasNet.Scad.Evaluation;
 using static DemaConsulting.CanvasNet.Scad.Tests.Evaluation.ScadEvaluatorTestSupport;
 
@@ -10,9 +9,6 @@ namespace DemaConsulting.CanvasNet.Scad.Tests.Evaluation;
 /// </summary>
 public class ScadEvaluatorProductLimitTests
 {
-    /// <summary>The longest a canceled or limited evaluation may take before the test gives up.</summary>
-    private static readonly TimeSpan Generous = TimeSpan.FromSeconds(20);
-
     /// <summary>
     ///     Builds source that defines an n by m matrix of ones as the variable with the given name.
     /// </summary>
@@ -57,11 +53,9 @@ public class ScadEvaluatorProductLimitTests
         var settings = With(new ScadLimits { MaxListLength = 2000 });
         var source = MatrixSource("a", 2000, 2) + MatrixSource("b", 2, 2000) + "w = a * b;";
         var before = GC.GetAllocatedBytesForCurrentThread();
-        var watch = Stopwatch.StartNew();
 
         // Act
         var ex = Fails(source, settings);
-        watch.Stop();
         var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
         var ranInline = ScadEvaluator.LastRunThreadId == Environment.CurrentManagedThreadId;
 
@@ -70,12 +64,10 @@ public class ScadEvaluatorProductLimitTests
         // dedicated thread (a caller with a very short stack) is not measured, and the value-level product tests
         // (ScadValueProductLimitTests) are what pin the allocation in that case.
         Assert.Contains("List too long (limit 2000)", ex.Message, StringComparison.Ordinal);
-        Assert.True(watch.Elapsed < Generous, $"elapsed={watch.Elapsed}");
         if (ranInline)
         {
             Assert.True(allocated < 20_000_000, $"allocated={allocated}");
         }
-
     }
 
     /// <summary>
@@ -101,49 +93,66 @@ public class ScadEvaluatorProductLimitTests
     }
 
     /// <summary>
-    ///     Validates that a product that would cost more than the default step budget fails quickly instead of running.
+    ///     Validates that a product that would cost more than the default step budget fails before it is computed.
     /// </summary>
     [Fact]
     public void ScadEvaluatorProductLimit_MatrixTimesMatrix_DefaultLimits_LargeProductFailsFast()
     {
         // Arrange: two 1000 x 1000 matrices, each within the default list limit. The rows are one shared value, so the
-        // matrices cost a thousand steps to build instead of a million, which keeps the test independent of how busy
-        // the machine is: what is measured is that the product is refused, not how fast a large literal is evaluated.
+        // matrices cost a thousand steps to build instead of a million. One product is a billion multiply-adds, more
+        // than the default budget, so its up-front charge fails before any of its million result elements exist.
         const string Source = "row = [for (j = [1 : 1000]) 1];\nm = [for (i = [1 : 1000]) row];\nw = [for (k = [1 : 50]) m * m];";
-        var watch = Stopwatch.StartNew();
+        var before = GC.GetAllocatedBytesForCurrentThread();
 
         // Act
         var ex = Fails(Source);
-        watch.Stop();
+        var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        var ranInline = ScadEvaluator.LastRunThreadId == Environment.CurrentManagedThreadId;
 
-        // Assert
+        // Assert: the error is at the first product, and (when the run is measurable on this thread, see
+        // MatrixTimesMatrix_HugeResult_FailsBeforeAllocating) far less was allocated than one result would take
         Assert.Contains("Evaluation step limit exceeded", ex.Message, StringComparison.Ordinal);
-        Assert.True(watch.Elapsed < Generous, $"elapsed={watch.Elapsed}");
+        Assert.Equal(3, ex.Location.Line);
+        if (ranInline)
+        {
+            Assert.True(allocated < 20_000_000, $"allocated={allocated}");
+        }
     }
 
     /// <summary>
-    ///     Validates that cancellation interrupts a series of large products.
+    ///     Validates that cancellation interrupts a series of large products: the evaluation stops at the product after
+    ///     the cancellation, and no later turn runs. The polling inside one product is pinned by
+    ///     <see cref="ScadValueProductLimitTests"/>.
     /// </summary>
     [Fact]
     public void ScadEvaluatorProductLimit_MatrixTimesMatrix_DuringProduct_CanBeCanceled()
     {
-        // Arrange: 21 products of 27 million multiply-adds each, far longer than the cancellation delay
-        using var cts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        // Arrange: 21 products of 27 million multiply-adds each; the echo before the second product cancels the token
+        using var cts = new CancellationTokenSource();
         var settings = new ScadEvaluationSettings
         {
             Cancellation = cts.Token,
             Limits = new ScadLimits { MaxEvaluationSteps = long.MaxValue },
         };
-        var source = MatrixSource("m", 300, 300) + "a = [for (k = [0 : 20]) m * m];";
-        var started = DateTime.UtcNow;
-        CancelAfterOnDedicatedThread(cts, TimeSpan.FromMilliseconds(150));
+        var echoes = 0;
+        var sink = new ScadEvaluationSink(ScadLimits.Default)
+        {
+            EchoRecorded = () =>
+            {
+                if (++echoes == 2)
+                {
+                    cts.Cancel();
+                }
+            },
+        };
+        var source = MatrixSource("m", 300, 300) + "a = [for (k = [0 : 20]) echo(k) m * m];";
 
         // Act
-        var ex = Record.Exception(() => Run(source, settings));
+        var ex = Record.Exception(() => Run(source, settings, null, sink));
 
-        // Assert
+        // Assert: an evaluation that ignored the token would complete all 21 products without an exception
         Assert.IsType<OperationCanceledException>(ex);
-        Assert.True(DateTime.UtcNow - started < Generous);
+        Assert.Equal(["ECHO: 0", "ECHO: 1"], sink.EchoLines);
     }
 
     /// <summary>

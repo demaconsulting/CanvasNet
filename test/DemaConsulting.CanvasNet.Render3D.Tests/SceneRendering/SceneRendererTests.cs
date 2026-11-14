@@ -395,25 +395,57 @@ public class SceneRendererTests
     }
 
     /// <summary>
-    ///     Validates that canceling while a large render is running stops it with OperationCanceledException.
+    ///     Validates that canceling while a render is running stops it with OperationCanceledException at the next tile:
+    ///     sequentially no tile starts after the one that canceled, and in parallel each other worker starts at most the
+    ///     one tile it had already passed the check for.
     /// </summary>
     [Fact]
-    public async Task SceneRenderer_Render_CancelledDuringRender_ThrowsOperationCanceledException()
+    public void SceneRenderer_Render_CancelledDuringRender_ThrowsOperationCanceledException()
     {
-        // Arrange: a render large enough to still be running when it is cancelled
-        using var source = new CancellationTokenSource();
-        var scene = new Scene(new MeshNode(PrimitiveTessellator.Sphere(1.0, 120)));
-        var token = source.Token;
-        var task = Task.Run(() => SceneRenderer.RenderFitted(scene, 4096, 4096, new SceneRenderOptions { Supersampling = 4 }, token), CancellationToken.None);
+        // Arrange: a 256 x 256 render has 64 tiles of 32 pixels; the tile-start seam cancels when the fourth tile starts
+        var scene = new Scene(new MeshNode(PrimitiveTessellator.Sphere(1.0, 32)));
+        using var sequentialSource = new CancellationTokenSource();
+        var sequentialStarted = 0;
+        var sequential = new SceneRenderOptions
+        {
+            MaxDegreeOfParallelism = 1,
+            TileStarting = _ =>
+            {
+                if (++sequentialStarted == 4)
+                {
+                    sequentialSource.Cancel();
+                }
+            },
+        };
+        using var parallelSource = new CancellationTokenSource();
+        var parallelStarted = 0;
+        var startedAfterCancel = 0;
+        var parallel = new SceneRenderOptions
+        {
+            MaxDegreeOfParallelism = 4,
+            TileStarting = _ =>
+            {
+                if (parallelSource.IsCancellationRequested)
+                {
+                    Interlocked.Increment(ref startedAfterCancel);
+                }
+                else if (Interlocked.Increment(ref parallelStarted) == 4)
+                {
+                    parallelSource.Cancel();
+                }
+            },
+        };
 
         // Act
-        await Task.Delay(30, CancellationToken.None);
-        await source.CancelAsync();
+        var sequentialEx = Record.Exception(() => SceneRenderer.RenderFitted(scene, 256, 256, sequential, sequentialSource.Token));
+        var parallelEx = Record.Exception(() => SceneRenderer.RenderFitted(scene, 256, 256, parallel, parallelSource.Token));
 
-        // Assert
-        var ex = await Assert.ThrowsAnyAsync<Exception>(() => task);
-        Assert.IsNotType<AggregateException>(ex);
-        Assert.IsAssignableFrom<OperationCanceledException>(ex);
+        // Assert: the cancellation itself, never wrapped, and no tile beyond the documented check points
+        Assert.IsType<OperationCanceledException>(sequentialEx);
+        Assert.Equal(4, sequentialStarted);
+        Assert.IsNotType<AggregateException>(parallelEx);
+        Assert.IsAssignableFrom<OperationCanceledException>(parallelEx);
+        Assert.InRange(startedAfterCancel, 0, 3);
     }
 
     /// <summary>

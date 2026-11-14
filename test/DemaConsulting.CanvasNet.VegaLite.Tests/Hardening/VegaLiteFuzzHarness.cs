@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Globalization;
 using System.Security.Cryptography;
 using DemaConsulting.CanvasNet.Canvas;
@@ -15,14 +14,14 @@ internal sealed record FuzzCaseResult(string Outcome, string? Failure, string? D
 
 /// <summary>
 ///     Runs one specification through the library and checks the oracle of the hardening tests: only documented exception types escape (and the ones that must carry a
-///     location do), the call does not hang, memory stays bounded by the limits, and two runs of the same specification give the same outcome (same pixels and same reports,
-///     or the same error).
+///     location do), memory stays bounded by the limits, and two runs of the same specification give the same outcome (same pixels and same reports, or the same error).
+///     Nothing is timed: the tight limits bound every case, and a case that never ended would be caught by the time limit of the CI job, not by a clock in the test.
 /// </summary>
 internal static class VegaLiteFuzzHarness
 {
     /// <summary>
     ///     The most bytes one case may allocate on its thread, counted gross (garbage included, over the parse and the four passes of measuring and rendering): a rendering allocates about
-    ///     thirty kilobytes per painted symbol (short-lived), so the bound is a runaway detector, and the time limit of the case is the second guard.
+    ///     thirty kilobytes per painted symbol (short-lived), so the bound is a runaway detector.
     /// </summary>
     public const long MaxAllocatedBytes = 4L * 1024 * 1024 * 1024;
 
@@ -49,15 +48,11 @@ internal static class VegaLiteFuzzHarness
     /// <param name="spec">The text of the specification.</param>
     /// <param name="baseDirectory">The folder that relative data files are read from.</param>
     /// <param name="strict">Whether unsupported features throw.</param>
-    /// <param name="timeout">The longest time one case may take.</param>
     /// <param name="cancellationToken">The token of the test.</param>
     /// <returns>The result.</returns>
-    public static FuzzCaseResult Run(string spec, string baseDirectory, bool strict, TimeSpan timeout, CancellationToken cancellationToken)
+    public static FuzzCaseResult Run(string spec, string baseDirectory, bool strict, CancellationToken cancellationToken)
     {
         var allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
-        var stopwatch = Stopwatch.StartNew();
-        using var source = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        source.CancelAfter(timeout);
 
         VegaLiteDocument document;
         try
@@ -77,10 +72,8 @@ internal static class VegaLiteFuzzHarness
             return new FuzzCaseResult("crash", "Parse threw an undocumented exception: " + ex);
         }
 
-        var first = Attempt(document, strict, source.Token, stopwatch);
-        cancellationToken.ThrowIfCancellationRequested();
-        var second = first.Failure is null ? Attempt(document, strict, source.Token, stopwatch) : first;
-        cancellationToken.ThrowIfCancellationRequested();
+        var first = Attempt(document, strict, cancellationToken);
+        var second = first.Failure is null ? Attempt(document, strict, cancellationToken) : first;
         var allocated = GC.GetAllocatedBytesForCurrentThread() - allocatedBefore;
         var failure = first.Failure ?? second.Failure;
         if (failure is null && first.Signature != second.Signature)
@@ -90,7 +83,7 @@ internal static class VegaLiteFuzzHarness
 
         if (failure is null && allocated > MaxAllocatedBytes)
         {
-            failure = $"The case allocated {allocated:N0} bytes (more than {MaxAllocatedBytes:N0}) although the limits are tight; elapsed {stopwatch.ElapsedMilliseconds} ms.";
+            failure = $"The case allocated {allocated:N0} bytes (more than {MaxAllocatedBytes:N0}) although the limits are tight.";
         }
 
         return new FuzzCaseResult(first.Outcome, failure, first.Outcome == "rendered" ? null : first.Signature.Split('\n')[0]);
@@ -119,10 +112,9 @@ internal static class VegaLiteFuzzHarness
     /// </summary>
     /// <param name="document">The document.</param>
     /// <param name="strict">Whether unsupported features throw.</param>
-    /// <param name="token">The token that stops the work.</param>
-    /// <param name="stopwatch">The stopwatch of the case, for the message of a hang.</param>
+    /// <param name="token">The token of the test, which stops the work when the test run is aborted.</param>
     /// <returns>The description.</returns>
-    private static AttemptResult Attempt(VegaLiteDocument document, bool strict, CancellationToken token, Stopwatch stopwatch)
+    private static AttemptResult Attempt(VegaLiteDocument document, bool strict, CancellationToken token)
     {
         var reports = new List<string>();
         var options = new VegaLiteRenderOptions
@@ -157,8 +149,8 @@ internal static class VegaLiteFuzzHarness
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested)
         {
-            // The token of the test itself is not the hang guard: only the guard's own expiry is reported as a hang
-            return new AttemptResult("hang", string.Empty, HangGuard.Message("a fuzz case (a stage that is unbounded, or that does not poll the cancellation token)", stopwatch.Elapsed));
+            // The test run was aborted: that is not an outcome of the case
+            throw;
         }
         catch (VegaLiteRenderException ex)
         {
