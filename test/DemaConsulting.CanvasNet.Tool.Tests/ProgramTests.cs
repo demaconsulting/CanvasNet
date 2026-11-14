@@ -159,7 +159,8 @@ public class ProgramTests
         using var index = System.Text.Json.JsonDocument.Parse(output);
         Assert.Equal("index", index.RootElement.GetProperty("kind").GetString());
         using var topic = System.Text.Json.JsonDocument.Parse(topicOutput);
-        Assert.Equal("scad", topic.RootElement.GetProperty("topic").GetString());
+        Assert.Equal("card", topic.RootElement.GetProperty("kind").GetString());
+        Assert.Equal("scad", topic.RootElement.GetProperty("id").GetString());
     }
 
     /// <summary>
@@ -414,7 +415,7 @@ public class ProgramTests
         // Assert: exit code 1; the document on standard output has no exit code field; the text report is still on standard error
         Assert.Equal(1, exitCode);
         Assert.Equal(
-            "{\"schemaVersion\":1,\"ok\":false,\"command\":\"fail\","
+            "{\"schemaVersion\":2,\"ok\":false,\"command\":\"fail\","
             + "\"error\":{\"code\":\"output-exists\",\"message\":\"Output 'a.png' exists.\",\"hint\":\"Remove --no-clobber.\"}}"
             + Environment.NewLine,
             stdOut);
@@ -443,7 +444,7 @@ public class ProgramTests
         // Assert: exit code 1; one document with ok:false, the error, and the result field; the text report is on standard error
         Assert.Equal(1, exitCode);
         Assert.Equal(
-            "{\"schemaVersion\":1,\"ok\":false,\"command\":\"check\","
+            "{\"schemaVersion\":2,\"ok\":false,\"command\":\"check\","
             + "\"error\":{\"code\":\"threshold-failed\",\"message\":\"rmse 3 is above the limit 1\",\"hint\":\"Raise the limit.\"},"
             + "\"rmse\":3}"
             + Environment.NewLine,
@@ -466,7 +467,7 @@ public class ProgramTests
         // Assert: exit code 1 and a usage-error document without a command
         Assert.Equal(1, exitCode);
         Assert.Equal(
-            "{\"schemaVersion\":1,\"ok\":false,\"command\":null,"
+            "{\"schemaVersion\":2,\"ok\":false,\"command\":null,"
             + "\"error\":{\"code\":\"usage-error\",\"message\":\"Unsupported argument '--bogus'\"}}"
             + Environment.NewLine,
             stdOut);
@@ -489,7 +490,7 @@ public class ProgramTests
         // Assert: operation-failed, naming the command taken from the command line
         Assert.Equal(1, exitCode);
         Assert.Equal(
-            "{\"schemaVersion\":1,\"ok\":false,\"command\":\"fail\","
+            "{\"schemaVersion\":2,\"ok\":false,\"command\":\"fail\","
             + "\"error\":{\"code\":\"operation-failed\",\"message\":\"bad state\"}}"
             + Environment.NewLine,
             stdOut);
@@ -595,7 +596,7 @@ public class ProgramTests
         Assert.Equal(string.Empty, stdErr);
         Assert.Equal(
             $"Error: operation-failed: It failed.{Environment.NewLine}"
-            + "{\"schemaVersion\":1,\"ok\":false,\"command\":\"fail\","
+            + "{\"schemaVersion\":2,\"ok\":false,\"command\":\"fail\","
             + "\"error\":{\"code\":\"operation-failed\",\"message\":\"It failed.\"}}"
             + Environment.NewLine,
             File.ReadAllText(log));

@@ -266,14 +266,11 @@ public class RenderCommandParamTests
     public void HelpTopics_ParamOptionAndFragmentPrefixes_AreDocumented()
     {
         // Arrange
-        static string TextOf(string name) => string.Join("\n", HelpTopics.Find(name)!.Sections.SelectMany(s => s.Items).Select(i => $"{i.Term} {i.Text}"));
-        var vegaLite = HelpTopics.Find("vega-lite")!;
-        var svg = HelpTopics.Find("svg")!;
-        var svgLinks = svg.Sections.First(s => s.Id == "image-links").Items;
-        var variableFragment = Assert.Single(svgLinks, i => i.Term == "variable fragment").Text;
+        static string TextOf(string name) => HelpCardText.TextOf(name);
+        var variableFragment = HelpCardText.Item("svg/fragments", "variable fragment");
 
         // Assert: the option, with the grammar and the failure for an unknown name
-        var option = Assert.Single(vegaLite.Sections.First(s => s.Id == "options").Items, i => i.Term == "--param <name=value>").Text;
+        var option = HelpCardText.Item("vega-lite/options", "--param <name=value>");
         Assert.Contains("--param brush={", option, StringComparison.Ordinal);
         Assert.Contains("vega-lite-error", option, StringComparison.Ordinal);
         Assert.Contains("param.cutoff", option, StringComparison.Ordinal);
@@ -287,14 +284,14 @@ public class RenderCommandParamTests
         Assert.Contains("image-fragment-unknown-parameter", variableFragment, StringComparison.Ordinal);
         Assert.Contains("image-fragment-invalid", variableFragment, StringComparison.Ordinal);
         Assert.Contains("part.scad#view=front&amp;def.width=20", TextOf("scad"), StringComparison.Ordinal);
-        foreach (var topic in new[] { vegaLite, svg })
+        foreach (var card in new[] { "vega-lite/warnings", "svg/diagnostics" })
         {
-            Assert.Contains(topic.Sections.First(s => s.Id == "diagnostics").Items, i => i.Term == "vl-param-unknown");
+            Assert.Contains(HelpCardText.Items(card, "Diagnostics"), i => i.Term == "vl-param-unknown");
         }
 
         // Assert: the cross-references of the vega-lite topic and the strict behavior
         Assert.Contains("chart.vl.json#param.cutoff=50", TextOf("vega-lite"), StringComparison.Ordinal);
-        Assert.Contains("vl-param-unknown stay warnings", Assert.Single(svg.Sections.First(s => s.Id == "options").Items, i => i.Term == "--strict").Text, StringComparison.Ordinal);
+        Assert.Contains("vl-param-unknown stay warnings", HelpCardText.Item("svg/options", "--strict"), StringComparison.Ordinal);
     }
 
     /// <summary>

@@ -13,13 +13,13 @@ namespace DemaConsulting.CanvasNet.Tool.Tests;
 public class ResultWriterTests
 {
     /// <summary>
-    ///     Test that the schema version is 1.
+    ///     Test that the schema version is 2 (version 2 replaced the help topic documents with the help cards).
     /// </summary>
     [Fact]
-    public void ResultWriter_SchemaVersion_IsOne()
+    public void ResultWriter_SchemaVersion_IsTwo()
     {
         // Arrange / Act / Assert: the released schema version
-        Assert.Equal(1, ResultWriter.SchemaVersion);
+        Assert.Equal(2, ResultWriter.SchemaVersion);
     }
 
     /// <summary>
@@ -42,7 +42,7 @@ public class ResultWriterTests
 
         // Assert: exactly this single-line document
         Assert.Equal(
-            "{\"schemaVersion\":1,\"ok\":true,\"command\":\"render\",\"output\":\"out.png\",\"width\":816,\"scale\":1.5,"
+            "{\"schemaVersion\":2,\"ok\":true,\"command\":\"render\",\"output\":\"out.png\",\"width\":816,\"scale\":1.5,"
             + "\"flattened\":true,\"operations\":[\"crop\"]}",
             json);
     }
@@ -57,7 +57,7 @@ public class ResultWriterTests
         var json = ResultWriter.Success("info", _ => { });
 
         // Assert: only the envelope
-        Assert.Equal("{\"schemaVersion\":1,\"ok\":true,\"command\":\"info\"}", json);
+        Assert.Equal("{\"schemaVersion\":2,\"ok\":true,\"command\":\"info\"}", json);
     }
 
     /// <summary>
@@ -71,7 +71,7 @@ public class ResultWriterTests
 
         // Assert: the error object follows the envelope, with no exit code
         Assert.Equal(
-            "{\"schemaVersion\":1,\"ok\":false,\"command\":\"render\","
+            "{\"schemaVersion\":2,\"ok\":false,\"command\":\"render\","
             + "\"error\":{\"code\":\"input-not-found\",\"message\":\"File 'x.png' was not found.\",\"hint\":\"Check the path.\"}}",
             json);
         Assert.DoesNotContain("exitCode", json);
@@ -88,7 +88,7 @@ public class ResultWriterTests
 
         // Assert: command is null and there is no hint key
         Assert.Equal(
-            "{\"schemaVersion\":1,\"ok\":false,\"command\":null,"
+            "{\"schemaVersion\":2,\"ok\":false,\"command\":null,"
             + "\"error\":{\"code\":\"usage-error\",\"message\":\"Unsupported argument '--x'\"}}",
             json);
     }
@@ -106,15 +106,15 @@ public class ResultWriterTests
 
         // Assert: the tool exception keeps its code and hint; the others map to usage-error and operation-failed
         Assert.Equal(
-            "{\"schemaVersion\":1,\"ok\":false,\"command\":\"render\","
+            "{\"schemaVersion\":2,\"ok\":false,\"command\":\"render\","
             + "\"error\":{\"code\":\"output-exists\",\"message\":\"Exists.\",\"hint\":\"Remove it.\"}}",
             tool);
         Assert.Equal(
-            "{\"schemaVersion\":1,\"ok\":false,\"command\":\"render\","
+            "{\"schemaVersion\":2,\"ok\":false,\"command\":\"render\","
             + "\"error\":{\"code\":\"usage-error\",\"message\":\"Bad argument.\"}}",
             argument);
         Assert.Equal(
-            "{\"schemaVersion\":1,\"ok\":false,\"command\":null,"
+            "{\"schemaVersion\":2,\"ok\":false,\"command\":null,"
             + "\"error\":{\"code\":\"operation-failed\",\"message\":\"Bad state.\"}}",
             operation);
     }
@@ -142,7 +142,7 @@ public class ResultWriterTests
 
         // Assert: the envelope and error first, then the fields, byte for byte, as one parseable line
         Assert.Equal(
-            "{\"schemaVersion\":1,\"ok\":false,\"command\":\"compare\","
+            "{\"schemaVersion\":2,\"ok\":false,\"command\":\"compare\","
             + "\"error\":{\"code\":\"threshold-failed\",\"message\":\"rmse 5 is above the limit 1\",\"hint\":\"Raise the limit.\"},"
             + "\"size\":3,\"metrics\":{\"rmse\":5.5}}",
             json);
@@ -189,7 +189,7 @@ public class ResultWriterTests
             });
 
             // Assert: a decimal point and no thousands separators
-            Assert.Equal("{\"schemaVersion\":1,\"ok\":true,\"command\":\"x\",\"a\":1234.5,\"b\":1234567}", json);
+            Assert.Equal("{\"schemaVersion\":2,\"ok\":true,\"command\":\"x\",\"a\":1234.5,\"b\":1234567}", json);
         }
         finally
         {
@@ -246,7 +246,7 @@ public class ResultWriterTests
         });
 
         // Assert: an empty object
-        Assert.Equal("{\"schemaVersion\":1,\"ok\":true,\"command\":\"c\",\"d\":{}}", json);
+        Assert.Equal("{\"schemaVersion\":2,\"ok\":true,\"command\":\"c\",\"d\":{}}", json);
     }
 
     /// <summary>
@@ -273,7 +273,7 @@ public class ResultWriterTests
 
         // Assert: null location members are omitted
         Assert.Equal(
-            "{\"schemaVersion\":1,\"ok\":true,\"command\":\"c\",\"d\":{\"detail\":\"scad-anchor-invalid\","
+            "{\"schemaVersion\":2,\"ok\":true,\"command\":\"c\",\"d\":{\"detail\":\"scad-anchor-invalid\","
             + "\"location\":{\"file\":\"part.scad\",\"line\":3,\"column\":7},\"origin\":[\"a.svg\",\"sub/part.scad\"]}}",
             json);
     }
@@ -300,7 +300,7 @@ public class ResultWriterTests
         });
 
         // Assert
-        Assert.Equal("{\"schemaVersion\":1,\"ok\":true,\"command\":\"c\",\"a\":{\"location\":{\"pointer\":\"/mark\"}},\"b\":{}}", json);
+        Assert.Equal("{\"schemaVersion\":2,\"ok\":true,\"command\":\"c\",\"a\":{\"location\":{\"pointer\":\"/mark\"}},\"b\":{}}", json);
     }
 
     /// <summary>

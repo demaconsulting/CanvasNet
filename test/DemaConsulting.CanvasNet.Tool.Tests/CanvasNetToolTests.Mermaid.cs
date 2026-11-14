@@ -49,7 +49,7 @@ public partial class CanvasNetToolTests
 
         // Assert: the help topic is found by its alias
         Assert.Equal(0, helpExitCode);
-        Assert.StartsWith("Topic: Mermaid diagrams", help, StringComparison.Ordinal);
+        Assert.StartsWith("# Mermaid diagrams", help, StringComparison.Ordinal);
     }
 
     /// <summary>

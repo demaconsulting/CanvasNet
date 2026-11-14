@@ -172,13 +172,30 @@ public class CommandsSubsystemTests
         var (byFlag, byFlagOut, _) = ToolHost.Invoke("scad", "--help");
         var (byTopics, byTopicsOut, _) = ToolHost.Invoke("help", "topics");
 
-        // Assert: the topic text is the same (the flag form adds the banner), and 'help topics' is the index with the topic list
+        // Assert: the card text is the same (the flag form adds the banner), and 'help topics' lists every card
         Assert.Equal([0, 0, 0, 0], [byName, byAlias, byFlag, byTopics]);
-        Assert.StartsWith("Topic: OpenSCAD models (.scad)", byNameOut);
+        Assert.StartsWith("# OpenSCAD models (.scad)", byNameOut);
         Assert.Equal(byNameOut, byAliasOut);
         Assert.EndsWith(byNameOut, byFlagOut);
-        Assert.Contains("Help topics:", byTopicsOut);
-        Assert.All(HelpTopics.TopicNames, name => Assert.Contains(name, byTopicsOut));
+        Assert.All(HelpTopics.All, card => Assert.Contains(card.Path, byTopicsOut));
+    }
+
+    /// <summary>
+    ///     Test that a card below a topic is shown by its path, by aliases, and joined with slashes, with the same text.
+    /// </summary>
+    [Fact]
+    public void CommandsSubsystem_HelpTopics_CardPath_ResolvesByNamesAndAliases()
+    {
+        // Arrange / Act: ask for the gantt settings card in three ways
+        var (byPath, byPathOut, _) = ToolHost.Invoke("help", "mermaid", "gantt", "settings");
+        var (byAlias, byAliasOut, _) = ToolHost.Invoke("help", "mmd", "GANTT", "settings");
+        var (bySlash, bySlashOut, _) = ToolHost.Invoke("help", "mermaid/gantt/settings");
+
+        // Assert: the same card text each time
+        Assert.Equal([0, 0, 0], [byPath, byAlias, bySlash]);
+        Assert.StartsWith("# Gantt charts: settings and known differences", byPathOut);
+        Assert.Equal(byPathOut, byAliasOut);
+        Assert.Equal(byPathOut, bySlashOut);
     }
 
     /// <summary>
@@ -196,7 +213,7 @@ public class CommandsSubsystemTests
         };
 
         // Assert: each is exactly one JSON document of the help command on one line
-        var kinds = new[] { "topic", "index", "topic" };
+        var kinds = new[] { "card", "index", "card" };
         for (var i = 0; i < results.Length; i++)
         {
             var (exitCode, stdOut, stdErr) = results[i];
@@ -217,7 +234,7 @@ public class CommandsSubsystemTests
     public void CommandsSubsystem_HelpTopics_Example_PrintsOnlyTheSource()
     {
         // Arrange: the plate example
-        var expected = HelpTopics.RenderExample(HelpTopics.Find("scad")!, "plate");
+        var expected = HelpTopics.RenderExample(HelpTopics.Get("scad"), "plate");
 
         // Act: print it
         var (exitCode, stdOut, stdErr) = ToolHost.Invoke("help", "scad", "--example", "plate");
@@ -268,7 +285,7 @@ public class CommandsSubsystemTests
         Assert.StartsWith("Input formats:", textOut);
         Assert.Equal(string.Empty, textErr);
         Assert.Equal(0, jsonExit);
-        Assert.StartsWith("{\"schemaVersion\":1,\"ok\":true,\"command\":\"formats\",", jsonOut);
+        Assert.StartsWith("{\"schemaVersion\":2,\"ok\":true,\"command\":\"formats\",", jsonOut);
     }
 
     /// <summary>

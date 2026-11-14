@@ -209,7 +209,7 @@ internal sealed partial class CommandRegistry
     /// <param name="name">The name as typed.</param>
     /// <param name="candidates">The valid names.</param>
     /// <returns>The closest candidate, or <see langword="null"/> when none is within <see cref="MaxSuggestionDistance"/> edits.</returns>
-    private static string? ClosestName(string name, IEnumerable<string> candidates)
+    internal static string? ClosestName(string name, IEnumerable<string> candidates)
     {
         return candidates
             .Select(c => (Name: c, Distance: EditDistance(name.ToLowerInvariant(), c.ToLowerInvariant())))

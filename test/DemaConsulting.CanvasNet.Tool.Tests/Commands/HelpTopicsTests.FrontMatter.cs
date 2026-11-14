@@ -24,7 +24,7 @@ public partial class HelpTopicsTests
             "summary: 'It''s a summary: with a colon'",
             "",
             "aliases:",
-            "  - ganttchart",
+            "  - gantt-chart",
             "  - \"quoted \\\"alias\\\" \\\\ here\"",
             "examples:",
             "  - name: gantt",
@@ -49,7 +49,7 @@ public partial class HelpTopicsTests
         Assert.Equal("Gantt charts", properties["title"].Scalar);
         Assert.Equal(3, properties["title"].Line);
         Assert.Equal("It's a summary: with a colon", properties["summary"].Scalar);
-        Assert.Equal(["ganttchart", "quoted \"alias\" \\ here"], properties["aliases"].Items!.Select(i => i.Scalar));
+        Assert.Equal(["gantt-chart", "quoted \"alias\" \\ here"], properties["aliases"].Items!.Select(i => i.Scalar));
         var examples = properties["examples"].Items!;
         Assert.Equal(2, examples.Count);
         Assert.Equal(10, examples[0].Line);

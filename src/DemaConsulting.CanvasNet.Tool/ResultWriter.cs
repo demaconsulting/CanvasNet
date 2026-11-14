@@ -22,7 +22,9 @@ namespace DemaConsulting.CanvasNet.Tool;
 ///     </para>
 ///     <para>
 ///         The schema is versioned by <see cref="SchemaVersion"/>. Adding a key is not a breaking change;
-///         removing or renaming a key, or changing its meaning, increments the version.
+///         removing or renaming a key, or changing its meaning, increments the version. Version 2: the help
+///         documents became help cards (the <c>topic</c> document and its <c>sections</c> were replaced by the
+///         <c>card</c> and <c>topics</c> documents); every other document is unchanged.
 ///     </para>
 /// </remarks>
 internal static class ResultWriter
@@ -30,7 +32,7 @@ internal static class ResultWriter
     /// <summary>
     ///     The version of the JSON result schema, written as <c>schemaVersion</c> in every document.
     /// </summary>
-    public const int SchemaVersion = 1;
+    public const int SchemaVersion = 2;
 
     /// <summary>
     ///     Writer options: compact single-line output, readable (but still valid) escaping of the HTML-sensitive
