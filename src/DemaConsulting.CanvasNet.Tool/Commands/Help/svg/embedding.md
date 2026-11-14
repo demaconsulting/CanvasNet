@@ -5,6 +5,7 @@ aliases:
   - links
   - image-links
 see-also:
+  - svg/composition
   - svg/fragments
   - files
 examples:

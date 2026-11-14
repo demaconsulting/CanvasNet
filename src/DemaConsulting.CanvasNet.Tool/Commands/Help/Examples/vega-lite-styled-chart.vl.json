@@ -1,0 +1,33 @@
+{
+  "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
+  "title": {"text": "Orders per month", "subtitle": "Shipped and held orders, first half of 2024"},
+  "width": 440,
+  "height": 220,
+  "padding": 16,
+  "data": {
+    "values": [
+      {"month": "Jan", "status": "Shipped", "orders": 118}, {"month": "Jan", "status": "Held", "orders": 12},
+      {"month": "Feb", "status": "Shipped", "orders": 131}, {"month": "Feb", "status": "Held", "orders": 9},
+      {"month": "Mar", "status": "Shipped", "orders": 152}, {"month": "Mar", "status": "Held", "orders": 15},
+      {"month": "Apr", "status": "Shipped", "orders": 147}, {"month": "Apr", "status": "Held", "orders": 7},
+      {"month": "May", "status": "Shipped", "orders": 169}, {"month": "May", "status": "Held", "orders": 11},
+      {"month": "Jun", "status": "Shipped", "orders": 183}, {"month": "Jun", "status": "Held", "orders": 8}
+    ]
+  },
+  "mark": "bar",
+  "encoding": {
+    "x": {"field": "month", "type": "ordinal", "sort": null, "title": null},
+    "xOffset": {"field": "status", "sort": ["Shipped", "Held"]},
+    "y": {"field": "orders", "type": "quantitative", "title": "Orders"},
+    "color": {"field": "status", "type": "nominal", "sort": ["Shipped", "Held"], "title": null}
+  },
+  "config": {
+    "title": {"fontSize": 18, "subtitleFontSize": 13, "subtitleColor": "#5b6b7a", "anchor": "start", "offset": 12},
+    "axis": {"labelFontSize": 12, "titleFontSize": 13, "labelColor": "#334155", "titleColor": "#334155", "domainColor": "#94a3b8", "tickColor": "#94a3b8", "gridColor": "#e5e7eb"},
+    "axisX": {"labelAngle": 0, "ticks": false},
+    "axisY": {"domain": false, "ticks": false, "titlePadding": 10},
+    "legend": {"orient": "top", "labelFontSize": 12, "symbolType": "square", "symbolSize": 120},
+    "view": {"stroke": null},
+    "range": {"category": ["#2f6db3", "#c62828"]}
+  }
+}

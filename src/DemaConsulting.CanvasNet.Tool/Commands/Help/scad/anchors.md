@@ -2,6 +2,7 @@
 title: Anchors (callout points)
 summary: Named points of a model and where they land in the picture, for callouts and labels.
 see-also:
+  - scad/composition
   - scad/views
   - json/results
 examples:

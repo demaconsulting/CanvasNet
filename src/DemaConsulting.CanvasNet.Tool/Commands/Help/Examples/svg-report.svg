@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="980" viewBox="0 0 1000 980">
+  <style>
+    .title { font: bold 30px sans-serif; fill: #0f172a; }
+    .lead { font: 17px sans-serif; fill: #475569; }
+    .caption { font: italic 15px sans-serif; fill: #475569; }
+  </style>
+  <rect width="1000" height="980" fill="#f1f5f9"/>
+  <rect x="24" y="24" width="952" height="932" rx="14" fill="#ffffff" stroke="#e2e8f0" stroke-width="2"/>
+  <text class="title" x="64" y="84">Order pipeline report</text>
+  <text class="lead" x="64" y="116">How an order moves from payment to shipping, and how many were held.</text>
+  <line x1="64" y1="140" x2="936" y2="140" stroke="#e2e8f0" stroke-width="2"/>
+  <image href="styled-flow.mmd" x="64" y="164" width="872" height="252"/>
+  <text class="caption" x="64" y="446">Figure 1. Paid orders are packed and shipped; unpaid orders wait for payment.</text>
+  <image href="styled-chart.vl.json" x="150" y="476" width="700" height="432"/>
+  <text class="caption" x="64" y="936">Figure 2. Shipped orders grow in every month but April; held orders stay few.</text>
+</svg>

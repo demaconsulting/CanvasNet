@@ -7,10 +7,14 @@ children:
   - language
   - views
   - anchors
+  - style
+  - composition
   - options
   - diagnostics
   - differences
 see-also:
+  - style
+  - composition
   - svg
   - limits
 ---
@@ -24,3 +28,6 @@ Start with `canvasnet help scad language` for what the language supports, then
 part.scad -o part.png --json`, then look at the PNG. A model can also be placed
 inside an SVG drawing with `<image href="part.scad" .../>` (see `canvasnet help
 svg`).
+
+For a good-looking picture read `canvasnet help scad style`; to label a
+model or place it in a figure, `canvasnet help scad composition`.

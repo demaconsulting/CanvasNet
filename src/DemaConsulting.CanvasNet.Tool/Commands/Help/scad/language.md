@@ -2,6 +2,7 @@
 title: The OpenSCAD language subset
 summary: Primitives, transforms, booleans, extrusions, modifiers, and what is left out.
 see-also:
+  - scad/style
   - scad/diagnostics
   - scad/differences
 examples:

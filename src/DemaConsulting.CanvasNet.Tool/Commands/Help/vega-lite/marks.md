@@ -2,6 +2,7 @@
 title: Marks
 summary: The marks a chart can draw, including composite marks.
 see-also:
+  - vega-lite/style
   - vega-lite/encodings
   - vega-lite/layout
 examples:

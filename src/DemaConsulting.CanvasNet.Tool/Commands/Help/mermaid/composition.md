@@ -1,7 +1,10 @@
 ---
-title: Pictures in diagrams
-summary: Nodes that show a model, a chart, another diagram, or a document page.
+title: Pictures in diagrams and diagrams in figures
+summary: Nodes that show a model, a chart, a diagram, or a page, and a diagram placed in an SVG figure.
 see-also:
+  - composition
+  - mermaid/style
+  - svg/composition
   - svg/embedding
   - svg/fragments
 examples:
@@ -11,6 +14,34 @@ examples:
     file: pictures.mmd
     description: Nodes that show a model (part.scad) and a chart (chart.vl.json) lying beside the diagram.
 ---
+
+Show the thing itself in a node: a node can hold a model, a chart, another
+diagram, or a document page that lies beside the diagram. Print the pattern
+with `canvasnet help mermaid composition --example pictures`.
+
+## Pictures in nodes
+
+- Write `id@{ img: "part.scad", label: "Part", w: 120, h: 120 }` in a
+  flowchart. Give every picture node its `w` and `h`: they keep the layout
+  stable, and `info` lays the diagram out without the pictures.
+- Pick the view or the variant per node with a fragment:
+  `img: "part.scad#view=front"`, `img: "chart.vl.json#param.year=2024"`,
+  `img: "report.pdf#page=2"` (see `canvasnet help svg fragments`).
+- A picture that is not drawn keeps its frame and is reported
+  (`mermaid-image-unresolved`); add `--strict` to fail instead.
+
+## A diagram in a figure
+
+- Place the diagram in an SVG layout with
+  `<image href="flow.mmd" x="40" y="120" width="720" height="210"/>`; it is
+  drawn sharply at that size and stays transparent, so the page color shows.
+  Choose a theme for this placement only with `href="flow.mmd#theme=neutral"`.
+  See `canvasnet help svg composition` for a complete figure.
+- Show variants side by side with montage, one cell per theme:
+
+```shell
+canvasnet montage "flow.mmd#theme=default" "flow.mmd#theme=neutral" --labels --cell 480x240 -o themes.png
+```
 
 ## Supported
 

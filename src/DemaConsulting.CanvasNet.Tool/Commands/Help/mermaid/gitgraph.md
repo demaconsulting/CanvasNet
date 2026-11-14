@@ -6,6 +6,7 @@ aliases:
 children:
   - settings
 see-also:
+  - mermaid/style
   - mermaid/options
   - mermaid/diagnostics
 examples:

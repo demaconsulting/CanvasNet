@@ -14,12 +14,15 @@ children:
   - mindmap
   - packet
   - gitgraph
+  - style
   - composition
   - options
   - diagnostics
   - unsupported
   - differences
 see-also:
+  - style
+  - composition
   - svg
   - limits
 ---
@@ -33,3 +36,7 @@ bundled fonts. Every other diagram type is recognized and reported (see
 Read the card of your diagram type, for example `canvasnet help mermaid gantt`;
 each has a small source example (`--example gantt`). Render with `canvasnet
 render flow.mmd -o flow.png --json` and look at the PNG.
+
+For a good-looking diagram read `canvasnet help mermaid style`; to show
+pictures in nodes or place a diagram in a figure, `canvasnet help mermaid
+composition`.

@@ -10,11 +10,6 @@ examples:
     language: shell
     content: 'canvasnet render flowchart.mmd -o flowchart.png --json'
     description: Draw flowchart.mmd and print the JSON result.
-  - name: theme
-    kind: command
-    language: shell
-    content: 'canvasnet render flowchart.mmd --theme dark --scale 2 --background transparent -o flowchart-dark.png'
-    description: Draw at twice the size in the dark theme over a transparent background.
   - name: info
     kind: command
     language: shell

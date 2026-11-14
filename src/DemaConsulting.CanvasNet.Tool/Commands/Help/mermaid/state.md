@@ -4,6 +4,8 @@ summary: States, transitions, composite states, concurrency, pseudo-states, note
 children:
   - settings
 see-also:
+  - mermaid/style
+  - mermaid/composition
   - mermaid/options
   - mermaid/diagnostics
 examples:

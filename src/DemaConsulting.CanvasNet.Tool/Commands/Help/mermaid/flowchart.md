@@ -4,8 +4,10 @@ summary: Nodes, shapes, links, subgraphs, labels, styles, and settings of a flow
 aliases:
   - graph
 see-also:
-  - mermaid/options
+  - mermaid/style
   - mermaid/composition
+  - mermaid/options
+  - mermaid/diagnostics
 examples:
   - name: flowchart
     kind: source

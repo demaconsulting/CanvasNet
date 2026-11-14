@@ -4,6 +4,8 @@ summary: Named views, azimuth and elevation, projection, picture size, and the v
 aliases:
   - camera
 see-also:
+  - scad/style
+  - scad/composition
   - scad/options
   - scad/anchors
 examples:
@@ -17,11 +19,6 @@ examples:
     language: shell
     content: 'canvasnet render plate.scad --azimuth 30 --elevation 20 --projection perspective -o plate.png'
     description: Draw plate.scad from a free viewpoint with a perspective camera.
-  - name: montage-variants
-    kind: command
-    language: shell
-    content: 'canvasnet montage "posts.scad#def.width=10" "posts.scad#def.width=20" "posts.scad#def.width=30" -D ''$vpd=400'' --labels -o variants.png'
-    description: Three versions of posts.scad side by side, chosen with the fragment of each input and drawn from one fixed camera (quote each input; the labels show the fragments).
 ---
 
 Pick a named view with `--view`, or turn it with `--azimuth` and `--elevation`;

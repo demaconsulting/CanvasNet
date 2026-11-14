@@ -186,7 +186,7 @@ internal static partial class HelpTopics
     public static IReadOnlyList<string> TopicNames { get; } =
     [
         "scad", "vega-lite", "mermaid", "svg", "pdf", "pptx", "vsdx", "raster",
-        "json", "errors", "limits", "files"
+        "style", "composition", "json", "errors", "limits", "files"
     ];
 
     /// <summary>

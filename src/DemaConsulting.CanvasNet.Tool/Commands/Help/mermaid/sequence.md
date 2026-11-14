@@ -2,8 +2,9 @@
 title: Sequence diagrams
 summary: Participants, messages, activations, notes, blocks, numbers, and menus of a sequence diagram.
 see-also:
+  - mermaid/style
   - mermaid/options
-  - mermaid/differences
+  - mermaid/diagnostics
 examples:
   - name: sequence
     kind: source

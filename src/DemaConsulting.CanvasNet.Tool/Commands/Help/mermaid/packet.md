@@ -4,6 +4,7 @@ summary: Blocks, labels, rows, bit numbers, titles, and colors of a packet diagr
 children:
   - settings
 see-also:
+  - mermaid/style
   - mermaid/options
   - mermaid/diagnostics
 examples:

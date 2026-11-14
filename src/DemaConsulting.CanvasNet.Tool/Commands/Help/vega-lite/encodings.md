@@ -5,6 +5,7 @@ aliases:
   - scales
   - channels
 see-also:
+  - vega-lite/style
   - vega-lite/marks
   - vega-lite/transforms
 ---

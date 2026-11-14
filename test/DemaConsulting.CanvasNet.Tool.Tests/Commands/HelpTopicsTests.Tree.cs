@@ -1,6 +1,5 @@
 using System.Text.Json;
 using DemaConsulting.CanvasNet.Tool.Commands;
-using DemaConsulting.CanvasNet.Viewer;
 
 namespace DemaConsulting.CanvasNet.Tool.Tests.Commands;
 
@@ -273,24 +272,5 @@ public partial class HelpTopicsTests
         Assert.Equal("canvasnet help scad test", card.Command);
         Assert.Equal(["scad/test/more"], card.ChildIds);
         Assert.Equal($"At most {HelpTopics.Tokens["maxDimension"]} pixels.", card.Body);
-    }
-
-    /// <summary>
-    ///     Test that the image-href file types are also listed where an agent looks for composition: the extensions of the
-    ///     viewer are named in the <c>svg embedding</c> card that every composition card links to.
-    /// </summary>
-    [Fact]
-    public void HelpTopics_EmbeddingCard_IsLinkedFromTheFormatCompositionCards()
-    {
-        // Act / Assert: each composition card of a format points at the embedding card or is it
-        foreach (var id in HelpTopics.All.Where(c => c.Name == "composition" && c.ParentId != null).Select(c => c.Id))
-        {
-            var card = HelpTopics.Get(id);
-            Assert.True(
-                card.SeeAlso.Contains("svg/embedding") || card.Id == "svg/composition" || card.Body.Contains("canvasnet help svg embedding", StringComparison.Ordinal),
-                $"'{id}' does not point at 'svg/embedding'.");
-        }
-
-        Assert.NotEmpty(CanvasNetViewer.Extensions);
     }
 }

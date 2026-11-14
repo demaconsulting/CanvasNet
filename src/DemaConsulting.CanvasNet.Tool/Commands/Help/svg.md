@@ -7,9 +7,13 @@ children:
   - fragments
   - units
   - flatten
+  - style
+  - composition
   - options
   - diagnostics
 see-also:
+  - style
+  - composition
   - files
   - limits
 ---
@@ -23,3 +27,6 @@ SVG, and place every diagram, chart, model, or document page with `<image
 href="file" x="..." y="..." width="..." height="..."/>` (see `canvasnet help svg
 embedding`). Render with `canvasnet render page.svg --width 1200 -o page.png
 --json` and look at the PNG.
+
+For good-looking figures read `canvasnet help svg style` and
+`canvasnet help svg composition` (`--example report` is a complete figure).

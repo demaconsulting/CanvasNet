@@ -11,6 +11,7 @@ children:
   - transforms
   - params
   - layout
+  - style
   - composition
   - options
   - unsupported
@@ -18,6 +19,8 @@ children:
   - warnings
   - differences
 see-also:
+  - style
+  - composition
   - svg
   - limits
 ---
@@ -30,3 +33,6 @@ chart.vl.json -o chart.png --json`, then look at the PNG. Start with `canvasnet
 help vega-lite marks` and `canvasnet help vega-lite encodings`; `--example bar`
 prints a small chart to start from. A chart can also be placed inside an SVG
 drawing with `<image href="chart.vl.json" .../>` (see `canvasnet help svg`).
+
+For a good-looking chart read `canvasnet help vega-lite style`; to combine
+charts or place one in a figure, `canvasnet help vega-lite composition`.

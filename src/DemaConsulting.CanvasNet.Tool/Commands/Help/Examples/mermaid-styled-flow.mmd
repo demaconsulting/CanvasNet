@@ -1,0 +1,26 @@
+---
+title: Order pipeline
+config:
+  theme: base
+  themeVariables:
+    primaryColor: "#eef4fb"
+    primaryBorderColor: "#2f6db3"
+    primaryTextColor: "#1b2733"
+    lineColor: "#5b6b7a"
+    edgeLabelBackground: "#ffffff"
+    fontSize: "15px"
+  flowchart:
+    nodeSpacing: 40
+    rankSpacing: 50
+---
+flowchart LR
+  classDef step fill:#eef4fb,stroke:#2f6db3,stroke-width:2px,color:#1b2733
+  classDef done fill:#e6f4ea,stroke:#2e7d32,stroke-width:2px,color:#1b5e20
+  classDef stop fill:#fdecea,stroke:#c62828,stroke-width:2px,color:#8e1c1c,font-weight:bold
+
+  order([Order received]):::step --> paid{Paid?}:::step
+  paid -->|yes| pick[Pick and pack]:::step
+  paid -->|no| hold[Hold the order]:::stop
+  pick --> ship[Ship]:::done
+  hold -.->|payment arrives| paid
+  linkStyle default stroke:#5b6b7a,stroke-width:1.5px

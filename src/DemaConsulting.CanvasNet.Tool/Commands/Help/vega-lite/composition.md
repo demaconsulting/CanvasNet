@@ -1,10 +1,38 @@
 ---
 title: Pictures in charts and charts in drawings
-summary: The image mark, and a chart placed inside an SVG drawing.
+summary: Charts in SVG figures, several charts in one specification, and pictures shown by the image mark.
 see-also:
+  - composition
+  - vega-lite/style
+  - vega-lite/layout
+  - svg/composition
   - svg/embedding
   - svg/fragments
 ---
+
+Choose where the charts meet: in one Vega-Lite specification when they share
+data or scales, or in an SVG figure when they sit beside diagrams, models,
+pages, and text.
+
+## Charts together
+
+- Several views of one data set belong in one specification: `layer` to share
+  the axes, `hconcat` or `vconcat` to align charts, and `facet` or `repeat` for
+  small multiples (see `canvasnet help vega-lite layout`). One `config` then
+  styles them all.
+
+## A chart in a figure
+
+- Place the chart in an SVG layout with
+  `<image href="chart.vl.json" x="150" y="476" width="700" height="432"/>`. It
+  is drawn at the size of the placement on the output, so it stays sharp, and
+  its text scales with it: give the placement the aspect ratio that
+  `canvasnet info chart.vl.json --json` reports, and a size near its natural
+  size so its text matches the page.
+- The chart keeps its own background in the figure; write
+  `"background": "transparent"` in the chart when the page has a color.
+- Set a param for one placement with `#param.<name>=<value>` after the file
+  name, the way `--param` does on the command line.
 
 ## Supported
 

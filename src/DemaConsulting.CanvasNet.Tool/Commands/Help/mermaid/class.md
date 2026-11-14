@@ -4,6 +4,8 @@ summary: Classes, members, generics, annotations, relations, namespaces, notes, 
 children:
   - settings
 see-also:
+  - mermaid/style
+  - mermaid/composition
   - mermaid/options
   - mermaid/diagnostics
 examples:

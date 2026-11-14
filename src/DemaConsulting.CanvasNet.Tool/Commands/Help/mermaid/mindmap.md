@@ -4,6 +4,7 @@ summary: Nodes, shapes, texts, sections, edges, and the layout of a mindmap.
 children:
   - settings
 see-also:
+  - mermaid/style
   - mermaid/options
   - mermaid/diagnostics
 examples:

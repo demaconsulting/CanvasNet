@@ -4,6 +4,8 @@ summary: Entities, attributes, relationships, cardinalities, subgraphs, and styl
 children:
   - settings
 see-also:
+  - mermaid/style
+  - mermaid/composition
   - mermaid/options
   - mermaid/diagnostics
 examples:

@@ -2,6 +2,7 @@
 title: Supported SVG
 summary: The SVG elements, attributes, and CSS that are drawn, and what is not.
 see-also:
+  - svg/style
   - svg/units
   - svg/embedding
 examples:
@@ -10,11 +11,6 @@ examples:
     language: xml
     file: shapes.svg
     description: A rectangle, a circle outline, and a triangle path.
-  - name: gradient
-    kind: source
-    language: xml
-    file: gradient.svg
-    description: A rounded rectangle filled with a linear gradient.
   - name: group
     kind: source
     language: xml

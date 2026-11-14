@@ -4,6 +4,7 @@ summary: Slices, the legend, titles, and colors of a pie chart.
 children:
   - settings
 see-also:
+  - mermaid/style
   - mermaid/options
   - mermaid/diagnostics
 examples:

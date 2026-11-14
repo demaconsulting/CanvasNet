@@ -6,6 +6,8 @@ aliases:
   - concat
   - facet
 see-also:
+  - vega-lite/composition
+  - vega-lite/style
   - vega-lite/marks
   - vega-lite/warnings
 examples:

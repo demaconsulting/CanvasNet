@@ -4,6 +4,7 @@ summary: Tasks, dates, sections, excluded days, the axis, compact mode, and tags
 children:
   - settings
 see-also:
+  - mermaid/style
   - mermaid/options
   - mermaid/diagnostics
 examples:
