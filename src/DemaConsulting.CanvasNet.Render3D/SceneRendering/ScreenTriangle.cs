@@ -10,7 +10,7 @@ namespace DemaConsulting.CanvasNet.Render3D.SceneRendering;
 ///     <para>
 ///         Coordinates are in the global <b>sample space</b> (output pixel coordinates multiplied by
 ///         the supersampling factor, y pointing down) in 24.8 fixed point: one sample is 256 units
-///         and the centre of sample <c>(i, j)</c> is <c>(256 i + 128, 256 j + 128)</c>. Vertices are
+///         and the center of sample <c>(i, j)</c> is <c>(256 i + 128, 256 j + 128)</c>. Vertices are
 ///         normalized so <see cref="Area2"/> is positive (clockwise on a y-down screen), which the
 ///         rasterizer's edge functions and top-left rule assume. <see cref="BackFacing"/> records
 ///         whether the original winding showed the triangle's back.

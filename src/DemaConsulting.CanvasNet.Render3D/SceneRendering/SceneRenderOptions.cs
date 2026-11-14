@@ -60,7 +60,7 @@ public sealed class SceneRenderOptions
 
     /// <summary>
     ///     Gets the color of pixels no surface covers. Defaults to opaque white (the sibling renderers'
-    ///     convention). The alpha channel is honoured: a transparent background yields a transparent
+    ///     convention). The alpha channel is honored: a transparent background yields a transparent
     ///     result with correctly premultiplied antialiased edges (fully transparent pixels are stored as
     ///     <c>(0, 0, 0, 0)</c>).
     /// </summary>
@@ -74,7 +74,7 @@ public sealed class SceneRenderOptions
 
     /// <summary>
     ///     Gets the color used where the viewer sees the back of a surface (an inside-out mesh, an
-    ///     open mesh or a camera inside a solid): a muted red, <c>(200, 70, 70)</c>, so modelling
+    ///     open mesh or a camera inside a solid): a muted red, <c>(200, 70, 70)</c>, so modeling
     ///     errors are visible (alpha ignored).
     /// </summary>
     public Rgba32 BackFaceColor { get; init; } = new(200, 70, 70, 255);

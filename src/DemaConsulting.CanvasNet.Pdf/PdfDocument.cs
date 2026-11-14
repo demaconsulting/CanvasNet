@@ -39,7 +39,7 @@ namespace DemaConsulting.CanvasNet.Pdf;
 ///         (<c>/DecodeParms /K</c> zero or greater) and an explicit <c>/EndOfLine true</c> both
 ///         fail closed with <see cref="UnsupportedImageFeatureException"/>; and
 ///         <c>JPXDecode</c> (JPEG 2000, decoded by <see cref="Codecs.Jpeg2000Codec"/>, sole filter
-///         only, honouring <c>/ColorSpace</c>, <c>/Decode</c>, <c>/SMaskInData</c>, and an explicit
+///         only, honoring <c>/ColorSpace</c>, <c>/Decode</c>, <c>/SMaskInData</c>, and an explicit
 ///         <c>/SMask</c> image; never inline) is supported for image XObjects, while any other
 ///         unrecognized filter name remains entirely unsupported.
 ///     </para>

@@ -1156,7 +1156,7 @@ sections:
           - id: CanvasNetPdf-PdfDocument-JpxColorSpace
             title: >-
               The PdfDocument class shall use the JPEG 2000 data's own color space for a
-              JPXDecode image without /ColorSpace and otherwise honour /ColorSpace
+              JPXDecode image without /ColorSpace and otherwise honor /ColorSpace
               (DeviceGray/RGB/CMYK, Indexed, ICCBased by component count).
             justification: |
               The PDF specification makes /ColorSpace optional for JPXDecode and, when present,

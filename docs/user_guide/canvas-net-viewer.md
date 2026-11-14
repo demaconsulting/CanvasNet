@@ -862,7 +862,7 @@ replaces the page, its view the view, and its variables and parameters are merge
 is a `ViewerException` with `ErrorCodes.ImageFragmentInvalid`, a page the file does not have is
 `ErrorCodes.PageOutOfRange`, and a parameter that is unknown or repeated is a warning among the diagnostics of the first
 page that is loaded (`image-fragment-unknown-parameter`, `image-fragment-duplicate-parameter`, `vl-param-unknown`; never
-an error). To draw several versions of a model at one scale, fix the camera with `$vpd` (and `$vpt` to centre it), as a
+an error). To draw several versions of a model at one scale, fix the camera with `$vpd` (and `$vpt` to center it), as a
 variable of the command or of each fragment:
 
 <!-- compile -->

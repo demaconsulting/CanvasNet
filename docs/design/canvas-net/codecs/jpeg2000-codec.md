@@ -166,7 +166,7 @@ Limits are enforced during header validation, before the memory they protect is 
    `InvalidDataException`, as in OpenJPEG. TNsot (the declared tile-part count) is advisory and
    not enforced, because real encoders emit wrong counts that OpenJPEG only warns about.
 4. **Tier-1**: each code-block is decoded with the MQ decoder through the significance
-   propagation, magnitude refinement and cleanup passes, honouring selective arithmetic bypass,
+   propagation, magnitude refinement and cleanup passes, honoring selective arithmetic bypass,
    reset, termination, vertically causal, predictable termination and segmentation symbols (the
    decoded symbol must be 1010), and
    the ROI max-shift.

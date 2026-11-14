@@ -1,6 +1,6 @@
 ---
 title: CanvasNet Trace Matrix
-subtitle: Requirements Traceability Matrix for CanvasNet
+subtitle: Canvas rendering library for .NET
 author: DEMA Consulting
 description: Requirements Traceability Matrix for CanvasNet
 lang: en-US

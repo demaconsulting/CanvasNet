@@ -77,7 +77,7 @@ internal sealed class FragmentBuffer
     /// <summary>
     ///     One fragment: the depth at which a triangle covers a sample, and the triangle's index.
     /// </summary>
-    /// <param name="Depth">The interpolated view depth at the sample centre.</param>
+    /// <param name="Depth">The interpolated view depth at the sample center.</param>
     /// <param name="Triangle">The index of the triangle in the renderer's triangle list.</param>
     public readonly record struct Fragment(float Depth, int Triangle);
 

@@ -9,7 +9,7 @@ The unit is verified against the real operating system, because its purpose is t
 folders are opened with `RealPath.OpenForRead`, and the facts reported by `RealPath.Inspect` and
 `RealPath.TryGetCanonicalDirectory` are compared with what the test created. The tests reach the internal unit through
 the core assembly's `InternalsVisibleTo` grant. Every scenario that exists on one operating system only runs there
-and skips elsewhere with the reason; the CI matrix (Windows, Linux, and macOS on Arm64, each with .NET 8, 9, and 10)
+and skips elsewhere with the reason; the CI matrix (Windows, Linux, and macOS on Arm64, each with .NET 8, 9, 10, and 11)
 runs each of them, and the requirements link them with source filters, so only runs on the right system count:
 
 | Scenario | Windows | Linux | macOS |

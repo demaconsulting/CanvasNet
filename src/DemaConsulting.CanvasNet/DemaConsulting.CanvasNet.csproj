@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFrameworks>net8.0;net9.0;net10.0</TargetFrameworks>
+    <TargetFrameworks>net8.0;net9.0;net10.0;net11.0</TargetFrameworks>
     <LangVersion>latest</LangVersion>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
@@ -57,9 +57,9 @@
   <ItemGroup>
     <!-- Provides TensorPrimitives, used by Surface's vectorized bulk pixel operations
          (PremultiplyAlpha, UnpremultiplyAlpha, CompositeOver) to accelerate per-channel
-         floating-point arithmetic. In-box on net9.0/net10.0; supplied via this package on
-         net8.0. Pinned to the same version across all three TFMs for a single, auditable,
-         identical API surface rather than relying on an implicit framework reference. -->
+         floating-point arithmetic. System.Numerics.Tensors is not part of the shared framework
+         of any target (net8.0, net9.0, net10.0, or net11.0), so this package supplies it on all
+         four TFMs, pinned to one version for a single, auditable, identical API surface. -->
     <PackageReference Include="System.Numerics.Tensors" Version="10.0.14" />
   </ItemGroup>
 

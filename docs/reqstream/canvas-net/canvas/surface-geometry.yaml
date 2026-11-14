@@ -126,7 +126,7 @@ sections:
                   - Surface_EstimateSkew_BlankImage_IsNotEstimated
                   - Surface_EstimateSkew_RandomNoise_HasLowConfidence
                   - SkewEstimate_IsCorrectableAndCorrectionDegrees_FollowThresholdsAndSign
-                  - SkewEstimate_CorrectionDegrees_RotatedSurface_IsLevelled
+                  - SkewEstimate_CorrectionDegrees_RotatedSurface_IsLeveled
 
               - id: CanvasNet-Canvas-SurfaceGeometry-SkewDeterministic
                 title: >-

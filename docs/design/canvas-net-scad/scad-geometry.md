@@ -86,11 +86,14 @@ cannot be caught. `ScadGeometryBuilder` therefore walks the instantiation tree i
 `List<Frame>`, exactly as the renderer's CSG compiler does, and **no code in the `Geometry` namespace recurses**:
 the `!` pre-pass, the anchor pass, the 2D shape-tree walks of the extrusions, the bounds propagation, and the
 location map are
-all iterative. The build behaves identically on any caller stack, including 64 KiB, and needs no stack-guard
-thread (the evaluator keeps its own bounded large-stack restart). This is proven by tests that build and render
-models nested thousands of levels deep, and hand-built trees 100,000 levels deep, from 64 KiB and 256 KiB
-caller threads and compare them with a large-stack result. Reviewers of this subsystem check that no method
-calls itself, directly or through another.
+all iterative, so the stack a build needs does not grow with the depth of the model. One level still runs a fixed
+chain of calls (down to the exact predicates of the convex hull) and the runtime may compile code on the calling
+thread, which together exceeded a 64 KiB stack on .NET 11; so a caller below the runtime's minimum execution stack
+(`RuntimeHelpers.TryEnsureSufficientExecutionStack`) has its build run on a dedicated 16 MiB thread, and the build
+behaves identically on any caller stack, including 64 KiB (the evaluator keeps its own bounded large-stack restart).
+This is proven by tests that build and render models nested thousands of levels deep, and hand-built trees 100,000
+levels deep, from 64 KiB and 256 KiB caller threads and compare them with a large-stack result. Reviewers of this
+subsystem check that no method calls itself, directly or through another.
 
 #### Dimensions And The Symbolic 2D Tree
 

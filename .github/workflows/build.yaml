@@ -28,7 +28,9 @@ jobs:
       - name: Setup dotnet
         uses: actions/setup-dotnet@v6
         with:
-          dotnet-version: 10.x
+          dotnet-version: |
+            10.x
+            11.x
 
       - name: Restore Tools
         run: >
@@ -55,7 +57,7 @@ jobs:
           echo "Capturing tool versions..."
           dotnet versionmark --capture --job-id "quality" \
             --output "artifacts/versionmark-quality.json" -- \
-            dotnet git versionmark
+            dotnet git versionmark textlint
           echo "✓ Tool versions captured"
 
       # === CAPTURE OTS SELF-VALIDATION RESULTS ===
@@ -121,6 +123,7 @@ jobs:
             8.x
             9.x
             10.x
+            11.x
 
       - name: Restore Tools
         run: >
@@ -271,6 +274,7 @@ jobs:
             8.x
             9.x
             10.x
+            11.x
 
       - name: Restore Tools
         run: >
@@ -312,6 +316,10 @@ jobs:
   # involving basic tool execution and running self-validation to ensure compatibility
   # across different platforms and runtime versions. The tool is installed from the
   # packages built by the build job, exactly as a user would install it.
+  #
+  # The .NET runtime matrix covers .NET 10 and .NET 11 because the tool is packaged for
+  # net10.0 and net11.0 only; the libraries keep their multi-framework matrix in the build
+  # job above.
   integration-test:
     name: Integration Test ${{ matrix.os }} .NET ${{ matrix.dotnet-version }}
     runs-on: ${{ matrix.os }}
@@ -322,7 +330,7 @@ jobs:
     strategy:
       matrix:
         os: [windows-latest, ubuntu-latest, macos-latest]
-        dotnet-version: ['8.x', '9.x', '10.x']
+        dotnet-version: ['10.x', '11.x']
 
     steps:
       # === INSTALL DEPENDENCIES ===
@@ -395,7 +403,7 @@ jobs:
               'DemaConsulting.TestResults.dll',
               'System.Numerics.Tensors.dll'
             )
-            foreach ($framework in 'net8.0', 'net9.0', 'net10.0') {
+            foreach ($framework in 'net10.0', 'net11.0') {
               foreach ($file in $files) {
                 $entry = "tools/$framework/any/$file"
                 if (-not ($zip.Entries.FullName -contains $entry)) {
@@ -454,7 +462,7 @@ jobs:
         run: |
           mkdir -p artifacts
           echo "Capturing tool versions..."
-          # Create short job ID: int-windows-8, int-ubuntu-9, int-macos-10, etc.
+          # Create short job ID: int-windows-10, int-ubuntu-11, int-macos-10, etc.
           OS_SHORT=$(echo "${{ matrix.os }}" | sed 's/-latest//')
           DOTNET_SHORT=$(echo "${{ matrix.dotnet-version }}" | sed 's/\.x$//')
           JOB_ID="int-${OS_SHORT}-${DOTNET_SHORT}"

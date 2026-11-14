@@ -291,7 +291,7 @@ tail, and asserts both `Load` and `GetInfo` on the exact same bytes throw `Inval
 referencing the hard limit, rather than `Load` accepting the file while only `GetInfo` rejects it.
 Proves the same true-parity behavior for the independent segment-count ceiling: builds many more
 than `MaxProbeSegmentCount`'s worth of well-formed, minimal (4-byte) non-SOF APP0 filler segments —
-totalling well under `MaxProbeHeaderBytesHardLimit`, so only the segment-count ceiling can be what
+totaling well under `MaxProbeHeaderBytesHardLimit`, so only the segment-count ceiling can be what
 trips — followed by a valid SOF0/SOS/entropy tail, and asserts both `Load` and `GetInfo` on the
 exact same bytes throw `InvalidDataException` referencing the segment limit, proving `Load`'s own
 pre-SOF segment walk enforces the same segment-count ceiling `GetInfo` enforces. Proves the
@@ -306,7 +306,7 @@ segment, which would wrongly skip the check specifically for the one segment who
 the ceiling. Proves that scanning past the soft cap is additionally bounded by a second, independent
 segment-count ceiling that catches an attack shape the byte-based hard limit alone would take
 millions of iterations to reach: builds many more than the segment-count limit's worth of
-well-formed, minimal (4-byte) non-SOF APP0 filler segments - totalling only a few kilobytes,
+well-formed, minimal (4-byte) non-SOF APP0 filler segments - totaling only a few kilobytes,
 nowhere near either byte-based cap - followed by an unbounded, never-ending zero-byte tail
 (`InfiniteTailStream`), wrapped in a `BoundedReadStream` configured with a small, generous budget
 (comfortably covering both the known prefix and the probe buffer's eager internal chunk reads,

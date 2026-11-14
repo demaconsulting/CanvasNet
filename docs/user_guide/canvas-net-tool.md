@@ -19,7 +19,7 @@ canvasnet commands do, from code*.
 
 ## Installing the Tool
 
-The tool needs the .NET 8, 9, or 10 runtime (the `dotnet tool` commands need the SDK). It bundles every CanvasNet
+The tool needs the .NET 10 or 11 runtime (the `dotnet tool` commands need the SDK). It bundles every CanvasNet
 library it uses, so no other CanvasNet package has to be installed.
 
 ```bash
@@ -2469,4 +2469,4 @@ canvasnet --validate --results validation.xml --silent --log validation.log
 A results file with any other extension is an error and no file is written. The first two tests,
 `CanvasNetTool_VersionDisplay` and `CanvasNetTool_HelpDisplay`, are the evidence that the tool works on each supported
 operating system and .NET runtime, which the CanvasNet build collects by installing the packaged tool on Windows,
-Linux, and macOS with .NET 8, 9, and 10 and running `canvasnet --validate`.
+Linux, and macOS with .NET 10 and 11 and running `canvasnet --validate`.

@@ -194,13 +194,14 @@ source is asked again on every render. The shape contains this risk control inhe
 ### Platform Support
 
 The library targets the following frameworks, identical to the `CanvasNet` system it depends on, enabling compatibility
-across modern, currently supported .NET runtimes:
+across modern .NET runtimes:
 
-| Target Framework | Runtime / Environment |
-| ---------------- | --------------------- |
-| `net8.0`         | .NET 8 LTS            |
-| `net9.0`         | .NET 9                |
-| `net10.0`        | .NET 10               |
+| Target Framework | Runtime / Environment                                   |
+| ---------------- | ------------------------------------------------------- |
+| `net8.0`         | .NET 8 LTS (end of support; kept for library consumers) |
+| `net9.0`         | .NET 9 STS (end of support; kept for library consumers) |
+| `net10.0`        | .NET 10 LTS                                             |
+| `net11.0`        | .NET 11                                                 |
 
 The library is supported on the following operating systems:
 

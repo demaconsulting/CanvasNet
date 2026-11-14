@@ -155,7 +155,7 @@ sections:
             tests:
               - ScaleResolver_Resolve_SortByFieldUsesTheTransformedRows
               - ScaleResolver_Resolve_SortsByAnotherChannelsAggregate
-              - ScaleResolver_Resolve_SortIsChargedBoundedAndCancellable
+              - ScaleResolver_Resolve_SortIsChargedBoundedAndCancelable
               - ScaleResolver_Resolve_SortArrayIsBoundedAndPollsCancellation
 
           - id: CanvasNetVegaLite-Scales-BinnedDomains
@@ -259,7 +259,7 @@ sections:
               The Scales subsystem shall classify values with quantize (equal-width intervals), quantile
               (R-7 quantiles of the sorted values), threshold (explicit boundaries), and bin-ordinal scales,
               with the class counts, scheme colors, and spread numbers of Vega and Vega-Lite, a located error
-              for a range or count above the limit, a cancellable and step-charged read of the values, and
+              for a range or count above the limit, a cancelable and step-charged read of the values, and
               deterministic results.
             justification: |
               Classified charts and legends depend on where the class boundaries fall and how many classes there are.

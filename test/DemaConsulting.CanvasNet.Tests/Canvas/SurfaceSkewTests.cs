@@ -283,14 +283,14 @@ public class SurfaceSkewTests
     ///     Verifies that rotating by the correction of an estimate levels the picture it was estimated from.
     /// </summary>
     [Fact]
-    public void SkewEstimate_CorrectionDegrees_RotatedSurface_IsLevelled()
+    public void SkewEstimate_CorrectionDegrees_RotatedSurface_IsLeveled()
     {
         using var tilted = ImageFixtures.SketchPhoto(400, 300, 5, lines: 6);
         var estimate = tilted.EstimateSkew();
 
-        using var levelled = tilted.RotateArbitrary(estimate.CorrectionDegrees, new Rgba32(200, 200, 200, 255), nearest: false);
+        using var leveled = tilted.RotateArbitrary(estimate.CorrectionDegrees, new Rgba32(200, 200, 200, 255), nearest: false);
 
         Assert.True(estimate.IsCorrectable);
-        Assert.InRange(levelled.EstimateSkew().Degrees, -0.3, 0.3);
+        Assert.InRange(leveled.EstimateSkew().Degrees, -0.3, 0.3);
     }
 }

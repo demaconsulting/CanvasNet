@@ -345,7 +345,7 @@ document, the options, and the files the options make reachable.
   way when a property is initialized with an invalid value.
 - Source that cannot be tokenized or parsed throws `ScadSyntaxException` with the location of the
   first error (see _ScadLanguage_, `scad-language.md`, for the fail-fast model and the exact message
-  catalogue in _ScadParser_ and _ScadLexer_). Nesting deeper than 256 levels is reported the same way
+  catalog in _ScadParser_ and _ScadLexer_). Nesting deeper than 256 levels is reported the same way
   rather than overflowing the stack. Every `Parse`/`Open` call parses inline on the caller's thread and
   restarts on a dedicated 16 MiB-stack thread (at most a bounded number at once) only when the caller's
   stack is too small, so the limit does not depend on the caller's stack size;

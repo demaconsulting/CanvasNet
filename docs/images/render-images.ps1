@@ -3,7 +3,8 @@
     Regenerates the committed README images from their sources, or checks that they are still current.
 
 .DESCRIPTION
-    The images in this folder are pictures the canvasnet tool draws from the sources in docs/images/showcase, the
+    The images in this folder are pictures the canvasnet tool draws from architecture.svg, the sources in
+    docs/images/showcase, the
     examples of the user guide (docs/user_guide/examples), and one fixture in the test folder. This script is the one
     place that knows how.
 
@@ -202,7 +203,17 @@ function New-MermaidGallery {
     Join-Path $Folder 'mermaid-gallery.png'
 }
 
+# docs/images/architecture.png: the package architecture diagram (architecture.svg, original), drawn at 1800 pixels
+# wide on a transparent background so that its rounded card reads well on light and dark pages.
+function New-Architecture {
+    param([string]$Folder)
+    Invoke-ToolOrFail render 'docs/images/architecture.svg' --strict --background transparent --width 1800 `
+        -o "$Folder/architecture.png"
+    Join-Path $Folder 'architecture.png'
+}
+
 $images = @(
+    @{ Path = 'docs/images/architecture.png'; Build = ${function:New-Architecture} }
     @{ Path = 'docs/images/showcase.png'; Build = ${function:New-Showcase} }
     @{ Path = 'docs/images/composition.png'; Build = ${function:New-Composition} }
     @{ Path = 'docs/images/montage-explode.png'; Build = ${function:New-MontageExplode} }

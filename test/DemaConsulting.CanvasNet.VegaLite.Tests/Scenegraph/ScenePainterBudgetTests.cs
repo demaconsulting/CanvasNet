@@ -253,7 +253,7 @@ public class ScenePainterBudgetTests
         using var first = Paint(1, Root(beyond, left, above));
         using var atEdge = Paint(10 * 26, Root(edge));
         var edgeError = Assert.Throws<VegaLiteRenderException>(() => Paint((10 * 26) - 1, Root(edge)));
-        using var atCentre = Paint(66 * 26, Root(centered));
+        using var atCenter = Paint(66 * 26, Root(centered));
         var centeredError = Assert.Throws<VegaLiteRenderException>(() => Paint((66 * 26) - 1, Root(centered)));
         using var withGap = Paint(100 * 26, Root(gap));
         var gapError = Assert.Throws<VegaLiteRenderException>(() => Paint((100 * 26) - 1, Root(gap)));
@@ -264,7 +264,7 @@ public class ScenePainterBudgetTests
         Assert.Contains("'centered'", centeredError.Message, StringComparison.Ordinal);
         Assert.Contains("'gap'", gapError.Message, StringComparison.Ordinal);
         Assert.NotNull(atEdge);
-        Assert.NotNull(atCentre);
+        Assert.NotNull(atCenter);
         Assert.NotNull(withGap);
     }
 

@@ -33,6 +33,6 @@ consumed directly by `Surface`'s `PremultiplyAlpha`, `UnpremultiplyAlpha`, and
 `CompositeOver` implementations via private planar-buffer helper methods,
 by `SurfaceResampler`'s separable filter engine (`Multiply`/`MultiplyAdd`), and by
 `ScanlineRasterizer`'s coverage clipping (`Multiply`); no other member of `Surface` depends on it.
-`TensorPrimitives` is in-box on `net9.0`/`net10.0` and supplied via this package on `net8.0`; the
-package version is pinned to one value across all three target frameworks so the same code path
-is exercised everywhere.
+`System.Numerics.Tensors` is not part of the shared framework of any target (`net8.0`, `net9.0`, `net10.0`, or
+`net11.0`), so this package supplies `TensorPrimitives` on all four target frameworks; the package version is
+pinned to one value across them so the same code path is exercised everywhere.

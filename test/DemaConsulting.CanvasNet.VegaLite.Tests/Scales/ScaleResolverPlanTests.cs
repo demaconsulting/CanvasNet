@@ -459,7 +459,7 @@ public class ScaleResolverPlanTests
     ///     <c>MaxEvaluationSteps</c>), the categories are bounded by <see cref="VegaLiteLimits.MaxScaleDomainSize"/>, and the cancellation token is polled.
     /// </summary>
     [Fact]
-    public void ScaleResolver_Resolve_SortIsChargedBoundedAndCancellable()
+    public void ScaleResolver_Resolve_SortIsChargedBoundedAndCancelable()
     {
         // Arrange: 5,000 rows, each its own category
         const string Spec = "{\"data\":{\"sequence\":{\"start\":0,\"stop\":5000,\"as\":\"id\"}},\"mark\":\"point\",\"encoding\":{\"x\":{\"field\":\"id\",\"type\":\"nominal\",\"sort\":{\"op\":\"median\",\"field\":\"id\"}},\"y\":{\"field\":\"id\",\"type\":\"quantitative\"}}}";

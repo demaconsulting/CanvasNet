@@ -229,7 +229,7 @@ nothing, and that the measurement of the reference height (the flattening of the
 against) called directly with a canceled context throws `OperationCanceledException`, while the same measurement
 with a live context returns the exact ink height of the `H`.
 
-##### CanvasNetScad-ScadGeometry-ScadTextGeometry-FontResolutionSafety: Safe, Bounded, Cancellable Font Scan
+##### CanvasNetScad-ScadGeometry-ScadTextGeometry-FontResolutionSafety: Safe, Bounded, Cancelable Font Scan
 
 `ScadTextGeometryTests.ScadTextGeometry_FontResolver_AdditionalDirectory_ReparsePointRootIsIgnored`,
 `ScadTextGeometryTests.ScadTextGeometry_FontResolver_AdditionalDirectory_ReparsePointFileIsIgnored`,

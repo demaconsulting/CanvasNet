@@ -34,7 +34,7 @@ out with a TrueType font (the bundled Liberation Sans unless a font is named) in
 dialect is deliberately simple and is CanvasNetScad's own: no shaping or ligatures, `language` and `script`
 accepted and ignored, simple vertical directions, `size` as the ink height of `H`, and alignment by the measured
 ink extents; unusable mapped glyph outlines are reported rather than silently dropped, and the scan of explicit font
-directories is bounded and cancellable; `textmetrics()` and `fontmetrics()` stay unsupported (see _ScadTextGeometry
+directories is bounded and cancelable; `textmetrics()` and `fontmetrics()` stay unsupported (see _ScadTextGeometry
 Unit Design_). A later delivery added `projection()` (the exact shadow or cross-section of solids as a 2D shape, so
 that a drawing sheet can be assembled from views of a model), the viewport variables `$vpt`, `$vpr`, `$vpd`, and
 `$vpf` (the document can read the camera and steer it), and a flat top-down default view for a model that is
@@ -514,13 +514,14 @@ Design_, `canvas-net-scad/scad-evaluation.md`):
 ### Platform Support
 
 The library targets the following frameworks, identical to the `CanvasNet` system it references,
-enabling compatibility across modern, currently supported .NET runtimes:
+enabling compatibility across modern .NET runtimes:
 
-| Target Framework | Runtime / Environment |
-| ---------------- | --------------------- |
-| `net8.0`         | .NET 8 LTS            |
-| `net9.0`         | .NET 9                |
-| `net10.0`        | .NET 10               |
+| Target Framework | Runtime / Environment                                   |
+| ---------------- | ------------------------------------------------------- |
+| `net8.0`         | .NET 8 LTS (end of support; kept for library consumers) |
+| `net9.0`         | .NET 9 STS (end of support; kept for library consumers) |
+| `net10.0`        | .NET 10 LTS                                             |
+| `net11.0`        | .NET 11                                                 |
 
 The library is supported on the following operating systems:
 

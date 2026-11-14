@@ -147,7 +147,7 @@ Applies `AssertValidCsgOperand` and `AssertClosedAndOutward` to the hull of five
 
 Asserts the square, the degenerate results and the one-ulp classification described above.
 
-##### CanvasNetRender3D-Tessellation-ConvexHull-Bounds: Work Is Bounded And Cancellable
+##### CanvasNetRender3D-Tessellation-ConvexHull-Bounds: Work Is Bounded And Cancelable
 
 **Tests**: `ConvexHullTests.ConvexHull_Hull3D_LargeInput_CompletesWithEulerCounts`,
 `ConvexHullTests.ConvexHull_Hull3D_Canceled_ThrowsOperationCanceledException`,

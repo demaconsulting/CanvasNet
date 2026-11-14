@@ -1,3 +1,6 @@
+// The link-check test vectors: string literals that spell unsafe URL schemes in encoded, split or truncated forms
+// (such as "&#106;avascript:" or "java\tscript:"), which are deliberately not words.
+// cspell:ignoreRegExp /"(?:[^"\\\n]|\\.)*"/g
 using System.Text.Json.Nodes;
 using DemaConsulting.CanvasNet.Mermaid.Configuration;
 using DemaConsulting.CanvasNet.Mermaid.Sequence;

@@ -78,7 +78,7 @@ declares more than 1 MiB (the largest among the bundled and the Windows fonts is
 treated as malformed and skipped: a declared length only has to lie within the file, so without
 the cap a crafted (or sparse) font could force a huge allocation. Behavioral difference: a face with valid headers but corrupt
 glyph data is now listed (it only fails when actually loaded), and a standalone Type 1 program
-with a `.ttf`/`.otf` extension is no longer catalogued. A
+with a `.ttf`/`.otf` extension is no longer cataloged. A
 missing or inaccessible directory, an unparseable candidate file, or a single corrupt face within
 an otherwise well-formed `.ttc` is silently skipped (by the scanner, at the narrowest possible
 scope; see `font-directory-scanner.md`) rather than

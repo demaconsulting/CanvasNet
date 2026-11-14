@@ -107,7 +107,7 @@ public class SceneRenderingTests
     [Fact]
     public void SceneRendering_SceneStraddlingTileBoundaries_HasNoSeams()
     {
-        // Arrange: a sphere centred in a 100 x 100 image crosses all four interior tile edges
+        // Arrange: a sphere centered in a 100 x 100 image crosses all four interior tile edges
         var scene = new Scene(new MeshNode(PrimitiveTessellator.Sphere(3.0, 40)));
         var camera = Render3DTestHelpers.OrthoCamera(new Vector3D(0, -20, 0), Vector3D.Zero, Vector3D.UnitZ, 10.0);
         var white = new Rgba32(255, 255, 255, 255);
@@ -236,7 +236,7 @@ public class SceneRenderingTests
         using var a = SceneRenderer.Render(scene, camera, 120, 120, sequential, TestContext.Current.CancellationToken);
         using var b = SceneRenderer.Render(scene, camera, 120, 120, parallel, TestContext.Current.CancellationToken);
 
-        // Assert: closed primitives raise no report, the cavity centre differs from the top face, and tiles agree byte for byte
+        // Assert: closed primitives raise no report, the cavity center differs from the top face, and tiles agree byte for byte
         Assert.Empty(reports);
         Assert.NotEqual(a[60, 60], a[10, 60]);
         Assert.True(Render3DTestHelpers.DistinctColors(a).Count > 4);

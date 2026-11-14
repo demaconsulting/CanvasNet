@@ -425,7 +425,7 @@ pass runs inline guarded by `RuntimeHelpers.EnsureSufficientExecutionStack`; and
 bounded restart on the `ScadEvaluator` thread. `RunOnEvaluatorThread(work, cancellation)` mirrors the parser's
 `RunOnParserThread` with one difference: it waits for a slot of the process-wide `ScadEvaluatorFallbackSlots` (or,
 for a thread that a test gave its own set through `SlotsForCurrentThread`, that set) with
-`SemaphoreSlim.Wait(cancellation)`, so **the wait is cancellable** — a canceled token ends it with
+`SemaphoreSlim.Wait(cancellation)`, so **the wait is cancelable** — a canceled token ends it with
 `OperationCanceledException` before a slot is acquired (the wait is outside the `try` whose `finally` releases the
 slot, so a slot that was never acquired is never released, and a canceled wait leaks nothing). It then starts a
 background thread with `EvaluatorStackSize`, joins it, releases the slot in `finally`, and rethrows a captured

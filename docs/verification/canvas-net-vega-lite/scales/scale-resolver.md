@@ -320,7 +320,7 @@ cannot order categories keep the ascending default and the plain forms (ascendin
 unchanged; and that `IsSupportedFieldSort` accepts any orderable operation with a valid field and order and refuses
 `encoding`, an invalid order, the text form, and a null argument.
 
-##### Sort Array Is Bounded, Cancellable, And Scalar Only
+##### Sort Array Is Bounded, Cancelable, And Scalar Only
 
 **Tests**: `ScaleResolverPlanTests.ScaleResolver_Resolve_SortArrayIsBoundedAndPollsCancellation`,
 `ScaleResolverPlanTests.ScaleResolver_Resolve_SortArrayNeverMapsNonScalarItemsToNull`
@@ -335,7 +335,7 @@ the object as null would have given `b, null, a`).
 
 ##### Sort Cost Is Charged And Bounded
 
-**Tests**: `ScaleResolverPlanTests.ScaleResolver_Resolve_SortIsChargedBoundedAndCancellable`
+**Tests**: `ScaleResolverPlanTests.ScaleResolver_Resolve_SortIsChargedBoundedAndCancelable`
 
 Asserts that the rows of a sort by an aggregate are charged to the step budget (a located failure at the channel that
 names `MaxEvaluationSteps` under a budget of 40), that the categories are bounded by `VegaLiteLimits.MaxScaleDomainSize`
@@ -474,7 +474,7 @@ an explicit range, a step-sized scale, or a discretizing scale.
 ##### Color Limits, Cancellation, And Determinism
 
 **Tests**: `ScaleResolverColorTests.ScaleResolverColor_Limits_AreEnforcedBeforeAnythingIsBuilt`,
-`ScaleResolverColorTests.ScaleResolverColor_QuantileDomain_IsSortedChargedAndCancellable`,
+`ScaleResolverColorTests.ScaleResolverColor_QuantileDomain_IsSortedChargedAndCancelable`,
 `ScaleResolverColorTests.ScaleResolverColor_Resolve_IsDeterministicAcrossRepeatedAndConcurrentRuns`
 
 With `MaxScaleDomainSize` 10 a scheme count of 11 fails (ordinal and quantize) at the scheme name; a range of three

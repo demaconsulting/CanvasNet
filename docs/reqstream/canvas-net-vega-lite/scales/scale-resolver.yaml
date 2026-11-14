@@ -222,7 +222,7 @@ sections:
                   let an object or array item stand for the null category.
                 justification: |
                   A specification of a few megabytes can hold millions of sort items; reading them must be
-                  bounded and cancellable, and an item that is not a category must not silently position the
+                  bounded and cancelable, and an item that is not a category must not silently position the
                   null category.
                 tests:
                   - ScaleResolver_Resolve_ExplicitSortArrayUsesTheFirstIndexOfEachValue
@@ -414,7 +414,7 @@ sections:
                 tests:
                   - ScaleResolverColor_Limits_AreEnforcedBeforeAnythingIsBuilt
                   - ScaleResolverColor_ConfiguredArrays_AreBoundedLikeInlineOnes
-                  - ScaleResolverColor_QuantileDomain_IsSortedChargedAndCancellable
+                  - ScaleResolverColor_QuantileDomain_IsSortedChargedAndCancelable
                   - ScaleResolverColor_Resolve_IsDeterministicAcrossRepeatedAndConcurrentRuns
 
               - id: CanvasNetVegaLite-Scales-ScaleResolver-Validation
@@ -428,7 +428,7 @@ sections:
                   than produce a plausible chart.
                 tests:
                   - ScaleResolver_Resolve_InvalidInputsFailWithLocation
-                  - ScaleResolver_Resolve_SortIsChargedBoundedAndCancellable
+                  - ScaleResolver_Resolve_SortIsChargedBoundedAndCancelable
 
               - id: CanvasNetVegaLite-Scales-ScaleResolver-TransformedScales
                 title: >-

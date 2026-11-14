@@ -38,7 +38,7 @@ public class TileBinnerTests
     }
 
     /// <summary>
-    ///     Validates that triangles entirely off the grid, or covering no sample centre, are not binned anywhere.
+    ///     Validates that triangles entirely off the grid, or covering no sample center, are not binned anywhere.
     /// </summary>
     [Fact]
     public void TileBinner_Bin_OffGridTriangles_AreSkipped()
@@ -54,7 +54,7 @@ public class TileBinnerTests
         // Act
         var bins = TileBinner.Bin(triangles, 2, 2, 32);
 
-        // Assert: the third triangle lies between sample centres (10.5, 10.5), so no tile can be touched
+        // Assert: the third triangle lies between sample centers (10.5, 10.5), so no tile can be touched
         for (var tile = 0; tile < 4; tile++)
         {
             Assert.True(bins.GetTriangles(tile).IsEmpty);

@@ -1118,7 +1118,7 @@ public class ScaleResolverColorTests
     ///     budget (a failure names <c>MaxEvaluationSteps</c> and the channel), and a canceled token stops the read.
     /// </summary>
     [Fact]
-    public void ScaleResolverColor_QuantileDomain_IsSortedChargedAndCancellable()
+    public void ScaleResolverColor_QuantileDomain_IsSortedChargedAndCancelable()
     {
         // Arrange: the values 5000 down to 1
         const string Source = "{\"data\":{\"sequence\":{\"start\":0,\"stop\":5000,\"as\":\"id\"}},\"transform\":[{\"calculate\":\"5000 - datum.id\",\"as\":\"v\"}],\"mark\":\"point\",\"encoding\":{\"color\":{\"field\":\"v\",\"type\":\"quantitative\",\"scale\":{\"type\":\"quantile\",\"scheme\":{\"name\":\"blues\",\"count\":2}}}}}";

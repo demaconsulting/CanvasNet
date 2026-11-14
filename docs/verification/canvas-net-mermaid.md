@@ -103,7 +103,7 @@ side-by-side pictures for a manual visual review and never gates.
 
 ## Test Environment
 
-- **Framework**: xUnit v3 under the .NET SDK, for `net8.0`, `net9.0`, and `net10.0`.
+- **Framework**: xUnit v3 under the .NET SDK, for `net8.0`, `net9.0`, `net10.0`, and `net11.0`.
 - **Platforms**: Windows, Linux, and macOS in CI; the platform requirements are proven by source-filtered results of
   `CanvasNetMermaid_Flowchart_DefaultTheme_PaintsMermaidsColors`.
 - **Execution**: `dotnet test` invoked by `build.ps1` and the CI pipeline.
@@ -958,7 +958,7 @@ every license file (`LICENSE-sanitize-url.txt`, `LICENSE-mermaid-parser.txt`, `L
 ### Platform Requirements
 
 **Tests**: `CanvasNetMermaid_Flowchart_DefaultTheme_PaintsMermaidsColors` with the source filters `windows@`,
-`ubuntu@`, `macos@`, `net8.0@`, `net9.0@`, and `net10.0@`
+`ubuntu@`, `macos@`, `net8.0@`, `net9.0@`, `net10.0@`, and `net11.0@`
 
 The representative test parses a flowchart with a subgraph, resolves the default theme, measures text with the
 bundled fonts, lays it out with dagre, draws shapes, edges, and markers, and samples the pixels, so it exercises every

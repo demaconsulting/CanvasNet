@@ -228,7 +228,7 @@ only the translation and the warning text:
    it), so a canceled build stops with `OperationCanceledException` instead of completing the scan.
 4. **The installed fonts** when `UseSystemFonts` is `true` (the default): the exact family among
    `SystemFontCatalog.Fonts`, which scans the host's font directories at most once per process and only when a
-   model asks for a font that step 3 did not find. This lookup is **not cancellable** (`SystemFontCatalog` takes no
+   model asks for a font that step 3 did not find. This lookup is **not cancelable** (`SystemFontCatalog` takes no
    cancellation token), and the first lookup in the process builds the process-wide catalog, so that first call can
    take noticeable time even for a build that is canceled meanwhile; later lookups, in any build, reuse the catalog.
 5. **The bundled family names**: `Liberation Sans`, `Liberation Serif`, and `Liberation Mono`, in the requested style.

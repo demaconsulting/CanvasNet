@@ -1,0 +1,124 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="700" viewBox="0 0 1000 700" font-family="Segoe UI, Arial, sans-serif">
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#475569"/>
+    </marker>
+  </defs>
+  <!-- Transparent canvas; a white rounded card keeps the diagram readable in light and dark themes -->
+  <rect x="14" y="16" width="975" height="674" rx="28" fill="#d5dce6"/>
+  <rect x="10" y="10" width="975" height="674" rx="28" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+
+  <g transform="translate(46,34)">
+    <!-- Callers -->
+    <rect x="0" y="0" width="420" height="60" rx="10" fill="#fef3c7" stroke="#d97706" stroke-width="2"/>
+    <text x="210" y="26" font-size="16" font-weight="600" fill="#92400e" text-anchor="middle">Your .NET application</text>
+    <text x="210" y="46" font-size="12" fill="#92400e" text-anchor="middle">references the Viewer, or any package directly</text>
+    <rect x="642" y="0" width="260" height="60" rx="10" fill="#fef3c7" stroke="#d97706" stroke-width="2"/>
+    <text x="772" y="26" font-size="16" font-weight="600" fill="#92400e" text-anchor="middle">Scripts, CI, and AI agents</text>
+    <text x="772" y="46" font-size="12" fill="#92400e" text-anchor="middle">run the command line, read JSON</text>
+
+    <line x1="210" y1="64" x2="210" y2="96" stroke="#475569" stroke-width="2" marker-end="url(#a)"/>
+    <line x1="772" y1="64" x2="772" y2="96" stroke="#475569" stroke-width="2" marker-end="url(#a)"/>
+
+    <!-- Viewer -->
+    <rect x="0" y="100" width="560" height="84" rx="12" fill="#dbeafe" stroke="#2563eb" stroke-width="2"/>
+    <text x="280" y="126" font-size="15" font-family="Consolas, monospace" font-weight="600" fill="#1e3a8a" text-anchor="middle">DemaConsulting.CanvasNet.Viewer</text>
+    <text x="280" y="148" font-size="12" fill="#1e40af" text-anchor="middle">probes, renders, inspects, compares, and composes any file the format packages read;</text>
+    <text x="280" y="166" font-size="12" fill="#1e40af" text-anchor="middle">lets one format show another as a picture (an SVG image, a Mermaid node, a chart mark)</text>
+
+    <!-- Tool -->
+    <rect x="642" y="100" width="260" height="84" rx="12" fill="#ede9fe" stroke="#7c3aed" stroke-width="2"/>
+    <text x="772" y="126" font-size="15" font-family="Consolas, monospace" font-weight="600" fill="#4c1d95" text-anchor="middle">canvasnet tool</text>
+    <text x="772" y="148" font-size="12" fill="#5b21b6" text-anchor="middle">DemaConsulting.CanvasNet.Tool</text>
+    <text x="772" y="166" font-size="12" fill="#5b21b6" text-anchor="middle">render · info · compare · montage · crop</text>
+    <line x1="638" y1="142" x2="564" y2="142" stroke="#475569" stroke-width="2" marker-end="url(#a)"/>
+    <text x="601" y="134" font-size="12" fill="#334155" text-anchor="middle">uses</text>
+
+    <line x1="280" y1="188" x2="280" y2="224" stroke="#475569" stroke-width="2" marker-end="url(#a)"/>
+    <text x="290" y="211" font-size="12" fill="#334155">opens every format</text>
+
+    <!-- Format packages -->
+    <rect x="-10" y="228" width="922" height="132" rx="14" fill="#f8fafc" stroke="#2563eb" stroke-width="2" stroke-dasharray="8 5"/>
+    <text x="6" y="252" font-size="14" font-weight="600" fill="#2563eb">Format packages: each reads one kind of file and draws it onto a canvas</text>
+
+    <rect x="0" y="266" width="114" height="80" rx="8" fill="#ffffff" stroke="#2563eb" stroke-width="2"/>
+    <text x="57" y="296" font-size="14" font-family="Consolas, monospace" font-weight="600" fill="#1e3a8a" text-anchor="middle">.Pdf</text>
+    <text x="57" y="318" font-size="12" fill="#1e40af" text-anchor="middle">PDF pages</text>
+
+    <rect x="131" y="266" width="114" height="80" rx="8" fill="#ffffff" stroke="#2563eb" stroke-width="2"/>
+    <text x="188" y="296" font-size="14" font-family="Consolas, monospace" font-weight="600" fill="#1e3a8a" text-anchor="middle">.Svg</text>
+    <text x="188" y="318" font-size="12" fill="#1e40af" text-anchor="middle">SVG pictures</text>
+
+    <rect x="262" y="266" width="114" height="80" rx="8" fill="#ffffff" stroke="#2563eb" stroke-width="2"/>
+    <text x="319" y="296" font-size="14" font-family="Consolas, monospace" font-weight="600" fill="#1e3a8a" text-anchor="middle">.Pptx</text>
+    <text x="319" y="318" font-size="12" fill="#1e40af" text-anchor="middle">PowerPoint</text>
+    <text x="319" y="334" font-size="12" fill="#1e40af" text-anchor="middle">slides</text>
+    <line x1="262" y1="306" x2="249" y2="306" stroke="#475569" stroke-width="2" marker-end="url(#a)"/>
+
+    <rect x="393" y="266" width="114" height="80" rx="8" fill="#ffffff" stroke="#2563eb" stroke-width="2"/>
+    <text x="450" y="296" font-size="14" font-family="Consolas, monospace" font-weight="600" fill="#1e3a8a" text-anchor="middle">.Vsdx</text>
+    <text x="450" y="318" font-size="12" fill="#1e40af" text-anchor="middle">Visio pages</text>
+
+    <rect x="524" y="266" width="114" height="80" rx="8" fill="#ffffff" stroke="#2563eb" stroke-width="2"/>
+    <text x="581" y="296" font-size="14" font-family="Consolas, monospace" font-weight="600" fill="#1e3a8a" text-anchor="middle">.Scad</text>
+    <text x="581" y="318" font-size="12" fill="#1e40af" text-anchor="middle">OpenSCAD</text>
+    <text x="581" y="334" font-size="12" fill="#1e40af" text-anchor="middle">3D models</text>
+
+    <rect x="655" y="266" width="114" height="80" rx="8" fill="#ffffff" stroke="#2563eb" stroke-width="2"/>
+    <text x="712" y="296" font-size="14" font-family="Consolas, monospace" font-weight="600" fill="#1e3a8a" text-anchor="middle">.VegaLite</text>
+    <text x="712" y="318" font-size="12" fill="#1e40af" text-anchor="middle">Vega-Lite</text>
+    <text x="712" y="334" font-size="12" fill="#1e40af" text-anchor="middle">charts</text>
+
+    <rect x="786" y="266" width="114" height="80" rx="8" fill="#ffffff" stroke="#2563eb" stroke-width="2"/>
+    <text x="843" y="296" font-size="14" font-family="Consolas, monospace" font-weight="600" fill="#1e3a8a" text-anchor="middle">.Mermaid</text>
+    <text x="843" y="318" font-size="12" fill="#1e40af" text-anchor="middle">Mermaid</text>
+    <text x="843" y="334" font-size="12" fill="#1e40af" text-anchor="middle">diagrams</text>
+
+    <!-- Shared building blocks -->
+    <line x1="319" y1="350" x2="319" y2="386" stroke="#475569" stroke-width="2" marker-end="url(#a)"/>
+    <rect x="262" y="390" width="114" height="66" rx="8" fill="#fff7ed" stroke="#ea580c" stroke-width="2"/>
+    <text x="319" y="416" font-size="14" font-family="Consolas, monospace" font-weight="600" fill="#9a3412" text-anchor="middle">.Charts</text>
+    <text x="319" y="438" font-size="12" fill="#9a3412" text-anchor="middle">chart model</text>
+
+    <line x1="581" y1="350" x2="581" y2="386" stroke="#475569" stroke-width="2" marker-end="url(#a)"/>
+    <rect x="524" y="390" width="114" height="66" rx="8" fill="#fff7ed" stroke="#ea580c" stroke-width="2"/>
+    <text x="581" y="416" font-size="14" font-family="Consolas, monospace" font-weight="600" fill="#9a3412" text-anchor="middle">.Render3D</text>
+    <text x="581" y="438" font-size="12" fill="#9a3412" text-anchor="middle">3D scene renderer</text>
+
+    <!-- Everything builds on the core -->
+    <line x1="57" y1="350" x2="57" y2="494" stroke="#475569" stroke-width="2" marker-end="url(#a)"/>
+    <line x1="188" y1="350" x2="188" y2="494" stroke="#475569" stroke-width="2" marker-end="url(#a)"/>
+    <line x1="319" y1="460" x2="319" y2="494" stroke="#475569" stroke-width="2" marker-end="url(#a)"/>
+    <line x1="450" y1="350" x2="450" y2="494" stroke="#475569" stroke-width="2" marker-end="url(#a)"/>
+    <line x1="581" y1="460" x2="581" y2="494" stroke="#475569" stroke-width="2" marker-end="url(#a)"/>
+    <line x1="712" y1="350" x2="712" y2="494" stroke="#475569" stroke-width="2" marker-end="url(#a)"/>
+    <line x1="843" y1="350" x2="843" y2="494" stroke="#475569" stroke-width="2" marker-end="url(#a)"/>
+    <text x="778" y="412" font-size="12" fill="#334155" text-anchor="middle">every package</text>
+    <text x="778" y="428" font-size="12" fill="#334155" text-anchor="middle">builds on the core</text>
+
+    <!-- Core -->
+    <rect x="0" y="498" width="900" height="134" rx="12" fill="#dcfce7" stroke="#16a34a" stroke-width="2"/>
+    <text x="450" y="526" font-size="16" font-family="Consolas, monospace" font-weight="600" fill="#166534" text-anchor="middle">DemaConsulting.CanvasNet</text>
+    <text x="450" y="546" font-size="12" fill="#15803d" text-anchor="middle">the core: a 32-bit RGBA canvas and everything needed to draw onto it</text>
+
+    <rect x="20" y="562" width="160" height="52" rx="6" fill="#ffffff" stroke="#16a34a"/>
+    <text x="100" y="584" font-size="13" font-weight="600" fill="#14532d" text-anchor="middle">Canvas</text>
+    <text x="100" y="602" font-size="12" fill="#166534" text-anchor="middle">Surface, colors, resizing</text>
+
+    <rect x="196" y="562" width="236" height="52" rx="6" fill="#ffffff" stroke="#16a34a"/>
+    <text x="314" y="584" font-size="13" font-weight="600" fill="#14532d" text-anchor="middle">Codecs</text>
+    <text x="314" y="602" font-size="12" fill="#166534" text-anchor="middle">PNG, JPEG, JPEG 2000, TIFF, BMP, GIF</text>
+
+    <rect x="448" y="562" width="140" height="52" rx="6" fill="#ffffff" stroke="#16a34a"/>
+    <text x="518" y="584" font-size="13" font-weight="600" fill="#14532d" text-anchor="middle">Drawing</text>
+    <text x="518" y="602" font-size="12" fill="#166534" text-anchor="middle">paths, fills, strokes</text>
+
+    <rect x="604" y="562" width="130" height="52" rx="6" fill="#ffffff" stroke="#16a34a"/>
+    <text x="669" y="584" font-size="13" font-weight="600" fill="#14532d" text-anchor="middle">Fonts</text>
+    <text x="669" y="602" font-size="12" fill="#166534" text-anchor="middle">TrueType text</text>
+
+    <rect x="750" y="562" width="130" height="52" rx="6" fill="#ffffff" stroke="#16a34a"/>
+    <text x="815" y="584" font-size="13" font-weight="600" fill="#14532d" text-anchor="middle">Files</text>
+    <text x="815" y="602" font-size="12" fill="#166534" text-anchor="middle">linked-file access</text>
+  </g>
+</svg>

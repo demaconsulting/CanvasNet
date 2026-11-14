@@ -1,5 +1,5 @@
 ---
-# Spell-Checking
+# Spell-Checking with TextLint
 #
 # PURPOSE:
 # - Maintain professional documentation and code quality
@@ -11,6 +11,12 @@
 
 version: "0.2"
 language: en
+
+# The files to spell-check
+files:
+  - "**/*.{md,yaml,yml,json,cs,cpp,hpp,h,txt}"
+# Include hidden paths such as .github/ and .*.yaml
+enableGlobDot: true
 
 # Project-specific technical terms and tool names
 words:
@@ -1133,10 +1139,45 @@ words:
   - realpath
   - vinfo
   - vnode
+  # Tool, package, and configuration tokens that cspell's software dictionaries knew and TextLint's do not: the DEMA
+  # Consulting package prefix, the SonarScanner and ncipollo release-action names, the .NET runtime configuration file
+  # name, the yamllint/markdownlint path and rule vocabulary, and terms from the shared agent standards
+  - demaconsulting
+  - sonarscanner
+  - ncipollo
+  - runtimeconfig
+  - Setext
+  - thirdparty
+  - nestings
+  - shopt
+  - unidirectionality
+  # Names from the formats CanvasNet reads: the ColorBrewer/Vega 'greys' and 'warmGreys' color schemes, the Mermaid
+  # 'datastore' shape, the VBScript 'msgbox' call in the unsafe-link test vectors, and the JPEG 2000 marker segment
+  # parameter names (SPcod, Epoc, Spoc) and the integer sample plane of the test encoder
+  - greys
+  - datastore
+  - msgbox
+  - Pcod
+  - Epoc
+  - Spoc
+  - iplane
+  # The inverse of scaling a drawn size back to the size of the source (SourceLoader.Mermaid.Unscale)
+  - Unscale
 # Percent-escapes in URL and file-name examples (such as "flow%2Emmd" for "flow.mmd"): the escape and the letters
 # glued to it are not words
 ignoreRegExpList:
   - "/%[0-9A-Fa-f]{2}[A-Za-z]*/g"
+  # The Mermaid math vectors: every value is the 16 hexadecimal digits of a double
+  - "/\"[0-9a-f]{16}\"/g"
+  # Mermaid's entity-encoding markers around encoded text in the upstream test vectors
+  - "/ﬂ°°?|¶ß/g"
+  # Escaped line feeds and tabs in JSON and C# texts (the escape letter would be read as part of the word)
+  - "/\\\\[nt]/g"
+  # Hexadecimal literals in C# code (such as 0xDEADBEEFu)
+  - "/\\b0x[0-9A-Fa-f]+[uUlL]*\\b/g"
+  # The size placeholder of the tool options (WIDTHxHEIGHT) and the attached short option form (-ofile)
+  - "/WIDTHxHEIGHT/g"
+  - "/-ofile\\b/g"
 # Exclude common build artifacts, dependencies, and vendored third-party code
 ignorePaths:
   - "**/.git/**"
@@ -1156,43 +1197,7 @@ ignorePaths:
   - "src/DemaConsulting.CanvasNet/Fonts/BundledFonts/OFL.txt"
   - "src/DemaConsulting.CanvasNet/Fonts/BundledFonts/NotoFonts-OFL.txt"
   - "src/DemaConsulting.CanvasNet.Mermaid/Syntax/HtmlEntities.cs"
-
-# The link-check test vectors: string literals that spell unsafe URL schemes in encoded, split or truncated
-# forms (such as "&#106;avascript:" or "java\tscript:"), which are deliberately not words
-overrides:
-  - filename:
-      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Class/ClassModelTests.cs"
-      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Class/ClassParserTests.cs"
-      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/MermaidHardeningTests.cs"
-      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Sequence/SequenceModelTests.cs"
-      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/State/StateModelTests.cs"
-      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Syntax/SourceScannerTests.cs"
-      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Syntax/SyntaxTests.cs"
-    ignoreRegExpList:
-      - "/\"(?:[^\"\\\\\\n]|\\\\.)*\"/g"
-  - filename:
-      - "docs/verification/canvas-net-mermaid/state/state-model.md"
-    ignoreRegExpList:
-      - "/`[^`\\n]*`/g"
-  # The math vectors: every value is the 16 hexadecimal digits of a double
-  - filename:
-      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/upstream-vectors/js-math.json"
-    ignoreRegExpList:
-      - "/\"[0-9a-f]{16}\"/g"
-  # The gantt vectors: Mermaid's entity-encoding markers around encoded text
-  - filename:
-      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/upstream-vectors/gantt-parser.json"
-    ignoreRegExpList:
-      - "/ﬂ°°?|¶ß/g"
-  # The mindmap vectors: Mermaid's entity-encoding markers, and the escaped line feeds of the JSON texts
-  - filename:
-      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/upstream-vectors/mindmap-parser.json"
-    ignoreRegExpList:
-      - "/ﬂ°°?|¶ß/g"
-      - "/\\\\n/g"
-  # The git graph vectors: every JSON string (the texts of mermaid's git graph tests, with branch names that are not
-  # words, the case names made from the test names, Mermaid's entity-encoding markers, escaped line feeds)
-  - filename:
-      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/upstream-vectors/gitgraph-parser.json"
-    ignoreRegExpList:
-      - "/\"(?:[^\"\\\\\\n]|\\\\.)*\"/g"
+  # The git graph vectors: the texts of Mermaid's git graph tests, with branch names that are not words, case names
+  # made from the test names, and Mermaid's entity-encoding markers. Data, not prose.
+  - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/upstream-vectors/gitgraph-parser.json"
+  - "**/TestResults/**"

@@ -32,16 +32,16 @@ public class CameraTests
     }
 
     /// <summary>
-    ///     Enumerates the eight corners of a box centred on <paramref name="centre"/> with the given half extents.
+    ///     Enumerates the eight corners of a box centered on <paramref name="center"/> with the given half extents.
     /// </summary>
-    /// <param name="centre">The box centre.</param>
+    /// <param name="center">The box center.</param>
     /// <param name="half">The half extents.</param>
     /// <returns>The eight corners.</returns>
-    private static IEnumerable<Vector3D> Corners(Vector3D centre, Vector3D half)
+    private static IEnumerable<Vector3D> Corners(Vector3D center, Vector3D half)
     {
         for (var i = 0; i < 8; i++)
         {
-            yield return centre + new Vector3D(
+            yield return center + new Vector3D(
                 (i & 1) == 0 ? -half.X : half.X,
                 (i & 2) == 0 ? -half.Y : half.Y,
                 (i & 4) == 0 ? -half.Z : half.Z);
@@ -351,7 +351,7 @@ public class CameraTests
         // Act
         var camera = Camera.FitToBounds(bounds, 0.0, 0.0, 1.0);
 
-        // Assert: target is the centre; eye shares its X and Z and lies in front (-Y)
+        // Assert: target is the center; eye shares its X and Z and lies in front (-Y)
         Assert.Equal(bounds.Center, camera.Target);
         Assert.Equal(bounds.Center.X, camera.Eye.X, 1e-9);
         Assert.Equal(bounds.Center.Z, camera.Eye.Z, 1e-9);
@@ -371,7 +371,7 @@ public class CameraTests
         var side = Camera.FitToBounds(bounds, 90.0, 0.0, 1.0);
         var above = Camera.FitToBounds(bounds, 0.0, 30.0, 1.0);
 
-        // Assert: azimuth 90 puts the eye on +X; elevation lifts it above the centre
+        // Assert: azimuth 90 puts the eye on +X; elevation lifts it above the center
         Assert.True(side.Eye.X > 1.0);
         Assert.Equal(0.0, side.Eye.Y, 1e-9);
         Assert.True(above.Eye.Z > 0.0);
@@ -385,16 +385,16 @@ public class CameraTests
     public void Camera_FitToBounds_Perspective_AllCornersProjectInsideFrame()
     {
         // Arrange
-        var centre = new Vector3D(5, -3, 2);
+        var center = new Vector3D(5, -3, 2);
         var half = new Vector3D(2, 1, 3);
-        var bounds = new BoundingBox3D(centre - half, centre + half);
+        var bounds = new BoundingBox3D(center - half, center + half);
         const double aspect = 1.5;
 
         // Act
         var camera = Camera.FitToBounds(bounds, 30.0, 20.0, aspect);
 
         // Assert
-        foreach (var corner in Corners(centre, half))
+        foreach (var corner in Corners(center, half))
         {
             var (x, y) = ProjectNdc(camera, corner, aspect);
             Assert.InRange(Math.Abs(x), 0.0, 1.0);
@@ -413,17 +413,17 @@ public class CameraTests
     public void Camera_FitToBounds_Perspective_TightestCornerTouchesMargin(double aspect)
     {
         // Arrange
-        var centre = new Vector3D(1, 2, 3);
+        var center = new Vector3D(1, 2, 3);
         var half = new Vector3D(1.5, 1.0, 2.0);
-        var bounds = new BoundingBox3D(centre - half, centre + half);
+        var bounds = new BoundingBox3D(center - half, center + half);
         const double margin = 0.05;
 
         // Act
         var camera = Camera.FitToBounds(bounds, 40.0, 25.0, aspect, marginFraction: margin);
 
         // Assert: inflated corners reach |ndc| == 1 exactly once, originals stay inside
-        var inflatedMax = Corners(centre, half * (1.0 + margin)).Max(c => Math.Max(Math.Abs(ProjectNdc(camera, c, aspect).X), Math.Abs(ProjectNdc(camera, c, aspect).Y)));
-        var originalMax = Corners(centre, half).Max(c => Math.Max(Math.Abs(ProjectNdc(camera, c, aspect).X), Math.Abs(ProjectNdc(camera, c, aspect).Y)));
+        var inflatedMax = Corners(center, half * (1.0 + margin)).Max(c => Math.Max(Math.Abs(ProjectNdc(camera, c, aspect).X), Math.Abs(ProjectNdc(camera, c, aspect).Y)));
+        var originalMax = Corners(center, half).Max(c => Math.Max(Math.Abs(ProjectNdc(camera, c, aspect).X), Math.Abs(ProjectNdc(camera, c, aspect).Y)));
         Assert.Equal(1.0, inflatedMax, 1e-9);
         Assert.True(originalMax < 1.0);
     }
@@ -435,9 +435,9 @@ public class CameraTests
     public void Camera_FitToBounds_Orthographic_HeightCoversBounds()
     {
         // Arrange
-        var centre = new Vector3D(0, 0, 0);
+        var center = new Vector3D(0, 0, 0);
         var half = new Vector3D(2, 3, 1);
-        var bounds = new BoundingBox3D(centre - half, centre + half);
+        var bounds = new BoundingBox3D(center - half, center + half);
         const double aspect = 2.0;
         const double margin = 0.1;
 
@@ -447,7 +447,7 @@ public class CameraTests
         // Assert
         Assert.Equal(CameraProjection.Orthographic, camera.Projection);
         Assert.NotNull(camera.OrthographicHeight);
-        var max = Corners(centre, half * (1.0 + margin)).Max(c => Math.Max(Math.Abs(ProjectNdc(camera, c, aspect).X), Math.Abs(ProjectNdc(camera, c, aspect).Y)));
+        var max = Corners(center, half * (1.0 + margin)).Max(c => Math.Max(Math.Abs(ProjectNdc(camera, c, aspect).X), Math.Abs(ProjectNdc(camera, c, aspect).Y)));
         Assert.Equal(1.0, max, 1e-9);
         camera.Validate();
     }

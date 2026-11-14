@@ -371,7 +371,7 @@ spans, before reinterleaving back to RGBA byte order. The one exception that can
 as a branch-free vector formula — the `alpha == 0` degenerate cases in `UnpremultiplyAlpha` and
 `CompositeOver` — is handled by a small scalar fix-up loop afterward, since `TensorPrimitives` has
 no conditional-select primitive. Since `netstandard2.0` support has been dropped, there is a
-single, unconditional code path shared by `net8.0`, `net9.0`, and `net10.0` — no `#if`
+single, unconditional code path shared by `net8.0`, `net9.0`, `net10.0`, and `net11.0` — no `#if`
 target-framework gating is required.
 
 ##### Dispose()

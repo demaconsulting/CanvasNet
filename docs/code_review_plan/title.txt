@@ -1,6 +1,6 @@
 ---
 title: CanvasNet Review Plan
-subtitle: File Review Plan for CanvasNet
+subtitle: Canvas rendering library for .NET
 author: DEMA Consulting
 description: File Review Plan for CanvasNet
 lang: en-US

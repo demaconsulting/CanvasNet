@@ -233,7 +233,7 @@ sections:
                   - LegendBuilder_Gradient_LogScaleLabelsThePowersAlongTheLogarithm
                   - LegendBuilder_Symbol_LogSizeShowsThePowersWithEvenSizeSteps
                   - LegendBuilder_Gradient_SqrtScalePlacesTheLabelsAlongTheRoot
-                  - LegendBuilder_Gradient_LogTicksAreLimitedAndCancellable
+                  - LegendBuilder_Gradient_LogTicksAreLimitedAndCancelable
 
               - id: CanvasNetVegaLite-Guides-LegendBuilder-BinnedLegends
                 title: >-

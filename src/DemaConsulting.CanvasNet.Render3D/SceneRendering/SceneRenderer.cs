@@ -573,7 +573,7 @@ public static class SceneRenderer
     }
 
     /// <summary>
-    ///     Renders all tiles, sequentially or in parallel, honouring cancellation.
+    ///     Renders all tiles, sequentially or in parallel, honoring cancellation.
     /// </summary>
     /// <param name="job">The shared, read-only job data.</param>
     /// <param name="cancellationToken">The cancellation token.</param>

@@ -629,7 +629,7 @@ public static partial class Jpeg2000Codec
         /// <summary>Gets the per-component ROI max-shift values.</summary>
         public int[] RoiShift { get; }
 
-        /// <summary>Gets or sets the POC entries, or <see langword="null"/> when none were signalled.</summary>
+        /// <summary>Gets or sets the POC entries, or <see langword="null"/> when none were signaled.</summary>
         public List<ProgressionChange>? Poc { get; set; }
 
         private bool _pocInherited;

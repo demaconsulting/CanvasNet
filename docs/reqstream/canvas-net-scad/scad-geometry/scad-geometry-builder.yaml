@@ -33,8 +33,10 @@ sections:
                   stack, including the search for a show-only mark at the bottom of a deep tree.
                 justification: |
                   A recursive user module nests as deeply as the evaluation limit allows and a caller
-                  may run on a very small stack; an iterative engine makes the build independent of the
-                  caller's stack and removes the need for a stack-guard thread.
+                  may run on a very small stack; an iterative engine makes the stack a build needs
+                  independent of the depth of the tree, and a caller below the runtime's minimum execution
+                  stack has the build run on a dedicated thread, because the fixed chain of one level and
+                  the code the runtime compiles while it runs do not fit every small stack.
                 tests:
                   - ScadGeometryBuilder_Build_HandMadeDeepTree_OnSmallStack_MatchesBigStack
                   - ScadGeometryBuilder_Build_DeepModuleChainFromSource_OnSmallStack_MatchesBigStack
@@ -48,6 +50,7 @@ sections:
                   - ScadGeometryBuilder_Build_DeepFlatTranslateChain_OnSmallStack_ComposesExactly
                   - ScadGeometryBuilder_Build_DeepTranslateChainFromSource_OnSmallStack_ComposesExactly
                   - ScadGeometryBuilder_HullAndMinkowski_DeeplyNestedInstances_BuildOnASmallStack
+                  - ScadGeometryBuilder_Build_OnDedicatedBuildThread_MatchesInlineAndRethrows
 
               - id: CanvasNetScad-ScadGeometry-ScadGeometryBuilder-ImplicitUnion
                 title: >-

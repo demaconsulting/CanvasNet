@@ -1341,7 +1341,7 @@ non-positive limit. `Jpeg2000DecoderLimits` is a record with `init` properties
 tier-1 work ceilings additionally scale with the input length, so a small hostile stream cannot
 consume the full budget. Data over a limit fails with `InvalidDataException`.
 
-The defaults favour accepting every valid image, so a hostile stream can still cost CPU time:
+The defaults favor accepting every valid image, so a hostile stream can still cost CPU time:
 roughly 50 microseconds per input byte (Release build; about twice that in Debug) up to the
 `MaxTier1Work` ceiling, which at the default is on the order of a minute or more of CPU for a
 stream of about 1 MB. When decoding untrusted input, pass tighter limits sized to what you expect:

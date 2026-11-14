@@ -1,6 +1,6 @@
 ---
 title: CanvasNet Code Quality Report
-subtitle: Code Quality Analysis Report
+subtitle: Canvas rendering library for .NET
 author: DEMA Consulting
 description: Code Quality Analysis Report for CanvasNet
 lang: en-US

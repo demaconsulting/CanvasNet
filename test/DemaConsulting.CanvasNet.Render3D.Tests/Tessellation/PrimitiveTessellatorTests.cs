@@ -194,7 +194,7 @@ public class PrimitiveTessellatorTests
         // Act
         var cone = PrimitiveTessellator.Cylinder(3.0, r1, r2, segments);
 
-        // Assert: ring + apex + cap centre; side + cap triangles; positive area everywhere; analytic volume
+        // Assert: ring + apex + cap center; side + cap triangles; positive area everywhere; analytic volume
         Assert.Equal(segments + 2, cone.VertexCount);
         Assert.Equal(2 * segments, cone.TriangleCount);
         Render3DTestHelpers.AssertClosedAndOutward(cone);

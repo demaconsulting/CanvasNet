@@ -261,9 +261,9 @@ public class SurfaceResamplerTests
         Assert.Equal((2, 2), SurfaceResampler.ComputeFactors(100, 100, m30));
     }
 
-    /// <summary>Bilinear sampling at a pixel centre returns that pixel and midway blends neighbors.</summary>
+    /// <summary>Bilinear sampling at a pixel center returns that pixel and midway blends neighbors.</summary>
     [Fact]
-    public void SampleBilinear_CentreAndMidpoint_InterpolatesAndClampsEdges()
+    public void SampleBilinear_CenterAndMidpoint_InterpolatesAndClampsEdges()
     {
         using var image = new Surface(2, 1);
         image[0, 0] = new Rgba32(0, 0, 0, 255);

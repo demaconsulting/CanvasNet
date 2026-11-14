@@ -46,7 +46,7 @@ fill, and stroke-to-fill conversion) by consuming `Geometry`'s `Path`/`PathBuild
 
 The `Geometry` subsystem introduces zero new runtime NuGet dependencies. It is implemented
 entirely against `System.Numerics.Vector2` and `System.Numerics.Matrix3x2`, in-box BCL types
-available natively on all of CanvasNet's target frameworks (net8.0, net9.0, net10.0); no custom
+available natively on all of CanvasNet's target frameworks (net8.0, net9.0, net10.0, net11.0); no custom
 point or vector wrapper type was introduced. Within the subsystem, `Path.GetBounds` depends on
 both `BezierFlattening` (to flatten curves when a tighter, tolerance-based bound is requested)
 and `SvgArcConverter` (to convert any `ArcTo` command to cubic Bezier segments first, since arcs

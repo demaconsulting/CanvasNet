@@ -103,7 +103,7 @@ sections:
           outward-oriented mesh (a valid constructive-solid-geometry operand that renders and can be
           cut without any operand report) and as a planar polygon, and the Minkowski sum of two convex
           solid meshes as the hull of their pairwise vertex sums, with results that depend only on the
-          point sets, work that is bounded and cancellable, flat or invalid input rejected with an
+          point sets, work that is bounded and cancelable, flat or invalid input rejected with an
           exception, and a non-convex operand of a Minkowski sum rejected with a NotSupportedException
           rather than approximated.
         tags: [system]

@@ -496,7 +496,7 @@ public class MarkBuilderChannelTests
     ///     Validates that the marks of a binned color are charged to the scene budget before they are created and that a canceled token stops the build.
     /// </summary>
     [Fact]
-    public void MarkBuilder_Build_BinnedColorMarksAreChargedAndCancellable()
+    public void MarkBuilder_Build_BinnedColorMarksAreChargedAndCancelable()
     {
         // Arrange
         var json = Spec("\"point\"", "\"color\": { \"field\": \"v\", \"type\": \"quantitative\", \"bin\": true }", RowsBins);

@@ -264,7 +264,7 @@ error of an invalid format, and that two builds give the same items.
 **Tests**: `LegendBuilderTests.LegendBuilder_Gradient_LogScaleLabelsThePowersAlongTheLogarithm`,
 `LegendBuilderTests.LegendBuilder_Symbol_LogSizeShowsThePowersWithEvenSizeSteps`,
 `LegendBuilderTests.LegendBuilder_Gradient_SqrtScalePlacesTheLabelsAlongTheRoot`,
-`LegendBuilderTests.LegendBuilder_Gradient_LogTicksAreLimitedAndCancellable`
+`LegendBuilderTests.LegendBuilder_Gradient_LogTicksAreLimitedAndCancelable`
 
 Assert, for the readings 1, 10, 100, and 1000 on a log color scale, a gradient legend with the labels `1`, `10`,
 `100`, and

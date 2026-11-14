@@ -492,7 +492,7 @@ sections:
                   Sampling the box-reduced surface bilinearly covers the fractional part of a
                   shrink that the integer block factor cannot, without reading outside the image.
                 tests:
-                  - SampleBilinear_CentreAndMidpoint_InterpolatesAndClampsEdges
+                  - SampleBilinear_CenterAndMidpoint_InterpolatesAndClampsEdges
 
               - id: CanvasNet-Canvas-Surface-Resize
                 title: >-

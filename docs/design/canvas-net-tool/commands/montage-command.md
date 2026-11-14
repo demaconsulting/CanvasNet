@@ -85,7 +85,7 @@ error by `context.WriteDiagnostics`, each note ending with its input and, for a 
 variables, view, page, or chart parameters of its own fragment over the shared options; the fragment is in the label
 and in the `fragment` member of the cell of the JSON result (`input` is the file), and the warnings of a fragment are
 written with the input as its origin (`part.scad#...`). The cells share a scale only when a camera is fixed
-(`-D '$vpd=300'` for all, or `def.$vpd=300` in each fragment, with `$vpt` to centre it); without it each cell is fitted
+(`-D '$vpd=300'` for all, or `def.$vpd=300` in each fragment, with `$vpt` to center it); without it each cell is fitted
 to its own geometry, which the help topic and the user guide say.
 
 #### Error Handling

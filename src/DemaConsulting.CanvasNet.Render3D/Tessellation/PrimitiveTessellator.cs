@@ -134,7 +134,7 @@ public static partial class PrimitiveTessellator
     /// </summary>
     /// <remarks>
     ///     Giving exactly one radius as zero produces a cone with a single apex vertex and no
-    ///     degenerate triangles. Caps are triangle fans around a dedicated centre vertex.
+    ///     degenerate triangles. Caps are triangle fans around a dedicated center vertex.
     /// </remarks>
     /// <param name="height">The height along +Z; finite and greater than zero.</param>
     /// <param name="radius1">The radius at the bottom (z = 0, or -height/2 when centered); finite and not negative.</param>
@@ -185,22 +185,22 @@ public static partial class PrimitiveTessellator
             }
         }
 
-        // Caps are fans around a dedicated centre vertex (facing -Z at the bottom, +Z at the top)
+        // Caps are fans around a dedicated center vertex (facing -Z at the bottom, +Z at the top)
         if (radius1 > 0.0)
         {
-            var centre = builder.AddVertex(new Vector3D(0.0, 0.0, z0));
+            var centerVertex = builder.AddVertex(new Vector3D(0.0, 0.0, z0));
             for (var j = 0; j < segments; j++)
             {
-                builder.AddTriangle(centre, bottom[(j + 1) % segments], bottom[j]);
+                builder.AddTriangle(centerVertex, bottom[(j + 1) % segments], bottom[j]);
             }
         }
 
         if (radius2 > 0.0)
         {
-            var centre = builder.AddVertex(new Vector3D(0.0, 0.0, z1));
+            var centerVertex = builder.AddVertex(new Vector3D(0.0, 0.0, z1));
             for (var j = 0; j < segments; j++)
             {
-                builder.AddTriangle(centre, top[j], top[(j + 1) % segments]);
+                builder.AddTriangle(centerVertex, top[j], top[(j + 1) % segments]);
             }
         }
 

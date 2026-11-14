@@ -203,7 +203,7 @@ public class Render3DSystemIntegrationTests
         // Act
         using var surface = SceneRenderer.Render(scene, camera, 200, 200, Render3DTestHelpers.FlatOptions(), TestContext.Current.CancellationToken);
 
-        // Assert: nothing touches the border, and the farthest silhouette point from the centre sits at about
+        // Assert: nothing touches the border, and the farthest silhouette point from the center sits at about
         // 1 / (1 + margin) = 95 % of the half-frame (the inflated bounds touch the frame; the real corners do not)
         var bounds = Render3DTestHelpers.BoundsOfNon(surface, White);
         Assert.True(bounds.MinX > 0 && bounds.MinY > 0 && bounds.MaxX < 199 && bounds.MaxY < 199);
@@ -212,7 +212,7 @@ public class Render3DSystemIntegrationTests
     }
 
     /// <summary>
-    ///     Validates that orthographic and perspective cameras both place the target at the image centre.
+    ///     Validates that orthographic and perspective cameras both place the target at the image center.
     /// </summary>
     [Fact]
     public void CanvasNetRender3D_SystemIntegration_Camera_OrthographicAndPerspectiveCenterRay()
@@ -227,7 +227,7 @@ public class Render3DSystemIntegrationTests
         using var a = SceneRenderer.Render(scene, perspective, 61, 61, options, TestContext.Current.CancellationToken);
         using var b = SceneRenderer.Render(scene, ortho, 61, 61, options, TestContext.Current.CancellationToken);
 
-        // Assert: the centre pixel shows the cube in both, the corners show background, and the centre maps to the middle pixel
+        // Assert: the center pixel shows the cube in both, the corners show background, and the center maps to the middle pixel
         Assert.Equal(new Rgba32(0, 200, 0, 255), a[30, 30]);
         Assert.Equal(new Rgba32(0, 200, 0, 255), b[30, 30]);
         Assert.Equal(White, a[0, 0]);
@@ -274,7 +274,7 @@ public class Render3DSystemIntegrationTests
         // Act
         using var surface = SceneRenderer.Render(scene, camera, 200, 200, new SceneRenderOptions { Supersampling = 1 }, TestContext.Current.CancellationToken);
 
-        // Assert: sample the centres of the +Z (top), -Y (left) and +X (right) faces
+        // Assert: sample the centers of the +Z (top), -Y (left) and +X (right) faces
         var topPixel = ToPixel(camera, new Vector3D(0, 0, 1), 200, 200);
         var leftPixel = ToPixel(camera, new Vector3D(0, -1, 0), 200, 200);
         var rightPixel = ToPixel(camera, new Vector3D(1, 0, 0), 200, 200);
@@ -326,7 +326,7 @@ public class Render3DSystemIntegrationTests
         // Act
         using var surface = SceneRenderer.Render(scene, TopDown, 32, 32, options, TestContext.Current.CancellationToken);
 
-        // Assert: corners fully transparent, centre opaque gray, edge pixels partially transparent with the surface color intact
+        // Assert: corners fully transparent, center opaque gray, edge pixels partially transparent with the surface color intact
         Assert.Equal(new Rgba32(0, 0, 0, 0), surface[0, 0]);
         Assert.Equal(Gray, surface[16, 16]);
         var edge = Render3DTestHelpers.DistinctColors(surface).Where(c => c.A > 0 && c.A < 255).ToList();
@@ -538,7 +538,7 @@ public class Render3DSystemIntegrationTests
         using var difference = SceneRenderer.Render(new Scene(new CsgNode(CsgOperation.Difference, [cube, sphere])), camera, 140, 140, options, TestContext.Current.CancellationToken);
         using var intersection = SceneRenderer.Render(new Scene(new CsgNode(CsgOperation.Intersection, [cube, sphere])), camera, 140, 140, options, TestContext.Current.CancellationToken);
 
-        // Assert: the cavity centre is the cut surface, the cube's top ring and background follow; the intersection is the
+        // Assert: the cavity center is the cut surface, the cube's top ring and background follow; the intersection is the
         // sphere's lower half, entered through the cube's top face inside the disc and absent outside it
         Assert.Equal(red, difference[70, 70]);
         Assert.Equal(blue, difference[110, 70]);

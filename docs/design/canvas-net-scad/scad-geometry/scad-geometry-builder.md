@@ -50,8 +50,14 @@ transform, color, text, or extrusion builds is delegated to the `ScadPrimitives`
 The central decision is that the engine is **iterative**: a recursive user module nests as deeply as
 `ScadLimits.MaxRecursionDepth` allows (thousands of levels), so the engine walks the tree with an explicit stack
 in post-order, like the renderer's CSG compiler, and **no code in the `Geometry` namespace recurses** (the
-pre-pass, the 2D-tree walks, and the bounds propagation included). The build therefore behaves identically on any
-caller stack, including one of 64 KiB, and needs no stack-guard thread. The semantics are original decisions of
+pre-pass, the 2D-tree walks, and the bounds propagation included), so the stack a build needs does not depend on
+the depth of the tree. One level still runs a fixed chain of calls (down to the exact predicates of the convex
+hull, whose arbitrary-precision arithmetic is large), and the runtime may compile code on the calling thread while
+it runs; on .NET 11 with the framework compiled just in time, the two together exceeded a 64 KiB stack. `Build`
+therefore runs inline only when `RuntimeHelpers.TryEnsureSufficientExecutionStack` reports the runtime's minimum
+execution stack and otherwise on a dedicated thread with a 16 MiB stack and the caller's cultures, rethrowing any
+exception unchanged (a thread that cannot be started is reported as a `ScadEvaluationException`), so the build
+behaves identically on any caller stack, including one of 64 KiB. The semantics are original decisions of
 the CanvasNetScad dialect (see _CanvasNetScad System Design_, Clean-Room Provenance); no OpenSCAD source or manual
 text was consulted.
 

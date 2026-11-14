@@ -2,8 +2,10 @@
 resource-path:
   - docs/user_guide
   - docs/template
+  - docs/images
   - docs/images/showcase
   - test/DemaConsulting.CanvasNet.Vsdx.Tests/VsdxFixtures
+embed-resources: true
 input-files:
   - docs/user_guide/title.txt
   - docs/user_guide/introduction.md

@@ -5,6 +5,15 @@
 This document is the user guide for CanvasNet, a .NET library providing a
 canvas-based drawing and rendering API.
 
+CanvasNet is a family of packages. The diagram below shows them and how they fit together: install the core package
+alone for images and drawing, add the format packages you need, use the Viewer to open any supported file, or run the
+`canvasnet` command-line tool, which bundles all of them.
+
+![CanvasNet package architecture: applications use the Viewer and the canvasnet tool uses it too; the Viewer opens
+the seven format packages (PDF, SVG, PowerPoint, Visio, OpenSCAD, Vega-Lite, and Mermaid); PowerPoint also uses the
+SVG and Charts packages and OpenSCAD uses the Render3D package; every package builds on the DemaConsulting.CanvasNet
+core with its canvas, codecs, drawing, fonts, and file access](architecture.svg)
+
 ## Scope
 
 This user guide covers:
@@ -31,7 +40,7 @@ compliance evidence is generated automatically on every CI run.
 
 - **Requirements Traceability**: Every requirement is linked to passing tests, and a trace matrix is
   auto-generated on each release
-- **Linting Enforcement**: markdownlint, cspell, and yamllint are enforced before any build proceeds
+- **Linting Enforcement**: markdownlint, TextLint, and yamllint are enforced before any build proceeds
 - **Automated Audit Documentation**: Each release ships with generated requirements, justifications,
   trace matrix, and quality reports
 - **CodeQL and SonarCloud**: Security and quality analysis runs on every build

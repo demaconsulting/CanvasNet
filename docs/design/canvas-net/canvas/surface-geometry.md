@@ -93,7 +93,7 @@ sampling and rounding are not these.)
 
 **EstimateSkew()** (in `Surface.Skew.cs`): finds the clockwise rotation `φ` of the dominant near-horizontal structure
 (text lines, table rules, sketch baselines, page edges) within **15 degrees** either way; `φ` is positive when the lines
-descend to the right, so the image is levelled by rotating it by `-φ` clockwise. Dark marks on a lighter ground are
+descend to the right, so the image is leveled by rotating it by `-φ` clockwise. Dark marks on a lighter ground are
 assumed (invert first for light marks on a dark ground). The result is the record `SkewEstimate(Degrees, Confidence,
 Estimated)`.
 

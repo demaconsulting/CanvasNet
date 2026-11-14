@@ -290,7 +290,7 @@ sections:
                   - MarkBuilder_Build_BinnedColorGivesEachMarkTheColorOfItsBin
                   - MarkBuilder_Build_BinnedSizeUsesTheStartOfTheBin
                   - MarkBuilder_Build_HistogramBarsTakeTheColorOfTheirBin
-                  - MarkBuilder_Build_BinnedColorMarksAreChargedAndCancellable
+                  - MarkBuilder_Build_BinnedColorMarksAreChargedAndCancelable
 
               - id: CanvasNetVegaLite-Marks-MarkBuilder-ConditionalEncodings
                 title: >-

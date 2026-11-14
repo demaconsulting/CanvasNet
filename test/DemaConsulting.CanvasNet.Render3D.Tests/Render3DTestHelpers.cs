@@ -429,7 +429,7 @@ internal static class Render3DTestHelpers
 
     /// <summary>
     ///     Creates a top-down orthographic camera whose image maps world <c>x</c> in <c>[0, width]</c> and
-    ///     <c>y</c> in <c>[0, height]</c> to pixel columns and rows one-to-one (pixel centre
+    ///     <c>y</c> in <c>[0, height]</c> to pixel columns and rows one-to-one (pixel center
     ///     <c>(column + 0.5, height - row - 0.5)</c>), looking down -Z from high above.
     /// </summary>
     /// <param name="width">The image width in pixels.</param>
@@ -521,10 +521,10 @@ internal abstract class BoxCsgTree
     public abstract List<(double Low, double High)> Intervals(double x, double y);
 
     /// <summary>
-    ///     Determines the exact color a top-down orthographic render must show at a pixel centre.
+    ///     Determines the exact color a top-down orthographic render must show at a pixel center.
     /// </summary>
-    /// <param name="x">The world X of the pixel centre.</param>
-    /// <param name="y">The world Y of the pixel centre.</param>
+    /// <param name="x">The world X of the pixel center.</param>
+    /// <param name="y">The world Y of the pixel center.</param>
     /// <param name="background">The background color.</param>
     /// <returns>The expected pixel color.</returns>
     public Rgba32 ExpectedColor(double x, double y, Rgba32 background)
@@ -553,7 +553,7 @@ internal abstract class BoxCsgTree
 
     /// <summary>
     ///     Builds a seeded pseudo-random box CSG tree whose leaves have pairwise distinct heights and
-    ///     integer footprints, so pixel centres never lie on an edge and no two faces are coincident.
+    ///     integer footprints, so pixel centers never lie on an edge and no two faces are coincident.
     /// </summary>
     /// <param name="random">The random source.</param>
     /// <param name="leafCount">The number of box leaves (at least one).</param>

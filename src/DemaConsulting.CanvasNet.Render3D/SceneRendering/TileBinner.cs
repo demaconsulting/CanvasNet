@@ -126,7 +126,7 @@ internal static class TileBinner
         var gridWidth = (long)tilesX * tileSamples;
         var gridHeight = (long)tilesY * tileSamples;
 
-        // No covered sample centre inside the bounding box, or entirely off the grid
+        // No covered sample center inside the bounding box, or entirely off the grid
         if (bounds.XEnd < bounds.XStart || bounds.YEnd < bounds.YStart
             || bounds.XEnd < 0 || bounds.YEnd < 0 || bounds.XStart >= gridWidth || bounds.YStart >= gridHeight)
         {

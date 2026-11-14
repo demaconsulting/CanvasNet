@@ -1553,7 +1553,7 @@ its own distinguishable `Feature` token.
   Patches are
   evaluated as bicubic Bezier surfaces tessellated at a fixed 16x16 subdivision (a deliberate
   choice balancing cost and smoothness), triangles are rasterized with barycentric interpolation,
-  no anti-aliasing and pixel-centre sampling, into an offscreen bitmap painted through the
+  no anti-aliasing and pixel-center sampling, into an offscreen bitmap painted through the
   pattern's fill/stroke path or the `sh` clip/`/BBox` region. For a function-less mesh in a nonlinear
   CIE-based space (`CalGray`, `CalRGB`, `Lab`) the raw vertex components are carried in `MeshColor`,
   blended with barycentric weights in that space and converted per pixel (each such pixel is charged

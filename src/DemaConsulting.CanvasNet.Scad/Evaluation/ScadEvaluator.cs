@@ -171,6 +171,13 @@ internal sealed partial class ScadEvaluator
         set => _slotsForThread = value;
     }
 
+    /// <summary>
+    ///     Gets the fallback slots that work started by the calling thread uses: the injected set of
+    ///     <see cref="SlotsForCurrentThread"/>, or the process-wide set. Shared with the geometry build, whose dedicated
+    ///     thread is bounded by the same slots.
+    /// </summary>
+    internal static ScadEvaluatorFallbackSlots FallbackSlotsForCurrentThread => _slotsForThread ?? SharedSlots;
+
     /// <summary>Whether the current thread's evaluations skip the inline attempt and go straight to the fallback thread (a test seam).</summary>
     [ThreadStatic]
     private static bool _forceFallbackForThread;
@@ -329,7 +336,7 @@ internal sealed partial class ScadEvaluator
         var culture = CultureInfo.CurrentCulture;
         var uiCulture = CultureInfo.CurrentUICulture;
 
-        var slots = _slotsForThread ?? SharedSlots;
+        var slots = FallbackSlotsForCurrentThread;
         slots.Acquire(cancellation);
         try
         {

@@ -70,7 +70,7 @@ sections:
                   scan, when its cancellation token is canceled.
                 justification: |
                   A directory scan costs file-system time, must be bounded against a hostile tree,
-                  and must be cancellable by a caller that is itself cancellable; a resolver that
+                  and must be cancelable by a caller that is itself cancelable; a resolver that
                   never needs the directories must not scan them.
                 tests:
                   - FontResolver_Resolve_AdditionalDirectories_AreScannedWithTheLimitsAndSkipUnusableInput

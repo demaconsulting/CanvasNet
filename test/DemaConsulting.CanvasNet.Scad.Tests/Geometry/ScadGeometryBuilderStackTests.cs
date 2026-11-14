@@ -102,6 +102,66 @@ public class ScadGeometryBuilderStackTests
     }
 
     /// <summary>
+    ///     Validates that a build moved to the dedicated build thread (the path a caller below the runtime's minimum
+    ///     execution stack takes) gives the same scene as an inline build, hands its exceptions back unchanged, takes
+    ///     one of the shared fallback slots for each hop and gives it back, and, when every slot is held, waits for one
+    ///     until its token is canceled without taking a slot.
+    /// </summary>
+    [Fact]
+    public void ScadGeometryBuilder_Build_OnDedicatedBuildThread_MatchesInlineAndRethrows()
+    {
+        // Arrange
+        var slots = new ScadEvaluatorFallbackSlots(1);
+        T Forced<T>(Func<T> work) =>
+            OnSmallStack(
+                () =>
+                {
+                    ScadGeometryBuilder.ForceBuildThreadForCurrentThread = true;
+                    ScadEvaluator.SlotsForCurrentThread = slots;
+                    try
+                    {
+                        return work();
+                    }
+                    finally
+                    {
+                        ScadEvaluator.SlotsForCurrentThread = null;
+                        ScadGeometryBuilder.ForceBuildThreadForCurrentThread = false;
+                    }
+                },
+                BigStack);
+        ScadInstance Unsupported() =>
+            new(ScadInstanceKind.BuiltinModule, "surface", [], [], ScadModifiers.None, Defaults, new ScadSourceLocation(null, 1, 1));
+
+        // Act
+        var inline = OnSmallStack(() => BuildChain(1000), BigStack);
+        var forced = Forced(() => BuildChain(1000));
+        var error = Forced(() => Record.Exception(
+            () => ScadGeometryBuilder.Build([Unsupported()], Settings(strict: true), new ScadEvaluationSink(ScadLimits.Default))));
+        var startedBeforeHeld = slots.Started;
+        slots.Acquire(CancellationToken.None);
+        Exception? waitError;
+        try
+        {
+            using var canceled = new CancellationTokenSource();
+            canceled.Cancel();
+            waitError = Forced(() => Record.Exception(
+                () => ScadGeometryBuilder.Build([Chain(1)], Settings(cancellation: canceled.Token), new ScadEvaluationSink(ScadLimits.Default))));
+        }
+        finally
+        {
+            slots.Release();
+        }
+
+        // Assert
+        Assert.Equal(inline, forced);
+        Assert.IsType<ScadUnsupportedFeatureException>(error);
+        Assert.Equal(2, startedBeforeHeld);
+        Assert.IsAssignableFrom<OperationCanceledException>(waitError);
+        Assert.Equal(startedBeforeHeld + 1, slots.Started);
+        Assert.Equal(slots.Capacity, slots.FreeSlots);
+    }
+
+    /// <summary>
     ///     Validates that a deep <c>!</c> search (a mark at the bottom of a deep tree) is also iterative.
     /// </summary>
     [Fact]
