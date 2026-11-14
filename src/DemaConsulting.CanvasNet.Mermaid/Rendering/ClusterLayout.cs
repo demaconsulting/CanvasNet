@@ -583,7 +583,8 @@ internal sealed partial class ClusterLayout
                     node.Height = cluster.Height;
                     node.Diff = cluster.Diff;
                     node.Intersect = cluster.Shape.Intersect;
-                    clusters.Add(cluster.Shape.Items, cluster.Shape.Bounds);
+                    var tag = GroupTag(node.Id, data);
+                    clusters.Add([.. cluster.Shape.Items.Select(item => item with { Position = tag })], cluster.Shape.Bounds);
                 }
 
                 if (_clusterDb.TryGetValue(node.Id, out var info))
@@ -611,6 +612,14 @@ internal sealed partial class ClusterLayout
                 ArrowTypeEnd = edge.ArrowTypeEnd,
                 FromCluster = ClusterBox(edge.FromCluster),
                 ToCluster = ClusterBox(edge.ToCluster),
+                Position = new ScenePositionTag("edge", edge.Data.Id)
+                {
+                    Text = edge.Data.Label,
+                    From = edge.Data.SourceEnds?.From ?? edge.Data.Start,
+                    To = edge.Data.SourceEnds?.To ?? edge.Data.End,
+                    Location = edge.Data.Location,
+                    AlongPath = true,
+                },
             };
             var drawing = EdgeBuilder.Draw(route, EndOf(graph.Node(start)), EndOf(graph.Node(end)), _context);
             edgePaths.Add(drawing.Items, drawing.Bounds);
@@ -663,13 +672,22 @@ internal sealed partial class ClusterLayout
                 // positionNode of a clusterNode
                 var x = node.X + node.Diff - ((node.Width ?? 0) / 2);
                 var y = node.Y - ((node.Height ?? 0) / 2) - ClusterNodePadding;
-                nodes.Add([new SceneGroup(x, y, rendered.Items) { Role = "subgraph", Id = node.Id, Location = node.ClusterData?.Location ?? default }], rendered.Bounds?.Offset(x, y));
+                var group = new SceneGroup(x, y, rendered.Items)
+                {
+                    Role = "subgraph",
+                    Id = node.Id,
+                    Location = node.ClusterData?.Location ?? default,
+                    Position = GroupTag(node.Id, node.ClusterData),
+                };
+                nodes.Add([group], rendered.Bounds?.Offset(x, y));
             }
             else if (node.Shape is { } shape)
             {
                 var role = node.Data?.Shape == "labelRect" ? "dummy-group" : "node-group";
+                var data = node.Data;
+                var tag = role == "node-group" && data is not null ? NodeTag(data) : null;
                 nodes.Add(
-                    [new SceneGroup(node.X, node.Y, shape.Items) { Role = role, Id = node.Data?.DomId ?? node.Id, Location = node.Data?.Location ?? default }],
+                    [new SceneGroup(node.X, node.Y, shape.Items) { Role = role, Id = data?.DomId ?? node.Id, Location = data?.Location ?? default, Position = tag }],
                     shape.Bounds.Offset(node.X, node.Y));
             }
         }
@@ -693,6 +711,26 @@ internal sealed partial class ClusterLayout
         };
         return new RenderedGraph(items, SceneLayer.Union(clusters.Bounds, edgePaths.Bounds, edgeLabels.Bounds, nodes.Bounds), diff);
     }
+
+    /// <summary>
+    ///     Gets the position tag of a node: a <c>note</c> for a note shape, otherwise a <c>node</c>, named by its source id.
+    /// </summary>
+    /// <param name="data">The node.</param>
+    /// <returns>The tag.</returns>
+    private static ScenePositionTag NodeTag(LayoutNode data)
+    {
+        var kind = data.Shape == "note" ? "note" : "node";
+        return new ScenePositionTag(kind, data.SourceId ?? data.Id) { Text = data.Label, Location = data.Location };
+    }
+
+    /// <summary>
+    ///     Gets the position tag of a subgraph (a <c>group</c>, named by its source id).
+    /// </summary>
+    /// <param name="id">The subgraph id.</param>
+    /// <param name="data">The subgraph's node, or null.</param>
+    /// <returns>The tag, or null for the group a state diagram draws around a state and its note.</returns>
+    private static ScenePositionTag? GroupTag(string id, LayoutNode? data) =>
+        data?.Shape == "noteGroup" ? null : new("group", id) { Text = data?.Label, Location = data?.Location ?? default };
 
     /// <summary>
     ///     Gets an edge end of a node.

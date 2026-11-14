@@ -164,7 +164,8 @@ internal sealed partial class SequenceRenderer
     {
         var root = _styles.Resolve(DiagramStyles.Root);
         var font = new SceneFont(root["font-family"] ?? MermaidConfigResolver.DefaultFontFamily, root.Length("font-size", 16), false, false);
-        Append().Items.Add(TextLine(DisplayText(title), x, y, SceneTextAnchor.Start, font, RootFill, "title", null, default));
+        var line = TextLine(DisplayText(title), x, y, SceneTextAnchor.Start, font, RootFill, "title", null, default);
+        Append().Items.Add(line with { Position = new ScenePositionTag("title", "title") { Text = DisplayText(title) } });
     }
 
     /// <summary>

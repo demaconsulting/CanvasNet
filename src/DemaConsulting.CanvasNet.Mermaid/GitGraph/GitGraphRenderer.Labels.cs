@@ -106,9 +106,12 @@ internal sealed partial class GitGraphRenderer
         };
         var color = (branchIndex % ColorLimit).ToString(CultureInfo.InvariantCulture);
         var id = commit.Id;
+
+        // Every shape of the bullet reports the commit, attached at the commit's point
+        var tag = new ScenePositionTag("commit", id) { Text = commit.Message, Location = commit.Location, Aim = (x, y) };
         void Add(IReadOnlyList<SceneSegment> segments, SceneRect box, GitGraphElement element, bool filled)
         {
-            items.Add(Shape(segments, _styles.Compute([SvgElement, BulletGroup, element]), filled, "git-commit", id, commit.Location));
+            items.Add(Shape(segments, _styles.Compute([SvgElement, BulletGroup, element]), filled, "git-commit", id, commit.Location) with { Position = tag });
             Include(box);
         }
 
@@ -321,7 +324,8 @@ internal sealed partial class GitGraphRenderer
                 Include(label.MapRect(box));
             }
 
-            items.Add(new SceneGroup(0, 0, children) { Role = "git-tag", Id = tag, Location = commit.Location });
+            var position = new ScenePositionTag("tag", tag) { Text = tag, Location = commit.Location };
+            items.Add(new SceneGroup(0, 0, children) { Role = "git-tag", Id = tag, Location = commit.Location, Position = position });
         }
     }
 

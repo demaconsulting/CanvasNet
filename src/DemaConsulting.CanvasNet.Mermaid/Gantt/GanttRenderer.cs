@@ -339,7 +339,7 @@ internal sealed partial class GanttRenderer
         var style = _styles.Compute([Svg, GanttElement.Of("text", "titleText")]);
         if (TextLine(title, _w / 2, _conf.TitleTopMargin, style, "title", null, _model.TitleLocation) is { } line)
         {
-            _items.Add(line);
+            _items.Add(string.IsNullOrEmpty(title) ? line : line with { Position = new ScenePositionTag("title", "title") { Text = title, Location = _model.TitleLocation } });
         }
     }
 

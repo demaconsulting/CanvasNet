@@ -512,7 +512,8 @@ internal sealed partial class GitGraphRenderer
                 ? new SceneRect(pos - (width / 2) - 10, labelTop, width + 18, height + 4)
                 : new SceneRect(-width - 4 - rotate - 19, -(height / 2) + 10 + spine - 12, width + 18, height + 4);
             var rectStyle = _styles.Compute([SvgElement, PlainGroup, GitGraphElement.Of("rect", "branchLabelBkg label" + color) with { Inline = _styles.BranchLabelStyle }]);
-            items.Add(Shape(RoundedRectangle(rect, 4), rectStyle, true, "git-branch-label", branch.Name, branch.Location));
+            var branchTag = new ScenePositionTag("branch", branch.Name) { Text = branch.Name, Location = branch.Location };
+            items.Add(Shape(RoundedRectangle(rect, 4), rectStyle, true, "git-branch-label", branch.Name, branch.Location) with { Position = branchTag });
             Include(rect);
             var (dx, dy) = _vertical
                 ? (pos - (width / 2) - 5, labelTop)
@@ -550,7 +551,9 @@ internal sealed partial class GitGraphRenderer
             Include(box);
         }
 
-        return text;
+        return text is null || string.IsNullOrEmpty(title)
+            ? text
+            : text with { Position = new ScenePositionTag("title", "title") { Text = title, Location = _diagram.KeywordLocation } };
     }
 
     /// <summary>

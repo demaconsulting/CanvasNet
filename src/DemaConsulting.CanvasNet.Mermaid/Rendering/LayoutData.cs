@@ -223,6 +223,12 @@ internal sealed record LayoutNode
     /// <summary>Gets the DOM id Mermaid gives a vertex (<c>flowchart-A-0</c>), or null for a cluster.</summary>
     public string? DomId { get; init; }
 
+    /// <summary>
+    ///     Gets the id the node's position reports when it differs from <see cref="Id"/> (an entity's name, where the
+    ///     layout id is <c>entity-NAME-0</c>), or null to report <see cref="Id"/>.
+    /// </summary>
+    public string? SourceId { get; init; }
+
     /// <summary>Gets the look (<c>classic</c>, or a look drawn classic).</summary>
     public string? Look { get; init; }
 
@@ -351,6 +357,12 @@ internal sealed record LayoutEdge
 
     /// <summary>Gets the id of the end node.</summary>
     public required string End { get; init; }
+
+    /// <summary>
+    ///     Gets the ends the edge's position reports when they differ from <see cref="Start"/> and <see cref="End"/>
+    ///     (the entity names of a relationship), or null to report those.
+    /// </summary>
+    public (string From, string To)? SourceEnds { get; init; }
 
     /// <summary>Gets the arrow type (<c>arrow_point</c>, <c>double_arrow_cross</c>, <c>arrow_open</c>, ...).</summary>
     public required string Type { get; init; }

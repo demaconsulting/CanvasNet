@@ -179,6 +179,10 @@ internal sealed partial class PieRenderer
 
         var titleText = _styles.TitleText;
         var (titleLine, titleWidth) = TextLine(title, 0, -(Height - 50) / 2, new SceneFont(titleText.FontFamily, titleText.FontSize, false, false), titleText.Color, "title", null, _diagram.KeywordLocation);
+        if (!string.IsNullOrEmpty(title))
+        {
+            titleLine = titleLine with { Position = new ScenePositionTag("title", "title") { Text = title, Location = _diagram.KeywordLocation } };
+        }
 
         // The legend entries and the widest legend text
         var legendText = _styles.LegendText;
@@ -328,6 +332,9 @@ internal sealed partial class PieRenderer
         var paint = _styles.Slice(ColorOf(section.Label) ?? Black, highlighted);
         var (_, segments) = ArcPath(innerRadius, outerRadius, arc);
         var scale = paint.Scale;
+
+        // The slice reports its position at its mid-angle and mid-radius, scaled with a highlighted slice
+        var (aimX, aimY) = Centroid(innerRadius, outerRadius, arc);
         return new ScenePath([.. segments.Select(s => Scaled(s, scale))])
         {
             Role = "pie-slice",
@@ -335,6 +342,13 @@ internal sealed partial class PieRenderer
             Location = section.Location,
             Fill = paint.Fill,
             Stroke = paint.Stroke is { } stroke ? new SceneStroke(stroke, paint.StrokeWidth * scale) : null,
+            Position = new ScenePositionTag("slice", section.Label)
+            {
+                Text = section.Label,
+                Location = section.Location,
+                Value = section.Value,
+                Aim = (aimX * scale, aimY * scale),
+            },
         };
     }
 

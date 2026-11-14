@@ -35,6 +35,9 @@ internal sealed record EdgeRoute(LayoutEdge Data, string Id, IReadOnlyList<Shape
 
     /// <summary>Gets the box of the subgraph the edge enters (the route is cut at its border), or null.</summary>
     public NodeBox? ToCluster { get; init; }
+
+    /// <summary>Gets the feature the edge path reports as its position, or null for none.</summary>
+    public ScenePositionTag? Position { get; init; }
 }
 
 /// <summary>
@@ -220,7 +223,7 @@ internal static partial class EdgeBuilder
         SceneRect? bounds = null;
         if (pathData is not null && segments.Count > 0)
         {
-            var path = PathOf(segments, style, edge.Id, data.Location);
+            var path = PathOf(segments, style, edge.Id, data.Location) with { Position = edge.Position };
             items.Add(path);
             bounds = Scene.BoundsOf([path]);
             items.AddRange(DrawMarkers(

@@ -163,6 +163,7 @@ internal sealed partial class ErModel
             nodes.Add(new LayoutNode
             {
                 Id = entity.Id,
+                SourceId = entity.Name,
                 Label = entity.Name,
                 LabelType = "markdown",
                 ParentId = parents.GetValueOrDefault(entity.Name),
@@ -179,11 +180,13 @@ internal sealed partial class ErModel
             });
         }
 
+        var names = _entities.ToDictionary(entity => entity.Id, entity => entity.Name, StringComparer.Ordinal);
         var edges = _relationships.Select((relationship, count) => new LayoutEdge
         {
             Id = string.Create(CultureInfo.InvariantCulture, $"id_{relationship.EntityA}_{relationship.EntityB}_{count}"),
             Start = relationship.EntityA,
             End = relationship.EntityB,
+            SourceEnds = (names.GetValueOrDefault(relationship.EntityA, relationship.EntityA), names.GetValueOrDefault(relationship.EntityB, relationship.EntityB)),
             Type = "normal",
             Curve = "basis",
             Label = relationship.RoleA,

@@ -76,6 +76,7 @@ internal sealed partial class ClusterLayout
             new SceneRect(x - (advance / 2) + left, baseline - ascent, right - left, ascent + descent))
         {
             Role = "title",
+            Position = new ScenePositionTag("title", "title") { Text = title },
         };
     }
 }
