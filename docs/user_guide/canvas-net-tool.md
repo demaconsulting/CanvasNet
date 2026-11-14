@@ -1921,7 +1921,7 @@ with no banner and no color codes, and a `kind` that tells which document it is:
 | `topics` | `help topics` | `cards` (each `{"id","aliases","summary","command"}`, every card, depth first) |
 | `card` | A help card | `id`, `aliases`, `title`, `summary`, `body`, `children`, `seeAlso`, `examples` |
 | `examples` | `help <topic> [<card> ...] --examples` | `id`, `examples` (the card's own, each `{"name","kind","language","fileName","description","content"}`), `cards` (each `{"id","summary","command","examples"}`, the cards below it that have examples) |
-| `example` | `help <topic> [<card> ...] --example <name>` | `id`, `example` (the same fields and the `content`) |
+| `example` | `help <topic> [<card> ...] --example <name>` | `id`, `example` (the same fields, plus the `card` it belongs to) |
 
 The `body` of a card is its Markdown text. Each entry of `children` and `seeAlso` is `{"id","summary","command"}`, where
 `command` is the exact command that prints that card. Each option is `{"name","aliases","takesValue","valueName",
