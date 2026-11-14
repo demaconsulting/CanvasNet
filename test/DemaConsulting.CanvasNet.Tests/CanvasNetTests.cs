@@ -9,6 +9,7 @@ using DemaConsulting.CanvasNet.Files;
 using DemaConsulting.CanvasNet.Fonts;
 using DemaConsulting.CanvasNet.Geometry;
 using DemaConsulting.CanvasNet.ImageSources;
+using DemaConsulting.CanvasNet.Positions;
 using DemaConsulting.CanvasNet.Rendering;
 using DemaConsulting.CanvasNet.Tests.Files;
 using DemaConsulting.CanvasNet.Tests.ImageSources;
@@ -1665,5 +1666,35 @@ public class CanvasNetTests
         Assert.Equal(FolderImageResolver.AccessDeniedCode, Assert.Single(resolver.Diagnostics).Code);
         Assert.Equal(FileReferenceFailureKind.AccessDenied, nested?.Kind);
         Assert.Equal("roots", nested?.PolicyName);
+    }
+
+    /// <summary>
+    ///     Proves that the system parses a union of position selectors, keeps the matching positions of a render in
+    ///     delivery order up to the cap, and reports the selector that matched nothing.
+    /// </summary>
+    [Fact]
+    public void CanvasNet_SystemIntegration_Positions_SelectCollectAndCap()
+    {
+        // Arrange: a selection with a glob, a typed predicate, and a selector that cannot match
+        var selection = PositionSelection.Parse(["node:s*", "mark:y=3", "edge:@from=nowhere"]);
+        var collector = new PositionCollector(selection, 2);
+        ImagePosition[] candidates =
+        [
+            new("node", "send") { Box = new PositionBox(0, 0, 10, 10), Pixel = new PositionPoint(5, 5) },
+            new("node", "pack"),
+            new("mark", "bar-0") { Values = [new("y", PositionValue.FromNumber(3.0))] },
+            new("node", "stock")
+        ];
+
+        // Act: offer every candidate once, in the renderer's order
+        foreach (var candidate in candidates)
+        {
+            collector.Offer(candidate);
+        }
+
+        // Assert: the first two matches are kept, the third is cut, and the unmatched selector is named
+        Assert.Equal(["send", "bar-0"], collector.Positions.Select(position => position.Id));
+        Assert.True(collector.Truncated);
+        Assert.Equal(["edge:@from=nowhere"], collector.GetUnmatchedSelectors().Select(selector => selector.Text));
     }
 }
