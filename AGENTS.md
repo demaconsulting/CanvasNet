@@ -102,6 +102,28 @@ from `.github/standards/`. Use this matrix to determine which to load:
 
 Load only the standards relevant to your specific task scope.
 
+# Repository-Specific Standards Exceptions
+
+The files in `.github/standards/` and `.github/skills/` are shared verbatim across repositories. This repository
+applies these accepted exceptions on top of them:
+
+## Artifact-Location Comments Instead of SoftwareInfo (`software-items.md`, `sysml2tools-query`)
+
+The shared standards and the `sysml2tools-query` skill describe artifact locations recorded as
+`metadata info : SoftwareInfo { ... }` annotations and queried as `Metadata SoftwareInfo.*` lines. This repository's
+SysML2 model has not been migrated to that metadata yet (the migration is deferred). Until it is:
+
+- The model records artifact locations as comments on each element: `comment sourceRef /* Source: ... */`,
+  `comment testRef /* Test: ... */`, `comment designRef /* Design: ... */`,
+  `comment verificationRef /* Verification: ... */`, and `comment reqRef /* Requirements: ... */`, plus a few
+  custom-named comments (such as `photoTestRef`, `mermaidTestRef`, `selectionRef`, and `distributionRef`) for
+  additional test files and notes.
+- Agents read those comments (with `dotnet sysml2tools query` describe or text output, or directly in the `.sysml`
+  files under `docs/sysml2/`) instead of looking for `Metadata SoftwareInfo.*` lines, and do not add
+  `docs/sysml2/common/software-items.sysml` or `SoftwareInfo` annotations piecemeal.
+- New model elements follow the existing comment convention, so the model stays consistent until it is migrated as
+  a whole.
+
 # Agent Delegation Guidelines
 
 The default agent should handle simple, straightforward tasks directly.

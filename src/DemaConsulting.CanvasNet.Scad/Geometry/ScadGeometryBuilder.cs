@@ -123,13 +123,11 @@ internal sealed partial class ScadGeometryBuilder
         // execution stack the build moves to a dedicated thread so that chain can never overflow the caller's stack
         if (!RuntimeHelpers.TryEnsureSufficientExecutionStack() || ForceBuildThreadForCurrentThread)
         {
-            return RunOnBuildThread(() => BuildInline(roots, settings, sink));
+            return RunOnBuildThread(() => BuildInline(roots, settings, sink), settings.Cancellation);
         }
 
         return BuildInline(roots, settings, sink);
     }
-
-
 
     /// <summary>
     ///     Builds the scene on the current thread.
@@ -165,19 +163,34 @@ internal sealed partial class ScadGeometryBuilder
     ///     Runs a build on a dedicated thread with a <see cref="BuildThreadStackSize"/> stack and the caller's cultures,
     ///     and returns its result, rethrowing any exception unchanged.
     /// </summary>
+    /// <remarks>
+    ///     The number of dedicated threads is bounded by the same fallback slots the evaluator uses
+    ///     (<see cref="ScadEvaluator.FallbackSlotsForCurrentThread"/>, at most
+    ///     <see cref="ScadEvaluator.MaxConcurrentFallbackThreads"/> at once), so a burst of concurrent small-stack
+    ///     callers waits for a slot instead of reserving one stack each. As in the evaluator, the wait honors
+    ///     <paramref name="cancellation"/> (a canceled token ends it with <see cref="OperationCanceledException"/>
+    ///     without taking a slot), the slot is released after the thread has been joined, and a thread that cannot be
+    ///     created or started (<see cref="OutOfMemoryException"/> or <see cref="ThreadStartException"/>) is reported as a
+    ///     <see cref="ScadEvaluationException"/> with the slot released. The build and the evaluation of one document
+    ///     run one after the other, so they never hold two slots at once.
+    /// </remarks>
     /// <param name="build">The build to run.</param>
+    /// <param name="cancellation">The token that ends the wait for a slot.</param>
     /// <returns>The result of the build.</returns>
+    /// <exception cref="OperationCanceledException">Thrown when the token is canceled before a slot was acquired.</exception>
     /// <exception cref="ScadEvaluationException">Thrown when the dedicated thread cannot be created or started.</exception>
-    private static ScadBuiltScene RunOnBuildThread(Func<ScadBuiltScene> build)
+    private static ScadBuiltScene RunOnBuildThread(Func<ScadBuiltScene> build, CancellationToken cancellation)
     {
         ScadBuiltScene? result = null;
         ExceptionDispatchInfo? failure = null;
         var culture = CultureInfo.CurrentCulture;
         var uiCulture = CultureInfo.CurrentUICulture;
-        Thread thread;
+
+        var slots = ScadEvaluator.FallbackSlotsForCurrentThread;
+        slots.Acquire(cancellation);
         try
         {
-            thread = new Thread(
+            var thread = StartBuildThread(
                 () =>
                 {
                     CultureInfo.CurrentCulture = culture;
@@ -191,28 +204,50 @@ internal sealed partial class ScadGeometryBuilder
                         // Every exception is handed back to the caller unchanged, so none may be lost here
                         failure = ExceptionDispatchInfo.Capture(ex);
                     }
-                },
-                BuildThreadStackSize)
-            {
-                IsBackground = true,
-                Name = BuildThreadName,
-            };
-            thread.Start();
+                });
+            thread.Join();
         }
-        catch (Exception ex) when (ex is OutOfMemoryException or ThreadStartException)
+        finally
         {
-            throw new ScadEvaluationException(
-                "The geometry build needs a dedicated thread on this small caller stack and it could not be started",
-                ex);
+            slots.Release();
         }
 
-        thread.Join();
         failure?.Throw();
         return result!;
     }
 
     /// <summary>
-    ///     Converts the result of the whole model into the root node of the scene.    /// </summary>
+    ///     Creates and starts the dedicated build thread, converting a failure to obtain it into the documented
+    ///     controlled failure.
+    /// </summary>
+    /// <param name="body">The thread body.</param>
+    /// <returns>The started thread.</returns>
+    /// <exception cref="ScadEvaluationException">Thrown when the thread cannot be created or started.</exception>
+    private static Thread StartBuildThread(ThreadStart body)
+    {
+        try
+        {
+            var thread = new Thread(body, BuildThreadStackSize)
+            {
+                IsBackground = true,
+                Name = BuildThreadName,
+            };
+            thread.Start();
+            return thread;
+        }
+        catch (Exception ex) when (ex is OutOfMemoryException or ThreadStartException)
+        {
+            throw new ScadEvaluationException(
+                string.Create(
+                    CultureInfo.InvariantCulture,
+                    $"The geometry build needs a dedicated thread with a {BuildThreadStackSize / (1024 * 1024)} MiB stack on this small caller stack and it could not be started (not enough memory or address space)"),
+                ex);
+        }
+    }
+
+    /// <summary>
+    ///     Converts the result of the whole model into the root node of the scene.
+    /// </summary>
     /// <param name="geo">The result of the model.</param>
     /// <returns>The root node: the solid, a group of slabs for a flat model, or an empty group.</returns>
     private SceneNode ToSceneRoot(ScadGeo geo)
