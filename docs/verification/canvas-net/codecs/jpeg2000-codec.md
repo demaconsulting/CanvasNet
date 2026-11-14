@@ -179,7 +179,7 @@ decode, because a mutation may leave a stream valid; they still require that any
 plain `InvalidDataException` or `UnsupportedImageFeatureException`. `_EveryTruncationOfSmallStream` tests
 every prefix length of a small multi-tile stream. No test asserts wall-clock time, which is unreliable
 under parallel CI load: work is bounded deterministically by explicit `Jpeg2000DecoderLimits` (the fuzz
-tests use a `MaxTier1Work` cap), and the only timeouts are generous hang guards. Hostile streams
+tests use a `MaxTier1Work` cap), and no test has a timeout. Hostile streams
 (thousands of POC entries, precinct counts far beyond the data, and a maximum-size image with maximum
 coding passes per block) fail on their budget: `_HostileTier1Work_ThrowsInvalidDataWhenOverBudget` trips an
 explicit `MaxTier1Work` cap on a 2048 x 2048 stream and decodes a 128 x 128 control under a cap that fits,

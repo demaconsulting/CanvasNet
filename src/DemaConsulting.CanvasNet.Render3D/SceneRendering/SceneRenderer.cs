@@ -589,6 +589,7 @@ public static class SceneRenderer
             for (var tile = 0; tile < tileCount; tile++)
             {
                 cancellationToken.ThrowIfCancellationRequested();
+                job.Options.TileStarting?.Invoke(tile);
                 RenderTile(job, tile, worker, cancellationToken);
             }
 
@@ -612,6 +613,7 @@ public static class SceneRenderer
                 (tile, _, worker) =>
                 {
                     cancellationToken.ThrowIfCancellationRequested();
+                    job.Options.TileStarting?.Invoke(tile);
                     RenderTile(job, tile, worker, cancellationToken);
                     return worker;
                 },

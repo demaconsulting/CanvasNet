@@ -2768,9 +2768,8 @@ culture-invariant), the time zone defaults to UTC, and only the **bundled fonts*
   levels apart) and never compare the bytes of an encoded PNG.
 - **Hardening.** The renderer is exercised by a seeded fuzz suite (generated specifications and mutations of the test
   fixtures, 300 cases in every build) that requires every case to succeed or to fail with a documented, located
-  exception, to finish within its limits and to give the same result twice. The tests assert outcomes, never speed; the
-  only wall-clock check is a generous hang guard of 120 seconds per case (set `CANVASNET_VL_HANG_GUARD_SECONDS` to
-  change it on a very slow machine). To run a larger campaign yourself, set the
+  exception, to finish within its limits and to give the same result twice. The tests assert outcomes, never speed or
+  elapsed time. To run a larger campaign yourself, set the
   environment variables `CANVASNET_VL_FUZZ_CASES` (the number of cases, for example `5000`), `CANVASNET_VL_FUZZ_SEED`
   and `CANVASNET_VL_FUZZ_DUMP_DIR` (a folder that receives each failing specification) and run
   `dotnet test test/DemaConsulting.CanvasNet.VegaLite.Tests`. Report a failing specification together with its seed and

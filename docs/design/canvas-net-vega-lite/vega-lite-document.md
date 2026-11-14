@@ -465,6 +465,12 @@ name are argument exceptions. A cancellation is an `OperationCanceledException`,
 `VegaLiteUnsupportedFeatureException` at the first unsupported feature after delivering that report. A handler that
 throws after a successful call propagates its exception (the surface is disposed); on a failure path it is ignored.
 
+The internal test seam `StageHookForCurrentThread` (per calling thread, `null` by default) is invoked with the name of a
+long-running stage when it starts and when it has finished: the operation name of each row transform (reported by
+`RowTransforms`), `compose` around the composition of a concatenation, a repeat or a facet, and `paint` around the
+painter. A test cancels the token when a stage starts, a known point inside the work instead of a timer, and checks that
+the stage stopped before it reported its end. The whole pipeline runs on the calling thread.
+
 ### Dependencies
 
 - **`SpecModel` subsystem** - `SpecParser`, `SpecTree`, `SpecMetadata`, `FeatureCatalog`, `FeatureReport`,

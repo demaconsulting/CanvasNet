@@ -164,7 +164,7 @@ public class VegaLiteLimitAuditTests
         // Arrange
         var row = Rows[name];
         var document = Open(row);
-        using var canceled = new CancellationTokenSource();
+        using var canceled = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         canceled.Cancel();
 
         // Act / Assert
@@ -175,7 +175,7 @@ public class VegaLiteLimitAuditTests
     /// <summary>
     ///     Validates that the transform and layout stages poll the cancellation token while they run: each of the stages that the calibration of the work meter left to the token (the density estimate, a
     ///     sliding window, an aggregate of many groups, an impute of many combinations, a facet of many cells) runs for a long time when its budget is lifted and ends with the cancellation itself once the token is
-    ///     canceled. The assertion is the outcome; the wall clock is only a generous hang guard (see <see cref="HangGuard"/>).
+    ///     canceled. The token is canceled when the stage starts (the stage hook of <see cref="VegaLiteDocument.StageHookForCurrentThread"/>), and the stage must stop before it reports its end.
     /// </summary>
     /// <param name="stage">The name of the stage.</param>
     [Theory]
@@ -186,19 +186,41 @@ public class VegaLiteLimitAuditTests
     [InlineData("facet-cells")]
     public void CanvasNetVegaLite_SystemIntegration_LimitAudit_CancellationIsHonoredWhileTheStageRuns(string stage)
     {
-        // Arrange: budgets that are lifted, so that the stage runs until it is stopped
+        // Arrange: budgets that are lifted, so that the stage runs until it is stopped; the facet's cells are built by the composition
         var document = VegaLiteDocument.Parse(RunawaySpec(stage));
         var limits = new VegaLiteLimits { MaxEvaluationSteps = long.MaxValue, MaxDataRows = 50_000_000, MaxSceneItems = 50_000_000, MaxViews = 100_000 };
-        using var source = CancellationTokenSource.CreateLinkedTokenSource(Ct);
-        source.CancelAfter(TimeSpan.FromMilliseconds(150));
-        var started = System.Diagnostics.Stopwatch.StartNew();
+        var hooked = stage == "facet-cells" ? "compose" : stage;
+        using var source = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        var started = false;
+        var finished = false;
+        VegaLiteDocument.StageHookForCurrentThread = (name, end) =>
+        {
+            if (name == hooked && end)
+            {
+                finished = true;
+            }
+            else if (name == hooked)
+            {
+                started = true;
+                source.Cancel();
+            }
+        };
 
         // Act
-        var ex = Assert.ThrowsAny<OperationCanceledException>(() => document.Render(200, 200, new VegaLiteRenderOptions { Limits = limits }, source.Token));
+        Exception? ex;
+        try
+        {
+            ex = Record.Exception(() => document.Render(200, 200, new VegaLiteRenderOptions { Limits = limits }, source.Token));
+        }
+        finally
+        {
+            VegaLiteDocument.StageHookForCurrentThread = null;
+        }
 
-        // Assert: the cancellation itself (the outcome); the wall clock is only the hang guard, not an assertion about speed
-        Assert.IsNotType<AggregateException>(ex);
-        HangGuard.AssertNotHung(started, stage + " after the token was canceled");
+        // Assert: the cancellation itself, raised by the stage that was running (it never reached its end)
+        Assert.IsType<OperationCanceledException>(ex);
+        Assert.True(started, stage + " never started");
+        Assert.False(finished, stage + " ran to its end although the token was canceled when it started");
     }
 
     /// <summary>

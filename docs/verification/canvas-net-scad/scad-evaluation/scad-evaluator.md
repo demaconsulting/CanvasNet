@@ -35,9 +35,10 @@ the calling thread: a forced evaluation must hop to the evaluator thread (observ
 `FallbackCount`), a normal program must stay on the caller's thread, exceptions and the culture must survive the
 hop, a restart must record each event once and
 keep the warnings recorded while files were loaded, and a burst of forced callers must not exceed the bound on
-concurrent fallback threads. Cancellation is verified with tokens that are canceled beforehand, after a short
-delay during endless tail recursion and a huge loop (with the step limit raised to the maximum), and by the
-resolver during file loading, always with a generous timeout. Determinism is verified by evaluating twice, under the
+concurrent fallback threads. Cancellation is verified with tokens that are canceled beforehand, from the sink when a
+known echo is recorded during endless tail recursion, a huge loop, a large formatting, and a series of products (with
+limits that an evaluation ignoring the token would reach instead), and by the resolver during file loading; no
+scenario uses a timer or a timeout. Determinism is verified by evaluating twice, under the
 `de-DE` and `tr-TR` cultures, concurrently, and after a forced restart.
 
 The golden fixtures are evaluated by `ScadEvaluatorFixtureTests` (every authored fixture must complete without a
@@ -64,7 +65,8 @@ project, in the `Evaluation` folder, with the shared helpers in `ScadEvaluatorTe
 - **Threads**: The stack-safety scenarios run the evaluation from a caller thread with a 64 KiB, 256 KiB, 1 MiB, or
   256 MiB stack and join it before asserting, and the fallback scenarios force the fallback through the per-thread
   `ScadEvaluator.ForceFallbackForCurrentThread` seam instead of relying on a small stack; the cancellation scenarios
-  cancel from a timer or from the resolver;
+  cancel at a known point inside the work (from the sink when a known echo is recorded, or from the resolver), never
+  from a timer;
   the concurrency scenarios start several threads at once
 - **Cultures**: The determinism scenarios set the current culture for the duration of the call and restore it
 - **Isolation**: Each test evaluates its own sources and settings
@@ -516,8 +518,9 @@ Asserts the exact step limit, that vector arithmetic is charged per element, tha
 is charged by its full contents, and that a long scope walk is charged. The product scenarios assert that a matrix
 product is charged at least `n³ / 16` steps beyond its operands and that a smaller budget fails at the operator; that
 two 1000 × 1000 matrices (about the cost that ran for minutes before the work was charged; built from one shared
-row, so the setup costs a thousand steps and the test does not depend on how busy the machine is) fail under the
-default limits in well under a second of work; that matrix-by-vector, vector-by-matrix, and dot products keep their results;
+row, so the setup costs a thousand steps) fail under the default limits at the first product, with far less
+allocated than one million-element result would take (asserted when the evaluation ran inline); that
+matrix-by-vector, vector-by-matrix, and dot products keep their results;
 and that scaling a vector is charged before it is allocated. The formatting scenarios assert that `str` and `echo` of a
 2,000-number vector are charged at least eight steps per element, and that a 100,000-turn loop that formats such a
 vector fails at a one-million-step budget. The string-index scenarios assert the exact extra steps for an index
@@ -528,9 +531,9 @@ bound, because a time bound is flaky when other test assemblies keep the machine
 build seven levels of vectors that each hold a thousand references to the level below (every list is short, the
 top one stands for about 10^21 logical elements) and apply `-`, `+`, `*`, `/`, `==`, and `<` to it: under the
 default limits each fails with the ordinary step-limit error, and with `MaxEvaluationSteps = long.MaxValue` each
-fails with `Operand too large (limit 67108864 nested elements)` at the operator, both within seconds (the test
-runs the evaluation on a pool thread and fails if it is still running after 20 s, so a runaway count cannot hang
-the run); a budget of one billion steps (above the cap) gets the aggregate error and one million (below it) the
+fails with `Operand too large (limit 67108864 nested elements)` at the operator (the error is the proof that the
+count was capped: an uncapped walk of 10^21 elements would never reach it); a budget of one billion steps (above
+the cap) gets the aggregate error and one million (below it) the
 step error; and an operand of 2,001,000 logical elements is still accepted and charged by its count. The counter
 tests pin the count itself: exact counts for flat and nested vectors, early stop above the cap, saturation at
 `long.MaxValue` for the seven shared levels (counted at once because the counts of shared sub-vectors are
@@ -558,7 +561,7 @@ iteration.
 Asserts the list-length, string-length, and 256-level nesting limits at the limit and one over, including inside a
 comprehension; that a matrix product whose result has exactly the list-length limit's elements succeeds and one more
 element fails with `List too long` located at the `*` operator; and that a product whose result would have four
-million elements fails quickly without allocating anything near that size (the allocation is measured on the
+million elements fails without allocating anything near that size (the allocation is measured on the
 calling thread, so it is asserted only when the evaluation ran inline, as `LastRunThreadId` shows; the value-level
 product tests measure the same property deterministically).
 
@@ -589,15 +592,19 @@ single over-long line fails.
 `ScadEvaluatorStackTests.ScadEvaluatorStack_Evaluate_CancelWhileWaitingForFallbackSlot_ThrowsOperationCanceled`
 
 Asserts the cancellation behavior described in the requirement, always a plain `OperationCanceledException`, that
-the earlier events are kept, and that an uncanceled token changes nothing. The formatting scenario cancels from a
-timer while `str` repeatedly formats a vector of 100,000 numbers with the step limit raised to the maximum. The
-product scenario cancels from a timer while 21 products of 27 million multiply-adds each are running; the
-deterministic proof that a single product polls at fixed intervals is the `ScadValueProduct` poll scenario in the
-unit verification of `ScadValue`. The wait scenario holds every slot of a slot set of its own (so nothing else can
-count against it), starts a caller whose fallback is forced (so that it must hop), waits until that set shows
-exactly one waiter, cancels,
-and asserts that the caller ends with an `OperationCanceledException` within 30 seconds while the held slots are
-untouched.
+the earlier events are kept, and that an uncanceled token changes nothing. No scenario uses a timer or a clock: the
+token is canceled from inside the evaluation, when the sink records a known echo, and the limits are set so that an
+evaluation that ignored the token would end with a limit error instead. The tail-recursion scenario cancels on the
+first echo under a one-million-step limit (far above the 1,024 steps between two polls). The loop scenario cancels on
+the echo of the first turn of a `1e15`-turn loop and asserts that no second turn ran. The formatting scenario cancels
+on an `echo` expression right before `str` of a vector of 100,000 numbers, with a step limit of the steps before it
+plus half of the formatting charge, so only a formatting that polls while it runs ends with the cancellation. The
+product scenario cancels on the echo before the second of 21 products of 27 million multiply-adds each and asserts
+that the evaluation stopped there (no later turn echoed); the deterministic proof that a single product polls at
+fixed intervals is the `ScadValueProduct` poll scenario in the unit verification of `ScadValue`. The wait scenario
+holds every slot of a slot set of its own (so nothing else can count against it), starts a caller whose fallback is
+forced (so that it must hop), waits until that set shows exactly one waiter, cancels, and asserts that the caller ends
+with an `OperationCanceledException` while the held slots are untouched.
 
 ##### CanvasNetScad-ScadEvaluation-ScadEvaluator-StackSafety: Restart On A Large Stack
 

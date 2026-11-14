@@ -7,14 +7,19 @@ namespace DemaConsulting.CanvasNet.Scad.Tests.Evaluation;
 ///     Tests of cancellation in <see cref="ScadEvaluator"/>: the token is polled while charging steps, at every loop
 ///     turn and while loading files, and cancellation is never wrapped.
 /// </summary>
+/// <remarks>
+///     No test depends on a clock. The token is canceled from inside the evaluation, when the sink records a known
+///     echo (<see cref="ScadEvaluationSink.EchoRecorded"/> runs on the evaluating thread), and the step or loop budget
+///     is set so that an evaluation that ignored the token would end with a limit error instead of the cancellation.
+/// </remarks>
 public class ScadEvaluatorCancellationTests
 {
     /// <summary>
-    ///     The longest a canceled evaluation may take before the test gives up. It only has to tell "cancellation
-    ///     works" from "the evaluation ran on to its (effectively unbounded) end", so it is deliberately far larger
-    ///     than the real latency (milliseconds) to stay clear of any CI load.
+    ///     The step budget of the tests that cancel an endless evaluation: far above the 1,024 steps between two
+    ///     cancellation polls, so cancellation must win, yet small enough that an evaluation that ignored the token
+    ///     fails with the step-limit error.
     /// </summary>
-    private static readonly TimeSpan Generous = TimeSpan.FromSeconds(120);
+    private const long StepBudget = 1_000_000;
 
     /// <summary>
     ///     Validates that a token canceled before the call stops evaluation before any resolver callback.
@@ -23,7 +28,7 @@ public class ScadEvaluatorCancellationTests
     public void ScadEvaluatorCancellation_AlreadyCanceled_ThrowsBeforeAnyResolverCall()
     {
         // Arrange
-        using var cts = new CancellationTokenSource();
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         cts.Cancel();
         var files = new ScadVirtualFiles(("lib.scad", "x = 1;\n"));
         var settings = new ScadEvaluationSettings { Cancellation = cts.Token };
@@ -42,54 +47,44 @@ public class ScadEvaluatorCancellationTests
     [Fact]
     public void ScadEvaluatorCancellation_DuringEndlessTailRecursion_StopsAndKeepsEarlierEvents()
     {
-        // Arrange
+        // Arrange: the first echo cancels the token, then the endless recursion runs until the next poll
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         var settings = new ScadEvaluationSettings
         {
             Cancellation = cts.Token,
-            Limits = new ScadLimits { MaxEvaluationSteps = long.MaxValue },
+            Limits = new ScadLimits { MaxEvaluationSteps = StepBudget },
         };
-        // Not disposed on purpose: the canceler thread may still touch it after the test returns, and a
-        // ManualResetEventSlim that never exposes its wait handle holds no unmanaged resource
-        var echoed = new ManualResetEventSlim(false);
-        var sink = new ScadEvaluationSink(ScadLimits.Default) { EchoRecorded = echoed.Set };
-
-        // Cancel only once the first echo exists (a fixed delay alone can fire before a cold, slow runner has even
-        // started evaluating, which made this test flaky on macOS CI), then let the endless recursion run briefly
-        CancelAfterOnDedicatedThread(cts, TimeSpan.FromMilliseconds(150), echoed);
-        var started = DateTime.UtcNow;
+        var sink = new ScadEvaluationSink(ScadLimits.Default) { EchoRecorded = cts.Cancel };
 
         // Act
         var ex = Record.Exception(() => Run("echo(\"started\");\nfunction f(n) = f(n + 1);\necho(f(0));", settings, null, sink));
 
-        // Assert
+        // Assert: the cancellation itself, not the step-limit error an evaluation that ignored the token would reach
         Assert.IsType<OperationCanceledException>(ex);
-        Assert.True(DateTime.UtcNow - started < Generous);
         Assert.Equal(["ECHO: \"started\""], sink.EchoLines);
     }
 
     /// <summary>
-    ///     Validates that cancellation interrupts a huge loop at a loop boundary.
+    ///     Validates that cancellation interrupts a huge loop at the next loop boundary.
     /// </summary>
     [Fact]
     public void ScadEvaluatorCancellation_DuringHugeLoop_Stops()
     {
-        // Arrange
+        // Arrange: the echo of the first turn cancels the token; nothing else bounds the loop
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
-        CancelAfterOnDedicatedThread(cts, TimeSpan.FromMilliseconds(150));
         var settings = new ScadEvaluationSettings
         {
             Cancellation = cts.Token,
             Limits = new ScadLimits { MaxEvaluationSteps = long.MaxValue, MaxLoopIterations = long.MaxValue, MaxInstances = int.MaxValue },
         };
-        var started = DateTime.UtcNow;
+        var sink = new ScadEvaluationSink(ScadLimits.Default) { EchoRecorded = cts.Cancel };
 
         // Act
-        var ex = Record.Exception(() => Run("for (i = [0 : 1e15]) {}", settings));
+        var ex = Record.Exception(() => Run("for (i = [0 : 1e15]) echo(i);", settings, null, sink));
 
-        // Assert
+        // Assert: every loop turn polls the token, so the second turn never runs
         Assert.IsType<OperationCanceledException>(ex);
-        Assert.True(DateTime.UtcNow - started < Generous);
+        Assert.Equal(["ECHO: 0"], sink.EchoLines);
     }
 
     /// <summary>
@@ -99,7 +94,7 @@ public class ScadEvaluatorCancellationTests
     public void ScadEvaluatorCancellation_DuringIncludeLoading_StopsBeforeNextFile()
     {
         // Arrange
-        using var cts = new CancellationTokenSource();
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         var files = new ScadVirtualFiles(("a.scad", "include <b.scad>\n"), ("b.scad", "x = 1;\n"))
         {
             OnRequest = path =>
@@ -126,23 +121,25 @@ public class ScadEvaluatorCancellationTests
     [Fact]
     public void ScadEvaluatorCancellation_DuringLargeFormatting_Stops()
     {
-        // Arrange: each str of 100,000 numbers takes tens of milliseconds; the step limit is out of the way
+        // Arrange: the echo right before str(v) cancels the token. Formatting 100,000 elements charges 800,000 steps,
+        // so a budget of the steps before it plus half of that lets only a formatting that polls end with the
+        // cancellation; one that charged without polling would end with the step-limit error
+        const string Setup = "v = [for (i = [0 : 99999]) i * 1.5];\n";
+        var before = Run(Setup + "s = echo(\"formatting\") 0;").Steps;
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         var settings = new ScadEvaluationSettings
         {
             Cancellation = cts.Token,
-            Limits = new ScadLimits { MaxEvaluationSteps = long.MaxValue },
+            Limits = new ScadLimits { MaxEvaluationSteps = before + (100_000 * ScadValue.FormatStepsPerElement / 2) },
         };
-        const string Source = "v = [for (i = [0 : 99999]) i * 1.5];\na = [for (k = [1 : 1000000]) len(str(v))];";
-        var started = DateTime.UtcNow;
-        CancelAfterOnDedicatedThread(cts, TimeSpan.FromMilliseconds(150));
+        var sink = new ScadEvaluationSink(ScadLimits.Default) { EchoRecorded = cts.Cancel };
 
         // Act
-        var ex = Record.Exception(() => Run(Source, settings));
+        var ex = Record.Exception(() => Run(Setup + "s = echo(\"formatting\") str(v);\necho(len(s));", settings, null, sink));
 
         // Assert
         Assert.IsType<OperationCanceledException>(ex);
-        Assert.True(DateTime.UtcNow - started < Generous);
+        Assert.Equal(["ECHO: \"formatting\""], sink.EchoLines);
     }
 
     /// <summary>
@@ -152,7 +149,7 @@ public class ScadEvaluatorCancellationTests
     public void ScadEvaluatorCancellation_NotCanceled_EvaluatesNormally()
     {
         // Arrange
-        using var cts = new CancellationTokenSource();
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         var settings = new ScadEvaluationSettings { Cancellation = cts.Token };
 
         // Act

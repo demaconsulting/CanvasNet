@@ -1068,7 +1068,8 @@ delivered, with a token that is not canceled, the rendered surface having the me
 
 Asserts that a loess of 12,000 rows (within the budget, several seconds of work) and the painting of 300 circles with
 a stroke width of 3,000 pixels (within the paint limit, seconds of work) both stop with an unwrapped
-`OperationCanceledException` after a token that is canceled 100 milliseconds into the render, not only before it.
+`OperationCanceledException` when the token is canceled as the loess, or the painting, starts (the internal stage hook
+`VegaLiteDocument.StageHookForCurrentThread`, no timer), and that neither stage reaches its end.
 
 ### Determinism And Concurrency: Repeated And Concurrent Renders Are Byte-Identical
 
@@ -1091,16 +1092,15 @@ Measures and renders 100 generated specifications, 100 mutated fixtures and 100 
 (a fixed seed) under tight limits, and asserts for each: opening throws only a `VegaLiteSpecException` with a location
 or an `InvalidDataException`; measuring and rendering throw only a located `VegaLiteRenderException` or
 `VegaLiteSpecException`, a `VegaLiteUnsupportedFeatureException` in strict mode, or the documented
-`ArgumentOutOfRangeException` for the options; the case does not exceed the hang guard (120 seconds, or the number of
-seconds of `CANVASNET_VL_HANG_GUARD_SECONDS`; the tests assert outcomes, never speed, and a failure of the guard says
-"Hang guard"); the thread allocates less than 4 GiB;
+`ArgumentOutOfRangeException` for the options; the thread allocates less than 4 GiB;
 and two runs give the same pixel hash and the same ordered reports, or the same error, and `Measure` equals the size of
 `Render`. Asserts that the generator and the random source are seeded and repeatable, that at least 10% of the generated
 specifications and 15% of the mutated fixtures render (so that the suite reaches the layout and the painter), and that
 the regression corpus (the specifications that broke the oracle: a denormal tick span, an infinite padding, an empty
-field name on a boxplot and on a repeated error band) passes it. The default run takes about ten seconds on each target
-framework; the opt-in variables `CANVASNET_VL_FUZZ_CASES`, `CANVASNET_VL_FUZZ_SEED` and `CANVASNET_VL_FUZZ_DUMP_DIR`
-run more cases (every failing case is written to the dump folder).
+field name on a boxplot and on a repeated error band) passes it. No case is timed: the tight limits bound every case,
+and a case that never ended would be reported by the time limit of the CI job. The opt-in variables
+`CANVASNET_VL_FUZZ_CASES`, `CANVASNET_VL_FUZZ_SEED` and `CANVASNET_VL_FUZZ_DUMP_DIR` run more cases (every failing
+case is written to the dump folder).
 
 ### Hardening: The Limit Audit Table
 
@@ -1122,8 +1122,9 @@ unsupported features under a diagnostics limit of 5, an array of a billion eleme
 an already canceled token with an unwrapped `OperationCanceledException`; that a density estimate of 20,000 rows by
 20,000 steps, a sliding median over 200,000 rows, an aggregate of 1,000,000 rows into 50,000 groups with `ci0` and a
 median, an impute of 3,000 groups by 3,000 keys, and a facet of 2,000 cells, all with their budgets lifted, stop with an
-unwrapped `OperationCanceledException` after a token that is canceled 150 milliseconds after they start (the outcome is
-the assertion; the elapsed time is only checked against the generous hang guard of 120 seconds, see the fuzz test);
+unwrapped `OperationCanceledException` when the token is canceled as the stage starts (the internal stage hook
+`VegaLiteDocument.StageHookForCurrentThread`, no timer; for the facet the stage is the composition of its cells), and
+that the stage never reaches its end;
 and that every `VegaLiteLimits` property is named by a row (a new limit without a row fails).
 
 ### Hardening: Source Guards

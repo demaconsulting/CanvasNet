@@ -105,7 +105,7 @@ Load only the standards relevant to your specific task scope.
 # Repository-Specific Standards Exceptions
 
 The files in `.github/standards/` and `.github/skills/` are shared verbatim across repositories. This repository
-applies these accepted exceptions on top of them:
+applies these accepted exceptions and additions on top of them:
 
 ## Artifact-Location Comments Instead of SoftwareInfo (`software-items.md`, `sysml2tools-query`)
 
@@ -123,6 +123,20 @@ SysML2 model has not been migrated to that metadata yet (the migration is deferr
   `docs/sysml2/common/software-items.sysml` or `SoftwareInfo` annotations piecemeal.
 - New model elements follow the existing comment convention, so the model stays consistent until it is migrated as
   a whole.
+
+## No Wall-Clock Dependence in Tests (`testing-principles.md`, `csharp-testing.md`)
+
+Tests run on shared machines that are often heavily loaded (many agents build and test at once), so a test must
+pass or fail the same way however fast or busy the machine is:
+
+- Do not assert on elapsed time (`Stopwatch`, `DateTime.UtcNow` differences, "generous" limits, hang guards) and do
+  not set per-test timeouts. A genuine hang is caught by the CI job, not by a per-test clock.
+- Do not use timers, sleeps, or delays (`CancelAfter`, `Thread.Sleep`, `Task.Delay`, timed `Wait`/`Join`) to make
+  something happen at the right moment. Trigger it deterministically from inside the work (for example cancel when
+  a known callback, echo, or step is reached), or use a pre-canceled token.
+- Prove bounds with deterministic measures instead: the specific limit error, steps or items charged, allocated
+  bytes, or the absence of further work after a cancellation point.
+- Performance is measured by profiling and benchmarks (`tools/`), never by unit tests.
 
 # Agent Delegation Guidelines
 

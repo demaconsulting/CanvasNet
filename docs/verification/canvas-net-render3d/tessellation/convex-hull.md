@@ -60,7 +60,7 @@ planar hull of shuffled lattice points with repeats is identical.
 
 **Valid operands, bounds and cancellation.** Random clouds, sphere vertices, a lattice, a cube and a pyramid pass
 `Render3DTestHelpers.AssertValidCsgOperand` and `AssertClosedAndOutward`. A 200,000-point input (random points in
-a ball, a lattice and points on a sphere) completes within a generous time limit with a closed surface,
+a ball, a lattice and points on a sphere) completes (no time is asserted) with a closed surface,
 `F = 2V - 4`, and a sample of the input on or below a sample of the triangles; a 141 x 141 coplanar grid with an
 apex is a five-vertex pyramid. A pre-canceled token, and a token canceled while a lazy 100,000-point sequence is
 consumed, throw `OperationCanceledException` for both methods.
@@ -153,8 +153,9 @@ Asserts the square, the degenerate results and the one-ulp classification descri
 `ConvexHullTests.ConvexHull_Hull3D_Canceled_ThrowsOperationCanceledException`,
 `ConvexHullTests.ConvexHull_Hull2D_Canceled_ThrowsOperationCanceledException`
 
-Asserts the large-input and coplanar-prefix results within a generous time limit, and cancellation before and
-during the computation.
+Asserts the large-input and coplanar-prefix results (a closed hull with the Euler counts, every sampled point inside,
+and the exact pyramid), and cancellation before and during the computation. No time is asserted: the speed of the
+hull is measured by profiling, not by the tests.
 
 ##### CanvasNetRender3D-Tessellation-ConvexHull-InputCopy: The Input Is Copied Once
 

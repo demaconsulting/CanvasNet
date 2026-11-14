@@ -5,7 +5,7 @@ namespace DemaConsulting.CanvasNet.VegaLite.Tests.Hardening;
 
 /// <summary>
 ///     The structured fuzz suite of the Vega-Lite renderer: seeded, schema-shaped specifications and mutations of the repository's fixtures are measured and rendered under tight
-///     limits, and every case must pass the oracle of <see cref="VegaLiteFuzzHarness"/> (only documented, located exceptions, no hang, bounded memory, two runs give the same
+///     limits, and every case must pass the oracle of <see cref="VegaLiteFuzzHarness"/> (only documented, located exceptions, bounded memory, two runs give the same
 ///     result). A failing case reports its seed, its index and the text of the specification so that it can be turned into a regression test.
 /// </summary>
 /// <remarks>
@@ -32,9 +32,6 @@ public class VegaLiteFuzzTests
 
     /// <summary>The default seed.</summary>
     private const ulong DefaultSeed = 20260601;
-
-    /// <summary>The longest time one case may take before it counts as a hang: the generous hang guard, not an assertion about speed (see <see cref="HangGuard"/>).</summary>
-    private static TimeSpan CaseTimeout => HangGuard.Limit;
 
     /// <summary>Gets the cancellation token of the running test.</summary>
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
@@ -77,7 +74,7 @@ public class VegaLiteFuzzTests
     }
 
     /// <summary>
-    ///     Validates that mutated copies of the repository's fixtures only ever fail in documented ways, never hang, and are deterministic.
+    ///     Validates that mutated copies of the repository's fixtures only ever fail in documented ways and are deterministic.
     /// </summary>
     [Fact]
     public void CanvasNetVegaLite_SystemIntegration_Fuzz_MutatedFixturesFailOnlyInDocumentedWays()
@@ -132,7 +129,7 @@ public class VegaLiteFuzzTests
     public void CanvasNetVegaLite_SystemIntegration_Fuzz_FoundDefectsStayFixed(string name, string spec, string outcome)
     {
         // Arrange / Act
-        var result = VegaLiteFuzzHarness.Run(spec, AppContext.BaseDirectory, strict: false, CaseTimeout, Ct);
+        var result = VegaLiteFuzzHarness.Run(spec, AppContext.BaseDirectory, strict: false, Ct);
 
         // Assert
         Assert.True(result.Failure is null, name + ": " + result.Failure);
@@ -193,7 +190,7 @@ public class VegaLiteFuzzTests
                 _ => VegaLiteFuzzMutator.Mutate(VegaLiteFuzzGenerator.Generate(seed, index, clean: true), VegaLiteFuzzGenerator.Generate(seed, index + 100_000, clean: true), rng),
             };
             var text = spec.ToJsonString();
-            var result = VegaLiteFuzzHarness.Run(text, fixtureDirectory, index % 8 == 0, CaseTimeout, Ct);
+            var result = VegaLiteFuzzHarness.Run(text, fixtureDirectory, index % 8 == 0, Ct);
             tallies[result.Outcome] = tallies.GetValueOrDefault(result.Outcome) + 1;
             if (result.Detail is { } detail)
             {

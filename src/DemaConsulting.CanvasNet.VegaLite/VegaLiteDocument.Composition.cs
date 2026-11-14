@@ -412,7 +412,9 @@ public sealed partial class VegaLiteDocument
         CancellationToken cancellationToken)
     {
         var composer = new Composer(layers, scales, config, measurer, limits, budget, expressions, _tree.SourceName, cancellationToken);
+        ReportStage("compose", finished: false);
         var content = composer.Compose(root);
+        ReportStage("compose", finished: true);
         var request = ViewLayout.Resolve(view, config, default, background, composition: true);
 
         // The root is zero by zero and its "guides" are the bounds of the content, so the canvas is the content plus the padding
