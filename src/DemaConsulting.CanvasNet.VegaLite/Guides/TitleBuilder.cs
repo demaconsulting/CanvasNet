@@ -133,9 +133,18 @@ internal sealed class TitleBlock
                 _ => (position, viewBounds.Y1 - Extent.Height - Offset),
             };
 
-        var group = new SceneGroup("title", x, y) { Children = _children };
-        return (group, Extent.Translate(x, y));
+        // A view's title reports its position, with its bounds in the coordinates of the view; a header block reports none
+        var bounds = Extent.Translate(x, y);
+        var tag = PositionText is null ? null : new ScenePositionTag("title", "title") { Text = PositionText, Bounds = bounds };
+        var group = new SceneGroup("title", x, y) { Children = _children, Position = tag };
+        return (group, bounds);
     }
+
+    /// <summary>
+    ///     Gets the text the title reports as its position (the title lines joined by spaces), or null for a block that
+    ///     is not the title of a view (a facet header), which reports no position.
+    /// </summary>
+    public string? PositionText { get; init; }
 }
 
 /// <summary>
@@ -259,7 +268,7 @@ internal sealed partial class TitleBuilder
             extent = _measurer.GetBounds(subtitleText).Union(extent);
         }
 
-        return new TitleBlock(orient, anchor, frame, offset, children, extent);
+        return new TitleBlock(orient, anchor, frame, offset, children, extent) { PositionText = string.Join(' ', titleLines) };
     }
 
     /// <summary>

@@ -90,6 +90,7 @@ internal sealed partial class MarkBuilder
                     Smooth = smooth,
                     Source = _location,
                     Opacity = paint.Opacity,
+                    Datum = Datum(row),
                 });
             }
 

@@ -509,9 +509,10 @@ internal static class ViewLayout
     /// <param name="request">The request.</param>
     /// <param name="measure">The measurements of <see cref="Measure"/>.</param>
     /// <param name="content">The items inside the view group, in drawing order (they are positioned relative to the data rectangle).</param>
+    /// <param name="viewTag">The position the view group reports (the data rectangle of a single or layered chart), or null for none (the root of a composition).</param>
     /// <returns>The scene.</returns>
     /// <exception cref="ArgumentNullException">Thrown when an argument is null.</exception>
-    public static Scene Build(ViewLayoutRequest request, ViewMeasure measure, IEnumerable<SceneItem> content)
+    public static Scene Build(ViewLayoutRequest request, ViewMeasure measure, IEnumerable<SceneItem> content, ScenePositionTag? viewTag = null)
     {
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(measure);
@@ -523,7 +524,7 @@ internal static class ViewLayout
         }
 
         var style = request.View;
-        var view = CreateViewGroup(style, measure.OriginX, measure.OriginY, measure.DataWidth, measure.DataHeight, request.Clip ? new SceneClip(0, 0, measure.DataWidth, measure.DataHeight) : null, children);
+        var view = CreateViewGroup(style, measure.OriginX, measure.OriginY, measure.DataWidth, measure.DataHeight, request.Clip ? new SceneClip(0, 0, measure.DataWidth, measure.DataHeight) : null, children) with { Position = viewTag };
         var root = new SceneGroup("root", 0, 0) { Children = [view] };
         return new Scene(measure.Width, measure.Height, request.Background, root);
     }

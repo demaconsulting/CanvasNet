@@ -211,6 +211,7 @@ internal sealed partial class MarkBuilder
         _budget.Add(1, (view["mark"] ?? view).GetLocation(_sourceName));
         var run = new Run(this, type, markNode is { IsObject: true } ? markNode : null, view, table, scales, width, height, cancellationToken);
         var items = run.Build();
+        var context = RecordPositions ? run.CreateContext() : null;
         var clip = markNode?["clip"] is { IsBoolean: true, BoolValue: true } || scales["x"]?.ClipMarks == true || scales["y"]?.ClipMarks == true;
 
         // The group carries the location of the mark, which is where the painter reports a failure of an item that has no location of its own
@@ -219,6 +220,7 @@ internal sealed partial class MarkBuilder
             Children = items,
             Clip = clip ? new SceneClip(0, 0, width, height) : null,
             Source = (view["mark"] ?? view).GetLocation(_sourceName),
+            Marks = context,
         };
     }
 
@@ -1718,7 +1720,7 @@ internal sealed partial class MarkBuilder
                 }
 
                 Reserve();
-                items.Add(Style(new SceneRect("mark-" + _type, xs.Start, ys.Start, xs.Length, ys.Length) { CornerRadius = radius }, paint));
+                items.Add(Style(new SceneRect("mark-" + _type, xs.Start, ys.Start, xs.Length, ys.Length) { CornerRadius = radius, Datum = Datum(row) }, paint));
             }
 
             return items;
@@ -1764,7 +1766,7 @@ internal sealed partial class MarkBuilder
                 if (box is { } b)
                 {
                     Reserve();
-                    items.Add(Style(new SceneRect("mark-tick", b.X, b.Y, b.Width, b.Height), paint));
+                    items.Add(Style(new SceneRect("mark-tick", b.X, b.Y, b.Width, b.Height) { Datum = Datum(row) }, paint));
                 }
             }
 
@@ -1850,7 +1852,7 @@ internal sealed partial class MarkBuilder
                 if (line is { } l)
                 {
                     Reserve();
-                    items.Add(Style(new SceneRule("mark-rule", l.X, l.Y, l.X2, l.Y2), paint));
+                    items.Add(Style(new SceneRule("mark-rule", l.X, l.Y, l.X2, l.Y2) { Datum = Datum(row) }, paint));
                 }
             }
 
@@ -1902,7 +1904,7 @@ internal sealed partial class MarkBuilder
 
                 var rowShape = shapeChannel is null ? shape : ShapeOf(shapeChannel, row) ?? shape;
                 Reserve();
-                items.Add(Style(new SceneSymbol("mark-" + _type, px, py) { Shape = rowShape, Size = area, Angle = rowAngle }, paint));
+                items.Add(Style(new SceneSymbol("mark-" + _type, px, py) { Shape = rowShape, Size = area, Angle = rowAngle, Datum = Datum(row) }, paint));
             }
 
             return items;

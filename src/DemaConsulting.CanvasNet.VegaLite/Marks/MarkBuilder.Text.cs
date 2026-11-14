@@ -315,6 +315,7 @@ internal sealed partial class MarkBuilder
                         Limit = font.Limit,
                         LineHeight = font.LineHeight,
                         Ellipsis = font.Ellipsis,
+                        Datum = Datum(row),
                     },
                     paint));
             }

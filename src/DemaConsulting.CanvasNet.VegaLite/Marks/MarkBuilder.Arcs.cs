@@ -73,6 +73,7 @@ internal sealed partial class MarkBuilder
                         EndAngle = angles.End,
                         PadAngle = padAngle,
                         CornerRadius = cornerRadius,
+                        Datum = Datum(row),
                     },
                     paint));
             }

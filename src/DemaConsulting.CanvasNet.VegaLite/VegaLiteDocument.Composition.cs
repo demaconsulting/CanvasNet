@@ -52,6 +52,7 @@ public sealed partial class VegaLiteDocument
     /// <param name="LegendBuilder">The legend builder of the cell.</param>
     /// <param name="HeaderAxisPlans">The axes that the cell shares with the other cells of its facet: they are drawn in the headers and footers of the facet, and the cell keeps only their grids; null for none.</param>
     /// <param name="KeepHeaderAxis">Whether the facet takes the main part of a shared axis from this cell for a side (<see cref="AxisRequest.KeepInHeader"/>); null for every side.</param>
+    /// <param name="RecordMarks">Whether the mark items record the rows they draw for the positions of the render (<see cref="MarkBuilder.RecordPositions"/>).</param>
     private sealed record CellInputs(
         IReadOnlyList<LayerChart> Layers,
         IReadOnlyList<AxisPlan> AxisPlans,
@@ -63,7 +64,8 @@ public sealed partial class VegaLiteDocument
         AxisBuilder AxisBuilder,
         LegendBuilder LegendBuilder,
         IReadOnlyList<AxisPlan>? HeaderAxisPlans = null,
-        Func<string, bool>? KeepHeaderAxis = null);
+        Func<string, bool>? KeepHeaderAxis = null,
+        bool RecordMarks = false);
 
     /// <summary>
     ///     The guides of a cell for one data rectangle.
@@ -95,6 +97,7 @@ public sealed partial class VegaLiteDocument
     /// <param name="expressions">The compiled expressions of the call; null when there are none.</param>
     /// <param name="headerAxisPlans">The axes that the cell shares with its facet (drawn in the headers; the cell keeps their grids); null for none.</param>
     /// <param name="keepHeaderAxis">Whether the facet takes the main part of a shared axis from this cell for a side; null for every side.</param>
+    /// <param name="recordMarks">Whether the mark items record the rows they draw for the positions of the render.</param>
     /// <returns>The inputs; the calendar of the axes is that of the first layer.</returns>
     private static CellInputs CreateCell(
         IReadOnlyList<LayerChart> layers,
@@ -106,7 +109,8 @@ public sealed partial class VegaLiteDocument
         string? sourceName,
         RowExpressions? expressions,
         IReadOnlyList<AxisPlan>? headerAxisPlans = null,
-        Func<string, bool>? keepHeaderAxis = null) =>
+        Func<string, bool>? keepHeaderAxis = null,
+        bool recordMarks = false) =>
         new(
             layers,
             axisPlans,
@@ -118,7 +122,8 @@ public sealed partial class VegaLiteDocument
             new AxisBuilder(measurer, config, limits, sourceName, layers[0].Data.Evaluation.Calendar, expressions),
             new LegendBuilder(measurer, limits, sourceName, expressions),
             headerAxisPlans,
-            keepHeaderAxis);
+            keepHeaderAxis,
+            recordMarks);
 
     /// <summary>
     ///     Builds the guides of a cell for a data rectangle: its axes, then its legends placed outside the axes.
@@ -135,10 +140,11 @@ public sealed partial class VegaLiteDocument
     /// <returns>The guides.</returns>
     private static CellGuides BuildCellGuides(CellInputs cell, double width, double height, SceneBudget budget, CancellationToken cancellationToken)
     {
-        var axes = BuildAxes(cell.AxisPlans, cell.AxisBuilder, width, height, budget, cancellationToken);
-        var headerAxes = cell.HeaderAxisPlans is { Count: > 0 } shared ? BuildAxes(shared, cell.AxisBuilder, width, height, budget, cancellationToken, inHeader: true, cell.KeepHeaderAxis) : null;
+        var chart = cell.Layers[0].Node.ChartRoot ?? cell.Layers[0].Node;
+        var axes = BuildAxes(cell.AxisPlans, cell.AxisBuilder, width, height, budget, cancellationToken, owner: chart);
+        var headerAxes = cell.HeaderAxisPlans is { Count: > 0 } shared ? BuildAxes(shared, cell.AxisBuilder, width, height, budget, cancellationToken, inHeader: true, cell.KeepHeaderAxis, chart) : null;
         var (horizontal, vertical) = LegendLayout.AxisBounds(axes, width, height);
-        var legends = BuildLegends(cell.LegendSpecs, cell.LegendBuilder, cell.Config, horizontal, vertical, width, height, budget, cancellationToken);
+        var legends = BuildLegends(cell.LegendSpecs, cell.LegendBuilder, cell.Config, horizontal, vertical, width, height, budget, cancellationToken, chart);
         return new CellGuides(axes, legends, headerAxes);
     }
 
@@ -177,7 +183,7 @@ public sealed partial class VegaLiteDocument
 
         // The marks group of each layer and each mark are charged by the mark builder before they are created; the layers are drawn in order, the last one on top, with the brushes of the
         // interval selections around them
-        var markBuilder = new MarkBuilder(cell.Config, cell.Limits, budget, cell.SourceName, cell.Expressions);
+        var markBuilder = new MarkBuilder(cell.Config, cell.Limits, budget, cell.SourceName, cell.Expressions) { RecordPositions = cell.RecordMarks };
         content.AddRange(BuildMarkGroups(cell, markBuilder, width, height, cancellationToken));
 
         content.AddRange(axes.Where(a => a.InFront).Select(a => a.Group));
@@ -216,11 +222,58 @@ public sealed partial class VegaLiteDocument
         var groups = new List<SceneItem>(cell.Layers.Count);
         foreach (var layer in cell.Layers)
         {
-            groups.Add(markBuilder.Build(layer.Unit, layer.Data.Main, layer.Scales, width, height, cancellationToken));
+            groups.Add(BuildMarks(markBuilder, layer, width, height, cancellationToken));
         }
 
         return groups;
     }
+
+    /// <summary>
+    ///     Builds the marks group of one layer and, when the render records positions, gives its context the view path,
+    ///     the view name and the facet values of the layer.
+    /// </summary>
+    /// <param name="markBuilder">The mark builder of the cell.</param>
+    /// <param name="layer">The layer.</param>
+    /// <param name="width">The width of the data rectangle.</param>
+    /// <param name="height">The height of the data rectangle.</param>
+    /// <param name="cancellationToken">The token that stops the work.</param>
+    /// <returns>The marks group.</returns>
+    private static SceneGroup BuildMarks(MarkBuilder markBuilder, LayerChart layer, double width, double height, CancellationToken cancellationToken)
+    {
+        var group = markBuilder.Build(layer.Unit, layer.Data.Main, layer.Scales, width, height, cancellationToken);
+        return group.Marks is { } context
+            ? group with
+            {
+                Marks = context with
+                {
+                    View = ScenePositions.ViewPath(layer.Node),
+                    ViewName = ScenePositions.ViewName(layer.Node),
+                    FacetValues = ScenePositions.FacetValues(layer.Node),
+                },
+            }
+            : group;
+    }
+
+    /// <summary>
+    ///     Gets the position tag of a guide or view that belongs to a view of the tree.
+    /// </summary>
+    /// <param name="kind">The kind: <c>view</c>, <c>axis</c>, <c>legend</c> or <c>title</c>.</param>
+    /// <param name="id">The id.</param>
+    /// <param name="owner">The view the guide belongs to, or null for the root.</param>
+    /// <returns>The tag.</returns>
+    private static ScenePositionTag GuideTag(string kind, string id, LayerNode? owner) => new(kind, id)
+    {
+        View = owner is null ? string.Empty : ScenePositions.ViewPath(owner),
+        ViewName = owner is null ? null : ScenePositions.ViewName(owner),
+    };
+
+    /// <summary>
+    ///     Gets the drawn title of an axis for the text of its position.
+    /// </summary>
+    /// <param name="axis">The axis group.</param>
+    /// <returns>The lines of its <c>axis-title</c> text joined by spaces, or null when the axis draws no title.</returns>
+    private static string? AxisTitle(SceneGroup axis) =>
+        axis.Children.OfType<SceneText>().FirstOrDefault(text => text.Role == "axis-title") is { } title ? string.Join(' ', title.Lines) : null;
 
     /// <summary>
     ///     Tells whether a view is the root or below it.
@@ -263,7 +316,7 @@ public sealed partial class VegaLiteDocument
     {
         if (byNode.TryGetValue(node, out var layer))
         {
-            List<SceneItem> own = [markBuilder.Build(layer.Unit, layer.Data.Main, layer.Scales, width, height, cancellationToken)];
+            List<SceneItem> own = [BuildMarks(markBuilder, layer, width, height, cancellationToken)];
 
             // The marks of a unit that is a layer are wrapped by the layered view above it; any other unit wraps its own
             return node.Parent is { IsLayer: true } ? own : WrapWithBrushes(node, own, markBuilder, selections, byNode, width, height);
@@ -334,8 +387,9 @@ public sealed partial class VegaLiteDocument
     /// <param name="height">The height of the data rectangle.</param>
     /// <param name="budget">The budget of scene items the legends are charged to.</param>
     /// <param name="cancellationToken">The token that stops the work.</param>
-    /// <returns>The placed legends; empty when the view has none.</returns>
-    private static LegendPlacement BuildLegends(IReadOnlyList<LegendSpec> specs, LegendBuilder builder, ResolvedConfig config, SceneBounds horizontal, SceneBounds vertical, double width, double height, SceneBudget budget, CancellationToken cancellationToken)
+    /// <param name="owner">The view the legends belong to, which their positions report; null for the root.</param>
+    /// <returns>The placed legends, each tagged with its first channel; empty when the view has none.</returns>
+    private static LegendPlacement BuildLegends(IReadOnlyList<LegendSpec> specs, LegendBuilder builder, ResolvedConfig config, SceneBounds horizontal, SceneBounds vertical, double width, double height, SceneBudget budget, CancellationToken cancellationToken, LayerNode? owner = null)
     {
         if (specs.Count == 0)
         {
@@ -349,7 +403,18 @@ public sealed partial class VegaLiteDocument
             built.Add(builder.Build(spec, width, height, budget, cancellationToken));
         }
 
-        return LegendLayout.Place(built, config, horizontal, vertical, width, height);
+        // Each legend group reports its position by the first channel it explains
+        var placement = LegendLayout.Place(built, config, horizontal, vertical, width, height);
+        var tagged = placement.Groups
+            .Select((group, index) => group with
+            {
+                Position = GuideTag("legend", specs[index].Members[0].Channel, owner) with
+                {
+                    Text = specs[index].Title is { Count: > 0 } title ? string.Join(' ', title) : null,
+                },
+            })
+            .ToList();
+        return placement with { Groups = tagged };
     }
 
     /// <summary>
@@ -363,8 +428,9 @@ public sealed partial class VegaLiteDocument
     /// <param name="cancellationToken">The token that stops the work.</param>
     /// <param name="inHeader">Whether the axes are built for the headers and footers of a facet (<see cref="AxisRequest.InHeader"/>).</param>
     /// <param name="keepInHeader">For axes built for the headers: whether the facet takes the main part of the axis of a side (<see cref="AxisRequest.KeepInHeader"/>).</param>
-    /// <returns>The axes; empty when no position channel has a scale or all axes are switched off.</returns>
-    private static List<AxisResult> BuildAxes(IReadOnlyList<AxisPlan> plans, AxisBuilder builder, double width, double height, SceneBudget budget, CancellationToken cancellationToken, bool inHeader = false, Func<string, bool>? keepInHeader = null)
+    /// <param name="owner">The chart the axes belong to, which their positions report; null for the root.</param>
+    /// <returns>The axes, each group tagged with its channel; empty when no position channel has a scale or all axes are switched off.</returns>
+    private static List<AxisResult> BuildAxes(IReadOnlyList<AxisPlan> plans, AxisBuilder builder, double width, double height, SceneBudget budget, CancellationToken cancellationToken, bool inHeader = false, Func<string, bool>? keepInHeader = null, LayerNode? owner = null)
     {
         var axes = new List<AxisResult>(plans.Count);
         foreach (var plan in plans)
@@ -372,7 +438,9 @@ public sealed partial class VegaLiteDocument
             var model = plan.Scale.CreateModel(plan.Channel == "x" ? width : height);
             if (builder.Build(new AxisRequest(plan.Channel, plan.Definition, plan.Scale, model, width, height, plan.MarkType, budget, plan.DefaultOrient, plan.DefaultGrid, inHeader, keepInHeader), cancellationToken) is { } axis)
             {
-                axes.Add(axis);
+                // The axis group reports its position by its channel, with the bounds of its ticks, labels, domain and title
+                var tag = GuideTag("axis", plan.Channel, owner) with { Text = AxisTitle(axis.Group), Bounds = axis.Bounds };
+                axes.Add(axis with { Group = axis.Group with { Position = tag } });
             }
         }
 
@@ -397,6 +465,7 @@ public sealed partial class VegaLiteDocument
     /// <param name="expressions">The compiled expressions of the call; null when there are none.</param>
     /// <param name="background">The caller's background as CSS, or null.</param>
     /// <param name="cancellationToken">The token that stops the work.</param>
+    /// <param name="recordMarks">Whether the mark items record the rows they draw for the positions of the render.</param>
     /// <returns>The plan.</returns>
     private ChartPlan BuildComposition(
         SpecNode view,
@@ -409,9 +478,10 @@ public sealed partial class VegaLiteDocument
         SceneBudget budget,
         RowExpressions? expressions,
         string? background,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool recordMarks = false)
     {
-        var composer = new Composer(layers, scales, config, measurer, limits, budget, expressions, _tree.SourceName, cancellationToken);
+        var composer = new Composer(layers, scales, config, measurer, limits, budget, expressions, _tree.SourceName, cancellationToken) { RecordMarks = recordMarks };
         ReportStage("compose", finished: false);
         var content = composer.Compose(root);
         ReportStage("compose", finished: true);
@@ -493,6 +563,9 @@ public sealed partial class VegaLiteDocument
 
         /// <summary>The header properties, labels and titles of the channels of each facet, by facet and channel (<c>row</c>, <c>column</c> or <c>facet</c>).</summary>
         private readonly Dictionary<(LayerNode Facet, string Channel), FacetChannel> _facetChannels = new();
+
+        /// <summary>Gets a value indicating whether the mark items record the rows they draw for the positions of the render.</summary>
+        public bool RecordMarks { get; init; }
 
         /// <summary>
         ///     Initializes the composer and plans the guides of all the charts.
@@ -688,7 +761,8 @@ public sealed partial class VegaLiteDocument
                     _sourceName,
                     _expressions,
                     facet is null ? null : _axesOfChart.GetValueOrDefault(facet),
-                    facet is null ? null : HeaderSides(chart, facet));
+                    facet is null ? null : HeaderSides(chart, facet),
+                    RecordMarks);
                 var guides = BuildCellGuides(cell, size.Width, size.Height, _budget, _cancellationToken);
                 if (guides.HeaderAxes is { } headerAxes)
                 {
@@ -704,11 +778,22 @@ public sealed partial class VegaLiteDocument
             var (bounds, placedTitle) = ViewLayout.CellBounds(size.Width, size.Height, extents, title, strokeWidth);
             if (placedTitle is not null)
             {
-                content.Add(placedTitle);
+                content.Add(WithView(placedTitle, chart));
             }
 
-            return new CompositionCell(ViewLayout.CreateViewGroup(style, 0, 0, size.Width, size.Height, null, content), bounds);
+            // The data rectangle of the chart reports its position by the path of the chart
+            var viewTag = GuideTag("view", ScenePositions.ViewPath(chart), chart);
+            return new CompositionCell(ViewLayout.CreateViewGroup(style, 0, 0, size.Width, size.Height, null, content) with { Position = viewTag }, bounds);
         }
+
+        /// <summary>
+        ///     Gives a title group the view it belongs to, when it reports a position.
+        /// </summary>
+        /// <param name="title">The placed title group.</param>
+        /// <param name="owner">The view.</param>
+        /// <returns>The group, with the view in its tag.</returns>
+        private static SceneGroup WithView(SceneGroup title, LayerNode owner) =>
+            title.Position is { } tag ? title with { Position = tag with { View = ScenePositions.ViewPath(owner), ViewName = ScenePositions.ViewName(owner) } } : title;
 
         /// <summary>
         ///     Builds the title of the cell of a chart: the label of its value in a wrapped facet, else the title of the chart.
@@ -871,7 +956,7 @@ public sealed partial class VegaLiteDocument
 
             var around = bounds.IsEmpty ? new SceneBounds(0, 0, 0, 0) : bounds;
             var legendBuilder = new LegendBuilder(_measurer, _limits, _sourceName, _expressions);
-            var legends = BuildLegends(specs, legendBuilder, _config, around, around, 0, 0, _budget, _cancellationToken);
+            var legends = BuildLegends(specs, legendBuilder, _config, around, around, 0, 0, _budget, _cancellationToken, node);
             items.AddRange(legends.Groups);
             return bounds.Union(legends.Bounds);
         }
@@ -1089,7 +1174,7 @@ public sealed partial class VegaLiteDocument
             if (title is not null)
             {
                 var (group, titleBounds) = title.Place(0, 0, bounds.IsEmpty ? new SceneBounds(0, 0, 0, 0) : bounds);
-                items.Add(group);
+                items.Add(WithView(group, node));
                 bounds = bounds.Union(titleBounds);
             }
 

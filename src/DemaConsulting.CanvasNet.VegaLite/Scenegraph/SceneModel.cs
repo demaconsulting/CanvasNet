@@ -1,5 +1,6 @@
 // Portions derived from Vega (BSD-3-Clause); see third-party/README.md
 using System.Collections.ObjectModel;
+using DemaConsulting.CanvasNet.Positions;
 
 namespace DemaConsulting.CanvasNet.VegaLite.Scenegraph;
 
@@ -124,7 +125,71 @@ internal abstract record SceneItem
     ///     finite or is below 1 to 1 and a value above 1,000 to 1,000.
     /// </summary>
     public double? StrokeMiterLimit { get; init; }
+
+    /// <summary>
+    ///     Gets the guide or view whose position the item reports (a view, axis, legend or title group), or
+    ///     <see langword="null"/> (default) when it reports none.
+    /// </summary>
+    /// <remarks>
+    ///     The tag never changes the pixels. It is internal, so the reflection-based scene tests do not see it; see
+    ///     <see cref="ScenePositions"/>.
+    /// </remarks>
+    internal ScenePositionTag? Position { get; init; }
+
+    /// <summary>
+    ///     Gets the row of the data table of the enclosing marks group that a mark item draws, or -1 (default) when the
+    ///     item is not a mark or the render records no positions (<see cref="Marks.MarkBuilder.RecordPositions"/>).
+    /// </summary>
+    internal int Datum { get; init; } = -1;
 }
+
+/// <summary>
+///     The guide or view a scene group draws, as <see cref="ScenePositions"/> reports it.
+/// </summary>
+/// <param name="Kind">The lowercase kind: <c>view</c>, <c>axis</c>, <c>legend</c> or <c>title</c>.</param>
+/// <param name="Id">The id: the view path of a view, the channel of an axis or a legend, <c>title</c> for a title.</param>
+internal sealed record ScenePositionTag(string Kind, string Id)
+{
+    /// <summary>Gets the text of the guide (a title, the title of an axis or a legend), or null.</summary>
+    public string? Text { get; init; }
+
+    /// <summary>Gets the canonical path of the view that holds the guide; the root view (<c>""</c>) by default.</summary>
+    public string View { get; init; } = string.Empty;
+
+    /// <summary>Gets the <c>name</c> the specification gives that view, or null.</summary>
+    public string? ViewName { get; init; }
+
+    /// <summary>
+    ///     Gets the box of the guide in the coordinates of the tagged group's parent, or null to take the group's own
+    ///     rectangle (its position and size: a view's data rectangle, a legend's frame).
+    /// </summary>
+    public SceneBounds? Bounds { get; init; }
+}
+
+/// <summary>
+///     What a marks group knows about its mark items for <see cref="ScenePositions"/>: the view they belong to and the
+///     normalized values of a row. Created only when the render records positions.
+/// </summary>
+/// <param name="Values">Gives the values of the encoding channels for a row, sorted ordinally by channel name.</param>
+internal sealed record SceneMarkContext(Func<int, IReadOnlyList<KeyValuePair<string, PositionValue>>> Values)
+{
+    /// <summary>Gets the canonical path of the view that the marks belong to.</summary>
+    public string View { get; init; } = string.Empty;
+
+    /// <summary>Gets the <c>name</c> the specification gives that view, or null.</summary>
+    public string? ViewName { get; init; }
+
+    /// <summary>Gets the values of the facet channels of the cell the marks are in (<c>row</c>, <c>column</c>, <c>facet</c>); empty outside a facet.</summary>
+    public IReadOnlyList<KeyValuePair<string, PositionValue>> FacetValues { get; init; } = [];
+}
+
+/// <summary>
+///     One vertex of a line, area or trail mark: the row it draws and its point in the coordinates of the marks group.
+/// </summary>
+/// <param name="Row">The row of the data table.</param>
+/// <param name="X">The x of the vertex (the top edge of an area).</param>
+/// <param name="Y">The y of the vertex.</param>
+internal readonly record struct SceneVertex(int Row, double X, double Y);
 
 /// <summary>
 ///     A color stop of a <see cref="SceneGradient"/>.
@@ -291,6 +356,12 @@ internal sealed record SceneGroup : SceneItem
         get => _children;
         init => _children = SceneLists.Copy(value);
     }
+
+    /// <summary>
+    ///     Gets what a marks group knows about the positions of its mark items, or <see langword="null"/> (default) when
+    ///     the group is not a marks group or the render records no positions.
+    /// </summary>
+    internal SceneMarkContext? Marks { get; init; }
 }
 
 /// <summary>
@@ -506,6 +577,12 @@ internal sealed record ScenePath : SceneItem
 
     /// <summary>Gets a value indicating whether the last point is joined to the first (a polygon); <see langword="false"/> by default.</summary>
     public bool Closed { get; init; }
+
+    /// <summary>
+    ///     Gets the vertices of a line or area mark, one per drawn row in drawing order, or <see langword="null"/>
+    ///     (default) when the path is not such a mark or the render records no positions.
+    /// </summary>
+    internal IReadOnlyList<SceneVertex>? Vertices { get; init; }
 }
 
 /// <summary>
@@ -597,6 +674,12 @@ internal sealed record SceneTrail : SceneItem
 
     /// <summary>Gets the runs of points; each run is drawn on its own and a gap separates two runs.</summary>
     public IReadOnlyList<IReadOnlyList<SceneTrailPoint>> Runs => _runs;
+
+    /// <summary>
+    ///     Gets the vertices of the trail, one per drawn row in drawing order, or <see langword="null"/> (default) when
+    ///     the render records no positions.
+    /// </summary>
+    internal IReadOnlyList<SceneVertex>? Vertices { get; init; }
 }
 
 /// <summary>
