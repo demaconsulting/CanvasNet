@@ -102,6 +102,43 @@ public class ScadGeometryBuilderStackTests
     }
 
     /// <summary>
+    ///     Validates that a build moved to the dedicated build thread (the path a caller below the runtime's minimum
+    ///     execution stack takes) gives the same scene as an inline build and hands its exceptions back unchanged.
+    /// </summary>
+    [Fact]
+    public void ScadGeometryBuilder_Build_OnDedicatedBuildThread_MatchesInlineAndRethrows()
+    {
+        // Arrange
+        static T Forced<T>(Func<T> work) =>
+            OnSmallStack(
+                () =>
+                {
+                    ScadGeometryBuilder.ForceBuildThreadForCurrentThread = true;
+                    try
+                    {
+                        return work();
+                    }
+                    finally
+                    {
+                        ScadGeometryBuilder.ForceBuildThreadForCurrentThread = false;
+                    }
+                },
+                BigStack);
+        ScadInstance Unsupported() =>
+            new(ScadInstanceKind.BuiltinModule, "surface", [], [], ScadModifiers.None, Defaults, new ScadSourceLocation(null, 1, 1));
+
+        // Act
+        var inline = OnSmallStack(() => BuildChain(1000), BigStack);
+        var forced = Forced(() => BuildChain(1000));
+        var error = Forced(() => Record.Exception(
+            () => ScadGeometryBuilder.Build([Unsupported()], Settings(strict: true), new ScadEvaluationSink(ScadLimits.Default))));
+
+        // Assert
+        Assert.Equal(inline, forced);
+        Assert.IsType<ScadUnsupportedFeatureException>(error);
+    }
+
+    /// <summary>
     ///     Validates that a deep <c>!</c> search (a mark at the bottom of a deep tree) is also iterative.
     /// </summary>
     [Fact]

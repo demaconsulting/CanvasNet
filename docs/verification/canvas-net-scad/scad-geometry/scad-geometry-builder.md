@@ -106,7 +106,8 @@ wrong limit, an exception that is wrapped, or a scene option that is lost by the
 `ScadGeometryBuilderTransformDepthTests.ScadGeometryBuilder_Build_DeepColorChain_OnSmallStack_Builds`,
 `ScadGeometryBuilderTransformDepthTests.ScadGeometryBuilder_Build_DeepFlatTranslateChain_OnSmallStack_ComposesExactly`,
 `ScadGeometryBuilderTransformDepthTests.ScadGeometryBuilder_Build_DeepTranslateChainFromSource_OnSmallStack_ComposesExactly`,
-`ScadGeometryBuilderHullTests.ScadGeometryBuilder_HullAndMinkowski_DeeplyNestedInstances_BuildOnASmallStack`
+`ScadGeometryBuilderHullTests.ScadGeometryBuilder_HullAndMinkowski_DeeplyNestedInstances_BuildOnASmallStack`,
+`ScadGeometryBuilderStackTests.ScadGeometryBuilder_Build_OnDedicatedBuildThread_MatchesInlineAndRethrows`
 
 Asserts that a chain of 100,000 groups (a cube and the next group per level) yields 100,001 meshes at depth
 100,001 with the same description on 64 KiB, 256 KiB, and big stacks; that 5,000 levels of a user module written
@@ -116,7 +117,9 @@ differences give one node and one operand per level; that a 3,000-level chain of
 source extrudes linearly and by rotation; that 100,000 translations compose to the exact offset, 10,000
 nested scales to the closed-form product, 100,000 colors build, 100,000 2D translations place the slab exactly, and
 3,000 translations from source compose exactly; and that hand-built chains of 3,000 nested hulls and 800 nested
-Minkowski sums around a unit cube build to the same unit solid on 64 KiB and big stacks.
+Minkowski sums around a unit cube build to the same unit solid on 64 KiB and big stacks; and that a build forced onto
+the dedicated build thread (the path of a caller below the runtime's minimum execution stack) gives the same scene
+as an inline build and hands a strict-mode unsupported-feature exception back unchanged.
 
 ##### CanvasNetScad-ScadGeometry-ScadGeometryBuilder-ImplicitUnion: Groups And Unions
 

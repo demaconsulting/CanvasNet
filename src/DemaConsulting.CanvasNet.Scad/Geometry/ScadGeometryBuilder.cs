@@ -1,4 +1,7 @@
 // cspell:ignore multmatrix minkowski
+using System.Globalization;
+using System.Runtime.CompilerServices;
+using System.Runtime.ExceptionServices;
 using DemaConsulting.CanvasNet.Render3D.SceneModel;
 using DemaConsulting.CanvasNet.Render3D.Tessellation;
 using DemaConsulting.CanvasNet.Scad.Evaluation;
@@ -13,7 +16,13 @@ namespace DemaConsulting.CanvasNet.Scad.Geometry;
 ///         <b>Iterative by construction.</b> The tree can be thousands of levels deep (a recursive user module is
 ///         bounded only by <see cref="ScadLimits.MaxRecursionDepth"/>), so the engine walks it with an explicit stack
 ///         in post-order, exactly like the renderer's CSG compiler, and no code in the <c>Geometry</c> namespace
-///         recurses. The build therefore behaves identically on any caller stack, including a 64 KiB one.
+///         recurses, so the stack a build needs does not depend on the depth of the tree. One level still runs a fixed
+///         chain of calls (down to the exact predicates of the convex hull, whose arbitrary-precision arithmetic is
+///         large), and the runtime may compile code on the calling thread while it runs; on .NET 11 with the framework
+///         compiled just in time, that chain and the compilation together exceeded a 64 KiB stack. A build therefore
+///         runs inline only when <see cref="RuntimeHelpers.TryEnsureSufficientExecutionStack"/> reports the runtime's
+///         minimum execution stack, and otherwise on a dedicated thread (<see cref="BuildThreadStackSize"/>), which
+///         gives the same scene, so the build behaves identically on any caller stack, including a 64 KiB one.
 ///     </para>
 ///     <para>
 ///         <b>Dispatch.</b> A group (a user module, <c>for</c>, a modifier wrapper) and the <c>union</c> and
@@ -55,6 +64,26 @@ internal sealed partial class ScadGeometryBuilder
     /// <summary>The largest effective triangle count that is tracked (far above any budget; keeps sums from overflowing).</summary>
     private const long EffectiveCap = long.MaxValue / 4;
 
+    /// <summary>
+    ///     The stack size in bytes of the dedicated build thread (16 MiB), used only when the caller's stack is below
+    ///     the runtime's minimum execution stack.
+    /// </summary>
+    /// <remarks>
+    ///     The walk is iterative, so the build needs only the fixed chain of one level (measured at under 32 KiB,
+    ///     including the code the runtime compiles on the thread); 16 MiB leaves a wide margin for other runtimes and
+    ///     architectures. It is reserved address space that is committed only as it is touched.
+    /// </remarks>
+    internal const int BuildThreadStackSize = 16 * 1024 * 1024;
+
+    /// <summary>The name of the dedicated build thread.</summary>
+    private const string BuildThreadName = "CanvasNet.Scad geometry build";
+
+    /// <summary>
+    ///     A per-thread test seam that forces <see cref="Build"/> onto the dedicated build thread, so that path is
+    ///     exercised whatever stack size the platform really grants.
+    /// </summary>
+    [ThreadStatic]
+    internal static bool ForceBuildThreadForCurrentThread;
     /// <summary>The services of this build.</summary>
     private readonly ScadGeometryContext _context;
 
@@ -89,6 +118,28 @@ internal sealed partial class ScadGeometryBuilder
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(sink);
 
+        // The walk is iterative, but one level still runs a fixed chain of calls (down to the exact predicates of the
+        // convex hull), and the runtime may compile code on this thread while it runs; below the runtime's minimum
+        // execution stack the build moves to a dedicated thread so that chain can never overflow the caller's stack
+        if (!RuntimeHelpers.TryEnsureSufficientExecutionStack() || ForceBuildThreadForCurrentThread)
+        {
+            return RunOnBuildThread(() => BuildInline(roots, settings, sink));
+        }
+
+        return BuildInline(roots, settings, sink);
+    }
+
+
+
+    /// <summary>
+    ///     Builds the scene on the current thread.
+    /// </summary>
+    /// <param name="roots">The top-level instances of the evaluation.</param>
+    /// <param name="settings">The settings of the build.</param>
+    /// <param name="sink">The sink that receives warnings and unsupported features.</param>
+    /// <returns>The scene and the location map of its mesh nodes.</returns>
+    private static ScadBuiltScene BuildInline(IReadOnlyList<ScadInstance> roots, ScadGeometrySettings settings, ScadEvaluationSink sink)
+    {
         var context = new ScadGeometryContext(settings, new ScadReporter(sink, settings.ThrowOnUnsupportedFeature));
         var builder = new ScadGeometryBuilder(context);
 
@@ -111,8 +162,57 @@ internal sealed partial class ScadGeometryBuilder
     }
 
     /// <summary>
-    ///     Converts the result of the whole model into the root node of the scene.
+    ///     Runs a build on a dedicated thread with a <see cref="BuildThreadStackSize"/> stack and the caller's cultures,
+    ///     and returns its result, rethrowing any exception unchanged.
     /// </summary>
+    /// <param name="build">The build to run.</param>
+    /// <returns>The result of the build.</returns>
+    /// <exception cref="ScadEvaluationException">Thrown when the dedicated thread cannot be created or started.</exception>
+    private static ScadBuiltScene RunOnBuildThread(Func<ScadBuiltScene> build)
+    {
+        ScadBuiltScene? result = null;
+        ExceptionDispatchInfo? failure = null;
+        var culture = CultureInfo.CurrentCulture;
+        var uiCulture = CultureInfo.CurrentUICulture;
+        Thread thread;
+        try
+        {
+            thread = new Thread(
+                () =>
+                {
+                    CultureInfo.CurrentCulture = culture;
+                    CultureInfo.CurrentUICulture = uiCulture;
+                    try
+                    {
+                        result = build();
+                    }
+                    catch (Exception ex)
+                    {
+                        // Every exception is handed back to the caller unchanged, so none may be lost here
+                        failure = ExceptionDispatchInfo.Capture(ex);
+                    }
+                },
+                BuildThreadStackSize)
+            {
+                IsBackground = true,
+                Name = BuildThreadName,
+            };
+            thread.Start();
+        }
+        catch (Exception ex) when (ex is OutOfMemoryException or ThreadStartException)
+        {
+            throw new ScadEvaluationException(
+                "The geometry build needs a dedicated thread on this small caller stack and it could not be started",
+                ex);
+        }
+
+        thread.Join();
+        failure?.Throw();
+        return result!;
+    }
+
+    /// <summary>
+    ///     Converts the result of the whole model into the root node of the scene.    /// </summary>
     /// <param name="geo">The result of the model.</param>
     /// <returns>The root node: the solid, a group of slabs for a flat model, or an empty group.</returns>
     private SceneNode ToSceneRoot(ScadGeo geo)
