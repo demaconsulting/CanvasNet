@@ -27,8 +27,9 @@ Every document of `canvasnet help ... --json` has the envelope and a `kind`:
   summary, command}), and examples[] ({name, kind, language, fileName,
   description, content}; fileName only for a file).
 - `kind: examples`: for `canvasnet help <topic> [<card> ...] --examples --json`:
-  id and examples[] of the card and of the cards below it, each with the card it
-  belongs to and without the content.
+  id, examples[] (the card's own examples, each as in the card document, with
+  the content), and cards[] ({id, summary, command, examples}: the cards below
+  it that have examples, with the example names).
 - `kind: example`: for `canvasnet help <topic> [<card> ...] --example <name>
   --json`: id and one example object ({card, name, kind, language, fileName,
   description, content}).
@@ -36,5 +37,7 @@ Every document of `canvasnet help ... --json` has the envelope and a `kind`:
 ## Schema version {{schemaVersion}}
 
 Version 2 replaced the help topic document (topic, sections[]) with the card and
-topics documents, and dropped the constant topic key of the index. Every other
-document is unchanged.
+topics documents and dropped the constant topic key of the index. The examples
+and example documents name the card by id, and the examples document carries
+the card's own examples in full and the cards below it that have examples. The
+documents of the other commands are unchanged.

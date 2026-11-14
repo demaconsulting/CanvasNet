@@ -88,11 +88,20 @@ Draw the layers in this order; each covers the one before:
   Give both the same `view=` and `def.` values (see
   `canvasnet help scad anchors`).
 - A Mermaid diagram or a Vega-Lite chart reports no positions of its nodes,
-  marks, or axes. Its layout is deterministic, and rendering it alone with
-  `--size` equal to the box gives the picture the figure embeds: find the
-  feature in that PNG, check it with `canvasnet inspect pixel slot.png 212,96`,
-  and add the image `x` and `y`. Measure again after any change to the source
-  or the box.
+  marks, or axes. Its layout is deterministic, so rendered alone at the size of
+  its box it is the picture the figure embeds. Draw it with a labeled grid
+  (`--grid N[,color]`, a line every N pixels; see `canvasnet render --help`),
+  read the x,y of the feature off the grid, and confirm the color there with
+  `inspect pixel` at the same size (here the Send node of the flowchart
+  example, `canvasnet help mermaid flowchart --example flowchart`):
+
+```shell
+canvasnet render flowchart.mmd --size 430x280 --grid 50 -o grid.png
+canvasnet inspect pixel flowchart.mmd 380,125 --size 430x280 --radius 2
+```
+
+- Add the image `x` and `y` to that point. Positions are not reported, so
+  measure again after any change to the source or the box.
 - Keep the box size in viewBox units: a figure drawn at any `--width` then
   scales the picture and the callouts together.
 

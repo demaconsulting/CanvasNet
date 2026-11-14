@@ -733,25 +733,29 @@ public class CommandRegistryTests
     }
 
     /// <summary>
-    ///     Test that <c>help &lt;topic&gt; --examples</c> lists the examples of the topic, as text and as JSON.
+    ///     Test that <c>help &lt;card&gt; --examples</c> prints every example of the card in full and lists the cards
+    ///     below it that have examples, as text and as JSON.
     /// </summary>
     [Fact]
-    public void CommandRegistry_Run_HelpExamples_ListsNames()
+    public void CommandRegistry_Run_HelpExamples_PrintsTheCardsExamplesInFull()
     {
-        // Arrange: a registry
+        // Arrange: a registry, the svg topic, and its flatten card
         var registry = CreateHelpRegistry();
         var topic = HelpTopics.Get("svg");
+        var flatten = HelpTopics.Get("svg/flatten");
 
-        // Act: list the examples of the tree, and of one card
-        var text = RunHelp(registry, false, "svg", "--examples");
+        // Act: print the examples of the topic and of one card
+        var text = RunHelp(registry, false, "svg", "--examples").Replace("\r\n", "\n", StringComparison.Ordinal);
         var json = RunHelp(registry, true, "svg", "--examples");
-        var one = RunHelp(registry, false, "svg", "flatten", "--examples");
+        var one = RunHelp(registry, false, "svg", "flatten", "--examples").Replace("\r\n", "\n", StringComparison.Ordinal);
 
-        // Assert: every example name of the tree is listed, and the JSON is the list document
-        Assert.All(HelpTopics.SubtreeExamples(topic), example => Assert.Contains(example.Example.Name, text));
-        Assert.Equal(HelpTopics.RenderExampleListJson(topic), json.TrimEnd());
-        Assert.Contains("flatten", one);
-        Assert.DoesNotContain("shapes", one);
+        // Assert: the card prints its own examples in full; the topic points at the cards below with examples
+        Assert.Equal(HelpTopics.RenderExamples(flatten) + "\n", one);
+        Assert.All(flatten.Examples, example => Assert.Contains(example.Content, one));
+        Assert.Equal(HelpTopics.RenderExamples(topic) + "\n", text);
+        Assert.All(HelpTopics.CardsBelowWithExamples(topic), card => Assert.Contains($"{card.Command} --examples", text));
+        Assert.DoesNotContain(flatten.Examples[0].Content, text);
+        Assert.Equal(HelpTopics.RenderExamplesJson(topic), json.TrimEnd());
     }
 
     /// <summary>

@@ -113,13 +113,17 @@ options (with `takesValue`, and the `valueName` only for an option that takes a 
 index (the same for no subject and for `help`) has exactly the keys of the envelope, `kind` (`index`), `usage`,
 `commands`, `topics` (every root card with its aliases and summary), and `globalOptions`.
 
-**CommandRegistry_Run_HelpExample_WritesOnlyTheSource** and **CommandRegistry_Run_HelpExamples_ListsNames**: `help svg
---example shapes` writes the exact source of the example and one line end, and with `--json` the example document;
-`help svg --examples` lists every example name of the `svg` tree, and with `--json` gives the list document;
-`help svg flatten --examples` lists only the examples of that card.
+**CommandRegistry_Run_HelpExample_WritesOnlyTheSource**: `help svg --example shapes` writes the exact source of the
+example and one line end, and with `--json` the example document.
+
+**CommandRegistry_Run_HelpExamples_PrintsTheCardsExamplesInFull**: `help svg flatten --examples` writes the examples
+text of that card (`HelpTopics.RenderExamples`) and one line end, with the content of each of its examples;
+`help svg --examples` writes the examples text of `svg`, which has the `--examples` command of every card below it that
+has examples and none of the content of the `svg flatten` example, and with `--json` the examples document.
 
 **CommandRegistry_Run_HelpExamplesOnCardWithoutExamples_ThrowsUsageError**: `help mermaid differences --examples` is the
-usage error `'mermaid differences' has no examples.` with a hint to `canvasnet help mermaid --examples`.
+usage error `'mermaid differences' has no examples.` with a hint to `canvasnet help mermaid --examples`, which finds the
+cards of `mermaid` that have examples.
 
 **CommandRegistry_Run_HelpExampleUnknown_ThrowsUsageErrorWithNames**: an unknown example name is a usage error that names
 the card and the example (`Help card 'svg' has no example 'nothing'.`) and lists the valid example names in the hint.

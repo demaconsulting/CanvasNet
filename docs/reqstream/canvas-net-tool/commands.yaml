@@ -55,9 +55,9 @@ sections:
           cards shipped inside the tool and addressed by a path of names (canvasnet help mermaid gantt), each format
           with what is supported and what is not, the options, the diagnostics, the known differences, and tiny
           verified examples, each card ending with the cards below it and its See also links as exact commands with
-          their summaries, shall print one example alone or list the examples, shall write any help as one JSON
-          document when the JSON option is given (without a banner or color codes), and shall report an unknown help
-          subject or card as a usage error that suggests the closest name and lists the valid ones.
+          their summaries, shall print one example alone or every example of a card in full, shall write any help as
+          one JSON document when the JSON option is given (without a banner or color codes), and shall report an
+          unknown help subject or card as a usage error that suggests the closest name and lists the valid ones.
         justification: |
           People and AI agents must be able to learn what the tool supports, and to get a working first example, from
           the tool itself, offline and in the version installed; a format is not a command, so the help takes both,

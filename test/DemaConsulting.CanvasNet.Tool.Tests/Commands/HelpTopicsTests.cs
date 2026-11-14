@@ -65,6 +65,12 @@ public partial class HelpTopicsTests
     public static IEnumerable<object[]> CardIdData => HelpTopics.All.Select(c => new object[] { c.Id });
 
     /// <summary>
+    ///     Gets the identifiers of the cards that have examples of their own as theory data.
+    /// </summary>
+    public static IEnumerable<object[]> CardWithExamplesIdData =>
+        HelpTopics.All.Where(c => c.Examples.Count > 0).Select(c => new object[] { c.Id });
+
+    /// <summary>
     ///     Test that every card loads with a title, a summary, and a body, that the roots are the topics in order, that
     ///     the catalog is depth first, and that every root tree has an example.
     /// </summary>
@@ -804,7 +810,13 @@ public partial class HelpTopicsTests
         Assert.All(card.Examples, example => Assert.Contains($"  {example.Name}  ", first));
         if (card.Examples.Count > 0)
         {
+            Assert.Contains($"Print them in full with: {card.Command} --examples,", flat);
             Assert.Contains($"{card.Command} --example <name>", flat);
+        }
+
+        if (HelpTopics.CardsBelowWithExamples(card).Any())
+        {
+            Assert.Contains($"Find the cards below that have examples with: {card.Command} --examples", flat);
         }
     }
 
@@ -896,7 +908,7 @@ public partial class HelpTopicsTests
 
     /// <summary>
     ///     Test that a source example is returned exactly as embedded (LF line endings, no trailing newline), from the
-    ///     root card and from the card it belongs to, and that the list and JSON renderings of the examples describe it.
+    ///     root card and from the card it belongs to, and that the JSON of the example describes it.
     /// </summary>
     [Fact]
     public void HelpTopics_RenderExample_Source_ReturnsExactEmbeddedContent()
@@ -909,27 +921,137 @@ public partial class HelpTopicsTests
 
         // Act
         var content = HelpTopics.RenderExample(card, "PLATE");
-        var list = HelpTopics.RenderExampleList(card);
-        using var listJson = JsonDocument.Parse(HelpTopics.RenderExampleListJson(card));
         using var oneJson = JsonDocument.Parse(HelpTopics.RenderExampleJson(card, "plate"));
 
-        // Assert: the content is exact; the list has one line per example of the tree; the JSON list has no content
+        // Assert: the content is exact, from the root and from its own card, and the JSON names the card it belongs to
         Assert.Equal(expected, content);
         Assert.Equal(expected, HelpTopics.RenderExample(HelpTopics.Get("scad/language"), "plate"));
         Assert.StartsWith("// A plate with a round hole", content);
-        Assert.Equal(HelpTopics.SubtreeExamples(card).Count(), list.Split('\n').Count(l => l.Contains("[source]") || l.Contains("[command]") || l.Contains("[snippet]")));
-        Assert.Equal("examples", listJson.RootElement.GetProperty("kind").GetString());
-        Assert.Equal("scad", listJson.RootElement.GetProperty("id").GetString());
-        Assert.All(listJson.RootElement.GetProperty("examples").EnumerateArray(), e =>
-        {
-            Assert.False(e.TryGetProperty("content", out _));
-            Assert.StartsWith("scad", e.GetProperty("card").GetString());
-        });
         var example = oneJson.RootElement.GetProperty("example");
         Assert.Equal("example", oneJson.RootElement.GetProperty("kind").GetString());
         Assert.Equal(expected, example.GetProperty("content").GetString());
         Assert.Equal("plate.scad", example.GetProperty("fileName").GetString());
         Assert.Equal("scad/language", example.GetProperty("card").GetString());
+    }
+
+    /// <summary>
+    ///     Test that the examples text of a card prints each of its own examples in full: a heading with the name,
+    ///     kind, and file name, the description, and the exact content in a code fence of its language.
+    /// </summary>
+    /// <param name="id">The card identifier.</param>
+    [Theory]
+    [MemberData(nameof(CardWithExamplesIdData))]
+    public void HelpTopics_RenderExamples_CardWithExamples_PrintsEachExampleInFull(string id)
+    {
+        // Arrange / Act: render the examples of the card
+        var card = HelpTopics.Get(id);
+        var text = HelpTopics.RenderExamples(card);
+
+        // Assert: plain LF text with the title, each example in full, and the command that prints one alone
+        Assert.DoesNotContain('\r', text);
+        Assert.False(text.EndsWith('\n'));
+        Assert.StartsWith($"# {card.Title}: examples\n", text);
+        var flat = HelpCardText.Flatten(text);
+        foreach (var example in card.Examples)
+        {
+            var heading = example.FileName == null
+                ? $"## {example.Name} [{example.Kind}]\n"
+                : $"## {example.Name} [{example.Kind}] {example.FileName}\n";
+            var fence = HelpTopics.CodeFence(example.Content);
+            Assert.Contains(heading, text);
+            Assert.Contains(example.Description, flat);
+            Assert.Contains($"\n{fence}{example.Language}\n{example.Content}\n{fence}\n", text);
+        }
+
+        Assert.Contains($"{card.Command} --example <name>", flat);
+        Assert.DoesNotContain("has no examples of its own", text);
+    }
+
+    /// <summary>
+    ///     Test that the examples text of a card without examples of its own says so and lists the cards below it that
+    ///     have examples, each with its examples command and example names, and prints no example content.
+    /// </summary>
+    [Fact]
+    public void HelpTopics_RenderExamples_IndexCard_ListsCardsBelowWithExamples()
+    {
+        // Arrange: the mermaid topic (no examples of its own) and the json topic (examples of its own and below)
+        var mermaid = HelpTopics.Get("mermaid");
+        var json = HelpTopics.Get("json");
+
+        // Act
+        var mermaidText = HelpTopics.RenderExamples(mermaid);
+        var jsonText = HelpTopics.RenderExamples(json);
+
+        // Assert: mermaid points at every card below with examples and prints none of them
+        Assert.Contains("'mermaid' has no examples of its own.", mermaidText);
+        Assert.Contains("\n## Cards below with examples\n", mermaidText);
+        var below = HelpTopics.CardsBelowWithExamples(mermaid).ToList();
+        Assert.NotEmpty(below);
+        Assert.All(below, c =>
+        {
+            Assert.Contains($"- {c.Command} --examples\n", mermaidText);
+            Assert.All(c.Examples, e => Assert.DoesNotContain($"## {e.Name} [", mermaidText));
+        });
+        Assert.DoesNotContain("```", mermaidText);
+
+        // Assert: json prints its own examples, then points at json help
+        Assert.All(json.Examples, e => Assert.Contains(e.Content, jsonText));
+        Assert.Contains("- canvasnet help json help --examples\n", jsonText);
+        Assert.True(
+            jsonText.IndexOf("--example <name>", StringComparison.Ordinal) < jsonText.IndexOf("## Cards below with examples", StringComparison.Ordinal),
+            "The cards below are listed after the card's own examples.");
+    }
+
+    /// <summary>
+    ///     Test that the examples JSON of a card has the documented shape: the card's own examples with their content,
+    ///     without a card key, and the cards below it that have examples, with their example names.
+    /// </summary>
+    [Fact]
+    public void HelpTopics_RenderExamplesJson_HasTheDocumentedShape()
+    {
+        // Arrange: the json topic, which has examples of its own and a card below with examples
+        var card = HelpTopics.Get("json");
+
+        // Act
+        using var document = JsonDocument.Parse(HelpTopics.RenderExamplesJson(card));
+        var root = document.RootElement;
+
+        // Assert: the envelope and key order
+        Assert.Equal(
+            ["schemaVersion", "ok", "command", "kind", "id", "examples", "cards"],
+            root.EnumerateObject().Select(p => p.Name));
+        Assert.Equal("examples", root.GetProperty("kind").GetString());
+        Assert.Equal("json", root.GetProperty("id").GetString());
+
+        // Assert: the card's own examples, in full and without a card key
+        var examples = root.GetProperty("examples").EnumerateArray().ToList();
+        Assert.Equal(card.Examples.Select(e => e.Name), examples.Select(e => e.GetProperty("name").GetString()));
+        Assert.Equal(card.Examples.Select(e => e.Content), examples.Select(e => e.GetProperty("content").GetString()));
+        Assert.All(examples, e => Assert.False(e.TryGetProperty("card", out _)));
+
+        // Assert: the cards below with examples, with their names and commands
+        var cards = root.GetProperty("cards").EnumerateArray().ToList();
+        var below = HelpTopics.CardsBelowWithExamples(card).ToList();
+        Assert.Equal(below.Select(c => c.Id), cards.Select(c => c.GetProperty("id").GetString()));
+        Assert.Equal(below.Select(c => c.Command), cards.Select(c => c.GetProperty("command").GetString()));
+        Assert.Equal(
+            below[0].Examples.Select(e => e.Name),
+            cards[0].GetProperty("examples").EnumerateArray().Select(e => e.GetString()));
+        Assert.Equal(["id", "summary", "command", "examples"], cards[0].EnumerateObject().Select(p => p.Name));
+    }
+
+    /// <summary>
+    ///     Test that the code fence of an example is at least three backticks and longer than any run of backticks in the
+    ///     content, so the content cannot end the block early.
+    /// </summary>
+    [Fact]
+    public void HelpTopics_CodeFence_IsLongerThanAnyBacktickRunInTheContent()
+    {
+        // Arrange / Act / Assert
+        Assert.Equal("```", HelpTopics.CodeFence("canvasnet formats --json"));
+        Assert.Equal("```", HelpTopics.CodeFence("a `b` c ``d``"));
+        Assert.Equal("````", HelpTopics.CodeFence("```mermaid\nflowchart LR\n```"));
+        Assert.Equal("``````", HelpTopics.CodeFence("x `````"));
     }
 
     /// <summary>

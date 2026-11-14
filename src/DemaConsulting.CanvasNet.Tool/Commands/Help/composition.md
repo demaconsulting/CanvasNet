@@ -60,7 +60,9 @@ size, then render, look, and fix.
   box: a model reports its anchors (`anchors[].pixel` of `render --json`; see
   `canvasnet help scad anchors`). A diagram or chart reports no positions, but
   rendered alone with `--size` equal to the box it is the picture the figure
-  embeds: find the feature in that PNG. Add the image `x` and `y`.
+  embeds: read the feature's x,y from
+  `canvasnet render file --size WxH --grid 50` and confirm it with
+  `canvasnet inspect pixel file x,y --size WxH`. Add the image `x` and `y`.
 
 ## Options per placement
 

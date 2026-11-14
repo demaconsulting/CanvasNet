@@ -335,6 +335,16 @@ internal static partial class HelpTopics
     }
 
     /// <summary>
+    ///     Enumerates the cards below a card that have examples of their own.
+    /// </summary>
+    /// <param name="card">The card.</param>
+    /// <returns>The descendants of the card that have examples, depth first.</returns>
+    public static IEnumerable<HelpCard> CardsBelowWithExamples(HelpCard card)
+    {
+        return Subtree(card).Skip(1).Where(c => c.Examples.Count > 0);
+    }
+
+    /// <summary>
     ///     Finds a card among some cards by its name or one of its aliases.
     /// </summary>
     /// <param name="cards">The cards to search.</param>

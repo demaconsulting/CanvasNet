@@ -56,8 +56,8 @@ sections:
           documents, errors, limits, and the files a document may reference, as a tree of short help cards with tiny
           examples that render without a diagnostic, when the help command is given a card path such as
           `canvasnet help mermaid gantt`, shall end each card with the exact commands of the cards below it and of its
-          See also links, shall print one example alone or list the examples, and shall write any help as one JSON
-          document, without a banner, when the `--json` option is given.
+          See also links, shall print one example alone or every example of a card in full, and shall write any help
+          as one JSON document, without a banner, when the `--json` option is given.
         tags: [system]
         justification: |
           An AI agent that has to draw or convert a file must learn what each format supports, and get a working

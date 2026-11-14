@@ -271,4 +271,159 @@ public partial class HelpTopicsTests
         using var document = JsonDocument.Parse(stdOut);
         Assert.Equal(0, document.RootElement.GetProperty("metrics").GetProperty("diffPixels").GetInt64());
     }
+
+    /// <summary>
+    ///     Test the advice of the <c>svg framed-figure</c> card for a diagram or chart: the commands of its fenced block
+    ///     draw the picture at the box size with a labeled grid, and <c>inspect pixel</c> on the source at that size reads
+    ///     the same pixel as the picture rendered alone, on the node the card names.
+    /// </summary>
+    [Fact]
+    public void HelpTopics_FramedFigureAdvice_GridAndInspectPixel_ReadThePictureAtTheBoxSize()
+    {
+        // Arrange: the two command lines of the card, and the flowchart example
+        var card = HelpTopics.Get("svg/framed-figure");
+        var lines = card.Body.Split('\n').Where(l => l.StartsWith("canvasnet ", StringComparison.Ordinal)).ToList();
+        var gridLine = Assert.Single(lines, l => l.Contains("--grid", StringComparison.Ordinal));
+        var pixelLine = Assert.Single(lines, l => l.StartsWith("canvasnet inspect pixel ", StringComparison.Ordinal));
+        Assert.Contains("canvasnet render --help", HelpCardText.Flatten(card.Body));
+        using var directory = new TempDirectory();
+        File.WriteAllText(directory.Combine("flowchart.mmd"), HelpTopics.RenderExample(HelpTopics.Get("mermaid"), "flowchart"));
+
+        // Arguments of a card line, with the file names in the temporary directory
+        string[] ArgumentsOf(string line) => line.Split(' ')[1..]
+            .Select(a => a.EndsWith(".mmd", StringComparison.Ordinal) || a.EndsWith(".png", StringComparison.Ordinal) ? directory.Combine(a) : a)
+            .ToArray();
+        var gridArguments = ArgumentsOf(gridLine);
+        var pixelArguments = ArgumentsOf(pixelLine);
+        var size = gridArguments[Array.IndexOf(gridArguments, "--size") + 1];
+        var point = pixelArguments[3];
+
+        // Act: run the card's commands, render the picture alone, and read the same point of the PNG
+        var grid = ToolHost.Invoke(gridArguments);
+        var alone = ToolHost.Invoke("render", directory.Combine("flowchart.mmd"), "--size", size, "--strict", "-o", directory.Combine("alone.png"));
+        var fromSource = ToolHost.Invoke([.. pixelArguments, "--json"]);
+        var fromPicture = ToolHost.Invoke("inspect", "pixel", directory.Combine("alone.png"), point, "--json");
+        var compare = ToolHost.Invoke("compare", directory.Combine("grid.png"), directory.Combine("alone.png"), "--json");
+
+        // Assert: the grid changes the picture, and the source and the picture agree on the point, a node of the diagram
+        Assert.True(grid.ExitCode == 0, grid.StdErr + grid.StdOut);
+        Assert.True(alone.ExitCode == 0, alone.StdErr + alone.StdOut);
+        Assert.True(fromSource.ExitCode == 0, fromSource.StdErr + fromSource.StdOut);
+        Assert.True(fromPicture.ExitCode == 0, fromPicture.StdErr + fromPicture.StdOut);
+        using var compareDocument = JsonDocument.Parse(compare.StdOut);
+        Assert.False(compareDocument.RootElement.GetProperty("metrics").GetProperty("identical").GetBoolean());
+        using var sourceDocument = JsonDocument.Parse(fromSource.StdOut);
+        using var pictureDocument = JsonDocument.Parse(fromPicture.StdOut);
+        var hex = sourceDocument.RootElement.GetProperty("pixel").GetProperty("hex").GetString();
+        Assert.Equal(pictureDocument.RootElement.GetProperty("pixel").GetProperty("hex").GetString(), hex);
+        Assert.Equal("#CCFFCC", hex);
+    }
+
+    /// <summary>
+    ///     Test the advice of the <c>scad views</c> and <c>svg fragments</c> cards for the view angles of a fragment:
+    ///     <c>def.$vpr=[70,0,45]</c> draws exactly what <c>--azimuth 45 --elevation 20</c> draws, reports those angles,
+    ///     and works in an SVG link without escaping.
+    /// </summary>
+    [Fact]
+    public void HelpTopics_ScadViewsAdvice_VprFragment_EqualsAzimuthAndElevation()
+    {
+        // Arrange: the cards, the plate example, and a figure that links the model with the fragment
+        Assert.Contains("'part.scad#def.$vpr=[70,0,45]' is --azimuth 45 --elevation 20", HelpCardText.TextOf("scad/views"), StringComparison.Ordinal);
+        Assert.Contains("def.$vpr=[70,0,45] is azimuth 45, elevation 20", HelpCardText.TextOf("svg/fragments"), StringComparison.Ordinal);
+        using var directory = new TempDirectory();
+        File.WriteAllText(directory.Combine("plate.scad"), HelpTopics.RenderExample(HelpTopics.Get("scad"), "plate"));
+        File.WriteAllText(
+            directory.Combine("figure.svg"),
+            "<svg xmlns='http://www.w3.org/2000/svg' width='300' height='300'><image href='plate.scad#def.$vpr=[70,0,45]' x='0' y='0' width='300' height='300'/></svg>");
+
+        // Act: the fragment, the options, and the link
+        var fragment = ToolHost.Invoke("render", directory.Combine("plate.scad") + "#def.$vpr=[70,0,45]", "--size", "300x300", "--strict", "--json", "-o", directory.Combine("vpr.png"));
+        var options = ToolHost.Invoke("render", directory.Combine("plate.scad"), "--azimuth", "45", "--elevation", "20", "--size", "300x300", "-o", directory.Combine("angles.png"));
+        var link = ToolHost.Invoke("render", directory.Combine("figure.svg"), "--strict", "--json", "-o", directory.Combine("figure.png"));
+        var compare = ToolHost.Invoke("compare", directory.Combine("vpr.png"), directory.Combine("angles.png"), "--json");
+
+        // Assert: the fragment reports the angles and draws the same picture; the link draws without a diagnostic
+        Assert.True(fragment.ExitCode == 0, fragment.StdErr + fragment.StdOut);
+        Assert.True(options.ExitCode == 0, options.StdErr + options.StdOut);
+        Assert.True(link.ExitCode == 0, link.StdErr + link.StdOut);
+        using var fragmentDocument = JsonDocument.Parse(fragment.StdOut);
+        var operation = fragmentDocument.RootElement.GetProperty("operations")[0];
+        Assert.Equal(45, operation.GetProperty("azimuth").GetDouble(), 6);
+        Assert.Equal(20, operation.GetProperty("elevation").GetDouble(), 6);
+        using var compareDocument = JsonDocument.Parse(compare.StdOut);
+        Assert.True(compareDocument.RootElement.GetProperty("metrics").GetProperty("identical").GetBoolean());
+        using var linkDocument = JsonDocument.Parse(link.StdOut);
+        Assert.Empty(linkDocument.RootElement.GetProperty("diagnostics").EnumerateArray());
+    }
+
+    /// <summary>
+    ///     Test the advice of the <c>mermaid gantt</c> card for the grid: the theme variable <c>gridColor</c> changes no
+    ///     pixel, the card's <c>themeCSS</c> rule for <c>.grid .tick</c> recolors the grid lines, and its rule for
+    ///     <c>.grid .tick text</c> resizes the tick labels, both without a diagnostic.
+    /// </summary>
+    [Fact]
+    public void HelpTopics_MermaidGanttAdvice_ThemeCssStylesTheGridNotGridColor()
+    {
+        // Arrange: the card's two CSS rules, and the gantt example with each change
+        var bullets = HelpCardText.Bullets("mermaid/gantt", "Syntax");
+        var axis = Assert.Single(bullets, b => b.StartsWith("Axis: ", StringComparison.Ordinal));
+        var colors = Assert.Single(bullets, b => b.StartsWith("Colors: ", StringComparison.Ordinal));
+        Assert.Contains("`gridColor` is accepted and, as in Mermaid 11, colors no grid line", colors, StringComparison.Ordinal);
+        Assert.Contains("black at 0.8 opacity and their labels 10 px", axis, StringComparison.Ordinal);
+        const string lineRule = ".grid .tick { color: #999999; }";
+        const string labelRule = ".grid .tick text { font-size: 14px; }";
+        Assert.Contains($"`{lineRule}`", axis, StringComparison.Ordinal);
+        Assert.Contains($"`{labelRule}`", axis, StringComparison.Ordinal);
+        var source = HelpTopics.RenderExample(HelpTopics.Get("mermaid"), "gantt");
+        using var directory = new TempDirectory();
+
+        // Act: the plain chart, gridColor red, and each themeCSS rule
+        var plain = Render("plain", source);
+        var gridColor = Render("grid-color", "%%{init: {\"themeVariables\": {\"gridColor\": \"#ff0000\"}}}%%\n" + source);
+        var lines = Render("lines", $"%%{{init: {{\"themeCSS\": \"{lineRule}\"}}}}%%\n" + source);
+        var labels = Render("labels", $"%%{{init: {{\"themeCSS\": \"{labelRule}\"}}}}%%\n" + source);
+
+        // Assert: gridColor changes nothing; the label rule changes the picture
+        Assert.True(Identical(plain, gridColor), "gridColor changed the picture.");
+        Assert.False(Identical(plain, labels), "The font-size rule did not change the tick labels.");
+
+        // Assert: a grid line (the tick of Jun 5) is dark gray, and lighter gray with the color rule
+        var plainLine = PixelAt(plain, "120,160");
+        var styledLine = PixelAt(lines, "120,160");
+        Assert.True(plainLine.R == plainLine.G && plainLine.G == plainLine.B && plainLine.R < 128, $"No black grid line at 120,160: {plainLine}.");
+        Assert.True(styledLine.R == styledLine.G && styledLine.G == styledLine.B, $"The styled grid line is not gray: {styledLine}.");
+        Assert.InRange(styledLine.R, plainLine.R + 40, 250);
+
+        // Renders a chart under --strict without a diagnostic and returns the picture
+        string Render(string name, string chart)
+        {
+            var input = directory.Combine($"{name}.mmd");
+            var output = directory.Combine($"{name}.png");
+            File.WriteAllText(input, chart);
+            var (exitCode, stdOut, stdErr) = ToolHost.Invoke("render", input, "--strict", "--json", "-o", output);
+            Assert.True(exitCode == 0, stdErr + stdOut);
+            using var document = JsonDocument.Parse(stdOut);
+            Assert.Empty(document.RootElement.GetProperty("diagnostics").EnumerateArray());
+            return output;
+        }
+
+        // Whether two pictures are identical
+        static bool Identical(string a, string b)
+        {
+            var (exitCode, stdOut, stdErr) = ToolHost.Invoke("compare", a, b, "--json");
+            Assert.True(exitCode == 0, stdErr + stdOut);
+            using var document = JsonDocument.Parse(stdOut);
+            return document.RootElement.GetProperty("metrics").GetProperty("identical").GetBoolean();
+        }
+
+        // The color of one pixel of a picture
+        static (int R, int G, int B) PixelAt(string picture, string point)
+        {
+            var (exitCode, stdOut, stdErr) = ToolHost.Invoke("inspect", "pixel", picture, point, "--json");
+            Assert.True(exitCode == 0, stdErr + stdOut);
+            using var document = JsonDocument.Parse(stdOut);
+            var pixel = document.RootElement.GetProperty("pixel");
+            return (pixel.GetProperty("r").GetInt32(), pixel.GetProperty("g").GetInt32(), pixel.GetProperty("b").GetInt32());
+        }
+    }
 }

@@ -61,10 +61,10 @@ internal static partial class HelpTopics
         {
             builder.Append('\n').Append(FooterHeadings[0]).Append("\n\n");
             AppendLinks(builder, children);
-            if (SubtreeExamples(card).Skip(card.Examples.Count).Any())
+            if (CardsBelowWithExamples(card).Any())
             {
                 builder.Append('\n');
-                AppendWrapped(builder, $"List the examples of every card below with: {card.Command} --examples", string.Empty, "  ");
+                AppendWrapped(builder, $"Find the cards below that have examples with: {card.Command} --examples", string.Empty, "  ");
             }
         }
 
@@ -76,7 +76,7 @@ internal static partial class HelpTopics
             builder.Append('\n');
             AppendWrapped(
                 builder,
-                $"Print one with: {card.Command} --example <name> (add --json for a document).",
+                $"Print them in full with: {card.Command} --examples, or one alone with: {card.Command} --example <name>.",
                 string.Empty,
                 "  ");
         }
@@ -140,18 +140,84 @@ internal static partial class HelpTopics
     }
 
     /// <summary>
-    ///     Renders the list of the examples of a card and of the cards below it as plain text.
+    ///     Renders every example of a card in full as plain text, followed by the cards below it that have examples.
     /// </summary>
     /// <param name="card">The card.</param>
-    /// <returns>One line per example (name, kind, description), without a trailing newline.</returns>
+    /// <returns>
+    ///     The text, without a trailing newline: a section per example of the card (its name, kind, file name,
+    ///     description, and content in a code fence), the command that prints one alone, and a list of the cards below
+    ///     it that have examples, each with the command that prints them.
+    /// </returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="card"/> is <see langword="null"/>.</exception>
-    public static string RenderExampleList(HelpCard card)
+    public static string RenderExamples(HelpCard card)
     {
         ArgumentNullException.ThrowIfNull(card);
 
         var builder = new StringBuilder();
-        AppendExampleLines(builder, SubtreeExamples(card).ToList());
+        builder.Append("# ").Append(card.Title).Append(": examples\n");
+
+        // The card's own examples, each in full
+        if (card.Examples.Count == 0)
+        {
+            builder.Append('\n');
+            AppendWrapped(builder, $"'{card.Path}' has no examples of its own.", string.Empty, string.Empty);
+        }
+
+        foreach (var example in card.Examples)
+        {
+            var heading = example.FileName == null
+                ? $"## {example.Name} [{example.Kind}]"
+                : $"## {example.Name} [{example.Kind}] {example.FileName}";
+            builder.Append('\n').Append(heading).Append("\n\n");
+            AppendWrapped(builder, example.Description, string.Empty, string.Empty);
+            var fence = CodeFence(example.Content);
+            builder.Append('\n').Append(fence).Append(example.Language).Append('\n');
+            builder.Append(example.Content).Append('\n');
+            builder.Append(fence).Append('\n');
+        }
+
+        if (card.Examples.Count > 0)
+        {
+            builder.Append('\n');
+            AppendWrapped(
+                builder,
+                $"Print one alone (to save it to a file) with: {card.Command} --example <name>",
+                string.Empty,
+                "  ");
+        }
+
+        // The cards below that have examples, each with the command that prints them
+        var below = CardsBelowWithExamples(card).ToList();
+        if (below.Count > 0)
+        {
+            builder.Append("\n## Cards below with examples\n\n");
+            foreach (var target in below)
+            {
+                builder.Append("- ").Append(target.Command).Append(" --examples\n");
+                AppendWrapped(builder, $"Examples: {string.Join(", ", target.Examples.Select(e => e.Name))}", "  ", "  ");
+            }
+        }
+
         return builder.ToString().ReplaceLineEndings("\n").TrimEnd('\n');
+    }
+
+    /// <summary>
+    ///     Gets the Markdown code fence that encloses some content: at least three backticks, and one more than the
+    ///     longest run of backticks in the content, so the content cannot end the block early.
+    /// </summary>
+    /// <param name="content">The content to enclose.</param>
+    /// <returns>The fence.</returns>
+    internal static string CodeFence(string content)
+    {
+        var longest = 0;
+        var run = 0;
+        foreach (var c in content)
+        {
+            run = c == '`' ? run + 1 : 0;
+            longest = Math.Max(longest, run);
+        }
+
+        return new string('`', Math.Max(3, longest + 1));
     }
 
     /// <summary>
@@ -190,7 +256,7 @@ internal static partial class HelpTopics
             writer.WriteStartArray("examples");
             foreach (var example in card.Examples)
             {
-                WriteExample(writer, null, example, includeContent: true);
+                WriteExample(writer, null, example);
             }
 
             writer.WriteEndArray();
@@ -198,12 +264,16 @@ internal static partial class HelpTopics
     }
 
     /// <summary>
-    ///     Renders the list of the examples of a card and of the cards below it as a JSON document.
+    ///     Renders every example of a card in full, and the cards below it that have examples, as a JSON document.
     /// </summary>
     /// <param name="card">The card.</param>
-    /// <returns>The document (<c>kind</c> <c>examples</c>, without the example contents), without a trailing newline.</returns>
+    /// <returns>
+    ///     The document (<c>kind</c> <c>examples</c>: the card's own examples with their contents in <c>examples</c>,
+    ///     and the cards below it that have examples, with the example names, in <c>cards</c>), without a trailing
+    ///     newline.
+    /// </returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="card"/> is <see langword="null"/>.</exception>
-    public static string RenderExampleListJson(HelpCard card)
+    public static string RenderExamplesJson(HelpCard card)
     {
         ArgumentNullException.ThrowIfNull(card);
 
@@ -212,9 +282,21 @@ internal static partial class HelpTopics
             writer.WriteString("kind", "examples");
             writer.WriteString("id", card.Id);
             writer.WriteStartArray("examples");
-            foreach (var (owner, example) in SubtreeExamples(card))
+            foreach (var example in card.Examples)
             {
-                WriteExample(writer, owner, example, includeContent: false);
+                WriteExample(writer, null, example);
+            }
+
+            writer.WriteEndArray();
+            writer.WriteStartArray("cards");
+            foreach (var target in CardsBelowWithExamples(card))
+            {
+                writer.WriteStartObject();
+                writer.WriteString("id", target.Id);
+                writer.WriteString("summary", target.Summary);
+                writer.WriteString("command", target.Command);
+                WriteStrings(writer, "examples", target.Examples.Select(e => e.Name));
+                writer.WriteEndObject();
             }
 
             writer.WriteEndArray();
@@ -237,7 +319,7 @@ internal static partial class HelpTopics
             writer.WriteString("kind", "example");
             writer.WriteString("id", card.Id);
             writer.WritePropertyName("example");
-            WriteExample(writer, owner, example, includeContent: true);
+            WriteExample(writer, owner, example);
         });
     }
 
@@ -327,7 +409,7 @@ internal static partial class HelpTopics
 
         var hint = examples.Count > 0
             ? $"Examples: {string.Join(", ", examples.Select(e => e.Example.Name))}."
-            : $"Run 'canvasnet help {card.RootId} --examples' to list the examples of '{card.RootId}'.";
+            : $"Run 'canvasnet help {card.RootId} --examples' to find the cards of '{card.RootId}' that have examples.";
         throw new ToolException(ErrorCodes.UsageError, $"Help card '{card.Path}' has no example '{name}'.", hint)
         {
             Command = "help"
@@ -378,8 +460,7 @@ internal static partial class HelpTopics
     /// <param name="writer">The JSON writer.</param>
     /// <param name="card">The card the example belongs to, or <see langword="null"/> to leave out the <c>card</c> key.</param>
     /// <param name="example">The example.</param>
-    /// <param name="includeContent">Whether the object carries the content.</param>
-    private static void WriteExample(Utf8JsonWriter writer, HelpCard? card, HelpExample example, bool includeContent)
+    private static void WriteExample(Utf8JsonWriter writer, HelpCard? card, HelpExample example)
     {
         writer.WriteStartObject();
         if (card != null)
@@ -396,10 +477,7 @@ internal static partial class HelpTopics
         }
 
         writer.WriteString("description", example.Description);
-        if (includeContent)
-        {
-            writer.WriteString("content", example.Content);
-        }
+        writer.WriteString("content", example.Content);
 
         writer.WriteEndObject();
     }

@@ -210,7 +210,8 @@ the children of the previous card by name or alias, ignoring case. It returns `n
 root; an unknown further word is the `ToolException` described under _Error Handling_.
 
 **SourceExamples()**, **Snippets()**, **AllExamples()**, and **SubtreeExamples(card)**: enumerate the examples with
-their cards. The unit tests and the `CanvasNetTool_HelpExamples` self-test render every source example with `--strict`.
+their cards. **CardsBelowWithExamples(card)** enumerates the cards below a card that have examples of their own, depth
+first. The unit tests and the `CanvasNetTool_HelpExamples` self-test render every source example with `--strict`.
 
 **RenderText(card)**: the plain-text card, without a trailing newline, in this order:
 
@@ -218,9 +219,10 @@ their cards. The unit tests and the `CanvasNetTool_HelpExamples` self-test rende
 2. `Also known as: <aliases>`, when the card has aliases.
 3. The body as written, after token substitution; the body is not rewrapped and no Markdown is converted.
 4. `## Cards`: for each card below it, a bullet with its exact command and, indented, its summary, followed by a pointer
-   to `--examples` when cards below it have examples.
+   to `--examples` (`Find the cards below that have examples with: <command> --examples`) when cards below it have
+   examples.
 5. `## Examples`: one aligned line per own example (name, kind in brackets, and description), followed by
-   `Print one with: <command> --example <name> (add --json for a document).`
+   `Print them in full with: <command> --examples, or one alone with: <command> --example <name>.`
 6. `## See also`: each link as a bullet with the exact command and, indented, the summary of the target.
 
 Each footer section appears only when it is not empty, and the generated lines are wrapped by `AppendWrapped`. The
@@ -235,11 +237,22 @@ line with `firstPrefix` and every further line with `restPrefix`, and starts a n
 `TextWidth`. A word longer than the free width is never split: it sits on a line of its own. `CommandRegistry` also
 uses it for the topic list of the index.
 
-**RenderExampleList(card)** and **RenderExample(card, name)**: the examples of the card and of every card below it, one
-line each, and the exact content of one of them found by name ignoring case. The content is what
-`help <path> --example <name>` prints, and nothing else.
+**RenderExamples(card)**: what `help <path> --examples` prints, LF only and without a trailing newline: the heading
+`# <title>: examples`; for each own example of the card, a section `## <name> [<kind>]` (followed by the file name for
+a source or a snippet), the wrapped description, and the exact content in a code fence of its language; then
+`Print one alone (to save it to a file) with: <command> --example <name>`. A card without examples of its own prints
+`'<path>' has no examples of its own.` instead of the sections. When cards below it have examples, a section
+`## Cards below with examples` follows, with a bullet `<command> --examples` per card and, indented, its example names.
+Only the card's own examples are printed in full, which keeps the output of a topic short; the cards below are
+pointers. The generated prose is wrapped by `AppendWrapped`; the code is never wrapped.
 
-**RenderJson(card)**, **RenderExampleListJson(card)**, and **RenderExampleJson(card, name)**: these JSON documents, and
+**CodeFence(content)** (`internal`): the fence of an example: at least three backticks, and one more than the longest
+run of backticks in the content, so the content cannot end the block early.
+
+**RenderExample(card, name)**: the exact content of one example of the card or of a card below it, found by name
+ignoring case. The content is what `help <path> --example <name>` prints, and nothing else.
+
+**RenderJson(card)**, **RenderExamplesJson(card)**, and **RenderExampleJson(card, name)**: these JSON documents, and
 `RenderTopicsJson()`, are written with `ResultWriter.Success("help", ...)`. They have the common envelope
 (`schemaVersion`, `ok`, `command`), one line, the key order below, and ASCII-only escaping.
 
@@ -247,10 +260,14 @@ line each, and the exact content of one of them found by name ignoring case. The
   `summary`, and `command`), and `examples` (each with `name`, `kind`, `language`, `fileName` for a file,
   `description`, and `content`).
 - `kind` `topics`: `cards`, each with `id`, `aliases`, `summary`, and `command`.
-- `kind` `examples`: `id` and `examples` (each with the `card` it belongs to, and without `content`).
+- `kind` `examples`: `id`, `examples` (the card's own examples, each as in the `card` document, with `content` and
+  without a `card` key), and `cards` (the cards below it that have examples, each with `id`, `summary`, `command`, and
+  `examples`, the names).
 - `kind` `example`: `id` and `example` (with `card` and `content`).
 
 These documents replaced the `topic` document of schema version 1, which is why `ResultWriter.SchemaVersion` is 2.
+Version 2 has not been released, so the change of the `examples` document (the card's own examples in full, plus
+`cards`, instead of a list of the subtree without contents) is part of version 2 and needs no further bump.
 
 **WriteStrings(writer, name, values)** (`internal`): writes a JSON array of strings; `CommandRegistry` uses it for the
 alias lists of its own documents.
@@ -260,7 +277,8 @@ alias lists of its own documents.
 These usage errors are `ToolException` with code `usage-error` and `Command` set to `help`:
 
 - An unknown example name has the message `Help card '<path>' has no example '<name>'.` and the hint
-  `Examples: <names>.`.
+  `Examples: <names>.`, or, when neither the card nor a card below it has an example,
+  `Run 'canvasnet help <root> --examples' to find the cards of '<root>' that have examples.`.
 - An unknown card below a card has the message `Unknown help card '<word>' under '<path>'.`. The hint is
   `Did you mean '<name>'? Cards under '<path>': <names>. Run '<command>' for their summaries.`, or, for a card without
   cards below it, `'<path>' has no cards below it.`.
@@ -296,7 +314,8 @@ fails the build before it reaches a user. The consistency of the content with th
 
 #### Callers
 
-- **CommandRegistry** - `Find`, `Roots`, `Resolve`, `SplitPath`, `TopicNames`, `SubtreeExamples`, and the renderings,
-  for the `help` command, the index, the hint of an unknown command, and the examples of a card.
+- **CommandRegistry** - `Find`, `Roots`, `Resolve`, `SplitPath`, `TopicNames`, `SubtreeExamples`,
+  `CardsBelowWithExamples`, and the renderings, for the `help` command, the index, the hint of an unknown command, and
+  the examples of a card.
 - **Validation** - `SourceExamples`, `All`, `Get`, and `RenderExample`, for the `CanvasNetTool_HelpExamples` self-test.
 - Tests - load and check every card.

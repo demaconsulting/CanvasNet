@@ -33,7 +33,7 @@ internal sealed partial class CommandRegistry
     private static readonly OptionSpec[] HelpOptions =
     [
         new("--example", [], true, "Print only the source (or command line) of one example of the card or a card below it", "name"),
-        new("--examples", [], false, "List the examples of the card and of the cards below it")
+        new("--examples", [], false, "Print every example of the card in full, and list the cards below it that have examples")
     ];
 
     /// <summary>
@@ -47,7 +47,8 @@ internal sealed partial class CommandRegistry
     ];
 
     /// <summary>
-    ///     Runs the <c>help</c> command: prints the help of a subject, or one of its examples, to the context.
+    ///     Runs the <c>help</c> command: prints the help of a subject, the examples of a card in full, or one
+    ///     example alone, to the context.
     /// </summary>
     /// <param name="context">The context holding the arguments of <c>help</c> and receiving its output.</param>
     /// <exception cref="ToolException">
@@ -74,7 +75,7 @@ internal sealed partial class CommandRegistry
             throw new ToolException(
                 ErrorCodes.UsageError,
                 "The options '--example' and '--examples' cannot be combined.",
-                "Use '--examples' to list the examples and '--example <name>' to print one.")
+                "Use '--examples' to print the examples of a card and '--example <name>' to print one alone.")
             {
                 Command = HelpCommandName
             };
@@ -89,7 +90,7 @@ internal sealed partial class CommandRegistry
             return;
         }
 
-        context.WriteLine(context.Json ? HelpTopics.RenderExampleListJson(card) : HelpTopics.RenderExampleList(card));
+        context.WriteLine(context.Json ? HelpTopics.RenderExamplesJson(card) : HelpTopics.RenderExamples(card));
     }
 
     /// <summary>
@@ -417,7 +418,7 @@ internal sealed partial class CommandRegistry
             throw new ToolException(
                 ErrorCodes.UsageError,
                 $"'{card.Path}' has no examples.",
-                $"Run 'canvasnet help {card.RootId} --examples' to list the examples of '{card.RootId}'.")
+                $"Run 'canvasnet help {card.RootId} --examples' to find the cards of '{card.RootId}' that have examples.")
             {
                 Command = HelpCommandName
             };

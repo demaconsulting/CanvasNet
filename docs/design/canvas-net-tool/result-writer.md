@@ -17,7 +17,9 @@ contract to parse instead of text meant for people.
 **SchemaVersion**: `const int` - 2. The documented schema is versioned by this number: adding a key is not a breaking
 change; removing or renaming a key, or changing its meaning, increments it. The version is shared by every document.
 Version 2 replaced the help `topic` document (its `topic` and `sections` keys) with the `card` and `topics`
-documents of the help cards and dropped the constant `topic` key of the help index; every other document is unchanged.
+documents of the help cards, dropped the constant `topic` key of the help index, and made the help `examples` and`
+example` documents name the card by `id` (the `examples` document carries the card's own examples in full and the
+cards below it that have examples); the documents of the other commands are unchanged.
 
 **Document layout**. Every document is a single JSON object on a single line:
 

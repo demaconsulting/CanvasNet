@@ -39,10 +39,12 @@ examples:
   part.scad#view=front&amp;def.width=20&amp;def.label=%22A%22 (%22 is a double
   quote). The viewport variables work too: def.$vpd=300 fixes the camera
   distance (and with it the scale), def.$vpt=[x,y,z] the target,
-  def.$vpr=[a,b,c] the rotation, and def.$vpf the field of view, so several
-  links of one model can share a scale. A chart: param.<name>=<value> sets the
-  param <name> of the chart like --param, with the value true, false, null, a
-  number, text, or JSON (a selection takes its initial state, for example
+  def.$vpr=[90-elevation,0,azimuth] the view angles (def.$vpr=[70,0,45] is
+  azimuth 45, elevation 20; see canvasnet help scad views), and def.$vpf the
+  field of view, so several links of one model can share a scale. A chart:
+  param.<name>=<value> sets the param <name> of the chart like --param, with
+  the value true, false, null, a number, text, or JSON (a selection takes its
+  initial state, for example
   chart.vl.json#param.threshold=5&amp;param.brush={%22x%22:[2,6]}). The prefix
   is not case sensitive, the name after it is (as written), the value is decoded
   after the fragment is split, and the last value of a name wins. A value that

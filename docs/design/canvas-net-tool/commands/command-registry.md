@@ -56,14 +56,16 @@ command's `Run` is called with `Context.CommandArguments`. A `ToolException` esc
 
 **RunHelp(Context)** (private, `CommandRegistry.Help.cs`): the built-in `help` command. It parses the command
 arguments with `ArgumentReader` over its own option table `HelpOptions`: `--example <name>` (print only the source or
-command line of one example of the card or of a card below it) and `--examples` (list the examples of the card and of
-the cards below it). It accepts at most eight positional arguments, the help path (`HelpTopics.SplitPath` also splits a
-word at `/`). Without either option it writes `RenderHelp(path, Context.Json)`. With an option it requires a card (see
-`RequireCardForExamples`) and writes, to standard output and nothing else:
+command line of one example of the card or of a card below it) and `--examples` (print every example of the card in
+full, and list the cards below it that have examples). It accepts at most eight positional arguments, the help path
+(`HelpTopics.SplitPath` also splits a word at `/`). Without either option it writes `RenderHelp(path, Context.Json)`.
+With an option it requires a card (see `RequireCardForExamples`) and writes, to standard output and nothing else:
 
 - `--example <name>` as text: the exact content of the example (`HelpTopics.RenderExample`), so that the output can be
   saved as a file or run as a command; with `--json`, the `example` document.
-- `--examples` as text: one line per example (`HelpTopics.RenderExampleList`); with `--json`, the `examples` document.
+- `--examples` as text: each example of the card in full, with its name, kind, description, and content, followed by
+  the cards below it that have examples, each with its `--examples` command (`HelpTopics.RenderExamples`); with
+  `--json`, the `examples` document (`HelpTopics.RenderExamplesJson`).
 
 `--example` together with `--examples`, either option without a path, either option on a command, on `help`, or on
 `topics` (which have usage text, not examples), and either option on a card whose tree has no example are usage
@@ -113,7 +115,8 @@ usage errors:
 
 - no path: `'--example' and '--examples' need a help card.`;
 - a command, `help`, or `topics`: `'<word>' has no examples; only help cards do.`;
-- a card whose tree has no example: `'<path>' has no examples.`, with a hint to the examples of its root.
+- a card whose tree has no example: `'<path>' has no examples.`, with the hint
+  `Run 'canvasnet help <root> --examples' to find the cards of '<root>' that have examples.`
 
 An unknown path throws the unknown-subject or unknown-card exception.
 

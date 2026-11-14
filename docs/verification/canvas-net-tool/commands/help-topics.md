@@ -215,8 +215,8 @@ is written.
 **HelpTopics_RenderText_IsDeterministicPlainAndWrapped**: a theory over every card: two renderings are identical; the
 text has no escape character, no carriage return, and no trailing newline; it starts with `# <title>` and contains the
 body as written; no line is longer than 80 columns (120 inside a code block). It lists each card below it and each
-See also target as `- <command> <summary>`, every example name, and the `--example <name>` pointer when the card has
-examples.
+See also target as `- <command> <summary>`, every example name, and the `--examples` and `--example <name>` pointers
+when the card has examples, and the pointer to the cards below that have examples when there are any.
 
 **HelpTopics_AppendWrapped_LongWord_IsNotSplit**: a word longer than the text width between two short words keeps a
 line of its own, with the hanging indent, and nothing is lost.
@@ -231,9 +231,27 @@ code `usage-error`, the message `Help card 'scad' has no example 'nothing'.`, a 
 the command `help`, for the text and the JSON rendering alike.
 
 **HelpTopics_RenderExample_Source_ReturnsExactEmbeddedContent**: `RenderExample` (with the name in capitals) returns
-exactly the embedded resource, from the root and from `scad language`. The example list has one line per example of
-the tree; the JSON list has the root id, the owning card of each example, and no content; and the JSON of one example
-has the content, the file name, and the card `scad/language`.
+exactly the embedded resource, from the root and from `scad language`, and the JSON of one example has the content,
+the file name, and the card `scad/language`.
+
+**HelpTopics_RenderExamples_CardWithExamples_PrintsEachExampleInFull**: a theory over every card that has examples of
+its own: the text has no carriage return and no trailing newline and starts with `# <title>: examples`; each example
+has the heading `## <name> [<kind>]` (with the file name for a file), its description, and its exact content between
+two `CodeFence` fences with its language; the `--example <name>` pointer follows; and the text does not say that the
+card has no examples of its own.
+
+**HelpTopics_RenderExamples_IndexCard_ListsCardsBelowWithExamples**: the text of `mermaid`, which has no examples of
+its own, says so and lists `- <command> --examples` for every card below it that has examples, and prints none of
+their example sections and no code fence; the text of `json` prints the content of its own examples and then points at
+`canvasnet help json help --examples`, after the `--example <name>` pointer.
+
+**HelpTopics_RenderExamplesJson_HasTheDocumentedShape**: the examples document of `json` has exactly the keys
+`schemaVersion`, `ok`, `command`, `kind` (`examples`), `id` (`json`), `examples`, and `cards`, in that order; the
+examples are the card's own, with their content and without a `card` key; and the cards are the cards below it that
+have examples, each with `id`, `summary`, `command`, and the example names, in that order.
+
+**HelpTopics_CodeFence_IsLongerThanAnyBacktickRunInTheContent**: the fence is three backticks for content without
+backticks or with short runs, four for content that contains a fence of three, and six for a run of five.
 
 **HelpTopics_ParseFrontMatter_SupportedSubset_ReadsEveryConstruct**: a card with CRLF line endings that uses every
 construct of the subset parses to the keys in order with their values and lines (a quoted value with `''`, `\"`, and
@@ -311,6 +329,23 @@ anchors are hit.
 **HelpTopics_FramedFigureAdvice_PictureAloneAtTheBoxSize_IsThePictureTheFigureEmbeds**: a theory over the Mermaid
 flowchart, the Vega-Lite bar chart, and the anchors model: each, rendered alone with `--size` equal to a box, has no
 pixel that differs from an SVG figure that embeds it in that box.
+
+**HelpTopics_FramedFigureAdvice_GridAndInspectPixel_ReadThePictureAtTheBoxSize**: the two command lines of the fenced
+block of `svg framed-figure` are run on the flowchart example: the render with `--grid` succeeds and differs from the
+picture rendered alone at the same size, and `inspect pixel` on the source at that size reads the same color as on the
+picture rendered alone, `#CCFFCC`, the fill of the node the card names. The card points at `canvasnet render --help`.
+
+**HelpTopics_ScadViewsAdvice_VprFragment_EqualsAzimuthAndElevation**: `scad views` states that
+`'part.scad#def.$vpr=[70,0,45]'` is `--azimuth 45 --elevation 20` and `svg fragments` that `def.$vpr=[70,0,45]` is
+azimuth 45, elevation 20; the plate example rendered with that fragment under `--strict` reports azimuth 45 and
+elevation 20 and is identical to the plate rendered with `--azimuth 45 --elevation 20`; and an SVG figure that links
+`plate.scad#def.$vpr=[70,0,45]` renders under `--strict` without a diagnostic.
+
+**HelpTopics_MermaidGanttAdvice_ThemeCssStylesTheGridNotGridColor**: the Axis bullet of `mermaid gantt` has the rules
+`.grid .tick { color: #999999; }` and `.grid .tick text { font-size: 14px; }` and the Colors bullet says that
+`gridColor` colors no grid line. The gantt example renders under `--strict` without a diagnostic plain, with
+`gridColor` red, and with each rule as `themeCSS`: `gridColor` gives an identical picture, the label rule a different
+one, and the grid line at 120,160 is dark gray in the plain picture and a lighter gray with the line rule.
 
 **HelpTopics_ParamOptionAndFragmentPrefixes_AreDocumented** (`RenderCommandParamTests.cs`): the `vega-lite options`
 card lists `--param <name=value>` with an example, the `vega-lite-error` for an unknown name, and the `param.`

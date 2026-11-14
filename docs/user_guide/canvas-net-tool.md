@@ -141,9 +141,12 @@ camera with the viewport variables: `$vpd` is the distance of the camera (for an
 height is about 0.4 times the distance, so a larger distance is a smaller picture), `$vpt` the point it looks at (the
 origin by default), `$vpr` its rotation, and `$vpf` its field of view. They are variables like any other, so
 `-D '$vpd=360' -D '$vpt=[0,0,50]'` (for every input of the command) or `def.$vpd=360&def.$vpt=[0,0,50]` (in a fragment)
-set them. With `--view`, `--azimuth`, or `--elevation` the angles still come from the view. The picture below is the
-`montage` command above, for the assembly `docs/images/showcase/explode.scad` of this repository (the plate is as large
-in all three cells because the camera is fixed).
+set them. A fragment takes no azimuth or elevation, so `def.$vpr=[90-elevation,0,azimuth]` sets the view angles there:
+`'part.scad#def.$vpr=[70,0,45]'` is `--azimuth 45 --elevation 20`, with the framing still automatic (quote it with
+single quotes in a shell, where `$` expands inside double quotes). With `--view`, `--azimuth`, or `--elevation` the
+angles still come from the view. The picture below is the `montage` command above, for the assembly
+`docs/images/showcase/explode.scad` of this repository (the plate is as large in all three cells because the camera is
+fixed).
 
 ![An assembly at three explode levels, drawn by canvasnet montage with one fixed camera](../images/montage-explode.png){width=80%}
 
@@ -1758,9 +1761,9 @@ styled Vega-Lite chart (`help vega-lite style --example styled`), an SVG figure 
 on its anchors (`help svg framed-figure --example framed`); the other examples are command lines:
 
 ```bash
-# Read a card, list the examples of a topic, and print one: the output is only the source, so it can be saved as it is
+# Read a card, print its examples in full, and print one alone: the output is only the source, so it can be saved
 canvasnet help scad language
-canvasnet help scad --examples
+canvasnet help scad language --examples
 canvasnet help scad --example plate > plate.scad
 canvasnet render plate.scad --view top --size 400x400 -o plate-top.png --json
 ```
@@ -1769,8 +1772,10 @@ canvasnet render plate.scad --view top --size 400x400 -o plate-top.png --json
   for a card whose example is a command, the command line. It finds the example on the card or on any card below it,
   so `help scad --example plate` and `help scad language --example plate` print the same file. Nothing else is written
   to standard output.
-- `--examples` lists the names, kinds (`source`, `command`, or `snippet`), and descriptions of the examples of the card
-  and the cards below it. A `snippet` is shown but not rendered alone, because it refers to other files (the `embed`
+- `--examples` prints every example of the card in full: its name, kind (`source`, `command`, or `snippet`), file
+  name, description, and content in a code block. It then lists the cards below it that have examples, each with its
+  `--examples` command, so `help mermaid --examples` points at the cards of the diagram types. A `snippet` is not
+  rendered alone, because it refers to other files (the `embed`
   example of `svg` is a diagram that links a model, a chart, and an SVG file beside it, the `pictures` example of
   `mermaid` a flowchart whose nodes show a model and a chart, and the `report` example of `svg` a figure that embeds the
   styled diagram and chart).
@@ -1915,7 +1920,7 @@ with no banner and no color codes, and a `kind` that tells which document it is:
 | `command` | A command | `topic` (the command), `aliases`, `summary`, `usage`, `options`, `globalOptions` |
 | `topics` | `help topics` | `cards` (each `{"id","aliases","summary","command"}`, every card, depth first) |
 | `card` | A help card | `id`, `aliases`, `title`, `summary`, `body`, `children`, `seeAlso`, `examples` |
-| `examples` | `help <topic> [<card> ...] --examples` | `id`, `examples` (each `{"card","name","kind","language","fileName","description"}`) |
+| `examples` | `help <topic> [<card> ...] --examples` | `id`, `examples` (the card's own, each `{"name","kind","language","fileName","description","content"}`), `cards` (each `{"id","summary","command","examples"}`, the cards below it that have examples) |
 | `example` | `help <topic> [<card> ...] --example <name>` | `id`, `example` (the same fields and the `content`) |
 
 The `body` of a card is its Markdown text. Each entry of `children` and `seeAlso` is `{"id","summary","command"}`, where

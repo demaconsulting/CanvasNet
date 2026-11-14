@@ -55,7 +55,9 @@ settings card (`canvasnet help mermaid gantt settings`).
   `hour`, `day`, `week`, and `month`, such as `1week`), and `weekday` (the first
   day of the week for weekly ticks); `gantt.topAxis` draws a second axis at the
   top (the `topAxis` statement fails in Mermaid, and is a `mermaid-syntax-error`
-  here).
+  here); the grid lines are black at 0.8 opacity and their labels 10 px, as in
+  Mermaid 11, and `themeCSS` changes them: `.grid .tick { color: #999999; }`
+  for the lines and `.grid .tick text { font-size: 14px; }` for the labels.
 - Compact mode: `displayMode: compact` in the frontmatter, or
   `gantt.displayMode`, puts the tasks of a section on as few rows as keep them
   apart.
@@ -72,8 +74,9 @@ settings card (`canvasnet help mermaid gantt settings`).
   `taskTextClickableColor`, `activeTaskBkgColor`, `activeTaskBorderColor`,
   `doneTaskBkgColor`, `doneTaskBorderColor`, `critBkgColor`, `critBorderColor`,
   `sectionBkgColor`, `sectionBkgColor2`, `altSectionBkgColor`,
-  `excludeBkgColor`, `gridColor`, `todayLineColor`, `vertLineColor`, and
-  `titleColor`.
+  `excludeBkgColor`, `todayLineColor`, `vertLineColor`, and `titleColor`;
+  `gridColor` is accepted and, as in Mermaid 11, colors no grid line (see
+  Axis).
 - Configuration: YAML frontmatter, `%%{init: ...}%%` directives, the five
   themes, `themeVariables`, and the gantt settings below, with Mermaid's
   precedence.

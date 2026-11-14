@@ -91,10 +91,11 @@ sections:
           The CommandRegistry class shall let the built-in help command take a command (by name or alias), a help
           card path (a topic by name or alias, then the names or aliases of the cards below it), or the subject topics
           (the list of every help card), shall print only the source of one example (or its command line) of a card or
-          a card below it with the example option and list the examples of a card and the cards below it with the
-          examples option, shall list the help topics in the top-level help together with how to read a card, the
-          topics subject, and the style and composition topics, shall report an unknown subject as a usage-error
-          ToolException that suggests the closest subject within an edit distance of two, when there is one, and lists
+          a card below it with the example option and print every example of a card in full and list the cards below
+          it that have examples with the examples option, shall list the help topics in the top-level help together
+          with how to read a card, the topics subject, and the style and composition topics, shall report an unknown
+          subject as a usage-error ToolException that suggests the closest subject within an edit distance of two,
+          when there is one, and lists
           the valid subjects, shall report an unknown card below a card as a usage error that suggests the closest card
           and lists the cards at that level, and a word after a command, help, or topics as a usage error, shall report
           an example option without a card, with a command, with a card that has no examples, or with an unknown name
@@ -113,7 +114,7 @@ sections:
           - CommandRegistry_Run_HelpUnknownCard_ListsChildren
           - CommandRegistry_Run_HelpPathAfterCommand_ThrowsUsageError
           - CommandRegistry_Run_HelpExample_WritesOnlyTheSource
-          - CommandRegistry_Run_HelpExamples_ListsNames
+          - CommandRegistry_Run_HelpExamples_PrintsTheCardsExamplesInFull
           - CommandRegistry_Run_HelpExamplesOnCardWithoutExamples_ThrowsUsageError
           - CommandRegistry_Run_HelpExampleUnknown_ThrowsUsageErrorWithNames
           - CommandRegistry_Run_HelpExampleOnCommand_ThrowsUsageError
