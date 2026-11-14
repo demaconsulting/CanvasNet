@@ -619,23 +619,23 @@ internal static partial class HelpTopics
         switch (kind)
         {
             case SourceKind or SnippetKind when !entries.ContainsKey("content"):
-            {
-                // A source and a snippet are files; a snippet is shown but never rendered alone
-                var file = Require("file");
-                return new HelpExample(name, kind, language, file, description, ReadResource($"{ExampleResourcePrefix}{root}-{file}"));
-            }
-
-            case CommandKind when !entries.ContainsKey("file"):
-            {
-                // A command line must start with the tool's name
-                var command = ReplaceTokens(Require("content"), fileName);
-                if (!command.StartsWith(CommandPrefix, StringComparison.Ordinal))
                 {
-                    throw FrontMatterError(fileName, value.Line, $"the command of the example '{name}' must start with '{CommandPrefix}'");
+                    // A source and a snippet are files; a snippet is shown but never rendered alone
+                    var file = Require("file");
+                    return new HelpExample(name, kind, language, file, description, ReadResource($"{ExampleResourcePrefix}{root}-{file}"));
                 }
 
-                return new HelpExample(name, kind, language, null, description, command);
-            }
+            case CommandKind when !entries.ContainsKey("file"):
+                {
+                    // A command line must start with the tool's name
+                    var command = ReplaceTokens(Require("content"), fileName);
+                    if (!command.StartsWith(CommandPrefix, StringComparison.Ordinal))
+                    {
+                        throw FrontMatterError(fileName, value.Line, $"the command of the example '{name}' must start with '{CommandPrefix}'");
+                    }
+
+                    return new HelpExample(name, kind, language, null, description, command);
+                }
 
             default:
                 throw FrontMatterError(
