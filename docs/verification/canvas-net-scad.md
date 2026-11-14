@@ -285,9 +285,10 @@ thread with a 256 KiB stack and on the normal test thread, and asserts that both
 
 **Test**: `CanvasNetScad_SystemIntegration_Cancellation_StopsEvaluation`
 
-With the step limit raised to the maximum and a program in endless recursion, asserts that an already canceled
-token and a token canceled after 150 ms each end the evaluation with a plain `OperationCanceledException` (not a
-`ScadEvaluationException`) well inside a generous timeout.
+With a program in endless recursion and a step limit of one million (far above the 1,024 steps between two
+cancellation polls), asserts that an already canceled token, and a token canceled when the evaluation pass starts
+(through the evaluator's fallback-thread seams), each end the evaluation with a plain `OperationCanceledException`;
+an evaluation that ignored the token would end with the step-limit `ScadEvaluationException` instead.
 
 ### Variable Overrides: Replace Assignments
 

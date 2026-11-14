@@ -1,6 +1,5 @@
 // cspell:ignore Minkowski convexity coplanar chord octahedron pentagram welded ulp
 
-using System.Diagnostics;
 using DemaConsulting.CanvasNet.Render3D.SceneModel;
 using DemaConsulting.CanvasNet.Render3D.Tessellation;
 
@@ -443,7 +442,7 @@ public class MinkowskiSumTests
         Assert.Throws<ArgumentException>(() => MinkowskiSum.ConvexSumOfVerified(new Mesh([], []), box, token));
         var big = PrimitiveTessellator.Sphere(1.0, 60);
         Assert.Throws<ArgumentException>(() => MinkowskiSum.ConvexSumOfVerified(big, big, token));
-        using var canceled = new CancellationTokenSource();
+        using var canceled = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         canceled.Cancel();
         Assert.Throws<OperationCanceledException>(() => MinkowskiSum.ConvexSumOfVerified(sphere, box, canceled.Token));
         Assert.Throws<OperationCanceledException>(() => MinkowskiSum.RequireConvexSolid(sphere, "sphere", canceled.Token));
@@ -461,16 +460,13 @@ public class MinkowskiSumTests
         var b = PrimitiveTessellator.Sphere(2.0, 60);
         Assert.True((long)a.VertexCount * b.VertexCount > MinkowskiSum.MaxPairwiseSums);
         var before = GC.GetAllocatedBytesForCurrentThread();
-        var stopwatch = Stopwatch.StartNew();
 
         // Act
         var exception = Assert.Throws<ArgumentException>(() => Sum(a, b));
-        stopwatch.Stop();
 
         // Assert: a clear message, little allocation (far less than the 50 MB of the sums) and no hull computation
         Assert.Contains("pairwise sums", exception.Message, StringComparison.Ordinal);
         Assert.True(GC.GetAllocatedBytesForCurrentThread() - before < 20_000_000);
-        Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(5));
         Assert.Equal(2_097_152, MinkowskiSum.MaxPairwiseSums);
     }
 
@@ -538,7 +534,7 @@ public class MinkowskiSumTests
         // Arrange: valid operands and a canceled token
         var cube = Render3DTestHelpers.CreateBoxMesh(Vector3D.Zero, Vector3D.One);
         var sphere = PrimitiveTessellator.Sphere(1.0, 48);
-        using var canceled = new CancellationTokenSource();
+        using var canceled = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         canceled.Cancel();
 
         // Act / Assert

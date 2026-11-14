@@ -21,8 +21,8 @@ runs each of them, and the requirements link them with source filters, so only r
 | Device and directory are not regular files | null device; folder refused | `/dev/null`, folder | `/dev/null`, folder |
 | Named pipe opens without blocking (pins the mode offset) | skips | runs | runs |
 
-The one wait is a hang guard (one minute) around the named-pipe open, which fails the test if the open blocks; no
-duration is asserted.
+The named-pipe open runs on the test thread with no time limit and no duration is asserted: an open that blocked would
+never return, which the time limit of the CI job reports.
 
 Unit tests reside in `RealPathTests.cs` in the `Files` folder of the `DemaConsulting.CanvasNet.Tests` project; the
 seams in `FileOpenHooks` are exercised by the resolver tests (see _FileReferenceResolver Unit Verification Design_).

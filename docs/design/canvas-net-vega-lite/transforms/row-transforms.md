@@ -270,7 +270,9 @@ expression
 string, or the `filter` value for a predicate), a failing regular expression (the expression string), and a lookup
 source
 that the file-access policy or the file layer refuses
-(the `from.data` node, with the loader's message). A canceled token is an `OperationCanceledException`, never wrapped,
+(the `from.data` node, with the loader's message). Each transform is reported to the internal stage hook of
+`VegaLiteDocument` (`ReportStage`, a test seam) by its operation name when it starts and when it has finished. A
+canceled token is an `OperationCanceledException`, never wrapped,
 and
 the warnings of a canceled call are not delivered. Recoverable findings are warnings: `vl-expr-runtime` and
 `vl-transform-runtime`, located at the expression string or the transform entry. A malformed transform is not an error

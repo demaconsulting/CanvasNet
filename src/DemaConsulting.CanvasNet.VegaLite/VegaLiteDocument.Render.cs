@@ -34,6 +34,37 @@ namespace DemaConsulting.CanvasNet.VegaLite;
 /// </remarks>
 public sealed partial class VegaLiteDocument
 {
+    /// <summary>The stage hook of the calling thread, see <see cref="StageHookForCurrentThread"/>.</summary>
+    [ThreadStatic]
+    private static Action<string, bool>? _stageHookForThread;
+
+    /// <summary>
+    ///     Gets or sets an action that the measure and render calls started by the <em>calling thread</em> invoke when
+    ///     one of their long-running stages starts (<see langword="false"/>) and when it has finished
+    ///     (<see langword="true"/>), with the name of the stage: the operation name of a row transform (for example
+    ///     <c>density</c> or <c>window</c>), <c>compose</c> for the composition of a concatenation, a repeat or a facet,
+    ///     and <c>paint</c>; <see langword="null"/> (the default) for none (a test seam).
+    /// </summary>
+    /// <remarks>
+    ///     A test cancels the token of the call when a stage starts, a known point inside the work, instead of after a
+    ///     delay, and verifies that the stage observed the cancellation itself: a stage that ignored the token would
+    ///     report its end. The whole pipeline runs on the calling thread, so the setting is per thread and tests that run
+    ///     in parallel never see each other's calls.
+    /// </remarks>
+    internal static Action<string, bool>? StageHookForCurrentThread
+    {
+        get => _stageHookForThread;
+        set => _stageHookForThread = value;
+    }
+
+    /// <summary>
+    ///     Reports the start or the end of a stage to the stage hook of the calling thread, if any (see
+    ///     <see cref="StageHookForCurrentThread"/>).
+    /// </summary>
+    /// <param name="stage">The name of the stage.</param>
+    /// <param name="finished"><see langword="false"/> when the stage starts; <see langword="true"/> when it has finished.</param>
+    internal static void ReportStage(string stage, bool finished) => _stageHookForThread?.Invoke(stage, finished);
+
     /// <summary>
     ///     Computes the size the chart renders at without drawing it.
     /// </summary>
@@ -682,7 +713,10 @@ public sealed partial class VegaLiteDocument
     {
         // The pictures of the image mark are loaded while the scene is painted (the scale is known only now) and every surface the resolver returned is released when the painting ends
         using var images = new SceneImageSource(options.ImageResolver, options.Limits.MaxImages, (message, location, key) => sink.Warn(message, location, key));
-        return new ScenePainter(plan.Measurer, images, options.Limits.MaxPaintedPixels).Paint(plan.Scene, width, height, placement, cancellationToken);
+        ReportStage("paint", finished: false);
+        var surface = new ScenePainter(plan.Measurer, images, options.Limits.MaxPaintedPixels).Paint(plan.Scene, width, height, placement, cancellationToken);
+        ReportStage("paint", finished: true);
+        return surface;
     }
 
     /// <summary>

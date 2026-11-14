@@ -10,9 +10,6 @@ namespace DemaConsulting.CanvasNet.Tests.Files;
 /// </summary>
 public class RealPathTests
 {
-    /// <summary>Gets the cancellation token of the running test.</summary>
-    private static CancellationToken Ct => TestContext.Current.CancellationToken;
-
     /// <summary>
     ///     Validates that a plain file opened for reading is a regular file whose final path is its full path in the
     ///     real location of its folder.
@@ -191,11 +188,11 @@ public class RealPathTests
 
     /// <summary>
     ///     Validates on Linux and macOS that opening a named pipe without a writer returns at once and the handle is not
-    ///     a regular file. The only wait is a guard that fails the test if the open hangs.
+    ///     a regular file. The open runs on the test thread with no time limit: an open that blocked would never return,
+    ///     which the time limit of the CI job reports.
     /// </summary>
-    /// <returns>A task.</returns>
     [Fact]
-    public async Task RealPath_OpenForRead_Fifo_DoesNotBlockAndIsNotRegular()
+    public void RealPath_OpenForRead_Fifo_DoesNotBlockAndIsNotRegular()
     {
         // Arrange
         if (OperatingSystem.IsWindows())
@@ -209,18 +206,11 @@ public class RealPathTests
         Assert.True(failure.Length == 0, failure);
 
         // Act
-        var open = Task.Run(
-            () =>
-            {
-                using var handle = RealPath.OpenForRead(pipe);
-                return RealPath.Inspect(handle);
-            },
-            Ct);
-        var first = await Task.WhenAny(open, Task.Delay(TimeSpan.FromMinutes(1), Ct));
+        using var handle = RealPath.OpenForRead(pipe);
+        var info = RealPath.Inspect(handle);
 
         // Assert
-        Assert.Same(open, first);
-        Assert.False((await open).IsRegularFile);
+        Assert.False(info.IsRegularFile);
     }
 
     /// <summary>

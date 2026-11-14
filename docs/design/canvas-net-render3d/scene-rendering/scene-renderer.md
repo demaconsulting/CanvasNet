@@ -11,7 +11,7 @@ The `SceneRenderer` unit is the fourth software unit in the `SceneRendering` sub
 - `SceneRenderer` (static class): the public `Render` and `RenderFitted` entry points, and the
   internal `RenderWithFragmentPath` test seam
 - `SceneRenderOptions` (sealed class): immutable, validated render options with a `Default`
-  instance
+  instance, and the internal `TileStarting` test seam
 - `RenderBudgetExceededException`, `SceneRenderUnsupportedFeatureException` (sealed exception
   classes) and `SceneRenderUnsupportedFeature` (sealed record): the diagnostics of fragment-list
   constructive solid geometry rendering
@@ -159,7 +159,9 @@ overlay are untouched.
 9. **Tiles**: a `Surface` is created, then tiles run sequentially on the calling thread when
    `MaxDegreeOfParallelism` is 1 (one `TileWorker`), otherwise with `Parallel.For` over the tile
    index with `ParallelOptions` carrying the token and the degree, and one `TileWorker` per worker
-   created by `localInit`. See `RenderTile` below. The token is checked at the start of each tile.
+   created by `localInit`. See `RenderTile` below. The token is checked at the start of each tile;
+   right after that check the internal `SceneRenderOptions.TileStarting` test seam (`null` by default)
+   is invoked with the tile index, so a test can cancel at a known tile instead of after a delay.
 10. **Failure handling**: any exception during tile rendering disposes the `Surface` before it
     propagates. `RenderTiles` normalizes the exceptions of a parallel render, see _Budget and
     cancellation unwrap_ below.

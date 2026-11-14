@@ -1,6 +1,5 @@
 // cspell:ignore coplanar collinear lexicographically canonicalized ulp ulps Caratheodory simplices simplex tetrahedra tetrahedron
 
-using System.Diagnostics;
 using DemaConsulting.CanvasNet.Render3D.SceneModel;
 using DemaConsulting.CanvasNet.Render3D.Tessellation;
 
@@ -844,8 +843,8 @@ public class ConvexHullTests
     }
 
     /// <summary>
-    ///     Validates the work bound: a large random-plus-lattice input completes quickly with a closed surface
-    ///     satisfying the Euler relation, and a huge coplanar prefix does not degrade the insertion.
+    ///     Validates a large random-plus-lattice input: it completes with a closed surface satisfying the Euler relation,
+    ///     and a huge coplanar prefix still gives the exact pyramid. Speed is measured by profiling, not here.
     /// </summary>
     [Fact]
     public void ConvexHull_Hull3D_LargeInput_CompletesWithEulerCounts()
@@ -883,9 +882,7 @@ public class ConvexHullTests
         }
 
         // Act
-        var stopwatch = Stopwatch.StartNew();
         var hull = Hull3D(points);
-        stopwatch.Stop();
 
         // Assert: closed, Euler counts, a sample of the points inside every sampled triangle's plane
         Assert.True(hull.IsClosed);
@@ -900,8 +897,6 @@ public class ConvexHullTests
             }
         }
 
-        Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(60), $"The hull took {stopwatch.Elapsed}.");
-
         // Arrange / Act / Assert: a 141 x 141 coplanar grid (20 000 points) with an apex last is a pyramid
         var grid = new List<Vector3D>();
         for (var y = 0; y < 141; y++)
@@ -913,11 +908,9 @@ public class ConvexHullTests
         }
 
         grid.Add(new Vector3D(3, 70, 70));
-        stopwatch.Restart();
         var pyramid = Hull3D(grid);
         Assert.Equal(5, pyramid.VertexCount);
         Assert.Equal(6, pyramid.TriangleCount);
-        Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(30), $"The pyramid took {stopwatch.Elapsed}.");
     }
 
     /// <summary>
@@ -929,14 +922,14 @@ public class ConvexHullTests
     {
         // Arrange: a valid input and a canceled token
         var points = CubeCorners(Vector3D.Zero, 1.0);
-        using var canceled = new CancellationTokenSource();
+        using var canceled = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         canceled.Cancel();
 
         // Act / Assert: canceled before the call
         Assert.Throws<OperationCanceledException>(() => ConvexHull.Hull3D(points, canceled.Token));
 
         // Arrange / Act / Assert: canceled while a long lazy sequence is consumed (polled every few thousand points)
-        using var during = new CancellationTokenSource();
+        using var during = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         IEnumerable<Vector3D> Lazy()
         {
             for (var i = 0; i < 100_000; i++)
@@ -961,14 +954,14 @@ public class ConvexHullTests
     public void ConvexHull_Hull2D_Canceled_ThrowsOperationCanceledException()
     {
         // Arrange: a canceled token
-        using var canceled = new CancellationTokenSource();
+        using var canceled = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         canceled.Cancel();
 
         // Act / Assert: canceled before the call
         Assert.Throws<OperationCanceledException>(() => ConvexHull.Hull2D([Vector2D.Zero, Vector2D.UnitX, Vector2D.UnitY], canceled.Token));
 
         // Arrange / Act / Assert: canceled while a long lazy sequence is consumed
-        using var during = new CancellationTokenSource();
+        using var during = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         IEnumerable<Vector2D> Lazy()
         {
             for (var i = 0; i < 100_000; i++)

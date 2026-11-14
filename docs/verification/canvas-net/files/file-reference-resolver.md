@@ -29,8 +29,8 @@ NTFS junction (`mklink /J`), so these scenarios run on every system; only the fi
 the host cannot create one, and its decision is also covered on every system by the injected real-path scenarios.
 
 Limits are verified at their exact boundary, the endless stream with a stream that never ends, and cancellation with a
-token that is already canceled. The only wait is a hang guard (one minute) around the named-pipe scenario, which fails
-the test if the open blocks; no duration is asserted.
+token that is already canceled. The named-pipe scenario resolves on the test thread with no time limit and no duration
+is asserted: an open that blocked would never return, which the time limit of the CI job reports.
 
 Unit tests reside in `FileReferenceResolverTests.cs`, `FileReferenceResolverLinkTests.cs`,
 `FileReferenceResolverRaceTests.cs`, and `FileReferenceExceptionTests.cs` in the `Files` folder of the
@@ -217,7 +217,7 @@ policy reads it and the result has no real path.
 `FileReferenceResolver_Resolve_Fifo_IsNotARegularFileWithoutBlocking` (Linux, macOS)
 
 A directory, the Windows null device handed in through the open seam, `/dev/null`, and a named pipe without a writer
-are `NotARegularFile`; the pipe's resolve returns within the hang guard. A handle whose type the platform cannot tell
+are `NotARegularFile`; the pipe's resolve returns instead of blocking. A handle whose type the platform cannot tell
 (reported through the `IsRegularFileOf` seam) is `NotARegularFile` under `AllowAll` and under a restrictive policy, and
 nothing is read.
 

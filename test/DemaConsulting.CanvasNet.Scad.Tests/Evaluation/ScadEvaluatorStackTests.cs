@@ -18,9 +18,6 @@ public class ScadEvaluatorStackTests
     /// <summary>The stack size, in bytes, of a caller below the runtime guard's reserve (it must hop).</summary>
     private const int TinyCallerStackSize = 64 * 1024;
 
-    /// <summary>How long a test waits for another thread before it gives up.</summary>
-    private static readonly TimeSpan Patience = TimeSpan.FromSeconds(30);
-
     /// <summary>
     ///     The pathological recursion shapes: each makes a program from a recursion depth, and gives the largest depth
     ///     that fits in a frame limit (the frame accounting is documented in the design and pinned by these tests).
@@ -364,16 +361,15 @@ public class ScadEvaluatorStackTests
         HoldAll(slots);
         try
         {
-            using var cts = new CancellationTokenSource();
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
             var (caller, result) = StartTinyCaller(Shapes["function"].Make(1500), cts.Token, slots);
-            Assert.True(SpinWait.SpinUntil(() => slots.Waiting == 1, Patience), "the caller never started waiting");
+            SpinWait.SpinUntil(() => slots.Waiting == 1);
 
             // Act
             cts.Cancel();
-            var finished = caller.Join(Patience);
+            caller.Join();
 
             // Assert: the caller was released by the cancellation, and the slots we hold are still all held
-            Assert.True(finished);
             Assert.IsAssignableFrom<OperationCanceledException>(result[0]);
             Assert.Equal(0, slots.FreeSlots);
             Assert.Equal(0, slots.Waiting);
@@ -398,15 +394,14 @@ public class ScadEvaluatorStackTests
         try
         {
             var (caller, result) = StartTinyCaller(Shapes["function"].Make(1500), CancellationToken.None, slots);
-            Assert.True(SpinWait.SpinUntil(() => slots.Waiting == 1, Patience), "the caller never started waiting");
+            SpinWait.SpinUntil(() => slots.Waiting == 1);
 
             // Act
             slots.Release();
             released = true;
-            var finished = caller.Join(Patience);
+            caller.Join();
 
             // Assert: the caller took the released slot (one more start than the slots we held) and finished cleanly
-            Assert.True(finished);
             Assert.Null(result[0]);
             Assert.Equal(slots.Capacity + 1, slots.Started);
             Assert.Equal(0, slots.Waiting);
@@ -432,11 +427,11 @@ public class ScadEvaluatorStackTests
         HoldAll(slots);
         try
         {
-            using var cts = new CancellationTokenSource();
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
             var (caller, result) = StartTinyCaller(Shapes["function"].Make(1500), cts.Token, slots);
-            Assert.True(SpinWait.SpinUntil(() => slots.Waiting == 1, Patience), "the caller never started waiting");
+            SpinWait.SpinUntil(() => slots.Waiting == 1);
             cts.Cancel();
-            Assert.True(caller.Join(Patience));
+            caller.Join();
             Assert.IsAssignableFrom<OperationCanceledException>(result[0]);
         }
         finally
@@ -461,22 +456,22 @@ public class ScadEvaluatorStackTests
         var other = new ScadEvaluatorFallbackSlots(2);
         HoldAll(mine);
         HoldAll(other);
-        using var cts = new CancellationTokenSource();
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         try
         {
             var (callerOnMine, mineResult) = StartTinyCaller(Shapes["function"].Make(1500), cts.Token, mine);
-            Assert.True(SpinWait.SpinUntil(() => mine.Waiting == 1, Patience), "the caller never started waiting");
+            SpinWait.SpinUntil(() => mine.Waiting == 1);
 
             // Act: a second caller waits on the other set
             var (callerOnOther, otherResult) = StartTinyCaller(Shapes["function"].Make(1500), cts.Token, other);
-            Assert.True(SpinWait.SpinUntil(() => other.Waiting == 1, Patience), "the second caller never started waiting");
+            SpinWait.SpinUntil(() => other.Waiting == 1);
 
             // Assert: each set counts exactly its own waiter; the shared set is untouched by both
             Assert.Equal(1, mine.Waiting);
             Assert.Equal(1, other.Waiting);
             cts.Cancel();
-            Assert.True(callerOnMine.Join(Patience));
-            Assert.True(callerOnOther.Join(Patience));
+            callerOnMine.Join();
+            callerOnOther.Join();
             Assert.IsAssignableFrom<OperationCanceledException>(mineResult[0]);
             Assert.IsAssignableFrom<OperationCanceledException>(otherResult[0]);
         }
