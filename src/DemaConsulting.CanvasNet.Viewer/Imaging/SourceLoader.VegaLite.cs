@@ -2,6 +2,7 @@ using System.Globalization;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Files;
 using DemaConsulting.CanvasNet.ImageSources;
+using DemaConsulting.CanvasNet.Positions;
 using DemaConsulting.CanvasNet.VegaLite;
 
 namespace DemaConsulting.CanvasNet.Viewer.Imaging;
@@ -167,15 +168,19 @@ public static partial class SourceLoader
     ///     no picture and reports <c>vl-mark-image</c>, and a measure never needs one.
     /// </param>
     /// <param name="parameters">The values of the chart's parameters (all of them declared by the chart), or <see langword="null"/> for the defaults.</param>
+    /// <param name="positions">The collector of the feature positions the load asks for, or <see langword="null"/> for none.</param>
     /// <returns>The options.</returns>
     private static VegaLiteRenderOptions CreateVegaLiteOptions(
         SourceOptions options,
         List<ImageDiagnostic>? notes,
         IImageResolver? resolver = null,
-        IReadOnlyDictionary<string, object?>? parameters = null)
+        IReadOnlyDictionary<string, object?>? parameters = null,
+        PositionCollector? positions = null)
     {
         return new VegaLiteRenderOptions
         {
+            PositionHandler = positions is null ? null : position => positions.Offer(position),
+            PositionKindFilter = positions is null ? null : positions.IncludesKind,
             Background = options.Background,
             TimeZone = TimeZoneInfo.Utc,
             Fonts = new VegaLiteFontOptions { UseSystemFonts = false },
@@ -348,7 +353,8 @@ public static partial class SourceLoader
             // based at the folder of the chart, which is where the relative data files of the chart are looked up too
             var scoped = Context.UseScopedResolver;
             var images = scoped ? null : new SvgImages(Info.Path, Options);
-            var renderOptions = CreateVegaLiteOptions(Options, notes, scoped ? Context.ScopedResolver : images!.Resolver, parameters);
+            var positions = CreatePositionCollector(Options);
+            var renderOptions = CreateVegaLiteOptions(Options, notes, scoped ? Context.ScopedResolver : images!.Resolver, parameters, positions);
 
             // The surface is charged before the chart is drawn, so a chart that cannot be paid for costs nothing
             Context.ChargeSurface(width, height);
@@ -362,6 +368,8 @@ public static partial class SourceLoader
                 throw images.Map(ex);
             }
 
+            // A selector that matched nothing refuses a strict load before anything is returned
+            ThrowForUnmatchedPositions(positions, Options.Strict, surface);
             var fields = new List<(string Name, object Value)>
             {
                 ("width", width),
@@ -381,7 +389,7 @@ public static partial class SourceLoader
             var operations = new List<AppliedOperation> { Operation("render", [.. fields]) };
             if (images is null)
             {
-                return new LoadedSource(surface, info, 1, true, notes, [], operations);
+                return WithPositions(new LoadedSource(surface, info, 1, true, notes, [], operations), positions, "vega-lite");
             }
 
             try
@@ -394,7 +402,10 @@ public static partial class SourceLoader
 
                 operations.AddRange(images.Operations());
                 notes.AddRange(images.Notes());
-                return new LoadedSource(surface, info, 1, true, DropDuplicateUnresolved(notes, images.Resolver.Diagnostics, "vl-mark-image-unresolved"), [.. images.Resolver.Echo], operations);
+                return WithPositions(
+                    new LoadedSource(surface, info, 1, true, DropDuplicateUnresolved(notes, images.Resolver.Diagnostics, "vl-mark-image-unresolved"), [.. images.Resolver.Echo], operations),
+                    positions,
+                    "vega-lite");
             }
             catch
             {

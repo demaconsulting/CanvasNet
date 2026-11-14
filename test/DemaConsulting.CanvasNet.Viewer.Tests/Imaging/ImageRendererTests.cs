@@ -302,4 +302,35 @@ public class ImageRendererTests
         Assert.Contains("resize", error.Message);
         Assert.Empty(Directory.GetFileSystemEntries(directory.Path));
     }
+
+    /// <summary>
+    ///     Test that the feature positions of a diagram follow the pipeline into the written image: a crop moves them and a
+    ///     pad moves them back.
+    /// </summary>
+    [Fact]
+    public void ImageRenderer_Execute_Positions_FollowCropAndPad()
+    {
+        // Arrange
+        using var directory = new TempDirectory();
+        var path = directory.Combine("flow.mmd");
+        File.WriteAllText(path, "flowchart LR\n    A[Start] --> B[End]\n");
+        var info = SourceLoader.Probe(path);
+        var source = new SourceOptions { Positions = DemaConsulting.CanvasNet.Positions.PositionSelection.Parse(["node"]) };
+        var crop = new CropOperation(new GeometrySpec(new Dimension(5, false), new Dimension(3, false), new Dimension(60, false), new Dimension(40, false)));
+        var pad = new PadOperation(new PadSpec(10, 20, 0, 0), null);
+
+        // Act
+        var plain = Assert.Single(ImageRenderer.Execute(info, new RenderRequest(directory.Combine("plain.png")) { Source = source }).Pages);
+        var moved = Assert.Single(ImageRenderer.Execute(info, new RenderRequest(directory.Combine("moved.png")) { Source = source, Operations = [crop, pad] }).Pages);
+
+        // Assert: the crop subtracts (5, 3), then the pad adds its left (10) and top (20)
+        Assert.Equal(["A", "B"], moved.Positions.Select(p => p.Id));
+        Assert.False(moved.PositionsTruncated);
+        for (var index = 0; index < 2; index++)
+        {
+            Assert.Equal(plain.Positions[index].Pixel!.Value.X - 5 + 10, moved.Positions[index].Pixel!.Value.X, 9);
+            Assert.Equal(plain.Positions[index].Pixel!.Value.Y - 3 + 20, moved.Positions[index].Pixel!.Value.Y, 9);
+            Assert.Equal(plain.Positions[index].Box!.Value.Width, moved.Positions[index].Box!.Value.Width, 9);
+        }
+    }
 }

@@ -1,6 +1,7 @@
 // cspell:ignore canvasnet jpeg tif tiff deskew
 using System.Globalization;
 using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Positions;
 
 namespace DemaConsulting.CanvasNet.Viewer.Imaging;
 
@@ -138,6 +139,18 @@ public sealed record RenderedPage(
         : this(loaded.Page, loaded.Info, loaded.Diagnostics, loaded.Echo, operations, result, anchors)
     {
     }
+
+    /// <summary>
+    ///     Gets the feature positions that <see cref="SourceOptions.Positions"/> selected, with their boxes and pixels in
+    ///     the written image (after the pipeline, see <see cref="ImagePipeline.MapPositions"/>); empty when no positions
+    ///     were asked for and for the kinds that have none.
+    /// </summary>
+    public IReadOnlyList<ImagePosition> Positions { get; init; } = [];
+
+    /// <summary>
+    ///     Gets a value indicating whether matching positions were left out of <see cref="Positions"/> because of the cap.
+    /// </summary>
+    public bool PositionsTruncated { get; init; }
 }
 
 /// <summary>
@@ -356,7 +369,17 @@ public static class ImageRenderer
             var anchors = request.Operations.Count > 0
                 ? ImagePipeline.MapAnchors(loaded.Anchors, loaded.Surface.Width, loaded.Surface.Height, applied)
                 : loaded.Anchors;
-            return (new RenderedPage(loaded, CollectOperations(loaded, applied, result, request, isDocument), result, anchors), staged);
+
+            // The feature positions of a diagram or a chart follow the pixels the same way
+            var positions = request.Operations.Count > 0
+                ? ImagePipeline.MapPositions(loaded.Positions, loaded.Surface.Width, loaded.Surface.Height, applied)
+                : loaded.Positions;
+            var page = new RenderedPage(loaded, CollectOperations(loaded, applied, result, request, isDocument), result, anchors)
+            {
+                Positions = positions,
+                PositionsTruncated = loaded.PositionsTruncated,
+            };
+            return (page, staged);
         }
         finally
         {

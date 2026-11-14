@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.ImageSources;
+using DemaConsulting.CanvasNet.Positions;
 
 namespace DemaConsulting.CanvasNet.Viewer;
 
@@ -31,6 +32,8 @@ public sealed class ViewerImage : IDisposable
     /// <param name="page">The 1-based page that was drawn.</param>
     /// <param name="pageCount">The number of pages the file has.</param>
     /// <param name="anchors">The anchors a model declared; copied into a read-only list; <see langword="null"/> for none.</param>
+    /// <param name="positions">The feature positions a diagram or a chart reported; copied into a read-only list; <see langword="null"/> for none.</param>
+    /// <param name="positionsTruncated">Whether matching positions were left out because of the cap.</param>
     internal ViewerImage(
         Surface surface,
         string format,
@@ -39,8 +42,12 @@ public sealed class ViewerImage : IDisposable
         IReadOnlyList<EmbeddedImage> embedded,
         int page = 1,
         int pageCount = 1,
-        IReadOnlyList<Imaging.SourceAnchor>? anchors = null)
+        IReadOnlyList<Imaging.SourceAnchor>? anchors = null,
+        IReadOnlyList<ImagePosition>? positions = null,
+        bool positionsTruncated = false)
     {
+        Positions = new ReadOnlyCollection<ImagePosition>([.. positions ?? []]);
+        PositionsTruncated = positionsTruncated;
         Surface = surface;
         Format = format;
         Diagnostics = new ReadOnlyCollection<ImageSourceDiagnostic>([.. diagnostics]);
@@ -100,6 +107,19 @@ public sealed class ViewerImage : IDisposable
     ///     model without anchors.
     /// </summary>
     public IReadOnlyList<Imaging.SourceAnchor> Anchors { get; }
+
+    /// <summary>
+    ///     Gets the feature positions of a Mermaid diagram or a Vega-Lite chart that <see cref="ViewerRenderOptions.Positions"/>
+    ///     selected, with their boxes and pixels in <see cref="Surface"/> (they follow the fit into a box as the pixels
+    ///     do); empty when no positions were asked for and for every other kind of file.
+    /// </summary>
+    public IReadOnlyList<ImagePosition> Positions { get; }
+
+    /// <summary>
+    ///     Gets a value indicating whether matching positions were left out of <see cref="Positions"/> because of the cap
+    ///     of <see cref="PositionCollector.MaxPositions"/>.
+    /// </summary>
+    public bool PositionsTruncated { get; }
 
     /// <summary>
     ///     Disposes <see cref="Surface"/>.

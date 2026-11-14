@@ -74,6 +74,12 @@ public static class ErrorCodes
 
     /// <summary>A comparison completed but at least one requested quality threshold was not met.</summary>
     public const string ThresholdFailed = "threshold-failed";
+
+    /// <summary>
+    ///     A position selector matched no feature of the diagram or chart and the strict option was given; without it this
+    ///     is the warning <c>positions-unmatched</c>.
+    /// </summary>
+    public const string PositionsUnmatched = "positions-unmatched";
 }
 
 /// <summary>

@@ -3,6 +3,7 @@ using System.Text.RegularExpressions;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.ImageSources;
 using DemaConsulting.CanvasNet.Mermaid;
+using DemaConsulting.CanvasNet.Positions;
 
 namespace DemaConsulting.CanvasNet.Viewer.Imaging;
 
@@ -241,6 +242,7 @@ public static partial class SourceLoader
     /// <param name="resolver">The resolver of the pictures of the nodes, or <see langword="null"/> for none.</param>
     /// <param name="strict"><see langword="true"/> to make the first unsupported construct an error.</param>
     /// <param name="scale">The factor of the natural size, for a render at the natural size.</param>
+    /// <param name="positions">The collector of the feature positions the load asks for, or <see langword="null"/> for none.</param>
     /// <returns>The options.</returns>
     private static MermaidRenderOptions CreateMermaidOptions(
         string? theme,
@@ -248,11 +250,14 @@ public static partial class SourceLoader
         List<ImageDiagnostic> notes,
         IImageResolver? resolver,
         bool strict,
-        double scale)
+        double scale,
+        PositionCollector? positions = null)
     {
         return new MermaidRenderOptions
         {
             Scale = scale,
+            PositionHandler = positions is null ? null : position => positions.Offer(position),
+            PositionKindFilter = positions is null ? null : positions.IncludesKind,
             Theme = theme,
             Background = background,
             ImageResolver = resolver,
@@ -389,13 +394,15 @@ public static partial class SourceLoader
             // Without a width or a height the diagram is drawn at its natural size times the scale, placed exactly as Mermaid
             // places it (the library rounds the size the same way as ComputeTargetSize); a box is fitted
             var exact = Options.Width is null && Options.Height is null;
+            var positions = CreatePositionCollector(Options);
             var renderOptions = CreateMermaidOptions(
                 theme,
                 background.A == 0 ? null : background,
                 notes,
                 scoped ? Context.ScopedResolver : images!.Resolver,
                 Options.Strict,
-                exact ? Options.Scale ?? 1 : 1);
+                exact ? Options.Scale ?? 1 : 1,
+                positions);
 
             // The surface is charged before the diagram is drawn, so a diagram that cannot be paid for costs nothing; a diagram
             // its pictures enlarge is charged the rest after the draw, when its size is known
@@ -441,6 +448,8 @@ public static partial class SourceLoader
                 }
             }
 
+            // A selector that matched nothing refuses a strict load before anything is returned
+            ThrowForUnmatchedPositions(positions, Options.Strict, surface);
             if (exact && (surface.Width != width || surface.Height != height))
             {
                 var scale = Options.Scale ?? 1;
@@ -461,7 +470,7 @@ public static partial class SourceLoader
             var operations = new List<AppliedOperation> { Operation("render", [.. fields]) };
             if (images is null)
             {
-                return new LoadedSource(surface, info, 1, true, notes, [], operations);
+                return WithPositions(new LoadedSource(surface, info, 1, true, notes, [], operations), positions, "mermaid");
             }
 
             try
@@ -477,14 +486,17 @@ public static partial class SourceLoader
                 // picture once
                 operations.AddRange(LastPerLink(images.Operations()));
                 notes.AddRange(images.Notes().Distinct());
-                return new LoadedSource(
-                    surface,
-                    info,
-                    1,
-                    true,
-                    DropDuplicateUnresolved(notes, images.Resolver.Diagnostics, MermaidImageUnresolved),
-                    [.. images.Resolver.Echo],
-                    operations);
+                return WithPositions(
+                    new LoadedSource(
+                        surface,
+                        info,
+                        1,
+                        true,
+                        DropDuplicateUnresolved(notes, images.Resolver.Diagnostics, MermaidImageUnresolved),
+                        [.. images.Resolver.Echo],
+                        operations),
+                    positions,
+                    "mermaid");
             }
             catch
             {
