@@ -4,6 +4,7 @@ summary: Combine diagrams, charts, models, and pages in one picture.
 see-also:
   - svg/composition
   - svg/framed-figure
+  - positions
   - mermaid/composition
   - vega-lite/composition
   - scad/composition
@@ -56,13 +57,13 @@ size, then render, look, and fix.
 - A framed figure layers a container, a title band, decoration, the picture
   slot, a callout layer, and a caption; arrows use `<marker>` (see
   `canvasnet help svg framed-figure`).
-- To point at a feature, find its position in the picture at the size of its
-  box: a model reports its anchors (`anchors[].pixel` of `render --json`; see
-  `canvasnet help scad anchors`). A diagram or chart reports no positions, but
-  rendered alone with `--size` equal to the box it is the picture the figure
-  embeds: read the feature's x,y from
-  `canvasnet render file --size WxH --grid 50` and confirm it with
-  `canvasnet inspect pixel file x,y --size WxH`. Add the image `x` and `y`.
+- To point at a feature, render the picture alone with `--size` equal to its
+  box and `--json`: a model reports its anchors (`anchors[].pixel`; see
+  `canvasnet help scad anchors`), a diagram or chart the features that
+  `--positions` selects (`positions[].pixel`; see `canvasnet help
+  positions`). Add the image `x` and `y`. For a point no selector names, read
+  its x,y from `canvasnet render file --size WxH --grid 50` and confirm it with
+  `canvasnet inspect pixel file x,y --size WxH`.
 
 ## Options per placement
 

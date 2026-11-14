@@ -17,15 +17,19 @@ internal sealed partial class InspectCommand
     /// <summary>The names of the subcommands, in the order they are listed.</summary>
     internal static readonly IReadOnlyList<string> SubcommandNames = ["colors", "pixel"];
 
-    /// <summary>The options of <see cref="RenderCommand.OptionTable"/> that write a file, and so do not apply to a command that writes none.</summary>
-    private static readonly string[] OutputOptionNames = ["--all-pages", "--output", "--format", "--quality", "--no-clobber"];
+    /// <summary>
+    ///     The options of <see cref="RenderCommand.OptionTable"/> that write a file, and so do not apply to a command that
+    ///     writes none, and <c>--positions</c>, whose positions are a field of the render result only.
+    /// </summary>
+    private static readonly string[] OutputOptionNames = ["--all-pages", "--output", "--format", "--quality", "--no-clobber", RenderCommand.PositionsOption];
 
     /// <summary>
     ///     The options of the command, in the order they are listed in the help.
     /// </summary>
     /// <remarks>
     ///     Every source option and every pipeline option of <see cref="RenderCommand.OptionTable"/> (all of them but the
-    ///     options of the output and <c>--all-pages</c>, because <c>inspect</c> reads one page and writes no file), then
+    ///     options of the output, <c>--all-pages</c> and <c>--positions</c>, because <c>inspect</c> reads one page and
+    ///     writes no file), then
     ///     <c>--count</c> of <c>inspect colors</c> and <c>--radius</c> of <c>inspect pixel</c>. The declarations are
     ///     those of the render command, so the grammar and the help text cannot drift; the options of the other
     ///     subcommand are refused with a usage error.

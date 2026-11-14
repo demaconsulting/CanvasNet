@@ -124,7 +124,8 @@ public partial class HelpTopicsTests
             ["jpeg2000"] = "raster",
             ["jp2"] = "raster",
             ["file-access"] = "files",
-            ["links"] = "files"
+            ["links"] = "files",
+            ["position"] = "positions"
         };
 
         // Act / Assert: each alias, in lower and upper case, and each canonical name resolves to its card

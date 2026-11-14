@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text.RegularExpressions;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Mermaid;
+using DemaConsulting.CanvasNet.Positions;
 using DemaConsulting.CanvasNet.Scad;
 using DemaConsulting.CanvasNet.VegaLite;
 using DemaConsulting.CanvasNet.Viewer;
@@ -186,7 +187,7 @@ internal static partial class HelpTopics
     public static IReadOnlyList<string> TopicNames { get; } =
     [
         "scad", "vega-lite", "mermaid", "svg", "pdf", "pptx", "vsdx", "raster",
-        "style", "composition", "json", "errors", "limits", "files"
+        "style", "composition", "positions", "json", "errors", "limits", "files"
     ];
 
     /// <summary>
@@ -418,7 +419,11 @@ internal static partial class HelpTopics
             ["mmdMaxNodes"] = Format(mermaid.MaxNodes),
             ["mmdMaxImages"] = Format(mermaid.MaxImages),
             ["fragmentMaxLength"] = Format(DemaConsulting.CanvasNet.ImageSources.ImageFragment.MaxLength),
-            ["fragmentMaxParameters"] = Format(DemaConsulting.CanvasNet.ImageSources.ImageFragment.MaxParameters)
+            ["fragmentMaxParameters"] = Format(DemaConsulting.CanvasNet.ImageSources.ImageFragment.MaxParameters),
+            ["positionsMax"] = Format(PositionCollector.MaxPositions),
+            ["positionsMaxSelectors"] = Format(PositionSelection.MaxSelectors),
+            ["positionsMaxSelectorLength"] = Format(PositionSelector.MaxSelectorLength),
+            ["positionsMaxPredicates"] = Format(PositionSelector.MaxPredicates)
         };
     }
 

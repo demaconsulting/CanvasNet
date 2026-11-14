@@ -2,6 +2,7 @@
 using System.Globalization;
 using System.Text.Json;
 using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Positions;
 using DemaConsulting.CanvasNet.Viewer;
 using DemaConsulting.CanvasNet.Viewer.Imaging;
 
@@ -107,6 +108,8 @@ internal sealed partial class RenderCommand : ICommand
         + "--threshold, --levels, --brightness, --contrast, --auto-levels, --deskew, --trim, and --grid (repeatable) are" + Environment.NewLine
         + "applied in the order written, after the source is loaded and sized; crop, resize, rotate, flip, and pad are" + Environment.NewLine
         + "commands of their own. --rotate takes any angle; --deskew and --json report the tilt that was found." + Environment.NewLine
+        + "--positions <selector> (a diagram or a chart, with --json; repeatable) reports the box and attach pixel of the" + Environment.NewLine
+        + "features it matches - all, node:send, edge:@from=A, mark:x=Nov - in the written image: 'canvasnet help positions'." + Environment.NewLine
         + Environment.NewLine
         + "Examples:" + Environment.NewLine
         + "  canvasnet render drawing.svg -o drawing.png" + Environment.NewLine
@@ -120,6 +123,7 @@ internal sealed partial class RenderCommand : ICommand
         + "  canvasnet render chart.vl.json --scale 2 -o chart.png" + Environment.NewLine
         + "  canvasnet render chart.vl.json --param cutoff=50 -o chart.png" + Environment.NewLine
         + "  canvasnet render flow.mmd --theme dark --scale 2 -o flow.png" + Environment.NewLine
+        + "  canvasnet render flow.mmd --positions node:send --positions edge -o flow.png --json" + Environment.NewLine
         + "  canvasnet render diagram.svg --file-access roots,no-symlinks -o diagram.png" + Environment.NewLine
         + "  canvasnet render photo.jpg --crop 10%,10%,80%,80% --resize 800x600 -o small.png" + Environment.NewLine
         + "  canvasnet render logo.png --fit 256x256 --pad 8 --pad-color white -o icon.png" + Environment.NewLine
@@ -137,6 +141,15 @@ internal sealed partial class RenderCommand : ICommand
 
         var reader = ArgumentReader.Parse(Name, args, Options);
         var settings = ReadSettings(reader, _verb);
+
+        // The positions are a field of the JSON result: without it there is nowhere to report them
+        if (settings.Source.Positions != null && !context.Json)
+        {
+            throw new ToolException(
+                ErrorCodes.UsageError,
+                $"The option {PositionsOption} reports its positions in the JSON result, but --json was not given.",
+                "Add --json.");
+        }
 
         // Report every mistake about the input, the pages, and the outputs before any pixels are decoded; a '#' fragment
         // of the input (part.scad#def.width=20) is read and checked here too
@@ -163,6 +176,14 @@ internal sealed partial class RenderCommand : ICommand
                 ErrorCodes.UsageError,
                 $"The option {string.Join(", ", DiagramOptionNames)} only applies to a Mermaid diagram, but '{settings.Input}' is a {info.Format.ToFormatName()} file.",
                 "Remove it, or render a .mmd file.");
+        }
+
+        if (settings.Source.Positions != null && !info.Format.IsDiagram() && !info.Format.IsChart())
+        {
+            throw new ToolException(
+                ErrorCodes.UsageError,
+                $"The option {PositionsOption} only applies to a Mermaid diagram or a Vega-Lite chart, but '{settings.Input}' is a {info.Format.ToFormatName()} file.",
+                "Remove it, or render a .mmd or .vl.json file; an OpenSCAD model reports its anchors instead ('canvasnet help scad anchors').");
         }
 
         // The operation reports the mistakes about the pages and the outputs before any pixels are decoded, then
@@ -347,6 +368,148 @@ internal sealed partial class RenderCommand : ICommand
         if (source.Format.IsModel())
         {
             WriteAnchors(writer, outputs);
+        }
+
+        // The positions are written only when they were asked for, so a document without --positions is unchanged
+        if (settings.Source.Positions != null)
+        {
+            WritePositions(writer, outputs);
+        }
+    }
+
+    /// <summary>
+    ///     Writes the <c>positions</c> array and <c>positionsTruncated</c>: the features the selectors matched, with their
+    ///     boxes and attachment pixels in the written image.
+    /// </summary>
+    /// <param name="writer">The writer positioned inside the document's top-level object.</param>
+    /// <param name="outputs">The pages that were written; a diagram or a chart has one.</param>
+    /// <remarks>
+    ///     Each position has <c>kind</c> and <c>id</c>, then the facts it has: <c>text</c>, <c>line</c>, <c>view</c> (always
+    ///     for a chart), <c>name</c> (the view's name), <c>mark</c>, <c>from</c>, <c>to</c>, <c>index</c>, <c>values</c> (an
+    ///     object of channel values, numbers not rounded); then <c>box</c> (<c>x</c>, <c>y</c>, <c>width</c>, <c>height</c>)
+    ///     and <c>pixel</c> (<c>[x, y]</c>) rounded to three decimals, or <see langword="null"/> when a pipeline step lost
+    ///     them, and <c>inside</c>: whether the pixel lies within the written image (not whether the feature is visible).
+    /// </remarks>
+    private static void WritePositions(Utf8JsonWriter writer, IReadOnlyList<RenderedPage> outputs)
+    {
+        writer.WriteStartArray("positions");
+        foreach (var output in outputs)
+        {
+            foreach (var position in output.Positions)
+            {
+                writer.WriteStartObject();
+                writer.WriteString("kind", position.Kind);
+                writer.WriteString("id", position.Id);
+                WriteOptional(writer, "text", position.Text);
+                if (position.Line is { } line)
+                {
+                    writer.WriteNumber("line", line);
+                }
+
+                WriteOptional(writer, "view", position.View);
+                WriteOptional(writer, "name", position.ViewName);
+                WriteOptional(writer, "mark", position.Mark);
+                WriteOptional(writer, "from", position.From);
+                WriteOptional(writer, "to", position.To);
+                if (position.Index is { } index)
+                {
+                    writer.WriteNumber("index", index);
+                }
+
+                if (position.Values.Count > 0)
+                {
+                    writer.WriteStartObject("values");
+                    foreach (var (name, value) in position.Values)
+                    {
+                        WriteValue(writer, name, value);
+                    }
+
+                    writer.WriteEndObject();
+                }
+
+                WriteGeometry(writer, position, output.Result.Width, output.Result.Height);
+                writer.WriteEndObject();
+            }
+        }
+
+        writer.WriteEndArray();
+        writer.WriteBoolean("positionsTruncated", outputs.Any(o => o.PositionsTruncated));
+    }
+
+    /// <summary>
+    ///     Writes the <c>box</c>, <c>pixel</c>, and <c>inside</c> of a position.
+    /// </summary>
+    /// <param name="writer">The writer positioned inside the position object.</param>
+    /// <param name="position">The position.</param>
+    /// <param name="width">The width of the written image.</param>
+    /// <param name="height">The height of the written image.</param>
+    private static void WriteGeometry(Utf8JsonWriter writer, ImagePosition position, int width, int height)
+    {
+        if (position.Box is { } box)
+        {
+            writer.WriteStartObject("box");
+            writer.WriteNumber("x", Math.Round(box.X, 3));
+            writer.WriteNumber("y", Math.Round(box.Y, 3));
+            writer.WriteNumber("width", Math.Round(box.Width, 3));
+            writer.WriteNumber("height", Math.Round(box.Height, 3));
+            writer.WriteEndObject();
+        }
+        else
+        {
+            writer.WriteNull("box");
+        }
+
+        if (position.Pixel is { } pixel)
+        {
+            writer.WriteStartArray("pixel");
+            writer.WriteNumberValue(Math.Round(pixel.X, 3));
+            writer.WriteNumberValue(Math.Round(pixel.Y, 3));
+            writer.WriteEndArray();
+            writer.WriteBoolean("inside", pixel.X >= 0 && pixel.X < width && pixel.Y >= 0 && pixel.Y < height);
+        }
+        else
+        {
+            writer.WriteNull("pixel");
+            writer.WriteBoolean("inside", false);
+        }
+    }
+
+    /// <summary>
+    ///     Writes a text member when it has a value.
+    /// </summary>
+    /// <param name="writer">The writer.</param>
+    /// <param name="name">The member name.</param>
+    /// <param name="value">The value, or <see langword="null"/> to write nothing.</param>
+    private static void WriteOptional(Utf8JsonWriter writer, string name, string? value)
+    {
+        if (value is not null)
+        {
+            writer.WriteString(name, value);
+        }
+    }
+
+    /// <summary>
+    ///     Writes one channel value of a position with its JSON type.
+    /// </summary>
+    /// <param name="writer">The writer positioned inside the <c>values</c> object.</param>
+    /// <param name="name">The channel name.</param>
+    /// <param name="value">The value.</param>
+    private static void WriteValue(Utf8JsonWriter writer, string name, PositionValue value)
+    {
+        switch (value.Kind)
+        {
+            case PositionValueKind.Number:
+                writer.WriteNumber(name, value.NumberValue);
+                break;
+            case PositionValueKind.String:
+                writer.WriteString(name, value.StringValue);
+                break;
+            case PositionValueKind.Boolean:
+                writer.WriteBoolean(name, value.BooleanValue);
+                break;
+            default:
+                writer.WriteNull(name);
+                break;
         }
     }
 

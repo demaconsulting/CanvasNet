@@ -88,6 +88,10 @@ The largest sizes and budgets the tool accepts, and the error each one produces.
   parameters; beyond that the image is not drawn and image-fragment-invalid is
   reported (an unsupported-feature error with --strict; for an input path, an
   error).
+- **Positions**: render --positions returns at most {{positionsMax}} items
+  (positionsTruncated is then true) and takes at most {{positionsMaxSelectors}}
+  selectors of at most {{positionsMaxSelectorLength}} characters and
+  {{positionsMaxPredicates}} predicates each.
 - **File access**: Every limit here holds in every file-access mode
   (--file-access): a mode decides which files may be read, never how much. See
   'canvasnet help files'.

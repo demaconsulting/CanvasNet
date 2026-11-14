@@ -4,6 +4,7 @@ summary: Named points of a model and where they land in the picture, for callout
 see-also:
   - scad/composition
   - svg/framed-figure
+  - positions
   - scad/views
   - json/results
 examples:

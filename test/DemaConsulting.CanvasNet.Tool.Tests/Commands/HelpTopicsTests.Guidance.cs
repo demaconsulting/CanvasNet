@@ -176,15 +176,15 @@ public partial class HelpTopicsTests
 
     /// <summary>
     ///     Test that the <c>svg framed-figure</c> card is a child of <c>svg</c> and is linked both ways with the
-    ///     <c>composition</c> hub, the <c>svg composition</c> and <c>svg style</c> cards, and the <c>scad anchors</c>
-    ///     and <c>scad composition</c> cards.
+    ///     <c>composition</c> hub, the <c>svg composition</c> and <c>svg style</c> cards, the <c>scad anchors</c>
+    ///     and <c>scad composition</c> cards, and the <c>positions</c> topic.
     /// </summary>
     [Fact]
     public void HelpTopics_FramedFigureCard_IsLinkedFromTheCompositionAndAnchorCards()
     {
         // Arrange: the card and the cards that teach composition, style, and anchors
         var card = HelpTopics.Get("svg/framed-figure");
-        string[] linked = ["composition", "svg/composition", "svg/style", "scad/anchors"];
+        string[] linked = ["composition", "svg/composition", "svg/style", "scad/anchors", "positions"];
 
         // Assert: it is listed under svg, links to each, and each links back
         Assert.Contains(card.Id, HelpTopics.Get("svg").ChildIds);
