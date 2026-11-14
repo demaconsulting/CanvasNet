@@ -186,7 +186,13 @@ canvasnet --help
 An SVG drawing can also embed files that sit beside it with `<image href="part.scad" .../>` (a 3D model, a Vega-Lite
 chart, a Mermaid diagram, another SVG file, a document page, or a picture), so a diagram can show a part and a chart
 beside boxes and arrows; a fragment chooses the page of a document (`report.pdf#page=3`, `deck.pptx#slide=2`; page 1
-without one); run `canvasnet help svg` for the file types and rules.
+without one); run `canvasnet help svg embedding` for the file types and rules.
+
+The built-in help is a tree of short help cards: `canvasnet help mermaid` prints the index of the Mermaid cards,
+`canvasnet help mermaid gantt` one diagram type, and `canvasnet help topics` every card with its summary. Each card
+ends with the exact commands of related cards. `canvasnet help style` and `canvasnet help composition` explain how to
+make a picture look good and how to combine diagrams, charts, models, and pages in one figure, with worked examples
+that the tests render.
 
 The tool succeeds with exit code 0 and fails with exit code 1. An expected failure is reported as a one-line
 message on standard error with a stable error code (for example `Error: usage-error: Unknown command 'x'.`), and
@@ -300,8 +306,10 @@ Give an agent eyes on documents and models by turning them into pictures it can 
 drawings with a reference:
 
 ```bash
-# 0. Learn formats, supported features, and tiny examples from the tool itself
+# 0. Learn formats, supported features, style, and tiny examples from the tool itself
 canvasnet help topics
+canvasnet help style
+canvasnet help composition
 
 # 1. Learn what the file is (pages and sizes) - parse the one JSON line on standard output
 canvasnet info report.pdf --all-pages --json

@@ -141,14 +141,14 @@ and its fonts, the detection of a diagram by its file name, the source loader, t
 
 **RunHelpExamplesTest**: the help self-test (the 17th and last self-test, `CanvasNetTool_HelpExamples`), run through
 `RunSelfTest` and `RunCommand`, with three checks in turn that stop at the first failure. `CheckHelpExamplesRender`
-writes every source example of the help topics (`HelpTopics.SourceExamples`: the OpenSCAD models, the Vega-Lite charts,
-the Mermaid diagrams, and the SVG drawings) to a file named `<topic>-<file name>` and runs
-`render <file> --strict --json -o <topic>-<example>.png` (with `--size 64x64` for a model, which only needs to render),
+writes every source example of the help cards (`HelpTopics.SourceExamples`: the OpenSCAD models, the Vega-Lite charts,
+the Mermaid diagrams, and the SVG drawings) to a file named `<root>-<file name>` and runs
+`render <file> --strict --json -o <root>-<example>.png` (with `--size 64x64` for a model, which only needs to render),
 requiring `ok` true and no diagnostic: the documented examples are accepted by the shipped renderers even under
 `--strict`. `CheckHelpExamplePrint` runs `help scad --example plate` and requires that the output, apart from its final
 line feed, equals the embedded source of the example, so that a printed example can be saved and run as it is.
-`CheckHelpIndex` runs `help topics --json` and requires the `index` document to list exactly the topics of
-`HelpTopics.TopicNames`, in order. This exercises the embedded help resources, the `help` command, and the `render`
+`CheckHelpTree` runs `help topics --json` and requires the `topics` document to list exactly the cards of
+`HelpTopics.All`, depth first. This exercises the embedded help resources, the `help` command, and the `render`
 command together in the deployment environment.
 
 **WriteResultsFile**: serializes the results to `context.ResultsFile`: `.trx` uses `TrxSerializer`, `.xml`
@@ -171,7 +171,7 @@ becomes 1.
 - **Context** - output channel and results configuration.
 - **Program** - `Program.Run` is called in-process to exercise the tool.
 - **PathHelpers** - `SafePathCombine` builds log paths inside temporary directories.
-- **HelpTopics** (Commands) - the source examples and topic names checked by `CanvasNetTool_HelpExamples`.
+- **HelpTopics** (Commands) - the source examples and the cards checked by `CanvasNetTool_HelpExamples`.
 - **DemaConsulting.TestResults** (OTS) - `TestResults`, `TestResult`, `TestOutcome`, and the
   `TrxSerializer` and `JUnitSerializer` of `TestResults.IO`. See *DemaConsulting.TestResults OTS Integration
   Design* (`ots/test-results.md`).

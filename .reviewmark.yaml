@@ -5302,8 +5302,9 @@ reviews:
       - "docs/verification/canvas-net-tool/commands/help-topics.md"   # unit verification
       - "docs/sysml2/model/canvas-net-tool/commands/help-topics.sysml"  # unit SysML2 model
       - "src/DemaConsulting.CanvasNet.Tool/Commands/HelpTopics*.cs"   # unit source
-      - "src/DemaConsulting.CanvasNet.Tool/Commands/Help/**/*"        # shipped topic content and examples
+      - "src/DemaConsulting.CanvasNet.Tool/Commands/Help/**/*"        # shipped help cards and examples
       - "test/DemaConsulting.CanvasNet.Tool.Tests/Commands/HelpTopicsTests*.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Tool.Tests/Commands/HelpCardText.cs"  # unit test helper (reads the cards)
       - "test/DemaConsulting.CanvasNet.Tool.Tests/Commands/InputFragmentTests.cs"  # unit tests (input fragments)
 
   # CanvasNetTool-Commands-DiscoveryCommands Review (one per unit)

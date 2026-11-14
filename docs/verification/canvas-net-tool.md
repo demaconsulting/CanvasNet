@@ -38,7 +38,7 @@ generate their own inputs and are evidence for the validation requirements. The 
 kept small (seventeen tests, in a documented order); the compare, montage, and adjustments self-tests are smoke tests
 (the last runs every photo operation once on a generated sketch), the Vega-Lite self-test is a smoke test of one chart,
 the Mermaid self-test a smoke test of one three-node flowchart, the help self-test renders
-every source example of the help topics with `--strict`, and the detailed
+every source example of the help cards with `--strict`, and the detailed
 coverage of these commands and operations is in the unit,
 subsystem, and system tests.
 The same job guards the package contents (no NuGet dependency at all, a `DotnetTool` package, and the tool, its
@@ -170,7 +170,7 @@ input formats listing, names PNG and PDF, lists the output formats and the maxim
 banner; exit code 0.
 
 **CanvasNetTool_Formats_JsonRequested_WritesJsonDocument**: `formats --json` is run as a real process; the whole
-output is one line that parses as a JSON document with schema version 1, `ok` true, the command name, PDF among
+output is one line that parses as a JSON document with schema version 2, `ok` true, the command name, PDF among
 the inputs, PNG among the outputs, and the maximum dimension 8192.
 
 **CanvasNetTool_Json_ExpectedFailure_WritesErrorDocumentAndStderrMessage**: a command fails with a `ToolException`
@@ -531,7 +531,8 @@ Otsu, deskew, an oblique rotation, gamma, and the grid) are rendered twice in-pr
 byte-identical.
 
 **CanvasNetTool_HelpTopics_RunAsProcess_PrintTopicJsonAndRawExample**: as real processes, `help scad --json` exits 0 and
-writes one `help` document of the kind `topic` for `scad` with sections and examples; `help vega-lite --example bar`
-exits 0 and writes only the chart source, which parses as JSON with the mark `bar`; and `help nope` exits 1 with
-`Error: usage-error: Unknown help subject 'nope'.` and the list of valid subjects. This proves that the topic files
-and the example sources are embedded in the tool assembly.
+writes one `help` document of the kind `card` for `scad` with a body and the cards below it;
+`help vega-lite --example bar` exits 0 and writes only the chart source, which parses as JSON with the mark `bar`;
+`help mmd gantt` exits 0 and prints the gantt card with the command of its settings card; and `help nope` exits 1
+with `Error: usage-error: Unknown help subject 'nope'.` and the list of valid subjects. This proves that the card
+files and the example sources are embedded in the tool assembly.

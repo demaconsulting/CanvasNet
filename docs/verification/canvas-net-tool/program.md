@@ -41,7 +41,7 @@ copyright; exit code 0.
 summary, and options.
 
 **Program_Run_WithHelpAndJson_WritesJsonWithoutBanner**: `Run` with `--help --json` and with `scad --json --help` on the
-default registry exits 0 and writes exactly one JSON help document each (the index, and the `scad` topic), without the
+default registry exits 0 and writes exactly one JSON help document each (the index, and the `scad` card), without the
 banner.
 
 **Program_Run_WithValidateFlag_RunsValidation**: `Run` with `--validate` writes the "Total Tests:" summary;

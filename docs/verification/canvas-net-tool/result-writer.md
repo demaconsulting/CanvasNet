@@ -19,7 +19,7 @@ current culture.
 
 ### Test Scenarios
 
-**ResultWriter_SchemaVersion_IsOne**: the released schema version is 1.
+**ResultWriter_SchemaVersion_IsTwo**: the released schema version is 2.
 
 **ResultWriter_Success_WithFields_WritesEnvelopeThenFields** and **ResultWriter_Success_NoFields_WritesEnvelopeOnly**:
 a success document is the envelope followed by the fields the command wrote (string, integer, fraction, boolean,

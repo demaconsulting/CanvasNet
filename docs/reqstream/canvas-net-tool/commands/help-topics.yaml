@@ -1,57 +1,144 @@
 ---
-# cspell:ignore scad openscad vsdx pptx
 # Software Unit Requirements for the HelpTopics Class
 #
-# The HelpTopics class is the catalog of help topics of the tool: the quick reference for each input format (what is
-# supported and what is not, the options that apply, the diagnostics and how --strict treats them, and the known
-# differences from the original program), for the --json result documents, for errors and exit codes, for the
-# limits, and for the files a document may reference, with tiny examples that are verified to render without a
-# diagnostic. The content ships inside the tool,
-# so it works offline, and it is verified against the code so that it cannot drift from what the tool does. The
-# class resolves a topic by name or alias and renders it, and its examples, as plain text or as a JSON document.
+# The HelpTopics class is the tree of help cards of the tool: short Markdown cards with YAML front matter, one per
+# subject, under fourteen topics - the quick reference for each input format (what is supported and what is not, the
+# options that apply, the diagnostics and how --strict treats them, and the known differences from the original
+# program), guidance on making pictures look good and on composing them, the --json result documents, errors and exit
+# codes, the limits, and the files a document may reference - with tiny examples that are verified to render without a
+# diagnostic. The content ships inside the tool, so it works offline, and it is verified against the code so that it
+# cannot drift from what the tool does. The class resolves a card by its path of names or aliases and renders it, and
+# its examples, as plain text or as a JSON document.
 
 sections:
   - title: HelpTopics Unit Requirements
     requirements:
       - id: CanvasNetTool-Commands-HelpTopics-Catalog
         title: >-
-          The HelpTopics class shall provide the twelve help topics scad, vega-lite, mermaid, svg, pdf, pptx, vsdx,
-          raster, json, errors, limits, and files from content shipped inside the tool, in that fixed order, each with a
-          title, a summary, and sections, shall resolve a topic by its name or by one of its aliases ignoring case, and
-          shall
-          give no topic a name or alias that is the name or alias of another topic, of a command, or of the help
-          subjects help and topics.
+          The HelpTopics class shall provide a tree of help cards from content shipped inside the tool whose root cards
+          are the fourteen topics scad, vega-lite, mermaid, svg, pdf, pptx, vsdx, raster, style, composition, json,
+          errors, limits, and files, in that fixed order, each card with a title, a one-line summary, and a body, shall
+          resolve a card by a path of names or aliases (a root, then a card below each previous one, ignoring case,
+          with the words separate or joined by a slash), and shall give no root a name or alias that is the name or
+          alias of another root, of a command, or of the help subjects help and topics, and no card a name or alias
+          that another card below the same parent has.
         justification: |
           A person or an agent learns the formats and the limits of the tool from the tool itself, offline and in the
-          version it has installed; stable names and aliases that never collide with a command make the subject of
-          help unambiguous.
+          version it has installed; a tree of short cards lets it read only the part it needs, and stable names and
+          aliases that never collide make every path select exactly one card.
         tests:
-          - HelpTopics_All_EveryTopicLoads_WithTitleSummaryAndSections
+          - HelpTopics_All_EveryCardLoads_WithTitleSummaryAndBody
           - HelpTopics_Find_EveryAlias_ResolvesIgnoringCase
           - HelpTopics_Names_DoNotCollideWithCommandsHelpOrEachOther
+          - HelpTopics_ChildNames_AreUniqueAmongSiblings
+          - HelpTopics_Resolve_PathsAndAliases_FindTheCard
+          - HelpTopics_Resolve_UnknownChild_ThrowsUsageErrorListingChildren
           - HelpTopics_Text_HasNoUnresolvedTokens
+
+      - id: CanvasNetTool-Commands-HelpTopics-CardFormat
+        title: >-
+          The HelpTopics class shall read each card from one Markdown file whose identifier is its path, with YAML
+          front matter of the keys title, summary, aliases, children, see-also, and examples written in a strict
+          subset of YAML (plain and quoted one-line values, lists of values, and lists of maps of values), shall
+          replace the tokens of the live limits in the text, and shall report a front matter outside the subset, an
+          unknown key, a missing title or summary, a malformed example, an unknown token, or a badly named file as an
+          error that names the file and the line.
+        justification: |
+          A card is edited by people and agents as ordinary Markdown; a small parser without a package dependency
+          keeps the tool lean, and an error that says where a card is wrong fails the build with a message that can
+          be acted on instead of shipping a broken card.
+        tests:
+          - HelpTopics_ParseFrontMatter_SupportedSubset_ReadsEveryConstruct
+          - HelpTopics_ParseFrontMatter_OutsideTheSubset_ThrowsWithFileAndLine
+          - HelpTopics_ParseFrontMatter_MissingFence_ThrowsWithFileAndLine
+          - HelpTopics_LoadCard_SemanticErrors_ThrowWithFileAndLine
+          - HelpTopics_LoadCard_TokensAndFileNames_AreChecked
+
+      - id: CanvasNetTool-Commands-HelpTopics-TreeIntegrity
+        title: >-
+          The HelpTopics class shall load exactly the embedded card files, shall require the children of every card to
+          be exactly the card files of its folder and every See also entry to name another card once, so that every
+          card is reachable from a root, and shall keep a card body free of a top-level heading and of the headings of
+          the generated footer, with every fenced code block closed and naming its language.
+        justification: |
+          A link that leads nowhere, a card that no path reaches, or a body that breaks the footer would make the help
+          lie about its own structure; checking the tree when it loads and in the tests keeps every path and link
+          valid.
+        tests:
+          - HelpTopics_Tree_ChildrenAndSeeAlsoResolve
+          - HelpTopics_Tree_ResourcesAreExactlyTheCards
+          - HelpTopics_ChildNames_AreUniqueAmongSiblings
+          - HelpTopics_Bodies_DoNotUseReservedHeadingsOrTopLevelHeadings
+
+      - id: CanvasNetTool-Commands-HelpTopics-SizeBudget
+        title: >-
+          The HelpTopics class shall keep the text of every card at most 6,000 characters, the text of a root card
+          that has cards below it at most 3,500 characters, and every summary on one line of at most 60 characters
+          for a root card and 100 characters for any other card.
+        justification: |
+          The readers are mostly agents with a limited context: a short card costs few tokens, and a short index card
+          lets them find the right card before reading it.
+        tests:
+          - HelpTopics_Cards_FitTheSizeBudget
 
       - id: CanvasNetTool-Commands-HelpTopics-FormatContent
         title: >-
-          The HelpTopics class shall give the topic of each input format (scad, vega-lite, mermaid, svg, pdf, pptx,
+          The HelpTopics class shall give the cards of each input format (scad, vega-lite, mermaid, svg, pdf, pptx,
           vsdx, and raster) the sections of what is supported, what is not supported, the options that apply, the
-          diagnostics and how the strict option treats them, and the known differences from the original program, and
-          at least two examples.
+          diagnostics and how the strict option treats them, and the known differences from the original program,
+          and at least two examples.
         justification: |
           Whether a feature will render is the first question about a format; an answer that always has the same
-          parts, in the same order, can be read by a person and found by an agent without trial and error.
+          parts can be read by a person and found by an agent without trial and error.
         tests:
-          - HelpTopics_FormatTopics_HaveSupportedUnsupportedOptionsDiagnosticsDifferencesAndExamples
+          - HelpTopics_FormatTopics_SubtreesHaveSupportedUnsupportedOptionsDiagnosticsDifferencesAndExamples
+
+      - id: CanvasNetTool-Commands-HelpTopics-StyleGuidance
+        title: >-
+          The HelpTopics class shall provide the style card (palette and contrast, font sizes relative to the output
+          size, spacing, light and dark backgrounds and the transparent background, resolution, the strict option, and
+          checking the rendered picture) and a style card for each of scad, vega-lite, mermaid, and svg linked to it
+          both ways, with a styled Mermaid flowchart and a styled Vega-Lite chart as examples that render with the
+          strict option without a diagnostic; every Mermaid theme the mermaid style card lists shall render, every
+          config key of the styled chart shall change the picture, and a chart that sets a transparent background
+          shall show the page of an SVG drawing that embeds it.
+        justification: |
+          Most pictures are drawn by agents for documents; guidance on how to make them look good, with examples that
+          look good and advice that is checked against the renderer, turns a correct picture into a usable figure.
+        tests:
+          - HelpTopics_DrawingFormats_HaveStyleAndCompositionCards
+          - HelpTopics_StyleAndCompositionHubs_LinkBothWays
+          - HelpTopics_MermaidStyleCard_EveryListedThemeRenders
+          - HelpTopics_VegaLiteStyledExample_ConfigChangesThePicture
+          - HelpTopics_StyleAdvice_TransparentChartInsideSvg_ShowsThePage
+          - HelpTopics_SourceExamples_RenderStrictWithoutDiagnostics
+
+      - id: CanvasNetTool-Commands-HelpTopics-CompositionGuidance
+        title: >-
+          The HelpTopics class shall provide the composition card (choosing the outer picture, sizing an embedded
+          picture, the fragments of a placement, the nesting and file-access limits, and the render, look, and fix
+          loop) and a composition card for each of scad, vega-lite, mermaid, and svg linked to it both ways, with an
+          SVG figure that embeds the styled Mermaid flowchart and the styled Vega-Lite chart as a snippet that renders
+          with the strict option without a diagnostic and draws one embed operation for each link, in order.
+        justification: |
+          A figure for a document often combines a diagram, a chart, a model, and text; showing how the formats nest,
+          with a complete figure that is verified to render, saves an agent from discovering the patterns by trial and
+          error.
+        tests:
+          - HelpTopics_DrawingFormats_HaveStyleAndCompositionCards
+          - HelpTopics_StyleAndCompositionHubs_LinkBothWays
+          - HelpTopics_Snippets_RenderStrictWithTheirSiblingFiles
 
       - id: CanvasNetTool-Commands-HelpTopics-Examples
         title: >-
-          The HelpTopics class shall give each example of a topic a unique name, a kind (source text, a command line,
-          or a snippet), and a description, shall return the source text of an example exactly as it ships, or the
-          command line of a command example, and the list of the examples of a topic, shall report an unknown example
-          name as a usage error listing the names of the examples, and shall ship source examples that render with the
-          strict option without any diagnostic, snippets (text that refers to sibling files and so is not rendered
-          alone) that render with the strict option without any diagnostic once their sibling files exist, and command
-          examples that use known commands and options.
+          The HelpTopics class shall give each example of a card a name unique below its root, a kind (source text, a
+          command line, or a snippet), and a description, shall find an example of a card or of a card below it, shall
+          return the source text of an example exactly as it ships, or the command line of a command example, and the
+          list of the examples of a card and the cards below it, shall report an unknown example name as a usage error
+          listing the names of the examples, and shall ship source examples that render with the strict option without
+          any diagnostic, snippets (text that refers to sibling files and so is not rendered alone) that render with
+          the strict option without any diagnostic once their sibling files exist, and command lines (in examples and
+          in the code blocks of a card) that use known commands, options, and help cards.
         justification: |
           A tiny example that is known to work is the fastest way to start with a format; an example that is printed
           alone can be saved to a file and used as it is, and an example that is verified cannot mislead. A diagram
@@ -59,7 +146,7 @@ sections:
         tests:
           - HelpTopics_Examples_NamesUniqueKindsValidAndSourcesNonEmpty
           - HelpTopics_SourceExamples_RenderStrictWithoutDiagnostics
-          - HelpTopics_SvgTopic_EmbedSnippet_RendersStrictWithItsSiblingFiles
+          - HelpTopics_Snippets_RenderStrictWithTheirSiblingFiles
           - HelpTopics_MermaidTopic_PicturesSnippet_RendersStrictWithItsSiblingFiles
           - HelpTopics_CommandExamples_UseKnownCommandsAndOptions
           - HelpTopics_RenderExample_UnknownName_ThrowsUsageErrorListingNames
@@ -67,29 +154,34 @@ sections:
 
       - id: CanvasNetTool-Commands-HelpTopics-Rendering
         title: >-
-          The HelpTopics class shall render a topic, the list of its examples, and an example as plain text without
-          color codes, wrapped to a fixed width without splitting a word, with the same bytes for the same topic every
-          time, and as a JSON document with the kind, the topic, and its aliases, title, summary, sections, and
-          examples (or the list of examples, or the one example), in that order.
+          The HelpTopics class shall render a card as plain text without color codes and with the same bytes every
+          time - its title, summary, aliases, and body as written, followed by the cards below it, its examples, and
+          its See also links, each link with the command that prints the target and the summary of the target - with
+          the generated lines wrapped to a fixed width without splitting a word; shall render the whole tree as one
+          line per card with its path and summary; and shall render a card as a JSON document with the kind card and
+          the id, aliases, title, summary, body, children, seeAlso, and examples of the card, in that order, the tree
+          as a JSON document with the kind topics, and the list of examples and one example as JSON documents.
         justification: |
-          The text is read in terminals and pasted into other tools, so it must be plain and stable; agents parse the
-          JSON, so its shape is a contract that must not change from one run to the next.
+          The text is read in terminals and pasted into other tools, so it must be plain and stable; a link that
+          states its exact command lets an agent follow it without guessing; agents parse the JSON, so its shape is a
+          versioned contract.
         tests:
           - HelpTopics_RenderText_IsDeterministicPlainAndWrapped
           - HelpTopics_AppendWrapped_LongWord_IsNotSplit
           - HelpTopics_RenderJson_HasTheDocumentedShape
+          - HelpTopics_RenderTopics_ListsEveryCard
 
       - id: CanvasNetTool-Commands-HelpTopics-Consistency
         title: >-
-          The HelpTopics class shall state only facts that are verified against the tool: the options named in a topic
-          shall be options of the render command, the error codes listed in the errors topic shall be every error code
-          of the tool, the diagnostic identifiers cited in a topic shall exist in the libraries and be produced by the
-          input that is said to trigger them (reported as unsupported by the strict option), and the numeric limits
-          shall be the values used by the code.
+          The HelpTopics class shall state only facts that are verified against the tool: the options named in a card
+          shall be options of the render command, the error codes listed in the errors codes card shall be every error
+          code of the tool, the diagnostic identifiers cited in a card shall exist in the libraries and be produced by
+          the input that is said to trigger them (reported as unsupported by the strict option), and the numeric
+          limits shall be the values used by the code.
         justification: |
           Help that disagrees with the program is worse than no help; checking the content against the code makes
-          every statement of a topic a tested statement, so that a change of the code that makes a topic untrue fails
-          a test instead of misleading a user.
+          every statement of a card a tested statement, so that a change of the code that makes a card untrue fails a
+          test instead of misleading a user.
         tests:
           - HelpTopics_OptionTerms_ExistInTheRenderOptionTable
           - HelpTopics_ErrorsTopic_ListsEveryErrorCode
@@ -100,22 +192,20 @@ sections:
 
       - id: CanvasNetTool-Commands-HelpTopics-SvgImageLinks
         title: >-
-          The HelpTopics class shall state in the svg topic, in a section of its own, which file types an image element
-          may link (the list shall be exactly the file name extensions the SVG image resolver of the tool accepts, and
-          the same extensions the formats command lists), that a linked model, chart, document page, or SVG file is
-          drawn at the size of the placement, the link rule (relative to the folder of the SVG file; any local file
-          under the file-access mode, never a network URL; a query after the file name is ignored), the page fragment
-          (its grammar, the parameter of each format, that page 1 is drawn without one, the limits, the &amp; of an XML
-          attribute, and the change that a fragment on a file that takes no parameter is now a warning), the
-          diagnostic codes svg-image-unresolved, svg-image-too-large, image-access-denied,
-          image-fragment-unknown-parameter,
-          image-fragment-duplicate-parameter, image-fragment-invalid, and image-page-out-of-range with the effect of the
-          strict option on each, and an example (a snippet of pages that renders under the strict option once its
-          sibling files exist), and
-          the scad and vega-lite topics, the formats listing, and the render usage shall point to that topic; the pdf,
-          pptx, vsdx, and scad topics shall show the fragment of their format, the json topic shall describe the
-          detail, location, and origin members of a diagnostic, and the limits topic shall state the limits of a
-          fragment, quoted from the code.
+          The HelpTopics class shall state in the svg embedding card which file types an image element may link (the
+          list shall be exactly the file name extensions the SVG image resolver of the tool accepts, and the same
+          extensions the formats command lists), that a linked model, chart, document page, or SVG file is drawn at
+          the size of the placement, the link rule (relative to the folder of the SVG file; any local file under the
+          file-access mode, never a network URL; a query after the file name is ignored), and the diagnostic codes
+          svg-image-unresolved, svg-image-too-large, and image-access-denied with an example; in the svg fragments card
+          the page fragment (its grammar, the parameter of each format, that page 1 is drawn without one, the limits,
+          the &amp; of an XML attribute, and a snippet of pages that renders under the strict option once its sibling
+          files exist); in the svg diagnostics card the codes image-fragment-unknown-parameter,
+          image-fragment-duplicate-parameter, image-fragment-invalid, and image-page-out-of-range, and in the svg
+          options card the effect of the strict option on each; the scad and vega-lite cards, the formats listing,
+          and the render usage shall point to the svg topic; the pdf, pptx, vsdx, and scad cards shall show the
+          fragment of their format, the json diagnostics card shall describe the detail, location, and origin members
+          of a diagnostic, and the limits card shall state the limits of a fragment, quoted from the code.
         justification: |
           An agent that wants a model, a chart, or page 2 of a document inside a diagram must find out that an image
           element can link it, and what it may link, without reading the source; a list of file types that is compared
@@ -123,7 +213,7 @@ sections:
         tests:
           - HelpTopics_SvgTopic_ImageHrefFileTypes_MatchTheResolverExtensions
           - HelpTopics_SvgTopic_ImageLinksSection_StatesSizeLinkRuleDiagnosticAndExample
-          - HelpTopics_SvgTopic_EmbedSnippet_RendersStrictWithItsSiblingFiles
+          - HelpTopics_Snippets_RenderStrictWithTheirSiblingFiles
           - HelpTopics_SvgTopic_PageFragment_DocumentsGrammarPerFormatCodesAndStrict
           - HelpTopics_FormatTopicsJsonAndLimits_DocumentFragmentsDetailLocationAndOrigin
           - HelpTopics_DiagnosticTriggers_ImageFragmentCodes_AreReportedWithTheirSeverity
@@ -131,61 +221,61 @@ sections:
 
       - id: CanvasNetTool-Commands-HelpTopics-ParamAndFragmentPrefixes
         title: >-
-          The HelpTopics class shall document in the vega-lite topic the --param option (its value grammar, that
-          an unknown name is a vega-lite-error, that only a chart takes it, and the matching fragment of a link), in
-          the svg topic the prefixed fragment parameters (def.name sets a model variable like -D, param.name sets
-          a chart parameter like --param, the case rules, the codes image-fragment-invalid, vl-param-unknown and
-          image-fragment-unknown-parameter, and that the last of the warnings stays a warning under the strict
-          option), in the scad topic the def. fragment, and the vl-param-unknown diagnostic in the vega-lite and
-          svg topics.
+          The HelpTopics class shall document in the vega-lite options card the --param option (its value grammar,
+          that an unknown name is a vega-lite-error, that only a chart takes it, and the matching fragment of a link),
+          in the svg fragments card the prefixed fragment parameters (def.name sets a model variable like -D,
+          param.name sets a chart parameter like --param, the case rules, the codes image-fragment-invalid,
+          vl-param-unknown and image-fragment-unknown-parameter), in the svg options card that the last of the
+          warnings stays a warning under the strict option, in the scad cards the def. fragment, and the
+          vl-param-unknown diagnostic in the vega-lite warnings and svg diagnostics cards.
         justification: |
           The model variables and the chart parameters of an embedded file are set from the link, where nothing else
-          shows that they exist; an agent finds them in the topic of the file type and of the link.
+          shows that they exist; an agent finds them in the cards of the file type and of the link.
         tests:
           - HelpTopics_ParamOptionAndFragmentPrefixes_AreDocumented
 
       - id: CanvasNetTool-Commands-HelpTopics-InputFragments
         title: >-
-          The HelpTopics class shall document the fragment of an input path in the svg topic (the grammar of a link, the
-          rule for the number sign, the quoting in a shell, the overrides of the options of the command, the codes and
-          that the warnings stay warnings), a fixed camera for a montage in the scad topic, the page fragment in the
-          topics of the document formats, the param fragment in the vega-lite topic and the code
-          image-fragment-invalid in the errors topic, and the usage text of every command that takes an input shall
+          The HelpTopics class shall document the fragment of an input path in the svg fragments card (the grammar of
+          a link, the rule for the number sign, the quoting in a shell, the overrides of the options of the command,
+          the codes and that the warnings stay warnings), a fixed camera for a montage in the scad cards, the page
+          fragment in the cards of the document formats, the param fragment in the vega-lite cards and the code
+          image-fragment-invalid in the errors cards, and the usage text of every command that takes an input shall
           mention it.
         justification: |
-          A fragment on a path is not visible in any option table; an agent finds it from the topic of the file type and
-          from the usage of the command it runs.
+          A fragment on a path is not visible in any option table; an agent finds it from the cards of the file type
+          and from the usage of the command it runs.
         tests:
           - HelpTopics_InputFragments_AreDocumentedInTopicsAndUsages
           - HelpTopics_ErrorsTopic_ListsEveryErrorCode
 
       - id: CanvasNetTool-Commands-HelpTopics-Mermaid
         title: >-
-          The HelpTopics class shall provide the mermaid topic (alias mmd) with what a diagram may use (flowcharts,
+          The HelpTopics class shall provide the mermaid cards (alias mmd) with what a diagram may use (flowcharts,
           their shapes, links, subgraphs, labels, styles, configuration, themes, pictures, and titles, sequence
           diagrams, their statements, arrows, participant types, and settings, class diagrams, their syntax,
           relations, and settings, state diagrams, their syntax and settings, entity relationship diagrams, their
           syntax, cardinalities, and settings, pie charts, their syntax and settings, gantt charts, their syntax,
           tags, and settings, mindmaps, their syntax and settings, packet diagrams, their syntax and settings, and git
-          graphs, their syntax and settings), each diagram type and construct that
-          is not drawn with the identifier of its diagnostic, the options that apply (--theme, --scale, --background,
-          and --strict), the diagnostics and errors with their codes, and the known differences from Mermaid, source
-          examples of a flowchart, a sequence diagram, a class diagram, a state diagram, an entity relationship
-          diagram, a pie chart, a gantt chart, a mindmap, a packet diagram, and a git graph that render with the strict
-          option without a diagnostic, a
-          snippet whose nodes show a model and a chart (the examples of the scad and vega-lite topics) that renders the
-          same way once those files exist and lists one embed operation for each, and command examples for render, the
-          theme, and info; shall quote the limits of the Mermaid library (text size, nodes, edges, and pictures) from
-          the code in the mermaid and limits topics; and shall list .mmd and .mermaid among the file types an image
-          element of an SVG file may link.
+          graphs, their syntax and settings), one card per diagram type with its settings and known differences on a
+          card below it, each diagram type and construct that is not drawn with the identifier of its diagnostic, the
+          options that apply (--theme, --scale, --background, and --strict), the diagnostics and errors with their
+          codes, and the known differences from Mermaid, source examples of a flowchart, a sequence diagram, a class
+          diagram, a state diagram, an entity relationship diagram, a pie chart, a gantt chart, a mindmap, a packet
+          diagram, and a git graph that render with the strict option without a diagnostic, a snippet whose nodes
+          show a model and a chart (the examples of the scad and vega-lite cards) that renders the same way once those
+          files exist and lists one embed operation for each, and command examples for render, the theme, and info;
+          shall quote the limits of the Mermaid library (text size, nodes, edges, and pictures) from the code in the
+          mermaid and limits cards; and shall list .mmd and .mermaid among the file types an image element of an SVG
+          file may link.
         justification: |
           An agent that is asked to draw a diagram must learn from the tool itself which diagram types and constructs
           are drawn, how to choose a theme, and how to show a picture in a node, and get a working diagram to start
-          from; checking the topic against the code keeps every statement of it true for the version installed.
+          from; checking the cards against the code keeps every statement of them true for the version installed.
         tests:
           - HelpTopics_MermaidTopic_PicturesSnippet_RendersStrictWithItsSiblingFiles
           - HelpTopics_Find_EveryAlias_ResolvesIgnoringCase
-          - HelpTopics_FormatTopics_HaveSupportedUnsupportedOptionsDiagnosticsDifferencesAndExamples
+          - HelpTopics_FormatTopics_SubtreesHaveSupportedUnsupportedOptionsDiagnosticsDifferencesAndExamples
           - HelpTopics_Examples_NamesUniqueKindsValidAndSourcesNonEmpty
           - HelpTopics_SourceExamples_RenderStrictWithoutDiagnostics
           - HelpTopics_Text_HasNoUnresolvedTokens
@@ -194,12 +284,12 @@ sections:
 
       - id: CanvasNetTool-Commands-HelpTopics-MermaidGuideParity
         title: >-
-          The HelpTopics class shall give in the mermaid topic, item by item and in order, the same class diagram
+          The HelpTopics class shall give in the mermaid cards, row for row and in order, the same class diagram
           syntax, relation, and setting rows, the same state diagram syntax and setting rows, the same entity
           relationship diagram syntax, cardinality, and setting rows, the same pie chart syntax and setting rows, the
           same gantt chart syntax, tag, and setting rows, the same mindmap syntax and setting rows, the same packet
           diagram syntax and setting rows, the same git graph syntax and setting rows, and the same unsupported-feature
-          and warning codes as the Mermaid user guide, worded the same apart from formatting.
+          and warning codes as the Mermaid user guide, worded the same, code spans included.
         justification: |
           People read the guide and agents read the help; both must describe the same version, and a row added to
           one and not the other would tell one of them something untrue.
@@ -208,10 +298,10 @@ sections:
 
       - id: CanvasNetTool-Commands-HelpTopics-FlattenGuideParity
         title: >-
-          The HelpTopics class shall give in the flatten section of the svg topic, item by item and in order, the same
-          terms and meanings as the flatten reference table of the tool user guide, worded the same apart from
-          formatting, and shall document the flatten command in the json and limits topics and the warning
-          svg-flatten-image-not-drawn in the diagnostics of the svg topic.
+          The HelpTopics class shall give in the svg flatten card, bullet for bullet and in order, the same terms and
+          meanings as the flatten reference table of the tool user guide, word for word, and shall document the
+          flatten command in the json and limits cards and the warning svg-flatten-image-not-drawn in the svg
+          diagnostics card.
         justification: |
           People read the guide and agents read the help; both must describe what flatten replaces, keeps, and refuses
           in the same words, and a row added to one and not the other would tell one of them something untrue.
@@ -222,16 +312,16 @@ sections:
 
       - id: CanvasNetTool-Commands-HelpTopics-FileAccess
         title: >-
-          The HelpTopics class shall provide the files topic (aliases file-access and links) with the sections modes,
-          options, always, diagnostics, and pandoc, describing the modes any, roots, no-symlinks, and roots,no-symlinks,
-          the options `--file-access` and `--allow-root`, what holds in every mode, the diagnostics image-access-denied
-          and file-access-denied (with their live codes), and the variables CANVASNET_FILE_ACCESS and CANVASNET_ROOTS
-          that the Pandoc filter reads; the svg, errors, limits, scad, vega-lite, and mermaid topics shall point to it;
-          and the codes it cites shall exist in the libraries.
+          The HelpTopics class shall provide the files card (aliases file-access and links) with the sections Modes,
+          Options, In every mode, Diagnostics, and The Pandoc filter, describing the modes any, roots, no-symlinks,
+          and roots,no-symlinks, the options `--file-access` and `--allow-root`, what holds in every mode, the
+          diagnostics image-access-denied and file-access-denied (with their live codes), and the variables
+          CANVASNET_FILE_ACCESS and CANVASNET_ROOTS that the Pandoc filter reads; the svg, errors, limits, scad,
+          vega-lite, and mermaid cards shall point to it; and the codes it cites shall exist in the libraries.
         justification: |
           A user or an agent about to process a document it does not trust must learn from the tool itself which files
           a document can make it read and how to confine them; the codes and variables are verified against the code
-          and the filter, so the topic cannot promise what the tool does not do.
+          and the filter, so the card cannot promise what the tool does not do.
         tests:
           - HelpTopics_FilesTopic_DocumentsModesOptionsDiagnosticsAndPandoc
           - HelpTopics_Find_EveryAlias_ResolvesIgnoringCase
@@ -241,10 +331,10 @@ sections:
 
       - id: CanvasNetTool-Commands-HelpTopics-FileAccessGuideParity
         title: >-
-          The HelpTopics class shall give every item of the files topic, in order, the term and text of a row of the
-          File Access Reference table of the tool user guide.
+          The HelpTopics class shall give every bullet of the files card, in order, the term and text of a row of the
+          File Access Reference table of the tool user guide, word for word.
         justification: |
-          The guide and the topic are two views of the same reference; a test that compares them item by item keeps
+          The guide and the card are two views of the same reference; a test that compares them bullet by bullet keeps
           them from drifting apart.
         tests:
           - HelpTopics_FilesTopic_Items_MatchUserGuide

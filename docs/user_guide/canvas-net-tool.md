@@ -53,7 +53,8 @@ not an option (or the value of an option) is the command name.
 - **Mistakes.** An unknown option or command is an error that names the closest valid one (`Did you mean '--fit'?`).
 - **Help.** `canvasnet --help` lists the commands and the help topics, `canvasnet help <command>` and
   `canvasnet <command> --help` show the usage, examples, and every option of a command, and
-  `canvasnet help <topic>` explains an input format or a cross-cutting subject (see *Help Topics*).
+  `canvasnet help <topic> [<card> ...]` explains an input format or a cross-cutting subject, one short card at a time
+  (see *Help Topics*).
 - **Files.** Paths are relative to the current directory. Wildcards are not expanded by the tool. The files a document
   references (pictures, includes, data files) are read relative to the file that names them, like Pandoc reads
   images; `--file-access` and `--allow-root` confine them (see *File Access*).
@@ -196,7 +197,7 @@ parse standard output alone in both cases; the text report on standard error is 
 <!-- markdownlint-disable MD013 -->
 
 ```json
-{"schemaVersion":1,"ok":false,"command":"render","error":{"code":"input-not-found","message":"'missing.png' does not exist.","hint":"Check the path."}}
+{"schemaVersion":2,"ok":false,"command":"render","error":{"code":"input-not-found","message":"'missing.png' does not exist.","hint":"Check the path."}}
 ```
 
 <!-- markdownlint-enable MD013 -->
@@ -818,7 +819,8 @@ renderer: blocks of bit ranges split into rows, the bit numbers, the title, and 
 **Git graphs** (`gitGraph`) are drawn with a port of Mermaid's git graph renderer: commits, branches, checkouts,
 merges, and cherry-picks from left to right, top to bottom, or bottom to top, the commit ids (a commit without one is
 given the same id in every render), tags, rerouted arrows, and the git colors of the theme.
-`canvasnet help mermaid` lists the syntax and settings of each diagram type. Every other diagram type is recognized:
+`canvasnet help mermaid` lists a card for each diagram type, with its syntax (`canvasnet help mermaid gantt`) and its
+settings (`canvasnet help mermaid gantt settings`). Every other diagram type is recognized:
 `info` reports it with `"supported": false`, and `render` writes an empty picture of 16 by 16 pixels with the diagnostic
 `mermaid-diagram-unsupported` (`--strict` makes it an `unsupported-feature` failure).
 
@@ -888,8 +890,8 @@ canvasnet help mermaid --example gantt > plan.mmd
 
 An `<image>` element of an SVG file can name another file by a **relative `href`**, and the tool draws that file in the
 element's rectangle. This turns an SVG into a diagram that puts a 3D part and a chart beside boxes and arrows. The
-shortest form is `<image href="part.scad" x="10" y="10" width="120" height="120"/>`; `canvasnet help svg` lists the
-rules below in its *Linking files with image href* section, and `canvasnet help svg --example embed` prints a whole
+shortest form is `<image href="part.scad" x="10" y="10" width="120" height="120"/>`;
+`canvasnet help svg embedding` lists the rules below, and `canvasnet help svg --example embed` prints a whole
 diagram. The file types an `href` may link (the list in the help is checked by a test against the extensions the tool
 accepts):
 
@@ -971,8 +973,9 @@ draws the model and the chart into their rectangles. The result lists each embed
   separated by `&` (written `&amp;` inside an XML attribute); `%XX` escapes are decoded after the split; names are not
   case sensitive; a page counts from 1. A fragment is at most 2048 characters and 32 parameters. An embedded file never
   takes the options of the command: `--page` chooses the page of the SVG file only, and the page of an embedded document
-  is the one in its link. `canvasnet help svg` prints the grammar and `canvasnet help svg --example embed-pages` a
-  diagram that places pages side by side. **Behavior change:** a fragment on a file that takes no parameter
+  is the one in its link. `canvasnet help svg fragments` prints the grammar and
+  `canvasnet help svg --example embed-pages` a diagram that places pages side by side. **Behavior change:** a fragment
+  on a file that takes no parameter
   (`logo.png#anything`, `other.svg#top`) used to be ignored and is now the warning `image-fragment-unknown-parameter`
   (the picture is still drawn); `part.scad#view` without a value is `image-fragment-invalid`.
 - **Variables and parameters in the link.** The variables of a model and the parameters of a chart are set from the
@@ -1439,7 +1442,7 @@ document; `resize` is present only when `--resize-to` was given; `psnrDb` is `nu
 and PSNR are rounded to 4 decimals and the other fractions to 6.
 
 ```json
-{"schemaVersion":1,"ok":true,"command":"compare","tool":{"name":"canvasnet","version":"<version>"},
+{"schemaVersion":2,"ok":true,"command":"compare","tool":{"name":"canvasnet","version":"<version>"},
  "a":{"path":"ref.png","format":"png","loadedWidth":900,"loadedHeight":600,"width":900,"height":600,"operations":[]},
  "b":{"path":"redraw.svg","format":"svg","loadedWidth":900,"loadedHeight":600,"width":900,"height":600,"operations":[{"op":"render","width":900,"height":600,"background":"#FFFFFF"}]},
  "size":{"width":900,"height":600},
@@ -1455,7 +1458,7 @@ and PSNR are rounded to 4 decimals and the other fractions to 6.
 
 `outputs[].kind` is `diff`, `sideBySide`, or `overlay`; `diagnostics` entries are the loader's notes with the `side`
 (`a` or `b`) they concern. When a threshold fails, the document is the failure envelope followed by the same fields:
-`{"schemaVersion":1,"ok":false,"command":"compare","error":{"code":"threshold-failed",...},"tool":...,"a":...,
+`{"schemaVersion":2,"ok":false,"command":"compare","error":{"code":"threshold-failed",...},"tool":...,"a":...,
 "metrics":...,"grid":...,"thresholds":{"passed":false,...},"outputs":[...]}`. A value of `null` in a check is an
 infinite PSNR.
 
@@ -1518,7 +1521,7 @@ one, and a name wider than the cell is cut with `...`.
 The text result is `wrote sheet.png (1048x552 png, 52000 bytes): 6 images in 3 columns`. With `--json`:
 
 ```json
-{"schemaVersion":1,"ok":true,"command":"montage","tool":{"name":"canvasnet","version":"<version>"},
+{"schemaVersion":2,"ok":true,"command":"montage","tool":{"name":"canvasnet","version":"<version>"},
  "sheet":{"width":1048,"height":552,"columns":3,"rows":2,"cellWidth":256,"cellHeight":256,"labelHeight":22,"spacing":8,"padding":8,"fit":"contain","labels":true,"background":"#FFFFFF"},
  "cells":[{"index":0,"column":0,"row":0,"x":8,"y":8,"input":"a.png","format":"png","loadedWidth":900,"loadedHeight":600,"label":"a.png"},
           {"index":1,"column":1,"row":0,"x":272,"y":8,"input":"deck.pptx","format":"pptx","page":2,"pageCount":6,"loadedWidth":960,"loadedHeight":540,"label":"deck.pptx p2"}],
@@ -1572,7 +1575,7 @@ was not written`; the notes are written to standard error as for `render`. With 
 <!-- markdownlint-disable MD013 -->
 
 ```json
-{"schemaVersion":1,"ok":true,"command":"flatten","tool":{"name":"canvasnet","version":"<version>"},
+{"schemaVersion":2,"ok":true,"command":"flatten","tool":{"name":"canvasnet","version":"<version>"},
  "input":{"path":"dashboard.svg","format":"svg","natural":{"width":800,"height":600}},"scale":2,"flattened":true,
  "replaced":[{"href":"flow.mmd","format":"mermaid","width":1280,"height":720,"elements":1,"bytes":34567}],
  "rebased":[{"href":"logo.png","newHref":"../logo.png"}],
@@ -1586,7 +1589,7 @@ The diagnostics have the shape of those of `render`, with `page` for a report ab
 
 #### Flatten Reference
 
-This table is also the `flatten` section of `canvasnet help svg`; a test keeps the two the same.
+This table is also the *Reference* section of `canvasnet help svg flatten`; a test keeps the two the same.
 
 | Term | Meaning |
 | --- | --- |
@@ -1669,7 +1672,7 @@ canvasnet flatten diagram.svg -o flat.svg --file-access roots --strict --json
 
 #### File Access Reference
 
-This table is also the `canvasnet help files` topic, item by item; a test keeps the two the same.
+This table is also the `canvasnet help files` card, bullet by bullet; a test keeps the two the same.
 
 <!-- markdownlint-disable MD013 -->
 
@@ -1697,65 +1700,97 @@ This table is also the `canvasnet help files` topic, item by item; a test keeps 
 ## Help Topics
 
 `canvasnet help <subject>` explains the tool from the tool itself, offline and for the installed version. The subject
-is a command (see *Commands*) or one of twelve help topics, which cover the input formats and the subjects that apply to
-every command. A subject is matched in any letter case, and a topic may be named by an alias.
+is a command (see *Commands*) or one of fourteen help topics, which cover the input formats, how to make pictures look
+good and compose them, and the subjects that apply to every command. A subject is matched in any letter case, and a
+topic may be named by an alias.
 
 | Topic | Aliases | What it covers |
 | --- | --- | --- |
 | `scad` | `openscad` | OpenSCAD models, drawn as one still picture from a named viewpoint |
 | `vega-lite` | `vegalite`, `vl` | Vega-Lite charts: the supported subset of Vega-Lite 5 and 6 |
 | `mermaid` | `mmd` | Mermaid flowchart, sequence, class, state, ER, pie, gantt, mindmap, packet, git graphs, themes |
-| `svg` | | SVG drawings: the supported subset, drawn sharply at the target size |
+| `svg` | | SVG drawings: the supported subset, drawn sharply at the target size, and embedding with `<image href>` |
 | `pdf` | | PDF documents: a page is drawn as an image |
 | `pptx` | `powerpoint` | PowerPoint presentations: each slide is a page |
 | `vsdx` | `visio` | Visio drawings: each drawing page is a page |
 | `raster` | `png`, `jpeg`, `jpg`, `bmp`, `tiff`, `tif`, `gif`, `jpeg2000`, `jp2` | The pixel images read and written |
+| `style` | | Making pictures look good: palette, font sizes, spacing, backgrounds, resolution, and checking the PNG |
+| `composition` | | Combining diagrams, charts, models, and pages in one figure |
 | `json` | | The `--json` result documents |
 | `errors` | | Failures, the stable error codes, exit codes, and what `--strict` changes |
 | `limits` | | The largest sizes and budgets accepted, and the error each one produces |
 | `files` | `file-access`, `links` | Which files a document may reference, `--file-access`, and the Pandoc filter |
 
-`canvasnet help topics` lists the commands and the topics with their aliases and one-line summaries. The topic of a
-format has the same parts every time: what is **supported**, what is **unsupported**, the **options** that apply, the
-**diagnostics** it reports and how `--strict` treats them, and the **known differences** from the original program,
-followed by its examples. The topics are embedded in the tool, so they work offline and always describe the version
-that is installed. This guide stays the narrative; the topics are the quick reference, they carry the same format notes
-in a machine-readable form, and they are tested against the code (the options, the error codes, the diagnostic
-identifiers, the limits, and every example).
+### Help Cards
 
-The topics ship tiny examples. The source examples of `scad`, `vega-lite`, `mermaid`, and `svg` are files that render
-with `--strict` without a diagnostic; the other examples are command lines:
+Each topic is a tree of short help cards, so an agent reads only what it needs. A topic prints its index card: what
+the format is, the cards below it with their summaries, and related topics. Further words name a card below it, by
+name or alias, in any letter case; the words may also be joined with `/`:
 
 ```bash
-# Read the topic, list its examples, and print one: the output is only the source, so it can be saved as it is
-canvasnet help scad
+canvasnet help mermaid             # the index of the Mermaid cards
+canvasnet help mermaid gantt       # gantt chart syntax and tags
+canvasnet help mmd gantt settings  # the gantt settings and known differences
+canvasnet help svg composition     # SVG as the layout of a figure
+canvasnet help topics              # every card, one line each, with its path and summary
+```
+
+A card is plain text in Markdown form: its title, its summary, and its body as written, followed by a generated footer.
+The footer lists the cards below it (`## Cards`), its examples (`## Examples`), and related cards (`## See also`).
+Every entry of the footer is the exact command that prints the card, with that card's summary, so a reader follows a
+link by running it. For example, `help mermaid gantt` leads to `help mermaid style`, which leads to `help mermaid
+composition` and the `style` and `composition` topics. Every card is at most 6,000 characters, and an index card at
+most 3,500.
+
+The tree of a format has the same parts every time: what is **supported**, what is **unsupported**, the **options**
+that apply, the **diagnostics** it reports and how `--strict` treats them, and the **known differences** from the
+original program. Each drawing format (`scad`, `vega-lite`, `mermaid`, and `svg`) also has a `style` card (how to make
+the picture look good) and a `composition` card (how to place it in, or combine it with, other pictures), linked to the
+`style` and `composition` topics. The cards are embedded in the tool, so they work offline and always describe the
+version that is installed. This guide stays the narrative; the cards are the quick reference, and they are tested
+against the code (the options, the error codes, the diagnostic identifiers, the limits, and every example) and, for the
+style advice, against the renderer.
+
+The cards ship tiny examples. The source examples of `scad`, `vega-lite`, `mermaid`, and `svg` are files that render
+with `--strict` without a diagnostic, including a styled Mermaid flowchart (`help mermaid style --example styled`), a
+styled Vega-Lite chart (`help vega-lite style --example styled`), and an SVG figure that embeds both
+(`help svg composition --example report`); the other examples are command lines:
+
+```bash
+# Read a card, list the examples of a topic, and print one: the output is only the source, so it can be saved as it is
+canvasnet help scad language
 canvasnet help scad --examples
 canvasnet help scad --example plate > plate.scad
 canvasnet render plate.scad --view top --size 400x400 -o plate-top.png --json
 ```
 
 - `--example <name>` prints only the example: the source of a file (an `.scad`, `.vl.json`, `.mmd`, or `.svg` file) or,
-  for a topic whose example is a command, the command line. Nothing else is written to standard output.
-- `--examples` lists the names, kinds (`source`, `command`, or `snippet`), and descriptions of the examples of the
-  topic. A `snippet` is shown but not rendered alone, because it refers to other files (the `embed` example of `svg` is
-  a diagram that links a model, a chart, and an SVG file beside it, and the `pictures` example of `mermaid` a flowchart
-  whose nodes show a model and a chart).
+  for a card whose example is a command, the command line. It finds the example on the card or on any card below it,
+  so `help scad --example plate` and `help scad language --example plate` print the same file. Nothing else is written
+  to standard output.
+- `--examples` lists the names, kinds (`source`, `command`, or `snippet`), and descriptions of the examples of the card
+  and the cards below it. A `snippet` is shown but not rendered alone, because it refers to other files (the `embed`
+  example of `svg` is a diagram that links a model, a chart, and an SVG file beside it, the `pictures` example of
+  `mermaid` a flowchart whose nodes show a model and a chart, and the `report` example of `svg` a figure that embeds the
+  styled diagram and chart).
 - `--json` writes any help output as one JSON document, without a banner or color codes (see *Help Documents*).
 - An unknown subject is a `usage-error` that names the closest subject (`Did you mean 'scad'?`) when there is one and
-  lists the valid subjects. `--example` and `--examples` need a topic, and an unknown example name lists the names.
+  lists the valid subjects. An unknown card below a card is a `usage-error` that names the closest card and lists the
+  cards at that level. `--example` and `--examples` need a card that has examples, and an unknown example name lists
+  the names.
 - A topic name used as a command (`canvasnet scad`) is an unknown command whose hint says that it is a help topic and
-  to run `canvasnet help scad`.
+  to run `canvasnet help scad`. `canvasnet scad --help` prints the `scad` index card.
 
 ## JSON Output
 
 With `--json` a command writes one JSON document on one line to standard output (and nothing else there). The
 document is deterministic: fixed key order, invariant culture numbers, ASCII only (other characters are written as
-`\uXXXX`), and a `schemaVersion` that is `1` and changes only when a document changes incompatibly. Every document
+`\uXXXX`), and a `schemaVersion` that is `2` and changes only when a document changes incompatibly. Every document
 starts with the same envelope.
 
 | Key | Meaning |
 | --- | --- |
-| `schemaVersion` | The version of the document layout (1) |
+| `schemaVersion` | The version of the document layout (2) |
 | `ok` | `true` for a result, `false` for a failure |
 | `command` | The command that ran (`null` in a failure when no command was selected) |
 
@@ -1774,15 +1809,15 @@ Input Paths*; the same `fragment` member is in the `input` object of `render`, t
 objects:
 
 ```json
-{"schemaVersion":1,"ok":true,"command":"info","input":{"path":"shapes.svg","format":"svg","bytes":303},"image":{"width":100,"height":80,"channels":4,"hasAlpha":true,"canDecode":true,"frameCount":1}}
+{"schemaVersion":2,"ok":true,"command":"info","input":{"path":"shapes.svg","format":"svg","bytes":303},"image":{"width":100,"height":80,"channels":4,"hasAlpha":true,"canDecode":true,"frameCount":1}}
 ```
 
 ```json
-{"schemaVersion":1,"ok":true,"command":"info","input":{"path":"report.pdf","format":"pdf","bytes":675},"document":{"pageCount":2,"pages":[{"page":1,"width":96,"height":64,"widthPt":72,"heightPt":48,"rotation":0},{"page":2,"width":96,"height":64,"widthPt":72,"heightPt":48,"rotation":0}]}}
+{"schemaVersion":2,"ok":true,"command":"info","input":{"path":"report.pdf","format":"pdf","bytes":675},"document":{"pageCount":2,"pages":[{"page":1,"width":96,"height":64,"widthPt":72,"heightPt":48,"rotation":0},{"page":2,"width":96,"height":64,"widthPt":72,"heightPt":48,"rotation":0}]}}
 ```
 
 ```json
-{"schemaVersion":1,"ok":true,"command":"info","input":{"path":"inc.scad","format":"scad","bytes":63},"model":{"modules":[],"functions":[],"directives":[{"kind":"include","path":"lib.scad","line":1}]}}
+{"schemaVersion":2,"ok":true,"command":"info","input":{"path":"inc.scad","format":"scad","bytes":63},"model":{"modules":[],"functions":[],"directives":[{"kind":"include","path":"lib.scad","line":1}]}}
 ```
 
 - `image` (raster, SVG): `width`, `height` in pixels, `channels`, `hasAlpha`, `canDecode`, `frameCount`, and
@@ -1804,13 +1839,13 @@ objects:
   parents; zero for a type that is not drawn):
 
 ```json
-{"schemaVersion":1,"ok":true,"command":"info","input":{"path":"flow.mmd","format":"mermaid","bytes":313},"image":{"width":674,"height":286,"channels":4,"hasAlpha":true,"canDecode":true,"frameCount":1},"diagram":{"type":"flowchart","supported":true,"direction":"LR","title":"Order flow","nodes":5,"edges":5,"subgraphs":1}}
+{"schemaVersion":2,"ok":true,"command":"info","input":{"path":"flow.mmd","format":"mermaid","bytes":313},"image":{"width":674,"height":286,"channels":4,"hasAlpha":true,"canDecode":true,"frameCount":1},"diagram":{"type":"flowchart","supported":true,"direction":"LR","title":"Order flow","nodes":5,"edges":5,"subgraphs":1}}
 ```
 
 `render`, `convert`, and the transformation commands add:
 
 ```json
-{"schemaVersion":1,"ok":true,"command":"crop","tool":{"name":"canvasnet","version":"<version>"},"input":{"path":"shapes.png","format":"png","natural":{"width":100,"height":80}},"operations":[{"op":"crop","x":0,"y":0,"width":50,"height":80,"clamped":false}],"outputs":[{"path":"left.png","format":"png","width":50,"height":80,"bytes":205}],"diagnostics":[],"echo":[]}
+{"schemaVersion":2,"ok":true,"command":"crop","tool":{"name":"canvasnet","version":"<version>"},"input":{"path":"shapes.png","format":"png","natural":{"width":100,"height":80}},"operations":[{"op":"crop","x":0,"y":0,"width":50,"height":80,"clamped":false}],"outputs":[{"path":"left.png","format":"png","width":50,"height":80,"bytes":205}],"diagnostics":[],"echo":[]}
 ```
 
 - `tool`: the name and version of the tool.
@@ -1869,26 +1904,33 @@ grow in later versions of the tool; a program should ignore an `op` or a key it 
 
 ### Help Documents
 
-`help --json` (also `--help --json` and `help topics --json`), `help <command> --json` (also `<command> --help --json`),
-and `help <topic> --json` write the help as one document in the same envelope, with no banner and no color codes, and a
-`kind` that tells which document it is:
+`help --json` (also `--help --json` and `help help --json`), `help topics --json`, `help <command> --json` (also
+`<command> --help --json`), and `help <topic> [<card> ...] --json` write the help as one document in the same envelope,
+with no banner and no color codes, and a `kind` that tells which document it is:
 
 | `kind` | Written for | Fields after `kind` |
 | --- | --- | --- |
-| `index` | The tool, or the subject `topics` | `topic` (`topics`), `usage`, `commands`, `topics` (each `{"name","aliases","summary"}`), `globalOptions` |
+| `index` | The tool | `usage`, `commands`, `topics` (each `{"name","aliases","summary"}`), `globalOptions` |
 | `command` | A command | `topic` (the command), `aliases`, `summary`, `usage`, `options`, `globalOptions` |
-| `topic` | A help topic | `topic`, `aliases`, `title`, `summary`, `sections` (`{"id","title","items"}`), `examples` |
-| `examples` | `help <topic> --examples` | `topic`, `examples` (each `{"name","kind","language","fileName","description"}`) |
-| `example` | `help <topic> --example <name>` | `topic`, `example` (the same fields and the `content`) |
+| `topics` | `help topics` | `cards` (each `{"id","aliases","summary","command"}`, every card, depth first) |
+| `card` | A help card | `id`, `aliases`, `title`, `summary`, `body`, `children`, `seeAlso`, `examples` |
+| `examples` | `help <topic> [<card> ...] --examples` | `id`, `examples` (each `{"card","name","kind","language","fileName","description"}`) |
+| `example` | `help <topic> [<card> ...] --example <name>` | `id`, `example` (the same fields and the `content`) |
 
-Each item of a section is `{"term","text"}` (the `term` only when it has one), each option is `{"name","aliases",
-"takesValue","valueName","description"}`, and an example of a topic carries its `content`, which is the source of a file
-or a command line. A mistake, such as an unknown subject, is the failure document of the `help` command.
+The `body` of a card is its Markdown text. Each entry of `children` and `seeAlso` is `{"id","summary","command"}`, where
+`command` is the exact command that prints that card. Each option is `{"name","aliases","takesValue","valueName",
+"description"}`, and an example of a card carries its `content`, which is the source of a file or a command line
+(`fileName` only for a file). A mistake, such as an unknown subject or card, is the failure document of the `help`
+command.
+
+> **Schema version 2.** Version 2 replaced the help `topic` document (with its `topic` and `sections` keys) by the
+> `card` and `topics` documents, and dropped the constant `topic` key of the `index` document. Every other document is
+> unchanged; a reader of version 1 documents needs no change apart from the help documents.
 
 ### Failure Documents
 
 ```json
-{"schemaVersion":1,"ok":false,"command":"render","error":{"code":"page-out-of-range","message":"Page 9 does not exist: 'report.pdf' has 2 pages.","hint":"Pages are numbered from 1."}}
+{"schemaVersion":2,"ok":false,"command":"render","error":{"code":"page-out-of-range","message":"Page 9 does not exist: 'report.pdf' has 2 pages.","hint":"Pages are numbered from 1."}}
 ```
 
 `error.code` is one of the codes in the next section, `error.message` describes the problem, and `error.hint`
@@ -1900,7 +1942,7 @@ the failure envelope followed by the fields of the comparison, so that a single 
 numbers:
 
 ```json
-{"schemaVersion":1,"ok":false,"command":"compare","error":{"code":"threshold-failed","message":"rmse 23.91 is above the limit 10","hint":"The result and the pictures were written. ..."},"tool":{"name":"canvasnet","version":"<version>"},"a":{"path":"ref.png",...},"b":{...},"metrics":{"identical":false,"rmse":23.9,...},"grid":{...},"worstCells":[...],"thresholds":{"passed":false,"checks":[{"metric":"rmse","comparison":"<=","limit":10,"value":23.9,"passed":false}]},"outputs":[...],"diagnostics":[],"echo":[]}
+{"schemaVersion":2,"ok":false,"command":"compare","error":{"code":"threshold-failed","message":"rmse 23.91 is above the limit 10","hint":"The result and the pictures were written. ..."},"tool":{"name":"canvasnet","version":"<version>"},"a":{"path":"ref.png",...},"b":{...},"metrics":{"identical":false,"rmse":23.9,...},"grid":{...},"worstCells":[...],"thresholds":{"passed":false,"checks":[{"metric":"rmse","comparison":"<=","limit":10,"value":23.9,"passed":false}]},"outputs":[...],"diagnostics":[],"echo":[]}
 ```
 
 A program that reads `ok`, `error.code`, and `metrics` handles both outcomes of a gate in one parse.
@@ -2131,10 +2173,12 @@ agent can inspect, and writes
 the agent's own drawings (an SVG, a SCAD model, or a Mermaid diagram) as pictures it can compare with a reference. A few
 conventions make this reliable:
 
-- Start with `canvasnet help topics`, then `canvasnet help <format>` for what a format supports and what it does not
-  (`scad`, `vega-lite`, `mermaid`, `svg`, `pdf`, `pptx`, `vsdx`, `raster`) and
-  `canvasnet help <format> --example <name>` for a tiny example that is known to render. Add `--json` to parse any of
-  them. To put a model, a chart, or a picture inside a diagram, link it from an SVG with
+- Start with `canvasnet help topics`, then `canvasnet help <format>` for the index of a format (`scad`, `vega-lite`,
+  `mermaid`, `svg`, `pdf`, `pptx`, `vsdx`, `raster`), the card below it that answers the question
+  (`canvasnet help mermaid gantt`), and `canvasnet help <format> --example <name>` for a tiny example that is known
+  to render. Follow the *See also* commands at the end of a card; `canvasnet help style` and
+  `canvasnet help composition` explain how to make a picture look good and how to combine pictures. Add `--json` to
+  parse any of them. To put a model, a chart, or a picture inside a diagram, link it from an SVG with
   `<image href="part.scad" .../>`; `canvasnet help svg` lists the file types, the link rule, and the
   `svg-image-unresolved` warning, and `canvasnet help svg --example embed` prints a diagram.
 - For a document you did not write, add `--file-access roots,no-symlinks --allow-root <the document's folder>` (and

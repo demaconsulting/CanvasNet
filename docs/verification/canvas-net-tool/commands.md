@@ -18,9 +18,9 @@ project): resolution by name and alias, argument hand-off with global options mi
 unknown-command report, and help; and, with the default registry, that the shipped `formats`, `info`, `render`,
 transform verb, `compare`, `montage`, `inspect`, and `flatten` commands are registered, run, and are listed in the help,
 and that
-the help topics are shown by name, by alias, and as JSON, their examples are printed, and an unknown help subject is
-reported. The shipped
-commands are verified by their own unit tests. The content of the help topics, which the help requirement of the
+the help topics and the cards below them are shown by name, by alias, by path, and as JSON, their examples are printed,
+and an unknown help subject is reported. The shipped
+commands are verified by their own unit tests. The content of the help cards, which the help requirement of the
 subsystem takes from its `HelpTopics` children (among them the `mermaid` topic, and its parity with the Mermaid user
 guide: the same class, state, and entity relationship diagram syntax, relation or cardinality, and setting rows and
 the same unsupported-feature and warning codes,
@@ -38,8 +38,8 @@ console.
 - A command runs with exactly its own arguments; global options never reach it.
 - An unknown command is a usage error with a suggestion and exit code 1.
 - Help lists the commands and the help topics, shows each command's usage and options without running it, and prints a
-  topic, an example, or a JSON help document on request; an unknown help subject is a usage error that lists the valid
-  subjects.
+  help card (by a path of names and aliases), an example, or a JSON help document on request; an unknown help subject
+  is a usage error that lists the valid subjects.
 - The `mermaid` help topic and the Mermaid user guide give the same class, state, and entity relationship diagram rows
   and diagnostic codes.
 
@@ -68,12 +68,16 @@ the command's usage and options, and the command itself does not run.
 `Unknown help subject 'nothing'.` (the run path `nothing` still reports `Unknown command`).
 
 **CommandsSubsystem_HelpTopics_SubjectsResolve_ByNameAliasAndFlag**: `help scad`, `help OpenSCAD`, `scad --help`, and
-`help topics` all exit 0; the topic is shown by name and by alias with the same text (the flag form adds only the
-banner), and `help topics` is the index with the `Help topics:` list naming every topic.
+`help topics` all exit 0; the root card is shown by name and by alias with the same text, starting with
+`# OpenSCAD models (.scad)` (the flag form adds only the banner), and `help topics` names every card.
+
+**CommandsSubsystem_HelpTopics_CardPath_ResolvesByNamesAndAliases**: `help mermaid gantt settings`,
+`help mmd GANTT settings`, and `help mermaid/gantt/settings` all exit 0 and print the same card, which starts with
+`# Gantt charts: settings and known differences`.
 
 **CommandsSubsystem_HelpTopics_Json_IsOneLineWithoutBannerOrAnsi**: `help scad --json`, `--help --json`, and
 `scad --help --json` each exit 0 with nothing on standard error and write exactly one JSON line without banner or escape
-sequence: a `help` document of the kind `topic`, `index`, and `topic`.
+sequence: a `help` document of the kind `card`, `index`, and `card`.
 
 **CommandsSubsystem_HelpTopics_Example_PrintsOnlyTheSource**: `help scad --example plate` exits 0 and writes exactly the
 source of the example and one line end to standard output, and nothing to standard error.

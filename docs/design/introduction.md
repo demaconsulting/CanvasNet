@@ -383,8 +383,8 @@ software items, specifically:
   (command line, command capture, output channels), `ArgumentReader` (command-line grammar and value parsers),
   `ResultWriter` (the JSON result documents), `Validation` (the `--validate` self-test and results
   output), and `PathHelpers` (safe path combination) - and one subsystem, `Commands` (the command contract, the
-  `CommandRegistry` unit, the `HelpTopics` unit with the help topics and their examples, the `DiscoveryCommands` unit
-  with the `formats` and `info` commands, and the
+  `CommandRegistry` unit, the `HelpTopics` unit with the tree of help cards and their examples, the
+  `DiscoveryCommands` unit with the `formats` and `info` commands, and the
   `RenderCommand` unit with the `render` command, its alias `convert`, and the verb commands `crop`, `resize`,
   `rotate`, `flip`, and `pad` (and the `ImagePipelineParser` that reads the pipeline operations from the command line),
   the `CompareCommand` unit with the `compare` command, the `MontageCommand` unit
@@ -1742,10 +1742,11 @@ src/DemaConsulting.CanvasNet.Tool/
     ├── ICommand.cs                — CommandRegistry: ICommand contract and OptionSpec
     ├── CommandRegistry.cs         — CommandRegistry: command table, dispatch, and the unknown-command report
     ├── CommandRegistry.Help.cs    — CommandRegistry: the help command, its subjects, examples, and JSON documents
-    ├── HelpTopics.cs              — HelpTopics: the topic model, the embedded catalog, tokens, and lookup
+    ├── HelpTopics.cs              — HelpTopics: the card model, the embedded tree, its validation, tokens, and lookup
+    ├── HelpTopics.FrontMatter.cs  — HelpTopics: the strict parser of the YAML front matter of a card
     ├── HelpTopics.Render.cs       — HelpTopics: the text and JSON renderings and the wrapping
-    ├── Help/                      — HelpTopics: the embedded topic files (scad, vega-lite, mermaid, svg, pdf, pptx,
-    │   │                            vsdx, raster, json, errors, limits, and files, one JSON file each)
+    ├── Help/                      — HelpTopics: the embedded help cards, one Markdown file each, in folders that
+    │   │                            mirror the tree (scad.md, mermaid.md, mermaid/gantt.md, style.md, ...)
     │   └── Examples/              — HelpTopics: the embedded example sources (SCAD, Vega-Lite, Mermaid, and SVG)
     ├── DiscoveryCommands.cs       — DiscoveryCommands: the formats and info commands and the format tables
     ├── RenderCommand.cs           — RenderCommand: the render command (alias convert), run and result

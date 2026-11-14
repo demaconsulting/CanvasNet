@@ -59,8 +59,8 @@ Vega-Lite one and the help self-test is last; the exit code is 0.
 
 **Validation_Run_HelpExamplesSelfTest_PassesAndIsRecorded**: the help self-test (`CanvasNetTool_HelpExamples`) passes
 (exit code 0), is reported as passed, is named in the TRX file, and the run reports no failed test. The self-test itself
-renders every source example of the help topics with `--strict` (no diagnostic), checks that `help scad --example plate`
-prints exactly the embedded source, and checks that `help topics --json` lists every topic.
+renders every source example of the help cards with `--strict` (no diagnostic), checks that `help scad --example plate`
+prints exactly the embedded source, and checks that `help topics --json` lists every help card.
 
 **Validation_Run_NullContext_ThrowsArgumentNullException**: a null context throws.
 

@@ -1,181 +1,100 @@
 ### HelpTopics
 
-<!-- cspell:ignore canvasnet vegalite jpeg jpg tiff jp2 openscad -->
-
 ![Commands Structure](CommandsView.svg)
 
 #### Purpose
 
-`HelpTopics` is the catalog of help topics that `canvasnet help <topic>` prints: one topic for each format the tool
-reads (`scad`, `vega-lite`, `mermaid`, `svg`, `pdf`, `pptx`, `vsdx`, and `raster`) and three cross-cutting topics
-(`json`, `errors`, and `limits`). A topic says what a format supports, what it does not, which options apply, which
-diagnostics can appear (and what `--strict` does with them), and where the tool differs from the original program, and
-it carries tiny examples that an agent can print and run. Its single responsibility is to load that content, keep it
-consistent with the code, and render it as plain text or as JSON. The dispatch of the `help` command and the index of
-commands and topics belong to `CommandRegistry` (the file `CommandRegistry.Help.cs`), which calls this unit.
+`HelpTopics` is the tree of help cards that `canvasnet help <topic> [<card> ...]` prints. A card is a short Markdown
+text about one subject. The fourteen root cards (the help topics) are one per format the tool reads (`scad`,
+`vega-lite`, `mermaid`, `svg`, `pdf`, `pptx`, `vsdx`, and `raster`), the two guidance hubs (`style` and `composition`),
+and the cross-cutting subjects (`json`, `errors`, `limits`, and `files`). A large topic is split into cards below its
+root, for example `mermaid gantt` and `mermaid gantt settings`, so an agent reads only the part it needs. The cards say
+what a format supports, what it does not, which options apply, which diagnostics can appear (and what `--strict` does
+with them), where the tool differs from the original program, how to make a picture look good, and how to compose
+pictures, and they carry tiny examples that an agent can print and run.
 
-The unit is the internal static partial class `HelpTopics` in `HelpTopics.cs` (the model, the loading of the embedded
-content, the token substitution, and the lookup) and `HelpTopics.Render.cs` (the text and JSON renderings and the
-wrapping). The content is embedded in the tool assembly, so an installed tool needs no other file.
+The unit's single responsibility is to load that content, keep it consistent with itself and the code, resolve a card
+by its path, and render it as plain text or as JSON. The dispatch of the `help` command and the index of commands and
+topics belong to `CommandRegistry` (the file `CommandRegistry.Help.cs`), which calls this unit.
+
+The unit is the internal static partial class `HelpTopics` in three files: `HelpTopics.cs` (the model, the loading and
+validation of the embedded cards, the token substitution, and the lookup), `HelpTopics.FrontMatter.cs` (the front-matter
+parser), and `HelpTopics.Render.cs` (the text and JSON renderings and the wrapping). The content is embedded in the tool
+assembly, so an installed tool needs no other file.
 
 #### Data Model
 
-**Model records** (`internal sealed record`, in `HelpTopics.cs`): `HelpItem` (`Term`, optional, and `Text`),
-`HelpSection` (`Id`, `Title`, and `Items`), `HelpExample` (`Name`, `Kind`, `Language`, `FileName`, `Description`, and
-`Content`), and `HelpTopic` (`Name`, `Aliases`, `Title`, `Summary`, `Sections`, and `Examples`). The records are
-immutable, so the catalog is safe to share between threads.
+**Model records** (`internal sealed record`, in `HelpTopics.cs`):
 
-**TopicNames**: the canonical names in the order the topics are listed: `scad`, `vega-lite`, `mermaid`, `svg`, `pdf`,
-`pptx`, `vsdx`, `raster`, `json`, `errors`, `limits`, `files` (twelve topics). A topic is added or removed only by
-changing this
-list together with the embedded files, and a unit test proves that the embedded topic files are exactly this set.
-**FormatTopicNames** is the first eight names, the topics that describe one format.
+- `HelpExample` holds `Name`, `Kind`, `Language`, `FileName`, `Description`, and `Content`.
+- `HelpCard` holds `Id`, `Aliases`, `Title`, `Summary`, `Body`, `ChildIds`, `SeeAlso`, and `Examples`. It also derives
+  `Name` (the last segment of the identifier), `RootId`, `ParentId`, `Depth`, `Path` (the identifier with spaces, for
+  example `mermaid gantt`), and `Command` (`canvasnet help mermaid gantt`).
+- `FrontMatterValue` (in `HelpTopics.FrontMatter.cs`) holds `Line` and one of `Scalar`, `Items`, or `Map`.
+- `FrontMatterDocument` holds the front-matter `Properties`, in order, and the `Body`.
 
-**Catalog**: a `Lazy<IReadOnlyList<HelpTopic>>` that loads every topic of `TopicNames` on first use; `All` returns it.
+The records are immutable, so the catalog is safe to share between threads.
+
+**TopicNames**: the root card identifiers in the order they are listed: `scad`, `vega-lite`, `mermaid`, `svg`, `pdf`,
+`pptx`, `vsdx`, `raster`, `style`, `composition`, `json`, `errors`, `limits`, and `files`. The loader requires the
+embedded root cards to be exactly this set. **FormatTopicNames** is the first eight, the topics that describe one
+format.
+
+**Catalog**: a `Lazy<CardCatalog>` that loads every embedded card on first use. It holds the cards depth first (each
+root of `TopicNames`, followed by the cards below it in the order of its `children`) and a dictionary by identifier.
 The catalog is read once and never changes afterwards.
 
-**Embedded resources**: the tool project embeds the content with two `EmbeddedResource` items whose `LogicalName`
-values are flat (no folder segments), like the bundled fonts of the core library:
+**Embedded resources**: the tool project embeds the content with two `EmbeddedResource` items. Both items set
+`WithCulture="false"`, so MSBuild never reads a dotted name as a satellite-resource culture.
 
 | Source file (under `Commands/Help/`) | Logical resource name |
 | --- | --- |
-| `<topic>.json` | `DemaConsulting.CanvasNet.Tool.Help.<topic>.json` |
-| `Examples/<topic>-<file name>` | `...Tool.Help.Examples.<topic>-<file name>` |
+| `<path>.md`, in folders that mirror the tree | `DemaConsulting.CanvasNet.Tool.Help/<path>.md` |
+| `Examples/<root>-<file name>` | `DemaConsulting.CanvasNet.Tool.Help.Examples.<root>-<file name>` |
 
-The two prefixes are the constants `ResourcePrefix` (`DemaConsulting.CanvasNet.Tool.Help.`) and `ExampleResourcePrefix`
-(`ResourcePrefix` followed by `Examples.`).
+The card names come from `%(RecursiveDir)`, which separates folders with `\` on Windows and `/` elsewhere; the loader
+turns a `\` into `/`. The prefixes are the constants `CardResourcePrefix` and `ExampleResourcePrefix`, and
+`CardExtension` is `.md`.
 
-The example sources stay real files with the extension of their format (`scad-plate.scad`, `vega-lite-bar.vl.json`,
-`mermaid-flowchart.mmd`, `svg-shapes.svg`), so they can be edited and checked with ordinary tools. A resource is read as
-text with LF line endings and without trailing line feeds.
+The example sources stay real files with the extension of their format, such as `scad-plate.scad`,
+`vega-lite-styled-chart.vl.json`, `mermaid-styled-flow.mmd`, and `svg-report.svg`. They can be edited and checked with
+ordinary tools. Every resource is read as text with LF line endings and without trailing line feeds.
 
-**Topic file** (`Commands/Help/<topic>.json`): one JSON object with these properties.
+**Card file** (`Commands/Help/<path>.md`): the identifier of a card is its path without `.md`, with `/` separators and
+segments of lower case letters and digits joined by single dashes. A card that has cards below it has a folder of the
+same name. The file starts with YAML front matter between two `---` lines, and the rest is the Markdown body.
 
-- `topic`: the canonical name; must equal the file name without its extension.
-- `aliases`: other names that select the topic (`openscad`, `vegalite`, `vl`, `mmd`, `powerpoint`, `visio`, and for
-  `raster` `png`, `jpeg`, `jpg`, `bmp`, `tiff`, `tif`, `gif`, `jpeg2000`, and `jp2`).
-- `title`: the title shown at the top of the topic.
-- `summary`: one line of plain text, shown in the topic list.
-- `sections`: an array of `{id, title, items}`; `id` is a kebab-case identifier, unique within the topic, and `items`
-  is an array of `{term?, text}`.
-- `examples`: an array of `{name, kind, language, fileName?, description, content?}`.
+The front matter has these keys:
 
-A format topic has the sections `supported`, `unsupported`, `options`, `diagnostics`, and `differences`, and at least
-two examples; this is checked by the unit tests, not by the loader. An example `name` is unique within its topic. The
-`kind` is `source` (`SourceKind`), `command` (`CommandKind`), or `snippet` (`SnippetKind`). A `source` example has a
-`fileName`, and its content is the text of the embedded file `Examples/<topic>-<fileName>`; it is a file the tool can
-read on its own, so the tests render every one with `--strict`. A `snippet` is stored the same way (`fileName` and an
-embedded file) but is text that refers to other files, such as the `embed` diagram of the `svg` topic whose `image`
-elements link a model, a chart, and an SVG file, and the `embed-pages` diagram whose links choose pages (`#page=2`,
-`#slide=2`), and the `pictures` diagram of the `mermaid` topic whose nodes show `part.scad` and `chart.vl.json`;
-`SourceExamples()` does not return a snippet, so the strict-clean drift test
-skips it, and a dedicated test renders each snippet with its sibling files (the examples of the other topics for a
-model,
-a chart, and an SVG file, and the documents of the shared test fixtures for a PDF, PPTX, and VSDX; a new kind rather
-than
-an exception in the test, so
-a snippet is visible as one in `--examples` and in the JSON). A `command` example has inline `content` that is a command
-line and starts with the tool name followed by a space (`canvasnet`). The `language` is `openscad`, `json`, `xml`,
-`mermaid`, or `shell`.
+- `title` (required): the title shown at the top of the card.
+- `summary` (required): one line, shown in lists and in every See also entry that points to the card.
+- `aliases`: other names that select the card among its siblings (`openscad`, `vl`, `mmd`, `graph`, `scales`, and so
+  on).
+- `children`: the names of the cards below it, in order; the list must be exactly the card files of its folder.
+- `see-also`: the identifiers of related cards.
+- `examples`: a list of maps, each with `name`, `kind`, `language`, `description`, and either `file` or `content`.
 
-The `svg` topic has a further section, `flatten` (after `image-links`), that documents the `flatten` command: what is
-replaced, what is kept, the size, the rebasing of links for another folder, nothing to flatten, the limits, and
-`--strict`; a unit test compares its items, one for one and in order, with the rows of the table under
-`#### Flatten Reference` of the tool user guide (`Term | Meaning`). The `diagnostics` section documents
-`svg-flatten-image-not-drawn`, which the identifier drift test allows as a code of the Viewer library, the `flatten`
-command example is checked like every command example, and the `json` and `limits` topics describe the JSON document
-and the limits of `flatten`.
+The body is ordinary Markdown: `##` headings, bullets, and fenced code blocks with a language. It has no `#` heading,
+because the renderer prints the title as one, and no heading of the generated footer (`## Cards`, `## Examples`, and
+`## See also`). An item with a term starts with a code span or bold text followed by a colon and a space, as in
+`` - `--strict`: ... ``.
 
-The `svg` topic has one more section, `image-links` (after `supported`), that gathers what an agent needs to link a file
-from a diagram: the item `href file types` lists the file name extensions an `image` `href` may link, then items state
-the size rule, the link rule (a query after the file name is ignored; a fragment is read as parameters; which local
-files may be read is the file-access mode of `--file-access`), the page
-fragment (grammar, the parameter of each format, limits, the `&amp;` of an XML attribute), the unknown-parameter note,
-and
-the warnings `svg-image-unresolved`, `svg-image-too-large`, and `image-access-denied`, and an `example`, which points to
-the `embed`
-snippet, and the file types of the `href file types` item are compared by a unit test, in both directions, with
-`CanvasNetViewer.Extensions` (the extensions of the image sources the tool wires in, so a type added to the Viewer is
-caught) and with the `formats` table, so the list cannot
-drift from what the tool does. The `diagnostics` section of the `svg` topic documents
-`image-fragment-unknown-parameter`,
-`image-fragment-duplicate-parameter`, `image-fragment-invalid`, and `image-page-out-of-range` with their severity and
-the effect of `--strict`; the identifier pattern of the drift test includes the `image-fragment-` and `image-page-`
-prefixes and a theory renders each of the four codes through the tool. The `pdf`, `pptx`, `vsdx`, and `scad` topics show
-the fragment of their format, the `json` topic describes `detail`, `location`, and `origin`, and the `limits` topic
-states the limits of a fragment. The `scad` and `vega-lite` topics, the footer of the `formats` listing, and the usage
-of `render` each point to `canvasnet help svg`. The `image-links` section also has the item `variable fragment`, which
-documents
-the prefixed parameters (`def.<name>=<value>` sets a model variable like `-D`, `param.<name>=<value>` sets a chart
-parameter
-like `--param`, the case rules, and the codes `image-fragment-invalid`, `vl-param-unknown`, and
-`image-fragment-unknown-parameter`); the `vega-lite` topic lists `--param <name=value>` in its options and
-`vl-param-unknown` in its
-diagnostics (as does `svg`; the drift test accepts the identifier because it is a literal of the library), and the
-`scad` topic shows
-`#def.` in its link item. A unit test checks the three topics, the usage text, and that the documented command runs.
+**Examples**: an example `name` is unique below its root, so `--example` finds it from any card of the tree. The
+`kind` is one of these:
 
-The `mermaid` topic (alias `mmd`) has the five sections of a format topic and eight more, `class`, `state`, `er`,
-`pie`, `gantt`, `mindmap`, `packet`, and `gitgraph` (after `supported`, in that order): `supported` (flowcharts and
-their shapes, links, subgraphs, labels, styles, configuration and themes, picture nodes, and titles, sequence diagrams
-and their statements, arrows, participant types, and settings, an overview item each for class, state, and entity
-relationship diagrams, pie charts, gantt charts, mindmaps, packet diagrams, and git graphs, and what `info` reports),
-`class` (the class diagram
-syntax, relation, and setting rows), `state` (the state diagram syntax and setting rows), and `er` (the entity
-relationship diagram syntax, cardinality and line, and setting rows), `pie` (the pie chart syntax and setting rows),
-`gantt` (the gantt chart syntax, tag, and setting rows), `mindmap` (the mindmap syntax, shape, section, layout, and
-color rows and the `mindmap.*` setting rows), `packet` (the packet diagram syntax, row, bit number, and color rows
-and the `packet.*` setting rows), and `gitgraph` (the git graph syntax rows, from the header, commits, branches,
-checkouts, merges, and cherry-picks to the errors, titles, texts, comments, colors, and configuration, and the
-`gitGraph.*` setting rows), each item by item and in the order of the tables of the Mermaid user guide, which a
-unit test compares with the guide's rows, `unsupported` (one term per identifier the renderer reports instead of
-drawing: `mermaid-diagram-unsupported` for every other diagram type, which `render` draws as an empty picture and `info`
-reports with `supported` false, and the icon (also a mindmap node's `::icon(...)`), math, look, layout (also a mindmap
-layout other than cose-bilkent), and theme-CSS identifiers), `options` (`--theme` with the theme fragment, `--scale`,
-`--background`, and `--strict`), `diagnostics` (`mermaid-warning` with the specific code in `detail`, the codes of the
-errors and of the warnings of the library, and the text limit), and `differences` (the bundled fonts, a static picture,
-the layout without the pictures that `info` reports, the white background, the located errors where Mermaid would crash,
-a gantt chart drawn without a today line because the tool sets no clock, and the mindmap differences: the exactness of
-the chaotic layout, the icons, other layouts, the empty mindmap, a decoration before the first node, and the depth and
-work limits, and the packet differences: the limit on the parts of the rows and the settings and errors, and the git
-graph differences: the generated commit ids, the limits, the settings and errors, and the text widths and duplicate
-ids). The same unit
-test checks that every code of the guide's table of unsupported features and warnings is an item of the `unsupported` or
-`diagnostics` section with the same text. Its examples are `flowchart` (a source example: a decision, a subgraph, link
-labels, and a class), `sequence`, `class`, `state`, `er`, `pie`, `gantt`, `mindmap`, `packet`, and `gitgraph` (source
-examples of a
-sequence diagram, a class diagram, a state diagram with start
-and end states, labeled transitions, a composite state, and a note, and an entity relationship diagram with attribute
-tables, keys, comments, and three relationships with their cardinalities, a pie chart, a gantt chart without a
-`todayMarker` statement or an unknown reference, so it renders without a warning, and a mindmap with three sections and
-every node shape and a Markdown string, without an icon or a layout, and a packet diagram of three rows with ranges,
-single bits, `+N` blocks, a block split across two rows, and a title, and a git graph with three branches, a branch
-order, a highlighted and a reversed commit, a merge, a cherry-pick with its default tag, a tag, and a title, embedded as
-`Examples/mermaid-sequence.mmd`, `mermaid-class.mmd`, `mermaid-state.mmd`, `mermaid-er.mmd`, `mermaid-pie.mmd`,
-`mermaid-gantt.mmd`, `mermaid-mindmap.mmd`, `mermaid-packet.mmd`, and `mermaid-gitgraph.mmd`), all ten rendered with
-`--strict` by the drift test and the self-test, `pictures` (a snippet
-whose nodes show `part.scad` and `chart.vl.json`, rendered by its own test with the `plate` example of `scad` and the
-`bar` example of `vega-lite` as its siblings, which requires one `embed` operation per picture and no diagnostic), and
-the commands `render`, `theme`, and `info`. The `svg` topic lists `.mmd` and `.mermaid` among the `href file types` and
-`theme=` in its page fragment item, and the `limits` topic has a section for diagrams with the `mmd*` tokens. The
-identifier pattern of the drift test includes the `mermaid-` prefix, and the identifiers it finds are looked up in the
-Mermaid assembly as well.
+- `source` (`SourceKind`): the content is the embedded file `Examples/<root>-<file>`, a file the tool can read on its
+  own, so the tests render every one with `--strict`.
+- `snippet` (`SnippetKind`): stored the same way, but its text links other files. Examples are the `embed` and
+  `embed-pages` drawings of `svg embedding` and `svg fragments`, the `pictures` diagram of `mermaid composition`, and
+  the `report` figure of `svg composition`. `SourceExamples()` skips a snippet, and a dedicated test renders each one
+  with its sibling files.
+- `command` (`CommandKind`): the inline `content` is a command line that starts with `canvasnet`.
 
-The `files` topic (aliases `file-access` and `links`) explains which files a document may reference: the sections
-`modes` (`any`, `roots`, `no-symlinks`, `roots,no-symlinks`), `options` (`--file-access <mode>` and
-`--allow-root <folder>`, so the option-term test checks them against the render table), `always` (the inputs, what is
-never read, the limits), `diagnostics` (`image-access-denied`, `file-access-denied`, an unavailable real path, and the
-host paths in `detail`), and `pandoc` (the default of the filter and the variables `CANVASNET_FILE_ACCESS` and
-`CANVASNET_ROOTS`), and three command examples. Every item has a term, and a unit test compares the items, in order,
-with the rows of the `#### File Access Reference` table of the tool user guide, which is the last table of its
-`### File Access` section; another test checks the codes against `FolderImageResolver.AccessDeniedCode` and
-`ErrorCodes.FileAccessDenied`, and that the filter reads both variables. The identifier pattern of the drift test
-includes the `image-access-` prefix. The `svg`, `errors`, `limits`, `scad`, `vega-lite`, and `mermaid` topics point to
-the `files` topic or name the denial codes.
+The `language` is `openscad`, `json`, `xml`, `mermaid`, or `shell`.
 
-**Tokens**: text in a topic file may use `{{name}}` tokens, which the loader replaces from the live constants of the
-code before the JSON is parsed, so a documented number cannot drift from the real one. `Tokens` is the table; the values
-are formatted with the invariant culture and no thousands separator.
+**Tokens**: the title, the summary, the body, an example description, and a command may use `{{name}}` tokens, which
+the loader replaces from the live constants of the code, so a documented number cannot drift from the real one.
+`Tokens` is the table; the values are formatted with the invariant culture and no thousands separator.
 
 | Token | Source |
 | --- | --- |
@@ -200,96 +119,175 @@ are formatted with the invariant culture and no thousands separator.
 | `fragmentMaxLength` | `ImageFragment.MaxLength` |
 | `fragmentMaxParameters` | `ImageFragment.MaxParameters` |
 
-Single braces such as `{page}` are literal text. A token the table does not know is a load error.
+Single braces such as `{page}` are literal text. A token the table does not know is a load error, so a literal pair of
+double braces cannot be written.
 
-**TextWidth**: 78, the column at which text is wrapped.
+**The tree.** Each format topic is an index card with the cards below it:
+
+- `mermaid` has a card for each of the ten diagram types, and each type with a settings table in the guide has a
+  `settings` card below it. It also has `style`, `composition`, `options`, `diagnostics`, `unsupported`, and
+  `differences`.
+- `svg` has `supported`, `embedding`, `fragments`, `units`, `flatten`, `style`, `composition`, `options`, and
+  `diagnostics`.
+- `vega-lite` has `data`, `marks`, `encodings`, `transforms`, `params`, `layout`, `style`, `composition`, `options`,
+  `unsupported`, `diagnostics`, `warnings`, and `differences`.
+- `scad` has `language`, `views`, `anchors`, `style`, `composition`, `options`, `diagnostics`, and `differences`.
+- `json` has `results`, `diagnostics`, and `help`, and `errors` has `codes` and `diagnostics`.
+- `pdf`, `pptx`, `vsdx`, `raster`, `limits`, `files`, `style`, and `composition` are single cards.
+
+The tree of each format holds the `##` headings `Supported`, `Unsupported`, `Options`, `Diagnostics`, and
+`Known differences`. The `style` and `composition` hubs link to the style and composition card of each drawing format,
+and those link back.
+
+Some bullets are compared word for word with the user guides:
+
+- The `## Syntax`, `## Relations`, and `## Tags` bullets of `mermaid <type>` and the `## Settings` bullets of
+  `mermaid <type> settings` follow the tables of the Mermaid user guide.
+- The bullets of `mermaid unsupported` and `mermaid diagnostics` carry the guide's code table.
+- The `## Reference` bullets of `svg flatten` follow the `#### Flatten Reference` table.
+- The bullets of `files` follow the `#### File Access Reference` table of the tool user guide.
+
+**Size budget**: the rendered text of a card is at most 6,000 characters, and at most 3,500 for a root card that has
+cards below it. A summary is at most 60 characters for a root card and 100 for any other card. The size budget is a
+unit test, not a load check.
+
+**TextWidth**: 78, the column at which generated lines are wrapped. Body lines are written at most 80 columns wide,
+and 120 inside a code block.
 
 #### Key Methods
 
-**All** (property): returns the catalog in `TopicNames` order, loading it on first use. A missing or malformed
-resource makes the first access throw `InvalidOperationException`. Because the catalog is a `Lazy`, the exception is
-raised again on later accesses.
+**ParseFrontMatter(text, fileName)** (`internal`): splits a card file into its front matter and body. It reads only
+this strict YAML subset:
 
-**Find(nameOrAlias)**: returns the topic whose name or one of whose aliases equals the argument ignoring case, or
-`null`. Names and aliases are unique across the catalog (checked at load), and a unit test proves that none equals a
-command, a command alias, `help`, or `topics`, so a subject is never ambiguous.
+- `key: value` at column 0, where a key is lower case letters and dashes;
+- `key:` alone, followed by list items `- value` indented by two spaces;
+- a list item that is a map: `- key: value` indented by two spaces, followed by `key: value` lines indented by four;
+- plain, single-quoted (`''` escapes a quote), and double-quoted (only `\\` and `\"`) values on one line;
+- blank lines and full-line `#` comments.
 
-**SourceExamples()**: enumerates every `source` example with its topic. The unit tests and the
-`CanvasNetTool_HelpExamples`
-self-test render each of them with `--strict`.
+Anything else is an `InvalidOperationException` with the message `Help card '<file>', line <n>: <reason>.`: a tab, a
+flow sequence or mapping, a block scalar, an anchor, an alias, a tag, a trailing comment, an unclosed quote, an
+unsupported escape, a plain value that holds a colon followed by a space, a repeated key, a key without a value or
+items, deeper nesting, or a missing opening or closing fence. The body is the text after the closing fence, with LF line
+endings, without one leading blank line, and without trailing line feeds. No YAML package is used.
 
-**LoadTopic(name)** (private): reads the resource `<ResourcePrefix><name>.json`, replaces the `{{token}}` placeholders,
-parses the JSON, requires `topic` to equal `name`, requires every text property to be present and non-empty (`topic`,
-`title`, `summary`, section `id` and `title`, item `text`, example `name`, `kind`, `language`, and `description`),
-requires unique section ids and unique example names, and reads the content of each example: the embedded example file
-for a `source` or a `snippet`, the inline `content` for a `command`. `LoadAll` then requires every name and alias to be
-unique across
-the catalog, compared ignoring case.
+**LoadCard(fileName, text)** (`internal`): checks the file name, parses the front matter, and reports these problems
+with the file and the line:
 
-**RenderText(topic)**: the plain-text topic, without a trailing newline: `Topic: <title>`, a blank line, the summary,
-`Also known as: <aliases>` when the topic has aliases, then each section as `<Title>:` followed by its items (a plain
-item is a bullet `- text` indented two columns with a hanging indent of four; a term item is its term indented two
-columns, followed by its text indented six columns), then `Examples:` with one line per example (`name`, the kind in
-brackets, and the description, aligned), and
-the closing lines `Print one with: canvasnet help <topic> --example <name>` and
-`List them with --examples; add --json for machine-readable output.` The text is wrapped by `AppendWrapped` at
-`TextWidth` columns. It is deterministic: no ANSI escape sequence, no detection of the console width, and LF line
-endings whatever the operating system.
+- an unknown key, or a missing or non-text `title` or `summary`;
+- a list where text is expected, or text where a list is expected;
+- a badly formed alias;
+- an example with an unknown key or a missing key, or one that is not a source or snippet with a `file` or a command
+  with a `content`;
+- a command that does not start with `canvasnet`.
+
+It then reads the file of each source or snippet, replaces the tokens (an unknown token is an error naming the file),
+and returns the `HelpCard`.
+
+**LoadAll** (private): loads every resource that starts with `CardResourcePrefix` and validates the tree. The roots
+must be exactly `TopicNames`, and the `children` of every card must be exactly the card files of its folder, so every
+card is reachable. A card below another needs its parent card. Every See also entry must name another card, once.
+Names and aliases must be unique among siblings and among the roots, ignoring case, and example names unique below
+each root.
+
+**All**, **Roots**, **Get(id)**, **ChildrenOf(card)**, and **Subtree(card)**:
+
+- `All` returns every card, depth first.
+- `Roots` returns the root cards in `TopicNames` order.
+- `Get(id)` returns a card by identifier.
+- `ChildrenOf(card)` returns the cards below a card, in order.
+- `Subtree(card)` returns a card followed by every card below it.
+
+A malformed card makes the first access throw `InvalidOperationException`, and because the catalog is a `Lazy`, again
+on later accesses.
+
+**Find(nameOrAlias)**: returns the root card whose name or one of whose aliases equals the argument ignoring case, or
+`null`. A unit test proves that no root name or alias equals a command, a command alias, `help`, or `topics`, so a
+subject is never ambiguous.
+
+**Resolve(path)**: splits every word of the path at `/`, finds the root with `Find`, and then each further word among
+the children of the previous card by name or alias, ignoring case. It returns `null` when the first word is not a
+root; an unknown further word is the `ToolException` described under _Error Handling_.
+
+**SourceExamples()**, **Snippets()**, **AllExamples()**, and **SubtreeExamples(card)**: enumerate the examples with
+their cards. The unit tests and the `CanvasNetTool_HelpExamples` self-test render every source example with `--strict`.
+
+**RenderText(card)**: the plain-text card, without a trailing newline, in this order:
+
+1. `# <title>`, a blank line, and the summary.
+2. `Also known as: <aliases>`, when the card has aliases.
+3. The body as written, after token substitution; the body is not rewrapped and no Markdown is converted.
+4. `## Cards`: for each card below it, a bullet with its exact command and, indented, its summary, followed by a pointer
+   to `--examples` when cards below it have examples.
+5. `## Examples`: one aligned line per own example (name, kind in brackets, and description), followed by
+   `Print one with: <command> --example <name> (add --json for a document).`
+6. `## See also`: each link as a bullet with the exact command and, indented, the summary of the target.
+
+Each footer section appears only when it is not empty, and the generated lines are wrapped by `AppendWrapped`. The
+text is deterministic: no ANSI escape sequence, no detection of the console width, and LF line endings whatever the
+operating system.
+
+**RenderTopicsText()** and **RenderTopicsJson()**: the whole tree, depth first. The text has one line per card: the
+help path indented by depth, padded to a column, and the wrapped summary.
 
 **AppendWrapped(builder, text, firstPrefix, restPrefix)**: splits the text into words (single spaces), starts the first
 line with `firstPrefix` and every further line with `restPrefix`, and starts a new line when the next word would pass
-`TextWidth`. A word longer than the free width is never split: it sits on a line of its own. `CommandRegistry` also uses
-it for the topic list of the index.
+`TextWidth`. A word longer than the free width is never split: it sits on a line of its own. `CommandRegistry` also
+uses it for the topic list of the index.
 
-**RenderExampleList(topic)**: one line per example (name, kind, description), without a trailing newline.
+**RenderExampleList(card)** and **RenderExample(card, name)**: the examples of the card and of every card below it, one
+line each, and the exact content of one of them found by name ignoring case. The content is what
+`help <path> --example <name>` prints, and nothing else.
 
-**RenderExample(topic, name)**: the exact content of the example (LF line endings, no trailing newline), found by name
-ignoring case. This is what `help <topic> --example <name>` prints, and nothing else. An unknown name throws the
-`ToolException` described under _Error Handling_.
+**RenderJson(card)**, **RenderExampleListJson(card)**, and **RenderExampleJson(card, name)**: these JSON documents, and
+`RenderTopicsJson()`, are written with `ResultWriter.Success("help", ...)`. They have the common envelope
+(`schemaVersion`, `ok`, `command`), one line, the key order below, and ASCII-only escaping.
 
-**RenderJson(topic)**, **RenderExampleListJson(topic)**, and **RenderExampleJson(topic, name)**: the JSON documents,
-each written with `ResultWriter.Success("help", ...)`, so they have the common envelope (`schemaVersion`, `ok`,
-`command`), one line, the key order below, and ASCII-only escaping.
-
-- `kind` `topic`: `topic`, `aliases`, `title`, `summary`, `sections` (each with `id`, `title`, and `items` of `term`,
-  when present, and `text`), and `examples` (each with `name`, `kind`, `language`, `fileName` for a source,
+- `kind` `card`: `id`, `aliases`, `title`, `summary`, `body`, `children` and `seeAlso` (each entry with `id`,
+  `summary`, and `command`), and `examples` (each with `name`, `kind`, `language`, `fileName` for a file,
   `description`, and `content`).
-- `kind` `examples`: `topic` and `examples` (as above, without `content`).
-- `kind` `example`: `topic` and `example` (`name`, `kind`, `language`, `fileName` for a source, `description`, and
-  `content`).
+- `kind` `topics`: `cards`, each with `id`, `aliases`, `summary`, and `command`.
+- `kind` `examples`: `id` and `examples` (each with the `card` it belongs to, and without `content`).
+- `kind` `example`: `id` and `example` (with `card` and `content`).
+
+These documents replaced the `topic` document of schema version 1, which is why `ResultWriter.SchemaVersion` is 2.
 
 **WriteStrings(writer, name, values)** (`internal`): writes a JSON array of strings; `CommandRegistry` uses it for the
 alias lists of its own documents.
 
-**Input fragments in the topics.** The `svg` topic has the `input fragment` term (the same fragment on an input path of
-`render`, its verbs, `inspect`, `info`, `compare` and `montage`: the rule for the `#`, the overrides, the quoting, the
-codes), the `variable fragment` term says that `def.` takes vectors and the viewport variables, the `scad` topic has the
-fixed-camera note and the `montage-variants` example, the document topics (`pdf`, `pptx`, `vsdx`) and `vega-lite` show
-the command-line form, and the `errors` topic lists `image-fragment-invalid` (the drift test of the error codes
-checks that every `ErrorCodes` constant is listed). `HelpTopics_InputFragments_AreDocumentedInTopicsAndUsages` checks
-the key phrases and that the usage text of every command that takes an input mentions the fragment.
-
 #### Error Handling
 
-An unknown example name is a `ToolException` with code `usage-error`, the message `Topic '<topic>' has no example
-'<name>'.`, the hint `Examples: <names>.`, and `Command` set to `help`. Null arguments throw `ArgumentNullException`.
+These usage errors are `ToolException` with code `usage-error` and `Command` set to `help`:
 
-Loading problems (a missing or malformed resource, an unknown token, a repeated name, alias, section id, or example
-name, a topic file that declares another topic, an example of the wrong kind, or a command example that does not start
-with the tool name) are `InvalidOperationException`. They are defects in the shipped content, not user errors: the unit
-tests
-load every topic, so a malformed file fails the build before it reaches a user. The consistency of the content with the
-code is proven by the unit tests (see _HelpTopics Unit Verification Design_): the command examples use known commands
-and
-options, the options listed exist in `render`, the `errors` topic lists every error code, every cited diagnostic
-identifier is produced by a tiny model or chart or exists in the libraries (the Mermaid library included), and every
-text example renders with `--strict` without a diagnostic.
+- An unknown example name has the message `Help card '<path>' has no example '<name>'.` and the hint
+  `Examples: <names>.`.
+- An unknown card below a card has the message `Unknown help card '<word>' under '<path>'.`. The hint is
+  `Did you mean '<name>'? Cards under '<path>': <names>. Run '<command>' for their summaries.`, or, for a card without
+  cards below it, `'<path>' has no cards below it.`.
+
+Null arguments throw `ArgumentNullException`.
+
+Loading problems are `InvalidOperationException` whose message names the card file, and the line when there is one.
+They include a front matter outside the subset, an unknown key, a missing title, a malformed example, an unknown token,
+a missing example file, a repeated name or alias, an orphan card, and children or See also entries that do not
+resolve. They are defects in the shipped content, not user errors: the unit tests load every card, so a malformed card
+fails the build before it reaches a user. The consistency of the content with the code is proven by the unit tests
+(see _HelpTopics Unit Verification Design_):
+
+- the command lines (examples and code blocks) use known commands, options, and help cards;
+- the options listed exist in `render`, and the `errors codes` card lists every error code;
+- every cited diagnostic identifier is produced by a tiny model or chart or exists in the libraries;
+- every source example and snippet renders with `--strict` without a diagnostic;
+- every Mermaid theme the `mermaid style` card lists renders;
+- every config key of the styled Vega-Lite example changes the picture.
 
 #### Dependencies
 
 - **ResultWriter** - the envelope, key order, and escaping of the JSON documents; `ResultWriter.SchemaVersion` for a
   token.
-- **ToolException** and **ErrorCodes** - the usage error for an unknown example (documented in _Program Unit Design_).
+- **ToolException** and **ErrorCodes** - the usage errors for an unknown example or card (documented in _Program Unit
+  Design_).
+- **CommandRegistry** - `ClosestName`, for the suggestion of an unknown card.
 - **ArgumentReader** - `MaxDpi`, for a token.
 - **ImageWriter** (Imaging) and the core `Surface` - the quality and size constants for tokens.
 - **ScadLimits** (Scad), **VegaLiteLimits** (VegaLite), and **MermaidLimits** (Mermaid) - the resource limits for
@@ -298,8 +296,7 @@ text example renders with `--strict` without a diagnostic.
 
 #### Callers
 
-- **CommandRegistry** - `Find`, `All`, `TopicNames`, and the renderings, for the `help` command, the index, the hint of
-  an unknown command, and the examples of a topic.
-- **Validation** - `SourceExamples`, `All`, `TopicNames`, and `RenderExample`, for the `CanvasNetTool_HelpExamples`
-  self-test.
-- Tests - load and check every topic.
+- **CommandRegistry** - `Find`, `Roots`, `Resolve`, `SplitPath`, `TopicNames`, `SubtreeExamples`, and the renderings,
+  for the `help` command, the index, the hint of an unknown command, and the examples of a card.
+- **Validation** - `SourceExamples`, `All`, `Get`, and `RenderExample`, for the `CanvasNetTool_HelpExamples` self-test.
+- Tests - load and check every card.

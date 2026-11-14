@@ -158,9 +158,9 @@ sections:
       - id: CanvasNetTool-Validation-HelpExamplesSelfTest
         title: >-
           The Validation class shall run the help examples self-test, which renders every source example of the help
-          topics in-process with the strict option, checking that it succeeds without a diagnostic, that the help
+          cards in-process with the strict option, checking that it succeeds without a diagnostic, that the help
           command prints the source of an example exactly as it ships, and that the help topics JSON document lists
-          every topic in order.
+          every help card in order.
         justification: |
           The help examples self-test proves, in the deployment environment, that the help content shipped inside the
           tool is present and that its examples render through the SVG, OpenSCAD, Vega-Lite, and Mermaid renderers
