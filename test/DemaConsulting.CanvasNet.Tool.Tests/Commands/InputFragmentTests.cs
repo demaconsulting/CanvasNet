@@ -676,8 +676,8 @@ public class InputFragmentTests
     public void HelpTopics_InputFragments_AreDocumentedInTopicsAndUsages()
     {
         // Arrange
-        static string TextOf(string name) => string.Join("\n", HelpTopics.Find(name)!.Sections.SelectMany(s => s.Items).Select(i => $"{i.Term} {i.Text}"));
-        var term = Assert.Single(HelpTopics.Find("svg")!.Sections.First(s => s.Id == "image-links").Items, i => i.Term == "input fragment").Text;
+        static string TextOf(string name) => HelpCardText.TextOf(name);
+        var term = HelpCardText.Item("svg/fragments", "input fragment");
         var registry = CommandRegistry.CreateDefault();
 
         // Assert: the rules of the svg topic

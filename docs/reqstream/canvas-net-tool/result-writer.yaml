@@ -11,12 +11,14 @@ sections:
       - id: CanvasNetTool-ResultWriter-SchemaVersion
         title: >-
           The ResultWriter class shall identify the schema of every document with the integer
-          `schemaVersion`, which is 1 for this release.
+          `schemaVersion`, which is 2 for this release (version 2 replaced the help topic documents with
+          the help card documents and reshaped the help examples documents around the cards; the documents of
+          the other commands are unchanged).
         justification: |
           Scripts and AI agents parse the documents; a version number lets them detect an
           incompatible change instead of misreading it.
         tests:
-          - ResultWriter_SchemaVersion_IsOne
+          - ResultWriter_SchemaVersion_IsTwo
 
       - id: CanvasNetTool-ResultWriter-SuccessEnvelope
         title: >-

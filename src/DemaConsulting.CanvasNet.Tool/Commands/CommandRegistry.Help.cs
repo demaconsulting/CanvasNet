@@ -1,4 +1,3 @@
-// cspell:ignore canvasnet
 using System.Text;
 using System.Text.Json;
 using DemaConsulting.CanvasNet.Viewer;
@@ -7,28 +6,34 @@ namespace DemaConsulting.CanvasNet.Tool.Commands;
 
 /// <summary>
 ///     The help part of <see cref="CommandRegistry"/>: the reserved <c>help</c> command, which describes the
-///     commands, the help topics, and the examples of a topic, as plain text or as JSON.
+///     commands, the help cards, and the examples of a card, as plain text or as JSON.
 /// </summary>
 /// <remarks>
-///     A help subject is resolved in this order: no subject, <c>help</c>, or <c>topics</c> give the index (the
-///     commands, the topics, and the global options); a command name or alias gives the help of the command; a
-///     topic name or alias gives the topic (see <see cref="HelpTopics"/>). Anything else is a <c>usage-error</c>
-///     that lists the valid subjects.
+///     A help path is resolved in this order: no argument or <c>help</c> gives the index (the commands, the help topics,
+///     and the global options); <c>topics</c> gives the whole tree of help cards; a command name or alias gives the help
+///     of the command; anything else is a card path such as <c>mermaid gantt</c> (see <see cref="HelpTopics"/>). An
+///     unknown first word is a <c>usage-error</c> that lists the valid subjects, and an unknown further word is a
+///     <c>usage-error</c> that lists the cards at that level.
 /// </remarks>
 internal sealed partial class CommandRegistry
 {
     /// <summary>
-    ///     The help subject that lists every command and topic.
+    ///     The help subject that lists every help card.
     /// </summary>
     private const string TopicsSubject = "topics";
+
+    /// <summary>
+    ///     The most words a help path may have.
+    /// </summary>
+    private const int MaxHelpDepth = 8;
 
     /// <summary>
     ///     The options of the <c>help</c> command, besides the global options.
     /// </summary>
     private static readonly OptionSpec[] HelpOptions =
     [
-        new("--example", [], true, "Print only the source (or command line) of one example of the topic", "name"),
-        new("--examples", [], false, "List the examples of the topic")
+        new("--example", [], true, "Print only the source (or command line) of one example of the card or a card below it", "name"),
+        new("--examples", [], false, "Print every example of the card in full, and list the cards below it that have examples")
     ];
 
     /// <summary>
@@ -38,29 +43,30 @@ internal sealed partial class CommandRegistry
     [
         "canvasnet <command> [arguments] [options]",
         "canvasnet [options]",
-        "canvasnet help [<command>|<topic>] [--example <name> | --examples] [--json]"
+        "canvasnet help [<command> | <topic> [<card> ...] | topics] [--example <name> | --examples] [--json]"
     ];
 
     /// <summary>
-    ///     Runs the <c>help</c> command: prints the help of a subject, or one of its examples, to the context.
+    ///     Runs the <c>help</c> command: prints the help of a subject, the examples of a card in full, or one
+    ///     example alone, to the context.
     /// </summary>
     /// <param name="context">The context holding the arguments of <c>help</c> and receiving its output.</param>
     /// <exception cref="ToolException">
-    ///     Thrown with code <c>usage-error</c> for an unknown option or subject, more than one subject, an unknown
-    ///     example, <c>--example</c> together with <c>--examples</c>, or either of them without a topic.
+    ///     Thrown with code <c>usage-error</c> for an unknown option, subject, or card, an unknown example,
+    ///     <c>--example</c> together with <c>--examples</c>, or either of them without a card that has examples.
     /// </exception>
     private void RunHelp(Context context)
     {
         var reader = ArgumentReader.Parse(HelpCommandName, context.CommandArguments, HelpOptions);
-        reader.RequirePositionals(0, 1, "one command or topic");
-        var subject = reader.Positionals.FirstOrDefault();
+        reader.RequirePositionals(0, MaxHelpDepth, "a command, or a help card path");
+        var path = HelpTopics.SplitPath(reader.Positionals);
         var exampleName = reader.Get("--example");
         var list = reader.Has("--examples");
 
-        // Plain help: the index, a command, or a topic
+        // Plain help: the index, the tree, a command, or a card
         if (exampleName == null && !list)
         {
-            context.WriteLine(RenderHelp(subject, context.Json));
+            context.WriteLine(RenderHelp(path, context.Json));
             return;
         }
 
@@ -69,50 +75,91 @@ internal sealed partial class CommandRegistry
             throw new ToolException(
                 ErrorCodes.UsageError,
                 "The options '--example' and '--examples' cannot be combined.",
-                "Use '--examples' to list the examples and '--example <name>' to print one.")
+                "Use '--examples' to print the examples of a card and '--example <name>' to print one alone.")
             {
                 Command = HelpCommandName
             };
         }
 
-        var topic = RequireTopicForExamples(subject);
+        var card = RequireCardForExamples(path);
         if (exampleName != null)
         {
             context.WriteLine(context.Json
-                ? HelpTopics.RenderExampleJson(topic, exampleName)
-                : HelpTopics.RenderExample(topic, exampleName));
+                ? HelpTopics.RenderExampleJson(card, exampleName)
+                : HelpTopics.RenderExample(card, exampleName));
             return;
         }
 
-        context.WriteLine(context.Json ? HelpTopics.RenderExampleListJson(topic) : HelpTopics.RenderExampleList(topic));
+        context.WriteLine(context.Json ? HelpTopics.RenderExamplesJson(card) : HelpTopics.RenderExamples(card));
     }
 
     /// <summary>
-    ///     Renders help text.
+    ///     Renders help text for one subject.
     /// </summary>
     /// <param name="subject">
-    ///     The name or alias of a command or a help topic to describe, or <see langword="null"/> (or the reserved name
-    ///     <c>help</c>, or <c>topics</c>) for the index: the command list, the topic list, and the global options.
+    ///     The name or alias of a command or a help topic to describe, <c>topics</c> for the whole tree of help cards,
+    ///     or <see langword="null"/> (or the reserved name <c>help</c>) for the index: the command list, the topic
+    ///     list, and the global options.
     /// </param>
     /// <param name="json">Whether to render a JSON document instead of plain text.</param>
     /// <returns>The help text or document, without a trailing newline.</returns>
     /// <exception cref="ToolException">Thrown with code <c>usage-error</c> when <paramref name="subject"/> is unknown.</exception>
     public string RenderHelp(string? subject = null, bool json = false)
     {
-        if (subject == null
-            || string.Equals(subject, HelpCommandName, StringComparison.OrdinalIgnoreCase)
-            || string.Equals(subject, TopicsSubject, StringComparison.OrdinalIgnoreCase))
+        return RenderHelp(subject == null ? Array.Empty<string>() : [subject], json);
+    }
+
+    /// <summary>
+    ///     Renders help text for a help path.
+    /// </summary>
+    /// <param name="path">
+    ///     The words of the path: empty (or the reserved name <c>help</c>) for the index, <c>topics</c> for the whole
+    ///     tree, a command name or alias for the help of the command, or a card path such as <c>mermaid gantt</c>.
+    /// </param>
+    /// <param name="json">Whether to render a JSON document instead of plain text.</param>
+    /// <returns>The help text or document, without a trailing newline.</returns>
+    /// <exception cref="ToolException">Thrown with code <c>usage-error</c> when the path is unknown.</exception>
+    public string RenderHelp(IReadOnlyList<string> path, bool json = false)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+
+        if (path.Count == 0)
         {
             return json ? RenderIndexJson() : RenderIndexText();
         }
 
-        if (Find(subject) is { } command)
+        var subject = path[0];
+        var isHelp = string.Equals(subject, HelpCommandName, StringComparison.OrdinalIgnoreCase);
+        var isTopics = string.Equals(subject, TopicsSubject, StringComparison.OrdinalIgnoreCase);
+        var command = isHelp || isTopics ? null : Find(subject);
+        if (path.Count > 1 && (isHelp || isTopics || command != null))
+        {
+            throw new ToolException(
+                ErrorCodes.UsageError,
+                $"'{subject}' has no help cards below it.",
+                $"Run 'canvasnet help {subject}' on its own, or 'canvasnet help topics' to list the help cards.")
+            {
+                Command = HelpCommandName
+            };
+        }
+
+        if (isHelp)
+        {
+            return json ? RenderIndexJson() : RenderIndexText();
+        }
+
+        if (isTopics)
+        {
+            return json ? HelpTopics.RenderTopicsJson() : HelpTopics.RenderTopicsText();
+        }
+
+        if (command != null)
         {
             return json ? RenderCommandJson(command) : RenderCommandText(command);
         }
 
-        var topic = HelpTopics.Find(subject) ?? throw CreateUnknownSubjectException(subject);
-        return json ? HelpTopics.RenderJson(topic) : HelpTopics.RenderText(topic);
+        var card = HelpTopics.Resolve(path) ?? throw CreateUnknownSubjectException(subject);
+        return json ? HelpTopics.RenderJson(card) : HelpTopics.RenderText(card);
     }
 
     /// <summary>
@@ -153,26 +200,29 @@ internal sealed partial class CommandRegistry
     }
 
     /// <summary>
-    ///     Appends the topic list: the topics with their summaries, their aliases, and how to read one.
+    ///     Appends the topic list: the root help cards with their summaries, their aliases, and how to read a card.
     /// </summary>
     /// <param name="builder">The builder to append to.</param>
     private static void AppendTopicList(StringBuilder builder)
     {
         builder.AppendLine();
         builder.AppendLine("Help topics:");
-        var width = HelpTopics.All.Max(t => t.Name.Length);
-        foreach (var topic in HelpTopics.All)
+        var roots = HelpTopics.Roots.ToList();
+        var width = roots.Max(t => t.Name.Length);
+        foreach (var topic in roots)
         {
             var prefix = $"  {topic.Name.PadRight(width)}  ";
             HelpTopics.AppendWrapped(builder, topic.Summary, prefix, new string(' ', prefix.Length));
         }
 
-        var aliases = HelpTopics.All.Where(t => t.Aliases.Count > 0).Select(t => $"{t.Name} = {string.Join(", ", t.Aliases)}");
+        var aliases = roots.Where(t => t.Aliases.Count > 0).Select(t => $"{t.Name} = {string.Join(", ", t.Aliases)}");
         HelpTopics.AppendWrapped(builder, $"Aliases: {string.Join("; ", aliases)}", "  ", "    ");
         builder.AppendLine();
         HelpTopics.AppendWrapped(
             builder,
-            "Run 'canvasnet help <topic>' for a format or topic, and 'canvasnet help topics' to list everything.",
+            "Run 'canvasnet help <topic> [<card> ...]' to read a card (for example 'canvasnet help mermaid gantt'); "
+            + "'canvasnet help topics' lists every card. For good-looking diagrams start with 'canvasnet help style' "
+            + "and 'canvasnet help composition'.",
             string.Empty,
             string.Empty);
     }
@@ -208,9 +258,10 @@ internal sealed partial class CommandRegistry
     ///     The line at the end of the help of every command that points to the help topics.
     /// </summary>
     internal static string SeeAlso { get; } =
-        "See also: 'canvasnet help <topic>' for what a format supports, examples, and known differences (topics: "
+        "See also: 'canvasnet help <topic>' for what a format supports, examples, known differences, and how to make "
+        + "a picture look good (topics: "
         + string.Join(", ", HelpTopics.TopicNames)
-        + "), and 'canvasnet help topics' to list them.";
+        + "), and 'canvasnet help topics' to list every card.";
 
     /// <summary>
     ///     Appends an aligned option table.
@@ -241,7 +292,6 @@ internal sealed partial class CommandRegistry
         return ResultWriter.Success(HelpCommandName, writer =>
         {
             writer.WriteString("kind", "index");
-            writer.WriteString("topic", TopicsSubject);
             writer.WriteString("usage", string.Join("\n", UsageLines));
 
             writer.WriteStartArray("commands");
@@ -253,7 +303,7 @@ internal sealed partial class CommandRegistry
             writer.WriteEndArray();
 
             writer.WriteStartArray("topics");
-            foreach (var topic in HelpTopics.All)
+            foreach (var topic in HelpTopics.Roots)
             {
                 WriteSummary(writer, topic.Name, topic.Aliases, topic.Summary);
             }
@@ -326,47 +376,55 @@ internal sealed partial class CommandRegistry
     }
 
     /// <summary>
-    ///     Resolves the subject of <c>--example</c> or <c>--examples</c> to a topic.
+    ///     Resolves the path of <c>--example</c> or <c>--examples</c> to a card that has examples (its own or below it).
     /// </summary>
-    /// <param name="subject">The subject as typed, or <see langword="null"/> when none was given.</param>
-    /// <returns>The topic.</returns>
+    /// <param name="path">The words of the path; empty when none was given.</param>
+    /// <returns>The card.</returns>
     /// <exception cref="ToolException">
-    ///     Thrown with code <c>usage-error</c> when no subject was given, when it is a command or the index (which have
-    ///     no examples), or when it is unknown.
+    ///     Thrown with code <c>usage-error</c> when no path was given, when it is a command, the index, or the tree (which
+    ///     have no examples), when it is unknown, or when neither the card nor a card below it has an example.
     /// </exception>
-    private HelpTopic RequireTopicForExamples(string? subject)
+    private HelpCard RequireCardForExamples(IReadOnlyList<string> path)
     {
-        if (subject == null)
+        if (path.Count == 0)
         {
             throw new ToolException(
                 ErrorCodes.UsageError,
-                "'--example' and '--examples' need a topic.",
-                "Run 'canvasnet help topics' to list the topics, then 'canvasnet help <topic> --examples'.")
+                "'--example' and '--examples' need a help card.",
+                "Run 'canvasnet help topics' to list the help cards, then 'canvasnet help <topic> [<card> ...] --examples'.")
             {
                 Command = HelpCommandName
             };
         }
 
-        if (HelpTopics.Find(subject) is { } topic)
-        {
-            return topic;
-        }
-
-        // Commands and the index have usage text, not examples; anything else is an unknown subject
+        // Commands, the index, and the tree have usage text, not examples
+        var subject = path[0];
         if (Find(subject) != null
             || string.Equals(subject, TopicsSubject, StringComparison.OrdinalIgnoreCase)
             || string.Equals(subject, HelpCommandName, StringComparison.OrdinalIgnoreCase))
         {
             throw new ToolException(
                 ErrorCodes.UsageError,
-                $"'{subject}' has no examples; only help topics do.",
-                $"Run 'canvasnet help {subject}' for its usage, or 'canvasnet help topics' to list the topics.")
+                $"'{subject}' has no examples; only help cards do.",
+                $"Run 'canvasnet help {subject}' for its usage, or 'canvasnet help topics' to list the help cards.")
             {
                 Command = HelpCommandName
             };
         }
 
-        throw CreateUnknownSubjectException(subject);
+        var card = HelpTopics.Resolve(path) ?? throw CreateUnknownSubjectException(subject);
+        if (!HelpTopics.SubtreeExamples(card).Any())
+        {
+            throw new ToolException(
+                ErrorCodes.UsageError,
+                $"'{card.Path}' has no examples.",
+                $"Run 'canvasnet help {card.RootId} --examples' to find the cards of '{card.RootId}' that have examples.")
+            {
+                Command = HelpCommandName
+            };
+        }
+
+        return card;
     }
 
     /// <summary>
@@ -378,7 +436,7 @@ internal sealed partial class CommandRegistry
     private ToolException CreateUnknownSubjectException(string subject)
     {
         var names = _commands.SelectMany(c => c.Aliases.Prepend(c.Name))
-            .Concat(HelpTopics.All.SelectMany(t => t.Aliases.Prepend(t.Name)))
+            .Concat(HelpTopics.Roots.SelectMany(t => t.Aliases.Prepend(t.Name)))
             .Append(TopicsSubject)
             .Append(HelpCommandName);
         var suggestion = ClosestName(subject, names);

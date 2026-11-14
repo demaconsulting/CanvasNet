@@ -14,8 +14,12 @@ contract to parse instead of text meant for people.
 
 `ResultWriter` is `internal static` and holds no state apart from its constants and writer options.
 
-**SchemaVersion**: `const int` - 1. The documented schema is versioned by this number: adding a key is not a breaking
-change; removing or renaming a key, or changing its meaning, increments it.
+**SchemaVersion**: `const int` - 2. The documented schema is versioned by this number: adding a key is not a breaking
+change; removing or renaming a key, or changing its meaning, increments it. The version is shared by every document.
+Version 2 replaced the help `topic` document (its `topic` and `sections` keys) with the `card` and `topics`
+documents of the help cards, dropped the constant `topic` key of the help index, and made the help `examples` and
+`example` documents name the card by `id` (the `examples` document carries the card's own examples in full and the
+cards below it that have examples); the documents of the other commands are unchanged.
 
 **Document layout**. Every document is a single JSON object on a single line:
 
@@ -43,14 +47,15 @@ fields of a result (it must write complete properties only); the four-parameter 
 
 **Failure(command, exception)**: derives the code from the exception: a `ToolException` contributes its own code and
 hint and its `ResultFields`; an `ArgumentException` is `usage-error`; anything else is `operation-failed`. A failure
-document with result fields is `{"schemaVersion":1,"ok":false,"command":...,"error":{...},<result fields>}`: the
+document with result fields is `{"schemaVersion":2,"ok":false,"command":...,"error":{...},<result fields>}`: the
 fields are additive and follow the error object, so a consumer of the plain failure document is unaffected.
 
 **WriteDiagnosticExtras(writer, diagnostic)**: writes the optional members of a diagnostic object, positioned inside it
 after `source`, `severity`, `code`, `message`, and `page`: `detail` (the finer identifier of a generic code), `location`
 (an object with only the members the file gave, in the order `file`, `line`, `column`, `pointer`; left out altogether
 when none is known), and `origin` (an array of the embedded files, outermost first; left out when empty). A diagnostic
-without any of them gets no extra member, so its shape is the one the schema always had, and the schema version stays 1.
+without any of them gets no extra member, so its shape is the one the schema always had, and these members did not
+change the schema version.
 The four commands that report notes (`render`, `inspect`, `compare`, and `montage`) call it, so they write the same
 facts. Null arguments throw `ArgumentNullException`.
 

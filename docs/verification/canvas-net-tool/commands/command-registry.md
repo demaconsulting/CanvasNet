@@ -87,31 +87,51 @@ its usage, summary, options with value placeholders, and the global options.
 **CommandRegistry_RenderHelp_UnknownCommand_ThrowsUsageError**: help for an unknown subject is a usage error.
 
 **CommandRegistry_RenderHelp_Topic_ReturnsTopicHelp** and **CommandRegistry_RenderHelp_TopicAlias_EqualsCanonical**: a
-topic name gives the topic (its title line and its supported, unsupported, and examples sections) and not a command
-help; an alias, in any case, gives the same text and the same JSON document as the canonical name.
+topic name gives its root card (`# SVG drawings (.svg)`, the `## Cards` list with `canvasnet help svg embedding`, and
+`## See also`) and not a command help; an alias, in any case, gives the same text and the same JSON document as the
+canonical name.
 
-**CommandRegistry_RenderHelp_Topics_ListsCommandsAndTopics** and **CommandRegistry_RenderHelp_TopLevel_ListsHelpTopics**:
-the subject `topics` gives the same index as no subject, with the commands (and their aliases) and every topic; the
-index shows the usage line of `help`, the `Help topics:` list, the aliases (`scad = openscad`), and the pointer to
-`canvasnet help <topic>`.
+**CommandRegistry_Run_HelpCardPath_PrintsTheCard**: `help mermaid gantt`, `help MMD gantt`, and `help mermaid/gantt`
+print the same card text, `--json` gives its card document, and `RenderHelp` with the path gives the same text.
+
+**CommandRegistry_Run_HelpUnknownCard_ListsChildren**: `help mermaid giant` is the usage error
+`Unknown help card 'giant' under 'mermaid'.` with the command `help`, a "Did you mean 'gantt'?" suggestion, and the list
+of the Mermaid cards.
+
+**CommandRegistry_Run_HelpPathAfterCommand_ThrowsUsageError**: a word after a command, after `topics`, or after `help`
+is the usage error `'<word>' has no help cards below it.`.
+
+**CommandRegistry_RenderHelp_Topics_ListsEveryCard** and **CommandRegistry_RenderHelp_TopLevel_ListsHelpTopics**: the
+subject `topics` (in any case) gives the tree of every card as text and as JSON, which differs from the index and names
+`mermaid gantt settings`. The index shows the usage line of `help` with its card path, the `Help topics:` list with
+every root, the aliases (`scad = openscad`), and the pointers to `canvasnet help <topic> [<card> ...]`,
+`canvasnet help topics`, `canvasnet help style`, and `canvasnet help composition`.
 
 **CommandRegistry_RenderHelp_Json_Command_HasOptions** and **CommandRegistry_RenderHelp_Json_Index_ListsCommandsAndTopics**:
 the JSON help of a command (asked for by alias) has the kind `command`, the canonical name, aliases, summary, usage, the
 options (with `takesValue`, and the `valueName` only for an option that takes a value), and the global options; the JSON
-index (the same for no subject and for `topics`) has the kind `index`, the usage, the commands, every topic with its
-aliases and summary, and the global options.
+index (the same for no subject and for `help`) has exactly the keys of the envelope, `kind` (`index`), `usage`,
+`commands`, `topics` (every root card with its aliases and summary), and `globalOptions`.
 
-**CommandRegistry_Run_HelpExample_WritesOnlyTheSource** and **CommandRegistry_Run_HelpExamples_ListsNames**: `help svg
---example shapes` writes the exact source of the example and one line end, and with `--json` the example document;
-`help svg --examples` lists every example name, and with `--json` gives the list document.
+**CommandRegistry_Run_HelpExample_WritesOnlyTheSource**: `help svg --example shapes` writes the exact source of the
+example and one line end, and with `--json` the example document.
+
+**CommandRegistry_Run_HelpExamples_PrintsTheCardsExamplesInFull**: `help svg flatten --examples` writes the examples
+text of that card (`HelpTopics.RenderExamples`) and one line end, with the content of each of its examples;
+`help svg --examples` writes the examples text of `svg`, which has the `--examples` command of every card below it that
+has examples and none of the content of the `svg flatten` example, and with `--json` the examples document.
+
+**CommandRegistry_Run_HelpExamplesOnCardWithoutExamples_ThrowsUsageError**: `help mermaid differences --examples` is the
+usage error `'mermaid differences' has no examples.` with a hint to `canvasnet help mermaid --examples`, which finds the
+cards of `mermaid` that have examples.
 
 **CommandRegistry_Run_HelpExampleUnknown_ThrowsUsageErrorWithNames**: an unknown example name is a usage error that names
-the topic and the example and lists the valid example names in the hint.
+the card and the example (`Help card 'svg' has no example 'nothing'.`) and lists the valid example names in the hint.
 
 **CommandRegistry_Run_HelpExampleOnCommand_ThrowsUsageError** and
 **CommandRegistry_Run_HelpExampleWithoutSubject_ThrowsUsageError**: `--example` or `--examples` on a command or on
-`topics` is a usage error (`has no examples`); without a subject it is a usage error (`need a topic`); `--example`
-together with `--examples` is a usage error (`cannot be combined`); and a second subject is a usage error.
+`topics` is a usage error (`has no examples`); without a subject it is a usage error (`need a help card`); `--example`
+together with `--examples` is a usage error (`cannot be combined`); and an unknown card (`svg extra`) is a usage error.
 
 **CommandRegistry_Run_HelpUnknownSubject_SuggestsClosestAndListsValidSubjects** and
 **CommandRegistry_Run_HelpUnknownSubjectFarFromAll_HasNoSuggestionButListsSubjects**: an unknown subject is the usage

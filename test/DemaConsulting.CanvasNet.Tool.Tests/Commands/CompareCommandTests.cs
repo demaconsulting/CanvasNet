@@ -199,7 +199,7 @@ public class CompareCommandTests
         Assert.Equal(
             ["schemaVersion", "ok", "command", "tool", "a", "b", "size", "options", "metrics", "grid", "worstCells", "thresholds", "outputs", "diagnostics", "echo"],
             root.EnumerateObject().Select(p => p.Name));
-        Assert.Equal(1, root.GetProperty("schemaVersion").GetInt32());
+        Assert.Equal(2, root.GetProperty("schemaVersion").GetInt32());
         Assert.True(root.GetProperty("ok").GetBoolean());
         Assert.Equal("compare", root.GetProperty("command").GetString());
         Assert.Equal("canvasnet", root.GetProperty("tool").GetProperty("name").GetString());

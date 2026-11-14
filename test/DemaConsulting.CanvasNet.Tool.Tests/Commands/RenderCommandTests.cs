@@ -134,7 +134,7 @@ public class RenderCommandTests
         // Assert: the envelope, the tool, the input, no operations, the output, and empty diagnostics and echo
         using var document = JsonDocument.Parse(stdOut);
         var root = document.RootElement;
-        Assert.Equal(1, root.GetProperty("schemaVersion").GetInt32());
+        Assert.Equal(2, root.GetProperty("schemaVersion").GetInt32());
         Assert.True(root.GetProperty("ok").GetBoolean());
         Assert.Equal("render", root.GetProperty("command").GetString());
         Assert.Equal("canvasnet", root.GetProperty("tool").GetProperty("name").GetString());

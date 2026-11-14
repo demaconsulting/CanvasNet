@@ -104,7 +104,7 @@ public class DiscoveryCommandsChartTests
 
         // Assert: the documented keys and exact layout
         var escaped = JsonSerializer.Serialize(path);
-        var expected = "{\"schemaVersion\":1,\"ok\":true,\"command\":\"info\",\"input\":{\"path\":" + escaped
+        var expected = "{\"schemaVersion\":2,\"ok\":true,\"command\":\"info\",\"input\":{\"path\":" + escaped
             + ",\"format\":\"vega-lite\",\"bytes\":" + bytes + "},\"image\":{\"width\":" + width + ",\"height\":" + height
             + ",\"channels\":4,\"hasAlpha\":true,\"canDecode\":true,\"frameCount\":1},"
             + "\"chart\":{\"title\":\"Info test\",\"schemaMajorVersion\":5,\"marks\":[\"bar\",\"rule\"],"

@@ -434,7 +434,7 @@ public partial class CanvasNetToolTests
         Assert.Single(output.Split('\n', StringSplitOptions.RemoveEmptyEntries));
         using var document = JsonDocument.Parse(output);
         var root = document.RootElement;
-        Assert.Equal(1, root.GetProperty("schemaVersion").GetInt32());
+        Assert.Equal(2, root.GetProperty("schemaVersion").GetInt32());
         Assert.True(root.GetProperty("ok").GetBoolean());
         Assert.Equal("formats", root.GetProperty("command").GetString());
         Assert.Contains(root.GetProperty("inputs").EnumerateArray(), f => f.GetProperty("format").GetString() == "pdf");
@@ -461,7 +461,7 @@ public partial class CanvasNetToolTests
         Assert.Equal(1, exitCode);
         using var document = JsonDocument.Parse(stdOut);
         var root = document.RootElement;
-        Assert.Equal(1, root.GetProperty("schemaVersion").GetInt32());
+        Assert.Equal(2, root.GetProperty("schemaVersion").GetInt32());
         Assert.False(root.GetProperty("ok").GetBoolean());
         Assert.Equal("fail", root.GetProperty("command").GetString());
         Assert.Equal("input-not-found", root.GetProperty("error").GetProperty("code").GetString());

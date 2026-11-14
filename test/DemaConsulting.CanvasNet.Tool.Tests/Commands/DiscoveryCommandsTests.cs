@@ -15,7 +15,7 @@ public class DiscoveryCommandsTests
     ///     The exact JSON document of the formats command for the versions 1.2.3 and 4.5.6.
     /// </summary>
     private const string GoldenFormatsJson =
-        "{\"schemaVersion\":1,\"ok\":true,\"command\":\"formats\","
+        "{\"schemaVersion\":2,\"ok\":true,\"command\":\"formats\","
         + "\"tool\":{\"name\":\"canvasnet\",\"version\":\"1.2.3\"},"
         + "\"library\":{\"name\":\"DemaConsulting.CanvasNet\",\"version\":\"4.5.6\"},"
         + "\"inputs\":["
@@ -152,7 +152,7 @@ public class DiscoveryCommandsTests
         var text = Regex.Replace(stdOut, @"\s+", " ");
         Assert.Equal(0, exitCode);
         Assert.Contains("See also: 'canvasnet help <topic>'", text);
-        Assert.Contains("'canvasnet help topics' to list them", text);
+        Assert.Contains("'canvasnet help topics' to list every card", text);
         Assert.All(HelpTopics.TopicNames, name => Assert.Contains(name, text));
     }
 
@@ -390,7 +390,7 @@ public class DiscoveryCommandsTests
         var stdOut = RunInfo(true, svg);
 
         // Assert: exactly the documented document
-        var expected = "{\"schemaVersion\":1,\"ok\":true,\"command\":\"info\","
+        var expected = "{\"schemaVersion\":2,\"ok\":true,\"command\":\"info\","
                        + $"\"input\":{{\"path\":{JsonSerializer.Serialize(svg)},\"format\":\"svg\",\"bytes\":{new FileInfo(svg).Length}}},"
                        + "\"image\":{\"width\":100,\"height\":80,\"channels\":4,\"hasAlpha\":true,\"canDecode\":true,\"frameCount\":1}}";
         Assert.Equal(expected + Environment.NewLine, stdOut);

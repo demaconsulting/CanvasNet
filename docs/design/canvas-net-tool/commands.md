@@ -10,9 +10,9 @@ It defines what a command is (the `ICommand` contract and the `OptionSpec` optio
 table of commands (`CommandRegistry`). It is a subsystem rather than a single unit because each family of
 commands is its own unit behind the same contract and registry. It contains seven units:
 `CommandRegistry`, which also documents the supporting types `ICommand` and
-`OptionSpec`; `HelpTopics`, the catalog of help topics (the formats, the JSON documents, the errors, and the limits) with
-their tiny examples, which the built-in `help` command of the registry prints; `DiscoveryCommands`, which provides the
-`formats` and `info` commands; `RenderCommand`, which
+`OptionSpec`; `HelpTopics`, the tree of help cards (the formats, style and composition, the JSON documents, the errors,
+the limits, and file access) with their tiny examples, which the built-in `help` command of the registry prints;
+`DiscoveryCommands`, which provides the `formats` and `info` commands; `RenderCommand`, which
 provides `render` and its alias `convert`, and the verb commands `crop`, `resize`, `rotate`, `flip`, and `pad`
 (the same class, constructed with a verb); `CompareCommand`, which provides `compare`; `MontageCommand`, which
 provides `montage`; `InspectCommand`, which provides `inspect` with the subcommands `colors` and `pixel`; and
@@ -29,13 +29,14 @@ expected failures by throwing `ToolException`, and never writes to the console d
 `usage-error`) when the command is missing or unknown, and re-throws the command's own `ToolException` after
 recording the command name on it.
 
-**CommandRegistry.RenderHelp(string?, bool)** (provided to `Program`): returns the help for a subject, as plain text or,
-with the flag, as JSON: the index (no subject, `help`, or `topics`), a command's help, or a help topic. An unknown
-subject throws a `ToolException` (code `usage-error`) that lists the valid subjects.
+**CommandRegistry.RenderHelp(string?, bool)** and **RenderHelp(IReadOnlyList<string>, bool)** (provided to `Program`):
+return the help for a subject or a help path, as plain text or, with the flag, as JSON: the index (no subject, or
+`help`), the tree of every card (`topics`), a command's help, or a help card (`mermaid gantt`). An unknown subject or
+card throws a `ToolException` (code `usage-error`) that lists the valid choices.
 
-**HelpTopics** (consumed by `CommandRegistry` and `Validation`): the topic catalog (`All`, `Find`, `TopicNames`,
-`SourceExamples`) and the renderings of a topic and its examples as text and JSON. The content is embedded in the tool
-assembly as resources.
+**HelpTopics** (consumed by `CommandRegistry` and `Validation`): the tree of help cards (`All`, `Roots`, `Get`,
+`Find`, `Resolve`, `TopicNames`, `SourceExamples`) and the renderings of a card, the tree, and the examples as text
+and JSON. The content is embedded in the tool assembly as Markdown cards with YAML front matter.
 
 **CommandRegistry.CreateDefault()** (provided to `Program`): creates the registry with every command the tool
 ships with (`formats`, `info`, `render` with its alias `convert`, the verbs `crop`,
@@ -76,15 +77,14 @@ failure document; the exit code is 1 like every expected failure.
 
 ### Design
 
-`Program.Run` hands the context to the registry; the registry resolves the name (ignoring case, accepting
-aliases) to an `ICommand` and calls `Run`. A command parses its own arguments - the `Context` has already
-removed the global options - so the global parser never needs to know any command's options, and a command can
-be added without touching `Context`. Help is generated from the registered commands: the command list from each
-command's name, aliases, and summary, and a command's help from its usage text and its `OptionSpec` table, so
-the help cannot drift from the options a command declares. The help topics are a separate unit, `HelpTopics`, so that the
-registry stays the dispatcher: a help subject is a command, else a topic, and `HelpTopics` owns the embedded content, its
-consistency with the code (numbers are substituted from the constants of the code, and the unit tests check the cited
-options, error codes, and diagnostic identifiers and render every example), and its rendering. The registry is an
-instance rather than static state
-so that tests can inject a purpose-made command - one that fails, or throws an unexpected exception - and prove
-the error policy of `Program` end to end without depending on a shipped command.
+`Program.Run` hands the context to the registry; the registry resolves the name (ignoring case, accepting aliases) to an
+`ICommand` and calls `Run`. A command parses its own arguments - the `Context` has already removed the global options -
+so the global parser never needs to know any command's options, and a command can be added without touching `Context`.
+Help is generated from the registered commands: the command list from each command's name, aliases, and summary, and a
+command's help from its usage text and its `OptionSpec` table, so the help cannot drift from the options a command
+declares. The help cards are a separate unit, `HelpTopics`, so that the registry stays the dispatcher: a help subject is
+a command, else a card path, and `HelpTopics` owns the embedded content, its consistency with the code (numbers are
+substituted from the constants of the code, and the unit tests check the cited options, error codes, and diagnostic
+identifiers and render every example), and its rendering. The registry is an instance rather than static state so that
+tests can inject a purpose-made command - one that fails, or throws an unexpected exception - and prove the error policy
+of `Program` end to end without depending on a shipped command.

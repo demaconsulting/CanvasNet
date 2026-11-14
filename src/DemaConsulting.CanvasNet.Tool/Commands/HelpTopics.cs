@@ -1,6 +1,4 @@
-// cspell:ignore canvasnet
 using System.Globalization;
-using System.Text.Json;
 using System.Text.RegularExpressions;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Mermaid;
@@ -12,30 +10,17 @@ using DemaConsulting.CanvasNet.Viewer.Imaging;
 namespace DemaConsulting.CanvasNet.Tool.Commands;
 
 /// <summary>
-///     One entry of a help section: optionally a term (an option, an identifier, a key) and its text.
+///     A tiny example of a help card: a source file, a command line, or a snippet.
 /// </summary>
-/// <param name="Term">The term the text explains, or <see langword="null"/> for a plain bullet.</param>
-/// <param name="Text">The text of the item.</param>
-internal sealed record HelpItem(string? Term, string Text);
-
-/// <summary>
-///     A titled list of items of a help topic, for example the supported features.
-/// </summary>
-/// <param name="Id">The stable kebab-case identifier of the section, unique within its topic.</param>
-/// <param name="Title">The heading of the section.</param>
-/// <param name="Items">The items of the section, in order.</param>
-internal sealed record HelpSection(string Id, string Title, IReadOnlyList<HelpItem> Items);
-
-/// <summary>
-///     A tiny example of a help topic: a source file, a command line, or a snippet.
-/// </summary>
-/// <param name="Name">The name of the example, unique within its topic; selects it with <c>--example</c>.</param>
+/// <param name="Name">
+///     The name of the example, unique within the tree of its root card; selects it with <c>--example</c>.
+/// </param>
 /// <param name="Kind">
 ///     <c>source</c> (the content is a file the tool can read on its own), <c>command</c> (a command line), or
 ///     <c>snippet</c> (text that is shown but cannot be rendered alone, because it refers to other files).
 /// </param>
-/// <param name="Language">The language of the content: <c>openscad</c>, <c>json</c>, <c>xml</c>, or <c>shell</c>.</param>
-/// <param name="FileName">The file name to save a <c>source</c> example as, or <see langword="null"/> for a command or snippet.</param>
+/// <param name="Language">The language of the content, for example <c>openscad</c>, <c>json</c>, <c>xml</c>, or <c>shell</c>.</param>
+/// <param name="FileName">The file name to save a <c>source</c> or <c>snippet</c> example as, or <see langword="null"/> for a command.</param>
 /// <param name="Description">A one-line description.</param>
 /// <param name="Content">The exact text of the example: LF line endings and no trailing newline.</param>
 internal sealed record HelpExample(
@@ -47,56 +32,106 @@ internal sealed record HelpExample(
     string Content);
 
 /// <summary>
-///     One help topic: a format or a cross-cutting subject such as the error codes.
+///     One help card: a short Markdown text about one subject, a node of the help tree.
 /// </summary>
-/// <param name="Name">The canonical topic name, for example <c>scad</c>.</param>
-/// <param name="Aliases">Other names that select the topic, for example <c>openscad</c>.</param>
-/// <param name="Title">The title shown at the top of the topic.</param>
-/// <param name="Summary">The one-line summary shown in the topic list.</param>
-/// <param name="Sections">The sections of the topic, in order.</param>
-/// <param name="Examples">The examples of the topic, in order.</param>
-internal sealed record HelpTopic(
-    string Name,
+/// <param name="Id">
+///     The identifier: the path of the card file under <c>Commands/Help/</c> without <c>.md</c>, for example
+///     <c>mermaid/gantt</c>.
+/// </param>
+/// <param name="Aliases">Other names that select the card among its siblings, for example <c>mmd</c>.</param>
+/// <param name="Title">The title shown at the top of the card.</param>
+/// <param name="Summary">The one-line summary shown in lists and in the See also footers that point at the card.</param>
+/// <param name="Body">The Markdown body, printed as written after the <c>{{name}}</c> tokens are replaced.</param>
+/// <param name="ChildIds">The identifiers of the cards below this one, in order.</param>
+/// <param name="SeeAlso">The identifiers of related cards, in order.</param>
+/// <param name="Examples">The examples of the card, in order.</param>
+internal sealed record HelpCard(
+    string Id,
     IReadOnlyList<string> Aliases,
     string Title,
     string Summary,
-    IReadOnlyList<HelpSection> Sections,
-    IReadOnlyList<HelpExample> Examples);
+    string Body,
+    IReadOnlyList<string> ChildIds,
+    IReadOnlyList<string> SeeAlso,
+    IReadOnlyList<HelpExample> Examples)
+{
+    /// <summary>
+    ///     Gets the name of the card among its siblings: the last segment of the identifier.
+    /// </summary>
+    public string Name => Id[(Id.LastIndexOf('/') + 1)..];
+
+    /// <summary>
+    ///     Gets the identifier of the root card of the tree the card is in: the first segment of the identifier.
+    /// </summary>
+    public string RootId => Id.Split('/')[0];
+
+    /// <summary>
+    ///     Gets the identifier of the parent card, or <see langword="null"/> for a root card.
+    /// </summary>
+    public string? ParentId => Id.Contains('/', StringComparison.Ordinal) ? Id[..Id.LastIndexOf('/')] : null;
+
+    /// <summary>
+    ///     Gets the depth of the card: 0 for a root card.
+    /// </summary>
+    public int Depth => Id.Count(c => c == '/');
+
+    /// <summary>
+    ///     Gets the help path of the card: its identifier with spaces between the segments, for example
+    ///     <c>mermaid gantt</c>.
+    /// </summary>
+    public string Path => Id.Replace('/', ' ');
+
+    /// <summary>
+    ///     Gets the command that prints the card, for example <c>canvasnet help mermaid gantt</c>.
+    /// </summary>
+    public string Command => $"canvasnet help {Path}";
+}
 
 /// <summary>
-///     The catalog of help topics (formats and cross-cutting subjects) that the <c>help</c> command prints, with
-///     their embedded examples.
+///     The tree of help cards (formats and cross-cutting subjects) that the <c>help</c> command prints, with their
+///     embedded examples.
 /// </summary>
 /// <remarks>
 ///     <para>
-///         The content is embedded in the tool assembly as resources: one JSON file per topic
-///         (<c>DemaConsulting.CanvasNet.Tool.Help.&lt;topic&gt;.json</c>) and one file per source example
-///         (<c>DemaConsulting.CanvasNet.Tool.Help.Examples.&lt;topic&gt;-&lt;file name&gt;</c>), so an installed tool needs
-///         no other files. The catalog is read once, on first use, and is immutable afterwards, so it is safe to
-///         use from several threads.
+///         Each card is one embedded Markdown file with YAML front matter
+///         (<c>DemaConsulting.CanvasNet.Tool.Help/&lt;path&gt;.md</c>), and each source example is one embedded file
+///         (<c>DemaConsulting.CanvasNet.Tool.Help.Examples.&lt;root&gt;-&lt;file name&gt;</c>), so an installed tool needs
+///         no other files. The identifier of a card is its path, so the file layout is the tree. The catalog is read
+///         once, on first use, and is immutable afterwards, so it is safe to use from several threads.
 ///     </para>
 ///     <para>
-///         Numbers that the code defines (the largest image side, the resolution limit, the default triangle
-///         budget, and so on) are written in the JSON text as <c>{{name}}</c> tokens and replaced from the live
-///         constants when the topic is loaded, so a documented limit cannot drift from the real one. Loading a
-///         malformed resource throws <see cref="InvalidOperationException"/>; the unit tests load every topic, so a
+///         Numbers that the code defines (the largest image side, the resolution limit, the default triangle budget,
+///         and so on) are written in the card text as <c>{{name}}</c> tokens and replaced from the live constants when
+///         the card is loaded, so a documented limit cannot drift from the real one. Loading a malformed card throws
+///         <see cref="InvalidOperationException"/> naming the file and the line; the unit tests load every card, so a
 ///         malformed file fails the build rather than a user.
 ///     </para>
 ///     <para>
-///         The rendering of a topic (text and JSON) is in <c>HelpTopics.Render.cs</c>.
+///         The front-matter parser is in <c>HelpTopics.FrontMatter.cs</c>, and the rendering of a card (text and JSON)
+///         is in <c>HelpTopics.Render.cs</c>.
 ///     </para>
 /// </remarks>
 internal static partial class HelpTopics
 {
     /// <summary>
-    ///     The prefix of the logical names of the embedded topic files.
+    ///     The prefix of the logical names of the embedded help resources.
     /// </summary>
-    internal const string ResourcePrefix = "DemaConsulting.CanvasNet.Tool.Help.";
+    internal const string ResourcePrefix = "DemaConsulting.CanvasNet.Tool.Help";
+
+    /// <summary>
+    ///     The prefix of the logical names of the embedded card files; the rest of the name is the path of the file.
+    /// </summary>
+    internal const string CardResourcePrefix = ResourcePrefix + "/";
 
     /// <summary>
     ///     The prefix of the logical names of the embedded example sources.
     /// </summary>
-    internal const string ExampleResourcePrefix = ResourcePrefix + "Examples.";
+    internal const string ExampleResourcePrefix = ResourcePrefix + ".Examples.";
+
+    /// <summary>
+    ///     The extension of a card file.
+    /// </summary>
+    internal const string CardExtension = ".md";
 
     /// <summary>
     ///     The kind of an example whose content is a source file.
@@ -122,7 +157,7 @@ internal static partial class HelpTopics
     /// <summary>
     ///     The catalog, loaded on first use.
     /// </summary>
-    private static readonly Lazy<IReadOnlyList<HelpTopic>> Catalog = new(LoadAll);
+    private static readonly Lazy<CardCatalog> Catalog = new(LoadAll);
 
     /// <summary>
     ///     Matches a <c>{{name}}</c> token.
@@ -133,14 +168,26 @@ internal static partial class HelpTopics
         TimeSpan.FromSeconds(1));
 
     /// <summary>
-    ///     Gets the canonical topic names, in the order the topics are listed.
+    ///     Matches a segment of a card identifier, a card name, or an alias: lower case letters and digits in groups
+    ///     separated by single dashes.
+    /// </summary>
+    private static readonly Regex NamePattern = new(
+        "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+        RegexOptions.CultureInvariant,
+        TimeSpan.FromSeconds(1));
+
+    /// <summary>
+    ///     Gets the identifiers of the root cards (the help topics), in the order they are listed.
     /// </summary>
     /// <remarks>
-    ///     A test proves that the embedded topic files are exactly this set, so a topic cannot be added or removed
+    ///     The loader proves that the embedded root cards are exactly this set, so a topic cannot be added or removed
     ///     without this list (and the tests that go with it) being updated.
     /// </remarks>
     public static IReadOnlyList<string> TopicNames { get; } =
-        ["scad", "vega-lite", "mermaid", "svg", "pdf", "pptx", "vsdx", "raster", "json", "errors", "limits", "files"];
+    [
+        "scad", "vega-lite", "mermaid", "svg", "pdf", "pptx", "vsdx", "raster",
+        "style", "composition", "json", "errors", "limits", "files"
+    ];
 
     /// <summary>
     ///     Gets the names of the topics that describe one format (and so list supported and unsupported features).
@@ -154,36 +201,191 @@ internal static partial class HelpTopics
     public static IReadOnlyDictionary<string, string> Tokens { get; } = CreateTokens();
 
     /// <summary>
-    ///     Gets every topic, in <see cref="TopicNames"/> order.
+    ///     Gets every card, depth first: each root card of <see cref="TopicNames"/> followed by the cards below it.
     /// </summary>
-    /// <exception cref="InvalidOperationException">Thrown when an embedded topic is missing or malformed.</exception>
-    public static IReadOnlyList<HelpTopic> All => Catalog.Value;
+    /// <exception cref="InvalidOperationException">Thrown when an embedded card is missing or malformed.</exception>
+    public static IReadOnlyList<HelpCard> All => Catalog.Value.Cards;
 
     /// <summary>
-    ///     Finds a topic by its name or one of its aliases.
+    ///     Gets the root cards, in <see cref="TopicNames"/> order.
     /// </summary>
-    /// <param name="nameOrAlias">The topic name or alias; matched ignoring case.</param>
-    /// <returns>The topic, or <see langword="null"/> when there is none.</returns>
-    public static HelpTopic? Find(string nameOrAlias)
+    public static IEnumerable<HelpCard> Roots => TopicNames.Select(Get);
+
+    /// <summary>
+    ///     Gets a card by its identifier.
+    /// </summary>
+    /// <param name="id">The identifier, for example <c>mermaid/gantt</c>.</param>
+    /// <returns>The card.</returns>
+    /// <exception cref="KeyNotFoundException">Thrown when there is no such card.</exception>
+    public static HelpCard Get(string id)
     {
-        return All.FirstOrDefault(t =>
-            string.Equals(t.Name, nameOrAlias, StringComparison.OrdinalIgnoreCase)
-            || t.Aliases.Any(a => string.Equals(a, nameOrAlias, StringComparison.OrdinalIgnoreCase)));
+        return Catalog.Value.ById[id];
     }
 
     /// <summary>
-    ///     Enumerates the examples whose content is a source file, with their topics.
+    ///     Finds a root card by its name or one of its aliases.
     /// </summary>
-    /// <returns>Every <c>source</c> example of every topic.</returns>
+    /// <param name="nameOrAlias">The name or alias; matched ignoring case.</param>
+    /// <returns>The root card, or <see langword="null"/> when there is none.</returns>
+    public static HelpCard? Find(string nameOrAlias)
+    {
+        return FindAmong(Roots, nameOrAlias);
+    }
+
+    /// <summary>
+    ///     Gets the cards directly below a card, in order.
+    /// </summary>
+    /// <param name="card">The card.</param>
+    /// <returns>The child cards.</returns>
+    public static IReadOnlyList<HelpCard> ChildrenOf(HelpCard card)
+    {
+        ArgumentNullException.ThrowIfNull(card);
+        return card.ChildIds.Select(Get).ToList();
+    }
+
+    /// <summary>
+    ///     Enumerates a card and every card below it, depth first.
+    /// </summary>
+    /// <param name="card">The card.</param>
+    /// <returns>The card, then its descendants.</returns>
+    public static IEnumerable<HelpCard> Subtree(HelpCard card)
+    {
+        ArgumentNullException.ThrowIfNull(card);
+        return All.Where(c => c.Id == card.Id || c.Id.StartsWith(card.Id + "/", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    ///     Resolves a help path to a card: the first segment is a root name or alias, every further segment the name or
+    ///     alias of a card below the previous one.
+    /// </summary>
+    /// <param name="path">The segments; a segment may also hold several segments separated by <c>/</c>.</param>
+    /// <returns>The card, or <see langword="null"/> when the first segment is not a root card.</returns>
+    /// <exception cref="ToolException">
+    ///     Thrown with code <c>usage-error</c> when a further segment names no card below the previous one; the hint
+    ///     suggests the closest name and lists the valid ones.
+    /// </exception>
+    public static HelpCard? Resolve(IReadOnlyList<string> path)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+
+        var segments = SplitPath(path);
+        if (segments.Count == 0 || Find(segments[0]) is not { } card)
+        {
+            return null;
+        }
+
+        foreach (var segment in segments.Skip(1))
+        {
+            var children = ChildrenOf(card);
+            card = FindAmong(children, segment) ?? throw CreateUnknownCardException(card, children, segment);
+        }
+
+        return card;
+    }
+
+    /// <summary>
+    ///     Splits the segments of a help path at <c>/</c>, dropping empty segments.
+    /// </summary>
+    /// <param name="path">The segments as typed.</param>
+    /// <returns>The segments.</returns>
+    public static IReadOnlyList<string> SplitPath(IEnumerable<string> path)
+    {
+        return path.SelectMany(p => p.Split('/', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)).ToList();
+    }
+
+    /// <summary>
+    ///     Enumerates the examples whose content is a source file, with their cards.
+    /// </summary>
+    /// <returns>Every <c>source</c> example of every card.</returns>
     /// <remarks>
     ///     These are the examples that the tests and the self-test render with <c>--strict</c> to prove that they are
     ///     accepted without a diagnostic.
     /// </remarks>
-    public static IEnumerable<(HelpTopic Topic, HelpExample Example)> SourceExamples()
+    public static IEnumerable<(HelpCard Card, HelpExample Example)> SourceExamples()
     {
-        return All.SelectMany(
-            topic => topic.Examples.Where(e => e.Kind == SourceKind),
-            (topic, example) => (topic, example));
+        return AllExamples().Where(e => e.Example.Kind == SourceKind);
+    }
+
+    /// <summary>
+    ///     Enumerates the examples whose content is a snippet, with their cards.
+    /// </summary>
+    /// <returns>Every <c>snippet</c> example of every card.</returns>
+    public static IEnumerable<(HelpCard Card, HelpExample Example)> Snippets()
+    {
+        return AllExamples().Where(e => e.Example.Kind == SnippetKind);
+    }
+
+    /// <summary>
+    ///     Enumerates every example of every card, with its card.
+    /// </summary>
+    /// <returns>The examples, depth first.</returns>
+    public static IEnumerable<(HelpCard Card, HelpExample Example)> AllExamples()
+    {
+        return All.SelectMany(card => card.Examples, (card, example) => (card, example));
+    }
+
+    /// <summary>
+    ///     Enumerates the examples of a card and of every card below it.
+    /// </summary>
+    /// <param name="card">The card.</param>
+    /// <returns>The card's own examples first, then those of its descendants, depth first.</returns>
+    public static IEnumerable<(HelpCard Card, HelpExample Example)> SubtreeExamples(HelpCard card)
+    {
+        return Subtree(card).SelectMany(c => c.Examples, (c, example) => (c, example));
+    }
+
+    /// <summary>
+    ///     Enumerates the cards below a card that have examples of their own.
+    /// </summary>
+    /// <param name="card">The card.</param>
+    /// <returns>The descendants of the card that have examples, depth first.</returns>
+    public static IEnumerable<HelpCard> CardsBelowWithExamples(HelpCard card)
+    {
+        return Subtree(card).Skip(1).Where(c => c.Examples.Count > 0);
+    }
+
+    /// <summary>
+    ///     Finds a card among some cards by its name or one of its aliases.
+    /// </summary>
+    /// <param name="cards">The cards to search.</param>
+    /// <param name="nameOrAlias">The name or alias; matched ignoring case.</param>
+    /// <returns>The card, or <see langword="null"/> when there is none.</returns>
+    private static HelpCard? FindAmong(IEnumerable<HelpCard> cards, string nameOrAlias)
+    {
+        return cards.FirstOrDefault(c =>
+            string.Equals(c.Name, nameOrAlias, StringComparison.OrdinalIgnoreCase)
+            || c.Aliases.Any(a => string.Equals(a, nameOrAlias, StringComparison.OrdinalIgnoreCase)));
+    }
+
+    /// <summary>
+    ///     Creates the exception for a path segment that names no card below a card.
+    /// </summary>
+    /// <param name="parent">The card the segment should be below.</param>
+    /// <param name="children">The cards below <paramref name="parent"/>.</param>
+    /// <param name="segment">The segment as typed.</param>
+    /// <returns>The exception to throw.</returns>
+    private static ToolException CreateUnknownCardException(HelpCard parent, IReadOnlyList<HelpCard> children, string segment)
+    {
+        string hint;
+        if (children.Count == 0)
+        {
+            hint = $"'{parent.Path}' has no cards below it. Run '{parent.Command}' to read it.";
+        }
+        else
+        {
+            var suggestion = CommandRegistry.ClosestName(segment, children.SelectMany(c => c.Aliases.Prepend(c.Name)));
+            hint = $"Cards under '{parent.Path}': {string.Join(", ", children.Select(c => c.Name))}. "
+                   + $"Run '{parent.Command}' for their summaries.";
+            if (suggestion != null)
+            {
+                hint = $"Did you mean '{suggestion}'? {hint}";
+            }
+        }
+
+        return new ToolException(ErrorCodes.UsageError, $"Unknown help card '{segment}' under '{parent.Path}'.", hint)
+        {
+            Command = "help"
+        };
     }
 
     /// <summary>
@@ -231,114 +433,298 @@ internal static partial class HelpTopics
     }
 
     /// <summary>
-    ///     Loads and validates every topic of <see cref="TopicNames"/>.
+    ///     Loads every embedded card and validates the tree.
     /// </summary>
-    /// <returns>The topics.</returns>
-    /// <exception cref="InvalidOperationException">Thrown when a topic is missing or malformed, or a name is repeated.</exception>
-    private static List<HelpTopic> LoadAll()
+    /// <returns>The catalog.</returns>
+    /// <exception cref="InvalidOperationException">Thrown when a card is malformed or the tree is inconsistent.</exception>
+    private static CardCatalog LoadAll()
     {
-        var topics = TopicNames.Select(LoadTopic).ToList();
+        // Load every embedded card file; its path is its identifier
+        var byId = new Dictionary<string, HelpCard>(StringComparer.Ordinal);
+        foreach (var resource in typeof(HelpTopics).Assembly.GetManifestResourceNames()
+                     .Where(n => n.StartsWith(CardResourcePrefix, StringComparison.Ordinal))
+                     .Order(StringComparer.Ordinal))
+        {
+            var fileName = resource[CardResourcePrefix.Length..].Replace('\\', '/');
+            var card = LoadCard(fileName, ReadResource(resource));
+            byId.Add(card.Id, card);
+        }
 
-        // Every name and alias must select exactly one topic
-        RequireUnique(
-            topics.SelectMany(t => t.Aliases.Prepend(t.Name)).Select(n => n.ToLowerInvariant()),
-            "help topic name");
+        ValidateTree(byId);
 
-        return topics;
+        // List the cards depth first, from the roots in their documented order
+        var cards = new List<HelpCard>();
+        void Visit(HelpCard card)
+        {
+            cards.Add(card);
+            foreach (var child in card.ChildIds)
+            {
+                Visit(byId[child]);
+            }
+        }
+
+        foreach (var root in TopicNames)
+        {
+            Visit(byId[root]);
+        }
+
+        return new CardCatalog(cards, byId);
     }
 
     /// <summary>
-    ///     Loads one topic from its embedded file.
+    ///     Validates the tree: the roots, the children of every card, the See also links, the names and aliases, and the
+    ///     example names.
     /// </summary>
-    /// <param name="name">The canonical topic name.</param>
-    /// <returns>The topic.</returns>
-    /// <exception cref="InvalidOperationException">Thrown when the file is missing or malformed.</exception>
-    private static HelpTopic LoadTopic(string name)
+    /// <param name="byId">The cards by identifier.</param>
+    /// <exception cref="InvalidOperationException">Thrown when the tree is inconsistent.</exception>
+    private static void ValidateTree(Dictionary<string, HelpCard> byId)
     {
-        var text = TokenPattern.Replace(ReadResource($"{ResourcePrefix}{name}.json"), ReplaceToken);
-        using var document = JsonDocument.Parse(text);
-        var root = document.RootElement;
-
-        var topicName = RequireString(root, "topic", name);
-        if (topicName != name)
+        // The roots are exactly the documented topics
+        var roots = byId.Values.Where(c => c.ParentId == null).Select(c => c.Id).Order(StringComparer.Ordinal).ToList();
+        if (!roots.SequenceEqual(TopicNames.Order(StringComparer.Ordinal)))
         {
-            throw new InvalidOperationException($"The help topic file '{name}.json' declares the topic '{topicName}'.");
+            throw new InvalidOperationException(
+                $"The root help cards are {string.Join(", ", roots)}, not the topics {string.Join(", ", TopicNames)}.");
         }
 
-        var sections = root.GetProperty("sections").EnumerateArray().Select(s => ParseSection(s, name)).ToList();
-        RequireUnique(sections.Select(s => s.Id), $"section id of topic '{name}'");
+        foreach (var card in byId.Values)
+        {
+            // A card's children list names exactly the card files of its folder
+            var files = byId.Values.Where(c => c.ParentId == card.Id).Select(c => c.Id).Order(StringComparer.Ordinal);
+            var listed = card.ChildIds.Order(StringComparer.Ordinal);
+            if (!files.SequenceEqual(listed))
+            {
+                throw new InvalidOperationException(
+                    $"Help card '{card.Id}{CardExtension}' lists the children {string.Join(", ", card.ChildIds)}, but its folder holds {string.Join(", ", files)}.");
+            }
 
-        var examples = root.GetProperty("examples").EnumerateArray().Select(e => ParseExample(e, name)).ToList();
-        RequireUnique(examples.Select(e => e.Name), $"example name of topic '{name}'");
+            // A card below another needs the parent card
+            if (card.ParentId != null && !byId.ContainsKey(card.ParentId))
+            {
+                throw new InvalidOperationException($"Help card '{card.Id}{CardExtension}' has no parent card '{card.ParentId}{CardExtension}'.");
+            }
 
-        return new HelpTopic(
-            name,
-            root.GetProperty("aliases").EnumerateArray().Select(a => a.GetString() ?? string.Empty).ToList(),
-            RequireString(root, "title", name),
-            RequireString(root, "summary", name),
-            sections,
+            // See also names existing cards, never the card itself, and never one twice
+            foreach (var target in card.SeeAlso)
+            {
+                if (!byId.ContainsKey(target) || target == card.Id)
+                {
+                    throw new InvalidOperationException($"Help card '{card.Id}{CardExtension}' has the see-also entry '{target}', which is not another card.");
+                }
+            }
+
+            RequireUnique(card.SeeAlso, $"see-also entry of help card '{card.Id}'");
+
+            // The names and aliases of siblings select exactly one card
+            var siblings = byId.Values.Where(c => c.ParentId == card.Id);
+            RequireUnique(siblings.SelectMany(c => c.Aliases.Prepend(c.Name)), $"help card name below '{card.Id}'");
+        }
+
+        RequireUnique(byId.Values.Where(c => c.ParentId == null).SelectMany(c => c.Aliases.Prepend(c.Name)), "help topic name");
+
+        // An example name selects exactly one example of a root's tree
+        foreach (var root in TopicNames)
+        {
+            RequireUnique(
+                byId.Values.Where(c => c.RootId == root).SelectMany(c => c.Examples).Select(e => e.Name),
+                $"example name below '{root}'");
+        }
+    }
+
+    /// <summary>
+    ///     Loads one card from the text of its file.
+    /// </summary>
+    /// <param name="fileName">The path of the card file under <c>Commands/Help/</c>, with <c>/</c> separators.</param>
+    /// <param name="text">The text of the file.</param>
+    /// <returns>The card.</returns>
+    /// <exception cref="InvalidOperationException">Thrown when the card is malformed; the message names the file and the line.</exception>
+    internal static HelpCard LoadCard(string fileName, string text)
+    {
+        ArgumentNullException.ThrowIfNull(fileName);
+        ArgumentNullException.ThrowIfNull(text);
+
+        if (!fileName.EndsWith(CardExtension, StringComparison.Ordinal)
+            || !fileName[..^CardExtension.Length].Split('/').All(NamePattern.IsMatch))
+        {
+            throw new InvalidOperationException(
+                $"Help card '{fileName}' must be named '<name>{CardExtension}' in folders of lower case names separated by dashes.");
+        }
+
+        var id = fileName[..^CardExtension.Length];
+        var document = ParseFrontMatter(text, fileName);
+        var properties = new Dictionary<string, FrontMatterValue>(StringComparer.Ordinal);
+        foreach (var (key, value) in document.Properties)
+        {
+            if (key is not ("title" or "summary" or "aliases" or "children" or "see-also" or "examples"))
+            {
+                throw FrontMatterError(
+                    fileName,
+                    value.Line,
+                    $"the key '{key}' is unknown; a card has title, summary, aliases, children, see-also, and examples");
+            }
+
+            properties.Add(key, value);
+        }
+
+        var aliases = OptionalList(properties, "aliases", fileName);
+        foreach (var (alias, line) in aliases.Where(a => !NamePattern.IsMatch(a.Text)))
+        {
+            throw FrontMatterError(fileName, line, $"the alias '{alias}' must be lower case letters, digits, and dashes");
+        }
+
+        var root = id.Split('/')[0];
+        var examples = properties.TryGetValue("examples", out var exampleList)
+            ? RequireList(exampleList, "examples", fileName).Select(e => LoadExample(e, root, fileName)).ToList()
+            : [];
+
+        return new HelpCard(
+            id,
+            aliases.Select(a => a.Text).ToList(),
+            ReplaceTokens(RequireScalar(properties, "title", fileName), fileName),
+            ReplaceTokens(RequireScalar(properties, "summary", fileName), fileName),
+            ReplaceTokens(document.Body, fileName),
+            OptionalList(properties, "children", fileName).Select(c => $"{id}/{c.Text}").ToList(),
+            OptionalList(properties, "see-also", fileName).Select(s => s.Text).ToList(),
             examples);
     }
 
     /// <summary>
-    ///     Replaces one <c>{{name}}</c> token with its value.
+    ///     Loads one example of a card and, for a source or a snippet, the content of its embedded file.
     /// </summary>
-    /// <param name="match">The token match.</param>
-    /// <returns>The value.</returns>
-    /// <exception cref="InvalidOperationException">Thrown when the token is unknown.</exception>
-    private static string ReplaceToken(Match match)
-    {
-        return Tokens.TryGetValue(match.Groups[1].Value, out var value)
-            ? value
-            : throw new InvalidOperationException($"The help text uses the unknown token '{match.Value}'.");
-    }
-
-    /// <summary>
-    ///     Parses a section.
-    /// </summary>
-    /// <param name="element">The section's JSON object.</param>
-    /// <param name="topic">The topic name, for messages.</param>
-    /// <returns>The section.</returns>
-    private static HelpSection ParseSection(JsonElement element, string topic)
-    {
-        var items = element.GetProperty("items").EnumerateArray().Select(item =>
-            new HelpItem(
-                item.TryGetProperty("term", out var term) ? term.GetString() : null,
-                RequireString(item, "text", topic))).ToList();
-        return new HelpSection(RequireString(element, "id", topic), RequireString(element, "title", topic), items);
-    }
-
-    /// <summary>
-    ///     Parses an example and reads its content: from the embedded example file for a source, from the JSON for a command.
-    /// </summary>
-    /// <param name="element">The example's JSON object.</param>
-    /// <param name="topic">The topic name, for messages and for the name of the example file.</param>
+    /// <param name="value">The front-matter value of the example: a map.</param>
+    /// <param name="root">The identifier of the root card, which names the example file.</param>
+    /// <param name="fileName">The name of the card file, for messages.</param>
     /// <returns>The example.</returns>
     /// <exception cref="InvalidOperationException">Thrown when the example is malformed.</exception>
-    private static HelpExample ParseExample(JsonElement element, string topic)
+    private static HelpExample LoadExample(FrontMatterValue value, string root, string fileName)
     {
-        var name = RequireString(element, "name", topic);
-        var kind = RequireString(element, "kind", topic);
-        var language = RequireString(element, "language", topic);
-        var description = RequireString(element, "description", topic);
-
-        // A source and a snippet are files; a snippet is shown but never rendered alone
-        if (kind is SourceKind or SnippetKind)
+        if (value.Map == null)
         {
-            var fileName = RequireString(element, "fileName", topic);
-            var content = ReadResource($"{ExampleResourcePrefix}{topic}-{fileName}");
-            return new HelpExample(name, kind, language, fileName, description, content);
+            throw FrontMatterError(fileName, value.Line, "an example must be a list item of 'key: value' entries");
         }
 
-        // Anything else must be a command line, and a command line must start with the tool's name
-        var command = RequireString(element, "content", topic);
-        if (kind != CommandKind || !command.StartsWith(CommandPrefix, StringComparison.Ordinal))
+        var entries = new Dictionary<string, FrontMatterValue>(StringComparer.Ordinal);
+        foreach (var (key, entry) in value.Map)
         {
-            throw new InvalidOperationException(
-                $"The example '{name}' of topic '{topic}' must be a source, a snippet, or a command starting with '{CommandPrefix}'.");
+            if (key is not ("name" or "kind" or "language" or "file" or "content" or "description"))
+            {
+                throw FrontMatterError(
+                    fileName,
+                    entry.Line,
+                    $"the example key '{key}' is unknown; an example has name, kind, language, file, content, and description");
+            }
+
+            entries.Add(key, entry);
         }
 
-        return new HelpExample(name, kind, language, null, description, command);
+        string Require(string key) =>
+            entries.TryGetValue(key, out var entry) && entry.Scalar is { Length: > 0 } text
+                ? text
+                : throw FrontMatterError(fileName, value.Line, $"the example lacks the key '{key}'");
+
+        var name = Require("name");
+        var kind = Require("kind");
+        var language = Require("language");
+        var description = ReplaceTokens(Require("description"), fileName);
+        switch (kind)
+        {
+            case SourceKind or SnippetKind when !entries.ContainsKey("content"):
+                {
+                    // A source and a snippet are files; a snippet is shown but never rendered alone
+                    var file = Require("file");
+                    return new HelpExample(name, kind, language, file, description, ReadResource($"{ExampleResourcePrefix}{root}-{file}"));
+                }
+
+            case CommandKind when !entries.ContainsKey("file"):
+                {
+                    // A command line must start with the tool's name
+                    var command = ReplaceTokens(Require("content"), fileName);
+                    if (!command.StartsWith(CommandPrefix, StringComparison.Ordinal))
+                    {
+                        throw FrontMatterError(fileName, value.Line, $"the command of the example '{name}' must start with '{CommandPrefix}'");
+                    }
+
+                    return new HelpExample(name, kind, language, null, description, command);
+                }
+
+            default:
+                throw FrontMatterError(
+                    fileName,
+                    value.Line,
+                    $"the example '{name}' must be a source or a snippet with a file, or a command with a content");
+        }
+    }
+
+    /// <summary>
+    ///     Reads a required scalar of the front matter.
+    /// </summary>
+    /// <param name="properties">The front-matter keys.</param>
+    /// <param name="key">The key.</param>
+    /// <param name="fileName">The name of the card file, for messages.</param>
+    /// <returns>The text.</returns>
+    /// <exception cref="InvalidOperationException">Thrown when the key is missing or not a scalar.</exception>
+    private static string RequireScalar(
+        Dictionary<string, FrontMatterValue> properties,
+        string key,
+        string fileName)
+    {
+        if (!properties.TryGetValue(key, out var value))
+        {
+            throw FrontMatterError(fileName, 1, $"the front matter lacks the key '{key}'");
+        }
+
+        return value.Scalar ?? throw FrontMatterError(fileName, value.Line, $"the key '{key}' must be one line of text");
+    }
+
+    /// <summary>
+    ///     Reads an optional list of scalars of the front matter.
+    /// </summary>
+    /// <param name="properties">The front-matter keys.</param>
+    /// <param name="key">The key.</param>
+    /// <param name="fileName">The name of the card file, for messages.</param>
+    /// <returns>The items with their lines; empty when the key is missing.</returns>
+    /// <exception cref="InvalidOperationException">Thrown when the value is not a list of scalars.</exception>
+    private static List<(string Text, int Line)> OptionalList(
+        Dictionary<string, FrontMatterValue> properties,
+        string key,
+        string fileName)
+    {
+        if (!properties.TryGetValue(key, out var value))
+        {
+            return [];
+        }
+
+        return RequireList(value, key, fileName)
+            .Select(item => (item.Scalar ?? throw FrontMatterError(fileName, item.Line, $"an item of '{key}' must be one line of text"), item.Line))
+            .ToList();
+    }
+
+    /// <summary>
+    ///     Requires a front-matter value to be a list.
+    /// </summary>
+    /// <param name="value">The value.</param>
+    /// <param name="key">The key, for messages.</param>
+    /// <param name="fileName">The name of the card file, for messages.</param>
+    /// <returns>The items.</returns>
+    /// <exception cref="InvalidOperationException">Thrown when the value is not a list.</exception>
+    private static IReadOnlyList<FrontMatterValue> RequireList(FrontMatterValue value, string key, string fileName)
+    {
+        return value.Items ?? throw FrontMatterError(fileName, value.Line, $"the key '{key}' must be a list of '  - ' items");
+    }
+
+    /// <summary>
+    ///     Replaces the <c>{{name}}</c> tokens of a text with their values.
+    /// </summary>
+    /// <param name="text">The text.</param>
+    /// <param name="fileName">The name of the card file, for messages.</param>
+    /// <returns>The text with every token replaced.</returns>
+    /// <exception cref="InvalidOperationException">Thrown when a token is unknown.</exception>
+    private static string ReplaceTokens(string text, string fileName)
+    {
+        return TokenPattern.Replace(text, match =>
+            Tokens.TryGetValue(match.Groups[1].Value, out var value)
+                ? value
+                : throw new InvalidOperationException($"Help card '{fileName}' uses the unknown token '{match.Value}'."));
     }
 
     /// <summary>
@@ -356,32 +742,24 @@ internal static partial class HelpTopics
     }
 
     /// <summary>
-    ///     Reads a required, non-empty string property.
-    /// </summary>
-    /// <param name="element">The JSON object.</param>
-    /// <param name="property">The property name.</param>
-    /// <param name="topic">The topic name, for messages.</param>
-    /// <returns>The value.</returns>
-    /// <exception cref="InvalidOperationException">Thrown when the property is missing or empty.</exception>
-    private static string RequireString(JsonElement element, string property, string topic)
-    {
-        return element.TryGetProperty(property, out var value) && value.GetString() is { Length: > 0 } text
-            ? text
-            : throw new InvalidOperationException($"The help topic '{topic}' lacks the text '{property}'.");
-    }
-
-    /// <summary>
-    ///     Requires the values to be unique.
+    ///     Requires the values to be unique, ignoring case.
     /// </summary>
     /// <param name="values">The values.</param>
     /// <param name="what">A description of the values, for the message.</param>
     /// <exception cref="InvalidOperationException">Thrown when a value is repeated.</exception>
     private static void RequireUnique(IEnumerable<string> values, string what)
     {
-        var duplicate = values.GroupBy(v => v, StringComparer.Ordinal).FirstOrDefault(g => g.Count() > 1);
+        var duplicate = values.GroupBy(v => v, StringComparer.OrdinalIgnoreCase).FirstOrDefault(g => g.Count() > 1);
         if (duplicate != null)
         {
             throw new InvalidOperationException($"The {what} '{duplicate.Key}' is repeated.");
         }
     }
+
+    /// <summary>
+    ///     The loaded cards.
+    /// </summary>
+    /// <param name="Cards">Every card, depth first.</param>
+    /// <param name="ById">The cards by identifier.</param>
+    private sealed record CardCatalog(IReadOnlyList<HelpCard> Cards, IReadOnlyDictionary<string, HelpCard> ById);
 }

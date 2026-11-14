@@ -20,15 +20,20 @@ public partial class CanvasNetToolTests
         var topicExit = Runner.Run(out var topic, "dotnet", _dllPath, "help", "scad", "--json");
         var exampleExit = Runner.Run(out var example, "dotnet", _dllPath, "help", "vega-lite", "--example", "bar");
         var unknownExit = Runner.Run(out var unknown, "dotnet", _dllPath, "help", "nope");
+        var cardExit = Runner.Run(out var card, "dotnet", _dllPath, "help", "mmd", "gantt");
 
         // Assert: the topic document is complete, the example is the chart source and nothing else, and the unknown
         // subject fails with the usage error and the list of valid subjects
         Assert.Equal(0, topicExit);
         using var topicDocument = JsonDocument.Parse(topic);
-        Assert.Equal("topic", topicDocument.RootElement.GetProperty("kind").GetString());
-        Assert.Equal("scad", topicDocument.RootElement.GetProperty("topic").GetString());
-        Assert.NotEmpty(topicDocument.RootElement.GetProperty("sections").EnumerateArray());
-        Assert.NotEmpty(topicDocument.RootElement.GetProperty("examples").EnumerateArray());
+        Assert.Equal("card", topicDocument.RootElement.GetProperty("kind").GetString());
+        Assert.Equal("scad", topicDocument.RootElement.GetProperty("id").GetString());
+        Assert.False(string.IsNullOrWhiteSpace(topicDocument.RootElement.GetProperty("body").GetString()));
+        Assert.NotEmpty(topicDocument.RootElement.GetProperty("children").EnumerateArray());
+
+        Assert.Equal(0, cardExit);
+        Assert.StartsWith("# Gantt charts", card);
+        Assert.Contains("- canvasnet help mermaid gantt settings", card);
 
         Assert.Equal(0, exampleExit);
         using var chart = JsonDocument.Parse(example);

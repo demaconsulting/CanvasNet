@@ -93,7 +93,7 @@ public class DiscoveryCommandsModelTests
         // Assert: the documented keys and exact layout
         var bytes = new FileInfo(path).Length;
         var escaped = JsonSerializer.Serialize(path);
-        var expected = "{\"schemaVersion\":1,\"ok\":true,\"command\":\"info\",\"input\":{\"path\":" + escaped
+        var expected = "{\"schemaVersion\":2,\"ok\":true,\"command\":\"info\",\"input\":{\"path\":" + escaped
             + ",\"format\":\"scad\",\"bytes\":" + bytes + "},\"model\":{\"modules\":[\"one\"],\"functions\":[\"f\"],"
             + "\"directives\":[{\"kind\":\"include\",\"path\":\"lib/a.scad\",\"line\":1},{\"kind\":\"use\",\"path\":\"lib/b.scad\",\"line\":2}]}}";
         Assert.Equal(expected + Environment.NewLine, json);
