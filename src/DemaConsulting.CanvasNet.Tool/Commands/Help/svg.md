@@ -9,6 +9,7 @@ children:
   - flatten
   - style
   - composition
+  - framed-figure
   - options
   - diagnostics
 see-also:
@@ -29,4 +30,6 @@ embedding`). Render with `canvasnet render page.svg --width 1200 -o page.png
 --json` and look at the PNG.
 
 For good-looking figures read `canvasnet help svg style` and
-`canvasnet help svg composition` (`--example report` is a complete figure).
+`canvasnet help svg composition` (`--example report` is a complete figure);
+`canvasnet help svg framed-figure` frames one picture with a title band and
+callout arrows.

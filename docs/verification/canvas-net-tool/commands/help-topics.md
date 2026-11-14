@@ -92,6 +92,9 @@ that they delete.
 - The Mermaid, flatten, and file access bullets are the rows of the guides, in order.
 - Every Mermaid theme the style card lists renders; every config key of the styled chart changes the picture; and a
   transparent chart shows the page of an SVG figure.
+- The `svg framed-figure` card is linked both ways with the composition, style, and anchor cards; the callout arrows
+  of its framed figure end on the anchors of the model; and a diagram, a chart, and a model rendered alone at the size
+  of a box are the picture an SVG figure embeds in that box.
 - The text of a card is deterministic and plain, starts with its title, prints the body as written, keeps lines of at
   most 80 columns (120 in a code block), and lists the cards below it, its See also links with their summaries, and its
   examples. A word longer than the width is not split.
@@ -295,6 +298,19 @@ with it.
 
 **HelpTopics_StyleAdvice_TransparentChartInsideSvg_ShowsThePage**: an SVG drawing with a yellow page embeds the styled
 chart: with `"background": "transparent"` a pixel of the chart's padding is yellow, and without it the pixel is white.
+
+**HelpTopics_FramedFigureCard_IsLinkedFromTheCompositionAndAnchorCards**: `svg framed-figure` is listed under `svg`,
+links to `composition`, `svg composition`, `svg style`, and `scad anchors`, and those and `scad composition` link
+back.
+
+**HelpTopics_FramedFigureExample_CalloutsEndOnTheModelAnchors**: the `framed` example embeds `anchors.scad` and uses
+an `arrow` marker on its callouts; the model rendered alone at the size of its image reports anchors whose pixels plus
+the image x and y are within a quarter unit of the last point of every callout line, and at least two different
+anchors are hit.
+
+**HelpTopics_FramedFigureAdvice_PictureAloneAtTheBoxSize_IsThePictureTheFigureEmbeds**: a theory over the Mermaid
+flowchart, the Vega-Lite bar chart, and the anchors model: each, rendered alone with `--size` equal to a box, has no
+pixel that differs from an SVG figure that embeds it in that box.
 
 **HelpTopics_ParamOptionAndFragmentPrefixes_AreDocumented** (`RenderCommandParamTests.cs`): the `vega-lite options`
 card lists `--param <name=value>` with an example, the `vega-lite-error` for an unknown name, and the `param.`

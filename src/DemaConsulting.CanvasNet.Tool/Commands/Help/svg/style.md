@@ -4,6 +4,7 @@ summary: Typography, cards, gradients, spacing, viewBox sizing, and contrast for
 see-also:
   - style
   - svg/composition
+  - svg/framed-figure
   - svg/supported
   - svg/units
 examples:
@@ -47,6 +48,18 @@ below.
   `<line>` of the same gray separates a header from the content.
 - Keep a gradient subtle: two close colors of one hue
   (`canvasnet help svg style --example gradient`).
+
+## Title bands, accents, and arrows
+
+- A title band: a `<path>` with rounded top corners across the top of the
+  card, filled with a horizontal gradient of one dark hue (`#1e3a8a` to
+  `#2563eb`), with white title text and a light lead line (`#bfdbfe`).
+- Accents: one warm color (`#f59e0b`) for a thin stripe under the band and a
+  short bar beside each callout label; chevrons are white `<polyline>` strokes
+  with `stroke-linecap: round` at rising opacity.
+- Arrows: a `<marker>` with `orient="auto"` on `marker-end`, in one strong
+  color (`#ea580c`) with a `stroke-width` of 2 to 3.
+- `canvasnet help svg framed-figure --example framed` uses every rule here.
 
 ## Spacing and size
 

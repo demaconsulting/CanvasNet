@@ -119,15 +119,24 @@ sections:
           picture, the fragments of a placement, the nesting and file-access limits, and the render, look, and fix
           loop) and a composition card for each of scad, vega-lite, mermaid, and svg linked to it both ways, with an
           SVG figure that embeds the styled Mermaid flowchart and the styled Vega-Lite chart as a snippet that renders
-          with the strict option without a diagnostic and draws one embed operation for each link, in order.
+          with the strict option without a diagnostic and draws one embed operation for each link, in order; and shall
+          provide the svg framed-figure card (the layers of a framed figure, sizing its picture, marker arrows, and
+          finding where a feature is), linked both ways with the composition, svg composition, svg style, and scad
+          anchors cards, with a framed figure of a model as a snippet whose callout arrows end on the anchors of the
+          model, and whose advice that a picture rendered alone at the size of its box is the picture the figure
+          embeds holds for a diagram, a chart, and a model.
         justification: |
           A figure for a document often combines a diagram, a chart, a model, and text; showing how the formats nest,
           with a complete figure that is verified to render, saves an agent from discovering the patterns by trial and
-          error.
+          error. The most common figure frames one picture with a title, decoration, and callouts that point at its
+          features, and a callout is only useful when it lands on the feature.
         tests:
           - HelpTopics_DrawingFormats_HaveStyleAndCompositionCards
           - HelpTopics_StyleAndCompositionHubs_LinkBothWays
           - HelpTopics_Snippets_RenderStrictWithTheirSiblingFiles
+          - HelpTopics_FramedFigureCard_IsLinkedFromTheCompositionAndAnchorCards
+          - HelpTopics_FramedFigureExample_CalloutsEndOnTheModelAnchors
+          - HelpTopics_FramedFigureAdvice_PictureAloneAtTheBoxSize_IsThePictureTheFigureEmbeds
 
       - id: CanvasNetTool-Commands-HelpTopics-Examples
         title: >-

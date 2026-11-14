@@ -4,6 +4,7 @@ summary: Place diagrams, charts, models, and pages with image href, add titles a
 see-also:
   - composition
   - svg/style
+  - svg/framed-figure
   - svg/embedding
   - svg/fragments
   - svg/flatten
@@ -34,9 +35,11 @@ and `canvasnet help vega-lite style --example styled` (`styled-chart.vl.json`).
   Mermaid diagram, a chart, a model, another SVG file, or a document page is
   drawn at the size of the placement, so it stays sharp at any output size.
 - Size each placement from the picture's natural size
-  (`canvasnet info styled-flow.mmd --json` reports `input.natural`): keep its
-  aspect ratio, and stay near its natural size so its text matches the text of
-  the page; a placement twice as large draws its text twice as large.
+  (`canvasnet info styled-flow.mmd --json` reports `image.width` and
+  `image.height`): keep its aspect ratio, and stay near its natural size so its
+  text matches the text of the page; a placement twice as large draws its text
+  twice as large. A diagram, chart, or model keeps its own aspect ratio in any
+  box and is centered in it.
 - An href is relative to the folder of the SVG file; write `&amp;` between the
   parameters of a fragment (`part.scad#view=front&amp;def.width=20`).
 
@@ -57,11 +60,15 @@ and `canvasnet help vega-lite style --example styled` (`styled-chart.vl.json`).
   them; a chart keeps its own background unless the chart sets
   `"background": "transparent"`.
 
-## Labels on a model
+## Framed figures and callouts
 
-- Render the model to a PNG with `--json` and read `anchors[].pixel`, then
-  place that PNG and draw leader lines and labels over it (see
-  `canvasnet help scad composition`).
+- To present one picture in a designed frame (a title band, accents, a
+  caption) with arrows that point at its features, see
+  `canvasnet help svg framed-figure`: the layers, `<marker>` arrows, and how
+  to find where a feature is.
+- On a model, the arrows end on its anchors: render the model alone at the
+  size of its image with `--json`, and add the image `x` and `y` to each
+  `anchors[].pixel` (see `canvasnet help scad composition`).
 
 ## Check and publish
 

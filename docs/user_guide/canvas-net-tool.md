@@ -1753,8 +1753,9 @@ style advice, against the renderer.
 
 The cards ship tiny examples. The source examples of `scad`, `vega-lite`, `mermaid`, and `svg` are files that render
 with `--strict` without a diagnostic, including a styled Mermaid flowchart (`help mermaid style --example styled`), a
-styled Vega-Lite chart (`help vega-lite style --example styled`), and an SVG figure that embeds both
-(`help svg composition --example report`); the other examples are command lines:
+styled Vega-Lite chart (`help vega-lite style --example styled`), an SVG figure that embeds both
+(`help svg composition --example report`), and a framed figure of a model with a title band and callout arrows that end
+on its anchors (`help svg framed-figure --example framed`); the other examples are command lines:
 
 ```bash
 # Read a card, list the examples of a topic, and print one: the output is only the source, so it can be saved as it is

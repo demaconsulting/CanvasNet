@@ -44,7 +44,8 @@ the rendered PNG. The style card of each format shows the syntax:
   body text, and no label below 12 pixels at the final size.
 - An embedded picture is drawn at the size of its placement, and its text
   scales with it: place it near its natural size (`canvasnet info file --json`
-  reports `input.natural`) so its text matches the text around it.
+  reports `image.width` and `image.height`) so its text matches the text
+  around it.
 - Mermaid and Vega-Lite text is always drawn with the bundled fonts; in SVG use
   the generic families (`sans-serif`, `serif`, `monospace`), which are bundled
   too, because an installed family differs between machines.

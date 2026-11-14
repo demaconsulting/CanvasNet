@@ -1,5 +1,7 @@
+using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Xml.Linq;
 using DemaConsulting.CanvasNet.Tool.Commands;
 
 namespace DemaConsulting.CanvasNet.Tool.Tests.Commands;
@@ -170,5 +172,103 @@ public partial class HelpTopicsTests
         // Assert: the transparent chart shows the page, the other its own white
         Assert.StartsWith("#FFFF00", PixelAt("clear"), StringComparison.OrdinalIgnoreCase);
         Assert.StartsWith("#FFFFFF", PixelAt("white"), StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    ///     Test that the <c>svg framed-figure</c> card is a child of <c>svg</c> and is linked both ways with the
+    ///     <c>composition</c> hub, the <c>svg composition</c> and <c>svg style</c> cards, and the <c>scad anchors</c>
+    ///     and <c>scad composition</c> cards.
+    /// </summary>
+    [Fact]
+    public void HelpTopics_FramedFigureCard_IsLinkedFromTheCompositionAndAnchorCards()
+    {
+        // Arrange: the card and the cards that teach composition, style, and anchors
+        var card = HelpTopics.Get("svg/framed-figure");
+        string[] linked = ["composition", "svg/composition", "svg/style", "scad/anchors"];
+
+        // Assert: it is listed under svg, links to each, and each links back
+        Assert.Contains(card.Id, HelpTopics.Get("svg").ChildIds);
+        Assert.All(linked, id => Assert.Contains(id, card.SeeAlso));
+        Assert.All(linked.Append("scad/composition"), id => Assert.Contains(card.Id, HelpTopics.Get(id).SeeAlso));
+    }
+
+    /// <summary>
+    ///     Test that every callout arrow of the <c>framed</c> example of the <c>svg framed-figure</c> card ends on an
+    ///     anchor of the model it embeds: the pixel of the anchor when the model is rendered alone at the size of its
+    ///     image, plus the image x and y; that at least two different anchors are hit; and that the arrows use a marker.
+    /// </summary>
+    [Fact]
+    public void HelpTopics_FramedFigureExample_CalloutsEndOnTheModelAnchors()
+    {
+        // Arrange: the figure, the model image, and the callout lines
+        var figure = XDocument.Parse(HelpTopics.RenderExample(HelpTopics.Get("svg"), "framed"));
+        var elements = figure.Descendants().ToList();
+        var image = Assert.Single(elements, e => e.Name.LocalName == "image");
+        Assert.Equal("anchors.scad", (string?)image.Attribute("href"));
+        float Number(XElement element, string name) => float.Parse((string)element.Attribute(name)!, CultureInfo.InvariantCulture);
+        var (x, y, width, height) = (Number(image, "x"), Number(image, "y"), Number(image, "width"), Number(image, "height"));
+        var tips = elements
+            .Where(e => e.Name.LocalName == "polyline" && (string?)e.Attribute("class") == "callout")
+            .Select(e => ((string)e.Attribute("points")!).Split(' ', StringSplitOptions.RemoveEmptyEntries)[^1].Split(','))
+            .Select(p => (X: float.Parse(p[0], CultureInfo.InvariantCulture), Y: float.Parse(p[1], CultureInfo.InvariantCulture)))
+            .ToList();
+        Assert.Contains(elements, e => e.Name.LocalName == "marker" && (string?)e.Attribute("id") == "arrow");
+        Assert.Contains("marker-end: url(#arrow)", figure.ToString(), StringComparison.Ordinal);
+
+        // Act: render the model alone at the size of its image and read its anchors
+        using var directory = new TempDirectory();
+        var model = directory.Combine("anchors.scad");
+        File.WriteAllText(model, HelpTopics.RenderExample(HelpTopics.Get("scad"), "anchors"));
+        var size = string.Create(CultureInfo.InvariantCulture, $"{width}x{height}");
+        var (exitCode, stdOut, stdErr) = ToolHost.Invoke("render", model, "--size", size, "--json", "-o", directory.Combine("slot.png"));
+        Assert.True(exitCode == 0, stdErr + stdOut);
+        using var document = JsonDocument.Parse(stdOut);
+        var anchors = document.RootElement.GetProperty("anchors").EnumerateArray()
+            .Select(a => (
+                Name: a.GetProperty("name").GetString()!,
+                X: a.GetProperty("pixel")[0].GetSingle() + x,
+                Y: a.GetProperty("pixel")[1].GetSingle() + y))
+            .ToList();
+
+        // Assert: every tip is within a quarter unit of an anchor, and at least two different anchors are hit
+        var hit = tips.Select(t => anchors.FirstOrDefault(a => MathF.Abs(a.X - t.X) <= 0.25f && MathF.Abs(a.Y - t.Y) <= 0.25f).Name).ToList();
+        Assert.All(hit, Assert.NotNull);
+        Assert.True(hit.Distinct(StringComparer.Ordinal).Count() >= 2, "The callouts hit fewer than two anchors.");
+    }
+
+    /// <summary>
+    ///     Test the advice of the <c>svg framed-figure</c> card for finding a feature: a diagram, a chart, and a model
+    ///     rendered alone with <c>--size</c> equal to the box of an image are the picture an SVG figure embeds in that
+    ///     box, so a position found in the one is the position in the other.
+    /// </summary>
+    /// <param name="root">The root card of the example.</param>
+    /// <param name="example">The name of the example.</param>
+    /// <param name="file">The file name to save the example as.</param>
+    /// <param name="box">The size of the image box, WxH.</param>
+    [Theory]
+    [InlineData("mermaid", "flowchart", "flow.mmd", "430x280")]
+    [InlineData("vega-lite", "bar", "bar.vl.json", "400x300")]
+    [InlineData("scad", "anchors", "anchors.scad", "440x300")]
+    public void HelpTopics_FramedFigureAdvice_PictureAloneAtTheBoxSize_IsThePictureTheFigureEmbeds(string root, string example, string file, string box)
+    {
+        // Arrange: the picture, and a figure that embeds it in a box of that size at the origin
+        using var directory = new TempDirectory();
+        File.WriteAllText(directory.Combine(file), HelpTopics.RenderExample(HelpTopics.Get(root), example));
+        var sides = box.Split('x');
+        File.WriteAllText(
+            directory.Combine("figure.svg"),
+            $"<svg xmlns='http://www.w3.org/2000/svg' width='{sides[0]}' height='{sides[1]}'><image href='{file}' x='0' y='0' width='{sides[0]}' height='{sides[1]}'/></svg>");
+
+        // Act: render the figure, render the picture alone at the box size, and compare
+        var figure = ToolHost.Invoke("render", directory.Combine("figure.svg"), "--strict", "-o", directory.Combine("figure.png"));
+        var alone = ToolHost.Invoke("render", directory.Combine(file), "--size", box, "--strict", "-o", directory.Combine("alone.png"));
+        Assert.True(figure.ExitCode == 0, figure.StdErr + figure.StdOut);
+        Assert.True(alone.ExitCode == 0, alone.StdErr + alone.StdOut);
+        var (exitCode, stdOut, stdErr) = ToolHost.Invoke("compare", directory.Combine("figure.png"), directory.Combine("alone.png"), "--json");
+
+        // Assert: no pixel differs beyond the default tolerance
+        Assert.True(exitCode == 0, stdErr + stdOut);
+        using var document = JsonDocument.Parse(stdOut);
+        Assert.Equal(0, document.RootElement.GetProperty("metrics").GetProperty("diffPixels").GetInt64());
     }
 }

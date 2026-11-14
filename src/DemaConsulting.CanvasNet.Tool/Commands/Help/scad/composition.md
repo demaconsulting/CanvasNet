@@ -6,6 +6,7 @@ see-also:
   - scad/anchors
   - scad/style
   - svg/composition
+  - svg/framed-figure
   - mermaid/composition
 examples:
   - name: montage-variants
@@ -39,9 +40,12 @@ figure, or show its variants at one scale.
 </svg>
 ```
 
-- Link the PNG, not the model: the pixels belong to that picture, its size, and
-  its view. Steps such as `--crop` and `--trim` move the anchors with the
-  picture (see `canvasnet help scad anchors`).
+- The pixels belong to that picture, its size, and its view. Steps such as
+  `--crop` and `--trim` move the anchors with the picture (see
+  `canvasnet help scad anchors`).
+- Or link the model itself in an image of the same size and view: it is drawn
+  with the same camera, so the same pixels plus the image `x` and `y` land on
+  the points (`canvasnet help svg framed-figure --example framed`).
 
 ## A model in a figure
 

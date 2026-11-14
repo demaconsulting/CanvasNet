@@ -3,6 +3,7 @@ title: Composing figures
 summary: Combine diagrams, charts, models, and pages in one picture.
 see-also:
   - svg/composition
+  - svg/framed-figure
   - mermaid/composition
   - vega-lite/composition
   - scad/composition
@@ -30,6 +31,9 @@ size, then render, look, and fix.
 
 - A page with a title, captions, and several pictures: an SVG figure
   (`canvasnet help svg composition`; `--example report` is a complete one).
+- One picture presented in a designed frame - a title band, accents, a
+  caption, and arrows that point at its features: a framed SVG figure
+  (`canvasnet help svg framed-figure`).
 - A process whose steps show the thing itself: Mermaid nodes with pictures
   (`canvasnet help mermaid composition`).
 - Several charts of one data set: one Vega-Lite specification with `layer`,
@@ -42,9 +46,21 @@ size, then render, look, and fix.
 
 - An embedded diagram, chart, model, SVG file, or page is drawn at the size of
   its placement, so it stays sharp; its text scales with the placement.
-- Read the natural size with `canvasnet info file --json` (`input.natural`),
-  keep that aspect ratio, and stay near that size so the text of every picture
-  matches.
+- Read the natural size of a diagram, chart, or SVG file with
+  `canvasnet info file --json` (`image.width`, `image.height`), keep that
+  aspect ratio, and stay near that size so the text of every picture matches.
+  A model has no natural aspect: it is fitted to the box it gets.
+
+## Framed figures and callouts
+
+- A framed figure layers a container, a title band, decoration, the picture
+  slot, a callout layer, and a caption; arrows use `<marker>` (see
+  `canvasnet help svg framed-figure`).
+- To point at a feature, find its position in the picture at the size of its
+  box: a model reports its anchors (`anchors[].pixel` of `render --json`; see
+  `canvasnet help scad anchors`). A diagram or chart reports no positions, but
+  rendered alone with `--size` equal to the box it is the picture the figure
+  embeds: find the feature in that PNG. Add the image `x` and `y`.
 
 ## Options per placement
 

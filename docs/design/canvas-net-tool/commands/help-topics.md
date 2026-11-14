@@ -127,8 +127,8 @@ double braces cannot be written.
 - `mermaid` has a card for each of the ten diagram types, and each type with a settings table in the guide has a
   `settings` card below it. It also has `style`, `composition`, `options`, `diagnostics`, `unsupported`, and
   `differences`.
-- `svg` has `supported`, `embedding`, `fragments`, `units`, `flatten`, `style`, `composition`, `options`, and
-  `diagnostics`.
+- `svg` has `supported`, `embedding`, `fragments`, `units`, `flatten`, `style`, `composition`, `framed-figure`,
+  `options`, and `diagnostics`.
 - `vega-lite` has `data`, `marks`, `encodings`, `transforms`, `params`, `layout`, `style`, `composition`, `options`,
   `unsupported`, `diagnostics`, `warnings`, and `differences`.
 - `scad` has `language`, `views`, `anchors`, `style`, `composition`, `options`, `diagnostics`, and `differences`.
