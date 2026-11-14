@@ -9,8 +9,8 @@ see-also:
 ## Diagnostics
 
 - `svg-image-unresolved`: Warning: the url of an image mark cannot be drawn (the
-  file is missing, remote, of an unknown type, or embeds itself). Reported once,
-  with the reason; nothing is drawn. With --strict it fails with
+  file is missing, is remote, is of an unknown type, or embeds itself).
+  Reported once, with the reason; nothing is drawn. With --strict it fails with
   unsupported-feature, naming the chart and the url. image-fragment-invalid and
   image-page-out-of-range (a #page= that no page matches) are reported and fail
   with --strict the same way; svg-image-too-large is a picture beyond the pixel
