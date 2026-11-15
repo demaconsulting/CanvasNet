@@ -9,10 +9,11 @@ namespace DemaConsulting.CanvasNet.Tool.PandocFilter;
 internal sealed partial class DependencyHasher
 {
     /// <summary>
-    ///     The JSON options of a specification: no depth limit of the reader, since the walk itself stops past
-    ///     <see cref="MaxDepth"/> with the filter's own message.
+    ///     The JSON options of a specification: a reader depth far above <see cref="MaxDepth"/>, so the walk stops a
+    ///     deep specification with the filter's own message, while a hostile one deeper than the reader allows is
+    ///     treated like any specification that cannot be read (the tool reports it) instead of exhausting memory.
     /// </summary>
-    private static readonly JsonDocumentOptions ChartJsonOptions = new() { MaxDepth = 1_000_000 };
+    private static readonly JsonDocumentOptions ChartJsonOptions = new() { MaxDepth = 4096 };
 
     /// <summary>
     ///     Adds a chart, its local data files, and the pictures of its image marks to the parts (<c>add_chart_sources</c>).

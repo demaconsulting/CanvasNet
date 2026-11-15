@@ -67,6 +67,7 @@ public class PictureAttributesTests
     [InlineData("m.scad", "scad", "theme", "dark", "'m.scad' has theme=dark, but theme applies to Mermaid diagrams only")]
     [InlineData("d.pdf", "pdf", "define-x", "1", "'d.pdf' has define-x=1, but define-NAME applies to .scad models only")]
     [InlineData("m.scad", "scad", "define-1x", "2", "'m.scad' has define-1x; the variable name must be letters, digits and underscores, not starting with a digit")]
+    [InlineData("m.scad", "scad", "define-", "2", "'m.scad' has define-; the variable name must be letters, digits and underscores, not starting with a digit")]
     [InlineData("m.scad", "scad", "param-x", "1", "'m.scad' has param-x=1, but param-NAME applies to Vega-Lite charts only")]
     [InlineData("c.vl", "vegalite", "param-a=b", "c", "'c.vl' has param-a=b; the parameter name cannot contain an equals sign")]
     [InlineData("m.scad", "scad", "background", "a\tb", "'m.scad' has background=a\tb; the value must be text without control characters")]
@@ -90,6 +91,24 @@ public class PictureAttributesTests
     {
         var error = Assert.Throws<ToolException>(() => PictureAttributes.Build("f.mmd", "mermaid", [new("size", "10x10"), new("scale", "2")]));
         Assert.Equal("'f.mmd' has both size and scale; use one of them", error.Message);
+    }
+
+    /// <summary>
+    ///     Test that a page number too large for a number (it would overflow to infinity) is the filter's page error,
+    ///     not a formatting failure.
+    /// </summary>
+    [Fact]
+    public void PictureAttributes_Build_PageBeyondANumber_ThrowsThePageError()
+    {
+        // Arrange
+        var page = new string('9', 400);
+
+        // Act
+        var error = Assert.Throws<ToolException>(() => PictureAttributes.Build("d.pdf", "pdf", [new("page", page)]));
+
+        // Assert
+        Assert.Equal(ErrorCodes.PandocFilterError, error.Code);
+        Assert.Equal($"'d.pdf' has page={page}; write the page number, counting from 1", error.Message);
     }
 
     /// <summary>

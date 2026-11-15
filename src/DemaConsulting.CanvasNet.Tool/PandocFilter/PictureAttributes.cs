@@ -167,7 +167,7 @@ internal static class PictureAttributes
                 PlainText(name, key, value);
                 extra.Add($"--param={param}={value}");
             }
-            else if (key.StartsWith("define-", StringComparison.Ordinal) && key.Length > 7)
+            else if (key.StartsWith("define-", StringComparison.Ordinal))
             {
                 var variable = key[7..];
                 if (kind != Scad)
@@ -545,7 +545,7 @@ internal static class PictureAttributes
     /// <exception cref="ToolException">Thrown with <see cref="ErrorCodes.PandocFilterError"/> when the value is not a page number.</exception>
     private static string PageValue(string name, string value)
     {
-        if (value.Length == 0 || !value.All(char.IsAsciiDigit) || LuaInteger(value) < 1)
+        if (value.Length == 0 || !value.All(char.IsAsciiDigit) || !double.IsFinite(LuaInteger(value)) || LuaInteger(value) < 1)
         {
             throw Fail($"'{name}' has page={value}; write the page number, counting from 1");
         }
@@ -581,7 +581,7 @@ internal static class PictureAttributes
     /// <returns><see langword="true"/> for ASCII letters, digits, and underscores, not starting with a digit.</returns>
     private static bool IsIdentifier(string text)
     {
-        return (char.IsAsciiLetter(text[0]) || text[0] == '_') && text.All(c => char.IsAsciiLetterOrDigit(c) || c == '_');
+        return text.Length > 0 && (char.IsAsciiLetter(text[0]) || text[0] == '_') && text.All(c => char.IsAsciiLetterOrDigit(c) || c == '_');
     }
 
     /// <summary>

@@ -123,6 +123,24 @@ public class DependencyHasherTests
     }
 
     /// <summary>
+    ///     Test that a specification nested deeper than the reader allows is treated like any specification that cannot
+    ///     be read (the tool reports it), instead of being read to any depth.
+    /// </summary>
+    [Fact]
+    public void DependencyHasher_ForPicture_ChartBeyondTheReaderDepth_IsTreatedAsUnreadable()
+    {
+        // Arrange: a specification nested 5000 levels deep, beyond the reader's limit of 4096
+        using var directory = new TempDirectory();
+        var hostile = Write(directory, "hostile.vl.json", "{\"a\":" + new string('[', 5000) + new string(']', 5000) + "}");
+
+        // Act
+        var exception = Record.Exception(() => DependencyHasher.ForPicture("vegalite", Collapse(hostile), "hostile.vl.json", null));
+
+        // Assert: no depth error and no crash; the tool reports the specification when it draws it
+        Assert.Null(exception);
+    }
+
+    /// <summary>
     ///     Test the diagram walk: the img of a shape's data quoted, single-quoted (percent-decoded), and unquoted, and the
     ///     src of an img tag quoted and unquoted in any letter case.
     /// </summary>
