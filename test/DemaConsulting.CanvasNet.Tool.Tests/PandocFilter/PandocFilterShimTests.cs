@@ -29,6 +29,23 @@ public class PandocFilterShimTests
     }
 
     /// <summary>
+    ///     Test that the repository's filter, <c>docs/filters/canvasnet.lua</c>, is the embedded shim (line endings aside),
+    ///     so the documents of this repository are built with the shim the tool writes.
+    /// </summary>
+    [Fact]
+    public void PandocFilterShim_Bytes_AreTheRepositoryFilter()
+    {
+        // Arrange: the filter the documents of the repository use
+        var filter = File.ReadAllText(Path.Combine(RepositoryRoot(), "docs", "filters", "canvasnet.lua"));
+
+        // Act
+        var text = Encoding.UTF8.GetString(PandocFilterShim.Bytes);
+
+        // Assert
+        Assert.Equal(text.Replace("\r\n", "\n", StringComparison.Ordinal), filter.Replace("\r\n", "\n", StringComparison.Ordinal));
+    }
+
+    /// <summary>
     ///     Test that writing the shim creates the folder, replaces an existing file, and leaves no partial file.
     /// </summary>
     [Fact]

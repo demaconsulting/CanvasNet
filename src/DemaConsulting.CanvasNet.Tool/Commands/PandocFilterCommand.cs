@@ -20,7 +20,9 @@ namespace DemaConsulting.CanvasNet.Tool.Commands;
 ///     </para>
 ///     <para>
 ///         A failure is the tool's usual expected error: exit code 1, <c>Error: ...</c> on standard error, and with
-///         <c>--json</c> the JSON failure document on standard output, which the shim turns into the build's error.
+///         <c>--json</c> the JSON failure document on standard output, which the shim turns into the build's error. The
+///         warnings of the pictures before the failure are written to standard error first, as
+///         <c>[WARNING] canvasnet.lua: ...</c> lines, which Pandoc passes on, so they are not lost.
 ///     </para>
 /// </remarks>
 internal sealed class PandocFilterCommand : ICommand
@@ -146,7 +148,23 @@ internal sealed class PandocFilterCommand : ICommand
 
         // Read, transform, and write; nothing is written unless the run succeeded
         var input = ReadInput(reader.Get("--input"));
-        var output = new PandocFilterEngine(settings, new ToolPictureDrawer(), jobs).Run(input, reader.Get("--pandoc-version"));
+        var engine = new PandocFilterEngine(settings, new ToolPictureDrawer(), jobs);
+        byte[] output;
+        try
+        {
+            output = engine.Run(input, reader.Get("--pandoc-version"));
+        }
+        catch
+        {
+            // The warnings of the pictures before the failure, in Pandoc's format, as the Lua filter printed them
+            foreach (var warning in engine.WarningsBeforeFailure)
+            {
+                context.WriteWarning($"[WARNING] canvasnet.lua: {Context.EscapeControlCharacters(warning)}");
+            }
+
+            throw;
+        }
+
         WriteOutput(context, reader.Get("--output"), output);
     }
 

@@ -61,6 +61,12 @@ internal sealed partial class PandocFilterEngine
     }
 
     /// <summary>
+    ///     Gets the warnings of the pictures before the failure when the last run failed, in document order (empty when it
+    ///     succeeded), so the caller can show them as the Lua filter did before its error.
+    /// </summary>
+    internal IReadOnlyList<string> WarningsBeforeFailure { get; private set; } = [];
+
+    /// <summary>
     ///     Reads a Pandoc document, draws its pictures, and writes the transformed document.
     /// </summary>
     /// <param name="input">The document as Pandoc's JSON (UTF-8).</param>
@@ -88,6 +94,8 @@ internal sealed partial class PandocFilterEngine
     /// <exception cref="ToolException">Thrown as <see cref="Run"/> describes; the document is then left partly unchanged.</exception>
     internal IReadOnlyList<string> Transform(JsonObject document)
     {
+        WarningsBeforeFailure = [];
+
         // The elements in the order the Lua filter visited them: every image, then every code block
         var candidates = PandocAst.FindAll(document, "Image").Select(node => (Node: node, Block: false))
             .Concat(PandocAst.FindAll(document, "CodeBlock").Select(node => (Node: node, Block: true)))
@@ -119,7 +127,16 @@ internal sealed partial class PandocFilterEngine
         failures.AddRange(Draw(jobs.Values.OrderBy(job => job.Index).ToList(), failures.Count > 0 ? failures[0].Index : int.MaxValue));
         if (failures.Count > 0)
         {
-            failures.MinBy(f => f.Index)!.Error.Throw();
+            // The warnings of the pictures before the failure, which the Lua filter printed before its error
+            var failure = failures.MinBy(f => f.Index)!;
+            var earlier = new List<string>();
+            foreach (var item in planned.Where(item => item.Index < failure.Index))
+            {
+                CollectWarnings(item, earlier);
+            }
+
+            WarningsBeforeFailure = earlier;
+            failure.Error.Throw();
         }
 
         // Apply, in document order
@@ -316,14 +333,11 @@ internal sealed partial class PandocFilterEngine
     /// <param name="warnings">The warnings of the run.</param>
     private void Apply(PlannedPicture item, List<string> warnings)
     {
-        warnings.AddRange(item.Warnings);
+        CollectWarnings(item, warnings);
         var file = item.File;
         if (item.Job is { } job)
         {
-            // The picture that led the job reports what the tool said; a follower reports what a later build would
-            var outcome = job.Outcome!;
-            warnings.AddRange(item.Leads ? outcome.Warnings : outcome.FollowerWarnings(item.Name));
-            file = outcome.Drawn ? job.File : null;
+            file = job.Outcome!.Drawn ? job.File : null;
         }
 
         if (file == null)
@@ -352,6 +366,21 @@ internal sealed partial class PandocFilterEngine
         }
 
         item.Node.ReplaceWith(replacement);
+    }
+
+    /// <summary>
+    ///     Adds the warnings of a planned picture: those found while planning, then those of its job.
+    /// </summary>
+    /// <param name="item">The picture, whose job (if any) has run.</param>
+    /// <param name="warnings">The warnings to add to.</param>
+    private static void CollectWarnings(PlannedPicture item, List<string> warnings)
+    {
+        warnings.AddRange(item.Warnings);
+        if (item.Job?.Outcome is { } outcome)
+        {
+            // The picture that led the job reports what the tool said; a follower reports what a later build would
+            warnings.AddRange(item.Leads ? outcome.Warnings : outcome.FollowerWarnings(item.Name));
+        }
     }
 
     /// <summary>

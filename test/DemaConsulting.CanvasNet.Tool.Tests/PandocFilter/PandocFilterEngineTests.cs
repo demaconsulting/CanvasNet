@@ -268,6 +268,40 @@ public class PandocFilterEngineTests
     }
 
     /// <summary>
+    ///     Test that a failed run keeps the warnings of the pictures before the failure, in document order and whatever the
+    ///     number of jobs, without those of later pictures, and that a run that succeeds has none.
+    /// </summary>
+    /// <param name="jobs">The pictures drawn at once.</param>
+    [Theory]
+    [InlineData(1)]
+    [InlineData(4)]
+    public void PandocFilterEngine_Run_FailureAfterWarnings_KeepsTheEarlierWarnings(int jobs)
+    {
+        // Arrange: four diagrams that each report a note; the third fails
+        using var tree = new FilterTree();
+        var images = Enumerable.Range(0, 4).Select(i =>
+        {
+            tree.Write($"d{i}.mmd", $"flowchart LR\n  A{i}");
+            return PandocDoc.Image($"d{i}.mmd");
+        }).ToArray();
+        var drawer = new StubDrawer
+        {
+            Report = name => new PictureDrawing(true, [new("mermaid-note", $"note of {name}", false)], []),
+            Failure = name => name == "d2.mmd" ? new ViewerException(ErrorCodes.MermaidError, "broken") : null
+        };
+        var engine = new PandocFilterEngine(tree.Settings(), drawer, jobs);
+
+        // Act: a run that fails, then a run of the same engine that succeeds
+        Assert.Throws<ToolException>(() => engine.Run(PandocDoc.Document(PandocDoc.Para(images)), "3.12.1"));
+        var earlier = engine.WarningsBeforeFailure;
+        engine.Run(PandocDoc.Document(PandocDoc.Para(PandocDoc.Image("d0.mmd"))), "3.12.1");
+
+        // Assert
+        Assert.Equal(["d0.mmd: note of d0.mmd", "d1.mmd: note of d1.mmd"], earlier);
+        Assert.Empty(engine.WarningsBeforeFailure);
+    }
+
+    /// <summary>
     ///     Test that a missing source is an error naming it, that a missing drawing and other pictures are left to Pandoc,
     ///     and that non-ASCII text passes through.
     /// </summary>

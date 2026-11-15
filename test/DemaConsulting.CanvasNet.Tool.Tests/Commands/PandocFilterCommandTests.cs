@@ -145,6 +145,32 @@ public class PandocFilterCommandTests
     }
 
     /// <summary>
+    ///     Test that a failed run writes the warnings of the pictures before the failure to standard error, in Pandoc's
+    ///     format, as the Lua filter printed them before its error.
+    /// </summary>
+    [Fact]
+    public void PandocFilterCommand_Run_FailureAfterAWarning_WritesTheWarningToStandardError()
+    {
+        // Arrange: a model that echoes a line, then a model that does not exist
+        using var directory = new TempDirectory();
+        File.WriteAllText(directory.Combine("echo.scad"), "echo(\"hello from the model\"); cube(5);");
+        var input = directory.Combine("doc.json");
+        File.WriteAllBytes(input, PandocDoc.Document(PandocDoc.Para(PandocDoc.Image("echo.scad"), PandocDoc.Image("part.scad"))));
+
+        // Act
+        var (code, _, stdErr) = ToolHost.Invoke(
+            "pandoc-filter", "--json", "--protocol", "1", "--filter-path", directory.Combine("f", "canvasnet.lua"), "--resource-path", directory.Path,
+            "--jobs", "1", "--input", input, "--output", directory.Combine("out.json"));
+
+        // Assert: the warning, then the error
+        Assert.Equal(1, code);
+        var warning = stdErr.IndexOf("[WARNING] canvasnet.lua: echo.scad: ", StringComparison.Ordinal);
+        Assert.True(warning >= 0, stdErr);
+        Assert.Contains("hello from the model", stdErr[warning..], StringComparison.Ordinal);
+        Assert.True(stdErr.IndexOf("Error: pandoc-filter-error: cannot find 'part.scad'", StringComparison.Ordinal) > warning, stdErr);
+    }
+
+    /// <summary>
     ///     Test that the help of the command lists its options and points at the help card.
     /// </summary>
     [Fact]
