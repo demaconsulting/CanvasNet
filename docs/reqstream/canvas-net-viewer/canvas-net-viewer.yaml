@@ -250,3 +250,16 @@ sections:
               - CanvasNetViewer_SystemIntegration_CustomSchemeSource_IsEmbeddedFromRawHref
               - CanvasNetViewer_SystemIntegration_LiveFrameSource_GivesFreshFrameOnEveryRender
               - CanvasNetViewer_SystemIntegration_RenderWithExtraSources_UsesCustomSources
+
+          - id: CanvasNetViewer-CanvasNetViewer-Positions
+            title: >-
+              The CanvasNetViewer class shall pass ViewerRenderOptions.Positions to the file it renders directly (never
+              to a picture that file embeds), return the reported positions in ViewerImage.Positions mapped through the
+              fit into the requested box, with ViewerImage.PositionsTruncated, and under ThrowOnUnsupportedFeature fail
+              with code positions-unmatched for a selector that matched nothing.
+            justification: |
+              The in-memory render of a host is placed like the tool's output, and its positions must follow the same
+              fit.
+            tests:
+              - CanvasNetViewer_Render_PositionsIntoABox_FollowTheFit
+              - CanvasNetViewer_Render_UnmatchedSelector_NoteOrStrictFailure

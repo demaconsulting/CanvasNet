@@ -129,6 +129,9 @@ and commit items at the statement that made the commit.
 - **`Shape`** makes a scene path from a `GitGraphComputedStyle` of the style sheet's cascade (`GitGraphStyles.Compute`
   over the svg element, the groups, and the element): its fill and stroke with the folded opacity, its stroke width,
   dash, and line cap, and its shadow.
+- **Position tags**: the renderer tags every shape of a commit bullet as that `commit` (merged into one position aimed
+  at the commit's point, with its message as the text) in `GitGraphRenderer.Labels.cs`, each tag group as a `tag`, each
+  branch label box as a `branch`, and the title as `title`, for the `ScenePositions` unit.
 
 #### Error Handling
 

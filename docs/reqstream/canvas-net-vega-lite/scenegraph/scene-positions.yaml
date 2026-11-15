@@ -1,0 +1,77 @@
+---
+# Software Unit Requirements for ScenePositions
+#
+# These requirements describe the design-level behavior of the ScenePositions unit of the Scenegraph subsystem
+# (internal namespace DemaConsulting.CanvasNet.VegaLite.Scenegraph): the positions of the tagged groups and mark items
+# of a laid-out chart. Each "tests" entry cites an existing test method in the DemaConsulting.CanvasNet.VegaLite.Tests
+# project; see docs/verification/canvas-net-vega-lite/scenegraph/scene-positions.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetVegaLite Requirements
+    sections:
+      - title: Scenegraph Requirements
+        sections:
+          - title: ScenePositions Requirements
+            requirements:
+              - id: CanvasNetVegaLite-Scenegraph-ScenePositions-ViewPaths
+                title: >-
+                  The ScenePositions unit shall give every view the canonical path of one operator[index] segment per
+                  level below the root, joined by '.' ("" for the root; concat, hconcat, vconcat, repeat, or facet from
+                  the parent, layer for a layered view), with the layers a composite mark expands to adding no segment,
+                  and shall report the name of the view separately.
+                justification: |
+                  A path always exists, even for an unnamed view, so a selector can address any view of a composition.
+                tests:
+                  - VegaLiteDocument_Render_CompositionPaths_AreCanonical
+                  - VegaLiteDocument_Render_BoxplotStackAndBin_ValuesAndViews
+
+              - id: CanvasNetVegaLite-Scenegraph-ScenePositions-Ids
+                title: >-
+                  The ScenePositions unit shall name a title title, a view by its path, an axis by its channel, a legend
+                  by its first channel, and a mark <mark>-<n>, n counting the items of that mark type in its view from 0
+                  in drawing order, each vertex of a line, area, or trail counted.
+                justification: |
+                  Deterministic ids make the same render give the same list, and the mark type in the id tells the
+                  primitives of a composite mark apart.
+                tests:
+                  - ScenePositions_Collect_ViewAndBars_BoxesCentersAndIds
+                  - ScenePositions_Collect_LineVertices_OnePositionPerVertex
+
+              - id: CanvasNetVegaLite-Scenegraph-ScenePositions-Values
+                title: >-
+                  The ScenePositions unit shall report for a mark the normalized values of the channels bound to a field
+                  or a datum (the start of a bin on x and y and its end on x2 and y2, a stacked channel's own value, a
+                  date as UTC ISO-8601 text, a number that is not finite as null, an array or object left out) and the
+                  row, column, or facet value of its facet cell.
+                justification: |
+                  Selecting a mark by its data is stable across layouts, where its pixel position is not.
+                tests:
+                  - MarkBuilder_TryConvert_DataValues_ConvertAsDocumented
+                  - VegaLiteDocument_Render_AggregateAndTemporalLine_ValuesAndVertices
+                  - VegaLiteDocument_Render_BoxplotStackAndBin_ValuesAndViews
+
+              - id: CanvasNetVegaLite-Scenegraph-ScenePositions-Geometry
+                title: >-
+                  The ScenePositions unit shall give a guide the box of its bounds (a view its data rectangle, a legend
+                  its frame) and a mark its geometry bounds without stroke, and aim at the center of the box, except a
+                  rule at its midpoint, a symbol at its center with its shape as the box, a text at its anchor with its
+                  measured box, an arc at its mid-angle at mid-radius, and a vertex at itself with a box of zero size,
+                  mapped by the placement.
+                justification: |
+                  Each mark type has the attachment point a callout expects, and the coordinates must be those of the
+                  returned surface.
+                tests:
+                  - ScenePositions_Collect_ViewAndBars_BoxesCentersAndIds
+                  - ScenePositions_Geometry_RuleSymbolTextArc_AimAsDocumented
+                  - ScenePositions_Collect_LineVertices_OnePositionPerVertex
+
+              - id: CanvasNetVegaLite-Scenegraph-ScenePositions-Filter
+                title: >-
+                  The ScenePositions unit shall report titles, views, axes, and legends, then marks, each in drawing
+                  order, skip the kinds the filter rejects, and report no mark whose row was not recorded.
+                justification: |
+                  Structural features first keeps them within the cap, and a render without recorded rows has no mark
+                  positions to report.
+                tests:
+                  - ScenePositions_Collect_NoDatumOrFilteredOut_ReportsNoMarks
+                  - VegaLiteDocument_Render_BarChart_ReportsGuidesAndBars

@@ -926,3 +926,20 @@ sections:
           - SourceLoader_Load_InputWithFragment_DrawsWhatTheOptionsWouldDraw
           - SourceLoader_PublicMethods_NullArguments_ThrowArgumentNullException
           - CanvasNetViewer_Render_ScadViewportFragment_FixesTheCamera
+
+      - id: CanvasNetViewer-Imaging-SourceLoader-Positions
+        title: >-
+          The SourceLoader class shall, when SourceOptions.Positions is set, collect the positions a Mermaid diagram or
+          a Vega-Lite chart reports while it is drawn (building only the kinds a selector can match), keep at most 1,000
+          of the matches in the renderer's order with LoadedSource.PositionsTruncated set when more matched, add a
+          positions-unmatched warning naming each selector that matched nothing, throw ViewerException with code
+          positions-unmatched under the strict option before the loaded page is returned, and ignore the selectors for
+          every other kind, including the pictures an SVG file embeds.
+        justification: |
+          Filtering before the cap keeps the features a caller asks for, and a strict load must fail before anything is
+          published.
+        tests:
+          - SourceLoader_Load_MermaidWithPositions_ReportsMatchingPositions
+          - SourceLoader_Load_ChartOverTheCap_FiltersFirstThenCaps
+          - SourceLoader_Load_UnmatchedSelector_WarnsOrFailsWhenStrict
+          - SourceLoader_Load_OtherKinds_IgnoreThePositions

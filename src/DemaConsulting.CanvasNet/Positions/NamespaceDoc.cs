@@ -30,7 +30,7 @@ namespace DemaConsulting.CanvasNet.Positions;
 ///         Box = new PositionBox(10, 20, 56, 30),
 ///         Pixel = new PositionPoint(38, 35)
 ///     });
-///     // collector.Positions holds the node; collector.UnmatchedSelectors holds "edge:@from=pack"
+///     // collector.Positions holds the node; collector.GetUnmatchedSelectors() returns "edge:@from=pack"
 ///     </code>
 /// </example>
 internal static class NamespaceDoc

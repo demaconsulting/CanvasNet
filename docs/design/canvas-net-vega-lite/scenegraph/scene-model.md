@@ -9,7 +9,8 @@ The `SceneModel` unit is the first software unit in the `Scenegraph` subsystem. 
   `SceneSymbol`, `SceneText`, `SceneArc`, and `SceneTrail`, the gradient types `SceneGradient` and `SceneGradientStop`,
   the path types `ScenePathSegmentKind` and `ScenePathSegment`, the value types `ScenePoint`, `SceneTrailPoint`,
   `SceneClip`, and `SceneEntry`, and the `SceneLists` copy helper; every `SceneItem` has a `Source` (a `VegaLiteLocation`,
-  unknown by default) that the painter reports a paint-limit failure at (phase 14)
+  unknown by default) that the painter reports a paint-limit failure at (phase 14); and the internal position data of
+  the feature positions: `ScenePositionTag`, `SceneMarkContext`, and `SceneVertex`
 - `SceneBounds.cs` - `SceneBounds` (readonly record struct): axis-aligned bounding boxes
 - `SceneBudget.cs` - `SceneBudget` (sealed class): the item counter behind `MaxSceneItems`
 
@@ -119,6 +120,18 @@ replaces the solid `Fill` when it is set and can be drawn.
   `Height`,
   `Union`, `Translate`, and `Rotate(degrees)` (the enclosing box of the rotated corners, with exact quarter turns).
 - **`SceneBudget`** `(max)` - `Count`, `Add(items, location)`, `Fork()` and `Adopt(fork)`.
+- **Position data** (all `internal`, so the reflection-based snapshot of a scene does not see it, and none of it
+  changes the pixels; read by the `ScenePositions` unit):
+  - `SceneItem.Position` - a **`ScenePositionTag`** `(Kind, Id)` with `Text`, `View` (the canonical view path, `""`
+    by default), `ViewName`, and `Bounds` (the box of the guide in the coordinates of the tagged group's parent, or
+    null to take the group's own rectangle), set on the view, axis, legend, and title groups; null by default.
+  - `SceneItem.Datum` - the row of the data table of the enclosing marks group that a mark item draws, or -1 (the
+    default) when the item is not a mark or the render records no positions.
+  - `SceneGroup.Marks` - a **`SceneMarkContext`** `(Values)` on a marks group: `Values` gives the normalized channel
+    values of a row, sorted by channel name, with `View`, `ViewName`, and `FacetValues` (the `row`, `column`, or `facet`
+    value of the cell); null when the group is not a marks group or the render records no positions.
+  - `ScenePath.Vertices` and `SceneTrail.Vertices` - the **`SceneVertex`** `(Row, X, Y)` list of a line, area, or trail
+    mark, one per drawn row in drawing order; null when not recorded.
 
 **Invariants**: items and scenes never change once built; every item has a non-blank role; the enumeration order is
 the drawing order; the empty bounds contain nothing.
@@ -161,6 +174,7 @@ spent. The unit performs no I/O.
 
 - **`VegaLiteLocation`** and **`VegaLiteRenderException`** - the public types of the `VegaLiteDocument` unit (the budget
   only)
+- **Core `CanvasNet`** - `PositionValue` (`Positions`), the type of the values of a `SceneMarkContext`
 - **.NET base class library** - `System.Collections.ObjectModel`, `System.Collections.Generic`, `System.Linq`
 
 The unit has no dependency on another unit of the system.
@@ -171,6 +185,9 @@ The unit has no dependency on another unit of the system.
 `ScenePathSegment` commands of the `CurveBuilder` for the line and area marks, and the `SceneTrail` and `SceneArc`
 items);
 `TextMeasurer` reads `SceneText`
-and `SceneBounds`; `ScenePainter` draws a `Scene`; `VegaLiteDocument` creates the budget. The tests in
+and `SceneBounds`; `ScenePainter` draws a `Scene`; `VegaLiteDocument` creates the budget. The position data is set by
+`MarkBuilder` (`Datum`, `Vertices`, and the marks group's `SceneMarkContext`, only when it records positions),
+`TitleBuilder` and `ViewLayout` (the title and view tags), and `VegaLiteDocument` (the axis, legend, and view tags of a
+composition, and the view path, name, and facet values of each marks group), and read by `ScenePositions`. The tests in
 `test/DemaConsulting.CanvasNet.VegaLite.Tests/Scenegraph/SceneModelTests.cs` call the types directly through
 `InternalsVisibleTo`.

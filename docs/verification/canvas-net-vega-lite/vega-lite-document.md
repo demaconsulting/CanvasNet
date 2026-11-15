@@ -48,7 +48,8 @@ Unit tests reside in `VegaLiteOpenOptionsTests.cs` (the open options and, in the
 the
 offset channels, `VegaLiteLabelExprIntegrationTests.cs` and `VegaLiteOffsetIntegrationTests.cs` (the document's pipeline
 is verified
-through the public API: its stages are internal and are exercised for real) within the
+through the public API: its stages are internal and are exercised for real), and, for the position handler,
+`VegaLiteDocumentPositionTests.cs` within the
 `DemaConsulting.CanvasNet.VegaLite.Tests` project.
 
 ### Test Environment
@@ -909,3 +910,29 @@ brush, that the cells of a facet (copies of one template) never draw it, that a 
 leaves the domain of the data while the marks are clipped, and that the data stage of a unit derives the time unit
 that a
 condition of its encoding reads.
+
+#### CanvasNetVegaLite-VegaLiteDocument-Positions: The Position Handler Of Render
+
+**Tests**: `VegaLiteDocumentPositionTests.VegaLiteDocument_Render_BarChart_ReportsGuidesAndBars`,
+`VegaLiteDocumentPositionTests.VegaLiteDocument_Render_ScaleFitAndPixels_MapWithoutChangingPixels`,
+`VegaLiteDocumentPositionTests.VegaLiteDocument_BuildScene_RecordsRowsOnlyForAHandlerThatWantsMarks`,
+`VegaLiteDocumentPositionTests.VegaLiteDocument_Render_HandlerThrows_Propagates`,
+`VegaLiteDocumentPositionTests.VegaLiteDocument_Render_CompositionPaths_AreCanonical`,
+`VegaLiteDocumentPositionTests.VegaLiteDocument_Render_AggregateAndTemporalLine_ValuesAndVertices`,
+`VegaLiteDocumentPositionTests.VegaLiteDocument_Render_BoxplotStackAndBin_ValuesAndViews`,
+`VegaLiteDocumentPositionTests.VegaLiteDocument_Render_ArcAndLegend_AimInsideTheSlice`
+
+Renders a titled bar chart of three stalls and asserts the kinds `title`, `view`, `axis`, `axis`, and three `mark`s in
+that order with the ids `title`, the empty root path, `x`, `y`, `bar-0`, `bar-1`, and `bar-2`, every position in the
+root view, the title text `Crates` and the axis title `stall`, the values `x` = `C` and `y` = 43 of the third bar, and
+each bar's pixel at the center of its box painted in the default mark blue. Asserts that at scale 2 every pixel and
+box height doubles and that the render at the exact doubled size maps to the same pixels, that the pixels rendered
+with a handler equal those rendered without one, and that `Measure` never calls the handler; that the scene built
+without a handler, and with a handler whose filter rejects marks, records no row (`Datum` -1) and no marks context,
+while a handler that wants marks records the rows 0, 1, and 2 and a context; and that an exception thrown by the
+handler reaches the caller. Asserts the view paths `vconcat[0]` and `vconcat[1]` (named `lower`) of a concatenation,
+its `y` axis in `vconcat[1]` and its point `point-1` in `vconcat[1].layer[1]`, and the `column` value `y` of a facet
+cell's mark in `facet[1]`; a summed line over dates as the vertices `line-0` and `line-1` with `x` =
+`2025-01-01T00:00:00.000Z`, `y` = 8, and a box of zero width; the rules and ticks of a boxplot in the root view, the
+own values 3 and 5 of two stacked bars, and the start and the greater end of a bin on `x` and `x2`; and the legend
+`color` of an arc chart, whose first slice's pixel is painted in the default mark blue and differs from the second's.

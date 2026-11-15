@@ -29,11 +29,11 @@ of `DiscoveryCommands`, which holds the two commands that never decode pixels.
 #### Data Model
 
 **OptionTable** (`IReadOnlyList<OptionSpec>`, also the `Options` of the command): every option of
-`RenderCommand.OptionTable` except `--output`, `--format`, `--quality`, `--no-clobber`, and `--all-pages` (the same
-declarations, so the grammar and the help text are those of `render`: the source options, the options of an OpenSCAD
-model, `--param` of a Vega-Lite chart, `--theme` of a Mermaid diagram, and the image pipeline with the photo tools),
-then `--count <N>` (the description starts `colors:`) and
-`--radius <R>` (the description starts `pixel:`). An output option is therefore an unknown option.
+`RenderCommand.OptionTable` except `--output`, `--format`, `--quality`, `--no-clobber`, `--all-pages`, and
+`--positions` (the same declarations, so the grammar and the help text are those of `render`: the source options,
+the options of an OpenSCAD model, `--param` of a Vega-Lite chart, `--theme` of a Mermaid diagram, and the image
+pipeline with the photo tools), then `--count <N>` (the description starts `colors:`) and `--radius <R>`
+(the description starts `pixel:`). An output option is therefore an unknown option.
 
 **Settings** (record): the subcommand, the input path, the `SourceOptions` (with the `FileAccess` policy), the
 `Operations` of the image pipeline, the

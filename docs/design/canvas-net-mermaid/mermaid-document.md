@@ -55,7 +55,10 @@ lays out the diagram.
   the static `ThemeNames`: `default`, `base`, `dark`, `forest`, `neutral`, compared exactly; hosts canonicalize a user's
   spelling first), `ImageResolver`, `Now` (`DateTimeOffset?`, null by default: the only clock of the library, which a
   gantt chart reads for its today line and the dates Mermaid takes from today), `Limits` (non-null,
-  `MermaidLimits.Default` by default), `WarningHandler`, `UnsupportedFeatureHandler`, and `ThrowOnUnsupportedFeature`.
+  `MermaidLimits.Default` by default), `WarningHandler`, `UnsupportedFeatureHandler`, `ThrowOnUnsupportedFeature`,
+  `PositionHandler` (`Action<ImagePosition>?`, null by default: the callback that receives the feature positions of a
+  render), and `PositionKindFilter` (`Func<string, bool>?`, null for every kind: the kinds the handler wants; a host
+  passes `PositionCollector.IncludesKind`).
 - **`MermaidLimits`**: the ten limits of the system design (_Untrusted Input and Limits_), each validated to be at
   least 1, the two depth limits at most 256; `Default` is a shared instance.
 - **Records**: `MermaidLocation(File, Line, Column)` (`IsKnown` when the line is positive; `ToString` gives
@@ -104,6 +107,12 @@ lays out the diagram.
   larger than the largest surface.
 - **`Render(options, cancellationToken)`**: as `Measure`, then paints with `ScenePlacement.Uniform` at that size.
   **`Render(width, height, ...)`**: validates the size and paints with `ScenePlacement.Fit` (uniform scale, centered).
+  Both overloads call `ScenePositions.Report(scene, placement, options)` after the layout and the placement and before
+  the painting, so the `PositionHandler` receives each feature once, on the calling thread, in the pixels of the
+  returned surface (following the scale or the fit), and only the kinds that `PositionKindFilter` accepts are built;
+  the pixels are the same with or without the handler. `Measure` never calls the handler. The contract (the kinds,
+  their ids, and their attachment rules) is documented in the XML remarks of `MermaidRenderOptions.PositionHandler`
+  and in _ScenePositions Unit Design_.
 - **`Run`** (private): creates the call's `MermaidReportSink`, resolves the configuration with
   `MermaidConfigResolver.Resolve` (silently for a type that is not drawn), creates the `DiagramRenderContext` (source,
   detected diagram, options, configuration, sink, a fresh `FontResolver`, token), builds the scene, and delivers the
@@ -147,6 +156,8 @@ lays out the diagram.
   of the caller's image resolver pass unchanged.
 - Reports recorded before any failure are still delivered. Nothing is caught and swallowed except a handler's
   exception after a failure.
+- An exception thrown by the `PositionHandler` propagates to the caller like any failure of the call: the surface is
+  never painted and the reports recorded before it are delivered once.
 
 ### Dependencies
 
@@ -165,15 +176,18 @@ lays out the diagram.
   renderer uses the `Cose` subsystem for the layout.
 - **Packet**: through `DiagramRegistry` (`PacketParser`, whose `PacketDiagram` implements `IMermaidDiagram`).
 - **GitGraph**: through `DiagramRegistry` (`GitGraphParser`, whose `GitGraphDiagram` implements `IMermaidDiagram`).
-- **Scenegraph**: `Scene`, `ScenePlacement`, `ScenePainter` (and `ScenePainter.CreateFontResolver`).
+- **Scenegraph**: `Scene`, `ScenePlacement`, `ScenePainter` (and `ScenePainter.CreateFontResolver`), and
+  `ScenePositions` (the feature positions).
 - **Core CanvasNet**: `Surface`, `Rgba32` (Canvas), `IImageResolver`, `IImageSource`, `IFragmentImageSource`,
-  `ImageFragment`, `ImageSourceRequest`, `ImageSourceResult`, `ImageDiagnostic` (ImageSources).
+  `ImageFragment`, `ImageSourceRequest`, `ImageSourceResult`, `ImageDiagnostic` (ImageSources), and `ImagePosition`
+  (Positions, the type of the position handler).
 - **.NET base class library**: `System.Text.Json` (option validation), `System.Text.UTF8Encoding` (strict decoding),
   `System.IO`.
 
 ### Callers
 
-Library callers and hosts: the Viewer library (`SourceLoader.Mermaid.cs` opens, measures, and renders documents, and
-`CanvasNetViewer` registers `MermaidImageSource` as a built-in source), and through it the `canvasnet` tool and the
+Library callers and hosts: the Viewer library (`SourceLoader.Mermaid.cs` opens, measures, and renders documents,
+passing the `Offer` and `IncludesKind` of a `PositionCollector` as the position options when positions are asked for,
+and `CanvasNetViewer` registers `MermaidImageSource` as a built-in source), and through it the `canvasnet` tool and the
 documentation filter. Inside the system nothing calls the unit; it calls the subsystems. The unit tests reach the
 internal sink through `InternalsVisibleTo`.

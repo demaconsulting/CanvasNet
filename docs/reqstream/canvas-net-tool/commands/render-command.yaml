@@ -521,3 +521,22 @@ sections:
           - RenderCommand_Run_SvgEmbeddingDeniedWithStrict_FailsWithFileAccessDenied
           - RenderCommand_Verb_FileAccessOption_AppliesToTheVerbs
           - RenderCommand_Run_SvgEmbeddingOutsideFolder_WarnsAndDrawsTheRest
+
+      - id: CanvasNetTool-Commands-RenderCommand-Positions
+        title: >-
+          The RenderCommand class shall accept the repeatable --positions <selector> option (not inspect), parse the
+          selectors before anything is loaded (a malformed one is usage-error with a hint to the grammar), require
+          --json and a diagram or chart input (usage-error otherwise), and write after the other fields a positions
+          array whose items have kind and id, then text, line, view, name, mark, from, to, index, and values when
+          present, then box and pixel rounded to three decimals (null when a step lost them) and inside, and
+          positionsTruncated; without --positions the result is unchanged.
+        justification: |
+          The JSON result is what agents read; its shape must be documented and stable, and the option must fail early
+          and clearly when it cannot apply.
+        tests:
+          - RenderCommand_Positions_Json_HasTheDocumentedShape
+          - RenderCommand_Positions_ConvertCropAndPad_PixelOnTheNode
+          - RenderCommand_Positions_ChartWithGrid_ReportsMarkValues
+          - RenderCommand_Positions_Misuse_IsUsageError
+          - RenderCommand_Positions_Unmatched_WarnsOrFailsStrict
+          - InspectCommand_Positions_IsNotAnOption

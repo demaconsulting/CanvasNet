@@ -92,7 +92,7 @@ public class PositionCollectorTests
     public void PositionCollector_GetUnmatchedSelectors_MatchedButCapped_IsNotUnmatched()
     {
         // Arrange
-        var collector = new PositionCollector(PositionSelection.Parse(["node", "edge", "node:Sedn"]), 1);
+        var collector = new PositionCollector(PositionSelection.Parse(["node", "edge", "node:Missing"]), 1);
 
         // Act
         collector.Offer(new ImagePosition("node", "send"));
@@ -101,7 +101,7 @@ public class PositionCollectorTests
         // Assert
         Assert.Single(collector.Positions);
         Assert.True(collector.Truncated);
-        Assert.Equal(["node:Sedn"], collector.GetUnmatchedSelectors().Select(selector => selector.Text));
+        Assert.Equal(["node:Missing"], collector.GetUnmatchedSelectors().Select(selector => selector.Text));
     }
 
     /// <summary>

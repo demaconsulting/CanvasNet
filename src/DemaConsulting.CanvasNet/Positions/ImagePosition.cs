@@ -20,7 +20,7 @@ namespace DemaConsulting.CanvasNet.Positions;
 ///         later image step could not follow them.
 ///     </para>
 ///     <para>
-///         The record is immutable and thread-safe: <see cref="Values"/> is a copy, sorted ordinally by channel name.
+///         The record is immutable and thread-safe: <see cref="Values"/> is a copy, sorted by channel name.
 ///         Record equality compares <see cref="Values"/> by reference.
 ///     </para>
 /// </remarks>
@@ -167,7 +167,7 @@ public sealed record ImagePosition
     }
 
     /// <summary>
-    ///     Gets the values of the feature, sorted ordinally by name: for a chart mark, the normalized value of every
+    ///     Gets the values of the feature, sorted by name: for a chart mark, the normalized value of every
     ///     encoding channel bound to a scalar; for a pie slice, its <c>value</c>. Empty when the feature has none.
     /// </summary>
     /// <remarks>
@@ -210,7 +210,7 @@ public sealed record ImagePosition
     /// <summary>
     ///     Looks up a value by its channel name.
     /// </summary>
-    /// <param name="name">The name; compared ordinally (case-sensitively).</param>
+    /// <param name="name">The name; compared case-sensitively.</param>
     /// <param name="value">The value when the channel is present.</param>
     /// <returns><see langword="true"/> when the channel is present (even when it holds null).</returns>
     public bool TryGetValue(string name, out PositionValue value)

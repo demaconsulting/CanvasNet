@@ -20,6 +20,11 @@ hand-computed pixels (grayscale, invert, threshold, and the tables), on the gene
 (`FixtureFactory.SketchPhoto`, drawn with plain arithmetic independent of the rotation code) for deskew, and on small
 solid or two-tone images for rotation and trim; the arithmetic of each unit it calls is verified with that unit.
 
+The mapping of feature positions is verified in `ImagePipelinePositionTests.cs` (in the Viewer test project, folder
+`Imaging/`), which drives `MapPositions` directly with step reports built by the test and one position whose box
+(100, 50, 40, 20) and pixel (120, 60) are mapped through them, the expected boxes and pixels worked out by hand from the
+reported fields of each step.
+
 #### Test Environment
 
 N/A - standard test environment; the tests use only in-memory surfaces.
@@ -42,6 +47,9 @@ N/A - standard test environment; the tests use only in-memory surfaces.
 - A size, a box, or a border above 8192 pixels is `size-limit`, and exactly 8192 works.
 - The input is never modified or disposed (also for in-place operations and failures), and the same operations give the
   same pixels; a chain of adjustments equals the steps run separately.
+- The box and the pixel of a feature position follow the steps that move, scale, mirror, or turn the image, through
+  one transform with the original corners enclosed once; color steps keep them, and a deskew that corrected the image
+  or an unknown step that changed the size loses them.
 
 #### Test Scenarios
 
@@ -245,3 +253,17 @@ the validation is not stricter than the command line.
 **ImagePipeline_FilterNames_CannotBeChangedThroughACast** (`ImagePipelineApplyTests.cs`): the list of filter names is
 neither an array nor a `List`, adding, replacing, removing, and clearing through `IList` throw `NotSupportedException`,
 and the names and the lookups that use them are unchanged.
+
+**ImagePipeline_MapPositions_CropTrimResizeFitPadFlip_FollowTheirReports**,
+**ImagePipeline_MapPositions_RightAngleRotate_IsExact**, **ImagePipeline_MapPositions_RotateAndBack_EnclosesOnce**,
+**ImagePipeline_MapPositions_ColorStepsKeep_UnfollowedStepsLose**, and
+**ImagePipeline_MapPositions_ManyPositions_KeepsOrder** (`ImagePipelinePositionTests.cs`; the requirement
+`CanvasNetViewer-Imaging-ImagePipeline-PositionMapping`): on a 400 by 200 image, a crop at (20, 10) moves the box to
+(80, 40, 40, 20) and the pixel to (100, 50), a trim at (7, 3) moves the box to (93, 47), a resize to 200 by 400 makes
+it (50, 100, 20, 40) with the pixel (60, 120), a fit into 100 by 50 makes it (25, 12.5, 10, 5), a pad of 10 left and 20
+top makes it (110, 70, 40, 20), and a horizontal flip makes it (260, 50, 40, 20) with the pixel (280, 60); a quarter
+turn to 200 by 400 maps the pixel exactly to (140, 120) and the box to (130, 100, 20, 40); a turn by 30 degrees and back
+on a 400 by 400 image gives the original box and pixel within 1e-9, because the corners are enclosed once and not after
+each step; a grid step keeps the box, while an applied deskew followed by a pad, and an unknown step that changed the
+width, lose the box and the pixel but keep the id; and two positions mapped through a pad keep their order, the first
+pixel moved from (1, 1) to (6, 6) and the second without a box, while a null list throws `ArgumentNullException`.

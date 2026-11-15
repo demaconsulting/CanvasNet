@@ -74,6 +74,9 @@ the drawing, in single precision, grown by `mindmap.padding` on every side.
   (entities decoded, then sanitized) against the render's `MaxLabelLength`, before it is measured; a label already
   longer than the limit is refused without being decoded.
 
+**Position tags**: the renderer tags each node group as a `node` named by the node's source `NodeId`, with its
+description as the text, for the `ScenePositions` unit.
+
 **Preconditions and postconditions**: the diagram was parsed and the context belongs to one render; the result is a
 scene whose view box is the natural size, or an exception.
 

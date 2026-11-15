@@ -1,0 +1,70 @@
+---
+# Software Subsystem Requirements for Positions
+#
+# These requirements decompose the CanvasNet system's feature-position support into the Positions subsystem
+# (namespace DemaConsulting.CanvasNet.Positions): the neutral, immutable position of a feature of a rendered picture
+# (ImagePosition), the grammar and matching of the selectors that ask for positions (PositionSelector and
+# PositionSelection), and the collection of the positions of one render up to a cap (PositionCollector). The renderers
+# that know features (the Mermaid and Vega-Lite packages) produce the positions; the Viewer and the tool consume them.
+# Each requirement here links down to the unit requirements that implement it. See
+# docs/verification/canvas-net/positions.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNet Requirements
+    sections:
+      - title: Positions Requirements
+        requirements:
+          - id: CanvasNet-Positions-Model
+            title: >-
+              The Positions subsystem shall describe one feature of a rendered picture as an immutable position with a
+              lowercase kind, an id, optional facts (text, source line, view path, view name, mark type, the ends and
+              index of an edge, and typed scalar values), a geometry box, and an attachment pixel, all in the pixels of
+              the picture.
+            justification: |
+              A neutral model in the core library lets every renderer report positions the same way and lets the
+              Viewer, the tool, and later the SVG library consume them without depending on a renderer.
+            children:
+              - CanvasNet-Positions-ImagePosition-Validation
+              - CanvasNet-Positions-ImagePosition-Values
+              - CanvasNet-Positions-ImagePosition-TypedEquality
+              - CanvasNet-Positions-ImagePosition-Geometry
+            tests:
+              - ImagePosition_Constructor_ValidKindAndId_KeepsEveryFact
+              - ImagePosition_Values_CallerListChanges_PositionKeepsSortedCopy
+              - PositionValue_Equals_TypedEquality_ComparesKindAndValue
+
+          - id: CanvasNet-Positions-Selectors
+            title: >-
+              The Positions subsystem shall parse position selectors (all, a kind, a kind with an id glob, a quoted
+              exact id, or typed predicates on channel values and on the @id, @view, @from, @to, and @index facts),
+              refuse a malformed selector or a selection beyond its limits with a message that names the selector, and
+              take the union of several selectors.
+            justification: |
+              Callers ask for a few features of a large picture; one bounded, predictable grammar shared by every
+              consumer keeps the command line, the library, and later the SVG bindings in agreement.
+            children:
+              - CanvasNet-Positions-PositionSelector-Grammar
+              - CanvasNet-Positions-PositionSelector-Matching
+              - CanvasNet-Positions-PositionSelector-Limits
+              - CanvasNet-Positions-PositionSelector-Union
+            tests:
+              - PositionSelector_Matches_Examples_MatchAsDocumented
+              - PositionSelector_Parse_Malformed_ThrowsFormatException
+              - PositionSelection_Parse_DuplicatesAndKinds_UnionAndKindGate
+
+          - id: CanvasNet-Positions-Collection
+            title: >-
+              The Positions subsystem shall keep the positions of one render that a selection matches, each once, in the
+              order the renderer delivers them, up to a cap of 1,000 applied after the selection, shall report whether a
+              match was left out, and shall name the selectors that matched no candidate.
+            justification: |
+              Filtering before the cap keeps the structural features a caller asks for even on a chart of many marks,
+              and naming the selectors that matched nothing turns a typo into a visible warning.
+            children:
+              - CanvasNet-Positions-PositionCollector-Union
+              - CanvasNet-Positions-PositionCollector-Cap
+              - CanvasNet-Positions-PositionCollector-Unmatched
+            tests:
+              - PositionCollector_Offer_SeveralSelectors_KeepsUnionInDeliveryOrder
+              - PositionCollector_Offer_MoreMatchesThanTheCap_KeepsFirstAndTruncates
+              - PositionCollector_GetUnmatchedSelectors_MatchedButCapped_IsNotUnmatched

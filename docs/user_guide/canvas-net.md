@@ -2771,6 +2771,154 @@ The contract, in short (every member is documented in the XML documentation):
   shares the
   limits and lists of the whole render, so recursion is bounded without any state in your source.
 
+### Feature Positions
+
+The `DemaConsulting.CanvasNet.Positions` namespace tells where the features of a rendered picture land (a node, an
+edge, a bar, an axis), so that a caller can draw callouts and leader lines on them. The core package supplies the
+record of one feature, the selector grammar, and a collector; the Mermaid and Vega-Lite packages report positions
+through the `PositionHandler` of their render options (see the Mermaid and Vega-Lite user guides), and the Viewer and
+`canvasnet render --positions` use the same types.
+
+```csharp
+public sealed record ImagePosition
+{
+    public ImagePosition(string kind, string id);
+    public string Kind { get; init; }          // a lowercase word: "node", "edge", "mark", "axis", ...
+    public string Id { get; init; }            // the source id, else a deterministic synthetic id; never null
+    public string? Text { get; init; }         // a label or a title
+    public int? Line { get; init; }            // the 1-based source line
+    public string? View { get; init; }         // a chart view path: "", "hconcat[1]", "vconcat[0].layer[1]"
+    public string? ViewName { get; init; }     // the "name" the specification gives the view
+    public string? Mark { get; init; }         // the mark type: "bar", "line", ...
+    public string? From { get; init; }         // the ends of an edge or message
+    public string? To { get; init; }
+    public int? Index { get; init; }           // 0-based among the parallel edges or messages
+    public IReadOnlyList<KeyValuePair<string, PositionValue>> Values { get; init; }   // sorted by name
+    public PositionBox? Box { get; init; }     // the geometry bounds, stroke not included
+    public PositionPoint? Pixel { get; init; } // the attach point
+    public bool TryGetValue(string name, out PositionValue value);
+}
+
+public readonly record struct PositionBox(double X, double Y, double Width, double Height)
+{
+    public PositionPoint Center { get; }
+    public bool IsValid();                                                   // finite, size not negative
+    public PositionPoint[] Corners();                                        // clockwise from the top-left corner
+    public static PositionBox Enclose(IReadOnlyList<PositionPoint> points);  // the smallest box around the points
+}
+
+public readonly record struct PositionPoint(double X, double Y) { public bool IsValid(); }
+
+public readonly struct PositionValue : IEquatable<PositionValue>
+{
+    public static PositionValue Null { get; }
+    public PositionValueKind Kind { get; }     // Null, Boolean, Number, or String
+    public bool BooleanValue { get; }
+    public double NumberValue { get; }
+    public string? StringValue { get; }
+    public static PositionValue FromBoolean(bool value);
+    public static PositionValue FromNumber(double value);   // NaN or an infinity throws
+    public static PositionValue FromString(string value);
+    public static bool TryFromObject(object? value, out PositionValue result);
+}
+```
+
+- **Identity.** `Kind` and `Id` name the feature; `View`, `From`, `To`, `Index`, and `Values` tell it apart from its
+  neighbors and are what a selector compares. A renderer documents which kinds it reports and how it names them.
+- **Geometry.** `Box` is the bounds of the geometry, as SVG `getBBox` measures it (the stroke is not included), and
+  `Pixel` is the attach point of the kind: the center of a box, the middle of an edge by length, a vertex of a line.
+  Both are in the continuous pixel coordinates of the picture, from its top-left corner (pixel `i` spans `[i, i + 1)`,
+  y grows downward), and both are `null` only when a later image step could not follow them. The pixel is not a
+  promise that the feature is painted there or visible.
+- **Validation.** Every setter checks its value: `Kind` must match `[a-z][a-z0-9-]*`, `Line` is at least 1, `Index`
+  is not negative, a value name is not empty and occurs once, `Box` is finite with a size that is not negative, and
+  `Pixel` is finite; anything else throws `ArgumentException` (or `ArgumentNullException`,
+  `ArgumentOutOfRangeException`). `Values` is copied and sorted by name (ordinal comparison), so the record is
+  immutable and thread-safe; record equality compares `Values` by reference.
+- **Typed values.** A `PositionValue` is null, a Boolean, a finite number, or text, and two values are equal only when
+  they have the same kind and value: the number 3 equals the number 3.0 but not the text `"3"`, and text is compared
+  case-sensitively. `default(PositionValue)` is `Null`. `TryFromObject` accepts `null`, a `bool`, a finite number of
+  any numeric type, and a `string`, and refuses anything else (a list, a dictionary, a non-finite number).
+
+#### Selecting positions
+
+A `PositionSelector` is one selector text, parsed with `PositionSelector.Parse(text)` (a `FormatException` names the
+problem) or `TryParse(text, out selector, out problem)`. A `PositionSelection` is the union of several:
+`PositionSelection.Parse(texts)` parses each distinct text once, in its first order, and `PositionSelection.All` wants
+every position.
+
+```text
+selector    := "all" | kind [ ":" target ]
+kind        := ALPHA *( ALPHA / DIGIT / "-" )
+target      := json-string        ; an exact id; * and ? are literal
+             | predicates         ; when the target has '='
+             | id-pattern         ; * is any run of characters (also empty), ? exactly one
+predicates  := predicate *( "+" predicate )      ; '+' separates only outside JSON strings
+predicate   := name "=" value                    ; the first '=' separates; a name once per selector
+name        := "@id" | "@view" | "@from" | "@to" | "@index" | channel
+value       := json-string | bare                ; bare: true, false, null, a number, else text
+```
+
+- **Matching.** `all` matches every position and a kind alone every position of that kind. An id pattern globs the
+  whole `Id` (`node:s*`, `commit:*fix*`, `node:se?d`); a quoted id is exact (`node:"my*odd id"`). The keywords (`all`,
+  the kind, and the `@` names) ignore case; ids, channel names, and text values are compared case-sensitively.
+- **Predicates** must all hold. A channel compares with `TryGetValue` by typed equality: a bare value is read like a
+  `--param` value, so `x=3` is the number 3 (equal to 3.0) and `x="3"` the text; a missing channel never matches, and
+  `x=null` matches a channel that holds null. A value that starts with `[` or `{` is refused, and `+` and `=` inside a
+  quoted value are text (`mark:text="a+b"`).
+- **Meta names.** `@id` is the exact id (no globs), `@view` the view path, `@from` and `@to` the ends of an edge or
+  message (a bare value of these four is the text as written), and `@index` takes a whole number that is not negative.
+  They never match a position that does not have them: `edge:@from=A+@to=B+@index=0`,
+  `axis:@id=x+@view="hconcat[1]"`.
+- **Limits.** A selector is at most `PositionSelector.MaxSelectorLength` (256) characters with at most
+  `PositionSelector.MaxPredicates` (16) predicates, and a selection has at most `PositionSelection.MaxSelectors` (32)
+  selectors; more, none, or a malformed one is a `FormatException`. The glob walks the pattern and the id once with a
+  single backtrack point, so a hostile pattern costs at most the product of the two lengths. Selectors and selections
+  are immutable and thread-safe.
+- `IncludesKind(kind)` tells whether any selector is `all` or names the kind, and `Matches(position)` whether any
+  selector matches.
+
+#### Collecting positions
+
+A `PositionCollector` keeps the positions of one render that a selection wants. The renderer offers every candidate
+once, in its own deterministic order (structural features such as titles and nodes first); `Offer(position)`
+evaluates every selector, so a position several selectors match is kept once, and the order of the selectors never
+changes the order of the positions. The first `MaxCount` matches are kept (by default `PositionCollector.MaxPositions`,
+1000); a later match is not kept and sets `Truncated`. `GetUnmatchedSelectors()` lists the selectors that matched no
+candidate, in selection order (a selector whose matches were all cut by the cap still matched). Pass
+`IncludesKind` as the kind filter of a renderer, so that the kinds nobody asked for are not built at all. A collector
+is mutable and belongs to one render; it is not thread-safe.
+
+```csharp
+using DemaConsulting.CanvasNet.Mermaid;
+using DemaConsulting.CanvasNet.Positions;
+
+var selection = PositionSelection.Parse(["node:check", "edge:@from=check"]);
+var collector = new PositionCollector(selection);
+
+var diagram = MermaidDocument.Parse("""
+    flowchart LR
+        order[Order received] --> check{In stock?}
+        check -- yes --> ship([Ship])
+        check -- no --> wait[(Backlog)]
+    """);
+using var picture = diagram.Render(new MermaidRenderOptions
+{
+    PositionHandler = position => collector.Offer(position),
+    PositionKindFilter = collector.IncludesKind,
+});
+
+foreach (var position in collector.Positions)
+{
+    Console.WriteLine($"{position.Kind} {position.Id}: box {position.Box}, pixel {position.Pixel}");
+}
+
+foreach (var selector in collector.GetUnmatchedSelectors())
+{
+    Console.WriteLine($"'{selector.Text}' matched nothing");
+}
+```
+
 ## Migrating from the Folder Sandbox
 
 > **Breaking change.** Linked files are no longer confined to the folder of the document by default. They are read

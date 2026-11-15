@@ -67,3 +67,14 @@ sections:
         tests:
           - Operations_InputWithPageFragment_UseThePageAndTheLabel
           - InputFragment_RenderAndVerb_PageFragment_ChoosesThePage
+
+      - id: CanvasNetViewer-Imaging-ImageRenderer-Positions
+        title: >-
+          The ImageRenderer class shall report in RenderedPage.Positions the positions of the loaded page mapped through
+          the pipeline steps into the written image, and in RenderedPage.PositionsTruncated whether matches were left
+          out.
+        justification: |
+          The written file is what a caller places in a figure, so its positions are the ones to report.
+        tests:
+          - ImageRenderer_Execute_Positions_FollowCropAndPad
+          - CanvasNetViewer_SystemIntegration_Positions_FollowThePipelineIntoTheWrittenImage

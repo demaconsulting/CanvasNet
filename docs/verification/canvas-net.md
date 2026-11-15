@@ -515,9 +515,20 @@ With `FileAccess = UnderRoots(site)` a picture outside the site is the one `imag
 inside it is drawn; the model reads a file of its own through a `FileReferenceResolver` built from the request's
 `Directory` and `FileAccess`, and that nested read outside the site is `AccessDenied` naming `roots`.
 
+### Integration: Position Selectors Select, Collect, and Cap the Positions of a Render
+
+**Test**: `CanvasNet_SystemIntegration_Positions_SelectCollectAndCap`
+
+Verifies `CanvasNet-Lib-Positions` through the `Positions` subsystem's public API only: a `PositionSelection` of a
+glob (`node:s*`), a typed predicate (`mark:y=3`), and a selector that cannot match (`edge:@from=nowhere`) feeds a
+`PositionCollector` with a cap of 2, which is offered four positions in a renderer's order (the nodes `send`, `pack`,
+and `stock` and a mark whose `y` value is the number 3.0). Asserts that `send` and `bar-0` are kept in that order, that
+the third match (`stock`) is cut by the cap and `Truncated` is set, and that `edge:@from=nowhere` is the one unmatched
+selector.
+
 ## Acceptance Criteria
 
-A system-level test run passes when all forty-four scenarios above pass without error or
+A system-level test run passes when all forty-five scenarios above pass without error or
 exception beyond those explicitly asserted. Any unexpected exception, wrong exception type, or
 wrong return value constitutes a failure.
 

@@ -89,7 +89,9 @@ order given, followed by the title group.
 - `Measure(request, ViewExtents guides, TitleBlock? title)` - computes the final data rectangle (fit sizes and
   `contains: padding` applied), the bounds with the title, the canvas size for `pad`, `none`, or a fit type, and the
   origin of the data rectangle on the canvas.
-- `Build(request, measure, IEnumerable<SceneItem> content)` - assembles the scene.
+- `Build(request, measure, IEnumerable<SceneItem> content, ScenePositionTag? viewTag = null)` - assembles the scene;
+  `viewTag` is the position tag the view group carries (the data rectangle of a single or layered chart reports itself
+  as the view `""` with the view's name; null, the default, for the root of a composition, which has no data rectangle).
 - `Compute(request, guides, title, content)` - `Measure` followed by `Build`.
 - `Resolve(..., bool composition)` - with `composition` set, the request of the **root of a concatenation or a facet**:
   the data rectangle is 0 by 0, there is no container, no plot style, and the autosize is `pad` (Vega-Lite drops
@@ -129,7 +131,8 @@ The unit performs no I/O.
 
 - **`SpecNode`**, **`ResolvedConfig`**, **`ConfigNode`**, and **`ConfigNodeKind`** - the `SpecModel` subsystem
 - **`TitleBlock`** - the title of the `TitleBuilder` unit, which it places
-- **`Scene`**, **`SceneGroup`**, **`SceneItem`**, **`SceneBounds`**, and **`SceneClip`** - the `SceneModel` unit
+- **`Scene`**, **`SceneGroup`**, **`SceneItem`**, **`SceneBounds`**, **`SceneClip`**, and **`ScenePositionTag`** - the
+  `SceneModel` unit
 - **`VegaLiteSize`** - the public size type of the `VegaLiteDocument` unit
 - **.NET base class library** - `System`, `System.Collections.Generic`
 

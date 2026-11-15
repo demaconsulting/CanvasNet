@@ -105,6 +105,13 @@ software items, specifically:
   never caches a picture), and the `RasterImageSource` unit (the source for the raster formats). Each format package
   ships its own source (`SvgImageSource`, `ScadImageSource`, `VegaLiteImageSource`, `MermaidImageSource`,
   `PdfImageSource`, `PptxImageSource`, `VsdxImageSource`), folded into the direct unit of that package
+- **Positions (Subsystem)** — Feature positions of a rendered picture (where a node, an edge, a bar, or an axis is, so
+  that a caller can place a callout without probing pixels), depending only on `ImageSources` (the bare selector values
+  of `ImageParameterValues`): the `ImagePosition` unit (the immutable `ImagePosition` record of one feature with its
+  kind, id, facts, geometry box, and attachment pixel, and its `PositionBox`, `PositionPoint`, `PositionValue`, and
+  `PositionValueKind` types), the `PositionSelector` unit (the bounded selector grammar of `PositionSelector` and the
+  union `PositionSelection`), and the `PositionCollector` unit (the positions of one render that a selection matches,
+  in delivery order, up to a cap, with the selectors that matched nothing)
 - **Packaging (Subsystem)** — hardened building blocks for reading untrusted Open Packaging
   Conventions (OPC) packages and untrusted XML, depending only on the .NET base class library: the
   `OpcPackage` unit (a read-only, size-bounded view of an OPC ZIP package, such as a `.pptx` or
@@ -325,10 +332,11 @@ software items, specifically:
   tick, line, area, trail, text, and arc geometry and paint, with the color, size, shape, opacity, stroke, and angle
   channels, the point and line overlays, the invalid data modes, the draw order, the polar and text rules, time-unit
   bands, and conditional encodings) and `CurveBuilder` (the d3-shape curves and the line and area generators that turn
-  the defined points of a path into segments). The `Scenegraph` subsystem has five units: `SceneModel` (the immutable
+  the defined points of a path into segments). The `Scenegraph` subsystem has six units: `SceneModel` (the immutable
   scene), `ScenePainter` (drawing a scene onto a `Surface`), `ArcGeometry` (the d3-shape arc and the d3-path emulation
-  behind the arc and trail items), `CssPaint` (the chart paint rules on top of the core `CssColor` parser), and
-  `SymbolPathParser` (the parser, drawing, and bounds of the SVG path data of a custom symbol shape).
+  behind the arc and trail items), `CssPaint` (the chart paint rules on top of the core `CssColor` parser),
+  `SymbolPathParser` (the parser, drawing, and bounds of the SVG path data of a custom symbol shape), and
+  `ScenePositions` (the feature positions of a laid-out chart: titles, views, axes, legends, and marks).
   Selection parameters are drawn in their initial state since phase 12, and the parts that are not modeled are reported
   with stable identifiers
   (local CSV, TSV, DSV, and JSON data files, named datasets, and sequences, a bounded subset of the Vega expression
@@ -342,7 +350,8 @@ software items, specifically:
   their headers and titles, `autosize` of `fit`, `fit-x`, and `fit-y`, and container sizes are supported; remote data
   is never fetched) — see _CanvasNetVegaLite System Design_ (`canvas-net-vega-lite.md`) for the full supported/deferred
   boundary and its Implementation Phase Plan. `CanvasNetVegaLite` depends on the `CanvasNet` system's `Canvas`,
-  `Geometry`, `Drawing`, `Fonts`, `Files`, and `Rendering` subsystems through their public API, and must never reference
+  `Geometry`, `Drawing`, `Fonts`, `Files`, `Rendering`, and `Positions` subsystems through their public API, and must
+  never reference
   `CanvasNetCharts`, `CanvasNetSvg`, `CanvasNetPdf`, `CanvasNetPptx`, `CanvasNetVsdx`, `CanvasNetRender3D`, or
   `CanvasNetScad`
 - **CanvasNetMermaid (System)** — A separate software system (packable as `DemaConsulting.CanvasNet.Mermaid`)
@@ -358,7 +367,8 @@ software items, specifically:
   `ThemeResolver`, `ColorMath`, and `StyleDeclarations`), `Graphlib` (`Graph` and `GraphAlgorithms`), `Dagre`
   (`DagreLayout`, `DagreAcyclic`, `DagreRanker`, `DagreNesting`, `DagreNormalizer`, `DagreOrdering`,
   `DagrePositioning`, `DagreCoordinateSystem`, and `LayoutWorkMeter`), `Rendering` (`ClusterLayout`, `ShapeLibrary`,
-  `EdgeBuilder`, `LabelBuilder`, and `NodeImages`), `Scenegraph` (`SceneModel` and `ScenePainter`), `Flowchart`
+  `EdgeBuilder`, `LabelBuilder`, and `NodeImages`), `Scenegraph` (`SceneModel`, `ScenePainter`, and `ScenePositions`),
+  `Flowchart`
   (`FlowchartParser` and `FlowchartModel`), `Sequence` (`SequenceParser`, `SequenceModel`, `SequenceLayout`, and
   `SequenceRenderer`), `Class` (`ClassParser` and `ClassModel`), `State` (`StateParser` and `StateModel`), `Er`
   (`ErParser` and `ErModel`), `Pie` (`PieParser` and `PieRenderer`), `Gantt` (`GanttParser`, `GanttModel`,
@@ -368,8 +378,8 @@ software items, specifically:
   gantt charts, mindmaps, packet diagrams, and git graphs; every other
   Mermaid diagram type is recognized and reported as unsupported — see _CanvasNetMermaid System Design_
   (`canvas-net-mermaid.md`) for the known differences from Mermaid and its Phase Plan. `CanvasNetMermaid` depends on the
-  `CanvasNet` system's `Canvas`, `Geometry`, `Drawing`, `Fonts`, `Rendering`, and `ImageSources` subsystems through
-  their public API only
+  `CanvasNet` system's `Canvas`, `Geometry`, `Drawing`, `Fonts`, `Rendering`, `ImageSources`, and `Positions` subsystems
+  through their public API only
 - **CanvasNetTool (System)** — A separate software system, shipped as the `DemaConsulting.CanvasNet.Tool` dotnet
   tool package (command `canvasnet`), that lets people, scripts, and AI agents inspect, render, transform, compare,
   and compose
@@ -399,7 +409,9 @@ software items, specifically:
   units and one subsystem. The direct unit `CanvasNetViewer` (with `ViewerRenderOptions` and `ViewerImage`) lists the
   built-in image sources (raster, SVG, PDF, PowerPoint, Visio, OpenSCAD, Vega-Lite, and Mermaid) and the extensions
   they claim, creates the `FolderImageResolver` of the core `ImageSources` subsystem for one render so that an SVG
-  document can embed every format, renders any file by path or from a stream, and lets a library user add image sources
+  document can embed every format, renders any file by path or from a stream, returns the feature positions that the
+  selectors of its options match for a Mermaid diagram or a Vega-Lite chart (through the core `Positions` subsystem),
+  and lets a library user add image sources
   of their own (later sources win; nothing is cached). The direct unit `ViewerException` is the exception of every
   expected failure, with the stable `ErrorCodes`. The `Imaging` subsystem holds the `SourceLoader` unit, which
   recognizes, probes, and loads PNG, JPEG, BMP, TIFF, GIF, JPEG 2000, and SVG files, the pages of PDF, PPTX, and VSDX
@@ -460,7 +472,7 @@ the seven format packages (PDF, SVG, PowerPoint, Visio, OpenSCAD, Vega-Lite, and
 SVG and Charts packages and OpenSCAD uses the Render3D package; every package builds on the DemaConsulting.CanvasNet
 core with its canvas, codecs, drawing, fonts, and file access](architecture.svg)
 
-CanvasNet is organized into eight subsystems under the system level: the `Canvas` subsystem
+CanvasNet is organized into ten subsystems under the system level: the `Canvas` subsystem
 (the `Surface` unit with its `SurfaceAdjustments`, `SurfaceTransforms`, `SurfaceGeometry`, `SurfaceComparison`, and
 `SurfaceAnalysis` parts, and the `Rgba32` and `CssColor` units,
 namespace `DemaConsulting.CanvasNet.Canvas`), the `Codecs`
@@ -499,7 +511,10 @@ internal `RealPath` unit, and the obsolete `SandboxedFileResolver` unit, coverin
 `SandboxOptions`, `SandboxedFile`, `SandboxException`, and `SandboxFailureKind` types inline, namespace
 `DemaConsulting.CanvasNet.Files`, flat — no further nesting), the `ImageSources` subsystem (the
 `ImageSourceContract`, `FolderImageResolver`, and `RasterImageSource` units, namespace
-`DemaConsulting.CanvasNet.ImageSources`, flat — no further nesting), and the `Packaging` subsystem (the
+`DemaConsulting.CanvasNet.ImageSources`, flat — no further nesting), the `Positions` subsystem (the
+`ImagePosition`, `PositionSelector`, and `PositionCollector` units, namespace `DemaConsulting.CanvasNet.Positions`,
+flat — no further nesting; the `CanvasNetMermaid`, `CanvasNetVegaLite`, `CanvasNetViewer`, and `CanvasNetTool` systems
+use it), and the `Packaging` subsystem (the
 `OpcPackage` unit, covering its
 `OpcFormatException` inline, and the `SafeXml` unit, namespace
 `DemaConsulting.CanvasNet.Packaging`, flat — no further nesting; the `CanvasNetPptx`,
@@ -602,13 +617,16 @@ holds the `ScaleModel`, `ScaleResolver`, `Ticks`, `NumberFormat`, `ColorSchemes`
 internal `Guides` subsystem holds the `TextMeasurer`, `TitleBuilder`, `AxisBuilder`, `LabelOverlap`, `LegendBuilder`,
 `TimeLabels`, and `LabelExpressions` units, its internal `Layout` subsystem holds the `ViewLayout`, `LegendLayout`, and
 `CompositionLayout` units, its internal `Marks` subsystem holds the `MarkBuilder` and `CurveBuilder` units, and its
-internal `Scenegraph` subsystem holds the `SceneModel`, `ScenePainter`, `ArcGeometry`, `CssPaint`, and
-`SymbolPathParser` units (each
+internal `Scenegraph` subsystem holds the `SceneModel`, `ScenePainter`, `ArcGeometry`, `CssPaint`, `SymbolPathParser`,
+and `ScenePositions` units (each
 subsystem lives in the sub-namespace and the sub-folder of its own name). In the SysML2 model the subsystem `part def`
 names carry the prefix `VegaLite` (`VegaLiteSpecModel`, `VegaLiteExpressions`, `VegaLiteTransforms`,
-`VegaLiteScenegraph`, and so on) and the scene unit is `VegaLiteSceneModel`, because the model package is shared by
-every system and `SceneModel` already names a `CanvasNetRender3D` subsystem. It depends on the `CanvasNet` system's
-`Canvas` (`Surface`, `Rgba32`), `Geometry`, `Drawing`, `Fonts`, and `Rendering` subsystems through their public API. See
+`VegaLiteScenegraph`, and so on), the scene unit is `VegaLiteSceneModel`, and the positions unit is
+`VegaLiteScenePositions`, because the model package is shared by
+every system and `SceneModel` already names a `CanvasNetRender3D` subsystem (and `ScenePositions` a unit of
+`CanvasNetMermaid`). It depends on the `CanvasNet` system's
+`Canvas` (`Surface`, `Rgba32`), `Geometry`, `Drawing`, `Fonts`, `Rendering`, and `Positions` subsystems through their
+public API. See
 the Folder Layout section below and _CanvasNetVegaLite System Design_ (`canvas-net-vega-lite.md`).
 
 A further sibling top-level system, `CanvasNetMermaid`, likewise lives in this same repository alongside `CanvasNet`
@@ -622,7 +640,8 @@ Mermaid, dagre-d3-es, d3, khroma, js-yaml, lodash, and marked (the licenses ship
 units, its internal `Dagre` subsystem holds the `DagreLayout`, `DagreAcyclic`, `DagreRanker`, `DagreNesting`,
 `DagreNormalizer`, `DagreOrdering`, `DagrePositioning`, `DagreCoordinateSystem`, and `LayoutWorkMeter` units, its
 internal `Rendering` subsystem holds the `ClusterLayout`, `ShapeLibrary`, `EdgeBuilder`, `LabelBuilder`, and
-`NodeImages` units, its internal `Scenegraph` subsystem holds the `SceneModel` and `ScenePainter` units, its internal
+`NodeImages` units, its internal `Scenegraph` subsystem holds the `SceneModel`, `ScenePainter`, and `ScenePositions`
+units, its internal
 `Flowchart` subsystem holds the `FlowchartParser` and `FlowchartModel` units, its internal `Sequence` subsystem
 holds the `SequenceParser`, `SequenceModel`, `SequenceLayout`, and `SequenceRenderer` units, its internal `Class`
 subsystem holds the `ClassParser` and `ClassModel` units, its internal `State` subsystem holds the `StateParser` and
@@ -637,10 +656,11 @@ prefix `Mermaid` (`MermaidSyntax`, `MermaidConfiguration`, `MermaidGraphlib`, `M
 `MermaidScenegraph`, `MermaidFlowchart`, `MermaidSequence`, `MermaidClass`, `MermaidState`, `MermaidEr`, `MermaidPie`,
 `MermaidGantt`, `MermaidMindmap`, `MermaidCose`, `MermaidPacket`, and `MermaidGitGraph`) and the
 scene units are
-`MermaidSceneModel` and `MermaidScenePainter`,
-because the model package is shared by every system and `Rendering`, `SceneModel`, and `ScenePainter` are already
-taken. It depends on the `CanvasNet` system's `Canvas`, `Geometry`, `Drawing`, `Fonts`, `Rendering`, and
-`ImageSources` subsystems through their public API. See the Folder Layout section below and _CanvasNetMermaid System
+`MermaidSceneModel`, `MermaidScenePainter`, and `MermaidScenePositions`,
+because the model package is shared by every system and `Rendering`, `SceneModel`, `ScenePainter`, and
+`ScenePositions` are already
+taken. It depends on the `CanvasNet` system's `Canvas`, `Geometry`, `Drawing`, `Fonts`, `Rendering`, `ImageSources`,
+and `Positions` subsystems through their public API. See the Folder Layout section below and _CanvasNetMermaid System
 Design_ (`canvas-net-mermaid.md`).
 A further sibling top-level system, `CanvasNetViewer`, likewise lives in this same repository and is distributed as its
 own NuGet package (`DemaConsulting.CanvasNet.Viewer`). It aggregates the image sources of every format and is the
@@ -648,7 +668,8 @@ library form of the `canvasnet` tool: its direct unit `CanvasNetViewer` (namespa
 lists the built-in sources (raster, SVG, PDF, PPTX, VSDX, OpenSCAD, Vega-Lite, and Mermaid), creates the
 `FolderImageResolver` of
 the core `ImageSources` subsystem for one render so that an SVG document can embed all of them, and renders any file as
-a picture; its direct unit `ViewerException` is the exception of every expected failure with the stable `ErrorCodes`;
+a picture (with the feature positions of a diagram or a chart that the core `Positions` selectors of its options match);
+its direct unit `ViewerException` is the exception of every expected failure with the stable `ErrorCodes`;
 and its `Imaging` subsystem (namespace `DemaConsulting.CanvasNet.Viewer.Imaging`) holds the `SourceLoader`,
 `ImagePipeline`, `ImageWriter`, `ImageComparison`, `ContactSheet`, and `GridOverlay` units that turn files into pixels,
 transform pixels (grid, and the ordered operations over the core library's flip, pad, trim, tone, rotation, and skew
@@ -860,6 +881,15 @@ src/DemaConsulting.CanvasNet/
 │   ├── FolderImageResolverOptions.cs  — Public options: depth, image count, pixel budget, strictness, token
 │   ├── RasterImageSource.cs           — Public source for the raster formats
 │   └── NamespaceDoc.cs                — Namespace-level XML documentation
+├── Positions/
+│   ├── ImagePosition.cs               — Public record of one feature: kind, id, facts, values, box, and pixel
+│   ├── PositionBox.cs                 — Public geometry box of a feature (center, corners, enclose)
+│   ├── PositionPoint.cs               — Public point in the continuous pixel coordinates of a picture
+│   ├── PositionValue.cs               — Public typed scalar value with typed equality (and PositionValueKind)
+│   ├── PositionSelector.cs            — Public parsed selector: grammar, glob, typed predicates, limits
+│   ├── PositionSelection.cs           — Public union of several selectors (duplicates removed, kind gate)
+│   ├── PositionCollector.cs           — Public positions of one render: union, delivery order, cap, unmatched
+│   └── NamespaceDoc.cs                — Namespace-level XML documentation
 ├── Rendering/
 │   ├── Canvas.cs                   — Transform-aware Save/Restore/Translate/RotateDegrees wrapper
 │   ├── TextAlign.cs                — Text horizontal-alignment enumeration
@@ -900,7 +930,7 @@ src/DemaConsulting.CanvasNet.Svg/
 └── NamespaceDoc.cs             — Namespace-level XML documentation
 ```
 
-This eight-subsystem folder structure reflects the small number of subsystems in the system
+This ten-subsystem folder structure reflects the small number of subsystems in the system
 today. As the system grows with additional subsystems and units, the folder structure will
 expand further to mirror the software architecture. `Canvas/Surface.cs` also gained a
 `CompositeOverSpan` method used internally by `Drawing/PathFiller.cs`, and the `Drawing`
@@ -1546,6 +1576,7 @@ src/DemaConsulting.CanvasNet.VegaLite/
 │   ├── MarkBuilder.Arcs.cs        — MarkBuilder: the arc mark (pie, donut, and radial slices)
 │   ├── MarkBuilder.Offsets.cs     — MarkBuilder: the xOffset and yOffset channels (marks inside the band of a position)
 │   ├── MarkBuilder.Brush.cs       — MarkBuilder: the brush marks of an interval selection with an initial value
+│   ├── MarkBuilder.Positions.cs   — MarkBuilder: the rows, vertices, and normalized values recorded for the positions
 │   ├── CurveBuilder.cs            — CurveBuilder: the curve kinds, the segment bound, and the line and area entry points
 │   ├── CurveBuilder.Generators.cs — CurveBuilder: the line and area generators with defined gaps
 │   └── CurveBuilder.Splines.cs    — CurveBuilder: the cardinal, catmull-rom, monotone, and natural curves
@@ -1558,6 +1589,7 @@ src/DemaConsulting.CanvasNet.VegaLite/
     ├── ScenePainter.Paths.cs      — ScenePainter: segment paths, arcs, trails, and the miter limit
     ├── ArcGeometry.cs             — ArcGeometry: the d3-shape arc and the d3-path emulation
     ├── SymbolPathParser.cs        — SymbolPathParser: SVG path data of a custom symbol shape (parse, draw, bounds)
+    ├── ScenePositions.cs          — ScenePositions: the positions of titles, views, axes, legends, and marks
     └── CssPaint.cs                — CssPaint: chart paint rules (none, opacity) on the core CssColor parser
 ```
 
@@ -1631,8 +1663,9 @@ src/DemaConsulting.CanvasNet.Mermaid/
 │   ├── LabelBuilder*.cs           — LabelBuilder: HTML, markdown, and SVG labels; the text utilities of sequence text
 │   └── NodeImages.cs              — NodeImages: pictures through the caller's resolver
 ├── Scenegraph/                    — Scenegraph subsystem
-│   ├── SceneModel.cs              — SceneModel: scene records, bounds, placement, drop shadows
-│   └── ScenePainter*.cs           — ScenePainter: paths, shadows, text, and pictures to pixels
+│   ├── SceneModel.cs              — SceneModel: scene records, bounds, placement, drop shadows, position tags
+│   ├── ScenePainter*.cs           — ScenePainter: paths, shadows, text, and pictures to pixels
+│   └── ScenePositions.cs          — ScenePositions: the positions of the tagged features of a laid-out scene
 ├── Flowchart/                     — Flowchart subsystem
 │   ├── FlowchartParser*.cs        — FlowchartParser: the flow.jison lexer and grammar
 │   └── FlowchartModel*.cs         — FlowchartModel: the flowDb rules, layout data, and drawing
@@ -1701,9 +1734,11 @@ src/DemaConsulting.CanvasNet.Viewer/
     ├── SourceLoader.Scad.cs       — SourceLoader: OpenSCAD models drawn from a named view
     ├── SourceLoader.VegaLite.cs   — SourceLoader: Vega-Lite charts
     ├── SourceLoader.Mermaid.cs    — SourceLoader: Mermaid diagrams
+    ├── SourceLoader.Positions.cs  — SourceLoader: the collector of the feature positions and the unmatched selectors
     ├── ImageOperations.cs         — ImagePipeline: the operation records (crop, resize, fit, rotate, flip, pad, photo)
     ├── ImagePipeline.cs           — ImagePipeline: applying the ordered operations to a surface
     ├── ImagePipeline.Anchors.cs   — ImagePipeline: the mapping of model anchors through the applied steps
+    ├── ImagePipeline.Positions.cs — ImagePipeline: the mapping of feature positions through the applied steps
     ├── GridOverlay.cs             — GridOverlay: the labeled coordinate grid, drawn with the bundled font
     ├── ImageComparison.cs         — ImageComparison: the thresholds of a comparison and the defaults of its options
     ├── ContactSheet.cs            — ContactSheet: layout and composition of a contact sheet, with bundled-font labels
@@ -1747,6 +1782,8 @@ src/DemaConsulting.CanvasNet.Tool/
     ├── HelpTopics.Render.cs       — HelpTopics: the text and JSON renderings and the wrapping
     ├── Help/                      — HelpTopics: the embedded help cards, one Markdown file each, in folders that
     │   │                            mirror the tree (scad.md, mermaid.md, mermaid/gantt.md, style.md, ...)
+    │   ├── positions.md, positions/ — HelpTopics: the positions topic and its cards (selectors.md, mermaid.md,
+    │   │                            vega-lite.md, geometry.md)
     │   └── Examples/              — HelpTopics: the embedded example sources (SCAD, Vega-Lite, Mermaid, and SVG)
     ├── DiscoveryCommands.cs       — DiscoveryCommands: the formats and info commands and the format tables
     ├── RenderCommand.cs           — RenderCommand: the render command (alias convert), run and result
@@ -1920,6 +1957,19 @@ git graph fixtures are in `test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/
 and license texts are in `src/DemaConsulting.CanvasNet.Mermaid/third-party/`. The developer scripts that generate the
 vectors and goldens, and the visual-diff harness against mermaid-cli, are in `tools/visual-diff/` and
 `tools/visual-diff/mermaid/` (run by hand, never in CI); they are not software items.
+
+The feature positions follow the same pattern. For the `Positions` subsystem of the `CanvasNet` system: requirements
+`docs/reqstream/canvas-net/positions.yaml`, design `docs/design/canvas-net/positions.md`, verification
+`docs/verification/canvas-net/positions.md`, and SysML2 model `docs/sysml2/model/canvas-net/positions.sysml`; for its
+`ImagePosition` unit, `positions/image-position.*`, source `src/DemaConsulting.CanvasNet/Positions/ImagePosition.cs`
+(with `PositionBox.cs`, `PositionPoint.cs`, and `PositionValue.cs`), and tests
+`test/DemaConsulting.CanvasNet.Tests/Positions/ImagePositionTests.cs`; for `PositionSelector`, the same paths with
+`position-selector`, `PositionSelector.cs` and `PositionSelection.cs`, and `PositionSelectorTests.cs`; and for
+`PositionCollector`, `position-collector`, `PositionCollector.cs`, and `PositionCollectorTests.cs`. The `ScenePositions`
+unit of the `Scenegraph` subsystem of each renderer has `scenegraph/scene-positions.*` under
+`canvas-net-mermaid/` and `canvas-net-vega-lite/`, source `Scenegraph/ScenePositions.cs`, and tests
+`Scenegraph/ScenePositionsTests.cs`; the position tests of the document units are `MermaidDocumentPositionTests.cs` and
+`VegaLiteDocumentPositionTests.cs` in the root of each test project.
 
 ## References
 

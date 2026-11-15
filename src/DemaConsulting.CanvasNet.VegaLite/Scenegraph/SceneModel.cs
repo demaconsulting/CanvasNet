@@ -170,7 +170,7 @@ internal sealed record ScenePositionTag(string Kind, string Id)
 ///     What a marks group knows about its mark items for <see cref="ScenePositions"/>: the view they belong to and the
 ///     normalized values of a row. Created only when the render records positions.
 /// </summary>
-/// <param name="Values">Gives the values of the encoding channels for a row, sorted ordinally by channel name.</param>
+/// <param name="Values">Gives the values of the encoding channels for a row, sorted by channel name.</param>
 internal sealed record SceneMarkContext(Func<int, IReadOnlyList<KeyValuePair<string, PositionValue>>> Values)
 {
     /// <summary>Gets the canonical path of the view that the marks belong to.</summary>

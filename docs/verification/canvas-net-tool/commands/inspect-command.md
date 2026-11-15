@@ -47,10 +47,10 @@ the subcommand they belong to; a pixel without a point, a colors with a point, a
 number of operands that were given.
 
 **InspectCommand_Options_SharedWithRenderExceptOutputOptions** and **InspectCommand_Help_ListsBothSubcommands**: the
-options are those of render in their order without `--output`, `--format`, `--quality`, `--no-clobber`, and
-`--all-pages` (the same declaration objects), then `--count` and `--radius` with their prefixed descriptions, every
-option has a value name exactly when it takes a value, the photo options and `--page` are present, and `-o` is an
-unknown option; the usage and the registry help show both usage lines, an example, and the options.
+options are those of render in their order without `--output`, `--format`, `--quality`, `--no-clobber`,
+`--all-pages`, and `--positions` (the same declaration objects), then `--count` and `--radius` with their prefixed
+descriptions, every option has a value name exactly when it takes a value, the photo options and `--page` are
+present, and `-o` is an unknown option; the usage and the registry help show both usage lines, an example, and the options.
 
 **InspectCommand_Colors_Text_PrintsColorsAndLumaLines**: the 20x10 image gives exactly
 `colors of <input> (20x10): #FF0000 75.00%, #0000FF 25.00%` and

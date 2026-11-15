@@ -11,7 +11,8 @@ subsystem is the third part of the system).
 
 The unit is verified through its public API with the real format packages, from `CanvasNetViewerTests.cs`: the list of
 sources, the creation of resolvers, and rendering a file by path or from a stream with its sizes, notes, text, embedded
-images, failures, and options. The files are generated in memory by `ViewerFixtures` (a solid-color picture in any
+images, failures, and options, and, from `CanvasNetViewerPositionTests.cs`, the feature positions of a flowchart written
+to a per-test `TempDirectory`. The files are generated in memory by `ViewerFixtures` (a solid-color picture in any
 raster format, a PDF, a model, a chart, and SVG documents) and written to per-test temporary folders
 (`ViewerTestFolder`).
 The custom sources used for the extra-source requirement are real implementations of `IImageSource` that record every
@@ -230,3 +231,14 @@ system tests of the `CanvasNetViewerSystemIntegrationTests` class (see _CanvasNe
 
 Asserts that extra sources are placed after the built-in ones, that the later source wins for an extension, that a
 scheme-claimed source is handed the link as written, and that nothing is cached.
+
+#### CanvasNetViewer-CanvasNetViewer-Positions: Positions Into The Requested Box
+
+**Tests**: `CanvasNetViewer_Render_PositionsIntoABox_FollowTheFit`,
+`CanvasNetViewer_Render_UnmatchedSelector_NoteOrStrictFailure` (`CanvasNetViewerPositionTests.cs`)
+
+Renders a two-node flowchart by path with the selector `node` at its natural size and into a box twice as large, and
+asserts that the boxed render reports the nodes `A` and `B`, not truncated, each pixel within one pixel of twice its
+natural pixel (the fit of the box). Renders it with the selector `node:Zed` and asserts that the image has no positions
+and a note with the code `positions-unmatched`, and that with `ThrowOnUnsupportedFeature` the render throws a
+`ViewerException` with that code.

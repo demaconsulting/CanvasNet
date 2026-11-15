@@ -1,0 +1,64 @@
+---
+# Software Unit Requirements for ImagePosition
+#
+# These requirements describe the design-level behavior of the ImagePosition unit of the Positions subsystem
+# (namespace DemaConsulting.CanvasNet.Positions): the immutable position record and its value types PositionBox,
+# PositionPoint, PositionValue, and PositionValueKind. Each "tests" entry cites an existing test method in the
+# DemaConsulting.CanvasNet.Tests project; see docs/verification/canvas-net/positions/image-position.md for the
+# test-evidence mapping.
+
+sections:
+  - title: CanvasNet Requirements
+    sections:
+      - title: Positions Requirements
+        sections:
+          - title: ImagePosition Requirements
+            requirements:
+              - id: CanvasNet-Positions-ImagePosition-Validation
+                title: >-
+                  The ImagePosition record shall require a kind that is a lowercase word ([a-z][a-z0-9-]*) and an id
+                  that is not null, and shall refuse a source line below 1, a negative index, a box that is not finite
+                  or has a negative size, and a pixel that is not finite.
+                justification: |
+                  Consumers match kinds and ids as text and write the geometry as JSON numbers; a position that cannot
+                  be matched or written must fail where it is created.
+                tests:
+                  - ImagePosition_Constructor_ValidKindAndId_KeepsEveryFact
+                  - ImagePosition_Constructor_BadKind_Throws
+                  - ImagePosition_Properties_InvalidValues_Throw
+
+              - id: CanvasNet-Positions-ImagePosition-Values
+                title: >-
+                  The ImagePosition record shall keep its values as a copy sorted case-sensitively by name, refuse an
+                  empty or duplicate name, and look a value up by its exact name.
+                justification: |
+                  A position is an immutable snapshot: a renderer that reuses its lists must not change a position it
+                  reported, and a predicate looks a channel up by name.
+                tests:
+                  - ImagePosition_Values_CallerListChanges_PositionKeepsSortedCopy
+                  - ImagePosition_Values_DuplicateOrEmptyName_Throws
+
+              - id: CanvasNet-Positions-ImagePosition-TypedEquality
+                title: >-
+                  The PositionValue type shall hold null, a boolean, a finite number, or text, compare two values equal
+                  only when their kinds and values are equal (the number 3 equals 3.0 and not the text "3"; text
+                  compares case-sensitively), refuse a number that is not finite, convert the plain scalars a parser
+                  produces, and write an invariant text form.
+                justification: |
+                  Typed equality lets a selector tell the number 3 from the text "3", and a well-defined equality of
+                  finite numbers keeps matching predictable.
+                tests:
+                  - PositionValue_Equals_TypedEquality_ComparesKindAndValue
+                  - PositionValue_FromNumber_NonFinite_ThrowsAndTextIsInvariant
+                  - PositionValue_TryFromObject_Scalars_ConvertAndListsAreRefused
+
+              - id: CanvasNet-Positions-ImagePosition-Geometry
+                title: >-
+                  The PositionBox and PositionPoint types shall be immutable pixel geometry: a box gives its center and
+                  its four corners, and encloses a set of points in the smallest box.
+                justification: |
+                  A pipeline step that turns a picture maps the corners of a box and encloses them; the center is the
+                  attachment point of most kinds.
+                tests:
+                  - PositionBox_EncloseAndCenter_ComputesBounds
+                  - ImagePosition_Properties_InvalidValues_Throw

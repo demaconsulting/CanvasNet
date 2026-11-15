@@ -1,0 +1,64 @@
+---
+# Software Unit Requirements for ScenePositions
+#
+# These requirements describe the design-level behavior of the ScenePositions unit of the Scenegraph subsystem
+# (internal namespace DemaConsulting.CanvasNet.Mermaid.Scenegraph): the positions of the tagged items of a laid-out
+# scene. Each "tests" entry cites an existing test method in the DemaConsulting.CanvasNet.Mermaid.Tests project; see
+# docs/verification/canvas-net-mermaid/scenegraph/scene-positions.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetMermaid Requirements
+    sections:
+      - title: Scenegraph Requirements
+        sections:
+          - title: ScenePositions Requirements
+            requirements:
+              - id: CanvasNetMermaid-Scenegraph-ScenePositions-Merge
+                title: >-
+                  The ScenePositions unit shall make one position of the items whose tags have the same kind and id,
+                  with the union of their geometry bounds (curves exactly, stroke not included, groups' translations
+                  applied) as its box.
+                justification: |
+                  A self-loop is drawn in three pieces, a gantt section as one band per row, and a commit bullet as
+                  several shapes; each is still one feature.
+                tests:
+                  - ScenePositions_Collect_EdgeInPieces_MidpointOfCombinedLength
+                  - ScenePositions_Collect_NestedGroupAndPlacement_MapsBoxAndCenter
+
+              - id: CanvasNetMermaid-Scenegraph-ScenePositions-Aim
+                title: >-
+                  The ScenePositions unit shall aim a position at the explicit aim point of its tag when it has one (a
+                  pie slice's mid-angle at mid-radius, a commit's center), else at the arc-length midpoint of its joined
+                  paths for a tag that aims along its path (edges and messages, lines, curves, and arcs flattened), else
+                  at the center of its box.
+                justification: |
+                  A leader line ends on a point that belongs to the feature: the middle of an edge, not its box, and the
+                  inside of a slice, not its corner.
+                tests:
+                  - ScenePositions_PathMidpoint_SymmetricCubicAndArc_IsAtTheApex
+                  - ScenePositions_Collect_EdgeInPieces_MidpointOfCombinedLength
+                  - ScenePositions_Collect_ExplicitAim_UsesTheAimAndValue
+
+              - id: CanvasNetMermaid-Scenegraph-ScenePositions-Order
+                title: >-
+                  The ScenePositions unit shall order the positions by kind (title, group, node, participant, task,
+                  milestone, section, slice, block, commit, branch, tag, edge, message, note), then by source line, then
+                  by drawing order, number each edge and message from 0 among those with the same ends, and skip the
+                  kinds the filter rejects before computing their geometry.
+                justification: |
+                  Structural features first keeps them within the cap, a fixed order makes the output deterministic, and
+                  the index tells parallel edges apart.
+                tests:
+                  - ScenePositions_Collect_KindsLinesAndFilter_OrdersAndNumbers
+
+              - id: CanvasNetMermaid-Scenegraph-ScenePositions-Mapping
+                title: >-
+                  The ScenePositions unit shall map the box and the pixel by the placement of the render (scale and
+                  offset), report the facts of the tag (text trimmed, source line, ends, a slice's value), and report
+                  nothing when the options have no handler.
+                justification: |
+                  The coordinates must be those of the returned surface, at any scale or exact size.
+                tests:
+                  - ScenePositions_Collect_NestedGroupAndPlacement_MapsBoxAndCenter
+                  - ScenePositions_Collect_ExplicitAim_UsesTheAimAndValue
+                  - ScenePositions_Report_NoHandler_DoesNothing

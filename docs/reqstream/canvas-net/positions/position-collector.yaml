@@ -1,0 +1,47 @@
+---
+# Software Unit Requirements for PositionCollector
+#
+# These requirements describe the design-level behavior of the PositionCollector unit of the Positions subsystem
+# (namespace DemaConsulting.CanvasNet.Positions): the collection of the positions of one render that a selection
+# matches. Each "tests" entry cites an existing test method in the DemaConsulting.CanvasNet.Tests project; see
+# docs/verification/canvas-net/positions/position-collector.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNet Requirements
+    sections:
+      - title: Positions Requirements
+        sections:
+          - title: PositionCollector Requirements
+            requirements:
+              - id: CanvasNet-Positions-PositionCollector-Union
+                title: >-
+                  The PositionCollector class shall evaluate every selector against each offered candidate once, keep a
+                  candidate that any selector matches once, and keep the candidates in the order they were offered,
+                  whatever the order of the selectors.
+                justification: |
+                  The order of the output is the deterministic order of the picture, so the same render gives the same
+                  list however the selectors are written.
+                tests:
+                  - PositionCollector_Offer_SeveralSelectors_KeepsUnionInDeliveryOrder
+
+              - id: CanvasNet-Positions-PositionCollector-Cap
+                title: >-
+                  The PositionCollector class shall keep at most the cap of matching candidates (1,000 by default), set
+                  Truncated only when a matching candidate was left out, and refuse a cap below 1.
+                justification: |
+                  The cap bounds the result of a chart of many marks, and the flag tells the caller to narrow the
+                  selectors.
+                tests:
+                  - PositionCollector_Offer_MoreMatchesThanTheCap_KeepsFirstAndTruncates
+                  - PositionCollector_Offer_ExactlyTheCap_IsNotTruncated
+                  - PositionCollector_Constructor_BadArguments_Throw
+
+              - id: CanvasNet-Positions-PositionCollector-Unmatched
+                title: >-
+                  The PositionCollector class shall list, in selection order, the selectors that matched no candidate; a
+                  selector whose matches were all left out by the cap is not unmatched.
+                justification: |
+                  A selector that matches nothing is almost always a mistake the user should hear about, while a
+                  truncated one did match.
+                tests:
+                  - PositionCollector_GetUnmatchedSelectors_MatchedButCapped_IsNotUnmatched

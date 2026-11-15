@@ -280,3 +280,20 @@ sections:
           - ImagePipeline_MapAnchors_ManyAnchors_KeepsOrderAndInput
           - ImagePipeline_MapAnchors_FollowsAMarkedBlockInARealImage
           - ImagePipeline_MapAnchors_RealReports_CarryTheFieldsTheMappingReads
+
+      - id: CanvasNetViewer-Imaging-ImagePipeline-PositionMapping
+        title: >-
+          The ImagePipeline class shall map the boxes and pixels of feature positions through the applied steps with one
+          affine transform composed over the steps (crop and trim translate, resize and fit scale, pad translates, flip
+          mirrors, rotate turns about the center, exactly for a right angle, and color steps change nothing),
+          transforming the pixel and the four original box corners once and enclosing the corners once, without clipping
+          a box to a crop, and shall lose every position after a deskew that corrected the image or an unknown step that
+          changed the size.
+        justification: |
+          Enclosing once keeps a rotated box tight, and a step that cannot be followed must not report a wrong position.
+        tests:
+          - ImagePipeline_MapPositions_CropTrimResizeFitPadFlip_FollowTheirReports
+          - ImagePipeline_MapPositions_RightAngleRotate_IsExact
+          - ImagePipeline_MapPositions_RotateAndBack_EnclosesOnce
+          - ImagePipeline_MapPositions_ColorStepsKeep_UnfollowedStepsLose
+          - ImagePipeline_MapPositions_ManyPositions_KeepsOrder

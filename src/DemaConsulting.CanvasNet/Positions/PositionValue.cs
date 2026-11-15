@@ -35,7 +35,7 @@ public enum PositionValueKind
 /// <remarks>
 ///     <para>
 ///         Two values are equal only when they have the same kind and the same value: the number <c>3</c> equals the
-///         number <c>3.0</c>, but not the text <c>"3"</c>; text is compared ordinally (case-sensitively). A number is
+///         number <c>3.0</c>, but not the text <c>"3"</c>; text is compared case-sensitively. A number is
 ///         always finite, so equality is well defined. <c>default(PositionValue)</c> is <see cref="Null"/>.
 ///     </para>
 ///     <para>

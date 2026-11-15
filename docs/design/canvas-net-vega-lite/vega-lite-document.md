@@ -102,7 +102,11 @@ rendering, diagnostics, unsupported features, limits and cancellation, determini
   a
   network resource for an `image` mark on its own, the `url` is handed to the resolver as text, a remote URL included,
   and the policy of what it may name is the resolver's; without one the mark is reported as `vl-mark-image` and draws
-  nothing; `Measure` never calls it). The internal `EffectiveFonts` is `Fonts` or a default
+  nothing; `Measure` never calls it). Two further options carry the feature positions: `PositionHandler`
+  (`Action<ImagePosition>?`, null by default: the callback that receives the positions of a render) and
+  `PositionKindFilter` (`Func<string, bool>?`, null for every kind: the kinds the handler wants; a host passes
+  `PositionCollector.IncludesKind`, and when it rejects `mark` the mark items record nothing). The internal
+  `EffectiveFonts` is `Fonts` or a default
   `VegaLiteFontOptions`.
 - **`VegaLiteFontOptions`** (sealed class) - `UseSystemFonts` (default false) and `AdditionalDirectories`
   (`IReadOnlyList<string>`, empty by default; a null list throws `ArgumentNullException`, a null, empty, or whitespace
@@ -195,6 +199,19 @@ rendering, diagnostics, unsupported features, limits and cancellation, determini
 - `Render(width, height, options, token)` - validates the width and height first (`ArgumentOutOfRangeException`), then
   the parameter names and the token, prepares the chart, and paints at `ScenePlacement.Fit` onto a surface of exactly
   that size.
+- **Positions** (both `Render` overloads) - the finish step calls `ScenePositions.Report(scene, placement, measurer,
+  options)` before it paints, so the `PositionHandler` receives each feature once, on the calling thread, in the pixels
+  of the returned surface (following the scale or the fit); `Measure` never calls it, and the pixels are the same with
+  or without it. `PrepareChart` sets the record flag (`recordMarks`: a handler is set and `PositionKindFilter`, when
+  given, accepts `mark`) and passes it through `ChartInputs.RecordMarks` (a single or layered chart),
+  `Composer.RecordMarks` (a composition), and `CellInputs.RecordMarks` to the `MarkBuilder` of each cell
+  (`RecordPositions`). The data rectangle of a single or layered chart is tagged as the view `""` (`RootViewTag`,
+  passed to `ViewLayout.Build`); in a composition the view group of each chart cell is tagged with its view path.
+  `BuildAxes` and `BuildLegends` tag each axis group (`GuideTag`, with the drawn title of the axis, `AxisTitle`, and the
+  bounds of its ticks, labels, domain, and title) and each legend group (by its first channel, with its title), with the
+  path of the view that owns them. `BuildMarks` gives the
+  `SceneMarkContext` of each marks group the view path, view name, and facet values of its layer, and `WithView` gives
+  the title of a chart or composition the path of its view (see _ScenePositions Unit Design_).
 - `Run(options, token, plan, finish)` - creates the sink, records the reports (`BuildPlan` ->
   `RecordReports`: warnings through `Warn`, unsupported features through `Unsupported`, which throws in strict mode),
   runs the finish step, and delivers the sink. On a failure the reports recorded so far are delivered with handler
@@ -463,7 +480,9 @@ except that it
 delivers the already-found reports first. A scaled size outside 1 to `Surface.MaxDimension` and an unknown parameter
 name are argument exceptions. A cancellation is an `OperationCanceledException`, never wrapped. Strict mode throws a
 `VegaLiteUnsupportedFeatureException` at the first unsupported feature after delivering that report. A handler that
-throws after a successful call propagates its exception (the surface is disposed); on a failure path it is ignored.
+throws after a successful call propagates its exception (the surface is disposed); on a failure path it is ignored. An
+exception thrown by the `PositionHandler` propagates like any failure of the finish step: the chart is not painted and
+the reports recorded before it are delivered once.
 
 The internal test seam `StageHookForCurrentThread` (per calling thread, `null` by default) is invoked with the name of a
 long-running stage when it starts and when it has finished: the operation name of each row transform (reported by
@@ -493,9 +512,11 @@ the stage stopped before it reported its end. The whole pipeline runs on the cal
   `LegendPlan`, `LegendBuilder`, `LegendResult`
 - **`Layout` subsystem** - `ViewLayout` and its request and measure records, and `LegendLayout`
 - **`Marks` subsystem** - `MarkBuilder`
-- **`Scenegraph` subsystem** - `Scene`, `SceneItem`, `SceneBudget`, `ScenePainter`, `ScenePlacement`
+- **`Scenegraph` subsystem** - `Scene`, `SceneItem`, `SceneBudget`, `ScenePainter`, `ScenePlacement`, `ScenePositions`,
+  `ScenePositionTag`, and `SceneMarkContext`
 - **Core `CanvasNet`** - `Surface`, `Rgba32`, and `CssColor` (`ToCss` turns the caller's `Background` option into the
-  scene's string) (public API); see _CanvasNetVegaLite System Design_
+  scene's string), and `ImagePosition` (the type of the position handler) (public API); see _CanvasNetVegaLite System
+  Design_
 - **.NET base class library** - `System.IO`, `System.Text`, `System.Text.Json` (the configuration check),
   `System.Collections.ObjectModel`, `System.Globalization`
 

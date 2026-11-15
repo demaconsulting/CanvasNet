@@ -1,9 +1,10 @@
 ## Scenegraph Subsystem Verification Design
 
 This document describes the subsystem-level verification strategy for the `Scenegraph` subsystem (internal namespace
-`DemaConsulting.CanvasNet.Mermaid.Scenegraph`), containing two units: `SceneModel` (the immutable scene records, their
-bounds, and the conversion of their geometry to a core path) and `ScenePainter` (the painter of a scene onto a
-`Surface`, with its placement and its picture-loader contract).
+`DemaConsulting.CanvasNet.Mermaid.Scenegraph`), containing three units: `SceneModel` (the immutable scene records, their
+bounds, and the conversion of their geometry to a core path), `ScenePainter` (the painter of a scene onto a
+`Surface`, with its placement and its picture-loader contract), and `ScenePositions` (the positions of the tagged items
+of a laid-out scene, mapped by the placement).
 
 ### Verification Approach
 
@@ -24,6 +25,10 @@ by its scaled offset, under the box and outside its bounds; the underline bar li
 underlined run only; and the failures carry the
 code and the location of the node. No golden images are used.
 
+The subsystem-level positions requirement reuses the `ScenePositions` unit tests as its evidence (see _ScenePositions
+Unit Verification Design_): they build scenes from `SceneModel` records carrying position tags, as the renderers tag
+them, and map them with a `ScenePlacement`, so they exercise the three units' collaboration without painting.
+
 The scenarios use a test picture loader that gives a red picture of the requested size and records the requests, as
 the caller's resolver would through the `NodeImages` loader of a diagram; otherwise the subsystem uses no mocking or
 stubbing, and the core `Surface`, `PathFiller`, `PathStroker`, `TextRenderer`, the font resolver, and the bundled
@@ -42,7 +47,7 @@ cancellation through the public API are further verified by the system tests.
 ### Acceptance Criteria
 
 The `Scenegraph` subsystem's verification passes when every subsystem-level scenario below and every unit-level
-scenario in the two unit verification documents passes without error or unexpected exception.
+scenario in the three unit verification documents passes without error or unexpected exception.
 
 ### Test Scenarios
 
@@ -100,3 +105,15 @@ scenario `CanvasNetMermaid-Scenegraph-ScenePainter-UnboundedGeometry`.
 
 Paints the node scene twice at scale 1 with two painters and two font resolvers and asserts that the two surfaces are
 identical pixel by pixel.
+
+#### CanvasNetMermaid-Scenegraph-Positions: Tagged Items Become Positions Mapped By The Placement
+
+**Tests**: `ScenePositionsTests.ScenePositions_Collect_NestedGroupAndPlacement_MapsBoxAndCenter`,
+`ScenePositionsTests.ScenePositions_Collect_EdgeInPieces_MidpointOfCombinedLength`,
+`ScenePositionsTests.ScenePositions_Collect_KindsLinesAndFilter_OrdersAndNumbers`
+
+Asserts that a tagged node in nested translated groups, drawn at scale 2 with an offset, is reported with its tag's
+facts, the box of its geometry moved by both groups and mapped by the placement, and the center of that box as its
+pixel; that the two pieces of one edge are one position with the union of their bounds and the arc-length midpoint of
+their combined length as its pixel; and that the positions come by kind, then source line, then drawing order, with
+the parallel edges numbered 0 and 1 and the kinds the filter rejects skipped.

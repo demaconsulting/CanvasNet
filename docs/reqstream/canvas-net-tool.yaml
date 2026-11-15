@@ -1011,3 +1011,21 @@ sections:
           - CanvasNetTool_Scad_ModelMistakes_AreReportedAsExpectedErrors
           - CanvasNetTool_VegaLite_DetectionDiagnosticsAndErrors_FollowTheContract
           - CanvasNetTool_Mermaid_ErrorsAndDiagnostics_FollowTheContract
+
+      - id: CanvasNetTool-System-DiagramChartPositions
+        title: >-
+          The tool shall, for render (and its alias convert) of a Mermaid diagram or a Vega-Lite chart with one or more
+          --positions selectors and --json, add to the JSON result the positions the selectors match, with their box and
+          pixel in the written image and whether the pixel is inside it, and positionsTruncated; shall report a
+          malformed selector, a missing --json, or an input that is not a diagram or chart as usage-error; shall warn
+          about a selector that matches nothing (the error positions-unmatched with --strict, writing nothing); and
+          shall document the positions in its help.
+        tags: [system]
+        justification: |
+          Agents place callouts on diagrams and charts from the command line; the positions must be exact in the picture
+          the command writes, and every mistake must be a clear error.
+        children:
+          - CanvasNetTool-Commands-RenderCommand-Positions
+          - CanvasNetTool-Commands-HelpTopics-Positions
+        tests:
+          - CanvasNetTool_Positions_RenderAsProcess_ReportsFeaturePixels

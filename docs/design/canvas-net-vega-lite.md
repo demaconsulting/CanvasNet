@@ -182,20 +182,23 @@ drawn since phase 7.
   several partial files). `CurveBuilder` is the d3-shape curve and line and area generator that turns the defined
   points of a path into path segments. See _Marks Subsystem Design_ (`canvas-net-vega-lite/marks.md`).
 - **Scenegraph** (internal subsystem; namespace `DemaConsulting.CanvasNet.VegaLite.Scenegraph`, folder
-  `Scenegraph/`): the assertion surface and the painter, with five units. `SceneModel` is the immutable scene
-  (groups, rectangles, rules, paths with line and cubic segments, symbols, text, arcs, trails, bounds, and the item
-  budget). `ScenePainter` draws a scene onto a `Surface` (in several partial files). `ArcGeometry` is the d3-shape arc
+  `Scenegraph/`): the assertion surface and the painter, with six units. `SceneModel` is the immutable scene
+  (groups, rectangles, rules, paths with line and cubic segments, symbols, text, arcs, trails, bounds, the item
+  budget, and the internal tags and recorded rows of the feature positions). `ScenePainter` draws a scene onto a
+  `Surface` (in several partial files). `ArcGeometry` is the d3-shape arc
   and the d3-path emulation that turn an arc item into a core `Path`. `CssPaint` resolves a chart paint and an opacity
   to a color on top of the core `CssColor` parser. `SymbolPathParser` parses the SVG path data of a custom symbol shape
-  and draws it scaled by the symbol radius, with its bounds. See _Scenegraph
+  and draws it scaled by the symbol radius, with its bounds. `ScenePositions` reports the titles, views, axes, legends,
+  and marks of a laid-out chart as core `ImagePosition` values. See _Scenegraph
   Subsystem Design_ (`canvas-net-vega-lite/scenegraph.md`).
 
 The names of the subsystems in this document are the namespace and folder names; in the SysML2 model their `part def`
 names carry the prefix `VegaLite` (`VegaLiteSpecModel`, `VegaLiteData`, `VegaLiteExpressions`, `VegaLiteTransforms`,
 `VegaLiteScales`, `VegaLiteGuides`,
-`VegaLiteLayout`, `VegaLiteMarks`, and `VegaLiteScenegraph`), and the `SceneModel` unit is `VegaLiteSceneModel`,
+`VegaLiteLayout`, `VegaLiteMarks`, and `VegaLiteScenegraph`), the `SceneModel` unit is `VegaLiteSceneModel`, and the
+`ScenePositions` unit is `VegaLiteScenePositions`,
 because the `CanvasNet` model package is shared by every system of the repository and `SceneModel` and `SceneGraph`
-already name items of `CanvasNetRender3D`.
+already name items of `CanvasNetRender3D` (and `ScenePositions` names the `MermaidScenePositions` unit's source class).
 
 Dependencies inside the system are one-directional at the unit level, apart from three shared static rules.
 `VegaLiteDocument` calls every subsystem. `SpecParser` and `FeatureCatalog` use two stateless rules of the data units
@@ -259,7 +262,9 @@ calls the grid layout of `LegendBuilder`) against the bounds of the axes and tel
 through `CurveBuilder`, which reads only the segment type of `SceneModel`; `MarkBuilder` also asks
 `ScaleResolver.ChannelIsDrawn` which channels a mark draws, the one rule that the catalog uses too). `ScenePainter`
 calls `ArcGeometry` for the arc and trail items (`ArcGeometry`, with its internal `ArcPathWriter`, depends only on
-the core `Path` and `PathBuilder`). The
+the core `Path` and `PathBuilder`). `ScenePositions` reads the scene, `TextMeasurer` (the box of a text mark),
+`ScenePainter.SymbolPath`, `ArcGeometry`, and `MarkBuilder.TryConvert` (the facet values), and `VegaLiteDocument` calls
+it, with the view paths it gives, when it tags the guides and marks groups of a view. The
 `Guides` and `Scenegraph` subsystems therefore refer to each other (the guide builders produce scene items; the painter
 needs the measurer), but no unit refers back along the same path: `SceneModel` and `SceneBounds` are leaves,
 `TextMeasurer` reads them, and `ScenePainter` reads `TextMeasurer`. Outside the system, the `Scenegraph` and `Guides`
@@ -296,7 +301,8 @@ The system exposes the following public API in the `DemaConsulting.CanvasNet.Veg
   units, time scales, ticks and labels, and the local date functions; never the host's zone), `ContainerWidth` and
   `ContainerHeight` (the size of a
   `"container"` chart; 400 by 300 by default), `Fonts`, `Limits`, the handlers `WarningHandler` and
-  `UnsupportedFeatureHandler`, and `ThrowOnUnsupportedFeature`.
+  `UnsupportedFeatureHandler`, `ThrowOnUnsupportedFeature`, and the feature positions `PositionHandler`
+  (`Action<ImagePosition>?`) and `PositionKindFilter` (`Func<string, bool>?`).
 - **`VegaLiteFontOptions`** (sealed, immutable): `UseSystemFonts` (whether installed fonts are searched for an
   explicitly named family; `false` by default) and `AdditionalDirectories` (extra directories scanned first; empty by
   default, copied and validated when set).
@@ -328,6 +334,7 @@ The system exposes the following public API in the `DemaConsulting.CanvasNet.Veg
 | `VegaLiteDocument.Render(...)` (natural size) | Inbound and outbound | `VegaLiteRenderOptions`, a `CancellationToken`; a `Surface` | Natural size times `Scale`, rounded half away from zero, each side from 1 to `Surface.MaxDimension`, validated before any report is delivered; caller owns the surface; pixel-identical output for identical input |
 | `VegaLiteDocument.Render(int, int, ...)` (exact size) | Inbound and outbound | Width, height, options, a token; a `Surface` | Width and height from 1 to `Surface.MaxDimension`, validated first; the natural chart is scaled uniformly to fit and centered, margins take the background; `Scale` is not used |
 | `VegaLiteRenderOptions.WarningHandler`, `UnsupportedFeatureHandler` | Outbound | Delegates receiving `VegaLiteDiagnostic` and `VegaLiteUnsupportedFeature` | Called once per distinct report, in document order, on the calling thread, after the work finished and before the method returns or throws |
+| `VegaLiteRenderOptions.PositionHandler`, `PositionKindFilter` | Outbound | A delegate receiving core `ImagePosition` values; a kind filter | Called by both `Render` methods once per feature (titles, views, axes, and legends, then marks in drawing order), on the calling thread, after the layout and before the painting, in the pixels of the returned surface; every position has its canonical view path and view name, a mark the id `<mark>-<n>` within its view and the normalized values of its row; only the kinds the filter accepts are built; never called by `Measure`; the pixels do not change |
 | `VegaLiteSpecException` | Outbound | Exception with `Location` | Thrown for malformed JSON, nesting deeper than `MaxJsonDepth`, a known property of the wrong type or value, a string longer than `MaxStringLength`, plain Vega, an invalid expression (a syntax error, a text longer than `MaxExpressionLength`, nesting deeper than `MaxExpressionDepth`, or a reference to an undeclared parameter; the message names the expression offset), a malformed transform, predicate, or parameter (a cycle, a repeated or reserved name), an unknown time unit or a malformed time-unit object, a date-time object with an unknown month or day name or a member of the wrong type, a `tickCount` or `nice` interval with an unknown name or a non-positive step, a `date:` or `utc:` parse entry without a quoted format, and, at render time, an invalid axis orientation, axis format, or scale domain or range (a temporal domain entry that is not a date) |
 | `VegaLiteRenderException` | Outbound | Exception with `Location` | Thrown when a data, transform, expression, scale, axis, or scene limit is exceeded (`MaxDataRows`, `MaxFieldCount`, `MaxStringLength`, `MaxEvaluationSteps`, `MaxDataFiles`, `MaxDataBytes`, `MaxScaleDomainSize`, `MaxTicks`, `MaxSceneItems`) and when local data cannot be used: no file source for a local `url`, a path that is never allowed, a file the file-access policy denies (the core `FileReferenceException` is the inner exception), a missing or unreadable file, invalid UTF-8, invalid JSON or delimited text, an undefined named dataset, or an invalid sequence; also for an invalid or too slow regular expression of an expression; the location is the `url`, `name`, `sequence`, transform, or expression that caused it |
 | `VegaLiteUnsupportedFeatureException` | Outbound | Exception with `Feature` and `Location` | Thrown only when `ThrowOnUnsupportedFeature` is set, at the first unsupported feature in document order; the report is delivered to the handler first |
@@ -355,7 +362,8 @@ subsystem design documents for the complete constructor, property, and exception
   the **`Rendering`** subsystem (`TextRenderer`, for text measurement and drawing); and the **`Files`** subsystem
   (`FileReferenceResolver` with `FileReferenceOptions`, `FileReference`, `FileReferenceException`, and
   `FileAccessPolicy`, which the `DataFileResolver`
-  unit uses for all local data-file access)
+  unit uses for all local data-file access); and the **`Positions`** subsystem (`ImagePosition`, `PositionBox`,
+  `PositionPoint`, and `PositionValue`, the feature positions that `ScenePositions` reports)
 
 The dependency is declared as the package dependency of `DemaConsulting.CanvasNet.VegaLite`; the public API exposes
 the core `Surface` and `Rgba32`. The dependency is modeled in the SysML2 model as the `usesCanvas`, `usesDrawing`,
@@ -750,8 +758,9 @@ input:
    of the layers (`vl-layer-scale-conflict`), then `vl-layout-fit-step` (which needs the scales); they are also
    delivered
    when a later stage fails.
-5. **Paint** (`Render` only): `ScenePainter` fills the background and draws the scene onto a new `Surface` of the
-   scaled size.
+5. **Paint** (`Render` only): when the options have a `PositionHandler`, `ScenePositions` first reports the feature
+   positions of the scene, mapped by the placement of the painting; then `ScenePainter` fills the background and draws
+   the scene onto a new `Surface` of the scaled size.
 6. **Deliver**: the sink replays its reports to the caller's handlers in order on the calling thread; on a failure the
    reports are delivered with handler exceptions ignored so that the failure wins.
 7. **Output**: the size or the surface, or the first error as a typed exception.

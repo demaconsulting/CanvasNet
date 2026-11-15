@@ -28,7 +28,8 @@ verb and `render` share every line of the run, `crop in.png 10,10,100,100 -o out
 the options of an OpenSCAD model `--view <name>`,
 `--azimuth <degrees>`, `--elevation <degrees>`, `--projection <type>`, `--define <name=value>` (alias `-D`,
 repeatable), `--time <T>`, `--default-color <color>`, and `--max-triangles <N>`, the option of a Vega-Lite chart
-`--param <name=value>` (repeatable), the option of a Mermaid diagram `--theme <name>`, the options of the image
+`--param <name=value>` (repeatable), the option of a Mermaid diagram `--theme <name>`, the feature-positions option
+of a diagram or a chart `--positions <selector>` (repeatable), the options of the image
 pipeline `--crop <geometry>`, `--resize <WxH>`, `--fit <WxH>`, `--allow-upscale`, `--rotate <degrees>`,
 `--rotate-fill <color>`, `--flip <axis>`, `--pad <N|l,t,r,b>`, `--pad-color <color>`, the photo tools
 `--grayscale`, `--invert`, `--threshold <0-255|auto>`, `--levels <black,white[,gamma]>`, `--brightness <n>`,
@@ -66,7 +67,9 @@ mindmap, packet diagram, or git graph at the size Mermaid lays it out at, with t
 sets unless the text sets one; a diagram type that is not drawn (journey, timeline, and so on) is an empty picture with
 the note
 `mermaid-diagram-unsupported`, and `canvasnet help mermaid` says what is supported; an example draws
-`flow.mmd --theme dark --scale 2`). A verb has no alias, and its
+`flow.mmd --theme dark --scale 2`), and how `--positions <selector>` (a diagram or a chart, with `--json`,
+repeatable) reports the box and attach pixel of the features it matches in the written image, with an example
+`flow.mmd --positions node:send --positions edge -o flow.png --json`. A verb has no alias, and its
 usage text is `canvasnet {verb} <input>
 {operand} -o <output> [options]` with the description of its operand, a statement that it takes every option of
 `render`, and its examples.
@@ -157,6 +160,18 @@ applies to a Mermaid diagram"), before anything is drawn. The loader applies the
 Mermaid command line), and the `render` operation lists the theme. `compare` and `montage` have no diagram option;
 `--theme` is not in their tables.
 
+**ReadPositions(reader)** (`RenderCommand.Options.cs`): when `--positions` (`PositionsOption`) was not given, returns
+`null`; otherwise parses every value with the core `PositionSelection.Parse` (at most 32 selectors of at most 256
+characters and 16 predicates each, duplicates kept once), so a malformed selector is reported before anything is
+loaded. A `FormatException` of the parser becomes a `usage-error` whose message names the `--positions` selector and the
+problem, with the hint to run `canvasnet help positions selectors` for the grammar and to quote a selector with `*`,
+`"`, or spaces. `ReadSettings` stores the selection in `SourceOptions.Positions`. `Run` then refuses `--positions`
+without `--json` (`usage-error`, "...reports its positions in the JSON result, but --json was not given.", hint "Add
+--json."), before the input is probed, and, after the probe, for an input that is neither a diagram nor a chart
+(`usage-error` naming the kind, with a hint that an OpenSCAD model reports its anchors instead). `inspect` excludes the
+option (`InspectCommand.Options.cs`), because its positions are a field of the render result only; `compare` and
+`montage` do not take it.
+
 **SpecsFor(names)**: `internal`; returns the declarations of `OptionTable` with the given long names, in that order
 (`ArgumentException` for a name the table does not declare), so that another command accepts an option with the same
 grammar and the same help text. `CompareCommand` and `MontageCommand` build their option tables from it. `WriteField`,
@@ -207,8 +222,10 @@ transparent for a raster. The `--background` color the user gave is also passed 
 a rotation (a rotation without `--rotate-fill` fills its corners with it; without a background the pipeline's rule
 applies: opaque white for an image with no transparent pixel, else transparent). The anchors of a model
 (`LoadedSource.Anchors`, positions in the loaded image) are mapped through the applied steps with
-`ImagePipeline.MapAnchors` when there are operations, and used as loaded otherwise; the page's report carries the
-mapped list. Everything the pipeline does happens
+`ImagePipeline.MapAnchors` when there are operations, and used as loaded otherwise; the feature positions of a diagram
+or a chart (`LoadedSource.Positions`) are mapped the same way with `ImagePipeline.MapPositions`; the page's report
+carries the
+mapped lists. Everything the pipeline does happens
 before the output is published, so a failing operation
 (for example a crop that starts outside the image after an earlier crop) writes nothing and leaves an existing output
 untouched.
@@ -257,6 +274,8 @@ fields after the envelope, in this order:
 | `diagnostics` | array of objects: `source` (`pptx`, `vsdx`, `scad`, `vega-lite`, `mermaid`, or `svg`), `severity` (`unsupported`, or `warning` for a model, a chart, a diagram, or a fragment warning), `code` (the feature token such as `mermaid-diagram-unsupported`, `scad-warning`, `vega-lite-warning`, `mermaid-warning`, or an image-link code such as `svg-image-unresolved`, `image-fragment-invalid`, or `image-page-out-of-range`), `message`, `page` (documents only), and then, only when present, `detail`, `location` (`file`, `line`, `column`, `pointer`; unknown members omitted), and `origin` (list of files), written by `ResultWriter.WriteDiagnosticExtras` |
 | `echo` | array of strings: the `echo` output of a model as the SCAD library prints it, with its `ECHO:` prefix (empty for every other source) |
 | `anchors` | **only for a model** (no member for any other input), after `echo`: an array of objects in echo order, duplicates included, `name`, `point` (the world `[x, y, z]`), `pixel` (`[x, y]` in the written image, continuous with the origin at the top-left corner, rounded to three decimals, or `null` when the position is unknown: a point behind a perspective eye or after a deskew that corrected the image) and `inside` (the pixel lies in `0 <= x < width`, `0 <= y < height` of the written image; `false` for a `null` pixel); `[]` when the model declares none (`WriteAnchors`) |
+| `positions` | **only with `--positions`** (no member otherwise, so a document without the option is unchanged), after `echo` and `anchors`: an array of the matched features in the order the library delivered them, each with `kind` and `id`, then only the facts it has - `text`, `line`, `view` (always for a chart, `""` for a single view), `name` (the view's name), `mark`, `from`, `to`, `index`, and `values` (an object of channel values with their JSON types, numbers not rounded) - then `box` (`x`, `y`, `width`, `height`, rounded to three decimals) or `null`, `pixel` (`[x, y]`, rounded to three decimals) or `null` when a pipeline step lost them, and `inside` (the pixel lies in `0 <= x < width`, `0 <= y < height` of the written image; `false` for a `null` pixel; not whether the feature is visible) (`WritePositions`, `WriteGeometry`, `WriteValue`) |
+| `positionsTruncated` | **only with `--positions`**, after `positions`: `true` when matching positions were left out because of the cap of 1,000 |
 <!-- markdownlint-enable MD013 -->
 
 The text result does not change for a model with anchors: the one `wrote` line is on standard output and the `ECHO:`
@@ -286,7 +305,8 @@ a quality out of range, an unknown format, `--page` with `--all-pages`, a page o
 number in range, `--all-pages` with an output that is the same file for every page, a view or projection that does
 not exist, a model value that is malformed or out of range, a definition that is not `name=value`, a model
 option for an input that is not a model, a `--theme` that is not a Mermaid theme or that is given for an input that is
-not a diagram, a malformed or out-of-range operation value (an angle that is not a number, a
+not a diagram, a malformed `--positions` selector or more than 32 of them, `--positions` without `--json` or for an input
+that is neither a diagram nor a chart, a malformed or out-of-range operation value (an angle that is not a number, a
 threshold, levels, brightness, contrast, clip, tolerance, or grid spacing out of range),
 `--allow-upscale` without `--fit`, `--pad-color` without a pad, `--rotate-fill` without a rotation or `--deskew`,
 `--auto-levels-clip` without `--auto-levels`, `--trim-tolerance` without `--trim`, a crop that starts outside the
@@ -305,7 +325,8 @@ that cannot be rendered, `mermaid-error` for diagram text that is not valid or a
 the hint of the library, and `budget-exceeded` for a model that exceeds a limit such as `--max-triangles` or a chart or
 a diagram that exceeds a limit of the library, and `file-access-denied` for an include or a data file the
 file-access mode denies, or a denied picture with `--strict`; without it a denied picture is the warning
-`image-access-denied`) and output failures
+`image-access-denied`; and `positions-unmatched` for a `--positions` selector that matched nothing with `--strict`,
+without it the warning of the same code among the `diagnostics`) and output failures
 from `ImageWriter` (`same-input-output`, `output-exists`, `output-write-failed`); none of them leaves an output file
 for the page that failed. Null arguments throw `ArgumentNullException`. The registry records the command name on
 every `ToolException`.
@@ -320,6 +341,8 @@ every `ToolException`.
   everything that touches files and pixels.
 - **FileAccessPolicy** (the `Files` subsystem of the core library) - the policy built from `--file-access` and
   `--allow-root`.
+- **PositionSelection**, **ImagePosition**, and **PositionValue** (the `Positions` subsystem of the core library) - the
+  `--positions` selection and the positions written to the JSON result.
 
 #### Callers
 

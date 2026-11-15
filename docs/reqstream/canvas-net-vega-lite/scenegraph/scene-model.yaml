@@ -109,3 +109,17 @@ sections:
                 tests:
                   - SceneImage_Defaults_AreVegasDefaults
                   - SceneImage_Constructors_RejectNullArguments
+
+              - id: CanvasNetVegaLite-Scenegraph-SceneModel-PositionTags
+                title: >-
+                  The scene model shall let a scene item carry an internal guide tag (kind, id, text, view path, view
+                  name, and optional bounds) and the row it draws, a marks group carry an internal mark context (the
+                  values of a row, the view path and name, and the facet values), and a path or trail carry its
+                  vertices, none of which changes how the item is painted or is one of its public properties.
+                justification: |
+                  The tags link the scene to the features without changing the pixels or the reflection-based snapshot
+                  of the scene.
+                tests:
+                  - ScenePositions_Collect_ViewAndBars_BoxesCentersAndIds
+                  - ScenePositions_Collect_LineVertices_OnePositionPerVertex
+                  - VegaLiteDocument_Render_ScaleFitAndPixels_MapWithoutChangingPixels

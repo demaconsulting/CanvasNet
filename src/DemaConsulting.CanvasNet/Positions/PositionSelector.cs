@@ -32,7 +32,7 @@ namespace DemaConsulting.CanvasNet.Positions;
 ///     </code>
 ///     <para>
 ///         <b>Case.</b> The keywords are case-insensitive: <c>all</c>, the kind and the <c>@</c> names. Ids, channel
-///         names and text values are case-sensitive and compared ordinally.
+///         names and text values are case-sensitive.
 ///     </para>
 ///     <para>
 ///         <b>Values.</b> A bare channel value is read like a <c>--param</c> value

@@ -106,13 +106,13 @@ public class ImagePipelinePositionTests
 
         // Act
         var kept = Map(400, 200, grid);
-        var deskewed = Map(400, 200, deskew, Step("pad", ("left", 1), ("top", 1), ("right", 1), ("bottom", 1), ("width", 412), ("height", 212)));
+        var straightened = Map(400, 200, deskew, Step("pad", ("left", 1), ("top", 1), ("right", 1), ("bottom", 1), ("width", 412), ("height", 212)));
         var lost = Map(400, 200, unknown);
 
         // Assert
         Assert.Equal(new PositionBox(100, 50, 40, 20), kept.Box);
-        Assert.Null(deskewed.Box);
-        Assert.Null(deskewed.Pixel);
+        Assert.Null(straightened.Box);
+        Assert.Null(straightened.Pixel);
         Assert.Null(lost.Pixel);
         Assert.Equal("a", lost.Id);
     }

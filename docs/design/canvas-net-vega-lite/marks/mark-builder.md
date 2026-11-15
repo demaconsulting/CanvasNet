@@ -3,7 +3,7 @@
 ![Marks Structure](VegaLiteMarksView.svg)
 
 The `MarkBuilder` unit is the first software unit in the `Marks` subsystem (the second is _CurveBuilder_). It comprises
-nine
+ten
 source files in the `DemaConsulting.CanvasNet.VegaLite.Marks` namespace; together they define one `internal` type, the
 `sealed partial class MarkBuilder` (with private helper types for one channel, the sizing of a position, the paint of an
 item, the settings of an overlay, and one build run, the nested `sealed partial class Run`), and the record
@@ -26,6 +26,8 @@ item, the settings of an overlay, and one build run, the nested `sealed partial 
   `TimeUnitOffsetRange`, and `OffsetCenter`
 - `MarkBuilder.Brush.cs` - the brush of an interval selection (phase 12): `BrushGroups` (the shade and the outline) and
   `BuildBrush`
+- `MarkBuilder.Positions.cs` - what the builder records for the feature positions: `RecordPositions`, `TryConvert`,
+  and the `Run` members `CreateContext`, `Datum`, and `VerticesOf`
 
 Every file carries the provenance header comment for the d3-shape, d3-path, Vega, and Vega-Lite behavior it ports (see
 _CanvasNetVegaLite System Design_, Third-Party Provenance and Attribution).
@@ -54,7 +56,9 @@ definitions of the mark), and private helpers describe a channel (its definition
 value), a position sizing (fixed, band, or encoded), and a paint (fill, stroke, stroke width, opacity, fill opacity,
 stroke opacity, and dash pattern). The `theta` and `radius` channels are read like `x` and `y` (the radius scale gets
 the
-extent `min(width, height) / 2`), and the secondary channels `theta2` and `radius2` like `x2` and `y2`.
+extent `min(width, height) / 2`), and the secondary channels `theta2` and `radius2` like `x2` and `y2`. The `init`
+property `RecordPositions` (false by default) says whether the items record what the feature positions need (see
+_Key Methods_); a render without a position handler that wants marks records nothing, so its scene is unchanged.
 
 **Geometry** (Vega-Lite 6):
 
@@ -670,6 +674,20 @@ has no
   left out by the parser, so they never hold. Without the `RowExpressions` (a caller that has none) the conditions
   are ignored and the channels draw as they do without them. (A `condition` on the `text` channel is reported by the
   catalog and not applied.)
+- Position rows (`MarkBuilder.Positions.cs`) - only when `RecordPositions` is set: `Build` gives the marks group a
+  `SceneMarkContext` from `Run.CreateContext`; every bar, rect, tick, rule, symbol, text, arc, and image item records the
+  row it draws in `SceneItem.Datum` (`Run.Datum`, -1 otherwise); and every line, area, and trail records a
+  `SceneVertex` (row and point) for each drawn row in drawing order in its `Vertices` (`Run.VerticesOf`, null
+  otherwise). `CreateContext` works out once which table field, or which scalar `datum`, gives each channel of the
+  encoding (the first definition of a channel counts; the facet channels `row`, `column`, and `facet` are left to the
+  cell): the field the plan reads (the start of a bin or a time unit, an aggregate), for a stacked channel the field of
+  the row's own value before the stack, and for a binned channel or one with the end of a time unit (`x`, `y`, `theta`,
+  or `radius`) also the end field as the secondary channel (`x2`, `y2`, `theta2`, `radius2`); the first source of each
+  name counts, and the returned function reads a row's values by channel name, sorted case-sensitively.
+  `TryConvert(DataValue, out PositionValue)` (internal static) turns a
+  data value into a position value: a finite number, a text, a boolean, or null as it is, a number that is not finite
+  as null, a date as canonical UTC ISO-8601 text (`yyyy-MM-ddTHH:mm:ss.fffZ`), and `false` for an array, an object, or
+  a regular expression, which are left out.
 
 **Preconditions and postconditions**: the scales were resolved from the same view and data; `table` is the
 **Main** table of
@@ -720,7 +738,9 @@ feature catalog has already reported it. The unit performs no I/O.
   **`SceneTrail`** with **`SceneTrailPoint`**, **`SceneText`**, **`SceneArc`**, **`SceneClip`**, and **`SceneBudget`** -
   the `Scenegraph` subsystem (the painter builds the outline of an arc and the capsules of a trail from their
   parameters;
-  see _SceneModel_, _ScenePainter_, and _ArcGeometry_)
+  see _SceneModel_, _ScenePainter_, and _ArcGeometry_), and **`SceneMarkContext`** and **`SceneVertex`** of the same
+  subsystem for the recorded positions
+- **`PositionValue`** - the core `Positions` subsystem (the values of the recorded positions)
 - **`VegaLiteLimits`**, **`VegaLiteLocation`**, **`VegaLiteRenderException`**, and **`VegaLiteSpecException`** - the
   public types of the `VegaLiteDocument` unit
 - **`SelectionModel`**, **`SelectionComponent`** (`Transforms`) and **`LayerNode`** (`SpecModel`) - the selections and
@@ -730,8 +750,10 @@ feature catalog has already reported it. The unit performs no I/O.
 #### Callers
 
 `VegaLiteDocument` calls `IsSupported` to decide if a view is drawn and `Build` once for the final data rectangle,
-passing the Main table that the implicit pipeline produced and the `RowExpressions` of the call; `BuildMarkGroups` calls
-`BuildBrush` for the selections of each unit of a cell. The
+passing the Main table that the implicit pipeline produced and the `RowExpressions` of the call, with `RecordPositions`
+set when the render's position handler wants marks; `BuildMarkGroups` calls
+`BuildBrush` for the selections of each unit of a cell; `ScenePositions` (the `Scenegraph` subsystem) calls `TryConvert`
+for the facet values. The
 tests in `test/DemaConsulting.CanvasNet.VegaLite.Tests/Marks/` (`MarkBuilderTests.cs`, `MarkBuilderChannelTests.cs`,
 `MarkBuilderConditionTests.cs`, `MarkBuilderTimeTests.cs`, `MarkBuilderPathTests.cs`, `MarkBuilderOrderTests.cs`,
 `MarkBuilderOverlayTests.cs`, `MarkBuilderTextTests.cs`, `MarkBuilderArcTests.cs`, `MarkBuilderPolarTextTests.cs`, and

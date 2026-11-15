@@ -1977,3 +1977,22 @@ sections:
         tests:
           - SafeXml_Load_ExternalEntityDocumentType_ThrowsXmlException
           - SafeXml_Load_DocumentLargerThanBound_ThrowsXmlException
+
+  - title: Feature Positions API
+    requirements:
+      - id: CanvasNet-Lib-Positions
+        title: >-
+          The library shall provide a neutral model of the positions of the features of a rendered picture (kind, id,
+          facts, geometry box, and attachment pixel), a bounded selector grammar to ask for some of them, and a
+          collector that keeps the positions a selection matches, in a deterministic order, up to a cap.
+        tags: [system]
+        justification: |
+          Agents and authors place callouts on diagrams and charts; one model and one grammar in the core library are
+          shared by the renderers that report positions, the Viewer, the tool, and the SVG library that will bind to
+          them.
+        children:
+          - CanvasNet-Positions-Model
+          - CanvasNet-Positions-Selectors
+          - CanvasNet-Positions-Collection
+        tests:
+          - CanvasNet_SystemIntegration_Positions_SelectCollectAndCap

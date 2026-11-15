@@ -378,6 +378,53 @@ foreach (var note in image.Diagnostics)
 }
 ```
 
+A Mermaid diagram or a Vega-Lite chart reports where its features land, for callouts and leader lines:
+`ViewerRenderOptions.Positions` takes a core `PositionSelection` (see *Feature Positions* in the core user guide, and
+the Mermaid and Vega-Lite guides for the kinds and ids), and `ViewerImage.Positions` lists the `ImagePosition` items
+the selectors matched, with their boxes and pixels in `Surface` (they follow the fit into a `Width` by `Height` box as
+the pixels do). At most 1000 are returned; `ViewerImage.PositionsTruncated` is true when more matched. Every other kind
+of file ignores the option, and a picture the rendered file embeds never reports positions. A selector that matches
+nothing is the note `positions-unmatched`, which names it; with `ThrowOnUnsupportedFeature` it is a `ViewerException`
+with the code `positions-unmatched`. The `Imaging` operations take the selection in `SourceOptions.Positions`:
+`SourceLoader.Load` gives the positions in `LoadedSource.Positions` (and `PositionsTruncated`) in the pixels of the
+loaded surface, before any pipeline step, and `ImageRenderer` gives them in `RenderedPage.Positions` in the written
+image, after the pipeline. To follow the steps of your own `ImagePipeline.Apply`, pass the positions, the size of the
+loaded surface, and its `applied` operations to `ImagePipeline.MapPositions`: the steps are combined first, the pixel
+and the four corners of each box are moved once (a rotated box is the smallest upright box around its corners), a crop
+moves a box but does not cut it, the color steps and the grid change nothing, and after a `deskew` that corrected the
+image every box and pixel is `null`.
+
+<!-- compile -->
+
+```csharp
+using DemaConsulting.CanvasNet.Positions;
+using DemaConsulting.CanvasNet.Viewer;
+using DemaConsulting.CanvasNet.Viewer.Imaging;
+
+using var image = CanvasNetViewer.Render(
+    "diagrams/flowchart.mmd",
+    new ViewerRenderOptions { Width = 800, Positions = PositionSelection.Parse(["node:send", "edge"]) });
+
+foreach (var position in image.Positions)
+{
+    Console.WriteLine($"{position.Kind} {position.Id}: box {position.Box}, pixel {position.Pixel}");
+}
+
+foreach (var note in image.Diagnostics)
+{
+    Console.WriteLine($"{note.Code}: {note.Message}");   // positions-unmatched names a selector that matched nothing
+}
+
+// The same through the operations of the tool: the positions in the written image
+var info = SourceLoader.Probe("charts/bar.vl.json");
+var request = new RenderRequest("out/bar.png")
+{
+    Source = new SourceOptions { Width = 600, Positions = PositionSelection.Parse(["mark:x=B", "axis"]) },
+};
+var page = ImageRenderer.Execute(info, request).Pages[0];
+Console.WriteLine($"{page.Positions.Count} positions, truncated: {page.PositionsTruncated}");
+```
+
 The parameters of a Vega-Lite chart are set with `ViewerRenderOptions.VegaLite`, a `ChartOptions` whose `Parameters`
 take what
 `VegaLiteRenderOptions.Parameters` takes (a number, text, a boolean, `null`, a list, or a dictionary, and for a
@@ -906,7 +953,8 @@ result carries all three:
 | `ViewerImage` (of `CanvasNetViewer.Render`)       | yes         | yes  | yes     | `ImageSourceDiagnostic` |
 | `FolderImageResolver` (an SVG render)             | yes         | yes  | no      | `ImageSourceDiagnostic` |
 
-`ImageRenderer`, `SourceLoader.Load`, and `CanvasNetViewer.Render` give anchors; the other operations cannot report
+`ImageRenderer`, `SourceLoader.Load`, and `CanvasNetViewer.Render` give anchors (and, for a diagram or a chart, the
+feature positions their options select); the other operations cannot report
 them.
 The two diagnostic
 types carry the same facts: `ImageDiagnostic` (the Imaging namespace) has a string `Severity` and a page, and
@@ -980,7 +1028,8 @@ stable `Code` (one of the strings of `ErrorCodes`, the same ones the tool prints
 is a defect and is not caught. The codes are `usage-error`, `operation-failed`, `input-not-found`, `input-unreadable`,
 `unsupported-format`, `corrupt-input`, `unsupported-feature`, `page-out-of-range`, `size-limit`, `same-input-output`,
 `output-exists`, `output-write-failed`, `scad-error`, `vega-lite-error`, `mermaid-error`, `budget-exceeded`,
-`file-access-denied` (a referenced file the file-access policy denied), `size-mismatch`, and `threshold-failed`.
+`file-access-denied` (a referenced file the file-access policy denied), `size-mismatch`, `threshold-failed`, and
+`positions-unmatched` (a position selector that matched nothing, in strict mode).
 `ViewerException` is in `DemaConsulting.CanvasNet.Viewer` and the operations
 are in `DemaConsulting.CanvasNet.Viewer.Imaging`, so a program that catches it lists both:
 

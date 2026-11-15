@@ -10,7 +10,7 @@ This document provides the system-level design for CanvasNet.
 ## Architecture
 
 CanvasNet is a .NET library providing a canvas-based drawing and rendering API, following
-DEMA Consulting best practices. The system consists of nine implemented subsystems:
+DEMA Consulting best practices. The system consists of ten implemented subsystems:
 
 - **Canvas subsystem** (namespace `DemaConsulting.CanvasNet.Canvas`, folder
   `src/DemaConsulting.CanvasNet/Canvas/`): the pixel-buffer primitives on which all other
@@ -116,6 +116,17 @@ DEMA Consulting best practices. The system consists of nine implemented subsyste
   `PdfImageSource`, `PptxImageSource`, `VsdxImageSource`), the `CanvasNetViewer` system lists them all, and
   the `CanvasNetSvg` system takes an `IImageResolver` in its `SvgLoadOptions`. See _ImageSources Subsystem
   Design_ (`image-sources.md`).
+- **Positions subsystem** (namespace `DemaConsulting.CanvasNet.Positions`, folder
+  `src/DemaConsulting.CanvasNet/Positions/`, flat — no further nesting): the feature positions of a rendered picture
+  (where a node, an edge, a bar, or an axis is, so that a caller can place a callout without probing pixels) — the
+  `ImagePosition` unit (the immutable `ImagePosition` record with its kind, id, facts, geometry box, and attachment
+  pixel, and the `PositionBox`, `PositionPoint`, `PositionValue`, and `PositionValueKind` types it is made of), the
+  `PositionSelector` unit (the bounded selector grammar of `PositionSelector` and the union `PositionSelection`), and
+  the `PositionCollector` unit (the positions of one render that a selection matches, in delivery order, up to a cap of
+  1,000, with the selectors that matched nothing). It depends only on `ImageParameterValues` of `ImageSources` (the
+  bare selector values); no other core subsystem depends on it. The `CanvasNetMermaid` and `CanvasNetVegaLite` systems
+  report positions through it, the `CanvasNetViewer` system collects and maps them, and the `CanvasNetTool` system
+  prints them. See _Positions Subsystem Design_ (`positions.md`).
 - **Packaging subsystem** (namespace `DemaConsulting.CanvasNet.Packaging`, folder
   `src/DemaConsulting.CanvasNet/Packaging/`, flat — no further nesting): the hardened building
   blocks for reading untrusted Open Packaging Conventions (OPC, ECMA-376 Part 2) packages and
@@ -436,6 +447,18 @@ The system exposes the following public API to external consumers:
   classify, Func<T, TNumber, TNumber> measure)**: Packs tokens into lines with a greedy word wrap
   that never splits a word group, honors explicit line breaks, and lets a token's width depend on
   the width already used on the line.
+- **ImagePosition(string kind, string id)** with its `init` properties (`Text`, `Line`, `View`, `ViewName`, `Mark`,
+  `From`, `To`, `Index`, `Values`, `Box`, `Pixel`), **PositionBox**, **PositionPoint**, and **PositionValue**: The
+  immutable, validated record of one feature of a rendered picture and its typed scalar values (typed equality: the
+  number 3 equals 3.0 but not the text `"3"`). Throws `ArgumentNullException`, `ArgumentException`, or
+  `ArgumentOutOfRangeException` for an invalid fact.
+- **PositionSelector.Parse(string)** / **PositionSelection.Parse(IEnumerable\<string\>)**: Parse a selector (`all`,
+  a kind, a kind with an id glob or a quoted exact id, or typed predicates on channel values and the `@id`, `@view`,
+  `@from`, `@to`, and `@index` facts) and the union of several. Throw `FormatException`, naming the selector, for a
+  malformed selector or one beyond the limits (256 characters, 16 predicates, 32 selectors).
+- **PositionCollector(PositionSelection, int maxCount = 1000)**, **Offer(ImagePosition)**, and
+  **GetUnmatchedSelectors()**: Keep the matches of one render in delivery order up to the cap (`Truncated` when a
+  match was left out) and name the selectors that matched no candidate. Not thread-safe.
 
 <!-- markdownlint-disable MD013 -->
 | Interface                                    | Direction        | Format                         | Constraints                   |
@@ -499,6 +522,10 @@ The system exposes the following public API to external consumers:
 | `SafeXml.Load(...)`                          | Inbound/Outbound | Method / `XDocument`           | Positive character bound      |
 | `SafeXml.CreateReader(...)`                  | Outbound         | Method / `XmlReader`           | Readable stream; bound > 0    |
 | `WordWrap.Pack(...)`                         | Inbound/Outbound | Method / list of lists         | Non-null args; width not NaN  |
+| `ImagePosition(...)` and `init` properties   | Inbound          | Constructor / record           | Valid kind and facts          |
+| `PositionSelector.Parse(...)`                | Inbound/Outbound | Method / `PositionSelector`    | 256 chars, 16 predicates max  |
+| `PositionSelection.Parse(...)`               | Inbound/Outbound | Method / `PositionSelection`   | 1 to 32 selectors             |
+| `PositionCollector.Offer(...)`               | Inbound/Outbound | Method / `bool`                | Non-null position; one render |
 <!-- markdownlint-enable MD013 -->
 
 ## Dependencies
@@ -529,7 +556,9 @@ introduces zero new runtime NuGet dependencies: `TrueTypeFont`, `SfntContainer`,
 `CffTable`, `CffCharstringInterpreter`, `HmtxHheaReader`, `KernTable`, and `SystemFontCatalog` are implemented entirely
 against `System.IO`, in-box array/list types, and the existing `Geometry` subsystem's `Path`/`PathBuilder` abstractions,
 with no dependency on `Canvas`, `Drawing`, or `Codecs` (`SystemFontCatalog`'s host-font-directory enumeration uses only
-`System.IO`/`System.Environment` BCL APIs, with no platform-specific NuGet package). The following OTS items are used
+`System.IO`/`System.Environment` BCL APIs, with no platform-specific NuGet package). The `Positions` subsystem likewise
+introduces zero new runtime NuGet dependencies: it uses only in-box BCL types (`System.Text.Json.Utf8JsonReader` to read
+a quoted selector string, `System.Globalization`, and LINQ). The following OTS items are used
 for building and verifying this system (not consumed at runtime); see _OTS Integration Design_ (`docs/design/ots.md`)
 and each item's dedicated design document for
 details:
@@ -789,6 +818,19 @@ segregation; they are described under _Design Constraints_ (_File Access Threat 
    `PathBuilder`
 4. **Output**: A new closed-outline `Path` suitable for rendering through `PathFiller.Fill` with
    `FillRule.NonZero`
+
+**Feature positions path:**
+
+1. **Input**: Selector texts (for example `node:send`, `edge:@from=A`, `mark:x=Nov`) and the candidate
+   `ImagePosition` values a renderer reports while it draws a picture
+2. **Validation**: `PositionSelection.Parse` rejects an empty selection, more than 32 selectors, and any selector that
+   is malformed, longer than 256 characters, or has more than 16 predicates with `FormatException`; the `ImagePosition`
+   setters reject an invalid kind, line, index, value name, box, or pixel
+3. **Processing**: The renderer builds only the kinds that `PositionCollector.IncludesKind` accepts and offers each
+   candidate once, in its deterministic order; `PositionCollector.Offer` evaluates every selector, keeps the union of
+   the matches in delivery order up to the cap, and records which selectors matched
+4. **Output**: `PositionCollector.Positions` (at most 1,000), `Truncated`, and `GetUnmatchedSelectors()`, which the
+   caller maps through later image steps and reports
 
 ## Design Constraints
 

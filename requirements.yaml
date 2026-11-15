@@ -54,6 +54,10 @@ includes:
   - docs/reqstream/canvas-net/image-sources/image-source-contract.yaml
   - docs/reqstream/canvas-net/image-sources/folder-image-resolver.yaml
   - docs/reqstream/canvas-net/image-sources/raster-image-source.yaml
+  - docs/reqstream/canvas-net/positions.yaml
+  - docs/reqstream/canvas-net/positions/image-position.yaml
+  - docs/reqstream/canvas-net/positions/position-selector.yaml
+  - docs/reqstream/canvas-net/positions/position-collector.yaml
   - docs/reqstream/canvas-net/rendering.yaml
   - docs/reqstream/canvas-net/rendering/canvas.yaml
   - docs/reqstream/canvas-net/rendering/text-renderer.yaml
@@ -169,6 +173,7 @@ includes:
   - docs/reqstream/canvas-net-vega-lite/scenegraph.yaml
   - docs/reqstream/canvas-net-vega-lite/scenegraph/scene-model.yaml
   - docs/reqstream/canvas-net-vega-lite/scenegraph/scene-painter.yaml
+  - docs/reqstream/canvas-net-vega-lite/scenegraph/scene-positions.yaml
   - docs/reqstream/canvas-net-vega-lite/scenegraph/arc-geometry.yaml
   - docs/reqstream/canvas-net-vega-lite/scenegraph/symbol-path-parser.yaml
   - docs/reqstream/canvas-net-vega-lite/scenegraph/css-paint.yaml
@@ -208,6 +213,7 @@ includes:
   - docs/reqstream/canvas-net-mermaid/scenegraph.yaml
   - docs/reqstream/canvas-net-mermaid/scenegraph/scene-model.yaml
   - docs/reqstream/canvas-net-mermaid/scenegraph/scene-painter.yaml
+  - docs/reqstream/canvas-net-mermaid/scenegraph/scene-positions.yaml
   - docs/reqstream/canvas-net-mermaid/flowchart.yaml
   - docs/reqstream/canvas-net-mermaid/flowchart/flowchart-parser.yaml
   - docs/reqstream/canvas-net-mermaid/flowchart/flowchart-model.yaml

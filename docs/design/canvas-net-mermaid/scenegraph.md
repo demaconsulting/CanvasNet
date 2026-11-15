@@ -9,13 +9,14 @@ The `Scenegraph` subsystem (namespace `DemaConsulting.CanvasNet.Mermaid.Scenegra
 pixels, in two steps: an immutable scene that describes what to draw in Mermaid's SVG coordinates (the **assertion
 surface** of the tests and of the reference comparison) and a painter that draws a scene onto a core `Surface`. It is
 **internal**: its types are visible only to the other subsystems of the system and, through `InternalsVisibleTo`, to
-the test assembly. It contains two units:
+the test assembly. It contains three units:
 
 - **SceneModel** - the scene records in `SceneModel.cs`: `Scene` (the view box, the items, the picture loader, and the
   helpers `Walk`, `BoundsOf`, and `ToPath`), the items `SceneItem`, `SceneGroup`, `ScenePath`, `SceneText`, and
   `SceneImage`, and their parts `SceneRect`, `SceneSegment` and `SceneSegmentKind`, `SceneStroke`, `SceneShadow`,
   `SceneFont`, `SceneTextRun` (which may be underlined), `SceneTextAnchor`, and `SceneRotation` (the turn of a text line
-  about a point); see _SceneModel Unit Design_
+  about a point), and the internal position tag `ScenePositionTag` that an item carries in its internal `Position`; see
+  _SceneModel Unit Design_
   (`scenegraph/scene-model.md`)
 - **ScenePainter** - the painter `ScenePainter` (a partial class in `ScenePainter.cs`, `ScenePainter.Shadow.cs`,
   `ScenePainter.Text.cs`, and `ScenePainter.Images.cs`), the placement `ScenePlacement`, and the picture-loader
@@ -23,12 +24,17 @@ the test assembly. It contains two units:
   it has a stroke, stroked, an underlined run with a bar under its baseline, and a rotated line turned about its
   pivot), pictures, the painted-pixel limit, and cancellation; see _ScenePainter Unit Design_
   (`scenegraph/scene-painter.md`)
+- **ScenePositions** - the static class `ScenePositions` in `ScenePositions.cs`: the feature positions of a laid-out
+  scene (the tagged items merged by kind and id, their box, their attachment pixel, their order, and the mapping by the
+  placement), reported to the `PositionHandler` of the render options; see _ScenePositions Unit Design_
+  (`scenegraph/scene-positions.md`)
 
 The subsystem's namespace documentation is in `Scenegraph/NamespaceDoc.cs`. Its behavior is specified by the
 `CanvasNetMermaid-Scenegraph-*` requirements in `docs/reqstream/canvas-net-mermaid/scenegraph.yaml`. The SysML2 model
-names the subsystem `MermaidScenegraph` and its units `MermaidSceneModel` and `MermaidScenePainter`, because the
-`CanvasNetVegaLite` system already has a scene model and a scene painter in the shared model (see _CanvasNetMermaid
-System Design_).
+names the subsystem `MermaidScenegraph` and its units `MermaidSceneModel`, `MermaidScenePainter`, and
+`MermaidScenePositions`, because the
+`CanvasNetVegaLite` system already has a scene model, a scene painter, and scene positions in the shared model (see
+_CanvasNetMermaid System Design_).
 
 The subsystem is original work of this repository; it ports no upstream code. It reproduces the drawing rules of the
 SVG that Mermaid produces (the path commands, the fill rules, the dash rules of browsers, the bounding box of
@@ -40,17 +46,22 @@ commit labels and tags of a git graph).
 ### Interfaces
 
 **Exposed** (internal only): the immutable scene types (among them `SceneTextRun` with its `Underline` and `SceneText`
-with its `Rotation`, a `SceneRotation`);
-`Scene.Walk`, `Scene.BoundsOf`, and `Scene.ToPath`;
+with its `Rotation`, a `SceneRotation`, and the internal `SceneItem.Position`, a `ScenePositionTag`);
+`Scene.Walk`, `Scene.BoundsOf` (and its internal overload with a translation), and `Scene.ToPath`;
 `SceneRect.Union` and `Offset`; the `SceneSegment` factories `Move`, `Line`, `Quadratic`, `Cubic`, `Arc`, and
 `Close`; `ScenePainter(FontResolver, ISceneImageLoader?, long)`, `ScenePainter.CreateFontResolver`, and
 `ScenePainter.Paint(Scene, int, int, ScenePlacement, Rgba32?, CancellationToken)`; `ScenePlacement.Uniform` and
-`ScenePlacement.Fit`; and the interface `ISceneImageLoader.Load(string, int, int)`.
+`ScenePlacement.Fit`; the interface `ISceneImageLoader.Load(string, int, int)`; and
+`ScenePositions.Report(Scene, ScenePlacement, MermaidRenderOptions)` and `ScenePositions.Collect(Scene, ScenePlacement,
+Func<string, bool>?)`.
 
-**Consumed**: the public `MermaidLocation`, `MermaidRenderException`, `MermaidDiagnosticCodes`, and `MermaidLimits`
+**Consumed**: the public `MermaidLocation`, `MermaidRenderException`, `MermaidDiagnosticCodes`, `MermaidLimits`, and
+`MermaidRenderOptions` (its `PositionHandler` and `PositionKindFilter`)
 of the system's public API; and the core `CanvasNet` public API: `Surface` and `Rgba32` (`Canvas`), `PathFiller`,
-`PathStroker`, `StrokeStyle`, `FillRule`, `LineCap`, and `LineJoin` (`Drawing`), `Path` and `PathBuilder`
-(`Geometry`), `FontResolver`, `FontResolverOptions`, and `TrueTypeFont` (`Fonts`), and `TextRenderer` (`Rendering`).
+`PathStroker`, `StrokeStyle`, `FillRule`, `LineCap`, and `LineJoin` (`Drawing`), `Path`, `PathBuilder`,
+`BezierFlattening`, and `SvgArcConverter` (`Geometry`), `FontResolver`, `FontResolverOptions`, and `TrueTypeFont`
+(`Fonts`), `TextRenderer` (`Rendering`), and `ImagePosition`, `PositionBox`, `PositionPoint`, and `PositionValue`
+(`Positions`).
 
 **Consumers**: the units of the `Rendering` subsystem (`ShapeLibrary`, `EdgeBuilder`, `LabelBuilder`, and
 `ClusterLayout`) build the items of a scene, and `ClusterLayout.RenderDiagram` builds the whole scene of a flowchart, a
@@ -62,8 +73,10 @@ group of a state diagram is an unpainted path that only gives the cluster its bo
 `GitGraph` subsystem builds the scene of a git graph, turning its rotated commit labels and tags with `SceneRotation`;
 `NodeImages` of the `Rendering` subsystem implements `ISceneImageLoader` and is carried by the scene; and the
 `MermaidDocument` unit creates the font resolver of a call with `ScenePainter.CreateFontResolver`, lays the diagram
-out into a scene, and paints it with `ScenePlacement.Uniform` for the natural size or `ScenePlacement.Fit` for an
-exact size.
+out into a scene, reports its positions with `ScenePositions.Report`, and paints it with `ScenePlacement.Uniform` for
+the natural size or `ScenePlacement.Fit` for an exact size. The renderers (`ClusterLayout` and `EdgeBuilder` of the
+`Rendering` subsystem, `SequenceRenderer`, `GanttRenderer`, `PieRenderer`, `MindmapRenderer`, `PacketRenderer`, and
+`GitGraphRenderer`) set the position tags of the items that draw a feature.
 
 ### Design
 
@@ -100,6 +113,14 @@ the item that
 would pass the limit fails the call with a located `mermaid-limit-exceeded` before any of its pixels is painted. The
 cancellation token is checked before every item, and the surface that the painter created is released on any failure.
 
+**Positions come from the same scene and placement.** A renderer marks the items that draw a feature with an internal
+`ScenePositionTag` (kind, source id, text, ends, location, and the attachment rule); the tag never changes the pixels.
+Before the painting, `ScenePositions` merges the tagged items by kind and id, takes the union of their geometry bounds
+as the box, aims at the explicit aim point, the arc-length midpoint of an edge or message path, or the box center,
+orders the features by kind (structural features first), source line, and drawing order, numbers the parallel edges and
+messages, and maps everything by the placement the painter uses, so the positions are those of the returned surface at
+any scale or exact size. A kind the filter of the options rejects is skipped before its geometry is computed.
+
 **Determinism.** The scene types are immutable and safe for concurrent use. A painter holds the count of the pixels of
-one painting, so an instance paints one scene on one thread; the same scene, size, and placement always give the same
-pixels.
+one painting, so an instance paints one scene on one thread; `ScenePositions` is stateless; the same scene, size, and
+placement always give the same pixels and the same positions.

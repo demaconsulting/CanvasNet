@@ -10,6 +10,8 @@
 - `HelpTopicsTests.Tree.cs`: the tree, the size budget, the addressing, and the loader's checks.
 - `HelpTopicsTests.Guidance.cs`: the style and composition guidance, checked against the renderer.
 - `HelpTopicsTests.Triggers.cs`: the diagnostic identifiers the cards cite.
+- `HelpTopicsTests.Positions.cs`: the `positions` topic and the positions recipe of `svg framed-figure`, checked
+  against the code and by running the tool on the help examples.
 
 The helper `HelpCardText` reads the Markdown of a card: the bullets under a heading, their terms (a leading code span
 or bold text), the headings, and the text of a card and the cards below it with the lines of each paragraph joined.
@@ -92,9 +94,13 @@ that they delete.
 - The Mermaid, flatten, and file access bullets are the rows of the guides, in order.
 - Every Mermaid theme the style card lists renders; every config key of the styled chart changes the picture; and a
   transparent chart shows the page of an SVG figure.
-- The `svg framed-figure` card is linked both ways with the composition, style, and anchor cards; the callout arrows
-  of its framed figure end on the anchors of the model; and a diagram, a chart, and a model rendered alone at the size
-  of a box are the picture an SVG figure embeds in that box.
+- The `svg framed-figure` card is linked both ways with the composition, style, anchor, and positions cards; the callout
+  arrows of its framed figure end on the anchors of the model; and a diagram, a chart, and a model rendered alone at the
+  size of a box are the picture an SVG figure embeds in that box.
+- The `positions` topic follows `composition` with its four cards and is linked both ways with the framed-figure,
+  anchors, and composition cards; its limits are the limits of the code; its selector examples, metadata examples,
+  shell quoting, and the kinds it lists for each Mermaid type are what the tool does; and the framed-figure recipe reads
+  `positions[].pixel` on the node, with callouts of its `framed-flow` example that end on positions.
 - The text of a card is deterministic and plain, starts with its title, prints the body as written, keeps lines of at
   most 80 columns (120 in a code block), and lists the cards below it, its See also links with their summaries, and its
   examples. A word longer than the width is not split.
@@ -109,9 +115,9 @@ in `Roots`; every card comes after its parent; every card has a title, a summary
 root has an example.
 
 **HelpTopics_Find_EveryAlias_ResolvesIgnoringCase**: every documented root alias (`openscad`, `vegalite`, `vl`, `mmd`,
-`powerpoint`, `visio`, the raster extensions, `file-access`, and `links`) resolves to its card in lower and upper case;
-every name resolves to itself; the number of root aliases is exactly the documented number; and an unknown name and
-a card that is not a root (`gantt`) resolve to nothing.
+`powerpoint`, `visio`, the raster extensions, `file-access`, `links`, and `position`) resolves to its card in lower and
+upper case; every name resolves to itself; the number of root aliases is exactly the documented number; and an unknown
+name and a card that is not a root (`gantt`) resolve to nothing.
 
 **HelpTopics_Names_DoNotCollideWithCommandsHelpOrEachOther**: the names and aliases of the root cards are unique, and
 none equals a command, a command alias, `help`, or `topics`.
@@ -318,8 +324,8 @@ with it.
 chart: with `"background": "transparent"` a pixel of the chart's padding is yellow, and without it the pixel is white.
 
 **HelpTopics_FramedFigureCard_IsLinkedFromTheCompositionAndAnchorCards**: `svg framed-figure` is listed under `svg`,
-links to `composition`, `svg composition`, `svg style`, and `scad anchors`, and those and `scad composition` link
-back.
+links to `composition`, `svg composition`, `svg style`, `scad anchors`, and `positions`, and those and
+`scad composition` link back.
 
 **HelpTopics_FramedFigureExample_CalloutsEndOnTheModelAnchors**: the `framed` example embeds `anchors.scad` and uses
 an `arrow` marker on its callouts; the model rendered alone at the size of its image reports anchors whose pixels plus
@@ -362,3 +368,28 @@ stays a warning.
 shows `def.$vpd=300`; the `scad` tree has the montage and `'$vpd=300'`; the `errors`, `pdf`, `pptx`, `vsdx`, and
 `vega-lite` trees have their lines; and the usage of `render`, `crop`, `inspect`, `compare`, `montage`, and `info`
 contains `fragment`. **HelpTopics_ErrorsTopic_ListsEveryErrorCode** proves that `image-fragment-invalid` is listed.
+
+**HelpTopics_PositionsTopic_IsInTheTreeAndLinked**, **HelpTopics_PositionsLimits_AreTheLimitsOfTheCode**,
+**HelpTopics_PositionsSelectors_Examples_MatchAsTheCardsSay**,
+**HelpTopics_PositionsSelectors_MetadataExamples_SelectOneItem**,
+**HelpTopics_PositionsSelectors_ShellQuoting_ReachesTheToolIntact**,
+**HelpTopics_PositionsMermaid_KindsPerType_AreTheKindsReported**,
+**HelpTopics_FramedFigureAdvice_ReadPositions_PixelIsOnTheNode**, and
+**HelpTopics_FramedFlowExample_CalloutsEndOnPositions** (`HelpTopicsTests.Positions.cs`; the requirement
+`CanvasNetTool-Commands-HelpTopics-Positions`): `positions` is the topic right after `composition`, with the cards
+`selectors`, `mermaid`, `vega-lite`, and `geometry`; it links to `svg framed-figure` and `scad anchors`, which link
+back, and `composition`, `mermaid composition`, and `vega-lite composition` link to it or its cards. The `limits`,
+`positions`, and `positions selectors` cards quote `PositionCollector.MaxPositions`, `PositionSelection.MaxSelectors`,
+`PositionSelector.MaxSelectorLength`, and `PositionSelector.MaxPredicates`. The cited selectors run on the help
+examples select what the cards say: `node:send` the node `send`, `node:se?d` with `node:s*` the nodes `start`,
+`stock`, and `send`, `edge:@from=pack` the edge `L_pack_send_0`, `commit:*fix*` the commit `hotfix`, `mark:y=55` the
+bar `bar-1` while `mark:y="55"` selects nothing, and `mark:x=B` with `axis` the axes `x` and `y` and `bar-1`; the
+metadata examples `edge:@from=A+@to=B+@index=0` and `axis:@id=x+@view="hconcat[1]"` each select one item, of index 0
+and of the view `hconcat[1]`. The quoted forms of the card for bash, PowerShell 7.3 or later, and cmd, split as each
+shell splits a command line, are the selector `node:"my*odd id"`, which the tool names exactly in its warning that it
+matched nothing. A theory over the ten Mermaid examples asserts that each reports exactly the kinds the card lists for
+its type, each named by the card. The `read-positions` command of `svg framed-figure` reports the node `send`, and the
+picture it writes at the box size has the node's fill `#CCFFCC` in the column of that pixel a fifth of the box height
+below its top; and every callout of the `framed-flow`
+example ends within a quarter unit of a position of the flowchart rendered alone at the size of its image (plus the
+image x and y), with at least two different positions hit.

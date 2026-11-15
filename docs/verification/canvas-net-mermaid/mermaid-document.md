@@ -16,13 +16,14 @@ core `ImageFragment`.
 
 Unit tests reside in the root of the `DemaConsulting.CanvasNet.Mermaid.Tests` project: `MermaidDocumentTests.cs`,
 `MermaidRenderOptionsTests.cs`, `MermaidLimitsTests.cs`, `MermaidRecordsAndExceptionsTests.cs`,
-`MermaidReportSinkTests.cs`, and `MermaidImageSourceTests.cs`.
+`MermaidReportSinkTests.cs`, `MermaidImageSourceTests.cs`, and `MermaidDocumentPositionTests.cs` (the position
+handler of `Render`, with small inline diagrams of every type that reports positions).
 
 ### Test Environment
 
 - **Framework**: xUnit v3 running under the .NET SDK
 - **Execution**: `dotnet test` invoked by `build.ps1` and the CI pipeline
-- **Mocking**: None; report handlers are lists that collect the reports
+- **Mocking**: None; report and position handlers are lists that collect the reports
 - **Isolation**: temporary files are created in the system temporary folder and deleted; no network
 
 ### Acceptance Criteria
@@ -147,3 +148,33 @@ located unsupported note for a user journey, and an exception in strict mode; a 
 at a requested size with the `theme=dark` fragment; a 120-node chain wider than the largest surface (whose
 `Measure` refuses the natural size) drawn 200 pixels wide with the height of its natural aspect ratio; the refusal
 of an unknown theme; and the propagation of a syntax error and of a null request.
+
+#### CanvasNetMermaid-MermaidDocument-Positions: The Position Handler Of Render
+
+**Tests**: `MermaidDocumentPositionTests.MermaidDocument_Render_FlowchartPositions_ReportSourceIdsAndEdges`,
+`MermaidDocumentPositionTests.MermaidDocument_Render_FilledNode_CenterHasTheFill`,
+`MermaidDocumentPositionTests.MermaidDocument_Render_ScaleAndFit_MapPositions`,
+`MermaidDocumentPositionTests.MermaidDocument_Render_WithHandler_PixelsUnchangedAndMeasureSilent`,
+`MermaidDocumentPositionTests.MermaidDocument_Render_HandlerThrows_PropagatesAndDeliversWarningsOnce`,
+`MermaidDocumentPositionTests.MermaidDocument_Render_SequencePositions_ParticipantsMessagesNotes`,
+`MermaidDocumentPositionTests.MermaidDocument_Render_GanttPositions_TasksMilestonesSections`,
+`MermaidDocumentPositionTests.MermaidDocument_Render_PiePositions_SlicesWithValuesAimInside`,
+`MermaidDocumentPositionTests.MermaidDocument_Render_GitGraphPositions_CommitsAtBullets`,
+`MermaidDocumentPositionTests.MermaidDocument_Render_OtherTypes_ReportSourceIds`
+
+Renders a titled flowchart with a subgraph, two parallel edges, a self-loop, and a filled node, and asserts the kinds
+in report order (the title, the group, four nodes, then five edges), the source ids `start`, `stock`, `pack`, and
+`send` and the group `ship`, the title text, the parallel edges from `stock` to `pack` numbered 0 and 1 (the first
+with the text `yes` and line 6), and the self-loop as one edge at line 8. Asserts that the filled node's pixel is the
+center of its box with its fill color painted on the vertical through it and that every box lies within the surface;
+that at scale 2 every pixel and box width doubles and that the render at the exact doubled size maps within half a
+pixel of it; that the pixels rendered with a handler, and with a handler and a filter of `node`, equal those rendered
+without one, that the filter gives the four nodes only, and that `Measure` never calls the handler; and that a handler
+that throws propagates its exception after the one warning and the one unsupported feature are each delivered once.
+Asserts the participants `A` (text `Alice`) and `B`, the messages `1`, `2`, and `3` with the indexes 0, 0, and 1 and
+the first from `A` to `B` with the text `Hi`, the note `note1`, and a message's pixel on its line of zero height; the
+gantt tasks `des`, `task1` (synthetic), and `tst`, the milestone `frz`, and the sections `Build` and `Test` merged over
+their rows; the pie slices `Dogs` (value 386) and `Cats`, the title `Pets`, and each slice's pixel painted in its own
+color; the git graph commits `init` and `fix-1` aimed at the centers of their 20 pixel bullets, the branches `main`
+and `dev`, and the tag `v1`; and the class nodes and note, the state node and edge, the ER entities `MEMBER` and
+`LOAN` with their edge, the mindmap nodes `root` and `a`, and the packet blocks `0-7` and `8-15` (text `Data`).

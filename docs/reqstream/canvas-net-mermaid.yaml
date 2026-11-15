@@ -993,3 +993,20 @@ sections:
           the provenance record lets a reviewer confirm that only behavior, not code text, was taken.
         tests:
           - CanvasNetMermaid_ThirdPartyNotices_ShipWithPackage
+
+      - id: CanvasNetMermaid-Positions
+        title: >-
+          The library shall report, through an optional handler of the render options, the position of each feature of a
+          rendered diagram (title, group, node, participant, task, milestone, section, slice, block, commit, branch,
+          tag, edge, message, and note) with its source id or a deterministic synthetic id, its text, source line, edge
+          ends and parallel index, a geometry box, and an attachment pixel in the pixels of the returned surface,
+          without changing those pixels and without a second render.
+        tags: [system]
+        justification: |
+          Callouts and leader lines on a diagram need the place of its nodes and edges; reporting them from the render
+          that draws the picture makes them exact at every scale and size.
+        children:
+          - CanvasNetMermaid-MermaidDocument-Positions
+          - CanvasNetMermaid-Scenegraph-Positions
+        tests:
+          - CanvasNetMermaid_Render_PositionHandler_ReportsFeaturePixels
