@@ -5,6 +5,7 @@ aliases:
   - framed
   - callouts
 see-also:
+  - svg/bindings
   - composition
   - svg/composition
   - svg/style
@@ -21,7 +22,7 @@ examples:
     kind: snippet
     language: xml
     file: framed-flow.svg
-    description: 'The same frame around flowchart.mmd; each arrow ends on a positions[].pixel plus the image x and y.'
+    description: 'The same frame around flowchart.mmd; each arrow tip is bound with cn:x2y2 to a position of the diagram.'
   - name: read-anchors
     kind: command
     language: shell
@@ -92,12 +93,15 @@ Draw the layers in this order; each covers the one before:
 
 ## Find where a feature is
 
-- Render the picture alone at the size of its image with `--json` and add the
-  image `x` and `y` to each pixel; the figure draws the same picture, so the
-  arrow lands at any output width. A model reports `anchors[].pixel`
-  (`--example read-anchors`; same `view=` and `def.` values). A diagram or
-  chart reports `positions[].pixel` for what `--positions` selects
-  (`--example read-positions`; see `canvasnet help positions`).
+- Bind the arrow first: give the `<image>` an id and put
+  `cn:x2y2="#id selector"` on the `<line>` that ends the arrow; the tip follows
+  the picture at any size (`--example framed-flow`, `canvasnet help svg
+  bindings`), and a model binds its anchors (`anchor:tip`).
+- Without a binding, render the picture alone at the size of its image with
+  `--json` and add the image `x` and `y` to each pixel: a model reports
+  `anchors[].pixel` (`--example read-anchors`; same `view=` and `def.` values),
+  a diagram or chart `positions[].pixel` for what `--positions` selects
+  (`--example read-positions`).
 - For a point no selector names, draw a labeled grid at the box size (see
   `canvasnet render --help`), read x,y off it, and confirm with `inspect pixel`
   (the Send node of `canvasnet help mermaid flowchart --example flowchart`):
@@ -107,8 +111,8 @@ canvasnet render flowchart.mmd --size 430x280 --grid 50 -o grid.png
 canvasnet inspect pixel flowchart.mmd 380,125 --size 430x280 --radius 2
 ```
 
-- Measure again after any change to the source or the box, and keep the box
-  size in viewBox units, so the picture and the callouts scale together.
+- Measure an unbound tip again after a change to the source or the box; keep
+  the box size in viewBox units so the picture and the callouts scale together.
 
 ## Check
 

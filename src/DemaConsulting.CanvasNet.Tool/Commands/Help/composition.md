@@ -2,6 +2,7 @@
 title: Composing figures
 summary: Combine diagrams, charts, models, and pages in one picture.
 see-also:
+  - svg/bindings
   - svg/composition
   - svg/framed-figure
   - positions

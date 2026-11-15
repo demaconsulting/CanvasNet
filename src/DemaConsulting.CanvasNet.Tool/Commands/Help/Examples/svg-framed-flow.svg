@@ -1,6 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="568" viewBox="0 0 1000 568">
-  <!-- flowchart.mmd sits beside this file. Each arrow ends on positions[].pixel of the diagram rendered alone at the
-       image size (430x280) with positions and JSON output, plus the image x (285) and y (162) -->
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:cn="https://demaconsulting.com/canvasnet" width="1000" height="568" viewBox="0 0 1000 568">
+  <!-- flowchart.mmd sits beside this file. Each arrow tip is bound with cn:x2y2 to a position of the diagram that
+       CanvasNet draws; the numbers in x2/y2 are the fallback a plain SVG reader shows -->
   <defs>
     <linearGradient id="band" x1="0" y1="0" x2="1" y2="0">
       <stop offset="0" stop-color="#1e3a8a"/>
@@ -20,7 +20,8 @@
     .label { font: bold 17px sans-serif; fill: #0f172a; }
     .detail { font: 14px sans-serif; fill: #475569; }
     .caption { font: italic 14px sans-serif; fill: #475569; }
-    .callout { fill: none; stroke: #ea580c; stroke-width: 2.5; marker-end: url(#arrow); }
+    .leg { fill: none; stroke: #ea580c; stroke-width: 2.5; }
+    .callout { stroke: #ea580c; stroke-width: 2.5; marker-end: url(#arrow); }
   </style>
   <!-- container and title band -->
   <rect width="1000" height="568" fill="#f1f5f9"/>
@@ -31,20 +32,23 @@
   <text class="lead" x="56" y="86">From a new order to the hand-off to the carrier</text>
   <!-- picture slot: the diagram at 430 x 280, the size its positions were read at -->
   <rect x="275" y="147" width="450" height="310" rx="14" fill="url(#slot)" stroke="#e2e8f0" stroke-width="2"/>
-  <image href="flowchart.mmd" x="285" y="162" width="430" height="280"/>
-  <!-- callout layer: an accent bar, a label, and an arrow to a position -->
+  <image id="flow" href="flowchart.mmd" x="285" y="162" width="430" height="280"/>
+  <!-- callout layer: an accent bar, a label, a level leg, and an arrow bound to a position -->
   <rect x="48" y="196" width="5" height="50" rx="2" fill="#f59e0b"/>
   <text class="label" x="64" y="216">Stock check</text>
   <text class="detail" x="64" y="238">node:stock</text>
-  <polyline class="callout" points="226,221 252,221 422.858,350.248"/>
+  <polyline class="leg" points="226,221 252,221"/>
+  <line class="callout" x1="252" y1="221" x2="422.858" y2="350.248" cn:x2y2="#flow node:stock"/>
   <rect x="48" y="396" width="5" height="50" rx="2" fill="#f59e0b"/>
   <text class="label" x="64" y="416">Back-order loop</text>
   <text class="detail" x="64" y="438">edge:@from=reorder</text>
-  <polyline class="callout" points="226,421 252,421 498.291,371.162"/>
+  <polyline class="leg" points="226,421 252,421"/>
+  <line class="callout" x1="252" y1="421" x2="498.291" y2="371.162" cn:x2y2="#flow edge:@from=reorder"/>
   <rect x="760" y="196" width="5" height="50" rx="2" fill="#f59e0b"/>
   <text class="label" x="776" y="216">Hand-off</text>
   <text class="detail" x="776" y="238">node:send</text>
-  <polyline class="callout" points="748,221 712,221 677.235,286.921"/>
+  <polyline class="leg" points="748,221 712,221"/>
+  <line class="callout" x1="712" y1="221" x2="677.235" y2="286.921" cn:x2y2="#flow node:send"/>
   <!-- caption -->
   <text class="caption" x="56" y="518">Figure 2. The order flow of flowchart.mmd; every arrow ends on a position the diagram reports.</text>
 </svg>

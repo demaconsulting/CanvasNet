@@ -102,7 +102,8 @@ internal sealed class FlattenCommand : ICommand
     /// <param name="result">What the operation returned.</param>
     /// <param name="output">The output path as given.</param>
     /// <returns>
-    ///     For example <c>wrote flat.svg (61234 bytes): 2 pictures replaced (flow.mmd 640x360 mermaid, part.scad 400x400 scad)</c>,
+    ///     For example <c>wrote flat.svg (61234 bytes): 2 pictures replaced (flow.mmd 640x360 mermaid, part.scad 400x400 scad)</c>
+    ///     (followed by <c>, 3 bindings resolved</c> when position bindings were baked),
     ///     or <c>nothing to flatten: a.svg links no picture that only CanvasNet draws; flat.svg was not written</c>.
     /// </returns>
     internal static string RenderText(FlattenResult result, string output)
@@ -114,7 +115,13 @@ internal sealed class FlattenCommand : ICommand
 
         var count = result.Replaced.Count == 1 ? "1 picture" : $"{result.Replaced.Count} pictures";
         var list = string.Join(", ", result.Replaced.Select(r => $"{r.Href} {r.Width}x{r.Height} {r.Format}"));
-        return string.Create(CultureInfo.InvariantCulture, $"wrote {output} ({result.Bytes} bytes): {count} replaced ({list})");
+        var bindings = result.ResolvedBindings switch
+        {
+            0 => string.Empty,
+            1 => ", 1 binding resolved",
+            _ => $", {result.ResolvedBindings} bindings resolved"
+        };
+        return string.Create(CultureInfo.InvariantCulture, $"wrote {output} ({result.Bytes} bytes): {count} replaced ({list}){bindings}");
     }
 
     /// <summary>
@@ -126,7 +133,8 @@ internal sealed class FlattenCommand : ICommand
     /// <param name="output">The output path as given.</param>
     /// <remarks>
     ///     The keys are always written, in this order; <c>outputs</c>, <c>replaced</c>, and <c>rebased</c> are empty when
-    ///     nothing was flattened.
+    ///     nothing was flattened. The object <c>bindings</c> (<c>resolved</c>, <c>unresolved</c>) follows <c>rebased</c>
+    ///     only when the drawing has position bindings, so the result of a drawing without them is unchanged.
     /// </remarks>
     private static void WriteJsonFields(Utf8JsonWriter writer, FlattenResult result, double scale, string output)
     {
@@ -172,6 +180,14 @@ internal sealed class FlattenCommand : ICommand
         }
 
         writer.WriteEndArray();
+
+        if (result.ResolvedBindings + result.UnresolvedBindings > 0)
+        {
+            writer.WriteStartObject("bindings");
+            writer.WriteNumber("resolved", result.ResolvedBindings);
+            writer.WriteNumber("unresolved", result.UnresolvedBindings);
+            writer.WriteEndObject();
+        }
 
         writer.WriteStartArray("outputs");
         if (result.Flattened)

@@ -10,6 +10,7 @@ children:
   - style
   - composition
   - framed-figure
+  - bindings
   - options
   - diagnostics
 see-also:
@@ -32,4 +33,5 @@ embedding`). Render with `canvasnet render page.svg --width 1200 -o page.png
 For good-looking figures read `canvasnet help svg style` and
 `canvasnet help svg composition` (`--example report` is a complete figure);
 `canvasnet help svg framed-figure` frames one picture with a title band and
-callout arrows.
+callout arrows, and `canvasnet help svg bindings` lands an arrow on a feature
+of a diagram, chart, or model.

@@ -2,6 +2,7 @@
 title: Pictures in charts and charts in drawings
 summary: Charts in SVG figures, several charts in one specification, and pictures shown by the image mark.
 see-also:
+  - svg/bindings
   - composition
   - vega-lite/style
   - positions/vega-lite

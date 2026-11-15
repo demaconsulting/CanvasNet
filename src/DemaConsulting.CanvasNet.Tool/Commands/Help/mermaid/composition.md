@@ -2,6 +2,7 @@
 title: Pictures in diagrams and diagrams in figures
 summary: Nodes that show a model, a chart, a diagram, or a page, and a diagram placed in an SVG figure.
 see-also:
+  - svg/bindings
   - composition
   - mermaid/style
   - positions/mermaid

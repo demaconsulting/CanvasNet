@@ -2,6 +2,7 @@
 title: SVG as the layout of a figure
 summary: Place diagrams, charts, models, and pages with image href, add titles and captions, and publish.
 see-also:
+  - svg/bindings
   - composition
   - svg/style
   - svg/framed-figure

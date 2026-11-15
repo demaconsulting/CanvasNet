@@ -299,45 +299,60 @@ public partial class HelpTopicsTests
     }
 
     /// <summary>
-    ///     Test that every callout arrow of the <c>framed-flow</c> example of the <c>svg framed-figure</c> card ends on a
-    ///     position of the diagram it embeds (its pixel when the diagram is rendered alone at the size of its image, plus the
-    ///     image x and y), and that at least two different positions are hit.
+    ///     Test that every callout arrow of the <c>framed-flow</c> example of the <c>svg framed-figure</c> card is bound
+    ///     with <c>cn:x2y2</c> to a selector of the diagram it embeds; that its fallback numbers are within a quarter unit,
+    ///     and the numbers <c>canvasnet flatten</c> bakes within 1e-3, of the position computed independently (the pixel of
+    ///     the selector when the diagram is rendered alone at the size of its image, plus the image x and y); and that at
+    ///     least two different positions are hit.
     /// </summary>
     [Fact]
     public void HelpTopics_FramedFlowExample_CalloutsEndOnPositions()
     {
-        // Arrange: the figure, the diagram image, and the callout lines
-        var figure = XDocument.Parse(HelpTopics.RenderExample(HelpTopics.Get("svg"), "framed-flow"));
+        // Arrange: the figure, the diagram image, and the bound callout lines
+        XNamespace cn = "https://demaconsulting.com/canvasnet";
+        var source = HelpTopics.RenderExample(HelpTopics.Get("svg"), "framed-flow");
+        var figure = XDocument.Parse(source);
         var elements = figure.Descendants().ToList();
         var image = Assert.Single(elements, e => e.Name.LocalName == "image");
         Assert.Equal("flowchart.mmd", (string?)image.Attribute("href"));
         double Number(XElement element, string name) => double.Parse((string)element.Attribute(name)!, CultureInfo.InvariantCulture);
         var (x, y, width, height) = (Number(image, "x"), Number(image, "y"), Number(image, "width"), Number(image, "height"));
-        var tips = elements
-            .Where(e => e.Name.LocalName == "polyline" && (string?)e.Attribute("class") == "callout")
-            .Select(e => ((string)e.Attribute("points")!).Split(' ', StringSplitOptions.RemoveEmptyEntries)[^1].Split(','))
-            .Select(p => (X: double.Parse(p[0], CultureInfo.InvariantCulture), Y: double.Parse(p[1], CultureInfo.InvariantCulture)))
-            .ToList();
-        Assert.NotEmpty(tips);
+        var callouts = elements.Where(e => e.Name.LocalName == "line" && (string?)e.Attribute("class") == "callout").ToList();
+        Assert.NotEmpty(callouts);
+        Assert.All(callouts, line => Assert.StartsWith($"#{(string?)image.Attribute("id")} ", (string?)line.Attribute(cn + "x2y2")));
+        var selectors = callouts.Select(line => ((string)line.Attribute(cn + "x2y2")!).Split(' ', 2)[1]).ToList();
 
-        // Act: render the diagram alone at the size of its image and read every position
+        // Act: render the diagram alone at the size of its image once per selector, and flatten the figure
         using var directory = new TempDirectory();
         var input = SaveExample(directory, "mermaid", "flowchart", "flowchart.mmd");
         var size = string.Create(CultureInfo.InvariantCulture, $"{width}x{height}");
-        var (exitCode, stdOut, stdErr) = ToolHost.Invoke("render", input, "--size", size, "--positions", "all", "--json", "-o", directory.Combine("slot.png"));
-        Assert.True(exitCode == 0, stdErr + stdOut);
-        using var document = JsonDocument.Parse(stdOut);
-        var positions = document.RootElement.GetProperty("positions").EnumerateArray()
-            .Select(p => (
-                Id: p.GetProperty("kind").GetString() + ":" + p.GetProperty("id").GetString(),
-                X: p.GetProperty("pixel")[0].GetDouble() + x,
-                Y: p.GetProperty("pixel")[1].GetDouble() + y))
+        var expected = selectors.Select(selector =>
+        {
+            var (exitCode, stdOut, stdErr) = ToolHost.Invoke("render", input, "--size", size, "--positions", selector, "--json", "-o", directory.Combine("slot.png"));
+            Assert.True(exitCode == 0, stdErr + stdOut);
+            using var document = JsonDocument.Parse(stdOut);
+            var pixel = Assert.Single(document.RootElement.GetProperty("positions").EnumerateArray()).GetProperty("pixel");
+            return (X: pixel[0].GetDouble() + x, Y: pixel[1].GetDouble() + y);
+        }).ToList();
+        File.WriteAllText(directory.Combine("framed-flow.svg"), source);
+        var (flattenExit, flattenOut, flattenErr) = ToolHost.Invoke("flatten", directory.Combine("framed-flow.svg"), "-o", directory.Combine("flat.svg"), "--strict", "--json");
+        Assert.True(flattenExit == 0, flattenErr + flattenOut);
+        var baked = XDocument.Load(directory.Combine("flat.svg")).Descendants()
+            .Where(e => e.Name.LocalName == "line" && (string?)e.Attribute("class") == "callout")
             .ToList();
 
-        // Assert: every tip is within a quarter unit of a position, and at least two different positions are hit
-        var hit = tips.Select(t => positions.FirstOrDefault(p => Math.Abs(p.X - t.X) <= 0.25 && Math.Abs(p.Y - t.Y) <= 0.25).Id).ToList();
-        Assert.All(hit, Assert.NotNull);
-        Assert.True(hit.Distinct(StringComparer.Ordinal).Count() >= 2, "The callouts hit fewer than two positions.");
+        // Assert: the fallbacks are close, the baked tips are exact, the copy has no binding left, and two positions are hit
+        Assert.Equal(callouts.Count, baked.Count);
+        for (var index = 0; index < callouts.Count; index++)
+        {
+            Assert.InRange(Number(callouts[index], "x2") - expected[index].X, -0.25, 0.25);
+            Assert.InRange(Number(callouts[index], "y2") - expected[index].Y, -0.25, 0.25);
+            Assert.Equal(expected[index].X, Number(baked[index], "x2"), 3);
+            Assert.Equal(expected[index].Y, Number(baked[index], "y2"), 3);
+            Assert.Null(baked[index].Attribute(cn + "x2y2"));
+        }
+
+        Assert.True(expected.Distinct().Count() >= 2, "The callouts hit fewer than two positions.");
     }
 
     /// <summary>

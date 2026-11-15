@@ -68,3 +68,8 @@ see-also:
 - `positions-unmatched`: With --strict, a --positions selector matched no
   feature of the diagram or chart; nothing was written. Without --strict it is
   a warning with the same code. See 'canvasnet help positions selectors'.
+- `svg-binding-failed`: With --strict, an SVG position binding (cn:x2y2 and the
+  others) was not resolved; nothing was written. The message names the warning
+  code (svg-binding-unmatched, svg-binding-ambiguous, and so on), the element,
+  and the value. Without --strict the binding keeps the numbers written in the
+  file. See 'canvasnet help svg bindings'.
