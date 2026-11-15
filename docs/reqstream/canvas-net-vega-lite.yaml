@@ -2265,8 +2265,8 @@ sections:
           The library shall report, through an optional handler of the render options, the position of each title, view,
           axis, legend, and mark (each point of a line, area, or trail) of a rendered chart, with the canonical path and
           the name of its view, a deterministic id within the view, the normalized values of a mark's encoding channels,
-          a geometry box, and an attachment pixel in the pixels of the returned surface, without changing those pixels
-          and without a second render.
+          the data fields of the row a mark draws, a geometry box, and an attachment pixel in the pixels of the returned
+          surface, without changing those pixels and without a second render.
         tags: [system]
         justification: |
           Callouts on a chart point at a bar, a point, or an axis; reporting them from the render that draws the chart

@@ -371,8 +371,9 @@ sections:
       - id: CanvasNetTool-Commands-HelpTopics-Positions
         title: >-
           The HelpTopics class shall offer the topic positions after composition, with cards for the selectors (the
-          grammar, the matching, the limits, and quoting for bash, PowerShell 7.3 or later, and cmd), the Mermaid and
-          Vega-Lite kinds, ids, and attachment points, and the geometry; shall link it with the framed-figure, anchors,
+          grammar, the matching of channels and data fields, the limits, and quoting for bash, PowerShell 7.3 or later,
+          and cmd), the Mermaid and Vega-Lite kinds, ids, values, data fields (with the 2012 base year of a month time
+          unit), and attachment points, and the geometry; shall link it with the framed-figure, anchors,
           and composition cards; and shall teach in the framed-figure card to read positions[].pixel of the picture
           rendered at the size of its image, with the grid and inspect pixel as the fallback, and an example whose
           arrows end on those positions.
@@ -382,6 +383,7 @@ sections:
           - HelpTopics_PositionsTopic_IsInTheTreeAndLinked
           - HelpTopics_PositionsLimits_AreTheLimitsOfTheCode
           - HelpTopics_PositionsSelectors_Examples_MatchAsTheCardsSay
+          - HelpTopics_PositionsVegaLite_DataFieldExample_SelectsThePoint
           - HelpTopics_PositionsSelectors_MetadataExamples_SelectOneItem
           - HelpTopics_PositionsSelectors_ShellQuoting_ReachesTheToolIntact
           - HelpTopics_PositionsMermaid_KindsPerType_AreTheKindsReported

@@ -27,7 +27,7 @@ item, the settings of an overlay, and one build run, the nested `sealed partial 
 - `MarkBuilder.Brush.cs` - the brush of an interval selection (phase 12): `BrushGroups` (the shade and the outline) and
   `BuildBrush`
 - `MarkBuilder.Positions.cs` - what the builder records for the feature positions: `RecordPositions`, `TryConvert`,
-  and the `Run` members `CreateContext`, `Datum`, and `VerticesOf`
+  `TryConvertData`, and the `Run` members `CreateContext`, `DataFields`, `Datum`, and `VerticesOf`
 
 Every file carries the provenance header comment for the d3-shape, d3-path, Vega, and Vega-Lite behavior it ports (see
 _CanvasNetVegaLite System Design_, Third-Party Provenance and Attribution).
@@ -687,7 +687,17 @@ has no
   `TryConvert(DataValue, out PositionValue)` (internal static) turns a
   data value into a position value: a finite number, a text, a boolean, or null as it is, a number that is not finite
   as null, a date as canonical UTC ISO-8601 text (`yyyy-MM-ddTHH:mm:ss.fffZ`), and `false` for an array, an object, or
-  a regular expression, which are left out.
+  a regular expression, which are left out. The context's `Data` function reads the data fields of a row, from the
+  field list `Run.DataFields` works out once per marks group: the top-level fields of the table (one path segment, and
+  not the parent of a nested field, so a nested object or array is left out), without the helper fields the plan adds
+  for its channels (the start, end, and range fields of `plan.Bins`, the start (unless `binned`) and end fields of
+  `plan.TimeUnits`, and the start and end fields of `plan.Stack`) unless they are group-by fields of
+  `plan.Aggregate`, sorted by name (ordinal). So a non-aggregated mark has its row after the specification's transforms
+  and before the encoding, an aggregated mark its group-by fields (a time unit or bin dimension by its derived name, such
+  as `month_month`) and its measures (`sum_revenue`, `__count`), and a vertex its own row. The function reads the
+  fields in that order with `TryConvertData` and stops after `ImagePosition.MaxDataFields` (32) scalar fields.
+  `TryConvertData(DataValue, out PositionValue)` (internal static) is `TryConvert` except that a date read from text
+  (`DataValue.SourceText`) is that text, so the data shows a date as the data wrote it (`"2025-11-01"`).
 
 **Preconditions and postconditions**: the scales were resolved from the same view and data; `table` is the
 **Main** table of

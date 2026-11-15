@@ -34,7 +34,7 @@ core `Surface`. It is **internal**: its types are visible only to the other subs
   the SVG path data of a custom symbol shape (a port of vega-scenegraph's path parser and renderer), with a cache of
   parsed paths; see _SymbolPathParser Unit Design_ (`scenegraph/symbol-path-parser.md`)
 - **ScenePositions** - the internal static `ScenePositions`: the feature positions of a laid-out chart (titles, views,
-  axes, legends, and marks) with their canonical view paths, ids, normalized values, geometry boxes, and attachment
+  axes, legends, and marks) with their canonical view paths, ids, normalized values, data fields, geometry boxes, and attachment
   pixels in the pixels of the surface; see _ScenePositions Unit Design_ (`scenegraph/scene-positions.md`)
 
 The subsystem's namespace documentation is in `Scenegraph/NamespaceDoc.cs`. Its behavior is specified by the
@@ -103,11 +103,11 @@ colors parse with the invariant culture and no named color depends on the host.
 
 **Positions come from the scene the painter draws.** The guide and view groups carry an internal tag (kind, id, text,
 view path, view name, and optional bounds), and only when a render asks for mark positions do the mark items record the
-row they draw, the path marks their vertices, and each marks group the values of its rows; none of it changes the
-pixels. Before the painting, `ScenePositions` walks the scene once, reports the titles, views, axes, and legends, then
-the marks, each in drawing order, with the box and attachment pixel of its kind mapped by the placement the painter
-uses, so the positions are those of the returned surface at any scale or exact size; a kind the filter rejects is
-skipped before its geometry is computed.
+row they draw, the path marks their vertices, and each marks group the values and data fields of its rows; none of it
+changes the pixels. Before the painting, `ScenePositions` walks the scene once, reports the titles, views, axes, and
+legends, then the marks, each in drawing order, with the box and attachment pixel of its kind mapped by the placement
+the painter uses, so the positions are those of the returned surface at any scale or exact size; a kind the filter
+rejects is skipped before its geometry is computed.
 
 **Bounded.** The scene item count is bounded by `SceneBudget` (`MaxSceneItems`), and the pixel size by the surface
 (`Surface.MaxDimension`); a clip layer is only as large as the clip's pixel box. The geometry of an arc costs a constant

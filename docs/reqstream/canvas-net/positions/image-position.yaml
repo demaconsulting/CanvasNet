@@ -38,6 +38,18 @@ sections:
                   - ImagePosition_Values_CallerListChanges_PositionKeepsSortedCopy
                   - ImagePosition_Values_DuplicateOrEmptyName_Throws
 
+              - id: CanvasNet-Positions-ImagePosition-Data
+                title: >-
+                  The ImagePosition record shall keep its data fields as a copy sorted case-sensitively by name, refuse
+                  an empty or duplicate name and more than 32 fields, look a data field up by its exact name, and keep
+                  the channel names a renderer gives as the same immutable set.
+                justification: |
+                  A chart mark is found most reliably by the source row it was drawn from; the snapshot must be
+                  immutable and bounded, and the channel names tell a selector which names are channels.
+                tests:
+                  - ImagePosition_Data_CallerListChanges_PositionKeepsSortedCopy
+                  - ImagePosition_Data_MoreThanTheCap_Throws
+
               - id: CanvasNet-Positions-ImagePosition-TypedEquality
                 title: >-
                   The PositionValue type shall hold null, a boolean, a finite number, or text, compare two values equal

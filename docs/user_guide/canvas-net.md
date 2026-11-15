@@ -2794,9 +2794,13 @@ public sealed record ImagePosition
     public string? To { get; init; }
     public int? Index { get; init; }           // 0-based among the parallel edges or messages
     public IReadOnlyList<KeyValuePair<string, PositionValue>> Values { get; init; }   // sorted by name
+    public IReadOnlyList<KeyValuePair<string, PositionValue>> Data { get; init; }     // sorted by name, at most 32
+    public FrozenSet<string>? ChannelNames { get; init; }                             // the names that read Values
     public PositionBox? Box { get; init; }     // the geometry bounds, stroke not included
     public PositionPoint? Pixel { get; init; } // the attach point
+    public const int MaxDataFields = 32;
     public bool TryGetValue(string name, out PositionValue value);
+    public bool TryGetData(string name, out PositionValue value);
 }
 
 public readonly record struct PositionBox(double X, double Y, double Width, double Height)
@@ -2823,18 +2827,22 @@ public readonly struct PositionValue : IEquatable<PositionValue>
 }
 ```
 
-- **Identity.** `Kind` and `Id` name the feature; `View`, `From`, `To`, `Index`, and `Values` tell it apart from its
-  neighbors and are what a selector compares. A renderer documents which kinds it reports and how it names them.
+- **Identity.** `Kind` and `Id` name the feature; `View`, `From`, `To`, `Index`, `Values`, and `Data` tell it apart from
+  its neighbors and are what a selector compares. A renderer documents which kinds it reports and how it names them.
+- **Values and data.** `Values` holds what the renderer encoded (a chart mark's channels, after scales and time units);
+  `Data` holds the scalar fields of the source row the feature was drawn from, as the data gives them (see the
+  renderer). `ChannelNames` are the names a selector compares with `Values`; the record keeps the set as given.
 - **Geometry.** `Box` is the bounds of the geometry, as SVG `getBBox` measures it (the stroke is not included), and
   `Pixel` is the attach point of the kind: the center of a box, the middle of an edge by length, a vertex of a line.
   Both are in the continuous pixel coordinates of the picture, from its top-left corner (pixel `i` spans `[i, i + 1)`,
   y grows downward), and both are `null` only when a later image step could not follow them. The pixel is not a
   promise that the feature is painted there or visible.
 - **Validation.** Every setter checks its value: `Kind` must match `[a-z][a-z0-9-]*`, `Line` is at least 1, `Index`
-  is not negative, a value name is not empty and occurs once, `Box` is finite with a size that is not negative, and
+  is not negative, a value or data field name is not empty and occurs once, `Data` has at most
+  `MaxDataFields` (32) fields, `Box` is finite with a size that is not negative, and
   `Pixel` is finite; anything else throws `ArgumentException` (or `ArgumentNullException`,
-  `ArgumentOutOfRangeException`). `Values` is copied and sorted by name (ordinal comparison), so the record is
-  immutable and thread-safe; record equality compares `Values` by reference.
+  `ArgumentOutOfRangeException`). `Values` and `Data` are copied and sorted by name (ordinal comparison), so the
+  record is immutable and thread-safe; record equality compares `Values`, `Data`, and `ChannelNames` by reference.
 - **Typed values.** A `PositionValue` is null, a Boolean, a finite number, or text, and two values are equal only when
   they have the same kind and value: the number 3 equals the number 3.0 but not the text `"3"`, and text is compared
   case-sensitively. `default(PositionValue)` is `Null`. `TryFromObject` accepts `null`, a `bool`, a finite number of
@@ -2855,17 +2863,19 @@ target      := json-string        ; an exact id; * and ? are literal
              | id-pattern         ; * is any run of characters (also empty), ? exactly one
 predicates  := predicate *( "+" predicate )      ; '+' separates only outside JSON strings
 predicate   := name "=" value                    ; the first '=' separates; a name once per selector
-name        := "@id" | "@view" | "@from" | "@to" | "@index" | channel
+name        := "@id" | "@view" | "@from" | "@to" | "@index" | channel | field   ; a word of letters, digits, '_'
 value       := json-string | bare                ; bare: true, false, null, a number, else text
 ```
 
 - **Matching.** `all` matches every position and a kind alone every position of that kind. An id pattern globs the
   whole `Id` (`node:s*`, `commit:*fix*`, `node:se?d`); a quoted id is exact (`node:"my*odd id"`). The keywords (`all`,
-  the kind, and the `@` names) ignore case; ids, channel names, and text values are compared case-sensitively.
-- **Predicates** must all hold. A channel compares with `TryGetValue` by typed equality: a bare value is read like a
-  `--param` value, so `x=3` is the number 3 (equal to 3.0) and `x="3"` the text; a missing channel never matches, and
-  `x=null` matches a channel that holds null. A value that starts with `[` or `{` is refused, and `+` and `=` inside a
-  quoted value are text (`mark:text="a+b"`).
+  the kind, and the `@` names) ignore case; ids, channel and field names, and text values are compared case-sensitively.
+- **Predicates** must all hold. A name in the position's `ChannelNames`, or a name its `Values` holds, is a channel and
+  compares with `TryGetValue`; any other name is a data field and compares with `TryGetData`
+  (`mark:month=2025-11-01+region=Americas`). A data field whose name is a channel is matched only through that channel.
+  Both compare by typed equality: a bare value is read like a `--param` value, so `x=3` is the number 3 (equal to 3.0)
+  and `x="3"` the text; a missing name never matches, and `x=null` matches a name that holds null. A value that starts
+  with `[` or `{` is refused, and `+` and `=` inside a quoted value are text (`mark:text="a+b"`).
 - **Meta names.** `@id` is the exact id (no globs), `@view` the view path, `@from` and `@to` the ends of an edge or
   message (a bare value of these four is the text as written), and `@index` takes a whole number that is not negative.
   They never match a position that does not have them: `edge:@from=A+@to=B+@index=0`,

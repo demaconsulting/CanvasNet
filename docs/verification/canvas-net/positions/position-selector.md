@@ -53,6 +53,20 @@ the null value and `shape=null` (a missing channel) does not; and that `@id=L_*`
 patterns `*a*a*a*a*a*b` and `a*?b` match an id of 200 `a` characters followed by `b`, that `*a*a*a*a*a*c` does not,
 and that `?` does not match an empty id while `*` does.
 
+##### CanvasNet-Positions-PositionSelector-DataFields: A Channel Name Reads The Values, Any Other Name The Data
+
+**Tests**: `PositionSelector_Matches_ChannelOrDataField_FollowsTheChannelNames`
+
+Asserts, as a theory over 12 selectors against a time-unit chart point (values `color` = `Americas`, `x` =
+`2012-11-01T00:00:00.000Z`, `y` = 6.8; data `month` = `2025-11-01`, `region`, `revenue` = 6.8, `time` = `t1`, and
+`shape` = `circle`; channel names `x`, `y`, `color`, `time`, and `shape`) and a pie-like slice without channel names
+(values `value` = 3; data `label` = `A` and `value` = 4), that `month=2025-11-01+region=Americas` and
+`month=2025-11-01+color=Americas` select the point while `x=2025-11-01+color=Americas` does not; that `x` matches its
+2012 value; that `revenue=6.8` matches and `revenue="6.8"` does not; that `time=t1` and `shape=circle` match nothing
+(they are channels the point does not have, so its data fields of those names are not read); that `value=3` and
+`label=A` select the slice (its value, then its data), and so does both together; and that a missing name never
+matches.
+
 ##### CanvasNet-Positions-PositionSelector-Limits: Selectors And Selections Are Bounded
 
 **Tests**: `PositionSelector_Parse_OverLimits_ThrowsFormatException`,

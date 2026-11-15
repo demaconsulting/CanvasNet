@@ -259,11 +259,12 @@ and the names and the lookups that use them are unchanged.
 **ImagePipeline_MapPositions_ColorStepsKeep_UnfollowedStepsLose**, and
 **ImagePipeline_MapPositions_ManyPositions_KeepsOrder** (`ImagePipelinePositionTests.cs`; the requirement
 `CanvasNetViewer-Imaging-ImagePipeline-PositionMapping`): on a 400 by 200 image, a crop at (20, 10) moves the box to
-(80, 40, 40, 20) and the pixel to (100, 50), a trim at (7, 3) moves the box to (93, 47), a resize to 200 by 400 makes
-it (50, 100, 20, 40) with the pixel (60, 120), a fit into 100 by 50 makes it (25, 12.5, 10, 5), a pad of 10 left and 20
-top makes it (110, 70, 40, 20), and a horizontal flip makes it (260, 50, 40, 20) with the pixel (280, 60); a quarter
-turn to 200 by 400 maps the pixel exactly to (140, 120) and the box to (130, 100, 20, 40); a turn by 30 degrees and back
-on a 400 by 400 image gives the original box and pixel within 1e-9, because the corners are enclosed once and not after
-each step; a grid step keeps the box, while an applied deskew followed by a pad, and an unknown step that changed the
-width, lose the box and the pixel but keep the id; and two positions mapped through a pad keep their order, the first
-pixel moved from (1, 1) to (6, 6) and the second without a box, while a null list throws `ArgumentNullException`.
+(80, 40, 40, 20) and the pixel to (100, 50), a trim at (7, 3) moves the box to (93, 47), a resize to 200 by 400 makes it
+(50, 100, 20, 40) with the pixel (60, 120), a fit into 100 by 50 makes it (25, 12.5, 10, 5), a pad of 10 left and 20 top
+makes it (110, 70, 40, 20), and a horizontal flip makes it (260, 50, 40, 20) with the pixel (280, 60), the cropped
+position keeping its data field and the same channel-name set; a quarter turn to 200 by 400 maps the pixel exactly to
+(140, 120) and the box to (130, 100, 20, 40); a turn by 30 degrees and back on a 400 by 400 image gives the original box
+and pixel within 1e-9, because the corners are enclosed once and not after each step; a grid step keeps the box, while
+an applied deskew followed by a pad, and an unknown step that changed the width, lose the box and the pixel but keep the
+id; and two positions mapped through a pad keep their order, the first pixel moved from (1, 1) to (6, 6) and the second
+without a box, while a null list throws `ArgumentNullException`.

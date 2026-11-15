@@ -19,7 +19,7 @@ record of the kind and id of a feature, the facts that tell it apart from its ne
 attachment pixel, in the pixels of the picture.
 
 The unit's behavior is specified by the `CanvasNet-Positions-ImagePosition-*` requirements (`Validation`, `Values`,
-`TypedEquality`, and `Geometry`) in `docs/reqstream/canvas-net/positions/image-position.yaml`.
+`Data`, `TypedEquality`, and `Geometry`) in `docs/reqstream/canvas-net/positions/image-position.yaml`.
 
 #### Data Model
 
@@ -37,6 +37,10 @@ The unit's behavior is specified by the `CanvasNet-Positions-ImagePosition-*` re
   the same kind with the same ends, in drawing order.
 - `Values` (`IReadOnlyList<KeyValuePair<string, PositionValue>>`) - the named scalar values of the feature (the
   normalized channel values of a chart mark, the `value` of a pie slice); empty by default.
+- `Data` (`IReadOnlyList<KeyValuePair<string, PositionValue>>`) - the named scalar data fields of the source row the
+  feature was drawn from (a chart mark's row, as the data gives it); empty by default; at most `MaxDataFields` = 32.
+- `ChannelNames` (`FrozenSet<string>?`) - the names a selector predicate compares with `Values` (the channels of the
+  renderer); `null` by default. It is kept as given (immutable by type), so many positions share one set.
 - `Box` (`PositionBox?`) and `Pixel` (`PositionPoint?`) - the geometry box and the attachment point; `null` only when
   a later image step could not follow them.
 
@@ -51,17 +55,20 @@ spans `[i, i + 1)`, x grows to the right and y downward.
 boolean is stored as the number 1 or 0, and a number is stored with negative zero turned into zero.
 
 **Invariants**: `Kind` is a lowercase kind word; `Id` is not null; `Line` is at least 1; `Index` is not negative;
-`Values` is a sorted copy (ordinal by name) whose names are not empty and occur once; `Box` is finite with a size that
+`Values` and `Data` are sorted copies (ordinal by name) whose names are not empty and occur once; `Data` has at most
+`MaxDataFields` fields; `Box` is finite with a size that
 is not negative; `Pixel` is finite; a `Number` value is finite. Every type is immutable and thread-safe. Record equality
-of `ImagePosition` compares `Values` by reference.
+of `ImagePosition` compares `Values`, `Data`, and `ChannelNames` by reference.
 
 #### Key Methods
 
 - **`ImagePosition` `init` setters** - check their value before storing it (see _Error Handling_). The `Values` setter
   copies the list with `ToArray`, sorts the copy by name, and then checks the names, so a list the caller
-  changes later does not change the position; an empty list becomes the shared empty array.
+  changes later does not change the position; an empty list becomes the shared empty array. The `Data` setter refuses
+  more than `MaxDataFields` fields and then copies, sorts, and checks the list the same way.
 - **`ImagePosition.TryGetValue(name, out value)`** - finds a value by its name (case-sensitive); it returns `true`
   when the name is present (even when the value is null) and otherwise gives `PositionValue.Null` and `false`.
+  **`ImagePosition.TryGetData(name, out value)`** does the same for a data field; both share the private `TryFind`.
 - **`PositionValue.FromBoolean`, `FromNumber`, `FromString`, and `Null`** - create a value.
 - **`PositionValue.TryFromObject(value, out result)`** - converts a plain scalar as a parser produces it (the scalars of
   `ImageParameterValues.TryParseParameter` of the `ImageSources` subsystem): `null`, a `bool`, a `string`, a finite
@@ -83,14 +90,15 @@ of `ImagePosition` compares `Values` by reference.
 All errors are argument errors detected in the setters and factories and thrown to the caller; nothing is handled
 locally:
 
-- `ArgumentNullException` for a null `Kind`, `Id`, `Values` list, or `FromString` text, and for a null list given to
-  `Enclose`.
-- `ArgumentException` for a `Kind` that is not a lowercase kind word, a value name that is empty or occurs twice, a
-  `Box` that is not valid, a `Pixel` that is not finite, and an empty list given to `Enclose`.
+- `ArgumentNullException` for a null `Kind`, `Id`, `Values` or `Data` list, or `FromString` text, and for a null list
+  given to `Enclose`.
+- `ArgumentException` for a `Kind` that is not a lowercase kind word, a value or data field name that is empty or occurs
+  twice, more than `MaxDataFields` data fields, a `Box` that is not valid, a `Pixel` that is not finite, and an empty
+  list given to `Enclose`.
 - `ArgumentOutOfRangeException` for a `Line` below 1, a negative `Index`, and a `FromNumber` argument that is NaN or
   infinite.
 
-`TryGetValue` and `TryFromObject` never throw.
+`TryGetValue`, `TryGetData`, and `TryFromObject` never throw.
 
 #### Dependencies
 
@@ -100,7 +108,7 @@ locally:
 #### Callers
 
 The `ScenePositions` units of the `CanvasNetMermaid` and `CanvasNetVegaLite` systems create positions (the `MarkBuilder`
-unit of `CanvasNetVegaLite` creates their values); `PositionSelector` and `PositionCollector` read them, and
-`PositionSelector` creates the values of its predicates with `TryFromObject`; the `ImagePipeline` unit of the
+unit of `CanvasNetVegaLite` creates their values and data fields); `PositionSelector` and `PositionCollector` read them,
+and `PositionSelector` creates the values of its predicates with `TryFromObject`; the `ImagePipeline` unit of the
 `CanvasNetViewer` system maps them with `Corners`, `Enclose`, and a `with` expression; and the `RenderCommand` unit of
 the `CanvasNetTool` system writes them as JSON.

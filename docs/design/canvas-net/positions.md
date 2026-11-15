@@ -27,7 +27,8 @@ depends on it. There is no global state.
 The public types of the subsystem are in the namespace `DemaConsulting.CanvasNet.Positions`:
 
 - **`ImagePosition`** - one feature: `Kind`, `Id`, `Text`, `Line`, `View`, `ViewName`, `Mark`, `From`, `To`, `Index`,
-  `Values`, `Box`, and `Pixel`, with `TryGetValue(name, out value)`.
+  `Values`, `Data`, `ChannelNames`, `Box`, and `Pixel`, with `TryGetValue(name, out value)`,
+  `TryGetData(name, out value)`, and the limit `MaxDataFields` (32).
 - **`PositionBox`, `PositionPoint`** - the geometry box (`X`, `Y`, `Width`, `Height`, `Center`, `Corners()`,
   `Enclose(points)`, `IsValid()`) and a point (`X`, `Y`, `IsValid()`) in the continuous pixel coordinates of the
   picture.

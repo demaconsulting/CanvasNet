@@ -46,6 +46,16 @@ coordinate throw `ArgumentException`.
 Asserts that values given as `y` then `x` are kept as `x` then `y` after the caller's list is cleared, that `y` is
 found with the number 43 and `Y` is not found; and that a duplicate name and an empty name throw `ArgumentException`.
 
+##### CanvasNet-Positions-ImagePosition-Data: Data Fields Are A Bounded Sorted Copy
+
+**Tests**: `ImagePosition_Data_CallerListChanges_PositionKeepsSortedCopy`, `ImagePosition_Data_MoreThanTheCap_Throws`
+
+Asserts that data fields given as `region` then `month` are kept as `month` then `region` after the caller's list is
+cleared, that `month` is found by `TryGetData` with the text `2025-11-01` while `Month` is not and `TryGetValue` does
+not see it, that the channel names are the same set instance, that a new position has no data and no channel names,
+and that a null list throws `ArgumentNullException` and a duplicate or empty name `ArgumentException`; and that
+`MaxDataFields` is 32, 32 fields are kept, and 33 throw `ArgumentException`.
+
 ##### CanvasNet-Positions-ImagePosition-TypedEquality: Values Compare By Kind And Value
 
 **Tests**: `PositionValue_Equals_TypedEquality_ComparesKindAndValue`,

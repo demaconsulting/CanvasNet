@@ -371,6 +371,7 @@ contains `fragment`. **HelpTopics_ErrorsTopic_ListsEveryErrorCode** proves that 
 
 **HelpTopics_PositionsTopic_IsInTheTreeAndLinked**, **HelpTopics_PositionsLimits_AreTheLimitsOfTheCode**,
 **HelpTopics_PositionsSelectors_Examples_MatchAsTheCardsSay**,
+**HelpTopics_PositionsVegaLite_DataFieldExample_SelectsThePoint**,
 **HelpTopics_PositionsSelectors_MetadataExamples_SelectOneItem**,
 **HelpTopics_PositionsSelectors_ShellQuoting_ReachesTheToolIntact**,
 **HelpTopics_PositionsMermaid_KindsPerType_AreTheKindsReported**,
@@ -380,12 +381,17 @@ contains `fragment`. **HelpTopics_ErrorsTopic_ListsEveryErrorCode** proves that 
 `selectors`, `mermaid`, `vega-lite`, and `geometry`; it links to `svg framed-figure` and `scad anchors`, which link
 back, and `composition`, `mermaid composition`, and `vega-lite composition` link to it or its cards. The `limits`,
 `positions`, and `positions selectors` cards quote `PositionCollector.MaxPositions`, `PositionSelection.MaxSelectors`,
-`PositionSelector.MaxSelectorLength`, and `PositionSelector.MaxPredicates`. The cited selectors run on the help
+`PositionSelector.MaxSelectorLength`, and `PositionSelector.MaxPredicates`, and the `positions vega-lite` card
+`ImagePosition.MaxDataFields`. The cited selectors run on the help
 examples select what the cards say: `node:send` the node `send`, `node:se?d` with `node:s*` the nodes `start`,
 `stock`, and `send`, `edge:@from=pack` the edge `L_pack_send_0`, `commit:*fix*` the commit `hotfix`, `mark:y=55` the
 bar `bar-1` while `mark:y="55"` selects nothing, and `mark:x=B` with `axis` the axes `x` and `y` and `bar-1`; the
 metadata examples `edge:@from=A+@to=B+@index=0` and `axis:@id=x+@view="hconcat[1]"` each select one item, of index 0
-and of the view `hconcat[1]`. The quoted forms of the card for bash, PowerShell 7.3 or later, and cmd, split as each
+and of the view `hconcat[1]`. Both the `positions selectors` and `positions vega-lite` cards cite
+`mark:month=2025-11-01+region=Americas` and the year 2012, and the vega-lite card the value
+`"2012-11-01T00:00:00.000Z"` and `mark:x=2025-11-01`; on a month time-unit line chart the cited selector selects one
+item whose `x` is `2012-11-01T00:00:00.000Z` and whose data `month` is `2025-11-01`, while `mark:x=2025-11-01` selects
+nothing. The quoted forms of the card for bash, PowerShell 7.3 or later, and cmd, split as each
 shell splits a command line, are the selector `node:"my*odd id"`, which the tool names exactly in its warning that it
 matched nothing. A theory over the ten Mermaid examples asserts that each reports exactly the kinds the card lists for
 its type, each named by the card. The `read-positions` command of `svg framed-figure` reports the node `send`, and the

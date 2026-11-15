@@ -128,8 +128,9 @@ replaces the solid `Fill` when it is set and can be drawn.
   - `SceneItem.Datum` - the row of the data table of the enclosing marks group that a mark item draws, or -1 (the
     default) when the item is not a mark or the render records no positions.
   - `SceneGroup.Marks` - a **`SceneMarkContext`** `(Values)` on a marks group: `Values` gives the normalized channel
-    values of a row, sorted by channel name, with `View`, `ViewName`, and `FacetValues` (the `row`, `column`, or `facet`
-    value of the cell); null when the group is not a marks group or the render records no positions.
+    values of a row, sorted by channel name, with `View`, `ViewName`, `FacetValues` (the `row`, `column`, or `facet`
+    value of the cell), and `Data` (the data fields of a row, sorted by name; none by default); null when the group is
+    not a marks group or the render records no positions.
   - `ScenePath.Vertices` and `SceneTrail.Vertices` - the **`SceneVertex`** `(Row, X, Y)` list of a line, area, or trail
     mark, one per drawn row in drawing order; null when not recorded.
 

@@ -78,6 +78,26 @@ and the text `A` to itself; that the first vertex of a line of the sum of `v` ov
 facet value of a cell is asserted by the view-path scenario above (the `column` value `y` of the mark in
 `facet[1]`).
 
+##### CanvasNetVegaLite-Scenegraph-ScenePositions-Data: Data Fields Of The Row And The Channel Names
+
+**Tests**: `VegaLiteDocumentPositionTests.VegaLiteDocument_Render_MonthTimeUnitLine_DataKeepsTheSourceRow`,
+`VegaLiteDocumentPositionTests.VegaLiteDocument_Render_AggregatedNestedAndWideRows_DataAsDocumented`,
+`ScenePositionsTests.MarkBuilder_TryConvert_DataValues_ConvertAsDocumented`,
+`ScenePositionsTests.ScenePositions_Collect_MarkContextData_ReportsDataAndChannelNames`
+
+Asserts, on a line chart with `point: true` whose `x` is a `month` time unit of `month` and whose rows hold
+`2025-10-01` and `2025-11-01` for two regions, that `mark:month=2025-11-01+region=Americas` selects exactly the line
+vertex and the point of November Americas (at the same pixel), each with the data `month` = `2025-11-01` (the text
+the data gave), `region`, and `revenue` = 6.8 and no time-unit field, with `x` = `2012-11-01T00:00:00.000Z` and `x` among
+the channel names, while `mark:x=2025-11-01+color=Americas` selects nothing; that a stacked bar of the sum of `v` by a
+`month` time unit and a color has the data `month_m`, `r`, and `sum_v` (no stack fields) with the sum 3 for `r` =
+`A`; that a binned point chart with a `calculate` has the data `a`, `b`, `none` (null), `ok`, and `twice` = 6,
+without the nested object, the array, or the bin fields; and that a row of 40 fields gives the first 32 by name. Asserts
+that `TryConvertData` gives a date read from text as that text and any other date as ISO text, while `TryConvert`
+gives the ISO text for both, and that an array is left out; and that a marks group whose context gives data reports it
+per row as data (not as values) with the shared `ChannelNames`, which hold `x` and `color` and not `region`, while a
+context without `Data` gives none.
+
 ##### CanvasNetVegaLite-Scenegraph-ScenePositions-Geometry: Boxes And Attachment Pixels Per Mark Type
 
 **Tests**: `ScenePositionsTests.ScenePositions_Collect_ViewAndBars_BoxesCentersAndIds`,

@@ -17,7 +17,7 @@ turns those tags and rows into ids, values, boxes, and attachment pixels in one 
 composition.
 
 The unit's behavior is specified by the `CanvasNetVegaLite-Scenegraph-ScenePositions-*` requirements (`ViewPaths`,
-`Ids`, `Values`, `Geometry`, and `Filter`) in `docs/reqstream/canvas-net-vega-lite/scenegraph/scene-positions.yaml`.
+`Ids`, `Values`, `Data`, `Geometry`, and `Filter`) in `docs/reqstream/canvas-net-vega-lite/scenegraph/scene-positions.yaml`.
 
 #### Data Model
 
@@ -39,6 +39,13 @@ reported separately as `ViewName`.
 **Values.** A mark reports `SceneMarkContext.Values(row)` (the normalized values of its row by channel, built by the
 `MarkBuilder` unit) followed by the `FacetValues` of its cell (`row`, `column`, or `facet`); the `ImagePosition` sorts
 them by name.
+
+**Data.** A mark also reports `SceneMarkContext.Data(row)` (the data fields of its row, at most 32, sorted by name,
+built by the `MarkBuilder` unit) and the shared `ChannelNames`: the Vega-Lite 6.5 encoding channels (`x`, `y`,
+`x2`, `y2`, `xOffset`, `yOffset`, the error, geographic, and polar channels, `color`, `fill`, `stroke`, the
+opacity and stroke channels, `size`, `angle`, `shape`, `text`, `tooltip`, `href`, `url`, `description`,
+`key`, `detail`, `order`, `time`, `row`, `column`, and `facet`), one internal static `FrozenSet`. A selector
+predicate with one of those names compares with the values, any other name with the data fields.
 
 **Invariants**: the result never contains a position whose box or pixel is not finite; the same scene, placement,
 measurer, and filter always give the same list.

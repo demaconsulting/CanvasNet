@@ -138,6 +138,14 @@ instant after numbers and before strings with null first; and that an instant th
 1 to 9999 is refused with `ArgumentOutOfRangeException`, while the first and the last representable millisecond are
 accepted and print as `0001-01-01T00:00:00.000Z` and `9999-12-31T23:59:59.999Z`.
 
+##### Date Source Text
+
+**Tests**: `DataTableTests.DataValue_FromDate_SourceText_IsKeptAndIgnoredByEqualityOrderAndText`
+
+Asserts that a date created with the source text `2025-11-01` keeps it as `SourceText` while a date without one, and
+a string, have none and the date's `Text` stays null; and that the date with source text equals the date without, has
+the same hash code, compares as equal, prints as `2025-11-01T00:00:00.000Z`, and reads as its milliseconds.
+
 ##### Scalar Value Text, Ordering, Equality, And Quantitative Reading
 
 **Tests**: `DataTableTests.DataValue_TextOrderingEqualityAndQuantitativeReading_FollowTheDocumentedRules`

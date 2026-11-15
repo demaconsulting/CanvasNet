@@ -882,7 +882,7 @@ src/DemaConsulting.CanvasNet/
 │   ├── RasterImageSource.cs           — Public source for the raster formats
 │   └── NamespaceDoc.cs                — Namespace-level XML documentation
 ├── Positions/
-│   ├── ImagePosition.cs               — Public record of one feature: kind, id, facts, values, box, and pixel
+│   ├── ImagePosition.cs               — Public record of one feature: kind, id, facts, values, data, box, and pixel
 │   ├── PositionBox.cs                 — Public geometry box of a feature (center, corners, enclose)
 │   ├── PositionPoint.cs               — Public point in the continuous pixel coordinates of a picture
 │   ├── PositionValue.cs               — Public typed scalar value with typed equality (and PositionValueKind)
@@ -1576,7 +1576,7 @@ src/DemaConsulting.CanvasNet.VegaLite/
 │   ├── MarkBuilder.Arcs.cs        — MarkBuilder: the arc mark (pie, donut, and radial slices)
 │   ├── MarkBuilder.Offsets.cs     — MarkBuilder: the xOffset and yOffset channels (marks inside the band of a position)
 │   ├── MarkBuilder.Brush.cs       — MarkBuilder: the brush marks of an interval selection with an initial value
-│   ├── MarkBuilder.Positions.cs   — MarkBuilder: the rows, vertices, and normalized values recorded for the positions
+│   ├── MarkBuilder.Positions.cs   — MarkBuilder: the rows, vertices, values, and data fields recorded for the positions
 │   ├── CurveBuilder.cs            — CurveBuilder: the curve kinds, the segment bound, and the line and area entry points
 │   ├── CurveBuilder.Generators.cs — CurveBuilder: the line and area generators with defined gaps
 │   └── CurveBuilder.Splines.cs    — CurveBuilder: the cardinal, catmull-rom, monotone, and natural curves

@@ -127,15 +127,17 @@ sections:
                   time of the time zone of the chart (UTC by default) and a date text with only a date being
                   UTC, a number being milliseconds, and an empty cell, a boolean, an over-long text (more than
                   128 characters, which costs no more than a short one), and a text that is not a date
-                  being null with the parse-failure warning.
+                  being null with the parse-failure warning; a date converted from text shall keep that text.
                 justification: |
                   Vega converts a date field with Date.parse; a chart that does the same draws the same
-                  dates, and the zone is the one the caller chose.
+                  dates, and the zone is the one the caller chose. Keeping the text lets positions report a
+                  date as the data wrote it.
                 tests:
                   - ParseDirectives_Date_UsesTheCalendarZoneForDateTimesWithoutOffset
                   - ParseDirectives_Date_DefaultCalendarIsUtc
                   - ParseDirectives_Date_HugeCellIsNotADateAndCostsNothing
                   - ParseDirectives_Date_IgnoresTheCurrentCulture
+                  - ParseDirectives_DateFromText_KeepsTheSourceText
 
               - id: CanvasNetVegaLite-Data-DelimitedTextParser-ImplicitDates
                 title: >-

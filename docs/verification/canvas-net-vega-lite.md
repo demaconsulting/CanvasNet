@@ -2418,7 +2418,8 @@ specification is rendered once plainly and once with a `PositionHandler` that of
 `PositionCollector` over `mark:x=b`, `axis:@id=y`, and `title`, with the collector's `IncludesKind` as the
 `PositionKindFilter`. Asserts that the two pixel snapshots are equal, that the collector keeps the title (with the text
 `Widgets per day`), the `y` axis, and the bar of the day `b`, in that order, with no unmatched selector, that the bar
-is in the view `layer[0]`, and that its pixel lies within the returned surface. The ids, values, geometry, view paths,
+is in the view `layer[0]`, that its pixel lies within the returned surface, and that it has the data `count` = 5 of its
+row and is selected by `mark:day=b+count=5`. The ids, values, geometry, view paths,
 scale and fit mapping, and the handler's contract are verified in the _VegaLiteDocument Unit Verification Design_ and
 the _ScenePositions Unit Verification Design_.
 

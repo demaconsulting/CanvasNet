@@ -1135,11 +1135,16 @@ string limit of 12 fail with a `VegaLiteRenderException` at `/mark` (the second 
 
 **Tests**: `VegaLiteDocumentPositionTests.VegaLiteDocument_BuildScene_RecordsRowsOnlyForAHandlerThatWantsMarks`,
 `VegaLiteDocumentPositionTests.VegaLiteDocument_Render_AggregateAndTemporalLine_ValuesAndVertices`,
-`ScenePositionsTests.MarkBuilder_TryConvert_DataValues_ConvertAsDocumented`
+`ScenePositionsTests.MarkBuilder_TryConvert_DataValues_ConvertAsDocumented`,
+`VegaLiteDocumentPositionTests.VegaLiteDocument_Render_MonthTimeUnitLine_DataKeepsTheSourceRow`,
+`VegaLiteDocumentPositionTests.VegaLiteDocument_Render_AggregatedNestedAndWideRows_DataAsDocumented`
 
 Asserts that the bars of a chart built without a position handler, and with a handler whose filter rejects marks,
 carry no row (`Datum` -1) and their marks group no context, while with a handler that wants marks the bars carry the
 rows 0, 1, and 2 and the marks group a context; that a line of the sum of a field over dates gives one position per
 drawn vertex (`line-0` and `line-1`) whose values the context reads (the date as `2025-01-01T00:00:00.000Z` and the
 sum 8); and that `TryConvert` writes a date as UTC ISO-8601 text, a number that is not finite and a null as null, and
-a text as itself.
+a text as itself, and `TryConvertData` a date read from text as that text. The data fields the context reads (the
+source row of a time-unit line, the aggregated row of a stacked bar, the scalar top-level fields of a row after a
+`calculate` without bin fields, and the first 32 fields of a wide row) are asserted as described in the
+`CanvasNetVegaLite-Scenegraph-ScenePositions-Data` scenario of _ScenePositions Unit Verification Design_.

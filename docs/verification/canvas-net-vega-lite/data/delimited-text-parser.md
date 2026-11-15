@@ -184,6 +184,14 @@ a field). Under `tr-TR` and `de-DE` the date conversions give the same values: `
 does not break the month name), the legacy `05/04/2024` read as month/day/year (May 4, 2024, not April 5),
 `2024-04-05T10:30:00.5Z` with 500 ms, and the custom `%B %d, %Y` matching month names ignoring case.
 
+##### Dates Converted From Text Keep The Text
+
+**Tests**: `ParseDirectivesDateTests.ParseDirectives_DateFromText_KeepsTheSourceText`
+
+Asserts that `2025-11-01` in an implicit temporal field and in a field parsed as `date`, and `01/11/2025` parsed with
+`date:'%d/%m/%Y'`, all become the instant 2025-11-01T00:00:00Z and keep the text they were read from as their source
+text, while the same instant given as a number of milliseconds and parsed as `date` has no source text.
+
 ##### Explicit Parse
 
 **Tests**: `DelimitedTextParserTests.DelimitedTextParser_Directives_ReadTheModeFromTheFormat`,

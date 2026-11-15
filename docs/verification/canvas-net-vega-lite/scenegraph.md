@@ -140,7 +140,8 @@ in the six unit verification documents passes without error or unexpected except
   `ScenePositionsTests.ScenePositions_Geometry_RuleSymbolTextArc_AimAsDocumented`,
   `ScenePositionsTests.ScenePositions_Collect_LineVertices_OnePositionPerVertex` — a tagged view and the bars of its
   marks group are reported view first, the view with its data rectangle and the bars as `bar-0` and `bar-1` with the
-  view path and name of the context, the values of their rows, and their boxes and centers; a rule aims at its
-  midpoint, a symbol at its center with its shape as the box, a text at its anchor with its measured box, and an arc at
-  its mid-angle at mid-radius; and the vertices of a line are one zero-size position each, mapped by the scale and the
-  offset of the placement.
+  view path and name of the context, the values of their rows, and their boxes and centers (the data fields of the rows
+  and the channel names are verified by the `CanvasNetVegaLite-Scenegraph-ScenePositions-Data` unit scenario); a rule
+  aims at its midpoint, a symbol at its center with its shape as the box, a text at its anchor with its measured box,
+  and an arc at its mid-angle at mid-radius; and the vertices of a line are one zero-size position each, mapped by the
+  scale and the offset of the placement.

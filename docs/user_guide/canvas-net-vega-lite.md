@@ -2810,6 +2810,18 @@ finite number is null, and an array or object is left out. A cell of a facet add
 `mark:x=B+color=Shipped` picks one bar of a grouped chart, and `axis:@id=y+@view="hconcat[1]"` one axis of a
 concatenation.
 
+**Data.** `Data` has the fields of the row a mark draws, after the specification's transforms (`calculate`, `fold`,
+...) and before the encoding: the top-level scalar fields (a nested object or array is left out, and so are the start,
+end, and range fields the encoding adds for a bin, a time unit, or a stack), sorted by name, at most
+`ImagePosition.MaxDataFields` (32). A date the data gave as text is that text; any other date is UTC ISO text. An
+aggregated mark has its aggregated row: its group fields (a time unit or bin dimension by its derived name, such as
+`month_month`) and its aggregates (`sum_revenue`, `__count`); each point of a line, area, or trail has its own row.
+`ChannelNames` is the set of Vega-Lite encoding channels, so a selector predicate named like a channel compares with
+`Values` and any other name with `Data`. A month time unit on `{"month": "2025-11-01"}` gives `x` the date
+`"2012-11-01T00:00:00.000Z"` - Vega-Lite puts a month alone in the year 2012, and the axis shows Nov - while `Data`
+keeps `"month": "2025-11-01"`; so `mark:month=2025-11-01+region=Americas` picks the point and
+`mark:x=2025-11-01+color=Americas` matches nothing. Select marks by their data fields where you can.
+
 **Box and attach pixel.** The coordinates are in the pixels of the returned surface, so they follow `Scale` or the
 exact size of the sized `Render`. `Box` is the bounds of the geometry (the stroke is not included), and `Pixel` is the
 attach point of the kind:

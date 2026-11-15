@@ -17,10 +17,10 @@ sections:
               - id: CanvasNet-Positions-PositionSelector-Grammar
                 title: >-
                   The PositionSelector class shall parse "all", a kind, or a kind followed by ':' and a target that is a
-                  JSON string (an exact id), predicates name=value joined by '+' (a name is a channel or one of @id,
-                  @view, @from, @to, and @index; a value is a JSON string or a bare scalar read as a --param value), or
-                  an id pattern, treating '+' and '=' inside a JSON string as text, and shall refuse every other text
-                  with a FormatException that names the selector and the problem.
+                  JSON string (an exact id), predicates name=value joined by '+' (a name is a word naming a channel or a
+                  data field, or one of @id, @view, @from, @to, and @index; a value is a JSON string or a bare scalar
+                  read as a --param value), or an id pattern, treating '+' and '=' inside a JSON string as text, and
+                  shall refuse every other text with a FormatException that names the selector and the problem.
                 justification: |
                   A published grammar with a precise refusal lets a user correct a selector from the message alone.
                 tests:
@@ -40,6 +40,18 @@ sections:
                 tests:
                   - PositionSelector_Matches_Examples_MatchAsDocumented
                   - PositionSelector_Matches_BacktrackingGlob_MatchesCorrectly
+
+              - id: CanvasNet-Positions-PositionSelector-DataFields
+                title: >-
+                  The PositionSelector class shall compare a predicate whose name is in the position's channel names,
+                  or is a name its values hold, with the values, and any other word name with the data fields, so that
+                  a data field whose name is a channel is matched only through that channel.
+                justification: |
+                  A channel holds what the encoding made of the data (a month time unit is a date in 2012), while the
+                  data fields hold what the data says; letting a predicate name a field selects a mark by the values
+                  the user wrote, and a fixed rule keeps every name unambiguous.
+                tests:
+                  - PositionSelector_Matches_ChannelOrDataField_FollowsTheChannelNames
 
               - id: CanvasNet-Positions-PositionSelector-Limits
                 title: >-

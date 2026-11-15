@@ -18,14 +18,15 @@ sections:
             title: >-
               The Positions subsystem shall describe one feature of a rendered picture as an immutable position with a
               lowercase kind, an id, optional facts (text, source line, view path, view name, mark type, the ends and
-              index of an edge, and typed scalar values), a geometry box, and an attachment pixel, all in the pixels of
-              the picture.
+              index of an edge, typed scalar values, the typed scalar data fields of its source row, and the names of
+              its channels), a geometry box, and an attachment pixel, all in the pixels of the picture.
             justification: |
               A neutral model in the core library lets every renderer report positions the same way and lets the
               Viewer, the tool, and later the SVG library consume them without depending on a renderer.
             children:
               - CanvasNet-Positions-ImagePosition-Validation
               - CanvasNet-Positions-ImagePosition-Values
+              - CanvasNet-Positions-ImagePosition-Data
               - CanvasNet-Positions-ImagePosition-TypedEquality
               - CanvasNet-Positions-ImagePosition-Geometry
             tests:
@@ -36,7 +37,8 @@ sections:
           - id: CanvasNet-Positions-Selectors
             title: >-
               The Positions subsystem shall parse position selectors (all, a kind, a kind with an id glob, a quoted
-              exact id, or typed predicates on channel values and on the @id, @view, @from, @to, and @index facts),
+              exact id, or typed predicates on channel values, on data fields, and on the @id, @view, @from, @to, and
+              @index facts),
               refuse a malformed selector or a selection beyond its limits with a message that names the selector, and
               take the union of several selectors.
             justification: |
@@ -45,6 +47,7 @@ sections:
             children:
               - CanvasNet-Positions-PositionSelector-Grammar
               - CanvasNet-Positions-PositionSelector-Matching
+              - CanvasNet-Positions-PositionSelector-DataFields
               - CanvasNet-Positions-PositionSelector-Limits
               - CanvasNet-Positions-PositionSelector-Union
             tests:

@@ -30,43 +30,42 @@ The unit's behavior is specified by the `CanvasNetVegaLite-Data-DataTable-*` req
 transforms, `Array`, `Object`, and `RegExp`.
 
 **`DataValue`** (readonly struct, `IEquatable<DataValue>`) holds one value. The factories are `Null`, `FromBoolean`,
-`FromNumber`, `FromString` (a null string is the null value), `FromDate(milliseconds)`, `FromDateTime`, and the composite
-factories `FromArray` (copies its elements), `FromObject(DataObject)`, and `FromRegExp(payload)` (an opaque, immutable
-payload that the `Expressions` subsystem defines), plus the internal `FromOwnedArray` for an array that the caller never
-changes again. It exposes
-`Kind`, the predicates `IsNull`, `IsBoolean`, `IsNumber`, `IsDate`, `IsString`, `IsArray`,
-`IsObject`, and `IsRegExp`, and the
-values `Number`, `Boolean`, `Milliseconds`, `Text`, `Elements` (the elements of an array, as a read-only span), `ObjectValue`,
-and `RegExpPayload`. The struct stays 24 bytes: one reference field holds the text of a string or the payload of a composite.
-**`DataObject`** is an immutable ordered map from string keys to values (`Create` keeps the
-position of the first occurrence of
-a repeated key and the value of the last, `Keys`, `Count`, `ValueAt`, and `TryGetValue`), and **`DataArray`** is the identity
-wrapper of an array payload. A **date** is an instant held as milliseconds since 1970-01-01T00:00:00Z in UTC (as
-JavaScript's `Date` holds it), finite and within the years 1 to 9999 (`FromDate` throws `ArgumentOutOfRangeException`
-outside that range); `FromDateTime` converts a local `DateTime` to UTC and takes an unspecified one as UTC, so a date
-never depends on the host's time zone. The supported range is exposed as `MinDateMilliseconds` and `MaxDateMilliseconds`
-(0001-01-01T00:00:00Z to 9999-12-31T23:59:59.999Z) so callers can test a candidate instant before creating a date, and
+`FromNumber`, `FromString` (a null string is the null value), `FromDate(milliseconds, sourceText)`, `FromDateTime`, and
+the composite factories `FromArray` (copies its elements), `FromObject(DataObject)`, and `FromRegExp(payload)` (an
+opaque, immutable payload that the `Expressions` subsystem defines), plus the internal `FromOwnedArray` for an array
+that the caller never changes again. It exposes `Kind`, the predicates `IsNull`, `IsBoolean`, `IsNumber`, `IsDate`,
+`IsString`, `IsArray`, `IsObject`, and `IsRegExp`, and the values `Number`, `Boolean`, `Milliseconds`, `Text` (a
+string's text, null for every other kind), `SourceText`, `Elements` (the elements of an array, as a read-only span),
+`ObjectValue`, and `RegExpPayload`. The struct stays 24 bytes: one reference field holds the text of a string, the
+source text of a date, or the payload of a composite. **`DataObject`** is an immutable ordered map from string keys to
+values (`Create` keeps the position of the first occurrence of a repeated key and the value of the last, `Keys`,
+`Count`, `ValueAt`, and `TryGetValue`), and **`DataArray`** is the identity wrapper of an array payload. A **date** is
+an instant held as milliseconds since 1970-01-01T00:00:00Z in UTC (as JavaScript's `Date` holds it), finite and within
+the years 1 to 9999 (`FromDate` throws `ArgumentOutOfRangeException` outside that range); `FromDateTime` converts a
+local `DateTime` to UTC and takes an unspecified one as UTC, so a date never depends on the host's time zone. A date
+read from text may keep that text (the optional `sourceText` of `FromDate`, read back as `SourceText`) so that positions
+can report it as the data wrote it; equality, hashing, ordering, `ToText`, and every computation ignore it. The
+supported range is exposed as `MinDateMilliseconds` and `MaxDateMilliseconds` (0001-01-01T00:00:00Z to
+9999-12-31T23:59:59.999Z) so callers can test a candidate instant before creating a date, and
 `MillisecondsSinceEpoch(DateTime)` computes the milliseconds of a UTC point in time from whole milliseconds in integer
 arithmetic (`TimeSpan.TotalMilliseconds` divides a tick count that a double cannot hold exactly for the distant years).
-Equality is JavaScript's SameValueZero for the scalars (so NaN equals NaN and zero equals
-negative zero) and **identity** for the composites (two arrays with the same elements are different values, as in
-JavaScript), which keeps the struct usable as a dictionary key. `TryGetQuantitative(out double)` reads a finite
-number, a date (its milliseconds), a boolean (1 or 0), or a numeric string (trimmed), and fails for null, an empty
-string, NaN, and infinity. `ToText()` is JavaScript's `String(value)`: null is `"null"`, 1 is `"1"`,
-0.5 is `"0.5"`, 1e21 is `"1e+21"`, negative zero is `"0"`, and a date is its ISO 8601 form in UTC with milliseconds
-(`2024-03-05T00:00:00.000Z`, like `toISOString()`); an array is its elements joined by commas (`[1,2]` is `"1,2"`), an
-object is `"[object Object]"`, and a regular expression is `/source/flags`. Composites are immutable and may be shared
-(`[x, x]` holds the same array twice), so the text of an array repeats the content of every reference and can be
-exponentially larger than the value: `TryAppendArrayText` builds it iteratively and stops as soon as it passes a limit,
-and `ToText()` of an array is bounded by `MaxUnboundedTextLength` (16,777,216 characters; an
-`InvalidOperationException` beyond). `HasTextLongerThan(maxLength, charge)` scans a composite iteratively and visits
-every distinct array and object **once** (a visited set by reference), so a shared graph costs its nodes and not its
-paths; it reports the number of elements and members scanned to the optional `charge` callback, which the expression
-evaluator routes to its step budget. `Compare(a, b)` orders values ascending as Vega's
-comparator does, with a fixed kind order (null, boolean, number, date, string, then array, object,
-and regular expression, which
-sort last and compare equal within a kind) so that the order is total (a documented
-deviation: JavaScript's coercions would not be); two dates compare by instant.
+Equality is JavaScript's SameValueZero for the scalars (so NaN equals NaN and zero equals negative zero) and
+**identity** for the composites (two arrays with the same elements are different values, as in JavaScript), which keeps
+the struct usable as a dictionary key. `TryGetQuantitative(out double)` reads a finite number, a date (its
+milliseconds), a boolean (1 or 0), or a numeric string (trimmed), and fails for null, an empty string, NaN, and
+infinity. `ToText()` is JavaScript's `String(value)`: null is `"null"`, 1 is `"1"`, 0.5 is `"0.5"`, 1e21 is `"1e+21"`,
+negative zero is `"0"`, and a date is its ISO 8601 form in UTC with milliseconds (`2024-03-05T00:00:00.000Z`, like
+`toISOString()`); an array is its elements joined by commas (`[1,2]` is `"1,2"`), an object is `"[object Object]"`, and
+a regular expression is `/source/flags`. Composites are immutable and may be shared (`[x, x]` holds the same array
+twice), so the text of an array repeats the content of every reference and can be exponentially larger than the value:
+`TryAppendArrayText` builds it iteratively and stops as soon as it passes a limit, and `ToText()` of an array is bounded
+by `MaxUnboundedTextLength` (16,777,216 characters; an `InvalidOperationException` beyond).
+`HasTextLongerThan(maxLength, charge)` scans a composite iteratively and visits every distinct array and object **once**
+(a visited set by reference), so a shared graph costs its nodes and not its paths; it reports the number of elements and
+members scanned to the optional `charge` callback, which the expression evaluator routes to its step budget.
+`Compare(a, b)` orders values ascending as Vega's comparator does, with a fixed kind order (null, boolean, number, date,
+string, then array, object, and regular expression, which sort last and compare equal within a kind) so that the order
+is total (a documented deviation: JavaScript's coercions would not be); two dates compare by instant.
 
 **`JsNumber`** reproduces JavaScript number semantics: `ToString(double)` (the shortest decimal digits that round-trip,
 placed in fixed or exponential notation by JavaScript's rules), `ShortestDecimal` (the digits and the point position),

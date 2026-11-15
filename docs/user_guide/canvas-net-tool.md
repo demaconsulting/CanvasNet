@@ -923,8 +923,9 @@ For the flowchart example, the `send` node has `kind`, `id`, `text`, `line`, `bo
 
 - Each item is `{kind, id}`, then the facts it has: `text` (a label), `line` (the source line), `view` (the view path
   of a chart, `""` for a single chart), `name` (the name of the view), `mark` (the mark type), `from`, `to`, and
-  `index` (an edge or message), and `values` (the channel values of a mark or the `value` of a pie slice), then `box`
-  (`{x, y, width, height}`), `pixel` (`[x, y]`), and `inside`.
+  `index` (an edge or message), `values` (the channel values of a mark or the `value` of a pie slice), and `data`
+  (the fields of the source row of a chart mark, as the data gives them), then `box` (`{x, y, width, height}`),
+  `pixel` (`[x, y]`), and `inside`.
 - `box` is the bounds of the geometry of the feature (the stroke is not included) and `pixel` its attach point: the
   center of a box, the middle of an edge or message by length, the middle angle of a slice, the point of a line.
   Both are in pixels of the **written** image from its top-left corner, rounded to three decimals; pixel `i` spans
@@ -944,12 +945,15 @@ For the flowchart example, the `send` node has `kind`, `id`, `text`, `line`, `bo
 **Selectors.** Start with `all` to see the ids, then narrow it. A kind alone (`node`, `edge`, `mark`, `axis`, ...)
 selects every item of that kind; `kind:pattern` globs the whole id (`*` is any run of characters, `?` one character:
 `node:s*`, `commit:*fix*`); a quoted id is exact (`node:"my*odd id"`); and `name=value` predicates joined with `+` must
-all hold: a channel of the `values` of a mark or slice (`mark:x=B+color=Shipped`), `@id`, `@view`, `@from`, `@to`, and
-`@index` (`edge:@from=pack+@to=send+@index=0`, `axis:@id=y+@view="hconcat[1]"`). A bare value reads as `--param` reads
-one, so `mark:x=3` is the number 3 (equal to 3.0) and `mark:x="3"` the text; a date is UTC ISO text such as
-`"2025-01-01T00:00:00.000Z"`. The keywords (`all`, the kind, the `@` names) ignore case; ids, channel names, and values
-do not. At most 32 selectors are accepted, each at most 256 characters with at most 16 predicates; a malformed selector
-is a `usage-error` whose hint names `canvasnet help positions selectors`.
+all hold: a channel of the `values` of a mark or slice (`mark:x=B+color=Shipped`), any other name a field of the
+`data` of a mark (`mark:month=2025-11-01+region=Americas`; a field named like a channel is matched through that
+channel), `@id`, `@view`, `@from`, `@to`, and `@index` (`edge:@from=pack+@to=send+@index=0`,
+`axis:@id=y+@view="hconcat[1]"`). A bare value reads as `--param` reads one, so `mark:x=3` is the number 3 (equal to
+3.0) and `mark:x="3"` the text; a date in `values` is UTC ISO text such as `"2025-01-01T00:00:00.000Z"` (a month time
+unit puts it in the year 2012), while a date in `data` is the text the data gave, so prefer data fields for marks. The
+keywords (`all`, the kind, the `@` names) ignore case; ids, channel and field names, and values do not. At most 32
+selectors are accepted, each at most 256 characters with at most 16 predicates; a malformed selector is a
+`usage-error` whose hint names `canvasnet help positions selectors`.
 
 Quote a selector that has `*`, `?`, `"`, a space, or `&`:
 

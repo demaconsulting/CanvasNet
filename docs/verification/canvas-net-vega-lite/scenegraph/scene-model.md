@@ -183,11 +183,12 @@ opacity
 
 **Tests**: `ScenePositionsTests.ScenePositions_Collect_ViewAndBars_BoxesCentersAndIds`,
 `ScenePositionsTests.ScenePositions_Collect_LineVertices_OnePositionPerVertex`,
-`VegaLiteDocumentPositionTests.VegaLiteDocument_Render_ScaleFitAndPixels_MapWithoutChangingPixels`
+`VegaLiteDocumentPositionTests.VegaLiteDocument_Render_ScaleFitAndPixels_MapWithoutChangingPixels`,
+`ScenePositionsTests.ScenePositions_Collect_MarkContextData_ReportsDataAndChannelNames`
 
 Asserts that a view group tagged with the kind `view`, the path `hconcat[1]`, and the name `right` is reported with
 those facts and its data rectangle, that bars carrying the rows 0 and 1 in a marks group whose context gives the value
 `x` of a row are reported with the view path and name of the context and with `x` = 1 for the second bar, and that a
 line carrying two vertices (row and point) is reported as one position per vertex; and that a bar chart rendered with
 a position handler has the same pixels as the chart rendered without one, so the tags, rows, and contexts do not
-change how an item is painted.
+change how an item is painted; and that a context's `Data` gives the data fields of a row (none by default).

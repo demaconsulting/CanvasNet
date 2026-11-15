@@ -161,7 +161,8 @@ sections:
               The Scenegraph subsystem shall carry internal tags on the view, axis, legend, and title groups and on the
               marks groups and mark items of a chart, and shall turn them into positions mapped by the placement:
               titles, views, axes, and legends, then marks in drawing order, each mark with the id <mark>-<n> within its
-              view, its view path and name, the normalized values of its row, its geometry bounds without stroke, and
+              view, its view path and name, the normalized values and the data fields of its row, its geometry bounds
+              without stroke, and
               the attachment pixel of its mark type.
             justification: |
               The chart builders know which group is which guide and which row each mark draws; the scene is where the
@@ -171,6 +172,7 @@ sections:
               - CanvasNetVegaLite-Scenegraph-ScenePositions-ViewPaths
               - CanvasNetVegaLite-Scenegraph-ScenePositions-Ids
               - CanvasNetVegaLite-Scenegraph-ScenePositions-Values
+              - CanvasNetVegaLite-Scenegraph-ScenePositions-Data
               - CanvasNetVegaLite-Scenegraph-ScenePositions-Geometry
               - CanvasNetVegaLite-Scenegraph-ScenePositions-Filter
             tests:

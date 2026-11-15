@@ -50,6 +50,25 @@ sections:
                   - VegaLiteDocument_Render_AggregateAndTemporalLine_ValuesAndVertices
                   - VegaLiteDocument_Render_BoxplotStackAndBin_ValuesAndViews
 
+              - id: CanvasNetVegaLite-Scenegraph-ScenePositions-Data
+                title: >-
+                  The ScenePositions unit shall report for a mark the data fields of the row it draws, after the
+                  specification's transforms and before the encoding: the top-level scalar fields (a nested object or
+                  array left out), without the start, end, and range fields the encoding adds for a bin, a time unit,
+                  or a stack unless they are group-by fields of the aggregate, sorted by name, at most 32, a date read
+                  from text as that text and any other date as UTC ISO-8601 text, the aggregated row (group-by fields
+                  and measures) for an aggregated mark and its own row for each vertex of a line, area, or trail; and
+                  shall name the Vega-Lite encoding channels as the channel names of every mark.
+                justification: |
+                  A channel shows what the encoding made of the data (a month time unit is a date in 2012), which a
+                  caller cannot guess; the data fields show what the data says, so a selector can name the values the
+                  caller wrote, and the channel names keep a field named like a channel matched through that channel.
+                tests:
+                  - VegaLiteDocument_Render_MonthTimeUnitLine_DataKeepsTheSourceRow
+                  - VegaLiteDocument_Render_AggregatedNestedAndWideRows_DataAsDocumented
+                  - MarkBuilder_TryConvert_DataValues_ConvertAsDocumented
+                  - ScenePositions_Collect_MarkContextData_ReportsDataAndChannelNames
+
               - id: CanvasNetVegaLite-Scenegraph-ScenePositions-Geometry
                 title: >-
                   The ScenePositions unit shall give a guide the box of its bounds (a view its data rectangle, a legend

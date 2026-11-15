@@ -63,13 +63,15 @@ sections:
                   years 1 to 9999 as its range (rejecting any other instant), shall give it the ISO 8601
                   text form with milliseconds and a trailing Z, the milliseconds as its quantitative
                   reading, equality by instant with zero equal to negative zero, and a position between
-                  numbers and strings in the total order.
+                  numbers and strings in the total order; a date may keep the text it was read from, which
+                  equality, hashing, ordering, and the text form ignore.
                 justification: |
                   Dates parsed from data files must mean the same instant on every machine and must scale
                   and sort predictably; the TimeCalendar, TimeFormat, and time scale units build on this
                   representation and share its range.
                 tests:
                   - DataTable_DateValuesHaveDeterministicQuantitativeAndTextForms
+                  - DataValue_FromDate_SourceText_IsKeptAndIgnoredByEqualityOrderAndText
 
               - id: CanvasNetVegaLite-Data-DataTable-CompositeValues
                 title: >-

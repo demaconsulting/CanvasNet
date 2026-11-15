@@ -125,6 +125,7 @@ the loader replaces from the live constants of the code, so a documented number 
 | `positionsMaxSelectors` | `PositionSelection.MaxSelectors` |
 | `positionsMaxSelectorLength` | `PositionSelector.MaxSelectorLength` |
 | `positionsMaxPredicates` | `PositionSelector.MaxPredicates` |
+| `positionsMaxDataFields` | `ImagePosition.MaxDataFields` |
 
 Single braces such as `{page}` are literal text. A token the table does not know is a load error, so a literal pair of
 double braces cannot be written.

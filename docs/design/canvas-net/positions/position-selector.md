@@ -13,11 +13,11 @@ source files, both `public`, in the namespace `DemaConsulting.CanvasNet.Position
 
 A caller asks for a few features of a picture that may have thousands. The unit gives one small, bounded, predictable
 grammar for that question, shared by the command line, the library, and every renderer, so a selector means the same
-everywhere: by kind, by id (a glob or an exact quoted id), or by typed predicates on the channel values and the facts of
-a position.
+everywhere: by kind, by id (a glob or an exact quoted id), or by typed predicates on the channel values, the data
+fields, and the facts of a position.
 
 The unit's behavior is specified by the `CanvasNet-Positions-PositionSelector-*` requirements (`Grammar`, `Matching`,
-`Limits`, and `Union`) in `docs/reqstream/canvas-net/positions/position-selector.yaml`.
+`DataFields`, `Limits`, and `Union`) in `docs/reqstream/canvas-net/positions/position-selector.yaml`.
 
 #### Data Model
 
@@ -33,26 +33,26 @@ id-pattern  := 1*( any char except '"' and '=' )  ; '*' is any run (also empty),
 json-string := '"' JSON string body '"'           ; an exact id; '*' and '?' are literal
 predicates  := predicate *( "+" predicate )       ; '+' separates only outside JSON strings
 predicate   := name "=" value                     ; the first '=' separates; a name once per selector
-name        := "@" meta | channel
+name        := "@" meta | word
 meta        := "id" / "view" / "from" / "to" / "index"
-channel     := ALPHA *( ALPHA / DIGIT / "_" )
+word        := ALPHA *( ALPHA / DIGIT / "_" )   ; a channel or a data field
 value       := json-string | bare
 bare        := 1*( any char except '+' and '"' )
 ```
 
 **Case.** The keywords are case-insensitive: `all`, the kind, and the `@` names (the kind and the `@` names are stored
-in lowercase). Ids, channel names, and text values are case-sensitive.
+in lowercase). Ids, channel and field names, and text values are case-sensitive.
 
-**Values.** A bare channel value is read like a `--param` value, with `ImageParameterValues.TryParseParameter` of the
-`ImageSources` subsystem: `true`, `false`, `null`, and a finite invariant number (`3`, `-1.5`, `1e3`) are typed, and
-anything else is text with one pair of surrounding single quotes removed. A JSON string is always text, so `x=3`
-matches the number 3 (and 3.0) and `x="3"` matches the text `3`. A bare channel value that starts with `[` or `{` is
-refused. A bare value of `@id`, `@view`, `@from`, or `@to` is the text as written (they hold ids and paths); `@index`
-takes a whole number that is not negative.
+**Values.** A bare channel or field value is read like a `--param` value, with `ImageParameterValues.TryParseParameter`
+of the `ImageSources` subsystem: `true`, `false`, `null`, and a finite invariant number (`3`, `-1.5`, `1e3`) are typed,
+and anything else is text with one pair of surrounding single quotes removed. A JSON string is always text, so `x=3`
+matches the number 3 (and 3.0) and `x="3"` matches the text `3`. A bare channel or field value that starts with `[` or
+`{` is refused. A bare value of `@id`, `@view`, `@from`, or `@to` is the text as written (they hold ids and paths);
+`@index` takes a whole number that is not negative.
 
 **`PositionSelector`** fields: `Text` (as given), `Kind` (the lowercase kind, or `null` for `all`, so `IsAll` is
 `Kind is null`), and the private `_idPattern` (a glob), `_exactId` (a quoted id), and `_predicates` (an array of the
-private `Predicate(Name, Value)` record: an `@` name in lowercase or a channel name as written, and a `PositionValue`).
+private `Predicate(Name, Value)` record: an `@` name in lowercase or a channel or field name as written, and a `PositionValue`).
 At most one of the id pattern, the exact id, and the predicates is set.
 
 **`PositionSelection`** fields: `Selectors` (the parsed selectors in their first order, identical texts kept once) and
@@ -77,10 +77,13 @@ and thread-safe.
   value as a JSON string up to its closing quote (which must be followed by `+` or the end) or as bare text up to the
   next `+`, read by `TryReadBareValue`; and stops with a problem as soon as there are more than `MaxPredicates`.
 - **`PositionSelector.Matches(position)`** - the kind gate first (the cheapest test; `all` passes every kind), then the
-  exact id (ordinal equality) or the id glob, then every predicate (ANDed). A channel predicate compares with
-  `ImagePosition.TryGetValue` using typed equality, so a missing channel never matches and `x=null` matches a channel
-  that is present and holds null; `@id` compares exactly (no globs); `@view`, `@from`, `@to`, and `@index` never match a
-  position that does not have them.
+  exact id (ordinal equality) or the id glob, then every predicate (ANDed). A word name is a channel when it is in
+  `ImagePosition.ChannelNames` or is a name `ImagePosition.Values` holds, and then compares with
+  `ImagePosition.TryGetValue`; any other word is a data field and compares with `ImagePosition.TryGetData`. So a data
+  field whose name is a channel is matched only through that channel (`x=1` never reads a field `x`), and a renderer
+  that names no channels (a Mermaid pie slice's `value`) still compares its values. Both use typed equality, so a
+  missing name never matches and `x=null` matches a name that is present and holds null; `@id` compares exactly (no
+  globs); `@view`, `@from`, `@to`, and `@index` never match a position that does not have them.
 - **`PositionSelector.Glob(pattern, id)`** (internal) - matches the whole id against the whole pattern, `*` being any
   run of characters (also empty) and `?` exactly one: an iterative two-pointer walk that keeps only the last `*` as a
   backtrack point (on a mismatch the star absorbs one more character and the walk resumes after it), followed by
@@ -98,9 +101,10 @@ and thread-safe.
   `problem` from `TryParse`) whose message names the selector and the problem: an empty selector (the hint is to use
   `all`), a selector that is too long, a kind that is not a kind word, `all` with a target, an empty target, an invalid
   or unterminated quoted id or value, text after a closing quote, a `"` in an id pattern or a bare value, an empty or
-  doubled predicate, a predicate without `=`, an unknown `@` name or an invalid channel name, a name that occurs twice,
-  an empty bare value (the hint is to write `""`), an array or object value, a bare value that the `--param` grammar
-  rejects, an `@index` that is not a whole number that is not negative, and more than `MaxPredicates` predicates.
+  doubled predicate, a predicate without `=`, an unknown `@` name or an invalid channel or field name, a name that
+  occurs twice, an empty bare value (the hint is to write `""`), an array or object value, a bare value that the
+  `--param` grammar rejects, an `@index` that is not a whole number that is not negative, and more than `MaxPredicates`
+  predicates.
 - `PositionSelection.Parse` throws `FormatException` for no selector or more than `MaxSelectors`, and passes on the
   `FormatException` of a selector.
 - `ArgumentNullException` for a null text, list, list entry, kind, or position.

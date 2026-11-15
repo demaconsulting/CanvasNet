@@ -448,14 +448,14 @@ The system exposes the following public API to external consumers:
   that never splits a word group, honors explicit line breaks, and lets a token's width depend on
   the width already used on the line.
 - **ImagePosition(string kind, string id)** with its `init` properties (`Text`, `Line`, `View`, `ViewName`, `Mark`,
-  `From`, `To`, `Index`, `Values`, `Box`, `Pixel`), **PositionBox**, **PositionPoint**, and **PositionValue**: The
-  immutable, validated record of one feature of a rendered picture and its typed scalar values (typed equality: the
-  number 3 equals 3.0 but not the text `"3"`). Throws `ArgumentNullException`, `ArgumentException`, or
-  `ArgumentOutOfRangeException` for an invalid fact.
-- **PositionSelector.Parse(string)** / **PositionSelection.Parse(IEnumerable\<string\>)**: Parse a selector (`all`,
-  a kind, a kind with an id glob or a quoted exact id, or typed predicates on channel values and the `@id`, `@view`,
-  `@from`, `@to`, and `@index` facts) and the union of several. Throw `FormatException`, naming the selector, for a
-  malformed selector or one beyond the limits (256 characters, 16 predicates, 32 selectors).
+  `From`, `To`, `Index`, `Values`, `Data`, `ChannelNames`, `Box`, `Pixel`), **PositionBox**, **PositionPoint**, and
+  **PositionValue**: The immutable, validated record of one feature of a rendered picture and its typed scalar values
+  (typed equality: the number 3 equals 3.0 but not the text `"3"`). Throws `ArgumentNullException`, `ArgumentException`,
+  or `ArgumentOutOfRangeException` for an invalid fact.
+- **PositionSelector.Parse(string)** / **PositionSelection.Parse(IEnumerable\<string\>)**: Parse a selector (`all`, a
+  kind, a kind with an id glob or a quoted exact id, or typed predicates on channel values, data fields, and the `@id`,
+  `@view`, `@from`, `@to`, and `@index` facts) and the union of several. Throw `FormatException`, naming the selector,
+  for a malformed selector or one beyond the limits (256 characters, 16 predicates, 32 selectors).
 - **PositionCollector(PositionSelection, int maxCount = 1000)**, **Offer(ImagePosition)**, and
   **GetUnmatchedSelectors()**: Keep the matches of one render in delivery order up to the cap (`Truncated` when a
   match was left out) and name the selectors that matched no candidate. Not thread-safe.
