@@ -338,6 +338,39 @@ public class VegaLiteDocumentPositionTests
     }
 
     /// <summary>
+    ///     Validates that the title of a single view and of a layered view reports the <c>name</c> of the view, as its
+    ///     data rectangle does.
+    /// </summary>
+    [Fact]
+    public void VegaLiteDocument_Render_NamedViewTitle_ReportsTheViewName()
+    {
+        // Arrange
+        const string Single =
+            "{\"name\":\"stalls\",\"title\":\"Crates\",\"data\":{\"values\":[{\"stall\":\"A\",\"crates\":28}]}," +
+            "\"mark\":\"bar\",\"encoding\":{\"x\":{\"field\":\"stall\",\"type\":\"nominal\"},\"y\":{\"field\":\"crates\",\"type\":\"quantitative\"}}}";
+        const string Layered =
+            "{\"name\":\"overlay\",\"title\":\"Crates\",\"data\":{\"values\":[{\"stall\":\"A\",\"crates\":28}]}," +
+            "\"encoding\":{\"x\":{\"field\":\"stall\",\"type\":\"nominal\"},\"y\":{\"field\":\"crates\",\"type\":\"quantitative\"}}," +
+            "\"layer\":[{\"mark\":\"bar\"},{\"mark\":\"point\"}]}";
+
+        // Act
+        var (singleSurface, single) = Render(Single, kind => kind is "title" or "view");
+        var (layeredSurface, layered) = Render(Layered, kind => kind is "title" or "view");
+        using var _ = singleSurface;
+        using var __ = layeredSurface;
+
+        // Assert
+        foreach (var (positions, name) in new[] { (single, "stalls"), (layered, "overlay") })
+        {
+            var title = Assert.Single(positions, p => p.Kind == "title");
+            Assert.Equal("Crates", title.Text);
+            Assert.Equal(string.Empty, title.View);
+            Assert.Equal(name, title.ViewName);
+            Assert.Equal(name, Assert.Single(positions, p => p.Kind == "view").ViewName);
+        }
+    }
+
+    /// <summary>
     ///     Validates that an image mark that omits its width, or both its width and its height, reports the rectangle the
     ///     picture is drawn in (sized from the loaded picture) as its box, with the pixel at its center, and that the
     ///     picture is loaded once.

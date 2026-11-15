@@ -421,7 +421,8 @@ public sealed partial class VegaLiteDocument
         // A fit that a step size drops is the layout's finding, delivered with the data stage's after the reports of the specification
         var layoutWarnings = FitDroppedWarning(request, root, _tree);
         dataWarningSink?.AddRange(layoutWarnings);
-        var title = new TitleBuilder(measurer).Build(root["title"], config, unitOrLayer: true, budget, _tree.SourceName);
+        // The title reports the name of the view it belongs to, as the data rectangle does (RootViewTag)
+        var title = new TitleBuilder(measurer).Build(root["title"], config, unitOrLayer: true, budget, _tree.SourceName, ScenePositions.ViewName(layerTree.Root));
         if (stage is null || scales is null)
         {
             // The measure is checked before the scene is built from it: a padding of 1e308 makes the canvas infinite, which the scene refuses without saying where

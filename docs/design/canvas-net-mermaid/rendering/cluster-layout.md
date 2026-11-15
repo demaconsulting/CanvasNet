@@ -130,10 +130,12 @@ requirements in `docs/reqstream/canvas-net-mermaid/rendering/cluster-layout.yaml
 - `GetEdgesToRender` - `getEdgesToRender`: every edge in order, then, when self-loops are merged, one merged edge per
   self-loop, placed on the side of `getSelfLoopSide` with the points of `getSelfLoopPoints` and the label of
   `getSelfLoopLabelPosition`; otherwise the three segments of a self-loop are drawn as they are, in graph order.
-- `RenderDiagram(LayoutData data, string? title, double titleTopMargin, double padding, LabelBuilder labels)`
-  (`ClusterLayout.Diagram.cs`) - renders the data and returns the whole `Scene`: the drawing as the `root` group; when
-  there is a title, the title sanitized with `HtmlSanitizer` and drawn by `DrawTitle` (Mermaid's `insertTitle`) as one
-  `title` line centered over the bounds of the drawing (over the origin when nothing is drawn), its baseline the title
+- `RenderDiagram(LayoutData data, string? title, double titleTopMargin, double padding, LabelBuilder labels,`
+  `MermaidLocation titleLocation)` (`ClusterLayout.Diagram.cs`) - renders the data and returns the whole `Scene`: the
+  drawing as the `root` group; when there is a title, the title sanitized with `HtmlSanitizer` and drawn by `DrawTitle`
+  (Mermaid's `insertTitle`) as one `title` line, tagged as the `title` position with its text at `titleLocation` (the
+  callers pass the diagram keyword's location, as the other diagram types do for a frontmatter title), centered over
+  the bounds of the drawing (over the origin when nothing is drawn), its baseline the title
   margin above the origin, in the font and color of the style sheet's `Title` rule, with the box of its glyphs as SVG's
   `getBBox` gives it (the advance of the centered text, on the browser's 1/64 pixel run grid, grown to the boxes of the
   glyphs at its ends by `LabelBuilder.SvgLineExtent`, so a title starting with a glyph that reaches left of its origin

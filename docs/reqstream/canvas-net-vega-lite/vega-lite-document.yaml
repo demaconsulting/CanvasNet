@@ -754,3 +754,4 @@ sections:
               - VegaLiteDocument_Render_BoxplotStackAndBin_ValuesAndViews
               - VegaLiteDocument_Render_ArcAndLegend_AimInsideTheSlice
               - VegaLiteDocument_Render_ImageMarkWithoutSize_ReportsTheDrawnBox
+              - VegaLiteDocument_Render_NamedViewTitle_ReportsTheViewName

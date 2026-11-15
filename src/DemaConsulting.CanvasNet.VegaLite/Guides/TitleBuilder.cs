@@ -135,7 +135,7 @@ internal sealed class TitleBlock
 
         // A view's title reports its position, with its bounds in the coordinates of the view; a header block reports none
         var bounds = Extent.Translate(x, y);
-        var tag = PositionText is null ? null : new ScenePositionTag("title", "title") { Text = PositionText, Bounds = bounds };
+        var tag = PositionText is null ? null : new ScenePositionTag("title", "title") { Text = PositionText, Bounds = bounds, ViewName = ViewName };
         var group = new SceneGroup("title", x, y) { Children = _children, Position = tag };
         return (group, bounds);
     }
@@ -145,6 +145,12 @@ internal sealed class TitleBlock
     ///     is not the title of a view (a facet header), which reports no position.
     /// </summary>
     public string? PositionText { get; init; }
+
+    /// <summary>
+    ///     Gets the <c>name</c> of the view the title belongs to, which its position reports, or null for none (a composition
+    ///     cell's title is given its view and name when it is placed in the composition).
+    /// </summary>
+    public string? ViewName { get; init; }
 }
 
 /// <summary>
@@ -198,10 +204,11 @@ internal sealed partial class TitleBuilder
     /// <param name="unitOrLayer"><see langword="true"/> for a single or layered view (the default); other views anchor their title at the start.</param>
     /// <param name="budget">The scene budget that is charged before the title group and each text are created, or null for no limit.</param>
     /// <param name="sourceName">The source name for the location of a budget failure, or null.</param>
+    /// <param name="viewName">The <c>name</c> of the view the title belongs to, which the position of the title reports, or null.</param>
     /// <returns>The title block, or null when there is no title text.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="config"/> is null.</exception>
     /// <exception cref="VegaLiteRenderException">Thrown, with the location of the title, when the title would pass the scene item limit.</exception>
-    public TitleBlock? Build(SpecNode? title, ResolvedConfig config, bool unitOrLayer = true, SceneBudget? budget = null, string? sourceName = null)
+    public TitleBlock? Build(SpecNode? title, ResolvedConfig config, bool unitOrLayer = true, SceneBudget? budget = null, string? sourceName = null, string? viewName = null)
     {
         ArgumentNullException.ThrowIfNull(config);
         if (title is null || title.IsNull)
@@ -268,7 +275,7 @@ internal sealed partial class TitleBuilder
             extent = _measurer.GetBounds(subtitleText).Union(extent);
         }
 
-        return new TitleBlock(orient, anchor, frame, offset, children, extent) { PositionText = string.Join(' ', titleLines) };
+        return new TitleBlock(orient, anchor, frame, offset, children, extent) { PositionText = string.Join(' ', titleLines), ViewName = viewName };
     }
 
     /// <summary>

@@ -373,6 +373,28 @@ public class MermaidDocumentPositionTests
     }
 
     /// <summary>
+    ///     Validates that the frontmatter title of a flowchart, class, state, and ER diagram (the titles the shared cluster
+    ///     layout draws) reports the line of the diagram keyword, as the other diagram types do for a frontmatter title.
+    /// </summary>
+    /// <param name="body">The diagram after the frontmatter and a blank line, its keyword on line 5.</param>
+    [Theory]
+    [InlineData("flowchart LR\n    a --> b\n")]
+    [InlineData("classDiagram\n    class Animal\n")]
+    [InlineData("stateDiagram-v2\n    [*] --> Idle\n")]
+    [InlineData("erDiagram\n    CUSTOMER ||--o{ ORDER : places\n")]
+    public void MermaidDocument_Render_ClusterLayoutTitles_ReportTheKeywordLine(string body)
+    {
+        // Act
+        var (surface, positions) = Render("---\ntitle: Shapes\n---\n\n" + body);
+        using var _ = surface;
+
+        // Assert
+        var title = Assert.Single(positions, p => p.Kind == "title");
+        Assert.Equal("Shapes", title.Text);
+        Assert.Equal(5, title.Line);
+    }
+
+    /// <summary>
     ///     Validates that a sequence diagram title reports the line of its <c>title</c> statement.
     /// </summary>
     [Fact]

@@ -921,7 +921,8 @@ condition of its encoding reads.
 `VegaLiteDocumentPositionTests.VegaLiteDocument_Render_AggregateAndTemporalLine_ValuesAndVertices`,
 `VegaLiteDocumentPositionTests.VegaLiteDocument_Render_BoxplotStackAndBin_ValuesAndViews`,
 `VegaLiteDocumentPositionTests.VegaLiteDocument_Render_ArcAndLegend_AimInsideTheSlice`,
-`VegaLiteDocumentPositionTests.VegaLiteDocument_Render_ImageMarkWithoutSize_ReportsTheDrawnBox`
+`VegaLiteDocumentPositionTests.VegaLiteDocument_Render_ImageMarkWithoutSize_ReportsTheDrawnBox`,
+`VegaLiteDocumentPositionTests.VegaLiteDocument_Render_NamedViewTitle_ReportsTheViewName`
 
 Renders a titled bar chart of three stalls and asserts the kinds `title`, `view`, `axis`, `axis`, and three `mark`s in
 that order with the ids `title`, the empty root path, `x`, `y`, `bar-0`, `bar-1`, and `bar-2`, every position in the
@@ -940,4 +941,5 @@ own values 3 and 5 of two stacked bars, and the start and the greater end of a b
 Renders an image mark centered at (100, 50) whose resolver returns a 40 by 10 raster and asserts that with only a
 height of 20 its box is the drawn rectangle (60, 40, 80, 20) and without a size the natural (80, 45, 40, 10), each
 with the pixel (100, 50), the picture red at the corners inside the box and the background white just outside it, and
-one resolver call per render.
+one resolver call per render. Asserts that the title `Crates` of a single view named `stalls` and of a layered view
+named `overlay` reports the root view path and the name of its view, as its data rectangle does.

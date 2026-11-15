@@ -57,7 +57,8 @@ internal sealed partial class StateModel
             context.Source.Frontmatter?.Title,
             config.State.TitleTopMargin,
             ViewBoxPadding,
-            labels);
+            labels,
+            KeywordLocation);
     }
 
     /// <summary>

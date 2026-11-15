@@ -53,7 +53,8 @@ internal sealed partial class ErModel
             context.Source.Frontmatter?.Title,
             config.Er.TitleTopMargin,
             ViewBoxPadding,
-            labels);
+            labels,
+            KeywordLocation);
     }
 
     /// <summary>

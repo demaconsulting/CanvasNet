@@ -209,7 +209,8 @@ rendering, diagnostics, unsupported features, limits and cancellation, determini
   given, accepts `mark`) and passes it through `ChartInputs.RecordMarks` (a single or layered chart),
   `Composer.RecordMarks` (a composition), and `CellInputs.RecordMarks` to the `MarkBuilder` of each cell
   (`RecordPositions`). The data rectangle of a single or layered chart is tagged as the view `""` (`RootViewTag`,
-  passed to `ViewLayout.Build`); in a composition the view group of each chart cell is tagged with its view path.
+  passed to `ViewLayout.Build`), and its title is built with the view's `name` (`TitleBuilder.Build`'s `viewName`); in
+  a composition the view group of each chart cell is tagged with its view path.
   `BuildAxes` and `BuildLegends` tag each axis group (`GuideTag`, with the drawn title of the axis, `AxisTitle`, and the
   bounds of its ticks, labels, domain, and title) and each legend group (by its first channel, with its title), with the
   path of the view that owns them. `BuildMarks` gives the
