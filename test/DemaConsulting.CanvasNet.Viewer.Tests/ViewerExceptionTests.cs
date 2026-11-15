@@ -69,5 +69,6 @@ public class ViewerExceptionTests
         Assert.Equal("threshold-failed", ErrorCodes.ThresholdFailed);
         Assert.Equal("positions-unmatched", ErrorCodes.PositionsUnmatched);
         Assert.Equal("svg-binding-failed", ErrorCodes.SvgBindingFailed);
+        Assert.Equal("pandoc-filter-error", ErrorCodes.PandocFilterError);
     }
 }

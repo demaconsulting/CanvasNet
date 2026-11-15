@@ -73,3 +73,9 @@ see-also:
   code (svg-binding-unmatched, svg-binding-ambiguous, and so on), the element,
   and the value. Without --strict the binding keeps the numbers written in the
   file. See 'canvasnet help svg bindings'.
+- `pandoc-filter-error`: The pandoc-filter command cannot draw the pictures of
+  a Pandoc document: an attribute of a picture is not valid, a source is not in
+  the resource path, a model, chart, diagram, or drawing has too many files or
+  is nested too deep, CANVASNET_FILE_ACCESS, CANVASNET_ROOTS, or CANVASNET_JOBS
+  is not valid, or a file of the picture cache cannot be written. The message
+  names the picture; see 'canvasnet help pandoc'.

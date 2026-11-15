@@ -1803,7 +1803,7 @@ This table is also the `canvasnet help files` card, bullet by bullet; a test kee
 | `file-access-denied` | Error: an OpenSCAD include or use file or a Vega-Lite data file that the mode denies, or a denied picture with --strict; the message names the file as written and where it is referenced. No output is written. |
 | `real path unavailable` | A mode other than any needs the real path of every opened file. Where the system cannot tell it (Linux without /proc, for example), the file is denied, never read unchecked. |
 | `detail` | In the JSON result, the detail of an image-access-denied note holds the reference, the requested and real paths, and the mode. These are host paths: a service that shows notes to untrusted authors should remove them. |
-| `default` | docs/filters/canvasnet.lua passes no mode, so a document reads its pictures, includes, and data as Pandoc reads its images. |
+| `default` | The pandoc-filter command passes no mode, so a document reads its pictures, includes, and data as Pandoc reads its images. |
 | `CANVASNET_FILE_ACCESS` | Set it to roots, no-symlinks, or roots,no-symlinks to pass --file-access to every render and flatten of the filter; a picture the mode denies then stops the build. |
 | `CANVASNET_ROOTS` | Folders separated like PATH (; on Windows, : elsewhere), passed as one --allow-root each as an absolute path (a relative folder is taken from the working directory); it implies roots. Without it, roots gets the working directory and the folder of the picture as --allow-root. These arguments are part of the cache name of every picture, so a picture drawn without them, or from another working directory, is not reused. |
 

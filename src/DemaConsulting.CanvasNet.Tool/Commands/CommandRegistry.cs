@@ -72,6 +72,7 @@ internal sealed partial class CommandRegistry
         registry.Register(new MontageCommand());
         registry.Register(new InspectCommand());
         registry.Register(new FlattenCommand());
+        registry.Register(new PandocFilterCommand());
 
         return registry;
     }
