@@ -1911,11 +1911,11 @@ sections:
             title: >-
               The SvgCodec class shall treat an attribute in the namespace https://demaconsulting.com/canvasnet, matched
               by its expanded name whatever its prefix, as a position binding: x1y1 and x2y2 on a line, center on a
-              circle or an ellipse, and xy on a text, whose value is  # imageId selector (split at the first white space
-              after the id, the id naming an image of the same document, the selector parsed with the grammar of the
-              position selectors); it shall ignore attributes of other namespaces, never fetch the namespace URI, and
-              report a malformed value (svg-binding-malformed) and an id that names no image
-              (svg-binding-image-missing).
+              circle or an ellipse, and xy on a text, whose value is a hash sign, the image id, white space, and a
+              selector (split at the first white space after the id, the id naming an image of the same document, the
+              selector parsed with the grammar of the position selectors); it shall ignore attributes of other
+              namespaces, never fetch the namespace URI, and report a malformed value (svg-binding-malformed) and an id
+              that names no image (svg-binding-image-missing).
             justification: |
               Matching by expanded name keeps the bindings unambiguous in any document, and one selector grammar for
               --positions and bindings means one thing to learn.

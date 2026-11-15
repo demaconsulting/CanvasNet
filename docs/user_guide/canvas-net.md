@@ -2939,7 +2939,9 @@ pixels of that surface (`null` when the source reports none), `PositionsTruncate
 reaches the source in `ImageSourceRequest.Positions` (never for the links of that file), and a source returns the
 positions in `ImageSourceResult.Positions`; both are `null` by default, so a resolver or a source that knows nothing of
 positions keeps working. `FolderImageResolver` and the resolver it gives each source implement it, with the same
-file-access policy and limits as `Resolve`.
+file-access policy and limits as `Resolve`. Of the shipped sources, the Viewer's source for Mermaid
+diagrams, Vega-Lite charts, and SCAD models reports positions; the standalone `MermaidImageSource`,
+`VegaLiteImageSource`, and `ScadImageSource` do not yet, so a binding to their pictures is unsupported.
 
 ```csharp
 using DemaConsulting.CanvasNet.ImageSources;
