@@ -966,6 +966,31 @@ Quote a selector that has `*`, `?`, `"`, a space, or `&`:
 each format (`help positions mermaid`, `help positions vega-lite`), and the geometry (`help positions geometry`); the
 `svg framed-figure` card shows how to draw callouts on a diagram with them.
 
+#### SVG Position Bindings
+
+In an SVG figure, bind a callout to a feature instead of copying numbers: give the `<image>` an id, declare
+`xmlns:cn="https://demaconsulting.com/canvasnet"`, and put `cn:x2y2="#id selector"` on the `<line>` that ends the arrow
+(`cn:x1y1` for its start, `cn:center` on a `<circle>` or `<ellipse>`, `cn:xy` on a `<text>`). The selector is one
+`--positions` selector that must match exactly one feature; a model binds its anchors as the kind `anchor`
+(`anchor:tip`). `render` draws each bound picture once and writes the tip where the feature lands in that picture, at
+any `--width`; each resolved binding is an operation `bind` (`element`, `id`, `attribute`, `image`, `selector`, `x`,
+`y`) of the JSON result. Other SVG readers ignore the attribute and show the numbers written in the file, which are
+also what a binding that fails keeps.
+
+```bash
+canvasnet help svg framed-figure --example framed-flow > framed-flow.svg
+canvasnet render framed-flow.svg --width 1200 -o framed.png --strict --json
+```
+
+A binding that fails is a warning with its code: `svg-binding-malformed` (the value is not `#id selector`),
+`svg-binding-image-missing`, `svg-binding-unsupported` (the wrong element, content in `defs`, a pattern, marker, mask,
+clip path, nested `<svg>` or a `<use>`, a text with a list of x or y, a `data:` image, or a file without features),
+`svg-binding-unmatched`, `svg-binding-ambiguous`, `svg-binding-unavailable` (the picture was not drawn, for example a
+denied file, or the feature has no pixel), or `svg-binding-singular` (a transform that cannot be inverted). With
+`--strict` it is the error `svg-binding-failed` and nothing is written; a picture that was not drawn is reported
+first, so a denied file stays `file-access-denied`. `flatten` bakes the bindings (see *flatten*), and
+`canvasnet help svg bindings` is the reference.
+
 #### Embedding Images, Charts, and Models in an SVG
 
 An `<image>` element of an SVG file can name another file by a **relative `href`**, and the tool draws that file in the
@@ -1667,6 +1692,11 @@ was not written`; the notes are written to standard error as for `render`. With 
 the link (`elements`), and the size of the PNG (`bytes`); `rebased` lists the relative links that were rewritten for the
 folder of the copy. With nothing to flatten, `flattened` is `false` and `replaced`, `rebased`, and `outputs` are empty.
 The diagnostics have the shape of those of `render`, with `page` for a report about a page of a linked document.
+When the drawing has SVG position bindings, the object `"bindings":{"resolved":3,"unresolved":0}` follows `rebased`, and
+the text result ends with `, 3 bindings resolved`: each resolved binding is written with the numbers of the PNG picture
+that replaces its link (no linked file is drawn twice), its `cn:` attribute is removed, and so is the namespace
+declaration when nothing uses it any more; a binding that fails keeps its attribute and numbers and is a warning (with
+`--strict` the error `svg-binding-failed`, and nothing is written).
 
 #### Flatten Reference
 

@@ -607,6 +607,29 @@ of a document has the `Page` and no location. For the notes of embedded files `S
 `Strict` fails with `unsupported-feature`; the warnings `image-fragment-unknown-parameter` and
 `image-fragment-duplicate-parameter` stay warnings.
 
+#### SVG Position Bindings
+
+`SourceLoader.SvgBindings.cs` maps what the SVG library reports for the position bindings of a file
+(`SvgLoadOptions.BindingHandler`, see *SvgCodec Design*, *Position Bindings*). `LoadSvg` and `LoadScopedSvg` collect
+the reports; `BindOperations` turns each resolved one into the operation `bind` with the fields `element`, `id` (when
+the element has one), `attribute`, `image`, `selector`, `x`, and `y` (the written numbers), and `BindingNotes` each
+other one into an `svg` warning with its `svg-binding-*` code and message. The embedded pictures report positions
+through the resolver of the viewer: `LoaderImageSource` passes `ImageSourceRequest.Positions` into
+`SourceOptions.Positions` (a direct render keeps its own selection), returns `loaded.Positions` of a Mermaid diagram or
+a Vega-Lite chart, and the anchors of an OpenSCAD model as positions of the kind `anchor` (id the anchor name, pixel
+the anchor pixel, a zero-size box; `AnchorPositions` filters them through a `PositionCollector`), and `null` for every
+other kind. `LoadContext.WarnUnmatchedPositions` (`true` by default) is `false` for an embedded picture, so its
+selectors that match nothing are neither `positions-unmatched` warnings nor strict errors: whether each binding matched
+is the binding's own outcome.
+
+Under `SourceOptions.Strict`, `LoadSvg` calls `SvgImages.ThrowForUnresolved` first and `ThrowForFailedBindings` second,
+so a picture the file-access policy denied is `file-access-denied` and its bindings (only `svg-binding-unavailable`)
+never hide it; `ThrowForUnresolved` itself also fails, after the pictures, on an `svg-binding-*` note of a nested SVG
+file (which `LoadScopedSvg` returns as a note through the resolver), naming the nested file from the origin of the
+note. The error is `svg-binding-failed` with a message that names the warning code, the element, and the value, and a
+hint that without `--strict` the numbers in the file are kept. Requirement:
+`CanvasNetViewer-Imaging-SourceLoader-SvgBindings`.
+
 #### Error Handling
 
 `Read` maps these library exceptions (an explicit list, not a catch-all) to a `ViewerException` with the file path in

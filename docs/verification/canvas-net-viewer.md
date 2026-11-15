@@ -176,8 +176,20 @@ Verifies `CanvasNetViewer-Positions`: writes a bar chart of two bars, probes it,
 with the selector `mark:x=B` and a pad of 10 pixels on every side. Asserts that the page reports exactly one position
 and that the pixel of the written PNG file at that position has the bar color `#4C78A8`, so the position was mapped
 through the pad into the written image. The cap, the warning and the strict error of an unmatched selector, the
-selectors ignored for every other kind and for embedded pictures, and the fit into a box are verified by the position
+selectors ignored for every other kind and for embedded pictures (which report only what SVG bindings ask for), and the
+fit into a box are verified by the position
 scenarios of the `SourceLoader`, `ImagePipeline`, `ImageRenderer`, and `CanvasNetViewer` unit verification designs.
+
+### Integration: SVG Position Bindings
+
+**Tests**: `SourceLoader_Load_SvgBindingToMermaid_LandsOnTheNode`, `SvgFlattener_Execute_ResolvedBinding_IsBaked`
+
+Verifies `CanvasNetViewer-SvgPositionBindings`: an SVG file that binds a line to a node of an embedded flowchart is
+loaded strictly with the `bind` operation at the pixel the diagram reports alone at the size of its image, plus the
+image origin, and is flattened into a copy that differs from the drawing only by the link, the two baked numbers, the
+binding attribute, and the namespace declaration. The other kinds, the warnings, the strict order, nested files, and
+the facade are verified by the binding scenarios of the `SourceLoader`, `SvgFlattener`, `CanvasNetViewer`, and
+`ViewerException` unit verification designs.
 
 ### Integration: User Guide Examples Compile
 

@@ -230,6 +230,17 @@ Exercises end-to-end system behavior for `GetInfo` null-argument validation: cal
 `GetInfo` API with a null stream. Asserts `ArgumentNullException` is thrown, confirming `GetInfo`
 honors the same validation contract as `Load` at the system's own public entry point.
 
+### Integration: Svg Position Bindings Land On The Drawn Picture
+
+**Tests**: `SvgCodec_Binding_LineEndpoint_LandsOnThePosition`, `SvgCodec_Binding_BoundImage_IsLoadedOnceAndPainted`
+
+Verifies `CanvasNetSvg-Lib-PositionBindings` through the public `LoadWithFontFaces` API with a test resolver that
+reports positions: a line bound with `cn:x2y2` (or another prefix of the same namespace) to a node of a 40 by 20
+picture placed at 10,20 is reported at the node pixel plus the image origin; a bound image is asked for once with the
+union of its selectors and that surface is painted, and the bound line stops at the bound point. The syntax, the
+transforms, the failures, and the work budget are verified by the binding scenarios of the `SvgCodec` unit verification
+design.
+
 ## Acceptance Criteria
 
 A system-level test run passes when all scenarios above pass without error or exception beyond

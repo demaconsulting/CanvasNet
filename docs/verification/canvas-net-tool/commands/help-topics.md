@@ -399,3 +399,13 @@ picture it writes at the box size has the node's fill `#CCFFCC` in the column of
 below its top; and every callout of the `framed-flow`
 example ends within a quarter unit of a position of the flowchart rendered alone at the size of its image (plus the
 image x and y), with at least two different positions hit.
+
+**HelpTopics_SvgBindings_ListsTheNamespaceAndEveryCode** and **HelpTopics_FramedFigure_RecommendsBindingsFirst**
+(`HelpTopicsTests.Bindings.cs`; the requirement `CanvasNetTool-Commands-HelpTopics-Bindings`): `bindings` is a child of
+`svg`; its card names the namespace of `SvgPositionBinding.Namespace`, has an item for each of the seven binding codes
+of the library, names `svg-binding-failed`, and links `svg/framed-figure`; and the framed-figure card names `cn:x2y2`
+before `positions[].pixel`, and that before `--grid`. **HelpTopics_FramedFlowExample_CalloutsEndOnPositions** also
+proves the bound example: every callout `<line>` binds its `x2`/`y2` to the image of the figure; the diagram rendered
+alone at the size of the image once per selector gives the expected tip (its single position's pixel plus the image x
+and y); the written numbers are within a quarter unit of it, and the numbers `flatten --strict` bakes are within 1e-3,
+with no binding left in the copy.

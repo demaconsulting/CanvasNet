@@ -73,3 +73,14 @@ sections:
           that confines its pictures needs the same rule in the copy.
         tests:
           - FlattenCommand_Run_FileAccessRoots_DeniedLinkIsAWarningAndAnErrorWhenStrict
+
+      - id: CanvasNetTool-Commands-FlattenCommand-Bindings
+        title: >-
+          The flatten command shall add the object bindings {resolved, unresolved} after rebased in its JSON document
+          only when the drawing has position bindings, and end its text summary with the number of bindings resolved
+          when there are any.
+        justification: |
+          A script needs to know that the callouts were baked; a drawing without bindings keeps its result unchanged.
+        tests:
+          - FlattenCommand_Run_Bindings_AreCountedInJsonAndText
+          - FlattenCommand_RenderText_ResolvedBindings_AreCounted

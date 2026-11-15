@@ -1368,6 +1368,7 @@ sections:
           - CanvasNet-ImageSources-Contract
           - CanvasNet-ImageSources-Dispatch
           - CanvasNet-ImageSources-NaturalSize
+          - CanvasNet-ImageSources-Positions
           - CanvasNet-ImageSources-Raster
         tests:
           - ImageSourceSet_Constructor_SameClaims_LaterSourceWins

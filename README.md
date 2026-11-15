@@ -71,6 +71,10 @@ passes options to the linked file: `#page=` or `#slide=` (PDF, PowerPoint, Visio
 `canvasnet flatten overview.svg -o overview-flat.svg` turns such a composite SVG into a self-contained one whose links
 are embedded PNG pictures, so a browser, WeasyPrint, or any other PDF pipeline shows it.
 
+A callout can be bound to a feature of an embedded picture: `cn:x2y2="#flow node:send"` on a `<line>` (with
+`xmlns:cn="https://demaconsulting.com/canvasnet"`) ends the arrow where the node `send` of `<image id="flow">` is drawn,
+at any size, and `flatten` bakes the numbers in (`canvasnet help svg bindings`).
+
 ## Features
 
 > **Breaking change: linked files are no longer confined by default.** SVG images, Mermaid pictures, Vega-Lite image
@@ -601,7 +605,8 @@ As a model reports its anchors, a Mermaid diagram and a Vega-Lite chart report w
 `MermaidRenderOptions.PositionHandler` and `VegaLiteRenderOptions.PositionHandler` receive each node, edge, view, axis,
 or mark as an `ImagePosition` with its box and attach pixel in the picture, and
 `canvasnet render <diagram.mmd|chart.vl.json> --positions <selector> --json` lists the features a selector such as
-`node:send` or `mark:x=B` matches, for callouts and leader lines (`canvasnet help positions` explains the selectors).
+`node:send` or `mark:x=B` matches, for callouts and leader lines (`canvasnet help positions` explains the selectors);
+an SVG figure binds a callout to the same selector with `cn:x2y2="#image selector"` (`canvasnet help svg bindings`).
 
 Embed models, charts, and pictures in an SVG diagram, or render any file, with the `DemaConsulting.CanvasNet.Viewer`
 package. Links are read relative to the document under the file-access policy of the render (every local file by

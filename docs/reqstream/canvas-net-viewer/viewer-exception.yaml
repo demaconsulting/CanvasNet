@@ -46,3 +46,13 @@ sections:
             tests:
               - SourceLoader_Load_UnmatchedSelector_WarnsOrFailsWhenStrict
               - CanvasNetViewer_Render_UnmatchedSelector_NoteOrStrictFailure
+
+          - id: CanvasNetViewer-ViewerException-SvgBindingFailed
+            title: >-
+              The ErrorCodes class shall define the stable code svg-binding-failed for an SVG position binding that was
+              not resolved under the strict option.
+            justification: |
+              A stable code lets a caller tell a binding failure from every other failure.
+            tests:
+              - SourceLoader_Load_SvgBindingUnmatched_WarnsOrFailsStrictly
+              - SvgFlattener_Execute_StrictUnresolvedBinding_WritesNothing

@@ -447,3 +447,19 @@ Asserts the sorted union of extensions and schemes, that the `Extensions`, `Sche
 and the rejection of a null sequence, negative limits, an empty or white-space
 folder (a null folder stays allowed), an
 invalid claim, and a null link.
+
+##### CanvasNet-ImageSources-FolderImageResolver-Positions: Resolving With Positions
+
+**Tests**: `FolderImageResolver_ResolveWithPositions_ReturnsThePositionsOfTheSameRender`,
+`FolderImageResolver_ResolveWithPositions_SourceWithoutPositions_GivesNull`,
+`FolderImageResolver_ResolveWithPositions_DeniedFile_GivesNullWithAccessDenied`,
+`FolderImageResolver_ResolveWithPositions_OverTheImageCount_GivesNullWithUnresolved`,
+`FolderImageResolver_ScopedResolver_ResolvesWithPositions`, `FolderImageResolver_ResolveWithPositions_NullSelection_Throws`
+(`FolderImageResolverPositionTests.cs`)
+
+A stub source that reports one position when asked receives the very selection, and the resolution returns its surface
+with that position and the truncation flag; a plain `Resolve` sends no selection, and a source that ignores the
+selection gives null positions; a file outside the only allowed root gives null with `image-access-denied`; with
+`MaxImages` 0 the link gives null with `svg-image-unresolved`; the resolver an embedded file receives is an
+`IImagePositionResolver` that returns the positions of its own link, while the embedded file itself was asked for none;
+and a null selection is refused with `ArgumentNullException`.

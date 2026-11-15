@@ -2929,6 +2929,28 @@ foreach (var selector in collector.GetUnmatchedSelectors())
 }
 ```
 
+#### Positions of an embedded picture
+
+A renderer that places a point on a feature of a picture it embeds (the SVG position bindings, `cn:x2y2="#id node:a"`)
+needs the positions of the very picture it draws. `IImagePositionResolver` is the optional interface for that: an
+`IImageResolver` whose `ResolveWithPositions(href, pixelWidth, pixelHeight, selection)` returns an `ImageResolution`
+with the `Surface` (which the caller owns and disposes), the `Positions` the source reported for the selection in the
+pixels of that surface (`null` when the source reports none), `PositionsTruncated`, and `IsNaturalSize`. The selection
+reaches the source in `ImageSourceRequest.Positions` (never for the links of that file), and a source returns the
+positions in `ImageSourceResult.Positions`; both are `null` by default, so a resolver or a source that knows nothing of
+positions keeps working. `FolderImageResolver` and the resolver it gives each source implement it, with the same
+file-access policy and limits as `Resolve`.
+
+```csharp
+using DemaConsulting.CanvasNet.ImageSources;
+using DemaConsulting.CanvasNet.Positions;
+
+IImagePositionResolver resolver = CanvasNetViewer.CreateImageResolver("figures");   // the Viewer package
+var resolution = resolver.ResolveWithPositions("flow.mmd", 430, 280, PositionSelection.Parse(["node:send"]));
+using var picture = resolution?.Surface;
+var send = resolution?.Positions?.SingleOrDefault()?.Pixel;   // in the pixels of picture
+```
+
 ## Migrating from the Folder Sandbox
 
 > **Breaking change.** Linked files are no longer confined to the folder of the document by default. They are read

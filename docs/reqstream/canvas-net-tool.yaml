@@ -1029,3 +1029,19 @@ sections:
           - CanvasNetTool-Commands-HelpTopics-Positions
         tests:
           - CanvasNetTool_Positions_RenderAsProcess_ReportsFeaturePixels
+
+      - id: CanvasNetTool-System-SvgPositionBindings
+        title: >-
+          The tool shall resolve the SVG position bindings of a figure in render (a bind operation per binding in the
+          JSON result, a warning or with --strict the error svg-binding-failed for one that fails, writing nothing) and
+          bake them in flatten (the bindings counts in the JSON result), and shall document them in the help card svg
+          bindings.
+        tags: [system]
+        justification: |
+          Agents draw framed figures from the command line; a bound arrow lands on the feature at any size and survives
+          flattening for other SVG readers.
+        children:
+          - CanvasNetTool-Commands-FlattenCommand-Bindings
+          - CanvasNetTool-Commands-HelpTopics-Bindings
+        tests:
+          - CanvasNetTool_Bindings_RenderAndFlattenAsProcess_ResolveTheBinding

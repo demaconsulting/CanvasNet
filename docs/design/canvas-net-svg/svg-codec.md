@@ -1956,8 +1956,61 @@ with
 Passing the **scoped resolver of the request** on is what makes nesting work with no state in the source: the `image`
 elements of the nested file resolve against the folder of that file, and the depth, cycle, and count limits of the whole
 render apply. When the request has no resolver the nested file's external links are not drawn. The SVG library neither
-reports unsupported features nor can fail on them, so the request's strictness switch has no effect and the result has
-no notes. Content that is not an SVG document is `InvalidDataException` (from `GetInfo`), a request without a file
+reports unsupported features nor can fail on them, so the request's strictness switch has no effect; the only notes of
+the result are the position bindings of the file that were not resolved, as `svg` warnings with their codes. Content
+that is not an SVG document is `InvalidDataException` (from `GetInfo`), a request without a file
 `InvalidOperationException`, and a canceled request `OperationCanceledException`. The class is stateless, thread-safe,
 and references only the core package. Its requirement is `CanvasNetSvg-SvgCodec-SvgImageSource`, verified by
+`SvgImageSourceTests.cs`.
+
+### Position Bindings
+
+A position binding is an attribute in the namespace `SvgPositionBinding.Namespace`
+(`https://demaconsulting.com/canvasnet`), matched by its expanded name (`XName.Namespace` and the local name) whatever
+its prefix; the URI is never fetched, and an undeclared prefix is not well-formed XML (`InvalidDataException`). The
+pairs are `x1y1` and `x2y2` on a `line` (`x1`/`y1`, `x2`/`y2`), `center` on a `circle` or an `ellipse` (`cx`/`cy`), and
+`xy` on a `text` (its single `x`/`y`; `dx`, `dy`, `text-anchor`, and rotation still apply). The value is
+`#imageId selector`, trimmed and split at the first white space after the id; the id names an `image` of the same
+document through the id index, and the selector is parsed by `PositionSelector.TryParse` (the grammar of
+`--positions`). The file is `SvgCodec.Bindings.cs`; the report type is `SvgPositionBinding` (`SvgPositionBinding.cs`).
+
+**Pre-pass.** `RenderDocument` runs `ResolvePositionBindings` after the root cascade, the fit transform, and the shared
+budgets exist and before the first child is painted, only when `HasPositionBindings` finds an attribute in the namespace
+(a document without one is rendered exactly as before). The pre-pass:
+
+1. walks the elements the painter reaches directly (`BuildBindingLayout`): the same `ApplyPresentationAttributes`
+   cascade and `ParseTransformAttribute(e) * parent` composition as `RenderElement`, the same non-rendering and skipped
+   elements, descent only into `g` and `symbol`, the element-depth bound, and no subtree with a non-finite transform;
+2. collects the targets of every `use` and `feImage` `#id` reference (`CollectReferencedElements`);
+3. checks each binding on its own (`CheckBinding`), in this order: the pair (`svg-binding-unsupported`), the value
+   (`svg-binding-malformed`), the image (`svg-binding-image-missing`), the element and the image painted directly and
+   not inside referenced content, a text without a list of coordinates, an external link (not `data:` or `#`), and an
+   `IImagePositionResolver` (each `svg-binding-unsupported`);
+4. loads each bound image once (`LoadBoundImage`), in the order of its first binding, with the union of the selectors of
+   its bindings (at most `PositionSelection.MaxSelectors`; a binding beyond is unsupported): it reads the placement as
+   `RenderImageWithEffects` does, computes the device size with `ComputeImageDevicePixels` (shared with the painter),
+   charges `requested pixels + ResolverCallOverheadUnits` to the filter work budget, calls `ResolveWithPositions`
+   (a `FormatException` is wrapped as for `Resolve`), and charges an oversized result with `ChargeResolvedExcess`
+   (shared with the painter). The surface, or `null` when nothing is drawn, goes into
+   `RenderContext.PreloadedImages`;
+5. matches each binding (`MatchBinding`): two matches or a truncated list are `svg-binding-ambiguous`, none
+   `svg-binding-unmatched`, a match without a pixel `svg-binding-unavailable`; the pixel is mapped through the painter's
+   placement, `ComputePreserveAspectRatioFit(0, surface size, width, height, preserveAspectRatio) * translate(x, y) *
+   image transform`, and the inverse of the element's own transform (both composed and inverted in double precision by
+   the private `Affine` record struct; a transform that cannot be inverted is `svg-binding-singular`); both numbers are
+   rounded to 3 decimals (no negative zero) and written into the element's attributes together;
+6. reports every binding, in document order, to `SvgLoadOptions.BindingHandler` (`RenderContext.BindingHandler`).
+
+**Same render.** `RenderImageWithEffects` draws a preloaded surface instead of calling the resolver (a `null` entry
+draws nothing and is never asked again) and charges only the effects pipeline for it, so the work charged equals that
+of an unbound image; `RenderDocument` disposes the preloaded surfaces in a `finally`. A binding before its image
+resolves, because the whole layout is known before painting. A binding that fails writes nothing and never fails the
+render; failing is the host's choice. Writing the attributes means a CSS attribute selector on a coordinate attribute
+sees the written value.
+
+**Not supported yet.** Points of `path`, `polyline`, and `polygon`; `data-cn-*` aliases for SVG inside HTML; bindings
+inside `use`, pattern, marker, mask, or clip-path content; and a text with lists of coordinates.
+
+Requirements: `CanvasNetSvg-SvgCodec-PositionBindingSyntax`, `CanvasNetSvg-SvgCodec-PositionBindingResolution`, and
+`CanvasNetSvg-SvgCodec-PositionBindingFailures`, verified by `SvgPositionBindingTests.cs` and
 `SvgImageSourceTests.cs`.

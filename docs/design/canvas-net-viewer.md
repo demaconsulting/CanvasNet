@@ -166,7 +166,10 @@ source is asked again on every render. The shape contains this risk control inhe
 3. **Processing**: a resolver for the render draws the file at the requested size; a raster (always returned at its
    natural size) is fitted into a requested box or scaled to keep its aspect ratio; for a diagram or a chart with
    `Positions`, the loader collects the matching positions while the library draws, and they are mapped through the fit
-   or the resize
+   or the resize; for an SVG file with position bindings (`cn:x2y2="#image selector"`), the resolver asks each bound
+   picture for the positions its bindings select from the same render (`IImagePositionResolver`), the SVG library
+   writes the bound numbers before it paints, and a strict render fails with `svg-binding-failed` after the pictures
+   that were not drawn
 4. **Output**: a `ViewerImage` that owns the `Surface` and carries the format, notes, text, embedded images, and feature
    positions
 

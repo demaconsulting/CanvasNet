@@ -27,6 +27,10 @@ files, all `public`:
 - `IImageResolver.cs` - `IImageResolver` (interface): what a renderer calls
 - `IImageNaturalSizeResolver.cs` - `IImageNaturalSizeResolver` (interface): an `IImageResolver` that also says whether
   the picture is a raster at its own pixel size (`ImageSourceResult.IsNaturalSize`)
+- `IImagePositionResolver.cs` - `IImagePositionResolver` (interface): an `IImageResolver` that also returns the
+  positions of the features of the picture it drew, from the same render (`ResolveWithPositions`)
+- `ImageResolution.cs` - `ImageResolution` (sealed record): the surface, its positions, and its flags, as
+  `ResolveWithPositions` returns them
 - `EmbeddedImage.cs` - `EmbeddedImage` (sealed record): one loaded image
 - `ImageSourceException.cs` - `ImageSourceException` (sealed class): the failure of a source
 - `ImageSourceBudgetException.cs` - `ImageSourceBudgetException` (sealed class): the refusal of a source for a picture
@@ -46,8 +50,7 @@ later source wins) is implemented in one place for every consumer.
 The unit's behavior is specified by the `CanvasNet-ImageSources-ImageSourceContract-*` requirements (`SourceClaims`,
 `Request`, `SizeRule`, `Result`, `FailureReporting`, `ImageFragment`, `FragmentPrefix`, `ParameterValues`, `FragmentReview`,
 `Refusal`,
-and
-`DiagnosticDetail`) in
+`DiagnosticDetail`, and `Positions`) in
 `docs/reqstream/canvas-net/image-sources/image-source-contract.yaml`.
 
 #### Data Model
@@ -207,3 +210,21 @@ Only `Surface` of the `Canvas` subsystem (for `Surface.FitInside` and `Surface.M
 `FolderImageResolver` (builds requests, results, notes, embedded images, and exceptions; uses `ImageSourceSet`), every
 source (`RasterImageSource` and the sources of the format packages), the `CanvasNetSvg` system (`IImageResolver`), the
 `CanvasNetViewer` system, and applications that implement a source.
+
+#### Positions From The Same Render
+
+`IImagePositionResolver : IImageResolver` adds
+`ImageResolution? ResolveWithPositions(string href, int pixelWidth, int pixelHeight, PositionSelection positions)`: the
+same contract as `Resolve` (the caller owns the surface; `null` draws nothing and the reason is a note of the resolver),
+and in addition the positions of the features the selection matches, in the pixels of that very surface. It exists for
+the SVG position bindings, which must place a point on the picture that is drawn, not on a second render of it. It is an
+optional interface: a resolver or a source that knows nothing of positions keeps working, and a renderer reports a
+binding through such a resolver as unsupported.
+
+The selection travels to the source in `ImageSourceRequest.Positions` (`null` by default; set by the resolver only for
+the link it was asked about, never for the links of that file) and the positions come back in
+`ImageSourceResult.Positions` (`null` by default: the source reports none, as a raster or a document page) and
+`PositionsTruncated` (more matched than `PositionCollector.MaxPositions`). `ImageResolution` carries `Surface`,
+`Positions`, `PositionsTruncated`, and `IsNaturalSize`; like the lists of a result, its positions are copied into a
+read-only snapshot when they are assigned, and it refuses a null surface. Requirement:
+`CanvasNet-ImageSources-ImageSourceContract-Positions`.

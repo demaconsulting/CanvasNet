@@ -242,3 +242,13 @@ asserts that the boxed render reports the nodes `A` and `B`, not truncated, each
 natural pixel (the fit of the box). Renders it with the selector `node:Zed` and asserts that the image has no positions
 and a note with the code `positions-unmatched`, and that with `ThrowOnUnsupportedFeature` the render throws a
 `ViewerException` with that code.
+
+#### CanvasNetViewer-CanvasNetViewer-BindingPositions: Positions Of Embedded Pictures For Bindings
+
+**Tests**: `CanvasNetViewer_CreateImageResolver_ResolveWithPositions_ReportsByKind`,
+`CanvasNetViewer_Render_StrictUnresolvedBinding_Fails` (`CanvasNetViewerBindingTests.cs`)
+
+The resolver of `CreateImageResolver` asked through `ResolveWithPositions` reports the nodes `A` and `B` of a flowchart,
+the two bars of a chart, the anchor `corner` of a model, and no positions for a PNG file. An SVG file whose binding
+matches nothing renders with the warning `svg-binding-unmatched`, and with `ThrowOnUnsupportedFeature` fails with
+`svg-binding-failed`.

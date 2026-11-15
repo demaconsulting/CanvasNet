@@ -457,3 +457,21 @@ sections:
                   - FolderImageResolver_Constructor_InvalidArguments_Throw
                   - FolderImageResolver_Constructor_MaxDecodedPixels_DefaultNegativeAndZero
                   - FolderImageResolverOptions_FileAccess_DefaultsToAllowAllAndRejectsNull
+
+              - id: CanvasNet-ImageSources-FolderImageResolver-Positions
+                title: >-
+                  The FolderImageResolver class, and the resolver it gives each source, shall implement
+                  IImagePositionResolver: it shall pass the selection to the source of the link only (never to the links
+                  of that file), return the positions and the truncation flag the source reported with the surface it
+                  drew (null positions for a source that reports none), refuse a null selection, and apply the
+                  file-access policy and every limit exactly as a plain resolution does.
+                justification: |
+                  The positions must come from the same render as the surface, and asking for them must not open a way
+                  around the policy, the depth, cycle and image-count limits, or the pixel budget.
+                tests:
+                  - FolderImageResolver_ResolveWithPositions_ReturnsThePositionsOfTheSameRender
+                  - FolderImageResolver_ResolveWithPositions_SourceWithoutPositions_GivesNull
+                  - FolderImageResolver_ResolveWithPositions_DeniedFile_GivesNullWithAccessDenied
+                  - FolderImageResolver_ResolveWithPositions_OverTheImageCount_GivesNullWithUnresolved
+                  - FolderImageResolver_ScopedResolver_ResolvesWithPositions
+                  - FolderImageResolver_ResolveWithPositions_NullSelection_Throws

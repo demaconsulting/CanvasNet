@@ -155,6 +155,15 @@ surface of the source is already charged; see the budget contract on `ImageSourc
 `ImageSourceBudgetException` (disposing the source's surface) when it does not fit. A vector surface that is already the
 requested size is not post-processed and costs nothing more.
 
+### Position Bindings
+
+The resolver of `CreateImageResolver` (and of every render) implements `IImagePositionResolver` through
+`FolderImageResolver`, and `LoaderImageSource` answers `ImageSourceRequest.Positions` for a Mermaid diagram, a Vega-Lite
+chart, and the anchors of an OpenSCAD model (kind `anchor`), so an SVG file the facade renders resolves its position
+bindings from the pictures it draws. `CreateImage` applies the strict option to them after the links that were not
+drawn: an `svg-binding-*` note of the rendered file (in the result) or of a nested file (in the resolver) is
+`svg-binding-failed`. Requirement: `CanvasNetViewer-CanvasNetViewer-BindingPositions`.
+
 ### Error Handling
 
 A null `path`, `stream`, or `fileName` throws `ArgumentNullException`; a null, empty or white-space folder for

@@ -122,3 +122,17 @@ long for the file system does not throw. **SvgFlattener_IsWindowsRootedPath_\***
 path (`C:\x.png`, `C:/x.png`, `c:x.png`, `Z:`), a UNC path, and a backslash-rooted path are Windows rooted paths, while
 relative paths, POSIX rooted paths, `//server/share/x.png`, `1:x.png`, a lone letter, and the empty path are not; and
 such a link, plain or percent-encoded and with a fragment, is left as written when the copy goes to another folder.
+
+**SvgFlattener_Execute_ResolvedBinding_IsBaked**, **SvgFlattener_Execute_MissingCoordinates_AreInserted**,
+**SvgFlattener_Execute_UnresolvedBinding_IsKeptAndWarned**, **SvgFlattener_Execute_StrictUnresolvedBinding_WritesNothing**,
+and **SvgFlattener_Execute_BindingToUsedImage_IsKept** (`SvgFlattenerBindingTests.cs`; the requirement
+`CanvasNetViewer-Imaging-SvgFlattener-Bindings`): a 400 by 200 drawing places a two-node flowchart at 20,30 in a 300 by
+120 box. A line bound with `cn:x2y2='#pic node:B'` (under the prefix `cn` and, in a second case, `q`) is baked: the copy
+is the drawing with only the link, the two numbers, the binding attribute, and the namespace declaration changed, and
+the numbers equal the pixel of `B` when the diagram is rendered alone at the size of the PNG picture of the copy, fitted
+`xMidYMid meet` into the box plus 20,30, rounded to 3 decimals (computed by the test, not by the flattener); the result
+counts one resolved binding and is flattened. A circle without `cx` and `cy` gets them inserted with the quote of the
+binding. A binding to `node:Zed` keeps its attribute, its numbers, and the namespace declaration while a second binding
+is baked, and is the one warning `svg-binding-unmatched` with the counts 1 and 1; with the strict option it is the error
+`svg-binding-failed` and no file is written. A binding to an image that a `use` draws again is kept and is the warning
+`svg-binding-unsupported`.

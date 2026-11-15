@@ -71,6 +71,13 @@ class:
   its `FileAccessPolicy`: `AllowAll` by default, confinement opt-in with `UnderRoots`/`NoSymlinks`). The codec never
   caches a picture: the resolver is asked again for every element and every
   load. A resolver exception propagates unchanged; its calls are bounded by the shared work budget.
+- **Position bindings** (`SvgLoadOptions.BindingHandler`, `Action<SvgPositionBinding>?`, default `null`): attributes
+  in the namespace `https://demaconsulting.com/canvasnet` (`cn:x1y1`, `cn:x2y2` on a line, `cn:center` on a circle
+  or an ellipse, `cn:xy` on a text) whose value `#imageId selector` binds a coordinate pair to a feature of the
+  picture an `image` of the same document draws. When the resolver is an `IImagePositionResolver`, the codec loads
+  each bound image once before painting, writes the mapped numbers into the element, and paints the same surface; a
+  binding it cannot resolve keeps the written numbers and is reported with a stable `svg-binding-*` code. The handler
+  receives every binding in document order (see _SvgCodec Design_, _Position Bindings_).
 - **SvgImageSource** (`IImageSource`, claims `.svg`): The Svg package's image source, so that an SVG file can
   be embedded in another document through the shared `FolderImageResolver`: it draws the file at the size of its
   placement over a transparent background and resolves the file's own `image` elements through the resolver

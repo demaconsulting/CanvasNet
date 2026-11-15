@@ -106,6 +106,21 @@ sections:
             tests:
               - FolderImageResolver_Resolve_ReportsTheKindOfThePictureNotItsSize
 
+          - id: CanvasNet-ImageSources-Positions
+            title: >-
+              The ImageSources subsystem shall let a renderer ask for the picture of a link together with the positions
+              of its features from the same render, through the optional IImagePositionResolver (implemented by the
+              folder resolver and by the resolver of each source), ImageSourceRequest.Positions, and
+              ImageSourceResult.Positions, under the same policy and limits as a plain resolution.
+            justification: |
+              A document that places a callout on a feature of an embedded picture needs the positions of the very
+              picture it draws, without a second render and without a new way around the limits.
+            children:
+              - CanvasNet-ImageSources-ImageSourceContract-Positions
+              - CanvasNet-ImageSources-FolderImageResolver-Positions
+            tests:
+              - FolderImageResolver_ResolveWithPositions_ReturnsThePositionsOfTheSameRender
+
           - id: CanvasNet-ImageSources-Limits
             title: >-
               The ImageSources subsystem shall bound the work one render can cause: it shall stop a file that embeds

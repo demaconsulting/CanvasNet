@@ -31,6 +31,10 @@ The public types of the subsystem are in the namespace `DemaConsulting.CanvasNet
 - **`IImageResolver`** - `Surface? Resolve(string href, int pixelWidth, int pixelHeight)`: what a renderer calls to turn
   a
   link into a picture. It returns a surface the caller owns, or `null` (nothing is drawn).
+- **`IImagePositionResolver`, `ImageResolution`** - the optional enriched resolution: `ResolveWithPositions` returns
+  the picture of a link with the positions of its features from the same render, for a `PositionSelection` that
+  reaches the source in `ImageSourceRequest.Positions` and comes back in `ImageSourceResult.Positions`; the SVG position
+  bindings use it. Resolvers and sources that do not know it keep working.
 - **`IImageSource`** - one format or live source: `Name`, `Extensions` (file-based claims, such as `.png` or
   `.vl.json`),
   `Schemes` (scheme claims, such as `camera`), and `Render(ImageSourceRequest)`.

@@ -866,3 +866,18 @@ loaded with `node:A` and `node:Zed` reports `A` and one `positions-unmatched` wa
 severity `warning` that names `'node:Zed'`, while in strict mode the load throws a `ViewerException` with that code, as
 does a chart loaded with `axis:z` in strict mode, whose message names `'axis:z'`; and an SVG file that embeds the
 flowchart, loaded with every selector in strict mode, reports no position and no warning.
+
+**SourceLoader_Load_SvgBindingToMermaid_LandsOnTheNode**, **SourceLoader_Load_SvgBindingToVegaLite_LandsOnTheMark**,
+**SourceLoader_Load_SvgBindingToScadAnchor_LandsOnTheAnchor**, **SourceLoader_Load_SvgBindingUnmatched_WarnsOrFailsStrictly**,
+**SourceLoader_Load_SvgBindingToDeniedPicture_KeepsAccessDenied**, and
+**SourceLoader_Load_NestedSvgBinding_ResolvesOrFailsStrictly** (`SourceLoaderSvgBindingTests.cs`; the requirement
+`CanvasNetViewer-Imaging-SourceLoader-SvgBindings`): an SVG file of 400 by 200 places a picture at 20,30 in a 300 by 120
+box and binds a line to it. For a flowchart (`node:B`), a two-bar chart (`mark:x=B`), and a cube model with the anchor
+`corner` (`anchor:corner`), the `bind` operation (with the fields element, attribute, image, selector, x, y) is within
+1e-3 of the pixel the test reads from the picture loaded alone at 300 by 120 plus 20,30; the strict load of the
+flowchart has no note (no `positions-unmatched`). A binding to `node:Zed` is one `svg` warning
+`svg-binding-unmatched` with no `bind` operation, and the strict load throws `svg-binding-failed` naming the file. A
+diagram outside the only allowed root gives the notes `image-access-denied` then `svg-binding-unavailable`, and the
+strict load throws `file-access-denied`. A file that embeds an SVG file with a good binding loads strictly without a
+note; one that embeds an SVG file whose binding matches nothing has the warning `svg-binding-unmatched` with the origin
+of the nested file, and the strict load throws `svg-binding-failed` naming it.

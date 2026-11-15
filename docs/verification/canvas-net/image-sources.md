@@ -46,6 +46,8 @@ The subsystem's test scenarios are those named in the unit verification designs:
 precedence rule, the request and the sizing rule, the file-access policy (the default that follows every local link,
 the explicit roots and no-symlinks policies, and the policy a request carries to its source), file URIs, dispatch,
 schemes, nested scopes, limits,
-cancellation, notes and failures, no caching, direct rendering, and the raster formats. No subsystem-level test exists
+cancellation, notes and failures, no caching, direct rendering, the resolution with positions
+(`CanvasNet-ImageSources-Positions`, verified by the `-Positions` scenarios of the contract and the folder resolver), and
+the raster formats. No subsystem-level test exists
 beyond
 the units' own coverage.

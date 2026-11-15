@@ -104,6 +104,31 @@ path (cut at the first `?` or `#` and percent-decoded, as the resolver reads it)
 relative to the output folder with each segment percent-encoded (a `file:` URI when there is no relative path), followed
 by the query and the fragment escaped for the attribute.
 
+#### Position Bindings
+
+`SvgFlattener.Bindings.cs` bakes the position bindings of the drawing (`cn:x2y2="#image selector"` and the others).
+The pictures are drawn once: the recording resolver also implements `IImagePositionResolver`, so during detection it
+records, per link, the union of the selectors the bindings ask for (at most `PositionSelection.MaxSelectors`), and
+`DrawRecorded` draws a link with selectors through `ResolveWithPositions` and keeps the positions in its `Capture`
+(with the selectors and the truncation flag). When the text has an attribute in the CanvasNet namespace
+(`FindBindingSites`, one hardened reader pass that records where every attribute of the elements with a binding, and
+every `xmlns:p` declaration of the namespace, is in the text), `BindCaptures` draws the drawing once more on the
+detection canvas with `CaptureResolver`: it serves each captured picture as a blank surface of the size of the capture
+with the recorded positions (a link whose picture never reports positions, a raster or an SVG file, as a one-pixel
+surface without positions; any other link as nothing), so the SVG library maps each binding through the placement of
+its own `image` element exactly as an SVG reader places the PNG. Nothing is drawn or evaluated a second time.
+
+With the strict option, a binding that was not resolved is `svg-binding-failed` after the check of the links that were
+not drawn, before anything is written. `BindingSplices` turns each resolved binding into edits that are merged with the
+link edits of `Rewrite` in one ordered pass (with the same size check): the new value of each existing coordinate
+attribute, and the removal of the binding attribute from the white space before it to its closing quote, replaced by the
+coordinate attributes that were missing (with the quote of the binding). When every attribute in the namespace was
+consumed and no element is in it, its declarations are removed too. `FlattenResult.ResolvedBindings` and
+`UnresolvedBindings` count the bindings of the drawing; each unresolved one keeps its attribute and numbers and is a
+warning in `Diagnostics`; and `Flattened` is true when a link was replaced or a binding was baked. A nested SVG file is
+replaced as one picture with its own bindings drawn into it (by the loader); one kept as a link is not rewritten.
+Requirement: `CanvasNetViewer-Imaging-SvgFlattener-Bindings`.
+
 #### Error Handling
 
 `ViewerException` with `usage-error`, `unsupported-format`, `corrupt-input`, `unsupported-feature`, `file-access-denied`,
