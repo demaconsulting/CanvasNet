@@ -1,0 +1,67 @@
+---
+# Software Unit Requirements for the PictureCache Class
+#
+# The PictureCache class is the picture cache of the Pandoc filter: it computes the content-addressed cache key of a
+# picture (the SHA-1 of everything that decides it, composed as by the Lua filter of version 16 with the key version
+# 17), names the pictures, flattened copies, markers, code block sources, and temporary files of the cache folder, and
+# writes them atomically so that two builds can share the folder.
+
+sections:
+  - title: PictureCache Unit Requirements
+    requirements:
+      - id: CanvasNetTool-PandocFilter-PictureCache-Key
+        title: >-
+          The PictureCache unit shall compute the key of a picture as the lowercase hexadecimal SHA-1 of the fields
+          canvasnet.lua 17, the kind, the tool identity, the file-access key, the sorted options joined with ;, and,
+          for a flattened drawing, the folder, each followed by the separator line feed, NUL, line feed, and then the
+          parts of the dependencies joined with the same separator, giving the key the Lua filter's composition gives.
+        justification: |
+          A content-addressed key draws an unchanged picture once and a changed one always; the composition of the Lua
+          filter keeps the cache names of version 16 apart from the version, and the new version 17 keeps the two
+          implementations from trusting each other's markers.
+        tests:
+          - PictureCache_ComputeKey_FixedInputs_GiveTheGoldenKeys
+
+      - id: CanvasNetTool-PandocFilter-PictureCache-Names
+        title: >-
+          The PictureCache unit shall name the files of the cache folder as the Lua filter did: a picture
+          <stem>-<key>.png, a flattened copy <stem>-<key>.svg, the markers <key>.unsupported and <key>.plain, and the
+          source of a Mermaid code block the SHA-1 of a fixed prefix and its text with .mmd, where the stem is the
+          source's file name without its extension (and .vl) with every UTF-8 byte that is not an ASCII letter, digit,
+          underscore, or dash made a dash.
+        justification: |
+          Names that keep the source's name stay readable, names that hold the key are never stale, and the names of
+          the Lua filter let a cache folder of an earlier build keep its code block sources.
+        tests:
+          - PictureCache_Names_FollowTheLuaFilter
+
+      - id: CanvasNetTool-PandocFilter-PictureCache-PartialFiles
+        title: >-
+          The PictureCache unit shall draw into a temporary file named <key>.<9 random digits>.partial.<extension> in
+          the cache folder, a name no finished cache file has.
+        justification: |
+          A temporary name in the cache folder lets the finished file appear by a rename, and a random part keeps two
+          builds drawing the same picture from writing into one file.
+        tests:
+          - PictureCache_Names_FollowTheLuaFilter
+
+      - id: CanvasNetTool-PandocFilter-PictureCache-AtomicWrite
+        title: >-
+          The PictureCache unit shall write a text file of the cache as UTF-8 without a byte order mark through a
+          temporary file renamed into place, leaving no temporary file, and shall keep a file that is already there.
+        justification: |
+          A build running at the same time never reads a half-written marker, and a file already there holds the same
+          text because its name is a hash of it.
+        tests:
+          - PictureCache_WriteTextAtomically_NewAndExisting_WritesOnce
+
+      - id: CanvasNetTool-PandocFilter-PictureCache-Commit
+        title: >-
+          The PictureCache unit shall rename a temporary file to its cache name without overwriting, and, when the
+          rename fails, remove the temporary file and keep the file another build wrote, or fail with the error code
+          pandoc-filter-error and the given message when no file is there.
+        justification: |
+          Two builds may draw the same picture at once; the copy written first is identical and is kept, while a
+          rename that leaves no picture must stop the build instead of producing a broken document.
+        tests:
+          - PictureCache_Commit_LostRaceKeepsTheOtherCopy_NothingThereThrows

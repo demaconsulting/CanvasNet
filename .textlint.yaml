@@ -1163,6 +1163,22 @@ words:
   - iplane
   # The inverse of scaling a drawn size back to the size of the source (SourceLoader.Mermaid.Unscale)
   - Unscale
+  # The Pandoc filter: Pandoc's HTML slide formats, its AST terms (inlines, the typewise traversal of Lua filters), the
+  # Lua and Haskell functions the port follows (string.gsub, foldr, and normalise of System.FilePath), hostless file
+  # URIs, the svgz extension, .NET's Partitioner, and the non-ASCII text of the round-trip tests
+  - revealjs
+  - slidy
+  - slideous
+  - dzslides
+  - inlines
+  - typewise
+  - gsub
+  - foldr
+  - normalise
+  - Hostless
+  - svgz
+  - Partitioner
+  - Grüße
 # Percent-escapes in URL and file-name examples (such as "flow%2Emmd" for "flow.mmd"): the escape and the letters
 # glued to it are not words
 ignoreRegExpList:

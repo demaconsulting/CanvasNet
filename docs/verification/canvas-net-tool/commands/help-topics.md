@@ -115,9 +115,9 @@ in `Roots`; every card comes after its parent; every card has a title, a summary
 root has an example.
 
 **HelpTopics_Find_EveryAlias_ResolvesIgnoringCase**: every documented root alias (`openscad`, `vegalite`, `vl`, `mmd`,
-`powerpoint`, `visio`, the raster extensions, `file-access`, `links`, and `position`) resolves to its card in lower and
-upper case; every name resolves to itself; the number of root aliases is exactly the documented number; and an unknown
-name and a card that is not a root (`gantt`) resolve to nothing.
+`powerpoint`, `visio`, the raster extensions, `file-access`, `links`, `position`, and `filter`) resolves to its card in
+lower and upper case; every name resolves to itself; the number of root aliases is exactly the documented number; and
+an unknown name and a card that is not a root (`gantt`) resolve to nothing.
 
 **HelpTopics_Names_DoNotCollideWithCommandsHelpOrEachOther**: the names and aliases of the root cards are unique, and
 none equals a command, a command alias, `help`, or `topics`.
@@ -161,7 +161,8 @@ rows), and every bullet of `files` has a term.
 
 **HelpTopics_FilesTopic_DocumentsModesOptionsDiagnosticsAndPandoc**: the headings of `files` are Modes, Options, In
 every mode, Diagnostics, and The Pandoc filter; its terms include the modes, the two options, the inputs, what is
-never read, the limits, the two live denial codes, and the two variables, which `docs/filters/canvasnet.lua` reads;
+never read, the limits, the two live denial codes, and the two variables, which are also terms of the `pandoc` card and
+are read by the source of `FilterSettings`;
 and the `svg` and `errors` trees contain `canvasnet help files`.
 
 **HelpTopics_SvgTopic_ImageHrefFileTypes_MatchTheResolverExtensions**: the extensions found in the `href file types`

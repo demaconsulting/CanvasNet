@@ -5,18 +5,20 @@
 ### Verification Approach
 
 The `Commands` subsystem is verified at two tiers. The unit tests of `CommandRegistry`, `HelpTopics`, `DiscoveryCommands`,
-`RenderCommand`, `CompareCommand`, `MontageCommand`, `InspectCommand`, and `FlattenCommand` (see
+`RenderCommand`, `CompareCommand`, `MontageCommand`, `InspectCommand`, `FlattenCommand`, and `PandocFilterCommand` (see
 _CommandRegistry Unit Verification Design_, _HelpTopics Unit Verification Design_, _DiscoveryCommands Unit Verification
 Design_, _RenderCommand Unit
 Verification Design_, _CompareCommand Unit Verification Design_, _MontageCommand Unit Verification Design_,
-_InspectCommand Unit Verification Design_, and _FlattenCommand Unit Verification Design_
+_InspectCommand Unit Verification Design_, _FlattenCommand Unit Verification Design_, and _PandocFilterCommand Unit
+Verification Design_
 under `commands/`)
 verify the registry and the commands in isolation. The subsystem tests in
 `CommandsSubsystemTests.cs` verify the registry working with `Context` and `Program` through the program's
 entry point, with a registry holding `TestCommand` instances (a configurable `ICommand` defined in the test
 project): resolution by name and alias, argument hand-off with global options mixed in, error context, the
 unknown-command report, and help; and, with the default registry, that the shipped `formats`, `info`, `render`,
-transform verb, `compare`, `montage`, `inspect`, and `flatten` commands are registered, run, and are listed in the help,
+transform verb, `compare`, `montage`, `inspect`, `flatten`, and `pandoc-filter` commands are registered, run, and are
+listed in the help,
 and that
 the help topics and the cards below them are shown by name, by alias, by path, and as JSON, their examples are printed,
 and an unknown help subject is reported. The shipped
@@ -123,6 +125,12 @@ lists `inspect` with its summary, and `inspect --help` and `help inspect` show b
 writes the copy of a drawing that links a Mermaid diagram with nothing on standard error, a missing output is an
 expected `usage-error` on standard error with exit code 1, the top-level help lists `flatten` with its summary, and
 `help flatten` shows its usage and `--scale <factor>`.
+
+**CommandsSubsystem_PandocFilter_DefaultRegistry_RunsPandocFilterAndListsItInHelp**: through the default registry
+`pandoc-filter` transforms a document file with a Mermaid code block into an output file with one picture and nothing on
+standard error, a missing `--protocol` is an expected `usage-error` on standard error with exit code 1, the top-level
+help lists `pandoc-filter` with its summary, `help pandoc-filter` shows its usage with `--write-shim <file>`, and
+`help pandoc` shows the card of the Pandoc filter.
 
 **CommandsSubsystem_FileAccess_EveryReadingCommand_AcceptsTheOptionsAndDeniesAnOutsidePicture**: through the default
 registry, `render`, `rotate`, `inspect colors`, `compare`, `montage`, and `flatten` of a drawing that links a Mermaid

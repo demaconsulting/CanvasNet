@@ -133,8 +133,10 @@ constituent software items, specifically:
 - **CanvasNetTool (System)** — A separate software system shipped as the `DemaConsulting.CanvasNet.Tool` dotnet
   tool package (command `canvasnet`), containing six direct units, `Program`, `Context`, `ArgumentReader`,
   `ResultWriter`, `Validation`, and `PathHelpers`, and a `Commands` subsystem with the `CommandRegistry`, `HelpTopics`,
-  `DiscoveryCommands`, `RenderCommand`, `CompareCommand`, `MontageCommand`, `InspectCommand`, and `FlattenCommand`
-  units; the tool is a
+  `DiscoveryCommands`, `RenderCommand`, `CompareCommand`, `MontageCommand`, `InspectCommand`, `FlattenCommand`, and
+  `PandocFilterCommand` units, and a `PandocFilter` subsystem (the Pandoc filter) with the `PandocAst`, `FilterPaths`,
+  `PictureAttributes`, `DependencyHasher`, `FilterSettings`, `PictureCache`, `PandocFilterEngine`, and
+  `PandocFilterShim` units; the tool is a
   thin shell over the `Imaging` subsystem of the Viewer — see _CanvasNetTool System
   Verification_ (`canvas-net-tool.md`)
 

@@ -36,8 +36,9 @@ exception and sets `Command`, so the report and the JSON failure document are th
 `input-not-found`, `input-unreadable`, `unsupported-format`, `corrupt-input`, `unsupported-feature`,
 `page-out-of-range`, `size-limit`, `same-input-output`, `output-exists`, `output-write-failed`, `scad-error`,
 `budget-exceeded`, `size-mismatch` (two images to compare differ in size and no size normalization was requested), and
-`threshold-failed` (a comparison completed but a requested threshold was not met). Both new codes exit with code 1 like
-every other failure. A value is never changed once released; new values may be added.
+`threshold-failed` (a comparison completed but a requested threshold was not met), and `pandoc-filter-error` (the
+`pandoc-filter` command cannot draw a picture of a Pandoc document). These codes exit with code 1 like every other
+failure. A value is never changed once released; new values may be added.
 
 ### Key Methods
 

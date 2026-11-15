@@ -1,0 +1,108 @@
+---
+# Software Unit Requirements for the PictureAttributes Class
+#
+# The PictureAttributes class reads the attributes of a picture or a Mermaid code block for the Pandoc filter: it
+# decides which kind of input a picture names, checks every drawing attribute with the messages of the Lua filter
+# (version 16), adds the defaults of each kind, writes the sorted tool options, and keeps the attributes that stay on
+# the picture. It also names Mermaid code blocks for messages and splits off their caption. The supporting record
+# PictureOptions holds the sorted options and the kept attributes.
+
+sections:
+  - title: PictureAttributes Unit Requirements
+    requirements:
+      - id: CanvasNetTool-PandocFilter-PictureAttributes-Kinds
+        title: >-
+          The PictureAttributes unit shall classify a picture by the end of its name, in any letter case, as a
+          Vega-Lite chart (.vl.json, .vl), an OpenSCAD model (.scad), a Visio drawing (.vsdx), a PowerPoint
+          presentation (.pptx), a PDF document (.pdf), a Mermaid diagram (.mmd, .mermaid), or a local SVG drawing
+          (.svg), and shall leave alone a name with a URL scheme of two or more characters or any other name end.
+        justification: |
+          The filter must draw only the local inputs the tool reads and must leave web pictures and ordinary images
+          untouched; a drive letter such as C: is a local path, not a URL scheme.
+        tests:
+          - PictureAttributes_KindOf_FileNameEnd_GivesTheKind
+          - PictureAttributes_IsSvg_LocalSvgOnly
+
+      - id: CanvasNetTool-PandocFilter-PictureAttributes-Checks
+        title: >-
+          The PictureAttributes unit shall check the size, scale, background, page, dpi, view, azimuth, elevation,
+          projection, theme, define-NAME, and param-NAME attributes against their documented grammar and range, shall
+          refuse an empty value or a value with a control character, shall refuse size together with scale, and shall
+          report each refusal as the error pandoc-filter-error with the message of the Lua filter that names the
+          picture, the attribute, and what is expected.
+        justification: |
+          A mistyped attribute must stop the build with a message the author can act on, rather than draw a picture
+          that silently ignores it; keeping the messages of the Lua filter keeps existing documentation builds and
+          their expectations unchanged.
+        tests:
+          - PictureAttributes_Build_InvalidAttribute_ThrowsTheLuaMessage
+          - PictureAttributes_Build_SizeAndScale_ThrowsUseOneOfThem
+
+      - id: CanvasNetTool-PandocFilter-PictureAttributes-ApplicableKinds
+        title: >-
+          The PictureAttributes unit shall refuse, as the error pandoc-filter-error, an attribute written on a kind it
+          does not apply to: page and dpi outside .vsdx, .pptx, and .pdf files, view, azimuth, elevation, projection,
+          and define-NAME outside .scad models, theme outside Mermaid diagrams, and param-NAME outside Vega-Lite charts.
+        justification: |
+          An attribute of another input type is a mistake in the document; ignoring it would hide the mistake and
+          produce a picture other than the one the author asked for.
+        tests:
+          - PictureAttributes_Build_InvalidAttribute_ThrowsTheLuaMessage
+
+      - id: CanvasNetTool-PandocFilter-PictureAttributes-Defaults
+        title: >-
+          The PictureAttributes unit shall draw a .scad model at size 1600x1200 unless size or scale is given, on a
+          white background unless one is given, with a triangle budget of 2000000, and shall draw page 1 of a .vsdx,
+          .pptx, or .pdf file unless a page is given.
+        justification: |
+          A model has no natural size or background, and a budget keeps a model that previews from failing the build;
+          a paged document needs a page, and the first page is what an author expects by default.
+        tests:
+          - PictureAttributes_Build_Model_AddsDefaultsAndSortsByBytes
+          - PictureAttributes_Build_Document_NormalizesPageAndNumbers
+
+      - id: CanvasNetTool-PandocFilter-PictureAttributes-Options
+        title: >-
+          The PictureAttributes unit shall write the drawing attributes as tool options of the form --name=value with
+          normalized values (words in lowercase, whole numbers without leading zeros, and other numbers as C's %.15g
+          writes them), one --define or --param option per variable or parameter, sorted by their bytes so that the
+          order of the attributes does not change the options.
+        justification: |
+          The options are part of the picture's cache key; writing equal attributes as equal options lets an unchanged
+          picture be reused whatever the order or spelling of its attributes, as the Lua filter did.
+        tests:
+          - PictureAttributes_Build_Model_AddsDefaultsAndSortsByBytes
+          - PictureAttributes_Build_Document_NormalizesPageAndNumbers
+          - PictureAttributes_FormatNumber_MatchesPrintfG15
+
+      - id: CanvasNetTool-PandocFilter-PictureAttributes-Keep
+        title: >-
+          The PictureAttributes unit shall keep every attribute that is not a drawing attribute on the picture, in its
+          original order, with a repeated key in its first position and with its last value.
+        justification: |
+          Attributes such as width, an id, or a class shape the picture in the output document and must survive the
+          replacement of the picture's source; the order and the last-value rule match the Lua filter.
+        tests:
+          - PictureAttributes_Build_Model_AddsDefaultsAndSortsByBytes
+          - PictureAttributes_BuildSvg_ReadsScaleOnly
+
+      - id: CanvasNetTool-PandocFilter-PictureAttributes-Svg
+        title: >-
+          The PictureAttributes unit shall read only the scale attribute of an SVG drawing, as one --scale option per
+          scale attribute in their order, and shall keep every other attribute of the drawing.
+        justification: |
+          An SVG drawing is flattened, not drawn, so only the scale of the replaced pictures applies; the other
+          attributes belong to the drawing in the output document.
+        tests:
+          - PictureAttributes_BuildSvg_ReadsScaleOnly
+
+      - id: CanvasNetTool-PandocFilter-PictureAttributes-MermaidBlocks
+        title: >-
+          The PictureAttributes unit shall name a Mermaid code block in messages as mermaid block  # id when it has an
+          identifier and otherwise by its first non-blank line, trimmed and cut to 40 characters followed by ..., and
+          shall split the last caption attribute off the other attributes of the block.
+        justification: |
+          A code block has no file name, so a message needs another way to point the author at the block; the caption
+          becomes the caption of the figure rather than an attribute of the picture.
+        tests:
+          - PictureAttributes_BlockNameAndCaption_FollowTheLuaFilter

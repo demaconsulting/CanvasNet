@@ -1,0 +1,133 @@
+### DependencyHasher
+
+![PandocFilter Structure](PandocFilterView.svg)
+
+#### Purpose
+
+`DependencyHasher` collects every file a picture of the Pandoc filter is drawn from, as the parts of its cache key, so
+that a change to any of them draws the picture again. It is a literal port of the dependency walks of the Lua filter
+(version 16): the includes of an OpenSCAD model, the data files and pictures of a Vega-Lite chart, the pictures of a
+Mermaid diagram, and the image links of an SVG drawing, for which it also decides whether the drawing must be flattened.
+The unit is the internal sealed partial class `DependencyHasher`, split over `DependencyHasher.cs` (entry points, model
+walk, shared picture walk, roots check), `DependencyHasher.Chart.cs`, `DependencyHasher.Mermaid.cs`, and
+`DependencyHasher.Svg.cs`.
+
+#### Data Model
+
+**MaxDepth** (`internal const int`, 64): the most levels of includes, nested charts and diagrams, linked drawings, or
+JSON nesting that are followed.
+
+**MaxDependencies** (`internal const int`, 512): the most files one picture may be drawn from.
+
+**Part** (`byte[]`): the file's label (`FilterPaths.Label`, its path from the picture's folder with forward slashes), a
+line feed, and the file's bytes. A missing file an SVG drawing links is the part `missing <label>` (no line feed, no
+bytes). Parts are kept in the order they are met (`_parts`).
+
+**Seen** (`_seen`, `Dictionary<string, Seen>` by the exact collapsed path, ordinal): `Taken` while a path is walked or
+once it was, and for an SVG drawing afterwards `Composite` or `Plain`. Each path is taken once, so a cycle or a picture
+that links back ends.
+
+**Roots** (`_roots`): the folders of a roots mode of the file-access policy, or `null` for anywhere.
+
+One instance walks one picture and is not thread-safe; the static entry points are, as each call has its own instance.
+
+#### Key Methods
+
+**ForPicture(kind, source, name, roots)**: creates an instance and walks the picture by kind from the folder of
+`source`: `scad` with `AddScad`, `vegalite` with `AddChart`, `mermaid` with `AddMermaid`; any other kind (a `pdf`,
+`pptx`, or `vsdx` document) is the single part labeled with the file name of `source`. Returns the parts.
+
+**ForSvg(source, roots)**: walks an SVG drawing with `AddSvg` and returns the parts and whether the drawing is
+composite.
+
+**AsBytes(content)** / **FromBytes(text)**: read bytes as Latin-1 (one character per byte, so the ASCII-only classes of
+the Lua patterns match), and turn such a text back into the UTF-8 text it holds.
+
+**AddScad(root, path, depth)** (`add_scad_sources`): takes the path once, reads it (an unreadable file is skipped; the
+tool reports it), adds its part, and follows every `include <...>` and `use <...>` (Lua patterns
+`include%s*<%s*([^>\r\n]-)%s*>` and `use%s*<%s*([^>\r\n]-)%s*>`, comments included) relative to the including file's
+folder when `DependencyExists`; all includes first, then all uses; labels are relative to the model's folder.
+
+**AddChart(path, root, depth)** (`add_chart_sources`): takes the specification, adds it labeled with its file name,
+skips a leading UTF-8 byte order mark, and decodes it as JSON (a text that is not JSON, or not an object or array, adds
+only itself). `AddChartData` collects the string `url` of every `data` object, resolves each with
+`FilterPaths.LocalDataFile` from the chart's folder (remote and blank URLs are skipped; no percent-decoding), keeps the
+existing ones, sorts them by UTF-8 bytes, and adds each. `AddChartPictures` collects the `url` of a `mark` object, the
+string `value` or `datum` and the `field` names anywhere under a `url` channel, and, when there are field names, the
+values of those fields in the inline rows (`values` of a data object and the arrays of `datasets`); each link is
+resolved with `FilterPaths.LocalImageFile`, kept when it exists, sorted, and walked with `AddImageFiles`. Object members
+are read as the Lua JSON decoder made them (a repeated name once, with its last value). Labels of a chart's files are
+relative to the chart's own folder.
+
+**AddMermaid(path, root, depth)** (`add_mermaid_sources`): takes and adds the diagram, then collects the picture links
+of its nodes: `img: "x"`, `img: 'x'`, and unquoted `img: x` (up to a comma, a brace, or the end of the line, trailing
+white space trimmed), and the `src` (double-quoted, single-quoted, or unquoted) of an `<img ...>` tag, all tags and
+names in any letter case. Each link is tried as written and percent-decoded with `FilterPaths.LocalImageFile` from the
+diagram's folder (fragment and query cut, remote skipped); the existing files are deduplicated, sorted, and walked with
+`AddImageFiles`.
+
+**AddImageFiles(files, root, depth)** (`add_image_files`): for each file not yet seen, by its name end in ASCII lower
+case: `.scad` adds a model (`AddScad`, depth 0), `.vl.json` or `.vl` a nested chart labeled from its own folder,
+`.mmd` or `.mermaid` a nested diagram, `.svg` a nested drawing, and any other file is added as it is.
+
+**AddSvg(path, root, depth)** (`add_svg_sources`): marks the drawing `Taken`, adds it (an unreadable drawing is
+`Plain`), and resolves each link `CollectSvgLinks` finds: the fragment and query are cut; a `file:` URI is decoded as it
+is read, any other link must be local both as written and percent-decoded (a remote or `data:` link is skipped). An
+existing file is walked; a missing file of a kind the tool draws (`PictureAttributes.KindOf`) is a `missing` part. Both
+lists are deduplicated and sorted; the missing parts come first. The drawing is composite when it has a missing part,
+links a file of a kind the tool draws, or links a nested drawing that is composite (a nested drawing is walked once; one
+still being walked, as in a cycle, counts as not composite). It ends as `Composite` or `Plain`.
+
+**CollectSvgLinks(content)** (`collect_svg_links`): a scanner over the text of bytes. Comments, CDATA sections, and
+processing instructions are skipped whole; a DOCTYPE or other declaration up to its `>` outside quotes and its internal
+subset; an end tag pops a namespace scope. For a start tag it reads the name (letters, digits, `_`, `.`, `-`, `:`) and
+the attributes (a quoted value may hold `>`; an unquoted value ends at white space or `>`), binds the `xmlns:P`
+prefixes of the element, and pushes them unless the tag closes itself. For an element named `image` or `P:image` the
+link is the unprefixed `href`, else the first `P:href` whose prefix is bound to `http://www.w3.org/1999/xlink` on the
+element or an ancestor; the five predefined entities and character references below 0x110000 are decoded and Lua white
+space is trimmed.
+
+**DependencyExists(path)** (`dependency_exists`): in a roots mode a file is taken only when it is the same as or under
+one of the folders (`FilterPaths.IsSameOrUnder`), so a file outside them is never opened; otherwise it is taken when it
+opens (`FilterPaths.FileExists`).
+
+#### Error Handling
+
+Every error is a `ToolException` with `ErrorCodes.PandocFilterError` (`pandoc-filter-error`), raised by `Fail`; a limit
+is never a silent cut-off. The messages, with `<N>` the count and `<name>` the file name:
+
+- Model depth: `'<path>' is included more than 64 levels deep` (the full collapsed path).
+- Model files: `the model and the files it includes are more than 512 files; the limit is 512, counting the model
+  (every file must be hashed so that a changed one is drawn again)`.
+- Nested charts and diagrams: `charts and diagrams are drawn inside each other more than 64 levels deep`, and
+  `the chart or diagram and the files it draws are more than 512 files; the limit is 512 (every file must be hashed so
+  that a changed one is drawn again)`.
+- Chart JSON depth: `the chart specification is nested more than 64 levels deep; every data url must be hashed so that
+  a changed data file is drawn again` (data URLs), or `...; every image url must be hashed so that a changed picture is
+  drawn again` (image links).
+- Chart counts: `'<name>' names <N> data files; the limit is 512 (every data file must be hashed so that a changed one
+  is drawn again)` and `'<name>' names <N> pictures; the limit is 512 (every picture must be hashed so that a changed
+  one is drawn again)`.
+- Diagram: `the diagram and the files it draws are more than 512 files; the limit is 512 (every file must be hashed so
+  that a changed one is drawn again)`, and the pictures message of a chart.
+- Drawing: `SVG drawings are linked inside each other more than 64 levels deep`, `the drawing and the files it links are
+  more than 512 files; the limit is 512 (every file must be hashed so that a changed one is drawn again)`, and
+  `'<name>' links <N> files; the limit is 512 (every file must be hashed so that a changed one is drawn again)`.
+- Document: `cannot read '<name>'` when a `pdf`, `pptx`, or `vsdx` picture cannot be read.
+
+An unreadable model, chart, diagram, or drawing reached by a walk is skipped, and a chart that is not JSON adds only
+itself: the tool reports these when it draws. The JSON reader has no depth limit of its own, so the walk's own 64-level
+message applies.
+
+#### Dependencies
+
+- **FilterPaths** - path joining, collapsing, labels, local file resolution of data URLs and picture links,
+  percent-decoding, byte-order sorting, Lua white space, and the file reads.
+- **PictureAttributes** - the kind constants and `KindOf`, which tells a file only the tool draws.
+- **System.Text.Json** and **System.Text.RegularExpressions** (.NET) - the chart decoder and the Lua patterns.
+- **ToolException** (tool) and **ErrorCodes** (Viewer library) - the error and its code.
+
+#### Callers
+
+- **PandocFilterEngine** - `ForPicture` in `PlanDraw` and `ForSvg` in `PlanSvg`, with the roots of the file-access
+  policy of the picture's source; the parts go to `PictureCache.ComputeKey`, and a plain drawing is left to Pandoc.

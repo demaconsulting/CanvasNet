@@ -21,12 +21,12 @@ changed: `CanvasNetTool_VersionDisplay` and `CanvasNetTool_HelpDisplay` (the pla
 `CanvasNetTool_Info`, `CanvasNetTool_RenderSvg`, `CanvasNetTool_PdfMinimal`, `CanvasNetTool_RenderScad`,
 `CanvasNetTool_CropResize`, and `CanvasNetTool_RotateFlipPad`, and the comparison self-tests
 `CanvasNetTool_Compare` and `CanvasNetTool_Montage`, and the photo self-test `CanvasNetTool_Adjustments`, and the
-chart self-test `CanvasNetTool_RenderVegaLite`, and the diagram self-test `CanvasNetTool_RenderMermaid`, and the help
-self-test `CanvasNetTool_HelpExamples` (seventeen in total; the suite is deliberately kept small, so further coverage
-belongs in the unit and subsystem tests). They run in a fixed, documented order: `VersionDisplay`, `HelpDisplay`,
-`Formats`, `RenderPng`, `ConvertFormats`, `Info`, `RenderSvg`, `PdfMinimal`, `RenderScad`, `RenderVegaLite`,
-`RenderMermaid`, `CropResize`, `RotateFlipPad`, `Compare`, `Montage`, `Adjustments`, and `HelpExamples` (each with the
-prefix `CanvasNetTool_`).
+chart self-test `CanvasNetTool_RenderVegaLite`, and the diagram self-test `CanvasNetTool_RenderMermaid`, and the Pandoc
+filter self-test `CanvasNetTool_PandocFilter`, and the help self-test `CanvasNetTool_HelpExamples` (eighteen in total;
+the suite is deliberately kept small, so further coverage belongs in the unit and subsystem tests). They run in a
+fixed, documented order: `VersionDisplay`, `HelpDisplay`, `Formats`, `RenderPng`, `ConvertFormats`, `Info`,
+`RenderSvg`, `PdfMinimal`, `RenderScad`, `RenderVegaLite`, `RenderMermaid`, `PandocFilter`, `CropResize`,
+`RotateFlipPad`, `Compare`, `Montage`, `Adjustments`, and `HelpExamples` (each with the prefix `CanvasNetTool_`).
 Each is
 recorded as a `TestResult` with
 `ClassName` "Validation" and `CodeBase` "CanvasNetTool".

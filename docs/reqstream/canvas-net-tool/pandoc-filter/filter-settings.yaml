@@ -1,0 +1,106 @@
+---
+# Software Unit Requirements for the FilterSettings Class
+#
+# The FilterSettings class holds the inputs of one run of the Pandoc filter: what only the Lua shim can see (the output
+# format, the output file, the resource path, and the shim's location), the environment variables of the filter
+# (CANVASNET_FILE_ACCESS, CANVASNET_ROOTS, CANVASNET_TOOL, and CANVASNET_JOBS), and what follows from them: the cache
+# folder, the file-access arguments of each picture, the tool identity, the src of a picture, and the number of
+# pictures drawn at once. The supporting record FileAccessArguments holds the file-access arguments of the pictures
+# drawn from one source.
+
+sections:
+  - title: FilterSettings Unit Requirements
+    requirements:
+      - id: CanvasNetTool-PandocFilter-FilterSettings-DefaultFileAccess
+        title: >-
+          When neither CANVASNET_FILE_ACCESS nor CANVASNET_ROOTS is set, the FilterSettings unit shall give every
+          picture no file-access arguments, no folders, and a non-restrictive mode, with the cache key text
+          file-access followed by a line break.
+        justification: |
+          A documentation build that does not ask for confinement must run the tool with its own default policy and
+          must keep the cache keys it had before.
+        tests:
+          - FilterSettings_FileAccessOf_NoVariables_IsTheDefaultMode
+
+      - id: CanvasNetTool-PandocFilter-FilterSettings-FileAccessMode
+        title: >-
+          The FilterSettings unit shall read CANVASNET_FILE_ACCESS trimmed, in lowercase, and without white space
+          around its commas as one of roots, no-symlinks, roots,no-symlinks, no-symlinks,roots, or any, pass it as
+          --file-access, and, for a roots mode without CANVASNET_ROOTS, add as --allow-root the working directory and
+          the folder of the picture's source when it is outside the working directory.
+        justification: |
+          The folders the tool would take by default then appear in the arguments, which are part of the picture's
+          cache key, so the decision of the tool depends only on the key and a cached picture is never reused under
+          another policy.
+        tests:
+          - FilterSettings_FileAccessOf_RootsWithoutFolders_AddsTheDefaultFolders
+
+      - id: CanvasNetTool-PandocFilter-FilterSettings-Roots
+        title: >-
+          The FilterSettings unit shall read CANVASNET_ROOTS as a list of folders in the format of the search path of
+          the platform, make each absolute from the working directory, pass each as --allow-root, imply the mode roots
+          when CANVASNET_FILE_ACCESS is not set, and treat the result as restrictive.
+        justification: |
+          A build that names its folders confines the pictures to them; relative folders must not depend on where the
+          tool is started, and folders without a mode would otherwise be ignored by the tool.
+        tests:
+          - FilterSettings_FileAccessOf_FoldersWithoutMode_ImplyRoots
+
+      - id: CanvasNetTool-PandocFilter-FilterSettings-FileAccessErrors
+        title: >-
+          The FilterSettings unit shall refuse an unknown CANVASNET_FILE_ACCESS mode and CANVASNET_ROOTS together with
+          the mode any or no-symlinks as the error pandoc-filter-error with the message of the Lua filter, raised when
+          the file-access arguments of a picture are first needed.
+        justification: |
+          A misspelled policy must stop the build rather than silently draw without confinement; a document without
+          pictures does not fail on a variable it never uses, as with the Lua filter.
+        tests:
+          - FilterSettings_FileAccessOf_BadVariables_ThrowTheLuaMessage
+
+      - id: CanvasNetTool-PandocFilter-FilterSettings-ToolIdentity
+        title: >-
+          The FilterSettings unit shall identify the tool by its version text, the label default or
+          CANVASNET_TOOL=<command>, and, when the first leading argument of the command that ends in .dll exists, the
+          SHA-1 of every .dll file beside it as name=sha1 sorted and joined with semicolons, one per line, and shall
+          split CANVASNET_TOOL at white space with double quotes that group and no escapes, refusing an empty quoted
+          part or an unclosed quote as the error pandoc-filter-error.
+        justification: |
+          The identity is part of every picture's cache key, so a picture is drawn again when the tool changes; a
+          local build keeps its version while its code changes, which only the fingerprint of its DLLs reveals. A
+          Windows path needs no escapes.
+        tests:
+          - FilterSettings_ToolIdentity_DefaultAndLocalBuild_NameTheTool
+          - FilterSettings_SplitCommand_QuotesGroupWithoutEscapes
+
+      - id: CanvasNetTool-PandocFilter-FilterSettings-CacheFolder
+        title: >-
+          The FilterSettings unit shall place the cache folder at generated/canvasnet in the folder above the folder of
+          the Lua shim, as an absolute path, so docs/filters/canvasnet.lua draws into docs/generated/canvasnet.
+        justification: |
+          The pictures belong beside the documents that use them and must not depend on the folder Pandoc is started
+          from.
+        tests:
+          - FilterSettings_CacheFolderAndPictureSrc_FollowTheWriter
+
+      - id: CanvasNetTool-PandocFilter-FilterSettings-PictureSrc
+        title: >-
+          The FilterSettings unit shall give a picture, for an HTML-like writer (a format that starts with html,
+          revealjs, slidy, slideous, s5, or dzslides) without embedded resources and with an output file, the path from
+          the folder of the output file to the picture, and otherwise the absolute path of the picture with forward
+          slashes.
+        justification: |
+          An HTML document and the tools that read it (such as WeasyPrint) find the picture relative to the document;
+          every other writer, and embedding, is read by Pandoc itself, which reads the absolute path.
+        tests:
+          - FilterSettings_CacheFolderAndPictureSrc_FollowTheWriter
+
+      - id: CanvasNetTool-PandocFilter-FilterSettings-Jobs
+        title: >-
+          The FilterSettings unit shall draw as many pictures at once as the --jobs option gives, else as
+          CANVASNET_JOBS gives as a whole number from 1 to 64 (white space around it allowed), else the number of
+          processors up to 4, and shall refuse any other CANVASNET_JOBS as the error pandoc-filter-error.
+        justification: |
+          A build machine sets the parallelism once in its environment and a command line can override it; a bounded
+          default keeps a small machine responsive, and a bad value must be reported rather than guessed.
+        tests:
+          - FilterSettings_ResolveJobs_OptionVariableDefault

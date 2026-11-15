@@ -36,10 +36,10 @@ reported as passed, and are named in the TRX file.
 
 **Validation_Run_CompareMontageSelfTests_PassAndAreRecorded**: the two comparison self-tests
 (`CanvasNetTool_Compare` and `CanvasNetTool_Montage`) pass (exit code 0), are
-reported as passed, are named in the TRX file, and the run reports seventeen tests in all.
+reported as passed, are named in the TRX file, and the run reports eighteen tests in all.
 
 **Validation_Run_VegaLiteSelfTest_PassesAndIsRecorded**: the chart self-test (`CanvasNetTool_RenderVegaLite`) passes
-(exit code 0), is reported as passed, is named in the TRX file, and the run reports seventeen tests, seventeen passed,
+(exit code 0), is reported as passed, is named in the TRX file, and the run reports eighteen tests, eighteen passed,
 and none failed.
 
 **Validation_Run_MermaidSelfTest_PassesAndIsRecorded**: the diagram self-test (`CanvasNetTool_RenderMermaid`) passes
@@ -48,11 +48,13 @@ describes a three-node flowchart with `info --json` (the `mermaid` format, the t
 nodes, and two edges) and renders it, requiring the size `info` reported, a white corner, and the default node fill
 `#ECECFF` inside the first node.
 
-**Validation_Run_SeventeenSelfTests_RunInTheDocumentedOrder**: the passed lines of a run name the seventeen self-tests
+**Validation_Run_EighteenSelfTests_RunInTheDocumentedOrder**: the passed lines of a run name the eighteen self-tests
 in the documented order (`VersionDisplay`, `HelpDisplay`, `Formats`, `RenderPng`, `ConvertFormats`, `Info`, `RenderSvg`,
-`PdfMinimal`, `RenderScad`, `RenderVegaLite`, `RenderMermaid`, `CropResize`, `RotateFlipPad`, `Compare`, `Montage`,
-`Adjustments`, and `HelpExamples`, each with the prefix `CanvasNetTool_`): the Mermaid self-test runs right after the
-Vega-Lite one and the help self-test is last; the exit code is 0.
+`PdfMinimal`, `RenderScad`, `RenderVegaLite`, `RenderMermaid`, `PandocFilter`, `CropResize`, `RotateFlipPad`, `Compare`,
+`Montage`, `Adjustments`, and `HelpExamples`, each with the prefix `CanvasNetTool_`): the Mermaid and the Pandoc filter
+self-tests run right after the Vega-Lite one and the help self-test is last; the exit code is 0. The Pandoc filter
+self-test (`CanvasNetTool_PandocFilter`) runs the `pandoc-filter` command on a document with a captioned Mermaid block and
+requires a figure whose picture is the one PNG in `generated/canvasnet`, wider than it is tall.
 
 **Validation_Run_AdjustmentsSelfTest_PassesAndIsRecorded**: the photo self-test (`CanvasNetTool_Adjustments`) passes
 (exit code 0), is reported as passed, is named in the TRX file, and the run reports no failed test.

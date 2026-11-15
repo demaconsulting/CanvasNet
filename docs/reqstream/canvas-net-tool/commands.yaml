@@ -9,7 +9,7 @@
 #   verified examples), and the
 #   command units DiscoveryCommands (formats and info), RenderCommand (render and convert, and the
 #   verbs crop, resize, rotate, flip, and pad), CompareCommand (compare), MontageCommand (montage),
-#   InspectCommand (inspect), and FlattenCommand (flatten)
+#   InspectCommand (inspect), FlattenCommand (flatten), and PandocFilterCommand (pandoc-filter)
 # - Subsystem requirements describe the externally visible command-dispatch behavior
 
 sections:
@@ -257,6 +257,24 @@ sections:
           - CanvasNetTool-Commands-HelpTopics-FlattenGuideParity
         tests:
           - CommandsSubsystem_Flatten_DefaultRegistry_RunsFlattenAndListsItInHelp
+
+      - id: CanvasNetTool-Commands-PandocFilter
+        title: >-
+          The Commands subsystem shall provide the pandoc-filter command, which draws the pictures of a Pandoc JSON
+          document read from standard input for the Lua shim of the Pandoc filter and writes the transformed document to
+          standard output, writes the shim on request, refuses a shim of a protocol the tool does not speak, and is
+          listed in the help.
+        justification: |
+          A documentation build must draw every picture of a document in one process, and each repository must keep
+          only a thin shim that the tool can write and check, so that a fix of the filter ships with the tool.
+        children:
+          - CanvasNetTool-Commands-PandocFilterCommand-Options
+          - CanvasNetTool-Commands-PandocFilterCommand-WriteShim
+          - CanvasNetTool-Commands-PandocFilterCommand-Protocol
+          - CanvasNetTool-Commands-PandocFilterCommand-Transform
+          - CanvasNetTool-Commands-PandocFilterCommand-Errors
+        tests:
+          - CommandsSubsystem_PandocFilter_DefaultRegistry_RunsPandocFilterAndListsItInHelp
 
       - id: CanvasNetTool-Commands-FileAccess
         title: >-
