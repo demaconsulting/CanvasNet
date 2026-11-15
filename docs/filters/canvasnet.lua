@@ -74,7 +74,9 @@ A Mermaid diagram can also be written in the document, as a fenced code block of
 The text is written to docs/generated/canvasnet/<hash>.mmd and drawn like a .mmd picture, and the block becomes
 the picture: a figure with the caption when a caption attribute is given, else a paragraph holding the picture.
 The block reads the same attributes as a .mmd picture (size, scale, background, theme); caption is taken
-as the figure's caption, and every other attribute, the id, and any class but mermaid stay on the picture. A
+as the figure's caption, and every other attribute and any class but mermaid stay on the picture. The id
+stays on the picture of a block without a caption; with a caption it goes on the figure, as Pandoc places the
+id of a captioned image, so a cross-reference to the figure works the same way for both. A
 picture in a node (A@{ img: "part.png" }, <img src="part.png">) is found from the folder the text is written to,
 not from the document's folder, so a diagram that draws pictures must be a .mmd file of its own, used as
 ![Parts](parts.mmd); the tool's message about the missing picture is shown as a warning.
@@ -211,7 +213,9 @@ with the same organization (header, helpers, hash, render, rewrite), to draw eve
 -- 15: CANVASNET_FILE_ACCESS and CANVASNET_ROOTS pass --file-access and --allow-root (absolute folders; for roots
 -- without CANVASNET_ROOTS, the working directory and the picture's folder) and are part of every name, and an
 -- absolute path or a file: URI without a host is hashed, as the tool reads it.
-local FILTER_VERSION = "15"
+-- 16: CANVASNET_ROOTS without CANVASNET_FILE_ACCESS passes --file-access roots explicitly, a restrictive build also
+-- stops on the tool's file-access-denied diagnostic, and a chart linked back from a picture it draws is hashed once.
+local FILTER_VERSION = "16"
 local SCAD_DEFAULT_SIZE = "1600x1200"
 local DEFAULT_BACKGROUND = "white"
 -- The same limit DocPilot's preview uses, so a model that previews also builds.
@@ -489,7 +493,9 @@ local FILE_ACCESS_MODES = {
 }
 
 -- The code of the tool's warning for a picture the file-access mode denies.
-local ACCESS_DENIED = "image-access-denied"
+-- The codes of the tool's diagnostics for a file the file-access mode denies: a picture (image-access-denied) and an
+-- include or data file (file-access-denied).
+local ACCESS_DENIED = { ["image-access-denied"] = true, ["file-access-denied"] = true }
 
 -- The file-access arguments of every render and flatten, read once from CANVASNET_FILE_ACCESS and CANVASNET_ROOTS:
 -- "args" (--file-access and one --allow-root per folder, each an absolute path, a relative one taken from the
@@ -521,6 +527,10 @@ local function find_file_access()
   end
   if #roots > 0 and (mode == "any" or mode == "no-symlinks") then
     fail("CANVASNET_ROOTS cannot be used with CANVASNET_FILE_ACCESS=" .. mode .. "; use roots or roots,no-symlinks")
+  end
+  -- Folders imply roots; the mode is passed explicitly rather than left to the tool's default
+  if #roots > 0 and not mode then
+    mode = "roots"
   end
   local args = {}
   if mode then
@@ -614,7 +624,7 @@ local function fail_on_denial(doc, name, partial)
     return
   end
   for _, diagnostic in ipairs(doc.diagnostics or {}) do
-    if diagnostic.code == ACCESS_DENIED then
+    if ACCESS_DENIED[diagnostic.code] then
       os.remove(partial)
       fail("drawing '" .. name .. "' failed: " .. tostring(diagnostic.message)
         .. " (denied by CANVASNET_FILE_ACCESS/CANVASNET_ROOTS)")
@@ -909,6 +919,8 @@ end
 function add_chart_sources(path, root, parts, seen, depth)
   seen = seen or {}
   depth = depth or 0
+  -- Taken before its links are followed, so a picture that links back to this chart does not read it again
+  seen[path] = true
   local content = read_file(path)
   if not content then
     return

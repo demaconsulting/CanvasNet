@@ -2159,7 +2159,9 @@ that links none of those files, an address on the internet) is left alone, and t
 
 A Mermaid diagram can also be written in the document itself, as a fenced code block of class `mermaid`. The block
 reads the attributes of a `.mmd` picture (`size`, `scale`, `background`, and `theme`), a `caption` attribute makes it a
-figure with that caption, and every other attribute, the identifier, and any other class stay on the picture:
+figure with that caption, and every other attribute and any other class stay on the picture. The identifier stays on the
+picture of a block without a caption; with a caption it goes on the figure, where Pandoc puts the identifier of a
+captioned image, so a cross-reference to the figure works the same way:
 
 ````markdown
 ```{.mermaid caption="Order flow" theme=forest width=80%}
