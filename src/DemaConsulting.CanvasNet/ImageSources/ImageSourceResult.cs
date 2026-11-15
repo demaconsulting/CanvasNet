@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Positions;
 
 namespace DemaConsulting.CanvasNet.ImageSources;
 
@@ -89,4 +90,26 @@ public sealed record ImageSourceResult
     ///     a picture at its own size must set it.
     /// </summary>
     public bool IsNaturalSize { get; init; }
+
+    /// <summary>
+    ///     The positions, kept as a private read-only snapshot.
+    /// </summary>
+    private IReadOnlyList<ImagePosition>? _positions;
+
+    /// <summary>
+    ///     Gets the feature positions the source reported for <see cref="ImageSourceRequest.Positions"/>, in the pixels of
+    ///     <see cref="Surface"/>, or <see langword="null"/> (the default) when the source reports no positions. Assigning
+    ///     copies the list into a read-only snapshot, like <see cref="Diagnostics"/>.
+    /// </summary>
+    public IReadOnlyList<ImagePosition>? Positions
+    {
+        get => _positions;
+        init => _positions = value is null ? null : new ReadOnlyCollection<ImagePosition>([.. value]);
+    }
+
+    /// <summary>
+    ///     Gets a value indicating whether matching positions were left out of <see cref="Positions"/> because of the cap
+    ///     of <see cref="PositionCollector.MaxPositions"/>.
+    /// </summary>
+    public bool PositionsTruncated { get; init; }
 }

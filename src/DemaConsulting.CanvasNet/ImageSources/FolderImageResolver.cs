@@ -1,6 +1,7 @@
 // cspell:ignore href hrefs embedder
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Files;
+using DemaConsulting.CanvasNet.Positions;
 
 namespace DemaConsulting.CanvasNet.ImageSources;
 
@@ -83,7 +84,7 @@ namespace DemaConsulting.CanvasNet.ImageSources;
 ///         <see cref="Exception.InnerException"/>), except <see cref="OperationCanceledException"/>, which passes through.
 ///     </para>
 /// </remarks>
-public sealed partial class FolderImageResolver : IImageNaturalSizeResolver
+public sealed partial class FolderImageResolver : IImageNaturalSizeResolver, IImagePositionResolver
 {
     /// <summary>
     ///     The code of the warning <see cref="Diagnostics"/> holds for a link that was not drawn (the name says "svg"
@@ -161,6 +162,19 @@ public sealed partial class FolderImageResolver : IImageNaturalSizeResolver
     private bool _lastNaturalSize;
 
     /// <summary>
+    ///     The positions the latest source call reported (<see cref="ImageSourceResult.Positions"/>); read by
+    ///     <see cref="ResolveWithPositions(string, int, int, PositionSelection)"/> right after the call, like
+    ///     <see cref="_lastNaturalSize"/>.
+    /// </summary>
+    private IReadOnlyList<ImagePosition>? _lastPositions;
+
+    /// <summary>
+    ///     Whether the latest source call left matching positions out because of the cap
+    ///     (<see cref="ImageSourceResult.PositionsTruncated"/>).
+    /// </summary>
+    private bool _lastPositionsTruncated;
+
+    /// <summary>
     ///     The notes of this render, in order.
     /// </summary>
     private readonly List<ImageSourceDiagnostic> _diagnostics = [];
@@ -182,7 +196,7 @@ public sealed partial class FolderImageResolver : IImageNaturalSizeResolver
 
     /// <summary>
     ///     The name of the picture the last successful call of a source drew (the entry it adds to the origin), read by
-    ///     <see cref="ResolveIn(Scope, string, int, int)"/> right after the call; the resolver is not thread-safe.
+    ///     <see cref="ResolveIn(Scope, string, int, int, PositionSelection?)"/> right after the call; the resolver is not thread-safe.
     /// </summary>
     private string? _lastDrawnName;
 
@@ -344,6 +358,27 @@ public sealed partial class FolderImageResolver : IImageNaturalSizeResolver
     public Surface? Resolve(string href, int pixelWidth, int pixelHeight, out bool isNaturalSize)
     {
         return ResolveIn(_rootScope, href, pixelWidth, pixelHeight, out isNaturalSize);
+    }
+
+    /// <summary>
+    ///     Resolves a link of the top-level document, exactly as <see cref="Resolve(string, int, int)"/> does, and asks its
+    ///     source for the positions of the picture it draws.
+    /// </summary>
+    /// <param name="href">The link as written in the document.</param>
+    /// <param name="pixelWidth">The device-pixel width of the placement; clamped to 1 to <see cref="Surface.MaxDimension"/>.</param>
+    /// <param name="pixelHeight">The device-pixel height of the placement; passed to the source.</param>
+    /// <param name="positions">The selectors of the positions wanted; given to the source as <see cref="ImageSourceRequest.Positions"/>.</param>
+    /// <returns>
+    ///     The picture with the positions its source reported (<see langword="null"/> positions when the source reports
+    ///     none), or <see langword="null"/> when the link was not drawn (a warning is added to <see cref="Diagnostics"/>).
+    ///     Every limit and the file-access policy apply as for <see cref="Resolve(string, int, int)"/>.
+    /// </returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="href"/> or <paramref name="positions"/> is null.</exception>
+    /// <exception cref="ImageSourceException">Thrown when the file was found but its source failed to draw it.</exception>
+    /// <exception cref="OperationCanceledException">Thrown when <see cref="FolderImageResolverOptions.CancellationToken"/> is canceled.</exception>
+    public ImageResolution? ResolveWithPositions(string href, int pixelWidth, int pixelHeight, PositionSelection positions)
+    {
+        return ResolveWithPositionsIn(_rootScope, href, pixelWidth, pixelHeight, positions);
     }
 
     /// <summary>
@@ -539,8 +574,9 @@ public sealed partial class FolderImageResolver : IImageNaturalSizeResolver
     /// <param name="href">The link as written.</param>
     /// <param name="pixelWidth">The device-pixel width of the placement.</param>
     /// <param name="pixelHeight">The device-pixel height of the placement.</param>
+    /// <param name="positions">The selectors of the positions the caller wants from the source, or <see langword="null"/> for none; never passed to nested links.</param>
     /// <returns>The picture, or <see langword="null"/> when the link was not drawn.</returns>
-    private Surface? ResolveIn(Scope scope, string href, int pixelWidth, int pixelHeight)
+    private Surface? ResolveIn(Scope scope, string href, int pixelWidth, int pixelHeight, PositionSelection? positions = null)
     {
         ArgumentNullException.ThrowIfNull(href);
         _options.CancellationToken.ThrowIfCancellationRequested();
@@ -554,14 +590,44 @@ public sealed partial class FolderImageResolver : IImageNaturalSizeResolver
         // A scheme (other than file:) is handed to the source that claims it, as written; everything else is a path
         var scheme = ImageSourceSet.GetScheme(href);
         var surface = scheme is not null && scheme != "file"
-            ? ResolveScheme(scope, href, scheme, pixelWidth, pixelHeight)
-            : ResolveFile(scope, href, pixelWidth, pixelHeight);
+            ? ResolveScheme(scope, href, scheme, pixelWidth, pixelHeight, positions)
+            : ResolveFile(scope, href, pixelWidth, pixelHeight, positions);
         if (surface is not null && _lastDrawnName is { } name)
         {
             _requested[index] = _requested[index] with { Name = name };
         }
 
         return surface;
+    }
+
+    /// <summary>
+    ///     Resolves a link inside a scope and returns the picture with the positions its source reported.
+    /// </summary>
+    /// <param name="scope">The scope that contains the link.</param>
+    /// <param name="href">The link as written.</param>
+    /// <param name="pixelWidth">The device-pixel width of the placement.</param>
+    /// <param name="pixelHeight">The device-pixel height of the placement.</param>
+    /// <param name="positions">The selectors of the positions wanted.</param>
+    /// <returns>The picture and its positions, or <see langword="null"/> when the link was not drawn.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="positions"/> is null.</exception>
+    private ImageResolution? ResolveWithPositionsIn(Scope scope, string href, int pixelWidth, int pixelHeight, PositionSelection positions)
+    {
+        ArgumentNullException.ThrowIfNull(positions);
+
+        // The facts are set by the call of the source that drew the picture (the last one when files embed files), so
+        // they are read right after; the resolver is not thread-safe, which is what makes these fields safe
+        _lastNaturalSize = false;
+        _lastPositions = null;
+        _lastPositionsTruncated = false;
+        var surface = ResolveIn(scope, href, pixelWidth, pixelHeight, positions);
+        return surface is null
+            ? null
+            : new ImageResolution(surface)
+            {
+                Positions = _lastPositions,
+                PositionsTruncated = _lastPositionsTruncated,
+                IsNaturalSize = _lastNaturalSize
+            };
     }
 
     /// <summary>
@@ -572,8 +638,9 @@ public sealed partial class FolderImageResolver : IImageNaturalSizeResolver
     /// <param name="scheme">The scheme in lower case.</param>
     /// <param name="pixelWidth">The device-pixel width of the placement.</param>
     /// <param name="pixelHeight">The device-pixel height of the placement.</param>
+    /// <param name="positions">The selectors of the positions the caller wants from the source, or <see langword="null"/> for none; never passed to nested links.</param>
     /// <returns>The picture, or <see langword="null"/> when no source claims the scheme or a limit is hit.</returns>
-    private Surface? ResolveScheme(Scope scope, string href, string scheme, int pixelWidth, int pixelHeight)
+    private Surface? ResolveScheme(Scope scope, string href, string scheme, int pixelWidth, int pixelHeight, PositionSelection? positions)
     {
         // No file system is involved: the link is either claimed by a source (which owns access and security) or refused
         var source = _sources.FindByScheme(scheme);
@@ -613,6 +680,7 @@ public sealed partial class FolderImageResolver : IImageNaturalSizeResolver
             PixelHeight = height,
             Budget = _budget,
             Resolver = new Scope(this, null, [.. scope.Chain, key], scope.Depth + 1, href, [.. scope.Origin, href]),
+            Positions = positions,
             ThrowOnUnsupportedFeature = _options.ThrowOnUnsupportedFeature,
             CancellationToken = _options.CancellationToken,
             FileAccess = _options.FileAccess
@@ -627,8 +695,9 @@ public sealed partial class FolderImageResolver : IImageNaturalSizeResolver
     /// <param name="href">The link as written.</param>
     /// <param name="pixelWidth">The device-pixel width of the placement.</param>
     /// <param name="pixelHeight">The device-pixel height of the placement.</param>
+    /// <param name="positions">The selectors of the positions the caller wants from the source, or <see langword="null"/> for none; never passed to nested links.</param>
     /// <returns>The picture, or <see langword="null"/> when the link was not drawn.</returns>
-    private Surface? ResolveFile(Scope scope, string href, int pixelWidth, int pixelHeight)
+    private Surface? ResolveFile(Scope scope, string href, int pixelWidth, int pixelHeight, PositionSelection? positions)
     {
         var files = GetFiles();
         if (files is null)
@@ -717,6 +786,7 @@ public sealed partial class FolderImageResolver : IImageNaturalSizeResolver
             PixelHeight = height,
             Budget = _budget,
             Resolver = new Scope(this, file, [.. scope.Chain, identity], scope.Depth + 1, name, [.. scope.Origin, name]),
+            Positions = positions,
             FileAccess = _options.FileAccess.AnchoredAt(file.Origin!),
             ThrowOnUnsupportedFeature = _options.ThrowOnUnsupportedFeature,
             CancellationToken = _options.CancellationToken
@@ -860,6 +930,8 @@ public sealed partial class FolderImageResolver : IImageNaturalSizeResolver
 
         _echo.AddRange(result.Echo);
         _lastNaturalSize = result.IsNaturalSize;
+        _lastPositions = result.Positions;
+        _lastPositionsTruncated = result.PositionsTruncated;
         _embedded.Add(new EmbeddedImage(request.Href, result.Format ?? source.Name, result.Surface.Width, result.Surface.Height)
         {
             Depth = scope.Depth
@@ -1139,7 +1211,7 @@ public sealed partial class FolderImageResolver : IImageNaturalSizeResolver
     ///     chain of files for the cycle and depth checks); the budget and the lists are shared through the owner, so
     ///     recursion is bounded without any state in the sources.
     /// </remarks>
-    private sealed class Scope : IImageNaturalSizeResolver
+    private sealed class Scope : IImageNaturalSizeResolver, IImagePositionResolver
     {
         /// <summary>
         ///     The resolver that owns the shared state.
@@ -1203,6 +1275,12 @@ public sealed partial class FolderImageResolver : IImageNaturalSizeResolver
         public Surface? Resolve(string href, int pixelWidth, int pixelHeight, out bool isNaturalSize)
         {
             return _owner.ResolveIn(this, href, pixelWidth, pixelHeight, out isNaturalSize);
+        }
+
+        /// <inheritdoc />
+        public ImageResolution? ResolveWithPositions(string href, int pixelWidth, int pixelHeight, PositionSelection positions)
+        {
+            return _owner.ResolveWithPositionsIn(this, href, pixelWidth, pixelHeight, positions);
         }
     }
 }

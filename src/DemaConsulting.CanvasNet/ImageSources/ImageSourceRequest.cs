@@ -124,6 +124,18 @@ public sealed class ImageSourceRequest
     public IImageSourceOptions? Options { get; init; }
 
     /// <summary>
+    ///     Gets the selectors of the feature positions the caller wants from this render, or <see langword="null"/> (the
+    ///     default) for none.
+    /// </summary>
+    /// <remarks>
+    ///     The resolver sets it only when it was asked through
+    ///     <see cref="IImagePositionResolver.ResolveWithPositions"/>; a nested link never inherits it. A source that can
+    ///     report positions (a diagram or a chart) returns the matching ones in <see cref="ImageSourceResult.Positions"/>,
+    ///     in the pixels of the surface it returns; every other source ignores it.
+    /// </remarks>
+    public DemaConsulting.CanvasNet.Positions.PositionSelection? Positions { get; init; }
+
+    /// <summary>
     ///     Gets the bytes of the file. Empty when <see cref="HasContent"/> is <see langword="false"/>. The bytes are shared:
     ///     a source must not modify them.
     /// </summary>
