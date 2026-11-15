@@ -37,7 +37,9 @@ namespace DemaConsulting.CanvasNet.ImageSources;
 ///         <c>SvgImageSource</c>, <c>ScadImageSource</c>, <c>VegaLiteImageSource</c>, <c>PdfImageSource</c>,
 ///         <c>PptxImageSource</c>, and <c>VsdxImageSource</c>, and <c>CanvasNetViewer.CreateImageResolver</c> in
 ///         <c>DemaConsulting.CanvasNet.Viewer</c> builds a resolver with all of them. Files are read through
-///         <see cref="DemaConsulting.CanvasNet.Files"/>.
+///         <see cref="DemaConsulting.CanvasNet.Files"/>. A renderer that needs the positions of the features of the
+///         picture it draws (the SVG position bindings) asks an <see cref="IImagePositionResolver"/>, which returns them
+///         with the surface from the same render as an <see cref="ImageResolution"/>.
 ///     </para>
 /// </remarks>
 /// <example>

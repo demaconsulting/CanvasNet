@@ -167,6 +167,14 @@ public sealed record FlattenResult(
 ///         the canvas) is left as a link and reported as <see cref="ImageNotDrawnCode"/>.
 ///     </para>
 ///     <para>
+///         <b>Position bindings.</b> A binding of the drawing (<c>cn:x2y2="#flow node:send"</c>, see
+///         <see cref="SvgPositionBinding"/>) is baked into the copy with the numbers of the PNG picture that replaces its
+///         link (the positions recorded when that picture was drawn, placed by the binding's own <c>image</c> element; no
+///         linked file is drawn twice), its attribute is removed, and the namespace declaration too when nothing uses it.
+///         A binding that is not resolved keeps its attribute and numbers and is a warning; with
+///         <see cref="FlattenRequest.Strict"/> it is the error <c>svg-binding-failed</c> and nothing is written.
+///     </para>
+///     <para>
 ///         <b>Limits.</b> At most 64 pictures are drawn (nested ones count); the copy is at most
 ///         <see cref="FlattenRequest.MaxOutputBytes"/>; the drawing is read as UTF-8 text of at most 5,000,000
 ///         characters (a file that declares another encoding is accepted only when it is plain ASCII).

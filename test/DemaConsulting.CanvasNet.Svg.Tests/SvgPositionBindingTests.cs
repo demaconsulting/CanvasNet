@@ -70,7 +70,7 @@ public class SvgPositionBindingTests
 
         /// <summary>
         ///     The positions of a picture: <c>node:a</c> at a quarter of the width and half the height, <c>node:b</c> at three
-        ///     quarters, two <c>node:dup</c>, and <c>node:nopixel</c> without a pixel.
+        ///     quarters, two <c>node:dup</c>, and <c>node:blank</c> without a pixel.
         /// </summary>
         /// <param name="width">The width of the picture.</param>
         /// <param name="height">The height of the picture.</param>
@@ -81,7 +81,7 @@ public class SvgPositionBindingTests
             new("node", "b") { Pixel = new PositionPoint(width * 0.75, height / 2.0) },
             new("node", "dup") { Pixel = new PositionPoint(1, 1) },
             new("node", "dup") { Pixel = new PositionPoint(2, 2) },
-            new("node", "nopixel")
+            new("node", "blank")
         ];
 
         /// <summary>
@@ -343,7 +343,7 @@ public class SvgPositionBindingTests
             Image
             + "<line cn:x2y2='#img node:zzz'/>"
             + "<line cn:x2y2='#img node:dup'/>"
-            + "<line cn:x2y2='#img node:nopixel'/>"
+            + "<line cn:x2y2='#img node:blank'/>"
             + "<g transform='scale(0)'><line cn:x2y2='#img node:a'/></g>");
 
         // Act

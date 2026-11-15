@@ -24,7 +24,9 @@ namespace DemaConsulting.CanvasNet.Svg;
 ///     <see cref="SvgLoadOptions.ImageResolver"/>: see <see cref="SvgImageSource"/> and
 ///     <see cref="DemaConsulting.CanvasNet.ImageSources"/> to embed other SVG files, 3D models, charts, and documents
 ///     (<c>CanvasNetViewer.CreateImageResolver</c> in <c>DemaConsulting.CanvasNet.Viewer</c> builds a resolver with every
-///     format package's source).
+///     format package's source). A callout can be bound to a feature of an embedded picture with an attribute in the
+///     namespace <see cref="SvgPositionBinding.Namespace"/> (<c>cn:x2y2="#flow node:send"</c>): see
+///     <see cref="SvgLoadOptions.BindingHandler"/> and <see cref="SvgPositionBinding"/>.
 /// </remarks>
 /// <example>
 ///     Rasterize an SVG file to a PNG at 800 x 600, with the pictures it links to taken from the same folder:
