@@ -36,7 +36,10 @@ DataTable,
 ResolvedScales, double width, double height, CancellationToken)`, which returns a `SceneGroup` (role `marks`) in the
 coordinates of the data rectangle; the table is the **Main** table of the implicit pipeline (the fields that the scales
 name). The `CurveBuilder` surface (`TryParse`, `SupportsArea`, `MaxSegments`, `Line`, and `Area`) is consumed by
-`MarkBuilder` only.
+`MarkBuilder` only. The `init` property `MarkBuilder.RecordPositions` (false by default) is set only when the render's
+position handler wants marks: the marks group then gets a `SceneMarkContext` and each item records the row it draws
+(`Datum`, or the `Vertices` of a line, area, or trail), so a render without it builds the same scene; the internal
+static `MarkBuilder.TryConvert` converts a data value for the `ScenePositions` unit.
 
 **Consumed**: `SpecNode`, `ConfigNode`, and `ResolvedConfig` from the `SpecModel` subsystem; `DataTable`, `DataValue`,
 `TimeCalendar`, and `JsDateParser` from the `Data` subsystem (the last two for the date of a temporal `datum`);
@@ -44,7 +47,8 @@ name). The `CurveBuilder` surface (`TryParse`, `SupportsArea`, `MaxSegments`, `L
 subsystem and `TimeLabels` from the `Guides` subsystem (the formats of the text of a text mark); `RowExpressions`,
 `EncodingPlan`, `BinKind`, `WorkMeter`, and `StableSorter` from the `Transforms` subsystem; `SceneGroup`, `SceneRect`,
 `SceneRule`, `SceneSymbol`, `ScenePath` with `ScenePathSegment`, `SceneTrail` with `SceneTrailPoint`, `SceneText`,
-`SceneArc`, `SceneClip`, and `SceneBudget` from the `Scenegraph` subsystem; and the public `VegaLiteLimits`,
+`SceneArc`, `SceneClip`, `SceneBudget`, `SceneMarkContext`, and `SceneVertex` from the `Scenegraph` subsystem;
+`PositionValue` from the core `Positions` subsystem; and the public `VegaLiteLimits`,
 `VegaLiteLocation`, `VegaLiteRenderException`, and `VegaLiteSpecException` of the `VegaLiteDocument` unit.
 
 **Consumers**: `VegaLiteDocument`, which builds the marks once for the final data rectangle and places the marks group

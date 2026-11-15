@@ -69,7 +69,11 @@ names the subsystem `MermaidRendering` (the core library already has a `Renderin
   double, LabelBuilder)`, which returns the whole `Scene` (the drawing as the root group, the diagram title, and the
   view box grown by the padding)
 - the records `LayoutData`, `LayoutNode`, `LayoutEdge`, `LayoutClassBox`, `LayoutClassMember`, `LayoutErBox`, and
-  `LayoutErAttribute`, the contract between a diagram model and the renderer
+  `LayoutErAttribute`, the contract between a diagram model and the renderer; `LayoutNode` carries `SourceId` and
+  `SourceLocation` and `LayoutEdge` carries `SourceEnds`, the id, location, and ends a position reports when they
+  differ from the layout's
+- `ClusterLayout` sets a `ScenePositionTag` on the items that draw each node, group, edge, and title, and
+  `EdgeBuilder.Draw` copies the route's tag onto the edge path
 - `ShapeContext` (configuration, style sheet, label measurement, text width, pictures, and report sink of one render),
   `ShapeLibrary.Draw(LayoutNode, ShapeContext)`, `ShapeLibrary.DrawCluster`, `ShapeLibrary.SplitStyles`,
   `ShapeLibrary.LabelFontOf`, `ShapeLibrary.ClassHtmlLabels`, and `ShapeLibrary.ErHtmlLabels`
@@ -99,7 +103,7 @@ names the subsystem `MermaidRendering` (the core library already has a `Renderin
 - the `Syntax` subsystem: `HtmlSanitizer` (Mermaid's DOMPurify subset and the character references, also applied to
   the diagram title) and `DiagramDetector.EditDistance`
 - the `Scenegraph` subsystem: `Scene`, the scene items (`SceneGroup`, `ScenePath`, `SceneText`, `SceneImage`),
-  `SceneRect`, `SceneFont`, `SceneTextRun` (with its `Underline`), and `ISceneImageLoader`
+  `SceneRect`, `SceneFont`, `SceneTextRun` (with its `Underline`), `ISceneImageLoader`, and `ScenePositionTag`
 - the package root: `MermaidLocation`, `MermaidReportSink`, `MermaidDiagnosticCodes`, `MermaidRenderException`, and
   `MermaidLimits`
 - the core `CanvasNet` public API: `Rgba32` and `Surface` (`Canvas`), `FontResolver` and `TrueTypeFont` (`Fonts`),

@@ -33,7 +33,9 @@ helpers of one chart in a composition (`ResolveSize`, `CellBounds`, and the comp
 
 **Exposed** (internal only): `ViewLayout.Resolve(SpecNode?, ResolvedConfig, ViewSizeHints, string?)`, which returns a
 `ViewLayoutRequest`; `ViewLayout.Measure(request, ViewExtents, TitleBlock?)`, which returns a `ViewMeasure`;
-`ViewLayout.Build(request, measure, content)`, which returns a `Scene`; `ViewLayout.Compute(request, extents, title,
+`ViewLayout.Build(request, measure, content, viewTag = null)`, which returns a `Scene` (the optional
+`ScenePositionTag` is carried by the view group: the data rectangle of a single or layered view reports itself as the
+view `""`, and null is given for the root of a composition); `ViewLayout.Compute(request, extents, title,
 content)`, which does both and returns a `ViewLayoutResult`; and `LegendLayout.Place`, `AxisBounds`, and `Combine`, and
 for compositions `ViewLayout.ResolveSize`, `ViewLayout.CellBounds`, `ViewLayout.Resolve(..., composition: true)`, and
 `CompositionLayout.Place(cells, headers, settings)`. The records `ViewPadding`, `ViewExtents`, `ViewStyle`,
@@ -42,7 +44,8 @@ and the records of `CompositionLayout` carry the data.
 
 **Consumed**: `SpecNode`, `ResolvedConfig`, and `CompositionSettings` from the `SpecModel` subsystem; `TitleBlock`,
 `AxisResult`, and `LegendResult` (with the grid layout of `LegendBuilder`, which `CompositionLayout` reuses) from the
-`Guides` subsystem; the scene types from the `Scenegraph` subsystem; and the public `VegaLiteSize` of the
+`Guides` subsystem; the scene types (including `ScenePositionTag`) from the `Scenegraph` subsystem; and the public
+`VegaLiteSize` of the
 `VegaLiteDocument` unit.
 
 **Consumers**: `VegaLiteDocument` (the pipeline resolves, measures, and builds the scene, and places the legends), and

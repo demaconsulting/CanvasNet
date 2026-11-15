@@ -79,6 +79,14 @@ positions of
 the anchors an OpenSCAD model declared (`LoadedSource.Anchors`) through the list of what the pipeline did, so that a
 position stays on the same spot of the processed picture (and is lost, rather than wrong, for a step it cannot follow).
 
+**ImagePipeline.MapPositions(positions, width, height, applied)** (provided to the operation units and to library
+users): map the boxes and pixels of feature positions through the applied steps as `MapAnchors` does - the steps are
+composed into one transform, a crop does not clip, and a step it cannot follow (such as a correcting deskew) loses the
+box and pixel. The selectors of `SourceOptions.Positions` give `LoadedSource.Positions` and `PositionsTruncated` (at
+most `PositionCollector.MaxPositions`), which `RenderedPage.Positions` and `PositionsTruncated` carry mapped through the
+pipeline; a selector that matched nothing is the warning `positions-unmatched`, or in strict mode the error, raised
+before anything is written.
+
 **ImageWriter.ResolveFormat** and **ImageWriter.Write** (provided to the operation units and to library users): choose the
 output format and write a surface atomically; **ImageWriter.CheckTarget** and **ImageWriter.CheckTargets**, which check
 an output (or all the outputs of an operation against all its inputs) before any work is done, and the staging and
@@ -109,7 +117,9 @@ CanvasNet SVG system) renders SVG; `PdfDocument`, `PptxDocument`, and `VsdxDocum
 and VSDX systems) list and render the pages of a document; `ScadDocument` (from the CanvasNet SCAD system, which
 draws with the Render3D system) parses and draws a model; `VegaLiteDocument` (from the CanvasNet Vega-Lite system)
 parses, measures, and draws a chart; `MermaidDocument` (from the CanvasNet Mermaid system) parses, measures, and draws a
-diagram.
+diagram. The core `Positions` subsystem (`PositionSelection`, `PositionCollector`, and `ImagePosition`) and the
+`PositionHandler` and `PositionKindFilter` of `MermaidRenderOptions` and `VegaLiteRenderOptions` are consumed for the
+feature positions.
 
 ### Design
 
