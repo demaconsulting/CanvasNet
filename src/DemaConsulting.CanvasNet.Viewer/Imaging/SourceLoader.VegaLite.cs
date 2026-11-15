@@ -369,7 +369,7 @@ public static partial class SourceLoader
             }
 
             // A selector that matched nothing refuses a strict load before anything is returned
-            ThrowForUnmatchedPositions(positions, Options.Strict, surface);
+            ThrowForUnmatchedPositions(positions, Options.Strict && Context.WarnUnmatchedPositions, surface);
             var fields = new List<(string Name, object Value)>
             {
                 ("width", width),
@@ -389,7 +389,7 @@ public static partial class SourceLoader
             var operations = new List<AppliedOperation> { Operation("render", [.. fields]) };
             if (images is null)
             {
-                return WithPositions(new LoadedSource(surface, info, 1, true, notes, [], operations), positions, "vega-lite");
+                return WithPositions(new LoadedSource(surface, info, 1, true, notes, [], operations), positions, "vega-lite", Context.WarnUnmatchedPositions);
             }
 
             try
@@ -405,7 +405,7 @@ public static partial class SourceLoader
                 return WithPositions(
                     new LoadedSource(surface, info, 1, true, DropDuplicateUnresolved(notes, images.Resolver.Diagnostics, "vl-mark-image-unresolved"), [.. images.Resolver.Echo], operations),
                     positions,
-                    "vega-lite");
+                    "vega-lite", Context.WarnUnmatchedPositions);
             }
             catch
             {

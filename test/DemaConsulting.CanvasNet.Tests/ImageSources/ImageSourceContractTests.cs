@@ -387,6 +387,48 @@ public class ImageSourceContractTests
     }
 
     /// <summary>
+    ///     Test the positions of the contract: none by default on a request and a result, and a result and a resolution
+    ///     keep a read-only snapshot of the list they were given.
+    /// </summary>
+    [Fact]
+    public void ImageSourceResult_Positions_DefaultNullAndSnapshot()
+    {
+        // Arrange
+        using var surface = new Surface(2, 2);
+        var list = new List<DemaConsulting.CanvasNet.Positions.ImagePosition> { new("node", "a") };
+
+        // Act
+        var plain = new ImageSourceResult(surface);
+        var result = new ImageSourceResult(surface) { Positions = list, PositionsTruncated = true };
+        var resolution = new ImageResolution(surface) { Positions = list, PositionsTruncated = true, IsNaturalSize = true };
+        list.Add(new("node", "b"));
+
+        // Assert
+        Assert.Null(new ImageSourceRequest { Href = "x" }.Positions);
+        Assert.Null(plain.Positions);
+        Assert.False(plain.PositionsTruncated);
+        Assert.Single(result.Positions);
+        Assert.True(result.PositionsTruncated);
+        ReadOnlyListAssert.IsReadOnly(result.Positions, new("node", "c"));
+        Assert.Single(resolution.Positions);
+        ReadOnlyListAssert.IsReadOnly(resolution.Positions, new("node", "c"));
+        Assert.True(resolution.PositionsTruncated);
+        Assert.True(resolution.IsNaturalSize);
+        Assert.Same(surface, resolution.Surface);
+        Assert.Null(new ImageResolution(surface).Positions);
+    }
+
+    /// <summary>
+    ///     Test that a resolution refuses a null surface.
+    /// </summary>
+    [Fact]
+    public void ImageResolution_Constructor_NullSurface_Throws()
+    {
+        // Act / Assert
+        Assert.Throws<ArgumentNullException>(() => new ImageResolution(null!));
+    }
+
+    /// <summary>
     ///     Options of a direct render for the tests above.
     /// </summary>
     private sealed class ContractOptions : IImageSourceOptions

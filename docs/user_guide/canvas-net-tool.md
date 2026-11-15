@@ -966,6 +966,31 @@ Quote a selector that has `*`, `?`, `"`, a space, or `&`:
 each format (`help positions mermaid`, `help positions vega-lite`), and the geometry (`help positions geometry`); the
 `svg framed-figure` card shows how to draw callouts on a diagram with them.
 
+#### SVG Position Bindings
+
+In an SVG figure, bind a callout to a feature instead of copying numbers: give the `<image>` an id, declare
+`xmlns:cn="https://demaconsulting.com/canvasnet"`, and put `cn:x2y2="#id selector"` on the `<line>` that ends the arrow
+(`cn:x1y1` for its start, `cn:center` on a `<circle>` or `<ellipse>`, `cn:xy` on a `<text>`). The selector is one
+`--positions` selector that must match exactly one feature; a model binds its anchors as the kind `anchor`
+(`anchor:tip`). `render` draws each bound picture once and writes the tip where the feature lands in that picture, at
+any `--width`; each resolved binding is an operation `bind` (`element`, `id`, `attribute`, `image`, `selector`, `x`,
+`y`) of the JSON result. Other SVG readers ignore the attribute and show the numbers written in the file, which are
+also what a binding that fails keeps.
+
+```bash
+canvasnet help svg framed-figure --example framed-flow > framed-flow.svg
+canvasnet render framed-flow.svg --width 1200 -o framed.png --strict --json
+```
+
+A binding that fails is a warning with its code: `svg-binding-malformed` (the value is not `#id selector`),
+`svg-binding-image-missing`, `svg-binding-unsupported` (the wrong element, content in `defs`, a pattern, marker, mask,
+clip path, nested `<svg>` or a `<use>`, a text with a list of x or y, a `data:` image, or a file without features),
+`svg-binding-unmatched`, `svg-binding-ambiguous`, `svg-binding-unavailable` (the picture was not drawn, for example a
+denied file, or the feature has no pixel), or `svg-binding-singular` (a transform that cannot be inverted). With
+`--strict` it is the error `svg-binding-failed` and nothing is written; a picture that was not drawn is reported
+first, so a denied file stays `file-access-denied`. `flatten` bakes the bindings (see *flatten*), and
+`canvasnet help svg bindings` is the reference.
+
 #### Embedding Images, Charts, and Models in an SVG
 
 An `<image>` element of an SVG file can name another file by a **relative `href`**, and the tool draws that file in the
@@ -1667,6 +1692,11 @@ was not written`; the notes are written to standard error as for `render`. With 
 the link (`elements`), and the size of the PNG (`bytes`); `rebased` lists the relative links that were rewritten for the
 folder of the copy. With nothing to flatten, `flattened` is `false` and `replaced`, `rebased`, and `outputs` are empty.
 The diagnostics have the shape of those of `render`, with `page` for a report about a page of a linked document.
+When the drawing has SVG position bindings, the object `"bindings":{"resolved":3,"unresolved":0}` follows `rebased`, and
+the text result ends with `, 3 bindings resolved`: each resolved binding is written with the numbers of the PNG picture
+that replaces its link (no linked file is drawn twice), its `cn:` attribute is removed, and so is the namespace
+declaration when nothing uses it any more; a binding that fails keeps its attribute and numbers and is a warning (with
+`--strict` the error `svg-binding-failed`, and nothing is written).
 
 #### Flatten Reference
 
@@ -1678,9 +1708,10 @@ This table is also the *Reference* section of `canvasnet help svg flatten`; a te
 | kept | Everything else, byte for byte: comments, formatting, line endings, a byte order mark, raster pictures, SVG files that link only rasters and SVG files, `data:` URIs (never followed), same-document `#` links, and network links. |
 | size | Each picture is drawn at the size of its placement in the drawing at its natural size (through the `viewBox` and every transform, as render draws it), times `--scale`; the SVG reader still fits it with `preserveAspectRatio`. A link used twice is drawn once, at the larger placement. |
 | other folder | When the copy is written to another folder, the relative links that are left are rewritten so they find their files from there; a drive letter or UNC path (`C:\x.png`, `\\server\share\x.png`) is left as written on every system. Links of other elements (an external `use`, a CSS `url()`) are not rewritten. |
+| bindings | A position binding (cn:x2y2 and the others, see `canvasnet help svg bindings`) is baked with the numbers of the PNG picture that replaces the link; its `cn:` attribute is removed, and the namespace declaration too when nothing uses it. The JSON document counts bindings.resolved and bindings.unresolved; a binding that fails keeps its attribute and numbers. |
 | nothing to flatten | When the drawing links no such picture, or shows none, nothing is written and the exit code is 0: the text says nothing to flatten and `flattened` is false in the JSON document. |
 | limits | The links are drawn by the resolver of render, with its link rule, file-access mode, and limits (at most 64 pictures, nested ones included, 4 levels, and the pixel budget). The copy is at most 64 MiB (`size-limit`), and the drawing must be UTF-8 (`unsupported-feature` for another declared encoding unless the file is plain ASCII). |
-| `--strict` | A link that is not drawn (`svg-image-unresolved`, `svg-image-too-large`, `image-fragment-invalid`, or `image-page-out-of-range`) is an `unsupported-feature` error, as for render; a link the file-access mode denies (`image-access-denied`) is the error `file-access-denied`; `svg-flatten-image-not-drawn` stays a warning. |
+| `--strict` | A link that is not drawn (`svg-image-unresolved`, `svg-image-too-large`, `image-fragment-invalid`, or `image-page-out-of-range`) is an `unsupported-feature` error, as for render; a link the file-access mode denies (`image-access-denied`) is the error `file-access-denied`; a position binding that fails is the error `svg-binding-failed`; `svg-flatten-image-not-drawn` stays a warning. |
 
 <!-- markdownlint-enable MD013 -->
 

@@ -274,7 +274,10 @@ internal sealed class LoaderImageSource : IImageSource, IFragmentImageSource
             Charge = request.EnsureWithinBudget,
             UseScopedResolver = true,
             ScopedResolver = request.Resolver,
-            ReturnFittedPage = true
+            ReturnFittedPage = true,
+
+            // An embedded picture asked for the positions of its bindings leaves "matched nothing" to the bindings
+            WarnUnmatchedPositions = direct is not null
         };
         using var pages = SourceLoader.OpenInputPages(input, info, options, context, opened);
         var loaded = pages.ReadPage(options.Page);
@@ -289,12 +292,51 @@ internal sealed class LoaderImageSource : IImageSource, IFragmentImageSource
             direct.PositionsTruncated = loaded.PositionsTruncated;
         }
 
+        // The positions of an embedded picture, when its document asked for them: a diagram and a chart report their
+        // features, a model its anchors; the other kinds report none
+        var (positions, truncated) = request.Positions is not { } selection
+            ? (null, false)
+            : kind switch
+            {
+                SourceKind.Mermaid or SourceKind.VegaLite => (loaded.Positions, loaded.PositionsTruncated),
+                SourceKind.Scad => AnchorPositions(loaded.Anchors, selection),
+                _ => ((IReadOnlyList<ImagePosition>?)null, false)
+            };
         return new ImageSourceResult(loaded.Surface)
         {
             Format = kind.ToFormatName(),
             Diagnostics = [.. loaded.Diagnostics.Select(ToDiagnostic)],
-            Echo = loaded.Echo
+            Echo = loaded.Echo,
+            Positions = positions,
+            PositionsTruncated = truncated
         };
+    }
+
+    /// <summary>
+    ///     Turns the anchors of a model into positions of the kind <c>anchor</c> (the id is the anchor name) and keeps the
+    ///     ones a selection wants.
+    /// </summary>
+    /// <param name="anchors">The anchors the model declared, with their pixels in the render.</param>
+    /// <param name="selection">The selection.</param>
+    /// <returns>The kept positions, in declaration order, and whether matches were cut by the cap.</returns>
+    /// <remarks>
+    ///     An anchor that cannot be projected has no pixel; its position has none either. The box of a projected anchor is
+    ///     the point itself (zero size).
+    /// </remarks>
+    internal static (IReadOnlyList<ImagePosition>? Positions, bool Truncated) AnchorPositions(IReadOnlyList<SourceAnchor> anchors, PositionSelection selection)
+    {
+        var collector = new PositionCollector(selection);
+        foreach (var anchor in anchors)
+        {
+            var pixel = anchor.PixelX is { } x && anchor.PixelY is { } y ? new PositionPoint(x, y) : (PositionPoint?)null;
+            collector.Offer(new ImagePosition("anchor", anchor.Name)
+            {
+                Pixel = pixel,
+                Box = pixel is { } point ? new PositionBox(point.X, point.Y, 0, 0) : null
+            });
+        }
+
+        return ([.. collector.Positions], collector.Truncated);
     }
 
     /// <summary>
@@ -363,8 +405,9 @@ internal sealed class LoaderImageSource : IImageSource, IFragmentImageSource
             VegaLite = chart,
             Mermaid = ReadDiagram(request.Fragment),
 
-            // Only the file a caller renders directly reports positions; a picture a document embeds never does
-            Positions = direct?.Positions
+            // The file a caller renders directly reports what its --positions select; a picture a document embeds reports
+            // only what the position bindings of that document select (ImageSourceRequest.Positions)
+            Positions = direct?.Positions ?? request.Positions
         };
     }
 

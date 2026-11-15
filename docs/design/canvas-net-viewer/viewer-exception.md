@@ -23,12 +23,13 @@ the fields of a result, and reports the code, the message, and the hint of every
 `UnsupportedFormat`, `CorruptInput`, `UnsupportedFeature`, `PageOutOfRange`, `ImageFragmentInvalid`, `SizeLimit`,
 `SameInputOutput`,
 `OutputExists`, `OutputWriteFailed`, `ScadError`, `VegaLiteError`, `MermaidError`, `BudgetExceeded`, `FileAccessDenied`,
-`SizeMismatch`, `ThresholdFailed`, and
-`PositionsUnmatched`, with the strings `usage-error`, `operation-failed`, `input-not-found`, `input-unreadable`,
+`SizeMismatch`, `ThresholdFailed`,
+`PositionsUnmatched`, and `SvgBindingFailed`, with the strings `usage-error`, `operation-failed`, `input-not-found`, `input-unreadable`,
 `unsupported-format`, `corrupt-input`, `unsupported-feature`, `page-out-of-range`, `image-fragment-invalid`,
 `size-limit`, `same-input-output`,
 `output-exists`, `output-write-failed`, `scad-error`, `vega-lite-error`, `mermaid-error`, `budget-exceeded`,
-`file-access-denied`, `size-mismatch`, `threshold-failed`, and `positions-unmatched`. The strings are the contract: they
+`file-access-denied`, `size-mismatch`, `threshold-failed`, `positions-unmatched`, and `svg-binding-failed`. The
+strings are the contract: they
 are not changed
 between releases, and the
 `errors` help topic of the tool lists them. `file-access-denied` names a file the rendered document references (a
@@ -36,7 +37,8 @@ model's include, a chart's data, or with the strict option a picture) that the c
 could not judge because the real path of the file cannot be determined; for an include or data file its hint is "Allow
 the file in the file-access policy, or reference a file it allows." `positions-unmatched` names a feature-position
 selector that matched no feature of a diagram or chart when the strict option was given (without it, the same code is
-a warning).
+a warning). `svg-binding-failed` names an SVG position binding that was not resolved when the strict option was
+given; its message names the warning code (`svg-binding-unmatched`, ...), the element, and the value.
 
 ### Key Methods
 

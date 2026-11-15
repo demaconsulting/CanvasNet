@@ -389,3 +389,18 @@ sections:
           - HelpTopics_PositionsMermaid_KindsPerType_AreTheKindsReported
           - HelpTopics_FramedFigureAdvice_ReadPositions_PixelIsOnTheNode
           - HelpTopics_FramedFlowExample_CalloutsEndOnPositions
+
+      - id: CanvasNetTool-Commands-HelpTopics-Bindings
+        title: >-
+          The help shall have the card svg bindings that names the namespace, the attributes, the value syntax, every
+          binding code and svg-binding-failed; the framed-figure card shall recommend a binding first, then --positions
+          with the image x and y added by hand, then the grid probe; and its framed-flow example shall bind every arrow
+          tip with cn:x2y2 to a position that the diagram rendered alone at the size of its image reports, plus the
+          image x and y.
+        justification: |
+          Agents learn the features from the help; the advice must lead to the exact way first, and the example must
+          work.
+        tests:
+          - HelpTopics_SvgBindings_ListsTheNamespaceAndEveryCode
+          - HelpTopics_FramedFigure_RecommendsBindingsFirst
+          - HelpTopics_FramedFlowExample_CalloutsEndOnPositions

@@ -138,11 +138,13 @@ public static partial class SourceLoader
         /// </param>
         /// <exception cref="ViewerException">
         ///     Thrown for the first reference that was not drawn, with code <c>file-access-denied</c> when the file-access
-        ///     policy denied it and <c>unsupported-feature</c> otherwise.
+        ///     policy denied it and <c>unsupported-feature</c> otherwise; when every reference was drawn, thrown with
+        ///     <c>svg-binding-failed</c> for the first position binding of a nested SVG file that was not resolved.
         /// </exception>
         internal static void ThrowForUnresolved(IEnumerable<ImageSourceDiagnostic> notes, string svgName, bool nameHolder = true)
         {
-            var unresolved = notes.FirstOrDefault(
+            var list = notes.ToList();
+            var unresolved = list.FirstOrDefault(
                 d => d.Code is FolderImageResolver.UnresolvedCode
                     or FolderImageResolver.AccessDeniedCode
                     or FolderImageResolver.TooLargeCode
@@ -150,6 +152,9 @@ public static partial class SourceLoader
                     or FolderImageResolver.PageOutOfRangeCode);
             if (unresolved == null)
             {
+                // A position binding of a nested SVG file that was not resolved is an error too, checked only after the
+                // pictures that were not drawn, so a denied picture stays file-access-denied
+                ThrowForFailedBindings(list.Select(ToImageDiagnostic), svgName);
                 return;
             }
 

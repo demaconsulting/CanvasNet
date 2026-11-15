@@ -233,3 +233,19 @@ sections:
                 tests:
                   - ImageSourceDiagnostic_Equals_ComparesDetailLocationAndPage
                   - ImageDiagnosticLocation_Equality_IsByValue
+
+              - id: CanvasNet-ImageSources-ImageSourceContract-Positions
+                title: >-
+                  The image-source contract shall offer the optional IImagePositionResolver, whose ResolveWithPositions
+                  returns an ImageResolution (the surface, the positions its source reported for a PositionSelection
+                  from the same render, a truncation flag, and the natural-size flag), and shall carry the selection to
+                  a source in ImageSourceRequest.Positions and the positions back in ImageSourceResult.Positions and
+                  PositionsTruncated, null and false by default and kept as read-only snapshots, so that every existing
+                  resolver and source keeps working unchanged.
+                justification: |
+                  A document that binds a point to a feature of an embedded picture needs the positions of the very
+                  surface it draws; an optional interface adds that without breaking a host or a source that knows
+                  nothing of positions.
+                tests:
+                  - ImageSourceResult_Positions_DefaultNullAndSnapshot
+                  - ImageResolution_Constructor_NullSurface_Throws

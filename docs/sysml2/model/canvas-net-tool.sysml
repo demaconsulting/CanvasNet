@@ -8,6 +8,7 @@ package CanvasNet {
         comment mermaidTestRef /* Test: test/DemaConsulting.CanvasNet.Tool.Tests/CanvasNetToolTests.Mermaid.cs */
         comment fileAccessTestRef /* Test: test/DemaConsulting.CanvasNet.Tool.Tests/CanvasNetToolTests.FileAccess.cs */
         comment positionsTestRef /* Test: test/DemaConsulting.CanvasNet.Tool.Tests/CanvasNetToolTests.Positions.cs */
+        comment bindingsTestRef /* Test: test/DemaConsulting.CanvasNet.Tool.Tests/CanvasNetToolTests.Bindings.cs */
         comment designRef /* Design: docs/design/canvas-net-tool.md */
         comment verificationRef /* Verification: docs/verification/canvas-net-tool.md */
         comment reqRef /* Requirements: docs/reqstream/canvas-net-tool.yaml */

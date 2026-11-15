@@ -111,7 +111,9 @@ DEMA Consulting best practices. The system consists of ten implemented subsystem
   every source, picks the source by file name extension or URI scheme,
   bounds depth, cycles, count, and the pixels that sources allocate, and forwards notes), and the `RasterImageSource`
   unit (the source for the
-  raster formats of `Codecs`). It depends on `Files`, `Canvas`, and `Codecs`; no core subsystem depends on it.
+  raster formats of `Codecs`). It depends on `Files`, `Canvas`, and `Codecs`, and on `Positions` for the optional
+  `IImagePositionResolver` (a picture with the positions of its features from the same render, as `ImageResolution`);
+  no other core subsystem depends on it.
   The format packages each ship one source (`SvgImageSource`, `ScadImageSource`, `VegaLiteImageSource`,
   `PdfImageSource`, `PptxImageSource`, `VsdxImageSource`), the `CanvasNetViewer` system lists them all, and
   the `CanvasNetSvg` system takes an `IImageResolver` in its `SvgLoadOptions`. See _ImageSources Subsystem
@@ -124,7 +126,8 @@ DEMA Consulting best practices. The system consists of ten implemented subsystem
   `PositionSelector` unit (the bounded selector grammar of `PositionSelector` and the union `PositionSelection`), and
   the `PositionCollector` unit (the positions of one render that a selection matches, in delivery order, up to a cap of
   1,000, with the selectors that matched nothing). It depends only on `ImageParameterValues` of `ImageSources` (the
-  bare selector values); no other core subsystem depends on it. The `CanvasNetMermaid` and `CanvasNetVegaLite` systems
+  bare selector values); only the `ImageSources` contract uses its types (for `IImagePositionResolver`). The
+  `CanvasNetMermaid` and `CanvasNetVegaLite` systems
   report positions through it, the `CanvasNetViewer` system collects and maps them, and the `CanvasNetTool` system
   prints them. See _Positions Subsystem Design_ (`positions.md`).
 - **Packaging subsystem** (namespace `DemaConsulting.CanvasNet.Packaging`, folder

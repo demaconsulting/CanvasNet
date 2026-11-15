@@ -2213,6 +2213,52 @@ precedent, where the budget ceilings themselves are sized generously enough that
 test fixture is expected to approach them, and are documented via XML-doc rationale at their
 declaration site rather than a dedicated ceiling-triggering regression test.
 
+#### CanvasNetSvg-SvgCodec-PositionBindingSyntax: Namespace, Attributes, And Values
+
+**Tests**: `SvgCodec_Binding_LineEndpoint_LandsOnThePosition`, `SvgCodec_Binding_OtherNamespaceOrUnprefixed_IsIgnored`,
+`SvgCodec_Binding_UndeclaredPrefix_IsInvalidData`, `SvgCodec_Binding_EachElementAndAttribute_IsResolved`,
+`SvgCodec_Binding_MalformedValue_IsReported`, `SvgCodec_Binding_MissingImage_IsReported` (`SvgPositionBindingTests.cs`)
+
+A test resolver reports `node:a` at a quarter of the width and half the height of the picture it draws at the requested
+size. A line bound with the prefix `cn` or `q` of the namespace lands at 20,30 (the pixel 10,10 of the 40 by 20 picture
+plus its origin 10,20), with the element, id, attribute, image id, selector, target attributes, and element index 2 in
+its report. An unprefixed `x2y2` and one in another namespace are not bindings, and the image is then resolved plainly;
+an undeclared prefix is `InvalidDataException`. `x1y1`, `x2y2`, `center` on a circle and an ellipse, and `xy` on a text
+with a `dx` all resolve. A value without `#`, without a selector, with an empty id, or with an invalid selector is
+`svg-binding-malformed`; an id that names nothing or a `rect` is `svg-binding-image-missing`.
+
+#### CanvasNetSvg-SvgCodec-PositionBindingResolution: Same Render, Exact Placement
+
+**Tests**: `SvgCodec_Binding_Transforms_AreAppliedBothWays`, `SvgCodec_Binding_PreserveAspectRatio_FitsTheActualSurface`,
+`SvgCodec_Binding_OutputSize_GivesTheSameUserCoordinates`, `SvgCodec_Binding_BoundImage_IsLoadedOnceAndPainted`,
+`SvgCodec_Binding_WorkBudget_IsChargedOnce`, `SvgCodec_Binding_ImageWithValidEffects_StillResolves`
+
+A callout in a translated, rotated, and scaled group lands at the inverse of that group (computed by the test with
+`Matrix3x2`) applied to 20,30; an image in a translated and halved group and an image rotated about 50,50 give 20,15 and
+70,20. A 20 by 20 picture in a 40 by 20 box gives 25,30 for `xMidYMid meet`, 15,30 for `xMinYMin meet`, 20,20 for
+`xMaxYMax slice`, and 20,30 for `none`. A binding before its image resolves to the same numbers at 100 and 300 pixels,
+and the image is asked for at the size the painter asks for. A bound image with two bound elements is asked for once
+with both selectors, its picture is painted, and a black line bound to it stops at the bound point; and the work charged
+to the shared budget with a binding equals the work without it. A bound image with a filter or a mask whose region is
+valid still resolves to 20,30 from one call, with the same work as without the binding.
+
+#### CanvasNetSvg-SvgCodec-PositionBindingFailures: Codes And Fallback
+
+**Tests**: `SvgCodec_Binding_UnsupportedCases_AreReported`, `SvgCodec_Binding_TextCoordinateList_IsUnsupported`,
+`SvgCodec_Binding_NoPositionsAvailable_IsUnsupported`, `SvgCodec_Binding_MatchFailures_AreReported`,
+`SvgCodec_Binding_ImageNotPainted_IsUnavailableAndNotLoaded`,
+`SvgImageSource_Render_UnresolvedBinding_IsAWarningOfTheResult`
+
+`center` on a line, an unknown name, an image or a callout inside `defs`, an image or a group drawn by a `use`, and a
+`data:` image are `svg-binding-unsupported`, as are a text with a list of x (reported before the codec refuses the list),
+a plain resolver, and a source without positions. A selector that matches nothing, two positions, a match without a
+pixel, and a callout in `scale(0)` are `svg-binding-unmatched`, `svg-binding-ambiguous`, `svg-binding-unavailable`,
+and `svg-binding-singular`; a truncated list is ambiguous, and a picture that is not drawn or has no width is
+unavailable; a failed binding has no coordinates. A bound image under `scale(0)` or a matrix with a zero scale, or
+with a filter or mask region of zero or more than the maximum size, is unavailable, the resolver is never called, and
+the work charged equals that of the document without the binding. `SvgImageSource` returns an unresolved binding of the
+file as an `svg` warning with its code and still draws the file.
+
 ### Additional Regression Test Scenarios (Unlinked)
 
 The tests below are defensive/regression tests added for a bug fix, not new observable features;

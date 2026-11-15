@@ -1906,3 +1906,64 @@ sections:
               - SvgImageSource_Render_InvalidInput_Throws
               - SvgImageSource_Properties_NameExtensionAndNoSchemes
               - SvgImageSource_Properties_ExtensionsAndSchemesAreReadOnly
+
+          - id: CanvasNetSvg-SvgCodec-PositionBindingSyntax
+            title: >-
+              The SvgCodec class shall treat an attribute in the namespace https://demaconsulting.com/canvasnet, matched
+              by its expanded name whatever its prefix, as a position binding: x1y1 and x2y2 on a line, center on a
+              circle or an ellipse, and xy on a text, whose value is a hash sign, the image id, white space, and a
+              selector (split at the first white space after the id, the id naming an image of the same document, the
+              selector parsed with the grammar of the position selectors); it shall ignore attributes of other
+              namespaces, never fetch the namespace URI, and report a malformed value (svg-binding-malformed) and an id
+              that names no image (svg-binding-image-missing).
+            justification: |
+              Matching by expanded name keeps the bindings unambiguous in any document, and one selector grammar for
+              --positions and bindings means one thing to learn.
+            tests:
+              - SvgCodec_Binding_LineEndpoint_LandsOnThePosition
+              - SvgCodec_Binding_OtherNamespaceOrUnprefixed_IsIgnored
+              - SvgCodec_Binding_UndeclaredPrefix_IsInvalidData
+              - SvgCodec_Binding_EachElementAndAttribute_IsResolved
+              - SvgCodec_Binding_MalformedValue_IsReported
+              - SvgCodec_Binding_MissingImage_IsReported
+
+          - id: CanvasNetSvg-SvgCodec-PositionBindingResolution
+            title: >-
+              The SvgCodec class shall resolve every position binding before it paints, loading each bound image once
+              through IImagePositionResolver at the device size the painter requests (charged to the shared work budget
+              once), painting that same surface, mapping the pixel of the single matching position through the painter's
+              placement (x, y, width, height, the preserveAspectRatio fit of the actual surface size, and the image's
+              transforms) and the inverse of the receiving element's transforms, and writing both coordinates together,
+              rounded to 3 decimals, also when the binding comes before its image.
+            justification: |
+              A callout must land on the feature of the picture that is drawn, at any output size; a second load could
+              draw a different picture and would charge the budgets twice.
+            tests:
+              - SvgCodec_Binding_Transforms_AreAppliedBothWays
+              - SvgCodec_Binding_PreserveAspectRatio_FitsTheActualSurface
+              - SvgCodec_Binding_OutputSize_GivesTheSameUserCoordinates
+              - SvgCodec_Binding_BoundImage_IsLoadedOnceAndPainted
+              - SvgCodec_Binding_WorkBudget_IsChargedOnce
+              - SvgCodec_Binding_ImageWithValidEffects_StillResolves
+
+          - id: CanvasNetSvg-SvgCodec-PositionBindingFailures
+            title: >-
+              The SvgCodec class shall keep the written coordinates of a binding it cannot resolve and report it through
+              SvgLoadOptions.BindingHandler, once per binding in document order before painting, with a stable code:
+              svg-binding-unsupported (a pair on the wrong element, an element or image not painted directly or drawn by
+              a use, a text with a list of coordinates, an image that does not link a file, a resolver or source without
+              positions), svg-binding-unmatched, svg-binding-ambiguous (several matches or a truncated list),
+              svg-binding-unavailable (the picture is not drawn or the match has no pixel), and svg-binding-singular;
+              an image the painter does not paint (no size, a degenerate transform, an empty or oversized filter or
+              mask region) shall not be loaded or charged, and its bindings shall be svg-binding-unavailable; the
+              SvgImageSource class shall return such a binding of a nested SVG file as a warning of its result.
+            justification: |
+              A recoverable binding must never fail the render; the fallback numbers keep the drawing usable and the
+              code tells the author what to fix, while the host decides whether to fail.
+            tests:
+              - SvgCodec_Binding_UnsupportedCases_AreReported
+              - SvgCodec_Binding_TextCoordinateList_IsUnsupported
+              - SvgCodec_Binding_NoPositionsAvailable_IsUnsupported
+              - SvgCodec_Binding_MatchFailures_AreReported
+              - SvgCodec_Binding_ImageNotPainted_IsUnavailableAndNotLoaded
+              - SvgImageSource_Render_UnresolvedBinding_IsAWarningOfTheResult

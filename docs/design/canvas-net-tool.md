@@ -63,7 +63,8 @@ consists of six direct units and one subsystem:
   threshold gating), `MontageCommand` (the `montage` command: a labeled contact sheet of images and document
   pages), `InspectCommand` (the read-only `inspect colors` and `inspect pixel` commands), and `FlattenCommand` (the
   `flatten` command: a copy of an SVG drawing whose links to models, charts, diagrams, and document pages are PNG
-  pictures). Each of the
+  pictures, with its SVG position bindings baked; `render` of an SVG file reports each resolved binding as a `bind`
+  operation). Each of the
   five image commands (`RenderCommand`, `CompareCommand`, `MontageCommand`, `InspectCommand`, and `FlattenCommand`)
   reads its options, probes its inputs, checks the options against the kind of each input, calls the matching operation
   of the Viewer library (`ImageRenderer`, `ImageComparer`, `MontageBuilder`, `ImageInspector`, or `SvgFlattener`), and

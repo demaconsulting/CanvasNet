@@ -3,6 +3,7 @@ title: Diagnostics of a drawing
 summary: The warnings of images that were not drawn, the fragment codes, and the errors of a drawing.
 see-also:
   - svg/embedding
+  - svg/bindings
   - errors
 ---
 
@@ -18,6 +19,10 @@ see-also:
   file-access mode (--file-access, --allow-root) denies, so it was not read. The
   message names the href, the mode, and why. --strict makes it the error
   file-access-denied.
+- `svg-binding-*`: Warning: a position binding (cn:x2y2 and the others) was not
+  resolved and keeps the numbers written in the file; the code says why (see
+  'canvasnet help svg bindings'). --strict makes it the error
+  svg-binding-failed.
 - `image-fragment-unknown-parameter`: Warning: the fragment of an href names a
   parameter the linked file does not use (a typo such as pag=2, or any parameter
   on a raster or an SVG file). The picture is drawn without it. --strict does

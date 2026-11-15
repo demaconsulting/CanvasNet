@@ -208,7 +208,8 @@ sections:
           selectors, the positions the selectors match (filtered before a cap of 1,000, with a flag when more matched),
           mapped through the fit and the pipeline steps into the pixels of the image it returns or writes, shall warn
           about a selector that matched nothing (an error with code positions-unmatched under the strict option, before
-          anything is returned), and shall ignore the selectors for every other kind and for embedded pictures.
+          anything is returned), and shall ignore the selectors for every other kind; an embedded picture reports only
+          the positions the SVG position bindings of its document ask for (CanvasNetViewer-SvgPositionBindings).
         tags: [system]
         justification: |
           The tool and other hosts load and transform pictures through the Viewer; the positions must follow the pixels
@@ -221,3 +222,23 @@ sections:
           - CanvasNetViewer-ViewerException-PositionsUnmatched
         tests:
           - CanvasNetViewer_SystemIntegration_Positions_FollowThePipelineIntoTheWrittenImage
+
+      - id: CanvasNetViewer-SvgPositionBindings
+        title: >-
+          The library shall resolve the position bindings of an SVG file it loads, renders, or flattens from the
+          positions of the Mermaid diagrams and Vega-Lite charts and the anchors of the OpenSCAD models the file embeds
+          (asking each picture only for the selectors its bindings use), report each as a bind operation or a warning
+          with its svg-binding code, fail with svg-binding-failed under the strict option after the pictures that were
+          not drawn, and bake the resolved numbers of the captured pictures into a flattened copy.
+        tags: [system]
+        justification: |
+          The tool and other hosts compose figures through the Viewer; the callouts must land on the drawn picture, in
+          the render and in the flattened copy alike.
+        children:
+          - CanvasNetViewer-Imaging-SourceLoader-SvgBindings
+          - CanvasNetViewer-Imaging-SvgFlattener-Bindings
+          - CanvasNetViewer-CanvasNetViewer-BindingPositions
+          - CanvasNetViewer-ViewerException-SvgBindingFailed
+        tests:
+          - SourceLoader_Load_SvgBindingToMermaid_LandsOnTheNode
+          - SvgFlattener_Execute_ResolvedBinding_IsBaked

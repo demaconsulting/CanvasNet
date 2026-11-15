@@ -263,3 +263,15 @@ sections:
             tests:
               - CanvasNetViewer_Render_PositionsIntoABox_FollowTheFit
               - CanvasNetViewer_Render_UnmatchedSelector_NoteOrStrictFailure
+
+          - id: CanvasNetViewer-CanvasNetViewer-BindingPositions
+            title: >-
+              The resolver of CanvasNetViewer shall report, through IImagePositionResolver, the positions of an embedded
+              Mermaid diagram or Vega-Lite chart and the anchors of an OpenSCAD model (kind anchor), and none for the
+              other kinds; and a strict render shall fail with svg-binding-failed for a position binding that was not
+              resolved.
+            justification: |
+              A host that renders through the facade gets the same bindings as the tool.
+            tests:
+              - CanvasNetViewer_CreateImageResolver_ResolveWithPositions_ReportsByKind
+              - CanvasNetViewer_Render_StrictUnresolvedBinding_Fails

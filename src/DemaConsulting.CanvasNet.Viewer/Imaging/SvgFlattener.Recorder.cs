@@ -1,6 +1,7 @@
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;
 using DemaConsulting.CanvasNet.ImageSources;
+using DemaConsulting.CanvasNet.Positions;
 
 namespace DemaConsulting.CanvasNet.Viewer.Imaging;
 
@@ -26,7 +27,24 @@ public static partial class SvgFlattener
     /// <param name="Height">The height in pixels of the picture.</param>
     /// <param name="PngBytes">The size in bytes of the PNG picture.</param>
     /// <param name="DataUri">The <c>data:image/png;base64,...</c> URI of the picture.</param>
-    internal sealed record Capture(string Format, int Width, int Height, long PngBytes, string DataUri);
+    internal sealed record Capture(string Format, int Width, int Height, long PngBytes, string DataUri)
+    {
+        /// <summary>
+        ///     Gets the selector texts the position bindings of the drawing asked of this picture; empty when none did.
+        /// </summary>
+        public IReadOnlyCollection<string> Selectors { get; init; } = [];
+
+        /// <summary>
+        ///     Gets the positions the picture reported for <see cref="Selectors"/>, in its pixels, from the render that drew
+        ///     it; <see langword="null"/> when none were asked for or its source reports none.
+        /// </summary>
+        public IReadOnlyList<ImagePosition>? Positions { get; init; }
+
+        /// <summary>
+        ///     Gets a value indicating whether matching positions were left out of <see cref="Positions"/> because of the cap.
+        /// </summary>
+        public bool PositionsTruncated { get; init; }
+    }
 
     /// <summary>
     ///     The resolver the drawing is drawn with once: it records every link the SVG library asks for with its largest
@@ -50,7 +68,7 @@ public static partial class SvgFlattener
     ///         the output limit as they are drawn. Not thread-safe: one per flatten.
     ///     </para>
     /// </remarks>
-    private sealed class Recorder : IImageResolver
+    private sealed class Recorder : IImagePositionResolver
     {
         /// <summary>
         ///     The resolver of <c>canvasnet render</c> that draws the pictures.
@@ -86,6 +104,12 @@ public static partial class SvgFlattener
         ///     Every link the SVG library asked for.
         /// </summary>
         private readonly HashSet<string> _requested = new(StringComparer.Ordinal);
+
+        /// <summary>
+        ///     The distinct selector texts the position bindings asked of each link, in first order, at most
+        ///     <see cref="PositionSelection.MaxSelectors"/> per link.
+        /// </summary>
+        private readonly Dictionary<string, List<string>> _selectors = new(StringComparer.Ordinal);
 
         /// <summary>
         ///     The total length of the data URIs of the kept pictures.
@@ -152,6 +176,38 @@ public static partial class SvgFlattener
         }
 
         /// <summary>
+        ///     Records a link that position bindings target, like <see cref="Resolve(string, int, int)"/>, and the selectors
+        ///     they ask of it, so the picture is drawn once with its positions (see <see cref="DrawRecorded"/>).
+        /// </summary>
+        /// <param name="href">The link, trimmed.</param>
+        /// <param name="pixelWidth">The width of the placement on the canvas.</param>
+        /// <param name="pixelHeight">The height of the placement on the canvas.</param>
+        /// <param name="positions">The selectors of the bindings of one <c>image</c> element.</param>
+        /// <returns>Always <see langword="null"/>: the drawing is not needed.</returns>
+        public ImageResolution? ResolveWithPositions(string href, int pixelWidth, int pixelHeight, PositionSelection positions)
+        {
+            ArgumentNullException.ThrowIfNull(positions);
+            _ = Resolve(href, pixelWidth, pixelHeight);
+
+            // The union of the selectors of every element that links it; beyond the cap a binding is left unresolved
+            if (!_selectors.TryGetValue(href, out var texts))
+            {
+                texts = [];
+                _selectors[href] = texts;
+            }
+
+            foreach (var text in positions.Selectors.Select(s => s.Text).Where(t => !texts.Contains(t, StringComparer.Ordinal)))
+            {
+                if (texts.Count < PositionSelection.MaxSelectors)
+                {
+                    texts.Add(text);
+                }
+            }
+
+            return null;
+        }
+
+        /// <summary>
         ///     Draws each recorded link once, at its largest placement, in the order the drawing first showed them, and
         ///     keeps the pictures to replace.
         /// </summary>
@@ -164,8 +220,13 @@ public static partial class SvgFlattener
                 var (width, height) = _largest[href];
 
                 // The resolver lists what it drew, nested pictures before the one that embeds them
+                // A link that bindings target is drawn once with its positions, so they describe the very picture kept
                 var before = _resolver.Embedded.Count;
-                using var surface = _resolver.Resolve(href, width, height);
+                var texts = _selectors.GetValueOrDefault(href);
+                var resolution = texts is { Count: > 0 }
+                    ? _resolver.ResolveWithPositions(href, width, height, PositionSelection.Parse(texts))
+                    : null;
+                using var surface = texts is { Count: > 0 } ? resolution?.Surface : _resolver.Resolve(href, width, height);
                 if (surface is null)
                 {
                     continue;
@@ -178,7 +239,7 @@ public static partial class SvgFlattener
                     continue;
                 }
 
-                Keep(href, kind, surface);
+                Keep(href, kind, surface, texts, resolution);
             }
         }
 
@@ -199,8 +260,10 @@ public static partial class SvgFlattener
         /// <param name="href">The link.</param>
         /// <param name="kind">The kind of the linked file.</param>
         /// <param name="surface">The picture.</param>
+        /// <param name="selectors">The selector texts the bindings asked of it, or <see langword="null"/> for none.</param>
+        /// <param name="resolution">What the resolver returned with the positions, or <see langword="null"/> when none were asked for.</param>
         /// <exception cref="ViewerException">Thrown with code <c>size-limit</c> when the kept pictures exceed the output limit.</exception>
-        private void Keep(string href, SourceKind kind, Surface surface)
+        private void Keep(string href, SourceKind kind, Surface surface, List<string>? selectors, ImageResolution? resolution)
         {
             using var png = new MemoryStream();
             PngCodec.Save(surface, png);
@@ -211,7 +274,84 @@ public static partial class SvgFlattener
             _dataBytes += length;
 
             var dataUri = DataUriPrefix + Convert.ToBase64String(png.GetBuffer(), 0, (int)png.Length);
-            _captures[href] = new Capture(kind.ToFormatName(), surface.Width, surface.Height, png.Length, dataUri);
+            _captures[href] = new Capture(kind.ToFormatName(), surface.Width, surface.Height, png.Length, dataUri)
+            {
+                Selectors = selectors ?? [],
+                Positions = resolution?.Positions,
+                PositionsTruncated = resolution?.PositionsTruncated ?? false
+            };
+        }
+    }
+
+    /// <summary>
+    ///     The resolver of the binding pass of <see cref="SvgFlattener"/>: it serves each captured picture as a blank surface
+    ///     of the size of the capture with the positions the capture recorded, so the SVG library maps every binding
+    ///     through the placement of its own <c>image</c> element exactly as an SVG reader will place the PNG picture.
+    /// </summary>
+    /// <remarks>
+    ///     Nothing is drawn or evaluated again: the positions are those of the render that produced the PNG picture. A
+    ///     link that is not captured is not drawn (<see langword="null"/>), except that a link to a picture whose source
+    ///     never reports positions (a raster or an SVG file) gets a one-pixel surface without positions, so its bindings
+    ///     are reported as unsupported, as <c>canvasnet render</c> reports them. Not thread-safe: one per flatten.
+    /// </remarks>
+    private sealed class CaptureResolver : IImagePositionResolver
+    {
+        /// <summary>
+        ///     The recorder whose captures are served.
+        /// </summary>
+        private readonly Recorder _recorder;
+
+        /// <summary>
+        ///     Initializes a new instance of the <see cref="CaptureResolver"/> class.
+        /// </summary>
+        /// <param name="recorder">The recorder whose captures are served.</param>
+        public CaptureResolver(Recorder recorder)
+        {
+            _recorder = recorder;
+        }
+
+        /// <summary>
+        ///     Draws nothing: only the pictures bindings target are needed in the binding pass.
+        /// </summary>
+        /// <param name="href">The link.</param>
+        /// <param name="pixelWidth">The width of the placement.</param>
+        /// <param name="pixelHeight">The height of the placement.</param>
+        /// <returns>Always <see langword="null"/>.</returns>
+        public Surface? Resolve(string href, int pixelWidth, int pixelHeight)
+        {
+            return null;
+        }
+
+        /// <summary>
+        ///     Serves a captured picture as a blank surface of its size with its recorded positions.
+        /// </summary>
+        /// <param name="href">The link, trimmed.</param>
+        /// <param name="pixelWidth">The width of the placement on the canvas (not used: the capture has its own size).</param>
+        /// <param name="pixelHeight">The height of the placement on the canvas (not used).</param>
+        /// <param name="positions">The selectors of the bindings of one <c>image</c> element.</param>
+        /// <returns>
+        ///     The blank surface and the recorded positions; <see langword="null"/> when the link was not captured or the
+        ///     capture was not asked for every selector (the bindings are then unavailable).
+        /// </returns>
+        public ImageResolution? ResolveWithPositions(string href, int pixelWidth, int pixelHeight, PositionSelection positions)
+        {
+            ArgumentNullException.ThrowIfNull(positions);
+            if (!_recorder.Captures.TryGetValue(href, out var capture))
+            {
+                var kind = SourceLoader.SvgImages.KindOfName(href);
+                return kind is { } known && !IsCanvasNetOnly(known) ? new ImageResolution(new Surface(1, 1)) : null;
+            }
+
+            if (!positions.Selectors.All(s => capture.Selectors.Contains(s.Text, StringComparer.Ordinal)))
+            {
+                return null;
+            }
+
+            return new ImageResolution(new Surface(capture.Width, capture.Height))
+            {
+                Positions = capture.Positions,
+                PositionsTruncated = capture.PositionsTruncated
+            };
         }
     }
 }

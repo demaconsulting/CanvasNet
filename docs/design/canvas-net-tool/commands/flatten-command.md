@@ -36,6 +36,13 @@ to a page of a linked document, then `ResultWriter.WriteDiagnosticExtras`), and 
 
 **RenderText(result, output)**: the text line above, in the invariant culture.
 
+#### Position Bindings
+
+When the drawing has position bindings (`FlattenResult.ResolvedBindings + UnresolvedBindings > 0`), the JSON document has
+the object `bindings` (`resolved`, `unresolved`) right after `rebased`; a drawing without bindings keeps the documented
+keys unchanged. The text summary ends with `, 1 binding resolved` or `, N bindings resolved` when at least one binding
+was baked. Requirement: `CanvasNetTool-Commands-FlattenCommand-Bindings`.
+
 #### Error Handling
 
 `ToolException` with `usage-error` for the command line, and the `ViewerException` codes of `SourceLoader.Probe` and

@@ -151,6 +151,28 @@ public class SvgImageSourceTests
     }
 
     /// <summary>
+    ///     Test that a position binding of the file that is not resolved is a warning of the result with its code (here the
+    ///     resolver of the request cannot report positions), and the file is still drawn.
+    /// </summary>
+    [Fact]
+    public void SvgImageSource_Render_UnresolvedBinding_IsAWarningOfTheResult()
+    {
+        // Arrange
+        const string svg = "<svg xmlns='http://www.w3.org/2000/svg' xmlns:cn='https://demaconsulting.com/canvasnet' width='40' height='30'>"
+                           + "<image id='pic' href='inner.mmd' x='10' y='10' width='20' height='10'/>"
+                           + "<line x1='0' y1='0' x2='5' y2='5' cn:x2y2='#pic node:a'/></svg>";
+
+        // Act
+        var result = new SvgImageSource().Render(Request(svg, resolver: new RecordingResolver()));
+        using var surface = result.Surface;
+
+        // Assert
+        var note = Assert.Single(result.Diagnostics);
+        Assert.Equal(("svg", ImageDiagnosticSeverity.Warning, SvgPositionBinding.UnsupportedCode), (note.Source, note.Severity, note.Code));
+        Assert.Equal(Green, surface[20, 15]);
+    }
+
+    /// <summary>
     ///     Test that without a resolver the nested links are not drawn and nothing fails.
     /// </summary>
     [Fact]

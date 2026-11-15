@@ -123,9 +123,21 @@ public sealed record FlattenResult(
     IReadOnlyList<string> Echo)
 {
     /// <summary>
-    ///     Gets a value indicating whether at least one link was replaced and the copy was written.
+    ///     Gets the number of position bindings (<c>cn:x2y2="#image selector"</c>, ...) of the drawing whose numbers were
+    ///     baked into the copy and whose <c>cn:</c> attribute was removed; <c>0</c> by default.
     /// </summary>
-    public bool Flattened => Replaced.Count > 0;
+    public int ResolvedBindings { get; init; }
+
+    /// <summary>
+    ///     Gets the number of position bindings of the drawing that were not resolved: they keep their numbers and their
+    ///     attribute, and each is a warning in <see cref="Diagnostics"/>; <c>0</c> by default.
+    /// </summary>
+    public int UnresolvedBindings { get; init; }
+
+    /// <summary>
+    ///     Gets a value indicating whether at least one link was replaced or one binding was baked, and the copy was written.
+    /// </summary>
+    public bool Flattened => Replaced.Count > 0 || ResolvedBindings > 0;
 }
 
 /// <summary>
@@ -153,6 +165,14 @@ public sealed record FlattenResult(
 ///         transform and the <c>viewBox</c>, times <see cref="FlattenRequest.Scale"/>; the SVG reader then fits it per
 ///         <c>preserveAspectRatio</c> as before. A link the drawing never shows (hidden, an unused definition, outside
 ///         the canvas) is left as a link and reported as <see cref="ImageNotDrawnCode"/>.
+///     </para>
+///     <para>
+///         <b>Position bindings.</b> A binding of the drawing (<c>cn:x2y2="#flow node:send"</c>, see
+///         <see cref="SvgPositionBinding"/>) is baked into the copy with the numbers of the PNG picture that replaces its
+///         link (the positions recorded when that picture was drawn, placed by the binding's own <c>image</c> element; no
+///         linked file is drawn twice), its attribute is removed, and the namespace declaration too when nothing uses it.
+///         A binding that is not resolved keeps its attribute and numbers and is a warning; with
+///         <see cref="FlattenRequest.Strict"/> it is the error <c>svg-binding-failed</c> and nothing is written.
 ///     </para>
 ///     <para>
 ///         <b>Limits.</b> At most 64 pictures are drawn (nested ones count); the copy is at most
@@ -271,24 +291,70 @@ public static partial class SvgFlattener
             images.ThrowForUnresolved();
         }
 
+        // Resolve the position bindings from the captured pictures (their sizes and the positions recorded when they were
+        // drawn); a binding that was not resolved is an error under --strict, after the links that were not drawn
+        var sites = SourceLoader.Read(info.Path, SourceKind.Svg, () => FindBindingSites(document.Bytes, document.Text));
+        var bindings = sites.AttributeCount > 0 ? BindCaptures(info, request, document, recorder) : [];
+        var bindingNotes = SourceLoader.BindingNotes(bindings);
+        if (request.Strict)
+        {
+            SourceLoader.ThrowForFailedBindings(bindingNotes, Path.GetFileName(info.Path));
+        }
+
         // Find the link attributes in the text, and report the links only CanvasNet draws that were never drawn
         var links = SourceLoader.Read(info.Path, SourceKind.Svg, () => FindImageLinks(document.Bytes, document.Text));
         var diagnostics = images.Notes();
         diagnostics.AddRange(NotDrawn(info.Path, links, recorder.Requested));
         diagnostics.AddRange(NotDrawnNested(info.Path, images.Resolver.Requested));
+        diagnostics.AddRange(bindingNotes);
         var echo = images.Resolver.Echo.ToList();
+        var resolved = bindings.Count(b => b.IsResolved);
+        var unresolved = bindings.Count - resolved;
 
-        // Rewrite the link values; nothing is written when nothing was replaced
-        var rewrite = Rewrite(document, links, recorder, info.Path, request);
-        if (rewrite.Replaced.Count == 0)
+        // Rewrite the link values and bake the bindings; nothing is written when nothing changed
+        var rewrite = Rewrite(document, links, recorder, info.Path, request, BindingSplices(sites, bindings));
+        if (rewrite.Replaced.Count == 0 && resolved == 0)
         {
-            return new FlattenResult(info, null, 0, [], [], diagnostics, echo);
+            return new FlattenResult(info, null, 0, [], [], diagnostics, echo) { UnresolvedBindings = unresolved };
         }
 
         var content = Encode(document, rewrite.Text);
         CheckSize(content.LongLength, request.MaxOutputBytes);
         Publish(content, request.Output, request.NoClobber);
-        return new FlattenResult(info, request.Output, content.LongLength, rewrite.Replaced, rewrite.Rebased, diagnostics, echo);
+        return new FlattenResult(info, request.Output, content.LongLength, rewrite.Replaced, rewrite.Rebased, diagnostics, echo)
+        {
+            ResolvedBindings = resolved,
+            UnresolvedBindings = unresolved
+        };
+    }
+
+    /// <summary>
+    ///     Resolves the position bindings of the drawing against the captured pictures, without drawing or evaluating any
+    ///     linked file again.
+    /// </summary>
+    /// <param name="info">The facts about the drawing.</param>
+    /// <param name="request">The request.</param>
+    /// <param name="document">The drawing.</param>
+    /// <param name="recorder">The recorder, with the captured pictures and their positions.</param>
+    /// <returns>The outcome of every binding of the drawing, in document order.</returns>
+    /// <exception cref="ViewerException">Thrown with the codes of <c>canvasnet render</c> when the drawing is broken.</exception>
+    /// <remarks>
+    ///     The SVG library draws the drawing on the detection canvas with <see cref="CaptureResolver"/>, which serves each
+    ///     captured picture as a blank surface of its size with its recorded positions; the library then maps every
+    ///     binding through the placement of its own <c>image</c> element, as an SVG reader places the PNG picture.
+    /// </remarks>
+    private static List<SvgPositionBinding> BindCaptures(SourceInfo info, FlattenRequest request, SvgText document, Recorder recorder)
+    {
+        var (width, height, _) = DetectionCanvas(info.Width, info.Height, request.Scale);
+        var bindings = new List<SvgPositionBinding>();
+        SourceLoader.Read(info.Path, SourceKind.Svg, () =>
+        {
+            using var stream = new MemoryStream(document.Bytes, false);
+            using var surface = SvgCodec.LoadWithFontFaces(
+                stream, width, height, null, new SvgLoadOptions { ImageResolver = new CaptureResolver(recorder), BindingHandler = bindings.Add });
+            return surface.Width;
+        });
+        return bindings;
     }
 
     /// <summary>

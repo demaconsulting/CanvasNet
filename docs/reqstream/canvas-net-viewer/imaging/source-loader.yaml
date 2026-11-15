@@ -943,3 +943,23 @@ sections:
           - SourceLoader_Load_ChartOverTheCap_FiltersFirstThenCaps
           - SourceLoader_Load_UnmatchedSelector_WarnsOrFailsWhenStrict
           - SourceLoader_Load_OtherKinds_IgnoreThePositions
+
+      - id: CanvasNetViewer-Imaging-SourceLoader-SvgBindings
+        title: >-
+          The SourceLoader class shall resolve the position bindings of an SVG file from the pictures it embeds (the
+          positions of a Mermaid diagram or a Vega-Lite chart, and the anchors of an OpenSCAD model as the kind anchor),
+          asking an embedded picture only for the selectors of its bindings and without positions-unmatched notes; shall
+          report each resolved binding as a bind operation and each other one as a warning with its svg-binding code
+          (also for a nested SVG file); and under the strict option shall fail with svg-binding-failed only after the
+          pictures that were not drawn, so a denied picture stays file-access-denied.
+        justification: |
+          The tool renders figures through the loader; the bound numbers must be those of the drawn picture, and the
+          strict policy must not hide a denied file behind a binding failure.
+        tests:
+          - SourceLoader_Load_SvgBindingToMermaid_LandsOnTheNode
+          - SourceLoader_Load_SvgBindingToVegaLite_LandsOnTheMark
+          - SourceLoader_Load_SvgBindingToScadAnchor_LandsOnTheAnchor
+          - SourceLoader_Load_SvgBindingUnmatched_WarnsOrFailsStrictly
+          - SourceLoader_Load_SvgBindingToDeniedPicture_KeepsAccessDenied
+          - SourceLoader_Load_SvgBindingToUnpaintedPicture_IsUnavailableWithoutOpeningIt
+          - SourceLoader_Load_NestedSvgBinding_ResolvesOrFailsStrictly

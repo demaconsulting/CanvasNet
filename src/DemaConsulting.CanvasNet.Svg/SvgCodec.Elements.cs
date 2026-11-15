@@ -273,6 +273,23 @@ public static partial class SvgCodec
         public IImageResolver? ImageResolver { get; init; }
 
         /// <summary>
+        ///     The host callback that observes every position binding (see
+        ///     <see cref="SvgLoadOptions.BindingHandler"/>), or <see langword="null"/> for none. Set once by
+        ///     <c>RenderRoot</c>.
+        /// </summary>
+        public Action<SvgPositionBinding>? BindingHandler { get; init; }
+
+        /// <summary>
+        ///     The pictures the position-binding pre-pass already loaded, keyed by their <c>image</c> element's
+        ///     reference identity (see <c>ResolvePositionBindings</c>). <c>RenderImageWithEffects</c> draws the stored
+        ///     surface instead of asking the resolver again, so the positions and the drawn pixels come from the same
+        ///     render; a <see langword="null"/> value means the picture was asked for and nothing is drawn. The surfaces
+        ///     are owned by <c>RenderDocument</c>, which disposes them when the render ends. Shared by every
+        ///     <c>with</c> copy of the context, like the caches below.
+        /// </summary>
+        public Dictionary<XElement, Surface?> PreloadedImages { get; } = [];
+
+        /// <summary>
         ///     Resolves each default font (see <see cref="ResolveFont"/>) for the lifetime of one
         ///     <c>Load</c> call, caching it by the <c>font-family</c> text and the bold/italic axes - the
         ///     same "populated once, read many times" lifetime as <see cref="GradientStopCache"/>. Created on
@@ -419,9 +436,29 @@ public static partial class SvgCodec
         var filterWorkBudget = new FilterWorkBudget(diagnostics);
         var boundsPrePassBudget = new BoundsPrePassWorkBudget();
         var rootScope = new RenderScope(0, 0, 0, workBudget, filterWorkBudget, boundsPrePassBudget);
-        foreach (var child in root.Elements())
+
+        // Position bindings are resolved before anything is painted, so a forward reference resolves and the pictures
+        // they load are the ones painted; a document without a CanvasNet attribute skips the pre-pass entirely
+        try
         {
-            RenderElement(child, rootState, fitTransform, context, rootScope, ref totalElements);
+            if (HasPositionBindings(root))
+            {
+                ResolvePositionBindings(root, rootState, fitTransform, context, rootScope);
+            }
+
+            foreach (var child in root.Elements())
+            {
+                RenderElement(child, rootState, fitTransform, context, rootScope, ref totalElements);
+            }
+        }
+        finally
+        {
+            foreach (var preloaded in context.PreloadedImages.Values)
+            {
+                preloaded?.Dispose();
+            }
+
+            context.PreloadedImages.Clear();
         }
     }
 

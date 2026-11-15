@@ -155,3 +155,23 @@ sections:
           - SvgFlattener_Execute_OutputIsInput_ThrowsSameInputOutput
           - SvgFlattener_Execute_NoClobberExisting_ThrowsOutputExists
           - SvgFlattener_Execute_BrokenLinkedModel_ThrowsScadErrorNamingBothFiles
+
+      - id: CanvasNetViewer-Imaging-SvgFlattener-Bindings
+        title: >-
+          The SvgFlattener class shall bake each resolved position binding of the drawing with the numbers of the
+          captured PNG picture (its size and the positions recorded when it was drawn, placed by the binding's own image
+          element, without drawing or evaluating any linked file again), remove the consumed binding attributes and the
+          namespace declaration when nothing else uses it, keep every other byte, count the resolved and unresolved
+          bindings in the result (a resolved binding is a change), keep and warn about a binding that is not resolved
+          (also one involving a use), and under the strict option fail with svg-binding-failed before anything is
+          written.
+        justification: |
+          A flattened copy must show the callouts where CanvasNet draws them in any SVG reader, and only the captured
+          picture tells where its features are in the PNG that replaces the link.
+        tests:
+          - SvgFlattener_Execute_ResolvedBinding_IsBaked
+          - SvgFlattener_Execute_MissingCoordinates_AreInserted
+          - SvgFlattener_Execute_UnresolvedBinding_IsKeptAndWarned
+          - SvgFlattener_Execute_StrictUnresolvedBinding_WritesNothing
+          - SvgFlattener_Execute_BindingToUsedImage_IsKept
+          - SvgFlattener_Execute_BindingToUnpaintedImage_IsNotCaptured

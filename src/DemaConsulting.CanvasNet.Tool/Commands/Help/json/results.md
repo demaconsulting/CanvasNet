@@ -15,9 +15,12 @@ see-also:
   input without a fragment). The same member is in the a and b of compare and in
   each cell of montage.
 - `operations`: Every step that was applied, in order; each has an op key
-  (render, embed, auto-orient, resize, fit, flatten, crop, rotate, flip, pad,
-  and the photo operations) and its own fields. With --all-pages every operation
-  also carries its page. The verbs are crop, resize, rotate, flip, and pad.
+  (render, embed, bind, auto-orient, resize, fit, flatten, crop, rotate, flip,
+  pad, and the photo operations) and its own fields. With --all-pages every
+  operation also carries its page. The verbs are crop, resize, rotate, flip, and
+  pad. A bind is an SVG position binding that was resolved: {element, id when
+  the element has one, attribute, image, selector, x, y}, the numbers written in
+  user units (see 'canvasnet help svg bindings').
 - `outputs`: One entry per file written: {path, format, width, height, bytes}
   and page for a document.
 - `diagnostics`: The features that were left out of the picture; see the
@@ -70,7 +73,8 @@ see-also:
   width, height, elements, bytes}: each link that became a PNG picture, with the
   number of image elements that use it and the size of the PNG), rebased[]
   ({href, newHref}: the relative links rewritten for the folder of the copy),
-  outputs[] ({path, format, bytes}; empty when nothing was written),
+  bindings ({resolved, unresolved}: only when the drawing has position
+  bindings), outputs[] ({path, format, bytes}; empty when nothing was written),
   diagnostics, and echo.
 - `help`: kind is index, command, topics, card, examples, or example; see
   `canvasnet help json help`.

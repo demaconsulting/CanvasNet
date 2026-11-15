@@ -147,6 +147,17 @@ a link still starts with the href, as written. See *Diagnostics: Code and Origin
 **Create a new resolver for every render.** A resolver counts the images of one render and collects its notes, and it is
 not thread-safe; creating one is cheap. It never caches a picture, so a live source is asked again every time.
 
+**Position bindings.** The resolver also implements `IImagePositionResolver`, so the SVG codec can bind a point to a
+feature of a picture the document embeds: `cn:x2y2="#flow node:send"` on a `<line>` (with
+`xmlns:cn="https://demaconsulting.com/canvasnet"`, and `cn:x1y1`, `cn:center`, `cn:xy` for the other shapes) puts the
+end of the line where the node `send` of `<image id="flow" href="flow.mmd">` is drawn. A Mermaid diagram and a Vega-Lite
+chart report the features their position selectors select, and an OpenSCAD model its anchors as the kind `anchor`;
+other kinds report none. The picture is drawn once, and its positions come from that draw. Pass
+`SvgLoadOptions.BindingHandler` to see each outcome; a binding that is not resolved keeps the numbers written in the
+file. `SourceLoader`, `ImageRenderer`, and `CanvasNetViewer.Render` report a resolved binding as the operation `bind`
+and any other as a warning with its `svg-binding-*` code, and with the strict option fail with `svg-binding-failed`
+after the pictures that were not drawn (a denied picture is still `file-access-denied`).
+
 #### Choosing a page, slide, or view with a fragment
 
 The fragment of a link (the text after the first `#`) is a list of `name=value` parameters separated by `&`, in the
@@ -859,7 +870,11 @@ times `Scale`, as a `data:` URI, drawn with the resolver of `render` (relative t
 policy of `FlattenRequest.FileAccess`, with the same limits); only those attribute values change. When the drawing links
 no such picture nothing is written and
 `Flattened` is false, so the original can be used as it is. A link to such a file that the drawing, or an SVG file it shows,
-never shows (hidden, or an unused definition) is the warning `SvgFlattener.ImageNotDrawnCode` (`svg-flatten-image-not-drawn`):
+never shows (hidden, or an unused definition) is the warning `SvgFlattener.ImageNotDrawnCode` (`svg-flatten-image-not-drawn`).
+The position bindings of the drawing are baked into the copy with the numbers of the PNG pictures that replace the
+links (no linked file is drawn twice), their `cn:` attributes are removed, and `ResolvedBindings` and
+`UnresolvedBindings` count them; a binding that is not resolved stays as it is and is a warning, or with `Strict` the
+error `svg-binding-failed`:
 
 <!-- compile -->
 

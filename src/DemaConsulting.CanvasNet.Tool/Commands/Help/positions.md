@@ -9,6 +9,7 @@ children:
   - vega-lite
   - geometry
 see-also:
+  - svg/bindings
   - svg/framed-figure
   - scad/anchors
   - json/results
@@ -30,7 +31,8 @@ A Mermaid diagram or a Vega-Lite chart reports where its features land: render
 it with `--positions <selector> --json`, and `positions[]` gives the box and the
 attach pixel of every feature the selector matches, in the written picture,
 ready for callouts and leader lines drawn over it. A model reports anchors
-instead (`canvasnet help scad anchors`).
+instead (`canvasnet help scad anchors`). In an SVG figure, bind the callout to
+the selector instead of copying numbers (`canvasnet help svg bindings`).
 
 ## Read a position
 

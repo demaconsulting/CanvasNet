@@ -114,6 +114,15 @@ call in a field that the overload reads right after the call (the resolver is no
 files the last write is that of the outermost call, which is the one that returns), and a call that draws nothing
 reports `false`. The plain `Resolve` is unchanged.
 
+**Positions** (`IImagePositionResolver`): `ResolveWithPositions(href, pixelWidth, pixelHeight, positions)` of the
+resolver and of every scope resolves the link exactly as `Resolve` does (the same policy, fragment, depth, cycle, count,
+and pixel checks, in the same order) and sets `ImageSourceRequest.Positions` of the request it builds for that link
+only; the scope it gives the source carries no selection, so the links of the file are asked for none. `Draw` stores
+`ImageSourceResult.Positions` and `PositionsTruncated` in fields next to the natural-size flag, which the call reads right
+after the source returns (the outermost write wins, as for the natural size) and returns with the surface as an
+`ImageResolution`; a call that draws nothing returns `null`, and a null selection is `ArgumentNullException`.
+Requirement: `CanvasNet-ImageSources-FolderImageResolver-Positions`.
+
 **Fragment** (`ResolveFile`, `ResolveScheme`, `Draw`): the text after the first `#` of the link is parsed with
 `ImageFragment.Parse`. A fragment with a `Problem` (over 2048 characters or 32 parameters) is refused right after the
 source is chosen and before anything is counted or read: the note has the code `image-fragment-invalid` and the

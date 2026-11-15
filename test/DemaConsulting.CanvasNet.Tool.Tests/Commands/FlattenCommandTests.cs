@@ -125,6 +125,60 @@ public class FlattenCommandTests
     }
 
     /// <summary>
+    ///     Test that the JSON document of a drawing with position bindings has the object <c>bindings</c> after
+    ///     <c>rebased</c>, and the text summary counts the resolved bindings.
+    /// </summary>
+    [Fact]
+    public void FlattenCommand_Run_Bindings_AreCountedInJsonAndText()
+    {
+        // Arrange: one binding that resolves and one whose selector matches nothing
+        using var directory = new TempDirectory();
+        File.Copy(FixtureFactory.FixturePath("mermaid/flow.mmd"), directory.Combine("flow.mmd"), true);
+        var input = FixtureFactory.WriteText(
+            directory.Path,
+            "bound.svg",
+            "<svg xmlns='http://www.w3.org/2000/svg' xmlns:cn='https://demaconsulting.com/canvasnet' width='100' height='100'>"
+            + "<image id='pic' href='flow.mmd' width='60' height='40'/>"
+            + "<circle r='2' cn:center='#pic node'/><circle r='3' cn:center='#pic node:Zed'/></svg>");
+        var output = directory.Combine("flat.svg");
+        var textOutput = directory.Combine("flat-text.svg");
+
+        // Act
+        var (stdOut, _) = Run(true, input, "-o", output);
+        var (text, _) = Run(false, input, "-o", textOutput);
+
+        // Assert: "node" matches every node of the diagram, so it is ambiguous; node:Zed matches nothing
+        using var document = JsonDocument.Parse(stdOut);
+        var root = document.RootElement;
+        Assert.Equal(
+            ["schemaVersion", "ok", "command", "tool", "input", "scale", "flattened", "replaced", "rebased", "bindings", "outputs", "diagnostics", "echo"],
+            root.EnumerateObject().Select(p => p.Name));
+        Assert.Equal(0, root.GetProperty("bindings").GetProperty("resolved").GetInt32());
+        Assert.Equal(2, root.GetProperty("bindings").GetProperty("unresolved").GetInt32());
+        Assert.Equal(
+            ["svg-binding-ambiguous", "svg-binding-unmatched"],
+            root.GetProperty("diagnostics").EnumerateArray().Select(d => d.GetProperty("code").GetString()));
+        Assert.DoesNotContain("bindings resolved", text, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Test the text summary of a flatten that baked bindings.
+    /// </summary>
+    [Fact]
+    public void FlattenCommand_RenderText_ResolvedBindings_AreCounted()
+    {
+        // Arrange
+        var info = new SourceInfo("a.svg", SourceKind.Svg, 1, 10, 10, 4, true, true, 1, 1, null, [], [], []);
+        var replaced = new List<FlattenedImage> { new("flow.mmd", "mermaid", 60, 40, 1, 100) };
+        var one = new FlattenResult(info, "flat.svg", 500, replaced, [], [], []) { ResolvedBindings = 1 };
+        var three = one with { ResolvedBindings = 3 };
+
+        // Act / Assert
+        Assert.EndsWith("(flow.mmd 60x40 mermaid), 1 binding resolved", FlattenCommand.RenderText(one, "flat.svg"), StringComparison.Ordinal);
+        Assert.EndsWith("(flow.mmd 60x40 mermaid), 3 bindings resolved", FlattenCommand.RenderText(three, "flat.svg"), StringComparison.Ordinal);
+    }
+
+    /// <summary>
     ///     Test that a drawing with nothing to flatten says so and writes nothing.
     /// </summary>
     [Fact]

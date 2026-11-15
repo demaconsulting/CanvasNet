@@ -543,3 +543,23 @@ sections:
           - CanvasNetSvg-SvgCodec-CssResourceSafety
         tests:
           - CanvasNetSvg_SystemIntegration_SvgLoadWithCssStyleElement_ReturnsExpectedPixel
+
+      - id: CanvasNetSvg-Lib-PositionBindings
+        title: >-
+          The library shall resolve SVG position bindings (cn:x1y1 and cn:x2y2 on a line, cn:center on a circle or an
+          ellipse, cn:xy on a text, in the namespace https://demaconsulting.com/canvasnet, valued as a hash sign, the
+          image id, white space, and a selector) from the positions of the picture an image of the same document draws,
+          through an image resolver that reports positions, into the user space of the bound element before painting;
+          and shall keep the written numbers and report a binding it cannot resolve with a stable code through
+          SvgLoadOptions.BindingHandler.
+        tags: [system]
+        justification: |
+          Figures place callouts on features of embedded diagrams, charts, and models; binding them to the drawn picture
+          keeps them exact at any size without copying numbers by hand, while other SVG readers show the fallback.
+        children:
+          - CanvasNetSvg-SvgCodec-PositionBindingSyntax
+          - CanvasNetSvg-SvgCodec-PositionBindingResolution
+          - CanvasNetSvg-SvgCodec-PositionBindingFailures
+        tests:
+          - SvgCodec_Binding_LineEndpoint_LandsOnThePosition
+          - SvgCodec_Binding_BoundImage_IsLoadedOnceAndPainted

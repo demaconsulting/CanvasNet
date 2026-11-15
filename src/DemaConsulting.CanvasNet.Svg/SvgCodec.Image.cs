@@ -128,14 +128,22 @@ public static partial class SvgCodec
         RenderScope scope,
         ref int totalElements)
     {
-        // Resolve the placement rect first - a degenerate size means "render nothing" before any
-        // href parsing/decoding is even attempted, exactly mirroring RenderPatternFill's own
-        // "validate cheap geometry before expensive work" ordering
-        var x = GetFloatAttribute(element, "x", state, PercentageAxis.Horizontal);
-        var y = GetFloatAttribute(element, "y", state, PercentageAxis.Vertical);
-        var width = GetFloatAttribute(element, "width", state, PercentageAxis.Horizontal);
-        var height = GetFloatAttribute(element, "height", state, PercentageAxis.Vertical);
-        if (!float.IsFinite(width) || !float.IsFinite(height) || width <= 0f || height <= 0f)
+        // Decide whether the image is painted at all before any href parsing/decoding is even
+        // attempted (a degenerate size, transform or effects region renders nothing), exactly
+        // mirroring RenderPatternFill's own "validate cheap geometry before expensive work"
+        // ordering. The position-binding pre-pass makes the very same decision, so it never loads
+        // a picture this method would not paint
+        if (PlanImagePaint(element, state, transform, context, scope.MarkerDepth > 0) is not { } plan)
+        {
+            return;
+        }
+
+        var (x, y, width, height, effects) = plan;
+
+        // A picture the position-binding pre-pass already loaded is drawn as it is (the bound positions came from it);
+        // its load was charged there, so only the effects pipeline is charged below. A null entry draws nothing
+        var isPreloaded = context.PreloadedImages.TryGetValue(element, out var preloaded);
+        if (isPreloaded && preloaded == null)
         {
             return;
         }
@@ -144,45 +152,42 @@ public static partial class SvgCodec
         // an href that is neither "data:" nor a "#fragment" is ever offered to the host's opt-in
         // ImageResolver (see this class's remarks). Every other form tolerantly renders nothing
         // without ever touching the filesystem or network
-        var href = GetHrefAttribute(element)?.Trim();
-        var hrefKind = ClassifyImageHref(href, context);
-        if (hrefKind == ImageHrefKind.None)
+        ImageLoad? imageLoad;
+        if (isPreloaded)
         {
-            return;
+            imageLoad = new ImageLoad(0, () => preloaded);
+        }
+        else
+        {
+            var href = GetHrefAttribute(element)?.Trim();
+            var hrefKind = ClassifyImageHref(href, context);
+            if (hrefKind == ImageHrefKind.None)
+            {
+                return;
+            }
+
+            // Build the loader for the resolved href: the data path decodes the base64 payload, the
+            // resolver path asks the host. Each reports its own extra work units
+            imageLoad = hrefKind == ImageHrefKind.Data
+                ? CreateDataImageLoad(element)
+                : CreateResolverImageLoad(href!, width, height, transform, context, scope);
         }
 
-        // Build the loader for the resolved href: the data path decodes the base64 payload, the
-        // resolver path asks the host. Each reports its own extra work units. Doing this before
-        // the effects are resolved keeps the cheap "nothing to load" exits first
-        var imageLoad = hrefKind == ImageHrefKind.Data
-            ? CreateDataImageLoad(element)
-            : CreateResolverImageLoad(href!, width, height, transform, context, scope);
         if (imageLoad == null)
         {
             return;
         }
 
-        // Resolve the same filter/clip-path/mask attributes, and the same effects-region
-        // precedence, every other effects-capable element resolves - the placement rect itself
-        // stands in for a shape's own stroke-expanded painted bounds (an <image> has no stroke
-        // concept, so no ExpandBoundsForStroke call is needed)
-        var placementRect = new Rect(x, y, width, height);
-        var effects = ResolveImageEffects(element, state, context, scope.MarkerDepth > 0, placementRect, transform);
-        if (effects == null)
-        {
-            return;
-        }
-
-        var (pixelX, pixelY, pixelWidth, pixelHeight) = effects.Value.Region;
+        var (pixelX, pixelY, pixelWidth, pixelHeight) = effects.Region;
 
         // Charge the shared cumulative FilterWorkBudget BEFORE the base64 decode/raster Load (or
         // the host callback) is attempted - see this method's own remarks on the additional term
         var workUnits = ComputeEffectsPipelineWorkUnits(
-            effects.Value.FilterApplies,
-            effects.Value.PrimitiveCount,
-            effects.Value.Filter != null && FilterUsesSourceAlpha(effects.Value.Filter),
-            effects.Value.ClipPath != null,
-            effects.Value.Mask != null,
+            effects.FilterApplies,
+            effects.PrimitiveCount,
+            effects.Filter != null && FilterUsesSourceAlpha(effects.Filter),
+            effects.ClipPath != null,
+            effects.Mask != null,
             pixelWidth,
             pixelHeight)
             + imageLoad.Value.WorkUnits;
@@ -192,8 +197,10 @@ public static partial class SvgCodec
         }
 
         // The loaded surface is owned by this method: it is always disposed once its pixels have
-        // been sampled into the region buffer (or the placement turned out to be unusable)
-        using var decodedSurface = imageLoad.Value.Loader();
+        // been sampled into the region buffer (or the placement turned out to be unusable). A
+        // preloaded surface is borrowed from RenderDocument, which disposes it
+        var decodedSurface = imageLoad.Value.Loader();
+        using var ownedSurface = isPreloaded ? null : decodedSurface;
         if (decodedSurface == null)
         {
             return;
@@ -221,13 +228,70 @@ public static partial class SvgCodec
             decodedSurface, new PixelRect(pixelX, pixelY, pixelWidth, pixelHeight), imageToPixel, pixelToImage, state.PixelatedImages);
 
         ApplyEffectsAndComposite(
-            new EffectsSet(effects.Value.Filter, effects.Value.ClipPath, effects.Value.Mask),
-            effects.Value.FilterApplies,
-            new EffectsTarget(content, effects.Value.PlacementRect, pixelX, pixelY, transform),
+            new EffectsSet(effects.Filter, effects.ClipPath, effects.Mask),
+            effects.FilterApplies,
+            new EffectsTarget(content, effects.PlacementRect, pixelX, pixelY, transform),
             state,
             context,
             scope,
             ref totalElements);
+    }
+
+    /// <summary>
+    ///     What <see cref="RenderImageWithEffects"/> knows about an <c>image</c> element that it
+    ///     paints, before its picture is loaded.
+    /// </summary>
+    /// <param name="X">The placement x in local units.</param>
+    /// <param name="Y">The placement y in local units.</param>
+    /// <param name="Width">The placement width in local units; finite and positive.</param>
+    /// <param name="Height">The placement height in local units; finite and positive.</param>
+    /// <param name="Effects">The resolved effects and their pixel-space region.</param>
+    private readonly record struct ImagePaintPlan(float X, float Y, float Width, float Height, ImageEffects Effects);
+
+    /// <summary>
+    ///     Decides whether an <c>image</c> element is painted at all, from its placement, its
+    ///     transform and its effects alone - every check <see cref="RenderImageWithEffects"/> makes
+    ///     before it loads the picture that does not depend on the <c>href</c>.
+    /// </summary>
+    /// <param name="element">The <c>image</c> element.</param>
+    /// <param name="state">The element's own cascaded render state.</param>
+    /// <param name="transform">The element's accumulated local-to-pixel transform.</param>
+    /// <param name="context">The fixed per-document render context.</param>
+    /// <param name="suppressEffects">Whether the element's own effects are never resolved (marker content).</param>
+    /// <returns>
+    ///     The plan, or <see langword="null"/> when nothing is painted: a non-finite or non-positive
+    ///     <c>width</c>/<c>height</c>, a non-finite transform, or a degenerate or oversized effects
+    ///     region (for example a <c>scale(0)</c> transform, or an empty or oversized filter or mask
+    ///     region - see <see cref="ResolveImageEffects"/>).
+    /// </returns>
+    /// <remarks>
+    ///     Shared by the painter and by the position-binding pre-pass (<c>ResolveImageBindings</c>),
+    ///     so a bound picture is loaded, charged and reported as resolved only when the painter
+    ///     paints it: the two can never disagree about which images are painted. It resolves only
+    ///     element references and cached style values, so calling it has no side effect.
+    /// </remarks>
+    private static ImagePaintPlan? PlanImagePaint(
+        XElement element,
+        RenderState state,
+        Matrix3x2 transform,
+        RenderContext context,
+        bool suppressEffects)
+    {
+        var x = GetFloatAttribute(element, "x", state, PercentageAxis.Horizontal);
+        var y = GetFloatAttribute(element, "y", state, PercentageAxis.Vertical);
+        var width = GetFloatAttribute(element, "width", state, PercentageAxis.Horizontal);
+        var height = GetFloatAttribute(element, "height", state, PercentageAxis.Vertical);
+        if (!float.IsFinite(width) || !float.IsFinite(height) || width <= 0f || height <= 0f || !IsFiniteTransform(transform))
+        {
+            return null;
+        }
+
+        // Resolve the same filter/clip-path/mask attributes, and the same effects-region
+        // precedence, every other effects-capable element resolves - the placement rect itself
+        // stands in for a shape's own stroke-expanded painted bounds (an <image> has no stroke
+        // concept, so no ExpandBoundsForStroke call is needed)
+        var effects = ResolveImageEffects(element, state, context, suppressEffects, new Rect(x, y, width, height), transform);
+        return effects is { } resolved ? new ImagePaintPlan(x, y, width, height, resolved) : null;
     }
 
     /// <summary>
@@ -344,12 +408,60 @@ public static partial class SvgCodec
 
         // The device size of the placement is the edge length of the transformed rectangle, which
         // also covers rotation and skew
-        var pixelWidth = ToDevicePixels(width * Math.Sqrt((transform.M11 * transform.M11) + (transform.M12 * transform.M12)));
-        var pixelHeight = ToDevicePixels(height * Math.Sqrt((transform.M21 * transform.M21) + (transform.M22 * transform.M22)));
+        var (pixelWidth, pixelHeight) = ComputeImageDevicePixels(width, height, transform);
         var requestedPixels = (long)pixelWidth * pixelHeight;
         return new ImageLoad(
             requestedPixels + ResolverCallOverheadUnits,
             () => InvokeImageResolver(context, scope, href, pixelWidth, pixelHeight));
+    }
+
+    /// <summary>
+    ///     Computes the device-pixel size the host resolver is asked for: the edge lengths of the
+    ///     placement rectangle through the element's accumulated transform, rounded up to whole pixels.
+    /// </summary>
+    /// <param name="width">The placement width in local units.</param>
+    /// <param name="height">The placement height in local units.</param>
+    /// <param name="transform">The accumulated local-to-pixel transform; finite.</param>
+    /// <returns>The width and height, each from 1 to <see cref="Surface.MaxDimension"/>.</returns>
+    /// <remarks>
+    ///     Shared by painting and by the position-binding pre-pass, so a bound picture is requested at
+    ///     exactly the size the painter would have requested.
+    /// </remarks>
+    private static (int Width, int Height) ComputeImageDevicePixels(float width, float height, Matrix3x2 transform) =>
+        (ToDevicePixels(width * Math.Sqrt((transform.M11 * transform.M11) + (transform.M12 * transform.M12))),
+         ToDevicePixels(height * Math.Sqrt((transform.M21 * transform.M21) + (transform.M22 * transform.M22))));
+
+    /// <summary>
+    ///     Charges the part of a resolved surface that exceeds the requested size, discarding the
+    ///     surface when the shared budget declines.
+    /// </summary>
+    /// <param name="surface">The resolved surface, or <see langword="null"/>.</param>
+    /// <param name="pixelWidth">The requested width in device pixels.</param>
+    /// <param name="pixelHeight">The requested height in device pixels.</param>
+    /// <param name="scope">The shared work budgets.</param>
+    /// <returns>The surface, or <see langword="null"/> when it was null or was disposed for the budget.</returns>
+    /// <remarks>
+    ///     The area was charged for the requested size; any excess is charged before the pixels are
+    ///     used. This is the defense against a resolver that returns a bigger surface than was asked
+    ///     for (a raster comes back at its own size); it can only discard the surface after it exists.
+    ///     The memory itself is protected by the resolver, which refuses a picture that exceeds its own
+    ///     pixel budget before it allocates it (FolderImageResolver does).
+    /// </remarks>
+    private static Surface? ChargeResolvedExcess(Surface? surface, int pixelWidth, int pixelHeight, RenderScope scope)
+    {
+        if (surface == null)
+        {
+            return null;
+        }
+
+        var excess = ((long)surface.Width * surface.Height) - ((long)pixelWidth * pixelHeight);
+        if (excess > 0 && !scope.FilterWorkBudget.TryCharge(excess))
+        {
+            surface.Dispose();
+            return null;
+        }
+
+        return surface;
     }
 
     /// <summary>
@@ -398,23 +510,7 @@ public static partial class SvgCodec
             throw new InvalidOperationException("The SVG image resolver threw a FormatException.", ex);
         }
 
-        if (surface == null)
-        {
-            return null;
-        }
-
-        // The area was charged for the requested size; charge any excess before the pixels are used. This is the
-        // defense against a resolver that returns a bigger surface than was asked for (a raster comes back at its own
-        // size); it can only discard the surface after it exists. The memory itself is protected by the resolver, which
-        // refuses a picture that exceeds its own pixel budget before it allocates it (FolderImageResolver does)
-        var excess = ((long)surface.Width * surface.Height) - ((long)pixelWidth * pixelHeight);
-        if (excess > 0 && !scope.FilterWorkBudget.TryCharge(excess))
-        {
-            surface.Dispose();
-            return null;
-        }
-
-        return surface;
+        return ChargeResolvedExcess(surface, pixelWidth, pixelHeight, scope);
     }
 
     /// <summary>

@@ -221,3 +221,11 @@ Asserts that the code and the message are kept and that a null or empty code and
 Asserts that two notes are equal only when `Detail`, `Location`, and `Page` are equal too (with equal hash codes), and
 that
 a location is compared by its four members.
+
+##### CanvasNet-ImageSources-ImageSourceContract-Positions: Positions From The Same Render
+
+**Tests**: `ImageSourceResult_Positions_DefaultNullAndSnapshot`, `ImageResolution_Constructor_NullSurface_Throws`
+
+A request and a result have no positions by default and a result is not truncated; a result and an `ImageResolution`
+given a list keep a read-only snapshot of it (a later change of the list is not seen, and a cast cannot add to it), with
+their truncation and natural-size flags and the surface; a resolution refuses a null surface.

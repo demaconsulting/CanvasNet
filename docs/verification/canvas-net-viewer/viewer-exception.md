@@ -44,3 +44,10 @@ are `null`.
 `positions-unmatched` is the code of the warning that names a selector that matched nothing (`node:Zed` of a
 flowchart) and of the `ViewerException` thrown under the strict option, from `SourceLoader.Load` for a diagram and for a
 chart (`axis:z`) and from `CanvasNetViewer.Render` with `ThrowOnUnsupportedFeature`.
+
+**CanvasNetViewer-ViewerException-SvgBindingFailed**: verified by
+`SourceLoaderSvgBindingTests.SourceLoader_Load_SvgBindingUnmatched_WarnsOrFailsStrictly` and
+`SvgFlattenerBindingTests.SvgFlattener_Execute_StrictUnresolvedBinding_WritesNothing`, where the code is used:
+`svg-binding-failed` is the code of the `ViewerException` thrown under the strict option for an SVG position binding
+that was not resolved, by a load and by a flatten that then writes nothing;
+`ErrorCodes_Constants_AreTheDocumentedStableStrings` asserts the string.

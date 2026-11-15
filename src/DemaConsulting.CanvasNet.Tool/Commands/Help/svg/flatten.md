@@ -3,6 +3,7 @@ title: Flattening for other SVG readers
 summary: 'canvasnet flatten: a copy of a drawing that browsers and other SVG readers can show.'
 see-also:
   - svg/embedding
+  - svg/bindings
   - svg/diagnostics
 examples:
   - name: flatten
@@ -37,6 +38,11 @@ such link with a PNG drawn at its placement.
   letter or UNC path (`C:\x.png`, `\\server\share\x.png`) is left as written on
   every system. Links of other elements (an external `use`, a CSS `url()`) are
   not rewritten.
+- bindings: A position binding (cn:x2y2 and the others, see `canvasnet help
+  svg bindings`) is baked with the numbers of the PNG picture that replaces the
+  link; its `cn:` attribute is removed, and the namespace declaration too when
+  nothing uses it. The JSON document counts bindings.resolved and
+  bindings.unresolved; a binding that fails keeps its attribute and numbers.
 - nothing to flatten: When the drawing links no such picture, or shows none,
   nothing is written and the exit code is 0: the text says nothing to flatten
   and `flattened` is false in the JSON document.
@@ -49,4 +55,5 @@ such link with a PNG drawn at its placement.
   `svg-image-too-large`, `image-fragment-invalid`, or `image-page-out-of-range`)
   is an `unsupported-feature` error, as for render; a link the file-access mode
   denies (`image-access-denied`) is the error `file-access-denied`;
+  a position binding that fails is the error `svg-binding-failed`;
   `svg-flatten-image-not-drawn` stays a warning.

@@ -52,3 +52,11 @@ a missing output names `-o`, and an existing output is kept with `--no-clobber`.
 **FlattenCommand_Run_FileAccessRoots_DeniedLinkIsAWarningAndAnErrorWhenStrict**: a drawing in a sub folder that links a
 Mermaid diagram in the folder above it, flattened with `--file-access roots --json`, reports one `image-access-denied`
 note and `flattened` false; with `--strict` it fails with `file-access-denied` and writes no copy.
+
+**FlattenCommand_Run_Bindings_AreCountedInJsonAndText** and **FlattenCommand_RenderText_ResolvedBindings_AreCounted**
+(the requirement `CanvasNetTool-Commands-FlattenCommand-Bindings`): a drawing with two bindings that do not resolve (the
+kind selector `node`, which matches several nodes, and `node:Zed`) has the key `bindings` after `rebased` with 0
+resolved and 2 unresolved, and the diagnostics `svg-binding-ambiguous` and `svg-binding-unmatched`, and its text summary
+says nothing about bindings; the summary of a result with one or three resolved bindings ends with `, 1 binding
+resolved` or `, 3 bindings resolved`. The keys of a drawing without bindings are unchanged
+(`FlattenCommand_Run_Json_HasDocumentedShapeAndKeyOrder`).

@@ -389,6 +389,55 @@ sealed class LogoResolver(Func<Surface> makeLogo) : IImageResolver
 }
 ```
 
+##### Position Bindings: SvgLoadOptions.BindingHandler
+
+A position binding places a point of a shape on a feature of a picture that the same document embeds, so an arrow
+lands on a node of a diagram at any output size. Declare the namespace `https://demaconsulting.com/canvasnet` (any
+prefix; `cn` by convention; it is matched by the namespace URI, never fetched) and add one of these attributes:
+
+| Attribute | Element | Receives |
+| --- | --- | --- |
+| `cn:x1y1` | `line` | `x1`, `y1` |
+| `cn:x2y2` | `line` | `x2`, `y2` |
+| `cn:center` | `circle`, `ellipse` | `cx`, `cy` |
+| `cn:xy` | `text` | its single `x`, `y` (`dx`, `dy`, `text-anchor` still apply) |
+
+The value is `#imageId selector`: the id of an `image` of the same document, white space, and one position selector
+(the grammar of `PositionSelector`), which must match exactly one feature.
+
+```xml
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:cn="https://demaconsulting.com/canvasnet" viewBox="0 0 1000 568">
+  <image id="flow" href="flowchart.mmd" x="285" y="162" width="430" height="280"/>
+  <line x1="712" y1="221" x2="677.2" y2="286.9" cn:x2y2="#flow node:send" stroke="#ea580c"/>
+</svg>
+```
+
+When `SvgLoadOptions.ImageResolver` implements `IImagePositionResolver` (the resolver of `CanvasNetViewer` does, for
+Mermaid diagrams, Vega-Lite charts, and the anchors of OpenSCAD models), the codec loads each bound image once before
+it paints, maps the pixel of the matching feature through the placement of the image (x, y, width, height,
+`preserveAspectRatio` of the drawn size, and its transforms) into the user space of the bound element, writes both
+numbers (rounded to 3 decimals), and paints that same picture. Every binding is reported, in document order, to
+`SvgLoadOptions.BindingHandler` as an `SvgPositionBinding` (element, attribute, image id, selector, the written `X` and
+`Y`, or a `Code`). A binding that cannot be resolved keeps the numbers written in the file and never fails the load;
+its code is one of `svg-binding-malformed`, `svg-binding-image-missing`, `svg-binding-unsupported` (wrong element,
+content inside `defs`, a pattern, marker, mask, clip path, nested `svg` or a `use`, a text with a list of x or y, a
+`data:` image, or a resolver or file that reports no positions), `svg-binding-unmatched`, `svg-binding-ambiguous`,
+`svg-binding-unavailable` (the picture was not drawn, or the feature has no pixel), and `svg-binding-singular`.
+
+```csharp
+var bindings = new List<SvgPositionBinding>();
+var options = new SvgLoadOptions
+{
+    ImageResolver = CanvasNetViewer.CreateImageResolver("figures"),
+    BindingHandler = bindings.Add
+};
+using var surface = SvgCodec.LoadWithFontFaces("figures/framed.svg", 1200, 682, null, options);
+var failed = bindings.Where(b => !b.IsResolved).ToList();   // fail the build here if you need to
+```
+
+Not supported yet: the points of `path`, `polyline`, and `polygon`, `data-cn-*` attributes for SVG inside HTML, and
+bindings inside the content of a `use`.
+
 ##### SvgImageSource
 
 ```csharp
@@ -400,7 +449,8 @@ public sealed class SvgImageSource : IImageSource   // Name "svg"; Extensions ["
 resolves the file's own `image` elements through the resolver of the request, so relative links inside the
 nested file resolve against its own folder and the limits of the whole render apply: SVG files that embed each
 other stop with a warning instead of recursing without end. The SVG library has no switch for unsupported
-features, so the strictness switch has no effect.
+features, so the strictness switch has no effect; a position binding of the nested file that is not resolved is a
+warning of the result with its `svg-binding-*` code.
 
 ##### SvgCodec Default Fonts
 

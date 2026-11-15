@@ -284,6 +284,17 @@ Version 2 has not been released, so the change of the `examples` document (the c
 **WriteStrings(writer, name, values)** (`internal`): writes a JSON array of strings; `CommandRegistry` uses it for the
 alias lists of its own documents.
 
+#### Position Bindings Card
+
+The card `svg/bindings` (child of `svg`, alias `binding`) documents the namespace, the attributes, the value syntax, how
+a binding is resolved, the seven `svg-binding-*` codes as items, `svg-binding-failed`, flattening, and what is not
+supported yet, with the commands `render-bound` and `flatten-bound`. The `svg/framed-figure` card recommends a binding
+first, then `--positions` with the image x and y added by hand, then the grid probe; its `framed-flow` example binds
+each arrow tip with `cn:x2y2` (a level `polyline` leg and a bound `line` with the marker), with the numbers of the
+diagram at the size of its image as the fallback. `svg`, `svg/flatten`, `svg/diagnostics`, the composition cards,
+`positions`, `errors/codes`, and `json/results` link or name it. Requirement:
+`CanvasNetTool-Commands-HelpTopics-Bindings`.
+
 #### Error Handling
 
 These usage errors are `ToolException` with code `usage-error` and `Command` set to `help`:
