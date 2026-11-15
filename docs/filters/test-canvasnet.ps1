@@ -871,6 +871,16 @@ journey
     Write-Result ($relativeDenied.ExitCode -ne 0 -and $relativeDenied.Log -match 'SCAD include denied') `
         'a relative CANVASNET_ROOTS folder that leaves the include out denies it' $relativeDenied.Log
 
+    # CANVASNET_ROOTS alone implies roots and passes --file-access roots explicitly, so it names the same picture as
+    # CANVASNET_FILE_ACCESS=roots with the same folders
+    $rootsExplicit = Invoke-FilterWith @{ CANVASNET_FILE_ACCESS = 'roots'; CANVASNET_ROOTS = $guide } 'esc-roots-explicit' '![x](esc/m.scad)'
+    $rootsExplicitCount = @(Get-Pictures).Count
+    $rootsExplicitSrc = [regex]::Match($rootsExplicit.Html, 'generated/canvasnet/[^"]+').Value
+    Write-Result ($rootsExplicit.ExitCode -eq 0 -and $absoluteSrc -ne '' -and $rootsExplicitSrc -eq $absoluteSrc -and
+        $rootsExplicitCount -eq $absoluteCount) `
+        'CANVASNET_ROOTS alone passes the roots mode explicitly (the same picture as roots with the same folders)' `
+        "roots only: $absoluteSrc; explicit: $rootsExplicitSrc`n$($rootsExplicit.Log)"
+
     # Under roots without CANVASNET_ROOTS the tool's default folders come from the working directory, so the filter
     # names them and the picture's name depends on them: the include is allowed from the tree, which holds it, and
     # the same document built from the model's folder, which does not, is drawn again and denied
