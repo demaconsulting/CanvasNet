@@ -83,4 +83,27 @@ public sealed record SvgLoadOptions
     ///     </para>
     /// </remarks>
     public IImageResolver? ImageResolver { get; init; }
+
+    /// <summary>
+    ///     Gets an optional callback that receives the outcome of every position binding of the document, or
+    ///     <see langword="null"/> (the default) for none.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         A position binding is an attribute in the namespace <see cref="SvgPositionBinding.Namespace"/> that places a
+    ///         coordinate pair on a feature of an embedded picture: <c>cn:x1y1</c> and <c>cn:x2y2</c> on a <c>line</c>,
+    ///         <c>cn:center</c> on a <c>circle</c> or <c>ellipse</c>, and <c>cn:xy</c> on a <c>text</c> (its first
+    ///         <c>x</c>/<c>y</c>). The value is <c>#imageId selector</c>: the id of an <c>image</c> of the same document
+    ///         and a position selector (the grammar of <c>--positions</c>). The codec resolves the bindings before it
+    ///         paints, through <see cref="IImagePositionResolver.ResolveWithPositions"/> of
+    ///         <see cref="ImageResolver"/>, and draws the very surface it got the positions from. Bindings are resolved
+    ///         whether or not a handler is set; the handler only observes them.
+    ///     </para>
+    ///     <para>
+    ///         The callback is called on the rendering thread, once per binding attribute, in document order, before
+    ///         anything is painted. An exception it throws propagates to the caller of <c>Load</c>. A binding that fails
+    ///         keeps the numbers written in the document and never fails the render; failing is the host's choice.
+    ///     </para>
+    /// </remarks>
+    public Action<SvgPositionBinding>? BindingHandler { get; init; }
 }

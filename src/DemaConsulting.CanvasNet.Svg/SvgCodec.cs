@@ -627,7 +627,8 @@ public static partial class SvgCodec
             var context = new RenderContext(surface, idIndex, fonts, stylesheet)
             {
                 UseSystemFonts = options?.UseSystemFonts ?? true,
-                ImageResolver = options?.ImageResolver
+                ImageResolver = options?.ImageResolver,
+                BindingHandler = options?.BindingHandler
             };
             RenderDocument(root, fitTransform, size, context, diagnostics);
         }

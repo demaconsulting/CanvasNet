@@ -29,8 +29,10 @@ namespace DemaConsulting.CanvasNet.Svg;
 ///     </para>
 ///     <para>
 ///         The SVG library neither reports unsupported features nor has a switch to fail on them, so
-///         <see cref="ImageSourceRequest.ThrowOnUnsupportedFeature"/> has no effect and the result carries no
-///         diagnostics. Text uses the fonts installed on the host (the default of <see cref="SvgLoadOptions"/>).
+///         <see cref="ImageSourceRequest.ThrowOnUnsupportedFeature"/> has no effect. The only notes of the result are
+///         the position bindings of the file that were not resolved (<see cref="SvgPositionBinding"/>), as warnings
+///         with their <c>svg-binding-*</c> code; their numbers in the file are kept. Text uses the fonts installed on
+///         the host (the default of <see cref="SvgLoadOptions"/>).
 ///     </para>
 ///     <para>
 ///         The source is stateless and thread-safe and claims no URI scheme.
@@ -68,7 +70,7 @@ public sealed class SvgImageSource : IImageSource
     ///     Draws the SVG file of a request.
     /// </summary>
     /// <param name="request">The request; it must carry the bytes of a file (<see cref="ImageSourceRequest.HasContent"/>).</param>
-    /// <returns>The picture at the requested (or natural) size, with a transparent background and no notes.</returns>
+    /// <returns>The picture at the requested (or natural) size, with a transparent background; its notes are the position bindings that were not resolved.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="request"/> is null.</exception>
     /// <exception cref="ImageSourceBudgetException">Thrown, before drawing, when the surface to allocate does not fit in the pixel budget (see <see cref="ImageSourceRequest"/>).</exception>
     /// <exception cref="InvalidOperationException">Thrown when the request has no file content (it was handed over by scheme).</exception>
@@ -91,9 +93,17 @@ public sealed class SvgImageSource : IImageSource
         var (width, height) = request.SizeFor(info.Width, info.Height);
         request.EnsureWithinBudget(width, height);
 
-        // The nested links go through the scoped resolver, which shares the live budget, so recursion is bounded
+        // The nested links go through the scoped resolver, which shares the live budget, so recursion is bounded; a
+        // position binding of the file that is not resolved is a warning of the result (the numbers in the file are kept)
+        var bindings = new List<SvgPositionBinding>();
         using var content = request.OpenContent();
-        var surface = SvgCodec.LoadWithFontFaces(content, width, height, null, new SvgLoadOptions { ImageResolver = request.Resolver });
-        return new ImageSourceResult(surface);
+        var surface = SvgCodec.LoadWithFontFaces(
+            content, width, height, null, new SvgLoadOptions { ImageResolver = request.Resolver, BindingHandler = bindings.Add });
+        return new ImageSourceResult(surface)
+        {
+            Diagnostics = [.. bindings
+                .Where(b => !b.IsResolved)
+                .Select(b => new ImageSourceDiagnostic(Name, ImageDiagnosticSeverity.Warning, b.Code!, b.Message))]
+        };
     }
 }

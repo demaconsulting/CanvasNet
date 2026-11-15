@@ -140,23 +140,40 @@ public static partial class SvgCodec
             return;
         }
 
-        // Classify the href: only a base64 "data:" URI is decoded by the codec itself, and only
-        // an href that is neither "data:" nor a "#fragment" is ever offered to the host's opt-in
-        // ImageResolver (see this class's remarks). Every other form tolerantly renders nothing
-        // without ever touching the filesystem or network
-        var href = GetHrefAttribute(element)?.Trim();
-        var hrefKind = ClassifyImageHref(href, context);
-        if (hrefKind == ImageHrefKind.None)
+        // A picture the position-binding pre-pass already loaded is drawn as it is (the bound positions came from it);
+        // its load was charged there, so only the effects pipeline is charged below. A null entry draws nothing
+        var isPreloaded = context.PreloadedImages.TryGetValue(element, out var preloaded);
+        if (isPreloaded && preloaded == null)
         {
             return;
         }
 
-        // Build the loader for the resolved href: the data path decodes the base64 payload, the
-        // resolver path asks the host. Each reports its own extra work units. Doing this before
-        // the effects are resolved keeps the cheap "nothing to load" exits first
-        var imageLoad = hrefKind == ImageHrefKind.Data
-            ? CreateDataImageLoad(element)
-            : CreateResolverImageLoad(href!, width, height, transform, context, scope);
+        // Classify the href: only a base64 "data:" URI is decoded by the codec itself, and only
+        // an href that is neither "data:" nor a "#fragment" is ever offered to the host's opt-in
+        // ImageResolver (see this class's remarks). Every other form tolerantly renders nothing
+        // without ever touching the filesystem or network
+        ImageLoad? imageLoad;
+        if (isPreloaded)
+        {
+            imageLoad = new ImageLoad(0, () => preloaded);
+        }
+        else
+        {
+            var href = GetHrefAttribute(element)?.Trim();
+            var hrefKind = ClassifyImageHref(href, context);
+            if (hrefKind == ImageHrefKind.None)
+            {
+                return;
+            }
+
+            // Build the loader for the resolved href: the data path decodes the base64 payload, the
+            // resolver path asks the host. Each reports its own extra work units. Doing this before
+            // the effects are resolved keeps the cheap "nothing to load" exits first
+            imageLoad = hrefKind == ImageHrefKind.Data
+                ? CreateDataImageLoad(element)
+                : CreateResolverImageLoad(href!, width, height, transform, context, scope);
+        }
+
         if (imageLoad == null)
         {
             return;
@@ -192,8 +209,10 @@ public static partial class SvgCodec
         }
 
         // The loaded surface is owned by this method: it is always disposed once its pixels have
-        // been sampled into the region buffer (or the placement turned out to be unusable)
-        using var decodedSurface = imageLoad.Value.Loader();
+        // been sampled into the region buffer (or the placement turned out to be unusable). A
+        // preloaded surface is borrowed from RenderDocument, which disposes it
+        var decodedSurface = imageLoad.Value.Loader();
+        using var ownedSurface = isPreloaded ? null : decodedSurface;
         if (decodedSurface == null)
         {
             return;
@@ -344,12 +363,60 @@ public static partial class SvgCodec
 
         // The device size of the placement is the edge length of the transformed rectangle, which
         // also covers rotation and skew
-        var pixelWidth = ToDevicePixels(width * Math.Sqrt((transform.M11 * transform.M11) + (transform.M12 * transform.M12)));
-        var pixelHeight = ToDevicePixels(height * Math.Sqrt((transform.M21 * transform.M21) + (transform.M22 * transform.M22)));
+        var (pixelWidth, pixelHeight) = ComputeImageDevicePixels(width, height, transform);
         var requestedPixels = (long)pixelWidth * pixelHeight;
         return new ImageLoad(
             requestedPixels + ResolverCallOverheadUnits,
             () => InvokeImageResolver(context, scope, href, pixelWidth, pixelHeight));
+    }
+
+    /// <summary>
+    ///     Computes the device-pixel size the host resolver is asked for: the edge lengths of the
+    ///     placement rectangle through the element's accumulated transform, rounded up to whole pixels.
+    /// </summary>
+    /// <param name="width">The placement width in local units.</param>
+    /// <param name="height">The placement height in local units.</param>
+    /// <param name="transform">The accumulated local-to-pixel transform; finite.</param>
+    /// <returns>The width and height, each from 1 to <see cref="Surface.MaxDimension"/>.</returns>
+    /// <remarks>
+    ///     Shared by painting and by the position-binding pre-pass, so a bound picture is requested at
+    ///     exactly the size the painter would have requested.
+    /// </remarks>
+    private static (int Width, int Height) ComputeImageDevicePixels(float width, float height, Matrix3x2 transform) =>
+        (ToDevicePixels(width * Math.Sqrt((transform.M11 * transform.M11) + (transform.M12 * transform.M12))),
+         ToDevicePixels(height * Math.Sqrt((transform.M21 * transform.M21) + (transform.M22 * transform.M22))));
+
+    /// <summary>
+    ///     Charges the part of a resolved surface that exceeds the requested size, discarding the
+    ///     surface when the shared budget declines.
+    /// </summary>
+    /// <param name="surface">The resolved surface, or <see langword="null"/>.</param>
+    /// <param name="pixelWidth">The requested width in device pixels.</param>
+    /// <param name="pixelHeight">The requested height in device pixels.</param>
+    /// <param name="scope">The shared work budgets.</param>
+    /// <returns>The surface, or <see langword="null"/> when it was null or was disposed for the budget.</returns>
+    /// <remarks>
+    ///     The area was charged for the requested size; any excess is charged before the pixels are
+    ///     used. This is the defense against a resolver that returns a bigger surface than was asked
+    ///     for (a raster comes back at its own size); it can only discard the surface after it exists.
+    ///     The memory itself is protected by the resolver, which refuses a picture that exceeds its own
+    ///     pixel budget before it allocates it (FolderImageResolver does).
+    /// </remarks>
+    private static Surface? ChargeResolvedExcess(Surface? surface, int pixelWidth, int pixelHeight, RenderScope scope)
+    {
+        if (surface == null)
+        {
+            return null;
+        }
+
+        var excess = ((long)surface.Width * surface.Height) - ((long)pixelWidth * pixelHeight);
+        if (excess > 0 && !scope.FilterWorkBudget.TryCharge(excess))
+        {
+            surface.Dispose();
+            return null;
+        }
+
+        return surface;
     }
 
     /// <summary>
@@ -398,23 +465,7 @@ public static partial class SvgCodec
             throw new InvalidOperationException("The SVG image resolver threw a FormatException.", ex);
         }
 
-        if (surface == null)
-        {
-            return null;
-        }
-
-        // The area was charged for the requested size; charge any excess before the pixels are used. This is the
-        // defense against a resolver that returns a bigger surface than was asked for (a raster comes back at its own
-        // size); it can only discard the surface after it exists. The memory itself is protected by the resolver, which
-        // refuses a picture that exceeds its own pixel budget before it allocates it (FolderImageResolver does)
-        var excess = ((long)surface.Width * surface.Height) - ((long)pixelWidth * pixelHeight);
-        if (excess > 0 && !scope.FilterWorkBudget.TryCharge(excess))
-        {
-            surface.Dispose();
-            return null;
-        }
-
-        return surface;
+        return ChargeResolvedExcess(surface, pixelWidth, pixelHeight, scope);
     }
 
     /// <summary>
