@@ -57,6 +57,18 @@ sections:
         tests:
           - FilterSettings_FileAccessOf_BadVariables_ThrowTheLuaMessage
 
+      - id: CanvasNetTool-PandocFilter-FilterSettings-Policy
+        title: >-
+          The FilterSettings unit shall give the dependency walk of a picture no policy in the default mode, the policy
+          the tool builds from the picture's file-access arguments in a restrictive mode, and a policy that denies every
+          file when the tool would refuse those arguments.
+        justification: |
+          The hashing must judge a file exactly as the render or flatten that draws the picture will, so it never reads
+          a file the tool would refuse; arguments the tool refuses must not leave the hashing unconfined (fail closed),
+          and the default mode must read as before.
+        tests:
+          - FilterSettings_PolicyOf_BuildsTheToolsPolicyFromTheArguments
+
       - id: CanvasNetTool-PandocFilter-FilterSettings-ToolIdentity
         title: >-
           The FilterSettings unit shall identify the tool by its version text, the label default or

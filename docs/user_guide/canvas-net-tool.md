@@ -1824,6 +1824,7 @@ This table is also the `canvasnet help files` card, bullet by bullet; a test kee
 | `default` | The pandoc-filter command passes no mode, so a document reads its pictures, includes, and data as Pandoc reads its images. |
 | `CANVASNET_FILE_ACCESS` | Set it to roots, no-symlinks, or roots,no-symlinks to pass --file-access to every render and flatten of the filter; a picture the mode denies then stops the build. |
 | `CANVASNET_ROOTS` | Folders separated like PATH (; on Windows, : elsewhere), passed as one --allow-root each as an absolute path (a relative folder is taken from the working directory); it implies roots. Without it, roots gets the working directory and the folder of the picture as --allow-root. These arguments are part of the cache name of every picture, so a picture drawn without them, or from another working directory, is not reused. |
+| `hashing` | The filter reads the files a picture references to name it in the cache, and in a restrictive mode it judges them as the tool does, by the real path of the opened file: a file outside the folders, a link that leads outside them, and under no-symlinks any link are never read. |
 
 <!-- markdownlint-enable MD013 -->
 
@@ -2274,7 +2275,10 @@ it. Without `--allow-root`, `roots` allows everything under the working director
 set `CANVASNET_ROOTS` to their folders. An unknown mode, or
 `CANVASNET_ROOTS` with `CANVASNET_FILE_ACCESS` set to `any` or `no-symlinks`, stops the build at the first picture. In a
 restrictive mode a picture the mode denies stops the build too (it is a warning of the tool, but a document should not
-be published with a picture silently missing), and so does a denied include or data file. The file-access arguments
+be published with a picture silently missing), and so does a denied include or data file. The filter reads the files a
+picture references to name it in the cache, and in a restrictive mode it reads them under the same policy as the tool,
+judged by the real path of the opened file: a file outside the folders, a link inside them that leads outside, and
+under `no-symlinks` any link are never read, not even to be hashed. The file-access arguments
 are part of the hash of every picture, so a picture drawn without them, or from another working directory, is not
 reused with them. A CI build can confine every picture to the documentation folders:
 

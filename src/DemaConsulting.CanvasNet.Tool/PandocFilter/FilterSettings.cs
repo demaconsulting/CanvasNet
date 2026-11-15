@@ -1,6 +1,8 @@
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
+using DemaConsulting.CanvasNet.Files;
+using DemaConsulting.CanvasNet.Tool.Commands;
 using DemaConsulting.CanvasNet.Viewer;
 
 namespace DemaConsulting.CanvasNet.Tool.PandocFilter;
@@ -12,7 +14,10 @@ namespace DemaConsulting.CanvasNet.Tool.PandocFilter;
 ///     The arguments passed to every render and flatten: <c>--file-access MODE</c> and one <c>--allow-root FOLDER</c> per
 ///     folder; empty in the default mode.
 /// </param>
-/// <param name="Roots">The folders of a roots mode the dependency walk may open files in, or <see langword="null"/> for anywhere.</param>
+/// <param name="Roots">
+///     The folders of a roots mode, each passed as <c>--allow-root</c>, or <see langword="null"/> for anywhere. The
+///     dependency walk judges files by the policy built from <paramref name="Arguments"/> (<see cref="FilterSettings.PolicyOf"/>).
+/// </param>
 /// <param name="Restrictive">Whether a denied picture stops the build: a mode other than <c>any</c>, or folders.</param>
 /// <param name="Key">The arguments as part of every picture's cache key: <c>file-access</c> and each argument, one per line.</param>
 internal sealed record FileAccessArguments(
@@ -278,6 +283,36 @@ internal sealed class FilterSettings
         }
 
         return new FileAccessArguments(arguments, roots, shared.Arguments.Restrictive, KeyOf(arguments));
+    }
+
+    /// <summary>
+    ///     Gets the policy the tool will judge the files of a picture by, so that the dependency walk reads only what the
+    ///     tool may read when it draws the picture.
+    /// </summary>
+    /// <param name="access">The file-access arguments of the picture (<see cref="FileAccessOf"/>).</param>
+    /// <param name="source">The picture's source file, the input the tool is given.</param>
+    /// <returns>
+    ///     <see langword="null"/> in the default mode (every file is read as it is); otherwise the policy the tool builds
+    ///     from the same arguments (<see cref="RenderCommand.ReadFileAccess(IReadOnlyList{string}, IReadOnlyList{string}, string)"/>),
+    ///     or <see cref="DependencyHasher.DenyAll"/> when the tool refuses the arguments (a folder of
+    ///     <c>CANVASNET_ROOTS</c> that does not exist): no referenced file is read, and the tool stops the build with its
+    ///     usage error (fail closed).
+    /// </returns>
+    public FileAccessPolicy? PolicyOf(FileAccessArguments access, string source)
+    {
+        if (!access.Restrictive)
+        {
+            return null;
+        }
+
+        try
+        {
+            return RenderCommand.ReadFileAccess(access.Arguments, [source], WorkingDirectory);
+        }
+        catch (ToolException)
+        {
+            return DependencyHasher.DenyAll;
+        }
     }
 
     /// <summary>

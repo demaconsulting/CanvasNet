@@ -9,7 +9,7 @@ that a change to any of them draws the picture again. It is a literal port of th
 (version 16): the includes of an OpenSCAD model, the data files and pictures of a Vega-Lite chart, the pictures of a
 Mermaid diagram, and the image links of an SVG drawing, for which it also decides whether the drawing must be flattened.
 The unit is the internal sealed partial class `DependencyHasher`, split over `DependencyHasher.cs` (entry points, model
-walk, shared picture walk, roots check), `DependencyHasher.Chart.cs`, `DependencyHasher.Mermaid.cs`, and
+walk, shared picture walk, file-access reads), `DependencyHasher.Chart.cs`, `DependencyHasher.Mermaid.cs`, and
 `DependencyHasher.Svg.cs`.
 
 #### Data Model
@@ -27,17 +27,26 @@ bytes). Parts are kept in the order they are met (`_parts`).
 once it was, and for an SVG drawing afterwards `Composite` or `Plain`. Each path is taken once, so a cycle or a picture
 that links back ends.
 
-**Roots** (`_roots`): the folders of a roots mode of the file-access policy, or `null` for anywhere.
+**Source** (`_source`): the picture's source file, the input the tool is given, which no mode judges.
+
+**Policy** (`_policy`): the `FileAccessPolicy` the tool draws the picture under (`FilterSettings.PolicyOf`), or `null`
+in the default mode. **Resolver** (`_resolver`): the core `FileReferenceResolver` that reads the referenced files
+through the policy, created on first use with the source's folder as its base directory (the trusted origin the tool
+judges the picture's references from), the policy, and no size limit but the largest array; it opens each file at
+most once per picture.
+
+**DenyAll** (`internal static FileAccessPolicy`): the policy, named `deny-all`, that `FilterSettings.PolicyOf` gives
+when the tool would refuse the file-access arguments; the walk then reads no referenced file at all.
 
 One instance walks one picture and is not thread-safe; the static entry points are, as each call has its own instance.
 
 #### Key Methods
 
-**ForPicture(kind, source, name, roots)**: creates an instance and walks the picture by kind from the folder of
+**ForPicture(kind, source, name, policy)**: creates an instance and walks the picture by kind from the folder of
 `source`: `scad` with `AddScad`, `vegalite` with `AddChart`, `mermaid` with `AddMermaid`; any other kind (a `pdf`,
 `pptx`, or `vsdx` document) is the single part labeled with the file name of `source`. Returns the parts.
 
-**ForSvg(source, roots)**: walks an SVG drawing with `AddSvg` and returns the parts and whether the drawing is
+**ForSvg(source, policy)**: walks an SVG drawing with `AddSvg` and returns the parts and whether the drawing is
 composite.
 
 **AsBytes(content)** / **FromBytes(text)**: read bytes as Latin-1 (one character per byte, so the ASCII-only classes of
@@ -87,9 +96,19 @@ link is the unprefixed `href`, else the first `P:href` whose prefix is bound to 
 element or an ancestor; the five predefined entities and character references below 0x110000 are decoded and Lua white
 space is trimmed.
 
-**DependencyExists(path)** (`dependency_exists`): in a roots mode a file is taken only when it is the same as or under
-one of the folders (`FilterPaths.IsSameOrUnder`), so a file outside them is never opened; otherwise it is taken when it
-opens (`FilterPaths.FileExists`).
+**DependencyExists(path)** (`dependency_exists`): in the default mode, and for the source itself, a file is taken
+when it opens (`FilterPaths.FileExists`); in a restrictive mode when `Resolve` gives it.
+
+**ReadFile(path)**: every read of the walks. In the default mode, and for the source itself, the bytes as they are
+(`FilterPaths.ReadFile`), exactly as before; in a restrictive mode the content `Resolve` gives, or `null`.
+
+**Resolve(path)**: reads a referenced file as the tool reads it, through `_resolver`: a path as written outside the
+roots is refused before anything is opened, and the policy is asked about the real path of the open handle before any
+byte is read, so a link inside the roots that leads outside them, or (under `no-symlinks`) any link, is never read; a
+policy that cannot be applied refuses (fail closed). A refusal (`FileReferenceException`) or a missing file is `null`,
+which the walk treats as a file that is not there (an SVG drawing notes a denied model, chart, diagram, or document as
+`missing`), and the tool denies the file when it draws, which stops a restrictive build. `DenyAll` gives `null` without
+opening anything. An allowed file has the same bytes, so the parts of the key do not change.
 
 #### Error Handling
 
@@ -124,10 +143,13 @@ message applies.
 - **FilterPaths** - path joining, collapsing, labels, local file resolution of data URLs and picture links,
   percent-decoding, byte-order sorting, Lua white space, and the file reads.
 - **PictureAttributes** - the kind constants and `KindOf`, which tells a file only the tool draws.
+- **FileAccessPolicy**, **FileReferenceResolver**, and **FileReferenceException** (core library) - the policy, the
+  race-free read of a referenced file through it, and its refusal.
 - **System.Text.Json** and **System.Text.RegularExpressions** (.NET) - the chart decoder and the Lua patterns.
 - **ToolException** (tool) and **ErrorCodes** (Viewer library) - the error and its code.
 
 #### Callers
 
-- **PandocFilterEngine** - `ForPicture` in `PlanDraw` and `ForSvg` in `PlanSvg`, with the roots of the file-access
-  policy of the picture's source; the parts go to `PictureCache.ComputeKey`, and a plain drawing is left to Pandoc.
+- **PandocFilterEngine** - `ForPicture` in `PlanDraw` and `ForSvg` in `PlanSvg`, with the policy of the picture's
+  file-access arguments (`FilterSettings.PolicyOf`); the parts go to `PictureCache.ComputeKey`, and a plain drawing
+  is left to Pandoc.

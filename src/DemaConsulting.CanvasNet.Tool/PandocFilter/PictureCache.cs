@@ -196,6 +196,21 @@ internal static class PictureCache
     /// <remarks>A file that is there already holds the same text: its name is a hash of it.</remarks>
     internal static void WriteTextAtomically(string path, string content)
     {
+        WriteTextAtomically(path, content, File.WriteAllBytes);
+    }
+
+    /// <summary>
+    ///     Writes a text file atomically unless it exists, writing the temporary file with the given writer.
+    /// </summary>
+    /// <param name="path">The file.</param>
+    /// <param name="content">The text, written as UTF-8 without a byte order mark.</param>
+    /// <param name="write">Writes bytes to a new file (<see cref="File.WriteAllBytes(string, byte[])"/>, or a test's writer).</param>
+    /// <exception cref="ToolException">
+    ///     Thrown with <see cref="ErrorCodes.PandocFilterError"/> when the temporary file cannot be written (it is removed
+    ///     first), or the file is not there after the rename failed.
+    /// </exception>
+    internal static void WriteTextAtomically(string path, string content, Action<string, byte[]> write)
+    {
         if (FilterPaths.FileExists(path))
         {
             return;
@@ -204,10 +219,12 @@ internal static class PictureCache
         var partial = $"{path}.{RandomDigits()}.partial";
         try
         {
-            File.WriteAllBytes(partial, Encoding.UTF8.GetBytes(content));
+            write(partial, Encoding.UTF8.GetBytes(content));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
+            // A write that failed after the file was created (a full disk, say) must not leave the temporary file behind
+            Delete(partial);
             throw new ToolException(ErrorCodes.PandocFilterError, $"could not write {partial}", null, ex);
         }
 

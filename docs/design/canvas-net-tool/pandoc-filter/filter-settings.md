@@ -16,7 +16,7 @@ it only while it plans, in document order, on one thread.
 #### Data Model
 
 **FileAccessArguments** (internal sealed record): `Arguments` (`--file-access MODE` and one `--allow-root FOLDER` per
-folder; empty in the default mode), `Roots` (the folders the dependency walk may open files in, or `null` for
+folder; empty in the default mode), `Roots` (the folders of a roots mode passed as `--allow-root`, or `null` for
 anywhere), `Restrictive` (whether a denied picture stops the build: a mode other than `any`, or folders), and `Key`
 (`file-access` and each argument, one per line, part of every picture's cache key).
 
@@ -60,6 +60,14 @@ each call adds `--allow-root` for the working directory and, when the source's f
 for that folder too, and lists them as `Roots`, so the decision of the tool depends only on its arguments, which are
 part of the key.
 
+**PolicyOf(access, source)**: the policy the dependency walk reads a picture's files through, so that it reads only
+what the tool may read when it draws the picture: `null` when the arguments are not restrictive (the default mode, read
+as before), otherwise the policy the tool itself builds from the same arguments
+(`RenderCommand.ReadFileAccess(arguments, inputs, workingDirectory)` with the source as the input and the working
+directory). When the tool would refuse the arguments (a folder of `CANVASNET_ROOTS` that does not exist is its
+`usage-error`), it is `DependencyHasher.DenyAll`: no referenced file is read, and the tool stops the build (fail
+closed).
+
 **PictureSrc(file)**: for an HTML writer without `EmbedResources` and with an `OutputFile`, the path from the output
 file's folder to the picture (WeasyPrint reads it from there), unless the two share no first segment (another drive);
 otherwise the absolute path with forward slashes.
@@ -91,11 +99,13 @@ by the command before the run.
   `SortBytes`, and file reads.
 - **ToolException** (tool) and **ErrorCodes** (Viewer library) - the error and its code.
 - **Program** - the default `ToolVersion`.
+- **RenderCommand** - `ReadFileAccess`, which builds the tool's policy from the file-access arguments.
+- **DependencyHasher** - `DenyAll`; **FileAccessPolicy** (core library) - the policy type.
 
 #### Callers
 
 - **PandocFilterCommand** - builds the settings from its options and the process environment (`.` as the resource
   path when none is given) and calls `ResolveJobs` with the value of `--jobs`.
-- **PandocFilterEngine** - reads `CacheFolder`, `GetResourceDirectories`, `ToolIdentity`, `FileAccessOf`, and
-  `PictureSrc` while it plans and rewrites pictures, and the variable names in the message of a denied picture.
+- **PandocFilterEngine** - reads `CacheFolder`, `GetResourceDirectories`, `ToolIdentity`, `FileAccessOf`, `PolicyOf`,
+  and `PictureSrc` while it plans and rewrites pictures, and the variable names in the message of a denied picture.
 - **PictureCache** - `Sha1Hex` for the name of a Mermaid block's source file.

@@ -43,7 +43,7 @@ internal sealed partial class DependencyHasher
         }
 
         _seen[path] = Seen.Taken;
-        var content = FilterPaths.ReadFile(path);
+        var content = ReadFile(path);
         if (content == null)
         {
             _seen[path] = Seen.Plain;

@@ -38,14 +38,15 @@ order).
 **IsSvg(src)**: `true` when `src` has no URL scheme and ends in `.svg` in any letter case; the engine checks it before
 `KindOf`.
 
-**Build(name, kind, attributes)**: walks the attributes in order. `param-NAME` (Vega-Lite only, no `=` in `NAME`) adds
-`--param=NAME=value`; `define-NAME` (`.scad` only, `NAME` matching `^[A-Za-z_][A-Za-z0-9_]*$`) adds
-`--define=NAME=value`; a drawing option (`size`, `scale`, `background`, `page`, `dpi`, `view`, `azimuth`, `elevation`,
-`projection`, `theme`) is checked for its kind and value and stored by key, so a repeated option keeps its last value;
-every other attribute goes to the keep list. Each value must be plain text (not empty, no character 0 to 31 or 127).
-Then it refuses `size` with `scale`, adds the model defaults (`size` unless `size` or `scale` is given, `background`
-unless given, and `max-triangles` always), adds `page=1` to a paged kind without `page`, and sorts all options by
-their bytes. The value checks are:
+**Build(name, kind, attributes)**: walks the attributes in order. Every key that starts with `param-` or `define-` is
+checked, a bare `param-` or `define-` included, so none stays on the picture. `param-NAME` (Vega-Lite only, `NAME` not
+empty and without `=`) adds `--param=NAME=value`; `define-NAME` (`.scad` only, `NAME` matching
+`^[A-Za-z_][A-Za-z0-9_]*$`) adds `--define=NAME=value`; a drawing option (`size`, `scale`, `background`, `page`, `dpi`,
+`view`, `azimuth`, `elevation`, `projection`, `theme`) is checked for its kind and value and stored by key, so a
+repeated option keeps its last value; every other attribute goes to the keep list. Each value must be plain text (not
+empty, no character 0 to 31 or 127). Then it refuses `size` with `scale`, adds the model defaults (`size` unless `size`
+or `scale` is given, `background` unless given, and `max-triangles` always), adds `page=1` to a paged kind without
+`page`, and sorts all options by their bytes. The value checks are:
 
 - `size`: `WIDTHxHEIGHT`, each 1 to 8192, written without leading zeros.
 - `scale`: 0.001 to 8192; `azimuth`: -360000 to 360000; `elevation`: -90 to 90; `dpi`: above 0 up to 2400, a whole
@@ -82,6 +83,7 @@ message of the Lua filter, for example:
 - `'<name>' has <key>=<value>, but <key> applies to <kinds> only` (`.vsdx, .pptx and .pdf files`, `.scad models`, or
   `Mermaid diagrams`), and the same for `define-NAME` (`.scad models`) and `param-NAME` (`Vega-Lite charts`)
 - `'<name>' has <key>; the variable name must be letters, digits and underscores, not starting with a digit`
+- `'<name>' has <key>; the parameter name cannot be empty`
 - `'<name>' has <key>; the parameter name cannot contain an equals sign`
 - `'<name>' has both size and scale; use one of them`
 

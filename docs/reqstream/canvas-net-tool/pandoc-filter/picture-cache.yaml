@@ -48,12 +48,14 @@ sections:
       - id: CanvasNetTool-PandocFilter-PictureCache-AtomicWrite
         title: >-
           The PictureCache unit shall write a text file of the cache as UTF-8 without a byte order mark through a
-          temporary file renamed into place, leaving no temporary file, and shall keep a file that is already there.
+          temporary file renamed into place, leaving no temporary file (also when writing it fails), and shall keep a
+          file that is already there.
         justification: |
           A build running at the same time never reads a half-written marker, and a file already there holds the same
-          text because its name is a hash of it.
+          text because its name is a hash of it. A failed write must not leave temporary files to pile up in the cache.
         tests:
           - PictureCache_WriteTextAtomically_NewAndExisting_WritesOnce
+          - PictureCache_WriteTextAtomically_WriteFailsAfterCreate_RemovesThePartialFile
 
       - id: CanvasNetTool-PandocFilter-PictureCache-Commit
         title: >-

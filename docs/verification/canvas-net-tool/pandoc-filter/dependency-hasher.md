@@ -2,12 +2,13 @@
 
 #### Verification Approach
 
-`DependencyHasher` is verified with unit tests in `DependencyHasherTests.cs` (xUnit). The tests call the internal
-entry points `ForPicture` and `ForSvg` directly on real files: each test writes its models, charts, diagrams, drawings,
-data files, and pictures to a temporary directory (`TempDirectory`) and passes the collapsed path of the picture
-(`FilterPaths.Collapse`). Nothing is stubbed: the walks read the file system, and `FilterPaths` and `PictureAttributes`
-are the real units. The assertions read the label of each part (the text before its first line feed), the full bytes
-of a part where the format matters, the composite flag, and the code and exact message of each `ToolException`.
+`DependencyHasher` is verified with unit tests in `DependencyHasherTests.cs` (xUnit). The tests call the internal entry
+points `ForPicture` and `ForSvg` directly on real files: each test writes its models, charts, diagrams, drawings, data
+files, and pictures to a temporary directory (`TempDirectory`) and passes the collapsed path of the picture
+(`FilterPaths.Collapse`) and the file-access policy (`null` for the default mode, or a core `FileAccessPolicy`). Nothing
+is stubbed: the walks read the file system, and `FilterPaths` and `PictureAttributes` are the real units. The assertions
+read the label of each part (the text before its first line feed), the full bytes of a part where the format matters,
+the composite flag, and the code and exact message of each `ToolException`.
 
 #### Test Environment
 
@@ -21,7 +22,9 @@ N/A - standard test environment. The tests only need a writable temporary direct
 - The model, chart, diagram, and drawing walks find every documented link form and ignore the documented decoys.
 - A drawing is composite only when it links, directly or through a nested drawing, a file only the tool draws.
 - The 64-level and 512-file limits stop the build with `pandoc-filter-error` and the exact messages of the Lua filter.
-- In a roots mode a file outside the folders is not hashed, and an unreadable document is the `cannot read` error.
+- In a restrictive mode a file outside the folders, a file behind a link that leads outside them, and under
+  `no-symlinks` a file reached through any link are not hashed, an allowed file is hashed exactly as in the default
+  mode, and an unreadable document is the `cannot read` error.
 
 #### Test Scenarios
 
@@ -62,7 +65,26 @@ composite; a drawing that links an inner drawing that links a Mermaid diagram is
 `inner.svg`, `flow.mmd`.
 
 **DependencyHasher_ForPicture_Roots_SkipFilesOutside**: a model in `docs` that includes `../outside/b.scad` gives only
-`a.scad` with the roots `docs`, and `a.scad`, `../outside/b.scad` without roots.
+`a.scad` under the policy `roots` of `docs`, and `a.scad`, `../outside/b.scad` without a policy.
+
+**DependencyHasher_ForPicture_RootsLinkLeadingOutside_IsNotHashed**: a model in `docs` that includes `lib/b.scad`,
+where `docs/lib` is a directory link (a symbolic link, or a junction on Windows without the privilege) to a folder
+outside `docs`, and `c.scad`, gives `a.scad`, `c.scad` under the policy `roots` of `docs` (the file behind the link is
+not read), and `a.scad`, `lib/b.scad`, `c.scad` without a policy. The test is skipped when no directory link can be
+created.
+
+**DependencyHasher_ForSvg_NoSymlinksLinkedFile_IsNotHashed**: a drawing in `docs` that links `flow.mmd` and
+`alias/inner.mmd`, where `docs/alias` is a directory link to `docs/real`, is composite and gives `d.svg`,
+`missing alias/inner.mmd`, `flow.mmd` under `no-symlinks` and under `roots,no-symlinks` (the linked diagram is not
+read), and `d.svg`, `alias/inner.mmd`, `flow.mmd` under `roots` alone (the link stays inside the folder). The test is
+skipped when no directory link can be created.
+
+**DependencyHasher_ForPicture_RestrictiveMode_HashesAllowedFilesIdentically**: under `roots,no-symlinks` of `docs`, a
+model with an include and a chart with a data file and a nested diagram with a picture give the same parts, byte for
+byte, as without a policy (the chart's labels `c.vl.json`, `d.csv`, `f.mmd`, `p.png`).
+
+**DependencyHasher_ForPicture_DenyAll_ReadsOnlyTheSource**: under `DenyAll` a model that includes an existing file gives
+only the model's part.
 
 **DependencyHasher_ForPicture_MissingDocument_ThrowsCannotRead**: a `pdf` picture whose file does not exist fails with
 `cannot read 'gone.pdf'`.

@@ -121,8 +121,9 @@ sections:
       - id: CanvasNetTool-PandocFilter-FileAccess
         title: >-
           The PandocFilter subsystem shall draw every picture under the file-access mode of CANVASNET_FILE_ACCESS and
-          CANVASNET_ROOTS (any by default), shall never open a file outside the allowed folders while it hashes a
-          picture, and shall stop the build with file-access-denied when a restrictive mode denies a picture.
+          CANVASNET_ROOTS (any by default), shall never open a file outside the allowed folders nor read a file the mode
+          denies while it hashes a picture, and shall stop the build with file-access-denied when a restrictive mode
+          denies a picture.
         justification: |
           A documentation build of a document that is not trusted must be able to confine what its pictures read, and a
           denied picture in such a build must not be silently left out.
@@ -131,6 +132,7 @@ sections:
           - CanvasNetTool-PandocFilter-FilterSettings-FileAccessMode
           - CanvasNetTool-PandocFilter-FilterSettings-Roots
           - CanvasNetTool-PandocFilter-FilterSettings-FileAccessErrors
+          - CanvasNetTool-PandocFilter-FilterSettings-Policy
           - CanvasNetTool-PandocFilter-FilterPaths-Containment
           - CanvasNetTool-PandocFilter-DependencyHasher-Roots
         tests:

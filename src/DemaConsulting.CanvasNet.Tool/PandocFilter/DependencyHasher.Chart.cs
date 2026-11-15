@@ -29,7 +29,7 @@ internal sealed partial class DependencyHasher
     private void AddChart(string path, string root, int depth)
     {
         _seen[path] = Seen.Taken;
-        var content = FilterPaths.ReadFile(path);
+        var content = ReadFile(path);
         if (content == null)
         {
             return;
@@ -92,7 +92,7 @@ internal sealed partial class DependencyHasher
 
         foreach (var file in files)
         {
-            if (FilterPaths.ReadFile(file) is { } data)
+            if (ReadFile(file) is { } data)
             {
                 AddPart(FilterPaths.Label(root, file), data);
             }

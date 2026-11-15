@@ -77,7 +77,9 @@ Lua shim docs/filters/canvasnet.lua, which sends the whole document to
   path/DemaConsulting.CanvasNet.Tool.dll. White space separates, double quotes
   group, and there are no escapes.
 - `CANVASNET_FILE_ACCESS`: roots, no-symlinks, or roots,no-symlinks; a picture
-  the mode denies stops the build. See 'canvasnet help files'.
+  the mode denies stops the build. The files a picture references are read
+  for its cache name under the same mode, so a file the mode denies (a link
+  included) is never read. See 'canvasnet help files'.
 - `CANVASNET_ROOTS`: Folders separated like PATH, each passed as --allow-root.
 - `CANVASNET_JOBS`: How many pictures are drawn at once, 1 to 64 (default: the
   number of processors, at most 4). --jobs wins over it.

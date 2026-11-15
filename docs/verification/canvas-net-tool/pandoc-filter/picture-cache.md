@@ -20,8 +20,8 @@ N/A - standard test environment.
 - All unit tests pass with zero failures.
 - The key version is 17 and the keys of fixed inputs equal the golden values of the Lua composition.
 - The stems and the names of pictures, copies, markers, code block sources, and partial files follow the Lua filter.
-- An atomic write leaves exactly the finished file, an existing file is kept, a lost race keeps the other copy, and a
-  failed commit with nothing there is a `pandoc-filter-error`.
+- An atomic write leaves exactly the finished file, an existing file is kept, a failed write leaves no temporary file,
+  a lost race keeps the other copy, and a failed commit with nothing there is a `pandoc-filter-error`.
 
 #### Test Scenarios
 
@@ -39,6 +39,11 @@ block.
 **PictureCache_WriteTextAtomically_NewAndExisting_WritesOnce**: a new file holds the UTF-8 bytes of `é\n` without a byte
 order mark, an existing file keeps its text `kept` instead of `replaced`, and the folder holds only the two files, with
 no partial file left.
+
+**PictureCache_WriteTextAtomically_WriteFailsAfterCreate_RemovesThePartialFile**: a writer that creates the temporary
+file and then throws `IOException` (as a full disk would) makes the write fail with `pandoc-filter-error`, the message
+`could not write <partial>`, and the `IOException` as the inner exception, and the folder is left empty: neither the
+temporary file nor the target is there.
 
 **PictureCache_Commit_LostRaceKeepsTheOtherCopy_NothingThereThrows**: when the target was written first by another
 build, the commit keeps its content and removes the partial file; when the partial file does not exist and neither does

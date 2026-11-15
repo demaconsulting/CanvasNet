@@ -1,4 +1,5 @@
 using System.Text;
+using DemaConsulting.CanvasNet.Files;
 using DemaConsulting.CanvasNet.Tool.PandocFilter;
 
 namespace DemaConsulting.CanvasNet.Tool.Tests.PandocFilter;
@@ -230,7 +231,7 @@ public class DependencyHasherTests
         using var directory = new TempDirectory();
         var model = Write(directory, "docs/a.scad", "include <../outside/b.scad>");
         Write(directory, "outside/b.scad", "cube(1);");
-        var roots = new[] { Collapse(directory.Combine("docs")) };
+        var roots = FileAccessPolicy.UnderRoots(directory.Combine("docs"));
 
         // Act
         var confined = DependencyHasher.ForPicture("scad", Collapse(model), "a.scad", roots);
@@ -239,6 +240,110 @@ public class DependencyHasherTests
         // Assert
         Assert.Equal(["a.scad"], Labels(confined));
         Assert.Equal(["a.scad", "../outside/b.scad"], Labels(open));
+    }
+
+    /// <summary>
+    ///     Test that in a roots mode a link inside the folders that leads outside them is judged by where it leads: the
+    ///     file it reaches is not read or hashed, while the same include is hashed in the default mode.
+    /// </summary>
+    [Fact]
+    public void DependencyHasher_ForPicture_RootsLinkLeadingOutside_IsNotHashed()
+    {
+        // Arrange: a model in docs that includes a file through a link in docs to a folder outside docs
+        using var directory = new TempDirectory();
+        var model = Write(directory, "docs/a.scad", "include <lib/b.scad>\ninclude <c.scad>");
+        Write(directory, "docs/c.scad", "cube(2);");
+        Write(directory, "outside/b.scad", "cube(1);");
+        if (!FilterLinkSupport.TryCreateDirectoryLink(directory.Combine("docs", "lib"), directory.Combine("outside"), out var reason))
+        {
+            Assert.Skip("Directory links are not available: " + reason);
+        }
+
+        var roots = FileAccessPolicy.UnderRoots(directory.Combine("docs"));
+
+        // Act
+        var confined = DependencyHasher.ForPicture("scad", Collapse(model), "a.scad", roots);
+        var open = DependencyHasher.ForPicture("scad", Collapse(model), "a.scad", null);
+
+        // Assert: the file behind the link is left out under roots, as the tool denies it
+        Assert.Equal(["a.scad", "c.scad"], Labels(confined));
+        Assert.Equal(["a.scad", "lib/b.scad", "c.scad"], Labels(open));
+    }
+
+    /// <summary>
+    ///     Test that under no-symlinks a file reached through a link is not read or hashed, even when the link stays
+    ///     inside the folders a roots mode allows.
+    /// </summary>
+    [Fact]
+    public void DependencyHasher_ForSvg_NoSymlinksLinkedFile_IsNotHashed()
+    {
+        // Arrange: a drawing in docs that links a diagram directly and one through a link to a folder inside docs
+        using var directory = new TempDirectory();
+        var drawing = Write(directory, "docs/d.svg", "<svg><image href='flow.mmd'/><image href='alias/inner.mmd'/></svg>");
+        Write(directory, "docs/flow.mmd", "flowchart LR");
+        Write(directory, "docs/real/inner.mmd", "flowchart TD");
+        if (!FilterLinkSupport.TryCreateDirectoryLink(directory.Combine("docs", "alias"), directory.Combine("docs", "real"), out var reason))
+        {
+            Assert.Skip("Directory links are not available: " + reason);
+        }
+
+        var docs = directory.Combine("docs");
+
+        // Act
+        var (noLinks, composite) = DependencyHasher.ForSvg(Collapse(drawing), FileAccessPolicy.NoSymlinks);
+        var both = DependencyHasher.ForSvg(Collapse(drawing), FileAccessPolicy.Combine(FileAccessPolicy.UnderRoots(docs), FileAccessPolicy.NoSymlinks));
+        var roots = DependencyHasher.ForSvg(Collapse(drawing), FileAccessPolicy.UnderRoots(docs));
+
+        // Assert: the linked diagram is noted as missing (the tool denies it), never read; roots alone follows the link
+        Assert.True(composite);
+        Assert.Equal(["d.svg", "missing alias/inner.mmd", "flow.mmd"], Labels(noLinks));
+        Assert.Equal(["d.svg", "missing alias/inner.mmd", "flow.mmd"], Labels(both.Parts));
+        Assert.Equal(["d.svg", "alias/inner.mmd", "flow.mmd"], Labels(roots.Parts));
+    }
+
+    /// <summary>
+    ///     Test that a restrictive mode hashes the files it allows exactly as the default mode does, so the parts of the key
+    ///     do not change.
+    /// </summary>
+    [Fact]
+    public void DependencyHasher_ForPicture_RestrictiveMode_HashesAllowedFilesIdentically()
+    {
+        // Arrange: a model with an include, and a chart with a data file and a nested diagram with a picture
+        using var directory = new TempDirectory();
+        var model = Write(directory, "docs/a.scad", "include <lib/b.scad>\ncube(1);");
+        Write(directory, "docs/lib/b.scad", "module b() {}");
+        var chart = Write(directory, "docs/c.vl.json", """{"data":{"url":"d.csv"},"mark":{"type":"image","url":"f.mmd"}}""");
+        Write(directory, "docs/d.csv", "a\n1");
+        Write(directory, "docs/f.mmd", "flowchart LR\n  A@{ img: \"p.png\" }\n");
+        Write(directory, "docs/p.png", "png");
+        var policy = FileAccessPolicy.Combine(FileAccessPolicy.UnderRoots(directory.Combine("docs")), FileAccessPolicy.NoSymlinks);
+
+        // Act
+        var modelParts = DependencyHasher.ForPicture("scad", Collapse(model), "a.scad", policy);
+        var chartParts = DependencyHasher.ForPicture("vegalite", Collapse(chart), "c.vl.json", policy);
+
+        // Assert: the same parts, byte for byte, as without a policy
+        Assert.Equal(DependencyHasher.ForPicture("scad", Collapse(model), "a.scad", null), modelParts);
+        Assert.Equal(DependencyHasher.ForPicture("vegalite", Collapse(chart), "c.vl.json", null), chartParts);
+        Assert.Equal(["c.vl.json", "d.csv", "f.mmd", "p.png"], Labels(chartParts));
+    }
+
+    /// <summary>
+    ///     Test that the policy for arguments the tool refuses reads no referenced file, while the source is still read.
+    /// </summary>
+    [Fact]
+    public void DependencyHasher_ForPicture_DenyAll_ReadsOnlyTheSource()
+    {
+        // Arrange
+        using var directory = new TempDirectory();
+        var model = Write(directory, "a.scad", "include <b.scad>");
+        Write(directory, "b.scad", "cube(1);");
+
+        // Act
+        var parts = DependencyHasher.ForPicture("scad", Collapse(model), "a.scad", DependencyHasher.DenyAll);
+
+        // Assert
+        Assert.Equal(["a.scad"], Labels(parts));
     }
 
     /// <summary>

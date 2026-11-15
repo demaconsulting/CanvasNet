@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.RegularExpressions;
+using DemaConsulting.CanvasNet.Files;
 using DemaConsulting.CanvasNet.Viewer;
 
 namespace DemaConsulting.CanvasNet.Tool.PandocFilter;
@@ -20,11 +21,12 @@ namespace DemaConsulting.CanvasNet.Tool.PandocFilter;
 ///     </para>
 ///     <para>
 ///         The text of a model, a diagram, and a drawing is scanned with the Lua patterns on its bytes (read as Latin-1, so
-///         that a character is a byte and only ASCII matches the classes); a chart is decoded as JSON. In a roots mode a
-///         file outside the folders is never opened (<see cref="DependencyExists"/>). The walks live in
-///         <c>DependencyHasher.Chart.cs</c>, <c>DependencyHasher.Mermaid.cs</c>, <c>DependencyHasher.Svg.cs</c>, and this
-///         file (models and the shared picture walk). An instance is not thread-safe; the static entry points are, as each
-///         call has its own instance.
+///         that a character is a byte and only ASCII matches the classes); a chart is decoded as JSON. In a restrictive
+///         file-access mode every file the picture references is read through the policy the tool will draw it under, so
+///         a file the mode denies (outside the folders, or reached through a link the mode refuses) is never read
+///         (<see cref="ReadFile"/>). The walks live in <c>DependencyHasher.Chart.cs</c>, <c>DependencyHasher.Mermaid.cs</c>,
+///         <c>DependencyHasher.Svg.cs</c>, and this file (models and the shared picture walk). An instance is not
+///         thread-safe; the static entry points are, as each call has its own instance.
 ///     </para>
 /// </remarks>
 internal sealed partial class DependencyHasher
@@ -50,18 +52,37 @@ internal sealed partial class DependencyHasher
     private readonly Dictionary<string, Seen> _seen = new(StringComparer.Ordinal);
 
     /// <summary>
-    ///     The folders of a roots mode the walk may open files in, or <see langword="null"/> for anywhere.
+    ///     The picture's source file (absolute and collapsed): the file the tool is given, which no mode judges.
     /// </summary>
-    private readonly IReadOnlyList<string>? _roots;
+    private readonly string _source;
+
+    /// <summary>
+    ///     The policy the tool draws the picture under, or <see langword="null"/> for the default mode (every file).
+    /// </summary>
+    private readonly FileAccessPolicy? _policy;
+
+    /// <summary>
+    ///     The resolver that reads the referenced files through <see cref="_policy"/>, created on first use.
+    /// </summary>
+    private FileReferenceResolver? _resolver;
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="DependencyHasher"/> class.
     /// </summary>
-    /// <param name="roots">The folders of a roots mode, or <see langword="null"/> for anywhere.</param>
-    private DependencyHasher(IReadOnlyList<string>? roots)
+    /// <param name="source">The picture's source file (absolute and collapsed).</param>
+    /// <param name="policy">The policy the tool draws the picture under, or <see langword="null"/> for the default mode.</param>
+    private DependencyHasher(string source, FileAccessPolicy? policy)
     {
-        _roots = roots;
+        _source = source;
+        _policy = policy;
     }
+
+    /// <summary>
+    ///     Gets the policy that denies every file, for the arguments the tool refuses: the walk then reads no referenced
+    ///     file at all, and the tool stops the build with its usage error.
+    /// </summary>
+    internal static FileAccessPolicy DenyAll { get; } =
+        FileAccessPolicy.FromDelegate("deny-all", _ => FileAccessDecision.Deny("the file-access arguments are not valid"));
 
     /// <summary>
     ///     What the walk knows about a path it has taken.
@@ -84,15 +105,18 @@ internal sealed partial class DependencyHasher
     /// <param name="kind">The picture's kind (one of the <see cref="PictureAttributes"/> kind constants).</param>
     /// <param name="source">The picture's source file (absolute and collapsed).</param>
     /// <param name="name">The picture's name, for the message about an unreadable document.</param>
-    /// <param name="roots">The folders of a roots mode, or <see langword="null"/> for anywhere.</param>
+    /// <param name="policy">
+    ///     The policy the tool draws the picture under (<see cref="FilterSettings.PolicyOf"/>), or <see langword="null"/>
+    ///     for the default mode.
+    /// </param>
     /// <returns>The parts of the key, in order.</returns>
     /// <exception cref="ToolException">
     ///     Thrown with <see cref="ErrorCodes.PandocFilterError"/> when a limit is exceeded, or a document (vsdx, pptx, pdf)
     ///     cannot be read.
     /// </exception>
-    internal static IReadOnlyList<byte[]> ForPicture(string kind, string source, string name, IReadOnlyList<string>? roots)
+    internal static IReadOnlyList<byte[]> ForPicture(string kind, string source, string name, FileAccessPolicy? policy)
     {
-        var hasher = new DependencyHasher(roots);
+        var hasher = new DependencyHasher(source, policy);
         var root = FilterPaths.Directory(source);
         switch (kind)
         {
@@ -106,7 +130,7 @@ internal sealed partial class DependencyHasher
                 hasher.AddMermaid(source, root, 0);
                 break;
             default:
-                var content = FilterPaths.ReadFile(source) ?? throw Fail($"cannot read '{name}'");
+                var content = hasher.ReadFile(source) ?? throw Fail($"cannot read '{name}'");
                 hasher.AddPart(FilterPaths.FileName(source), content);
                 break;
         }
@@ -118,15 +142,18 @@ internal sealed partial class DependencyHasher
     ///     Collects the files of an SVG drawing, and tells whether the tool must flatten it.
     /// </summary>
     /// <param name="source">The drawing (absolute and collapsed).</param>
-    /// <param name="roots">The folders of a roots mode, or <see langword="null"/> for anywhere.</param>
+    /// <param name="policy">
+    ///     The policy the tool flattens the drawing under (<see cref="FilterSettings.PolicyOf"/>), or
+    ///     <see langword="null"/> for the default mode.
+    /// </param>
     /// <returns>
     ///     The parts of the key, and whether the drawing links a file only the tool draws (a model, chart, diagram, or
     ///     document page, present or missing), directly or through a nested drawing.
     /// </returns>
     /// <exception cref="ToolException">Thrown with <see cref="ErrorCodes.PandocFilterError"/> when a limit is exceeded.</exception>
-    internal static (IReadOnlyList<byte[]> Parts, bool Composite) ForSvg(string source, IReadOnlyList<string>? roots)
+    internal static (IReadOnlyList<byte[]> Parts, bool Composite) ForSvg(string source, FileAccessPolicy? policy)
     {
-        var hasher = new DependencyHasher(roots);
+        var hasher = new DependencyHasher(source, policy);
         var composite = hasher.AddSvg(source, FilterPaths.Directory(source), 0);
         return (hasher._parts, composite);
     }
@@ -173,7 +200,7 @@ internal sealed partial class DependencyHasher
             throw Fail($"'{path}' is included more than {MaxDepth} levels deep");
         }
 
-        var content = FilterPaths.ReadFile(path);
+        var content = ReadFile(path);
         if (content == null)
         {
             return;
@@ -242,7 +269,7 @@ internal sealed partial class DependencyHasher
             else
             {
                 _seen[file] = Seen.Taken;
-                var data = FilterPaths.ReadFile(file);
+                var data = ReadFile(file);
                 if (data != null)
                 {
                     if (_parts.Count >= MaxDependencies)
@@ -257,19 +284,73 @@ internal sealed partial class DependencyHasher
     }
 
     /// <summary>
-    ///     Determines whether the walk takes a file a picture references (<c>dependency_exists</c>): it exists and, in a
-    ///     roots mode, is under one of the folders, compared by path; a file outside them is never opened.
+    ///     Determines whether the walk takes a file a picture references (<c>dependency_exists</c>): it opens and, in a
+    ///     restrictive mode, the policy allows it (see <see cref="ReadFile"/>).
     /// </summary>
     /// <param name="path">The file (absolute and collapsed).</param>
     /// <returns><see langword="true"/> when the file is taken.</returns>
     private bool DependencyExists(string path)
     {
-        if (_roots != null && !_roots.Any(root => FilterPaths.IsSameOrUnder(path, root)))
+        return ReadsAsIs(path) ? FilterPaths.FileExists(path) : Resolve(path) != null;
+    }
+
+    /// <summary>
+    ///     Reads a file of the picture: the source, or a file it references.
+    /// </summary>
+    /// <param name="path">The file (absolute and collapsed).</param>
+    /// <returns>The bytes, or <see langword="null"/> when the file cannot be read or the policy denies it.</returns>
+    /// <remarks>
+    ///     In the default mode, and for the source itself (the tool never judges the file it is given), the file is read
+    ///     as it is. In a restrictive mode a referenced file is read as the tool reads it: through a
+    ///     <see cref="FileReferenceResolver"/> with the tool's policy and the source's folder as the trusted origin, which
+    ///     refuses a path outside the roots before the open and asks the policy about the real path of the open handle
+    ///     before any byte is read. A file the policy denies, or that cannot be judged (fail closed), is therefore never
+    ///     read: the walk treats it as a file that is not there, and the tool denies it when it draws.
+    /// </remarks>
+    private byte[]? ReadFile(string path)
+    {
+        return ReadsAsIs(path) ? FilterPaths.ReadFile(path) : Resolve(path)?.Content.ToArray();
+    }
+
+    /// <summary>
+    ///     Determines whether a file is read without the policy: in the default mode, or the source itself.
+    /// </summary>
+    /// <param name="path">The file (absolute and collapsed).</param>
+    /// <returns><see langword="true"/> when the file is read as it is.</returns>
+    private bool ReadsAsIs(string path)
+    {
+        return _policy == null || string.Equals(path, _source, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Opens and reads a referenced file through the policy; each file is opened at most once per picture.
+    /// </summary>
+    /// <param name="path">The file (absolute and collapsed).</param>
+    /// <returns>The file, or <see langword="null"/> when it does not exist, cannot be read, or is denied.</returns>
+    private FileReference? Resolve(string path)
+    {
+        if (ReferenceEquals(_policy, DenyAll))
         {
-            return false;
+            return null;
         }
 
-        return FilterPaths.FileExists(path);
+        // The size limit of the walk is the one it always had (none but the largest array), so the key of an allowed
+        // file is unchanged; the tool applies its own limits when it draws
+        _resolver ??= new FileReferenceResolver(new FileReferenceOptions
+        {
+            BaseDirectory = FilterPaths.Directory(_source),
+            FileAccess = _policy!,
+            MaxFileBytes = Array.MaxLength
+        });
+
+        try
+        {
+            return _resolver.Resolve(path);
+        }
+        catch (FileReferenceException)
+        {
+            return null;
+        }
     }
 
     /// <summary>

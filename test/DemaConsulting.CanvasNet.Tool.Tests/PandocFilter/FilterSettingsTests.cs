@@ -106,6 +106,44 @@ public class FilterSettingsTests
     }
 
     /// <summary>
+    ///     Test the policy of the dependency walk: none in the default mode, the tool's own policy for the arguments in a
+    ///     restrictive mode, and the policy that denies every file when the tool would refuse the arguments.
+    /// </summary>
+    [Fact]
+    public void FilterSettings_PolicyOf_BuildsTheToolsPolicyFromTheArguments()
+    {
+        // Arrange: the default mode, roots,no-symlinks, no-symlinks, and a folder that does not exist (the variables are
+        // read on first use, so each mode's arguments are taken before the next is set)
+        using var tree = new FilterTree();
+        var source = Path.Combine(tree.Guide, "a.scad");
+        var settings = new List<(FilterSettings Settings, FileAccessArguments Access)>();
+        foreach (var (mode, roots) in new (string?, string?)[] { (null, null), ("roots,no-symlinks", null), ("no-symlinks", null), ("roots", Path.Combine(tree.Root, "gone")) })
+        {
+            if (mode != null)
+            {
+                tree.Environment[FilterSettings.FileAccessVariable] = mode;
+            }
+
+            if (roots != null)
+            {
+                tree.Environment[FilterSettings.RootsVariable] = roots;
+            }
+
+            var current = tree.Settings();
+            settings.Add((current, current.FileAccessOf(source)));
+        }
+
+        // Act
+        var policies = settings.Select(s => s.Settings.PolicyOf(s.Access, source)).ToList();
+
+        // Assert
+        Assert.Null(policies[0]);
+        Assert.Equal("roots+no-symlinks", policies[1]!.Name);
+        Assert.Same(DemaConsulting.CanvasNet.Files.FileAccessPolicy.NoSymlinks, policies[2]);
+        Assert.Same(DependencyHasher.DenyAll, policies[3]);
+    }
+
+    /// <summary>
     ///     Test the tool identity: the version, the label, and for a local build the sorted SHA-1 of the DLLs beside it.
     /// </summary>
     [Fact]

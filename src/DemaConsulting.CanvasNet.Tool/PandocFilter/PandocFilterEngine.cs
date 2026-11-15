@@ -229,7 +229,7 @@ internal sealed partial class PandocFilterEngine
         item.Keep = options.Keep;
         var identity = _settings.ToolIdentity;
         var access = _settings.FileAccessOf(source);
-        var parts = DependencyHasher.ForPicture(kind, source, item.Name, access.Roots);
+        var parts = DependencyHasher.ForPicture(kind, source, item.Name, _settings.PolicyOf(access, source));
         var key = PictureCache.ComputeKey(kind, identity, access.Key, options.Options, null, parts);
 
         // A picture drawn before is used; a diagram the tool does not draw is left as written, with its warning
@@ -272,7 +272,7 @@ internal sealed partial class PandocFilterEngine
 
         var root = FilterPaths.Directory(source);
         var access = _settings.FileAccessOf(source);
-        var (parts, composite) = DependencyHasher.ForSvg(source, access.Roots);
+        var (parts, composite) = DependencyHasher.ForSvg(source, _settings.PolicyOf(access, source));
         if (!composite)
         {
             return null;

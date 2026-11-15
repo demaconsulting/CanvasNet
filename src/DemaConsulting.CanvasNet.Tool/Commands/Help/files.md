@@ -100,3 +100,7 @@ options, the diagnostics of a denial, and the Pandoc filter.
   the working directory and the folder of the picture as --allow-root. These
   arguments are part of the cache name of every picture, so a picture drawn
   without them, or from another working directory, is not reused.
+- `hashing`: The filter reads the files a picture references to name it in
+  the cache, and in a restrictive mode it judges them as the tool does, by
+  the real path of the opened file: a file outside the folders, a link that
+  leads outside them, and under no-symlinks any link are never read.

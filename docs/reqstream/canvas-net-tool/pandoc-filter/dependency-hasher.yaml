@@ -97,13 +97,21 @@ sections:
 
       - id: CanvasNetTool-PandocFilter-DependencyHasher-Roots
         title: >-
-          In a roots mode of the file-access policy, the DependencyHasher unit shall never open or hash a referenced
-          file outside the allowed folders.
+          In a restrictive mode of the file-access policy, the DependencyHasher unit shall read every file a picture
+          references through the policy the tool draws the picture under, judged by the real path of the opened file,
+          so that it never opens a file whose path is outside the allowed folders and never reads or hashes a file the
+          mode denies (a link that leads outside the folders, or any link under no-symlinks), while hashing an allowed
+          file exactly as in the default mode.
         justification: |
-          A confined build must not read files outside its folders, not even to hash them; the tool refuses such a file
-          when it draws, so it does not belong in the key.
+          A confined build must not read files outside its folders, not even to hash them, and a link inside the
+          folders must not let the hashing read what the tool would refuse; the tool refuses such a file when it draws,
+          so it does not belong in the key. An allowed file keeps its part, so the cache keys do not change.
         tests:
           - DependencyHasher_ForPicture_Roots_SkipFilesOutside
+          - DependencyHasher_ForPicture_RootsLinkLeadingOutside_IsNotHashed
+          - DependencyHasher_ForSvg_NoSymlinksLinkedFile_IsNotHashed
+          - DependencyHasher_ForPicture_RestrictiveMode_HashesAllowedFilesIdentically
+          - DependencyHasher_ForPicture_DenyAll_ReadsOnlyTheSource
 
       - id: CanvasNetTool-PandocFilter-DependencyHasher-Document
         title: >-

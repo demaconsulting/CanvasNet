@@ -30,9 +30,9 @@ while `https://example.com/part.scad` and `photo.png` give none.
 **PictureAttributes_Build_InvalidAttribute_ThrowsTheLuaMessage**: each invalid value (`size` 0x10 and 8193x10, `scale`
 0 and `1e3`, `background` `#12`, `page` 0, `dpi` 1.5 for `.vsdx` and 0 for `.pdf`, an unknown `view`, `azimuth`
 360001, `elevation` -90.5, an unknown `projection` and `theme`), each attribute on the wrong kind (`view` on a PDF,
-`page` and `theme` on a model, `define-x` on a PDF, `param-x` on a model), a bad variable name (`define-1x`), a
-parameter name with `=`, a control character, and an empty value fails with `pandoc-filter-error`, the exact message,
-and no hint.
+`page` and `theme` on a model, `define-x` on a PDF, `param-x` and a bare `param-` on a model), a bad variable name
+(`define-1x` and a bare `define-`), an empty parameter name (a bare `param-` on a chart), a parameter name with `=`, a
+control character, and an empty value fails with `pandoc-filter-error`, the exact message, and no hint.
 
 **PictureAttributes_Build_SizeAndScale_ThrowsUseOneOfThem**: `size` with `scale` fails with `'f.mmd' has both size and
 scale; use one of them`.

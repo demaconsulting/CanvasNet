@@ -51,7 +51,9 @@ with `.mmd`. All are joined to the cache folder with `FilterPaths.Join`.
 
 **WriteTextAtomically(path, content)**: returns when the file already exists (it holds the same text, as its name is a
 hash of it); otherwise writes the text as UTF-8 without a byte order mark to `<path>.<9 random digits>.partial` and
-commits it.
+commits it. When the write fails, the temporary file (which may have been created before the failure) is deleted
+before the error is raised. An internal overload takes the writer (`File.WriteAllBytes` in production), so a test can
+make the write fail after the file was created.
 
 **Commit(partial, target, failure)**: renames the temporary file to the cache name with `File.Move` without
 overwriting. When the rename fails (another build wrote the same file first, or the rename itself failed), the
@@ -66,9 +68,9 @@ cache name ends in `.partial.*`.
 
 `WriteTextAtomically` throws `ToolException` with `ErrorCodes.PandocFilterError` (`pandoc-filter-error`) and the
 message `could not write <partial>` when the temporary file cannot be written (`IOException` or
-`UnauthorizedAccessException`), and `Commit` throws it with the caller's message when the rename failed and the target
-is not there (for a text file, `could not write <path>`). `ReadText` returns `null` and `Delete` ignores `IOException`
-and `UnauthorizedAccessException`.
+`UnauthorizedAccessException`; the temporary file is deleted first), and `Commit` throws it with the caller's message
+when the rename failed and the target is not there (for a text file, `could not write <path>`). `ReadText` returns
+`null` and `Delete` ignores `IOException` and `UnauthorizedAccessException`.
 
 #### Dependencies
 

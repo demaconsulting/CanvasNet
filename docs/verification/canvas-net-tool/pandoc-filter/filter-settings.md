@@ -18,7 +18,8 @@ separator and the handling of an empty entry depend on the platform and are chos
 #### Acceptance Criteria
 
 - All unit tests pass with zero failures.
-- The file-access arguments, folders, restrictiveness, and key text follow the variables as documented.
+- The file-access arguments, folders, restrictiveness, and key text follow the variables as documented, and the policy
+  of the dependency walk is none, the tool's own, or the one that denies every file, as documented.
 - Every refused variable fails with `pandoc-filter-error` and the exact message of the Lua filter.
 - The tool identity, the cache folder, the `src` of a picture, and the number of jobs are as documented.
 
@@ -38,6 +39,10 @@ empty entry dropped on Windows and the working directory elsewhere), lists them 
 
 **FilterSettings_FileAccessOf_BadVariables_ThrowTheLuaMessage**: an unknown mode (`everything`), and `CANVASNET_ROOTS`
 with the mode `ANY` (read as `any`) or `no-symlinks`, fail with `pandoc-filter-error` and the exact message.
+
+**FilterSettings_PolicyOf_BuildsTheToolsPolicyFromTheArguments**: the default mode gives no policy; `roots,no-symlinks`
+gives the tool's policy named `roots+no-symlinks`; `no-symlinks` gives `FileAccessPolicy.NoSymlinks`; and `roots` with a
+`CANVASNET_ROOTS` folder that does not exist (which the tool refuses) gives `DependencyHasher.DenyAll`.
 
 **FilterSettings_ToolIdentity_DefaultAndLocalBuild_NameTheTool**: without `CANVASNET_TOOL` the identity is `1.0.0`,
 `default`, and an empty fingerprint; with `dotnet "<build>/Tool.dll"` it is `1.0.0`, `CANVASNET_TOOL=<command>`, and

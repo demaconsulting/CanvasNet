@@ -291,3 +291,76 @@ internal sealed class StubDrawer : IPictureDrawer
         return report;
     }
 }
+
+/// <summary>
+///     Creates the links of the file-access tests of the filter.
+/// </summary>
+internal static class FilterLinkSupport
+{
+    /// <summary>
+    ///     Tries to create a directory link: a symbolic link, or on Windows a junction when symbolic links need a privilege.
+    /// </summary>
+    /// <param name="link">The full path of the link to create.</param>
+    /// <param name="target">The full path of the existing target directory.</param>
+    /// <param name="reason">The reason the link could not be created, or an empty string.</param>
+    /// <returns><see langword="true"/> when the link exists afterwards.</returns>
+    public static bool TryCreateDirectoryLink(string link, string target, out string reason)
+    {
+        try
+        {
+            Directory.CreateSymbolicLink(link, target);
+            reason = string.Empty;
+            return true;
+        }
+        catch (Exception ex) when (ex is UnauthorizedAccessException or IOException or PlatformNotSupportedException)
+        {
+            reason = ex.Message;
+        }
+
+        // Without the privilege for symbolic links a junction can still be made on Windows
+        return OperatingSystem.IsWindows() && TryCreateJunction(link, target, out reason);
+    }
+
+    /// <summary>
+    ///     Creates a Windows junction through the command interpreter (no privilege needed).
+    /// </summary>
+    /// <param name="link">The full path of the junction.</param>
+    /// <param name="target">The full path of the target directory.</param>
+    /// <param name="reason">The reason the junction could not be created, or an empty string.</param>
+    /// <returns><see langword="true"/> when the junction exists afterwards.</returns>
+    private static bool TryCreateJunction(string link, string target, out string reason)
+    {
+        var info = new System.Diagnostics.ProcessStartInfo("cmd.exe")
+        {
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+        };
+        info.ArgumentList.Add("/c");
+        info.ArgumentList.Add("mklink");
+        info.ArgumentList.Add("/J");
+        info.ArgumentList.Add(Path.GetFullPath(link));
+        info.ArgumentList.Add(Path.GetFullPath(target));
+        try
+        {
+            using var process = System.Diagnostics.Process.Start(info);
+            if (process is null)
+            {
+                reason = "cmd.exe could not be started";
+                return false;
+            }
+
+            process.StandardOutput.ReadToEnd();
+            process.StandardError.ReadToEnd();
+            process.WaitForExit();
+            reason = process.ExitCode == 0 ? string.Empty : "mklink /J failed";
+            return process.ExitCode == 0 && Directory.Exists(link);
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception)
+        {
+            reason = ex.Message;
+            return false;
+        }
+    }
+}

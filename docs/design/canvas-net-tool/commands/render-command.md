@@ -107,7 +107,9 @@ alone implies `roots`, and with the mode `any` or `no-symlinks` it is a `usage-e
 `roots` it returns `FileAccessPolicy.AllowAll` or `FileAccessPolicy.NoSymlinks`; with it, `FileAccessPolicy.UnderRoots`
 of the `--allow-root` folders (each taken from the working directory and required to be an existing folder, else
 `usage-error`), or of `DefaultRoots` when none is given, combined with `NoSymlinks` for `roots,no-symlinks` (the name
-`roots+no-symlinks`). Every check is made while the options are read, before any input is opened.
+`roots+no-symlinks`). Every check is made while the options are read, before any input is opened. An overload
+**ReadFileAccess(arguments, inputs, workingDirectory)** parses a list holding only these two options (`SpecsFor`) and
+builds the same policy, so the Pandoc filter judges a picture's files exactly as the render and flatten it runs will.
 
 **ParseFileAccessMode(text)**: splits the value at commas, trims and lower-cases each token, and accepts `any` alone,
 or `roots` and `no-symlinks` in any order and combination; anything else is the `usage-error` "'{text}' is not a value

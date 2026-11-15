@@ -94,6 +94,35 @@ public class PictureCacheTests
     }
 
     /// <summary>
+    ///     Test that a temporary file whose write fails after it was created is removed before the error is raised.
+    /// </summary>
+    [Fact]
+    public void PictureCache_WriteTextAtomically_WriteFailsAfterCreate_RemovesThePartialFile()
+    {
+        // Arrange: a writer that creates the temporary file, then fails as a full disk would
+        using var directory = new TempDirectory();
+        var target = directory.Combine("flow.plain");
+        string? created = null;
+        void FailingWrite(string partial, byte[] bytes)
+        {
+            created = partial;
+            File.WriteAllBytes(partial, bytes[..1]);
+            throw new IOException("There is not enough space on the disk.");
+        }
+
+        // Act
+        var error = Assert.Throws<ToolException>(() => PictureCache.WriteTextAtomically(target, "flowchart LR\n", FailingWrite));
+
+        // Assert: the error names the temporary file, and neither it nor the target is left behind
+        Assert.NotNull(created);
+        Assert.Equal(ErrorCodes.PandocFilterError, error.Code);
+        Assert.Equal($"could not write {created}", error.Message);
+        Assert.IsType<IOException>(error.InnerException);
+        Assert.False(File.Exists(created));
+        Assert.Empty(Directory.GetFiles(directory.Path));
+    }
+
+    /// <summary>
     ///     Test the commit: a rename that loses to another build keeps the other copy and removes the partial file, and a
     ///     rename that fails with nothing there is an error.
     /// </summary>

@@ -21,7 +21,7 @@ internal sealed partial class DependencyHasher
     private void AddMermaid(string path, string root, int depth)
     {
         _seen[path] = Seen.Taken;
-        var content = FilterPaths.ReadFile(path);
+        var content = ReadFile(path);
         if (content == null)
         {
             return;

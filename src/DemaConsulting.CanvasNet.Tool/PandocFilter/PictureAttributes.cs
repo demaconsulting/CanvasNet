@@ -151,12 +151,17 @@ internal static class PictureAttributes
         // Each attribute in order: a parameter, a variable, a drawing option, or one that stays on the picture
         foreach (var (key, value) in attributes)
         {
-            if (key.StartsWith("param-", StringComparison.Ordinal) && key.Length > 6)
+            if (key.StartsWith("param-", StringComparison.Ordinal))
             {
                 var param = key[6..];
                 if (kind != VegaLite)
                 {
                     throw Fail($"'{name}' has {key}={value}, but param-NAME applies to Vega-Lite charts only");
+                }
+
+                if (param.Length == 0)
+                {
+                    throw Fail($"'{name}' has {key}; the parameter name cannot be empty");
                 }
 
                 if (param.Contains('=', StringComparison.Ordinal))

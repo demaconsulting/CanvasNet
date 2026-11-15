@@ -70,6 +70,8 @@ public class PictureAttributesTests
     [InlineData("m.scad", "scad", "define-", "2", "'m.scad' has define-; the variable name must be letters, digits and underscores, not starting with a digit")]
     [InlineData("m.scad", "scad", "param-x", "1", "'m.scad' has param-x=1, but param-NAME applies to Vega-Lite charts only")]
     [InlineData("c.vl", "vegalite", "param-a=b", "c", "'c.vl' has param-a=b; the parameter name cannot contain an equals sign")]
+    [InlineData("c.vl", "vegalite", "param-", "c", "'c.vl' has param-; the parameter name cannot be empty")]
+    [InlineData("m.scad", "scad", "param-", "1", "'m.scad' has param-=1, but param-NAME applies to Vega-Lite charts only")]
     [InlineData("m.scad", "scad", "background", "a\tb", "'m.scad' has background=a\tb; the value must be text without control characters")]
     [InlineData("m.scad", "scad", "view", "", "'m.scad' has view=; the value must be text without control characters")]
     public void PictureAttributes_Build_InvalidAttribute_ThrowsTheLuaMessage(string name, string kind, string key, string value, string message)

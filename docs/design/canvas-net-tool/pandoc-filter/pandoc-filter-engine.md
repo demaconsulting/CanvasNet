@@ -69,7 +69,8 @@ not know is left alone; otherwise the source is located with `FilterPaths.Locate
 kind `mermaid` with the stem `mermaid`.
 
 **PlanDraw**: builds the options and kept attributes (`PictureAttributes.Build`), the file access
-(`FilterSettings.FileAccessOf`), the dependency hashes (`DependencyHasher.ForPicture`), and the key
+(`FilterSettings.FileAccessOf`), the dependency hashes (`DependencyHasher.ForPicture`, reading through
+`FilterSettings.PolicyOf`), and the key
 (`PictureCache.ComputeKey`). A picture `<stem>-<key>.png` in the cache is used; otherwise an existing
 `<key>.unsupported` marker gives the warning `<name>: <message>; it is left as written and not drawn`; otherwise the
 picture is attached to a job.
