@@ -21,8 +21,10 @@ namespace DemaConsulting.CanvasNet.Tool.PandocFilter;
 ///         A failure is recorded with the position of its picture. Planning stops at the first failure; a job above a
 ///         known failure may be skipped, and a job below it always runs, so the reported failure is always the one with the
 ///         lowest position, the one the Lua filter (which stopped at the first failure) reported, however the jobs were
-///         scheduled. The output, the warnings, and the cache files are the same for one job or many. The engine is used
-///         for one run at a time.
+///         scheduled. A job draws into a temporary file; the pictures, copies, and markers are committed into the cache
+///         strictly in document order and only below the first failure, and the temporary files of the jobs after it are
+///         removed. The output, the warnings, and the cache files are therefore the same for one job or many, also when
+///         the run fails. The engine is used for one run at a time.
 ///     </para>
 /// </remarks>
 internal sealed partial class PandocFilterEngine
@@ -123,8 +125,11 @@ internal sealed partial class PandocFilterEngine
             }
         }
 
-        // Draw the pictures that missed the cache, then report the failure of the lowest position
-        failures.AddRange(Draw(jobs.Values.OrderBy(job => job.Index).ToList(), failures.Count > 0 ? failures[0].Index : int.MaxValue));
+        // Draw the pictures that missed the cache, commit them into the cache in document order up to the first failure,
+        // then report the failure of the lowest position
+        var ordered = jobs.Values.OrderBy(job => job.Index).ToList();
+        failures.AddRange(Draw(ordered, failures.Count > 0 ? failures[0].Index : int.MaxValue));
+        CommitInOrder(ordered, failures);
         if (failures.Count > 0)
         {
             // The warnings of the pictures before the failure, which the Lua filter printed before its error

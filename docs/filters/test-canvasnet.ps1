@@ -18,7 +18,7 @@
     read under the tool's default file-access policy and refused under CANVASNET_FILE_ACCESS=roots (CANVASNET_ROOTS is a
     PATH-like list whose relative folders are taken from the working directory, both are hashed, roots without
     CANVASNET_ROOTS is hashed with the working directory so a build from another folder is denied, a denied picture
-    stops the build, and a bad value is an error), an absolute or
+    stops the build, a nested drawing outside the roots stops the build through the flatten, and a bad value is an error), an absolute or
     file: data url and an absolute SVG link are hashed, and a model the tool cannot draw stops the build with the tool's message.
     Mermaid diagrams are drawn from code blocks and from .mmd/.mermaid pictures (the pictures of their nodes are
     hashed), sequence, class, state, ER, pie, gantt, mindmap, packet, and git graph diagrams are drawn by the filter itself, a diagram
@@ -959,6 +959,19 @@ flowchart TD
         Write-Result ($run.ExitCode -ne 0 -and $run.Log -match 'denied') `
             "CANVASNET_FILE_ACCESS=roots refuses a dependency outside the roots ($dep)" $run.Log
     }
+
+    # A drawing whose only link is a nested drawing outside the roots is not left to Pandoc: the flatten reports the
+    # denied drawing and the build stops, while by default the drawing links nothing the tool draws and is left alone
+    Set-Content (Join-Path $guide 'outer-inner.svg') -Value (
+        '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20"><rect width="20" height="20" fill="red"/></svg>')
+    Set-Content (Join-Path $sub 'n.svg') -Value (
+        '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20"><image href="../outer-inner.svg" width="20" height="20"/></svg>')
+    $nestOpen = Invoke-Filter 'esc-nested-svg' '![n](esc/n.svg)'
+    Write-Result ($nestOpen.ExitCode -eq 0 -and $nestOpen.Html -match 'src="esc/n\.svg"') `
+        'a drawing that links only a plain nested drawing is left to Pandoc by default' $nestOpen.Log
+    $nestDenied = Invoke-FilterWith @{ CANVASNET_FILE_ACCESS = 'roots'; CANVASNET_ROOTS = $sub } 'esc-nested-svg-roots' '![n](esc/n.svg)'
+    Write-Result ($nestDenied.ExitCode -ne 0 -and $nestDenied.Log -match 'denied') `
+        'CANVASNET_FILE_ACCESS=roots stops the build on a nested drawing outside the roots' $nestDenied.Log
 
     # CANVASNET_ROOTS is a list separated like PATH; the include is in the second folder
     $rootList = $sub + [System.IO.Path]::PathSeparator + $guide

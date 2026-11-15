@@ -213,6 +213,64 @@ public class PandocFilterEngineTests
     }
 
     /// <summary>
+    ///     Test that a failed run leaves the same cache files for one job and four: with four jobs, later pictures are drawn
+    ///     while an earlier one is still failing, but nothing after the first failure is committed into the cache and no
+    ///     temporary file is left.
+    /// </summary>
+    [Fact]
+    public void PandocFilterEngine_Run_FailureWithOneAndFourJobs_LeavesTheSameCache()
+    {
+        // Arrange: six diagrams; the second fails, and with four jobs it fails only once the fourth has been drawn
+        using var tree = new FilterTree();
+        var images = Enumerable.Range(0, 6).Select(i =>
+        {
+            tree.Write($"d{i}.mmd", $"flowchart LR\n  A{i}");
+            return PandocDoc.Image($"d{i}.mmd");
+        }).ToArray();
+        var document = PandocDoc.Document(PandocDoc.Para(images));
+        static Exception Broken() => new ViewerException(ErrorCodes.MermaidError, "broken");
+        var sequentialDrawer = new StubDrawer { Failure = name => name == "d1.mmd" ? Broken() : null };
+        using var laterDrawn = new ManualResetEventSlim();
+        var parallelDrawer = new StubDrawer
+        {
+            Failure = name =>
+            {
+                if (name != "d1.mmd")
+                {
+                    return null;
+                }
+
+                laterDrawn.Wait();
+                return Broken();
+            },
+            Report = name =>
+            {
+                if (name == "d3.mmd")
+                {
+                    laterDrawn.Set();
+                }
+
+                return new PictureDrawing(true, [], []);
+            }
+        };
+
+        // Act: one job, then four jobs over an empty cache
+        var sequential = Assert.Throws<ToolException>(() => tree.Run(sequentialDrawer, document, jobs: 1));
+        var sequentialFiles = tree.CacheFiles();
+        Directory.Delete(tree.Cache, true);
+        var parallel = Assert.Throws<ToolException>(() => tree.Run(parallelDrawer, document, jobs: 4));
+
+        // Assert: the same failure and cache files (the picture of d0 only), though four jobs drew d2 and d3
+        Assert.Equal(sequential.Message, parallel.Message);
+        Assert.Equal(sequential.Code, parallel.Code);
+        Assert.Equal(sequentialFiles, tree.CacheFiles());
+        Assert.Single(sequentialFiles);
+        Assert.StartsWith("d0-", sequentialFiles[0], StringComparison.Ordinal);
+        Assert.Contains("render d3.mmd", parallelDrawer.Calls);
+        Assert.DoesNotContain("render d3.mmd", sequentialDrawer.Calls);
+    }
+
+    /// <summary>
     ///     Test that the failure of the lowest position is reported, whatever the number of jobs: the second of two failing
     ///     pictures never wins.
     /// </summary>

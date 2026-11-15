@@ -116,9 +116,12 @@ internal sealed partial class DependencyHasher
             CollectRowLinks(spec, links, fields, 0);
         }
 
-        // Every link that names an existing file, sorted (two links may name one file: it is walked once)
-        var pictures = links.Select(link => FilterPaths.LocalImageFile(root, link))
+        // Every link that names an existing file, as written and percent-decoded (the tool's image resolver decodes a
+        // local link before it opens it), sorted and each file once
+        var pictures = links.SelectMany(link => new[] { link, FilterPaths.DecodePercent(link) })
+            .Select(link => FilterPaths.LocalImageFile(root, link))
             .OfType<string>()
+            .Distinct(StringComparer.Ordinal)
             .Where(DependencyExists)
             .ToList();
         FilterPaths.SortBytes(pictures);

@@ -95,6 +95,30 @@ public class DependencyHasherTests
     }
 
     /// <summary>
+    ///     Test that a chart's picture link is also taken percent-decoded, as the tool's image resolver opens it: the file
+    ///     <c>pic name.png</c> of the link <c>pic%20name.png</c> is hashed once, so changing it changes the chart's key.
+    /// </summary>
+    [Fact]
+    public void DependencyHasher_ForPicture_ChartPercentEncodedPicture_ChangesTheKey()
+    {
+        // Arrange: a chart whose image mark names a picture with an encoded space, and the picture under its decoded name
+        using var directory = new TempDirectory();
+        var chart = Write(directory, "a.vl.json", """{"mark":{"type":"image","url":"pic%20name.png"}}""");
+        var picture = Write(directory, "pic name.png", "one");
+        string Key() => PictureCache.ComputeKey("vegalite", "1.0.0\ndefault\n", "file-access\n", [], null, DependencyHasher.ForPicture("vegalite", Collapse(chart), "a.vl.json", null));
+
+        // Act
+        var labels = Labels(DependencyHasher.ForPicture("vegalite", Collapse(chart), "a.vl.json", null));
+        var before = Key();
+        File.WriteAllText(picture, "two");
+        var after = Key();
+
+        // Assert
+        Assert.Equal(["a.vl.json", "pic name.png"], labels);
+        Assert.NotEqual(before, after);
+    }
+
+    /// <summary>
     ///     Test the chart limits: a specification nested more than 64 levels deep, and more than 512 data files.
     /// </summary>
     [Fact]
@@ -299,6 +323,60 @@ public class DependencyHasherTests
         Assert.Equal(["d.svg", "missing alias/inner.mmd", "flow.mmd"], Labels(noLinks));
         Assert.Equal(["d.svg", "missing alias/inner.mmd", "flow.mmd"], Labels(both.Parts));
         Assert.Equal(["d.svg", "alias/inner.mmd", "flow.mmd"], Labels(roots.Parts));
+    }
+
+    /// <summary>
+    ///     Test that a nested drawing the mode denies makes the drawing that links it composite, so the flatten reports the
+    ///     denial, without the nested drawing being read; a missing nested drawing keeps the drawing plain, as before.
+    /// </summary>
+    [Fact]
+    public void DependencyHasher_ForSvg_DeniedNestedDrawing_MakesTheDrawingComposite()
+    {
+        // Arrange: drawings in docs that link a plain drawing outside docs, and a drawing in docs that does not exist
+        using var directory = new TempDirectory();
+        var outer = Write(directory, "docs/outer.svg", "<svg><image href='../outside/inner.svg'/></svg>");
+        var gone = Write(directory, "docs/gone.svg", "<svg><image href='inner.svg'/></svg>");
+        Write(directory, "outside/inner.svg", "<svg><image href='a.png'/></svg>");
+        Write(directory, "outside/a.png", "png");
+        var roots = FileAccessPolicy.UnderRoots(directory.Combine("docs"));
+
+        // Act
+        var denied = DependencyHasher.ForSvg(Collapse(outer), roots);
+        var open = DependencyHasher.ForSvg(Collapse(outer), null);
+        var missing = DependencyHasher.ForSvg(Collapse(gone), roots);
+
+        // Assert: denied, the drawing is composite and the nested drawing is not hashed; by default it is plain
+        Assert.True(denied.Composite);
+        Assert.Equal(["outer.svg"], Labels(denied.Parts));
+        Assert.False(open.Composite);
+        Assert.Equal(["outer.svg", "../outside/inner.svg", "../outside/a.png"], Labels(open.Parts));
+        Assert.False(missing.Composite);
+        Assert.Equal(["gone.svg"], Labels(missing.Parts));
+    }
+
+    /// <summary>
+    ///     Test that under no-symlinks a nested drawing reached through a link makes the drawing that links it composite.
+    /// </summary>
+    [Fact]
+    public void DependencyHasher_ForSvg_NoSymlinksLinkedNestedDrawing_MakesTheDrawingComposite()
+    {
+        // Arrange: a drawing that links a plain drawing through a directory link inside its folder
+        using var directory = new TempDirectory();
+        var outer = Write(directory, "docs/outer.svg", "<svg><image href='alias/inner.svg'/></svg>");
+        Write(directory, "docs/real/inner.svg", "<svg><image href='a.png'/></svg>");
+        Write(directory, "docs/real/a.png", "png");
+        if (!FilterLinkSupport.TryCreateDirectoryLink(directory.Combine("docs", "alias"), directory.Combine("docs", "real"), out var reason))
+        {
+            Assert.Skip("Directory links are not available: " + reason);
+        }
+
+        // Act
+        var (parts, composite) = DependencyHasher.ForSvg(Collapse(outer), FileAccessPolicy.NoSymlinks);
+
+        // Assert
+        Assert.True(composite);
+        Assert.Equal(["outer.svg"], Labels(parts));
+        Assert.False(DependencyHasher.ForSvg(Collapse(outer), null).Composite);
     }
 
     /// <summary>

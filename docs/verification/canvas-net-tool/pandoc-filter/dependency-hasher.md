@@ -20,7 +20,8 @@ N/A - standard test environment. The tests only need a writable temporary direct
 - The parts are labeled from the picture's folder, hold the file's bytes after a line feed, and come in the
   documented order, each file once; a missing linked file is a `missing` part.
 - The model, chart, diagram, and drawing walks find every documented link form and ignore the documented decoys.
-- A drawing is composite only when it links, directly or through a nested drawing, a file only the tool draws.
+- A drawing is composite only when it links, directly or through a nested drawing, a file only the tool draws, or in a
+  restrictive mode a file the mode denies; a chart's picture link is also taken percent-decoded.
 - The 64-level and 512-file limits stop the build with `pandoc-filter-error` and the exact messages of the Lua filter.
 - In a restrictive mode a file outside the folders, a file behind a link that leads outside them, and under
   `no-symlinks` a file reached through any link are not hashed, an allowed file is hashed exactly as in the default
@@ -43,6 +44,10 @@ a backslash (`data\x.csv`), one with a literal `%20`, a remote URL, a `mark` wit
 `url` channel `field` whose inline rows name one picture twice gives `a.vl.json`, `b%20c.csv`, `data/x.csv`,
 `img/q.png`, `b.vl.json`, `d.csv`: the data files sorted, the remote URL skipped, the picture once, and the nested chart
 with its own data file labeled from its own folder while its link back to the outer chart is not hashed again.
+
+**DependencyHasher_ForPicture_ChartPercentEncodedPicture_ChangesTheKey**: a chart whose image mark links
+`pic%20name.png`, with the picture saved as `pic name.png`, gives the labels `a.vl.json`, `pic name.png`, and the key
+computed from its parts changes when the picture's content changes.
 
 **DependencyHasher_ForPicture_ChartLimits_StopTheBuild**: a specification nested 66 arrays deep fails with `the chart
 specification is nested more than 64 levels deep; every data url must be hashed so that a changed data file is drawn
@@ -78,6 +83,15 @@ created.
 `missing alias/inner.mmd`, `flow.mmd` under `no-symlinks` and under `roots,no-symlinks` (the linked diagram is not
 read), and `d.svg`, `alias/inner.mmd`, `flow.mmd` under `roots` alone (the link stays inside the folder). The test is
 skipped when no directory link can be created.
+
+**DependencyHasher_ForSvg_DeniedNestedDrawing_MakesTheDrawingComposite**: a drawing in `docs` that links a plain
+drawing outside `docs` is composite under the policy `roots` of `docs`, with only its own part (the nested drawing is
+not read), and plain without a policy, with the nested drawing and its picture hashed; a drawing in `docs` that links a
+nested drawing that does not exist stays plain under `roots`, as before.
+
+**DependencyHasher_ForSvg_NoSymlinksLinkedNestedDrawing_MakesTheDrawingComposite**: a drawing that links a plain
+drawing through a directory link inside its folder is composite under `no-symlinks`, with only its own part, and plain
+without a policy. The test is skipped when no directory link can be created.
 
 **DependencyHasher_ForPicture_RestrictiveMode_HashesAllowedFilesIdentically**: under `roots,no-symlinks` of `docs`, a
 model with an include and a chart with a data file and a nested diagram with a picture give the same parts, byte for

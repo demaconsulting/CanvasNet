@@ -39,14 +39,16 @@ sections:
         title: >-
           The DependencyHasher unit shall add a Vega-Lite chart (a leading byte order mark ignored), the existing local
           data files its data objects name (sorted, remote URLs skipped), and the existing local pictures its image
-          marks, url channels, and inline rows name (sorted), a nested chart with its own files labeled from its own
-          folder, each file once.
+          marks, url channels, and inline rows name (each link taken as written and percent-decoded, sorted), a nested
+          chart with its own files labeled from its own folder, each file once.
         justification: |
           A chart is drawn from its specification, its data files, and the pictures of its image marks, wherever they
-          are written; sorting keeps the order of a JSON object from changing the picture's name, and taking each file
-          once ends a chart that links back to itself.
+          are written; the tool's image resolver percent-decodes a local picture link before it opens it, so the decoded
+          file must be in the key too; sorting keeps the order of a JSON object from changing the picture's name, and
+          taking each file once ends a chart that links back to itself.
         tests:
           - DependencyHasher_ForPicture_Chart_HashesDataPicturesAndNestedCharts
+          - DependencyHasher_ForPicture_ChartPercentEncodedPicture_ChangesTheKey
 
       - id: CanvasNetTool-PandocFilter-DependencyHasher-DiagramWalk
         title: >-
@@ -75,13 +77,18 @@ sections:
       - id: CanvasNetTool-PandocFilter-DependencyHasher-Composite
         title: >-
           The DependencyHasher unit shall report an SVG drawing as composite when it links, directly or through a nested
-          SVG drawing, a model, chart, diagram, or document page, present or missing, and as plain otherwise.
+          SVG drawing, a model, chart, diagram, or document page, present or missing, or, in a restrictive mode, any
+          file the mode denies (decided without reading it), and as plain otherwise; a missing nested drawing does not
+          make it composite.
         justification: |
           Only a drawing that links a file only the tool draws needs to be flattened; a plain drawing is left to Pandoc
-          so that it stays a vector picture.
+          so that it stays a vector picture. A denied link is reported only by the flatten, which stops a restrictive
+          build, so a drawing with a denied link must not be left to Pandoc.
         tests:
           - DependencyHasher_ForSvg_NestedDrawings_CompositeOnlyThroughADiagram
           - DependencyHasher_ForSvg_Scanner_FindsOnlyRealImageLinks
+          - DependencyHasher_ForSvg_DeniedNestedDrawing_MakesTheDrawingComposite
+          - DependencyHasher_ForSvg_NoSymlinksLinkedNestedDrawing_MakesTheDrawingComposite
 
       - id: CanvasNetTool-PandocFilter-DependencyHasher-Limits
         title: >-

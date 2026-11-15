@@ -70,14 +70,16 @@ source, `FilterSettings` gives the file-access arguments, `DependencyHasher` rea
 and `PictureCache` computes the key and looks the picture or a marker up in the cache folder `generated/canvasnet`
 beside the folder of the shim. A picture that misses becomes a job; a second picture with the same key follows the first
 one's job. **Draw** the jobs, up to the number of jobs at once (`--jobs`, `CANVASNET_JOBS`, or the processors up to 4),
-each into a partial file that is renamed into place. **Apply**, sequentially in document order: `PandocAst` rewrites the
-elements and the warnings go to the metadata.
+each into a partial file; the files are then renamed into place, and the markers written, strictly in document order and
+only below the first failure, and the partial files of later jobs are removed. **Apply**, sequentially in document
+order: `PandocAst` rewrites the elements and the warnings go to the metadata.
 
 Every failure is recorded with the position of its picture. Planning stops at the first one; a job above a known failure
 may be skipped and a job below it always runs, so the reported failure is always the one of the first picture in the
-order of the plan, the one the Lua filter reported, and the document, the warnings, and the cache files are the same
-for one job or many. The cache is content-addressed, so two builds sharing a folder never conflict: a file is written
-under a random partial name and renamed without overwriting, and a lost race keeps the other build's identical copy.
+order of the plan, the one the Lua filter reported, and the document, the warnings, and the cache files are the same for
+one job or many, also after a failure. The cache is content-addressed, so two builds sharing a folder never conflict: a
+file is written under a random partial name and renamed without overwriting, and a lost race keeps the other build's
+identical copy.
 
 The logic is a literal port of the Lua filter. The key composition, the separators, the file names, and the messages are
 unchanged; only the key version (16 to 17) and three details differ: a kept attribute stays in its original order (Lua

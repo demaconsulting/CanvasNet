@@ -84,7 +84,7 @@ internal sealed class ToolPictureDrawer : IPictureDrawer
 internal sealed partial class PandocFilterEngine
 {
     /// <summary>
-    ///     Runs the jobs, in order of position, up to <see cref="_jobs"/> at once.
+    ///     Runs the jobs, in order of position, up to <see cref="_jobs"/> at once, each into its temporary file.
     /// </summary>
     /// <param name="jobs">The jobs, sorted by position.</param>
     /// <param name="limit">The position of a failure already known (a failed plan), or <see cref="int.MaxValue"/>.</param>
@@ -92,6 +92,9 @@ internal sealed partial class PandocFilterEngine
     /// <remarks>
     ///     A job above a known failure is skipped; a job below every known failure always runs. Every exception of a job is
     ///     recorded, a defect too, so the caller reports the one of the lowest position after every worker has finished.
+    ///     A job writes nothing into the cache under its own name: what it leaves (<see cref="DrawJob.Pending"/>) is
+    ///     committed by <see cref="CommitInOrder"/>, so which jobs happened to run before a failure was known cannot
+    ///     change the cache.
     /// </remarks>
     private List<Failure> Draw(List<DrawJob> jobs, int limit)
     {
@@ -106,7 +109,7 @@ internal sealed partial class PandocFilterEngine
 
             try
             {
-                job.Outcome = job.Svg ? Flatten(job) : Render(job);
+                (job.Outcome, job.Pending) = job.Svg ? Flatten(job) : Render(job);
             }
             // Generic catch is justified here: every failure, a defect too, is recorded with its position, and the one of
             // the lowest position is rethrown once every worker has finished
@@ -137,15 +140,67 @@ internal sealed partial class PandocFilterEngine
     }
 
     /// <summary>
-    ///     Renders a picture into the cache (<c>draw</c>, from the render on).
+    ///     Commits what the jobs left, strictly in order of position, up to the first failure: a picture or copy is renamed
+    ///     into the cache and a marker is written; the temporary file of every job at or after the first failure is
+    ///     removed.
+    /// </summary>
+    /// <param name="jobs">The jobs, sorted by position.</param>
+    /// <param name="failures">The failures so far; a commit that fails is added, and ends the commits.</param>
+    /// <remarks>
+    ///     The jobs below the first failure are exactly those a run of one job commits, so the cache files after a failed
+    ///     run are the same for one job or many.
+    /// </remarks>
+    private static void CommitInOrder(List<DrawJob> jobs, List<Failure> failures)
+    {
+        var first = failures.Count > 0 ? failures.Min(f => f.Index) : int.MaxValue;
+        foreach (var job in jobs)
+        {
+            var pending = job.Pending;
+            if (pending == null)
+            {
+                continue;
+            }
+
+            if (job.Index >= first)
+            {
+                if (pending.Partial != null)
+                {
+                    PictureCache.Delete(pending.Partial);
+                }
+
+                continue;
+            }
+
+            try
+            {
+                if (pending.Partial != null)
+                {
+                    PictureCache.Commit(pending.Partial, job.File, pending.CommitFailure!);
+                }
+
+                if (pending.MarkerText != null)
+                {
+                    PictureCache.WriteTextAtomically(job.Marker, pending.MarkerText);
+                }
+            }
+            catch (ToolException ex)
+            {
+                failures.Add(new Failure(job.Index, ExceptionDispatchInfo.Capture(ex)));
+                first = job.Index;
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Renders a picture into its temporary file (<c>draw</c>, from the render on).
     /// </summary>
     /// <param name="job">The job.</param>
-    /// <returns>What the job produced.</returns>
+    /// <returns>What the job produced, and what is left to commit into the cache.</returns>
     /// <exception cref="ToolException">
-    ///     Thrown when the tool fails (<c>drawing '...' failed: ...</c>, with the tool's code), a restrictive mode denied a
-    ///     file, or the picture cannot be written.
+    ///     Thrown when the tool fails (<c>drawing '...' failed: ...</c>, with the tool's code), or a restrictive mode denied
+    ///     a file; the temporary file is then removed.
     /// </exception>
-    private JobOutcome Render(DrawJob job)
+    private (JobOutcome Outcome, PendingWrite Pending) Render(DrawJob job)
     {
         var partial = PictureCache.PartialFile(job.Cache, job.Key, "png");
         PictureDrawing drawing;
@@ -167,25 +222,25 @@ internal sealed partial class PandocFilterEngine
             && drawing.Diagnostics.FirstOrDefault(d => d.Code == MermaidDiagnosticCodes.DiagramUnsupported && !d.Embedded) is { } unsupported)
         {
             PictureCache.Delete(partial);
-            PictureCache.WriteTextAtomically(job.Marker, unsupported.Message);
-            return new JobOutcome(false, [$"{job.Name}: {unsupported.Message}{LeftAlone}"], unsupported.Message, null);
+            return (new JobOutcome(false, [$"{job.Name}: {unsupported.Message}{LeftAlone}"], unsupported.Message, null),
+                new PendingWrite(null, null, unsupported.Message));
         }
 
         var warnings = drawing.Diagnostics.Select(d => $"{job.Name}: {d.Message}").Concat(drawing.Echo.Select(line => $"{job.Name}: {line}")).ToList();
-        PictureCache.Commit(partial, job.File, $"could not write the picture of '{job.Name}' to {job.File}");
-        return new JobOutcome(true, warnings, null, null);
+        return (new JobOutcome(true, warnings, null, null),
+            new PendingWrite(partial, $"could not write the picture of '{job.Name}' to {job.File}", null));
     }
 
     /// <summary>
-    ///     Flattens a drawing into the cache (<c>flatten_svg</c>, from the flatten on).
+    ///     Flattens a drawing into its temporary file (<c>flatten_svg</c>, from the flatten on).
     /// </summary>
     /// <param name="job">The job.</param>
-    /// <returns>What the job produced.</returns>
+    /// <returns>What the job produced, and what is left to commit into the cache.</returns>
     /// <exception cref="ToolException">
-    ///     Thrown when the tool fails (<c>flattening '...' failed: ...</c>, with the tool's code), a restrictive mode denied
-    ///     a file, or the copy cannot be written.
+    ///     Thrown when the tool fails (<c>flattening '...' failed: ...</c>, with the tool's code), or a restrictive mode
+    ///     denied a file; the temporary file is then removed.
     /// </exception>
-    private JobOutcome Flatten(DrawJob job)
+    private (JobOutcome Outcome, PendingWrite Pending) Flatten(DrawJob job)
     {
         var partial = PictureCache.PartialFile(job.Cache, job.Key, "svg");
         PictureDrawing drawing;
@@ -207,12 +262,12 @@ internal sealed partial class PandocFilterEngine
         {
             // The marker keeps the warnings, so a later build reports them again without starting the tool
             PictureCache.Delete(partial);
-            PictureCache.WriteTextAtomically(job.Marker, string.Join('\n', messages) + "\n");
-            return new JobOutcome(false, warnings, null, [.. messages.Where(m => m.Length > 0)]);
+            return (new JobOutcome(false, warnings, null, [.. messages.Where(m => m.Length > 0)]),
+                new PendingWrite(null, null, string.Join('\n', messages) + "\n"));
         }
 
-        PictureCache.Commit(partial, job.File, $"could not write the flattened copy of '{job.Name}' to {job.File}");
-        return new JobOutcome(true, warnings, null, null);
+        return (new JobOutcome(true, warnings, null, null),
+            new PendingWrite(partial, $"could not write the flattened copy of '{job.Name}' to {job.File}", null));
     }
 
     /// <summary>
@@ -317,7 +372,20 @@ internal sealed partial class PandocFilterEngine
         ///     Gets or sets what the job produced, once it ran.
         /// </summary>
         public JobOutcome? Outcome { get; set; }
+
+        /// <summary>
+        ///     Gets or sets what the job left to commit into the cache, once it ran without failing.
+        /// </summary>
+        public PendingWrite? Pending { get; set; }
     }
+
+    /// <summary>
+    ///     What a job that ran without failing leaves to commit into the cache, in order of position.
+    /// </summary>
+    /// <param name="Partial">The temporary file to rename to the job's picture or copy, or <see langword="null"/>.</param>
+    /// <param name="CommitFailure">The message when the rename fails and no file is there, with <paramref name="Partial"/>.</param>
+    /// <param name="MarkerText">The text of the job's marker to write, or <see langword="null"/>.</param>
+    private sealed record PendingWrite(string? Partial, string? CommitFailure, string? MarkerText);
 
     /// <summary>
     ///     What a job produced.

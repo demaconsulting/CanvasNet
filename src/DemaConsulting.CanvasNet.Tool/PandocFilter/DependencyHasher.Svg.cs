@@ -31,7 +31,9 @@ internal sealed partial class DependencyHasher
     ///     A link is read as the tool's resolver reads it: the query and fragment are cut off, then the rest is
     ///     percent-decoded (a <c>file:</c> URI is decoded as it is read); a remote or <c>data:</c> link is skipped. A
     ///     missing model, chart, diagram, or document it links adds a <c>missing</c> part and makes the drawing composite
-    ///     (the tool reports the link). While a drawing is walked it is <see cref="Seen.Taken"/>, afterwards
+    ///     (the tool reports the link). In a restrictive mode any link the mode denies (found without reading the file)
+    ///     makes the drawing composite too, so the flatten reports the denial and the build stops; a denied model, chart,
+    ///     diagram, or document is a <c>missing</c> part. While a drawing is walked it is <see cref="Seen.Taken"/>, afterwards
     ///     <see cref="Seen.Composite"/> or <see cref="Seen.Plain"/>, so a drawing linked twice is read once and a cycle
     ///     ends.
     /// </remarks>
@@ -61,6 +63,7 @@ internal sealed partial class DependencyHasher
         var folder = FilterPaths.Directory(path);
         var files = new List<string>();
         var missing = new List<string>();
+        var denied = false;
         var unique = new HashSet<string>(StringComparer.Ordinal);
         foreach (var link in CollectSvgLinks(AsBytes(content)).Select(FromBytes))
         {
@@ -81,7 +84,8 @@ internal sealed partial class DependencyHasher
                 continue;
             }
 
-            if (DependencyExists(resolved))
+            var availability = Probe(resolved);
+            if (availability == Availability.Taken)
             {
                 unique.Add(resolved);
                 files.Add(resolved);
@@ -91,6 +95,10 @@ internal sealed partial class DependencyHasher
                 unique.Add(resolved);
                 missing.Add(resolved);
             }
+
+            // Any other file the mode refuses (a nested drawing, a raster) is left to the tool too: only a flatten reports
+            // the denial, which stops a restrictive build, so the drawing must not be left to Pandoc
+            denied = denied || availability == Availability.Denied;
         }
 
         // Sorted, so the order the links are met in cannot change the picture's name
@@ -107,7 +115,7 @@ internal sealed partial class DependencyHasher
             _parts.Add(Encoding.UTF8.GetBytes("missing " + FilterPaths.Label(root, file)));
         }
 
-        var composite = missing.Count > 0;
+        var composite = missing.Count > 0 || denied;
         foreach (var file in files)
         {
             if (FilterPaths.AsciiLower(file).EndsWith(".svg", StringComparison.Ordinal))

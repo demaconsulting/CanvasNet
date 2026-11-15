@@ -54,7 +54,8 @@ Private nested types:
    first, then those in the blocks), then every `CodeBlock`, as `PandocAst.FindAll` returns them. Planning stops at the
    first failure (an `ArgumentException` or `InvalidOperationException`, which includes `ToolException`), recorded with
    its position.
-2. **Draw** the jobs sorted by position with `Draw`, passing the position of a planning failure as the limit.
+2. **Draw** the jobs sorted by position with `Draw`, passing the position of a planning failure as the limit, then
+   **commit** what they left with `CommitInOrder`.
 3. If there is any failure, the one of the lowest position is rethrown with its stack trace, after
    `WarningsBeforeFailure` is set to the warnings of the planned pictures before it. Otherwise **Apply** every planned
    picture in planning order and return the warnings.
@@ -88,18 +89,26 @@ leads a new job.
 than two jobs, else with `Parallel.ForEach` over a non-buffering partitioner with `MaxDegreeOfParallelism = _jobs`, so
 the jobs start in order of position. A job whose position is above the lowest failure known so far is skipped; a job
 below it always runs. Every exception of a job, a defect too, is recorded with its position, and the lowest known
-position is lowered with a compare-and-exchange loop.
+position is lowered with a compare-and-exchange loop. A job writes nothing into the cache under its own name: it sets
+`Outcome` and `Pending` (a `PendingWrite`: the partial file to rename with the message of a failed rename, or the text
+of a marker), so which jobs happened to run before a failure was known cannot change the cache.
+
+**CommitInOrder(jobs, failures)**: in order of position, every job below the first failure renames its partial file
+into the cache (`PictureCache.Commit`) or writes its marker (`PictureCache.WriteTextAtomically`); a commit that fails
+is added to the failures and becomes the first. The partial file of every job at or after the first failure is
+deleted. The jobs committed are exactly those a run of one job commits, so the cache files after a failed run are the
+same for one job or many.
 
 **Render(job)**: calls `IPictureDrawer.Render` with the source, the options, the file-access arguments, and
 `--output` set to a partial file (`<key>.<9 digits>.partial.png`). After the denial check, a Mermaid picture whose
-diagnostics hold `mermaid-diagram-unsupported` not `Embedded` deletes the partial file, writes the message to the
-`.unsupported` marker, and is not drawn, with the warning ending in `LeftAlone`. Otherwise every diagnostic and echo
-line becomes the warning `<name>: <text>` and the partial file is committed to the picture file.
+diagnostics hold `mermaid-diagram-unsupported` not `Embedded` deletes the partial file, leaves the message to write to
+the `.unsupported` marker, and is not drawn, with the warning ending in `LeftAlone`. Otherwise every diagnostic and echo
+line becomes the warning `<name>: <text>`, and the partial file is left to commit to the picture file.
 
 **Flatten(job)**: calls `IPictureDrawer.Flatten` likewise (partial `.svg`). After the denial check, each diagnostic
 message is made one line (`OneLine`: every run of carriage returns and line feeds becomes one space). When the tool did
-not flatten, the partial file is deleted, the messages are written to the `.plain` marker, one per line, and the
-drawing is left as written; otherwise the partial file is committed to the copy.
+not flatten, the partial file is deleted, the messages are left to write to the `.plain` marker, one per line, and
+the drawing is left as written; otherwise the partial file is left to commit to the copy.
 
 **Apply(item, warnings)**: adds the picture's warnings (`CollectWarnings`: the planning warnings, then the job's
 warnings for the leader or `FollowerWarnings` for a follower). When a file was found or drawn, an image gets its `src`
@@ -126,8 +135,9 @@ All errors are `ToolException` (a `ViewerException`), with the Lua filter's mess
 - `could not write the picture of '<name>' to <file>` and `could not write the flattened copy of '<name>' to <file>`
   from `PictureCache.Commit`, and the errors of the units it calls (attributes, paths, environment, cache).
 
-Planning stops at its first failure; the jobs below it still run; the failure of the lowest position is rethrown
-(planning or drawing alike), so the result is the one the Lua filter reported whatever the number of jobs. An
+Planning stops at its first failure; the jobs below it still run; only the jobs below the first failure are committed
+into the cache; the failure of the lowest position is rethrown (planning, drawing, or commit alike), so the result and
+the cache files are the ones the Lua filter left whatever the number of jobs. An
 unexpected exception of a job is also recorded and rethrown by position. After a failure the document is left partly
 unchanged and nothing is returned.
 

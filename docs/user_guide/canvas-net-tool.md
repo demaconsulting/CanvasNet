@@ -2278,9 +2278,10 @@ restrictive mode a picture the mode denies stops the build too (it is a warning 
 be published with a picture silently missing), and so does a denied include or data file. The filter reads the files a
 picture references to name it in the cache, and in a restrictive mode it reads them under the same policy as the tool,
 judged by the real path of the opened file: a file outside the folders, a link inside them that leads outside, and
-under `no-symlinks` any link are never read, not even to be hashed. The file-access arguments
-are part of the hash of every picture, so a picture drawn without them, or from another working directory, is not
-reused with them. A CI build can confine every picture to the documentation folders:
+under `no-symlinks` any link are never read, not even to be hashed. An SVG drawing that links such a file (a nested
+drawing, say) is sent through `flatten` rather than left to Pandoc, so the denial stops the build. The file-access
+arguments are part of the hash of every picture, so a picture drawn without them, or from another working directory, is
+not reused with them. A CI build can confine every picture to the documentation folders:
 
 ```bash
 CANVASNET_FILE_ACCESS=roots CANVASNET_ROOTS="$PWD/docs:$PWD/assets" \

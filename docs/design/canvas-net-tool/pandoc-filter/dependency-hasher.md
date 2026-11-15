@@ -64,7 +64,8 @@ only itself). `AddChartData` collects the string `url` of every `data` object, r
 existing ones, sorts them by UTF-8 bytes, and adds each. `AddChartPictures` collects the `url` of a `mark` object, the
 string `value` or `datum` and the `field` names anywhere under a `url` channel, and, when there are field names, the
 values of those fields in the inline rows (`values` of a data object and the arrays of `datasets`); each link is
-resolved with `FilterPaths.LocalImageFile`, kept when it exists, sorted, and walked with `AddImageFiles`. Object members
+taken as written and percent-decoded (the tool's image resolver decodes a local link before it opens it), resolved with
+`FilterPaths.LocalImageFile`, deduplicated, kept when it exists, sorted, and walked with `AddImageFiles`. Object members
 are read as the Lua JSON decoder made them (a repeated name once, with its last value). Labels of a chart's files are
 relative to the chart's own folder.
 
@@ -82,10 +83,12 @@ case: `.scad` adds a model (`AddScad`, depth 0), `.vl.json` or `.vl` a nested ch
 **AddSvg(path, root, depth)** (`add_svg_sources`): marks the drawing `Taken`, adds it (an unreadable drawing is
 `Plain`), and resolves each link `CollectSvgLinks` finds: the fragment and query are cut; a `file:` URI is decoded as it
 is read, any other link must be local both as written and percent-decoded (a remote or `data:` link is skipped). An
-existing file is walked; a missing file of a kind the tool draws (`PictureAttributes.KindOf`) is a `missing` part. Both
-lists are deduplicated and sorted; the missing parts come first. The drawing is composite when it has a missing part,
-links a file of a kind the tool draws, or links a nested drawing that is composite (a nested drawing is walked once; one
-still being walked, as in a cycle, counts as not composite). It ends as `Composite` or `Plain`.
+existing file is walked; a missing file of a kind the tool draws (`PictureAttributes.KindOf`) is a `missing` part. In a
+restrictive mode a file the policy denies (`Probe`) is treated the same way, and any denied file makes the drawing
+composite, so the flatten reports the denial and the build stops; a missing nested drawing does not. Both lists are
+deduplicated and sorted; the missing parts come first. The drawing is composite when it has a missing part, links a
+denied file, links a file of a kind the tool draws, or links a nested drawing that is composite (a nested drawing is
+walked once; one still being walked, as in a cycle, counts as not composite). It ends as `Composite` or `Plain`.
 
 **CollectSvgLinks(content)** (`collect_svg_links`): a scanner over the text of bytes. Comments, CDATA sections, and
 processing instructions are skipped whole; a DOCTYPE or other declaration up to its `>` outside quotes and its internal
@@ -96,19 +99,23 @@ link is the unprefixed `href`, else the first `P:href` whose prefix is bound to 
 element or an ancestor; the five predefined entities and character references below 0x110000 are decoded and Lua white
 space is trimmed.
 
-**DependencyExists(path)** (`dependency_exists`): in the default mode, and for the source itself, a file is taken
-when it opens (`FilterPaths.FileExists`); in a restrictive mode when `Resolve` gives it.
+**DependencyExists(path)** (`dependency_exists`): `Probe(path)` is `Taken`.
+
+**Probe(path)**: `Taken`, `Missing`, or `Denied` (`Availability`). In the default mode, and for the source itself, a
+file is `Taken` when it opens (`FilterPaths.FileExists`), else `Missing`; in a restrictive mode it is `Taken` when
+`Resolve` gives it, `Denied` when the resolver refuses it with `AccessDenied` or `RealPathUnavailable` (or the policy
+is `DenyAll`), decided before any byte of it is read, and `Missing` otherwise.
 
 **ReadFile(path)**: every read of the walks. In the default mode, and for the source itself, the bytes as they are
 (`FilterPaths.ReadFile`), exactly as before; in a restrictive mode the content `Resolve` gives, or `null`.
 
-**Resolve(path)**: reads a referenced file as the tool reads it, through `_resolver`: a path as written outside the
-roots is refused before anything is opened, and the policy is asked about the real path of the open handle before any
-byte is read, so a link inside the roots that leads outside them, or (under `no-symlinks`) any link, is never read; a
-policy that cannot be applied refuses (fail closed). A refusal (`FileReferenceException`) or a missing file is `null`,
-which the walk treats as a file that is not there (an SVG drawing notes a denied model, chart, diagram, or document as
-`missing`), and the tool denies the file when it draws, which stops a restrictive build. `DenyAll` gives `null` without
-opening anything. An allowed file has the same bytes, so the parts of the key do not change.
+**Resolve(path, out denied)**: reads a referenced file as the tool reads it, through `_resolver`: a path as written
+outside the roots is refused before anything is opened, and the policy is asked about the real path of the open handle
+before any byte is read, so a link inside the roots that leads outside them, or (under `no-symlinks`) any link, is never
+read; a policy that cannot be applied refuses (fail closed). A refusal (`FileReferenceException`) or a missing file is
+`null`, which the walk treats as a file that is not there (an SVG drawing notes a denied model, chart, diagram, or
+document as `missing`), and the tool denies the file when it draws, which stops a restrictive build. `DenyAll` gives
+`null` without opening anything. An allowed file has the same bytes, so the parts of the key do not change.
 
 #### Error Handling
 

@@ -117,11 +117,14 @@ sections:
       - id: CanvasNetTool-PandocFilter-PandocFilterEngine-Determinism
         title: >-
           The PandocFilterEngine unit shall produce the same document, warnings, cache files, and reported failure for
-          one job as for several jobs.
+          one job as for several jobs, committing pictures and markers into the cache strictly in document order and
+          only below the first failure, and removing the temporary files of the jobs after it.
         justification: |
-          Drawing in parallel is an optimization; a build must not depend on the number of processors.
+          Drawing in parallel is an optimization; a build must not depend on the number of processors, and a failed
+          build must not leave pictures in the cache that a build with one job would not have drawn.
         tests:
           - PandocFilterEngine_Run_OneAndFourJobs_AreIdentical
+          - PandocFilterEngine_Run_FailureWithOneAndFourJobs_LeavesTheSameCache
           - PandocFilterEngine_Run_TwoFailures_ReportsTheLowestPosition
           - PandocFilterEngine_Run_FailureAfterWarnings_KeepsTheEarlierWarnings
 

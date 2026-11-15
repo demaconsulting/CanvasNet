@@ -22,7 +22,8 @@ N/A - standard test environment. The tests use a temporary folder each and do no
 - A picture is drawn once per key and found in the cache on the next run; the elements point at the cached files.
 - Diagrams left as written and drawings with nothing to flatten are recorded in markers and warned about on every run.
 - Mermaid code blocks become a figure or a paragraph of the documented shape.
-- One job and four jobs give the same output, warnings, cache files, and reported failure.
+- One job and four jobs give the same output, warnings, cache files, and reported failure, also after a failure that
+  later jobs ran past.
 - Every failure has the documented message and code, and the one of the lowest position is reported.
 
 #### Test Scenarios
@@ -59,6 +60,11 @@ written to the cache and two pictures are drawn.
 **PandocFilterEngine_Run_OneAndFourJobs_AreIdentical**: eight diagram images and one code block, each with a note,
 give the same document and the same cache files with one job and with four jobs over an empty cache, with nine
 warnings.
+
+**PandocFilterEngine_Run_FailureWithOneAndFourJobs_LeavesTheSameCache**: of six diagrams the second fails. With four
+jobs its failure is held until the fourth has been drawn (signaled from the drawer, no timing), so later jobs ran
+before the failure was known; both runs fail with the same code and message and leave the same cache files, the
+picture of the first diagram only, with no temporary file, while only the four-job run drew the fourth diagram.
 
 **PandocFilterEngine_Run_TwoFailures_ReportsTheLowestPosition** (one and four jobs): of seven diagrams, the third and the
 sixth fail; the error has the tool's code `mermaid-error` and the message `drawing 'd2.mmd' failed: d2.mmd is broken

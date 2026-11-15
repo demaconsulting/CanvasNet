@@ -85,6 +85,21 @@ internal sealed partial class DependencyHasher
         FileAccessPolicy.FromDelegate("deny-all", _ => FileAccessDecision.Deny("the file-access arguments are not valid"));
 
     /// <summary>
+    ///     Whether a referenced file is taken by the walk, missing, or denied by the policy.
+    /// </summary>
+    private enum Availability
+    {
+        /// <summary>The file opens and the policy allows it.</summary>
+        Taken,
+
+        /// <summary>The file does not exist or cannot be read (the tool reports it).</summary>
+        Missing,
+
+        /// <summary>A restrictive mode refuses the file; it is never read.</summary>
+        Denied
+    }
+
+    /// <summary>
     ///     What the walk knows about a path it has taken.
     /// </summary>
     private enum Seen
@@ -291,7 +306,32 @@ internal sealed partial class DependencyHasher
     /// <returns><see langword="true"/> when the file is taken.</returns>
     private bool DependencyExists(string path)
     {
-        return ReadsAsIs(path) ? FilterPaths.FileExists(path) : Resolve(path) != null;
+        return Probe(path) == Availability.Taken;
+    }
+
+    /// <summary>
+    ///     Tells whether the walk takes a file a picture references, and, when it does not, whether the file is missing or
+    ///     the policy denies it.
+    /// </summary>
+    /// <param name="path">The file (absolute and collapsed).</param>
+    /// <returns>
+    ///     <see cref="Availability.Taken"/> when the file opens and the policy allows it; <see cref="Availability.Denied"/>
+    ///     when a restrictive mode refuses it (its path is outside the roots, the real path of the opened file is denied, or
+    ///     cannot be judged), decided without reading a byte of it; otherwise <see cref="Availability.Missing"/>.
+    /// </returns>
+    private Availability Probe(string path)
+    {
+        if (ReadsAsIs(path))
+        {
+            return FilterPaths.FileExists(path) ? Availability.Taken : Availability.Missing;
+        }
+
+        if (Resolve(path, out var denied) != null)
+        {
+            return Availability.Taken;
+        }
+
+        return denied ? Availability.Denied : Availability.Missing;
     }
 
     /// <summary>
@@ -309,7 +349,7 @@ internal sealed partial class DependencyHasher
     /// </remarks>
     private byte[]? ReadFile(string path)
     {
-        return ReadsAsIs(path) ? FilterPaths.ReadFile(path) : Resolve(path)?.Content.ToArray();
+        return ReadsAsIs(path) ? FilterPaths.ReadFile(path) : Resolve(path, out _)?.Content.ToArray();
     }
 
     /// <summary>
@@ -326,11 +366,17 @@ internal sealed partial class DependencyHasher
     ///     Opens and reads a referenced file through the policy; each file is opened at most once per picture.
     /// </summary>
     /// <param name="path">The file (absolute and collapsed).</param>
+    /// <param name="denied">
+    ///     Set to <see langword="true"/> when the policy refused the file (or cannot judge it, or the arguments are refused):
+    ///     the resolver decides that before any byte is read.
+    /// </param>
     /// <returns>The file, or <see langword="null"/> when it does not exist, cannot be read, or is denied.</returns>
-    private FileReference? Resolve(string path)
+    private FileReference? Resolve(string path, out bool denied)
     {
+        denied = false;
         if (ReferenceEquals(_policy, DenyAll))
         {
+            denied = true;
             return null;
         }
 
@@ -347,8 +393,9 @@ internal sealed partial class DependencyHasher
         {
             return _resolver.Resolve(path);
         }
-        catch (FileReferenceException)
+        catch (FileReferenceException ex)
         {
+            denied = ex.Kind is FileReferenceFailureKind.AccessDenied or FileReferenceFailureKind.RealPathUnavailable;
             return null;
         }
     }
