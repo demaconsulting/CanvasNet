@@ -1,4 +1,3 @@
-// cspell:ignore deskew
 using DemaConsulting.CanvasNet.Positions;
 using DemaConsulting.CanvasNet.Viewer.Imaging;
 
