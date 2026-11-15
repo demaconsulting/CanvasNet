@@ -160,8 +160,9 @@ of an unknown theme; and the propagation of a syntax error and of a null request
 `MermaidDocumentPositionTests.MermaidDocument_Render_GanttPositions_TasksMilestonesSections`,
 `MermaidDocumentPositionTests.MermaidDocument_Render_PiePositions_SlicesWithValuesAimInside`,
 `MermaidDocumentPositionTests.MermaidDocument_Render_GitGraphPositions_CommitsAtBullets`,
-`MermaidDocumentPositionTests.MermaidDocument_Render_OtherTypes_ReportSourceIds`
-
+`MermaidDocumentPositionTests.MermaidDocument_Render_OtherTypes_ReportSourceIds`,
+`MermaidDocumentPositionTests.MermaidDocument_Render_StatePositions_FirstMentionLinesInSourceOrder`,
+`MermaidDocumentPositionTests.MermaidDocument_Render_TitleStatements_ReportTheirLine`
 Renders a titled flowchart with a subgraph, two parallel edges, a self-loop, and a filled node, and asserts the kinds
 in report order (the title, the group, four nodes, then five edges), the source ids `start`, `stock`, `pack`, and
 `send` and the group `ship`, the title text, the parallel edges from `stock` to `pack` numbered 0 and 1 (the first
@@ -174,7 +175,12 @@ that throws propagates its exception after the one warning and the one unsupport
 Asserts the participants `A` (text `Alice`) and `B`, the messages `1`, `2`, and `3` with the indexes 0, 0, and 1 and
 the first from `A` to `B` with the text `Hi`, the note `note1`, and a message's pixel on its line of zero height; the
 gantt tasks `des`, `task1` (synthetic), and `tst`, the milestone `frz`, and the sections `Build` and `Test` merged over
-their rows; the pie slices `Dogs` (value 386) and `Cats`, the title `Pets`, and each slice's pixel painted in its own
+their rows at their `section` lines 3 and 7; the pie slices `Dogs` (value 386) and `Cats`, the title `Pets`, and each
+slice's pixel painted in its own
 color; the git graph commits `init` and `fix-1` aimed at the centers of their 20 pixel bullets, the branches `main`
 and `dev`, and the tag `v1`; and the class nodes and note, the state node and edge, the ER entities `MEMBER` and
 `LOAN` with their edge, the mindmap nodes `root` and `a`, and the packet blocks `0-7` and `8-15` (text `Data`).
+Renders the `mermaid-state` help example and asserts each named state at the line of its first mention, in source
+order (`Placed` 5, `Paid` 6, `Cancelled` 7, `Packed` 9, `Sent` 10, `Delivered` 14), the group `Shipping` at line 8,
+the note at line 17, and the end state `root_end` at line 15 and after `Paid`. Asserts that the pie, packet, and git
+graph titles set by a `title` statement report its line 2.

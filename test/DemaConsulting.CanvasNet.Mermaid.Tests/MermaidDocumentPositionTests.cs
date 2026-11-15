@@ -228,6 +228,7 @@ public class MermaidDocumentPositionTests
         Assert.Equal("frz", Assert.Single(positions, p => p.Kind == "milestone").Id);
         var sections = positions.Where(p => p.Kind == "section").ToList();
         Assert.Equal(["Build", "Test"], sections.Select(p => p.Id));
+        Assert.Equal([3, 7], sections.Select(p => p.Line));
         Assert.True(sections[0].Box!.Value.Height > sections[1].Box!.Value.Height);
         Assert.Equal("Design", positions.Single(p => p.Id == "des").Text);
     }
@@ -315,5 +316,59 @@ public class MermaidDocumentPositionTests
         Assert.Equal(["root", "a"], mindmap.Where(p => p.Kind == "node").Select(p => p.Id));
         Assert.Equal(["0-7", "8-15"], packet.Where(p => p.Kind == "block").Select(p => p.Id));
         Assert.Equal("Data", packet.Single(p => p.Id == "8-15").Text);
+    }
+
+    /// <summary>
+    ///     Validates the state lines: each state at its first mention, the composite at its <c>state</c> statement, the
+    ///     note at its line, and the states in source order.
+    /// </summary>
+    [Fact]
+    public void MermaidDocument_Render_StatePositions_FirstMentionLinesInSourceOrder()
+    {
+        // Arrange: the mermaid-state help example
+        const string Text =
+            "---\ntitle: Order\n---\nstateDiagram-v2\n    [*] --> Placed\n    Placed --> Paid : pay\n" +
+            "    Placed --> Cancelled : cancel\n    state Shipping {\n        [*] --> Packed\n        Packed --> Sent\n" +
+            "        Sent --> [*]\n    }\n    Paid --> Shipping : ship\n    Shipping --> Delivered\n    Delivered --> [*]\n" +
+            "    Cancelled --> [*]\n    note right of Paid : confirmed by the bank\n";
+        string[] named = ["Placed", "Paid", "Cancelled", "Packed", "Sent", "Delivered"];
+
+        // Act
+        var (surface, positions) = Render(Text);
+        using var _ = surface;
+
+        // Assert: the named states at their first mention, in source order
+        var nodes = positions.Where(p => p.Kind == "node").ToList();
+        Assert.Equal(
+            [("Placed", 5), ("Paid", 6), ("Cancelled", 7), ("Packed", 9), ("Sent", 10), ("Delivered", 14)],
+            nodes.Where(p => named.Contains(p.Id)).Select(p => (p.Id, p.Line ?? 0)));
+        Assert.Equal(8, positions.Single(p => p is { Kind: "group", Id: "Shipping" }).Line);
+        Assert.Equal(17, positions.Single(p => p.Kind == "note").Line);
+        var end = nodes.Single(p => p.Id == "root_end");
+        Assert.Equal(15, end.Line);
+        Assert.True(nodes.FindIndex(p => p.Id == "Paid") < nodes.IndexOf(end));
+    }
+
+    /// <summary>
+    ///     Validates that the pie, packet and git graph titles report the line of their <c>title</c> statement.
+    /// </summary>
+    [Fact]
+    public void MermaidDocument_Render_TitleStatements_ReportTheirLine()
+    {
+        // Act
+        var (pieSurface, pie) = Render("pie\n    title Pets\n    \"Dogs\" : 386\n");
+        var (packetSurface, packet) = Render("packet-beta\n    title Header\n    0-7: \"Start\"\n");
+        var (gitSurface, git) = Render("gitGraph\n    title History\n    commit\n");
+        using var _ = pieSurface;
+        using var __ = packetSurface;
+        using var ___ = gitSurface;
+
+        // Assert
+        foreach (var (positions, text) in new[] { (pie, "Pets"), (packet, "Header"), (git, "History") })
+        {
+            var title = Assert.Single(positions, p => p.Kind == "title");
+            Assert.Equal(text, title.Text);
+            Assert.Equal(2, title.Line);
+        }
     }
 }

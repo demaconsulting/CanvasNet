@@ -88,7 +88,8 @@ statements again.
 
 **`GitGraphDiagram`** is immutable and safe for concurrent renders. It holds the location of the diagram keyword
 (`KeywordLocation`), the direction (`LR` when the header gives none), the sanitized title of the `title` statement
-(`DiagramTitle`), whether a `title` statement with a value set it (`IsTitleSet`), the sanitized accessible title
+(`DiagramTitle`), whether a `title` statement with a value set it (`IsTitleSet`), the location of the `title`
+statement that set it, else the keyword (`TitleLocation`), the sanitized accessible title
 (`AccessibleTitle`) and description (`AccessibleDescription`), the sanitized frontmatter title (`FrontmatterTitle`),
 each empty when not set, the statements in order (`Statements`), the limits of the open call, and the database of the
 text's own main branch (`OpenDatabase`). `DrawnTitle` is the title Mermaid draws: the diagram's title when

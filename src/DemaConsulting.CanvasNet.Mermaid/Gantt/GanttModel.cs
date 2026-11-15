@@ -30,6 +30,9 @@ internal sealed class GanttRawTask
     /// <summary>Gets or sets the section (Mermaid's <c>section</c> and <c>type</c>; empty before the first section).</summary>
     public required string Section { get; init; }
 
+    /// <summary>Gets or sets the location of the <c>section</c> statement of the task, or null before the first section.</summary>
+    public MermaidLocation? SectionLocation { get; init; }
+
     /// <summary>Gets or sets the name as written (the <c>taskTxt</c> token, trailing white space included).</summary>
     public required string Task { get; init; }
 
@@ -135,6 +138,9 @@ internal sealed partial class GanttModel : IMermaidDiagram
 
     /// <summary>The current section (Mermaid's <c>currentSection</c>).</summary>
     private string _currentSection = string.Empty;
+
+    /// <summary>The location of the current section's statement, or null before the first section.</summary>
+    private MermaidLocation? _currentSectionLocation;
 
     /// <summary>
     ///     Initializes an empty model.
@@ -378,9 +384,11 @@ internal sealed partial class GanttModel : IMermaidDiagram
     ///     Starts a section (<c>addSection</c>).
     /// </summary>
     /// <param name="text">The section name as written.</param>
-    public void AddSection(string text)
+    /// <param name="location">The location of the <c>section</c> statement.</param>
+    public void AddSection(string text, MermaidLocation location)
     {
         _currentSection = text;
+        _currentSectionLocation = location;
         _sections.Add(text);
     }
 
@@ -455,6 +463,7 @@ internal sealed partial class GanttModel : IMermaidDiagram
         var task = new GanttRawTask
         {
             Section = _currentSection,
+            SectionLocation = _currentSectionLocation,
             Task = name,
             Id = id,
             PreviousTaskId = _lastTaskId,

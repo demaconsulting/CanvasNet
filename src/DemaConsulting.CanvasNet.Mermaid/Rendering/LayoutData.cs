@@ -229,6 +229,13 @@ internal sealed record LayoutNode
     /// </summary>
     public string? SourceId { get; init; }
 
+    /// <summary>
+    ///     Gets the location the node's position reports when it differs from <see cref="Location"/> (a state's first
+    ///     mention, where <see cref="Location"/> is the statement that last set it), or null to report
+    ///     <see cref="Location"/>.
+    /// </summary>
+    public MermaidLocation? SourceLocation { get; init; }
+
     /// <summary>Gets the look (<c>classic</c>, or a look drawn classic).</summary>
     public string? Look { get; init; }
 

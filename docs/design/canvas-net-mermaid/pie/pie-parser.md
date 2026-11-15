@@ -59,7 +59,8 @@ gives the text of its legend entry: the label, followed with `showData` by the v
 
 **`PieDiagram`** is immutable and safe for concurrent renders. It holds the location of the `pie` keyword
 (`KeywordLocation`), `ShowData`, the sanitized title of the `title` statement (`DiagramTitle`), whether a `title`
-statement with a value set it (`IsTitleSet`), the sanitized accessible title (`AccessibleTitle`) and description
+statement with a value set it (`IsTitleSet`), the location of the `title` statement that set it, else the keyword
+(`TitleLocation`), the sanitized accessible title (`AccessibleTitle`) and description
 (`AccessibleDescription`), each empty when not set, and the sections in the order they were added, each label once
 (`Sections`, Mermaid's `getSections`).
 

@@ -328,6 +328,7 @@ internal sealed partial class GitGraphParser
 
         // (NEWLINE | TitleAndAccessibilities | Statement)*, the AST fields keeping the last value
         string? title = null;
+        MermaidLocation titleLocation = default;
         string? accTitle = null;
         string? accDescr = null;
         var statements = new List<GitStatement>();
@@ -359,6 +360,7 @@ internal sealed partial class GitGraphParser
                                     break;
                                 default:
                                     title = Checked(ConvertSingleLine(raw[(raw.IndexOf("title", StringComparison.Ordinal) + "title".Length)..]), statement);
+                                    titleLocation = Locate(statement);
                                     break;
                             }
 
@@ -395,6 +397,7 @@ internal sealed partial class GitGraphParser
             direction ?? LeftToRight,
             diagramTitle,
             !string.IsNullOrEmpty(title),
+            string.IsNullOrEmpty(title) ? keyword : titleLocation,
             accessibleTitle,
             description,
             frontmatterTitle,
@@ -792,6 +795,10 @@ internal sealed class GitGraphDiagram : IMermaidDiagram
     /// <param name="direction">The direction (<c>LR</c>, <c>TB</c> or <c>BT</c>).</param>
     /// <param name="diagramTitle">The sanitized title, or empty.</param>
     /// <param name="isTitleSet">Whether a <c>title</c> statement with a value set the title.</param>
+    /// <param name="titleLocation">
+    ///     The location of the last <c>title</c> statement that set the title, else the diagram keyword (a frontmatter
+    ///     title).
+    /// </param>
     /// <param name="accessibleTitle">The sanitized accessible title, or empty.</param>
     /// <param name="accessibleDescription">The sanitized accessible description, or empty.</param>
     /// <param name="frontmatterTitle">The sanitized frontmatter title, or empty.</param>
@@ -803,6 +810,7 @@ internal sealed class GitGraphDiagram : IMermaidDiagram
         string direction,
         string diagramTitle,
         bool isTitleSet,
+        MermaidLocation titleLocation,
         string accessibleTitle,
         string accessibleDescription,
         string frontmatterTitle,
@@ -814,6 +822,7 @@ internal sealed class GitGraphDiagram : IMermaidDiagram
         Direction = direction;
         DiagramTitle = diagramTitle;
         IsTitleSet = isTitleSet;
+        TitleLocation = titleLocation;
         AccessibleTitle = accessibleTitle;
         AccessibleDescription = accessibleDescription;
         FrontmatterTitle = frontmatterTitle;
@@ -824,6 +833,12 @@ internal sealed class GitGraphDiagram : IMermaidDiagram
 
     /// <summary>Gets the location of the diagram keyword.</summary>
     public MermaidLocation KeywordLocation { get; }
+
+    /// <summary>
+    ///     Gets the location of the last <c>title</c> statement that set the title, else the diagram keyword (a frontmatter
+    ///     title).
+    /// </summary>
+    public MermaidLocation TitleLocation { get; }
 
     /// <summary>Gets the direction (<c>LR</c>, <c>TB</c> or <c>BT</c>).</summary>
     public string Direction { get; }

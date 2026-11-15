@@ -186,7 +186,8 @@ other give `GetData` the parents `B` and `A` without a limit failure, while meas
 **Tests**: `StateModelTests.StateModel_GetData_StatesAndTransitions_HaveMermaidsFields`,
 `StateModelTests.StateModel_GetData_Descriptions_FirstIsTheLabelAndTheRestAreDescriptions`,
 `StateModelTests.StateModel_GetData_Notes_AreGroupedAndLinkedWithTheSharedCounter`,
-`StateModelTests.StateModel_GetData_StyleClassesAndStyles_ApplyLikeMermaid`
+`StateModelTests.StateModel_GetData_StyleClassesAndStyles_ApplyLikeMermaid`,
+`StateModelTests.StateModel_GetData_SourceLocation_IsTheFirstMention`
 
 Asserts that a text with the `classic` look and `state.nodeSpacing` 70 in its frontmatter, `direction LR`, and a
 composite state `Comp` holding `A --> B : go` maps to layout data of type `stateDiagram` with the direction `LR`, a
@@ -198,7 +199,9 @@ the label `A` of type `markdown`, the DOM id `state-A-0`, the parent `Comp`, and
 `edge0` with the label `go`, the end marker `arrow_barb`, the classes `transition`, a minimum length of 1, and the style
 `fill:none`. Asserts the first description as the label and the others as descriptions (see the States scenario), the
 note groups, notes, DOM ids, and note links with their padding (see the Notes scenario), and the CSS classes, compiled
-styles, and styles of the nodes (see the Styles scenario).
+styles, and styles of the nodes (see the Styles scenario). Asserts that each node's source location is the line of its
+first mention while its location stays the statement that last set it: `A` at lines 2 and 7 (a later note), `B` at
+lines 2 and 6, and the composite `S` at lines 3 and 6.
 
 ##### CanvasNetMermaid-State-StateModel-Unsupported: The Legacy Renderer, Looks, And Layouts Are Reported In Order
 

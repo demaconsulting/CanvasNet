@@ -62,7 +62,8 @@ statements, and the database sanitizes the text of their notes):
   for a state, a composite state, or a concurrent region, `Note`, or `NoteGroup` - the shape, the label, the
   descriptions after the first, the CSS classes, the styles, the styles compiled from the node's style classes, the
   direction of a cluster, the DOM id, the group flag, the parent, the position of a note, and the location of the
-  statement that last set the node);
+  statement that last set the node, with the location of the statement that first set it (`FirstLocation`, which
+  `Assign` keeps));
 - the **edges** of the layout in order (`StateEdge`: the id `edgeN` of a transition or `<from>-<to>` of a note link,
   the two ends, the sanitized label of a transition, whether it links a note, and the location of the statement).
 
@@ -179,7 +180,8 @@ parsing, so it is safe for concurrent renders.
   first given when a later statement names it at the top (`StateNode.Assign`), so a composite state named inside another
   one and declared again at the top nests its states one level deeper; chained, such statements nest composite states
   without any nesting in the text, so `GetData` checks the nesting the parents make with `LayoutData.CheckNestingDepth`
-  (`composite states and their concurrent regions`, `MaxNestingDepth`).
+  (`composite states and their concurrent regions`, `MaxNestingDepth`). Each node's `LayoutNode.SourceLocation` is its
+  first location, so a position reports a state's first mention.
 - **`ReportUnsupported(MermaidConfig, MermaidReportSink)`** reports, in order, the legacy renderer of the legacy id
   (`mermaid-layout-unsupported`, naming the `state.defaultRenderer` and located at the top-level `state` key), a look
   other than `classic` (`mermaid-look-unsupported`), and a layout other than `dagre` (`mermaid-layout-unsupported`),

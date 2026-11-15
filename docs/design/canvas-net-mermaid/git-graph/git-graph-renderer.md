@@ -131,7 +131,8 @@ and commit items at the statement that made the commit.
   dash, and line cap, and its shadow.
 - **Position tags**: the renderer tags every shape of a commit bullet as that `commit` (merged into one position aimed
   at the commit's point, with its message as the text) in `GitGraphRenderer.Labels.cs`, each tag group as a `tag`, each
-  branch label box as a `branch`, and the title as `title`, for the `ScenePositions` unit.
+  branch label box as a `branch`, and the title as `title` (located at `TitleLocation`), for the `ScenePositions`
+  unit.
 
 #### Error Handling
 

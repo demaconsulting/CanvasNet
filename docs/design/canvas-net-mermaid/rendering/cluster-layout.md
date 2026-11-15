@@ -59,8 +59,10 @@ requirements in `docs/reqstream/canvas-net-mermaid/rendering/cluster-layout.yaml
   (Mermaid's `node.centerLabel`, which a state sets: the label is centered whatever its kind), `Descriptions` (the
   descriptions a `rectWithTitle` state draws under its title, the first description being its `Label`; else null),
   `ErBox` (the alias and attributes of an entity box, or null), `SourceId` (the id the node's position reports when it
-  differs from `Id`, such as an entity's name where the layout id is `entity-NAME-0`; else null), and the `Location`
-  of its first mention. A property that Mermaid leaves undefined is null.
+  differs from `Id`, such as an entity's name where the layout id is `entity-NAME-0`; else null), `SourceLocation` (the
+  location the node's position reports when it differs from `Location`, such as a state's first mention where
+  `Location` is the statement that last set it; else null), and the `Location` of its first mention. A property that
+  Mermaid leaves undefined is null.
 - `LayoutClassBox(Text, Annotations, Members, Methods, Styles)` - the texts of a class box as Mermaid's class database
   holds them (generics already written as `&lt;T&gt;`, a visibility escaped with a backslash): the drawn name, the
   annotations without their angle quotes (only the first is drawn), the attributes, the methods, and the class's own
@@ -146,7 +148,8 @@ requirements in `docs/reqstream/canvas-net-mermaid/rendering/cluster-layout.yaml
 subsystem - each node group as a `node` (a note shape as a `note`) named by its `SourceId` or its id, each subgraph
 (its cluster shapes, or its laid-out group) as a `group` (except the note group of a state diagram), each edge route as
 an `edge` aimed along its path with its source ends (`SourceEnds`, else `Start` and `End`), and the diagram title (in
-`ClusterLayout.Diagram.cs`) as `title`.
+`ClusterLayout.Diagram.cs`) as `title`. Node and group tags are located at the node's `SourceLocation`, else its
+`Location`.
 
 **Preconditions and postconditions**: the layout data has unique node ids; the result is a deterministic function of the
 data, the configuration, and the label measurement.

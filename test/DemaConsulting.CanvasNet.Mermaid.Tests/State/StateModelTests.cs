@@ -138,6 +138,31 @@ public class StateModelTests
     }
 
     /// <summary>
+    ///     Validates that a node's source location is its first mention, while its location stays the statement that
+    ///     last set it (for reports).
+    /// </summary>
+    [Fact]
+    public void StateModel_GetData_SourceLocation_IsTheFirstMention()
+    {
+        // Arrange
+        const string Text = "stateDiagram-v2\nA --> B\nstate S {\n  x\n}\nB --> S\nnote right of A : n\n";
+
+        // Act
+        var data = StateFacts.Parse(Text).GetData(StateFacts.DefaultConfig(Text));
+
+        // Assert
+        (int First, int Last) Lines(string id)
+        {
+            var node = data.Nodes.Single(n => n.Id == id);
+            return (node.SourceLocation!.Value.Line, node.Location.Line);
+        }
+
+        Assert.Equal((2, 7), Lines("A"));
+        Assert.Equal((2, 6), Lines("B"));
+        Assert.Equal((3, 6), Lines("S"));
+    }
+
+    /// <summary>
     ///     Validates that a note on a state seen nowhere before has no shape, as Mermaid leaves it undefined.
     /// </summary>
     [Fact]

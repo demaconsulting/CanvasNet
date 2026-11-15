@@ -181,7 +181,7 @@ internal sealed partial class PieRenderer
         var (titleLine, titleWidth) = TextLine(title, 0, -(Height - 50) / 2, new SceneFont(titleText.FontFamily, titleText.FontSize, false, false), titleText.Color, "title", null, _diagram.KeywordLocation);
         if (!string.IsNullOrEmpty(title))
         {
-            titleLine = titleLine with { Position = new ScenePositionTag("title", "title") { Text = title, Location = _diagram.KeywordLocation } };
+            titleLine = titleLine with { Position = new ScenePositionTag("title", "title") { Text = title, Location = _diagram.TitleLocation } };
         }
 
         // The legend entries and the widest legend text

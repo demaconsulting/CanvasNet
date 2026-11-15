@@ -176,6 +176,7 @@ internal sealed partial class StateModel
             CenterLabel = node.Kind == StateNodeKind.State,
             Descriptions = node.Descriptions,
             Location = node.Location,
+            SourceLocation = node.FirstLocation,
         }).ToList();
         var edges = _edges.Select(edge => new LayoutEdge
         {
@@ -466,6 +467,7 @@ internal sealed partial class StateModel
         }
 
         CheckNodeCount(_nodes.Count, node.Location);
+        node.FirstLocation = node.Location;
         _nodes.Add(node);
         _nodeIndex[node.Id] = node;
     }
@@ -659,9 +661,12 @@ internal sealed class StateNode
     /// <summary>Gets or sets the location of the statement that last set the node.</summary>
     public MermaidLocation Location { get; set; }
 
+    /// <summary>Gets or sets the location of the statement that first set the node (kept by <see cref="Assign" />).</summary>
+    public MermaidLocation FirstLocation { get; set; }
+
     /// <summary>
     ///     Updates the node from a node of the same id (JavaScript's <c>Object.assign</c>): every field is taken, except a
-    ///     parent the newer node does not have.
+    ///     parent the newer node does not have and the first location.
     /// </summary>
     /// <param name="node">The newer node.</param>
     public void Assign(StateNode node)

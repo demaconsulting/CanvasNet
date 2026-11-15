@@ -553,7 +553,7 @@ internal sealed partial class GitGraphRenderer
 
         return text is null || string.IsNullOrEmpty(title)
             ? text
-            : text with { Position = new ScenePositionTag("title", "title") { Text = title, Location = _diagram.KeywordLocation } };
+            : text with { Position = new ScenePositionTag("title", "title") { Text = title, Location = _diagram.TitleLocation } };
     }
 
     /// <summary>

@@ -720,7 +720,11 @@ internal sealed partial class ClusterLayout
     private static ScenePositionTag NodeTag(LayoutNode data)
     {
         var kind = data.Shape == "note" ? "note" : "node";
-        return new ScenePositionTag(kind, data.SourceId ?? data.Id) { Text = data.Label, Location = data.Location };
+        return new ScenePositionTag(kind, data.SourceId ?? data.Id)
+        {
+            Text = data.Label,
+            Location = data.SourceLocation ?? data.Location,
+        };
     }
 
     /// <summary>
@@ -730,7 +734,9 @@ internal sealed partial class ClusterLayout
     /// <param name="data">The subgraph's node, or null.</param>
     /// <returns>The tag, or null for the group a state diagram draws around a state and its note.</returns>
     private static ScenePositionTag? GroupTag(string id, LayoutNode? data) =>
-        data?.Shape == "noteGroup" ? null : new("group", id) { Text = data?.Label, Location = data?.Location ?? default };
+        data?.Shape == "noteGroup"
+            ? null
+            : new("group", id) { Text = data?.Label, Location = data?.SourceLocation ?? data?.Location ?? default };
 
     /// <summary>
     ///     Gets an edge end of a node.

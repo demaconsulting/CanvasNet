@@ -129,7 +129,7 @@ internal sealed partial class GanttRenderer
             if (Rect(0, (task.Order * gap) + topPad - 2, _w - (_conf.RightPadding / 2), gap, 0, style, "gantt-section", task.Section, task.Raw.Location) is { } row)
             {
                 // The rows of one section are one position, named by the section
-                _items.Add(row with { Position = new ScenePositionTag("section", task.Section) { Text = task.Section, Location = task.Raw.Location } });
+                _items.Add(row with { Position = new ScenePositionTag("section", task.Section) { Text = task.Section, Location = task.Raw.SectionLocation ?? task.Raw.Location } });
             }
         }
 

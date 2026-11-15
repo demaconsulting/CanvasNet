@@ -293,6 +293,7 @@ internal sealed partial class PieParser
 
         // (TitleAndAccessibilities | PieSection | NEWLINE)*, the AST fields keeping the last value
         string? title = null;
+        MermaidLocation titleLocation = default;
         string? accTitle = null;
         string? accDescr = null;
         var sections = new List<(string Label, double Value, MermaidLocation Location)>();
@@ -344,6 +345,7 @@ internal sealed partial class PieParser
                                     break;
                                 default:
                                     title = Checked(ConvertSingleLine(raw[(raw.IndexOf("title", StringComparison.Ordinal) + "title".Length)..]), statement);
+                                    titleLocation = Locate(statement);
                                     break;
                             }
 
@@ -361,7 +363,7 @@ internal sealed partial class PieParser
             throw Fail([Eof], "write each slice, title, accTitle and accDescr on a line of its own, after the pie line");
         }
 
-        return Populate(keyword, showData, title, accTitle, accDescr, sections);
+        return Populate(keyword, showData, title, titleLocation, accTitle, accDescr, sections);
     }
 
     /// <summary>
@@ -370,6 +372,7 @@ internal sealed partial class PieParser
     /// <param name="keyword">The location of the diagram keyword.</param>
     /// <param name="showData">Whether <c>showData</c> was given.</param>
     /// <param name="title">The title, or null.</param>
+    /// <param name="titleLocation">The location of the last <c>title</c> statement.</param>
     /// <param name="accTitle">The accessible title, or null.</param>
     /// <param name="accDescr">The accessible description, or null.</param>
     /// <param name="parsed">The sections in order.</param>
@@ -378,6 +381,7 @@ internal sealed partial class PieParser
         MermaidLocation keyword,
         bool showData,
         string? title,
+        MermaidLocation titleLocation,
         string? accTitle,
         string? accDescr,
         List<(string Label, double Value, MermaidLocation Location)> parsed)
@@ -413,7 +417,15 @@ internal sealed partial class PieParser
             }
         }
 
-        return new PieDiagram(keyword, showData, diagramTitle, !string.IsNullOrEmpty(title), accessibleTitle, description, sections);
+        return new PieDiagram(
+            keyword,
+            showData,
+            diagramTitle,
+            !string.IsNullOrEmpty(title),
+            string.IsNullOrEmpty(title) ? keyword : titleLocation,
+            accessibleTitle,
+            description,
+            sections);
     }
 
     /// <summary>
@@ -593,6 +605,10 @@ internal sealed class PieDiagram : IMermaidDiagram
     ///     Whether a <c>title</c> statement with a value set the title (Mermaid's <c>populateCommonDb</c> tests the value
     ///     before sanitizing), so that it replaces the frontmatter title even when sanitizing leaves it empty.
     /// </param>
+    /// <param name="titleLocation">
+    ///     The location of the last <c>title</c> statement that set the title, else the diagram keyword (a frontmatter
+    ///     title).
+    /// </param>
     /// <param name="accessibleTitle">The sanitized accessible title, or empty.</param>
     /// <param name="accessibleDescription">The sanitized accessible description, or empty.</param>
     /// <param name="sections">The sections in order, each label once.</param>
@@ -601,6 +617,7 @@ internal sealed class PieDiagram : IMermaidDiagram
         bool showData,
         string diagramTitle,
         bool isTitleSet,
+        MermaidLocation titleLocation,
         string accessibleTitle,
         string accessibleDescription,
         IReadOnlyList<PieSection> sections)
@@ -609,6 +626,7 @@ internal sealed class PieDiagram : IMermaidDiagram
         ShowData = showData;
         DiagramTitle = diagramTitle;
         IsTitleSet = isTitleSet;
+        TitleLocation = titleLocation;
         AccessibleTitle = accessibleTitle;
         AccessibleDescription = accessibleDescription;
         Sections = sections;
@@ -616,6 +634,12 @@ internal sealed class PieDiagram : IMermaidDiagram
 
     /// <summary>Gets the location of the diagram keyword.</summary>
     public MermaidLocation KeywordLocation { get; }
+
+    /// <summary>
+    ///     Gets the location of the last <c>title</c> statement that set the title, else the diagram keyword (a frontmatter
+    ///     title).
+    /// </summary>
+    public MermaidLocation TitleLocation { get; }
 
     /// <summary>Gets a value indicating whether the legend shows the values (<c>showData</c>).</summary>
     public bool ShowData { get; }

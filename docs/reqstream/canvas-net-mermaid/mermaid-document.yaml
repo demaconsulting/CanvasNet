@@ -191,3 +191,5 @@ sections:
               - MermaidDocument_Render_PiePositions_SlicesWithValuesAimInside
               - MermaidDocument_Render_GitGraphPositions_CommitsAtBullets
               - MermaidDocument_Render_OtherTypes_ReportSourceIds
+              - MermaidDocument_Render_StatePositions_FirstMentionLinesInSourceOrder
+              - MermaidDocument_Render_TitleStatements_ReportTheirLine

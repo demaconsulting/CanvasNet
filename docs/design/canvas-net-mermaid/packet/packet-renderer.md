@@ -66,8 +66,8 @@ location of the block statement; and the title text (`title`). The view box star
   everything else, a reference or a tag the author wrote included, shown as written, and the white space collapsed as
   in all SVG text.
 - **Position tags**: the renderer tags each block rectangle as a `block` named `start-end` (its bit range, a block split
-  across two rows being two positions) with its label as the text, and the title as `title`, for the `ScenePositions`
-  unit.
+  across two rows being two positions) with its label as the text, and the title as `title` (located at
+  `TitleLocation`), for the `ScenePositions` unit.
 
 #### Error Handling
 
