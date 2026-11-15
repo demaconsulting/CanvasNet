@@ -323,7 +323,7 @@ public sealed record ImagePosition
     /// <returns>A sorted copy.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="values"/> is null.</exception>
     /// <exception cref="ArgumentException">Thrown when a name is empty or occurs twice.</exception>
-    private static KeyValuePair<string, PositionValue>[] CopyValues(IReadOnlyList<KeyValuePair<string, PositionValue>> values)
+    private static IReadOnlyList<KeyValuePair<string, PositionValue>> CopyValues(IReadOnlyList<KeyValuePair<string, PositionValue>> values)
     {
         ArgumentNullException.ThrowIfNull(values);
         if (values.Count == 0)
@@ -347,6 +347,7 @@ public sealed record ImagePosition
             }
         }
 
-        return copy;
+        // A read-only wrapper, so a caller cannot cast the list back to the array and change the position
+        return Array.AsReadOnly(copy);
     }
 }

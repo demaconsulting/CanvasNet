@@ -94,6 +94,24 @@ public class ImagePositionTests
     }
 
     /// <summary>
+    ///     Test that the values and data cannot be cast back to a writable array, so the position stays immutable.
+    /// </summary>
+    [Fact]
+    public void ImagePosition_ValuesAndData_CannotBeCastToAWritableArray()
+    {
+        // Arrange
+        var pairs = new List<KeyValuePair<string, PositionValue>> { new("x", PositionValue.FromNumber(1)) };
+
+        // Act
+        var position = new ImagePosition("mark", "bar-0") { Values = pairs, Data = pairs };
+
+        // Assert
+        Assert.False(position.Values is KeyValuePair<string, PositionValue>[]);
+        Assert.False(position.Data is KeyValuePair<string, PositionValue>[]);
+        Assert.False(PositionSelection.Parse(["node:A", "edge"]).Selectors is PositionSelector[]);
+    }
+
+    /// <summary>
     ///     Test that a duplicate or empty value name is refused.
     /// </summary>
     [Fact]

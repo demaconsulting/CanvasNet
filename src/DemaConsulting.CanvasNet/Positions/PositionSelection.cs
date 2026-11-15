@@ -28,7 +28,8 @@ public sealed class PositionSelection
     /// <param name="selectors">The parsed, distinct selectors.</param>
     private PositionSelection(PositionSelector[] selectors)
     {
-        Selectors = selectors;
+        // A read-only wrapper, so a caller cannot cast the list back to the array and change the selection
+        Selectors = Array.AsReadOnly(selectors);
     }
 
     /// <summary>
