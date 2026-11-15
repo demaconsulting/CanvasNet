@@ -184,6 +184,36 @@ public class SourceLoaderSvgBindingTests
     }
 
     /// <summary>
+    ///     Test that a binding to a picture that is not painted (its image is scaled to nothing) is
+    ///     <c>svg-binding-unavailable</c> without the picture being opened: a picture the file-access policy would deny
+    ///     reports no <c>image-access-denied</c>, and with <c>--strict</c> the error is <c>svg-binding-failed</c>.
+    /// </summary>
+    [Fact]
+    public void SourceLoader_Load_SvgBindingToUnpaintedPicture_IsUnavailableWithoutOpeningIt()
+    {
+        // Arrange: the diagram is outside the only allowed folder, and its image is inside a scale(0) group
+        using var directory = new TempDirectory();
+        FixtureFactory.WriteText(directory.Path, "flow.mmd", Flowchart);
+        Directory.CreateDirectory(directory.Combine("site"));
+        var path = FixtureFactory.WriteText(
+            directory.Combine("site"),
+            "figure.svg",
+            "<svg xmlns='http://www.w3.org/2000/svg' xmlns:cn='https://demaconsulting.com/canvasnet' width='400' height='200' viewBox='0 0 400 200'>"
+            + "<g transform='scale(0)'><image id='pic' href='../flow.mmd' x='20' y='30' width='300' height='120'/></g>"
+            + "<line x1='0' y1='0' x2='1' y2='1' stroke='black' cn:x2y2='#pic node:B'/></svg>");
+        var policy = FileAccessPolicy.UnderRoots(directory.Combine("site"));
+
+        // Act
+        using var loaded = SourceLoader.Load(path, new SourceOptions { FileAccess = policy });
+        var error = Assert.Throws<ViewerException>(() => SourceLoader.Load(path, new SourceOptions { FileAccess = policy, Strict = true }));
+
+        // Assert
+        Assert.Equal([SvgPositionBinding.UnavailableCode], loaded.Diagnostics.Select(d => d.Code));
+        Assert.DoesNotContain(loaded.Operations, o => o.Op == "bind");
+        Assert.Equal(ErrorCodes.SvgBindingFailed, error.Code);
+    }
+
+    /// <summary>
     ///     Test that a binding inside a nested SVG file resolves against the images of that file, and that one that fails
     ///     is a warning of the outer render that names it, and a strict failure.
     /// </summary>

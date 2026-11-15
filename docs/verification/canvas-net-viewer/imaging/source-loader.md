@@ -869,7 +869,8 @@ flowchart, loaded with every selector in strict mode, reports no position and no
 
 **SourceLoader_Load_SvgBindingToMermaid_LandsOnTheNode**, **SourceLoader_Load_SvgBindingToVegaLite_LandsOnTheMark**,
 **SourceLoader_Load_SvgBindingToScadAnchor_LandsOnTheAnchor**, **SourceLoader_Load_SvgBindingUnmatched_WarnsOrFailsStrictly**,
-**SourceLoader_Load_SvgBindingToDeniedPicture_KeepsAccessDenied**, and
+**SourceLoader_Load_SvgBindingToDeniedPicture_KeepsAccessDenied**,
+**SourceLoader_Load_SvgBindingToUnpaintedPicture_IsUnavailableWithoutOpeningIt**, and
 **SourceLoader_Load_NestedSvgBinding_ResolvesOrFailsStrictly** (`SourceLoaderSvgBindingTests.cs`; the requirement
 `CanvasNetViewer-Imaging-SourceLoader-SvgBindings`): an SVG file of 400 by 200 places a picture at 20,30 in a 300 by 120
 box and binds a line to it. For a flowchart (`node:B`), a two-bar chart (`mark:x=B`), and a cube model with the anchor
@@ -878,6 +879,8 @@ box and binds a line to it. For a flowchart (`node:B`), a two-bar chart (`mark:x
 flowchart has no note (no `positions-unmatched`). A binding to `node:Zed` is one `svg` warning
 `svg-binding-unmatched` with no `bind` operation, and the strict load throws `svg-binding-failed` naming the file. A
 diagram outside the only allowed root gives the notes `image-access-denied` then `svg-binding-unavailable`, and the
-strict load throws `file-access-denied`. A file that embeds an SVG file with a good binding loads strictly without a
+strict load throws `file-access-denied`. The same denied diagram in a `scale(0)` group is not painted, so it is never
+opened: the only note is `svg-binding-unavailable` (no `image-access-denied`), there is no `bind` operation, and the
+strict load throws `svg-binding-failed`. A file that embeds an SVG file with a good binding loads strictly without a
 note; one that embeds an SVG file whose binding matches nothing has the warning `svg-binding-unmatched` with the origin
 of the nested file, and the strict load throws `svg-binding-failed` naming it.

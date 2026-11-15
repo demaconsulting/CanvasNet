@@ -1987,11 +1987,15 @@ budgets exist and before the first child is painted, only when `HasPositionBindi
    not inside referenced content, a text without a list of coordinates, an external link (not `data:` or `#`), and an
    `IImagePositionResolver` (each `svg-binding-unsupported`);
 4. loads each bound image once (`LoadBoundImage`), in the order of its first binding, with the union of the selectors of
-   its bindings (at most `PositionSelection.MaxSelectors`; a binding beyond is unsupported): it reads the placement as
-   `RenderImageWithEffects` does, computes the device size with `ComputeImageDevicePixels` (shared with the painter),
-   charges `requested pixels + ResolverCallOverheadUnits` to the filter work budget, calls `ResolveWithPositions`
-   (a `FormatException` is wrapped as for `Resolve`), and charges an oversized result with `ChargeResolvedExcess`
-   (shared with the painter). The surface, or `null` when nothing is drawn, goes into
+   its bindings (at most `PositionSelection.MaxSelectors`; a binding beyond is unsupported). It first asks
+   `PlanImagePaint`, the decision `RenderImageWithEffects` itself makes before it loads a picture (a finite, positive
+   `width` and `height`, a finite transform, and a valid effects region from `ResolveImageEffects`, so a `scale(0)`
+   transform or an empty or oversized filter or mask region paints nothing): an image the painter does not paint is not
+   loaded, charged, or offered to the resolver, and each of its bindings is `svg-binding-unavailable`. Otherwise it
+   reads the placement from that plan, computes the device size with `ComputeImageDevicePixels` (shared with the
+   painter), charges `requested pixels + ResolverCallOverheadUnits` to the filter work budget, calls
+   `ResolveWithPositions` (a `FormatException` is wrapped as for `Resolve`), and charges an oversized result with
+   `ChargeResolvedExcess` (shared with the painter). The surface, or `null` when nothing is drawn, goes into
    `RenderContext.PreloadedImages`;
 5. matches each binding (`MatchBinding`): two matches or a truncated list are `svg-binding-ambiguous`, none
    `svg-binding-unmatched`, a match without a pixel `svg-binding-unavailable`; the pixel is mapped through the painter's

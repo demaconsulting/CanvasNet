@@ -367,6 +367,64 @@ public class SvgPositionBindingTests
     }
 
     /// <summary>
+    ///     Test that a binding to an image the painter does not paint (a degenerate transform, or an empty or oversized
+    ///     filter or mask region) is unavailable, and that the image is neither loaded nor charged: the resolver is never
+    ///     called and the work charged is that of the same document without the binding.
+    /// </summary>
+    /// <param name="defs">The filter or mask the image refers to, if any.</param>
+    /// <param name="attributes">The attributes added to the bound image.</param>
+    [Theory]
+    [InlineData("", "transform='scale(0)'")]
+    [InlineData("", "transform='matrix(1 0 0 0 0 0)'")]
+    [InlineData("<filter id='f' width='0'><feOffset/></filter>", "filter='url(#f)'")]
+    [InlineData("<filter id='f' width='1000'><feOffset/></filter>", "filter='url(#f)'")]
+    [InlineData("<mask id='m' width='0'><rect width='100' height='100' fill='white'/></mask>", "mask='url(#m)'")]
+    [InlineData("<mask id='m' maskUnits='userSpaceOnUse' width='100000' height='10'><rect width='100' height='100' fill='white'/></mask>", "mask='url(#m)'")]
+    public void SvgCodec_Binding_ImageNotPainted_IsUnavailableAndNotLoaded(string defs, string attributes)
+    {
+        // Arrange
+        var image = $"<image id='img' href='pic.mmd' x='10' y='20' width='40' height='20' {attributes}/>";
+        var resolver = new PositionResolver();
+        var bound = Doc($"<defs>{defs}</defs>{image}<circle r='1' cn:center='#img node:a'/>");
+        var unbound = Doc($"<defs>{defs}</defs>{image}<circle r='1'/>");
+
+        // Act
+        var report = Assert.Single(Bind(bound, resolver));
+
+        // Assert: the written numbers are kept, nothing was asked of the resolver, and nothing was charged for the image
+        Assert.Equal(SvgPositionBinding.UnavailableCode, report.Code);
+        Assert.Null(report.X);
+        Assert.Empty(resolver.Calls);
+        Assert.Equal(Charged(unbound), Charged(bound));
+    }
+
+    /// <summary>
+    ///     Test that a binding to a painted image with a filter or a mask whose region is valid still resolves as before,
+    ///     from one load, and charges what the same image charges when it is not bound.
+    /// </summary>
+    /// <param name="defs">The filter or mask the image refers to.</param>
+    /// <param name="attributes">The attributes added to the bound image.</param>
+    [Theory]
+    [InlineData("<filter id='f'><feOffset dx='0' dy='0'/></filter>", "filter='url(#f)'")]
+    [InlineData("<mask id='m'><rect width='100' height='100' fill='white'/></mask>", "mask='url(#m)'")]
+    public void SvgCodec_Binding_ImageWithValidEffects_StillResolves(string defs, string attributes)
+    {
+        // Arrange
+        var image = $"<image id='img' href='pic.mmd' x='10' y='20' width='40' height='20' {attributes}/>";
+        var resolver = new PositionResolver();
+        var bound = Doc($"<defs>{defs}</defs>{image}<circle r='1' cn:center='#img node:a'/>");
+        var unbound = Doc($"<defs>{defs}</defs>{image}<circle r='1'/>");
+
+        // Act
+        var report = Assert.Single(Bind(bound, resolver));
+
+        // Assert: node:a of the 40 by 20 picture at 10,20 is 20,30
+        AssertAt(report, 20, 30);
+        Assert.NotNull(Assert.Single(resolver.Calls).Selection);
+        Assert.Equal(Charged(unbound), Charged(bound));
+    }
+
+    /// <summary>
     ///     Test the coordinates through the transforms of the image and of the receiving element, computed independently
     ///     with <see cref="Matrix3x2"/>.
     /// </summary>

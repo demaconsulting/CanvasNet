@@ -165,6 +165,34 @@ public class SvgFlattenerBindingTests
     }
 
     /// <summary>
+    ///     Test that a binding to an image that is not painted (scaled to nothing) is unresolved and its picture is not
+    ///     captured: nothing is drawn or replaced, the binding is <c>svg-binding-unavailable</c>, and no copy is written.
+    /// </summary>
+    [Fact]
+    public void SvgFlattener_Execute_BindingToUnpaintedImage_IsNotCaptured()
+    {
+        // Arrange
+        using var directory = new TempDirectory();
+        FixtureFactory.WriteText(directory.Path, "flow.mmd", Flowchart);
+        var path = FixtureFactory.WriteText(
+            directory.Path,
+            "figure.svg",
+            "<svg xmlns='http://www.w3.org/2000/svg' xmlns:cn='https://demaconsulting.com/canvasnet' width='400' height='200' viewBox='0 0 400 200'>"
+            + "<g transform='scale(0)'><image id='pic' href='flow.mmd' x='20' y='30' width='300' height='120'/></g>"
+            + "<line x1='0' y1='0' x2='1' y2='1' cn:x2y2='#pic node:A'/></svg>");
+
+        // Act
+        var result = Flatten(directory, path);
+
+        // Assert
+        Assert.False(result.Flattened);
+        Assert.Empty(result.Replaced);
+        Assert.Equal((0, 1), (result.ResolvedBindings, result.UnresolvedBindings));
+        Assert.Contains(result.Diagnostics, d => d.Code == SvgPositionBinding.UnavailableCode);
+        Assert.False(File.Exists(directory.Combine("flat.svg")));
+    }
+
+    /// <summary>
     ///     Test that a binding to an image that a <c>use</c> draws again is unsupported: the fallback is kept and warned.
     /// </summary>
     [Fact]

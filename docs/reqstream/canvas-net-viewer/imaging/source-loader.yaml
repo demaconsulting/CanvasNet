@@ -961,4 +961,5 @@ sections:
           - SourceLoader_Load_SvgBindingToScadAnchor_LandsOnTheAnchor
           - SourceLoader_Load_SvgBindingUnmatched_WarnsOrFailsStrictly
           - SourceLoader_Load_SvgBindingToDeniedPicture_KeepsAccessDenied
+          - SourceLoader_Load_SvgBindingToUnpaintedPicture_IsUnavailableWithoutOpeningIt
           - SourceLoader_Load_NestedSvgBinding_ResolvesOrFailsStrictly

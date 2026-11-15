@@ -1944,6 +1944,7 @@ sections:
               - SvgCodec_Binding_OutputSize_GivesTheSameUserCoordinates
               - SvgCodec_Binding_BoundImage_IsLoadedOnceAndPainted
               - SvgCodec_Binding_WorkBudget_IsChargedOnce
+              - SvgCodec_Binding_ImageWithValidEffects_StillResolves
 
           - id: CanvasNetSvg-SvgCodec-PositionBindingFailures
             title: >-
@@ -1953,7 +1954,9 @@ sections:
               a use, a text with a list of coordinates, an image that does not link a file, a resolver or source without
               positions), svg-binding-unmatched, svg-binding-ambiguous (several matches or a truncated list),
               svg-binding-unavailable (the picture is not drawn or the match has no pixel), and svg-binding-singular;
-              the SvgImageSource class shall return such a binding of a nested SVG file as a warning of its result.
+              an image the painter does not paint (no size, a degenerate transform, an empty or oversized filter or
+              mask region) shall not be loaded or charged, and its bindings shall be svg-binding-unavailable; the
+              SvgImageSource class shall return such a binding of a nested SVG file as a warning of its result.
             justification: |
               A recoverable binding must never fail the render; the fallback numbers keep the drawing usable and the
               code tells the author what to fix, while the host decides whether to fail.
@@ -1962,4 +1965,5 @@ sections:
               - SvgCodec_Binding_TextCoordinateList_IsUnsupported
               - SvgCodec_Binding_NoPositionsAvailable_IsUnsupported
               - SvgCodec_Binding_MatchFailures_AreReported
+              - SvgCodec_Binding_ImageNotPainted_IsUnavailableAndNotLoaded
               - SvgImageSource_Render_UnresolvedBinding_IsAWarningOfTheResult

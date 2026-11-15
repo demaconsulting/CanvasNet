@@ -2231,7 +2231,7 @@ with a `dx` all resolve. A value without `#`, without a selector, with an empty 
 
 **Tests**: `SvgCodec_Binding_Transforms_AreAppliedBothWays`, `SvgCodec_Binding_PreserveAspectRatio_FitsTheActualSurface`,
 `SvgCodec_Binding_OutputSize_GivesTheSameUserCoordinates`, `SvgCodec_Binding_BoundImage_IsLoadedOnceAndPainted`,
-`SvgCodec_Binding_WorkBudget_IsChargedOnce`
+`SvgCodec_Binding_WorkBudget_IsChargedOnce`, `SvgCodec_Binding_ImageWithValidEffects_StillResolves`
 
 A callout in a translated, rotated, and scaled group lands at the inverse of that group (computed by the test with
 `Matrix3x2`) applied to 20,30; an image in a translated and halved group and an image rotated about 50,50 give 20,15 and
@@ -2239,12 +2239,14 @@ A callout in a translated, rotated, and scaled group lands at the inverse of tha
 `xMaxYMax slice`, and 20,30 for `none`. A binding before its image resolves to the same numbers at 100 and 300 pixels,
 and the image is asked for at the size the painter asks for. A bound image with two bound elements is asked for once
 with both selectors, its picture is painted, and a black line bound to it stops at the bound point; and the work charged
-to the shared budget with a binding equals the work without it.
+to the shared budget with a binding equals the work without it. A bound image with a filter or a mask whose region is
+valid still resolves to 20,30 from one call, with the same work as without the binding.
 
 #### CanvasNetSvg-SvgCodec-PositionBindingFailures: Codes And Fallback
 
 **Tests**: `SvgCodec_Binding_UnsupportedCases_AreReported`, `SvgCodec_Binding_TextCoordinateList_IsUnsupported`,
 `SvgCodec_Binding_NoPositionsAvailable_IsUnsupported`, `SvgCodec_Binding_MatchFailures_AreReported`,
+`SvgCodec_Binding_ImageNotPainted_IsUnavailableAndNotLoaded`,
 `SvgImageSource_Render_UnresolvedBinding_IsAWarningOfTheResult`
 
 `center` on a line, an unknown name, an image or a callout inside `defs`, an image or a group drawn by a `use`, and a
@@ -2252,8 +2254,10 @@ to the shared budget with a binding equals the work without it.
 a plain resolver, and a source without positions. A selector that matches nothing, two positions, a match without a
 pixel, and a callout in `scale(0)` are `svg-binding-unmatched`, `svg-binding-ambiguous`, `svg-binding-unavailable`,
 and `svg-binding-singular`; a truncated list is ambiguous, and a picture that is not drawn or has no width is
-unavailable; a failed binding has no coordinates. `SvgImageSource` returns an unresolved binding of the file as an
-`svg` warning with its code and still draws the file.
+unavailable; a failed binding has no coordinates. A bound image under `scale(0)` or a matrix with a zero scale, or
+with a filter or mask region of zero or more than the maximum size, is unavailable, the resolver is never called, and
+the work charged equals that of the document without the binding. `SvgImageSource` returns an unresolved binding of the
+file as an `svg` warning with its code and still draws the file.
 
 ### Additional Regression Test Scenarios (Unlinked)
 

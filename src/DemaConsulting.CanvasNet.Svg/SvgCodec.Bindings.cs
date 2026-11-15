@@ -23,6 +23,8 @@ public static partial class SvgCodec
     //   3. loads each bound image ONCE through IImagePositionResolver.ResolveWithPositions, at the
     //      device size the painter would request, and keeps the surface in
     //      RenderContext.PreloadedImages, so the painter draws the very surface the positions come from;
+    //      an image the painter would not paint (PlanImagePaint, shared with the painter) is not
+    //      loaded at all and its bindings are unavailable;
     //   4. maps the single matching position's pixel through the painter's placement transform
     //      (preserveAspectRatio fit of the actual surface size, translate(x, y), the image's
     //      transform) and the inverse of the receiving element's transform, and writes both
@@ -381,12 +383,19 @@ public static partial class SvgCodec
         works = [.. works.Where(w => w.Code is null)];
         var selection = PositionSelection.Parse(texts.Take(PositionSelection.MaxSelectors));
 
-        // The placement, exactly as RenderImageWithEffects reads it
+        // The painter's own decision (PlanImagePaint): an image it does not paint (no size, a degenerate transform such as
+        // scale(0), an empty or oversized filter or mask region) is neither loaded nor charged, and has no positions
         var state = imageLayout.State;
-        var x = GetFloatAttribute(image, "x", state, PercentageAxis.Horizontal);
-        var y = GetFloatAttribute(image, "y", state, PercentageAxis.Vertical);
-        var width = GetFloatAttribute(image, "width", state, PercentageAxis.Horizontal);
-        var height = GetFloatAttribute(image, "height", state, PercentageAxis.Vertical);
+        if (PlanImagePaint(image, state, imageLayout.Transform, context, suppressEffects: false) is not { } plan)
+        {
+            works.ForEach(w => w.Fail(
+                SvgPositionBinding.UnavailableCode,
+                $"the image '{w.ImageId}' is not painted (its size, transform, filter or mask region leaves nothing to draw)"));
+            return;
+        }
+
+        // The placement, exactly as RenderImageWithEffects reads it
+        var (x, y, width, height, _) = plan;
         var resolution = LoadBoundImage(image, width, height, imageLayout.Transform, selection, context, scope, out var problem);
         if (resolution is null)
         {
@@ -412,12 +421,13 @@ public static partial class SvgCodec
     }
 
     /// <summary>
-    ///     Loads a bound image through the host resolver, once, at the device size the painter would request, and keeps
-    ///     the surface (or the fact that there is none) in <see cref="RenderContext.PreloadedImages"/>.
+    ///     Loads a bound image that the painter paints (see <see cref="PlanImagePaint"/>) through the host resolver, once,
+    ///     at the device size the painter would request, and keeps the surface (or the fact that there is none) in
+    ///     <see cref="RenderContext.PreloadedImages"/>.
     /// </summary>
     /// <param name="image">The <c>image</c> element.</param>
-    /// <param name="width">The placement width in local units.</param>
-    /// <param name="height">The placement height in local units.</param>
+    /// <param name="width">The placement width in local units; finite and positive.</param>
+    /// <param name="height">The placement height in local units; finite and positive.</param>
     /// <param name="transform">The image's accumulated local-to-device transform.</param>
     /// <param name="selection">The union of the selectors of its bindings.</param>
     /// <param name="context">The fixed per-document render context.</param>
@@ -435,13 +445,8 @@ public static partial class SvgCodec
         RenderScope scope,
         out string? problem)
     {
-        // Nothing is drawn, and nothing is asked again by the painter, for a placement of no size
+        // The painter asks nothing again for this image, whatever the outcome
         context.PreloadedImages[image] = null;
-        if (!float.IsFinite(width) || !float.IsFinite(height) || width <= 0f || height <= 0f)
-        {
-            problem = "the image has no width or height, so it is not drawn";
-            return null;
-        }
 
         // The same request size and the same charge as a painted image (RenderImageWithEffects charges only the
         // effects pipeline for a preloaded one)

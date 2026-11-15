@@ -174,3 +174,4 @@ sections:
           - SvgFlattener_Execute_UnresolvedBinding_IsKeptAndWarned
           - SvgFlattener_Execute_StrictUnresolvedBinding_WritesNothing
           - SvgFlattener_Execute_BindingToUsedImage_IsKept
+          - SvgFlattener_Execute_BindingToUnpaintedImage_IsNotCaptured
