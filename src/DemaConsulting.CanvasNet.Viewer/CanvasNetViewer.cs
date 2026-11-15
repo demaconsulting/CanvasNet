@@ -355,7 +355,8 @@ public static class CanvasNetViewer
     /// <exception cref="ViewerException">
     ///     Thrown with code <c>unsupported-feature</c>, when <see cref="ViewerRenderOptions.ThrowOnUnsupportedFeature"/> is
     ///     set, for a link of the document (at any level) that was not drawn, whose picture did not fit in the budget,
-    ///     whose fragment was not usable, or that named a page the file does not have.
+    ///     whose fragment was not usable, or that named a page the file does not have; and with code
+    ///     <c>svg-binding-failed</c>, after those, for an SVG position binding (at any level) that was not resolved.
     /// </exception>
     private static ViewerImage CreateImage(
         FolderImageResolver resolver,
@@ -374,6 +375,7 @@ public static class CanvasNetViewer
             if (settings.ThrowOnUnsupportedFeature)
             {
                 SourceLoader.SvgImages.ThrowForUnresolved(resolver.Diagnostics, fileName);
+                SourceLoader.ThrowForFailedBindings(result.Diagnostics.Select(SourceLoader.SvgImages.ToImageDiagnostic), fileName);
             }
 
             // A source may return another size than the one asked for (a raster is always natural); the caller gets the size it

@@ -57,16 +57,22 @@ public static partial class SourceLoader
     /// <param name="loaded">The loaded page.</param>
     /// <param name="collector">The collector of the load, or <see langword="null"/>.</param>
     /// <param name="source">The source of the warnings: <c>mermaid</c> or <c>vega-lite</c>.</param>
+    /// <param name="warnUnmatched">
+    ///     Whether a selector that matched nothing is a warning (<see cref="LoadContext.WarnUnmatchedPositions"/>); an
+    ///     embedded picture asked for the positions of its bindings is quiet.
+    /// </param>
     /// <returns>The loaded page with its positions; the same page when no positions were asked for.</returns>
-    private static LoadedSource WithPositions(LoadedSource loaded, PositionCollector? collector, string source)
+    private static LoadedSource WithPositions(LoadedSource loaded, PositionCollector? collector, string source, bool warnUnmatched)
     {
         if (collector is null)
         {
             return loaded;
         }
 
-        var warnings = collector.GetUnmatchedSelectors()
-            .Select(selector => new ImageDiagnostic(source, "warning", ErrorCodes.PositionsUnmatched, UnmatchedMessage(selector)));
+        var warnings = warnUnmatched
+            ? collector.GetUnmatchedSelectors()
+                .Select(selector => new ImageDiagnostic(source, "warning", ErrorCodes.PositionsUnmatched, UnmatchedMessage(selector)))
+            : [];
         return loaded with
         {
             Diagnostics = [.. loaded.Diagnostics, .. warnings],

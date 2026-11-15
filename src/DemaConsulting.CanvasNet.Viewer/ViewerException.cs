@@ -80,6 +80,13 @@ public static class ErrorCodes
     ///     is the warning <c>positions-unmatched</c>.
     /// </summary>
     public const string PositionsUnmatched = "positions-unmatched";
+
+    /// <summary>
+    ///     An SVG position binding (<c>cn:x1y1</c>, <c>cn:x2y2</c>, <c>cn:center</c>, <c>cn:xy</c>) was not resolved and the
+    ///     strict option was given; without it this is the warning with the binding's own <c>svg-binding-*</c> code and
+    ///     the numbers written in the file are kept.
+    /// </summary>
+    public const string SvgBindingFailed = "svg-binding-failed";
 }
 
 /// <summary>

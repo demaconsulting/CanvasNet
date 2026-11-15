@@ -68,5 +68,6 @@ public class ViewerExceptionTests
         Assert.Equal("size-mismatch", ErrorCodes.SizeMismatch);
         Assert.Equal("threshold-failed", ErrorCodes.ThresholdFailed);
         Assert.Equal("positions-unmatched", ErrorCodes.PositionsUnmatched);
+        Assert.Equal("svg-binding-failed", ErrorCodes.SvgBindingFailed);
     }
 }

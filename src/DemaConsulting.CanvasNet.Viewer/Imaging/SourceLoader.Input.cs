@@ -259,6 +259,17 @@ public static partial class SourceLoader
         public bool ReturnFittedPage { get; init; }
 
         /// <summary>
+        ///     Gets a value indicating whether a <c>--positions</c> selector that matched nothing is reported (the warning
+        ///     <c>positions-unmatched</c>, or the error under <see cref="SourceOptions.Strict"/>); <see langword="true"/>
+        ///     by default.
+        /// </summary>
+        /// <remarks>
+        ///     A picture an SVG file embeds is asked for the positions its position bindings select; whether each one
+        ///     matched is the binding's own outcome (<c>svg-binding-unmatched</c>), so the embedded render is quiet.
+        /// </remarks>
+        public bool WarnUnmatchedPositions { get; init; } = true;
+
+        /// <summary>
         ///     Charges a surface about to be allocated, when a hook is set.
         /// </summary>
         /// <param name="width">The width in pixels.</param>

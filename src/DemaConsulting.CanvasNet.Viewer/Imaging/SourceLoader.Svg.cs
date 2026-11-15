@@ -42,7 +42,10 @@ public static partial class SourceLoader
     ///     <c>CanvasNetViewer</c> (see <see cref="SvgImages"/>), based at the folder of the SVG file and under <see cref="SourceOptions.FileAccess"/>; what it reports
     ///     is part of the result. When the caller supplies the resolver of the nested pictures
     ///     (<see cref="LoadContext.ScopedResolver"/>, as the resolver of an embedding document does) that resolver is used
-    ///     instead and it, not the result, collects what the nested pictures report.
+    ///     instead and it, not the result, collects what the nested pictures report. The position bindings of the file
+    ///     (<c>cn:x2y2="#image selector"</c>, see <c>SourceLoader.SvgBindings.cs</c>) are resolved by the library from the
+    ///     pictures it draws; each resolved one is a <c>bind</c> operation, each other one a warning, and with
+    ///     <see cref="SourceOptions.Strict"/> the error <c>svg-binding-failed</c> after the pictures that were not drawn.
     /// </remarks>
     private static LoadedSource LoadSvg(SourceInfo info, SourceOptions options, SourceInput input, LoadContext context)
     {
@@ -57,7 +60,8 @@ public static partial class SourceLoader
         }
 
         var images = new SvgImages(info.Path, options);
-        var loadOptions = new SvgLoadOptions { ImageResolver = images.Resolver };
+        var bindings = new List<SvgPositionBinding>();
+        var loadOptions = new SvgLoadOptions { ImageResolver = images.Resolver, BindingHandler = bindings.Add };
         Surface surface;
         try
         {
@@ -70,9 +74,13 @@ public static partial class SourceLoader
 
         try
         {
+            // A picture that was not drawn is checked first, so a denied picture is file-access-denied, not a binding
+            var notes = images.Notes();
+            var bindingNotes = BindingNotes(bindings);
             if (options.Strict)
             {
                 images.ThrowForUnresolved();
+                ThrowForFailedBindings(bindingNotes, Path.GetFileName(info.Path));
             }
 
             var background = options.Background ?? new Rgba32(255, 255, 255, 255);
@@ -83,7 +91,8 @@ public static partial class SourceLoader
             }
 
             operations.AddRange(images.Operations());
-            return new LoadedSource(surface, info, 1, true, images.Notes(), [.. images.Resolver.Echo], operations);
+            operations.AddRange(BindOperations(bindings));
+            return new LoadedSource(surface, info, 1, true, [.. notes, .. bindingNotes], [.. images.Resolver.Echo], operations);
         }
         catch
         {
@@ -102,7 +111,11 @@ public static partial class SourceLoader
     /// <param name="width">The width to render at.</param>
     /// <param name="height">The height to render at.</param>
     /// <param name="operations">The operations so far.</param>
-    /// <returns>The loaded source, without notes of its own: the resolver that owns <paramref name="resolver"/> has them.</returns>
+    /// <returns>
+    ///     The loaded source. Its only notes are the position bindings of the file that were not resolved (warnings) and
+    ///     its <c>bind</c> operations; the notes of the nested pictures, and the <c>--strict</c> check of both, belong to
+    ///     the resolver that owns <paramref name="resolver"/>.
+    /// </returns>
     private static LoadedSource LoadScopedSvg(
         SourceInfo info,
         SourceOptions options,
@@ -112,7 +125,11 @@ public static partial class SourceLoader
         int height,
         List<AppliedOperation> operations)
     {
-        var surface = Read(info.Path, SourceKind.Svg, () => LoadSvgSurface(input, width, height, new SvgLoadOptions { ImageResolver = resolver }));
+        var bindings = new List<SvgPositionBinding>();
+        var surface = Read(
+            info.Path,
+            SourceKind.Svg,
+            () => LoadSvgSurface(input, width, height, new SvgLoadOptions { ImageResolver = resolver, BindingHandler = bindings.Add }));
         try
         {
             var background = options.Background ?? new Rgba32(255, 255, 255, 255);
@@ -122,7 +139,8 @@ public static partial class SourceLoader
                 operations.Add(Operation("flatten", ("background", FormatColor(background))));
             }
 
-            return new LoadedSource(surface, info, 1, true, [], [], operations);
+            operations.AddRange(BindOperations(bindings));
+            return new LoadedSource(surface, info, 1, true, BindingNotes(bindings), [], operations);
         }
         catch
         {

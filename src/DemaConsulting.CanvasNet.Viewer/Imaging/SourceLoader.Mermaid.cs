@@ -449,7 +449,7 @@ public static partial class SourceLoader
             }
 
             // A selector that matched nothing refuses a strict load before anything is returned
-            ThrowForUnmatchedPositions(positions, Options.Strict, surface);
+            ThrowForUnmatchedPositions(positions, Options.Strict && Context.WarnUnmatchedPositions, surface);
             if (exact && (surface.Width != width || surface.Height != height))
             {
                 var scale = Options.Scale ?? 1;
@@ -470,7 +470,7 @@ public static partial class SourceLoader
             var operations = new List<AppliedOperation> { Operation("render", [.. fields]) };
             if (images is null)
             {
-                return WithPositions(new LoadedSource(surface, info, 1, true, notes, [], operations), positions, "mermaid");
+                return WithPositions(new LoadedSource(surface, info, 1, true, notes, [], operations), positions, "mermaid", Context.WarnUnmatchedPositions);
             }
 
             try
@@ -496,7 +496,7 @@ public static partial class SourceLoader
                         [.. images.Resolver.Echo],
                         operations),
                     positions,
-                    "mermaid");
+                    "mermaid", Context.WarnUnmatchedPositions);
             }
             catch
             {

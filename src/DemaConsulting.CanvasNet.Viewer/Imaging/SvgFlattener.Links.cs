@@ -179,55 +179,57 @@ public static partial class SvgFlattener
 
     /// <summary>
     ///     Builds the text of the copy: each link the recorder drew becomes a PNG data URI and, when the copy is written
-    ///     to another folder, each relative link that is left is rebased; all other text is kept.
+    ///     to another folder, each relative link that is left is rebased; the baked position bindings are applied in the
+    ///     same pass; all other text is kept.
     /// </summary>
     /// <param name="document">The drawing.</param>
     /// <param name="links">The links, in document order.</param>
     /// <param name="recorder">The recorder, with the pictures it drew.</param>
     /// <param name="inputPath">The path of the drawing.</param>
     /// <param name="request">The request.</param>
+    /// <param name="extra">More edits of the text (the baked position bindings), applied in the same pass.</param>
     /// <returns>The text and what changed.</returns>
     /// <exception cref="ViewerException">Thrown with code <c>size-limit</c> as soon as the copy would exceed the limit.</exception>
-    private static Rewritten Rewrite(SvgText document, List<ImageLink> links, Recorder recorder, string inputPath, FlattenRequest request)
+    private static Rewritten Rewrite(SvgText document, List<ImageLink> links, Recorder recorder, string inputPath, FlattenRequest request, List<Splice> extra)
     {
         var inputFolder = FolderOf(inputPath);
         var outputFolder = FolderOf(request.Output);
         var rebase = Path.GetRelativePath(outputFolder, inputFolder) != ".";
         var text = document.Text;
-        var builder = new StringBuilder(text.Length);
         var replaced = new List<FlattenedImage>();
         var rebased = new List<RebasedLink>();
-        var size = (long)document.Bytes.Length;
-        var copied = 0;
+        var splices = new List<Splice>(extra);
         foreach (var link in links)
         {
             // A picture that was drawn replaces the link; a relative link that is left finds its file from the copy
-            string? value = null;
             if (recorder.Captures.TryGetValue(link.Href, out var capture))
             {
-                value = capture.DataUri;
+                splices.Add(new Splice(link.Start, link.Length, capture.DataUri));
                 Count(replaced, capture, link.Href);
             }
             else if (rebase && RebaseLink(link.Href, link.Quote, inputFolder, outputFolder) is { } moved)
             {
-                value = moved;
+                splices.Add(new Splice(link.Start, link.Length, moved));
                 if (!rebased.Exists(r => r.Href == link.Href))
                 {
                     rebased.Add(new RebasedLink(link.Href, moved));
                 }
             }
+        }
 
-            if (value is null)
-            {
-                continue;
-            }
-
+        // The edits never overlap: each changes one attribute value, or removes one attribute
+        splices.Sort((a, b) => a.Start.CompareTo(b.Start));
+        var builder = new StringBuilder(text.Length);
+        var size = (long)document.Bytes.Length;
+        var copied = 0;
+        foreach (var splice in splices)
+        {
             // The size is checked as the copy grows, so a picture linked many times cannot use up the memory first; it is
             // counted in UTF-8 bytes, as the copy is encoded, so a link with other than ASCII characters is counted right
-            size += StrictUtf8.GetByteCount(value) - StrictUtf8.GetByteCount(text.AsSpan(link.Start, link.Length));
+            size += StrictUtf8.GetByteCount(splice.Value) - StrictUtf8.GetByteCount(text.AsSpan(splice.Start, splice.Length));
             CheckSize(size, request.MaxOutputBytes);
-            builder.Append(text, copied, link.Start - copied).Append(value);
-            copied = link.Start + link.Length;
+            builder.Append(text, copied, splice.Start - copied).Append(splice.Value);
+            copied = splice.Start + splice.Length;
         }
 
         builder.Append(text, copied, text.Length - copied);
