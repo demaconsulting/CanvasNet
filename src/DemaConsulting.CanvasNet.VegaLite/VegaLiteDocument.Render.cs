@@ -145,10 +145,7 @@ public sealed partial class VegaLiteDocument
         cancellationToken.ThrowIfCancellationRequested();
         var placement = ScenePlacement.Uniform(effective.Scale);
         return Run(effective, cancellationToken, plan, placement, (p, sink) =>
-        {
-            ScenePositions.Report(p.Scene, placement, p.Measurer, effective);
-            return Paint(p, size.Width, size.Height, placement, effective, sink, cancellationToken);
-        });
+            PaintAndReport(p, size.Width, size.Height, placement, effective, sink, cancellationToken));
     }
 
     /// <summary>
@@ -199,10 +196,7 @@ public sealed partial class VegaLiteDocument
         var plan = PrepareChartOrReport(effective, cancellationToken);
         var placement = ScenePlacement.Fit(plan.Size.Width, plan.Size.Height, width, height);
         return Run(effective, cancellationToken, plan, placement, (p, sink) =>
-        {
-            ScenePositions.Report(p.Scene, placement, p.Measurer, effective);
-            return Paint(p, width, height, placement, effective, sink, cancellationToken);
-        });
+            PaintAndReport(p, width, height, placement, effective, sink, cancellationToken));
     }
 
     /// <summary>
@@ -724,16 +718,50 @@ public sealed partial class VegaLiteDocument
     /// <param name="placement">Where the scene goes on the surface.</param>
     /// <param name="options">The effective options (the image resolver and the limit of pictures).</param>
     /// <param name="sink">The sink that records what the painting finds: a picture the resolver did not resolve.</param>
+    /// <param name="drawnImages">The map that receives the rectangle each picture is drawn in (<see cref="ScenePainter.DrawnImages"/>), or null.</param>
     /// <param name="cancellationToken">The token that stops the work.</param>
     /// <returns>The surface; the caller owns it.</returns>
     /// <exception cref="VegaLiteRenderException">Thrown, located at the mark, when the chart draws more pictures than <see cref="VegaLiteLimits.MaxImages"/>.</exception>
-    private static Surface Paint(ChartPlan plan, int width, int height, ScenePlacement placement, VegaLiteRenderOptions options, VegaLiteReportSink sink, CancellationToken cancellationToken)
+    private static Surface Paint(ChartPlan plan, int width, int height, ScenePlacement placement, VegaLiteRenderOptions options, VegaLiteReportSink sink, Dictionary<SceneImage, SceneBounds>? drawnImages, CancellationToken cancellationToken)
     {
         // The pictures of the image mark are loaded while the scene is painted (the scale is known only now) and every surface the resolver returned is released when the painting ends
         using var images = new SceneImageSource(options.ImageResolver, options.Limits.MaxImages, (message, location, key) => sink.Warn(message, location, key));
         ReportStage("paint", finished: false);
-        var surface = new ScenePainter(plan.Measurer, images, options.Limits.MaxPaintedPixels).Paint(plan.Scene, width, height, placement, cancellationToken);
+        var surface = new ScenePainter(plan.Measurer, images, options.Limits.MaxPaintedPixels) { DrawnImages = drawnImages }.Paint(plan.Scene, width, height, placement, cancellationToken);
         ReportStage("paint", finished: true);
+        return surface;
+    }
+
+    /// <summary>
+    ///     Paints the plan, then reports the positions of its features to the handler of the options, when there is one.
+    /// </summary>
+    /// <remarks>
+    ///     The positions are reported after the painting because the box of an image mark whose width or height is not given depends on the picture, which is loaded only while the
+    ///     scene is painted: the painter records the rectangle it draws each picture in (<see cref="ScenePainter.DrawnImages"/>) and the positions report it, so no picture is loaded twice.
+    ///     A handler that throws propagates its exception and the surface is disposed.
+    /// </remarks>
+    /// <param name="plan">The plan.</param>
+    /// <param name="width">The width of the surface in pixels.</param>
+    /// <param name="height">The height of the surface in pixels.</param>
+    /// <param name="placement">Where the scene goes on the surface.</param>
+    /// <param name="options">The effective options (the position handler, the image resolver and the limits).</param>
+    /// <param name="sink">The sink that records what the painting finds.</param>
+    /// <param name="cancellationToken">The token that stops the work.</param>
+    /// <returns>The surface; the caller owns it.</returns>
+    private static Surface PaintAndReport(ChartPlan plan, int width, int height, ScenePlacement placement, VegaLiteRenderOptions options, VegaLiteReportSink sink, CancellationToken cancellationToken)
+    {
+        var drawnImages = options.PositionHandler is null ? null : new Dictionary<SceneImage, SceneBounds>(ReferenceEqualityComparer.Instance);
+        var surface = Paint(plan, width, height, placement, options, sink, drawnImages, cancellationToken);
+        try
+        {
+            ScenePositions.Report(plan.Scene, placement, plan.Measurer, options, drawnImages);
+        }
+        catch
+        {
+            surface.Dispose();
+            throw;
+        }
+
         return surface;
     }
 

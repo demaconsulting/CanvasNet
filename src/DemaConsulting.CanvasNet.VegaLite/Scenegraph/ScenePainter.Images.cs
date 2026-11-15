@@ -77,6 +77,12 @@ internal sealed partial class ScenePainter
             return;
         }
 
+        // The rectangle the picture is drawn in is what the positions of the render report as the box of the item
+        if (DrawnImages is { } drawn)
+        {
+            drawn[image] = new SceneBounds(box.X, box.Y, box.X + box.Width, box.Y + box.Height);
+        }
+
         DrawPicture(surface, box, image, local, _images);
     }
 

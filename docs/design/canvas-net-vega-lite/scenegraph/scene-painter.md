@@ -33,8 +33,8 @@ The unit's behavior is specified by the `CanvasNetVegaLite-Scenegraph-ScenePaint
 origin enlarged by a factor, and `Fit(sceneWidth, sceneHeight, targetWidth, targetHeight)` scales it uniformly by the
 largest factor that fits and centers it (a scene without area is not scaled).
 
-**`ScenePainter`** (stateless, thread-safe unless it was given a picture loader) holds the `TextMeasurer` that resolves
-fonts and produces the lines
+**`ScenePainter`** (stateless, thread-safe unless it was given a picture loader or a `DrawnImages` map) holds the
+`TextMeasurer` that resolves fonts and produces the lines
 to draw, an optional **`SceneImageSource`** for the pictures (below), and the limit of painted pixels (`maxPaintedPixels`,
 `long.MaxValue` for none; `VegaLiteDocument` passes `VegaLiteLimits.MaxPaintedPixels`). A private context carries the
 target surface,
@@ -271,7 +271,9 @@ the items that draw the same picture at the same size and opacity (an icon for e
 copy was allocated for every item: 200 rows 1.3 seconds, 20,000 rows 87 seconds). The pixels of the box of every picture
 (defect B4: a picture without a size is the size of the picture) and of every copy that is made are charged to the paint
 budget first. An item with no resolver behind it, an empty link, a position
-beyond the magnitude bound, a negative or non-finite size, or no opacity is neither asked for nor drawn.
+beyond the magnitude bound, a negative or non-finite size, or no opacity is neither asked for nor drawn. When the
+painter is given a map (`DrawnImages`, set by `VegaLiteDocument` only when a position handler is set), it records for
+each picture it draws the rectangle it draws it in, which `ScenePositions` reports as the box of the image mark.
 `SceneImageSource` (one painting, one thread, `IDisposable`): `Get(url, pixelWidth, pixelHeight, location)` asks the
 host's
 `IImageResolver` once for each distinct `(url, width, height)` and shares the answer (the resolver contract allows no

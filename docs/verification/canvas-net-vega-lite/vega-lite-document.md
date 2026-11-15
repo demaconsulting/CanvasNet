@@ -920,7 +920,8 @@ condition of its encoding reads.
 `VegaLiteDocumentPositionTests.VegaLiteDocument_Render_CompositionPaths_AreCanonical`,
 `VegaLiteDocumentPositionTests.VegaLiteDocument_Render_AggregateAndTemporalLine_ValuesAndVertices`,
 `VegaLiteDocumentPositionTests.VegaLiteDocument_Render_BoxplotStackAndBin_ValuesAndViews`,
-`VegaLiteDocumentPositionTests.VegaLiteDocument_Render_ArcAndLegend_AimInsideTheSlice`
+`VegaLiteDocumentPositionTests.VegaLiteDocument_Render_ArcAndLegend_AimInsideTheSlice`,
+`VegaLiteDocumentPositionTests.VegaLiteDocument_Render_ImageMarkWithoutSize_ReportsTheDrawnBox`
 
 Renders a titled bar chart of three stalls and asserts the kinds `title`, `view`, `axis`, `axis`, and three `mark`s in
 that order with the ids `title`, the empty root path, `x`, `y`, `bar-0`, `bar-1`, and `bar-2`, every position in the
@@ -936,3 +937,7 @@ cell's mark in `facet[1]`; a summed line over dates as the vertices `line-0` and
 `2025-01-01T00:00:00.000Z`, `y` = 8, and a box of zero width; the rules and ticks of a boxplot in the root view, the
 own values 3 and 5 of two stacked bars, and the start and the greater end of a bin on `x` and `x2`; and the legend
 `color` of an arc chart, whose first slice's pixel is painted in the default mark blue and differs from the second's.
+Renders an image mark centered at (100, 50) whose resolver returns a 40 by 10 raster and asserts that with only a
+height of 20 its box is the drawn rectangle (60, 40, 80, 20) and without a size the natural (80, 45, 40, 10), each
+with the pixel (100, 50), the picture red at the corners inside the box and the background white just outside it, and
+one resolver call per render.

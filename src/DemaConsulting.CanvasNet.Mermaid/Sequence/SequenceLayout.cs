@@ -505,7 +505,7 @@ internal sealed partial class SequenceLayout
 
         if (!string.IsNullOrEmpty(title))
         {
-            _renderer.DrawTitle(title, ((stopx - startx) / 2) - (2 * _conf.DiagramMarginX), -25);
+            _renderer.DrawTitle(title, ((stopx - startx) / 2) - (2 * _conf.DiagramMarginX), -25, _model.TitleLocation);
         }
 
         var extraVertForTitle = string.IsNullOrEmpty(title) ? 0 : 40;

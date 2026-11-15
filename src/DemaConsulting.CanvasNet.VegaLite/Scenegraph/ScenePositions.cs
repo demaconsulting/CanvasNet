@@ -28,7 +28,8 @@ namespace DemaConsulting.CanvasNet.VegaLite.Scenegraph;
 ///         <b>Geometry.</b> The box of a guide is its bounds (a view's data rectangle, a legend's frame); a mark's box is
 ///         its geometry bounds without the stroke: a bar's rectangle, a symbol's shape, a text's measured box, an arc's
 ///         sector, a rule's segment, and a zero-size box at a vertex. The pixel is the box center, except: a rule's
-///         midpoint, a text's anchor, an arc's mid-angle at mid-radius, and a vertex.
+///         midpoint, a text's anchor, an arc's mid-angle at mid-radius, and a vertex. An image's box is the rectangle the painter drew the picture in
+///         (<see cref="ScenePainter.DrawnImages"/>, a missing width or height resolved from the loaded picture); a picture that is not drawn has the box of its given size.
 ///     </para>
 ///     <para>
 ///         <b>Values and data.</b> A mark reports the values of its encoding channels (<see cref="SceneMarkContext.Values"/>
@@ -68,14 +69,15 @@ internal static class ScenePositions
     /// <param name="placement">Where the scene is drawn on the surface.</param>
     /// <param name="measurer">The text measurer of the render (the box of a text mark).</param>
     /// <param name="options">The options, whose <see cref="VegaLiteRenderOptions.PositionHandler"/> receives the positions.</param>
-    public static void Report(Scene scene, ScenePlacement placement, TextMeasurer measurer, VegaLiteRenderOptions options)
+    /// <param name="drawnImages">The rectangles the painter drew the pictures of the image items in (<see cref="ScenePainter.DrawnImages"/>), or null.</param>
+    public static void Report(Scene scene, ScenePlacement placement, TextMeasurer measurer, VegaLiteRenderOptions options, IReadOnlyDictionary<SceneImage, SceneBounds>? drawnImages = null)
     {
         if (options.PositionHandler is not { } handler)
         {
             return;
         }
 
-        foreach (var position in Collect(scene, placement, measurer, options.PositionKindFilter))
+        foreach (var position in Collect(scene, placement, measurer, options.PositionKindFilter, drawnImages))
         {
             handler(position);
         }
@@ -88,8 +90,9 @@ internal static class ScenePositions
     /// <param name="placement">Where the scene is drawn on the surface.</param>
     /// <param name="measurer">The text measurer of the render.</param>
     /// <param name="kindFilter">The kinds wanted, or null for every kind.</param>
+    /// <param name="drawnImages">The rectangles the painter drew the pictures of the image items in (<see cref="ScenePainter.DrawnImages"/>), or null.</param>
     /// <returns>The positions.</returns>
-    public static List<ImagePosition> Collect(Scene scene, ScenePlacement placement, TextMeasurer measurer, Func<string, bool>? kindFilter)
+    public static List<ImagePosition> Collect(Scene scene, ScenePlacement placement, TextMeasurer measurer, Func<string, bool>? kindFilter, IReadOnlyDictionary<SceneImage, SceneBounds>? drawnImages = null)
     {
         bool Wanted(string kind) => kindFilter is null || kindFilter(kind);
         var guides = GuideOrder.ToDictionary(kind => kind, _ => new List<ImagePosition>(), StringComparer.Ordinal);
@@ -112,7 +115,7 @@ internal static class ScenePositions
             }
             else if (wantMarks && context is not null)
             {
-                AddMarks(item, x, y, context, measurer, placement, counters, marks);
+                AddMarks(item, x, y, context, measurer, drawnImages, placement, counters, marks);
             }
 
             if (item is SceneGroup group)
@@ -261,6 +264,7 @@ internal static class ScenePositions
     /// <param name="y">The y translation of the marks group.</param>
     /// <param name="context">The context of the marks group.</param>
     /// <param name="measurer">The text measurer.</param>
+    /// <param name="drawnImages">The rectangles the painter drew the pictures in, or null.</param>
     /// <param name="placement">Where the scene is drawn.</param>
     /// <param name="counters">The number of items of each mark type in each view so far.</param>
     /// <param name="marks">The list the positions are added to.</param>
@@ -270,6 +274,7 @@ internal static class ScenePositions
         double y,
         SceneMarkContext context,
         TextMeasurer measurer,
+        IReadOnlyDictionary<SceneImage, SceneBounds>? drawnImages,
         ScenePlacement placement,
         Dictionary<(string View, string Mark), int> counters,
         List<ImagePosition> marks)
@@ -297,7 +302,7 @@ internal static class ScenePositions
             return;
         }
 
-        if (item.Datum < 0 || Geometry(item, measurer) is not { } geometry)
+        if (item.Datum < 0 || Geometry(item, measurer, drawnImages) is not { } geometry)
         {
             return;
         }
@@ -349,8 +354,12 @@ internal static class ScenePositions
     /// </summary>
     /// <param name="item">The item.</param>
     /// <param name="measurer">The text measurer.</param>
+    /// <param name="drawnImages">
+    ///     The rectangles the painter drew the pictures of the image items in (<see cref="ScenePainter.DrawnImages"/>), or null: a drawn image's box is that rectangle, whose missing
+    ///     width or height the painter resolved from the loaded picture.
+    /// </param>
     /// <returns>The bounds and the aim point (null for the center of the bounds), or null for an item without geometry.</returns>
-    internal static (SceneBounds Bounds, (double X, double Y)? Aim)? Geometry(SceneItem item, TextMeasurer measurer)
+    internal static (SceneBounds Bounds, (double X, double Y)? Aim)? Geometry(SceneItem item, TextMeasurer measurer, IReadOnlyDictionary<SceneImage, SceneBounds>? drawnImages = null)
     {
         switch (item)
         {
@@ -373,7 +382,10 @@ internal static class ScenePositions
                     ? new SceneBounds(arc.X, arc.Y, arc.X, arc.Y)
                     : new SceneBounds(arc.X + sector.X, arc.Y + sector.Y, arc.X + sector.X + sector.Width, arc.Y + sector.Y + sector.Height);
                 return (arcBounds, (arc.X + (radius * Math.Cos(middle)), arc.Y + (radius * Math.Sin(middle))));
+            case SceneImage image when drawnImages is not null && drawnImages.TryGetValue(image, out var drawn):
+                return (drawn, null);
             case SceneImage image:
+                // A picture that is not drawn (no resolver, or one it did not give) has the box of its given size, a missing dimension taken as 0
                 var width = image.Width ?? 0;
                 var height = image.Height ?? 0;
                 var left = image.Align switch { "center" => image.X - (width / 2), "right" => image.X - width, _ => image.X };

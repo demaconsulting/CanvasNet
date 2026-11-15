@@ -193,3 +193,4 @@ sections:
               - MermaidDocument_Render_OtherTypes_ReportSourceIds
               - MermaidDocument_Render_StatePositions_FirstMentionLinesInSourceOrder
               - MermaidDocument_Render_TitleStatements_ReportTheirLine
+              - MermaidDocument_Render_SequenceTitleStatement_ReportsItsLine

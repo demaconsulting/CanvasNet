@@ -104,10 +104,10 @@ colors parse with the invariant culture and no named color depends on the host.
 **Positions come from the scene the painter draws.** The guide and view groups carry an internal tag (kind, id, text,
 view path, view name, and optional bounds), and only when a render asks for mark positions do the mark items record the
 row they draw, the path marks their vertices, and each marks group the values and data fields of its rows; none of it
-changes the pixels. Before the painting, `ScenePositions` walks the scene once, reports the titles, views, axes, and
+changes the pixels. After the painting, `ScenePositions` walks the scene once, reports the titles, views, axes, and
 legends, then the marks, each in drawing order, with the box and attachment pixel of its kind mapped by the placement
-the painter uses, so the positions are those of the returned surface at any scale or exact size; a kind the filter
-rejects is skipped before its geometry is computed.
+the painter uses (an image mark's box is the rectangle the painter drew its picture in), so the positions are those of
+the returned surface at any scale or exact size; a kind the filter rejects is skipped before its geometry is computed.
 
 **Bounded.** The scene item count is bounded by `SceneBudget` (`MaxSceneItems`), and the pixel size by the surface
 (`Surface.MaxDimension`); a clip layer is only as large as the clip's pixel box. The geometry of an arc costs a constant

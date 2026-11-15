@@ -736,10 +736,11 @@ sections:
           - id: CanvasNetVegaLite-VegaLiteDocument-Positions
             title: >-
               The VegaLiteDocument class shall call VegaLiteRenderOptions.PositionHandler from both Render methods once
-              per feature, on the calling thread, after the layout and the placement and before the painting, in the
-              pixels of the returned surface (following the scale or the fit); shall record the rows of the mark items
-              only when a handler is set and PositionKindFilter accepts marks; shall never call the handler from
-              Measure; shall leave the pixels unchanged; and shall let an exception of the handler propagate.
+              per feature, on the calling thread, after the painting, in the pixels of the returned surface (following
+              the scale or the fit), with the box of an image mark the rectangle its picture is drawn in; shall record
+              the rows of the mark items only when a handler is set and PositionKindFilter accepts marks; shall never
+              call the handler from Measure; shall leave the pixels unchanged; and shall let an exception of the
+              handler propagate.
             justification: |
               The handler is the public contract of the positions of a chart; recording rows only on request keeps a
               render without a handler as cheap as before.
@@ -752,3 +753,4 @@ sections:
               - VegaLiteDocument_Render_AggregateAndTemporalLine_ValuesAndVertices
               - VegaLiteDocument_Render_BoxplotStackAndBin_ValuesAndViews
               - VegaLiteDocument_Render_ArcAndLegend_AimInsideTheSlice
+              - VegaLiteDocument_Render_ImageMarkWithoutSize_ReportsTheDrawnBox

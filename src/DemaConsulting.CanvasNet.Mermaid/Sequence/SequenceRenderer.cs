@@ -160,12 +160,13 @@ internal sealed partial class SequenceRenderer
     /// <param name="title">The title.</param>
     /// <param name="x">The x of its start.</param>
     /// <param name="y">The y of its baseline.</param>
-    public void DrawTitle(string title, double x, double y)
+    /// <param name="location">The location of the <c>title</c> statement, else the diagram keyword.</param>
+    public void DrawTitle(string title, double x, double y, MermaidLocation location)
     {
         var root = _styles.Resolve(DiagramStyles.Root);
         var font = new SceneFont(root["font-family"] ?? MermaidConfigResolver.DefaultFontFamily, root.Length("font-size", 16), false, false);
         var line = TextLine(DisplayText(title), x, y, SceneTextAnchor.Start, font, RootFill, "title", null, default);
-        Append().Items.Add(line with { Position = new ScenePositionTag("title", "title") { Text = DisplayText(title) } });
+        Append().Items.Add(line with { Position = new ScenePositionTag("title", "title") { Text = DisplayText(title), Location = location } });
     }
 
     /// <summary>

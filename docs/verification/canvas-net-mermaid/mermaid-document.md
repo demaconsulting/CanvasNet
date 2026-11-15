@@ -162,7 +162,8 @@ of an unknown theme; and the propagation of a syntax error and of a null request
 `MermaidDocumentPositionTests.MermaidDocument_Render_GitGraphPositions_CommitsAtBullets`,
 `MermaidDocumentPositionTests.MermaidDocument_Render_OtherTypes_ReportSourceIds`,
 `MermaidDocumentPositionTests.MermaidDocument_Render_StatePositions_FirstMentionLinesInSourceOrder`,
-`MermaidDocumentPositionTests.MermaidDocument_Render_TitleStatements_ReportTheirLine`
+`MermaidDocumentPositionTests.MermaidDocument_Render_TitleStatements_ReportTheirLine`,
+`MermaidDocumentPositionTests.MermaidDocument_Render_SequenceTitleStatement_ReportsItsLine`
 Renders a titled flowchart with a subgraph, two parallel edges, a self-loop, and a filled node, and asserts the kinds
 in report order (the title, the group, four nodes, then five edges), the source ids `start`, `stock`, `pack`, and
 `send` and the group `ship`, the title text, the parallel edges from `stock` to `pack` numbered 0 and 1 (the first
@@ -183,4 +184,5 @@ and `dev`, and the tag `v1`; and the class nodes and note, the state node and ed
 Renders the `mermaid-state` help example and asserts each named state at the line of its first mention, in source
 order (`Placed` 5, `Paid` 6, `Cancelled` 7, `Packed` 9, `Sent` 10, `Delivered` 14), the group `Shipping` at line 8,
 the note at line 17, and the end state `root_end` at line 15 and after `Paid`. Asserts that the pie, packet, and git
-graph titles set by a `title` statement report its line 2.
+graph titles set by a `title` statement report its line 2, and that a sequence diagram title set by a `title`
+statement on line 3 reports the text `Greeting` and line 3.

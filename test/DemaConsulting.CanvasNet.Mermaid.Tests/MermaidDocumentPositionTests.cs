@@ -371,4 +371,20 @@ public class MermaidDocumentPositionTests
             Assert.Equal(2, title.Line);
         }
     }
+
+    /// <summary>
+    ///     Validates that a sequence diagram title reports the line of its <c>title</c> statement.
+    /// </summary>
+    [Fact]
+    public void MermaidDocument_Render_SequenceTitleStatement_ReportsItsLine()
+    {
+        // Act
+        var (surface, positions) = Render("sequenceDiagram\n    participant A\n    title Greeting\n    A->>A: Hi\n");
+        using var _ = surface;
+
+        // Assert
+        var title = Assert.Single(positions, p => p.Kind == "title");
+        Assert.Equal("Greeting", title.Text);
+        Assert.Equal(3, title.Line);
+    }
 }

@@ -310,15 +310,16 @@ public sealed class VegaLiteRenderOptions
     /// </summary>
     /// <remarks>
     ///     <para>
-    ///         Both <c>Render</c> methods call it once per feature, on the calling thread, after the layout and the
-    ///         placement are known and before the chart is painted: titles, views, axes and legends, then the marks in
-    ///         drawing order. Coordinates are in the pixels of the returned surface, so they follow <see cref="Scale"/>
+    ///         Both <c>Render</c> methods call it once per feature, on the calling thread, after the chart is painted:
+    ///         titles, views, axes and legends, then the marks in drawing order. Coordinates are in the pixels of the
+    ///         returned surface, so they follow <see cref="Scale"/>
     ///         or the exact size. Every position carries the canonical path of its view (<c>""</c> for a single view,
     ///         <c>hconcat[1]</c>, <c>vconcat[0].layer[1]</c>, <c>facet[3]</c>) and the view's <c>name</c>; a mark has the
     ///         id <c>&lt;mark&gt;-&lt;n&gt;</c> within its view and the normalized values of its row by channel (dates as
     ///         UTC ISO-8601 text, a bin as <c>x</c> and <c>x2</c>, a facet cell's <c>row</c>, <c>column</c> or
     ///         <c>facet</c>). A line, area or trail is one position per vertex. A position's <c>Box</c> is the geometry
-    ///         bounds (stroke not included) and its <c>Pixel</c> the attachment point of its kind.
+    ///         bounds (stroke not included) and its <c>Pixel</c> the attachment point of its kind; an image mark's box is
+    ///         the rectangle its picture was drawn in (a missing width or height taken from the loaded picture).
     ///     </para>
     ///     <para>
     ///         The handler never changes the pixels. <c>Measure</c> never calls it. An exception thrown by the handler

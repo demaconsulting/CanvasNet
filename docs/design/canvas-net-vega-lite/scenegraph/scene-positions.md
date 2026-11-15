@@ -52,28 +52,32 @@ measurer, and filter always give the same list.
 
 #### Key Methods
 
-- **`Report(scene, placement, measurer, options)`** - does nothing when `VegaLiteRenderOptions.PositionHandler` is
-  null; otherwise calls the handler once per position of `Collect(scene, placement, measurer,
-  options.PositionKindFilter)`, in order, on the calling thread.
-- **`Collect(scene, placement, measurer, kindFilter)`** - walks the scene from the root in drawing order with an
-  explicit stack (no recursion), carrying the translation of the enclosing groups and the `SceneMarkContext` of the
-  nearest enclosing marks group (`SceneGroup.Marks`). An item tagged with a guide kind that the filter accepts becomes a
-  guide position; otherwise, when the filter accepts `mark` and the item is inside a marks group, its mark positions are
-  added. The result is the titles, views, axes, and legends, each in drawing order, then the marks in drawing order.
+- **`Report(scene, placement, measurer, options, drawnImages)`** - does nothing when
+  `VegaLiteRenderOptions.PositionHandler` is null; otherwise calls the handler once per position of
+  `Collect(scene, placement, measurer, options.PositionKindFilter, drawnImages)`, in order, on the calling thread.
+- **`Collect(scene, placement, measurer, kindFilter, drawnImages)`** - walks the scene from the root in drawing order
+  with an explicit stack (no recursion), carrying the translation of the enclosing groups and the `SceneMarkContext`
+  of the nearest enclosing marks group (`SceneGroup.Marks`). An item tagged with a guide kind that the filter accepts
+  becomes a guide position; otherwise, when the filter accepts `mark` and the item is inside a marks group, its mark
+  positions are added. The result is the titles, views, axes, and legends, each in drawing order, then the marks in
+  drawing order.
 - **`Guide`** (private) - the box is the tag's own `Bounds` (when not empty) translated by the parent's translation,
   else the rectangle of the tagged group (a view's data rectangle, a legend's frame); the pixel is the center of the
   box; `Text` is the tag's text (null when empty or white space), with the tag's `View` and `ViewName`.
 - **`AddMarks`** (private) - a `ScenePath` or `SceneTrail` with `Vertices` (a line, area, or trail) gives one position
   per vertex, at the vertex, with a box of zero size and the vertex's row; any other item gives one position when its
   `Datum` is a row (not -1) and `Geometry` gives it a shape.
-- **`Geometry(item, measurer)`** (internal) - the geometry bounds (stroke not included) and the aim point, in the
-  coordinates of the marks group: a rectangle (bar, rect, tick) its normalized rectangle and its center; a rule the
+- **`Geometry(item, measurer, drawnImages)`** (internal) - the geometry bounds (stroke not included) and the aim
+  point, in the coordinates of the marks group: a rectangle (bar, rect, tick) its normalized rectangle and its center;
+  a rule the
   normalized box of its two ends and their midpoint; a symbol the bounds of `ScenePainter.SymbolPath` of its shape and
   size, rotated by its angle and moved to its center (flattened at 0.01; a point when empty), aimed at its center; a text
   the box `TextMeasurer.GetBounds` measures, aimed at its anchor (`X + Dx`, `Y + Dy`); an arc the bounds of the
   `ArcGeometry.Build` outline moved to its center, aimed at its mid-angle (`(start + end) / 2`, measured clockwise from
-  12 o'clock) at its mid-radius (`(inner + outer) / 2`); an image the box of its width and height placed by its `Align`
-  and `Baseline`, aimed at the center; and nothing for any other item.
+  12 o'clock) at its mid-radius (`(inner + outer) / 2`); an image the rectangle the painter drew its picture in
+  (`drawnImages`, recorded by `ScenePainter.DrawnImages`, where a missing width or height is resolved from the loaded
+  picture), else (a picture that is not drawn) the box of its given width and height (0 for a missing one) placed by its
+  `Align` and `Baseline`, aimed at the center; and nothing for any other item.
 - **`ViewPath(node)`**, **`ViewName(node)`**, and **`FacetValues(node)`** (internal) - the canonical view path, the
   `name` of the specification node, and the facet values of the nearest view that is a cell of a facet (`column` and
   `row` for the fields the facet has, `facet` for a wrapped facet, each converted with `MarkBuilder.TryConvert`; empty
@@ -96,7 +100,8 @@ delivers the reports recorded before it).
 - **SceneModel** - `Scene`, the items, `SceneItem.Position` and `ScenePositionTag`, `SceneItem.Datum`,
   `SceneGroup.Marks` and `SceneMarkContext`, `ScenePath.Vertices`, `SceneTrail.Vertices` and `SceneVertex`, and
   `SceneBounds` of the same subsystem
-- **ScenePainter** - `ScenePlacement` and `ScenePainter.SymbolPath`; **ArcGeometry** - `ArcGeometry.Build`
+- **ScenePainter** - `ScenePlacement`, `ScenePainter.SymbolPath`, and the drawn rectangles of
+  `ScenePainter.DrawnImages`; **ArcGeometry** - `ArcGeometry.Build`
 - **Guides subsystem** - `TextMeasurer.GetBounds` (the box of a text mark)
 - **Marks subsystem** - `MarkBuilder.TryConvert` (the facet values)
 - **SpecModel and Data subsystems** - `LayerNode`, `ViewKind`, and the facet cell of a view; `DataValue`
@@ -107,8 +112,8 @@ delivers the reports recorded before it).
 
 #### Callers
 
-The `VegaLiteDocument` unit calls `Report` in both `Render` overloads after the layout and the placement and before the
-painting, and calls `ViewPath`, `ViewName`, and `FacetValues` when it tags the root view, the views, guides, and titles
-of a composition, and the marks groups of each layer (`VegaLiteDocument.Render.cs` and `VegaLiteDocument.Composition.cs`).
+The `VegaLiteDocument` unit calls `Report` in both `Render` overloads after the painting, with the rectangles the
+painter drew the pictures in, and calls `ViewPath`, `ViewName`, and `FacetValues` when it tags the root view, the views,
+guides, and titles of a composition, and the marks groups of each layer (`VegaLiteDocument.Render.cs` and `VegaLiteDocument.Composition.cs`).
 The tests in `test/DemaConsulting.CanvasNet.VegaLite.Tests/Scenegraph/ScenePositionsTests.cs` call `Collect` and
 `Geometry` directly through `InternalsVisibleTo`.

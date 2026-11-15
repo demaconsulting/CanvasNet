@@ -200,9 +200,12 @@ rendering, diagnostics, unsupported features, limits and cancellation, determini
   the parameter names and the token, prepares the chart, and paints at `ScenePlacement.Fit` onto a surface of exactly
   that size.
 - **Positions** (both `Render` overloads) - the finish step calls `ScenePositions.Report(scene, placement, measurer,
-  options)` before it paints, so the `PositionHandler` receives each feature once, on the calling thread, in the pixels
-  of the returned surface (following the scale or the fit); `Measure` never calls it, and the pixels are the same with
-  or without it. `PrepareChart` sets the record flag (`recordMarks`: a handler is set and `PositionKindFilter`, when
+  options, drawnImages)` after it paints (`PaintAndReport`: the painter records the rectangle it draws each picture in,
+  `ScenePainter.DrawnImages`, so an image mark that omits its width or height reports the size of its loaded picture and
+  no picture is loaded twice; a handler that throws disposes the surface), so the `PositionHandler` receives each
+  feature once, on the calling thread, in the pixels of the returned surface (following the scale or the fit);
+  `Measure` never calls it, and the pixels are the same with or without it. `PrepareChart` sets the record flag
+  (`recordMarks`: a handler is set and `PositionKindFilter`, when
   given, accepts `mark`) and passes it through `ChartInputs.RecordMarks` (a single or layered chart),
   `Composer.RecordMarks` (a composition), and `CellInputs.RecordMarks` to the `MarkBuilder` of each cell
   (`RecordPositions`). The data rectangle of a single or layered chart is tagged as the view `""` (`RootViewTag`,

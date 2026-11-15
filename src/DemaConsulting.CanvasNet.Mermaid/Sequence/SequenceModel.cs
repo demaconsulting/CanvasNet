@@ -109,6 +109,7 @@ internal sealed partial class SequenceModel
         ArgumentNullException.ThrowIfNull(limits);
         _limits = limits;
         KeywordLocation = keywordLocation;
+        TitleLocation = keywordLocation;
     }
 
     /// <summary>Gets the location of the diagram keyword.</summary>
@@ -139,6 +140,9 @@ internal sealed partial class SequenceModel
     ///     Gets a value indicating whether a <c>title</c> statement set the title, even one that sanitizing empties.
     /// </summary>
     public bool IsTitleSet { get; private set; }
+
+    /// <summary>Gets the location of the last <c>title</c> statement, else the diagram keyword (a frontmatter title).</summary>
+    public MermaidLocation TitleLocation { get; private set; }
 
     /// <summary>Gets the accessible title (empty when there is none).</summary>
     public string AccessibleTitle { get; private set; } = string.Empty;
@@ -224,11 +228,13 @@ internal sealed partial class SequenceModel
     ///     Sets the diagram title (Mermaid's <c>setDiagramTitle</c>: sanitized, not trimmed).
     /// </summary>
     /// <param name="text">The title.</param>
-    public void SetDiagramTitle(string text)
+    /// <param name="location">The location of the statement.</param>
+    public void SetDiagramTitle(string text, MermaidLocation location)
     {
         ArgumentNullException.ThrowIfNull(text);
         DiagramTitle = HtmlSanitizer.Sanitize(text);
         IsTitleSet = true;
+        TitleLocation = location;
     }
 
     /// <summary>

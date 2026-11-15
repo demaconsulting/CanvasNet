@@ -1,4 +1,5 @@
 using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.ImageSources;
 using DemaConsulting.CanvasNet.Positions;
 using DemaConsulting.CanvasNet.VegaLite.Scenegraph;
 
@@ -334,5 +335,74 @@ public class VegaLiteDocumentPositionTests
         var exception = Assert.Throws<InvalidOperationException>(() =>
             VegaLiteDocument.Parse(Bars).Render(options, TestContext.Current.CancellationToken));
         Assert.Equal("stop", exception.Message);
+    }
+
+    /// <summary>
+    ///     Validates that an image mark that omits its width, or both its width and its height, reports the rectangle the
+    ///     picture is drawn in (sized from the loaded picture) as its box, with the pixel at its center, and that the
+    ///     picture is loaded once.
+    /// </summary>
+    [Fact]
+    public void VegaLiteDocument_Render_ImageMarkWithoutSize_ReportsTheDrawnBox()
+    {
+        // Arrange: one picture centered at (100, 50); the resolver returns a 40 by 10 raster whatever size it is asked for
+        const string Template =
+            "{\"width\":200,\"height\":100,\"padding\":0,\"data\":{\"values\":[{\"x\":5,\"y\":5,\"u\":\"red.png\"}]}," +
+            "\"mark\":{\"type\":\"image\"SIZE}," +
+            "\"encoding\":{\"x\":{\"field\":\"x\",\"type\":\"quantitative\",\"scale\":{\"domain\":[0,10]},\"axis\":null}," +
+            "\"y\":{\"field\":\"y\",\"type\":\"quantitative\",\"scale\":{\"domain\":[0,10]},\"axis\":null}," +
+            "\"url\":{\"field\":\"u\",\"type\":\"nominal\"}}}";
+
+        // Act / Assert: a height of 20 keeps the aspect ratio of 4 (80 by 20); no size is the natural 40 by 10
+        AssertDrawnBox(Template.Replace("SIZE", ",\"height\":20", StringComparison.Ordinal), new PositionBox(60, 40, 80, 20));
+        AssertDrawnBox(Template.Replace("SIZE", string.Empty, StringComparison.Ordinal), new PositionBox(80, 45, 40, 10));
+
+        static void AssertDrawnBox(string json, PositionBox expected)
+        {
+            var red = new Rgba32(255, 0, 0, 255);
+            var white = new Rgba32(255, 255, 255, 255);
+            var resolver = new RasterResolver(40, 10, red);
+            var positions = new List<ImagePosition>();
+            using var surface = VegaLiteDocument.Parse(json).Render(
+                new VegaLiteRenderOptions { ImageResolver = resolver, PositionHandler = positions.Add, PositionKindFilter = kind => kind == "mark" },
+                TestContext.Current.CancellationToken);
+
+            var image = Assert.Single(positions);
+            Assert.Equal("image-0", image.Id);
+            Assert.Equal(expected, image.Box);
+            Assert.Equal(new PositionPoint(100, 50), image.Pixel);
+            Assert.Equal(1, resolver.Calls);
+
+            // The box is the drawn rectangle: the picture covers its corners and stops at its edges
+            var (left, top) = ((int)expected.X, (int)expected.Y);
+            var (right, bottom) = ((int)(expected.X + expected.Width), (int)(expected.Y + expected.Height));
+            Assert.Equal(red, surface[left, top]);
+            Assert.Equal(red, surface[right - 1, bottom - 1]);
+            Assert.Equal(white, surface[left - 1, top]);
+            Assert.Equal(white, surface[right, bottom - 1]);
+            Assert.Equal(white, surface[left, top - 1]);
+            Assert.Equal(white, surface[right - 1, bottom]);
+        }
+    }
+
+    /// <summary>
+    ///     A resolver that returns a raster of one color and a fixed size, whatever size it is asked for, and counts its calls.
+    /// </summary>
+    /// <param name="width">The width of the raster.</param>
+    /// <param name="height">The height of the raster.</param>
+    /// <param name="color">The color of the raster.</param>
+    private sealed class RasterResolver(int width, int height, Rgba32 color) : IImageResolver
+    {
+        /// <summary>Gets the number of calls.</summary>
+        public int Calls { get; private set; }
+
+        /// <inheritdoc />
+        public Surface? Resolve(string href, int pixelWidth, int pixelHeight)
+        {
+            Calls++;
+            var surface = new Surface(width, height);
+            surface.Clear(color);
+            return surface;
+        }
     }
 }
