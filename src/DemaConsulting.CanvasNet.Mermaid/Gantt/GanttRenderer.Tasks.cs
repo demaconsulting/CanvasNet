@@ -128,7 +128,8 @@ internal sealed partial class GanttRenderer
             var style = _styles.Compute([Svg, Group, GanttElement.Of("rect", "section section" + number)]);
             if (Rect(0, (task.Order * gap) + topPad - 2, _w - (_conf.RightPadding / 2), gap, 0, style, "gantt-section", task.Section, task.Raw.Location) is { } row)
             {
-                _items.Add(row);
+                // The rows of one section are one position, named by the section
+                _items.Add(row with { Position = new ScenePositionTag("section", task.Section) { Text = task.Section, Location = task.Raw.SectionLocation ?? task.Raw.Location } });
             }
         }
 
@@ -203,7 +204,9 @@ internal sealed partial class GanttRenderer
             bar = Transformed(bar, originX, originY, Math.PI / 4, 0.8);
         }
 
-        _items.Add(bar);
+        // The bar reports the task (or milestone) by its id; a task without one has the synthetic id taskN
+        var tag = new ScenePositionTag(raw.Milestone ? "milestone" : "task", raw.Id ?? "undefined") { Text = raw.Task, Location = raw.Location };
+        _items.Add(bar with { Position = tag });
     }
 
     /// <summary>

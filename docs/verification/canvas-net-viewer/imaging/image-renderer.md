@@ -9,7 +9,9 @@ files (a gradient PNG, and the two-page PDF of the fixture factory) to a tempora
 `SourceLoader`, and call `ImageRenderer.Execute` with request records built by the test; nothing is mocked, because the
 unit is the chain of the real loader, pipeline, and writer. The pixels of a written file are compared with the
 expected surface (`SurfaceAssert`), and the failure cases assert the error code and that the input is unchanged and no
-file or temporary file is left.
+file or temporary file is left. The positions of a written page are verified with a two-node flowchart written by
+`ImageRenderer_Execute_Positions_FollowCropAndPad` and, end to end, by the system test that renders a bar chart with a
+pad (see _CanvasNetViewer System Verification_).
 
 #### Test Environment
 
@@ -25,6 +27,7 @@ N/A - standard test environment; the tests write only to temporary directories t
   not
   exist are refused with their codes before anything is written.
 - A failing operation leaves no output and no temporary file.
+- The positions of a page are mapped through the operations into the written image.
 
 #### Test Scenarios
 
@@ -68,3 +71,10 @@ second, to the one output.
 **ImageRenderer_Execute_InvalidOperationValue_ThrowsUsageErrorBeforeDecodeOrWrite**: a resize to 0x0 is a `usage-error`
 naming the operation even though the probed file was deleted (so decoding would fail with another code), and nothing is
 written.
+
+**ImageRenderer_Execute_Positions_FollowCropAndPad** and
+**CanvasNetViewer_SystemIntegration_Positions_FollowThePipelineIntoTheWrittenImage** (the requirement
+`CanvasNetViewer-Imaging-ImageRenderer-Positions`): a two-node flowchart rendered with the selector `node`, once without
+operations and once with a crop at (5, 3) and a pad of 10 left and 20 top, reports the nodes `A` and `B` on the moved
+page, not truncated, each pixel moved by (-5 + 10, -3 + 20) and each box width unchanged; and a bar chart rendered with
+`mark:x=B` and a pad of 10 on every side reports one position whose pixel in the written PNG file has the bar color.

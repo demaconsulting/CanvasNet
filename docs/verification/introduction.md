@@ -47,6 +47,8 @@ constituent software items, specifically:
   and the obsolete `SandboxedFileResolver` units and their supporting types
 - **ImageSources (Subsystem)** — Linked-picture support: the `ImageSourceContract`, `FolderImageResolver`, and
   `RasterImageSource` units and their supporting types
+- **Positions (Subsystem)** — Feature positions of a rendered picture: the `ImagePosition`, `PositionSelector`, and
+  `PositionCollector` units and their supporting types
 - **CanvasNetSvg (System)** — A separate, independently-distributed software system providing
   SVG (Scalable Vector Graphics) rasterization, containing a single unit, `SvgCodec` — see
   _CanvasNetSvg System Verification_ (`canvas-net-svg.md`)
@@ -97,7 +99,8 @@ constituent software items, specifically:
   `TextMeasurer`, `TitleBuilder`, `AxisBuilder`, `LabelOverlap`, `LegendBuilder`, and `TimeLabels`), `Layout` (units
   `ViewLayout` and `LegendLayout`), `Marks` (units `MarkBuilder`, the bar, rect, symbol, rule, tick, line, area, trail,
   text, and arc marks, and `CurveBuilder`, the d3-shape curves), and `Scenegraph` (units `SceneModel`, `ScenePainter`,
-  `ArcGeometry`, the d3-shape arc, `CssPaint`, and `SymbolPathParser`, the custom symbol paths) — see
+  `ArcGeometry`, the d3-shape arc, `CssPaint`, `SymbolPathParser`, the custom symbol paths, and `ScenePositions`, the
+  feature positions) — see
   _CanvasNetVegaLite System Verification_
   (`canvas-net-vega-lite.md`)
 - **CanvasNetMermaid (System)** — A separate software system providing a Mermaid diagram renderer that parses Mermaid
@@ -112,7 +115,8 @@ constituent software items, specifically:
   (units `Graph` and `GraphAlgorithms`), `Dagre` (units `DagreLayout`, `DagreAcyclic`, `DagreRanker`, `DagreNesting`,
   `DagreNormalizer`, `DagreOrdering`, `DagrePositioning`, `DagreCoordinateSystem`, and `LayoutWorkMeter`),
   `Rendering` (units `ClusterLayout`, `ShapeLibrary`, `EdgeBuilder`, `LabelBuilder`, and `NodeImages`), `Scenegraph`
-  (units `SceneModel` and `ScenePainter`), `Flowchart` (units `FlowchartParser` and `FlowchartModel`), `Sequence`
+  (units `SceneModel`, `ScenePainter`, and `ScenePositions`), `Flowchart` (units `FlowchartParser` and
+  `FlowchartModel`), `Sequence`
   (units `SequenceParser`, `SequenceModel`, `SequenceLayout`, and `SequenceRenderer`), `Class` (units `ClassParser`
   and `ClassModel`), `State` (units `StateParser` and `StateModel`), `Er` (units `ErParser` and `ErModel`), `Pie`
   (units `PieParser` and `PieRenderer`), `Gantt` (units `GanttParser`, `GanttModel`, `GanttRenderer`, and

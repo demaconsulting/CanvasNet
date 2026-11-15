@@ -168,6 +168,17 @@ set `FileAccess` (on its line or in its multi-line initializer), apart from two 
 options or measure without reading a file, so that a new code path cannot fall back to the allow-all default silently.
 It reads source text only.
 
+### Integration: Feature Positions Follow The Pipeline Into The Written Image
+
+**Test**: `CanvasNetViewer_SystemIntegration_Positions_FollowThePipelineIntoTheWrittenImage`
+
+Verifies `CanvasNetViewer-Positions`: writes a bar chart of two bars, probes it, and renders it with `ImageRenderer`
+with the selector `mark:x=B` and a pad of 10 pixels on every side. Asserts that the page reports exactly one position
+and that the pixel of the written PNG file at that position has the bar color `#4C78A8`, so the position was mapped
+through the pad into the written image. The cap, the warning and the strict error of an unmatched selector, the
+selectors ignored for every other kind and for embedded pictures, and the fit into a box are verified by the position
+scenarios of the `SourceLoader`, `ImagePipeline`, `ImageRenderer`, and `CanvasNetViewer` unit verification designs.
+
 ### Integration: User Guide Examples Compile
 
 **Test**: `CanvasNetViewer_UserGuideExamples_Compile`

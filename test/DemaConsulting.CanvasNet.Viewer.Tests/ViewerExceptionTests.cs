@@ -67,5 +67,6 @@ public class ViewerExceptionTests
         Assert.Equal("file-access-denied", ErrorCodes.FileAccessDenied);
         Assert.Equal("size-mismatch", ErrorCodes.SizeMismatch);
         Assert.Equal("threshold-failed", ErrorCodes.ThresholdFailed);
+        Assert.Equal("positions-unmatched", ErrorCodes.PositionsUnmatched);
     }
 }

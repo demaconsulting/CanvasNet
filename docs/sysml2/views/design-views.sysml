@@ -253,6 +253,10 @@ package CanvasNet {
         expose ImageSources::**;
     }
 
+    view PositionsView : InterconnectionView {
+        expose Positions::**;
+    }
+
     view PackagingView : InterconnectionView {
         expose Packaging::**;
     }

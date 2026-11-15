@@ -10,7 +10,9 @@ bounding box helper, and the internal scene item budget. The records are the ass
 painter: they carry resolved geometry and paint as plain data, with colors as CSS strings. A path carries either points
 or a list of absolute segments (move, line, cubic Bezier, close) that replaces them, an arc carries its center, radii,
 angles, pad angle, and corner radius, a trail carries runs of points that each have a position and a size, and every
-item may carry a stroke miter limit.
+item may carry a stroke miter limit. Internally, an item may also carry a position tag (`ScenePositionTag`) and the row
+it draws (`Datum`), a marks group a mark context (`SceneMarkContext`), and a path or trail its vertices
+(`SceneVertex`), which the positions of a render read.
 
 #### Verification Approach
 
@@ -40,7 +42,10 @@ its members are set (all six numbers default to 0); a trail of two runs, the fir
 (10, 5, size 4) and the second with (20, 5, size 6), keeps exactly those points when the source lists grow afterwards.
 
 Unit tests reside in `SceneModelTests.cs` within the `DemaConsulting.CanvasNet.VegaLite.Tests` project, in the
-`Scenegraph` folder.
+`Scenegraph` folder. The position tags, rows, mark contexts, and vertices are verified where they are read: by
+`ScenePositionsTests.cs` in the same folder, which builds tagged scenes by hand, and by
+`VegaLiteDocumentPositionTests.cs` in the project root, which compares the pixels of a chart rendered with and without
+a position handler.
 
 #### Test Environment
 
@@ -173,3 +178,17 @@ Asserts that a new `SceneImage` has its link, anchor `(1, 2)`, `left` and `top`,
 opacity
 1 and no width or height, and that a null link, a null loader warning callback and a null measurer are
 `ArgumentNullException`s.
+
+##### CanvasNetVegaLite-Scenegraph-SceneModel-PositionTags: Items Carry Position Tags, Rows, Contexts, And Vertices
+
+**Tests**: `ScenePositionsTests.ScenePositions_Collect_ViewAndBars_BoxesCentersAndIds`,
+`ScenePositionsTests.ScenePositions_Collect_LineVertices_OnePositionPerVertex`,
+`VegaLiteDocumentPositionTests.VegaLiteDocument_Render_ScaleFitAndPixels_MapWithoutChangingPixels`,
+`ScenePositionsTests.ScenePositions_Collect_MarkContextData_ReportsDataAndChannelNames`
+
+Asserts that a view group tagged with the kind `view`, the path `hconcat[1]`, and the name `right` is reported with
+those facts and its data rectangle, that bars carrying the rows 0 and 1 in a marks group whose context gives the value
+`x` of a row are reported with the view path and name of the context and with `x` = 1 for the second bar, and that a
+line carrying two vertices (row and point) is reported as one position per vertex; and that a bar chart rendered with
+a position handler has the same pixels as the chart rendered without one, so the tags, rows, and contexts do not
+change how an item is painted; and that a context's `Data` gives the data fields of a row (none by default).

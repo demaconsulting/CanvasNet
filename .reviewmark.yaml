@@ -1040,6 +1040,71 @@ reviews:
       - "test/DemaConsulting.CanvasNet.Tests/ImageSources/RasterImageSourceTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Tests/ImageSources/PngHeaderFixtures.cs"       # test support (header-only PNG)
 
+  # CanvasNet-Positions Review (one per subsystem)
+  - id: CanvasNet-Positions
+    title: Review that CanvasNet Positions Subsystem Implementation is Correct
+    context:
+      - "docs/design/canvas-net.md"
+      - "docs/reqstream/canvas-net.yaml"
+    paths:
+      - "docs/reqstream/canvas-net/positions.yaml"                # subsystem requirements
+      - "docs/design/canvas-net/positions.md"                    # subsystem design
+      - "docs/verification/canvas-net/positions.md"              # subsystem verification
+      - "docs/sysml2/model/canvas-net/positions.sysml"           # subsystem model
+      - "src/DemaConsulting.CanvasNet/Positions/NamespaceDoc.cs"  # namespace documentation
+
+  # CanvasNet-Positions-ImagePosition Review (one per unit)
+  - id: CanvasNet-Positions-ImagePosition
+    title: Review that CanvasNet Positions ImagePosition Implementation is Correct
+    context:
+      - "docs/design/canvas-net.md"
+      - "docs/reqstream/canvas-net.yaml"
+      - "docs/design/canvas-net/positions.md"
+      - "docs/reqstream/canvas-net/positions.yaml"
+    paths:
+      - "docs/reqstream/canvas-net/positions/image-position.yaml"  # unit requirements
+      - "docs/design/canvas-net/positions/image-position.md"      # unit design
+      - "docs/verification/canvas-net/positions/image-position.md"  # unit verification
+      - "docs/sysml2/model/canvas-net/positions/image-position.sysml"  # unit model
+      - "src/DemaConsulting.CanvasNet/Positions/ImagePosition.cs"  # unit source (feature record)
+      - "src/DemaConsulting.CanvasNet/Positions/PositionBox.cs"    # unit source (bounding box)
+      - "src/DemaConsulting.CanvasNet/Positions/PositionPoint.cs"  # unit source (attach pixel)
+      - "src/DemaConsulting.CanvasNet/Positions/PositionValue.cs"  # unit source (typed value and kind)
+      - "test/DemaConsulting.CanvasNet.Tests/Positions/ImagePositionTests.cs"  # unit tests
+
+  # CanvasNet-Positions-PositionSelector Review (one per unit)
+  - id: CanvasNet-Positions-PositionSelector
+    title: Review that CanvasNet Positions PositionSelector Implementation is Correct
+    context:
+      - "docs/design/canvas-net.md"
+      - "docs/reqstream/canvas-net.yaml"
+      - "docs/design/canvas-net/positions.md"
+      - "docs/reqstream/canvas-net/positions.yaml"
+    paths:
+      - "docs/reqstream/canvas-net/positions/position-selector.yaml"  # unit requirements
+      - "docs/design/canvas-net/positions/position-selector.md"      # unit design
+      - "docs/verification/canvas-net/positions/position-selector.md"  # unit verification
+      - "docs/sysml2/model/canvas-net/positions/position-selector.sysml"  # unit model
+      - "src/DemaConsulting.CanvasNet/Positions/PositionSelector.cs"   # unit source (selector grammar)
+      - "src/DemaConsulting.CanvasNet/Positions/PositionSelection.cs"  # unit source (set of selectors)
+      - "test/DemaConsulting.CanvasNet.Tests/Positions/PositionSelectorTests.cs"  # unit tests
+
+  # CanvasNet-Positions-PositionCollector Review (one per unit)
+  - id: CanvasNet-Positions-PositionCollector
+    title: Review that CanvasNet Positions PositionCollector Implementation is Correct
+    context:
+      - "docs/design/canvas-net.md"
+      - "docs/reqstream/canvas-net.yaml"
+      - "docs/design/canvas-net/positions.md"
+      - "docs/reqstream/canvas-net/positions.yaml"
+    paths:
+      - "docs/reqstream/canvas-net/positions/position-collector.yaml"  # unit requirements
+      - "docs/design/canvas-net/positions/position-collector.md"      # unit design
+      - "docs/verification/canvas-net/positions/position-collector.md"  # unit verification
+      - "docs/sysml2/model/canvas-net/positions/position-collector.sysml"  # unit model
+      - "src/DemaConsulting.CanvasNet/Positions/PositionCollector.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.Tests/Positions/PositionCollectorTests.cs"  # unit tests
+
   # CanvasNet-Rendering-WordWrap Review (one per unit)
   - id: CanvasNet-Rendering-WordWrap
     title: Review that CanvasNet Rendering WordWrap Implementation is Correct
@@ -1660,6 +1725,7 @@ reviews:
       - "test/DemaConsulting.CanvasNet.Viewer.Tests/CanvasNetViewerParameterFragmentTests.cs"  # unit tests (parameters)
       - "test/DemaConsulting.CanvasNet.Viewer.Tests/CanvasNetViewerRenderOptionsTests.cs"  # unit tests (render options)
       - "test/DemaConsulting.CanvasNet.Viewer.Tests/CanvasNetViewerSingleParseTests.cs"  # unit tests (single parse)
+      - "test/DemaConsulting.CanvasNet.Viewer.Tests/CanvasNetViewerPositionTests.cs"  # unit tests (feature positions)
       - "test/DemaConsulting.CanvasNet.Viewer.Tests/ViewerFixtures.cs"  # unit test fixtures
 
   # CanvasNetViewer-ViewerException Review (one per direct unit)
@@ -2792,6 +2858,7 @@ reviews:
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteLocationTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteRecordsAndExceptionsTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteReportSinkTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteDocumentPositionTests.cs"  # unit tests (positions)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Fixtures/**"    # original fixtures and provenance README
 
   # CanvasNetVegaLite-SpecModel Review (one per subsystem)
@@ -3800,6 +3867,22 @@ reviews:
       - "src/DemaConsulting.CanvasNet.VegaLite/Scenegraph/CssPaint.cs"  # unit source
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Scenegraph/CssPaintTests.cs"  # unit tests
 
+  # CanvasNetVegaLite-Scenegraph-ScenePositions Review (one per unit)
+  - id: CanvasNetVegaLite-Scenegraph-ScenePositions
+    title: Review that CanvasNetVegaLite Scenegraph ScenePositions Implementation is Correct
+    context:
+      - "docs/design/canvas-net-vega-lite.md"
+      - "docs/reqstream/canvas-net-vega-lite.yaml"
+      - "docs/design/canvas-net-vega-lite/scenegraph.md"
+      - "docs/reqstream/canvas-net-vega-lite/scenegraph.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-vega-lite/scenegraph/scene-positions.yaml"  # unit requirements
+      - "docs/design/canvas-net-vega-lite/scenegraph/scene-positions.md"  # unit design
+      - "docs/verification/canvas-net-vega-lite/scenegraph/scene-positions.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-vega-lite/scenegraph/scene-positions.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.VegaLite/Scenegraph/ScenePositions.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Scenegraph/ScenePositionsTests.cs"  # unit tests
+
   # ---------------------------------------------------------------------------------------------
   # CanvasNetMermaid review-sets (static Mermaid renderer, derived with attribution)
   # Provenance check for every CanvasNetMermaid set: reviewers confirm that no source, test, example,
@@ -3914,6 +3997,7 @@ reviews:
       - "test/DemaConsulting.CanvasNet.Mermaid.Tests/MermaidRecordsAndExceptionsTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Mermaid.Tests/MermaidReportSinkTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Mermaid.Tests/MermaidImageSourceTests.cs"  # unit tests (image source)
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/MermaidDocumentPositionTests.cs"  # unit tests (positions)
   # CanvasNetMermaid-Syntax Review (one per subsystem)
   - id: CanvasNetMermaid-Syntax
     title: Review that CanvasNetMermaid Syntax Subsystem Implementation is Correct
@@ -4487,6 +4571,22 @@ reviews:
       - "src/DemaConsulting.CanvasNet.Mermaid/Scenegraph/ScenePainter.Images.cs"  # unit source (pictures partial)
       - "src/DemaConsulting.CanvasNet.Mermaid/Scenegraph/ScenePainter.Shadow.cs"  # unit source (drop shadow partial)
       - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Scenegraph/ScenePainterTests.cs"  # unit tests
+
+  # CanvasNetMermaid-Scenegraph-ScenePositions Review (one per unit)
+  - id: CanvasNetMermaid-Scenegraph-ScenePositions
+    title: Review that CanvasNetMermaid Scenegraph ScenePositions Implementation is Correct
+    context:
+      - "docs/design/canvas-net-mermaid.md"
+      - "docs/reqstream/canvas-net-mermaid.yaml"
+      - "docs/design/canvas-net-mermaid/scenegraph.md"
+      - "docs/reqstream/canvas-net-mermaid/scenegraph.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-mermaid/scenegraph/scene-positions.yaml"  # unit requirements
+      - "docs/design/canvas-net-mermaid/scenegraph/scene-positions.md"  # unit design
+      - "docs/verification/canvas-net-mermaid/scenegraph/scene-positions.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-mermaid/scenegraph/scene-positions.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Mermaid/Scenegraph/ScenePositions.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Scenegraph/ScenePositionsTests.cs"  # unit tests
 
   # CanvasNetMermaid-Flowchart Review (subsystem)
   - id: CanvasNetMermaid-Flowchart

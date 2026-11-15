@@ -124,6 +124,19 @@ public sealed record ViewerRenderOptions
     public Imaging.ChartOptions? VegaLite { get; init; }
 
     /// <summary>
+    ///     Gets the selectors of the feature positions a Mermaid diagram or a Vega-Lite chart reports into
+    ///     <see cref="ViewerImage.Positions"/>, or <see langword="null"/> (default) for none. Every other kind of file
+    ///     ignores it, and a picture the rendered file embeds never reports positions.
+    /// </summary>
+    /// <remarks>
+    ///     A selector that matches nothing is the note <c>positions-unmatched</c>; with
+    ///     <see cref="ThrowOnUnsupportedFeature"/> it is a <see cref="ViewerException"/> with the code
+    ///     <c>positions-unmatched</c>. At most <see cref="DemaConsulting.CanvasNet.Positions.PositionCollector.MaxPositions"/>
+    ///     positions are returned (<see cref="ViewerImage.PositionsTruncated"/>).
+    /// </remarks>
+    public DemaConsulting.CanvasNet.Positions.PositionSelection? Positions { get; init; }
+
+    /// <summary>
     ///     Gets the folder that relative references of the rendered file are resolved against (the pictures of an SVG
     ///     file named relative to the folder), or <see langword="null"/>. It is a base, not a boundary: which files may be
     ///     read is <see cref="FileAccess"/>. For a render by path the default is the folder of the file, and the file may

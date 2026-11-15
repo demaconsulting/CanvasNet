@@ -2,6 +2,7 @@
 using System.Collections.ObjectModel;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Files;
+using DemaConsulting.CanvasNet.Positions;
 
 namespace DemaConsulting.CanvasNet.Viewer.Imaging;
 
@@ -647,6 +648,18 @@ public sealed record SourceOptions
     ///     ignore it.
     /// </summary>
     public DiagramOptions? Mermaid { get; init; }
+
+    /// <summary>
+    ///     Gets the selectors of the feature positions to report (<c>--positions</c> of the tool), or
+    ///     <see langword="null"/> (default) to report none. A Mermaid diagram and a Vega-Lite chart report the positions
+    ///     that match into <see cref="LoadedSource.Positions"/>, at most <see cref="PositionCollector.MaxPositions"/>;
+    ///     the other kinds ignore it.
+    /// </summary>
+    /// <remarks>
+    ///     A selector that matches nothing is the warning <c>positions-unmatched</c>; with <see cref="Strict"/> it is the
+    ///     error <c>positions-unmatched</c> and nothing is returned.
+    /// </remarks>
+    public PositionSelection? Positions { get; init; }
 }
 
 /// <summary>
@@ -746,6 +759,19 @@ public sealed record LoadedSource(
     ///     kind and for a model without anchors.
     /// </summary>
     public IReadOnlyList<SourceAnchor> Anchors { get; init; } = [];
+
+    /// <summary>
+    ///     Gets the feature positions that <see cref="SourceOptions.Positions"/> selected, in the pixels of
+    ///     <see cref="Surface"/> (before any pipeline step) and in the deterministic order of the renderer; empty when no
+    ///     positions were asked for and for the kinds that have none.
+    /// </summary>
+    public IReadOnlyList<ImagePosition> Positions { get; init; } = [];
+
+    /// <summary>
+    ///     Gets a value indicating whether matching positions were left out of <see cref="Positions"/> because of the cap
+    ///     of <see cref="PositionCollector.MaxPositions"/>.
+    /// </summary>
+    public bool PositionsTruncated { get; init; }
 
     /// <inheritdoc />
     public void Dispose()

@@ -9,7 +9,9 @@ The tests create the exception with all and with only the required constructor a
 and pin every error code to its documented string, so a rename is a test failure. The behavior of the rest of the library
 under failure (which code is thrown where) is verified with the tests of each unit; the way the `canvasnet` tool reports
 the codes is verified with the tests of `Program` and `ResultWriter`, and a test of the tool cross-checks the codes against
-its `errors` help topic.
+its `errors` help topic. The code `positions-unmatched` is verified where it is used, by the position tests of the
+`SourceLoader` unit (`Imaging/SourceLoaderPositionTests.cs`) and of the `CanvasNetViewer` unit
+(`CanvasNetViewerPositionTests.cs`).
 
 ### Test Environment
 
@@ -35,3 +37,10 @@ are `null`.
 `output-exists`, `output-write-failed`,
 `scad-error`, `vega-lite-error`, `mermaid-error`, `budget-exceeded`, `file-access-denied`, `size-mismatch`,
 `threshold-failed`).
+
+**CanvasNetViewer-ViewerException-PositionsUnmatched**: verified by
+`SourceLoaderPositionTests.SourceLoader_Load_UnmatchedSelector_WarnsOrFailsWhenStrict` and
+`CanvasNetViewerPositionTests.CanvasNetViewer_Render_UnmatchedSelector_NoteOrStrictFailure`, where the code is used:
+`positions-unmatched` is the code of the warning that names a selector that matched nothing (`node:Zed` of a
+flowchart) and of the `ViewerException` thrown under the strict option, from `SourceLoader.Load` for a diagram and for a
+chart (`axis:z`) and from `CanvasNetViewer.Render` with `ThrowOnUnsupportedFeature`.

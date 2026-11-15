@@ -416,6 +416,7 @@ The options of `render` are listed in the following tables.
 | `--file-access <mode>` | Which local files a document may reference: `any` (default), or see *File Access* |
 | `--allow-root <folder>` | A folder the referenced files may be in; repeatable; implies `--file-access roots` |
 | `--theme <name>` | The theme of a Mermaid diagram: `default`, `base`, `dark`, `forest`, or `neutral` |
+| `--positions <selector>` | List where the features of a diagram or chart land (needs `--json`; repeatable) |
 
 `--scale`, `--width`, `--height`, and `--size` conflict with one another where they overlap (`--scale` with any other,
 `--size` with `--width` or `--height`); a conflict is a `usage-error`. For a vector source (SVG, document page,
@@ -678,6 +679,9 @@ connected to `pixel` with a line.
 canvasnet render part.scad --view top --size 600x400 -o part.png --json
 ```
 
+A Mermaid diagram or a Vega-Lite chart has no anchors; it reports the features that `--positions` selects instead (see
+*Feature Positions*).
+
 #### Vega-Lite Charts
 
 A Vega-Lite chart (`.vl.json` or `.vl`, or a `.json` file with a Vega-Lite `$schema`) is drawn as a still image at the
@@ -888,6 +892,79 @@ canvasnet help mermaid --example er > lending.mmd
 canvasnet help mermaid --example pie > pets.mmd
 canvasnet help mermaid --example gantt > plan.mmd
 ```
+
+#### Feature Positions
+
+A Mermaid diagram or a Vega-Lite chart reports where its features land (the nodes, edges, and notes of a diagram, the
+views, axes, legends, and marks of a chart), for callouts and leader lines drawn over the picture, as the anchors of a
+model do. `--positions <selector>` asks for the features a selector matches; repeat it to ask for more. It needs
+`--json`, because the positions are a field of the JSON result, and a diagram or a chart as the input: without
+`--json`, or with another kind of input, it is a `usage-error` (a model reports anchors instead). `render`, `convert`,
+and the verbs take the option; `inspect` does not.
+
+```bash
+canvasnet render flowchart.mmd --size 430x280 --positions node:send --positions edge -o slot.png --json
+canvasnet render bar.vl.json --positions mark:x=B --positions axis -o bar.png --json
+```
+
+The result has a `positions` array after `echo` and a `positionsTruncated` flag, with this shape (`?` marks a member
+that is written only when the item has it):
+
+```text
+"positions": [
+  { "kind", "id", "text"?, "line"?, "view"?, "name"?, "mark"?, "from"?, "to"?, "index"?, "values"?,
+    "box": { "x", "y", "width", "height" } or null, "pixel": [x, y] or null, "inside" }
+],
+"positionsTruncated": false
+```
+
+For the flowchart example, the `send` node has `kind`, `id`, `text`, `line`, `box`, `pixel`, and `inside`, and the edge
+`L_pack_send_0` has `kind`, `id`, `line`, `from` (`pack`), `to` (`send`), `index` (0), `box`, `pixel`, and `inside`.
+
+- Each item is `{kind, id}`, then the facts it has: `text` (a label), `line` (the source line), `view` (the view path
+  of a chart, `""` for a single chart), `name` (the name of the view), `mark` (the mark type), `from`, `to`, and
+  `index` (an edge or message), `values` (the channel values of a mark or the `value` of a pie slice), and `data`
+  (the fields of the source row of a chart mark, as the data gives them), then `box` (`{x, y, width, height}`),
+  `pixel` (`[x, y]`), and `inside`.
+- `box` is the bounds of the geometry of the feature (the stroke is not included) and `pixel` its attach point: the
+  center of a box, the middle of an edge or message by length, the middle angle of a slice, the point of a line.
+  Both are in pixels of the **written** image from its top-left corner, rounded to three decimals; pixel `i` spans
+  `[i, i + 1)`. `inside` is true when `pixel` lies within the written image; it does not mean that the feature is
+  visible, and `pixel` is not a promise that the feature is painted there.
+- The positions follow the size and the pixel steps as the anchors do: `--scale`, `--size`, `--width`, and `--height`
+  draw the picture at that size, and `--crop`, `--trim`, `--resize`, `--fit`, `--pad`, `--flip`, and `--rotate` move
+  them with the pixels (a rotated box is the smallest upright box around its corners; a crop moves a box but does not
+  cut it). The color steps and `--grid` change nothing. After a `--deskew` that corrected the image, `box` and `pixel`
+  are `null` and `inside` is false.
+- Each item is listed once, in the order of the picture (titles and other structural items first), whatever the order
+  of the selectors. At most 1000 items are returned; `positionsTruncated` is true when more matched, and narrower
+  selectors show the rest.
+- A selector that matches nothing is the warning `positions-unmatched`, which names it; with `--strict` it is the error
+  `positions-unmatched` and nothing is written.
+
+**Selectors.** Start with `all` to see the ids, then narrow it. A kind alone (`node`, `edge`, `mark`, `axis`, ...)
+selects every item of that kind; `kind:pattern` globs the whole id (`*` is any run of characters, `?` one character:
+`node:s*`, `commit:*fix*`); a quoted id is exact (`node:"my*odd id"`); and `name=value` predicates joined with `+` must
+all hold: a channel of the `values` of a mark or slice (`mark:x=B+color=Shipped`), any other name a field of the
+`data` of a mark (`mark:month=2025-11-01+region=Americas`; a field named like a channel is matched through that
+channel), `@id`, `@view`, `@from`, `@to`, and `@index` (`edge:@from=pack+@to=send+@index=0`,
+`axis:@id=y+@view="hconcat[1]"`). A bare value reads as `--param` reads one, so `mark:x=3` is the number 3 (equal to
+3.0) and `mark:x="3"` the text; a date in `values` is UTC ISO text such as `"2025-01-01T00:00:00.000Z"` (a month time
+unit puts it in the year 2012), while a date in `data` is the text the data gave, so prefer data fields for marks. The
+keywords (`all`, the kind, the `@` names) ignore case; ids, channel and field names, and values do not. At most 32
+selectors are accepted, each at most 256 characters with at most 16 predicates; a malformed selector is a
+`usage-error` whose hint names `canvasnet help positions selectors`.
+
+Quote a selector that has `*`, `?`, `"`, a space, or `&`:
+
+- bash and zsh: single quotes, `'node:"my*odd id"'`.
+- PowerShell 7.3 or later: single quotes, as in bash. Windows PowerShell 5.1 drops the inner double quotes, so use
+  7.3 or later.
+- cmd: no single quotes; double quotes with `\"` inside, `"node:\"my*odd id\""`.
+
+`canvasnet help positions` explains the selectors (`help positions selectors`), the kinds, ids, and attach points of
+each format (`help positions mermaid`, `help positions vega-lite`), and the geometry (`help positions geometry`); the
+`svg framed-figure` card shows how to draw callouts on a diagram with them.
 
 #### Embedding Images, Charts, and Models in an SVG
 
@@ -1210,7 +1287,8 @@ canvasnet inspect pixel  <input> <x,y> [--radius R] [options]
 `inspect` reads what the pixels of an image contain, without writing a file. It loads the input like `render` and
 accepts every source and pipeline option of `render` (`--page`, `--dpi`, `--background`, `-D` of a model, `--param` of
 a chart, `--theme` of a Mermaid diagram, `--file-access` and `--allow-root`, `--crop`, `--fit`, `--deskew`,
-`--auto-levels`, and so on; not the output options or `--all-pages`), so the numbers are those of the picture after the
+`--auto-levels`, and so on; not the output options, `--all-pages`, or `--positions`), so the numbers are those of the
+picture after the
 pipeline: `inspect colors photo.jpg --crop 100,100,50,50` answers "what color is this region", and the point of
 `inspect pixel` is a coordinate of the processed picture. The subcommand comes first; a missing or misspelled one is a
 `usage-error` that names the closest (`Did you mean 'colors'?`), and an option of the other subcommand is a
@@ -1703,7 +1781,7 @@ This table is also the `canvasnet help files` card, bullet by bullet; a test kee
 ## Help Topics
 
 `canvasnet help <subject>` explains the tool from the tool itself, offline and for the installed version. The subject
-is a command (see *Commands*) or one of fourteen help topics, which cover the input formats, how to make pictures look
+is a command (see *Commands*) or one of fifteen help topics, which cover the input formats, how to make pictures look
 good and compose them, and the subjects that apply to every command. A subject is matched in any letter case, and a
 topic may be named by an alias.
 
@@ -1719,6 +1797,7 @@ topic may be named by an alias.
 | `raster` | `png`, `jpeg`, `jpg`, `bmp`, `tiff`, `tif`, `gif`, `jpeg2000`, `jp2` | The pixel images read and written |
 | `style` | | Making pictures look good: palette, font sizes, spacing, backgrounds, resolution, and checking the PNG |
 | `composition` | | Combining diagrams, charts, models, and pages in one figure |
+| `positions` | `position` | Where the nodes, edges, marks, and axes of a diagram or chart land in the picture |
 | `json` | | The `--json` result documents |
 | `errors` | | Failures, the stable error codes, exit codes, and what `--strict` changes |
 | `limits` | | The largest sizes and budgets accepted, and the error each one produces |
@@ -1876,6 +1955,11 @@ objects:
 - `echo`: the text a SCAD model printed with `echo`.
 - `anchors`: only for a SCAD model, after `echo`: the points it declared with `echo("anchor", "name", [x, y, z])`, in
   echo order, each `{"name","point":[x,y,z],"pixel":[x,y] or null,"inside"}` (see *Anchors* under *OpenSCAD Models*).
+- `positions`: only with `--positions` (a diagram or a chart), after `echo`: the features the selectors matched, in the
+  order of the picture, each `{"kind","id"}`, then `"text"`, `"line"`, `"view"`, `"name"`, `"mark"`, `"from"`, `"to"`,
+  `"index"`, and `"values"` when it has them, then `"box":{"x","y","width","height"} or null`,
+  `"pixel":[x,y] or null`, and `"inside"` (see *Feature Positions*).
+- `positionsTruncated`: only with `--positions`: true when more features matched than `positions` holds (1000).
 
 | `op` | Fields besides `op` |
 | --- | --- |
@@ -1980,6 +2064,7 @@ and hint may be improved at any time.
 | `budget-exceeded` | A model exceeds a rendering limit, such as `--max-triangles`, or a chart or diagram exceeds a limit of its library while it is laid out or drawn (data rows, data files, data bytes, ticks, scene items; nodes, edges, nesting, layout work, pictures, painted pixels) | Raise the limit (a model) or simplify the model or chart |
 | `size-mismatch` | `compare` was given two inputs of different pixel sizes and no `--resize-to` | Add `--resize-to a`, `b`, or `WxH` |
 | `threshold-failed` | `compare` measured a value on the wrong side of a `--threshold` limit (the result and the pictures were still written) | Look at the pictures and the grid, fix the image or relax the limit |
+| `positions-unmatched` | With `--strict`, a `--positions` selector matched no feature of the diagram or chart; nothing was written (without `--strict` it is a warning with the same code) | List the ids with the selector `all`, and check the case of ids and values; see `canvasnet help positions selectors` |
 
 ## Defaults
 

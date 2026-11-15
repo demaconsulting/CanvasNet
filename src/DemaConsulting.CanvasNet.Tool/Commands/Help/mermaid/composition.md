@@ -4,6 +4,7 @@ summary: Nodes that show a model, a chart, a diagram, or a page, and a diagram p
 see-also:
   - composition
   - mermaid/style
+  - positions/mermaid
   - svg/composition
   - svg/embedding
   - svg/fragments
@@ -42,6 +43,14 @@ with `canvasnet help mermaid composition --example pictures`.
 ```shell
 canvasnet montage "flow.mmd#theme=default" "flow.mmd#theme=neutral" --labels --cell 480x240 -o themes.png
 ```
+
+## Point at a feature
+
+- Render the diagram alone at the size of its placement with `--positions`
+  and `--json`: `node:send` gives the box and center of that node,
+  `edge:@from=pack` the middle of each edge that leaves `pack`. Add the image
+  `x` and `y` for an arrow in a figure (see `canvasnet help positions
+  mermaid`).
 
 ## Supported
 

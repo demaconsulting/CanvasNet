@@ -103,3 +103,24 @@ sections:
               - CanvasNetMermaid-Scenegraph-ScenePainter-Text
             tests:
               - Scenegraph_PaintNodeScene_TwoScales_DeterministicAndScaled
+
+          - id: CanvasNetMermaid-Scenegraph-Positions
+            title: >-
+              The Scenegraph subsystem shall carry, on the scene items that draw a feature, a tag with the feature's
+              kind, source id, and facts, and shall turn the tagged items of a laid-out scene into positions mapped by
+              the placement: the items that share a kind and an id form one position, the box is the union of their
+              geometry bounds without stroke, the pixel follows the attachment rule of the kind, and the positions come
+              in a deterministic order.
+            justification: |
+              The renderers know which item draws which feature; the scene is the one place where the geometry and the
+              placement meet, so the positions are computed there for every diagram type alike.
+            children:
+              - CanvasNetMermaid-Scenegraph-SceneModel-PositionTag
+              - CanvasNetMermaid-Scenegraph-ScenePositions-Merge
+              - CanvasNetMermaid-Scenegraph-ScenePositions-Aim
+              - CanvasNetMermaid-Scenegraph-ScenePositions-Order
+              - CanvasNetMermaid-Scenegraph-ScenePositions-Mapping
+            tests:
+              - ScenePositions_Collect_NestedGroupAndPlacement_MapsBoxAndCenter
+              - ScenePositions_Collect_EdgeInPieces_MidpointOfCombinedLength
+              - ScenePositions_Collect_KindsLinesAndFilter_OrdersAndNumbers

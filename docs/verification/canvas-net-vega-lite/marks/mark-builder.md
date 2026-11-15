@@ -3,9 +3,9 @@
 This document describes the unit-level verification strategy for the `MarkBuilder` unit in the
 `DemaConsulting.CanvasNet.VegaLite.Marks` namespace: the internal `MarkBuilder` class (`Build` and the static
 `IsSupported`), whose partial files `MarkBuilder.Order.cs`, `MarkBuilder.Paths.cs`, `MarkBuilder.Overlays.cs`,
-`MarkBuilder.Text.cs`, and `MarkBuilder.Arcs.cs` hold the draw order, the path marks, the overlays, the text mark, and
-the
-arc mark. The unit reads the rows of a `DataTable` and the resolved scales of a view and creates, in a `marks` group,
+`MarkBuilder.Text.cs`, `MarkBuilder.Arcs.cs`, and `MarkBuilder.Positions.cs` hold the draw order, the path marks, the
+overlays, the text mark, the arc mark, and the recording of the rows and vertices that positions read. The unit reads
+the rows of a `DataTable` and the resolved scales of a view and creates, in a `marks` group,
 the scene items of a `bar`, `rect`, `point`, `circle`, `square`, `rule`, `tick`, `line`, `area`, `trail`, `text`, or
 `arc` mark (roles `mark-<type>`) with the geometry and the paint that Vega-Lite assigns: positions from the scale
 models,
@@ -285,7 +285,10 @@ Unit tests reside in `MarkBuilderTests.cs`, `MarkBuilderChannelTests.cs`, `MarkB
 overlay, order, text, arc, and polar text tests build the real chain (`SpecParser`, `ConfigResolver`, `DataLoader`, and
 `ScaleResolver`) like the others, with the 300 by 200 or 200 by 200 views named in the derivations above; they use no
 font, no measurement of text, and no pixel, so the expectations depend on no platform (the comparisons of angles and
-trigonometric positions use a tolerance of 1e-9).
+trigonometric positions use a tolerance of 1e-9). The recording of the rows and vertices for positions is verified
+where it is read: by `ScenePositionsTests.cs` in the `Scenegraph` folder (the conversion of a data value) and by
+`VegaLiteDocumentPositionTests.cs` in the project root (a chart built and rendered with and without a position
+handler).
 
 The marks over time units (`MarkBuilderTimeTests`) are derived by hand from the days of the first quarter of 2024: three
 bars over January, February, and March (the unit `yearmonth`, one row each) have the domain January 1 to April 1, which
@@ -1127,3 +1130,21 @@ that
 three rows against a budget of three items (the marks group and two pictures) and a link of 13 characters against a
 string limit of 12 fail with a `VegaLiteRenderException` at `/mark` (the second naming `MaxStringLength`); and that the
 `order` channel sorts the pictures as it sorts the other marks.
+
+##### CanvasNetVegaLite-Marks-MarkBuilder-PositionRows: Rows And Vertices Are Recorded Only For Positions
+
+**Tests**: `VegaLiteDocumentPositionTests.VegaLiteDocument_BuildScene_RecordsRowsOnlyForAHandlerThatWantsMarks`,
+`VegaLiteDocumentPositionTests.VegaLiteDocument_Render_AggregateAndTemporalLine_ValuesAndVertices`,
+`ScenePositionsTests.MarkBuilder_TryConvert_DataValues_ConvertAsDocumented`,
+`VegaLiteDocumentPositionTests.VegaLiteDocument_Render_MonthTimeUnitLine_DataKeepsTheSourceRow`,
+`VegaLiteDocumentPositionTests.VegaLiteDocument_Render_AggregatedNestedAndWideRows_DataAsDocumented`
+
+Asserts that the bars of a chart built without a position handler, and with a handler whose filter rejects marks,
+carry no row (`Datum` -1) and their marks group no context, while with a handler that wants marks the bars carry the
+rows 0, 1, and 2 and the marks group a context; that a line of the sum of a field over dates gives one position per
+drawn vertex (`line-0` and `line-1`) whose values the context reads (the date as `2025-01-01T00:00:00.000Z` and the
+sum 8); and that `TryConvert` writes a date as UTC ISO-8601 text, a number that is not finite and a null as null, and
+a text as itself, and `TryConvertData` a date read from text as that text. The data fields the context reads (the
+source row of a time-unit line, the aggregated row of a stacked bar, the scalar top-level fields of a row after a
+`calculate` without bin fields, and the first 32 fields of a wide row) are asserted as described in the
+`CanvasNetVegaLite-Scenegraph-ScenePositions-Data` scenario of _ScenePositions Unit Verification Design_.

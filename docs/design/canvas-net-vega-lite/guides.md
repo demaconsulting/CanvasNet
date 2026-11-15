@@ -58,7 +58,8 @@ grid layout that the
 `Layout` subsystem also uses to place the legends); the static `LabelOverlap.Hidden(...)`; the static `TimeLabels`
 (`Create(Options)`, `CreateBounded(Options)`, `IntervalRequest`, `UsesVegaDefaultCount`, and `ReadInstant`); and
 `new LabelExpressions(RowExpressions?, VegaLiteLimits?, TimeCalendar?, CancellationToken)` with `Datum`, `Resolve`, and
-`Evaluate`.
+`Evaluate`. The `TitleBlock` of a chart title has a `PositionText`, so its placed group carries the `title` position
+tag; a header block (facet headers) has none and reports no position.
 
 **Consumed**: `SpecNode` and `ResolvedConfig` from the `SpecModel` subsystem; `ScaleModel`, `ResolvedScale`, `Ticks`
 (including the time ticks), and `NumberFormat` from the `Scales` subsystem; `DataValue` and the time model
@@ -66,7 +67,8 @@ grid layout that the
 `RowExpressions`, `CompiledExpression`, and the shared evaluator from the `Expressions`
 subsystem; the scene
 types (`SceneGroup`,
-`SceneRule`, `SceneText`, `SceneBounds`, and the others) from the `Scenegraph` subsystem; `ViewExtents` from the `Layout`
+`SceneRule`, `SceneText`, `SceneBounds`, `ScenePositionTag`, and the others) from the `Scenegraph` subsystem;
+`ViewExtents` from the `Layout`
 subsystem; the public `VegaLiteFontOptions`, `VegaLiteLimits`, `VegaLiteLocation`, `VegaLiteSpecException`, and
 `VegaLiteRenderException` of the `VegaLiteDocument` unit; and the core `Fonts` (`TrueTypeFont`, `SystemFontCatalog`) and
 `Rendering` (`TextRenderer`) subsystems through their public API.

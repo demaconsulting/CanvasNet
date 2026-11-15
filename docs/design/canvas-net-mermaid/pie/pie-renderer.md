@@ -100,6 +100,9 @@ labels, and the legend items carry the section label as their id and the locatio
 - **`ToFixed0(value)`** is JavaScript's `toFixed(0)`: the integer nearest to the exact value of the number, a tie away
   from zero, a negative number that rounds to zero written `-0`; `NaN`, the infinities, and magnitudes of `1e21` or more
   as `String` writes them.
+- **Position tags**: the renderer tags each slice as a `slice` named by its label, with its value and an explicit aim at
+  its mid-angle and mid-radius (scaled with a highlighted slice), and the title as `title` (located at
+  `TitleLocation`), for the `ScenePositions` unit.
 
 #### Error Handling
 

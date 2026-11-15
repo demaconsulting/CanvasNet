@@ -201,3 +201,23 @@ sections:
           - CanvasNetViewer-ViewerException-ErrorCodes
         tests:
           - CanvasNetViewer_SystemIntegration_FailedOperation_IsViewerExceptionWithStableCode
+
+      - id: CanvasNetViewer-Positions
+        title: >-
+          The library shall report, for a Mermaid diagram or a Vega-Lite chart loaded or rendered with position
+          selectors, the positions the selectors match (filtered before a cap of 1,000, with a flag when more matched),
+          mapped through the fit and the pipeline steps into the pixels of the image it returns or writes, shall warn
+          about a selector that matched nothing (an error with code positions-unmatched under the strict option, before
+          anything is returned), and shall ignore the selectors for every other kind and for embedded pictures.
+        tags: [system]
+        justification: |
+          The tool and other hosts load and transform pictures through the Viewer; the positions must follow the pixels
+          so that a callout lands on the feature in the picture the caller actually gets.
+        children:
+          - CanvasNetViewer-Imaging-SourceLoader-Positions
+          - CanvasNetViewer-Imaging-ImagePipeline-PositionMapping
+          - CanvasNetViewer-Imaging-ImageRenderer-Positions
+          - CanvasNetViewer-CanvasNetViewer-Positions
+          - CanvasNetViewer-ViewerException-PositionsUnmatched
+        tests:
+          - CanvasNetViewer_SystemIntegration_Positions_FollowThePipelineIntoTheWrittenImage

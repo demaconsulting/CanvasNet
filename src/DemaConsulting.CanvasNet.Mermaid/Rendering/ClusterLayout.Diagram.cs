@@ -21,11 +21,12 @@ internal sealed partial class ClusterLayout
     /// <param name="titleTopMargin">The distance of the title's baseline above the origin (<c>titleTopMargin</c>).</param>
     /// <param name="padding">The padding of the view box (the flowchart's <c>diagramPadding</c>, 8 for a class diagram).</param>
     /// <param name="labels">The label builder of the render (for the title's text metrics).</param>
+    /// <param name="titleLocation">The location the title's position reports (the diagram keyword for a frontmatter title); none by default.</param>
     /// <returns>The scene, with the pictures of the render.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="data"/> or <paramref name="labels"/> is null.</exception>
     /// <exception cref="MermaidRenderException">Thrown, located, when the work limit is reached or the layout fails.</exception>
     /// <exception cref="OperationCanceledException">Thrown when the render is canceled.</exception>
-    public Scene RenderDiagram(LayoutData data, string? title, double titleTopMargin, double padding, LabelBuilder labels)
+    public Scene RenderDiagram(LayoutData data, string? title, double titleTopMargin, double padding, LabelBuilder labels, MermaidLocation titleLocation = default)
     {
         ArgumentNullException.ThrowIfNull(data);
         ArgumentNullException.ThrowIfNull(labels);
@@ -37,7 +38,7 @@ internal sealed partial class ClusterLayout
         var bounds = drawing.Bounds;
         if (!string.IsNullOrEmpty(title))
         {
-            var text = DrawTitle(HtmlSanitizer.Sanitize(title), bounds, titleTopMargin, _context.Styles, labels);
+            var text = DrawTitle(HtmlSanitizer.Sanitize(title), titleLocation, bounds, titleTopMargin, _context.Styles, labels);
             items.Add(text);
             bounds = bounds is { } b ? b.Union(text.Box) : text.Box;
         }
@@ -53,12 +54,13 @@ internal sealed partial class ClusterLayout
     ///     the title margin above the origin.
     /// </summary>
     /// <param name="title">The sanitized title.</param>
+    /// <param name="location">The location the title's position reports.</param>
     /// <param name="bounds">The bounds of the drawing, or null when nothing is drawn (Mermaid then takes an empty box at the origin).</param>
     /// <param name="topMargin">The title margin (<c>titleTopMargin</c>).</param>
     /// <param name="styles">The style sheet (its title rule).</param>
     /// <param name="labels">The label builder (for the text metrics).</param>
     /// <returns>The title line.</returns>
-    private static SceneText DrawTitle(string title, SceneRect? bounds, double topMargin, UnifiedStyles styles, LabelBuilder labels)
+    private static SceneText DrawTitle(string title, MermaidLocation location, SceneRect? bounds, double topMargin, UnifiedStyles styles, LabelBuilder labels)
     {
         var paint = styles.Title;
         var font = new SceneFont(paint.FontFamily, paint.FontSize, false, false);
@@ -76,6 +78,7 @@ internal sealed partial class ClusterLayout
             new SceneRect(x - (advance / 2) + left, baseline - ascent, right - left, ascent + descent))
         {
             Role = "title",
+            Position = new ScenePositionTag("title", "title") { Text = title, Location = location },
         };
     }
 }

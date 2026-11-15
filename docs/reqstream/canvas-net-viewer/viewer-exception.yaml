@@ -36,3 +36,13 @@ sections:
               branches on them, so a rename would break every caller.
             tests:
               - ErrorCodes_Constants_AreTheDocumentedStableStrings
+
+          - id: CanvasNetViewer-ViewerException-PositionsUnmatched
+            title: >-
+              The ErrorCodes class shall define the code positions-unmatched for a position selector that matched no
+              feature under the strict option.
+            justification: |
+              A stable code lets a caller tell a selector mistake from every other failure.
+            tests:
+              - SourceLoader_Load_UnmatchedSelector_WarnsOrFailsWhenStrict
+              - CanvasNetViewer_Render_UnmatchedSelector_NoteOrStrictFailure

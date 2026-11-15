@@ -4,6 +4,7 @@ summary: Charts in SVG figures, several charts in one specification, and picture
 see-also:
   - composition
   - vega-lite/style
+  - positions/vega-lite
   - vega-lite/layout
   - svg/composition
   - svg/embedding
@@ -44,6 +45,13 @@ pages, and text.
   The position, width, height, aspect (true by default), align, baseline,
   smooth, and opacity of the mark follow Vega-Lite; see 'canvasnet help svg' for
   the links the pictures accept.
+
+## Point at a feature
+
+- Render the chart alone at the size of its placement with `--positions` and
+  `--json`: `mark:x=B` gives the box and center of that bar, `axis:@id=y` the
+  y axis, each with the path of its view. Add the image `x` and `y` for an
+  arrow in a figure (see `canvasnet help positions vega-lite`).
 
 ## Known differences
 

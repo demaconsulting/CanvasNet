@@ -2259,3 +2259,22 @@ sections:
           - VegaLiteDocument_Render_ImageMarkWithoutResolver_IsReportedAndDrawsNothing
           - VegaLiteDocument_Render_ImageMarkUnresolved_WarnsAndDrawsTheRest
           - VegaLiteDocument_Render_ImageMark_CachesPerRenderAndHonorsMaxImages
+
+      - id: CanvasNetVegaLite-Positions
+        title: >-
+          The library shall report, through an optional handler of the render options, the position of each title, view,
+          axis, legend, and mark (each point of a line, area, or trail) of a rendered chart, with the canonical path and
+          the name of its view, a deterministic id within the view, the normalized values of a mark's encoding channels,
+          the data fields of the row a mark draws, a geometry box, and an attachment pixel in the pixels of the returned
+          surface, without changing those pixels and without a second render.
+        tags: [system]
+        justification: |
+          Callouts on a chart point at a bar, a point, or an axis; reporting them from the render that draws the chart
+          makes them exact at every scale and size, and the view path and values let a caller select them in any
+          composition.
+        children:
+          - CanvasNetVegaLite-VegaLiteDocument-Positions
+          - CanvasNetVegaLite-Scenegraph-Positions
+          - CanvasNetVegaLite-Marks-MarkBuilder-PositionRows
+        tests:
+          - CanvasNetVegaLite_SystemIntegration_PositionHandler_ReportsFeaturePixels

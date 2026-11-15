@@ -44,6 +44,7 @@ internal sealed partial class FlowchartModel
             context.Source.Frontmatter?.Title,
             config.Flowchart.TitleTopMargin,
             config.Flowchart.DiagramPadding,
-            labels);
+            labels,
+            KeywordLocation);
     }
 }

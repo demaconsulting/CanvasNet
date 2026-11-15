@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="568" viewBox="0 0 1000 568">
+  <!-- flowchart.mmd sits beside this file. Each arrow ends on positions[].pixel of the diagram rendered alone at the
+       image size (430x280) with positions and JSON output, plus the image x (285) and y (162) -->
+  <defs>
+    <linearGradient id="band" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#1e3a8a"/>
+      <stop offset="1" stop-color="#2563eb"/>
+    </linearGradient>
+    <linearGradient id="slot" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f8fafc"/>
+      <stop offset="1" stop-color="#e2e8f0"/>
+    </linearGradient>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#ea580c"/>
+    </marker>
+  </defs>
+  <style>
+    .title { font: bold 28px sans-serif; fill: #ffffff; }
+    .lead { font: 15px sans-serif; fill: #bfdbfe; }
+    .label { font: bold 17px sans-serif; fill: #0f172a; }
+    .detail { font: 14px sans-serif; fill: #475569; }
+    .caption { font: italic 14px sans-serif; fill: #475569; }
+    .callout { fill: none; stroke: #ea580c; stroke-width: 2.5; marker-end: url(#arrow); }
+  </style>
+  <!-- container and title band -->
+  <rect width="1000" height="568" fill="#f1f5f9"/>
+  <rect x="16" y="16" width="968" height="536" rx="20" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+  <path d="M16,36 a20,20 0 0 1 20,-20 h928 a20,20 0 0 1 20,20 v64 h-968 z" fill="url(#band)"/>
+  <rect x="16" y="100" width="968" height="5" fill="#f59e0b"/>
+  <text class="title" x="56" y="60">Order flow</text>
+  <text class="lead" x="56" y="86">From a new order to the hand-off to the carrier</text>
+  <!-- picture slot: the diagram at 430 x 280, the size its positions were read at -->
+  <rect x="275" y="147" width="450" height="310" rx="14" fill="url(#slot)" stroke="#e2e8f0" stroke-width="2"/>
+  <image href="flowchart.mmd" x="285" y="162" width="430" height="280"/>
+  <!-- callout layer: an accent bar, a label, and an arrow to a position -->
+  <rect x="48" y="196" width="5" height="50" rx="2" fill="#f59e0b"/>
+  <text class="label" x="64" y="216">Stock check</text>
+  <text class="detail" x="64" y="238">node:stock</text>
+  <polyline class="callout" points="226,221 252,221 422.858,350.248"/>
+  <rect x="48" y="396" width="5" height="50" rx="2" fill="#f59e0b"/>
+  <text class="label" x="64" y="416">Back-order loop</text>
+  <text class="detail" x="64" y="438">edge:@from=reorder</text>
+  <polyline class="callout" points="226,421 252,421 498.291,371.162"/>
+  <rect x="760" y="196" width="5" height="50" rx="2" fill="#f59e0b"/>
+  <text class="label" x="776" y="216">Hand-off</text>
+  <text class="detail" x="776" y="238">node:send</text>
+  <polyline class="callout" points="748,221 712,221 677.235,286.921"/>
+  <!-- caption -->
+  <text class="caption" x="56" y="518">Figure 2. The order flow of flowchart.mmd; every arrow ends on a position the diagram reports.</text>
+</svg>

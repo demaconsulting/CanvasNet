@@ -285,7 +285,8 @@ public static class CanvasNetViewer
             Dpi = settings.Dpi,
             Background = settings.Background,
             Scad = settings.Scad,
-            VegaLite = settings.VegaLite
+            VegaLite = settings.VegaLite,
+            Positions = settings.Positions
         };
     }
 
@@ -367,6 +368,7 @@ public static class CanvasNetViewer
         // the strict policy of the tool (a link that was not drawn is an error) is applied here, once, to all of them
         var surface = result.Surface;
         var anchors = direct.Anchors;
+        var positions = direct.ReportedPositions;
         try
         {
             if (settings.ThrowOnUnsupportedFeature)
@@ -409,6 +411,12 @@ public static class CanvasNetViewer
             {
                 anchors = ImagePipeline.MapAnchors(anchors, sourceWidth, sourceHeight, steps);
             }
+
+            // The feature positions of a diagram or a chart follow the same steps
+            if (steps.Count > 0 && positions.Count > 0)
+            {
+                positions = ImagePipeline.MapPositions(positions, sourceWidth, sourceHeight, steps);
+            }
         }
         catch
         {
@@ -425,7 +433,9 @@ public static class CanvasNetViewer
             resolver.Embedded,
             direct.DrawnPage,
             direct.PageCount,
-            anchors);
+            anchors,
+            positions,
+            direct.PositionsTruncated);
     }
 
     /// <summary>

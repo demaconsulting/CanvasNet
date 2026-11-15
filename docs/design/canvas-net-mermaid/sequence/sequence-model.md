@@ -48,9 +48,10 @@ Mermaid's comparison).
 - the **notes** (`SequenceNote`: from, to, placement, text, and wrap setting) and the **boxes** (`SequenceBox`: title,
   fill, wrap setting, the keys of their participants, and location);
 - the **created and destroyed participants**, each with the index of the first message after its statement;
-- the diagram title (sanitized), the accessible title, the accessible description, the location of the diagram
-  keyword, and the private state of Mermaid's database while it applies statements (the previous participant, the
-  current box, and the last created and destroyed participants that still need their message).
+- the diagram title (sanitized) and its location (`TitleLocation`: the last `title` statement, else the diagram
+  keyword), the accessible title, the accessible description, the location of the diagram keyword, and the private
+  state of Mermaid's database while it applies statements (the previous participant, the current box, and the last
+  created and destroyed participants that still need their message).
 
 **`SequenceText`** is a text with its explicit wrap setting, as Mermaid's `parseMessage` reads it. **`SequencePropertyMap`**
 keeps the properties of a JavaScript object with JSON values, enumerated in JavaScript's order (keys that are array
@@ -94,7 +95,8 @@ indexes first, in numeric order, then the other keys in insertion order; a key s
   explicit setting, else the configuration's (Mermaid's `autoWrap`).
 - **Title and accessibility** (`SetDiagramTitle`, `SetAccessibleTitle`, `SetAccessibleDescription`) sanitize the
   texts as Mermaid's `commonDb.ts` does (the title not trimmed, the accessible title without leading white space, the
-  description without the white space after each line feed); `SetDiagramTitle` also marks the title set (`IsTitleSet`).
+  description without the white space after each line feed); `SetDiagramTitle` also marks the title set (`IsTitleSet`)
+  and records the location of the statement (`TitleLocation`).
 - **Metadata** (`IMermaidDiagram`): `Title` is the title of the `title` statement or null (so the document falls back
   to the frontmatter title unless `IsTitleSet`, which the diagram exposes through `IMermaidDiagram`), `AccTitle` the
   accessible title or null, `Direction` null, `NodeCount` the participants (declared, mentioned, and created),

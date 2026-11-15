@@ -18,7 +18,7 @@ the system-level architecture.
 
 The unit's behavior is specified by the `CanvasNetViewer-CanvasNetViewer-*` requirements (`ImageSources`,
 `CreateImageResolver`, `RenderPath`, `RenderStream`, `LoaderSources`, `RenderOptions`, `ExtraSources`, `FileAccess`,
-and `FileAccessDenied`) in
+`FileAccessDenied`, and `Positions`) in
 `docs/reqstream/canvas-net-viewer/canvas-net-viewer.yaml`. The unit comprises `CanvasNetViewer.cs`,
 `ViewerRenderOptions.cs`, `ViewerImage.cs`, and `LoaderImageSource.cs` (the adapter, with the internal
 `DirectRenderOptions`).
@@ -42,9 +42,13 @@ and `FileAccessDenied`) in
   `SourceLoader`, which depends on
   all of them. The package sources stay public stand-alone providers with the same `page` support.
 - **`DirectRenderOptions`** (internal sealed class, `IImageSourceOptions`) — the options of a direct render
-  (the page, the resolution, the background, the model view options, the chart parameters) and the output of the render
+  (the page, the resolution, the background, the model view options, the chart parameters, and `Positions`, the
+  `PositionSelection` of the feature positions) and the output of the render
   (the page drawn, the
-  number of pages, the anchors), handed through `FolderImageResolver.Render(..., options)`.
+  number of pages, the anchors, and `ReportedPositions` and `PositionsTruncated`, the positions a diagram or a chart
+  reported), handed through `FolderImageResolver.Render(..., options)`. Only the file rendered directly gets the
+  selection: a link builds its options without `DirectRenderOptions`, so a picture a document embeds never reports
+  positions.
 - **`ViewerRenderOptions`** (immutable record) — `Width` and `Height` (nullable; none = natural size, one = keep the
   aspect ratio, both = a box; when given, each must be from 1 to `Surface.MaxDimension`), `Page` (1-based, default 1),
   `Dpi` (nullable; none = 96), `Background` (nullable; none = no flattening), `Scad` (a `ScadViewOptions`, nullable),
@@ -54,12 +58,16 @@ and `FileAccessDenied`) in
   every file the rendered file references, its pictures, a model's includes, a chart's data, and the files those read
   in turn; `FileAccessPolicy.AllowAll` by default, `null` refused with `ArgumentNullException`; passed to the resolver as
   `FolderImageResolverOptions.FileAccess`), `ThrowOnUnsupportedFeature`,
-  `MaxDecodedPixels` (nullable; none = the resolver default budget), `ExtraSources`,
+  `MaxDecodedPixels` (nullable; none = the resolver default budget), `ExtraSources`, `Positions` (a core
+  `PositionSelection`, nullable; none = no positions: the selectors of the feature positions a Mermaid diagram or a
+  Vega-Lite chart reports, ignored by every other kind of file),
   and `CancellationToken`. There is deliberately no `Scale`, `Filter` or `AutoOrient`: the size is `Width`/`Height` (or
   `Dpi`), and the resampling of a raster belongs to `ImageWriter` and `SourceLoader`.
 - **`ViewerImage`** (`IDisposable`) — owns the `Surface` and carries `Format`, `Page`, `PageCount`, `Diagnostics`,
-  `Echo`, `Anchors` and `Embedded`
-  as read-only snapshots (`ReadOnlyCollection<T>` copies, not castable to a mutable list).
+  `Echo`, `Anchors`, `Embedded`, and `Positions` (the feature positions the selection matched, in the pixels of the
+  returned picture; empty when none were asked for and for every other kind of file)
+  as read-only snapshots (`ReadOnlyCollection<T>` copies, not castable to a mutable list), and `PositionsTruncated`
+  (whether matching positions were left out because of the cap of `PositionCollector.MaxPositions`).
   Disposing it disposes the surface.
 
 ### Key Methods
@@ -82,7 +90,8 @@ usable being an `ImageSourceRefusedException` with the code `image-fragment-inva
 pictures of a linked model, chart, diagram or SVG file are read under the policy of the render, anchored at its
 origin),
 a transparent background for a vector source, none for a chart, and for a vector source the placement as `Width` and
-`Height`; an embedded file never inherits the options of its embedder); (2) wrap the bytes in a
+`Height`; an embedded file never inherits the options of its embedder, and only `DirectRenderOptions` carry the
+`Positions` selection, so a linked picture never reports positions); (2) wrap the bytes in a
 `SourceLoader.SourceInput` named and based as the resolver found the file; (3) for a raster, refuse from its declared
 size, before anything is decoded, a picture that cannot fit in the budget; (4) `OpenInput` (with `request.FileAccess`),
 which parses a PDF,
@@ -115,7 +124,8 @@ strictness switch, the file-access policy, and the cancellation token; the file 
 folder and behind a link, because it is the caller's choice and the resolver reads it without judging it by the policy
 (`FileReferenceResolver.ResolveTopLevel`), while every file it references is judged; then build the `ViewerImage` from
 the picture, the notes, and the page,
-page count and anchors that the adapter left in the `DirectRenderOptions`. The file therefore goes through the same
+page count, anchors, and feature positions (with whether they were truncated) that the adapter left in the
+`DirectRenderOptions`. The file therefore goes through the same
 regular-file check, size limit, dispatch, and limits as an embedded link, but not the policy. A raster is asked for no
 size (the post-processing below
 keeps the documented fit rule). An `ImageSourceRefusedException` becomes a `ViewerException` with the code
@@ -135,7 +145,10 @@ transparent background) so the result is exactly that size; with one dimension, 
 The notes are those of the file followed by those of the files it embedded; the printed text and the embedded images
 follow the same order. The resolver clamps a requested size to 1 to `Surface.MaxDimension`, which is why the options are
 validated to that range up front: a larger or non-positive value would otherwise be rendered at one size and
-post-processed to another. The post-processing allocates a second buffer next to the surface of the source (peak memory
+post-processed to another. The anchors of a model and the feature positions of a diagram or a chart follow the fit or
+the resize: the steps are recorded as applied operations and mapped with `ImagePipeline.MapAnchors` and
+`ImagePipeline.MapPositions`, so the boxes and pixels of `ViewerImage.Positions` are those of the returned picture.
+The post-processing allocates a second buffer next to the surface of the source (peak memory
 is both), so before it fits or resizes, the viewer checks the final size (width times height) against
 `FolderImageResolver.RemainingPixels`, the live part of the shared `MaxDecodedPixels` budget that is still free (the
 surface of the source is already charged; see the budget contract on `ImageSourceRequest`), and throws
@@ -163,7 +176,10 @@ original failure is the inner exception), and `OperationCanceledException`. An u
 `ThrowOnUnsupportedFeature` is set. A link the file-access policy denies is the warning `image-access-denied`, and with
 `ThrowOnUnsupportedFeature` a `ViewerException` with the code `file-access-denied`; a denied include or data file
 fails the picture with an `ImageSourceException` whose chain of inner exceptions holds the `FileReferenceException`
-(the loader's `file-access-denied` wraps a library failure, so the adapter rethrows the library exception).
+(the loader's `file-access-denied` wraps a library failure, so the adapter rethrows the library exception). A feature
+position selector that matched nothing is the note `positions-unmatched` (the loader adds it), and with
+`ThrowOnUnsupportedFeature` a `ViewerException` with the code `positions-unmatched`, thrown before the picture is
+returned.
 
 ### Dependencies
 
@@ -172,8 +188,10 @@ The core `ImageSources` subsystem (`IImageSource`, `IFragmentImageSource`, `Imag
 `ImageSourceResult`, `ImageSourceDiagnostic`, `EmbeddedImage`, `ImageSourceException`, `ImageSourceRefusedException`,
 and
 `RasterImageSource` for its claims), the
-`Imaging` subsystem (`SourceLoader` and its `SourceInput`, `LoadContext`, and option validator; `ImageDiagnostic`), the
-`Canvas` subsystem (`Surface.FitInto`, `Surface.Resize`, `Rgba32`), and the claims of the sources of the `CanvasNetSvg`,
+`Imaging` subsystem (`SourceLoader` and its `SourceInput`, `LoadContext`, and option validator; `ImageDiagnostic`; and
+`ImagePipeline.MapAnchors` and `MapPositions`), the
+`Canvas` subsystem (`Surface.FitInto`, `Surface.Resize`, `Rgba32`), the core `Positions` subsystem
+(`PositionSelection`, `ImagePosition`), and the claims of the sources of the `CanvasNetSvg`,
 `CanvasNetPdf`, `CanvasNetPptx`, `CanvasNetVsdx`, `CanvasNetScad`, `CanvasNetVegaLite`, and `CanvasNetMermaid` systems
 (and, for the theme fragment, `MermaidImageSource.ThemeParameter` and `MermaidRenderOptions.ThemeNames`).
 

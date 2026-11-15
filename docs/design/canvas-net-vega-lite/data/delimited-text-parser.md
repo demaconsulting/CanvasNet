@@ -111,7 +111,9 @@ white-space text becomes null except for `string`):
   date or any other text is a failure
 - `date`: a date stays; a number is milliseconds since the epoch (a failure outside the years 1 to 9999); a text is read
   by `JsDateParser` as above (a text that is not a date, or one outside the supported range, is a failure: null plus
-  the ordinary `vl-data-parse-failed` warning); a boolean or any other text is a failure
+  the ordinary `vl-data-parse-failed` warning); a boolean or any other text is a failure. A date converted from text
+  (here, by a custom format, by the implicit parse of a temporal field, or by inference) keeps that text as its
+  `DataValue.SourceText`; a date from a number has none
 - `string`: the JavaScript text form of the value (`DataValue.ToText`)
 - a custom date format (`date:'%fmt'`, `utc:'%fmt'`): the text is read by `TimeFormat.TryParse` with the d3 format in the
   calendar's zone (`date:`) or in UTC (`utc:`); a text of more than 256 characters is never a date; the whole text must

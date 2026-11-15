@@ -7,7 +7,8 @@
 `RenderCommand` is verified with unit tests in `RenderCommandTests.cs`, `RenderCommandDocumentTests.cs` (pages,
 resolution, and strict mode of the documents), `RenderCommandScadTests.cs` (the views and options of an OpenSCAD
 model), `RenderCommandVegaLiteTests.cs` (the Vega-Lite charts), `RenderCommandMermaidTests.cs` (the Mermaid diagrams,
-the `--theme` option, and the theme of `inspect`), and `RenderCommandPipelineTests.cs` (the image
+the `--theme` option, and the theme of `inspect`), `RenderCommandPositionTests.cs` (the `--positions` option, the
+`positions` array of the JSON result, and its refusal by `inspect`), and `RenderCommandPipelineTests.cs` (the image
 pipeline options and the verb commands). The command is run
  in-process: the tests
 create a `Context` (with `--json` when the JSON document is wanted), call `Run`, and capture the console with the
@@ -64,6 +65,10 @@ N/A - standard test environment. The tests belong to the "Sequential" collection
 - Each verb command writes exactly the file of the equivalent render invocation, accepts every render option, applies
   options after its own operation, reports itself as the command, and reports a missing, extra, or malformed operand
   as a usage error.
+- `--positions` of a diagram or a chart with `--json` adds the documented `positions` array and `positionsTruncated`
+  after the other fields, in the pixels of the written image; a malformed selector, a missing `--json`, and another kind
+  of input are usage errors; a selector that matches nothing is a warning, or with strict mode the error
+  `positions-unmatched` with no output; without `--positions` the result is unchanged, and `inspect` does not take it.
 
 #### Test Scenarios
 
@@ -676,3 +681,27 @@ writes no output.
 
 **RenderCommand_Verb_FileAccessOption_AppliesToTheVerbs**: `resize` of that diagram with `--file-access roots` exits with
 code 0, reports one `image-access-denied` warning, and leaves the picture undrawn.
+
+**RenderCommand_Positions_Json_HasTheDocumentedShape**, **RenderCommand_Positions_ConvertCropAndPad_PixelOnTheNode**,
+**RenderCommand_Positions_ChartWithGrid_ReportsMarkValues**,
+**RenderCommand_Positions_MonthTimeUnitLine_DataFieldSelectsThePoint**, **RenderCommand_Positions_Misuse_IsUsageError**,
+**RenderCommand_Positions_Unmatched_WarnsOrFailsStrict**, and **InspectCommand_Positions_IsNotAnOption**
+(`RenderCommandPositionTests.cs`; the requirement `CanvasNetTool-Commands-RenderCommand-Positions`): a flowchart of two
+filled nodes rendered with `--positions edge --positions node:B --json` reports the node before the edge whatever the
+order of the selectors, the node with the members `kind`, `id`, `text`, `line`, `box`, `pixel`, and `inside` in that
+order and the edge with `kind`, `id`, `line`, `from`, `to`, `index`, `box`, `pixel`, and `inside` (from `A` to `B`,
+index 0), the pixel rounded to three decimals and inside the image, and `positionsTruncated` false; `convert` of the
+flowchart with `--positions node:A --crop 4,2,80,60 --pad 10` reports one position, and the written PNG has the node's
+fill `#CCFFCC` in the column of its pixel a fifth of the box height below the top of its box; a two-bar chart rendered
+with `--positions mark:x=B` reports `bar-1` in the root view `""` with the mark `bar` and the value `y` 5, and the same
+pixel with `--grid 50`; the user's line chart of `revenue` by a `month` time unit of `month` and `region` rendered with
+`--positions mark:month=2025-11-01+region=Americas` reports exactly one item, with the members `kind`, `id`, `view`,
+`mark`, `values`, `data`, `box`, `pixel`, and `inside` in that order, the `data`
+`{"month":"2025-11-01","region":"Americas","revenue":6.8}`, and `values.x` `2012-11-01T00:00:00.000Z`, while the
+selectors `mark:x=2025-11-01+color=Americas` and `mark:x=Nov+color=Americas` each give a `positions-unmatched`
+warning; `--positions all` without `--json` is a `usage-error` on standard error with no file written,
+with a PNG input it is a `usage-error` in the JSON document, and the malformed `all:x` is refused naming `'all:x'` with
+the hint `help positions selectors`; the selector `node:Zed` gives exit code 0 with one `positions-unmatched` warning
+and an empty `positions` array, and with `--strict` exits non-zero with `positions-unmatched` and writes no file, while
+a render without `--positions` has neither `positions` nor `positionsTruncated`; and `inspect colors` with
+`--positions all` fails naming `--positions`.

@@ -86,3 +86,16 @@ sections:
                   painter, while the bounds stay the box the producer measured, as the producer computes the view box.
                 tests:
                   - SceneText_Rotation_DefaultsToNoneAndKeepsTheBox
+
+              - id: CanvasNetMermaid-Scenegraph-SceneModel-PositionTag
+                title: >-
+                  The scene model shall let any scene item carry an internal position tag (kind, id, text, ends, source
+                  location, value, whether it aims along its path, and an optional explicit aim point) that does not
+                  change how the item is painted and is not one of its public properties.
+                justification: |
+                  The tag links an item to the feature it draws without changing the pixels or the reflection-based
+                  scene tests.
+                tests:
+                  - ScenePositions_Collect_NestedGroupAndPlacement_MapsBoxAndCenter
+                  - ScenePositions_Collect_ExplicitAim_UsesTheAimAndValue
+                  - MermaidDocument_Render_WithHandler_PixelsUnchangedAndMeasureSilent

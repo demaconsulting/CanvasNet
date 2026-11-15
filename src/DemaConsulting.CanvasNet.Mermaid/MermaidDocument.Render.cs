@@ -68,6 +68,11 @@ public sealed partial class MermaidDocument
     ///         returned surface. The document holds no state between calls, so it can be rendered from several threads at
     ///         once.
     ///     </para>
+    ///     <para>
+    ///         When <see cref="MermaidRenderOptions.PositionHandler"/> is set, the positions of the features are reported
+    ///         to it after the layout and before the painting, in the pixels of the returned surface; the pixels are the
+    ///         same with or without the handler.
+    ///     </para>
     /// </remarks>
     /// <param name="options">Optional render options; <see langword="null"/> uses the defaults.</param>
     /// <param name="cancellationToken">A token that stops the work.</param>
@@ -83,7 +88,9 @@ public sealed partial class MermaidDocument
         return Run(effective, cancellationToken, (scene, context) =>
         {
             var size = ScaledSize(scene, effective.Scale);
-            return Paint(scene, size.Width, size.Height, ScenePlacement.Uniform(scene.ViewBox, effective.Scale), context);
+            var placement = ScenePlacement.Uniform(scene.ViewBox, effective.Scale);
+            ScenePositions.Report(scene, placement, effective);
+            return Paint(scene, size.Width, size.Height, placement, context);
         });
     }
 
@@ -96,7 +103,7 @@ public sealed partial class MermaidDocument
     ///     The diagram keeps its aspect ratio; the margins are filled with the background.
     ///     <see cref="MermaidRenderOptions.Scale"/> is not used, because the size decides the scale. Events, determinism,
     ///     ownership and thread safety are as for <see cref="Render(MermaidRenderOptions?, CancellationToken)"/>. The size
-    ///     is validated before any other work.
+    ///     is validated before any other work. Positions are reported as for the other overload, mapped by the fit.
     /// </remarks>
     /// <param name="width">The width in pixels, from 1 to <see cref="Surface.MaxDimension"/>.</param>
     /// <param name="height">The height in pixels, from 1 to <see cref="Surface.MaxDimension"/>.</param>
@@ -123,7 +130,11 @@ public sealed partial class MermaidDocument
         var effective = options ?? new MermaidRenderOptions();
         cancellationToken.ThrowIfCancellationRequested();
         return Run(effective, cancellationToken, (scene, context) =>
-            Paint(scene, width, height, ScenePlacement.Fit(scene.ViewBox, width, height), context));
+        {
+            var placement = ScenePlacement.Fit(scene.ViewBox, width, height);
+            ScenePositions.Report(scene, placement, effective);
+            return Paint(scene, width, height, placement, context);
+        });
     }
 
     /// <summary>

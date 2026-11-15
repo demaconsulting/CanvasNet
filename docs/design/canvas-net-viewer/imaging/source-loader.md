@@ -12,7 +12,8 @@ size policy and the options that belong to reading (page, resolution, orientatio
 reports a bad file as an expected error. The unit consists of the static class `SourceLoader` (partial files
 `SourceLoader.cs`, `SourceLoader.Detect.cs`, `SourceLoader.Raster.cs`, `SourceLoader.Svg.cs`,
 `SourceLoader.Documents.cs`, `SourceLoader.Pdf.cs`, `SourceLoader.Pptx.cs`, `SourceLoader.Vsdx.cs`,
-`SourceLoader.Scad.cs`, `SourceLoader.VegaLite.cs`, `SourceLoader.Mermaid.cs`, `SourceLoader.SvgImages.cs`, and
+`SourceLoader.Scad.cs`, `SourceLoader.VegaLite.cs`, `SourceLoader.Mermaid.cs`, `SourceLoader.SvgImages.cs`,
+`SourceLoader.Positions.cs`, and
 `SourceLoader.Input.cs`),
 the input types `InputReference` and `InputSelection` (`InputReference.cs`, `InputSelection.cs`),
 and the supporting types in `SourceModels.cs`. The EXIF orientation is read by the core `JpegCodec.ReadExifOrientation`
@@ -55,7 +56,9 @@ what the fragment of the input chose, an `InputSelection`; `null` for an input w
 `FileAccessPolicy` of every file the source reads beside it: the pictures of an SVG file, a chart or a diagram, the
 includes of a model, the data of a chart, and the files those read in turn; `FileAccessPolicy.AllowAll` by default,
 like Pandoc; `null` refused with `ArgumentNullException`; the source file itself is the caller's choice and is not
-judged).
+judged), and `Positions` (a nullable core `PositionSelection`: the selectors of the feature positions a Mermaid diagram
+or a Vega-Lite chart reports, the `--positions` option of the tool; `null`, the default, reports none, and every other
+kind of source ignores it).
 
 **DiagramOptions** (record, `init`): `Theme`, the site-level theme of a Mermaid diagram - `default`, `base`, `dark`,
 `forest`, or `neutral` (`MermaidRenderOptions.ThemeNames`) - or `null` for `default`; it is what the `--theme` option of
@@ -87,7 +90,11 @@ the `Origin`: the embedded files,
 outermost first, that the note is about, empty by default and compared entry by entry), `Echo` (text printed by a
 model),
 `Anchors` (`SourceAnchor` records, an init property that is empty for every kind but a model: the name, the world
-point `X`, `Y`, `Z`, and the nullable continuous pixel position `PixelX` and `PixelY` in the loaded surface), and
+point `X`, `Y`, `Z`, and the nullable continuous pixel position `PixelX` and `PixelY` in the loaded surface),
+`Positions` (core `ImagePosition` values, an init property: the feature positions that `SourceOptions.Positions`
+selected, in delivery order, in the pixels of the loaded surface; empty when none were asked for and for every kind but
+a diagram or a chart) and `PositionsTruncated` (whether matching positions were left out because of the cap of
+`PositionCollector.MaxPositions`), and
 `Operations` (`AppliedOperation` records: an operation name and its parameters in order; a parameter is a string, a
 number, a flag, or a list of strings).
 
@@ -438,6 +445,20 @@ stretched to the box of its node by the Mermaid library's painter (Mermaid sets 
 picture of a node). The tests are in `SourceLoaderMermaidImageTests.cs`; the other tests of the diagram source are in
 `SourceLoaderMermaidTests.cs`.
 
+*Feature positions* (`SourceLoader.Positions.cs`, for a diagram and a chart alike). When `SourceOptions.Positions` is
+set, the load creates one core `PositionCollector` of the selection (`CreatePositionCollector`, with the default cap of
+`PositionCollector.MaxPositions`) and passes its `Offer` as the `PositionHandler` and its `IncludesKind` as the
+`PositionKindFilter` of the `MermaidRenderOptions` (`CreateMermaidOptions`) or `VegaLiteRenderOptions`
+(`CreateVegaLiteOptions`), so the library builds only the kinds a selector can match and the selection is applied
+before the cap. After the render, in strict mode, a selector that matched nothing disposes the drawn surface and throws
+`ViewerException` with the code `positions-unmatched` naming the first such selector (`ThrowForUnmatchedPositions`,
+with the hint to list the ids with the selector `all` and to check the case of ids and values), before the loaded page
+exists; otherwise `WithPositions` adds to the loaded page the kept positions (`LoadedSource.Positions`, in the pixels
+of the loaded surface), `PositionsTruncated`, and one warning note per unmatched selector, in selection order
+(`mermaid` or `vega-lite`, `warning`, code `positions-unmatched`, "The --positions selector '<selector>' matched
+nothing."). Without the option nothing is collected and the page is unchanged. The tests are in
+`SourceLoaderPositionTests.cs`.
+
 *Include and use.* The library resolves the `include` and `use` directives of a model: a relative path is looked up
 from the folder of the file that names it (the base directory is the folder of the file that was opened; no library
 path or file resolver is configured), and the file is read under `SourceOptions.FileAccess` (`OpenScad(input,
@@ -666,7 +687,9 @@ recursion and loops, bad arguments, a deep nest of parentheses, and unusual text
 extending the list, and none was found for any format. Size problems are `size-limit`; a page that does not exist is
 `page-out-of-range`. A source kind that the loader has no case for - which cannot happen while every kind of
 `SourceKind` is handled - is an `InvalidOperationException`, a defect, not a `ViewerException`. Null arguments throw
-`ArgumentNullException`.
+`ArgumentNullException`. A `--positions` selector that matched nothing is the warning `positions-unmatched`, and in
+strict mode the `ViewerException` `positions-unmatched` (see *Feature positions*); an exception of the libraries'
+position handler cannot occur, because the handler only offers the position to the collector.
 
 #### Dependencies
 
@@ -690,6 +713,8 @@ extending the list, and none was found for any format. Size problems are `size-l
   `MermaidRenderOptions` (and its `ThemeNames`), `MermaidLimits`, the warnings and unsupported features, the stable
   `MermaidDiagnosticCodes`, and the exceptions that the loader maps; `MermaidImageSource` names the theme fragment
   parameter and the generic warning code.
+- **CanvasNet core `Positions` subsystem** - `PositionSelection`, `PositionCollector`, `PositionSelector`, and
+  `ImagePosition` for the feature positions of a diagram or a chart.
 
 #### Callers
 

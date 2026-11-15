@@ -28,6 +28,13 @@ see-also:
   z], pixel: [x, y] or null, inside}. pixel is the position in the written
   picture, from its top-left corner, after the pixel steps; see 'canvasnet help
   scad'.
+- `positions`: Only with --positions (a diagram or a chart): the features the
+  selectors matched, in the order of the picture, each {kind, id, then text,
+  line, view, name, mark, from, to, index, values and data when it has them,
+  box: {x, y, width, height}, pixel: [x, y], inside}; box and pixel are null
+  when a pixel step lost them. See 'canvasnet help positions'.
+- `positionsTruncated`: Only with --positions: true when more features matched
+  than positions holds.
 
 ## Fields of the other commands
 

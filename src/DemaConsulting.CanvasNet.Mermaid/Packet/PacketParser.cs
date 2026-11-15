@@ -295,6 +295,7 @@ internal sealed partial class PacketParser
 
         // (TitleAndAccessibilities | PacketBlock | NEWLINE)*, the AST fields keeping the last value
         string? title = null;
+        MermaidLocation titleLocation = default;
         string? accTitle = null;
         string? accDescr = null;
         var blocks = new List<ParsedBlock>();
@@ -330,6 +331,7 @@ internal sealed partial class PacketParser
                                     break;
                                 default:
                                     title = Checked(ConvertSingleLine(raw[(raw.IndexOf("title", StringComparison.Ordinal) + "title".Length)..]), statement);
+                                    titleLocation = Locate(statement);
                                     break;
                             }
 
@@ -347,7 +349,7 @@ internal sealed partial class PacketParser
             throw Fail([Eof], "write each block, title, accTitle and accDescr on a line of its own, after the packet line");
         }
 
-        return Populate(keyword, frontmatter, title, accTitle, accDescr, blocks);
+        return Populate(keyword, frontmatter, title, titleLocation, accTitle, accDescr, blocks);
     }
 
     /// <summary>
@@ -411,6 +413,7 @@ internal sealed partial class PacketParser
     /// <param name="keyword">The location of the diagram keyword.</param>
     /// <param name="frontmatter">The frontmatter, or null.</param>
     /// <param name="title">The title, or null.</param>
+    /// <param name="titleLocation">The location of the last <c>title</c> statement.</param>
     /// <param name="accTitle">The accessible title, or null.</param>
     /// <param name="accDescr">The accessible description, or null.</param>
     /// <param name="parsed">The block statements in order.</param>
@@ -420,6 +423,7 @@ internal sealed partial class PacketParser
         MermaidLocation keyword,
         FrontmatterData? frontmatter,
         string? title,
+        MermaidLocation titleLocation,
         string? accTitle,
         string? accDescr,
         List<ParsedBlock> parsed)
@@ -460,7 +464,15 @@ internal sealed partial class PacketParser
             lastBit = final;
         }
 
-        return new PacketDiagram(keyword, diagramTitle, !string.IsNullOrEmpty(title), accessibleTitle, description, frontmatterTitle, blocks);
+        return new PacketDiagram(
+            keyword,
+            diagramTitle,
+            !string.IsNullOrEmpty(title),
+            string.IsNullOrEmpty(title) ? keyword : titleLocation,
+            accessibleTitle,
+            description,
+            frontmatterTitle,
+            blocks);
     }
 
     /// <summary>
@@ -670,6 +682,10 @@ internal sealed class PacketDiagram : IMermaidDiagram
     ///     Whether a <c>title</c> statement with a value set the title (Mermaid's <c>populateCommonDb</c> tests the value
     ///     before sanitizing), so that it replaces the frontmatter title even when sanitizing leaves it empty.
     /// </param>
+    /// <param name="titleLocation">
+    ///     The location of the last <c>title</c> statement that set the title, else the diagram keyword (a frontmatter
+    ///     title).
+    /// </param>
     /// <param name="accessibleTitle">The sanitized accessible title, or empty.</param>
     /// <param name="accessibleDescription">The sanitized accessible description, or empty.</param>
     /// <param name="frontmatterTitle">The sanitized frontmatter title, or empty.</param>
@@ -678,6 +694,7 @@ internal sealed class PacketDiagram : IMermaidDiagram
         MermaidLocation keywordLocation,
         string diagramTitle,
         bool isTitleSet,
+        MermaidLocation titleLocation,
         string accessibleTitle,
         string accessibleDescription,
         string frontmatterTitle,
@@ -686,6 +703,7 @@ internal sealed class PacketDiagram : IMermaidDiagram
         KeywordLocation = keywordLocation;
         DiagramTitle = diagramTitle;
         IsTitleSet = isTitleSet;
+        TitleLocation = titleLocation;
         AccessibleTitle = accessibleTitle;
         AccessibleDescription = accessibleDescription;
         FrontmatterTitle = frontmatterTitle;
@@ -694,6 +712,12 @@ internal sealed class PacketDiagram : IMermaidDiagram
 
     /// <summary>Gets the location of the diagram keyword.</summary>
     public MermaidLocation KeywordLocation { get; }
+
+    /// <summary>
+    ///     Gets the location of the last <c>title</c> statement that set the title, else the diagram keyword (a frontmatter
+    ///     title).
+    /// </summary>
+    public MermaidLocation TitleLocation { get; }
 
     /// <summary>Gets the title of the <c>title</c> statement, sanitized (empty when there is none).</summary>
     public string DiagramTitle { get; }

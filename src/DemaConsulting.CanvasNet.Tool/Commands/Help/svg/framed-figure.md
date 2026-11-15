@@ -9,6 +9,7 @@ see-also:
   - svg/composition
   - svg/style
   - scad/anchors
+  - positions
   - svg/supported
 examples:
   - name: framed
@@ -16,11 +17,21 @@ examples:
     language: xml
     file: framed.svg
     description: 'A framed figure of anchors.scad (save it beside the figure) with a gradient title band, chevrons, an accent stripe, a caption, and three callout arrows that end on anchors of the model.'
+  - name: framed-flow
+    kind: snippet
+    language: xml
+    file: framed-flow.svg
+    description: 'The same frame around flowchart.mmd; each arrow ends on a positions[].pixel plus the image x and y.'
   - name: read-anchors
     kind: command
     language: shell
     content: 'canvasnet render anchors.scad --size 440x300 -o slot.png --json'
     description: Read the anchors of the model at the size of its image; add the image x and y to each anchors[].pixel.
+  - name: read-positions
+    kind: command
+    language: shell
+    content: 'canvasnet render flowchart.mmd --size 430x280 --positions node:send --positions node:stock -o slot.png --json'
+    description: Read the positions of two nodes of the diagram at the size of its image; add the image x and y.
   - name: render-framed
     kind: command
     language: shell
@@ -81,29 +92,23 @@ Draw the layers in this order; each covers the one before:
 
 ## Find where a feature is
 
-- A model: declare `echo("anchor", "name", [x, y, z]);`, render the model alone
-  at the size of its image with `--json` (`--example read-anchors`), and add
-  the image `x` and `y` to each `anchors[].pixel`. The embedded model is drawn
-  with the same camera, so the arrow lands on the point at any output width.
-  Give both the same `view=` and `def.` values (see
-  `canvasnet help scad anchors`).
-- A Mermaid diagram or a Vega-Lite chart reports no positions of its nodes,
-  marks, or axes. Its layout is deterministic, so rendered alone at the size of
-  its box it is the picture the figure embeds. Draw it with a labeled grid
-  (`--grid N[,color]`, a line every N pixels; see `canvasnet render --help`),
-  read the x,y of the feature off the grid, and confirm the color there with
-  `inspect pixel` at the same size (here the Send node of the flowchart
-  example, `canvasnet help mermaid flowchart --example flowchart`):
+- Render the picture alone at the size of its image with `--json` and add the
+  image `x` and `y` to each pixel; the figure draws the same picture, so the
+  arrow lands at any output width. A model reports `anchors[].pixel`
+  (`--example read-anchors`; same `view=` and `def.` values). A diagram or
+  chart reports `positions[].pixel` for what `--positions` selects
+  (`--example read-positions`; see `canvasnet help positions`).
+- For a point no selector names, draw a labeled grid at the box size (see
+  `canvasnet render --help`), read x,y off it, and confirm with `inspect pixel`
+  (the Send node of `canvasnet help mermaid flowchart --example flowchart`):
 
 ```shell
 canvasnet render flowchart.mmd --size 430x280 --grid 50 -o grid.png
 canvasnet inspect pixel flowchart.mmd 380,125 --size 430x280 --radius 2
 ```
 
-- Add the image `x` and `y` to that point. Positions are not reported, so
-  measure again after any change to the source or the box.
-- Keep the box size in viewBox units: a figure drawn at any `--width` then
-  scales the picture and the callouts together.
+- Measure again after any change to the source or the box, and keep the box
+  size in viewBox units, so the picture and the callouts scale together.
 
 ## Check
 

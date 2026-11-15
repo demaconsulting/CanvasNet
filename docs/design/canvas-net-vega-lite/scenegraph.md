@@ -8,13 +8,15 @@ The `Scenegraph` subsystem (namespace `DemaConsulting.CanvasNet.VegaLite.Scenegr
 `src/DemaConsulting.CanvasNet.VegaLite/Scenegraph/`) is where a chart becomes pixels, in two steps: an immutable scene
 that holds every resolved item (the **assertion surface** of the tests) and a painter that draws the scene onto a
 core `Surface`. It is **internal**: its types are visible only to the other subsystems of the system and, through
-`InternalsVisibleTo`, to the test assembly. It contains five units:
+`InternalsVisibleTo`, to the test assembly. It contains six units:
 
 - **SceneModel** - the internal scene types: `Scene`, the items `SceneItem`, `SceneGroup`, `SceneRect`, `SceneRule`,
   `ScenePath` (points or drawing segments), `SceneSymbol`, `SceneText`, `SceneImage`, `SceneArc`, and `SceneTrail`, the
   gradient types
   `SceneGradient` and `SceneGradientStop`, the value types `ScenePoint`, `ScenePathSegment`, `SceneTrailPoint`,
-  `SceneClip`, and `SceneEntry`, `SceneBounds`, `SceneLists`, and the `SceneBudget`; see _SceneModel Unit Design_
+  `SceneClip`, and `SceneEntry`, `SceneBounds`, `SceneLists`, and the `SceneBudget`, and the internal position data
+  (`SceneItem.Position` with `ScenePositionTag`, `SceneItem.Datum`, `SceneGroup.Marks` with `SceneMarkContext`, and the
+  `Vertices` of a path or trail, `SceneVertex`); see _SceneModel Unit Design_
   (`scenegraph/scene-model.md`)
 - **ScenePainter** - the internal `ScenePainter` (a partial class in `ScenePainter.cs`, `ScenePainter.Paths.cs`, and
   `ScenePainter.Images.cs`), `ScenePlacement`, and `SceneImageSource` (the loader of the pictures of one painting):
@@ -31,10 +33,14 @@ core `Surface`. It is **internal**: its types are visible only to the other subs
 - **SymbolPathParser** - the internal sealed `SymbolPathParser`: the parser, the canvas-rule drawing, and the bounds of
   the SVG path data of a custom symbol shape (a port of vega-scenegraph's path parser and renderer), with a cache of
   parsed paths; see _SymbolPathParser Unit Design_ (`scenegraph/symbol-path-parser.md`)
+- **ScenePositions** - the internal static `ScenePositions`: the feature positions of a laid-out chart (titles, views,
+  axes, legends, and marks) with their canonical view paths, ids, normalized values, data fields, geometry boxes, and attachment
+  pixels in the pixels of the surface; see _ScenePositions Unit Design_ (`scenegraph/scene-positions.md`)
 
 The subsystem's namespace documentation is in `Scenegraph/NamespaceDoc.cs`. Its behavior is specified by the
 `CanvasNetVegaLite-Scenegraph-*` requirements in `docs/reqstream/canvas-net-vega-lite/scenegraph.yaml`. The SysML2 model
-names the subsystem `VegaLiteScenegraph` and the scene unit `VegaLiteSceneModel` (see _CanvasNetVegaLite System
+names the subsystem `VegaLiteScenegraph`, the scene unit `VegaLiteSceneModel`, and the positions unit
+`VegaLiteScenePositions` (see _CanvasNetVegaLite System
 Design_).
 
 ### Interfaces
@@ -44,16 +50,21 @@ Design_).
 `ScenePainter.Paint(Scene, int, int, ScenePlacement, CancellationToken)` and `Paint(Scene, Surface, ScenePlacement,
 CancellationToken)`, `ScenePainter.SymbolPath`, `ScenePainter.ResolveMiterLimit`, and `ScenePlacement.Uniform` and
 `ScenePlacement.Fit`; `CssPaint.IsNone`, `TryResolvePaint`, and `WithOpacity`; and
-`ArcGeometry.Build`, and `SymbolPathParser.TryParse`, `TryGet`, `IsValid`, and `Render`.
+`ArcGeometry.Build`, and `SymbolPathParser.TryParse`, `TryGet`, `IsValid`, and `Render`; and
+`ScenePositions.Report`, `Collect`, `Geometry`, `ViewPath`, `ViewName`, and `FacetValues`.
 
 **Consumed**: `TextMeasurer` from the `Guides` subsystem (the painter resolves fonts and draws the lines the measurer
-produces); the public `VegaLiteLocation` and `VegaLiteRenderException` of the `VegaLiteDocument` unit; and the core
+produces, and the positions measure the box of a text mark with it); `MarkBuilder.TryConvert` from the `Marks`
+subsystem and `LayerNode` from the `SpecModel` subsystem (the facet values and the view paths of the positions); the
+public `VegaLiteLocation`, `VegaLiteRenderException`, and `VegaLiteRenderOptions` (its `PositionHandler` and
+`PositionKindFilter`) of the `VegaLiteDocument` unit; and the core
 `CanvasNet` public API: `Surface`, `Rgba32`, and `CssColor` (`Canvas`), `PathFiller`, `PathStroker`, and
 `LinearGradient` (`Drawing`),
-`Path` and `PathBuilder` (`Geometry`), and `TextRenderer` (`Rendering`).
+`Path` and `PathBuilder` (`Geometry`), `TextRenderer` (`Rendering`), and `ImagePosition`, `PositionBox`,
+`PositionPoint`, and `PositionValue` (`Positions`).
 
-**Consumers**: the builders of the `Guides`, `Layout`, and `Marks` subsystems create the items; `VegaLiteDocument`
-paints
+**Consumers**: the builders of the `Guides`, `Layout`, and `Marks` subsystems create the items (and tag them for the
+positions); `VegaLiteDocument` reports the positions and paints
 the scene.
 
 ### Design
@@ -89,6 +100,14 @@ the text does not parse.
 **Deterministic.** The painter holds no state and the same scene, size, and placement give the same bytes on every
 platform;
 colors parse with the invariant culture and no named color depends on the host.
+
+**Positions come from the scene the painter draws.** The guide and view groups carry an internal tag (kind, id, text,
+view path, view name, and optional bounds), and only when a render asks for mark positions do the mark items record the
+row they draw, the path marks their vertices, and each marks group the values and data fields of its rows; none of it
+changes the pixels. After the painting, `ScenePositions` walks the scene once, reports the titles, views, axes, and
+legends, then the marks, each in drawing order, with the box and attachment pixel of its kind mapped by the placement
+the painter uses (an image mark's box is the rectangle the painter drew its picture in), so the positions are those of
+the returned surface at any scale or exact size; a kind the filter rejects is skipped before its geometry is computed.
 
 **Bounded.** The scene item count is bounded by `SceneBudget` (`MaxSceneItems`), and the pixel size by the surface
 (`Surface.MaxDimension`); a clip layer is only as large as the clip's pixel box. The geometry of an arc costs a constant

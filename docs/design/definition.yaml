@@ -57,6 +57,10 @@ input-files:
   - docs/design/canvas-net/image-sources/image-source-contract.md
   - docs/design/canvas-net/image-sources/folder-image-resolver.md
   - docs/design/canvas-net/image-sources/raster-image-source.md
+  - docs/design/canvas-net/positions.md
+  - docs/design/canvas-net/positions/image-position.md
+  - docs/design/canvas-net/positions/position-selector.md
+  - docs/design/canvas-net/positions/position-collector.md
   - docs/design/canvas-net/rendering/word-wrap.md
   - docs/design/canvas-net/packaging.md
   - docs/design/canvas-net/packaging/opc-package.md
@@ -160,6 +164,7 @@ input-files:
   - docs/design/canvas-net-vega-lite/scenegraph.md
   - docs/design/canvas-net-vega-lite/scenegraph/scene-model.md
   - docs/design/canvas-net-vega-lite/scenegraph/scene-painter.md
+  - docs/design/canvas-net-vega-lite/scenegraph/scene-positions.md
   - docs/design/canvas-net-vega-lite/scenegraph/css-paint.md
   - docs/design/canvas-net-vega-lite/scenegraph/arc-geometry.md
   - docs/design/canvas-net-vega-lite/scenegraph/symbol-path-parser.md
@@ -198,6 +203,7 @@ input-files:
   - docs/design/canvas-net-mermaid/scenegraph.md
   - docs/design/canvas-net-mermaid/scenegraph/scene-model.md
   - docs/design/canvas-net-mermaid/scenegraph/scene-painter.md
+  - docs/design/canvas-net-mermaid/scenegraph/scene-positions.md
   - docs/design/canvas-net-mermaid/flowchart.md
   - docs/design/canvas-net-mermaid/flowchart/flowchart-parser.md
   - docs/design/canvas-net-mermaid/flowchart/flowchart-model.md

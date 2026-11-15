@@ -80,8 +80,9 @@ The system consists of one direct unit and seventeen internal subsystems:
   (pictures through the caller's resolver).
 - **Scenegraph** (subsystem; see _Scenegraph Design_) - `SceneModel` (the immutable scene: groups, paths with their
   drop shadows, text that may be turned about a point, images, and their bounds, which is the assertion surface of the
-  tests and goldens) and
-  `ScenePainter` (scene to pixels).
+  tests and goldens, and the internal position tags of the items that draw a feature),
+  `ScenePainter` (scene to pixels), and `ScenePositions` (the feature positions of a laid-out scene in the pixels of
+  the surface).
 - **Flowchart** (subsystem; see _Flowchart Design_) - `FlowchartParser` (the `flow.jison` lexer and grammar) and
   `FlowchartModel` (the `flowDb` semantics, the mapping to layout data, and the flowchart's own drawing steps).
 - **Sequence** (subsystem; see _Sequence Design_) - `SequenceParser` (the `sequenceDiagram.jison` lexer and grammar),
@@ -157,8 +158,9 @@ The one call against that direction is the entity box of `ShapeLibrary`, which d
 the static `ClassModel.ParseGenericTypes`, the port of Mermaid's `parseGenericTypes` that the class and ER drawings
 share; it is a pure text function and holds no state.
 
-Only `ScenePainter` and `LabelBuilder` use the core `Fonts`, `Rendering`, and `Drawing` APIs, and only
-`NodeImages` and `MermaidImageSource` use the core `ImageSources` API. The internal subsystems are visible to the
+Only `ScenePainter` and `LabelBuilder` use the core `Fonts`, `Rendering`, and `Drawing` APIs, only
+`NodeImages` and `MermaidImageSource` use the core `ImageSources` API, and only `ScenePositions` and the render options
+use the core `Positions` API. The internal subsystems are visible to the
 test assembly through `InternalsVisibleTo` and to nothing else.
 
 ## External Interfaces
@@ -202,6 +204,12 @@ test assembly through `InternalsVisibleTo` and to nothing else.
   (`mermaid-gantt-today-unavailable`). The Viewer library, the tool, and the documentation filter do not set it.
 - **Report output** (`WarningHandler`, `UnsupportedFeatureHandler`): `MermaidDiagnostic` and
   `MermaidUnsupportedFeature` values, each delivered once, in order, on the calling thread, after the work.
+- **Position output** (`MermaidRenderOptions.PositionHandler`, with `PositionKindFilter`): one core `ImagePosition`
+  per feature of the rendered diagram - `title`, `group`, `node`, `participant`, `task`, `milestone`, `section`,
+  `slice`, `block`, `commit`, `branch`, `tag`, `edge`, `message`, and `note`, in that order of kinds - with its source
+  id (or a deterministic synthetic id), text, source line, edge ends and parallel index, a pie slice's `value`, its
+  geometry box, and its attachment pixel in the pixels of the returned surface, delivered by both `Render` methods on
+  the calling thread before the painting; `Measure` never calls it and the pixels do not change.
 - **Exception output**: `MermaidSyntaxException` (a `FormatException`), `MermaidRenderException` (an
   `InvalidOperationException`), `MermaidUnsupportedFeatureException` (an `IOException`), `InvalidDataException`,
   argument exceptions, and `OperationCanceledException`; the Mermaid exceptions carry `Code` or `Feature`,
@@ -229,8 +237,9 @@ records the name and the class simply adds no style.
 - **CanvasNet (sibling system, same repository)** - `Canvas` (`Surface`, `Rgba32`, `CssColor`), `Geometry` (`Path`
   and its builder for scene paths), `Drawing` (`PathFiller`, `PathStroker`), `Fonts` (`FontResolver` with
   `MapCommonAliasesToBundled` and no system fonts, `GenericFontFamilies`), `Rendering` (`TextRenderer` for measuring
-  and drawing text, `WordWrap` for HTML label wrapping), and `ImageSources` (`IImageSource`, `IFragmentImageSource`,
-  `IImageResolver`, `ImageFragment`). Only the public API is used.
+  and drawing text, `WordWrap` for HTML label wrapping), `ImageSources` (`IImageSource`, `IFragmentImageSource`,
+  `IImageResolver`, `ImageFragment`), and `Positions` (`ImagePosition`, `PositionBox`, `PositionPoint`, and
+  `PositionValue` for the feature positions). Only the public API is used.
 - **.NET base class library** - `System.Text.Json` (validation of the site configuration and the JSON of init
   directives), `System.Text` (strict UTF-8), collections, `System.Math`, and `System.Numerics.BigInteger` (the
   correctly rounded math of the cose layout).
@@ -378,7 +387,9 @@ flowchart LR
    rerouting lanes, the commit bullets, the commit labels and tags (rotated by 45 degrees where Mermaid rotates them),
    and the title with the texts measured by `LabelBuilder`, with the view box of the browser's bounding box grown by
    `gitGraph.diagramPadding`. `Measure` stops here and returns the view box
-   rounded up and multiplied by the scale. `Render` paints the scene with `ScenePainter` (uniformly scaled, or fitted
+   rounded up and multiplied by the scale. `Render` reports the feature positions with `ScenePositions` when the
+   options have a `PositionHandler` (the tagged items mapped by the same placement the painter uses), then paints the
+   scene with `ScenePainter` (uniformly scaled, or fitted
    and centered for an exact size) over the background, loading pictures through the same `NodeImages`.
 3. **Reports** recorded by any stage go to the call's `MermaidReportSink` and are delivered to the handlers after the
    work, in order, on the calling thread.

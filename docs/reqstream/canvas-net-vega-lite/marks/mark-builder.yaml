@@ -760,3 +760,19 @@ sections:
                   - MarkBuilder_Build_ImageCarriesTheMarkLocation
                   - MarkBuilder_Build_ImageLimits_FailAtTheMark
                   - MarkBuilder_Build_ImageRows_KeepTheDrawingOrder
+
+              - id: CanvasNetVegaLite-Marks-MarkBuilder-PositionRows
+                title: >-
+                  The MarkBuilder class shall, only when RecordPositions is set, record on each mark item the row it
+                  draws and on each line, area, or trail the row and point of each drawn vertex, and give its marks
+                  group a context that reads the normalized values and the data fields of a row; without it nothing is
+                  recorded.
+                justification: |
+                  The positions of the marks come from the rows the builder already reads; recording them only on
+                  request keeps the scene of a plain render unchanged.
+                tests:
+                  - VegaLiteDocument_BuildScene_RecordsRowsOnlyForAHandlerThatWantsMarks
+                  - VegaLiteDocument_Render_AggregateAndTemporalLine_ValuesAndVertices
+                  - MarkBuilder_TryConvert_DataValues_ConvertAsDocumented
+                  - VegaLiteDocument_Render_MonthTimeUnitLine_DataKeepsTheSourceRow
+                  - VegaLiteDocument_Render_AggregatedNestedAndWideRows_DataAsDocumented

@@ -21,7 +21,9 @@ of two units and one subsystem:
 - **CanvasNetViewer** (unit; namespace `DemaConsulting.CanvasNet.Viewer`, folder `src/DemaConsulting.CanvasNet.Viewer/`,
   file `CanvasNetViewer.cs`): a static class that lists the built-in image sources and their extensions, creates the
   `FolderImageResolver` of the core `ImageSources` subsystem for one render, and renders any file by path or from a
-  stream. The two supporting types, `ViewerRenderOptions` and `ViewerImage`, are covered inline. See _CanvasNetViewer Unit
+  stream (with the feature positions of a Mermaid diagram or a Vega-Lite chart that its options select through the core
+  `Positions` subsystem). The two supporting types, `ViewerRenderOptions` and `ViewerImage`, are covered inline. See
+  _CanvasNetViewer Unit
   Design_ (`canvas-net-viewer/canvas-net-viewer.md`).
 - **ViewerException** (unit; file `ViewerException.cs`): the exception with which every expected failure of the
   operations is reported, and the stable `ErrorCodes`. See _ViewerException Unit Design_
@@ -68,15 +70,21 @@ The system exposes the following public API:
   the folder option and behind a link): it is the caller's choice and is never judged by the file-access policy.
 - **`ViewerRenderOptions`**: `Width`, `Height`, `Folder` (the base of relative links, not a boundary), `FileAccess` (the
   `FileAccessPolicy` of every file the rendered file references, at every level; `FileAccessPolicy.AllowAll` by
-  default, like Pandoc), `ThrowOnUnsupportedFeature`, `MaxDecodedPixels`, `ExtraSources`, and `CancellationToken`.
+  default, like Pandoc), `ThrowOnUnsupportedFeature`, `MaxDecodedPixels`, `ExtraSources`, `Positions` (a core
+  `PositionSelection`: the feature positions a Mermaid diagram or a Vega-Lite chart reports into
+  `ViewerImage.Positions`, at most `PositionCollector.MaxPositions`, with `ViewerImage.PositionsTruncated`, mapped into
+  the pixels of the returned picture; a selector that matches nothing is the note `positions-unmatched`, and with
+  `ThrowOnUnsupportedFeature` a `ViewerException` with that code), and `CancellationToken`.
 - **The `Imaging` operations** (namespace `DemaConsulting.CanvasNet.Viewer.Imaging`): `SourceLoader.Probe` /
   `Load` / `OpenPages` (the facts of a file, and its pixels, with pages, resolution, and options; `Probe(path,
   FileAccessPolicy)` and `Probe(InputReference, FileAccessPolicy)` read the files a probe needs, the data of a chart,
-  under a policy),
-  `ImageRenderer.Execute` (load, transform, and write), `ImageInspector.Execute` (colors and pixels),
+  under a policy; `SourceOptions.Positions` selects the feature positions of a diagram or a chart),
+  `ImageRenderer.Execute` (load, transform, and write; each `RenderedPage` carries its positions mapped into the
+  written image), `ImageInspector.Execute` (colors and pixels),
   `ImageComparer.Execute` (measures, thresholds, and pictures), `MontageBuilder.Execute` (a contact sheet),
   `SvgFlattener.Execute` (a copy of an SVG drawing that other SVG readers can show), and the
-  lower-level `ImagePipeline.Apply`, `ImageWriter.Write`, `ContactSheet`, and `GridOverlay.Draw`. Each takes plain
+  lower-level `ImagePipeline.Apply` (with `MapAnchors` and `MapPositions`), `ImageWriter.Write`, `ContactSheet`, and
+  `GridOverlay.Draw`. Each takes plain
   request values and returns plain result values; see _Imaging Subsystem Design_ for the signatures.
 - **`ViewerException`** / **`ErrorCodes`**: the failure of an expected kind, with a stable code, a message, and a hint.
 
@@ -101,7 +109,9 @@ format systems, each through a project reference from
 
 - The core `ImageSources` subsystem: `IImageSource`, `ImageSourceSet`, `FolderImageResolver`,
   `FolderImageResolverOptions`, `ImageSourceDiagnostic`, `EmbeddedImage`, `ImageSourceException`, and the
-  `RasterImageSource`; and the `Canvas` subsystem's `Surface` and `Rgba32` (the fit of a raster into a box).
+  `RasterImageSource`; the `Canvas` subsystem's `Surface` and `Rgba32` (the fit of a raster into a box); and the
+  `Positions` subsystem's `PositionSelection`, `PositionCollector`, and `ImagePosition` (the feature positions of a
+  diagram or a chart).
 - The `CanvasNetSvg`, `CanvasNetPdf`, `CanvasNetPptx`, `CanvasNetVsdx`, `CanvasNetScad`, `CanvasNetVegaLite`, and
   `CanvasNetMermaid` systems: the `SvgImageSource`, `PdfImageSource`, `PptxImageSource`, `VsdxImageSource`,
   `ScadImageSource`, `VegaLiteImageSource`, and `MermaidImageSource` of each package, and for the `Imaging` operations
@@ -154,8 +164,11 @@ source is asked again on every render. The shape contains this risk control inhe
 2. **Validation**: a null argument, an unknown extension, a missing file, or a file that is not a regular file, is too
    large, or cannot be read throws before anything is drawn
 3. **Processing**: a resolver for the render draws the file at the requested size; a raster (always returned at its
-   natural size) is fitted into a requested box or scaled to keep its aspect ratio
-4. **Output**: a `ViewerImage` that owns the `Surface` and carries the format, notes, text, and embedded images
+   natural size) is fitted into a requested box or scaled to keep its aspect ratio; for a diagram or a chart with
+   `Positions`, the loader collects the matching positions while the library draws, and they are mapped through the fit
+   or the resize
+4. **Output**: a `ViewerImage` that owns the `Surface` and carries the format, notes, text, embedded images, and feature
+   positions
 
 **Operation path** (`Imaging`):
 

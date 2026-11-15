@@ -94,6 +94,10 @@ and `menu-text` lines; and the `title`.
   font.
 - **Geometry helpers** (`RectSegments`, `CircleSegments`, `LineSegments`) give the segments of an SVG rectangle with
   corners clamped as SVG clamps them, a circle as four quarter arcs, and a line.
+- **Position tags**: the renderer tags each participant on its top box (`participant`, named by the participant, not
+  the mirrored bottom box), each message on its message line (`message` numbered 1 to n in drawing order, with its ends,
+  aimed along the line), each note group (`note1` to `noteN`), and the title (`title`, at the
+  `SequenceModel.TitleLocation` that the layout passes to `DrawTitle`) for the `ScenePositions` unit.
 
 #### Error Handling
 

@@ -726,4 +726,31 @@ public class CanvasNetViewerSystemIntegrationTests
     /// <returns>The first line that is not blank.</returns>
     private static string FirstLine(string code) =>
         code.Split('\n').FirstOrDefault(l => !string.IsNullOrWhiteSpace(l))?.Trim() ?? string.Empty;
+
+    /// <summary>
+    ///     Proves that a chart rendered through the viewer reports the positions its selectors match, mapped into the
+    ///     written image through the pipeline, so that a callout can be pinned to a bar of the written picture.
+    /// </summary>
+    [Fact]
+    public void CanvasNetViewer_SystemIntegration_Positions_FollowThePipelineIntoTheWrittenImage()
+    {
+        // Arrange: a bar chart, rendered with a pad of 10 pixels on every side
+        using var directory = new TempDirectory();
+        var path = directory.Combine("bars.vl.json");
+        File.WriteAllText(
+            path,
+            "{\"data\":{\"values\":[{\"a\":\"A\",\"b\":3},{\"a\":\"B\",\"b\":5}]},\"mark\":\"bar\"," +
+            "\"encoding\":{\"x\":{\"field\":\"a\",\"type\":\"nominal\"},\"y\":{\"field\":\"b\",\"type\":\"quantitative\"}}}");
+        var info = SourceLoader.Probe(path);
+        var source = new SourceOptions { Positions = DemaConsulting.CanvasNet.Positions.PositionSelection.Parse(["mark:x=B"]) };
+        var output = directory.Combine("bars.png");
+
+        // Act
+        var page = Assert.Single(ImageRenderer.Execute(info, new RenderRequest(output) { Source = source, Operations = [new PadOperation(new PadSpec(10, 10, 10, 10), null)] }).Pages);
+
+        // Assert: the bar's center in the written file has the bar's color
+        var bar = Assert.Single(page.Positions);
+        using var written = SurfaceAssert.Load(output);
+        Assert.Equal(new Rgba32(0x4C, 0x78, 0xA8, 255), written[(int)bar.Pixel!.Value.X, (int)bar.Pixel.Value.Y]);
+    }
 }

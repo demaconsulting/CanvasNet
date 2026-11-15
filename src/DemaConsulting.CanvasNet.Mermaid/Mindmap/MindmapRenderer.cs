@@ -239,7 +239,8 @@ internal sealed class MindmapRenderer
             var center = layout.Centers[i];
             var valid = double.IsFinite(center.X) && double.IsFinite(center.Y);
             var (x, y) = valid ? (center.X, center.Y) : (0.0, 0.0);
-            nodeGroups.Add(new SceneGroup(x, y, shape.Items) { Role = "node-group", Id = data.DomId, Location = data.Location });
+            var tag = new ScenePositionTag("node", nodes[i].NodeId) { Text = nodes[i].Description, Location = data.Location };
+            nodeGroups.Add(new SceneGroup(x, y, shape.Items) { Role = "node-group", Id = data.DomId, Location = data.Location, Position = tag });
             bounds = Union(bounds, shape.Bounds.Offset(x, y));
         }
 

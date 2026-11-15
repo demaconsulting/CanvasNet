@@ -106,7 +106,9 @@ safe for concurrent renders):
   markers, and the node and rank spacing of the `er` section (`er.nodeSpacing || 140` and `er.rankSpacing || 80`, which
   Mermaid's ER renderer writes into the spacing of the render). A subgraph named in another subgraph is nested in it
   wherever it is declared, so chained subgraphs nest without any nesting in the text; `GetData` checks the nesting the
-  parents make with `LayoutData.CheckNestingDepth` (`subgraphs`, `MaxNestingDepth`).
+  parents make with `LayoutData.CheckNestingDepth` (`subgraphs`, `MaxNestingDepth`). Each entity node carries its
+  name as `SourceId` and each relationship edge the names of its two entities as `SourceEnds`, so that the feature
+  positions name entities as the text does rather than by their layout ids.
 - **`ReportUnsupported(MermaidConfig, MermaidReportSink)`** reports, in order, a look other than `classic`
   (`mermaid-look-unsupported`) and a layout other than `dagre` (`mermaid-layout-unsupported`), each located at its
   configuration key with a hint.

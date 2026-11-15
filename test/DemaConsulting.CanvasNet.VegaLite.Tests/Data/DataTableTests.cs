@@ -127,6 +127,33 @@ public class DataTableTests
     }
 
     /// <summary>
+    ///     Validates that a date keeps the text it was read from, and that equality, hashing, ordering and text ignore it.
+    /// </summary>
+    [Fact]
+    public void DataValue_FromDate_SourceText_IsKeptAndIgnoredByEqualityOrderAndText()
+    {
+        // Arrange: 2025-11-01T00:00:00Z with and without its source text
+        var sourced = DataValue.FromDate(1_761_955_200_000, "2025-11-01");
+        var plain = DataValue.FromDate(1_761_955_200_000);
+
+        // Assert: the text is kept for dates only
+        Assert.Equal("2025-11-01", sourced.SourceText);
+        Assert.Null(plain.SourceText);
+        Assert.Null(sourced.Text);
+        Assert.Null(DataValue.FromString("2025-11-01").SourceText);
+        Assert.Equal("2025-11-01", DataValue.FromString("2025-11-01").Text);
+
+        // Assert: the instant is what counts
+        Assert.Equal(DataValueKind.Date, sourced.Kind);
+        Assert.Equal(plain, sourced);
+        Assert.Equal(plain.GetHashCode(), sourced.GetHashCode());
+        Assert.Equal(0, DataValue.Compare(plain, sourced));
+        Assert.Equal("2025-11-01T00:00:00.000Z", sourced.ToText());
+        Assert.True(sourced.TryGetQuantitative(out var number));
+        Assert.Equal(1_761_955_200_000, number);
+    }
+
+    /// <summary>
     ///     Validates that a table can be built from per-row dictionaries with differing keys.
     /// </summary>
     [Fact]

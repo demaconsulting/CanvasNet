@@ -150,7 +150,7 @@ internal sealed class PacketRenderer
         var titlePaint = _styles.Title;
         if (TextLine(title, svgWidth / 2, svgHeight - (totalRowHeight / 2), SceneTextAnchor.Middle, true, titlePaint, "title", null, _diagram.KeywordLocation) is { } titleText)
         {
-            items.Add(titleText);
+            items.Add(string.IsNullOrEmpty(title) ? titleText : titleText with { Position = new ScenePositionTag("title", "title") { Text = title, Location = _diagram.TitleLocation } });
         }
 
         var root = new SceneGroup(0, 0, items) { Role = "packet", Location = _diagram.KeywordLocation };
@@ -189,6 +189,11 @@ internal sealed class PacketRenderer
                     Location = part.Location,
                     Fill = block.Fill,
                     Stroke = block.Stroke is { } stroke && block.StrokeWidth > 0 ? new SceneStroke(stroke, block.StrokeWidth) : null,
+                    Position = new ScenePositionTag("block", string.Create(CultureInfo.InvariantCulture, $"{part.Start}-{part.End}"))
+                    {
+                        Text = part.Label,
+                        Location = part.Location,
+                    },
                 });
             }
 

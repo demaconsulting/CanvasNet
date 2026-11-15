@@ -144,7 +144,8 @@ public sealed partial class VegaLiteDocument
         ValidateParameters(effective);
         cancellationToken.ThrowIfCancellationRequested();
         var placement = ScenePlacement.Uniform(effective.Scale);
-        return Run(effective, cancellationToken, plan, placement, (p, sink) => Paint(p, size.Width, size.Height, placement, effective, sink, cancellationToken));
+        return Run(effective, cancellationToken, plan, placement, (p, sink) =>
+            PaintAndReport(p, size.Width, size.Height, placement, effective, sink, cancellationToken));
     }
 
     /// <summary>
@@ -194,7 +195,8 @@ public sealed partial class VegaLiteDocument
         cancellationToken.ThrowIfCancellationRequested();
         var plan = PrepareChartOrReport(effective, cancellationToken);
         var placement = ScenePlacement.Fit(plan.Size.Width, plan.Size.Height, width, height);
-        return Run(effective, cancellationToken, plan, placement, (p, sink) => Paint(p, width, height, placement, effective, sink, cancellationToken));
+        return Run(effective, cancellationToken, plan, placement, (p, sink) =>
+            PaintAndReport(p, width, height, placement, effective, sink, cancellationToken));
     }
 
     /// <summary>
@@ -403,12 +405,14 @@ public sealed partial class VegaLiteDocument
             dataWarningSink?.AddRange(scales.Warnings);
         }
 
+        // The mark items record their rows only when a handler wants the positions of marks
+        var recordMarks = options.PositionHandler is not null && (options.PositionKindFilter?.Invoke("mark") ?? true);
         var background = options.Background is { } caller ? CssColor.ToCss(caller) : null;
         if (isComposition)
         {
             var composed = stage is null || scales is null ? [] : stage.Layers.Select((l, i) => new LayerChart(l.Node, l.Plan, l.Data, scales.PerLayer[i], selections)).ToList();
             IReadOnlyList<FeatureReport> composedWarnings = [.. treeWarnings, .. stage?.Warnings ?? [], .. scales?.Warnings ?? []];
-            return BuildComposition(root, layerTree.Root, composed, scales, config, measurer, options.Limits, budget, stage?.Expressions, background, cancellationToken) with { DataWarnings = composedWarnings };
+            return BuildComposition(root, layerTree.Root, composed, scales, config, measurer, options.Limits, budget, stage?.Expressions, background, cancellationToken, recordMarks) with { DataWarnings = composedWarnings };
         }
 
         var hints = new ViewSizeHints(scales?.Merged.DiscreteWidth, scales?.Merged.DiscreteHeight, options.ContainerWidth, options.ContainerHeight);
@@ -417,18 +421,19 @@ public sealed partial class VegaLiteDocument
         // A fit that a step size drops is the layout's finding, delivered with the data stage's after the reports of the specification
         var layoutWarnings = FitDroppedWarning(request, root, _tree);
         dataWarningSink?.AddRange(layoutWarnings);
-        var title = new TitleBuilder(measurer).Build(root["title"], config, unitOrLayer: true, budget, _tree.SourceName);
+        // The title reports the name of the view it belongs to, as the data rectangle does (RootViewTag)
+        var title = new TitleBuilder(measurer).Build(root["title"], config, unitOrLayer: true, budget, _tree.SourceName, ScenePositions.ViewName(layerTree.Root));
         if (stage is null || scales is null)
         {
             // The measure is checked before the scene is built from it: a padding of 1e308 makes the canvas infinite, which the scene refuses without saying where
             var measure = ViewLayout.Measure(request, default, title);
             RequireFiniteSize(measure);
-            return new ChartPlan(measure.NaturalSize, ViewLayout.Build(request, measure, []), measurer);
+            return new ChartPlan(measure.NaturalSize, ViewLayout.Build(request, measure, [], RootViewTag(layerTree.Root)), measurer);
         }
 
         var layers = stage.Layers.Select((l, i) => new LayerChart(l.Node, l.Plan, l.Data, scales.PerLayer[i], selections)).ToList();
         IReadOnlyList<FeatureReport> dataWarnings = [.. treeWarnings, .. stage.Warnings, .. scales.Warnings, .. layoutWarnings];
-        return BuildChart(new ChartInputs(request, title, layers, scales, config, measurer, options.Limits, budget, stage.Expressions), cancellationToken) with { DataWarnings = dataWarnings };
+        return BuildChart(new ChartInputs(request, title, layers, scales, config, measurer, options.Limits, budget, stage.Expressions) { RecordMarks = recordMarks, Root = layerTree.Root }, cancellationToken) with { DataWarnings = dataWarnings };
     }
 
     /// <summary>
@@ -508,7 +513,7 @@ public sealed partial class VegaLiteDocument
         var budget = inputs.Budget;
         var legendSpecs = LegendPlan.Create(LegendLayers(inputs.Layers, inputs.Scales), inputs.Config, _tree.SourceName, null, inputs.Layers.Select(l => l.Selections).FirstOrDefault(s => s is { HasSelections: true }));
         var axisPlans = PlanAxes(inputs.Layers, inputs.Scales);
-        var cell = CreateCell(inputs.Layers, axisPlans, legendSpecs, inputs.Config, inputs.Measurer, inputs.Limits, _tree.SourceName, inputs.Expressions);
+        var cell = CreateCell(inputs.Layers, axisPlans, legendSpecs, inputs.Config, inputs.Measurer, inputs.Limits, _tree.SourceName, inputs.Expressions, recordMarks: inputs.RecordMarks);
         var measure = ViewLayout.Measure(inputs.Request, default, inputs.Title);
         var guides = new CellGuides([], new LegendPlacement([], SceneBounds.Empty));
         var passBudget = budget;
@@ -545,8 +550,16 @@ public sealed partial class VegaLiteDocument
 
         // The guides of the pass that was kept, and the marks for the final rectangle
         var content = BuildCell(cell, measure.DataWidth, measure.DataHeight, budget, cancellationToken, guides);
-        return new ChartPlan(measure.NaturalSize, ViewLayout.Build(inputs.Request, measure, content), inputs.Measurer);
+        return new ChartPlan(measure.NaturalSize, ViewLayout.Build(inputs.Request, measure, content, inputs.Root is { } root ? RootViewTag(root) : null), inputs.Measurer);
     }
+
+    /// <summary>
+    ///     Gets the position tag of the data rectangle of a single or layered chart: the view <c>""</c>.
+    /// </summary>
+    /// <param name="root">The root of the view tree.</param>
+    /// <returns>The tag.</returns>
+    private static ScenePositionTag RootViewTag(LayerNode root) =>
+        new("view", string.Empty) { ViewName = ScenePositions.ViewName(root) };
 
     /// <summary>
     ///     Prepares the chart; when that fails because of the specification or the data, delivers the reports that were
@@ -706,16 +719,50 @@ public sealed partial class VegaLiteDocument
     /// <param name="placement">Where the scene goes on the surface.</param>
     /// <param name="options">The effective options (the image resolver and the limit of pictures).</param>
     /// <param name="sink">The sink that records what the painting finds: a picture the resolver did not resolve.</param>
+    /// <param name="drawnImages">The map that receives the rectangle each picture is drawn in (<see cref="ScenePainter.DrawnImages"/>), or null.</param>
     /// <param name="cancellationToken">The token that stops the work.</param>
     /// <returns>The surface; the caller owns it.</returns>
     /// <exception cref="VegaLiteRenderException">Thrown, located at the mark, when the chart draws more pictures than <see cref="VegaLiteLimits.MaxImages"/>.</exception>
-    private static Surface Paint(ChartPlan plan, int width, int height, ScenePlacement placement, VegaLiteRenderOptions options, VegaLiteReportSink sink, CancellationToken cancellationToken)
+    private static Surface Paint(ChartPlan plan, int width, int height, ScenePlacement placement, VegaLiteRenderOptions options, VegaLiteReportSink sink, Dictionary<SceneImage, SceneBounds>? drawnImages, CancellationToken cancellationToken)
     {
         // The pictures of the image mark are loaded while the scene is painted (the scale is known only now) and every surface the resolver returned is released when the painting ends
         using var images = new SceneImageSource(options.ImageResolver, options.Limits.MaxImages, (message, location, key) => sink.Warn(message, location, key));
         ReportStage("paint", finished: false);
-        var surface = new ScenePainter(plan.Measurer, images, options.Limits.MaxPaintedPixels).Paint(plan.Scene, width, height, placement, cancellationToken);
+        var surface = new ScenePainter(plan.Measurer, images, options.Limits.MaxPaintedPixels) { DrawnImages = drawnImages }.Paint(plan.Scene, width, height, placement, cancellationToken);
         ReportStage("paint", finished: true);
+        return surface;
+    }
+
+    /// <summary>
+    ///     Paints the plan, then reports the positions of its features to the handler of the options, when there is one.
+    /// </summary>
+    /// <remarks>
+    ///     The positions are reported after the painting because the box of an image mark whose width or height is not given depends on the picture, which is loaded only while the
+    ///     scene is painted: the painter records the rectangle it draws each picture in (<see cref="ScenePainter.DrawnImages"/>) and the positions report it, so no picture is loaded twice.
+    ///     A handler that throws propagates its exception and the surface is disposed.
+    /// </remarks>
+    /// <param name="plan">The plan.</param>
+    /// <param name="width">The width of the surface in pixels.</param>
+    /// <param name="height">The height of the surface in pixels.</param>
+    /// <param name="placement">Where the scene goes on the surface.</param>
+    /// <param name="options">The effective options (the position handler, the image resolver and the limits).</param>
+    /// <param name="sink">The sink that records what the painting finds.</param>
+    /// <param name="cancellationToken">The token that stops the work.</param>
+    /// <returns>The surface; the caller owns it.</returns>
+    private static Surface PaintAndReport(ChartPlan plan, int width, int height, ScenePlacement placement, VegaLiteRenderOptions options, VegaLiteReportSink sink, CancellationToken cancellationToken)
+    {
+        var drawnImages = options.PositionHandler is null ? null : new Dictionary<SceneImage, SceneBounds>(ReferenceEqualityComparer.Instance);
+        var surface = Paint(plan, width, height, placement, options, sink, drawnImages, cancellationToken);
+        try
+        {
+            ScenePositions.Report(plan.Scene, placement, plan.Measurer, options, drawnImages);
+        }
+        catch
+        {
+            surface.Dispose();
+            throw;
+        }
+
         return surface;
     }
 
@@ -749,5 +796,12 @@ public sealed partial class VegaLiteDocument
         TextMeasurer Measurer,
         VegaLiteLimits Limits,
         SceneBudget Budget,
-        RowExpressions? Expressions);
+        RowExpressions? Expressions)
+    {
+        /// <summary>Gets a value indicating whether the mark items record the rows they draw for the positions of the render.</summary>
+        public bool RecordMarks { get; init; }
+
+        /// <summary>Gets the root of the view tree, whose name the view's position reports; null for none.</summary>
+        public LayerNode? Root { get; init; }
+    }
 }

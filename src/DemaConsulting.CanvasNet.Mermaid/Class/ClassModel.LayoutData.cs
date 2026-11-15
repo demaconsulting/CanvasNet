@@ -55,7 +55,8 @@ internal sealed partial class ClassModel
             context.Source.Frontmatter?.Title,
             config.Class.TitleTopMargin,
             ViewBoxPadding,
-            labels);
+            labels,
+            KeywordLocation);
     }
 
     /// <summary>

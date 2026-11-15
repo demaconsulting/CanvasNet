@@ -145,6 +145,8 @@ between threads and calls.
 | `WarningHandler` | `null` | Receives each `MermaidDiagnostic` (a warning); `null` drops them |
 | `UnsupportedFeatureHandler` | `null` | Receives each `MermaidUnsupportedFeature`; `null` drops them |
 | `ThrowOnUnsupportedFeature` | `false` | Turns the first unsupported feature into a `MermaidUnsupportedFeatureException` (strict mode) |
+| `PositionHandler` | `null` | Receives each feature of the diagram as a core `ImagePosition` (kind, id, box, and attach pixel in the returned surface) before it is painted; `null` reports none (see *Mermaid Feature Positions*) |
+| `PositionKindFilter` | `null` | Says which position kinds `PositionHandler` wants; a kind it rejects is not built at all. `null` wants every kind |
 <!-- markdownlint-enable MD013 -->
 
 Reports are delivered once, in the order they were found, on the calling thread, after the work and before the method
@@ -796,6 +798,72 @@ keeps its aspect ratio. Give a picture node its `w` and `h` so that the layout d
 `canvasnet info` command and the Viewer's probe lay a diagram out without loading its pictures. A Viewer load at the
 natural size (`CanvasNetViewer.Render` without `Width` and `Height`; a document that embeds the diagram always gives it
 a size) reports the size of the diagram it drew, with its pictures, and charges `MaxDecodedPixels` for it.
+
+### Mermaid Feature Positions
+
+`MermaidRenderOptions.PositionHandler` tells where the features of a diagram land, for callouts and leader lines drawn
+over the picture: both `Render` overloads call it once per feature with a core `ImagePosition` (see *Feature
+Positions* in the core user guide), on the calling thread, after the layout and the placement are known and before the
+diagram is painted. The handler never changes the pixels, and `Measure` never calls it; an exception it throws reaches
+the caller, and the warnings recorded before it are still delivered once. `PositionKindFilter` names the kinds the
+handler wants: a kind it rejects is not built, so asking for a few kinds of a large diagram costs little.
+
+**Kinds per diagram type.**
+
+- Flowchart, class, state, and entity relationship diagrams: `title`, `group` (a subgraph, namespace, or composite
+  state), `node` (a vertex, class, state, or entity), `note`, and `edge`.
+- Sequence diagram: `title`, `participant` (the top box), `message`, and `note`.
+- Gantt chart: `title`, `task`, `milestone`, and `section` (all its rows).
+- Pie chart: `title` and `slice`, with `Values` holding `value`.
+- Mindmap: `node`. Packet diagram: `title` and `block`. Git graph: `title`, `commit`, `branch`, and `tag`.
+
+The positions come in a fixed order: titles, groups, nodes, participants, tasks, milestones, sections, slices, blocks,
+commits, branches, and tags, then edges, messages, and notes; the items of one kind come in source order.
+
+**Ids.** A feature the text names has that id: node `send` (not its SVG id), the subgraph id, the class, state,
+entity, participant, branch, and tag name, the task and commit id, and the mindmap node id (its text when it has none).
+The others get synthetic ids, the same for the same text: an edge's own id (`e1@-->`), else the id Mermaid gives it
+(`L_pack_send_0`, `id_Item_Book_1`, `edge3`); a message `1`, `2`, ... in drawing order; a sequence note `note1`, ...; a
+task without an id `task1`, ...; a commit without an id the id it is drawn with; a packet block its bits, `0-7` (one
+item per row when it wraps); a pie slice its label; a title `title`. A state diagram's start and end are `root_start`
+and `root_end`. An edge and a message have `From` and `To` (the ids of their ends) and `Index` (0 for the first between
+the same two, in source order); `Text` is the label and `Line` the source line.
+
+**Box and attach pixel.** The coordinates are in the pixels of the returned surface, so they follow `Scale` or the
+exact size of the sized `Render`. `Box` is the bounds of the geometry (the stroke is not included), and `Pixel` is the
+attach point of the kind:
+
+- `node`, `group`, `participant`, `task`, `milestone`, `section`, `block`, `branch`, `tag`, `note`, and `title`: the
+  center of the box.
+- `edge` and `message`: the middle of the path by length (a self-loop counts all its pieces). The arrowhead and the
+  label are not part of the path, and the point may sit under the label.
+- `slice`: the middle angle at the middle radius.
+- `commit`: the center of its bullet; the box is the bullet, not the label.
+
+The pixel is an attach point, not a promise that the feature can be seen there: a label or another feature may cover
+it. A core `PositionCollector` selects the features with the selector grammar of the core package and keeps at most
+1000 of them:
+
+```csharp
+using DemaConsulting.CanvasNet.Mermaid;
+using DemaConsulting.CanvasNet.Positions;
+
+var collector = new PositionCollector(PositionSelection.Parse(["node:send", "edge:@from=pack"]));
+var diagram = MermaidDocument.Open("flowchart.mmd");
+using var picture = diagram.Render(430, 280, new MermaidRenderOptions
+{
+    PositionHandler = position => collector.Offer(position),
+    PositionKindFilter = collector.IncludesKind,   // build only the kinds a selector can match
+});
+
+foreach (var position in collector.Positions)
+{
+    Console.WriteLine($"{position.Kind} {position.Id} ({position.From} -> {position.To}): pixel {position.Pixel}");
+}
+```
+
+On the command line, `canvasnet render flowchart.mmd --positions node:send --json` gives the same positions in the
+written picture (`canvasnet help positions mermaid`).
 
 ### Fonts, Determinism, and Known Differences
 

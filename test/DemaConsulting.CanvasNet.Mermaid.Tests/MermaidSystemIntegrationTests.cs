@@ -1,6 +1,7 @@
 using System.Text;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.ImageSources;
+using DemaConsulting.CanvasNet.Positions;
 
 namespace DemaConsulting.CanvasNet.Mermaid.Tests;
 
@@ -338,5 +339,34 @@ public class MermaidSystemIntegrationTests
             surface.Clear(color);
             return surface;
         }
+    }
+
+    /// <summary>
+    ///     Validates that a render reports the positions of its features through the public handler, in the pixels of
+    ///     the returned surface, without changing them, so that a callout can be pinned to a node.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMermaid_Render_PositionHandler_ReportsFeaturePixels()
+    {
+        // Arrange
+        var document = MermaidDocument.Parse(Described);
+        var positions = new List<ImagePosition>();
+        var collector = new PositionCollector(
+            PositionSelection.Parse(["node:C", "edge:@from=A"]));
+
+        // Act
+        using var plain = document.Render(cancellationToken: TestContext.Current.CancellationToken);
+        using var reported = document.Render(
+            new MermaidRenderOptions { PositionHandler = position => { positions.Add(position); collector.Offer(position); }, PositionKindFilter = collector.IncludesKind },
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.True(MermaidTestHelpers.PixelsEqual(plain, reported));
+        Assert.Equal(["C", "L_A_B_0"], collector.Positions.Select(position => position.Id));
+        Assert.Empty(collector.GetUnmatchedSelectors());
+        Assert.All(positions, position => Assert.True(position.Kind is "node" or "edge"));
+        var node = collector.Positions[0];
+        Assert.InRange(node.Pixel!.Value.X, 0, reported.Width);
+        Assert.InRange(node.Pixel.Value.Y, 0, reported.Height);
     }
 }

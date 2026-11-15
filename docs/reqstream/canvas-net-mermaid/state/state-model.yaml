@@ -143,8 +143,8 @@ sections:
                   that Mermaid's state renderer receives - the states with Mermaid's radius, padding, and centered
                   label, the composite states and concurrent regions as clusters with their directions and classes,
                   the notes with the flowchart padding inside note groups, the transitions with the barb end and the
-                  links of notes without one, the barb marker, the direction, and the node and rank spacing of the
-                  state section.
+                  links of notes without one, the barb marker, the direction, the node and rank spacing of the
+                  state section, and each state's source location at its first mention for its position.
                 justification: |
                   Comparing the layout data with Mermaid's own is the strongest proof that the drawing starts from the
                   same graph.
@@ -153,6 +153,7 @@ sections:
                   - StateModel_GetData_Descriptions_FirstIsTheLabelAndTheRestAreDescriptions
                   - StateModel_GetData_Notes_AreGroupedAndLinkedWithTheSharedCounter
                   - StateModel_GetData_StyleClassesAndStyles_ApplyLikeMermaid
+                  - StateModel_GetData_SourceLocation_IsTheFirstMention
 
               - id: CanvasNetMermaid-State-StateModel-Unsupported
                 title: >-

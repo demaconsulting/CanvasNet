@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Text.Json;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.ImageSources;
+using DemaConsulting.CanvasNet.Positions;
 
 namespace DemaConsulting.CanvasNet.VegaLite;
 
@@ -302,6 +303,41 @@ public sealed class VegaLiteRenderOptions
     ///     delivered to <see cref="UnsupportedFeatureHandler"/> first.
     /// </remarks>
     public bool ThrowOnUnsupportedFeature { get; init; }
+
+    /// <summary>
+    ///     Gets the callback that receives the positions of the features of a render (titles, views, axes, legends and
+    ///     marks), or <see langword="null"/> (default) for none.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         Both <c>Render</c> methods call it once per feature, on the calling thread, after the chart is painted:
+    ///         titles, views, axes and legends, then the marks in drawing order. Coordinates are in the pixels of the
+    ///         returned surface, so they follow <see cref="Scale"/>
+    ///         or the exact size. Every position carries the canonical path of its view (<c>""</c> for a single view,
+    ///         <c>hconcat[1]</c>, <c>vconcat[0].layer[1]</c>, <c>facet[3]</c>) and the view's <c>name</c>; a mark has the
+    ///         id <c>&lt;mark&gt;-&lt;n&gt;</c> within its view and the normalized values of its row by channel (dates as
+    ///         UTC ISO-8601 text, a bin as <c>x</c> and <c>x2</c>, a facet cell's <c>row</c>, <c>column</c> or
+    ///         <c>facet</c>). A line, area or trail is one position per vertex. A position's <c>Box</c> is the geometry
+    ///         bounds (stroke not included) and its <c>Pixel</c> the attachment point of its kind; an image mark's box is
+    ///         the rectangle its picture was drawn in (a missing width or height taken from the loaded picture).
+    ///     </para>
+    ///     <para>
+    ///         The handler never changes the pixels. <c>Measure</c> never calls it. An exception thrown by the handler
+    ///         propagates to the caller; the warnings recorded before it are still delivered once. Only when a handler
+    ///         is set do the mark items record the rows they draw.
+    ///     </para>
+    /// </remarks>
+    public Action<ImagePosition>? PositionHandler { get; init; }
+
+    /// <summary>
+    ///     Gets the filter that says which position kinds <see cref="PositionHandler"/> wants, or
+    ///     <see langword="null"/> (default) for every kind.
+    /// </summary>
+    /// <remarks>
+    ///     A kind the filter rejects is not built at all; when it rejects <c>mark</c>, the mark items record nothing.
+    ///     Pass <see cref="PositionCollector.IncludesKind(string)"/> to build only the kinds a selection can match.
+    /// </remarks>
+    public Func<string, bool>? PositionKindFilter { get; init; }
 
     /// <summary>
     ///     Gets the font options that are in effect: <see cref="Fonts"/>, or the defaults when none were given.

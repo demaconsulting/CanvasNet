@@ -144,13 +144,14 @@ public class InspectCommandTests
     }
 
     /// <summary>
-    ///     Test that the options are those of render except the options of the output, plus the two of the subcommands.
+    ///     Test that the options are those of render except the options of the output and <c>--positions</c>, plus the
+    ///     two of the subcommands.
     /// </summary>
     [Fact]
     public void InspectCommand_Options_SharedWithRenderExceptOutputOptions()
     {
         // Arrange
-        string[] outputOptions = ["--output", "--format", "--quality", "--no-clobber", "--all-pages"];
+        string[] outputOptions = ["--output", "--format", "--quality", "--no-clobber", "--all-pages", "--positions"];
         var renderNames = new RenderCommand().Options.Select(o => o.Name).ToList();
 
         // Act

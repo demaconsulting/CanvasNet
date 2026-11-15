@@ -597,6 +597,12 @@ using var flow = diagram.Render(options);
 PngCodec.Save(flow, "order.png");
 ```
 
+As a model reports its anchors, a Mermaid diagram and a Vega-Lite chart report where their features land:
+`MermaidRenderOptions.PositionHandler` and `VegaLiteRenderOptions.PositionHandler` receive each node, edge, view, axis,
+or mark as an `ImagePosition` with its box and attach pixel in the picture, and
+`canvasnet render <diagram.mmd|chart.vl.json> --positions <selector> --json` lists the features a selector such as
+`node:send` or `mark:x=B` matches, for callouts and leader lines (`canvasnet help positions` explains the selectors).
+
 Embed models, charts, and pictures in an SVG diagram, or render any file, with the `DemaConsulting.CanvasNet.Viewer`
 package. Links are read relative to the document under the file-access policy of the render (every local file by
 default), and nothing is read from the network:

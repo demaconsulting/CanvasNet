@@ -23,8 +23,10 @@ of `IImageOperation` applied in order; none).
 **RenderedPage** (record): `Page` (from 1), `Info` (the facts of the source), `Diagnostics`, `Echo` (the text a model
 printed), `Operations` (what the loader, the pipeline, and the writer did, as `AppliedOperation` values; for every page
 of
-a document each names its page), `Result` (the `WriteResult`), and `Anchors` (the anchors a model declared, mapped
-through the pipeline).
+a document each names its page), `Result` (the `WriteResult`), `Anchors` (the anchors a model declared, mapped
+through the pipeline), `Positions` (the feature positions of a diagram or a chart that `SourceOptions.Positions`
+selected, with their boxes and pixels mapped through the pipeline into the written image; empty when none were asked
+for), and `PositionsTruncated` (whether matching positions were left out because of the cap).
 
 **RenderResult** (record): `Info` and `Pages`, in the order they were rendered.
 
@@ -40,7 +42,9 @@ write options when set, else the extension), and every output path
 (`ImageWriter.CheckTarget` against the input and the overwrite policy). It then opens the source once
 (`SourceLoader.OpenPages`) and, for each page, loads it, applies the operations with `ImagePipeline.Apply` (the default
 color of a border is the background the user gave, else white for a vector source, else transparent), stages the result
-with `ImageWriter.Stage`, and maps the anchors with `ImagePipeline.MapAnchors`. Only when every page was staged are all
+with `ImageWriter.Stage`, and maps the anchors with `ImagePipeline.MapAnchors` and the feature positions with
+`ImagePipeline.MapPositions` (when the request has operations; otherwise the loaded positions are already those of the
+written image). Only when every page was staged are all
 the outputs published together with `ImageWriter.PublishAll`; the staged files that were not published are removed
 in every case. The input is never modified.
 
@@ -63,10 +67,10 @@ output untouched.
 #### Dependencies
 
 - **SourceLoader** - `CheckPage`, `OpenPages`, the loaded page, and `Operation`.
-- **ImagePipeline** - `Apply` and `MapAnchors`.
+- **ImagePipeline** - `Apply`, `MapAnchors`, and `MapPositions`.
 - **ImageWriter** - `ResolveFormat`, `CheckTarget`, `Stage`, and `PublishAll`.
 - **ViewerException** and **ErrorCodes** - the expected-error contract.
-- **CanvasNet core library** - `Surface` and `Rgba32`.
+- **CanvasNet core library** - `Surface` and `Rgba32`, and `ImagePosition` (`Positions`).
 
 #### Callers
 

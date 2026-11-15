@@ -132,6 +132,10 @@ items carry the location of their task, of the `todayMarker` statement, of the t
   everything else shown as written, and the white space collapsed as in all SVG text.
 - **`Rect`** makes a rectangle with rounded corners and its computed paint (the opacity folded into the colors), and
   none for a size that is not positive or a position that is not a number, as SVG does not render it.
+- **Position tags**: the renderer tags each task bar as a `task` or a `milestone` (named by its id, `undefined` when
+  it has none), every row band of a section as that `section` (merged into one position, located at its `section`
+  statement, or at its first task's statement before any section), and the title as `title` for the `ScenePositions`
+  unit.
 
 #### Error Handling
 

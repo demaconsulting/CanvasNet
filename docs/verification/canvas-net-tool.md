@@ -106,6 +106,9 @@ hint, and `--theme` on another kind of input is a `usage-error`;
   statistics, and the value of a pixel and its window as text or as one JSON document, in the coordinates of the image
   after the pipeline, write no file, and refuse a bad subcommand or a point outside the image as a usage error.
   They are verified in `CanvasNetToolTests.PhotoTools.cs`, on generated sketches.
+- With `--positions` and `--json`, `render` of a diagram or a chart adds the positions the selectors match, in the
+  pixels of the written picture, and a strict render whose selector matches nothing fails with `positions-unmatched`
+  and writes nothing. They are verified as a real process in `CanvasNetToolTests.Positions.cs`.
 
 ## Test Scenarios
 
@@ -536,3 +539,12 @@ writes one `help` document of the kind `card` for `scad` with a body and the car
 `help mmd gantt` exits 0 and prints the gantt card with the command of its settings card; and `help nope` exits 1
 with `Error: usage-error: Unknown help subject 'nope'.` and the list of valid subjects. This proves that the card
 files and the example sources are embedded in the tool assembly.
+
+**CanvasNetTool_Positions_RenderAsProcess_ReportsFeaturePixels** (`CanvasNetToolTests.Positions.cs`; the requirement
+`CanvasNetTool-System-DiagramChartPositions`): as real processes, a flowchart with a filled node is rendered with
+`--positions node:B --scale 2 --json` and a two-bar chart with `--positions mark:x=B --json`; each reports one
+position; the written PNG has the node's fill `#CCFFCC` in the column of the node's pixel a fifth of the box height
+below its top (above the label), and the bar color `#4C78A8` at the bar's pixel; the flowchart rendered with
+`--positions node:Zed --strict` exits non-zero with `positions-unmatched` and writes no file. The JSON shape, the usage
+errors, the mapping through the pixel steps, and the help topic are verified in the _RenderCommand_ and _HelpTopics_
+unit verification designs.

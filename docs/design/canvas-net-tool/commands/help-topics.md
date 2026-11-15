@@ -5,9 +5,11 @@
 #### Purpose
 
 `HelpTopics` is the tree of help cards that `canvasnet help <topic> [<card> ...]` prints. A card is a short Markdown
-text about one subject. The fourteen root cards (the help topics) are one per format the tool reads (`scad`,
+text about one subject. The fifteen root cards (the help topics) are one per format the tool reads (`scad`,
 `vega-lite`, `mermaid`, `svg`, `pdf`, `pptx`, `vsdx`, and `raster`), the two guidance hubs (`style` and `composition`),
-and the cross-cutting subjects (`json`, `errors`, `limits`, and `files`). A large topic is split into cards below its
+the feature-positions topic (`positions`: the `--positions` selectors and where the features of a diagram or a chart
+land), and the cross-cutting subjects (`json`, `errors`, `limits`, and `files`). A large topic is split into cards
+below its
 root, for example `mermaid gantt` and `mermaid gantt settings`, so an agent reads only the part it needs. The cards say
 what a format supports, what it does not, which options apply, which diagnostics can appear (and what `--strict` does
 with them), where the tool differs from the original program, how to make a picture look good, and how to compose
@@ -36,7 +38,8 @@ assembly, so an installed tool needs no other file.
 The records are immutable, so the catalog is safe to share between threads.
 
 **TopicNames**: the root card identifiers in the order they are listed: `scad`, `vega-lite`, `mermaid`, `svg`, `pdf`,
-`pptx`, `vsdx`, `raster`, `style`, `composition`, `json`, `errors`, `limits`, and `files`. The loader requires the
+`pptx`, `vsdx`, `raster`, `style`, `composition`, `positions`, `json`, `errors`, `limits`, and `files`. The loader
+requires the
 embedded root cards to be exactly this set. **FormatTopicNames** is the first eight, the topics that describe one
 format.
 
@@ -118,6 +121,11 @@ the loader replaces from the live constants of the code, so a documented number 
 | `mmdMaxImages` | `MermaidLimits.Default.MaxImages` |
 | `fragmentMaxLength` | `ImageFragment.MaxLength` |
 | `fragmentMaxParameters` | `ImageFragment.MaxParameters` |
+| `positionsMax` | `PositionCollector.MaxPositions` |
+| `positionsMaxSelectors` | `PositionSelection.MaxSelectors` |
+| `positionsMaxSelectorLength` | `PositionSelector.MaxSelectorLength` |
+| `positionsMaxPredicates` | `PositionSelector.MaxPredicates` |
+| `positionsMaxDataFields` | `ImagePosition.MaxDataFields` |
 
 Single braces such as `{page}` are literal text. A token the table does not know is a load error, so a literal pair of
 double braces cannot be written.
@@ -133,6 +141,10 @@ double braces cannot be written.
   `unsupported`, `diagnostics`, `warnings`, and `differences`.
 - `scad` has `language`, `views`, `anchors`, `style`, `composition`, `options`, `diagnostics`, and `differences`.
 - `json` has `results`, `diagnostics`, and `help`, and `errors` has `codes` and `diagnostics`.
+- `positions` has `selectors` (the grammar, the matching rules, and the limits), `mermaid` and `vega-lite` (the kinds,
+  ids, and facts each renderer reports), and `geometry` (the box, the attach pixel, and how they follow the image
+  steps); the `svg framed-figure` card has the callout recipe on positions, with the snippet `framed-flow` (the
+  embedded `Examples/svg-framed-flow.svg`) and the command `read-positions`.
 - `pdf`, `pptx`, `vsdx`, `raster`, `limits`, `files`, `style`, and `composition` are single cards.
 
 The tree of each format holds the `##` headings `Supported`, `Unsupported`, `Options`, `Diagnostics`, and
@@ -311,6 +323,8 @@ fails the build before it reaches a user. The consistency of the content with th
 - **ScadLimits** (Scad), **VegaLiteLimits** (VegaLite), and **MermaidLimits** (Mermaid) - the resource limits for
   tokens.
 - **ImageFragment** (core ImageSources) - the fragment limits for tokens.
+- **PositionCollector**, **PositionSelection**, and **PositionSelector** (core Positions) - the position limits for
+  tokens.
 
 #### Callers
 

@@ -249,6 +249,62 @@ internal abstract record SceneItem
     ///     Gets the location of the construct in the original text that the item draws; unknown by default.
     /// </summary>
     public MermaidLocation Location { get; init; }
+
+    /// <summary>
+    ///     Gets the feature whose position the item reports, or null (default) when it reports none.
+    /// </summary>
+    /// <remarks>
+    ///     Set by the renderers on the item that draws a feature (a node group, an edge path, a commit bullet).
+    ///     Items that share one tag's kind and id form one position (see <see cref="ScenePositions"/>). The tag
+    ///     never changes the pixels; it is internal, so the reflection-based scene tests do not see it.
+    /// </remarks>
+    internal ScenePositionTag? Position { get; init; }
+}
+
+/// <summary>
+///     The feature a <see cref="SceneItem"/> draws, as <see cref="ScenePositions"/> reports it: its kind, its source id
+///     and the facts that identify it.
+/// </summary>
+/// <param name="Kind">The lowercase kind (<c>node</c>, <c>edge</c>, <c>task</c>, ...).</param>
+/// <param name="Id">The source id, or a synthetic id that is deterministic for the same input.</param>
+internal sealed record ScenePositionTag(string Kind, string Id)
+{
+    /// <summary>
+    ///     Gets the text of the feature, or null.
+    /// </summary>
+    public string? Text { get; init; }
+
+    /// <summary>
+    ///     Gets the id an edge or message starts at, or null.
+    /// </summary>
+    public string? From { get; init; }
+
+    /// <summary>
+    ///     Gets the id an edge or message ends at, or null.
+    /// </summary>
+    public string? To { get; init; }
+
+    /// <summary>
+    ///     Gets the location of the construct that declares the feature; unknown by default.
+    /// </summary>
+    public MermaidLocation Location { get; init; }
+
+    /// <summary>
+    ///     Gets the value of the feature (a pie slice's value), or null.
+    /// </summary>
+    public double? Value { get; init; }
+
+    /// <summary>
+    ///     Gets a value indicating whether the attachment point is the arc-length midpoint of the item's path (edges
+    ///     and messages) instead of the center of its box.
+    /// </summary>
+    public bool AlongPath { get; init; }
+
+    /// <summary>
+    ///     Gets an explicit attachment point in the coordinates of the item (a pie slice's mid-angle at mid-radius),
+    ///     or null to use the rule of <see cref="AlongPath"/>.
+    /// </summary>
+    public (double X, double Y)? Aim { get; init; }
 }
 
 /// <summary>
@@ -448,7 +504,7 @@ internal sealed record Scene(SceneRect ViewBox, IReadOnlyList<SceneItem> Items)
     /// <param name="dx">The accumulated horizontal translation.</param>
     /// <param name="dy">The accumulated vertical translation.</param>
     /// <returns>The bounds, or null.</returns>
-    private static SceneRect? BoundsOf(IReadOnlyList<SceneItem> items, double dx, double dy)
+    internal static SceneRect? BoundsOf(IReadOnlyList<SceneItem> items, double dx, double dy)
     {
         SceneRect? bounds = null;
         foreach (var item in items)

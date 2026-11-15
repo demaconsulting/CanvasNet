@@ -228,6 +228,36 @@ public class ParseDirectivesDateTests
     }
 
     /// <summary>
+    ///     Validates that a date converted from text keeps that text (implicit, explicit and custom formats), and that a
+    ///     date converted from a number of milliseconds has none.
+    /// </summary>
+    [Fact]
+    public void ParseDirectives_DateFromText_KeepsTheSourceText()
+    {
+        // Arrange
+        var rows = new List<Dictionary<string, DataValue>>
+        {
+            new(StringComparer.Ordinal)
+            {
+                ["i"] = DataValue.FromString("2025-11-01"),
+                ["e"] = DataValue.FromString("2025-11-01"),
+                ["c"] = DataValue.FromString("01/11/2025"),
+                ["n"] = DataValue.FromNumber(TimeTestSupport.Ms(2025, 11, 1)),
+            },
+        };
+
+        // Act: i is an implicit temporal field; e, c and n are parsed explicitly
+        Apply(Directives("{\"parse\":{\"e\":\"date\",\"c\":\"date:'%d/%m/%Y'\",\"n\":\"date\"}}", "i"), rows);
+
+        // Assert: every field is the same instant; the ones read from text keep it
+        Assert.All(rows[0].Values, value => Assert.Equal(TimeTestSupport.Ms(2025, 11, 1), value.Milliseconds));
+        Assert.Equal("2025-11-01", rows[0]["i"].SourceText);
+        Assert.Equal("2025-11-01", rows[0]["e"].SourceText);
+        Assert.Equal("01/11/2025", rows[0]["c"].SourceText);
+        Assert.Null(rows[0]["n"].SourceText);
+    }
+
+    /// <summary>
     ///     Validates that an explicit entry of a field wins over the implicit date parse, and that the other implicit
     ///     fields are still parsed.
     /// </summary>

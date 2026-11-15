@@ -2409,6 +2409,20 @@ two percent of its pixels differ from the pixel in its corner (the chart is not 
 the resolver for both of its pictures. The charts are drawn in the user guide by the Pandoc filter, and
 `docs/images/render-images.ps1 -Check` checks the montage of six of them; neither runs in the test job.
 
+### Positions: Feature Positions In The Pixels Of The Surface
+
+**Test**: `CanvasNetVegaLite_SystemIntegration_PositionHandler_ReportsFeaturePixels`
+
+Verifies `CanvasNetVegaLite-Positions` through the public API: the titled layered bar chart of the sample
+specification is rendered once plainly and once with a `PositionHandler` that offers every position to a
+`PositionCollector` over `mark:x=b`, `axis:@id=y`, and `title`, with the collector's `IncludesKind` as the
+`PositionKindFilter`. Asserts that the two pixel snapshots are equal, that the collector keeps the title (with the text
+`Widgets per day`), the `y` axis, and the bar of the day `b`, in that order, with no unmatched selector, that the bar
+is in the view `layer[0]`, that its pixel lies within the returned surface, and that it has the data `count` = 5 of its
+row and is selected by `mark:day=b+count=5`. The ids, values, geometry, view paths,
+scale and fit mapping, and the handler's contract are verified in the _VegaLiteDocument Unit Verification Design_ and
+the _ScenePositions Unit Verification Design_.
+
 ### Platform: Every System Scenario Runs On Every Target
 
 **Tests**: all system scenarios above, run by `dotnet test` on each target framework and operating system.

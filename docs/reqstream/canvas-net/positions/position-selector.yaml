@@ -1,0 +1,74 @@
+---
+# Software Unit Requirements for PositionSelector
+#
+# These requirements describe the design-level behavior of the PositionSelector unit of the Positions subsystem
+# (namespace DemaConsulting.CanvasNet.Positions): the parser and matcher of one selector (PositionSelector) and the
+# union of several (PositionSelection). Each "tests" entry cites an existing test method in the
+# DemaConsulting.CanvasNet.Tests project; see docs/verification/canvas-net/positions/position-selector.md for the
+# test-evidence mapping.
+
+sections:
+  - title: CanvasNet Requirements
+    sections:
+      - title: Positions Requirements
+        sections:
+          - title: PositionSelector Requirements
+            requirements:
+              - id: CanvasNet-Positions-PositionSelector-Grammar
+                title: >-
+                  The PositionSelector class shall parse "all", a kind, or a kind followed by ':' and a target that is a
+                  JSON string (an exact id), predicates name=value joined by '+' (a name is a word naming a channel or a
+                  data field, or one of @id, @view, @from, @to, and @index; a value is a JSON string or a bare scalar
+                  read as a --param value), or an id pattern, treating '+' and '=' inside a JSON string as text, and
+                  shall refuse every other text with a FormatException that names the selector and the problem.
+                justification: |
+                  A published grammar with a precise refusal lets a user correct a selector from the message alone.
+                tests:
+                  - PositionSelector_Matches_Examples_MatchAsDocumented
+                  - PositionSelector_Matches_PlusAndEqualsInsideQuotes_ArePartOfTheValue
+                  - PositionSelector_Parse_Malformed_ThrowsFormatException
+
+              - id: CanvasNet-Positions-PositionSelector-Matching
+                title: >-
+                  The PositionSelector class shall match the keywords (all, the kind, the @ names) without regard to
+                  case and ids, channel names, and values case-sensitively; glob an id pattern ('*' any run, '?' one
+                  character) against the whole id in at most (pattern length) x (id length) steps; and AND the
+                  predicates with typed equality, where a missing channel or fact never matches.
+                justification: |
+                  Ids and values are data and must match exactly, while the grammar's keywords should forgive case; a
+                  bounded glob keeps an untrusted selector cheap.
+                tests:
+                  - PositionSelector_Matches_Examples_MatchAsDocumented
+                  - PositionSelector_Matches_BacktrackingGlob_MatchesCorrectly
+
+              - id: CanvasNet-Positions-PositionSelector-DataFields
+                title: >-
+                  The PositionSelector class shall compare a predicate whose name is in the position's channel names,
+                  or is a name its values hold, with the values, and any other word name with the data fields, so that
+                  a data field whose name is a channel is matched only through that channel.
+                justification: |
+                  A channel holds what the encoding made of the data (a month time unit is a date in 2012), while the
+                  data fields hold what the data says; letting a predicate name a field selects a mark by the values
+                  the user wrote, and a fixed rule keeps every name unambiguous.
+                tests:
+                  - PositionSelector_Matches_ChannelOrDataField_FollowsTheChannelNames
+
+              - id: CanvasNet-Positions-PositionSelector-Limits
+                title: >-
+                  The PositionSelector and PositionSelection classes shall refuse a selector longer than 256 characters
+                  or with more than 16 predicates, an empty selection, and a selection of more than 32 selectors.
+                justification: |
+                  Selectors come from command lines and links; bounded inputs keep parsing and matching predictable.
+                tests:
+                  - PositionSelector_Parse_OverLimits_ThrowsFormatException
+                  - PositionSelection_Parse_BadSelections_ThrowFormatException
+
+              - id: CanvasNet-Positions-PositionSelector-Union
+                title: >-
+                  The PositionSelection class shall keep identical selector texts once, match a position when any
+                  selector matches it, and tell whether any selector can match a kind.
+                justification: |
+                  Repeating --positions asks for more, never for duplicates, and a renderer skips the kinds nobody asked
+                  for.
+                tests:
+                  - PositionSelection_Parse_DuplicatesAndKinds_UnionAndKindGate

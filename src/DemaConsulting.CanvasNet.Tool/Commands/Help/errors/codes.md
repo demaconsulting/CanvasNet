@@ -65,3 +65,6 @@ see-also:
   --resize-to.
 - `threshold-failed`: compare measured a value on the wrong side of a
   --threshold limit; the result and the pictures were still written.
+- `positions-unmatched`: With --strict, a --positions selector matched no
+  feature of the diagram or chart; nothing was written. Without --strict it is
+  a warning with the same code. See 'canvasnet help positions selectors'.

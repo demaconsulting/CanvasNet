@@ -47,7 +47,7 @@ internal sealed partial class SequenceParser
             case SequenceTokens.Title or SequenceTokens.LegacyTitle:
                 // "title " or "title: " and its white-space character are cut, the rest is kept as written
                 var title = Advance();
-                _model.SetDiagramTitle(TextOf(title)[(title.Kind == SequenceTokens.Title ? 6 : 7)..]);
+                _model.SetDiagramTitle(TextOf(title)[(title.Kind == SequenceTokens.Title ? 6 : 7)..], Locate(title));
                 break;
             case SequenceTokens.AccTitle:
                 Advance();

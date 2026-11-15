@@ -168,3 +168,30 @@ sections:
               - MermaidImageSource_Render_ThemeFragment_ValidatedAgainstMermaidThemes
               - MermaidImageSource_Render_InvalidText_ThrowsSyntaxException
               - MermaidImageSource_Render_NullRequest_Throws
+
+          - id: CanvasNetMermaid-MermaidDocument-Positions
+            title: >-
+              The MermaidDocument class shall call MermaidRenderOptions.PositionHandler from both Render methods once
+              per feature, on the calling thread, after the layout and the placement and before the painting, in the
+              pixels of the returned surface (following the scale or the fit); shall build only the kinds that
+              PositionKindFilter accepts; shall report the source ids, ends, parallel indexes, and source lines of every
+              supported diagram type; shall never call the handler from Measure; shall leave the pixels unchanged; and
+              shall let an exception of the handler propagate after the reports recorded before it are delivered once.
+            justification: |
+              The handler is the public contract of the positions: callers rely on the coordinates matching the surface
+              they receive, on the same pixels with or without it, and on the usual report and failure rules.
+            tests:
+              - MermaidDocument_Render_FlowchartPositions_ReportSourceIdsAndEdges
+              - MermaidDocument_Render_FilledNode_CenterHasTheFill
+              - MermaidDocument_Render_ScaleAndFit_MapPositions
+              - MermaidDocument_Render_WithHandler_PixelsUnchangedAndMeasureSilent
+              - MermaidDocument_Render_HandlerThrows_PropagatesAndDeliversWarningsOnce
+              - MermaidDocument_Render_SequencePositions_ParticipantsMessagesNotes
+              - MermaidDocument_Render_GanttPositions_TasksMilestonesSections
+              - MermaidDocument_Render_PiePositions_SlicesWithValuesAimInside
+              - MermaidDocument_Render_GitGraphPositions_CommitsAtBullets
+              - MermaidDocument_Render_OtherTypes_ReportSourceIds
+              - MermaidDocument_Render_StatePositions_FirstMentionLinesInSourceOrder
+              - MermaidDocument_Render_TitleStatements_ReportTheirLine
+              - MermaidDocument_Render_SequenceTitleStatement_ReportsItsLine
+              - MermaidDocument_Render_ClusterLayoutTitles_ReportTheKeywordLine

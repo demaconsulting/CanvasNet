@@ -58,8 +58,11 @@ requirements in `docs/reqstream/canvas-net-mermaid/rendering/cluster-layout.yaml
   Mermaid gives a state's rectangle, 10, with which a `rect` is drawn as a `roundedRect`; else null), `CenterLabel`
   (Mermaid's `node.centerLabel`, which a state sets: the label is centered whatever its kind), `Descriptions` (the
   descriptions a `rectWithTitle` state draws under its title, the first description being its `Label`; else null),
-  `ErBox` (the alias and attributes of an entity box, or null), and the `Location` of its first mention. A property
-  that Mermaid leaves undefined is null.
+  `ErBox` (the alias and attributes of an entity box, or null), `SourceId` (the id the node's position reports when it
+  differs from `Id`, such as an entity's name where the layout id is `entity-NAME-0`; else null), `SourceLocation` (the
+  location the node's position reports when it differs from `Location`, such as a state's first mention where
+  `Location` is the statement that last set it; else null), and the `Location` of its first mention. A property that
+  Mermaid leaves undefined is null.
 - `LayoutClassBox(Text, Annotations, Members, Methods, Styles)` - the texts of a class box as Mermaid's class database
   holds them (generics already written as `&lt;T&gt;`, a visibility escaped with a backslash): the drawn name, the
   annotations without their angle quotes (only the first is drawn), the attributes, the methods, and the class's own
@@ -74,7 +77,8 @@ requirements in `docs/reqstream/canvas-net-mermaid/rendering/cluster-layout.yaml
 - `LayoutEdge` - an edge: `Id` (`L_A_B_0`, the id of `e1@`, or a class relation's `id_A_B_1`), `Start`, `End`, `Type`,
   `Label`, `LabelType`, `Thickness`, `MinLen`, `Classes`, `ArrowTypeStart`, `ArrowTypeEnd`, the compiled and own styles,
   `Animate`, `Animation`, `Curve`, `StartLabelRight` and `EndLabelLeft` (the terminal labels beside the start and the
-  end, a class relation's cardinalities; empty for none), and `Location`.
+  end, a class relation's cardinalities; empty for none), `SourceEnds` (the ends the edge's position reports when they
+  differ from `Start` and `End`, such as the entity names of a relationship; else null), and `Location`.
 - `ClusterLayoutNode` (a `DagreNode`) - the dagre label of a node: its `LayoutNode`, the drawn `ShapeResult` and
   intersect function, and for a laid-out subgraph (Mermaid's `clusterNode`) the inner graph, the `RenderedGraph` of it,
   and its title correction `Diff`; `Box` is its layout box.
@@ -126,10 +130,12 @@ requirements in `docs/reqstream/canvas-net-mermaid/rendering/cluster-layout.yaml
 - `GetEdgesToRender` - `getEdgesToRender`: every edge in order, then, when self-loops are merged, one merged edge per
   self-loop, placed on the side of `getSelfLoopSide` with the points of `getSelfLoopPoints` and the label of
   `getSelfLoopLabelPosition`; otherwise the three segments of a self-loop are drawn as they are, in graph order.
-- `RenderDiagram(LayoutData data, string? title, double titleTopMargin, double padding, LabelBuilder labels)`
-  (`ClusterLayout.Diagram.cs`) - renders the data and returns the whole `Scene`: the drawing as the `root` group; when
-  there is a title, the title sanitized with `HtmlSanitizer` and drawn by `DrawTitle` (Mermaid's `insertTitle`) as one
-  `title` line centered over the bounds of the drawing (over the origin when nothing is drawn), its baseline the title
+- `RenderDiagram(LayoutData data, string? title, double titleTopMargin, double padding, LabelBuilder labels,`
+  `MermaidLocation titleLocation)` (`ClusterLayout.Diagram.cs`) - renders the data and returns the whole `Scene`: the
+  drawing as the `root` group; when there is a title, the title sanitized with `HtmlSanitizer` and drawn by `DrawTitle`
+  (Mermaid's `insertTitle`) as one `title` line, tagged as the `title` position with its text at `titleLocation` (the
+  callers pass the diagram keyword's location, as the other diagram types do for a frontmatter title), centered over
+  the bounds of the drawing (over the origin when nothing is drawn), its baseline the title
   margin above the origin, in the font and color of the style sheet's `Title` rule, with the box of its glyphs as SVG's
   `getBBox` gives it (the advance of the centered text, on the browser's 1/64 pixel run grid, grown to the boxes of the
   glyphs at its ends by `LabelBuilder.SvgLineExtent`, so a title starting with a glyph that reaches left of its origin
@@ -139,6 +145,13 @@ requirements in `docs/reqstream/canvas-net-mermaid/rendering/cluster-layout.yaml
   by default) and a padding of 8; a state diagram its `state.titleTopMargin` and a padding of 8; an entity relationship
   diagram its `er.titleTopMargin` and a padding of 8.
 - `SortNodesByHierarchy(graph)` - `sortNodesByHierarchy`: the top level first, then each subtree.
+
+**Position tags**: the unit tags the items that draw a feature for the `ScenePositions` unit of the `Scenegraph`
+subsystem - each node group as a `node` (a note shape as a `note`) named by its `SourceId` or its id, each subgraph
+(its cluster shapes, or its laid-out group) as a `group` (except the note group of a state diagram), each edge route as
+an `edge` aimed along its path with its source ends (`SourceEnds`, else `Start` and `End`), and the diagram title (in
+`ClusterLayout.Diagram.cs`) as `title`. Node and group tags are located at the node's `SourceLocation`, else its
+`Location`.
 
 **Preconditions and postconditions**: the layout data has unique node ids; the result is a deterministic function of the
 data, the configuration, and the label measurement.

@@ -3,8 +3,8 @@
 This document describes the unit-level verification strategy for the `SceneModel` unit in the
 `DemaConsulting.CanvasNet.Mermaid.Scenegraph` namespace: the immutable scene records (`SceneRect`, `SceneSegment`,
 `SceneStroke`, `SceneShadow`, `SceneFont`, `SceneTextRun` (with its underline), `SceneRotation`, the items
-`SceneGroup`, `ScenePath`, `SceneText` (with its rotation), and `SceneImage`, and `Scene`) with `Scene.BoundsOf` and
-`Scene.ToPath`.
+`SceneGroup`, `ScenePath`, `SceneText` (with its rotation), and `SceneImage`, `Scene`, and the internal position tag
+`ScenePositionTag` that any item can carry) with `Scene.BoundsOf` and `Scene.ToPath`.
 
 #### Verification Approach
 
@@ -19,7 +19,9 @@ are real, so no mocking or stubbing is required; the internal types are reached 
 `InternalsVisibleTo` access.
 
 Unit tests reside in `SceneModelTests.cs` within the `DemaConsulting.CanvasNet.Mermaid.Tests` project, in the
-`Scenegraph` folder.
+`Scenegraph` folder. The position tag is verified where it is read: by `ScenePositionsTests.cs` in the same folder,
+which builds tagged items by hand, and by `MermaidDocumentPositionTests.cs` in the project root, which compares the
+pixels of a diagram rendered with and without a position handler.
 
 #### Test Environment
 
@@ -88,3 +90,15 @@ Asserts that a text line has no rotation unless one is given, that a copy given 
 `SceneRotation(-45, 10, 20)` carries the angle of -45 degrees and the pivot (10, 20), as SVG's `rotate(-45, 10, 20)`
 gives them, and that the turned line keeps the box it was given as its bounds, so the rotation does not change what
 `Scene.BoundsOf` reports; the producer gives the box it means to be measured.
+
+##### CanvasNetMermaid-Scenegraph-SceneModel-PositionTag: Any Item Can Carry A Position Tag
+
+**Tests**: `ScenePositionsTests.ScenePositions_Collect_NestedGroupAndPlacement_MapsBoxAndCenter`,
+`ScenePositionsTests.ScenePositions_Collect_ExplicitAim_UsesTheAimAndValue`,
+`MermaidDocumentPositionTests.MermaidDocument_Render_WithHandler_PixelsUnchangedAndMeasureSilent`
+
+Asserts that a group tagged with the kind `node`, the id `A`, the text `Alpha`, and a source location of line 3 is
+reported with those facts, and that a path tagged with the kind `slice`, the id `Dogs`, the value 386, and an explicit
+aim point is reported with that value and aimed at that point; and that a flowchart rendered with a position handler,
+and with a handler and a kind filter, has the same pixels as the flowchart rendered without one, so the tags that the
+renderers set do not change how an item is painted.

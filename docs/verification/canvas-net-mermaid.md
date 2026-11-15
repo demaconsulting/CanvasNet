@@ -18,8 +18,8 @@ This document describes the system-level verification strategy for CanvasNetMerm
   `MermaidLimits`, and assert on observable outputs: the metadata properties, the sizes, sampled pixels of the
   rendered `Surface`, the reports delivered to the handlers, and the exceptions with their codes, locations, and
   hints. The system test classes are `MermaidSystemIntegrationTests` (entry points, metadata, errors, configuration,
-  pictures, reports, image source, notices, cancellation, concurrency), `MermaidFlowchartIntegrationTests` (every
-  fixture in strict mode, theme and style pixels, scale, background, exact size, determinism, cancellation),
+  pictures, reports, image source, notices, cancellation, concurrency, positions), `MermaidFlowchartIntegrationTests`
+  (every fixture in strict mode, theme and style pixels, scale, background, exact size, determinism, cancellation),
   `MermaidSequenceIntegrationTests` (every sequence fixture in strict mode, theme pixels, look, math, and icon reports,
   scale, work limit, determinism, cancellation), `MermaidClassIntegrationTests` (every class fixture in strict mode,
   metadata, theme, classifier, and style pixels, look, layout, and style reports, the legacy renderer, scale, work
@@ -954,6 +954,17 @@ iVis@Bilkent.`, and cytoscape's `Copyright (c) 2016-2026, The Cytoscape Consorti
 `Copyright (c) 2016-2018, The Cytoscape Consortium.` included), the not-affiliated statement, and that the record names
 every license file (`LICENSE-sanitize-url.txt`, `LICENSE-mermaid-parser.txt`, `LICENSE-langium.txt`,
 `LICENSE-dayjs.txt`, `LICENSE-cose-base.txt`, and `LICENSE-cytoscape.txt` included).
+
+### CanvasNetMermaid-Positions: Feature Positions In The Pixels Of The Surface
+
+**Tests**: `MermaidSystemIntegrationTests.CanvasNetMermaid_Render_PositionHandler_ReportsFeaturePixels`
+
+Renders a flowchart twice through the public API, once plainly and once with a `PositionHandler` that offers every
+position to a `PositionCollector` over `node:C` and `edge:@from=A` and with the collector's `IncludesKind` as the
+`PositionKindFilter`, and asserts that the two surfaces are identical pixel by pixel, that the collector keeps the node
+`C` and the edge `L_A_B_0` with no unmatched selector, that only nodes and edges were reported, and that the node's
+pixel lies within the returned surface. The kinds, ids, and facts of every diagram type, the mapping by the scale and
+the fit, and the handler's failure are verified by the `MermaidDocument` and `ScenePositions` unit scenarios.
 
 ### Platform Requirements
 

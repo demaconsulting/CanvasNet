@@ -52,10 +52,13 @@ consists of six direct units and one subsystem:
   command contract, the command registry, and the commands themselves. It is a subsystem, not a unit, because
   each family of commands is its own unit behind the shared command contract; it holds
   `CommandRegistry` (which also owns the built-in `help` command), `HelpTopics` (the tree of help cards with their
-  tiny examples, embedded in the tool assembly: the formats, style and composition, the JSON documents, the errors, the
+  tiny examples, embedded in the tool assembly: the formats, style and composition, the feature positions, the JSON
+  documents, the errors, the
   limits, and file access),
   `DiscoveryCommands` (the `formats` and `info` commands), `RenderCommand` (the `render`
-  command and its alias `convert`, and the verb commands `crop`, `resize`, `rotate`, `flip`, and `pad`),
+  command and its alias `convert`, and the verb commands `crop`, `resize`, `rotate`, `flip`, and `pad`; with
+  `--positions` and `--json`, `render` reports where the features of a Mermaid diagram or a Vega-Lite chart land in the
+  written image),
   `CompareCommand` (the `compare` command: exact metrics, a grid of per-cell errors, difference pictures, and
   threshold gating), `MontageCommand` (the `montage` command: a labeled contact sheet of images and document
   pages), `InspectCommand` (the read-only `inspect colors` and `inspect pixel` commands), and `FlattenCommand` (the
@@ -145,7 +148,10 @@ pictures, painted pixels); `corrupt-input` is a text longer than the text limit 
 target size larger than the maximum image size (a diagram whose natural size is larger is still drawn with a smaller
 `--scale`, `--width`, or `--height`); `unsupported-feature` is a construct or a diagram type that is not drawn, with
 `--strict` (without it the diagnostic `mermaid-diagram-unsupported` and an empty picture); and `usage-error` is a
-`--theme` that is not a Mermaid theme or that is given for another kind of input. See _SourceLoader Unit Design_ for the
+`--theme` that is not a Mermaid theme or that is given for another kind of input. For `--positions` (a diagram or a
+chart) `usage-error` is a malformed selector, more than the selectors allowed, the option without `--json`, or the
+option for another kind of input, and `positions-unmatched` is a selector that matched nothing, with `--strict`
+(without it a warning of the same code). See _SourceLoader Unit Design_ for the
 mapping.
 
 ## Dependencies
@@ -170,7 +176,9 @@ mapping.
   so there is no `--data-dir` option), and the `MermaidDocument` type of the
   `CanvasNetMermaid` system, which parses, measures, and draws a diagram with only the bundled fonts and no network (the
   tool also reads `MermaidRenderOptions.ThemeNames` to check `--theme` and `MermaidLimits` for the limits it quotes in
-  its help). The core `Fonts` and `Rendering` subsystems also supply the
+  its help). The core `Positions` subsystem parses the `--positions` selectors (`PositionSelection`) and supplies the
+  positions the `render` command writes and the limits its help quotes. The core `Fonts` and `Rendering` subsystems also
+  supply the
   bundled font and the text renderer with which `ContactSheet` draws the labels of a contact sheet, so that labels
   never depend on the fonts installed on a machine. Each
   reference is a private asset of the tool project: the library assemblies are bundled into the tool

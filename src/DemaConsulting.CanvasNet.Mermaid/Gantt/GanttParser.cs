@@ -218,7 +218,7 @@ internal sealed partial class GanttParser
             case Section:
                 Advance();
                 CountNode(location, "sections and tasks");
-                _model.AddSection(TextOf(token)[8..]);
+                _model.AddSection(TextOf(token)[8..], location);
                 return;
             case Click:
                 ParseClick();

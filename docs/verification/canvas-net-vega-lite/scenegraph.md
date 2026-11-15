@@ -1,11 +1,11 @@
 ## Scenegraph Subsystem Verification Design
 
 This document describes the subsystem-level verification strategy for the `Scenegraph` subsystem (internal namespace
-`DemaConsulting.CanvasNet.VegaLite.Scenegraph`), containing five units: `SceneModel` (the immutable scene records, the
+`DemaConsulting.CanvasNet.VegaLite.Scenegraph`), containing six units: `SceneModel` (the immutable scene records, the
 bounds helper, and the scene budget), `ScenePainter` (the scene to `Surface` painter), `ArcGeometry` (the outline of an
 arc mark, with the d3-path emulation that the trail painter shares), `CssPaint` (the chart paint rules on top of the
-core `CssColor` parser), and `SymbolPathParser` (the parser, drawing, and bounds of the SVG path data of a custom symbol
-shape).
+core `CssColor` parser), `SymbolPathParser` (the parser, drawing, and bounds of the SVG path data of a custom symbol
+shape), and `ScenePositions` (the positions of the tagged guides and mark items of a laid-out chart).
 
 ### Verification Approach
 
@@ -31,6 +31,12 @@ subsystem uses no mocking or stubbing; the core `Surface`, `Rgba32`, `PathFiller
 bundled fonts are real. The subsystem is internal, so its tests reach it through the test assembly's `InternalsVisibleTo`
 access.
 
+The positions of a chart are verified by the `ScenePositions` unit tests on scenes built from `SceneModel` records that
+carry position tags, rows, mark contexts, and vertices, mapped with a `ScenePlacement` and measured with the
+`TextMeasurer` of the `Guides` subsystem; the subsystem-level positions requirement reuses them, because they exercise
+the units' collaboration without painting. The view paths and values that need a real view tree are verified through
+`VegaLiteDocument.Render` (see _ScenePositions Unit Verification Design_).
+
 ### Test Environment
 
 - **Framework**: xUnit v3 running under the .NET SDK
@@ -42,7 +48,7 @@ access.
 ### Acceptance Criteria
 
 The `Scenegraph` subsystem's verification passes when every subsystem-level scenario below and every unit-level scenario
-in the five unit verification documents passes without error or unexpected exception.
+in the six unit verification documents passes without error or unexpected exception.
 
 ### Test Scenarios
 
@@ -129,3 +135,13 @@ in the five unit verification documents passes without error or unexpected excep
   `CanvasNetVegaLite_SystemIntegration_Render_EmptyTitleViewHasDocumentedSizeAndColors`,
   `CanvasNetVegaLite_SystemIntegration_Determinism_RepeatedAndConcurrentRendersAreByteIdentical` — the painted empty view
   has the documented colors at exact pixels, and painting is byte-identical across repeated and concurrent renders.
+- **CanvasNetVegaLite-Scenegraph-Positions: Tagged Groups And Mark Items Become Positions**:
+  `ScenePositionsTests.ScenePositions_Collect_ViewAndBars_BoxesCentersAndIds`,
+  `ScenePositionsTests.ScenePositions_Geometry_RuleSymbolTextArc_AimAsDocumented`,
+  `ScenePositionsTests.ScenePositions_Collect_LineVertices_OnePositionPerVertex` — a tagged view and the bars of its
+  marks group are reported view first, the view with its data rectangle and the bars as `bar-0` and `bar-1` with the
+  view path and name of the context, the values of their rows, and their boxes and centers (the data fields of the rows
+  and the channel names are verified by the `CanvasNetVegaLite-Scenegraph-ScenePositions-Data` unit scenario); a rule
+  aims at its midpoint, a symbol at its center with its shape as the box, a text at its anchor with its measured box,
+  and an arc at its mid-angle at mid-radius; and the vertices of a line are one zero-size position each, mapped by the
+  scale and the offset of the placement.

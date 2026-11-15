@@ -1736,4 +1736,36 @@ public class VegaLiteSystemIntegrationTests
         /// <inheritdoc/>
         public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
     }
+
+    /// <summary>
+    ///     Validates that a render reports the positions of its title, view, axes and marks through the public handler, in
+    ///     the pixels of the returned surface, without changing them, so that a callout can be pinned to a bar.
+    /// </summary>
+    [Fact]
+    public void CanvasNetVegaLite_SystemIntegration_PositionHandler_ReportsFeaturePixels()
+    {
+        // Arrange
+        var document = VegaLiteDocument.Parse(SampleSpec);
+        var collector = new DemaConsulting.CanvasNet.Positions.PositionCollector(
+            DemaConsulting.CanvasNet.Positions.PositionSelection.Parse(["mark:x=b", "axis:@id=y", "title"]));
+
+        // Act
+        using var plain = document.Render(cancellationToken: Ct);
+        using var reported = document.Render(new VegaLiteRenderOptions { PositionHandler = p => collector.Offer(p), PositionKindFilter = collector.IncludesKind }, Ct);
+
+        // Assert
+        Assert.Equal(VegaLiteTestHelpers.Snapshot(plain), VegaLiteTestHelpers.Snapshot(reported));
+        Assert.Equal(["title", "axis", "mark"], collector.Positions.Select(p => p.Kind));
+        Assert.Equal("Widgets per day", collector.Positions[0].Text);
+        Assert.Empty(collector.GetUnmatchedSelectors());
+        var bar = collector.Positions[2];
+        Assert.Equal("layer[0]", bar.View);
+        Assert.InRange(bar.Pixel!.Value.X, 0, reported.Width);
+        Assert.InRange(bar.Pixel.Value.Y, 0, reported.Height);
+
+        // Assert: the bar has the data of its row, and a selector on the data fields picks it
+        Assert.True(bar.TryGetData("count", out var count));
+        Assert.Equal(DemaConsulting.CanvasNet.Positions.PositionValue.FromNumber(5), count);
+        Assert.True(DemaConsulting.CanvasNet.Positions.PositionSelector.Parse("mark:day=b+count=5").Matches(bar));
+    }
 }

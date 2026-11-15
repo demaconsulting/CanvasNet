@@ -128,6 +128,8 @@ and exposed read-only, so one instance can be shared between threads and calls.
 | `WarningHandler` | `null` | Receives each `VegaLiteDiagnostic` (a warning); `null` drops them |
 | `UnsupportedFeatureHandler` | `null` | Receives each `VegaLiteUnsupportedFeature`; `null` drops them |
 | `ThrowOnUnsupportedFeature` | `false` | Turns the first unsupported feature into a `VegaLiteUnsupportedFeatureException` (strict mode) |
+| `PositionHandler` | `null` | Receives each feature of the chart (title, view, axis, legend, and every mark) as a core `ImagePosition` with its view path, values, box, and attach pixel in the returned surface, before it is painted; `null` reports none (see *Vega-Lite Feature Positions*) |
+| `PositionKindFilter` | `null` | Says which position kinds `PositionHandler` wants; a kind it rejects is not built at all (when it rejects `mark`, the marks record nothing). `null` wants every kind |
 <!-- markdownlint-enable MD013 -->
 
 `VegaLiteLimits` bounds every resource of a call. Its eighteen properties are init-only, each at least 1 (the depth
@@ -2778,6 +2780,82 @@ culture-invariant), the time zone defaults to UTC, and only the **bundled fonts*
   a host, or a network path is reported as `vl-data-remote-url` and is **never fetched, opened, or given to your
   `FileResolver`**; the chart is drawn with an empty dataset (strict mode throws). Download such a file and refer to it
   by a local path.
+
+### Vega-Lite Feature Positions
+
+`VegaLiteRenderOptions.PositionHandler` tells where the features of a chart land, for callouts and leader lines drawn
+over the picture: both `Render` overloads call it once per feature with a core `ImagePosition` (see *Feature
+Positions* in the core user guide), on the calling thread, after the layout and the placement are known and before the
+chart is painted. The handler never changes the pixels, and `Measure` never calls it; an exception it throws reaches
+the caller, and the warnings recorded before it are still delivered once. Only when a handler is set do the marks
+record the rows they draw. `PositionKindFilter` names the kinds the handler wants: a kind it rejects is not built, and
+when it rejects `mark`, the marks record nothing.
+
+**Kinds and ids.**
+
+- `title` (id `title`), `view` (the data rectangle of a chart; its id is its view path), `axis` (id: its channel, `x`
+  or `y`), `legend` (id: its first channel, such as `color`), and `mark`. They come in that order: the title, the
+  views, the axes, and the legends, then the marks in drawing order.
+- Every position has `View`, the path of its view: `""` for a single chart, then one segment per level: `hconcat[1]`,
+  `vconcat[0].layer[1]`, `concat[2]`, `facet[3]` (the cells in layout order), `repeat[1]`. `ViewName` is the `name` the
+  specification gives the view. The layers a `boxplot`, `errorbar`, or `errorband` expands to belong to its own view.
+- A mark has `Mark`, its type, and the id `<mark>-<n>`: n counts the items of that type in its view from 0, in drawing
+  order, as in `bar-2`. A line, area, or trail is one position per point (`line-0`, `line-1`, ...). The ids are stable
+  for the same input, not across edits: select marks by their values.
+
+**Values.** `Values` has every encoding channel bound to a field or a datum, with the value after the transforms, not
+the label drawn: an aggregate (the sum), the start of a bin on `x` and its end on `x2`, the start of a time unit, a
+date as UTC ISO text (`"2025-01-01T00:00:00.000Z"`). A stacked channel has the value of its row, a value that is not a
+finite number is null, and an array or object is left out. A cell of a facet adds `row`, `column`, or `facet`. So
+`mark:x=B+color=Shipped` picks one bar of a grouped chart, and `axis:@id=y+@view="hconcat[1]"` one axis of a
+concatenation.
+
+**Data.** `Data` has the fields of the row a mark draws, after the specification's transforms (`calculate`, `fold`,
+...) and before the encoding: the top-level scalar fields (a nested object or array is left out, and so are the start,
+end, and range fields the encoding adds for a bin, a time unit, or a stack), sorted by name, at most
+`ImagePosition.MaxDataFields` (32). A date the data gave as text is that text; any other date is UTC ISO text. An
+aggregated mark has its aggregated row: its group fields (a time unit or bin dimension by its derived name, such as
+`month_month`) and its aggregates (`sum_revenue`, `__count`); each point of a line, area, or trail has its own row.
+`ChannelNames` is the set of Vega-Lite encoding channels, so a selector predicate named like a channel compares with
+`Values` and any other name with `Data`. A month time unit on `{"month": "2025-11-01"}` gives `x` the date
+`"2012-11-01T00:00:00.000Z"` - Vega-Lite puts a month alone in the year 2012, and the axis shows Nov - while `Data`
+keeps `"month": "2025-11-01"`; so `mark:month=2025-11-01+region=Americas` picks the point and
+`mark:x=2025-11-01+color=Americas` matches nothing. Select marks by their data fields where you can.
+
+**Box and attach pixel.** The coordinates are in the pixels of the returned surface, so they follow `Scale` or the
+exact size of the sized `Render`. `Box` is the bounds of the geometry (the stroke is not included), and `Pixel` is the
+attach point of the kind:
+
+- `bar`, `rect`, `tick`, `image`, `view`, `axis`, `legend`, and `title`: the center of the box.
+- `point`, `circle`, and `square`: the center of the symbol; the box is its shape.
+- `rule`: the middle of the segment. `text`: the anchor of the text; the box is the measured text.
+- `arc`: the middle angle at the middle radius.
+- `line`, `area`, and `trail`: the point itself (the top edge of an area), with a box of zero size.
+
+The pixel is an attach point, not a promise that the feature can be seen there. A core `PositionCollector` selects the
+features with the selector grammar of the core package and keeps at most 1000 of them:
+
+```csharp
+using DemaConsulting.CanvasNet.Positions;
+using DemaConsulting.CanvasNet.VegaLite;
+
+var collector = new PositionCollector(PositionSelection.Parse(["mark:x=B", "axis"]));
+var chart = VegaLiteDocument.Open("bar.vl.json");
+using var picture = chart.Render(new VegaLiteRenderOptions
+{
+    PositionHandler = position => collector.Offer(position),
+    PositionKindFilter = collector.IncludesKind,   // build only the kinds a selector can match
+});
+
+foreach (var position in collector.Positions)
+{
+    var values = string.Join(", ", position.Values.Select(v => $"{v.Key}={v.Value}"));
+    Console.WriteLine($"{position.Kind} {position.Id} [{position.View}] {values}: pixel {position.Pixel}");
+}
+```
+
+On the command line, `canvasnet render bar.vl.json --positions mark:x=B --json` gives the same positions in the
+written picture (`canvasnet help positions vega-lite`).
 
 ### Vega-Lite Unsupported Features and Strict Mode
 

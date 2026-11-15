@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Text.Json;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.ImageSources;
+using DemaConsulting.CanvasNet.Positions;
 
 namespace DemaConsulting.CanvasNet.Mermaid;
 
@@ -214,6 +215,37 @@ public sealed class MermaidRenderOptions
     ///     delivered to <see cref="UnsupportedFeatureHandler"/> first.
     /// </remarks>
     public bool ThrowOnUnsupportedFeature { get; init; }
+
+    /// <summary>
+    ///     Gets the callback that receives the positions of the features of a render (nodes, edges, tasks, slices,
+    ///     commits), or <see langword="null"/> (default) for none.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         Both <c>Render</c> methods call it once per feature, on the calling thread, after the layout and the
+    ///         placement are known and before the diagram is painted, in a deterministic order: titles, groups, nodes,
+    ///         participants, tasks, milestones, sections, slices, blocks, commits, branches and tags, then edges,
+    ///         messages and notes. Coordinates are in the pixels of the returned surface, so they follow
+    ///         <see cref="Scale"/> or the exact size. A position's <c>Box</c> is the geometry bounds (stroke not
+    ///         included) and its <c>Pixel</c> is the attachment point of its kind (a box center, the arc-length midpoint
+    ///         of an edge path, the mid-angle at mid-radius of a slice, the center of a commit bullet).
+    ///     </para>
+    ///     <para>
+    ///         The handler never changes the pixels. <c>Measure</c> never calls it. An exception thrown by the handler
+    ///         propagates to the caller; the warnings recorded before it are still delivered once.
+    ///     </para>
+    /// </remarks>
+    public Action<ImagePosition>? PositionHandler { get; init; }
+
+    /// <summary>
+    ///     Gets the filter that says which position kinds <see cref="PositionHandler"/> wants, or
+    ///     <see langword="null"/> (default) for every kind.
+    /// </summary>
+    /// <remarks>
+    ///     A kind the filter rejects is not built at all, so asking for a few kinds of a large diagram costs little.
+    ///     Pass <see cref="PositionCollector.IncludesKind(string)"/> to build only the kinds a selection can match.
+    /// </remarks>
+    public Func<string, bool>? PositionKindFilter { get; init; }
 
     /// <summary>
     ///     Validates a configuration text.

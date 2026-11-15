@@ -29,6 +29,12 @@ internal sealed partial class SequenceRenderer
     /// <summary>The number of the last participant drawn at the top (Mermaid's <c>actorCnt</c>, which starts at -1).</summary>
     private int _actorCnt = -1;
 
+    /// <summary>The number of messages drawn so far, which names the next message's position.</summary>
+    private int _messageCount;
+
+    /// <summary>The number of notes drawn so far, which names the next note's position.</summary>
+    private int _noteCount;
+
     /// <summary>
     ///     Draws a participant (Mermaid's <c>drawActor</c>).
     /// </summary>
@@ -48,6 +54,16 @@ internal sealed partial class SequenceRenderer
         SequenceParticipantTypes.Queue => DrawActorTypeQueue(actor, isFooter),
         _ => double.NaN,
     };
+
+    /// <summary>
+    ///     Gets the position tag of a participant: the box at the top reports it, named by the participant's name; the
+    ///     mirrored box at the bottom reports nothing.
+    /// </summary>
+    /// <param name="actor">The participant.</param>
+    /// <param name="isFooter">Whether the mirrored participant at the bottom is drawn.</param>
+    /// <returns>The tag, or null for the bottom box.</returns>
+    private static ScenePositionTag? ParticipantTag(SequenceActorLayout actor, bool isFooter) =>
+        isFooter ? null : new ScenePositionTag("participant", actor.Actor.Name) { Text = actor.Actor.Description, Location = actor.Actor.Location };
 
     /// <summary>
     ///     Gets whether a JSON value is truthy as JavaScript tests it.
@@ -103,7 +119,7 @@ internal sealed partial class SequenceRenderer
         actor.RectData = new SequenceRectData(actor.X, actor.Height, actor.Width, 3, classes, fill);
         CheckIcon(actor);
         children.AddRange(ActorText(actor.Description, actor.X, actorY, actor.Width, actor.Height, LabelStyle, location));
-        slot.Items.Add(new SceneGroup(0, 0, children) { Role = Side(isFooter), Id = actor.Actor.Name, Location = location });
+        slot.Items.Add(new SceneGroup(0, 0, children) { Role = Side(isFooter), Id = actor.Actor.Name, Location = location, Position = ParticipantTag(actor, isFooter) });
         return actor.Height;
     }
 
@@ -137,7 +153,7 @@ internal sealed partial class SequenceRenderer
         actor.RectData = new SequenceRectData(actor.X, actor.Height, actor.Width, 0, classes, fill);
         CheckIcon(actor);
         children.AddRange(ActorText(actor.Description, actor.X - CollectionsOffset, actorY + CollectionsOffset, actor.Width, actor.Height, LabelStyle, location));
-        slot.Items.Add(new SceneGroup(0, 0, children) { Role = Side(isFooter), Id = actor.Actor.Name, Location = location });
+        slot.Items.Add(new SceneGroup(0, 0, children) { Role = Side(isFooter), Id = actor.Actor.Name, Location = location, Position = ParticipantTag(actor, isFooter) });
         return actor.Height;
     }
 
@@ -188,7 +204,7 @@ internal sealed partial class SequenceRenderer
         actor.RectData = new SequenceRectData(x, height, width, 0, string.Empty, fill);
         CheckIcon(actor);
         children.AddRange(ActorText(actor.Description, x, actorY, width, height, LabelStyle, location));
-        slot.Items.Add(new SceneGroup(0, 0, children) { Role = Side(isFooter), Id = actor.Actor.Name, Location = location });
+        slot.Items.Add(new SceneGroup(0, 0, children) { Role = Side(isFooter), Id = actor.Actor.Name, Location = location, Position = ParticipantTag(actor, isFooter) });
         return height;
     }
 
@@ -243,7 +259,7 @@ internal sealed partial class SequenceRenderer
         actor.RectData = new SequenceRectData(actor.X, actor.Height, actor.Width, 0, classes, fill);
         children.AddRange(ActorText(actor.Description, actor.X, actorY + 35, actor.Width, actor.Height, LabelStyle, location));
         actor.Height = h + _conf.LabelBoxHeight;
-        slot.Items.Add(new SceneGroup(0, 0, children) { Role = Side(isFooter), Id = actor.Actor.Name, Location = location });
+        slot.Items.Add(new SceneGroup(0, 0, children) { Role = Side(isFooter), Id = actor.Actor.Name, Location = location, Position = ParticipantTag(actor, isFooter) });
         return actor.Height;
     }
 
@@ -285,7 +301,7 @@ internal sealed partial class SequenceRenderer
         actor.Height = FigureHeight;
         actor.RectData = null;
         children.AddRange(ActorText(actor.Description, actor.X, actorY + 35, actor.Width, FigureHeight, LabelStyle, location));
-        Append().Items.Add(new SceneGroup(0, 0, children) { Role = Side(isFooter), Id = actor.Actor.Name, Location = location });
+        Append().Items.Add(new SceneGroup(0, 0, children) { Role = Side(isFooter), Id = actor.Actor.Name, Location = location, Position = ParticipantTag(actor, isFooter) });
         return actor.Height;
     }
 
@@ -327,7 +343,7 @@ internal sealed partial class SequenceRenderer
         actor.Height = FigureCircleHeight + _conf.LabelBoxHeight;
         actor.RectData = null;
         children.AddRange(ActorText(actor.Description, actor.X, y + 15, actor.Width, labelHeight, LabelStyle, location));
-        Append().Items.Add(new SceneGroup(0, 0, children) { Role = Side(isFooter), Id = actor.Actor.Name, Location = location });
+        Append().Items.Add(new SceneGroup(0, 0, children) { Role = Side(isFooter), Id = actor.Actor.Name, Location = location, Position = ParticipantTag(actor, isFooter) });
         return actor.Height;
     }
 
@@ -370,7 +386,7 @@ internal sealed partial class SequenceRenderer
         actor.Height = FigureCircleHeight + (2 * _conf.LabelBoxHeight);
         actor.RectData = null;
         children.AddRange(ActorText(actor.Description, actor.X, actorY + FigureRadius + (isFooter ? 5 : 12), actor.Width, labelHeight, LabelStyle, location));
-        Append().Items.Add(new SceneGroup(0, 0, children) { Role = Side(isFooter), Id = actor.Actor.Name, Location = location });
+        Append().Items.Add(new SceneGroup(0, 0, children) { Role = Side(isFooter), Id = actor.Actor.Name, Location = location, Position = ParticipantTag(actor, isFooter) });
         return actor.Height;
     }
 
@@ -411,7 +427,7 @@ internal sealed partial class SequenceRenderer
 
         actor.RectData = null;
         children.AddRange(ActorText(actor.Description, actor.X, actorY + (isFooter ? 15 : 30) + shift, actor.Width, labelHeight, LabelStyle, location));
-        Append().Items.Add(new SceneGroup(0, 0, children) { Role = Side(isFooter), Id = actor.Actor.Name, Location = location });
+        Append().Items.Add(new SceneGroup(0, 0, children) { Role = Side(isFooter), Id = actor.Actor.Name, Location = location, Position = ParticipantTag(actor, isFooter) });
         return actor.Height;
     }
 

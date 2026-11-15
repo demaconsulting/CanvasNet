@@ -73,17 +73,21 @@ assigns it) and `bounds` otherwise; the title of a composition anchors at `start
 
 #### Key Methods
 
-- `Build(SpecNode? title, ResolvedConfig config, bool unitOrLayer, SceneBudget? budget, string? sourceName)` - returns
+- `Build(SpecNode? title, ResolvedConfig config, bool unitOrLayer, SceneBudget? budget, string? sourceName, string?
+  viewName)` - returns
   null for no title, a null title, or a title without text; otherwise reads the lines, resolves the layout properties
   (the title's own, then the configuration, then the Vega defaults), creates the title text item and, when there is a
   subtitle, the subtitle item below or beside it, charges the scene budget (when given) for the title group and the
   title text before creating the text and for the subtitle before creating it (a `VegaLiteRenderException` located at
   the title when the limit would be passed), measures both with the `TextMeasurer`, and returns the `TitleBlock` with
-  the union of their bounds as its extent.
+  the union of their bounds as its extent and `viewName` (the `name` of the view the title belongs to) as its `ViewName`.
 - `TitleBlock.Place(dataWidth, dataHeight, viewBounds)` - places the group: with the `group` frame the anchor refers to
   the data rectangle (for a left title the bottom edge to the top edge, so rotated text reads upwards from its start), with
   the `bounds` frame to the bounding box of the view's content; the title then sits `Offset` pixels beyond the content on
-  its side. Returns the positioned `SceneGroup` (role `title`) and its bounds in the view's coordinates.
+  its side. Returns the positioned `SceneGroup` (role `title`) and its bounds in the view's coordinates. When the block
+  has a `PositionText` (the title lines joined by spaces, which `Build` sets; null for a header block) the group carries
+  the position tag `title` with that text, those bounds, and the block's `ViewName`, so the title reports its position;
+  a header reports none.
 
 **Preconditions and postconditions**: the configuration is non-null; the result is immutable.
 

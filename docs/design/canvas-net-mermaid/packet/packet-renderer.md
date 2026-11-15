@@ -65,6 +65,9 @@ location of the block statement; and the title text (`title`). The view box star
 - **`DisplayText`** gives the text the browser shows: each of Mermaid's entity placeholders decoded into its character,
   everything else, a reference or a tag the author wrote included, shown as written, and the white space collapsed as
   in all SVG text.
+- **Position tags**: the renderer tags each block rectangle as a `block` named `start-end` (its bit range, a block split
+  across two rows being two positions) with its label as the text, and the title as `title` (located at
+  `TitleLocation`), for the `ScenePositions` unit.
 
 #### Error Handling
 

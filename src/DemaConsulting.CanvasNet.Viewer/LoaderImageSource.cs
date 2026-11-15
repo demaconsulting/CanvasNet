@@ -5,6 +5,7 @@ using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;
 using DemaConsulting.CanvasNet.ImageSources;
 using DemaConsulting.CanvasNet.Mermaid;
+using DemaConsulting.CanvasNet.Positions;
 using DemaConsulting.CanvasNet.Scad;
 using DemaConsulting.CanvasNet.VegaLite;
 using DemaConsulting.CanvasNet.Viewer.Imaging;
@@ -63,6 +64,21 @@ internal sealed class DirectRenderOptions : IImageSourceOptions
     ///     Gets or sets the anchors a model declared (set by the source).
     /// </summary>
     public IReadOnlyList<SourceAnchor> Anchors { get; set; } = [];
+
+    /// <summary>
+    ///     Gets the selectors of the feature positions to report, or <see langword="null"/> for none.
+    /// </summary>
+    public PositionSelection? Positions { get; init; }
+
+    /// <summary>
+    ///     Gets or sets the feature positions a diagram or a chart reported (set by the source).
+    /// </summary>
+    public IReadOnlyList<ImagePosition> ReportedPositions { get; set; } = [];
+
+    /// <summary>
+    ///     Gets or sets a value indicating whether matching positions were left out because of the cap (set by the source).
+    /// </summary>
+    public bool PositionsTruncated { get; set; }
 }
 
 /// <summary>
@@ -269,6 +285,8 @@ internal sealed class LoaderImageSource : IImageSource, IFragmentImageSource
             direct.DrawnPage = options.Page;
             direct.PageCount = info.PageCount;
             direct.Anchors = loaded.Anchors;
+            direct.ReportedPositions = loaded.Positions;
+            direct.PositionsTruncated = loaded.PositionsTruncated;
         }
 
         return new ImageSourceResult(loaded.Surface)
@@ -343,7 +361,10 @@ internal sealed class LoaderImageSource : IImageSource, IFragmentImageSource
             Background = direct?.Background ?? DefaultBackground(kind),
             Scad = scad,
             VegaLite = chart,
-            Mermaid = ReadDiagram(request.Fragment)
+            Mermaid = ReadDiagram(request.Fragment),
+
+            // Only the file a caller renders directly reports positions; a picture a document embeds never does
+            Positions = direct?.Positions
         };
     }
 

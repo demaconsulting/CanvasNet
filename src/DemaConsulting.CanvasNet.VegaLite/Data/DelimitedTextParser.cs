@@ -482,7 +482,7 @@ internal sealed class ParseDirectives
                 return true;
             case DataValueKind.Number when !spec.IsCustomDate:
                 // A number is taken as milliseconds since the epoch, like JavaScript's new Date(number)
-                return TryMakeDate(value.Number, out result);
+                return TryMakeDate(value.Number, null, out result);
             case DataValueKind.Boolean:
                 return false;
             default:
@@ -506,7 +506,8 @@ internal sealed class ParseDirectives
                     parsed = TryParseDate(text, calendar, out milliseconds);
                 }
 
-                return parsed && TryMakeDate(milliseconds, out result);
+                // A date read from text keeps that text, so that positions can report the value as the data gave it
+                return parsed && TryMakeDate(milliseconds, value.Kind == DataValueKind.String ? value.Text : null, out result);
         }
     }
 
@@ -514,13 +515,14 @@ internal sealed class ParseDirectives
     ///     Makes a date value from milliseconds.
     /// </summary>
     /// <param name="milliseconds">The milliseconds since the epoch.</param>
+    /// <param name="sourceText">The text the date was read from (kept as <see cref="DataValue.SourceText"/>), or <see langword="null"/>.</param>
     /// <param name="result">Receives the date.</param>
     /// <returns><see langword="false"/> when the milliseconds are not a supported date.</returns>
-    private static bool TryMakeDate(double milliseconds, out DataValue result)
+    private static bool TryMakeDate(double milliseconds, string? sourceText, out DataValue result)
     {
         try
         {
-            result = DataValue.FromDate(milliseconds);
+            result = DataValue.FromDate(milliseconds, sourceText);
             return true;
         }
         catch (ArgumentOutOfRangeException)

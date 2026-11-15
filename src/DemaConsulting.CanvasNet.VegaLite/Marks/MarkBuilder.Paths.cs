@@ -484,7 +484,11 @@ internal sealed partial class MarkBuilder
                 CurveBuilder.Line(kind, tension, points, segments, _cancellationToken);
             }
 
-            return Style(new ScenePath("mark-" + _type, segments), paint);
+            // The vertices are the points of the rows: the top edge of an area, along the orientation of the mark
+            var vertices = isArea && horizontal
+                ? VerticesOf(rows, start, length, state, row => top[row], row => along[row])
+                : VerticesOf(rows, start, length, state, row => along[row], row => top[row]);
+            return Style(new ScenePath("mark-" + _type, segments) { Vertices = vertices }, paint);
         }
 
         /// <summary>
@@ -528,24 +532,33 @@ internal sealed partial class MarkBuilder
             Charge(kept);
             var runs = new List<IReadOnlyList<SceneTrailPoint>>();
             var current = new List<SceneTrailPoint>();
+            var vertices = _owner.RecordPositions ? new List<SceneVertex>() : null;
+            var runStart = 0;
             for (var k = start; k <= start + length; k++)
             {
                 if (k < start + length && state[rows[k]] == RowState.Defined)
                 {
                     var row = rows[k];
                     current.Add(new SceneTrailPoint(x[row], y[row], sizes[row]));
+                    vertices?.Add(new SceneVertex(row, x[row], y[row]));
                     continue;
                 }
 
+                // A run of one point draws nothing, so its vertex is not reported either
                 if (current.Count >= 2)
                 {
                     runs.Add(current);
+                    runStart = vertices?.Count ?? 0;
+                }
+                else
+                {
+                    vertices?.RemoveRange(runStart, vertices.Count - runStart);
                 }
 
                 current = [];
             }
 
-            return Style(new SceneTrail("mark-trail", runs), paint);
+            return Style(new SceneTrail("mark-trail", runs) { Vertices = vertices }, paint);
         }
     }
 }

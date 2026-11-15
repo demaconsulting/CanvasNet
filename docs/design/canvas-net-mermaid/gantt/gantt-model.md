@@ -37,7 +37,8 @@ The unit's behavior is specified by the `CanvasNetMermaid-Gantt-GanttModel-*` re
   statements, each once (Mermaid's `mergeTokens`);
 - the sanitized **title** of the `title` statement with the location of its last statement, and the sanitized
   accessible title and description, each empty when not set; the **sections** of the `section` statements in order;
-- the **tasks** in the order of the text (`GanttRawTask`): the section (empty before the first `section`), the name as
+- the **tasks** in the order of the text (`GanttRawTask`): the section (empty before the first `section`) and the
+  location of its `section` statement (null before the first section), the name as
   written (trailing white space included), the id (null when the data has more than three fields, Mermaid's
   `undefined`), the id of the task before it (null for none), how the start is given (`GanttStartKind`: `None` for more
   than three fields, `PreviousTaskEnd` for one field, and `StartDate` for two or three), the start and end data, the
@@ -68,7 +69,7 @@ three letters, the meridiem `AM`/`PM`, and no long-date formats) and the token l
   `SetIncludes` merge their tokens (`MergeTokens`); `SetDiagramTitle` sanitizes the title and marks it set
   (`IsTitleSet`), and `SetAccessibleTitle` and `SetAccessibleDescription` sanitize their texts as Mermaid's
   `commonDb.ts` does (the title without leading white space, the description without the white space after each line
-  feed); `AddSection` starts a section.
+  feed); `AddSection(text, location)` starts a section and records the location of its statement.
 - **`AddTask(name, data, location)`** is Mermaid's `addTask` with `parseData`: the data after its colon is split on
   commas; the leading tags (fields that are a tag when trimmed) are taken off in Mermaid's order until none matches, and
   data that runs out of fields while tags are taken off fails as Mermaid fails; the remaining fields are trimmed and

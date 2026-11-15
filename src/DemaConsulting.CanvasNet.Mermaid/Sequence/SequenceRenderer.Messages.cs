@@ -162,7 +162,16 @@ internal sealed partial class SequenceRenderer
             segments = LineSegments(x1, lineStartY, x2, lineStartY);
         }
 
-        slot.Items.Add(MessageLine(model.Type, segments, isLine, id, location));
+        // The message reports its position on its line, numbered 1 to n in drawing order
+        var tag = new ScenePositionTag("message", (++_messageCount).ToString(CultureInfo.InvariantCulture))
+        {
+            Text = msg.Text,
+            From = msg.From,
+            To = msg.To,
+            Location = location,
+            AlongPath = true,
+        };
+        slot.Items.Add(MessageLine(model.Type, segments, isLine, id, location, tag));
         if (hasCentral)
         {
             slot.Items.Add(CentralConnection(msg, model, lineStartY, actors, id));
@@ -210,7 +219,8 @@ internal sealed partial class SequenceRenderer
         var paint = _styles.Shape(new ShapePaint(NoteRectFill, NoteRectStroke, 1), ".note");
         var children = new List<SceneItem> { Rect(startx, starty, width, textHeight + (2 * _conf.NoteMargin), 0, paint, "note-rect", null, location) };
         children.AddRange(texts);
-        Append().Items.Add(new SceneGroup(0, 0, children) { Role = "note", Id = id, Location = location });
+        var tag = new ScenePositionTag("note", "note" + (++_noteCount).ToString(CultureInfo.InvariantCulture)) { Text = message, Location = location };
+        Append().Items.Add(new SceneGroup(0, 0, children) { Role = "note", Id = id, Location = location, Position = tag });
         return textHeight;
     }
 
@@ -311,15 +321,16 @@ internal sealed partial class SequenceRenderer
     /// <param name="isLine">Whether it is a <c>line</c> element (a self loop is a path).</param>
     /// <param name="id">The message id.</param>
     /// <param name="location">The location of the message.</param>
+    /// <param name="tag">The feature the line reports as its position.</param>
     /// <returns>The group of the line and its markers.</returns>
-    private SceneGroup MessageLine(int type, IReadOnlyList<SceneSegment> segments, bool isLine, string id, MermaidLocation location)
+    private SceneGroup MessageLine(int type, IReadOnlyList<SceneSegment> segments, bool isLine, string id, MermaidLocation location, ScenePositionTag tag)
     {
         // The style's dash of a dotted line beats the class rule
         var dotted = IsDotted(type);
         var paint = _styles.MessageLine(dotted, isLine);
         IReadOnlyList<double>? dash = dotted ? [3, 3] : null;
         var stroke = Stroke(paint) is { } s ? s with { Dash = dash } : null;
-        var children = new List<SceneItem> { new ScenePath(segments) { Role = "message-line", Location = location, Stroke = stroke } };
+        var children = new List<SceneItem> { new ScenePath(segments) { Role = "message-line", Location = location, Stroke = stroke, Position = tag } };
         var (start, end) = Markers(type);
         if (start is not null)
         {

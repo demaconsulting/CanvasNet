@@ -20,7 +20,8 @@ system), which builds the operation records described below and the settings (th
 rotation fill, the clip of auto-levels, and the trim tolerance) that the records carry. The unit is the
 static class `ImagePipeline` (`ImagePipeline.cs`, `ImagePipeline.Validation.cs` for the check of the operation values, and
 `ImagePipeline.Anchors.cs` for the mapping of the anchors of a
-model through the applied steps) and the operation types in `ImageOperations.cs`, which also holds the value types
+model through the applied steps, and `ImagePipeline.Positions.cs` for the mapping of the feature positions of a diagram
+or a chart) and the operation types in `ImageOperations.cs`, which also holds the value types
 `Dimension` (with the helpers `Dimension.Pixels(value)` and `Dimension.Percent(value)`), `GeometrySpec` (a rectangle in
 pixels or percent), `PadSpec`, and `FlipAxis` that the records carry. Every value of a crop region is non-negative
 (there is no inset form: x and y are 0 or more, the size more than 0, a percentage at most 100, all refused as
@@ -196,13 +197,38 @@ A lost position stays lost, so a step the mapping does not know (a future geomet
 than a wrong one. `inside` is not computed here: it depends on the size of the written image, so
 `RenderCommand` of the tool computes it. The method does not modify the list it is given.
 
+**MapPositions(positions, width, height, applied)** (`ImagePipeline.Positions.cs`, a partial of the class): follows the
+boxes and attachment pixels of feature positions (core `ImagePosition` values) through the same applied steps, with the
+same conventions as `MapAnchors`. Every step is an affine change of coordinates (`x' = A x + C y + E`,
+`y' = B x + D y + F`, the private `Affine` record struct), so the algorithm is:
+
+1. Walk the applied steps once, keeping the current width and height (the size each step reported, else the size
+   before it), and turn each into its transform: `crop` and `trim` translate by `(-x, -y)`; `resize` and `fit` scale by
+   `newWidth / width` and `newHeight / height`; `pad` translates by `(left, top)`; `flip` mirrors about the width, the
+   height, or both; `rotate` turns clockwise by the reported `degrees` about the old center onto the new center (a right
+   angle with the exact sine and cosine); a color step, `grid`, and a `deskew` that did not correct keep the
+   coordinates; a `deskew` that corrected (`applied: true`), and any other step whose reported size differs from the
+   current size, cannot be followed.
+2. Compose the transforms into one (`Affine.After`); one step that cannot be followed makes the whole transform
+   unknown.
+3. For each position, transform the pixel once, and transform the four corners of the **original** box
+   (`PositionBox.Corners`) once and enclose them once (`PositionBox.Enclose`), so a box never grows from enclosing an
+   already rotated box again at a later step. With an unknown transform the box and the pixel become `null` (`with`
+   expressions keep every other fact).
+
+A crop does not clip or recompute a box: a feature the crop cut off keeps its full box, partly or wholly outside the
+image. The method is pure and thread-safe, returns the positions in the same order, and does not modify the list it is
+given.
+
 #### Error Handling
 
 `ViewerException` with `usage-error` (an operation value out of range, not finite, or not a member of its enumeration,
 found before the first step runs; a crop outside the image or empty) and `size-limit` (a size, box, or border above the
 maximum, found before the first step runs; a border or an explicitly requested rotated canvas that would make the image
 larger than the maximum). An oversized automatic deskew is copied unchanged and reported as a non-fatal operation
-reason. A null argument, or a null element of the list of operations, throws `ArgumentNullException`. Any other
+reason. A null argument, or a null element of the list of operations, throws `ArgumentNullException` (also a null list
+of anchors, positions, or applied steps given to `MapAnchors` or `MapPositions`, which otherwise never throw: a step
+they cannot follow loses the positions instead). Any other
 exception is a defect and propagates. The errors in the text of a
 command line (a malformed value, a setting without its operation, an unknown verb) are reported by the tool's parser
 as the same `usage-error`.
@@ -213,12 +239,16 @@ as the same `usage-error`.
 - **SourceLoader** - the `AppliedOperation` record, `Operation` helper, and `FormatColor`.
 - **GridOverlay** - the grid.
 - **CanvasNet core library** - `Surface` (the flip, pad, trim, tone adjustments, rotation, and skew estimation, `Clone`,
-  and `CopyFrom`), `SkewEstimate`, `Rgba32`, and `ResamplingMode`.
+  and `CopyFrom`), `SkewEstimate`, `Rgba32`, and `ResamplingMode`; and `ImagePosition`, `PositionBox`, and
+  `PositionPoint` of the `Positions` subsystem (`MapPositions`).
 
 #### Callers
 
 - **ImageRenderer** - applies the operations between the load and the write of every page, passing the background the
-  user gave; maps the anchors of a model through the applied steps with `MapAnchors`.
+  user gave; maps the anchors of a model through the applied steps with `MapAnchors` and the feature positions of a
+  diagram or a chart with `MapPositions`.
+- **CanvasNetViewer** - maps the feature positions through the fit or resize of a direct render with `MapPositions`
+  (and the anchors with `MapAnchors`).
 - **ImageInspector** - applies the same pipeline before it analyzes the image.
 - **SourceLoader** - uses `FilterName` to report the filter of a raster resize.
 - **RenderCommand** (of the tool) - its `ImagePipelineParser` builds the operation records from the command line.

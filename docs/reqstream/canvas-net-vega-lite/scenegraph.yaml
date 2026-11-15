@@ -155,3 +155,27 @@ sections:
               - ScenePainter_Paint_ImageWithoutSize_DrawsNaturalSizeAtLeftTop
               - SceneImageSource_Get_CachesWithinOnePaintingAndDisposesEverySurface
               - SceneImageSource_Get_BeyondTheLimit_FailsAtTheMark
+
+          - id: CanvasNetVegaLite-Scenegraph-Positions
+            title: >-
+              The Scenegraph subsystem shall carry internal tags on the view, axis, legend, and title groups and on the
+              marks groups and mark items of a chart, and shall turn them into positions mapped by the placement:
+              titles, views, axes, and legends, then marks in drawing order, each mark with the id <mark>-<n> within its
+              view, its view path and name, the normalized values and the data fields of its row, its geometry bounds
+              without stroke, and
+              the attachment pixel of its mark type.
+            justification: |
+              The chart builders know which group is which guide and which row each mark draws; the scene is where the
+              geometry and the placement meet.
+            children:
+              - CanvasNetVegaLite-Scenegraph-SceneModel-PositionTags
+              - CanvasNetVegaLite-Scenegraph-ScenePositions-ViewPaths
+              - CanvasNetVegaLite-Scenegraph-ScenePositions-Ids
+              - CanvasNetVegaLite-Scenegraph-ScenePositions-Values
+              - CanvasNetVegaLite-Scenegraph-ScenePositions-Data
+              - CanvasNetVegaLite-Scenegraph-ScenePositions-Geometry
+              - CanvasNetVegaLite-Scenegraph-ScenePositions-Filter
+            tests:
+              - ScenePositions_Collect_ViewAndBars_BoxesCentersAndIds
+              - ScenePositions_Geometry_RuleSymbolTextArc_AimAsDocumented
+              - ScenePositions_Collect_LineVertices_OnePositionPerVertex

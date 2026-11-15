@@ -93,7 +93,7 @@ internal readonly record struct ScenePlacement(double Scale, double OffsetX, dou
 ///         the font options say otherwise), draws the lines the measurer produced (trimmed and truncated to the limit) at
 ///         the baseline offsets of Vega's text mark. The result is deterministic: the same scene, size and placement
 ///         always give the same bytes. The painter holds no state apart from the picture loader it was given (see
-///         <see cref="SceneImageSource"/>, one painting's cache) and is safe for concurrent use when it has none.
+///         <see cref="SceneImageSource"/>, one painting's cache) and the map of drawn pictures (<see cref="DrawnImages"/>), and is safe for concurrent use when it has neither.
 ///     </para>
 ///     <para>
 ///         <b>Pictures.</b> A <see cref="SceneImage"/> is drawn as Vega's image mark draws it (see <c>ScenePainter.Images.cs</c>): the picture comes from the loader at paint time, in the
@@ -163,6 +163,13 @@ internal sealed partial class ScenePainter
         _images = images;
         _maxPaintedPixels = maxPaintedPixels;
     }
+
+    /// <summary>
+    ///     Gets the map that receives, for every <see cref="SceneImage"/> item the painter draws, the rectangle it draws the picture in (in the units of the item's enclosing group,
+    ///     as <see cref="TryPlace"/> works it out from the loaded picture), so the positions of the render report the drawn box; null (default) records nothing.
+    /// </summary>
+    /// <remarks>The caller creates the map with <see cref="ReferenceEqualityComparer"/> so equal items stay apart; an item that is not drawn has no entry.</remarks>
+    public Dictionary<SceneImage, SceneBounds>? DrawnImages { get; init; }
 
     /// <summary>
     ///     Draws a scene onto a new surface.

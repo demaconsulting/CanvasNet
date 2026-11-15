@@ -7,7 +7,8 @@
 `SourceLoader` is verified with unit tests in
 `SourceLoaderTests.cs`, `SourceLoaderVectorTests.cs` (the page-based sources), `SourceLoaderScadTests.cs` (the
 OpenSCAD models), `SourceLoaderVegaLiteTests.cs` (the Vega-Lite charts), and `SourceLoaderMermaidTests.cs` and
-`SourceLoaderMermaidImageTests.cs` (the Mermaid diagrams and the pictures of their nodes); the reading and the
+`SourceLoaderMermaidImageTests.cs` (the Mermaid diagrams and the pictures of their nodes), and
+`SourceLoaderPositionTests.cs` (the feature positions of diagrams and charts); the reading and the
 application of the EXIF orientation are core operations (`JpegCodec.ReadExifOrientation` and
 `Surface.ApplyExifOrientation`) verified in the core
 test project, and here only their use by the loader is. The
@@ -113,6 +114,10 @@ file-symbolic-link scenarios skip where file links cannot be created (Windows wi
   picture node without `w` and `h` that enlarges a diagram drawn at its natural size is charged at the drawn size
   (refused when that does not fit) and reported with the drawn natural size.
 - A damaged file of any format is an expected error; an unexpected exception type is never mapped.
+- With position selectors, a diagram or a chart reports the positions they match in the pixels of the loaded surface,
+  filtered before the cap of 1,000 and flagged when more matched; a selector that matched nothing is a
+  `positions-unmatched` warning that names it, or, in strict mode, a `ViewerException` with that code; every other kind
+  of file, and the pictures an SVG file embeds, report no position and no warning.
 
 #### Test Scenarios
 
@@ -848,3 +853,16 @@ options and no fragment. In `CanvasNetViewerParameterFragmentTests.cs` the same 
 in an SVG document, fix the camera: a red box of width 5 and one of width 20 drawn with `def.$vpd=200` are as tall as
 each other and four times as wide (within a pixel), the same two without it are not as tall as each other, and
 `def.$vpt=[10,0,0]` moves the box about 12 pixels to the left.
+
+**SourceLoader_Load_MermaidWithPositions_ReportsMatchingPositions**,
+**SourceLoader_Load_ChartOverTheCap_FiltersFirstThenCaps**,
+**SourceLoader_Load_UnmatchedSelector_WarnsOrFailsWhenStrict**, and
+**SourceLoader_Load_OtherKinds_IgnoreThePositions** (`SourceLoaderPositionTests.cs`; the requirement
+`CanvasNetViewer-Imaging-SourceLoader-Positions`): a two-node flowchart loaded with `node:B` and `edge` reports `B` and
+`L_A_B_0`, not truncated and with no `positions-unmatched` warning, the pixel of `B` within the loaded surface; a tick
+chart of 1,500 rows loaded with `mark` and `title` reports 1,000 positions, the title first and then only marks, and is
+truncated, with no `positions-unmatched` warning; the flowchart
+loaded with `node:A` and `node:Zed` reports `A` and one `positions-unmatched` warning from the source `mermaid` with the
+severity `warning` that names `'node:Zed'`, while in strict mode the load throws a `ViewerException` with that code, as
+does a chart loaded with `axis:z` in strict mode, whose message names `'axis:z'`; and an SVG file that embeds the
+flowchart, loaded with every selector in strict mode, reports no position and no warning.

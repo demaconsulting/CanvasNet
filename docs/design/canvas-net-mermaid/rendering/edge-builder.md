@@ -150,6 +150,9 @@ its terminal labels (a class relation's cardinalities). The unit's behavior is s
 - `CalculatePoint(points, distance)` - Mermaid's `calculatePoint`, shared by the middle of a changed route and the
   terminal labels: the point a distance along a route, rounded to 5 decimals, or null when the route is shorter.
 
+**Position tags**: `Draw` copies the `ScenePositionTag` of the `EdgeRoute` (its `Position`, set by `ClusterLayout`)
+onto the edge path it draws, so the path and not its markers or labels gives the edge its box and arc-length midpoint.
+
 **Preconditions and postconditions**: the methods are pure functions of their arguments and the style sheet; the class
 is stateless and safe for concurrent use.
 
