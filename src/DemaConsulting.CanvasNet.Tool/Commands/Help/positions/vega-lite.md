@@ -20,7 +20,7 @@ see-also:
 - A mark has mark, its type, and the id `<mark>-<n>`: n counts the items of
   that type in its view from 0, in drawing order, as in `bar-2`. A line, area,
   or trail is one item per point (`line-0`, `line-1`, ...). The ids are stable
-  for the same input, not across edits: select marks by their values.
+  for the same input, not across edits: select marks by their data or values.
 
 ## Values
 
@@ -31,6 +31,22 @@ see-also:
   value of its row. A cell of a facet adds `row`, `column`, or `facet`.
 - `mark:x=B+color=Shipped` picks one bar of a grouped chart, and
   `axis:@id=y+@view="hconcat[1]"` one axis of a concatenation.
+
+## Data
+
+- `data` has the fields of the row the mark draws, after the specification's
+  transforms (`calculate`, `fold`, ...) and before the encoding: scalars only
+  (a nested object or array is left out), sorted by name, at most
+  {{positionsMaxDataFields}} fields. A date the data gave as text keeps that
+  text. An aggregated mark has its group fields (a time unit's as
+  `month_month`) and its aggregates (`sum_revenue`, `__count`); a line, area,
+  or trail point has its own row.
+- A month time unit on `{"month": "2025-11-01"}` gives `x` the date
+  `"2012-11-01T00:00:00.000Z"`: Vega-Lite puts a month alone in the year 2012,
+  and the axis shows Nov. `data` keeps `"month": "2025-11-01"`, so
+  `mark:month=2025-11-01+region=Americas` picks that point while
+  `mark:x=2025-11-01` matches nothing. Select marks by data fields where you
+  can.
 
 ## Attach points
 

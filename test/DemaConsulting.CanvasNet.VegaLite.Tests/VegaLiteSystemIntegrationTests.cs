@@ -1762,5 +1762,10 @@ public class VegaLiteSystemIntegrationTests
         Assert.Equal("layer[0]", bar.View);
         Assert.InRange(bar.Pixel!.Value.X, 0, reported.Width);
         Assert.InRange(bar.Pixel.Value.Y, 0, reported.Height);
+
+        // Assert: the bar has the data of its row, and a selector on the data fields picks it
+        Assert.True(bar.TryGetData("count", out var count));
+        Assert.Equal(DemaConsulting.CanvasNet.Positions.PositionValue.FromNumber(5), count);
+        Assert.True(DemaConsulting.CanvasNet.Positions.PositionSelector.Parse("mark:day=b+count=5").Matches(bar));
     }
 }

@@ -24,18 +24,18 @@ namespace DemaConsulting.CanvasNet.Positions;
 ///     json-string := '"' JSON string body '"'           ; an exact id; '*' and '?' are literal
 ///     predicates  := predicate *( "+" predicate )       ; '+' separates only outside JSON strings
 ///     predicate   := name "=" value                     ; the first '=' separates; a name once per selector
-///     name        := "@" meta | channel
+///     name        := "@" meta | word
 ///     meta        := "id" / "view" / "from" / "to" / "index"
-///     channel     := ALPHA *( ALPHA / DIGIT / "_" )
+///     word        := ALPHA *( ALPHA / DIGIT / "_" )   ; a channel or a data field
 ///     value       := json-string | bare
 ///     bare        := 1*( any char except '+' and '"' )
 ///     </code>
 ///     <para>
 ///         <b>Case.</b> The keywords are case-insensitive: <c>all</c>, the kind and the <c>@</c> names. Ids, channel
-///         names and text values are case-sensitive.
+///         and field names and text values are case-sensitive.
 ///     </para>
 ///     <para>
-///         <b>Values.</b> A bare channel value is read like a <c>--param</c> value
+///         <b>Values.</b> A bare channel or field value is read like a <c>--param</c> value
 ///         (<see cref="ImageParameterValues.TryParseParameter(string, out object?, out string?)"/>): <c>true</c>,
 ///         <c>false</c>, <c>null</c>, a finite invariant number (<c>3</c>, <c>-1.5</c>, <c>1e3</c>) is a number, and
 ///         anything else is text with one pair of surrounding single quotes removed; a JSON string is always text, so
@@ -46,11 +46,14 @@ namespace DemaConsulting.CanvasNet.Positions;
 ///     <para>
 ///         <b>Matching.</b> <c>all</c> matches every position and a kind alone matches every position of that kind. An
 ///         id pattern globs against <see cref="ImagePosition.Id"/>; the matcher walks the pattern and the id once with a
-///         single backtrack point, so it takes at most (pattern length) × (id length) steps. Predicates are ANDed: a
-///         channel predicate compares with <see cref="ImagePosition.TryGetValue(string, out PositionValue)"/> using typed
-///         equality (a missing channel never matches; <c>x=null</c> matches a channel that is present and holds null),
-///         <c>@id</c> compares exactly (no globs), and <c>@view</c>, <c>@from</c>, <c>@to</c> and <c>@index</c> never
-///         match a position that does not have them.
+///         single backtrack point, so it takes at most (pattern length) × (id length) steps. Predicates are ANDed. A
+///         word name is a channel when it is in <see cref="ImagePosition.ChannelNames"/> or is a name
+///         <see cref="ImagePosition.Values"/> holds, and then compares with
+///         <see cref="ImagePosition.TryGetValue(string, out PositionValue)"/>; any other word is a data field and
+///         compares with <see cref="ImagePosition.TryGetData(string, out PositionValue)"/> (so a data field whose name
+///         is a channel is matched through that channel). Both use typed equality (a missing name never matches;
+///         <c>x=null</c> matches a name that is present and holds null). <c>@id</c> compares exactly (no globs), and
+///         <c>@view</c>, <c>@from</c>, <c>@to</c> and <c>@index</c> never match a position that does not have them.
 ///     </para>
 ///     <para>
 ///         <b>Limits.</b> A selector is at most <see cref="MaxSelectorLength"/> characters with at most
@@ -476,10 +479,10 @@ public sealed class PositionSelector
             return false;
         }
 
-        // A channel name: a letter, then letters, digits and '_'
+        // A channel or data field name: a letter, then letters, digits and '_'
         if (!char.IsAsciiLetter(name[0]) || !name.All(c => char.IsAsciiLetterOrDigit(c) || c == '_'))
         {
-            problem = $"'{name}' is not a channel name (a word of letters, digits and '_') or an @ name";
+            problem = $"'{name}' is not a channel or field name (a word of letters, digits and '_' that starts with a letter) or an @ name";
             return false;
         }
 
@@ -600,7 +603,7 @@ public sealed class PositionSelector
     /// <summary>
     ///     One predicate: a normalized name and the value it must equal.
     /// </summary>
-    /// <param name="Name">The name: an <c>@</c> name in lowercase or a channel name as written.</param>
+    /// <param name="Name">The name: an <c>@</c> name in lowercase or a channel or field name as written.</param>
     /// <param name="Value">The value.</param>
     private sealed record Predicate(string Name, PositionValue Value)
     {
@@ -618,8 +621,29 @@ public sealed class PositionSelector
                 "@from" => Equal(position.From),
                 "@to" => Equal(position.To),
                 "@index" => position.Index is { } index && Value == PositionValue.FromNumber(index),
-                _ => position.TryGetValue(Name, out var actual) && actual == Value
+                _ => Lookup(position, out var actual) && actual == Value
             };
+        }
+
+        /// <summary>
+        ///     Looks up the word name of the predicate: in the values when it is a channel, otherwise in the data.
+        /// </summary>
+        /// <remarks>
+        ///     The renderer names its channels (<see cref="ImagePosition.ChannelNames"/>), so the rule holds even for a
+        ///     channel the feature does not have (<c>x=1</c> never reads a data field <c>x</c>); a name the values hold
+        ///     is a channel too, so a renderer that gives no channel names (a pie slice's <c>value</c>) still works.
+        /// </remarks>
+        /// <param name="position">The position.</param>
+        /// <param name="actual">The value when the name is present.</param>
+        /// <returns><see langword="true"/> when the name is present.</returns>
+        private bool Lookup(ImagePosition position, out PositionValue actual)
+        {
+            if (position.ChannelNames?.Contains(Name) == true)
+            {
+                return position.TryGetValue(Name, out actual);
+            }
+
+            return position.TryGetValue(Name, out actual) || position.TryGetData(Name, out actual);
         }
 
         /// <summary>

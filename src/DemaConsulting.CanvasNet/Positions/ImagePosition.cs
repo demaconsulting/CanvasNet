@@ -1,3 +1,5 @@
+using System.Collections.Frozen;
+
 namespace DemaConsulting.CanvasNet.Positions;
 
 /// <summary>
@@ -8,8 +10,14 @@ namespace DemaConsulting.CanvasNet.Positions;
 ///     <para>
 ///         <b>Identity.</b> <see cref="Kind"/> and <see cref="Id"/> name the feature. The other facts tell it apart from
 ///         its neighbors and are what a <see cref="PositionSelector"/> predicate compares: <see cref="View"/>,
-///         <see cref="From"/>, <see cref="To"/>, <see cref="Index"/> and <see cref="Values"/>. A renderer documents
-///         which kinds it reports and how it names them.
+///         <see cref="From"/>, <see cref="To"/>, <see cref="Index"/>, <see cref="Values"/> and <see cref="Data"/>. A
+///         renderer documents which kinds it reports and how it names them.
+///     </para>
+///     <para>
+///         <b>Values and data.</b> <see cref="Values"/> holds what the renderer encoded (a chart mark's channels, after
+///         scales and time units); <see cref="Data"/> holds the scalar fields of the source row the feature was drawn
+///         from, as the data gives them. <see cref="ChannelNames"/> tells a selector which predicate names are channels
+///         (compared with <see cref="Values"/>); any other name is a data field (compared with <see cref="Data"/>).
 ///     </para>
 ///     <para>
 ///         <b>Geometry.</b> <see cref="Box"/> is the geometry bounds of the feature (stroke not included) and
@@ -20,12 +28,22 @@ namespace DemaConsulting.CanvasNet.Positions;
 ///         later image step could not follow them.
 ///     </para>
 ///     <para>
-///         The record is immutable and thread-safe: <see cref="Values"/> is a copy, sorted by channel name.
-///         Record equality compares <see cref="Values"/> by reference.
+///         The record is immutable and thread-safe: <see cref="Values"/> and <see cref="Data"/> are copies, sorted by
+///         name, and <see cref="ChannelNames"/> is a frozen set. Record equality compares <see cref="Values"/>,
+///         <see cref="Data"/> and <see cref="ChannelNames"/> by reference.
 ///     </para>
 /// </remarks>
 public sealed record ImagePosition
 {
+    /// <summary>
+    ///     The most data fields one position may hold: 32.
+    /// </summary>
+    /// <remarks>
+    ///     The cap keeps a position small however wide the source rows are; a renderer reports the first fields by
+    ///     name and leaves the rest out, so a value is never truncated.
+    /// </remarks>
+    public const int MaxDataFields = 32;
+
     /// <summary>
     ///     The empty value list.
     /// </summary>
@@ -55,6 +73,11 @@ public sealed record ImagePosition
     ///     The values of the feature.
     /// </summary>
     private readonly IReadOnlyList<KeyValuePair<string, PositionValue>> _values = NoValues;
+
+    /// <summary>
+    ///     The data fields of the feature.
+    /// </summary>
+    private readonly IReadOnlyList<KeyValuePair<string, PositionValue>> _data = NoValues;
 
     /// <summary>
     ///     The geometry box of the feature.
@@ -168,7 +191,8 @@ public sealed record ImagePosition
 
     /// <summary>
     ///     Gets the values of the feature, sorted by name: for a chart mark, the normalized value of every
-    ///     encoding channel bound to a scalar; for a pie slice, its <c>value</c>. Empty when the feature has none.
+    ///     encoding channel bound to a scalar (after scales and time units); for a pie slice, its <c>value</c>. Empty
+    ///     when the feature has none.
     /// </summary>
     /// <remarks>
     ///     The setter copies and sorts the pairs, so the caller's list may change afterwards without affecting the
@@ -181,6 +205,47 @@ public sealed record ImagePosition
         get => _values;
         init => _values = CopyValues(value);
     }
+
+    /// <summary>
+    ///     Gets the data fields of the feature, sorted by name: for a chart mark, the scalar fields of the source row
+    ///     it was drawn from, as the data gives them (see the renderer for which fields). Empty when the feature has
+    ///     none.
+    /// </summary>
+    /// <remarks>
+    ///     The setter copies and sorts the pairs, so the caller's list may change afterwards without affecting the
+    ///     position. A renderer reports at most <see cref="MaxDataFields"/> fields.
+    /// </remarks>
+    /// <exception cref="ArgumentNullException">Thrown when set to null.</exception>
+    /// <exception cref="ArgumentException">
+    ///     Thrown when a name is null or empty, occurs twice, or when there are more than <see cref="MaxDataFields"/>
+    ///     fields.
+    /// </exception>
+    public IReadOnlyList<KeyValuePair<string, PositionValue>> Data
+    {
+        get => _data;
+        init
+        {
+            ArgumentNullException.ThrowIfNull(value);
+            if (value.Count > MaxDataFields)
+            {
+                throw new ArgumentException($"A position holds at most {MaxDataFields} data fields.", nameof(value));
+            }
+
+            _data = CopyValues(value);
+        }
+    }
+
+    /// <summary>
+    ///     Gets the names a selector predicate compares with <see cref="Values"/> (the channels of the renderer), or
+    ///     <see langword="null"/> when the renderer gives none.
+    /// </summary>
+    /// <remarks>
+    ///     A bare predicate name compares with <see cref="Values"/> when it is in this set or is a name
+    ///     <see cref="Values"/> holds; any other name compares with <see cref="Data"/>. So a data field whose name is a
+    ///     channel is matched through that channel. The set is kept as given (it is immutable by type), so many
+    ///     positions can share one.
+    /// </remarks>
+    public FrozenSet<string>? ChannelNames { get; init; }
 
     /// <summary>
     ///     Gets the geometry box of the feature (stroke not included), or <see langword="null"/> when a later image
@@ -215,11 +280,34 @@ public sealed record ImagePosition
     /// <returns><see langword="true"/> when the channel is present (even when it holds null).</returns>
     public bool TryGetValue(string name, out PositionValue value)
     {
-        for (var index = 0; index < _values.Count; index++)
+        return TryFind(_values, name, out value);
+    }
+
+    /// <summary>
+    ///     Looks up a data field by its name.
+    /// </summary>
+    /// <param name="name">The name; compared case-sensitively.</param>
+    /// <param name="value">The value when the field is present.</param>
+    /// <returns><see langword="true"/> when the field is present (even when it holds null).</returns>
+    public bool TryGetData(string name, out PositionValue value)
+    {
+        return TryFind(_data, name, out value);
+    }
+
+    /// <summary>
+    ///     Finds a value by name in a sorted list.
+    /// </summary>
+    /// <param name="list">The list.</param>
+    /// <param name="name">The name; compared case-sensitively.</param>
+    /// <param name="value">The value when the name is present.</param>
+    /// <returns><see langword="true"/> when the name is present.</returns>
+    private static bool TryFind(IReadOnlyList<KeyValuePair<string, PositionValue>> list, string name, out PositionValue value)
+    {
+        for (var index = 0; index < list.Count; index++)
         {
-            if (string.Equals(_values[index].Key, name, StringComparison.Ordinal))
+            if (string.Equals(list[index].Key, name, StringComparison.Ordinal))
             {
-                value = _values[index].Value;
+                value = list[index].Value;
                 return true;
             }
         }

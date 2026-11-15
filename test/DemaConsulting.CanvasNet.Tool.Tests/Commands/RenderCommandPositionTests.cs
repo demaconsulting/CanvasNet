@@ -113,6 +113,49 @@ public class RenderCommandPositionTests
     }
 
     /// <summary>
+    ///     Test the user's month time-unit line chart: a selector on the data fields picks the November Americas point,
+    ///     whose item has <c>data</c> (the source row) after <c>values</c> (with <c>x</c> in Vega-Lite's 2012 base year),
+    ///     while selectors on the channels with the source date or the axis label match nothing.
+    /// </summary>
+    [Fact]
+    public void RenderCommand_Positions_MonthTimeUnitLine_DataFieldSelectsThePoint()
+    {
+        // Arrange
+        using var directory = new TempDirectory();
+        var input = directory.Combine("line.vl.json");
+        File.WriteAllText(
+            input,
+            "{\"data\":{\"values\":[" +
+            "{\"month\":\"2025-10-01\",\"region\":\"Americas\",\"revenue\":6.1},{\"month\":\"2025-11-01\",\"region\":\"Americas\",\"revenue\":6.8}," +
+            "{\"month\":\"2025-10-01\",\"region\":\"Europe\",\"revenue\":4.2},{\"month\":\"2025-11-01\",\"region\":\"Europe\",\"revenue\":4.9}]}," +
+            "\"mark\":\"line\",\"encoding\":{\"x\":{\"field\":\"month\",\"timeUnit\":\"month\",\"type\":\"temporal\"}," +
+            "\"y\":{\"field\":\"revenue\",\"type\":\"quantitative\"},\"color\":{\"field\":\"region\",\"type\":\"nominal\"}}}");
+
+        // Act
+        var (exitCode, stdOut, stdErr) = ToolHost.Invoke(
+            "render", input,
+            "--positions", "mark:month=2025-11-01+region=Americas",
+            "--positions", "mark:x=2025-11-01+color=Americas",
+            "--positions", "mark:x=Nov+color=Americas",
+            "-o", directory.Combine("line.png"), "--json");
+
+        // Assert: one item, with data after values
+        Assert.True(exitCode == 0, stdErr + stdOut);
+        using var document = JsonDocument.Parse(stdOut);
+        var item = Assert.Single(document.RootElement.GetProperty("positions").EnumerateArray());
+        Assert.Equal(["kind", "id", "view", "mark", "values", "data", "box", "pixel", "inside"], item.EnumerateObject().Select(p => p.Name));
+        Assert.Equal("{\"month\":\"2025-11-01\",\"region\":\"Americas\",\"revenue\":6.8}", item.GetProperty("data").GetRawText());
+        Assert.Equal("2012-11-01T00:00:00.000Z", item.GetProperty("values").GetProperty("x").GetString());
+
+        // Assert: the channel selectors matched nothing
+        var warnings = document.RootElement.GetProperty("diagnostics").EnumerateArray().ToList();
+        Assert.Equal(2, warnings.Count);
+        Assert.All(warnings, warning => Assert.Equal("positions-unmatched", warning.GetProperty("code").GetString()));
+        Assert.Contains("mark:x=2025-11-01+color=Americas", warnings[0].GetProperty("message").GetString(), StringComparison.Ordinal);
+        Assert.Contains("mark:x=Nov+color=Americas", warnings[1].GetProperty("message").GetString(), StringComparison.Ordinal);
+    }
+
+    /// <summary>
     ///     Test the usage errors: no <c>--json</c>, an input that is not a diagram or a chart, and a malformed selector.
     /// </summary>
     [Fact]

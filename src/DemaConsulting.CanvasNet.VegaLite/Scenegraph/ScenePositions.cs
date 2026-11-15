@@ -1,3 +1,4 @@
+using System.Collections.Frozen;
 using System.Globalization;
 using System.Numerics;
 using DemaConsulting.CanvasNet.Positions;
@@ -30,6 +31,11 @@ namespace DemaConsulting.CanvasNet.VegaLite.Scenegraph;
 ///         midpoint, a text's anchor, an arc's mid-angle at mid-radius, and a vertex.
 ///     </para>
 ///     <para>
+///         <b>Values and data.</b> A mark reports the values of its encoding channels (<see cref="SceneMarkContext.Values"/>
+///         and the facet values of its cell) and the data fields of the row it draws (<see cref="SceneMarkContext.Data"/>),
+///         with the Vega-Lite channel set (<see cref="ChannelNames"/>) that tells a selector which names are channels.
+///     </para>
+///     <para>
 ///         <b>Order.</b> Titles, views, axes and legends, then marks, each in drawing order. A kind the filter rejects
 ///         is skipped before its geometry is computed. The class is stateless and thread-safe.
 ///     </para>
@@ -40,6 +46,20 @@ internal static class ScenePositions
     ///     The guide kinds in report order; marks come after them.
     /// </summary>
     private static readonly string[] GuideOrder = ["title", "view", "axis", "legend"];
+
+    /// <summary>
+    ///     The encoding channels of Vega-Lite 6.5, which every mark position names as its
+    ///     <see cref="ImagePosition.ChannelNames"/>: a selector predicate with one of these names compares with the
+    ///     values of a mark, any other name with its data fields. One shared set, so positions do not copy it.
+    /// </summary>
+    internal static readonly FrozenSet<string> ChannelNames = new[]
+    {
+        "x", "y", "x2", "y2", "xOffset", "yOffset", "xError", "xError2", "yError", "yError2",
+        "longitude", "latitude", "longitude2", "latitude2", "theta", "theta2", "radius", "radius2",
+        "color", "fill", "stroke", "opacity", "fillOpacity", "strokeOpacity", "strokeWidth", "strokeDash",
+        "size", "angle", "shape", "text", "tooltip", "href", "url", "description", "key", "detail", "order", "time",
+        "row", "column", "facet",
+    }.ToFrozenSet(StringComparer.Ordinal);
 
     /// <summary>
     ///     Reports the positions of a scene to the handler of the options, when there is one.
@@ -317,6 +337,8 @@ internal static class ScenePositions
             ViewName = context.ViewName,
             Mark = mark,
             Values = [.. context.Values(row), .. context.FacetValues],
+            Data = context.Data(row),
+            ChannelNames = ChannelNames,
             Box = box,
             Pixel = pixel ?? box.Center
         };

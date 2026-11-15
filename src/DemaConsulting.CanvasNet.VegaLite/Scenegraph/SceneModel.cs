@@ -167,8 +167,8 @@ internal sealed record ScenePositionTag(string Kind, string Id)
 }
 
 /// <summary>
-///     What a marks group knows about its mark items for <see cref="ScenePositions"/>: the view they belong to and the
-///     normalized values of a row. Created only when the render records positions.
+///     What a marks group knows about its mark items for <see cref="ScenePositions"/>: the view they belong to, the
+///     normalized values of a row and the data fields of a row. Created only when the render records positions.
 /// </summary>
 /// <param name="Values">Gives the values of the encoding channels for a row, sorted by channel name.</param>
 internal sealed record SceneMarkContext(Func<int, IReadOnlyList<KeyValuePair<string, PositionValue>>> Values)
@@ -181,6 +181,12 @@ internal sealed record SceneMarkContext(Func<int, IReadOnlyList<KeyValuePair<str
 
     /// <summary>Gets the values of the facet channels of the cell the marks are in (<c>row</c>, <c>column</c>, <c>facet</c>); empty outside a facet.</summary>
     public IReadOnlyList<KeyValuePair<string, PositionValue>> FacetValues { get; init; } = [];
+
+    /// <summary>
+    ///     Gets the function that gives the data fields of a row (at most <see cref="ImagePosition.MaxDataFields"/>,
+    ///     sorted by name); by default a row has none.
+    /// </summary>
+    public Func<int, IReadOnlyList<KeyValuePair<string, PositionValue>>> Data { get; init; } = _ => [];
 }
 
 /// <summary>

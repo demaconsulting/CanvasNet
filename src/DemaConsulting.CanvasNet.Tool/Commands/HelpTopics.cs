@@ -423,7 +423,8 @@ internal static partial class HelpTopics
             ["positionsMax"] = Format(PositionCollector.MaxPositions),
             ["positionsMaxSelectors"] = Format(PositionSelection.MaxSelectors),
             ["positionsMaxSelectorLength"] = Format(PositionSelector.MaxSelectorLength),
-            ["positionsMaxPredicates"] = Format(PositionSelector.MaxPredicates)
+            ["positionsMaxPredicates"] = Format(PositionSelector.MaxPredicates),
+            ["positionsMaxDataFields"] = Format(ImagePosition.MaxDataFields)
         };
     }
 

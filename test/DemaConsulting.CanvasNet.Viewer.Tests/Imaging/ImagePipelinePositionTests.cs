@@ -1,3 +1,4 @@
+using System.Collections.Frozen;
 using DemaConsulting.CanvasNet.Positions;
 using DemaConsulting.CanvasNet.Viewer.Imaging;
 
@@ -9,6 +10,11 @@ namespace DemaConsulting.CanvasNet.Viewer.Tests.Imaging;
 /// </summary>
 public class ImagePipelinePositionTests
 {
+    /// <summary>
+    ///     The channel names of the mapped position.
+    /// </summary>
+    private static readonly FrozenSet<string> Channels = new[] { "x" }.ToFrozenSet(StringComparer.Ordinal);
+
     /// <summary>
     ///     Creates the report of one applied step.
     /// </summary>
@@ -27,12 +33,18 @@ public class ImagePipelinePositionTests
     /// <returns>The mapped position.</returns>
     private static ImagePosition Map(int width, int height, params AppliedOperation[] steps)
     {
-        var position = new ImagePosition("node", "a") { Box = new PositionBox(100, 50, 40, 20), Pixel = new PositionPoint(120, 60) };
+        var position = new ImagePosition("node", "a")
+        {
+            Box = new PositionBox(100, 50, 40, 20),
+            Pixel = new PositionPoint(120, 60),
+            Data = [new("region", PositionValue.FromString("Americas"))],
+            ChannelNames = Channels
+        };
         return Assert.Single(ImagePipeline.MapPositions([position], width, height, steps));
     }
 
     /// <summary>
-    ///     Validates the steps that translate, scale or mirror the box and the pixel.
+    ///     Validates the steps that translate, scale or mirror the box and the pixel, keeping the data and channel names.
     /// </summary>
     [Fact]
     public void ImagePipeline_MapPositions_CropTrimResizeFitPadFlip_FollowTheirReports()
@@ -47,6 +59,9 @@ public class ImagePipelinePositionTests
 
         // Assert
         Assert.Equal((new PositionBox(80, 40, 40, 20), new PositionPoint(100, 50)), (crop.Box!.Value, crop.Pixel!.Value));
+        Assert.True(crop.TryGetData("region", out var region));
+        Assert.Equal(PositionValue.FromString("Americas"), region);
+        Assert.Same(Channels, crop.ChannelNames);
         Assert.Equal(new PositionBox(93, 47, 40, 20), trim.Box);
         Assert.Equal((new PositionBox(50, 100, 20, 40), new PositionPoint(60, 120)), (resize.Box!.Value, resize.Pixel!.Value));
         Assert.Equal(new PositionBox(25, 12.5, 10, 5), fit.Box);

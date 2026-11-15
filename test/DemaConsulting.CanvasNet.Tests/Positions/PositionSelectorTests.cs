@@ -1,3 +1,4 @@
+using System.Collections.Frozen;
 using DemaConsulting.CanvasNet.Positions;
 
 namespace DemaConsulting.CanvasNet.Tests.Positions;
@@ -107,6 +108,61 @@ public class PositionSelectorTests
 
         // Assert
         Assert.True(selector.Matches(position));
+    }
+
+    /// <summary>
+    ///     Test that a predicate name that is a channel (in the channel names or in the values) compares with the
+    ///     values, and any other name with the data fields.
+    /// </summary>
+    /// <param name="text">The selector.</param>
+    /// <param name="chart">Whether it matches the chart mark (with channel names).</param>
+    /// <param name="slice">Whether it matches the slice (without channel names).</param>
+    [Theory]
+    [InlineData("mark:month=2025-11-01+region=Americas", true, false)]
+    [InlineData("mark:month=2025-11-01+color=Americas", true, false)]
+    [InlineData("mark:x=2025-11-01+color=Americas", false, false)]
+    [InlineData("mark:x=\"2012-11-01T00:00:00.000Z\"", true, false)]
+    [InlineData("mark:revenue=6.8", true, false)]
+    [InlineData("mark:revenue=\"6.8\"", false, false)]
+    [InlineData("mark:time=t1", false, false)]
+    [InlineData("mark:shape=circle", false, false)]
+    [InlineData("mark:value=3", false, true)]
+    [InlineData("mark:label=A", false, true)]
+    [InlineData("mark:value=3+label=A", false, true)]
+    [InlineData("mark:missing=null", false, false)]
+    public void PositionSelector_Matches_ChannelOrDataField_FollowsTheChannelNames(string text, bool chart, bool slice)
+    {
+        // Arrange: a time-unit chart point whose data has a field named like a channel, and a slice without channel names
+        var point = new ImagePosition("mark", "line-1")
+        {
+            Values =
+            [
+                new("color", PositionValue.FromString("Americas")),
+                new("x", PositionValue.FromString("2012-11-01T00:00:00.000Z")),
+                new("y", PositionValue.FromNumber(6.8))
+            ],
+            Data =
+            [
+                new("month", PositionValue.FromString("2025-11-01")),
+                new("region", PositionValue.FromString("Americas")),
+                new("revenue", PositionValue.FromNumber(6.8)),
+                new("time", PositionValue.FromString("t1")),
+                new("shape", PositionValue.FromString("circle"))
+            ],
+            ChannelNames = new[] { "x", "y", "color", "time", "shape" }.ToFrozenSet(StringComparer.Ordinal)
+        };
+        var piece = new ImagePosition("mark", "slice-0")
+        {
+            Values = [new("value", PositionValue.FromNumber(3))],
+            Data = [new("label", PositionValue.FromString("A")), new("value", PositionValue.FromNumber(4))]
+        };
+
+        // Act
+        var selector = PositionSelector.Parse(text);
+
+        // Assert
+        Assert.Equal(chart, selector.Matches(point));
+        Assert.Equal(slice, selector.Matches(piece));
     }
 
     /// <summary>

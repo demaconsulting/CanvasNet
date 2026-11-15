@@ -155,6 +155,95 @@ public class VegaLiteDocumentPositionTests
     }
 
     /// <summary>
+    ///     Validates the user's month time-unit line chart: <c>x</c> is the start of the month in Vega-Lite's 2012 base
+    ///     year, <c>data</c> keeps the source row (the date as the data wrote it, no time-unit helper fields), and a
+    ///     selector on data fields picks the November Americas point while one on the channels with the source date
+    ///     matches nothing.
+    /// </summary>
+    [Fact]
+    public void VegaLiteDocument_Render_MonthTimeUnitLine_DataKeepsTheSourceRow()
+    {
+        // Arrange
+        const string Line =
+            "{\"data\":{\"values\":[" +
+            "{\"month\":\"2025-10-01\",\"region\":\"Americas\",\"revenue\":6.1},{\"month\":\"2025-11-01\",\"region\":\"Americas\",\"revenue\":6.8}," +
+            "{\"month\":\"2025-10-01\",\"region\":\"Europe\",\"revenue\":4.2},{\"month\":\"2025-11-01\",\"region\":\"Europe\",\"revenue\":4.9}]}," +
+            "\"mark\":{\"type\":\"line\",\"point\":true},\"encoding\":{" +
+            "\"x\":{\"field\":\"month\",\"timeUnit\":\"month\",\"type\":\"temporal\"}," +
+            "\"y\":{\"field\":\"revenue\",\"type\":\"quantitative\"},\"color\":{\"field\":\"region\",\"type\":\"nominal\"}}}";
+
+        // Act
+        var (surface, positions) = Render(Line, kind => kind == "mark");
+        using var _ = surface;
+        var selected = positions.Where(PositionSelector.Parse("mark:month=2025-11-01+region=Americas").Matches).ToList();
+        var byChannel = PositionSelector.Parse("mark:x=2025-11-01+color=Americas");
+
+        // Assert: the line vertex and its point, both with the source row as data
+        Assert.Equal(["line", "point"], selected.Select(p => p.Mark));
+        Assert.Equal(selected[0].Pixel, selected[1].Pixel);
+        foreach (var position in selected)
+        {
+            Assert.Equal(["month", "region", "revenue"], position.Data.Select(pair => pair.Key));
+            Assert.True(position.TryGetData("month", out var month));
+            Assert.Equal(PositionValue.FromString("2025-11-01"), month);
+            Assert.True(position.TryGetData("revenue", out var revenue));
+            Assert.Equal(PositionValue.FromNumber(6.8), revenue);
+            Assert.True(position.TryGetValue("x", out var x));
+            Assert.Equal(PositionValue.FromString("2012-11-01T00:00:00.000Z"), x);
+            Assert.Contains("x", (IReadOnlySet<string>)position.ChannelNames!);
+        }
+
+        Assert.DoesNotContain(positions, byChannel.Matches);
+    }
+
+    /// <summary>
+    ///     Validates the documented content of <c>data</c>: a stacked aggregate has its group fields and measures (no stack
+    ///     fields), a chart with a <c>calculate</c> keeps the computed field and leaves nested objects, arrays and bin
+    ///     fields out, and a wide row gives the first fields by name, up to the cap.
+    /// </summary>
+    [Fact]
+    public void VegaLiteDocument_Render_AggregatedNestedAndWideRows_DataAsDocumented()
+    {
+        // Arrange
+        const string Stacked =
+            "{\"data\":{\"values\":[{\"m\":\"2025-10-01\",\"r\":\"A\",\"v\":1},{\"m\":\"2025-10-15\",\"r\":\"A\",\"v\":2},{\"m\":\"2025-10-01\",\"r\":\"B\",\"v\":4}]}," +
+            "\"mark\":\"bar\",\"encoding\":{\"x\":{\"field\":\"m\",\"timeUnit\":\"month\",\"type\":\"ordinal\"}," +
+            "\"y\":{\"aggregate\":\"sum\",\"field\":\"v\",\"type\":\"quantitative\"},\"color\":{\"field\":\"r\"}}}";
+        const string Nested =
+            "{\"data\":{\"values\":[{\"a\":\"A\",\"b\":3,\"meta\":{\"k\":1},\"tags\":[1,2],\"ok\":true,\"none\":null}]}," +
+            "\"transform\":[{\"calculate\":\"datum.b * 2\",\"as\":\"twice\"}],\"mark\":\"point\"," +
+            "\"encoding\":{\"x\":{\"field\":\"a\",\"type\":\"nominal\"},\"y\":{\"field\":\"b\",\"bin\":true}}}";
+        var wideRow = string.Join(",", Enumerable.Range(0, 40).Select(i => $"\"f{i:D2}\":{i}"));
+        var wide = "{\"data\":{\"values\":[{" + wideRow + "}]},\"mark\":\"point\",\"encoding\":{\"x\":{\"field\":\"f39\",\"type\":\"quantitative\"}}}";
+
+        // Act
+        var (stackedSurface, stacked) = Render(Stacked, kind => kind == "mark");
+        var (nestedSurface, nested) = Render(Nested, kind => kind == "mark");
+        var (wideSurface, wideMarks) = Render(wide, kind => kind == "mark");
+        using var _ = stackedSurface;
+        using var __ = nestedSurface;
+        using var ___ = wideSurface;
+
+        // Assert: the aggregated row, with the time unit's group field by its derived name
+        Assert.Equal(2, stacked.Count);
+        Assert.All(stacked, p => Assert.Equal(["month_m", "r", "sum_v"], p.Data.Select(pair => pair.Key)));
+        Assert.True(stacked.Single(PositionSelector.Parse("mark:r=A").Matches).TryGetData("sum_v", out var sum));
+        Assert.Equal(PositionValue.FromNumber(3), sum);
+
+        // Assert: the row after the transforms, scalars only, without the bin fields
+        Assert.Equal(["a", "b", "none", "ok", "twice"], nested.Single().Data.Select(pair => pair.Key));
+        Assert.True(nested.Single().TryGetData("twice", out var twice));
+        Assert.Equal(PositionValue.FromNumber(6), twice);
+        Assert.True(nested.Single().TryGetData("none", out var none));
+        Assert.Equal(PositionValue.Null, none);
+
+        // Assert: the first fields by name, up to the cap
+        Assert.Equal(
+            Enumerable.Range(0, ImagePosition.MaxDataFields).Select(i => $"f{i:D2}"),
+            wideMarks.Single().Data.Select(pair => pair.Key));
+    }
+
+    /// <summary>
     ///     Validates that an arc's pixel is painted with its slice color, and that legends report their channel.
     /// </summary>
     [Fact]

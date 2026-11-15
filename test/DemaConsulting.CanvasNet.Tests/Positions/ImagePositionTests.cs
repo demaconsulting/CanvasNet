@@ -1,3 +1,4 @@
+using System.Collections.Frozen;
 using DemaConsulting.CanvasNet.Positions;
 
 namespace DemaConsulting.CanvasNet.Tests.Positions;
@@ -104,6 +105,62 @@ public class ImagePositionTests
             Values = [new("x", PositionValue.Null), new("x", PositionValue.FromNumber(1))]
         });
         Assert.Throws<ArgumentException>(() => new ImagePosition("mark", "a") { Values = [new("", PositionValue.Null)] });
+    }
+
+    /// <summary>
+    ///     Test that the data fields are a sorted copy that can be looked up by name, that bad names are refused, and
+    ///     that the channel names are kept as given.
+    /// </summary>
+    [Fact]
+    public void ImagePosition_Data_CallerListChanges_PositionKeepsSortedCopy()
+    {
+        // Arrange
+        var data = new List<KeyValuePair<string, PositionValue>>
+        {
+            new("region", PositionValue.FromString("Americas")),
+            new("month", PositionValue.FromString("2025-11-01"))
+        };
+        var channels = new[] { "x", "color" }.ToFrozenSet(StringComparer.Ordinal);
+
+        // Act
+        var position = new ImagePosition("mark", "line-1") { Data = data, ChannelNames = channels };
+        data.Clear();
+
+        // Assert
+        Assert.Equal(["month", "region"], position.Data.Select(pair => pair.Key));
+        Assert.True(position.TryGetData("month", out var month));
+        Assert.Equal(PositionValue.FromString("2025-11-01"), month);
+        Assert.False(position.TryGetData("Month", out _));
+        Assert.False(position.TryGetValue("month", out _));
+        Assert.Same(channels, position.ChannelNames);
+        Assert.Empty(new ImagePosition("node", "a").Data);
+        Assert.Null(new ImagePosition("node", "a").ChannelNames);
+        Assert.Throws<ArgumentNullException>(() => new ImagePosition("mark", "a") { Data = null! });
+        Assert.Throws<ArgumentException>(() => new ImagePosition("mark", "a")
+        {
+            Data = [new("a", PositionValue.Null), new("a", PositionValue.FromNumber(1))]
+        });
+        Assert.Throws<ArgumentException>(() => new ImagePosition("mark", "a") { Data = [new("", PositionValue.Null)] });
+    }
+
+    /// <summary>
+    ///     Test that a position holds up to <see cref="ImagePosition.MaxDataFields"/> data fields and refuses more.
+    /// </summary>
+    [Fact]
+    public void ImagePosition_Data_MoreThanTheCap_Throws()
+    {
+        // Arrange
+        var fields = Enumerable.Range(0, ImagePosition.MaxDataFields + 1)
+            .Select(i => new KeyValuePair<string, PositionValue>($"f{i:D2}", PositionValue.FromNumber(i)))
+            .ToArray();
+
+        // Act
+        var position = new ImagePosition("mark", "a") { Data = fields[..ImagePosition.MaxDataFields] };
+
+        // Assert
+        Assert.Equal(32, ImagePosition.MaxDataFields);
+        Assert.Equal(ImagePosition.MaxDataFields, position.Data.Count);
+        Assert.Throws<ArgumentException>(() => new ImagePosition("mark", "a") { Data = fields });
     }
 
     /// <summary>

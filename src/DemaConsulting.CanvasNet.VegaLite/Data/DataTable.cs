@@ -51,7 +51,8 @@ internal enum DataValueKind
 ///         value is that number of milliseconds and its text is the ISO 8601 form <c>yyyy-MM-ddTHH:mm:ss.fffZ</c>. A
 ///         date appears in the data when the data names it with <c>format.parse</c> or the data of a delimited file is
 ///         recognized as ISO 8601 dates, or when the caller supplies a <see cref="DateTime"/> or
-///         <see cref="DateTimeOffset"/>. The type is an
+///         <see cref="DateTimeOffset"/>. A date read from text keeps that text (<see cref="SourceText"/>) for reporting
+///         only; equality, hashing, ordering and text ignore it. The type is an
 ///         immutable value type. Equality follows JavaScript's SameValueZero rules (the same kind and the same value;
 ///         <c>NaN</c> equals <c>NaN</c>; zero equals negative zero), so a value can be used as a dictionary key the way
 ///         Vega uses values as keys of an ordinal domain.
@@ -76,7 +77,7 @@ internal readonly struct DataValue : IEquatable<DataValue>
     /// <summary>The numeric payload of a number or a date (or 1/0 of a boolean).</summary>
     private readonly double _number;
 
-    /// <summary>The text of a string, or the immutable payload of an array, object or regular expression.</summary>
+    /// <summary>The text of a string, the source text of a date read from text, or the immutable payload of an array, object or regular expression.</summary>
     private readonly object? _reference;
 
     /// <summary>
@@ -123,7 +124,10 @@ internal readonly struct DataValue : IEquatable<DataValue>
     public bool Boolean => Kind == DataValueKind.Boolean && _number != 0;
 
     /// <summary>Gets the text of a string value; null for other kinds.</summary>
-    public string? Text => _reference as string;
+    public string? Text => Kind == DataValueKind.String ? (string?)_reference : null;
+
+    /// <summary>Gets the text a date value was read from; null for a date that was not read from text and for other kinds.</summary>
+    public string? SourceText => Kind == DataValueKind.Date ? _reference as string : null;
 
     /// <summary>Gets the elements of an array value; empty for other kinds.</summary>
     public ReadOnlySpan<DataValue> Elements => _reference is DataArray array ? array.Items : default;
@@ -316,10 +320,15 @@ internal readonly struct DataValue : IEquatable<DataValue>
     /// <summary>
     ///     Creates a date value.
     /// </summary>
+    /// <remarks>
+    ///     A date read from text may keep that text (<see cref="SourceText"/>) so that a caller can show the value as the
+    ///     data gave it; equality, hashing, ordering, <see cref="ToText"/> and every computation ignore it.
+    /// </remarks>
     /// <param name="milliseconds">The milliseconds since 1970-01-01T00:00:00Z; must be finite and within the range of <see cref="DateTime"/> (years 1 to 9999).</param>
+    /// <param name="sourceText">The text the date was read from, or <see langword="null"/> when it was not read from text.</param>
     /// <returns>The value.</returns>
     /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="milliseconds"/> is not finite or is outside the supported range.</exception>
-    public static DataValue FromDate(double milliseconds)
+    public static DataValue FromDate(double milliseconds, string? sourceText = null)
     {
         if (!double.IsFinite(milliseconds) || milliseconds < MinDateMilliseconds || milliseconds > MaxDateMilliseconds)
         {
@@ -327,7 +336,7 @@ internal readonly struct DataValue : IEquatable<DataValue>
         }
 
         // Negative zero and zero are the same instant; one representation keeps equality and hashing simple
-        return new DataValue(DataValueKind.Date, milliseconds == 0 ? 0 : milliseconds, null);
+        return new DataValue(DataValueKind.Date, milliseconds == 0 ? 0 : milliseconds, sourceText);
     }
 
     /// <summary>

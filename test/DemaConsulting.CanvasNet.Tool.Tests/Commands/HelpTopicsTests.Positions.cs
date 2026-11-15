@@ -101,6 +101,41 @@ public partial class HelpTopicsTests
         Assert.Contains($"At most {Of(PositionSelection.MaxSelectors)} selectors", selectors, StringComparison.Ordinal);
         Assert.Contains($"{Of(PositionSelector.MaxSelectorLength)} characters", selectors, StringComparison.Ordinal);
         Assert.Contains($"{Of(PositionSelector.MaxPredicates)} predicates", selectors, StringComparison.Ordinal);
+        Assert.Contains($"at most {Of(ImagePosition.MaxDataFields)} fields", HelpCardText.Flatten(HelpCardText.TextOf("positions/vega-lite")), StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Test the data-field example of the cards: both cite the selector and the 2012 base year of a month time unit,
+    ///     and on the chart the vega-lite card describes the selector picks the point while the channel selector with the
+    ///     source date matches nothing.
+    /// </summary>
+    [Fact]
+    public void HelpTopics_PositionsVegaLite_DataFieldExample_SelectsThePoint()
+    {
+        // Arrange
+        using var directory = new TempDirectory();
+        var chart = directory.Combine("months.vl.json");
+        File.WriteAllText(
+            chart,
+            "{\"data\":{\"values\":[{\"month\":\"2025-10-01\",\"region\":\"Americas\",\"revenue\":6.1},{\"month\":\"2025-11-01\",\"region\":\"Americas\",\"revenue\":6.8}]}," +
+            "\"mark\":\"line\",\"encoding\":{\"x\":{\"field\":\"month\",\"timeUnit\":\"month\",\"type\":\"temporal\"}," +
+            "\"y\":{\"field\":\"revenue\",\"type\":\"quantitative\"},\"color\":{\"field\":\"region\"}}}");
+        var vegaLite = HelpCardText.Flatten(HelpCardText.TextOf("positions/vega-lite"));
+        var selectors = HelpCardText.Flatten(HelpCardText.TextOf("positions/selectors"));
+        Assert.All([vegaLite, selectors], text => Assert.Contains("mark:month=2025-11-01+region=Americas", text, StringComparison.Ordinal));
+        Assert.All([vegaLite, selectors], text => Assert.Contains("2012", text, StringComparison.Ordinal));
+        Assert.Contains("\"2012-11-01T00:00:00.000Z\"", vegaLite, StringComparison.Ordinal);
+        Assert.Contains("mark:x=2025-11-01", vegaLite, StringComparison.Ordinal);
+
+        // Act
+        using var byData = RenderPositions(directory, chart, "mark:month=2025-11-01+region=Americas");
+        using var byChannel = RenderPositions(directory, chart, "mark:x=2025-11-01");
+
+        // Assert
+        var item = Assert.Single(byData.RootElement.GetProperty("positions").EnumerateArray());
+        Assert.Equal("2012-11-01T00:00:00.000Z", item.GetProperty("values").GetProperty("x").GetString());
+        Assert.Equal("2025-11-01", item.GetProperty("data").GetProperty("month").GetString());
+        Assert.Empty(IdsOf(byChannel));
     }
 
     /// <summary>

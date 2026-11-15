@@ -9,7 +9,7 @@ namespace DemaConsulting.CanvasNet.VegaLite.Marks;
 
 /// <content>
 ///     What <see cref="MarkBuilder"/> records for the positions of its mark items, when <see cref="RecordPositions"/> is set:
-///     the row each item draws, the vertices of the path marks, and the normalized values of a row.
+///     the row each item draws, the vertices of the path marks, and the normalized values and data fields of a row.
 /// </content>
 internal sealed partial class MarkBuilder
 {
@@ -53,6 +53,24 @@ internal sealed partial class MarkBuilder
         }
     }
 
+    /// <summary>
+    ///     Converts a data value to the position value of a data field: as <see cref="TryConvert"/>, except that a date
+    ///     read from text is that text, so that a data field shows (and a selector matches) the value as the data gave it.
+    /// </summary>
+    /// <param name="value">The data value.</param>
+    /// <param name="result">The position value.</param>
+    /// <returns><see langword="false"/> for an array, an object or a regular expression, which are left out.</returns>
+    internal static bool TryConvertData(DataValue value, out PositionValue result)
+    {
+        if (value.SourceText is { } text)
+        {
+            result = PositionValue.FromString(text);
+            return true;
+        }
+
+        return TryConvert(value, out result);
+    }
+
     /// <content>
     ///     The values of the rows of a run.
     /// </content>
@@ -73,7 +91,7 @@ internal sealed partial class MarkBuilder
         ///     named by the channel: the normalized value after the transforms (the start of a bin or time unit, an
         ///     aggregate), for a stacked channel the value of the row before the stack, and the end of a bin or time unit
         ///     as the secondary channel (<c>x2</c>, <c>y2</c>). The first definition of a channel counts; the facet
-        ///     channels are added by the cell.
+        ///     channels are added by the cell. The data of a row are its fields as <see cref="DataFields"/> selects them.
         /// </remarks>
         /// <returns>The context.</returns>
         public SceneMarkContext CreateContext()
@@ -113,6 +131,7 @@ internal sealed partial class MarkBuilder
                 .OrderBy(source => source.Name, StringComparer.Ordinal)
                 .ToArray();
             var table = _table;
+            var data = DataFields();
             return new SceneMarkContext(row =>
             {
                 var values = new List<KeyValuePair<string, PositionValue>>(distinct.Length);
@@ -126,7 +145,100 @@ internal sealed partial class MarkBuilder
                 }
 
                 return values;
-            });
+            })
+            {
+                Data = row =>
+                {
+                    // Scalar fields only, in name order, up to the cap of a position
+                    var fields = new List<KeyValuePair<string, PositionValue>>(Math.Min(data.Length, Positions.ImagePosition.MaxDataFields));
+                    foreach (var (name, field) in data)
+                    {
+                        if (TryConvertData(table.GetValue(row, field), out var converted))
+                        {
+                            fields.Add(new KeyValuePair<string, PositionValue>(name, converted));
+                            if (fields.Count == Positions.ImagePosition.MaxDataFields)
+                            {
+                                break;
+                            }
+                        }
+                    }
+
+                    return fields;
+                }
+            };
+        }
+
+        /// <summary>
+        ///     Selects the fields of the table that a mark reports as its data, sorted by name.
+        /// </summary>
+        /// <remarks>
+        ///     <para>
+        ///         The data of a mark is the row it draws as the specification's data and transforms made it, before the
+        ///         encoding: the top-level fields (a field of a nested object or array is left out, and so is the object
+        ///         itself), without the helper fields the encoding adds for its channels (the start, end and range of a
+        ///         bin, the start and end of a time unit, and the start and end of a stack), which <see cref="TryConvert"/>
+        ///         already reports as the channel values.
+        ///     </para>
+        ///     <para>
+        ///         An aggregated mark draws a row of the aggregate, which has only its group-by fields and its measures
+        ///         (<c>sum_revenue</c>, <c>__count</c>); a group-by field is kept even when it is a helper field (a time
+        ///         unit or bin dimension such as <c>month_month</c>), because the source field no longer exists there.
+        ///     </para>
+        /// </remarks>
+        /// <returns>The name and table position of every candidate field, sorted by name with ordinal comparison.</returns>
+        private (string Name, int Field)[] DataFields()
+        {
+            // The helper fields the encoding derives, by canonical name, except the group-by fields of an aggregate
+            var helpers = new HashSet<string>(StringComparer.Ordinal);
+            if (_plan is { } plan)
+            {
+                foreach (var bin in plan.Bins)
+                {
+                    helpers.Add(FieldPath.Escape(bin.StartName));
+                    helpers.Add(FieldPath.Escape(bin.EndName));
+                    if (bin.RangeName is { } range)
+                    {
+                        helpers.Add(FieldPath.Escape(range));
+                    }
+                }
+
+                foreach (var unit in plan.TimeUnits)
+                {
+                    // A binned unit's start is the source field itself
+                    if (!unit.Spec.IsBinned)
+                    {
+                        helpers.Add(FieldPath.Escape(unit.StartName));
+                    }
+
+                    helpers.Add(unit.EndPath);
+                }
+
+                if (plan.Stack is { } stack)
+                {
+                    helpers.Add(FieldPath.Escape(stack.StartName));
+                    helpers.Add(FieldPath.Escape(stack.EndName));
+                }
+
+                foreach (var group in plan.Aggregate?.GroupBy ?? [])
+                {
+                    if (FieldPath.Canonicalize(group) is { } canonical)
+                    {
+                        helpers.Remove(canonical);
+                    }
+                }
+            }
+
+            // The top-level fields: one path segment, and not the parent of a nested field
+            var fields = _table.Fields;
+            var parsed = fields.Select(FieldPath.Parse).ToArray();
+            var parents = new HashSet<string>(
+                parsed.Where(segments => segments is { Count: > 1 }).Select(segments => segments![0]),
+                StringComparer.Ordinal);
+            return Enumerable.Range(0, fields.Count)
+                .Where(i => parsed[i] is { Count: 1 } && !helpers.Contains(fields[i]) && !parents.Contains(parsed[i]![0]))
+                .Select(i => (Name: parsed[i]![0], Field: i))
+                .OrderBy(field => field.Name, StringComparer.Ordinal)
+                .ToArray();
         }
 
         /// <summary>

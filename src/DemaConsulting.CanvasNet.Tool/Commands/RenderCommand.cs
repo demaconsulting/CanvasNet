@@ -386,7 +386,8 @@ internal sealed partial class RenderCommand : ICommand
     /// <remarks>
     ///     Each position has <c>kind</c> and <c>id</c>, then the facts it has: <c>text</c>, <c>line</c>, <c>view</c> (always
     ///     for a chart), <c>name</c> (the view's name), <c>mark</c>, <c>from</c>, <c>to</c>, <c>index</c>, <c>values</c> (an
-    ///     object of channel values, numbers not rounded); then <c>box</c> (<c>x</c>, <c>y</c>, <c>width</c>, <c>height</c>)
+    ///     object of channel values, numbers not rounded), <c>data</c> (an object of the data fields of the source row, numbers
+    ///     not rounded); then <c>box</c> (<c>x</c>, <c>y</c>, <c>width</c>, <c>height</c>)
     ///     and <c>pixel</c> (<c>[x, y]</c>) rounded to three decimals, or <see langword="null"/> when a pipeline step lost
     ///     them, and <c>inside</c>: whether the pixel lies within the written image (not whether the feature is visible).
     /// </remarks>
@@ -416,17 +417,8 @@ internal sealed partial class RenderCommand : ICommand
                     writer.WriteNumber("index", index);
                 }
 
-                if (position.Values.Count > 0)
-                {
-                    writer.WriteStartObject("values");
-                    foreach (var (name, value) in position.Values)
-                    {
-                        WriteValue(writer, name, value);
-                    }
-
-                    writer.WriteEndObject();
-                }
-
+                WriteValues(writer, "values", position.Values);
+                WriteValues(writer, "data", position.Data);
                 WriteGeometry(writer, position, output.Result.Width, output.Result.Height);
                 writer.WriteEndObject();
             }
@@ -489,10 +481,32 @@ internal sealed partial class RenderCommand : ICommand
     }
 
     /// <summary>
-    ///     Writes one channel value of a position with its JSON type.
+    ///     Writes the <c>values</c> or <c>data</c> object of a position, when it has members.
     /// </summary>
-    /// <param name="writer">The writer positioned inside the <c>values</c> object.</param>
-    /// <param name="name">The channel name.</param>
+    /// <param name="writer">The writer positioned inside the position object.</param>
+    /// <param name="member">The member name.</param>
+    /// <param name="values">The values, sorted by name; nothing is written when there are none.</param>
+    private static void WriteValues(Utf8JsonWriter writer, string member, IReadOnlyList<KeyValuePair<string, PositionValue>> values)
+    {
+        if (values.Count == 0)
+        {
+            return;
+        }
+
+        writer.WriteStartObject(member);
+        foreach (var (name, value) in values)
+        {
+            WriteValue(writer, name, value);
+        }
+
+        writer.WriteEndObject();
+    }
+
+    /// <summary>
+    ///     Writes one channel value or data field of a position with its JSON type.
+    /// </summary>
+    /// <param name="writer">The writer positioned inside the <c>values</c> or <c>data</c> object.</param>
+    /// <param name="name">The channel or field name.</param>
     /// <param name="value">The value.</param>
     private static void WriteValue(Utf8JsonWriter writer, string name, PositionValue value)
     {

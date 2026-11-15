@@ -159,6 +159,49 @@ public class ScenePositionsTests
         Assert.Equal(PositionValue.FromString("A"), text);
         Assert.True(MarkBuilder.TryConvert(DataValue.Null, out var none));
         Assert.Equal(PositionValue.Null, none);
+
+        // A date read from text is that text as a data field, but its canonical instant as a channel value
+        var sourced = DataValue.FromDate(Date(2025, 11, 1), "2025-11-01");
+        Assert.True(MarkBuilder.TryConvertData(sourced, out var sourcedData));
+        Assert.Equal(PositionValue.FromString("2025-11-01"), sourcedData);
+        Assert.True(MarkBuilder.TryConvert(sourced, out var sourcedValue));
+        Assert.Equal(PositionValue.FromString("2025-11-01T00:00:00.000Z"), sourcedValue);
+        Assert.True(MarkBuilder.TryConvertData(DataValue.FromDate(Date(2025, 11, 1)), out var plainData));
+        Assert.Equal(PositionValue.FromString("2025-11-01T00:00:00.000Z"), plainData);
+        Assert.True(MarkBuilder.TryConvertData(DataValue.FromNumber(6.8), out var number));
+        Assert.Equal(PositionValue.FromNumber(6.8), number);
+        Assert.False(MarkBuilder.TryConvertData(DataValue.FromArray([DataValue.FromNumber(1)]), out _));
+    }
+
+    /// <summary>
+    ///     Validates that a mark reports the data fields its context gives for its row, and the Vega-Lite channel names.
+    /// </summary>
+    [Fact]
+    public void ScenePositions_Collect_MarkContextData_ReportsDataAndChannelNames()
+    {
+        // Arrange
+        var context = Context with { Data = row => [new("region", PositionValue.FromString(row == 0 ? "Americas" : "Europe"))] };
+        var marks = new SceneGroup("marks", 0, 0)
+        {
+            Children = [new SceneRect("mark-bar", 0, 0, 5, 5) { Datum = 0 }, new SceneRect("mark-bar", 10, 0, 5, 5) { Datum = 1 }],
+            Marks = context
+        };
+        var scene = new Scene(200, 100, null, new SceneGroup("root", 0, 0) { Children = [marks] });
+
+        // Act
+        var positions = ScenePositions.Collect(scene, new ScenePlacement(1, 0, 0), Measurer, null);
+
+        // Assert
+        Assert.Equal(2, positions.Count);
+        Assert.True(positions[1].TryGetData("region", out var region));
+        Assert.Equal(PositionValue.FromString("Europe"), region);
+        Assert.False(positions[1].TryGetValue("region", out _));
+        Assert.Same(ScenePositions.ChannelNames, positions[0].ChannelNames);
+        IReadOnlySet<string> channels = ScenePositions.ChannelNames;
+        Assert.Contains("x", channels);
+        Assert.Contains("color", channels);
+        Assert.DoesNotContain("region", channels);
+        Assert.Empty(new SceneMarkContext(_ => []).Data(0));
     }
 
     /// <summary>
