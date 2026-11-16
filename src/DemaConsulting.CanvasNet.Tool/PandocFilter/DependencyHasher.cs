@@ -340,12 +340,12 @@ internal sealed partial class DependencyHasher
     /// <param name="path">The file (absolute and collapsed).</param>
     /// <returns>The bytes, or <see langword="null"/> when the file cannot be read or the policy denies it.</returns>
     /// <remarks>
-    ///     In the default mode, and for the source itself (the tool never judges the file it is given), the file is read
-    ///     as it is. In a restrictive mode a referenced file is read as the tool reads it: through a
-    ///     <see cref="FileReferenceResolver"/> with the tool's policy and the source's folder as the trusted origin, which
-    ///     refuses a path outside the roots before the open and asks the policy about the real path of the open handle
-    ///     before any byte is read. A file the policy denies, or that cannot be judged (fail closed), is therefore never
-    ///     read: the walk treats it as a file that is not there, and the tool denies it when it draws.
+    ///     The source itself is read as it is (the tool never judges the file it is given). Every file it references is
+    ///     read as the tool reads it: through a <see cref="FileReferenceResolver"/> with the tool's policy (in the default
+    ///     mode <see cref="FileAccessPolicy.AllowAll"/>) and the source's folder as the trusted origin. In a restrictive mode
+    ///     the resolver refuses a path outside the roots before the open and asks the policy about the real path of the
+    ///     open handle before any byte is read. A file the policy denies, or that cannot be judged (fail closed), is
+    ///     therefore never read: the walk treats it as a file that is not there, and the tool denies it when it draws.
     /// </remarks>
     private byte[]? ReadFile(string path)
     {
@@ -353,13 +353,13 @@ internal sealed partial class DependencyHasher
     }
 
     /// <summary>
-    ///     Determines whether a file is read without the policy: in the default mode, or the source itself.
+    ///     Determines whether a file is read without the resolver: the source itself.
     /// </summary>
     /// <param name="path">The file (absolute and collapsed).</param>
     /// <returns><see langword="true"/> when the file is read as it is.</returns>
     private bool ReadsAsIs(string path)
     {
-        return _policy == null || string.Equals(path, _source, StringComparison.Ordinal);
+        return string.Equals(path, _source, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -385,7 +385,7 @@ internal sealed partial class DependencyHasher
         _resolver ??= new FileReferenceResolver(new FileReferenceOptions
         {
             BaseDirectory = FilterPaths.Directory(_source),
-            FileAccess = _policy!,
+            FileAccess = _policy ?? FileAccessPolicy.AllowAll,
             MaxFileBytes = Array.MaxLength
         });
 
