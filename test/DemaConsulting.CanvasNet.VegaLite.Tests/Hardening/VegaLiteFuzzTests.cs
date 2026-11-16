@@ -54,7 +54,7 @@ public class VegaLiteFuzzTests
         Assert.NotEqual(first, other);
         Assert.NotNull(JsonNode.Parse(first));
         Assert.Equal(rng.NextULong(), rngAgain.NextULong());
-        Assert.Equal(0xE220A8397B1DCDAFUL, new FuzzRandom(0).NextULong()); // cspell:disable-line
+        Assert.Equal(0xE220A8397B1DCDAFUL, new FuzzRandom(0).NextULong());
     }
 
     /// <summary>
