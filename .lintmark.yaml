@@ -28,3 +28,7 @@ ignore:
   - '**/AGENT_REPORT_*.md'
   # ApiMark generated API reference (regenerated on every build)
   - 'src/**/api/**'
+  # Build output (the test projects copy their fixture READMEs there) and test results
+  - '**/bin/**'
+  - '**/obj/**'
+  - '**/TestResults/**'
