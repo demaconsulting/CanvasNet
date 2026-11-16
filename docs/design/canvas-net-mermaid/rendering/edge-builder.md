@@ -13,15 +13,15 @@ flowchart, class diagram, state diagram, and entity relationship diagram markers
 
 #### Purpose
 
-`EdgeBuilder` is Mermaid's edges: `rendering-elements/edges.js` (`insertEdge`, `insertEdgeLabel`,
-`positionEdgeLabel`), `edgeMarker.ts`, the flowchart, class, state, and entity relationship markers of `markers.js`,
-`utils/lineWithOffset.ts`, and
-the edge helpers of `utils.ts` (including `calcTerminalLabelPosition`), with the line generator and the edge curves of
-d3-shape. It turns the route that dagre gives an edge into the drawn path - ended on the node outlines, cut at subgraph
-borders, corners fixed, ends pulled back for the arrowheads, drawn with the edge's curve - strokes it by the link
-stroke and the edge's styles, puts the markers on its ends, measures, places, and draws its label, and places and draws
-its terminal labels (a class relation's cardinalities). The unit's behavior is specified by the
-`CanvasNetMermaid-Rendering-EdgeBuilder-*` requirements in `docs/reqstream/canvas-net-mermaid/rendering/edge-builder.yaml`.
+`EdgeBuilder` is Mermaid's edges: `rendering-elements/edges.js` (`insertEdge`, `insertEdgeLabel`, `positionEdgeLabel`),
+`edgeMarker.ts`, the flowchart, class, state, and entity relationship markers of `markers.js`,
+`utils/lineWithOffset.ts`, and the edge helpers of `utils.ts` (including `calcTerminalLabelPosition`), with the line
+generator and the edge curves of d3-shape. It turns the route that dagre gives an edge into the drawn path - ended on
+the node outlines, cut at subgraph borders, corners fixed, ends pulled back for the arrowheads, drawn with the edge's
+curve - strokes it by the link stroke and the edge's styles, puts the markers on its ends, measures, places, and draws
+its label, and places and draws its terminal labels (a class relation's cardinalities). The unit's behavior is specified
+by the `CanvasNetMermaid-Rendering-EdgeBuilder-*` requirements in
+`docs/reqstream/canvas-net-mermaid/rendering/edge-builder.yaml`.
 
 #### Data Model
 

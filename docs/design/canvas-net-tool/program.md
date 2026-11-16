@@ -6,13 +6,12 @@
 
 ### Purpose
 
-`Program` is the entry point and execution orchestrator for the CanvasNet tool. Its single responsibility is
-to create a `Context` from the command-line arguments, dispatch to the appropriate action based on the parsed
-flags and the command name, apply the tool's error policy, and return the exit code. The supporting types
-`ToolException` and `ErrorCodes` (file `ToolException.cs` for the tool's exception, and `ViewerException.cs` of the Viewer
-library for the stable error codes), which carry the error policy's stable error codes,
-are documented here rather than as units of their own (the library's `ViewerException` and `ErrorCodes` are also the
-`ViewerException` unit of the `CanvasNetViewer` system).
+`Program` is the entry point and execution orchestrator for the CanvasNet tool. Its single responsibility is to create a
+`Context` from the command-line arguments, dispatch to the appropriate action based on the parsed flags and the command
+name, apply the tool's error policy, and return the exit code. The supporting types `ToolException` and `ErrorCodes`
+(file `ToolException.cs` for the tool's exception, and `ViewerException.cs` of the Viewer library for the stable error
+codes), which carry the error policy's stable error codes, are documented here rather than as units of their own (the
+library's `ViewerException` and `ErrorCodes` are also the `ViewerException` unit of the `CanvasNetViewer` system).
 
 ### Data Model
 
@@ -20,16 +19,15 @@ are documented here rather than as units of their own (the library's `ViewerExce
 on every access, falling back to `AssemblyVersion`, then `"0.0.0"`. No caching is applied.
 
 **ToolException** (`internal sealed`, derives from the Viewer library's `ViewerException`, which derives from
-`InvalidOperationException`): the expected, user-correctable
-failure of the tool. It inherits `Code` (`string`, one of the `ErrorCodes` constants) and `Hint` (`string?`, a suggestion
-for correcting the failure) and adds `Command` (`string?`, mutable; the name of the command that was running, filled in
-by the
-command registry when it is empty), and `ResultFields` (`Action<Utf8JsonWriter>?`, init-only; optional top-level JSON
-properties that `ResultWriter` appends after the `error` object of the JSON failure document, for a failure that
-still produced a result, such as a comparison that missed a threshold). A failure of a library call is a plain
-`ViewerException`: `CommandRegistry.Run` wraps it in a `ToolException` with the same code, message, hint, and inner
-exception and sets `Command`, so the report and the JSON failure document are the same. `ViewerException` derives from
-`InvalidOperationException` so that it follows the template's expected-failure path with no extra handling.
+`InvalidOperationException`): the expected, user-correctable failure of the tool. It inherits `Code` (`string`, one of
+the `ErrorCodes` constants) and `Hint` (`string?`, a suggestion for correcting the failure) and adds `Command`
+(`string?`, mutable; the name of the command that was running, filled in by the command registry when it is empty), and
+`ResultFields` (`Action<Utf8JsonWriter>?`, init-only; optional top-level JSON properties that `ResultWriter` appends
+after the `error` object of the JSON failure document, for a failure that still produced a result, such as a comparison
+that missed a threshold). A failure of a library call is a plain `ViewerException`: `CommandRegistry.Run` wraps it in a
+`ToolException` with the same code, message, hint, and inner exception and sets `Command`, so the report and the JSON
+failure document are the same. `ViewerException` derives from `InvalidOperationException` so that it follows the
+template's expected-failure path with no extra handling.
 
 **ErrorCodes** (`public static`, in the Viewer library, file `ViewerException.cs`): the stable error code constants:
 `usage-error`, `operation-failed`,

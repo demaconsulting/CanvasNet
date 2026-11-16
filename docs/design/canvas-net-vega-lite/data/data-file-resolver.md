@@ -4,14 +4,14 @@
 
 The `DataFileResolver` unit is the third software unit in the `Data` subsystem. It is one source file in the
 `DemaConsulting.CanvasNet.VegaLite.Data` namespace, `DataFileResolver.cs`, holding the `internal` `DataFileResolver`
-class and the `DataFile` record. It is a thin layer over the core `FileReferenceResolver` (see _FileReferenceResolver
-Unit Design_, `canvas-net/files/file-reference-resolver.md`).
+class and the `DataFile` record. It is a thin layer over the core `FileReferenceResolver` (see *FileReferenceResolver
+Unit Design*, `canvas-net/files/file-reference-resolver.md`).
 
 #### Purpose
 
 `DataFileResolver` finds and reads the local data files that a chart names with a local `data.url` (relative, absolute,
-a drive path, or the local path of a `file:` URI without a host), and is the only code of the system that touches the file
-system or calls the caller's file callback - always through the core `FileReferenceResolver`, under the file-access
+a drive path, or the local path of a `file:` URI without a host), and is the only code of the system that touches the
+file system or calls the caller's file callback - always through the core `FileReferenceResolver`, under the file-access
 policy of `VegaLiteOpenOptions.FileAccess` (`FileAccessPolicy.AllowAll` by default, like Pandoc). It never reaches the
 network: `DataLoader` classifies a remote URL before it asks for anything, and the core engine itself rejects network,
 device and alternate-data-stream paths under every policy.
@@ -59,10 +59,10 @@ UTF-8.
   inner exception, by its kind (all eleven kinds): "is not allowed" (the empty, control-character, invalid and network
   path kinds, with the reason; on Linux and macOS a drive path is an invalid path), "was denied by the file-access
   policy '<name>': <reason>" (`AccessDenied`), "cannot be checked: its real path cannot be determined on this system, so
-  the file-access policy '<name>' cannot be applied" (`RealPathUnavailable`), "is not a regular file", "is larger than the
-  limit of ... bytes (MaxDataBytes)", "reads more than the limit of ... data files (MaxDataFiles)", "is not a valid path"
-  (a configured directory), and "cannot be read" for everything else. The messages name the `url` as the specification
-  wrote it, never a host directory, and the callback's own message is not copied.
+  the file-access policy '<name>' cannot be applied" (`RealPathUnavailable`), "is not a regular file", "is larger than
+  the limit of ... bytes (MaxDataBytes)", "reads more than the limit of ... data files (MaxDataFiles)", "is not a valid
+  path" (a configured directory), and "cannot be read" for everything else. The messages name the `url` as the
+  specification wrote it, never a host directory, and the callback's own message is not copied.
 - `Decode` - removes a UTF-8 byte-order mark and decodes strictly (invalid bytes, UTF-16 text, and encoded surrogates
   are errors, never U+FFFD).
 - `Printable` - replaces control characters so the path in the "no file source" message can be shown.

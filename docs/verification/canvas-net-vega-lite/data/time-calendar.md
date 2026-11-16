@@ -53,8 +53,8 @@ and repeated here:
   the year, day 20,028, 20,028 mod 7 = 1, a Friday, so the first Sunday is November 3, and 02:00 at -4 h is
   **2024-11-03T06:00Z**. The offset at 06:59:59.999Z on March 10 is -5 h and at 07:00Z it is -4 h, the local clock
   jumping from 01:59:59.999 to 03:00; at 05:59:59.999Z on November 3 it is -4 h and at 06:00Z it is -5 h.
-- **Gap and overlap (plan decision P8-D3, the ECMAScript rule).** The wall time 02:30 on 2024-03-10 does not exist; it is
-  read with the offset from before the change (-5 h) and is **07:30Z** (1,710,028,800,000 + 27,000,000 =
+- **Gap and overlap (plan decision P8-D3, the ECMAScript rule).** The wall time 02:30 on 2024-03-10 does not exist; it
+  is read with the offset from before the change (-5 h) and is **07:30Z** (1,710,028,800,000 + 27,000,000 =
   1,710,055,800,000), which shows as 03:30. The wall time 01:30 on 2024-11-03 occurs twice (at -4 h and at -5 h); the
   earlier instant, at -4 h, is **05:30Z**. Away from the ambiguity the wall time minus the offset in force gives the
   instant: 00:59 on November 3 is 04:59Z, 02:00 is 07:00Z, 01:59 on March 10 is 06:59Z, 03:00 is 07:00Z, 12:00 on June
@@ -67,20 +67,20 @@ and repeated here:
   Sunday of April at 03:00 daylight time, a rule that spans the new year): October 1, 2024 is day 19,997 (a Tuesday), so
   the first Sunday is October 6 and 02:00 at +10 h is **2024-10-05T16:00Z**; April 1 is day 19,814 (a Monday), so the
   first Sunday is April 7 and 03:00 at +11 h is **2024-04-06T16:00Z**. The offset is +11 h in January and December and
-  +10 h in July. The wall time 02:30 on October 6 is skipped and is read at +10 h (**2024-10-05T16:30Z**); 02:30 on April
-  7 repeats and the earlier instant, at +11 h, is **2024-04-06T15:30Z**.
+  +10 h in July. The wall time 02:30 on October 6 is skipped and is read at +10 h (**2024-10-05T16:30Z**); 02:30 on
+  April 7 repeats and the earlier instant, at +11 h, is **2024-04-06T15:30Z**.
 - **Fixed offsets.** 2024-06-01T00:00Z shows as 05:30 at +05:30, as 21:00 (on May 31) at -03:00, and as 20:30 at -03:30,
   and the parts build the same instant back.
 - **Intervals** (the d3-time definitions): the day of Wednesday 2024-03-06 floors to its midnight and the week (starting
   on Sunday) floors to Sunday March 3; March 2 at 23:59:59.999 floors to Sunday February 25; the next Sunday after
-  Wednesday is March 10; the Sundays between March 3 and March 17 at 05:00 are 2 (March 10 and 17) and January 4, 1970 is
-  the first Sunday after the epoch (count 1); the month offset keeps the date and rolls over (January 31 plus one month
-  is March 2 in 2024), rolls the year (December 15 plus one is January 15), and counts month boundaries (from
-  2023-11-20 to 2024-03-02 there are 4: December 1, January 1, February 1, and March 1); round picks the nearer
-  boundary (March 10 to March 1, March 25 to April 1); the hour of 10:20Z at +05:30 (local 15:50) floors to local 15:00,
-  which is 09:30Z, and ceils to 10:30Z; the year floors 2024-05-05 to 2024-01-01 and its `every(10)` floors to 2020 and
-  ceils to 2030; the millisecond `every(100)` floors the anchor 1,709,210,096,789 to ...700, ceils it to ...800, offsets
-  ...700 by two steps to ...900, counts 10 steps from 0 to 1,000, and floors -1 to -100.
+  Wednesday is March 10; the Sundays between March 3 and March 17 at 05:00 are 2 (March 10 and 17) and January 4, 1970
+  is the first Sunday after the epoch (count 1); the month offset keeps the date and rolls over (January 31 plus one
+  month is March 2 in 2024), rolls the year (December 15 plus one is January 15), and counts month boundaries (from
+  2023-11-20 to 2024-03-02 there are 4: December 1, January 1, February 1, and March 1); round picks the nearer boundary
+  (March 10 to March 1, March 25 to April 1); the hour of 10:20Z at +05:30 (local 15:50) floors to local 15:00, which is
+  09:30Z, and ceils to 10:30Z; the year floors 2024-05-05 to 2024-01-01 and its `every(10)` floors to 2020 and ceils to
+  2030; the millisecond `every(100)` floors the anchor 1,709,210,096,789 to ...700, ceils it to ...800, offsets ...700
+  by two steps to ...900, counts 10 steps from 0 to 1,000, and floors -1 to -100.
 - **Filtered intervals** (d3 `every(k)` keeps the boundaries whose field is a multiple of k): `hour.every(3)` keeps the
   hours 0, 3, 6, ...; `minute.every(15)` and `second.every(15)` keep the quarters; `day.every(2)` keeps the dates 1,
   3, 5,
@@ -142,35 +142,35 @@ and repeated here:
   year-isoweek `%G W%V`, year-week `%Y W%U`, year-dayofyear `%Y %j`, quarter-month `Q%q %b`, day-hours `%a %H:00`, and
   milliseconds `.%L`; an override replaces a default and a combined key wins over its parts.
 
-| Unit                        | Specifier          |
-|-----------------------------|--------------------|
-| `month`                     | `%b`               |
-| `date`                      | `%d`               |
-| `year`                      | `%Y`               |
-| `quarter`                   | `Q%q`              |
-| `day`                       | `%a`               |
-| `week`                      | `W%U`              |
-| `dayofyear`                 | `%j`               |
-| `hours`                     | `%H:00`            |
-| `minutes`                   | `00:%M`            |
-| `seconds`                   | `:%S`              |
-| `milliseconds`              | `.%L`              |
-| `yearmonth`                 | `%b %Y`            |
-| `yearmonthdate`             | `%b %d, %Y`        |
-| `monthdate`                 | `%b %d`            |
-| `yearquarter`               | `%Y Q%q`           |
-| `yearquartermonth`          | `%Y Q%q %b`        |
-| `quartermonth`              | `Q%q %b`           |
-| `yearweek`                  | `%Y W%U`           |
-| `yeardayofyear`             | `%Y %j`            |
-| `weekday`                   | `W%U %a`           |
-| `dayhours`                  | `%a %H:00`         |
-| `hoursminutes`              | `%H:%M`            |
-| `hoursminutesseconds`       | `%H:%M:%S`         |
-| `yearmonthdatehours`        | `%b %d, %Y %H:00`  |
-| `yearmonthdatehoursminutes` | `%b %d, %Y %H:%M`  |
-| `minutesseconds`            | `00:%M:%S`         |
-| `secondsmilliseconds`       | `:%S.%L`           |
+| Unit | Specifier |
+| --- | --- |
+| `month` | `%b` |
+| `date` | `%d` |
+| `year` | `%Y` |
+| `quarter` | `Q%q` |
+| `day` | `%a` |
+| `week` | `W%U` |
+| `dayofyear` | `%j` |
+| `hours` | `%H:00` |
+| `minutes` | `00:%M` |
+| `seconds` | `:%S` |
+| `milliseconds` | `.%L` |
+| `yearmonth` | `%b %Y` |
+| `yearmonthdate` | `%b %d, %Y` |
+| `monthdate` | `%b %d` |
+| `yearquarter` | `%Y Q%q` |
+| `yearquartermonth` | `%Y Q%q %b` |
+| `quartermonth` | `Q%q %b` |
+| `yearweek` | `%Y W%U` |
+| `yeardayofyear` | `%Y %j` |
+| `weekday` | `W%U %a` |
+| `dayhours` | `%a %H:00` |
+| `hoursminutes` | `%H:%M` |
+| `hoursminutesseconds` | `%H:%M:%S` |
+| `yearmonthdatehours` | `%b %d, %Y %H:00` |
+| `yearmonthdatehoursminutes` | `%b %d, %Y %H:%M` |
+| `minutesseconds` | `00:%M:%S` |
+| `secondsmilliseconds` | `:%S.%L` |
 
 - **Field names** follow Vega-Lite's `timeUnitToString`: `yearmonth` of `date` is `yearmonth_date`, `utcmonth` of `x`
   is `utcmonth_x`, `{unit: month, step: 2}` is `month_step_2_date`, `{maxbins: 10}` is `timeunit_maxbins_10_d`,
@@ -195,8 +195,8 @@ Unit tests reside in `TimeCalendarTests.cs` (the UTC arithmetic), `TimeCalendarZ
 `TimeCalendarIntervalTests.cs` and `TimeCalendarEpochDayTests.cs` (the d3-time intervals), `TimeUnitSpecTests.cs` and
 `TimeUnitSpecifierTests.cs` (the time units and their label specifiers), and `DateTimeObjectTests.cs`, with the shared
 helper `TimeTestSupport.cs`, all within the `DemaConsulting.CanvasNet.VegaLite.Tests` project, in the `Data` folder. The
-tick sequences that the scales and the axes build from the intervals are verified with those units (see the _Ticks_ and
-_TimeLabels Unit Verification Designs_), and the d3 tick anchors that depend on the intervals are derived there: for
+tick sequences that the scales and the axes build from the intervals are verified with those units (see the *Ticks* and
+*TimeLabels Unit Verification Designs*), and the d3 tick anchors that depend on the intervals are derived there: for
 example [January 1, January 11, 2024] with a count of 10 targets one day, so the day interval gives 11 ticks, the stop
 included.
 
@@ -267,10 +267,10 @@ February 29 give the same text under the invariant, `tr-TR`, and `de-DE` culture
 `TimeCalendarZoneTests.TimeCalendarZone_SouthernRuleSpanningNewYear`
 
 Asserts the offsets -5 h, -4 h, -4 h, and -5 h one millisecond before and at the two 2024 transitions of the United
-States like zone and that the zone is not UTC; that 06:59:59.999Z is local 01:59:59.999 (offset -5 h) and 07:00Z is local
-03:00 (offset -4 h); that the fixed zones +05:30, -03:00, and -03:30 show 05:30, 21:00, and 20:30 for 2024-06-01T00:00Z
-and round-trip with their offsets; and that the southern zone is at +11 h in January and December, +10 h in July, and
-changes at 2024-04-06T16:00Z and 2024-10-05T16:00Z.
+States like zone and that the zone is not UTC; that 06:59:59.999Z is local 01:59:59.999 (offset -5 h) and 07:00Z is
+local 03:00 (offset -4 h); that the fixed zones +05:30, -03:00, and -03:30 show 05:30, 21:00, and 20:30 for
+2024-06-01T00:00Z and round-trip with their offsets; and that the southern zone is at +11 h in January and December, +10
+h in July, and changes at 2024-04-06T16:00Z and 2024-10-05T16:00Z.
 
 ##### Gap And Overlap Follow The ECMAScript Rule
 
@@ -362,10 +362,9 @@ interval that is not the day, or on a filtered interval, while a step of 1 gives
 `TimeCalendarIntervalTests.TimeCalendarInterval_Range_PollsCancellation`
 
 Asserts the three days, two days from noon, four days by two, and eleven months of the range vectors above; that a start
-not before the stop, a step below one, and NaN arguments give an empty list; that a range that fits the cap succeeds, one
-item more throws `TimeRangeLimitException` with the cap, and a range of every hour of the whole calendar stops at a cap
-of
-1,000 instead of allocating; and that a canceled token stops the range of a million milliseconds with an
+not before the stop, a step below one, and NaN arguments give an empty list; that a range that fits the cap succeeds,
+one item more throws `TimeRangeLimitException` with the cap, and a range of every hour of the whole calendar stops at a
+cap of 1,000 instead of allocating; and that a canceled token stops the range of a million milliseconds with an
 `OperationCanceledException` and not with the limit.
 
 ##### Interval Objects Agree With UTC And Are Cached
@@ -393,8 +392,9 @@ upper-case spelling are accepted with the kind, the multiplier, and the UTC flag
 ##### Time Unit Names And Parts
 
 **Tests**: `TimeUnitSpecTests.TimeUnitSpec_Parse_AcceptsEveryVegaLiteName`,
-`TimeUnitSpecTests.TimeUnitSpec_Parse_BinnedUnits`, `TimeUnitSpecTests.TimeUnitSpec_Parse_RejectsUnknownAndIncompatible`,
-`TimeUnitSpecTests.TimeUnitSpec_Parse_ObjectForm`, `TimeUnitSpecTests.TimeUnitSpec_Parse_RejectsInvalidObjects`,
+`TimeUnitSpecTests.TimeUnitSpec_Parse_BinnedUnits`,
+`TimeUnitSpecTests.TimeUnitSpec_Parse_RejectsUnknownAndIncompatible`, `TimeUnitSpecTests.TimeUnitSpec_Parse_ObjectForm`,
+`TimeUnitSpecTests.TimeUnitSpec_Parse_RejectsInvalidObjects`,
 `TimeUnitSpecTests.TimeUnitSpec_TryRead_AcceptsNamesAndObjectsAndSkipsUnknownMembers`
 
 Asserts that each of the 40 names (and its `utc` form) has the parts of the list above in the canonical order, the
@@ -428,9 +428,12 @@ rejected with the empty specifier; and that `yearmonth` is `%b %Y` in Vega-Lite 
 ##### Floors Use The Reference Year And Vega's Week Rules
 
 **Tests**: `TimeUnitSpecTests.TimeUnitSpec_Floor_UsesReferenceYear2012_ForUnitsWithoutYear`,
-`TimeUnitSpecTests.TimeUnitSpec_Floor_SecondsAndMilliseconds`, `TimeUnitSpecTests.TimeUnitSpec_Floor_Day_IsWeekdayInJanuary2012`,
-`TimeUnitSpecTests.TimeUnitSpec_Floor_Week_And_WeekDay`, `TimeUnitSpecTests.TimeUnitSpec_Floor_YearWeek_Handles2013Week0`,
-`TimeUnitSpecTests.TimeUnitSpec_Floor_Quarter_And_DayOfYear`, `TimeUnitSpecTests.TimeUnitSpec_Floor_StepAppliesToLastUnitOnly`
+`TimeUnitSpecTests.TimeUnitSpec_Floor_SecondsAndMilliseconds`,
+`TimeUnitSpecTests.TimeUnitSpec_Floor_Day_IsWeekdayInJanuary2012`,
+`TimeUnitSpecTests.TimeUnitSpec_Floor_Week_And_WeekDay`,
+`TimeUnitSpecTests.TimeUnitSpec_Floor_YearWeek_Handles2013Week0`,
+`TimeUnitSpecTests.TimeUnitSpec_Floor_Quarter_And_DayOfYear`,
+`TimeUnitSpecTests.TimeUnitSpec_Floor_StepAppliesToLastUnitOnly`
 
 Asserts the nine floors of 2024-03-17T10:20:45.678 listed above, the seconds and milliseconds floors, the three weekday
 vectors (1,325,548,800,000 for Tuesday, January 1 for Sunday, January 7 for Saturday), week 9 (February 26, February 28,
@@ -440,8 +443,8 @@ quarter and day-of-year units (April 1, February 29, March 1, 2023), and the eig
 ##### Ends Follow The Calendar Of The Chart
 
 **Tests**: `TimeUnitSpecTests.TimeUnitSpec_End_IsOneStepOfTheSmallestUnit`,
-`TimeUnitSpecTests.TimeUnitSpec_End_DayFollowsTheCivilDayInAZone`, `TimeUnitSpecTests.TimeUnitSpec_Utc_Units_IgnoreTheZone`,
-`TimeUnitSpecTests.TimeUnitSpec_Floor_And_End_AreTotal`
+`TimeUnitSpecTests.TimeUnitSpec_End_DayFollowsTheCivilDayInAZone`,
+`TimeUnitSpecTests.TimeUnitSpec_Utc_Units_IgnoreTheZone`, `TimeUnitSpecTests.TimeUnitSpec_Floor_And_End_AreTotal`
 
 Asserts the ends of `yearmonth` (1,711,929,600,000), `month` (1,333,238,400,000), and `day` (one day later) and of the
 quarter, week, year, hour, minute, second, and millisecond units and the stepped units; that the bin of noon on
@@ -464,31 +467,34 @@ returns the same object; and that an extent that is NaN resolves to the year wit
 ##### Durations And Single Units
 
 **Tests**: `TimeUnitSpecTests.TimeUnitSpec_Duration_IsTheSmallestPartOfTwoThousandOne`,
-`TimeUnitSpecTests.TimeUnitSpec_Duration_DayOfWeekHasNone`, `TimeUnitSpecTests.TimeUnitSpec_IsSingleLocalUnit_OnlyForOneLocalPart`,
+`TimeUnitSpecTests.TimeUnitSpec_Duration_DayOfWeekHasNone`,
+`TimeUnitSpecTests.TimeUnitSpec_IsSingleLocalUnit_OnlyForOneLocalPart`,
 `TimeUnitSpecTests.TimeUnitSpec_DurationMilliseconds_UsesTheCalendar`,
 `TimeUnitSpecTests.TimeUnitSpec_ReferenceSpan_UtcUnitUsesTheGivenCalendarLikeDurationExpr`,
 `TimeUnitSpecTests.TimeUnitSpec_Parse_Specifier_And_Floor_AreCultureIndependent`
 
-Asserts the thirteen derived durations, that `day`, `weekday`, and `yearweekday` have none, that only a unit of one local
-part is a single local unit (`month` is, `utcmonth`, `yearmonth`, and `binnedyear` are not), and that names, specifiers,
-field names, and floors of five units whose names contain the letter I are the same under `tr-TR`, `de-DE`, and the
-invariant culture. The calendar overload `DurationMilliseconds(TimeCalendar)` gives, for `month`, `year`, `yearquarter`,
-`yearweek`, and `hours`, the same value in UTC as the parameterless form; in a US-like zone whose daylight saving time
-starts in March the first quarter of 2001 is an hour shorter (7,776,000,000 - 3,600,000 = 7,772,400,000 ms, as
-Vega-Lite measures it with the local `datetime`) and a `month` is still 2,678,400,000 ms; `day` has none (null) in that
-zone and `weekday` has none in UTC; a null calendar is an `ArgumentNullException`; and `ReferenceSpan(TimeCalendar.Utc)`
-of `month` starts at 978,307,200,000 ms (2001-01-01T00:00Z) while that of `day` is null. A UTC unit is measured in the
-calendar given like any unit, as Vega-Lite's `durationExpr` builds its dates without `utc`: with the US-like zone
-`utcquarter` and `utcmonth` give the span of `yearquarter` and `yearmonth` there (start the zone's 2001-01-01, not
-978,307,200,000 ms; 7,772,400,000 ms for the quarter and 2,678,400,000 ms for the month), while with the UTC calendar
-(and the parameterless form) `utcquarter` is 7,776,000,000 ms from 978,307,200,000 ms.
+Asserts the thirteen derived durations, that `day`, `weekday`, and `yearweekday` have none, that only a unit of one
+local part is a single local unit (`month` is, `utcmonth`, `yearmonth`, and `binnedyear` are not), and that names,
+specifiers, field names, and floors of five units whose names contain the letter I are the same under `tr-TR`, `de-DE`,
+and the invariant culture. The calendar overload `DurationMilliseconds(TimeCalendar)` gives, for `month`, `year`,
+`yearquarter`, `yearweek`, and `hours`, the same value in UTC as the parameterless form; in a US-like zone whose
+daylight saving time starts in March the first quarter of 2001 is an hour shorter (7,776,000,000 - 3,600,000 =
+7,772,400,000 ms, as Vega-Lite measures it with the local `datetime`) and a `month` is still 2,678,400,000 ms; `day` has
+none (null) in that zone and `weekday` has none in UTC; a null calendar is an `ArgumentNullException`; and
+`ReferenceSpan(TimeCalendar.Utc)` of `month` starts at 978,307,200,000 ms (2001-01-01T00:00Z) while that of `day` is
+null. A UTC unit is measured in the calendar given like any unit, as Vega-Lite's `durationExpr` builds its dates without
+`utc`: with the US-like zone `utcquarter` and `utcmonth` give the span of `yearquarter` and `yearmonth` there (start the
+zone's 2001-01-01, not 978,307,200,000 ms; 7,772,400,000 ms for the quarter and 2,678,400,000 ms for the month), while
+with the UTC calendar (and the parameterless form) `utcquarter` is 7,776,000,000 ms from 978,307,200,000 ms.
 
 ##### Datetime Objects Are Read And Evaluated
 
 **Tests**: `DateTimeObjectTests.DateTimeObject_ToMilliseconds_MonthNamesAndNumbers`,
-`DateTimeObjectTests.DateTimeObject_ToMilliseconds_Quarter`, `DateTimeObjectTests.DateTimeObject_ToMilliseconds_DayOfWeek`,
+`DateTimeObjectTests.DateTimeObject_ToMilliseconds_Quarter`,
+`DateTimeObjectTests.DateTimeObject_ToMilliseconds_DayOfWeek`,
 `DateTimeObjectTests.DateTimeObject_TryRead_DayCombinedWithOtherKeysIsDropped`,
-`DateTimeObjectTests.DateTimeObject_ToMilliseconds_UtcFlagSelectsUtc`, `DateTimeObjectTests.DateTimeObject_ToMilliseconds_Defaults`,
+`DateTimeObjectTests.DateTimeObject_ToMilliseconds_UtcFlagSelectsUtc`,
+`DateTimeObjectTests.DateTimeObject_ToMilliseconds_Defaults`,
 `DateTimeObjectTests.DateTimeObject_ToMilliseconds_AllKeysAndOverflow`,
 `DateTimeObjectTests.DateTimeObject_ToMilliseconds_TwoDigitYearsAndOutOfRange`
 
@@ -500,7 +506,8 @@ the years 24, 0, 100, 10000, and -5.
 ##### Datetime Objects Are Validated
 
 **Tests**: `DateTimeObjectTests.DateTimeObject_TryRead_RejectsInvalidMembers`,
-`DateTimeObjectTests.DateTimeObject_TryRead_RejectsNonObjects`, `DateTimeObjectTests.DateTimeObject_NamesAreCultureIndependent`
+`DateTimeObjectTests.DateTimeObject_TryRead_RejectsNonObjects`,
+`DateTimeObjectTests.DateTimeObject_NamesAreCultureIndependent`
 
 Asserts that an unknown month or day name, a boolean or empty month, a text quarter, year, or date, a null time part, an
 unknown key (`foo`, `week`), and a text UTC flag are rejected, with a message and the node of the offending member; that

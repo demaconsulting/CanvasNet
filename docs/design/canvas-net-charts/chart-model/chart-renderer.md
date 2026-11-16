@@ -101,5 +101,5 @@ mirroring `PptxRenderOptions`'s established shape so a caller already familiar w
 `CanvasNetPptx`'s rendering options recognizes the same pattern immediately.
 
 The `ChartModel` subsystem's dependencies gained by this unit (`Canvas.Surface`, `Drawing`,
-`Geometry`, `Fonts`, and `Rendering`) are documented in _ChartModel Subsystem Design_
+`Geometry`, `Fonts`, and `Rendering`) are documented in *ChartModel Subsystem Design*
 (`../chart-model.md`)'s Dependencies section.

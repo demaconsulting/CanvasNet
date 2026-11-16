@@ -9,7 +9,7 @@ the SVG 1.1 Appendix F "Elliptical arc implementation notes" algorithm.
 #### Purpose
 
 `PathBuilder.ArcTo` always stores the raw SVG arc parameters supplied by the caller, without
-pre-inspecting or pre-converting them (see _Path Unit Design_, `path.md`). `SvgArcConverter` is
+pre-inspecting or pre-converting them (see *Path Unit Design*, `path.md`). `SvgArcConverter` is
 the only place in the `Geometry` namespace responsible for SVG-spec fidelity, including its
 documented degenerate cases, so a consumer that never needs Bezier segments (for example, a
 hit-testing implementation with its own arc math) never pays for the conversion; conversion
@@ -93,5 +93,5 @@ Library.
 
 `SvgArcConverter` is a public API entry point, invoked externally by consumers of the CanvasNet
 package. It is also invoked internally by `Path.GetBounds`, to convert any `ArcTo` command to
-cubic Bezier segments before applying either bounds mode - see _Path Unit Design_ (`path.md`).
+cubic Bezier segments before applying either bounds mode - see *Path Unit Design* (`path.md`).
 `SvgArcConverter` has no dependency on `Path`, `Rect`, or `BezierFlattening`.

@@ -13,27 +13,27 @@ through `InternalsVisibleTo`, to the test assembly. It contains five units:
 - **Preprocessor** - the internal static `Preprocessor` and the records `PreprocessedSource`, `FrontmatterData`,
   `DirectiveText`, `FrontmatterMatch`, and `DirectiveMatch` (`Preprocessor.cs`), and the location map `SourceLines`
   and `MappedText` (`Preprocessor.MappedText.cs`): line endings, the quotes of HTML attributes, the YAML frontmatter,
-  the directives, the comment lines, the entity encoding, and the text size limits; see _Preprocessor Unit Design_
+  the directives, the comment lines, the entity encoding, and the text size limits; see *Preprocessor Unit Design*
   (`syntax/preprocessor.md`)
 - **DiagramDetector** - the internal static `DiagramDetector` with `DetectorSettings`, `DetectedDiagram`, and
   `DiagramSupport`: the diagram type of a text with Mermaid's detectors in Mermaid's order, and the errors and hints
-  for a text of no known type; see _DiagramDetector Unit Design_ (`syntax/diagram-detector.md`)
+  for a text of no known type; see *DiagramDetector Unit Design* (`syntax/diagram-detector.md`)
 - **YamlSubsetParser** - the internal `YamlSubsetParser` (a partial class in `YamlSubsetParser.cs` and
   `YamlSubsetParser.Values.cs`) and the value tree `YamlNode`, `YamlScalar`, `YamlSequence`, `YamlMapping`, and
-  `YamlEntry`: the reader of the YAML of a frontmatter and of shape data; see _YamlSubsetParser Unit Design_
+  `YamlEntry`: the reader of the YAML of a frontmatter and of shape data; see *YamlSubsetParser Unit Design*
   (`syntax/yaml-subset-parser.md`)
 - **SourceScanner** - the internal `SourceScanner` with `ScanRule`, `ScanToken`, and the `ScanMatcher` delegate
   (`SourceScanner.cs`), the matcher building blocks `ScanPatterns` (`SourceScanner.Patterns.cs`), and the lookahead
   `TokenCursor` (`SourceScanner.Tokens.cs`): the lexer infrastructure that the diagram parsers build on, with the
   link check `UrlSanitizer` (`SourceScanner.Urls.cs`) that every diagram applies to the links it keeps; see
-  _SourceScanner Unit Design_ (`syntax/source-scanner.md`)
+  *SourceScanner Unit Design* (`syntax/source-scanner.md`)
 - **HtmlSanitizer** - the internal static `HtmlSanitizer` (`HtmlSanitizer.cs`) and the grouped table of named
   character references `HtmlEntities` (`HtmlEntities.cs`): the clean-up that Mermaid applies to every label it stores;
-  see _HtmlSanitizer Unit Design_ (`syntax/html-sanitizer.md`)
+  see *HtmlSanitizer Unit Design* (`syntax/html-sanitizer.md`)
 
 The subsystem's namespace documentation is in `Syntax/NamespaceDoc.cs`. Its behavior is specified by the
 `CanvasNetMermaid-Syntax-*` requirements in `docs/reqstream/canvas-net-mermaid/syntax.yaml`. The SysML2 model names
-the subsystem `MermaidSyntax` (see _CanvasNetMermaid System Design_).
+the subsystem `MermaidSyntax` (see *CanvasNetMermaid System Design*).
 
 ### Interfaces
 

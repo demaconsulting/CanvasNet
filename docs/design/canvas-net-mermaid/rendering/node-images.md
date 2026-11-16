@@ -9,11 +9,11 @@ in the `DemaConsulting.CanvasNet.Mermaid.Rendering` namespace, and defines one `
 #### Purpose
 
 `NodeImages` holds the pictures of one rendering: the `@{ img: ... }` nodes and the `<img>` elements of labels. A link
-is handed, as text, to the caller's `MermaidRenderOptions.ImageResolver` and to nothing else, so the caller decides
-what a link may refer to (a `FolderImageResolver` refuses a remote or absolute link). The unit gives the layout the
-natural size of each picture and the painter its pixels at the size they are drawn, reports a picture that is not
-drawn, and bounds the number of resolver calls. The unit's behavior is specified by the
-`CanvasNetMermaid-Rendering-NodeImages-*` requirements in `docs/reqstream/canvas-net-mermaid/rendering/node-images.yaml`.
+is handed, as text, to the caller's `MermaidRenderOptions.ImageResolver` and to nothing else, so the caller decides what
+a link may refer to (a `FolderImageResolver` refuses a remote or absolute link). The unit gives the layout the natural
+size of each picture and the painter its pixels at the size they are drawn, reports a picture that is not drawn, and
+bounds the number of resolver calls. The unit's behavior is specified by the `CanvasNetMermaid-Rendering-NodeImages-*`
+requirements in `docs/reqstream/canvas-net-mermaid/rendering/node-images.yaml`.
 
 #### Data Model
 
@@ -66,4 +66,4 @@ pictures through it. The tests in `NodeImagesTests.cs` call the unit directly th
 - The natural size of a picture is the size of what the resolver returns for a 256 by 256 request (Mermaid reads the
   browser's `naturalWidth` and `naturalHeight`), so a vector picture has the probe size.
 - A picture that cannot be loaded, on which Mermaid's render fails, is reported and not drawn; the image shape then
-  keeps its frame (see _ShapeLibrary Unit Design_).
+  keeps its frame (see *ShapeLibrary Unit Design*).

@@ -113,7 +113,7 @@ by the scaled axis alone.
 #### Complexity Verification Policy
 
 No algorithmic complexity properties are newly established by this unit beyond those already
-documented for `ScanlineRasterizer` (see _PathFiller Unit Design_, `path-filler.md`);
+documented for `ScanlineRasterizer` (see *PathFiller Unit Design*, `path-filler.md`);
 `TilePaintEvaluator` itself performs a fixed, small amount of arithmetic per pixel with no loops
 over unbounded input. `TilePaintEvaluator` precomputes the only per-fill-invariant quantity (the
 inverted transform) once per fill operation, via `CreatePlan`, rather than once per pixel or once

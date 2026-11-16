@@ -108,12 +108,11 @@ of an instance returns the same value as the scalar overload.
 `ScadFragmentRuleTests.ScadFragmentRule_Fragments_AngleSizeAndInvalidSteps_AreHandled`
 
 Asserts that a positive `$fn` wins, is truncated, and is raised to 3; that `1e18` and infinity are capped at
-`MaximumFragments`; that a zero, tiny (including exactly `1e-8`), negative, NaN, or infinite radius gives 3
-whatever the other settings (the tiny-radius rule is applied before `$fn` is considered: `$fn = 100` on a radius of
-`1e-9` gives 3 fragments, a cylinder of 12 triangles and a circle prism of 8, while radius `1e-7` gives 100 fragments and
-400 triangles); that a zero or negative `$fa` or `$fs` is clamped to 0.01 (629 fragments for radius
-1 with both zero); that a non-finite `$fa` or `$fs` falls back to its default; and that a NaN `$fn` falls through
-to the automatic rule.
+`MaximumFragments`; that a zero, tiny (including exactly `1e-8`), negative, NaN, or infinite radius gives 3 whatever the
+other settings (the tiny-radius rule is applied before `$fn` is considered: `$fn = 100` on a radius of `1e-9` gives 3
+fragments, a cylinder of 12 triangles and a circle prism of 8, while radius `1e-7` gives 100 fragments and 400
+triangles); that a zero or negative `$fa` or `$fs` is clamped to 0.01 (629 fragments for radius 1 with both zero); that
+a non-finite `$fa` or `$fs` falls back to its default; and that a NaN `$fn` falls through to the automatic rule.
 
 ##### CanvasNetScad-ScadGeometry-ScadPrimitives-Cube: Box Extent, Placement, And Location
 
@@ -261,5 +260,5 @@ created slab triangles. The charges of the sphere, cylinder, and circle are veri
 Asserts that a quad whose points 0 and 3 coincide never crashes the build: either the build reports
 `scad-geometry-rejected` or `scad-polyhedron-face-invalid` and builds nothing, or it produces a single open
 triangle. The catch-all path is shared by every builder; its reachability from source text is limited because the
-argument checks foresee almost every rejection (see _ScadPrimitives Unit Design_), so the test accepts the
+argument checks foresee almost every rejection (see *ScadPrimitives Unit Design*), so the test accepts the
 outcomes that the welded input can legitimately take.

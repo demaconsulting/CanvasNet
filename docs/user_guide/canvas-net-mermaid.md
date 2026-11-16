@@ -128,13 +128,14 @@ Both classes are immutable; every property is init-only and validated when it is
 between threads and calls.
 
 | `MermaidOpenOptions` property | Default | Meaning |
-| ----------------------------- | ------- | ------- |
+| --- | --- | --- |
 | `SourceName` | `null` (the path for `Open(string)`) | The name shown in locations and messages |
 | `Limits` | `null` (`MermaidLimits.Default`) | The limits checked while the text is read |
 
 <!-- markdownlint-disable MD013 -->
+
 | `MermaidRenderOptions` property | Default | Meaning |
-| ------------------------------- | ------- | ------- |
+| --- | --- | --- |
 | `Scale` | 1 | The factor by which the natural size is multiplied, text included; finite, greater than zero |
 | `Background` | `null` | The color under the diagram; `null` is transparent, as Mermaid's SVG is |
 | `Now` | `null` | The time a gantt chart takes as now (its UTC date and time), for the today line and the dates that need today; `null` draws no today line and takes 1970-01-01 as today (see *Fonts, Determinism, and Known Differences*) |
@@ -147,6 +148,7 @@ between threads and calls.
 | `ThrowOnUnsupportedFeature` | `false` | Turns the first unsupported feature into a `MermaidUnsupportedFeatureException` (strict mode) |
 | `PositionHandler` | `null` | Receives each feature of the diagram as a core `ImagePosition` (kind, id, box, and attach pixel in the returned surface) before it is painted; `null` reports none (see *Mermaid Feature Positions*) |
 | `PositionKindFilter` | `null` | Says which position kinds `PositionHandler` wants; a kind it rejects is not built at all. `null` wants every kind |
+
 <!-- markdownlint-enable MD013 -->
 
 Reports are delivered once, in the order they were found, on the calling thread, after the work and before the method
@@ -159,8 +161,9 @@ message that names the property. The limits bound the work, not the clock: the c
 wall-clock bound.
 
 <!-- markdownlint-disable MD013 -->
+
 | Property | Default | What it bounds | When it is exceeded |
-| -------- | ------- | -------------- | ------------------- |
+| --- | --- | --- | --- |
 | `MaxTextSize` | 50,000 | The diagram text without frontmatter, directives, and comments (Mermaid's `maxTextSize`); the whole text may be four times as long | `InvalidDataException` |
 | `MaxEdges` | 500 | The links of a flowchart (Mermaid's `maxEdges`, which Mermaid checks for a flowchart only), the relations of a class diagram, the transitions of a state diagram, or the relationships of an entity relationship diagram | `MermaidSyntaxException` |
 | `MaxNodes` | 2,000 | The nodes, subgraphs included, the participants and boxes of a sequence diagram, the classes, notes, lollipop interfaces, and namespaces (implicit dotted parents included) of a class diagram, the states, composite states, concurrent regions, notes, and note groups of a state diagram, the entities (those named after a subgraph included) and subgraphs of an entity relationship diagram, the slices of a pie chart (every slice statement), the task and section statements of a gantt chart, the block statements of a packet diagram and, when it is drawn, the parts its rows split them into, or the main branch, the branches, and the commits of a git graph | `MermaidSyntaxException` (`MermaidRenderException` for the parts of a packet diagram) |
@@ -171,6 +174,7 @@ wall-clock bound.
 | `MaxImages` | 256 | The calls of the resolver in one render (a picture counts when measured and again when drawn) | `MermaidRenderException` |
 | `MaxPaintedPixels` | 250,000,000 | The device pixels one render paints (after `Scale`) | `MermaidRenderException` |
 | `MaxDiagnostics` | 1,000 | The reports kept per call; the rest become one `mermaid-diagnostics-suppressed` warning | (rendering continues) |
+
 <!-- markdownlint-enable MD013 -->
 
 `MaxTextSize` and `MaxEdges` are Mermaid's own limits with Mermaid's defaults. The others are CanvasNet additions, so
@@ -225,8 +229,9 @@ Graph Syntax*.
 ### Supported Flowchart Syntax
 
 <!-- markdownlint-disable MD013 -->
+
 | Area | Supported |
-| ---- | --------- |
+| --- | --- |
 | Header | `flowchart` and `graph` with the directions `TB`, `TD`, `BT`, `LR`, and `RL` |
 | Node shapes | Every bracket form (`[ ]`, `( )`, `([ ])`, `[[ ]]`, `[( )]`, `(( ))`, `((( )))`, `> ]`, `{ }`, `{{ }}`, `[/ /]`, `[\ \]`, `[/ \]`, `[\ /]`) and the `@{ shape: ... }` syntax with all of Mermaid's named shapes (`rect`, `rounded`, `stadium`, `cyl`, `diam`, `hex`, `doc`, `docs`, `fork`, `delay`, and so on) |
 | Links | Arrows, open links, dotted (`-.->`) and thick (`==>`) links, circle (`--o`) and cross (`--x`) heads, two-headed links, longer links (`--->`), labels (`-- text -->` and `-->\|text\|`), chains and `&` groups, invisible links (`~~~`), self-loops, and edge ids (`e1@-->`) with `curve` and `animate` shape data |
@@ -236,6 +241,7 @@ Graph Syntax*.
 | Configuration | YAML frontmatter (`title`, `config`), `%%{init: ...}%%` directives, the five themes (`default`, `base`, `dark`, `forest`, `neutral`), `themeVariables`, and the flowchart settings (`nodeSpacing`, `rankSpacing`, `curve`, `padding`, `wrappingWidth`, and so on), with Mermaid's precedence |
 | Pictures | `@{ img: "part.png", label, pos, w, h, constraint }` nodes and `<img>` in labels, through the caller's resolver |
 | Titles | The frontmatter `title` is drawn above the diagram; `accTitle` and `accDescr` are read as metadata |
+
 <!-- markdownlint-enable MD013 -->
 
 ### Supported Sequence Syntax
@@ -245,8 +251,9 @@ participants stand in a row in the order they appear, and every message, note, a
 the one before it, where Mermaid 11 puts it.
 
 <!-- markdownlint-disable MD013 -->
+
 | Area | Supported |
-| ---- | --------- |
+| --- | --- |
 | Header | `sequenceDiagram` |
 | Participants | `participant` and `actor`, aliases (`participant Bank as Payment provider`), and participants named only by a message |
 | Participant types | The eight types of `@{ type: ... }`: `participant`, `actor`, `boundary`, `control`, `entity`, `database`, `collections`, and `queue`, with the `alias` key |
@@ -261,10 +268,11 @@ the one before it, where Mermaid 11 puts it.
 | Menus and properties | `link`, `links`, and `properties`; a menu is drawn only with `forceMenus`, and a `class` in `properties` changes the paint of the participant |
 | Titles | The `title` statement, else the frontmatter `title`, is drawn above the diagram; `accTitle` and `accDescr` are read as metadata |
 | Configuration | YAML frontmatter, `%%{init: ...}%%` directives, the five themes, `themeVariables`, and the sequence settings (`actorMargin`, `mirrorActors`, `rightAngles`, `messageAlign`, `noteAlign`, `wrap`, and so on), with Mermaid's precedence |
+
 <!-- markdownlint-enable MD013 -->
 
 | Arrow | Line | End |
-| ----- | ---- | --- |
+| --- | --- | --- |
 | `->` | Solid | None |
 | `-->` | Dotted | None |
 | `->>` | Solid | Arrowhead |
@@ -284,8 +292,9 @@ The sequence settings follow Mermaid (`config.sequence` in the frontmatter, a di
 `MermaidRenderOptions.Config`):
 
 <!-- markdownlint-disable MD013 -->
+
 | Key | Default | Meaning |
-| --- | ------- | ------- |
+| --- | --- | --- |
 | `mirrorActors` | `true` | Draws the participants again below the diagram |
 | `actorMargin` | 50 | The least space between two participants |
 | `width`, `height` | 150, 65 | The size of a participant box |
@@ -307,6 +316,7 @@ The sequence settings follow Mermaid (`config.sequence` in the frontmatter, a di
 | `actorFontWeight`, `noteFontWeight`, `messageFontWeight` | 400 | The weight of the participant, note, and message text |
 | `actorFontSize`, `noteFontSize`, `messageFontSize`, and the three font families | 14, 14, 16 | Replaced by the top-level `fontSize` and `fontFamily`, as in Mermaid |
 | `useMaxWidth`, `arrowMarkerAbsolute` | | No meaning for a picture |
+
 <!-- markdownlint-enable MD013 -->
 
 As in Mermaid, the top-level `fontFamily` and `fontSize` replace the font families and sizes of the sequence settings,
@@ -332,8 +342,9 @@ A class diagram starts with `classDiagram`. It is laid out with the same port of
 flowchart, so the class boxes, relations, namespaces, and notes land where Mermaid 11 puts them.
 
 <!-- markdownlint-disable MD013 -->
+
 | Area | Supported |
-| ---- | --------- |
+| --- | --- |
 | Header | `classDiagram` and `classDiagram-v2`, and `direction` with `TB`, `BT`, `LR`, or `RL` |
 | Classes | `class Name`, a body in braces (`class Name { ... }`), member lines (`Name : +int id`), a label (`class Order["Purchase order"]`), names written in backticks, and classes named only by a relation |
 | Members | Attributes and methods with the visibility `+`, `-`, `#`, or `~`, parameters, return types, and the classifiers `$` (static, underlined) and `*` (abstract, italic) |
@@ -346,14 +357,16 @@ flowchart, so the class boxes, relations, namespaces, and notes land where Merma
 | Interaction | `click`, `link`, and `callback` are read and ignored, because a picture is static |
 | Titles | The frontmatter `title` is drawn above the diagram; `accTitle` and `accDescr` are read as metadata |
 | Configuration | YAML frontmatter, `%%{init: ...}%%` directives, the five themes, `themeVariables`, and the class settings below, with Mermaid's precedence |
+
 <!-- markdownlint-enable MD013 -->
 
 The relations name their ends with markers. Each kind can be written in both directions, the marker standing at the
 end that the arrow points to:
 
 <!-- markdownlint-disable MD013 -->
+
 | Relation | Drawn as |
-| -------- | -------- |
+| --- | --- |
 | `<\|--` and `--\|>` | Inheritance: a solid line with a hollow triangle |
 | `*--` and `--*` | Composition: a solid line with a filled diamond |
 | `o--` and `--o` | Aggregation: a solid line with a hollow diamond |
@@ -366,14 +379,16 @@ end that the arrow points to:
 | `<\|--\|>`, `*--*`, `o--o`, `<-->`, `<..>`, `*--o` | Two-way: a marker at both ends; any two ends combine, on a solid (`--`) or a dashed (`..`) line |
 | `A "1" --> "*" B` | Cardinality: a quoted text before or after the line (`"1"`, `"0..1"`, `"1..*"`, `"many"`) is drawn small next to that end |
 | `A --> B : text` | Label: the text after the colon is drawn at the middle of the line |
+
 <!-- markdownlint-enable MD013 -->
 
 The class settings follow Mermaid. As in Mermaid, the class renderer takes its spacing and its title margin from the
 `state` section, so `class.nodeSpacing` changes nothing and `state.nodeSpacing` spaces the classes:
 
 <!-- markdownlint-disable MD013 -->
+
 | Key | Default | Meaning |
-| --- | ------- | ------- |
+| --- | --- | --- |
 | `class.hideEmptyMembersBox` | `false` | Leaves out the empty member compartment of a class that has no members and no methods |
 | `class.hierarchicalNamespaces` | `true` | Makes a dotted namespace name (`Geo.Plane`) a namespace inside another; `false` draws one namespace of that name |
 | `class.padding` | 12 | The padding of a class box, and when it is set, of the namespaces and the notes too, which otherwise pad by 16 and 6 |
@@ -385,6 +400,7 @@ The class settings follow Mermaid. As in Mermaid, the class renderer takes its s
 | `flowchart.curve` | `basis` | The curve of the relation lines |
 | `class.nodeSpacing`, `class.rankSpacing`, `class.titleTopMargin` | unset | Accepted, and without effect as in Mermaid; the `state` keys above apply instead |
 | `class.htmlLabels`, `class.diagramPadding`, `class.useMaxWidth` | unset | Accepted, and without effect as in Mermaid |
+
 <!-- markdownlint-enable MD013 -->
 
 Other behaviors that follow Mermaid:
@@ -402,8 +418,9 @@ A state diagram starts with `stateDiagram-v2` or `stateDiagram`. It is laid out 
 layout as a flowchart, so the states, transitions, composite states, and notes land where Mermaid 11 puts them.
 
 <!-- markdownlint-disable MD013 -->
+
 | Area | Supported |
-| ---- | --------- |
+| --- | --- |
 | Header | `stateDiagram-v2` and `stateDiagram`, and `direction` with `TB`, `BT`, `LR`, or `RL`; the last top-level `direction` lays the diagram out |
 | States | An id (`Idle`), a description after a colon (`Idle : waiting for input`), several descriptions, `state "Waiting for input" as Waiting`, and states named only by a transition |
 | Transitions | `A --> B`, a label after a colon (`A --> B : start`), self transitions, and `[*]` as the start or the end state |
@@ -415,13 +432,15 @@ layout as a flowchart, so the states, transitions, composite states, and notes l
 | Interaction | `click` and `click ... href` are read and ignored, because a picture is static |
 | Titles | The frontmatter `title` is drawn above the diagram; `accTitle` and `accDescr` are read as metadata; `hide empty description` and `scale` are read and ignored, as in Mermaid's renderer |
 | Configuration | YAML frontmatter, `%%{init: ...}%%` directives, the five themes, `themeVariables`, and the state settings below, with Mermaid's precedence |
+
 <!-- markdownlint-enable MD013 -->
 
 The state settings follow Mermaid (`config.state` in the frontmatter, a directive, or `MermaidRenderOptions.Config`):
 
 <!-- markdownlint-disable MD013 -->
+
 | Key | Default | Meaning |
-| --- | ------- | ------- |
+| --- | --- | --- |
 | `state.nodeSpacing` | 50 | The space between the states of a rank |
 | `state.rankSpacing` | 50 | The space between the ranks |
 | `state.titleTopMargin` | 25 | The margin above the title |
@@ -431,6 +450,7 @@ The state settings follow Mermaid (`config.state` in the frontmatter, a directiv
 | `flowchart.padding` | 15 | The padding of a note |
 | `state.padding`, `state.radius`, and the other legacy keys | as in Mermaid | Accepted, and without effect as in Mermaid's renderer |
 | `state.useMaxWidth` | `true` | No meaning for a picture |
+
 <!-- markdownlint-enable MD013 -->
 
 Other behaviors that follow Mermaid:
@@ -450,8 +470,9 @@ An entity relationship diagram starts with `erDiagram`. It is laid out with the 
 a flowchart, so the entities, relationships, and subgraphs land where Mermaid 11 puts them.
 
 <!-- markdownlint-disable MD013 -->
+
 | Area | Supported |
-| ---- | --------- |
+| --- | --- |
 | Header | `erDiagram`, and `direction` with `TB`, `BT`, `LR`, or `RL`; the last top-level `direction` lays the diagram out |
 | Entities | Names, quoted names with spaces (`"Entry Log"`), an alias in brackets (`p["Person"]` or `p[Person]`; the first alias is kept), and entities named only by a relationship |
 | Relationships | `A \|\|--o{ B : places`: an entity, a cardinality, a line, a cardinality, an entity, and after the colon a role of one word or a quoted text; the cardinalities and lines are listed below |
@@ -461,6 +482,7 @@ a flowchart, so the entities, relationships, and subgraphs land where Mermaid 11
 | Styles | `classDef` (including `classDef default`), `class A,B name`, `:::` on an entity or a relationship end, and `style`, with the declarations of a flowchart style |
 | Titles | The frontmatter `title` is drawn above the diagram; `accTitle` and `accDescr` are read as metadata |
 | Configuration | YAML frontmatter, `%%{init: ...}%%` directives, the five themes, `themeVariables`, and the entity relationship settings below, with Mermaid's precedence |
+
 <!-- markdownlint-enable MD013 -->
 
 A relationship names the cardinality of each end with a marker. A symbol pair is written against the line, the first
@@ -468,8 +490,9 @@ of the pair before it and the second after it (`A |o--o{ B`); the words are writ
 stand on either side (`A one or more to zero or many B`):
 
 <!-- markdownlint-disable MD013 -->
+
 | Relation | Drawn as |
-| -------- | -------- |
+| --- | --- |
 | `\|o` and `o\|`, or the words `zero or one` and `one or zero` | Zero or one: a circle and a bar |
 | `\|\|`, or the words `only one`, `one`, and `1` | Exactly one: two bars |
 | `}o` and `o{`, or the words `zero or more`, `zero or many`, `many(0)`, `0+`, and `many` | Zero or more: a circle and a crow's foot |
@@ -478,14 +501,16 @@ stand on either side (`A one or more to zero or many B`):
 | `--` and `to` | Identifying: a solid line |
 | `..`, `.-`, `-.`, and `optionally to` | Non-identifying: a dashed line |
 | `A \|\|--o{ B : places` | Role: the word or the quoted text after the colon is drawn at the middle of the line |
+
 <!-- markdownlint-enable MD013 -->
 
 The entity relationship settings follow Mermaid (`config.er` in the frontmatter, a directive, or
 `MermaidRenderOptions.Config`). As in Mermaid, a top-level `nodeSpacing` or `rankSpacing` wins over the `er` key:
 
 <!-- markdownlint-disable MD013 -->
+
 | Key | Default | Meaning |
-| --- | ------- | ------- |
+| --- | --- | --- |
 | `er.nodeSpacing` | 140 | The space between the entities of a rank |
 | `er.rankSpacing` | 80 | The space between the ranks |
 | `er.titleTopMargin` | 25 | The margin above the title |
@@ -495,6 +520,7 @@ The entity relationship settings follow Mermaid (`config.er` in the frontmatter,
 | `htmlLabels` | unset | `false` draws the texts of the entities as SVG text instead of HTML labels; `true` leaves out the quarter that Mermaid adds to the paddings of a table otherwise |
 | `er.minEntityHeight`, `er.layoutDirection`, `er.fill`, `er.stroke`, `er.fontSize` | as in Mermaid | Accepted, and without effect as in Mermaid's renderer |
 | `er.useMaxWidth` | `true` | No meaning for a picture |
+
 <!-- markdownlint-enable MD013 -->
 
 Other behaviors that follow Mermaid:
@@ -511,8 +537,9 @@ A pie chart starts with `pie`. It is drawn by a port of Mermaid's pie renderer, 
 the legend, and the title land where Mermaid 11 puts them.
 
 <!-- markdownlint-disable MD013 -->
+
 | Area | Supported |
-| ---- | --------- |
+| --- | --- |
 | Header | `pie`, optionally followed by `showData` (the legend shows each value after its label) and a `title` on the same line |
 | Slices | `"label" : value`, one per line: a label in double or single quotes, with backslash escapes, and a value that is a whole or a decimal number (`42`, `42.96`); a label seen before is ignored, and a negative value is a `mermaid-syntax-error`, as in Mermaid |
 | Drawing | The slices in the order of the text, clockwise from the top, each labeled with its percentage rounded to a whole number; a slice under 1% of the total is left out of the pie and kept in the legend; the theme colors `pie1` to `pie12` repeat after twelve slices |
@@ -521,18 +548,21 @@ the legend, and the title land where Mermaid 11 puts them.
 | Comments | `%%` comments, on their own line or after a slice |
 | Colors | The theme variables `pie1` to `pie12`, `pieTitleTextSize`, `pieTitleTextColor`, `pieSectionTextSize`, `pieSectionTextColor`, `pieLegendTextSize`, `pieLegendTextColor`, `pieStrokeColor`, `pieStrokeWidth`, `pieOuterStrokeColor`, `pieOuterStrokeWidth`, and `pieOpacity` |
 | Configuration | YAML frontmatter, `%%{init: ...}%%` directives, the five themes, `themeVariables`, and the pie settings below, with Mermaid's precedence |
+
 <!-- markdownlint-enable MD013 -->
 
 The pie settings follow Mermaid (`config.pie` in the frontmatter, a directive, or `MermaidRenderOptions.Config`):
 
 <!-- markdownlint-disable MD013 -->
+
 | Key | Default | Meaning |
-| --- | ------- | ------- |
+| --- | --- | --- |
 | `pie.textPosition` | 0.75 | Where the percentage labels are, as a part of the radius (0 is the center, 1 the edge) |
 | `pie.donutHole` | 0 | The size of a hole in the middle, as a part of the radius; a value above 0 and at most 0.9 draws a donut |
 | `pie.legendPosition` | `right` | Where the legend is: `right`, `left`, `top`, `bottom`, or `center` (over the pie); any other value is `right` |
 | `pie.highlightSlice` | empty | The label of a slice that is drawn enlarged and opaque; `hover`, which enlarges the slice under the pointer in Mermaid, enlarges none in a picture |
 | `pie.useMaxWidth` | `true` | No meaning for a picture |
+
 <!-- markdownlint-enable MD013 -->
 
 Other behaviors that follow Mermaid:
@@ -548,8 +578,9 @@ of d3, so the bars, the texts, the section rows, and the ticks land where Mermai
 (see *Fonts, Determinism, and Known Differences*).
 
 <!-- markdownlint-disable MD013 -->
+
 | Area | Supported |
-| ---- | --------- |
+| --- | --- |
 | Header | `gantt`; the keywords of the statements are case-insensitive |
 | Tasks | `Name : data`, one per line; after the tags, the data is up to three fields separated by commas: an id, a start, and an end (`Design :des, 2024-06-03, 5d`); with two fields, a start and an end; with one field, an end, the task starting where the task before it ends |
 | Tags | `done`, `active`, `crit`, `milestone`, and `vert` before the fields, in any combination; they are listed below |
@@ -565,25 +596,29 @@ of d3, so the bars, the texts, the section rows, and the ticks land where Mermai
 | Titles | `title`, else the frontmatter `title`, is drawn above the chart; `accTitle` and `accDescr` are read as metadata |
 | Colors | The theme variables `taskBkgColor`, `taskBorderColor`, `taskTextColor`, `taskTextDarkColor`, `taskTextOutsideColor`, `taskTextClickableColor`, `activeTaskBkgColor`, `activeTaskBorderColor`, `doneTaskBkgColor`, `doneTaskBorderColor`, `critBkgColor`, `critBorderColor`, `sectionBkgColor`, `sectionBkgColor2`, `altSectionBkgColor`, `excludeBkgColor`, `todayLineColor`, `vertLineColor`, and `titleColor`; `gridColor` is accepted and, as in Mermaid 11, colors no grid line (see Axis) |
 | Configuration | YAML frontmatter, `%%{init: ...}%%` directives, the five themes, `themeVariables`, and the gantt settings below, with Mermaid's precedence |
+
 <!-- markdownlint-enable MD013 -->
 
 The tags of a task change how it is drawn; `crit` combines with `done` or `active`:
 
 <!-- markdownlint-disable MD013 -->
+
 | Tag | Drawn as |
-| --- | -------- |
+| --- | --- |
 | `done` | A finished task: a bar in the theme's `doneTaskBkgColor` |
 | `active` | A task in progress: a bar in `activeTaskBkgColor` |
 | `crit` | A critical task: a bar in `critBkgColor` with a `critBorderColor` border, or with `done` or `active`, in their color with that border |
 | `milestone` | A diamond the height of a bar at the middle of the task, so a milestone of `0d` is at its start |
 | `vert` | A vertical line over every row at the start of the task, with its name below the rows |
+
 <!-- markdownlint-enable MD013 -->
 
 The gantt settings follow Mermaid (`config.gantt` in the frontmatter, a directive, or `MermaidRenderOptions.Config`):
 
 <!-- markdownlint-disable MD013 -->
+
 | Key | Default | Meaning |
-| --- | ------- | ------- |
+| --- | --- | --- |
 | `gantt.barHeight` | 20 | The height of a bar |
 | `gantt.barGap` | 4 | The space between two rows |
 | `gantt.topPadding` | 50 | The space above the first row and below the last |
@@ -601,6 +636,7 @@ The gantt settings follow Mermaid (`config.gantt` in the frontmatter, a directiv
 | `gantt.useWidth` | unset | The width of the chart; unset is 784, the width Mermaid takes in the page of `mmdc` |
 | `gantt.weekday` | `sunday` | Accepted, and without effect as in Mermaid; the `weekday` statement applies |
 | `gantt.useMaxWidth` | `true` | No meaning for a picture |
+
 <!-- markdownlint-enable MD013 -->
 
 Other behaviors that follow Mermaid:
@@ -619,8 +655,9 @@ cose-bilkent, the force-directed layout Mermaid uses for a mindmap, so the nodes
 puts them.
 
 <!-- markdownlint-disable MD013 -->
+
 | Area | Supported |
-| ---- | --------- |
+| --- | --- |
 | Header | `mindmap` on its own line |
 | Nodes | One node per line; the first node is the root, and each other node is a child of the nearest node above it that is indented less; a node that no node can take as its parent (a second root) is a `mermaid-syntax-error`, as in Mermaid |
 | Shapes | `id[text]` a rectangle, `id(text)` a rounded rectangle, `id((text))` a circle, `id)text(` a cloud, `id))text((` a bang, the text between two braces on each side a hexagon, and a node without brackets the default shape, a box with a line under it |
@@ -633,17 +670,21 @@ puts them.
 | Comments | `%%` comments on their own line |
 | Colors | The theme variables `cScale0` to `cScale11` (the section fills and edges), `cScaleLabel0` to `cScaleLabel11` (the section texts), `cScaleInv0` to `cScaleInv11` (the line under a default node, which the base, dark, forest, and neutral themes leave out), `git0` (the root's fill), and `gitBranchLabel0` (the root's text) |
 | Configuration | YAML frontmatter, `%%{init: ...}%%` directives, the five themes, `themeVariables`, `themeCSS`, and the mindmap settings below, with Mermaid's precedence |
+
 <!-- markdownlint-enable MD013 -->
 
-The mindmap settings follow Mermaid (`config.mindmap` in the frontmatter, a directive, or `MermaidRenderOptions.Config`):
+The mindmap settings follow Mermaid (`config.mindmap` in the frontmatter, a directive, or
+`MermaidRenderOptions.Config`):
 
 <!-- markdownlint-disable MD013 -->
+
 | Key | Default | Meaning |
-| --- | ------- | ------- |
+| --- | --- | --- |
 | `mindmap.padding` | 10 | The space between a node's text and its outline (twice as much in a hexagon; a rectangle and a rounded rectangle keep Mermaid's own space), and the margin around the mindmap |
 | `mindmap.maxNodeWidth` | 200 | The width at which a node's text wraps (a rectangle, a rounded rectangle, and a hexagon wrap at `flowchart.wrappingWidth`, as in Mermaid) |
 | `mindmap.layoutAlgorithm` | `cose-bilkent` | Accepted, and without effect as in Mermaid; the top-level `layout` selects the layout |
 | `mindmap.useMaxWidth` | `true` | No meaning for a picture |
+
 <!-- markdownlint-enable MD013 -->
 
 Other behaviors that follow Mermaid:
@@ -658,8 +699,9 @@ A packet diagram starts with `packet` or `packet-beta`. It is drawn by a port of
 blocks, the bit numbers, and the title land where Mermaid 11 puts them.
 
 <!-- markdownlint-disable MD013 -->
+
 | Area | Supported |
-| ---- | --------- |
+| --- | --- |
 | Header | `packet` or `packet-beta`; the first statement can follow on the same line |
 | Blocks | `0-15: "label"` (the bits 0 to 15), `16: "label"` (one bit), or `+8: "label"` (the next 8 bits), one per line; each block starts at the bit after the block before it, the first at bit 0, and a gap, an overlap, an end before the start, or `+0` is a `mermaid-syntax-error` with Mermaid's message |
 | Labels | In double or single quotes, with backslash escapes; a label is SVG text, so entity codes (`#35;`) are drawn as their characters, HTML tags as written, and every run of white space as one space |
@@ -669,13 +711,15 @@ blocks, the bit numbers, and the title land where Mermaid 11 puts them.
 | Comments | `%%` comments, on their own line or after a block |
 | Colors | The theme variable `packet`, an object with `startByteColor`, `endByteColor`, `byteFontSize`, `labelColor`, `labelFontSize`, `titleColor`, `titleFontSize`, `blockStrokeColor`, `blockStrokeWidth`, and `blockFillColor`; it replaces the object of the dark and forest themes, so a key it leaves out takes the default black or `#efefef`; the frontmatter and a directive keep only `labelColor`, `titleColor`, `labelFontSize`, and `titleFontSize`, as Mermaid does, and report the others as `mermaid-config-unknown-key` |
 | Configuration | YAML frontmatter, `%%{init: ...}%%` directives, the five themes, `themeVariables`, `themeCSS` (the selectors `.packetBlock`, `.packetLabel`, `.packetTitle`, `.packetByte`, `.packetByte.start`, and `.packetByte.end`), and the packet settings below, with Mermaid's precedence |
+
 <!-- markdownlint-enable MD013 -->
 
 The packet settings follow Mermaid (`config.packet` in the frontmatter, a directive, or `MermaidRenderOptions.Config`):
 
 <!-- markdownlint-disable MD013 -->
+
 | Key | Default | Meaning |
-| --- | ------- | ------- |
+| --- | --- | --- |
 | `packet.rowHeight` | 32 | The height of a row of blocks |
 | `packet.bitWidth` | 32 | The width of one bit |
 | `packet.bitsPerRow` | 32 | The number of bits in a row |
@@ -683,6 +727,7 @@ The packet settings follow Mermaid (`config.packet` in the frontmatter, a direct
 | `packet.paddingX` | 5 | The space between two blocks of a row |
 | `packet.paddingY` | 5 | The space above each row (10 pixels more when the bit numbers are drawn) |
 | `packet.useMaxWidth` | `true` | No meaning for a picture |
+
 <!-- markdownlint-enable MD013 -->
 
 Other behaviors that follow Mermaid:
@@ -699,8 +744,9 @@ A git graph starts with `gitGraph`. It is drawn by a port of Mermaid's git graph
 lines and labels, the arrows, the commit ids, the tags, and the title land where Mermaid 11 puts them.
 
 <!-- markdownlint-disable MD013 -->
+
 | Area | Supported |
-| ---- | --------- |
+| --- | --- |
 | Header | `gitGraph`, `gitGraph:`, or `gitGraph` with a direction and a colon (`gitGraph LR:`, `gitGraph TB:`, or `gitGraph BT:`), left to right when no direction is given; the first statement can follow on the same line, and a direction without its colon is a `mermaid-syntax-error` |
 | Commits | `commit`, with the options `id: "..."`, `msg: "..."` (or the message alone, in quotes), `tag: "..."`, and `type: NORMAL`, `REVERSE`, or `HIGHLIGHT`, in any order; a repeated option keeps its last value and the tags add up; a commit without an `id` is given one such as `0-eb28011` |
 | Branches | `branch name`, the name written with letters, digits, `_`, `-`, `.`, and `/`, or in quotes, with an optional `order: 2`; the branch starts at the current commit and is checked out; the branches are drawn sorted by their order (0 when it is not given), in the order they were made where it is the same |
@@ -713,14 +759,16 @@ lines and labels, the arrows, the commit ids, the tags, and the title land where
 | Comments | `%%` comments, on their own line or after a statement |
 | Colors | The theme variables `git0` to `git7` (the commits, branch lines, and arrows), `gitInv0` to `gitInv7` (highlighted commits), `gitBranchLabel0` to `gitBranchLabel7`, `commitLabelColor`, `commitLabelBackground`, `commitLabelFontSize`, `tagLabelColor`, `tagLabelBackground`, `tagLabelBorder`, and `tagLabelFontSize`; the ninth branch takes the colors of the first again |
 | Configuration | YAML frontmatter, `%%{init: ...}%%` directives, the five themes, `themeVariables`, `themeCSS` (the git graph's own classes, such as `.commit0`, `.branch-label0`, `.arrow0`, `.commit-label`, and `.tag-label`), `look: neo` (a shadow under the branch labels), and the git graph settings below, with Mermaid's precedence |
+
 <!-- markdownlint-enable MD013 -->
 
 The git graph settings follow Mermaid (`config.gitGraph` in the frontmatter, a directive, or
 `MermaidRenderOptions.Config`):
 
 <!-- markdownlint-disable MD013 -->
+
 | Key | Default | Meaning |
-| --- | ------- | ------- |
+| --- | --- | --- |
 | `gitGraph.showBranches` | `true` | `false` draws neither the branch lines nor their labels |
 | `gitGraph.showCommitLabel` | `true` | `false` draws no commit ids (the tags are still drawn) |
 | `gitGraph.rotateCommitLabel` | `true` | Turns the commit ids by 45 degrees; `false` draws them level under the commits |
@@ -730,6 +778,7 @@ The git graph settings follow Mermaid (`config.gitGraph` in the frontmatter, a d
 | `gitGraph.titleTopMargin` | 25 | How far above the graph the title is drawn |
 | `gitGraph.diagramPadding` | 8 | The margin around the graph |
 | `gitGraph.useMaxWidth` | `true` | No meaning for a picture |
+
 <!-- markdownlint-enable MD013 -->
 
 Other behaviors that follow Mermaid:
@@ -751,8 +800,9 @@ stable `Feature` code, a message, a location, and a hint, and the rest of the di
 fail on a warning.
 
 <!-- markdownlint-disable MD013 -->
+
 | Code | Kind | Reported when |
-| ---- | ---- | ------------- |
+| --- | --- | --- |
 | `mermaid-diagram-unsupported` | Unsupported | The diagram type is not drawn by this version (every type but `flowchart`, `graph`, `sequenceDiagram`, `classDiagram`, `stateDiagram`, `erDiagram`, `pie`, `gantt`, `mindmap`, `packet`, and `gitGraph`); the picture is empty |
 | `mermaid-icon-unsupported` | Unsupported | An icon (`fa:fa-car` in a label, an `@{ icon: ... }` node, an `icon` in the `properties` of a sequence participant, an `::icon(...)` of a mindmap node); the node or participant keeps its shape and label without the icon |
 | `mermaid-math-unsupported` | Unsupported | Math (`$$...$$`, drawn by KaTeX in Mermaid) in a sequence diagram; the text is drawn as written |
@@ -771,6 +821,7 @@ fail on a warning.
 | `mermaid-gantt-ticks-skipped` | Warning | The `tickInterval` of a gantt chart spans more than 10,000 of its intervals (Mermaid's estimate of the ticks; exactly 10,000 draws 10,001 ticks, both ends included); the default ticks are drawn, as in Mermaid |
 | `mermaid-gantt-excludes-skipped` | Warning | The tasks of a gantt chart with excluded days span more than five years; the excluded days are not shaded, as in Mermaid |
 | `mermaid-diagnostics-suppressed` | Warning | More reports than `MaxDiagnostics`; the rest are dropped |
+
 <!-- markdownlint-enable MD013 -->
 
 The codes of the exceptions are `mermaid-syntax-error` (the grammar), `mermaid-unknown-diagram` (no diagram keyword;

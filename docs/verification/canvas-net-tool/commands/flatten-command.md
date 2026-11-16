@@ -31,8 +31,8 @@ line names the output, its size, and `flow.mmd 60x40 mermaid` (`120x80` with `--
 URI.
 
 **FlattenCommand_Run_Json_HasDocumentedShapeAndKeyOrder**: the keys are `schemaVersion`, `ok`, `command`, `tool`,
-`input`, `scale`, `flattened`, `replaced`, `rebased`, `outputs`, `diagnostics`, and `echo`, in that order, and a replaced
-entry has `href`, `format`, `width`, `height`, `elements`, and `bytes`.
+`input`, `scale`, `flattened`, `replaced`, `rebased`, `outputs`, `diagnostics`, and `echo`, in that order, and a
+replaced entry has `href`, `format`, `width`, `height`, `elements`, and `bytes`.
 
 **FlattenCommand_Run_Json_LinkedDocumentNote_HasPage**: the note about the skipped picture on slide 1 of a linked
 presentation has `page` 1 right after `message`.
@@ -41,13 +41,13 @@ presentation has `page` 1 right after `message`.
 **FlattenCommand_Run_Json_PlainSvg_FlattenedFalse**: a drawing without such links prints the nothing-to-flatten line,
 or `flattened` false with empty `replaced` and `outputs`, and writes no file.
 
-**FlattenCommand_Run_HiddenDiagram_WarnsOnStandardError**: a diagram in an unused definition is written to standard error
-as `Warning: svg-flatten-image-not-drawn: ...`.
+**FlattenCommand_Run_HiddenDiagram_WarnsOnStandardError**: a diagram in an unused definition is written to standard
+error as `Warning: svg-flatten-image-not-drawn: ...`.
 
 **FlattenCommand_Run_NoOutput_UsageError**, **FlattenCommand_Run_TwoInputs_UsageError**,
 **FlattenCommand_Run_NotSvg_UnsupportedFormat**, **FlattenCommand_Run_NoClobber_OutputExists**, and
-**FlattenCommand_Run_Strict_UnresolvedLink_FailsUnsupportedFeature**: each refused command line has its code, the hint of
-a missing output names `-o`, and an existing output is kept with `--no-clobber`.
+**FlattenCommand_Run_Strict_UnresolvedLink_FailsUnsupportedFeature**: each refused command line has its code, the hint
+of a missing output names `-o`, and an existing output is kept with `--no-clobber`.
 
 **FlattenCommand_Run_FileAccessRoots_DeniedLinkIsAWarningAndAnErrorWhenStrict**: a drawing in a sub folder that links a
 Mermaid diagram in the folder above it, flattened with `--file-access roots --json`, reports one `image-access-denied`

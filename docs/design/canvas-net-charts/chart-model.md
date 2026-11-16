@@ -25,9 +25,9 @@ parser and `CanvasNetPptx` integration need not duplicate any of that logic.
 
 - **ChartDocument** — the `Chart`/`ChartSeries`/`ChartAxis`/`ChartLegend`/`ChartTitle`/
   `ChartType` model types and the `ChartBuilder` fluent construction API; see
-  _ChartDocument Unit Design_ (`chart-model/chart-document.md`)
+  *ChartDocument Unit Design* (`chart-model/chart-document.md`)
 - **ChartRenderer** — the `ChartRenderer`/`ChartRenderOptions`/`ChartColorPalette` pixel-rendering
-  engine; see _ChartRenderer Unit Design_ (`chart-model/chart-renderer.md`)
+  engine; see *ChartRenderer Unit Design* (`chart-model/chart-renderer.md`)
 
 ### Dependencies
 
@@ -36,7 +36,7 @@ The `ChartModel` subsystem depends on the core `CanvasNet` system's `Canvas` sub
 the pixel buffer it paints onto and returns), and, for `ChartRenderer` only, the `Drawing`,
 `Geometry`, and `Fonts` subsystems (path filling/stroking, transforms/rectangles, and TrueType
 text layout/metrics, respectively) and the `Rendering` subsystem (the bundled Liberation Sans
-fallback font) — see _CanvasNetCharts System Design_ (`../canvas-net-charts.md`)'s Dependencies
+fallback font) — see *CanvasNetCharts System Design* (`../canvas-net-charts.md`)'s Dependencies
 section. Beyond this, `ChartDocument` uses only the .NET base class library
 (`System.Collections.ObjectModel`'s `ReadOnlyCollection<T>`, for defensive-copy immutable
 snapshots), available on every one of `CanvasNetCharts`'s target frameworks with no new runtime

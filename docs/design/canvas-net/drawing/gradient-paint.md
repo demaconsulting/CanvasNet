@@ -8,8 +8,8 @@ The `GradientPaint` unit is the public `Gradient` abstract base type and its `Li
 `RadialGradient` subtypes, the supporting `GradientStop`/`GradientSpread` types, and the internal
 `GradientEvaluator` helper that resolves a gradient's color at a point or across a pixel row. It
 has no independent externally visible behavior of its own: it exists to be consumed by
-`PathFiller`'s gradient `Fill(Surface, Path, Gradient, FillRule, float)` overload (see _PathFiller
-Unit Design_, `path-filler.md`).
+`PathFiller`'s gradient `Fill(Surface, Path, Gradient, FillRule, float)` overload (see *PathFiller
+Unit Design*, `path-filler.md`).
 
 #### Purpose
 
@@ -182,7 +182,7 @@ the per-pixel loop. The evaluation pipeline, per point:
    **Tangent-family fully-degenerate case (`a ≈ 0`, `b ≈ 0`, `c ≈ 0`).** When `a` is near-zero the
    quadratic degrades to the linear equation `b*t + c = 0`; if `b` is also near-zero, that linear
    equation itself degenerates. Ordinarily (`c` not near-zero) this means no root exists at all -
-   correctly left unpainted. But when `c` is _also_ near-zero, the equation is `0 = 0`: every `t`
+   correctly left unpainted. But when `c` is *also* near-zero, the equation is `0 = 0`: every `t`
    is technically a valid root, because the evaluated point lies exactly on the swept family's
    boundary circle at every `t` in this tangent-degenerate configuration (for example, a point
    diametrically opposite the tangency point of two internally-tangent start/end circles). Rather
@@ -205,7 +205,7 @@ the per-pixel loop. The evaluation pipeline, per point:
 **Why premultiplied-alpha interpolation.** Interpolating `R`/`G`/`B`/`A` independently
 ("straight-alpha" interpolation) visibly passes through a washed-out, desaturated band partway
 through a transition between, for example, opaque red and fully transparent white - because the
-straight-alpha midpoint blends the _fully opaque_ red and white color channels evenly regardless
+straight-alpha midpoint blends the *fully opaque* red and white color channels evenly regardless
 of how transparent the result should be. Interpolating in premultiplied space (where each color
 channel is pre-multiplied by its own alpha before interpolating, then divided back out afterward)
 avoids this: a channel that is fading toward zero alpha also fades its premultiplied color
@@ -263,7 +263,7 @@ itself (`ArgumentNullException`).
 gradient-paint `FillPath(Path, Gradient, FillRule)` overload (see `canvas.md`), which calls
 `Gradient.WithTransform` to fold its current transform into the gradient before filling. The
 internal `GradientEvaluator` helper is invoked exclusively by `ScanlineRasterizer`'s
-gradient-aware `Fill` overload (see _PathFiller Unit Design_, `path-filler.md`). The unit is
+gradient-aware `Fill` overload (see *PathFiller Unit Design*, `path-filler.md`). The unit is
 exercised by `GradientStopTests`, `LinearGradientTests`, `RadialGradientTests`, and
 `GradientEvaluatorTests`, and indirectly by `PathFillerTests`'/`ScanlineRasterizerTests`'
 gradient-specific scenarios.

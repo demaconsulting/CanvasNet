@@ -35,8 +35,8 @@ N/A - standard test environment; the tests use only in-memory surfaces.
 vertical and 4 horizontal lines; the pixels at x = 32 and 96 and at y = 64 are the red line color, their neighbors are
 white, and the first row and column are lines.
 
-**GridOverlay_Draw_Intersections_AreBlendedOnce**: black at alpha 128 over white gives 127 on a line and also at a crossing
-of two lines.
+**GridOverlay_Draw_Intersections_AreBlendedOnce**: black at alpha 128 over white gives 127 on a line and also at a
+crossing of two lines.
 
 **GridOverlay_Draw_OpaqueColor_ReplacesPixels**: an opaque blue line over a transparent surface gives opaque blue on the
 lines and leaves the neighbors transparent.
@@ -45,15 +45,16 @@ lines and leaves the neighbors transparent.
 gives `(139, 130, 122, 255)`.
 
 **GridOverlay_Draw_TranslucentColorOverTransparent_ComputesResultAlpha**: the same color over a transparent pixel gives
-itself, `(250, 0, 0, 128)` over `(50, 50, 50, 128)` gives `(183, 17, 17, 192)`, and a color with alpha 0 changes nothing.
+itself, `(250, 0, 0, 128)` over `(50, 50, 50, 128)` gives `(183, 17, 17, 192)`, and a color with alpha 0 changes
+nothing.
 
 **GridOverlay_Draw_Labels_DrawnAtTopAndLeftEdgesInBundledFont**: on a 200 by 200 gray surface with spacing 50 and black
 lines all 4 vertical labels and the 3 horizontal labels after the first are drawn (7), the corner pixels of the boxes
 have the white backing, some pixels of the text are dark, and pixels away from lines and labels are unchanged.
 
-**GridOverlay_Draw_SmallSpacing_LabelsOnlyEveryNthLineWithoutOverlap**: with spacing 8 on a 200 by 200 surface only every
-fourth vertical line and every third horizontal line is labeled; the pixels where the labels of the other lines would
-be are unchanged and fewer labels are drawn than there are lines.
+**GridOverlay_Draw_SmallSpacing_LabelsOnlyEveryNthLineWithoutOverlap**: with spacing 8 on a 200 by 200 surface only
+every fourth vertical line and every third horizontal line is labeled; the pixels where the labels of the other lines
+would be are unchanged and fewer labels are drawn than there are lines.
 
 **GridOverlay_Draw_LabelOutsideImage_IsSkipped**: with spacing 96 on a 100 by 100 surface the labels at 96 would not fit
 and only the origin label is drawn; a 30 by 10 surface is too small for any label (0) but still has its lines.
@@ -61,8 +62,8 @@ and only the origin label is drawn; a 30 by 10 surface is too small for any labe
 **GridOverlay_Draw_DarkAndLightColors_ChooseLightAndDarkBacking**: black lines give the white backing 224 over gray 128
 and white lines give the black backing 32.
 
-**GridOverlay_Draw_ReturnsLineAndLabelCounts**: a 250 by 120 surface with spacing 100 gives 3 vertical lines, 2 horizontal
-lines, and 4 labels.
+**GridOverlay_Draw_ReturnsLineAndLabelCounts**: a 250 by 120 surface with spacing 100 gives 3 vertical lines, 2
+horizontal lines, and 4 labels.
 
 **GridOverlay_Draw_SameInputTwice_ProducesIdenticalPixels**: two grids drawn on equal surfaces are identical and the
 default color is `#FF00FFA0`.

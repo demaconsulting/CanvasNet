@@ -5,16 +5,16 @@ This document describes the subsystem-level verification strategy for the `Codec
 
 Note: SVG rasterization verification is not part of this subsystem's verification; it is
 provided by the separate `CanvasNetSvg` system (its own package,
-`DemaConsulting.CanvasNet.Svg`) — see _CanvasNetSvg System Verification Design_
-(`../canvas-net-svg.md`) and _SvgCodec Unit Verification Design_
+`DemaConsulting.CanvasNet.Svg`) — see *CanvasNetSvg System Verification Design*
+(`../canvas-net-svg.md`) and *SvgCodec Unit Verification Design*
 (`../canvas-net-svg/svg-codec.md`).
 
 ### Verification Approach
 
 The `Codecs` subsystem is verified through its six constituent units' tests (see
-_BmpCodec Unit Verification Design_, _PngCodec Unit Verification Design_,
-_TiffCodec Unit Verification Design_, _JpegCodec Unit Verification Design_,
-_GifCodec Unit Verification Design_, and _Jpeg2000Codec Unit Verification Design_ under `codecs/`),
+*BmpCodec Unit Verification Design*, *PngCodec Unit Verification Design*,
+*TiffCodec Unit Verification Design*, *JpegCodec Unit Verification Design*,
+*GifCodec Unit Verification Design*, and *Jpeg2000Codec Unit Verification Design* under `codecs/`),
 together with the system-level round-trip (or, for the decode-only `GifCodec`,
 load-only) integration tests in `CanvasNetTests.cs` that exercise each codec end-to-end against a
 `Surface`. No separate subsystem-level tests otherwise exist; the subsystem-level requirements
@@ -37,8 +37,8 @@ unexpected exception.
 ### Test Scenarios
 
 The `Codecs` subsystem's test scenarios are those named in each of the six constituent unit
-verification documents under `codecs/` (_BmpCodec_, _PngCodec_, _TiffCodec_, _JpegCodec_, _GifCodec_, and
-_Jpeg2000Codec Unit Verification Design_), covering `Load`/`Save`/`GetInfo` normal-path round-trips,
+verification documents under `codecs/` (*BmpCodec*, *PngCodec*, *TiffCodec*, *JpegCodec*, *GifCodec*, and
+*Jpeg2000Codec Unit Verification Design*), covering `Load`/`Save`/`GetInfo` normal-path round-trips,
 malformed/truncated-input rejection, and `ImageInfo.CanDecode`/`UnsupportedImageFeatureException`
 well-formed-but-unsupported handling, plus the system-level `CanvasNet_SystemIntegration_*`
 round-trip (or, for `GifCodec`, load-only) tests that exercise each codec end-to-end against a
@@ -51,8 +51,8 @@ has no tests of its own; it is verified through the decompression-bound scenario
 `CanvasNet-Codecs-TiffCodec-LoadDecompressionBound`), which exercise its hard output limit, and
 through every valid-fixture decode that exercises its checksum validation.
 
-The `ImageDecoder` unit is verified by `ImageFormatsTests` and `ImageDecoderTests` (see _ImageDecoder
-Unit Verification Design_, `codecs/image-decoder.md`). Likewise, the internal `PngFilter` and
+The `ImageDecoder` unit is verified by `ImageFormatsTests` and `ImageDecoderTests` (see *ImageDecoder
+Unit Verification Design*, `codecs/image-decoder.md`). Likewise, the internal `PngFilter` and
 `LzwDecoder` are not software units; they are verified by direct tests (`PngFilterTests`,
 `LzwDecoderTests`) cited from the `PngCodec` filter-reconstruction and `TiffCodec` LZW and
 decompression-bound scenarios, and by the PDF package's own predictor and `LZWDecode` tests, which

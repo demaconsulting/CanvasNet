@@ -26,7 +26,7 @@ the function behaves. Built-ins never throw for bad arguments: a wrong argument 
 unknown named argument produces a warning and `undef`. The only exceptions are the resource-limit errors
 raised through the host. The set of functions, every edge-case result, and the random generator are original
 decisions of the CanvasNetScad dialect, pinned by tests; no OpenSCAD source, manual, or test material was
-consulted (see _CanvasNetScad System Design_, Clean-Room Provenance).
+consulted (see *CanvasNetScad System Design*, Clean-Room Provenance).
 
 The unit's behavior is specified by the `CanvasNetScad-ScadEvaluation-ScadBuiltinFunctions-*` requirements
 (`Math`, `Trigonometry`, `Aggregates`, `Vectors`, `Lookup`, `Search`, `Strings`, `TypeTests`, `Random`,
@@ -76,8 +76,9 @@ that the sequences are identical on every platform; golden sequences are pinned 
 ##### The functions
 
 <!-- markdownlint-disable MD013 -->
+
 | Group | Functions | Behavior |
-| ----- | --------- | -------- |
+| --- | --- | --- |
 | Mathematics | `abs`, `sign`, `sqrt`, `exp`, `ln`, `log`, `floor`, `ceil`, `round`, `pow` | `log` is **base ten** and `ln` natural; `round` is half away from zero; `sqrt` of a negative number is `NaN`; non-numbers give `undef` and a warning |
 | Trigonometry | `sin`, `cos`, `tan`, `asin`, `acos`, `atan`, `atan2` | Angles in **degrees**; exact `0`, `1`, and `-1` at every multiple of 90 degrees (the angle is reduced with `%` first) and an infinity for the tangent at odd multiples of 90; otherwise `System.Math` on radians; the inverse functions return degrees; `atan2` covers all four quadrants |
 | Aggregates | `min`, `max` | Several number arguments, or one vector of numbers; empty or other operands give `undef` with a warning; `NaN` propagates |
@@ -88,6 +89,7 @@ that the sequences are identical on every platform; golden sequences are pinned 
 | Type tests | `is_undef`, `is_num`, `is_bool`, `is_string`, `is_list`, `is_function` | Kind tests (`is_num(nan)` is true) |
 | Version | `version`, `version_num` | The emulated language level: `[2021, 1, 0]` and `20210100` |
 | Random | `rands(min, max, count, seed_value)` | See below |
+
 <!-- markdownlint-enable MD013 -->
 
 **`rands`.** Returns `count` numbers `min + (max - min) * u`, with `u` from the generator, so each lies in the
@@ -108,7 +110,7 @@ angles; no fused multiply-add is used.
 
 #### Error Handling
 
-- Bad arguments are **warnings** with a result of `undef` (see _Argument binding_); the warning text names
+- Bad arguments are **warnings** with a result of `undef` (see *Argument binding*); the warning text names
   the function and the kinds involved.
 - Recognized but unimplemented functions and unimplemented `search` forms are **unsupported features**
   (`scad-function-parent_module`, `scad-function-textmetrics`, `scad-function-fontmetrics`,
@@ -118,7 +120,7 @@ angles; no fused multiply-add is used.
   proportional to its input charges `max(1, n)` evaluation steps through `Charge`, so a hostile call cannot
   allocate or compute beyond the limits. The evaluator additionally charges the call expression itself. `str`
   passes the host to the formatter as a meter, so its formatting work is charged per element **while** it formats
-  (see _ScadValue_, Text forms) and a step limit or cancellation stops a huge value midway.
+  (see *ScadValue*, Text forms) and a step limit or cancellation stops a huge value midway.
 
 #### Dependencies
 

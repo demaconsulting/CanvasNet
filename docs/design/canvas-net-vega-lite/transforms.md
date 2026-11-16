@@ -22,31 +22,31 @@ through
 - **RowTransforms** - the internal `RowTransforms` (with its predicates, shape, and lookup parts), `RowSampler`,
   `TableLayout` and `FieldReader`, `ParameterEnvironment` and `SpecValues`, `TransformContext`, and `RowExpressions`;
   see
-  _RowTransforms Unit Design_ (`transforms/row-transforms.md`)
+  *RowTransforms Unit Design* (`transforms/row-transforms.md`)
 - **SelectionModel** - the internal `SelectionModel`, `SelectionComponent`, and `SelectionBind` (the stores and the
   resolved values of the selection parameters in their initial state, with the projection of Vega-Lite, the selections a
   view sees, the extent that a selection gives a scale or a bin, and the time units that a predicate on a selection
   needs: `SelectionTimeUnits`); see
-  _SelectionModel Unit Design_ (`transforms/selection-model.md`)
+  *SelectionModel Unit Design* (`transforms/selection-model.md`)
 - **AggregateTransforms** - the internal `AggregateTransforms` (with its aggregate, bin, window, stack, and impute
   parts,
   the impute also behind a typed entry), `AggregateMeasures` and `MeasureCell` (the operations), `BinAlgorithm`,
   `StackRules` (the stack decision on the Cartesian and the polar channels), `WorkMeter`, and `StableSorter`;
   see
-  _AggregateTransforms Unit Design_ (`transforms/aggregate-transforms.md`)
+  *AggregateTransforms Unit Design* (`transforms/aggregate-transforms.md`)
 - **EncodingPlan** - the internal `EncodingPlan` (the pure plan of a view's bins, time units, aggregate, imputes, stack,
   field names, and titles, and, for the path marks, the fields that group the rows into paths and the fields that order
-  them) and `EncodingTransforms` with `EncodingData` (its execution); see _EncodingPlan Unit Design_
+  them) and `EncodingTransforms` with `EncodingData` (its execution); see *EncodingPlan Unit Design*
   (`transforms/encoding-plan.md`)
 - **TimeUnitTransform** - the internal `TimeUnitTransform` and `TimeUnitRequest` (the start and end of a time unit for
   every row, for the `timeUnit` transform and for a channel's `timeUnit`) and `TemporalFields` (the fields that are
-  read as dates); see _TimeUnitTransform Unit Design_ (`transforms/time-unit-transform.md`). The time model it uses
+  read as dates); see *TimeUnitTransform Unit Design* (`transforms/time-unit-transform.md`). The time model it uses
   (the calendar and `TimeUnitSpec`) lives in the `Data` subsystem, not here (a deviation from the master plan, plan
-  decision P8-D1; see _Data_)
+  decision P8-D1; see *Data*)
 - **StatTransforms** - the internal `StatTransforms` (the dispatcher, the groups of Vega's `partition`, and the output
   table, with the regression, loess, density, quantile, and extent parts), `RegressionFit`, `CurveSampler`, `LoessFit`,
   `KernelDensity`, and `StatisticsPrimitives` (the models, the sampling, the smoothing, and the density of the reference
-  numerics, and the JavaScript rules for numbers, quantiles, deviation, and extent); see _StatTransforms Unit Design_
+  numerics, and the JavaScript rules for numbers, quantiles, deviation, and extent); see *StatTransforms Unit Design*
   (`transforms/stat-transforms.md`)
 
 The subsystem's namespace documentation is in `Transforms/NamespaceDoc.cs`. Its behavior is specified by the
@@ -124,9 +124,9 @@ mark see the rows that the transforms produced, never the loaded ones; a sort of
 **Eager and immutable.** Every transform reads an immutable `DataTable` and builds a new one; a transform that keeps
 every
 row in order may return its input. Nothing in the pipeline ever sees a table change. Every transform of Vega-Lite is
-computed: the statistical transforms (see _StatTransforms_) replace the table with the rows they generate (`extent`
+computed: the statistical transforms (see *StatTransforms*) replace the table with the rows they generate (`extent`
 keeps
-it and writes a parameter), and the `timeUnit` transform (see _TimeUnitTransform_) adds start and end
+it and writes a parameter), and the `timeUnit` transform (see *TimeUnitTransform*) adds start and end
 fields that are dates in the calendar of the chart, whose zone is the `TimeZone` render option.
 **Statistics are budgeted like every other generator:** the rows of a regression curve, a density grid, or a quantile
 list depend on the options and not on the specification size, so they are reserved in the row budget before they are
@@ -149,7 +149,7 @@ and `stack`) change nothing, and the implicit aggregate keeps the Raw rows count
 implicit
 impute of an encoding reserves its result through the same engine and keeps the Raw rows counted when the imputed table
 is the Raw table that a scale still reads (see
-_AggregateTransforms_ and _EncodingPlan_ for the accounting of each). The field count of
+*AggregateTransforms* and *EncodingPlan* for the accounting of each). The field count of
 every derived table is bounded by `MaxFieldCount` and its size by a bound of 2^25 cells (33,554,432), which keeps the
 memory
 of one table to a few hundred megabytes whatever the other limits allow; the state of the groups and the values that an
@@ -172,7 +172,7 @@ dictionary (`TransformContext.SetParameter`) when it runs, so the transforms tha
 `scale.domain` read it, and the expressions of its view are checked against its name
 (`SpecParser.IsExtentParameter`); the properties that are folded before the data is read see it as null (the warning
 `vl-param-extent-static`). Selection parameters are not values of this environment: the `SelectionModel` (see
-_SelectionModel_)
+*SelectionModel*)
 computes the initial state of each selection (its tuples as a store and the resolved value) once per call, the
 predicates of the conditions and filters read the stores through the selection functions of the expression engine, and
 the resolved value is the value of the name of the selection in the environment (so an expression can read it). A `bin`
@@ -187,7 +187,7 @@ that runs, `TransformContext.View`) or the variable parameter, and `BinAlgorithm
 expression source text by `PredicateSource` (the left side is the unit parts of the field as a `datetime` call, the
 right side the value as one) and evaluated by the same evaluator, so it reads dates in the calendar of the chart; the
 parts `week` and `dayofyear` are not applied by a predicate, as in Vega-Lite, and are reported as the warning
-`vl-predicate-timeunit-part` (see _RowTransforms_).
+`vl-predicate-timeunit-part` (see *RowTransforms*).
 
 **Warnings, not failures, for recoverable data.** A calculate that produces a regular
 expression (which cannot be stored in a
@@ -195,7 +195,7 @@ field) stores null and warns `vl-expr-runtime`; a pivot that skips rows with a n
 value, cuts columns at `limit`, or
 meets a pivot value that equals a group field name warns `vl-transform-runtime`, and so does a statistical transform
 that
-skips a group or ignores an extent (see _StatTransforms_). The aggregating transforms and the implicit
+skips a group or ignores an extent (see *StatTransforms*). The aggregating transforms and the implicit
 pipeline have no warnings: a value that cannot be used is null or NaN in the output and is invalid for the marks. The
 warnings are collected in the order they are found and delivered after the loader's warnings, also when a later stage
 fails. Everything that exceeds a limit is a located `VegaLiteRenderException` instead.

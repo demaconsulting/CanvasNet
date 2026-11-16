@@ -94,7 +94,7 @@ is refused in the state where jison refuses it, with jison's list of expected to
   (`AddNamespace`) when it is reduced, reads its items (classes, notes, and nested namespaces, separated by line
   breaks) up to `}`, and then puts the classes and notes declared in it into it (`AddClassesToNamespace`) and leaves it
   (`PopNamespace`). Only this method recurses, bounded by `MaxNestingDepth`; the model also counts the dotted parts
-  of the names against that limit (see _ClassModel Unit Design_).
+  of the names against that limit (see *ClassModel Unit Design*).
 - **`ParseAnnotationStatement`**, **`ParseNoteStatement`**, **`ParseClassDefStatement`**, **`ParseStyleStatement`**,
   and **`ParseCssClassStatement`** read `<<annotation>> Name`, `note for Name "text"` and `note "text"`,
   `classDef a,b styles`, `style Name styles`, and `cssClass "A,B" name`; **`ParseStyles`** reads styles separated by
@@ -127,7 +127,7 @@ is refused in the state where jison refuses it, with jison's list of expected to
   text it keeps (a name token, a backticked name, a generic type, a label, a member line, a cardinality, a note, a
   `:::` class, an annotation, a style class name, a link, a target, a tooltip, a callback name and its arguments, and
   the accessibility texts) and every text it joins from tokens (a class or namespace name and a style). The texts that
-  the model joins from texts the parser checked apart are checked by the model (see _ClassModel Unit Design_).
+  the model joins from texts the parser checked apart are checked by the model (see *ClassModel Unit Design*).
 - The errors of the model while a statement is applied (Mermaid's database errors, the `MaxEdges` and `MaxNodes`
   limits, and the `MaxLabelLength` check of the texts it joins) propagate unchanged. Because each operation runs after
   the lookahead that decides its reduction has been checked, grammar and database errors come in Mermaid's order.

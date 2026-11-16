@@ -7,7 +7,7 @@ circular or annular sector as a core `Path` centered on the origin (the geometry
 d3-shape arc generator), and the internal `ArcPathWriter` class in the same file, which records the canvas calls of
 d3-path (move, line, arc, close) on a core `PathBuilder` by emulating the canvas arc with an SVG elliptical arc command
 and two half circles for a full circle. The painter translates the path to the center of the item and fills it (see
-the _ScenePainter Unit Verification Design_); the trail painter uses the same writer for its capsules, which that unit
+the *ScenePainter Unit Verification Design*); the trail painter uses the same writer for its capsules, which that unit
 verifies.
 
 #### Verification Approach
@@ -109,7 +109,7 @@ arc when its sweep is at least half a turn.
 
 Unit tests reside in `ArcGeometryTests.cs` within the `DemaConsulting.CanvasNet.VegaLite.Tests` project, in the
 `Scenegraph` folder. The painting of the outline (the wedge and the hole, the stroke, and the placement) is verified
-through the painter in `ScenePainterPathTests.cs` (see the _ScenePainter Unit Verification Design_).
+through the painter in `ScenePainterPathTests.cs` (see the *ScenePainter Unit Verification Design*).
 
 #### Test Environment
 

@@ -6,9 +6,9 @@ The `CssColor` class - the shared CSS color parser and formatter of the `Canvas`
 #### Verification Approach
 
 The unit is verified by parsing colors and comparing them with the pixel values that CSS defines for the text, which the
-tests state as `Rgba32` literals worked out by hand. The package consumers keep adapter tests of their own (the SVG codec,
-the Vega-Lite paint rules, the OpenSCAD `color` module, and the command-line value grammar), while the grammar itself is
-verified only here.
+tests state as `Rgba32` literals worked out by hand. The package consumers keep adapter tests of their own (the SVG
+codec, the Vega-Lite paint rules, the OpenSCAD `color` module, and the command-line value grammar), while the grammar
+itself is verified only here.
 
 - **Hexadecimal forms**: `#4c78a8` is (76, 120, 168, 255); the short form `#abc` expands each digit to a pair,
   (170, 187, 204, 255), and `#abcd` adds the alpha 0xdd = 221; `#4c78a8cc` has the alpha 0xcc = 204; `#FFF` and
@@ -17,8 +17,8 @@ verified only here.
   `#11223380` gives the alpha 0x80 last, while `Rgba32.Parse("#11223380")` reads the alpha first.
 - **Named colors**: the count is 148 (the 147 names of CSS Color 3 plus `rebeccapurple`), and nineteen names spread over
   the alphabet are compared with their hexadecimal spellings, in lower and upper case; `grey` equals `gray`;
-  `transparent` is (0, 0, 0, 0). The names are stored as PascalCase words with `0xRRGGBB` numbers, so the source needs no
-  spell-checker suppression; the test is the evidence that this representation gives exactly the CSS values, and the
+  `transparent` is (0, 0, 0, 0). The names are stored as PascalCase words with `0xRRGGBB` numbers, so the source needs
+  no spell-checker suppression; the test is the evidence that this representation gives exactly the CSS values, and the
   repository spell check (`lint.ps1`) is the evidence that no suppression or word-list entry is needed. Names with
   surrounding blanks, hexadecimal, function text, and unknown names are not names.
 - **Functions**: `rgba(255,0,0,0.5)` has the alpha 0.5 x 255 = 127.5, which rounds to 128; `rgb(10% 20% 30% / 50%)` is

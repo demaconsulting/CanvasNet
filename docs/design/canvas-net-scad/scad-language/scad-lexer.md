@@ -15,7 +15,7 @@ source files in the `DemaConsulting.CanvasNet.Scad.Language` namespace, all `int
 `ScadLexer` converts the complete source text into a list of `ScadToken` values, always ending with
 exactly one end-of-file token, or throws a `ScadSyntaxException` at the first lexical error. It exists
 as a separate stage so that the parser can look ahead over a plain token list, and so that every
-lexical error is reported before any grammatical analysis begins (see _ScadLanguage_,
+lexical error is reported before any grammatical analysis begins (see *ScadLanguage*,
 `scad-language.md`). The lexer is an original implementation written from general language-design
 knowledge, with no OpenSCAD source, grammar, manual text, or test material consulted.
 
@@ -40,7 +40,7 @@ character of the input (after any trailing whitespace, line breaks, and comments
 <!-- markdownlint-disable MD013 -->
 
 | Group | Kinds |
-| ----- | ----- |
+| --- | --- |
 | Structural | `EndOfFile` |
 | Literals and names | `Number`, `String`, `Identifier` |
 | Directives | `Include`, `Use` (the whole `include <path>` / `use <path>` is one token) |
@@ -135,7 +135,7 @@ recovery is attempted. The complete message catalog follows; `c` stands for the 
 <!-- markdownlint-disable MD013 -->
 
 | Condition | Message | Location |
-| --------- | ------- | -------- |
+| --- | --- | --- |
 | Block comment not closed | `Unterminated block comment` | the opening `/*` |
 | String not closed (also when the input ends right after a backslash) | `Unterminated string literal` | the opening quote |
 | Unknown escape letter | `Invalid escape sequence '\c'` | the backslash |
@@ -157,7 +157,7 @@ Source length is not checked here: `ScadParser.Parse(string, string?)` and `Scad
 #### Dependencies
 
 - **`ScadSourceLocation`** and **`ScadSyntaxException`** — the public location and error types of the
-  `ScadDocument` unit (see _ScadDocument Unit Design_, `scad-document.md`).
+  `ScadDocument` unit (see *ScadDocument Unit Design*, `scad-document.md`).
 - **.NET base class library** — `System.Globalization` (`double.Parse` and `int.Parse` with the
   invariant culture), `System.Text.StringBuilder` for string values, and `char.ConvertFromUtf32`.
 

@@ -13,7 +13,7 @@ can read, it creates the image resolver that lets an SVG document embed all of t
 picture. It adds no format knowledge of its own: each format is drawn by the `SourceLoader`, the same code the
 command-line tool uses (which calls the libraries of the format packages), and every file
 a rendered file references is read by the core `FolderImageResolver` under the file-access policy of the caller. See
-_CanvasNetViewer System Design_ (`canvas-net-viewer.md`) for
+*CanvasNetViewer System Design* (`canvas-net-viewer.md`) for
 the system-level architecture.
 
 The unit's behavior is specified by the `CanvasNetViewer-CanvasNetViewer-*` requirements (`ImageSources`,
@@ -53,16 +53,15 @@ The unit's behavior is specified by the `CanvasNetViewer-CanvasNetViewer-*` requ
   aspect ratio, both = a box; when given, each must be from 1 to `Surface.MaxDimension`), `Page` (1-based, default 1),
   `Dpi` (nullable; none = 96), `Background` (nullable; none = no flattening), `Scad` (a `ScadViewOptions`, nullable),
   `VegaLite` (a `ChartOptions` with the values of the parameters of a chart, nullable; the option behind `--param`),
-  `Folder` (the base of the relative references of the rendered file, not a boundary; by
-  default the folder of the file for a render by path, none for a stream), `FileAccess` (the `FileAccessPolicy` of
-  every file the rendered file references, its pictures, a model's includes, a chart's data, and the files those read
-  in turn; `FileAccessPolicy.AllowAll` by default, `null` refused with `ArgumentNullException`; passed to the resolver as
-  `FolderImageResolverOptions.FileAccess`), `ThrowOnUnsupportedFeature`,
-  `MaxDecodedPixels` (nullable; none = the resolver default budget), `ExtraSources`, `Positions` (a core
-  `PositionSelection`, nullable; none = no positions: the selectors of the feature positions a Mermaid diagram or a
-  Vega-Lite chart reports, ignored by every other kind of file),
-  and `CancellationToken`. There is deliberately no `Scale`, `Filter` or `AutoOrient`: the size is `Width`/`Height` (or
-  `Dpi`), and the resampling of a raster belongs to `ImageWriter` and `SourceLoader`.
+  `Folder` (the base of the relative references of the rendered file, not a boundary; by default the folder of the file
+  for a render by path, none for a stream), `FileAccess` (the `FileAccessPolicy` of every file the rendered file
+  references, its pictures, a model's includes, a chart's data, and the files those read in turn;
+  `FileAccessPolicy.AllowAll` by default, `null` refused with `ArgumentNullException`; passed to the resolver as
+  `FolderImageResolverOptions.FileAccess`), `ThrowOnUnsupportedFeature`, `MaxDecodedPixels` (nullable; none = the
+  resolver default budget), `ExtraSources`, `Positions` (a core `PositionSelection`, nullable; none = no positions: the
+  selectors of the feature positions a Mermaid diagram or a Vega-Lite chart reports, ignored by every other kind of
+  file), and `CancellationToken`. There is deliberately no `Scale`, `Filter` or `AutoOrient`: the size is
+  `Width`/`Height` (or `Dpi`), and the resampling of a raster belongs to `ImageWriter` and `SourceLoader`.
 - **`ViewerImage`** (`IDisposable`) — owns the `Surface` and carries `Format`, `Page`, `PageCount`, `Diagnostics`,
   `Echo`, `Anchors`, `Embedded`, and `Positions` (the feature positions the selection matched, in the pixels of the
   returned picture; empty when none were asked for and for every other kind of file)
@@ -116,7 +115,7 @@ the built-in sources plus `ViewerRenderOptions.ExtraSources`, so `ExtraSources` 
 `Render`, and `CreateImageResolver` is for a render that the caller drives (for example `SvgCodec.Load` with
 `SvgLoadOptions.ImageResolver`) and that needs the resolver and its notes.
 
-**`Render(path, options)`**: validate the options (see _Error Handling_), resolve the base folder (`options.Folder`,
+**`Render(path, options)`**: validate the options (see *Error Handling*), resolve the base folder (`options.Folder`,
 or the folder of the file), and call
 `FolderImageResolver.Render(fullPath, width, height, directOptions)` on a resolver built from the built-in and extra
 sources, the
@@ -167,28 +166,24 @@ drawn: an `svg-binding-*` note of the rendered file (in the result) or of a nest
 ### Error Handling
 
 A null `path`, `stream`, or `fileName` throws `ArgumentNullException`; a null, empty or white-space folder for
-`CreateImageResolver` throws `ArgumentException`; a null `FileAccess` is refused when the options are built; a path outside
-`options.Folder` is not an error; a
-`Width` or `Height` that is given and is not from 1 to `Surface.MaxDimension`, a `Page` below 1, and a `Dpi` or `Scad`
-value that the shared validator `SourceLoader.FindOptionProblem` rejects throw `ArgumentOutOfRangeException`
-(parameter `options`, message naming the member) before any file or
-stream is read; a page the file does not have is a `ViewerException` with the code `page-out-of-range`, and a model
-whose `include` is missing, a size limit, or a Visio `Dpi` that is not a whole number is a `ViewerException` too; a
-final picture that does not fit in what is left of `MaxDecodedPixels` throws
-`ImageSourceBudgetException`. The other
-failures are those of `FolderImageResolver.Render`: `FileNotFoundException` for a missing file, `FileReferenceException`
-when
-the file is not a regular file, is larger than 16 MiB, or cannot be read, `NotSupportedException` when no source claims
-the
-extension (the message lists the extensions), `ImageSourceException` when the file is found but cannot be drawn (the
-original failure is the inner exception), and `OperationCanceledException`. An unsupported feature is a note unless
-`ThrowOnUnsupportedFeature` is set. A link the file-access policy denies is the warning `image-access-denied`, and with
-`ThrowOnUnsupportedFeature` a `ViewerException` with the code `file-access-denied`; a denied include or data file
-fails the picture with an `ImageSourceException` whose chain of inner exceptions holds the `FileReferenceException`
-(the loader's `file-access-denied` wraps a library failure, so the adapter rethrows the library exception). A feature
-position selector that matched nothing is the note `positions-unmatched` (the loader adds it), and with
-`ThrowOnUnsupportedFeature` a `ViewerException` with the code `positions-unmatched`, thrown before the picture is
-returned.
+`CreateImageResolver` throws `ArgumentException`; a null `FileAccess` is refused when the options are built; a path
+outside `options.Folder` is not an error; a `Width` or `Height` that is given and is not from 1 to
+`Surface.MaxDimension`, a `Page` below 1, and a `Dpi` or `Scad` value that the shared validator
+`SourceLoader.FindOptionProblem` rejects throw `ArgumentOutOfRangeException` (parameter `options`, message naming the
+member) before any file or stream is read; a page the file does not have is a `ViewerException` with the code
+`page-out-of-range`, and a model whose `include` is missing, a size limit, or a Visio `Dpi` that is not a whole number
+is a `ViewerException` too; a final picture that does not fit in what is left of `MaxDecodedPixels` throws
+`ImageSourceBudgetException`. The other failures are those of `FolderImageResolver.Render`: `FileNotFoundException` for
+a missing file, `FileReferenceException` when the file is not a regular file, is larger than 16 MiB, or cannot be read,
+`NotSupportedException` when no source claims the extension (the message lists the extensions), `ImageSourceException`
+when the file is found but cannot be drawn (the original failure is the inner exception), and
+`OperationCanceledException`. An unsupported feature is a note unless `ThrowOnUnsupportedFeature` is set. A link the
+file-access policy denies is the warning `image-access-denied`, and with `ThrowOnUnsupportedFeature` a `ViewerException`
+with the code `file-access-denied`; a denied include or data file fails the picture with an `ImageSourceException` whose
+chain of inner exceptions holds the `FileReferenceException` (the loader's `file-access-denied` wraps a library failure,
+so the adapter rethrows the library exception). A feature position selector that matched nothing is the note
+`positions-unmatched` (the loader adds it), and with `ThrowOnUnsupportedFeature` a `ViewerException` with the code
+`positions-unmatched`, thrown before the picture is returned.
 
 ### Dependencies
 

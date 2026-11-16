@@ -34,7 +34,8 @@ constitutes a failure.
 
 ##### CanvasNetMermaid-Dagre-DagreAcyclic-BreakCycles: Cycles Are Broken
 
-**Tests**: `DagreAcyclicTests.DagreAcyclic_Run_AcyclicGraph_Unchanged`, `DagreAcyclicTests.DagreAcyclic_Run_Cycles_Broken`
+**Tests**: `DagreAcyclicTests.DagreAcyclic_Run_AcyclicGraph_Unchanged`,
+`DagreAcyclicTests.DagreAcyclic_Run_Cycles_Broken`
 
 Asserts that an acyclic graph keeps every edge with each breaker, and that a square cycle and a two-node cycle have no
 cycle afterwards with both breakers, the two-node cycle becoming two parallel edges in one direction.

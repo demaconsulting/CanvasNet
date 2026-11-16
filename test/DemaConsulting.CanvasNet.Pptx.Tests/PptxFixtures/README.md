@@ -43,7 +43,7 @@ Three independent sources are represented:
 ## Included Files
 
 | File | Exercises |
-| ------ | ----------- |
+| --- | --- |
 | `samplelib-sample-blank.pptx` | A single blank slide from an independent, non-`python-pptx` authoring tool. |
 | `samplelib-sample-presentation.pptx` | Eight slides: text/autoshapes, a table (slide 3), a chart (slide 4, renders). |
 | `pythonpptx-sld-blank.pptx` | A single blank slide (`python-pptx`'s own `sld-blank.pptx`). |
@@ -74,7 +74,7 @@ below (verified by exact file size against the upstream GitHub API directory lis
 inclusion):
 
 | This folder's file | Upstream source URL |
-| ------ | ----------- |
+| --- | --- |
 | `pythonpptx-sld-blank.pptx` | <https://github.com/scanny/python-pptx/blob/master/features/steps/test_files/sld-blank.pptx> |
 | `pythonpptx-shp-shapes.pptx` | <https://github.com/scanny/python-pptx/blob/master/features/steps/test_files/shp-shapes.pptx> |
 | `pythonpptx-shp-groupshape.pptx` | <https://github.com/scanny/python-pptx/blob/master/features/steps/test_files/shp-groupshape.pptx> |
@@ -103,7 +103,7 @@ Each `aiden0z-*.pptx` file here is byte-for-byte the upstream file at the corres
 (verified by exact file size against the upstream GitHub API directory listing before inclusion):
 
 | This folder's file | Upstream source URL |
-| ------ | ----------- |
+| --- | --- |
 | `aiden0z-1-chart-and-complex.pptx` | <https://github.com/aiden0z/pptx-renderer/blob/main/docs/example/1-chart-and-complex/source.pptx> |
 | `aiden0z-image-crop-css-reset.pptx` | <https://github.com/aiden0z/pptx-renderer/blob/main/docs/example/image-crop-css-reset/source.pptx> |
 | `aiden0z-table-stale-frame.pptx` | <https://github.com/aiden0z/pptx-renderer/blob/main/docs/example/table-stale-frame/source.pptx> |

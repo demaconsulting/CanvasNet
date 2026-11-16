@@ -9,11 +9,10 @@
 `CompareCommand` is the `compare` command: it loads two inputs, brings them to one size, measures how much they differ,
 optionally writes pictures of the differences, checks the measures against thresholds, and reports the result. Its
 single responsibility is to turn a command line into one comparison and to report the result; the work (loading, sizing,
-measuring, the thresholds, and the pictures) is the `ImageComparer` of the Viewer library, which calls the core `Surface`
-(`Compare`, `CreateDiff`, `CreateOverlay`, `CreateSideBySide`), `ImageComparison`, and `SourceLoader`. The unit is the
-partial class `CompareCommand`
-in `CompareCommand.cs` (the run, the preparation of the sides, and the reporting) and
-`CompareCommand.Options.cs` (the option table and the reading of the settings). The command has no alias.
+measuring, the thresholds, and the pictures) is the `ImageComparer` of the Viewer library, which calls the core
+`Surface` (`Compare`, `CreateDiff`, `CreateOverlay`, `CreateSideBySide`), `ImageComparison`, and `SourceLoader`. The
+unit is the partial class `CompareCommand` in `CompareCommand.cs` (the run, the preparation of the sides, and the
+reporting) and `CompareCommand.Options.cs` (the option table and the reading of the settings). The command has no alias.
 
 #### Data Model
 
@@ -48,32 +47,28 @@ They are plain data, so the failure document of a threshold can be written after
 
 **ReadSettings(reader)**: requires exactly two positional arguments; reads `--background` with `ParseColor` and rejects
 a color that is not opaque (`usage-error`; the default is white); reads `--grid` as `CxR` with `ParseInt` for each side
-(1 to 64, `ComparisonResult.MaxGridSide`; default 4x4, `ImageComparison.DefaultGridColumns` and `DefaultGridRows`); reads
-every `--threshold` as `metric=value` - the metric by `ImageComparison.TryParseMetric`, the
-value by `ParseNumber` within `ImageComparison.Range` - and rejects a metric given twice; reads `--tolerance` (0 to
-255, default 8), `--gain` (0.1 to 255, default 4), `--overlay-weight` (0 to 1, default 0.5), `--diff-style` (`heat` or
-`abs`), `--fit` (`contain` or `stretch`, with `ParseFit`, also used by `MontageCommand`), `--resize-to` (`a`, `b`, or a
-size with `ParseSize`, which refuses a side beyond the maximum with `size-limit`), `--quality`, the per-side options,
-and, with `RenderCommand.ReadScadOptions`, the shared options of a model, and, with `RenderCommand.ReadFileAccess`
-of both inputs, the file-access policy (under `roots` without `--allow-root`, the default folders cover the folders of
-both inputs).
+(1 to 64, `ComparisonResult.MaxGridSide`; default 4x4, `ImageComparison.DefaultGridColumns` and `DefaultGridRows`);
+reads every `--threshold` as `metric=value` - the metric by `ImageComparison.TryParseMetric`, the value by `ParseNumber`
+within `ImageComparison.Range` - and rejects a metric given twice; reads `--tolerance` (0 to 255, default 8), `--gain`
+(0.1 to 255, default 4), `--overlay-weight` (0 to 1, default 0.5), `--diff-style` (`heat` or `abs`), `--fit` (`contain`
+or `stretch`, with `ParseFit`, also used by `MontageCommand`), `--resize-to` (`a`, `b`, or a size with `ParseSize`,
+which refuses a side beyond the maximum with `size-limit`), `--quality`, the per-side options, and, with
+`RenderCommand.ReadScadOptions`, the shared options of a model, and, with `RenderCommand.ReadFileAccess` of both inputs,
+the file-access policy (under `roots` without `--allow-root`, the default folders cover the folders of both inputs).
 
 **Run(context, args)**: parses and reads the settings, probes both inputs with `SourceLoader.Probe` under the
-file-access policy, checks that shared
-model options were given only when an input is a model, and runs `PrepareSide` for each input (a per-side option
-given for an input of the wrong kind is a `usage-error` naming the kind, in terms of the options of the tool; shared
-options are skipped for an input they do not concern; `SourceLoader.CheckPage`, whose `page-out-of-range` is
-re-thrown with `Input a:` or `Input b:` in front, and the `SourceOptions` of the side, which carry the policy). It then
-calls
-`ImageComparer.Execute(request)` of the Viewer library with a `CompareRequest` built from the settings and the two
-`CompareInput` values (the inputs are the positional members; every other value is set explicitly as an `init`
-property, so the result does not depend on the defaults of the record), and reports the result (the metrics are
-`result.Comparison.Metrics`, the full measurement is `result.Comparison`). The library reports every mistake about the
-pictures before decoding
-anything, loads and sizes the sides, compares, evaluates the thresholds, and writes the pictures (see _ImageComparer Unit
-Design_), so the behavior described below for loading and writing is the library's, called with the values read here. A
-threshold that is not met is data in the library's result: the command writes the result and then throws
-`ToolException(threshold-failed)`.
+file-access policy, checks that shared model options were given only when an input is a model, and runs `PrepareSide`
+for each input (a per-side option given for an input of the wrong kind is a `usage-error` naming the kind, in terms of
+the options of the tool; shared options are skipped for an input they do not concern; `SourceLoader.CheckPage`, whose
+`page-out-of-range` is re-thrown with `Input a:` or `Input b:` in front, and the `SourceOptions` of the side, which
+carry the policy). It then calls `ImageComparer.Execute(request)` of the Viewer library with a `CompareRequest` built
+from the settings and the two `CompareInput` values (the inputs are the positional members; every other value is set
+explicitly as an `init` property, so the result does not depend on the defaults of the record), and reports the result
+(the metrics are `result.Comparison.Metrics`, the full measurement is `result.Comparison`). The library reports every
+mistake about the pictures before decoding anything, loads and sizes the sides, compares, evaluates the thresholds, and
+writes the pictures (see *ImageComparer Unit Design*), so the behavior described below for loading and writing is the
+library's, called with the values read here. A threshold that is not met is data in the library's result: the command
+writes the result and then throws `ToolException(threshold-failed)`.
 
 **Loading and sizing of the sides** (performed by `ImageComparer`): without `--resize-to` both inputs are loaded at
 their natural size, and a difference in size

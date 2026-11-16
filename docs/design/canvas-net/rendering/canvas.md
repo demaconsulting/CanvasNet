@@ -80,5 +80,5 @@ Base Class Library.
 
 `Canvas` is a public API entry point, invoked directly by consumers of the CanvasNet package.
 Within this repository, it is additionally used internally by the `Shapes` and `TextRenderer`
-units of this same `Rendering` subsystem (see _Shapes Unit Design_, `shapes.md`, and
-_TextRenderer Unit Design_, `text-renderer.md`).
+units of this same `Rendering` subsystem (see *Shapes Unit Design*, `shapes.md`, and
+*TextRenderer Unit Design*, `text-renderer.md`).

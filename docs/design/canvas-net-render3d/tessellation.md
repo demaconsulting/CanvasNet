@@ -12,17 +12,17 @@ It contains five units:
 
 - **PrimitiveTessellator** — the static `PrimitiveTessellator` factory (`Box`, `Sphere`,
   `Cylinder`, `Polyhedron`, and the 2D `Rectangle`, `Ellipse`, `Circle`, `Polygon`); see
-  _PrimitiveTessellator Unit Design_ (`tessellation/primitive-tessellator.md`)
+  *PrimitiveTessellator Unit Design* (`tessellation/primitive-tessellator.md`)
 - **PolygonTriangulator** — the immutable, validated `PolygonRegion`, the exact predicates, and the
-  ear-clipping `PolygonTriangulator` with hole bridging; see _PolygonTriangulator Unit Design_
+  ear-clipping `PolygonTriangulator` with hole bridging; see *PolygonTriangulator Unit Design*
   (`tessellation/polygon-triangulator.md`)
 - **Extruder** — the static `Extruder` (`Linear` with twist, scale, and apex; `Rotate`); see
-  _Extruder Unit Design_ (`tessellation/extruder.md`)
+  *Extruder Unit Design* (`tessellation/extruder.md`)
 - **ConvexHull** — the static `ConvexHull` (`Hull3D`, `Hull2D`) with the internal incremental
   `HullBuilder3D` engine and the exact 3D orientation predicate `SolidPredicates`; see
-  _ConvexHull Unit Design_ (`tessellation/convex-hull.md`)
+  *ConvexHull Unit Design* (`tessellation/convex-hull.md`)
 - **MinkowskiSum** — the static `MinkowskiSum` (`ConvexSum`, `MaxPairwiseSums`), the sum of two convex
-  solids with a sound convexity test; see _MinkowskiSum Unit Design_ (`tessellation/minkowski-sum.md`)
+  solids with a sound convexity test; see *MinkowskiSum Unit Design* (`tessellation/minkowski-sum.md`)
 
 The subsystem is a separate tier so that further generators can be added behind the same
 architectural boundary without touching `SceneModel` or `SceneRendering`. Its namespace
@@ -53,7 +53,7 @@ the contract the renderer's lighting and back-face handling rely on. `Polyhedron
 exception: it reproduces the caller-supplied faces and winding as given, with no closure or
 orientation correction, so those properties are the caller's responsibility. Argument validation is
 eager and fail-closed. See
-_CanvasNetRender3D System Design_ (`../canvas-net-render3d.md`) for the coordinate conventions.
+*CanvasNetRender3D System Design* (`../canvas-net-render3d.md`) for the coordinate conventions.
 
 The polygon path follows the same principles with stronger guarantees. `PolygonRegion` is the single
 place where polygon validity is decided, exactly and without tolerances: invalid polygons (non-finite,
@@ -79,4 +79,4 @@ vertex sums and is only correct for convex operands, so it verifies each operand
 (the operand against the exact hull of its own vertices, with a documented relative tolerance of `1e-9`)
 and rejects every other operand with a `NotSupportedException` instead of approximating it. Both
 operations have documented, bounded work and observe the cancellation token. See the
-_ConvexHull Unit Design_ and _MinkowskiSum Unit Design_ for the proofs, complexity and tolerance statement.
+*ConvexHull Unit Design* and *MinkowskiSum Unit Design* for the proofs, complexity and tolerance statement.

@@ -91,8 +91,8 @@ directory is a folder below `outer`, the anchor of `outer` as the only folder to
 `FileAccessPolicy_Combine_InvalidArguments_Throw`
 
 A nested combination is flattened (`third+first+second`) and returns the first denial's reason; `roots+no-symlinks`
-allows a plain inside file and pre-checks an outside path; a single policy is returned as it is; the need for a real path
-follows the parts; a null, empty, or null-holding list is rejected.
+allows a plain inside file and pre-checks an outside path; a single policy is returned as it is; the need for a real
+path follows the parts; a null, empty, or null-holding list is rejected.
 
 ##### CanvasNet-Files-FileAccessPolicy-FromDelegate: A Policy From a Function
 

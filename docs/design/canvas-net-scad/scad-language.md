@@ -14,10 +14,10 @@ the test assembly, so the tree can evolve while evaluation and rendering are add
 contains two units:
 
 - **ScadLexer** — the internal `ScadLexer` (partial class), `ScadToken`, and `ScadTokenKind`; see
-  _ScadLexer Unit Design_ (`scad-language/scad-lexer.md`)
+  *ScadLexer Unit Design* (`scad-language/scad-lexer.md`)
 - **ScadParser** — the internal `ScadParser` (partial class), the syntax tree records
   (`ScadSyntax.cs`, `ScadStatements.cs`, `ScadExpressions.cs`), and `ScadTreeDepth`; see
-  _ScadParser Unit Design_ (`scad-language/scad-parser.md`)
+  *ScadParser Unit Design* (`scad-language/scad-parser.md`)
 
 The subsystem's namespace documentation is in `Language/NamespaceDoc.cs`. Its behavior is specified by
 the `CanvasNetScad-ScadLanguage-*` requirements in `docs/reqstream/canvas-net-scad/scad-language.yaml`.
@@ -39,7 +39,7 @@ supplies `System.Globalization`, `System.Text`, and `System.Runtime.CompilerServ
 **Consumers**: `ScadDocument`, which calls `ScadParser.Parse(string, string?)` and reads the resulting
 `ScadProgram`, and the `ScadFileResolver` unit of the `ScadEvaluation` subsystem, which calls the same method to
 parse each file loaded by `include` or `use` and consumes the syntax tree through the evaluator. See
-_ScadDocument Unit Design_ (`scad-document.md`) and _ScadEvaluation Subsystem Design_ (`scad-evaluation.md`).
+*ScadDocument Unit Design* (`scad-document.md`) and *ScadEvaluation Subsystem Design* (`scad-evaluation.md`).
 
 ### Design
 
@@ -80,14 +80,14 @@ leave later recursive consumers of the tree safe. Three limits apply:
   The nominal limit is therefore honored on every platform regardless of the caller's stack. On the
   fallback thread a tripped guard is converted to the same `Nesting too deep (limit 256)` error.
   The lexer is iterative and needs no such guard. The Phase 5 evaluator applies the same approach for its own
-  recursion limits (see _ScadEvaluation Subsystem Design_, `scad-evaluation.md`).
+  recursion limits (see *ScadEvaluation Subsystem Design*, `scad-evaluation.md`).
 - **Tree height** — left-associative operator chains and postfix chains are built in loops without
   parser recursion, so a hostile `1+1+1+…` yields an arbitrarily deep left-leaning tree. After a
   successful parse, `ScadTreeDepth.Verify` measures the finished tree iteratively (explicit stack) and
   rejects any node deeper than 256 (program node at depth 0), with the same message located at the
   offending node. The two parts are complementary: the counter protects the parser's own stack, and the
   height check guarantees that every later recursive consumer sees a bounded tree. Details are in
-  _ScadParser Unit Design_.
+  *ScadParser Unit Design*.
 
 **Immutability and concurrency.** Tokens and syntax nodes are immutable (record structs and records
 with read-only collections), and the static entry points create a new single-use lexer or parser

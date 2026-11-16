@@ -11,7 +11,7 @@ package; its unit tests live in the sibling `DemaConsulting.CanvasNet.Vsdx.Tests
 ### Verification Approach
 
 The `VsdxDocument` unit is verified through dedicated unit-test classes, one per resolver area,
-mirroring the already-established approach of _PptxDocument Unit Verification_
+mirroring the already-established approach of *PptxDocument Unit Verification*
 (`canvas-net-pptx/pptx-document.md`): `VsdxDocumentTests.cs` (OPC package layer, page index),
 `VsdxGeometryTests.cs` (geometry-row resolution), `VsdxTransformTests.cs` (shape-local-to-page-space
 transform), `VsdxMasterInheritanceTests.cs` (Master/MasterShape cell and geometry-row merge),
@@ -39,7 +39,7 @@ resolution helpers, `VsdxColorPalette.Resolve`, `ResolveTextLayout`, `PaintTextL
 `InternalsVisibleTo` grant to the `DemaConsulting.CanvasNet.Vsdx.Tests` project (see the
 `VsdxDocument` project file), exercising a specific resolution phase directly from a real,
 package-resolved input rather than only through the fully-composed public API - while the public-
-API-only system tier (see _System Verification Design_, `canvas-net-vsdx.md`) separately proves the
+API-only system tier (see *System Verification Design*, `canvas-net-vsdx.md`) separately proves the
 whole pipeline composes correctly end-to-end. Because `VsdxDocument`'s dependencies
 (`System.IO.Compression.ZipArchive`, `System.Xml.Linq`, and the core `CanvasNet.Canvas`/`Geometry`/
 `Drawing`/`Fonts` subsystems) are BCL types or already-tested sibling-package types, no mocking or
@@ -330,7 +330,7 @@ an `EndX` cell present - the same detection convention `VsdxDocument.Groups.cs`'
 InstanceInhMarkedTransformCell_PreferredOverMasterValue` proves a 1-D connector instance's own
 `F="Inh"`-marked `PinX` cell still wins over the Master's own distinct `PinX` value (unlike the
 generic rule above), `MasterInheritance_InstanceInhMarkedNonTransformCell_StillDefersToMasterValue`
-proves an `F="Inh"`-marked _non_-transform cell (`FillForegnd`) still defers to the Master's own
+proves an `F="Inh"`-marked *non*-transform cell (`FillForegnd`) still defers to the Master's own
 literal value exactly as before (confirming the exception did not widen beyond its intended nine
 cell names), and `MasterInheritance_2DShapeInhMarkedTransformCell_DefersToMasterValue` proves a
 2-D shape (no `BeginX`/`EndX` cell) whose own `PinX` is marked `F="Inh"` - a legitimate, never
@@ -479,7 +479,7 @@ GeometryRowAllCellsInhButInstanceSizeDiffers_InstanceCoordinatesWin` proves the 
 this quality-retry cycle fixed: an instance row whose own cells are all cached as `F="Inh"` (the
 typical case for a formula-derived geometry coordinate, which is never authored as a literal) must
 still have its own, per-instance-correct coordinates win over the Master row's own, differently-
-scaled cached value - the pre-fix cell-by-cell merge above correctly handled a _literal_ instance
+scaled cached value - the pre-fix cell-by-cell merge above correctly handled a *literal* instance
 override (proven by the pre-existing partial-override test) but incorrectly treated an
 `Inh`-marked instance cell identically to a genuinely absent one, silently discarding it.
 Confirmed necessary against a real-world regression in `60489.vsdx`'s Shape `ID='114'` (an ellipse

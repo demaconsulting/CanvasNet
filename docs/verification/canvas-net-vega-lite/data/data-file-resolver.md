@@ -13,7 +13,7 @@ source, and on the `VegaLiteRenderException`s thrown (their message, their locat
 file-access mechanics that the unit delegates to the core `FileReferenceResolver` (path-text rules, the real path of the
 open handle, the race-free check, the policies, the open and bounded-read rules, the callback boundary, the cache) are
 verified once, at the core units, with seams that this project cannot reach (they are internal to the core package);
-see _FileReferenceResolver Unit Verification Design_ and _FileAccessPolicy Unit Verification Design_. What this unit
+see *FileReferenceResolver Unit Verification Design* and *FileAccessPolicy Unit Verification Design*. What this unit
 proves is its own layer:
 
 - **The policy of the call.** Files are read under `VegaLiteOpenOptions.FileAccess`: by default `AllowAll`, so `..`,
@@ -24,9 +24,9 @@ proves is its own layer:
   appears. Hostile paths and `..` escapes are also sent through `Load` in resolver mode and file-system mode, so the
   end-to-end path from the engine to the located error is proven.
 - **Two kinds of file source** are used, and both are real implementations of the unit's contract rather than mocks.
-  _Resolver mode_ uses `VirtualDataFiles` (in `DataTestSupport.cs`), an in-memory file set exposed as the `FileResolver`
+  *Resolver mode* uses `VirtualDataFiles` (in `DataTestSupport.cs`), an in-memory file set exposed as the `FileResolver`
   delegate that records every logical path it is asked for, the thread of each request, and the streams it handed out.
-  _File-system mode_ uses `DataTempDirectory`, a per-test temporary directory tree that the test creates and deletes.
+  *File-system mode* uses `DataTempDirectory`, a per-test temporary directory tree that the test creates and deletes.
 - **Real links.** Three scenarios create real links (directory links are junctions on Windows, which need no privilege;
   file links are symbolic links, created only where the host allows it) and assert that the default policy follows a
   link, that `NoSymlinks` denies it with a located error naming the policy and not the host directory, and that a
@@ -51,8 +51,8 @@ Unit tests reside in `DataFileResolverTests.cs` and `DataFileResolverLinkTests.c
 - **Threads**: The resolver-mode scenario asserts that every request came from the calling thread
 - **Isolation**: Each test builds its own file set or directory and its own resolver, as one call does
 - **Capabilities**: directory links fall back to a junction on Windows, so the directory-link scenarios never skip; the
-  file-link parts skip (or, inside a scenario, are left out) where file symbolic links cannot be created (Windows without
-  the privilege); nothing else depends on the host
+  file-link parts skip (or, inside a scenario, are left out) where file symbolic links cannot be created (Windows
+  without the privilege); nothing else depends on the host
 
 #### Acceptance Criteria
 
@@ -101,12 +101,12 @@ files); a base directory that is not a valid path is a located failure.
 `DataFileResolverTests.DataFileResolver_Load_StreamDisposeFailureIsLocatedReadFailure`
 
 Asserts that the callback receives only normalized logical paths (the root first, then each valid data path as a prefix
-in declaration order, invalid data paths ignored) while a same-named file in the base directory is never read, that every
-stream it handed out is disposed, that every request came from the calling thread, and that an escape above the logical
-root is refused without a request. It also asserts the located read-failure contract of the callback boundary: a stream
-that fails while it is read, a callback that throws, and a stream whose disposal throws after a complete read are each a
-located "cannot be read" failure (the callback's own text is not leaked), the failing stream is disposed exactly once,
-and a cancellation raised by the callback passes through unchanged as `OperationCanceledException`.
+in declaration order, invalid data paths ignored) while a same-named file in the base directory is never read, that
+every stream it handed out is disposed, that every request came from the calling thread, and that an escape above the
+logical root is refused without a request. It also asserts the located read-failure contract of the callback boundary: a
+stream that fails while it is read, a callback that throws, and a stream whose disposal throws after a complete read are
+each a located "cannot be read" failure (the callback's own text is not leaked), the failing stream is disposed exactly
+once, and a cancellation raised by the callback passes through unchanged as `OperationCanceledException`.
 
 ##### Missing Files, Directories And No File Source
 
@@ -180,9 +180,9 @@ the root, and a file link are each denied with the located message "The data fil
 policy 'no-symlinks'" and no host directory, a base directory reached through a link is trusted, and the real file
 beside the links is read; under the default policy the same directory links and the file link are followed and read;
 and a dangling file link is "was not found", like a truly missing file, under the default policy and under
-`NoSymlinks` (this scenario skips where file links cannot be created). _Not verified, by design:_ a hard link has no
+`NoSymlinks` (this scenario skips where file links cannot be created). *Not verified, by design:* a hard link has no
 marker that tells it from a regular file, and its real path is the path of the link, so under `UnderRoots` a hard link
-inside a root to a file outside it is read; this is a documented residual risk (see _DataFileResolver Unit Design_), and
+inside a root to a file outside it is read; this is a documented residual risk (see *DataFileResolver Unit Design*), and
 no test claims otherwise. A component swapped for a link around the open cannot change the decision: the core engine
 judges the real path of the file it opened, which is covered at the core unit
 (`CanvasNet-Files-FileReferenceResolver-RaceFree`).

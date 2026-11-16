@@ -12,7 +12,7 @@ repeating tiled pattern, using an antialiased
 signed-area/coverage-accumulation scanline algorithm. The supporting `FillRule` enum and the
 internal `EdgeFlattener`/`ScanlineRasterizer` helpers are documented inline here, because none of
 them has any independent behavior beyond supporting `PathFiller.Fill` - as is a fourth internal
-helper, `ClipMask` (see _ClipMask (internal) and the internal clip-aware `Fill` overloads_ below),
+helper, `ClipMask` (see *ClipMask (internal) and the internal clip-aware `Fill` overloads* below),
 which represents a PDF content stream's active clipping path and is consumed, via new internal
 clip-aware `Fill` overloads, solely by `DemaConsulting.CanvasNet.Pdf`.
 
@@ -27,10 +27,10 @@ renders holes via nested, counter-wound subpaths, and treats
 every subpath as implicitly closed regardless of whether the path explicitly called `Close`.
 Alongside the original solid-color `Fill` overload, `PathFiller` also exposes a gradient-paint
 `Fill(Surface, Path, Gradient, FillRule, float)` overload that shares every bit of this unit's
-flattening, clip-bounds, and validation logic - see _GradientPaint Unit Design_
+flattening, clip-bounds, and validation logic - see *GradientPaint Unit Design*
 (`gradient-paint.md`) for the gradient-specific evaluation algorithm it delegates to - and a
 tile-paint `Fill(Surface, Path, TilePaint, FillRule, float)` overload that shares the same
-flattening, clip-bounds, and validation logic again - see _TilePaint Unit Design_
+flattening, clip-bounds, and validation logic again - see *TilePaint Unit Design*
 (`tile-paint.md`) for the tile-specific evaluation algorithm it delegates to. Font parsing
 remains outside this unit: callers supply ordinary `Geometry.Path` instances whether they came
 from handwritten geometry or from `Fonts.TrueTypeFont`.
@@ -48,13 +48,13 @@ precise geometric question once cell boundaries are pinned to integer path coord
 
 #### Data Model
 
-| Type                 | Description                                                           |
-| -------------------- | --------------------------------------------------------------------- |
-| `FillRule`           | Public enum: `NonZero`, `EvenOdd` - selects winding-count resolution. |
-| `EdgeFlattener`      | Internal static class: converts a `Path`'s subpaths into polygons.    |
-| `ScanlineRasterizer` | Internal static class: rasterizes polygons into row coverage.         |
-| `ClipMask`           | Internal sealed class: immutable analytic-rectangle/dense clip mask.  |
-| `PathFiller`         | Public static class: the single `Fill` entry point.                   |
+| Type | Description |
+| --- | --- |
+| `FillRule` | Public enum: `NonZero`, `EvenOdd` - selects winding-count resolution. |
+| `EdgeFlattener` | Internal static class: converts a `Path`'s subpaths into polygons. |
+| `ScanlineRasterizer` | Internal static class: rasterizes polygons into row coverage. |
+| `ClipMask` | Internal sealed class: immutable analytic-rectangle/dense clip mask. |
+| `PathFiller` | Public static class: the single `Fill` entry point. |
 
 `FillRule.NonZero` (the default) treats a pixel as filled whenever the accumulated signed winding
 count at that pixel is non-zero, regardless of magnitude - this is the conventional default for
@@ -114,7 +114,7 @@ subsystem grows a dedicated transform concept.
 
 ##### PathFiller.Fill(Surface surface, Path path, Gradient paint, FillRule fillRule, float flattenTolerance)
 
-Fills `path` onto `surface` with a linear or radial `Gradient` (see _GradientPaint Unit Design_,
+Fills `path` onto `surface` with a linear or radial `Gradient` (see *GradientPaint Unit Design*,
 `gradient-paint.md`) instead of a solid color, evaluated once per pixel and scaled by that pixel's
 antialiased fill coverage exactly like the solid-color overload. It shares every bit of
 flattening, clip-bounds computation, and `fillRule`/`flattenTolerance` validation with the
@@ -126,7 +126,7 @@ solid-color overload, and it additionally rejects a `null` `paint` argument with
 ##### PathFiller.Fill(Surface surface, Path path, TilePaint paint, FillRule fillRule, float flattenTolerance)
 
 Fills `path` onto `surface` with a repeating tiled pattern supplied by a `TilePaint` (see
-_TilePaint Unit Design_, `tile-paint.md`) instead of a solid color or gradient, evaluated once per
+*TilePaint Unit Design*, `tile-paint.md`) instead of a solid color or gradient, evaluated once per
 pixel and scaled by that pixel's antialiased fill coverage exactly like the other two overloads.
 It shares the same private `TryFlattenForFill`/`ValidateFillArgs` helpers as the solid-color and
 gradient overloads for flattening, clip-bounds computation, and `fillRule`/`flattenTolerance`
@@ -225,7 +225,7 @@ approximation converging only as the sample count grows.
    `Surface.CompositeSpanWorkspace` is rented (`CompositeSpanWorkspace.Rent`) once, sized to the
    row width, before this method's row loop begins, and reused for every row's composite call, so
    `CompositeOverSpan`'s scratch buffers are acquired exactly once per `Fill` call rather than
-   once per row (see _Surface Unit Design_, `../canvas/surface.md`, for the workspace type
+   once per row (see *Surface Unit Design*, `../canvas/surface.md`, for the workspace type
    itself) - no full-row or full-surface coverage buffer is ever allocated; only the current
    row's `cover`/`area`/coverage arrays exist at any time.
    - **Touched-window trimming (profile-driven optimization)**: `CoverageSweep.MoveNext` does not
@@ -374,7 +374,7 @@ composes smoothly with whatever is painted through it.
   reuse) and flattens `path` via `EdgeFlattener.Flatten`. If the flattened geometry is a single
   axis-aligned rectangle (one polygon of four vertices, optionally with a repeated closing vertex,
   whose edges alternate horizontal and vertical within a `1e-3` pixel tolerance, in either winding;
-  the fill rule is irrelevant for it), the result is an _analytic rectangle_ with no dense buffer:
+  the fill rule is irrelevant for it), the result is an *analytic rectangle* with no dense buffer:
   coverage is the product of per-axis fractional overlaps, which equals the rasterized area
   coverage of an axis-aligned rectangle. Anything else (rotated rectangles, curves, several
   subpaths) keeps the dense form: the polygons' bounds are intersected with the `width` x `height`
@@ -425,7 +425,7 @@ overloads carry the real clip-aware implementation and are the ones `PdfDocument
 `ScanlineRasterizer.Fill`'s own 3 overloads (already fully internal) instead gained an optional
 `ClipMask? clip = null` parameter directly, threaded into a new `CoverageSweep` constructor
 parameter. When non-null, each overload first applies the clip's analytic rectangle
-_geometrically_: `ClipMask.TryClipPolygonsToRect` clips every fill polygon to the rectangle
+*geometrically*: `ClipMask.TryClipPolygonsToRect` clips every fill polygon to the rectangle
 (Sutherland-Hodgman against the four axis-aligned half-planes, in `double` math with intersection
 coordinates snapped exactly onto the boundary; polygons fully inside are passed through without
 allocation, disjoint or degenerate ones are dropped, and clipped output is re-closed explicitly as
@@ -439,15 +439,15 @@ where a clip band is cut exactly to the stroked/filled rule), which made 0.75-1.
 between fill edge and clip edge (coincident, crossing or unrelated), because the rasterizer itself
 conserves area. `CoverageSweep` then restricts its swept column/row range to the clip's
 whole-pixel bounds (edges outside the range are still handled analytically by the accumulation
-overflow logic) and, after each row's coverage is resolved, multiplies _only_ the dense buffer's
+overflow logic) and, after each row's coverage is resolved, multiplies *only* the dense buffer's
 row (if any) per column. A clip made only of axis-aligned rectangles (an even-odd ring or band,
 overlapping non-zero rectangles; up to 256 rectangle subpaths) is additionally decomposed, by
 a sweep over horizontal slabs (sorted open/close events per slab, then run merging), into at most
-1024 _disjoint pieces_ (`HasPieces`; up to 256 rectangle subpaths).
+1024 *disjoint pieces* (`HasPieces`; up to 256 rectangle subpaths).
 `TryClipPolygonsToRect` then clips the fill polygons to each piece overlapping the polygons' bounding box
 (a cheap reject, so cost scales with the overlapping pieces) and concatenates the results
 (pieces are disjoint, so the rasterizer's signed-area accumulation sums coverage exactly across
-shared piece edges) and the dense buffer is _not_ multiplied for fills (it still backs
+shared piece edges) and the dense buffer is *not* multiplied for fills (it still backs
 `GetCoverage` for images). `Intersect` keeps pieces for rectangle x union (each piece restricted)
 and union x union (pairwise overlap, falling back to the dense product above 1024 pieces); any
 operand with curves or rotated edges drops them. This fixed a reported header rule (an even-odd
@@ -464,8 +464,8 @@ rotated or skewed images under any clip keep the per-pixel product, with error c
 pixels where both coverages are fractional (at most 0.25 of a pixel's coverage).
 
 A related rasterizer fix: for `EvenOdd`, `CoverageSweep` now routes a row to the exact sub-row
-splitting path whenever two or more edge boundaries fall strictly inside the row, _even when they
-coincide at one y_ (previously coincident boundaries were merged before counting). Several edges
+splitting path whenever two or more edge boundaries fall strictly inside the row, *even when they
+coincide at one y* (previously coincident boundaries were merged before counting). Several edges
 starting at the same y in one column (for example nested rectangles all clipped to one common top
 edge) change that column's winding by two or more at once, which the single scalar fold of the
 row integral cannot resolve (it yielded 25 % coverage where 0 is correct). The cost is limited to
@@ -488,14 +488,14 @@ can assume already-validated input the way `EdgeFlattener`/`ScanlineRasterizer` 
 `System.Numerics.Vector2` (in-box BCL type), the `Geometry` subsystem's `Path`, `Subpath`,
 `PathCommand`, `Rect`, `BezierFlattening`, and `SvgArcConverter` (via `EdgeFlattener`), and the
 `Canvas` subsystem's `Surface`, `Rgba32`, and `Surface.CompositeOverSpan` (via
-`ScanlineRasterizer`; see _Surface Unit Design_, `../canvas/surface.md`, for that method's own
+`ScanlineRasterizer`; see *Surface Unit Design*, `../canvas/surface.md`, for that method's own
 documentation). The gradient-paint overload additionally depends on the `Gradient` public type and
-the internal `GradientEvaluator` helper (see _GradientPaint Unit Design_, `gradient-paint.md`).
+the internal `GradientEvaluator` helper (see *GradientPaint Unit Design*, `gradient-paint.md`).
 The tile-paint overload additionally depends on the `TilePaint` public type and the internal
-`TilePaintEvaluator` helper (see _TilePaint Unit Design_, `tile-paint.md`). `ClipMask` and the
+`TilePaintEvaluator` helper (see *TilePaint Unit Design*, `tile-paint.md`). `ClipMask` and the
 internal clip-aware `Fill` overloads are additionally depended on by
 `DemaConsulting.CanvasNet.Pdf` (an `InternalsVisibleTo` friend assembly) - see
-`docs/design/canvas-net-pdf/pdf-document.md`'s _Clipping-path operators_ section. No
+`docs/design/canvas-net-pdf/pdf-document.md`'s *Clipping-path operators* section. No
 new runtime NuGet package is introduced.
 
 #### Callers

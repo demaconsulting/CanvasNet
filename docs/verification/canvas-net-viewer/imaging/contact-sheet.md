@@ -21,8 +21,8 @@ N/A - standard test environment; the tests use only in-memory surfaces and the b
 - All unit tests pass with zero failures.
 - Rows, sheet size, and cell origins follow the documented formulas, with and without labels.
 - A sheet larger than 8192 pixels on a side is refused with `size-limit` before any pixel is allocated.
-- A contained image keeps its aspect ratio, fills the limiting side, and is centered on the background; a stretched image
-  fills the cell; images go to the cells in order; transparency is flattened.
+- A contained image keeps its aspect ratio, fills the limiting side, and is centered on the background; a stretched
+  image fills the cell; images go to the cells in order; transparency is flattened.
 - Labels are drawn in the strip, in the color that suits the background, cut with ASCII dots to fit the cell, and not at
   all when disabled.
 - Invalid arguments are rejected; the same inputs give identical pixels.
@@ -41,14 +41,15 @@ the sheet throws.
 `size-limit` with a hint about `--cell`; a sheet of exactly 8192 pixels is accepted.
 
 **ContactSheet_Add_Contain_KeepsAspectAndCentersOnBackground**, **ContactSheet_Add_Stretch_FillsTheWholeCell**,
-**ContactSheet_Add_SeveralImages_FillCellsInRowMajorOrder**, and **ContactSheet_Add_TransparentImage_IsFlattenedOverBackground**:
-a 40 by 20 image in a 20 by 20 cell becomes 20 by 10, centered, with exactly 200 non-background pixels on the sheet;
-stretched it fills all 400 pixels of the cell; three images go to the cells at (4, 4), (26, 4), and (4, 26) with the
-background between them; a fully transparent image shows the background and the sheet has no transparent pixel.
+**ContactSheet_Add_SeveralImages_FillCellsInRowMajorOrder**, and
+**ContactSheet_Add_TransparentImage_IsFlattenedOverBackground**: a 40 by 20 image in a 20 by 20 cell becomes 20 by 10,
+centered, with exactly 200 non-background pixels on the sheet; stretched it fills all 400 pixels of the cell; three
+images go to the cells at (4, 4), (26, 4), and (4, 26) with the background between them; a fully transparent image shows
+the background and the sheet has no transparent pixel.
 
-**ContactSheet_Add_Labels_DrawsTextInStripAndNothingWithoutLabels**: with labels the sheet is 22 pixels taller, the strip
-below the cell holds text pixels while the padding around the sheet does not, the sheet without labels holds only the
-image, and a `null` label draws nothing.
+**ContactSheet_Add_Labels_DrawsTextInStripAndNothingWithoutLabels**: with labels the sheet is 22 pixels taller, the
+strip below the cell holds text pixels while the padding around the sheet does not, the sheet without labels holds only
+the image, and a `null` label draws nothing.
 
 **ContactSheet_Add_DarkBackground_UsesLightText** and **ContactSheet_Add_LightBackground_UsesDarkText**: on black the
 text pixels are gray levels up to white, and on white they are gray levels down to black.
@@ -59,8 +60,8 @@ too small for any beginning gives `...`; null arguments throw. The cut itself is
 `TextRenderer_TruncateToWidth_*` unit tests of the core library; two characterization tests written before the label
 fitting was delegated to it pin the behavior that must not change.
 
-**ContactSheet_FitLabel_SurrogatePairText_NeverSplitsPair**: a label of astral characters is cut at many widths and every
-result encodes strictly (no lone surrogate), is a whole-character beginning plus `...`, and fits.
+**ContactSheet_FitLabel_SurrogatePairText_NeverSplitsPair**: a label of astral characters is cut at many widths and
+every result encodes strictly (no lone surrogate), is a whole-character beginning plus `...`, and fits.
 
 **ContactSheet_FitLabel_EmptyText_ReturnsEmpty**: an empty label stays empty for the smallest and a wide cell.
 

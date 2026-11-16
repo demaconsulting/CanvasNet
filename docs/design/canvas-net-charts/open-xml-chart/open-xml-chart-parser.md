@@ -18,7 +18,7 @@ recomputing from the sibling `c:f` formula a spreadsheet application would use. 
 five chart kinds `ChartType` models:
 
 | OOXML element | Classified `ChartType` |
-| ------------- | ----------------------- |
+| --- | --- |
 | `c:barChart` with `c:barDir val="bar"` | `Bar` |
 | `c:barChart` with `c:barDir val="col"` or no `c:barDir` | `Column` |
 | `c:lineChart` | `Line` |
@@ -30,7 +30,7 @@ and throws `ChartUnsupportedFeatureException` - with a dedicated, documented `Fe
 every other schema-legal plot-area shape:
 
 | Plot-area shape | `Feature` token |
-| ---------------- | --------------- |
+| --- | --- |
 | No recognized chart-type element | `charts-openxml-no-chart-type` |
 | More than one recognized chart-type element (a combo chart) | `charts-openxml-combo-chart` |
 | `c:radarChart` | `charts-openxml-radar-chart` |

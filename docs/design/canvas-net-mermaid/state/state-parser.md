@@ -82,7 +82,7 @@ tables, including the merged set on which several states reduce after an id stat
 follow the state of a click), so that a token is refused in the state where jison refuses it, with jison's list of
 expected tokens.
 
-**The statement tree** is a list of `StateStatement` objects (see _StateModel Unit Design_) with Mermaid's statement
+**The statement tree** is a list of `StateStatement` objects (see *StateModel Unit Design*) with Mermaid's statement
 kinds: `state` (an id, a type, descriptions, a note, `:::` classes, and the document of a composite state), `relation`
 (two state statements and a label), `classDef`, `style`, `applyClass`, `click`, and `dir`. A statement the grammar keeps
 as a string (`hide empty description`, `scale`, a lone `state name`, a floating note, and the accessibility statements)
@@ -136,23 +136,23 @@ out, as Mermaid's `$2 != 'nl'` check does.
 #### Error Handling
 
 - A token the grammar does not accept is a `MermaidSyntaxException` with code `mermaid-syntax-error`, located at the
-  token in the original text, with the message `expected 'A', 'B' or 'C', found 'KIND' ('text')` (or `found the end of
-  the text`), the expected token names as `Expected`, and a hint: a text without the header, a transition without its
-  target, a note without its position, and a click without its link have their own hints; an `INVALID` token gets a hint
-  that a state id has no dashes and that `--` divides regions only inside a composite state; `DEFAULT_CLASSDEF_ID` a hint
-  that the default class cannot be redefined; and the end of the text where `STRUCT_STOP` was expected a hint to close
-  every composite state with `}`.
+  token in the original text, with the message `expected 'A', 'B' or 'C', found 'KIND' ('text')` (or
+  `found the end of the text`), the expected token names as `Expected`, and a hint: a text without the header, a
+  transition without its target, a note without its position, and a click without its link have their own hints; an
+  `INVALID` token gets a hint that a state id has no dashes and that `--` divides regions only inside a composite state;
+  `DEFAULT_CLASSDEF_ID` a hint that the default class cannot be redefined; and the end of the text where `STRUCT_STOP`
+  was expected a hint to close every composite state with `}`.
 - Text that no lexer rule matches (such as a multi-line note without `end note`) is a located lexical error raised by
-  the scanner of the `Syntax` subsystem; the parser rewrites its message as `unrecognized text ...` with a hint for state
-  diagrams (close a multi-line note with `end note`, end `scale` with `width`, and end every keyword statement on its
-  line).
+  the scanner of the `Syntax` subsystem; the parser rewrites its message as `unrecognized text ...` with a hint for
+  state diagrams (close a multi-line note with `end note`, end `scale` with `width`, and end every keyword statement on
+  its line).
 - A composite state name of two words before a brace is Mermaid's own error, `Error: State name must be a single word.
   Found: "..."`, with code `mermaid-syntax-error`, located at the name, with no expected tokens and a hint to write one
   word or a quoted description; the hint tells it apart from a lexical error, so `Lex` keeps it.
 - Composite states nested deeper than `MaxNestingDepth` are refused at the `{` of the first one too deep, and a token
   text longer than `MaxLabelLength` at the token, both with code `mermaid-limit-exceeded` and a message that names the
   limit. The texts the model joins or derives from texts the parser checked apart, the concurrent regions as nesting
-  levels, and the node and edge counts are checked by the model (see _StateModel Unit Design_).
+  levels, and the node and edge counts are checked by the model (see *StateModel Unit Design*).
 - The errors of the model while the statement tree is applied (Mermaid's database error and the model's limits)
   propagate unchanged.
 - `Parse` throws `ArgumentNullException` for a null argument.
@@ -176,8 +176,8 @@ out, as Mermaid's `$2 != 'nl'` check does.
 #### Known Differences From Mermaid
 
 - **No regular expressions.** The lexer is a set of hand-written matchers with the same matches as Mermaid's regular
-  expressions; the rules that look far ahead in Mermaid (a direction anywhere on a line, a pseudo-state marker at the end
-  of a line, and the brace after a name of two words) are searched once per line and cached, so reading a text stays
+  expressions; the rules that look far ahead in Mermaid (a direction anywhere on a line, a pseudo-state marker at the
+  end of a line, and the brace after a name of two words) are searched once per line and cached, so reading a text stays
   linear in its length.
 - **Recursive descent instead of LALR(1) tables.** The parser accepts the same language with one token of lookahead
   and emulates the expected-token lists of jison's tables, including the merged lookahead after an id statement; the
@@ -188,6 +188,6 @@ out, as Mermaid's `$2 != 'nl'` check does.
   throws without a token (the single-word error) keep Mermaid's message after the location.
 - **Limits.** The nesting and label limits refuse the text when the document is opened, with code
   `mermaid-limit-exceeded`; Mermaid has no nesting or label limit.
-- **Interaction and accessibility.** `click` statements are read and their data kept for the model, which never draws
-  or binds them; `accTitle` and `accDescr` are metadata of the diagram only, since a rendered picture has no SVG to carry
+- **Interaction and accessibility.** `click` statements are read and their data kept for the model, which never draws or
+  binds them; `accTitle` and `accDescr` are metadata of the diagram only, since a rendered picture has no SVG to carry
   them.

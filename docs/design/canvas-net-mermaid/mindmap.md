@@ -17,16 +17,16 @@ system and, through `InternalsVisibleTo`, to the test assembly. It contains two 
   `MindmapNodeType`, the node `MindmapNode`, the edge `MindmapEdge`, and the diagram `MindmapDiagram` (in
   `MindmapParser.cs`): the lexer and the grammar of Mermaid's mindmap language, the calls of Mermaid's mindmap
   database, the sections, classes, and edges that Mermaid's `getData` derives, the metadata of the diagram, the located
-  errors with Mermaid's expected tokens, and the node, depth, and label limits; see _MindmapParser Unit Design_
+  errors with Mermaid's expected tokens, and the node, depth, and label limits; see *MindmapParser Unit Design*
   (`mindmap/mindmap-parser.md`)
 - **MindmapRenderer** - the internal sealed `MindmapRenderer` (`MindmapRenderer.cs`): the drawing of Mermaid's mindmap
   renderer and of its cose-bilkent renderer (the node data, the changes per shape, the reports, the node sizes in
-  single precision, the layout call, the edges through the layout's points, and the view box); see _MindmapRenderer
-  Unit Design_ (`mindmap/mindmap-renderer.md`)
+  single precision, the layout call, the edges through the layout's points, and the view box); see *MindmapRenderer
+  Unit Design* (`mindmap/mindmap-renderer.md`)
 
 The subsystem's namespace documentation is in `Mindmap/NamespaceDoc.cs`. Its behavior is specified by the
 `CanvasNetMermaid-Mindmap-*` requirements in `docs/reqstream/canvas-net-mermaid/mindmap.yaml`. The SysML2 model names
-the subsystem `MermaidMindmap` (see _CanvasNetMermaid System Design_).
+the subsystem `MermaidMindmap` (see *CanvasNetMermaid System Design*).
 
 **Attribution.** The subsystem is a port of the mindmap of the pinned Mermaid release (MIT; see
 `third-party/README.md`): the parser ports the lexer and the grammar of `diagrams/mindmap/parser/mindmap.jison` and the
@@ -89,9 +89,9 @@ inherited below, and each edge's depth class is the parent's indentation level p
 **Drawing Mermaid's mindmap.** `MindmapRenderer.Draw` follows Mermaid's `draw` and its cose-bilkent renderer: each node
 gets the padding and wrap width of `getData` and the changes `draw` makes per shape, is drawn by `ShapeLibrary` with the
 paint of `MindmapStyles`, and gives the layout the box of the drawn node as the browser's `getBBox` gives it, in single
-precision. `CoseLayout.Run` places the nodes and gives each edge cytoscape's start, middle, and end points, through which
-`EdgeBuilder` draws the edge with the `basis` curve, not cut at the node outlines, because Mermaid hands the edge drawing
-node copies without an intersect function. The view box is the box of the drawing grown by `mindmap.padding`.
+precision. `CoseLayout.Run` places the nodes and gives each edge cytoscape's start, middle, and end points, through
+which `EdgeBuilder` draws the edge with the `basis` curve, not cut at the node outlines, because Mermaid hands the edge
+drawing node copies without an intersect function. The view box is the box of the drawing grown by `mindmap.padding`.
 
 **Fidelity is proven against Mermaid itself.** The upstream vectors (`mindmap-parser.json`, 246 cases recorded from the
 pinned Mermaid release in a browser, 42 of them errors) give, for each valid text, the nodes of Mermaid's database and
@@ -117,11 +117,11 @@ either, so the picture is Mermaid's.
 **Deterministic and bounded.** The parser and the diagram hold no shared state; a parsed diagram is never changed again,
 so it is safe for concurrent renders, and a renderer draws one render on one thread. The lexer's matchers cannot
 backtrack and the grammar is read in loops, so reading a text is linear in its length and never recursive. The layout
-makes no random choice and computes its transcendental functions without the host's math library (see _Cose Design_).
+makes no random choice and computes its transcendental functions without the host's math library (see *Cose Design*).
 The layout work meter of the render (`MaxLayoutWork`) is charged for the node data, every measured label, every step of
 the layout, and every drawn edge, and checks cancellation.
 
-**Known differences from Mermaid** are listed in each unit design and in _CanvasNetMermaid System Design_: errors and
+**Known differences from Mermaid** are listed in each unit design and in *CanvasNetMermaid System Design*: errors and
 limits are located CanvasNet exceptions with hints, and only the first error is reported; a node size that differs in
 its last bit from the browser's can move the nodes of the chaotic layout far; icons are reported; a layout other than
 cose-bilkent is reported and not used; an empty mindmap has the padded empty box as its view box; and the depth of the

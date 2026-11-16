@@ -17,17 +17,17 @@ the test assembly. It contains two units:
 - **ClassParser** - the internal sealed `ClassParser` (a partial class in `ClassParser.cs` and `ClassParser.Lexer.cs`)
   and the token names of `ClassTokens` (in `ClassParser.Lexer.cs`): the lexer and the grammar of Mermaid's class
   language, the database operations it calls in Mermaid's order, the located errors with Mermaid's expected tokens, and
-  the nesting and label limits; see _ClassParser Unit Design_ (`class/class-parser.md`)
+  the nesting and label limits; see *ClassParser Unit Design* (`class/class-parser.md`)
 - **ClassModel** - the internal sealed `ClassModel` (a partial class in `ClassModel.cs` and `ClassModel.LayoutData.cs`)
   and its element types in `ClassModel.cs` (`ClassNode`, `ClassMember`, `ClassRelation`, `ClassRelationInput`,
   `ClassRelationType`, `ClassNote`, `ClassInterface`, `ClassNamespace`, and `ClassStyleClass`): Mermaid's class
   database, the URL check of its strict security level, the diagram metadata, the node, edge, and label limits, the
   mapping to the layout input of a render, the reports of what is not drawn, and the frame of the drawing; see
-  _ClassModel Unit Design_ (`class/class-model.md`)
+  *ClassModel Unit Design* (`class/class-model.md`)
 
 The subsystem's namespace documentation is in `Class/NamespaceDoc.cs`. Its behavior is specified by the
 `CanvasNetMermaid-Class-*` requirements in `docs/reqstream/canvas-net-mermaid/class.yaml`. The SysML2 model names the
-subsystem `MermaidClass` (see _CanvasNetMermaid System Design_).
+subsystem `MermaidClass` (see *CanvasNetMermaid System Design*).
 
 **Attribution.** The subsystem is a port of the class diagram of the pinned Mermaid release (MIT; see
 `third-party/README.md`): the parser ports the generated lexer and the grammar of
@@ -92,7 +92,7 @@ document comes from the text.
 `ClusterLayout.RenderDiagram` lay it out and draw it with the class style sheet, the label builder, the node images,
 and the layout work meter of the render, and with the frontmatter title and the view box padding of 8 of Mermaid's
 class renderer. The class box shape, the class markers, the terminal labels of the cardinalities, and the underline of
-static members are parts of the shared `Rendering` and `Scenegraph` subsystems (see _Rendering Subsystem Design_).
+static members are parts of the shared `Rendering` and `Scenegraph` subsystems (see *Rendering Subsystem Design*).
 
 **Fidelity is proven against Mermaid itself.** The upstream vectors (`class-parser.json`, 179 cases recorded from the
 pinned Mermaid release in a browser, 11 of them errors) give, for each valid text, Mermaid's database facts and the
@@ -119,7 +119,7 @@ backtrack and caches the far-looking direction rule per line, and the parser rea
 styles in loops, so the cost of reading a text is linear in its length and only nested namespaces recurse; the model is
 bounded by the limits above, and the drawing by the layout work meter and the image limits of the shared rendering.
 
-**Known differences from Mermaid** are listed in each unit design and in _CanvasNetMermaid System Design_: errors and
+**Known differences from Mermaid** are listed in each unit design and in *CanvasNetMermaid System Design*: errors and
 limits are located CanvasNet exceptions with hints; the link, tooltip, and callback statements are kept only as data,
 never drawn or bound, and links are checked as the strict security level checks them (the only level modeled); the
 accessibility texts are metadata only; the style warnings of a class are located at its first mention; KaTeX math in

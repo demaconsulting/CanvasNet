@@ -38,7 +38,7 @@ and a deterministic per-tile fragment budget.
 
   <!-- markdownlint-disable MD013 -->
   | Property | Default | Validation |
-  | -------- | ------- | ---------- |
+  | --- | --- | --- |
   | `BackgroundColor` | opaque white | none; alpha honored |
   | `DefaultColor` | `(180, 180, 180)` | none; alpha ignored (also for translucency) |
   | `BackFaceColor` | `(200, 70, 70)` | none; alpha ignored (also for translucency) |
@@ -76,7 +76,7 @@ and a deterministic per-tile fragment budget.
   `render3d-csg-non-manifold-edge`, `render3d-csg-inconsistent-winding`,
   `render3d-csg-degenerate-triangle`, `render3d-csg-inverted-mesh`,
   `render3d-csg-singular-transform`; the report
-  table is in _CanvasNetRender3D System Design_, Operand Validation Contract.
+  table is in *CanvasNetRender3D System Design*, Operand Validation Contract.
 - **Constants**: tile size 32 x 32 output pixels; a cancellation check every 4096 triangles (also
   while collecting fragments); depth tolerance factor 1e-6; automatic near floor factor 1e-4; near
   margin 0.99 and far margin 1.01.
@@ -116,14 +116,14 @@ overlay are untouched.
    program `L0` (so tests can prove equivalence with the z-buffer); the seam never validates
    operands.
 3. **Validate operands** (natural fragment path only): `CsgOperandValidator.Validate` runs before any
-   transform or rendering work, as described under _Operand validation_ below.
+   transform or rendering work, as described under *Operand validation* below.
 4. **Flatten and transform**: for each `Scene.EnumerateInstances()` instance, compose
    `world * translate(-eye) * rotation` and transform every vertex in double precision into a
    per-instance view-space array (so shared vertices produce bit-identical positions in every
    incident triangle), tracking the component-wise view-space minimum and maximum. The token is
    checked per instance. On the CSG path, `CsgOperandValidator.ValidateTransformed` then checks
    every instance's world transform and view-space triangles (only when validation is enabled; see
-   _Operand validation_). The camera's near plane is not validated.
+   *Operand validation*). The camera's near plane is not validated.
 5. **Depth statistics**: nearest depth `-max.Z`, farthest depth `-min.Z`, and the diameter of the
    view-space bounding box, over **all** instances (operands included).
 6. **Clip range**: a `NearPlane`/`FarPlane` set on the camera wins. Otherwise, for a perspective
@@ -163,8 +163,8 @@ overlay are untouched.
    right after that check the internal `SceneRenderOptions.TileStarting` test seam (`null` by default)
    is invoked with the tile index, so a test can cancel at a known tile instead of after a delay.
 10. **Failure handling**: any exception during tile rendering disposes the `Surface` before it
-    propagates. `RenderTiles` normalizes the exceptions of a parallel render, see _Budget and
-    cancellation unwrap_ below.
+    propagates. `RenderTiles` normalizes the exceptions of a parallel render, see *Budget and
+    cancellation unwrap* below.
 
 ##### `RenderTile`
 
@@ -259,9 +259,9 @@ memory.
 
 ##### `RenderFitted(scene, width, height, options, cancellationToken)`
 
-Validates the scene and size, honors the cancellation token (before any bounds work), builds `Camera.FitToBounds(scene.ComputeBounds(),
-Camera.DefaultAzimuthDegrees, Camera.DefaultElevationDegrees, width / (double)height)`, and calls
-`Render`. An empty scene yields a fallback unit-cube framing and therefore the background only.
+Validates the scene and size, honors the cancellation token (before any bounds work), builds
+`Camera.FitToBounds(scene.ComputeBounds(), Camera.DefaultAzimuthDegrees, Camera.DefaultElevationDegrees, width / (double)height)`,
+and calls `Render`. An empty scene yields a fallback unit-cube framing and therefore the background only.
 
 #### Error Handling
 
@@ -278,7 +278,7 @@ triangle preparation. The exception contract of `Render` beyond argument errors:
 Without strict mode, operand problems are delivered to the handler and are not errors. A handler
 that throws propagates unchanged, and one that cancels the token stops the validation with
 `OperationCanceledException` at the next instance. Non-finite or degenerate triangles are skipped
-silently (see _TriangleRasterizer Unit Design_). Exceptions are otherwise propagated; the only
+silently (see *TriangleRasterizer Unit Design*). Exceptions are otherwise propagated; the only
 local handling is the surface disposal and the aggregate unwrapping described above.
 
 #### Dependencies

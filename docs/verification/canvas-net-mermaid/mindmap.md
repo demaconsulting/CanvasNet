@@ -47,10 +47,10 @@ in the two unit verification documents passes without error or unexpected except
 
 Every inline text (a theory with four cases: Mermaid's documentation example, every shape, SVG labels with a padding of
 7 and a `maxNodeWidth` of 90, and a single node) opens as a document whose diagram is a `MindmapDiagram` and lays out
-into one node group per node of the diagram (`node_<id>`) and one edge per edge of the diagram (`edge_<parent>_<child>`),
-every node box inside the view box, and lays out a second time into the same view box and the same nodes. The exact
-tree, shapes, texts, icons, classes, and sections of every kind of statement are verified at the unit level against
-Mermaid's database (see the MindmapParser unit verification design and the upstream vectors).
+into one node group per node of the diagram (`node_<id>`) and one edge per edge of the diagram
+(`edge_<parent>_<child>`), every node box inside the view box, and lays out a second time into the same view box and the
+same nodes. The exact tree, shapes, texts, icons, classes, and sections of every kind of statement are verified at the
+unit level against Mermaid's database (see the MindmapParser unit verification design and the upstream vectors).
 
 #### CanvasNetMermaid-Mindmap-Metadata: Metadata Without Rendering
 

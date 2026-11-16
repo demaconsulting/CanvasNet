@@ -17,8 +17,8 @@ describe nothing real. They exist to give the tests small, readable charts whose
 - `data-files.vl.json` and `data-files.csv`: the same bar chart as `bar-inline.vl.json`, but its rows come from the
   relative file `data-files.csv` (the specification is opened from its path, so the file is found beside it). The CSV
   has a quoted field with a comma, a quoted field with doubled quotes, an empty cell, a boolean column and an ISO date
-  column, so the tests can check parsing and quoting (the cells stay text unless a test asks for `parse`); the chart must
-  be pixel-identical to the inline one.
+  column, so the tests can check parsing and quoting (the cells stay text unless a test asks for `parse`); the chart
+  must be pixel-identical to the inline one.
 - `data-values.json`: a JSON document with the rows nested under `report.rows`, which the tests read with
   `format.property`. TSV, DSV, hostile and oversized data files are never fixtures: the tests write them to a
   temporary folder or an in-memory file set, so that no unusual file sits in the repository.
@@ -33,8 +33,8 @@ describe nothing real. They exist to give the tests small, readable charts whose
   (49, 74 and 24 pixels, a pixel of bin spacing taken off every pair of edges).
 - `window-cumulative.vl.json`: four made-up quarterly order counts, turned into a running total by a `window` transform
   (`sum`, frame up to the current row: 4, 7, 12 and 14) and drawn as bars on an ordinal axis.
-- `signed-stacks.vl.json`: made-up takings (positive) and outgoings (negative) per quarter, split by `kind` (a color), so
-  that each quarter's bar is a stack that hangs both above and below the zero line (the positive layers stack up from
+- `signed-stacks.vl.json`: made-up takings (positive) and outgoings (negative) per quarter, split by `kind` (a color),
+  so that each quarter's bar is a stack that hangs both above and below the zero line (the positive layers stack up from
   zero and the negative layers stack down from zero, separately; the domain is -20 to 20).
 - `legend-symbols.vl.json`: made-up seed packet readings as filled points with a color field (`crop`, a legend with an
   explicit title) and a size field (`trays`), so that the chart has two symbol legends stacked at its right side.
@@ -43,8 +43,9 @@ describe nothing real. They exist to give the tests small, readable charts whose
 - `legend-merged.vl.json`: made-up garden bed readings with a color, a shape and a size field, where the color and the
   shape read the same field (`bed`), so that they share one legend (symbols with both a shape and a color) and the
   size (`weeds`) has a legend of its own.
-- `log-scales.vl.json`: four made-up daily colony counts (12, 95, 1200 and 8000) as bars on a logarithmic y axis, so that
-  the domain is rounded out to 10 to 10000 (three decades of 100 pixels in a height of 300) and the bars start at the bottom.
+- `log-scales.vl.json`: four made-up daily colony counts (12, 95, 1200 and 8000) as bars on a logarithmic y axis, so
+  that the domain is rounded out to 10 to 10000 (three decades of 100 pixels in a height of 300) and the bars start at
+  the bottom.
 - `binned-channels.vl.json`: eight made-up daily soil readings (`moisture` from 3 to 97) as circles whose color field is
   binned, so that the six-bin default gives the bins 0-20 to 80-100 (two, one, two, one and two readings), a bin-ordinal
   color scale with five explicit colors, and a legend with one entry per bin.
@@ -56,11 +57,11 @@ describe nothing real. They exist to give the tests small, readable charts whose
   multi-format
   (`2024`, `Wed 03`, `Fri 05`, `Jan 07`, `Tue 09`, `Thu 11`) and the points are 0, 150 and 300 pixels in.
 - `time-bars.vl.json`: six made-up clinic visit dates counted per month (`timeUnit: yearmonth`: two in January, three in
-  February, one in March 2024), so that the bars span their months on a scale of 91 days over 300 pixels and the axis labels
-  are the month starts `Jan 2024` to `Apr 2024` under the title `visit (year-month)`.
+  February, one in March 2024), so that the bars span their months on a scale of 91 days over 300 pixels and the axis
+  labels are the month starts `Jan 2024` to `Apr 2024` under the title `visit (year-month)`.
 - `time-zone.vl.json`: three made-up level readings (one of them at 2024-03-05T20:00Z) as points on the days of
-  `timeUnit: yearmonthdate`, so that a chart in a zone 5:30 hours ahead of UTC puts the middle reading on March 6 (200 pixels
-  of 400) where UTC puts it on March 5 (160 pixels); the tests also use it for a zone with a zero offset.
+  `timeUnit: yearmonthdate`, so that a chart in a zone 5:30 hours ahead of UTC puts the middle reading on March 6 (200
+  pixels of 400) where UTC puts it on March 5 (160 pixels); the tests also use it for a zone with a zero offset.
 - `time-parse.vl.json` and `time-parse.csv`: three made-up ticket counts on the days 5, 15 and 25 March 2024 written
   day first (`05/03/2024`), read by the parse directive `date:'%d/%m/%Y'`, so that the points are 0, 100 and 200
   pixels in;
@@ -83,12 +84,11 @@ fixture is that `unsupported.vl.json` now uses a window transform (a later phase
 transform to report. In Phase 6 the window transform and the aggregate became supported, so the same fixture now uses a
 regression transform and a band position (both still unsupported) for the same purpose.
 
-Phase 8 (time) adds the `time-*.vl.json` fixtures above and many small inline specifications. All of them are
-**original works** with made-up dates: no Vega-Lite or Vega example, gallery chart, `vega-datasets` data set (the well-known
-stock, weather or
-flight series in particular) or reference image was copied, adapted or used as a source of expected values. The expected
-ticks, labels and positions are derived by hand from the calendar of 2024 (a leap year that starts on a Monday), the d3
-interval table and Vega's multi-format; the time zones are built in the tests
+Phase 8 (time) adds the `time-*.vl.json` fixtures above and many small inline specifications. All of them are **original
+works** with made-up dates: no Vega-Lite or Vega example, gallery chart, `vega-datasets` data set (the well-known stock,
+weather or flight series in particular) or reference image was copied, adapted or used as a source of expected values.
+The expected ticks, labels and positions are derived by hand from the calendar of 2024 (a leap year that starts on a
+Monday), the d3 interval table and Vega's multi-format; the time zones are built in the tests
 (`TimeZoneInfo.CreateCustomTimeZone`) and no test reads the host's zone, clock or culture.
 
 Phase 9 (line, area, trail, text and arc marks) adds no fixture file: its system tests
@@ -104,21 +104,20 @@ regression transform and a band position to report.
 `SceneSnapshots/` holds the scene snapshots of `VegaLiteRefactorSnapshotTests`: for each of 12 original specifications
 (written in that test file, with made-up data) the whole scene of the chart as text, one line for each item with its
 depth, its offset and every property. They were captured from the Phase 10 pipeline, before the pipeline was refactored
-for compositions, and pin the scene of single and layered views exactly. `single-container-fit.scene.txt` is the one that
-was captured again in Phase 11, for the deliberate change of the fit rule (the container path now fits the guide extents
-rounded up and the title; design deviation item 71); the other 11 are byte-identical to the Phase 10 capture. They are
-not hand-written and carry no data of
-any published chart. To capture them again after a deliberate change of the output, set the environment variable
-`CANVASNET_SCENE_SNAPSHOT_DIR` to this folder's `SceneSnapshots` directory and run the test, which then writes the
-files; review the difference before committing it.
+for compositions, and pin the scene of single and layered views exactly. `single-container-fit.scene.txt` is the one
+that was captured again in Phase 11, for the deliberate change of the fit rule (the container path now fits the guide
+extents rounded up and the title; design deviation item 71); the other 11 are byte-identical to the Phase 10 capture.
+They are not hand-written and carry no data of any published chart. To capture them again after a deliberate change of
+the output, set the environment variable `CANVASNET_SCENE_SNAPSHOT_DIR` to this folder's `SceneSnapshots` directory and
+run the test, which then writes the files; review the difference before committing it.
 
 - `Determinism/pixel-pins.txt` and `Determinism/golden/*.png`: the pins and the pictures of the determinism tests
   (`Hardening/VegaLiteDeterminismTests.cs`). The charts are **original works** written in that test file with made-up
-  numbers and words (bars, a strip of ticks, text labels, a scatter plot, a line over four dates, a density, a pie, a log
-  scatter and a regression); the pictures are the output of this package, drawn with its bundled fonts. A line of the
-  pin file is `name WxH sha256-of-the-pixels` (the pixels of the `Surface`, never the bytes of an encoded file, which
-  differ between .NET versions); a picture is compared within a tolerance, not exactly. To capture them again after a
-  deliberate change of the output, set the environment variable `CANVASNET_DETERMINISM_DIR` to this folder's
+  numbers and words (bars, a strip of ticks, text labels, a scatter plot, a line over four dates, a density, a pie, a
+  log scatter and a regression); the pictures are the output of this package, drawn with its bundled fonts. A line of
+  the pin file is `name WxH sha256-of-the-pixels` (the pixels of the `Surface`, never the bytes of an encoded file,
+  which differ between .NET versions); a picture is compared within a tolerance, not exactly. To capture them again
+  after a deliberate change of the output, set the environment variable `CANVASNET_DETERMINISM_DIR` to this folder's
   `Determinism` directory and run the tests of the class, which then write the files.
 
 Line endings: the repository normalizes text files to LF (`.gitattributes` and `.editorconfig`), but a working tree may

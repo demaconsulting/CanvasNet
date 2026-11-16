@@ -38,12 +38,12 @@ OpenSCAD's source code, test corpus, manual text, manual examples, or rendering 
 `#` modifiers in CanvasNet (a ghost that is not part of the model, a highlight that still takes part in the booleans)
 are written down in `docs/design/canvas-net-scad.md` as CanvasNet's own decisions.
 
-`render-projection-views.scad` (the `projection()` feature) is an original work of the same kind: the flanged bushing, its
-four views and the sheet were designed for these tests, and every expected shape is computed by the test from the
-dimensions in the file. `render-projection-sheet.scad` and `render-viewport-hud.scad` are the two sample models that
-the requester of the feature supplied; they are the requester's own text, used as given, and no OpenSCAD source or manual
-example was consulted for them or for the expectations of their tests, which are computed from the documented meaning
-of the viewport variables of CanvasNet (see `docs/design/canvas-net-scad.md`) and from plain rotation matrices.
+`render-projection-views.scad` (the `projection()` feature) is an original work of the same kind: the flanged bushing,
+its four views and the sheet were designed for these tests, and every expected shape is computed by the test from the
+dimensions in the file. `render-projection-sheet.scad` and `render-viewport-hud.scad` are the two sample models that the
+requester of the feature supplied; they are the requester's own text, used as given, and no OpenSCAD source or manual
+example was consulted for them or for the expectations of their tests, which are computed from the documented meaning of
+the viewport variables of CanvasNet (see `docs/design/canvas-net-scad.md`) and from plain rotation matrices.
 
 `.scad` files are not spell-checked by the repository lint, and the repository normalizes text files to LF line
 endings on checkout. Tests that depend on other line-ending conventions build their input in code instead.
@@ -62,7 +62,7 @@ named after the topic, not after any other implementation's behavior.
 <!-- markdownlint-disable MD013 -->
 
 | File | Purpose |
-| ---- | ------- |
+| --- | --- |
 | `basic-shapes.scad` | Variables, special variables, primitive calls with positional and named arguments, transform chains and blocks |
 | `modules-and-functions.scad` | Module and function definitions with default parameters, nested definitions, `children()`, recursion |
 | `control-flow.scad` | `if`/`else if`/`else`, `for` with several iterators, `intersection_for`, `let`, `echo` and `assert` |
@@ -120,7 +120,7 @@ Line endings are normalized before comparison and the comparison is culture-inva
 (a hash and a space) in an expected-output file is a comment (it carries spelling directives) and is ignored.
 
 | File | Content | When absent |
-| ---- | ------- | ----------- |
+| --- | --- | --- |
 | `eval-<topic>.expected.txt` | The `echo` lines, one per line, including the `ECHO:` prefix | Required |
 | `eval-<topic>.diagnostics.txt` | The warnings as `line:column: message` | No warnings are expected |
 | `eval-<topic>.unsupported.txt` | The unsupported features as `line:column: feature: message` | None are expected |
@@ -136,7 +136,7 @@ by any fragment setting that differs from the default.
 ## Expected Errors
 
 | File | Line | Column | Description |
-| ---- | ---- | ------ | ----------- |
+| --- | --- | --- | --- |
 | `invalid-unterminated-block-comment.scad` | 4 | 1 | The opening `/*` of the unterminated comment |
 | `invalid-missing-semicolon.scad` | 4 | 1 | The token after the unterminated assignment (`height`) |
 | `invalid-unbalanced-brace.scad` | 5 | 1 | End of input, where the closing `}` was expected |

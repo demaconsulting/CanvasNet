@@ -8,23 +8,21 @@
 
 `InspectCommand` is the `inspect` command with its two subcommands: `inspect colors` reports the dominant colors and the
 luma statistics of an image, `inspect pixel` reports the pixel at a point and, optionally, the pixels around it. Its
-single responsibility is to turn a command line into one inspection and to report it; the
-loading, the transformation, and the measuring are the `ImageInspector` of the Viewer library, which uses `SourceLoader`,
-`ImagePipeline`, and the core `Surface` (`Analyze` and
-`Sample`). The command is
-**read-only**: it writes no file, so it has no output option, no format, no overwrite policy, and no same-file check.
-The unit is the partial class `InspectCommand` in `InspectCommand.cs` (the run and the results) and
-`InspectCommand.Options.cs` (the option table and the reading of the settings). The command has no alias.
+single responsibility is to turn a command line into one inspection and to report it; the loading, the transformation,
+and the measuring are the `ImageInspector` of the Viewer library, which uses `SourceLoader`, `ImagePipeline`, and the
+core `Surface` (`Analyze` and `Sample`). The command is **read-only**: it writes no file, so it has no output option, no
+format, no overwrite policy, and no same-file check. The unit is the partial class `InspectCommand` in
+`InspectCommand.cs` (the run and the results) and `InspectCommand.Options.cs` (the option table and the reading of the
+settings). The command has no alias.
 
 #### Why one command with subcommands
 
 `CommandRegistry` is flat: a command is found by its name or an alias, and `Context` hands everything after the name to
-the
-command. So `inspect` is registered once and takes the first positional argument as the subcommand (`colors` or `pixel`,
-in any case). A missing or unknown subcommand is a `usage-error`; the hint of an unknown one suggests the closest name
-with the edit distance of `CommandRegistry` (`Did you mean 'colors'?`, at a distance of at most 2) and lists the
-subcommands. `inspect` is a top-level class in its own file, like `CompareCommand` and `MontageCommand`, and not a member
-of `DiscoveryCommands`, which holds the two commands that never decode pixels.
+the command. So `inspect` is registered once and takes the first positional argument as the subcommand (`colors` or
+`pixel`, in any case). A missing or unknown subcommand is a `usage-error`; the hint of an unknown one suggests the
+closest name with the edit distance of `CommandRegistry` (`Did you mean 'colors'?`, at a distance of at most 2) and
+lists the subcommands. `inspect` is a top-level class in its own file, like `CompareCommand` and `MontageCommand`, and
+not a member of `DiscoveryCommands`, which holds the two commands that never decode pixels.
 
 #### Data Model
 
@@ -61,7 +59,7 @@ the point are set explicitly as `init` properties), which checks the page, loads
 `--page`, the size options, the background,
 and the EXIF orientation), runs the pipeline when there are operations (with the default border color of `render`: the
 `--background`, else white for a vector source, else transparent, and the `--background` also as the fill of a
-rotation), and analyzes the result (see _ImageInspector Unit Design_). The command reports the `InspectResult`. The
+rotation), and analyzes the result (see *ImageInspector Unit Design*). The command reports the `InspectResult`. The
 operations reported are those of the loader followed by those of the pipeline.
 
 **Analysis background** (performed by `ImageInspector`): translucent pixels are flattened over white before they are
@@ -104,18 +102,18 @@ For both subcommands, without `--json` the loader's notes and the echo are writt
 `context.WriteDiagnostics` after the text lines, each note ending with the input path (and the page of a document).
 
 **Input fragment.** The input is probed with `SourceLoader.Probe(InputReference.Parse(input))` like the input of
-`render` (see _RenderCommand Unit Design_): the fragment overrides the options of the command for the input, the text
+`render` (see *RenderCommand Unit Design*): the fragment overrides the options of the command for the input, the text
 result names the input with it, and `WriteCommonFields` writes the `fragment` member of `input`.
 
 #### Error Handling
 
 `ToolException` with `usage-error` (subcommand, operands, options of the other subcommand, an unknown option, a
 malformed value, a point that is malformed or outside the image, a setting without its operation, a model option,
-`--param`, or `--theme` for another kind of input), the input codes of `SourceLoader` (`input-not-found`, `input-unreadable`,
-`unsupported-format`, `corrupt-input`, `unsupported-feature` with `--strict`, `page-out-of-range`, `size-limit`,
-`scad-error`, `file-access-denied`, `budget-exceeded`), and `size-limit` from the pipeline; a picture the file-access
-mode denies is left out and reported as the warning `image-access-denied`. No new error code and no new exit code. Null
-arguments throw `ArgumentNullException`. The registry records the command name on every `ToolException`.
+`--param`, or `--theme` for another kind of input), the input codes of `SourceLoader` (`input-not-found`,
+`input-unreadable`, `unsupported-format`, `corrupt-input`, `unsupported-feature` with `--strict`, `page-out-of-range`,
+`size-limit`, `scad-error`, `file-access-denied`, `budget-exceeded`), and `size-limit` from the pipeline; a picture the
+file-access mode denies is left out and reported as the warning `image-access-denied`. No new error code and no new exit
+code. Null arguments throw `ArgumentNullException`. The registry records the command name on every `ToolException`.
 
 #### Dependencies
 

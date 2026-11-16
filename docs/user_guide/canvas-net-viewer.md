@@ -108,30 +108,28 @@ foreach (var image in resolver.Embedded)             // every image that was dra
 
 The folder is the **base** of relative links, not a boundary: a relative path is followed from the folder of the file
 that contains it (a query after the file name, as in `logo.png?v=2`, is ignored, and a fragment, as in
-`report.pdf#page=3`, is read as parameters, see below), and by default an absolute path, a path through `..`, a
-`file:` URI without a host, and a symbolic link are followed too, as Pandoc does. Which files may be read is decided by
-the file-access policy of the render (`FolderImageResolverOptions.FileAccess`, `ViewerRenderOptions.FileAccess`, see
+`report.pdf#page=3`, is read as parameters, see below), and by default an absolute path, a path through `..`, a `file:`
+URI without a host, and a symbolic link are followed too, as Pandoc does. Which files may be read is decided by the
+file-access policy of the render (`FolderImageResolverOptions.FileAccess`, `ViewerRenderOptions.FileAccess`, see
 *Choosing which linked files may be read* below); a link it denies is the warning `image-access-denied` and draws
-nothing. A network URL (`http:`, `https:`), a UNC path, and a `file:` URI with a host are never read or fetched, whatever
-the policy. A link that is not drawn is a warning with the code
-`svg-image-unresolved` in `Diagnostics` and draws nothing; so is a picture that would take more pixels than the render
-may use (`FolderImageResolverOptions.MaxDecodedPixels`, 64 million by default, counted before anything is decoded, so a
-huge raster in a tiny placement is refused and not decoded), with the code `svg-image-too-large`. A file that is found
-but is broken throws `ImageSourceException`, which names the link and the embedding file and keeps the original
-exception as its `InnerException`. Models, charts, and diagrams are drawn at the size of their placement over a
-transparent background (a chart keeps its own background); a raster keeps its natural size and the SVG codec resamples
-it. See the core user guide, *Linked Images*, for every rule.
+nothing. A network URL (`http:`, `https:`), a UNC path, and a `file:` URI with a host are never read or fetched,
+whatever the policy. A link that is not drawn is a warning with the code `svg-image-unresolved` in `Diagnostics` and
+draws nothing; so is a picture that would take more pixels than the render may use
+(`FolderImageResolverOptions.MaxDecodedPixels`, 64 million by default, counted before anything is decoded, so a huge
+raster in a tiny placement is refused and not decoded), with the code `svg-image-too-large`. A file that is found but is
+broken throws `ImageSourceException`, which names the link and the embedding file and keeps the original exception as
+its `InnerException`. Models, charts, and diagrams are drawn at the size of their placement over a transparent
+background (a chart keeps its own background); a raster keeps its natural size and the SVG codec resamples it. See the
+core user guide, *Linked Images*, for every rule.
 
 **A chart can link pictures too.** The `image` mark of a Vega-Lite chart (`"url": "part.scad"`, `"url": "icon.png"`,
-`"url": "report.pdf#page=2"`) is drawn through the same resolver and file-access policy: a chart loaded by `SourceLoader`
-resolves the files from its own folder, and a chart that an SVG or another document embeds uses the resolver of that
-document. The notes, the echo text of a model, the embed operations, and `--strict` work as for an SVG; the library's
-own
-warning for a picture that was not drawn (`vl-mark-image-unresolved`) is dropped because the resolver's
-`svg-image-unresolved` already names the link. More pictures than the limit (`MaxImages`, 256) is `budget-exceeded`, and
-a
-picture that is found but is broken fails with the error of its own format. Measuring a chart (the probe) loads no
-picture.
+`"url": "report.pdf#page=2"`) is drawn through the same resolver and file-access policy: a chart loaded by
+`SourceLoader` resolves the files from its own folder, and a chart that an SVG or another document embeds uses the
+resolver of that document. The notes, the echo text of a model, the embed operations, and `--strict` work as for an SVG;
+the library's own warning for a picture that was not drawn (`vl-mark-image-unresolved`) is dropped because the
+resolver's `svg-image-unresolved` already names the link. More pictures than the limit (`MaxImages`, 256) is
+`budget-exceeded`, and a picture that is found but is broken fails with the error of its own format. Measuring a chart
+(the probe) loads no picture.
 
 **So can a diagram.** The nodes of a Mermaid diagram (`A@{ img: "part.scad", w: 120, h: 120 }`, `<img src="logo.png">`
 in a label) load their pictures through the same resolver and file-access policy, from the folder of the diagram, or the
@@ -181,13 +179,11 @@ of RFC 8118 (`report.pdf#page=3`). A document link draws **page 1 unless the fra
 - a raster and an SVG file take no parameter.
 
 The `def.` and `param.` prefixes keep the names a link author chooses from colliding with `view=` and `page=`; the
-prefix is not
-case sensitive and the name after it is. A value that is not usable (a vector that is cut short, a name that is not an identifier,
-malformed JSON)
-is `image-fragment-invalid`, `def.` on a file that is not a model and `param.` on one that is not a chart is
-`image-fragment-unknown-parameter`, and a `param.` name that the chart does not declare is the warning
-`vl-param-unknown`. The built-in
-sources declare the prefixes through `IFragmentImageSource.FragmentParameterPrefixes`.
+prefix is not case sensitive and the name after it is. A value that is not usable (a vector that is cut short, a name
+that is not an identifier, malformed JSON) is `image-fragment-invalid`, `def.` on a file that is not a model and
+`param.` on one that is not a chart is `image-fragment-unknown-parameter`, and a `param.` name that the chart does not
+declare is the warning `vl-param-unknown`. The built-in sources declare the prefixes through
+`IFragmentImageSource.FragmentParameterPrefixes`.
 
 The grammar is: the first `#` starts the fragment; `&` separates parameters (an empty one, as in `a&&b`, is skipped);
 the
@@ -757,13 +753,13 @@ thresholds, and, if asked, written as a difference picture, a side-by-side pictu
 not met is **data** in the result (`Passed` is false), not an exception; you decide what a miss means. The numbers have
 fixed scales, and a threshold limit must be given in the same unit as its metric:
 
-| Metric (`ThresholdMetric`) | Unit and range                                                   | A threshold is |
-| -------------------------- | ---------------------------------------------------------------- | -------------- |
-| `Mae`, `Rmse`, `MaxDiff`   | the 0 to 255 channel scale (not 0 to 1); 0 is identical          | a maximum      |
-| `CellRmse`                 | the 0 to 255 scale of the worst cell of the grid                 | a maximum      |
-| `DiffRatio`                | a fraction from 0 to 1 (not a percent) of the pixels that differ | a maximum      |
-| `Psnr`                     | decibels; higher is better, identical images are infinite        | a minimum      |
-| `Ssim`                     | from -1 to 1; 1 is identical                                     | a minimum      |
+| Metric (`ThresholdMetric`) | Unit and range | A threshold is |
+| --- | --- | --- |
+| `Mae`, `Rmse`, `MaxDiff` | the 0 to 255 channel scale (not 0 to 1); 0 is identical | a maximum |
+| `CellRmse` | the 0 to 255 scale of the worst cell of the grid | a maximum |
+| `DiffRatio` | a fraction from 0 to 1 (not a percent) of the pixels that differ | a maximum |
+| `Psnr` | decibels; higher is better, identical images are infinite | a minimum |
+| `Ssim` | from -1 to 1; 1 is identical | a minimum |
 
 An RMSE limit of 10 is therefore about 4 percent of full scale. `Tolerance` (0 to 255) only decides which pixels count
 as different for `DiffRatio` and the differing-pixel count (a pixel differs when any of its R, G, or B channels differs
@@ -865,16 +861,15 @@ catch (ViewerException ex)
 
 **`flatten` - an SVG drawing for other SVG readers.** A browser or WeasyPrint shows nothing for an
 `<image href="flow.mmd">` (or a model, a chart, a page of a document, or a nested SVG file that links one).
-`SvgFlattener.Execute` writes a copy of the drawing in which each such link is a PNG picture of its placement size
-times `Scale`, as a `data:` URI, drawn with the resolver of `render` (relative to the folder of the drawing, under the
-policy of `FlattenRequest.FileAccess`, with the same limits); only those attribute values change. When the drawing links
-no such picture nothing is written and
-`Flattened` is false, so the original can be used as it is. A link to such a file that the drawing, or an SVG file it shows,
-never shows (hidden, or an unused definition) is the warning `SvgFlattener.ImageNotDrawnCode` (`svg-flatten-image-not-drawn`).
-The position bindings of the drawing are baked into the copy with the numbers of the PNG pictures that replace the
-links (no linked file is drawn twice), their `cn:` attributes are removed, and `ResolvedBindings` and
-`UnresolvedBindings` count them; a binding that is not resolved stays as it is and is a warning, or with `Strict` the
-error `svg-binding-failed`:
+`SvgFlattener.Execute` writes a copy of the drawing in which each such link is a PNG picture of its placement size times
+`Scale`, as a `data:` URI, drawn with the resolver of `render` (relative to the folder of the drawing, under the policy
+of `FlattenRequest.FileAccess`, with the same limits); only those attribute values change. When the drawing links no
+such picture nothing is written and `Flattened` is false, so the original can be used as it is. A link to such a file
+that the drawing, or an SVG file it shows, never shows (hidden, or an unused definition) is the warning
+`SvgFlattener.ImageNotDrawnCode` (`svg-flatten-image-not-drawn`). The position bindings of the drawing are baked into
+the copy with the numbers of the PNG pictures that replace the links (no linked file is drawn twice), their `cn:`
+attributes are removed, and `ResolvedBindings` and `UnresolvedBindings` count them; a binding that is not resolved stays
+as it is and is a warning, or with `Strict` the error `svg-binding-failed`:
 
 <!-- compile -->
 
@@ -960,13 +955,13 @@ catch (ViewerException ex) when (ex.Code == ErrorCodes.ImageFragmentInvalid)
 (diagnostics), the text it printed with `echo`, and its anchors (named points with the pixel they land on). Not every
 result carries all three:
 
-| Result                                            | Diagnostics | Echo | Anchors | Diagnostic type         |
-| ------------------------------------------------- | ----------- | ---- | ------- | ----------------------- |
-| `RenderedPage` (of `ImageRenderer`)               | yes         | yes  | yes     | `ImageDiagnostic`       |
-| `LoadedSource` (of `SourceLoader.Load`)           | yes         | yes  | yes     | `ImageDiagnostic`       |
-| `InspectResult`, `CompareSide`, `MontageCell`     | yes         | yes  | no      | `ImageDiagnostic`       |
-| `ViewerImage` (of `CanvasNetViewer.Render`)       | yes         | yes  | yes     | `ImageSourceDiagnostic` |
-| `FolderImageResolver` (an SVG render)             | yes         | yes  | no      | `ImageSourceDiagnostic` |
+| Result | Diagnostics | Echo | Anchors | Diagnostic type |
+| --- | --- | --- | --- | --- |
+| `RenderedPage` (of `ImageRenderer`) | yes | yes | yes | `ImageDiagnostic` |
+| `LoadedSource` (of `SourceLoader.Load`) | yes | yes | yes | `ImageDiagnostic` |
+| `InspectResult`, `CompareSide`, `MontageCell` | yes | yes | no | `ImageDiagnostic` |
+| `ViewerImage` (of `CanvasNetViewer.Render`) | yes | yes | yes | `ImageSourceDiagnostic` |
+| `FolderImageResolver` (an SVG render) | yes | yes | no | `ImageSourceDiagnostic` |
 
 `ImageRenderer`, `SourceLoader.Load`, and `CanvasNetViewer.Render` give anchors (and, for a diagram or a chart, the
 feature positions their options select); the other operations cannot report
@@ -1044,10 +1039,9 @@ is a defect and is not caught. The codes are `usage-error`, `operation-failed`, 
 `unsupported-format`, `corrupt-input`, `unsupported-feature`, `page-out-of-range`, `size-limit`, `same-input-output`,
 `output-exists`, `output-write-failed`, `scad-error`, `vega-lite-error`, `mermaid-error`, `budget-exceeded`,
 `file-access-denied` (a referenced file the file-access policy denied), `size-mismatch`, `threshold-failed`, and
-`positions-unmatched` (a position selector that matched nothing, in strict mode), and `pandoc-filter-error` (used only by
-the `pandoc-filter` command of the tool).
-`ViewerException` is in `DemaConsulting.CanvasNet.Viewer` and the operations
-are in `DemaConsulting.CanvasNet.Viewer.Imaging`, so a program that catches it lists both:
+`positions-unmatched` (a position selector that matched nothing, in strict mode), and `pandoc-filter-error` (used only
+by the `pandoc-filter` command of the tool). `ViewerException` is in `DemaConsulting.CanvasNet.Viewer` and the
+operations are in `DemaConsulting.CanvasNet.Viewer.Imaging`, so a program that catches it lists both:
 
 <!-- compile -->
 

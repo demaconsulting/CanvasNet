@@ -45,7 +45,7 @@ vertex first (`v0, vn-1, ..., v1`).
 #### Key Methods
 
 - `PolygonRegion(IEnumerable<IReadOnlyList<Vector2D>> contours)`: cleans, validates, nests, and
-  normalizes (see _Error Handling_ for the rejection contract). Steps: snapshot each contour and drop
+  normalizes (see *Error Handling* for the rejection contract). Steps: snapshot each contour and drop
   consecutive and closing duplicates; reject contours with fewer than three distinct vertices or zero
   area; check simplicity of all edges of all contours with an exact sweep along X; classify nesting by
   an exact point-in-polygon test of each contour's first vertex (valid because the simplicity check
@@ -88,7 +88,7 @@ scanning instead of by a separate pass per clip. Measured in a Release build, a 
 cancellation. This is adequate for CAD-sized profiles; callers with very large concave profiles
 should split them.
 
-_Invariant of the reflex list._ Clipping an ear shrinks the interior angle at both neighbors, because
+*Invariant of the reflex list.* Clipping an ear shrinks the interior angle at both neighbors, because
 the ear triangle lies inside the polygon and the new edge runs inside the neighbors' old wedges. A
 convex neighbor therefore stays convex, so the set of reflex or collinear entries only ever shrinks and
 needs no insertions. This also holds for the duplicated vertices of bridges, whose wedges lie on either

@@ -6,8 +6,8 @@
 
 `ImageInspector` is verified with unit tests in `ImageInspectorTests.cs` in the Viewer test project. The tests write
 solid-color PNG files to a temporary directory, probe them, and call `ImageInspector.Execute` with request records; the
-expected colors and samples are known from the color of the file. Nothing is mocked; the analysis itself is verified with
-the core `SurfaceAnalysis` unit.
+expected colors and samples are known from the color of the file. Nothing is mocked; the analysis itself is verified
+with the core `SurfaceAnalysis` unit.
 
 #### Test Environment
 

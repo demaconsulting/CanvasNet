@@ -29,10 +29,10 @@ pictures), `MontageBuilder` (load several sources into one contact sheet), and `
 SVG drawing that only CanvasNet draws, and write a copy in which they are PNG pictures). The failures of every unit are
 `ViewerException` values with the stable `ErrorCodes` (the `ViewerException` unit of the `CanvasNetViewer` system). The
 pixel arithmetic that is not specific to the tool is part of the core `Surface` class and its units of the `Canvas`
-subsystem: flip, pad, trim, fit, flatten, and the EXIF orientation (_SurfaceTransforms Unit Design_), the tone
-adjustments (_SurfaceAdjustments Unit Design_), the rotation by any angle and the skew estimation (_SurfaceGeometry Unit
-Design_), the comparison of two surfaces and the difference pictures (_SurfaceComparison Unit Design_), and the analysis
-of colors (_SurfaceAnalysis Unit Design_); the units here delegate to it. The supporting types shared by the units
+subsystem: flip, pad, trim, fit, flatten, and the EXIF orientation (*SurfaceTransforms Unit Design*), the tone
+adjustments (*SurfaceAdjustments Unit Design*), the rotation by any angle and the skew estimation (*SurfaceGeometry Unit
+Design*), the comparison of two surfaces and the difference pictures (*SurfaceComparison Unit Design*), and the analysis
+of colors (*SurfaceAnalysis Unit Design*); the units here delegate to it. The supporting types shared by the units
 (`SourceKind`, `OutputFormat`, `SourceInfo`, `SourceOptions`, `ScadViewOptions`, `ChartFacts`, `DiagramFacts`,
 `DiagramOptions`, `LoadedSource`, `SourceAnchor`, `AppliedOperation`, `ImageDiagnostic`, and `SourcePage`) are
 documented in the design of the unit that owns them; the operation records of the pipeline (and the `Dimension`,
@@ -41,16 +41,16 @@ result records of an operation with the operation unit.
 
 **Record style.** One rule applies to every request and option record of the subsystem (`RenderRequest`,
 `InspectRequest`, `CompareRequest`, `CompareInput`, `MontageRequest`, `FlattenRequest`, `SheetOptions`, and
-`WriteOptions`, like the
-existing `SourceOptions` and `ViewerRenderOptions`): the positional members are exactly the required data, and every
-optional member is an `init` property whose default is the default of the corresponding `canvasnet` command-line
-option, with the numeric defaults published as constants (`ImageInspector.DefaultColors`, `ContactSheet.DefaultCellSize`,
-`DefaultSpacing`, `DefaultPadding`, `ImageWriter.DefaultQuality`, and the defaults of `ImageComparison`). A request built
-from its required members alone therefore does what the command does without options, `with` copies a request with
-one member changed, and an optional member can be added later without breaking a caller. Optional constructor parameters
-are not used because the defaults (colors, lists, nested records) are not compile-time constants. The result records
-are built by the library only and stay positional. The tool passes every value explicitly, so its output does not depend
-on these defaults. Pages are numbered from 1 throughout this subsystem (the format packages count from 0).
+`WriteOptions`, like the existing `SourceOptions` and `ViewerRenderOptions`): the positional members are exactly the
+required data, and every optional member is an `init` property whose default is the default of the corresponding
+`canvasnet` command-line option, with the numeric defaults published as constants (`ImageInspector.DefaultColors`,
+`ContactSheet.DefaultCellSize`, `DefaultSpacing`, `DefaultPadding`, `ImageWriter.DefaultQuality`, and the defaults of
+`ImageComparison`). A request built from its required members alone therefore does what the command does without
+options, `with` copies a request with one member changed, and an optional member can be added later without breaking a
+caller. Optional constructor parameters are not used because the defaults (colors, lists, nested records) are not
+compile-time constants. The result records are built by the library only and stay positional. The tool passes every
+value explicitly, so its output does not depend on these defaults. Pages are numbered from 1 throughout this subsystem
+(the format packages count from 0).
 
 ### Interfaces
 
@@ -65,14 +65,14 @@ load one page into a
 `LoadedSource` that owns its `Surface` and says what was done to produce it, and open a document once to load
 several of its pages.
 
-**ImagePipeline.Apply(input, operations, defaultPadColor, out applied, userBackground)** (provided to the operation units
-and to library users): apply an ordered list of operation records to a surface (calling the core `Surface`
+**ImagePipeline.Apply(input, operations, defaultPadColor, out applied, userBackground)** (provided to the operation
+units and to library users): apply an ordered list of operation records to a surface (calling the core `Surface`
 adjustments, flip, pad, trim, rotation, and skew estimation) and report what was done; the values of the records are
-validated first, so an invalid value is a `usage-error` (or `size-limit`) before any step runs. **ImagePipeline.TryParseFilter**,
-**ImagePipeline.FilterName**, and **ImagePipeline.FilterNames** name the resampling filters (the public tables of the
-imaging units, such as `FilterNames`, `ExtensionFormats`, `ExtensionKinds`, and `ScadViews`, are read-only and cannot
-be changed through a cast). The text of the operations
-of a command line is read by the tool, not by this unit.
+validated first, so an invalid value is a `usage-error` (or `size-limit`) before any step runs.
+**ImagePipeline.TryParseFilter**, **ImagePipeline.FilterName**, and **ImagePipeline.FilterNames** name the resampling
+filters (the public tables of the imaging units, such as `FilterNames`, `ExtensionFormats`, `ExtensionKinds`, and
+`ScadViews`, are read-only and cannot be changed through a cast). The text of the operations of a command line is read
+by the tool, not by this unit.
 
 **ImagePipeline.MapAnchors(anchors, width, height, applied)** (provided to the operation units): follow the pixel
 positions of
@@ -87,29 +87,29 @@ most `PositionCollector.MaxPositions`), which `RenderedPage.Positions` and `Posi
 pipeline; a selector that matched nothing is the warning `positions-unmatched`, or in strict mode the error, raised
 before anything is written.
 
-**ImageWriter.ResolveFormat** and **ImageWriter.Write** (provided to the operation units and to library users): choose the
-output format and write a surface atomically; **ImageWriter.CheckTarget** and **ImageWriter.CheckTargets**, which check
-an output (or all the outputs of an operation against all its inputs) before any work is done, and the staging and
+**ImageWriter.ResolveFormat** and **ImageWriter.Write** (provided to the operation units and to library users): choose
+the output format and write a surface atomically; **ImageWriter.CheckTarget** and **ImageWriter.CheckTargets**, which
+check an output (or all the outputs of an operation against all its inputs) before any work is done, and the staging and
 publishing of several outputs are used inside the subsystem.
 
 **ImageRenderer.Execute(info, request)**, **ImageInspector.Execute(info, request)**, **ImageComparer.Execute(request)**,
-**MontageBuilder.Execute(infos, request)**, and **SvgFlattener.Execute(info, request)** (provided to library users and to
-the commands of the tool): the five operations, each taking plain request records and returning plain result records.
+**MontageBuilder.Execute(infos, request)**, and **SvgFlattener.Execute(info, request)** (provided to library users and
+to the commands of the tool): the five operations, each taking plain request records and returning plain result records.
 
-**ContactSheet.CalculateLayout(count, options)**, **new ContactSheet(count, options)**, **ContactSheet.Add(image, label)**,
-and **ContactSheet.Detach()** (provided to `MontageBuilder`, and to the tool for its early layout check): calculate the
-geometry of a sheet (refusing one that is too
-large) before anything is loaded, then compose the sheet one image at a time and hand it to the caller.
+**ContactSheet.CalculateLayout(count, options)**, **new ContactSheet(count, options)**, **ContactSheet.Add(image,
+label)**, and **ContactSheet.Detach()** (provided to `MontageBuilder`, and to the tool for its early layout check):
+calculate the geometry of a sheet (refusing one that is too large) before anything is loaded, then compose the sheet one
+image at a time and hand it to the caller.
 
 **GridOverlay.Draw(surface, spacing, color)** (provided to the pipeline): draw a labeled coordinate grid in place and
 report the lines and labels drawn.
 
 **ImageComparison.Evaluate(result, thresholds)**, **ImageComparison.MetricName**, **ImageComparison.TryParseMetric**,
-**ImageComparison.IsMinimum**, and **ImageComparison.Range** (provided to `ImageComparer` and the tool): check a comparison
-result of the
-core `Surface.Compare` against thresholds and describe the metrics; the constants of the unit are the defaults of the
-comparison options. The comparison itself, the difference pictures, and the analysis of colors are called directly on the
-core `Surface` (`Compare`, `CreateDiff`, `CreateOverlay`, `CreateSideBySide`, `Analyze`, `Sample`).
+**ImageComparison.IsMinimum**, and **ImageComparison.Range** (provided to `ImageComparer` and the tool): check a
+comparison result of the core `Surface.Compare` against thresholds and describe the metrics; the constants of the unit
+are the defaults of the comparison options. The comparison itself, the difference pictures, and the analysis of colors
+are called directly on the core `Surface` (`Compare`, `CreateDiff`, `CreateOverlay`, `CreateSideBySide`, `Analyze`,
+`Sample`).
 
 **Surface and the codecs** (consumed, from the CanvasNet core library): `Surface` holds the pixels; `PngCodec`,
 `JpegCodec`, `BmpCodec`, `TiffCodec`, `GifCodec`, and `Jpeg2000Codec` decode and encode; `SvgCodec` (from the

@@ -32,22 +32,22 @@ consists of six direct units and two subsystems:
   which creates the `Context`, runs the program logic, and applies the error policy. `Run` dispatches in
   priority order: version query, help, self-validation, then the selected command. `ToolException.cs` holds the
   `ToolException` of the tool, which derives from the `ViewerException` of the Viewer library and adds the command
-  name and the result fields. See _Program Unit
-  Design_ (`canvas-net-tool/program.md`).
+  name and the result fields. See *Program Unit
+  Design* (`canvas-net-tool/program.md`).
 - **Context** (unit; `Context.cs`): parses the global options in any position, captures the command name
   and the command arguments, owns standard output, standard error, and the optional log file, and derives
-  the exit code. See _Context Unit Design_ (`canvas-net-tool/context.md`).
+  the exit code. See *Context Unit Design* (`canvas-net-tool/context.md`).
 - **ArgumentReader** (unit; `ArgumentReader.cs` and `ArgumentReader.Values.cs`): the command-line grammar of
   a command: reads its options and positional arguments from its option table, and parses the typed values
   (sizes, rectangles, colors, angles, flip axes, border widths, resolutions, pages, and definitions). See
-  _ArgumentReader Unit Design_ (`canvas-net-tool/argument-reader.md`).
+  *ArgumentReader Unit Design* (`canvas-net-tool/argument-reader.md`).
 - **ResultWriter** (unit; `ResultWriter.cs`): the machine contract: writes the deterministic JSON success and
-  failure documents with the schema version. See _ResultWriter Unit Design_ (`canvas-net-tool/result-writer.md`).
+  failure documents with the schema version. See *ResultWriter Unit Design* (`canvas-net-tool/result-writer.md`).
 - **Validation** (unit; `Validation.cs`): the self-validation framework behind `--validate`, with the
-  contractual platform-evidence self-tests and TRX/JUnit results output. See _Validation Unit Design_
+  contractual platform-evidence self-tests and TRX/JUnit results output. See *Validation Unit Design*
   (`canvas-net-tool/validation.md`).
 - **PathHelpers** (unit; `PathHelpers.cs`): the safe path combination used for temporary files. See
-  _PathHelpers Unit Design_ (`canvas-net-tool/path-helpers.md`).
+  *PathHelpers Unit Design* (`canvas-net-tool/path-helpers.md`).
 - **Commands** (subsystem; namespace `DemaConsulting.CanvasNet.Tool.Commands`, folder `Commands/`): the
   command contract, the command registry, and the commands themselves. It is a subsystem, not a unit, because
   each family of commands is its own unit behind the shared command contract; it holds
@@ -71,7 +71,7 @@ consists of six direct units and two subsystems:
   prints the result;
   the `ImagePipelineParser` type (in `RenderCommand`'s unit) reads the pipeline operations from the command line.
   The `PandocFilterCommand` unit (the `pandoc-filter` command) is the front end of the `PandocFilter` subsystem.
-  See _Commands Subsystem Design_ (`canvas-net-tool/commands.md`).
+  See *Commands Subsystem Design* (`canvas-net-tool/commands.md`).
 - **PandocFilter** (subsystem; namespace `DemaConsulting.CanvasNet.Tool.PandocFilter`, folder `PandocFilter/`): the
   Pandoc filter of the tool, a literal port of the former Lua filter. The Lua shim `docs/filters/canvasnet.lua` sends
   the whole Pandoc document to `pandoc-filter` once per Pandoc run; the subsystem draws its models, charts, diagrams,
@@ -80,10 +80,11 @@ consists of six direct units and two subsystems:
   `PandocAst`, `FilterPaths`, `PictureAttributes`, `DependencyHasher`, `FilterSettings`, `PictureCache`,
   `PandocFilterEngine`, and `PandocFilterShim` (the shim embedded in the tool, written with `--write-shim`, and its
   protocol). It draws each picture in-process with `RenderCommand.Execute` and `FlattenCommand.Execute`, so a picture is
-  drawn exactly as `render` and `flatten` draw it. See _PandocFilter Subsystem Design_ (`canvas-net-tool/pandoc-filter.md`).
+  drawn exactly as `render` and `flatten` draw it. See *PandocFilter Subsystem Design*
+  (`canvas-net-tool/pandoc-filter.md`).
 
 The `Imaging` subsystem that the commands use is part of the `CanvasNetViewer` system (namespace
-`DemaConsulting.CanvasNet.Viewer.Imaging`); see _Imaging Subsystem Design_ (`canvas-net-viewer/imaging.md`). The tool
+`DemaConsulting.CanvasNet.Viewer.Imaging`); see *Imaging Subsystem Design* (`canvas-net-viewer/imaging.md`). The tool
 references the Viewer assembly (and the other library assemblies) as private assets, so the tool package bundles
 them and has no package dependencies.
 
@@ -131,8 +132,9 @@ The template's `Program` runs one demo action. CanvasNetTool differs in these re
 ## External Interfaces
 
 <!-- markdownlint-disable MD013 -->
+
 | Interface | Direction | Format | Constraints |
-| --------- | --------- | ------ | ----------- |
+| --- | --- | --- | --- |
 | Command line | Inbound | `canvasnet [global options] <command> [command arguments]` | Global options are `-v`/`--version`, `-?`/`-h`/`--help`, `--silent`, `--validate`, `--json`, `--results <file>` (alias `--result`), `--depth <1-6>`, and `--log <file>`, valid in any position; the first token that is not an option or an option value is the command name; unknown options before the command name are an error. A command's own options are written `--name value`, `--name=value`, or `-a value`, and may be repeated; see _ArgumentReader Unit Design_ |
 | Exit code | Outbound | Integer | 0 for success; 1 for any failure; an unexpected exception terminates the process through the runtime's unhandled-exception path |
 | Standard output | Outbound | UTF-8 text, or one single-line JSON document | The version, banner, help, self-validation report, or the selected command's own output; suppressed by `--silent`; clean of decoration when a command runs. With `--json` a command writes one JSON document: `{"schemaVersion":2,"ok":true,"command":"...", ...}`, and so does `help` (a `kind` of `index`, `command`, `topics`, `card`, `examples`, or `example`, without the banner; `help <topic> [<card> ...] --example <name>` writes the raw example text only); an expected failure is written as `{"schemaVersion":2,"ok":false,"command":"...","error":{"code":"...","message":"...","hint":"..."}}` (`command` is null when no command was selected; `hint` only when there is one; no exit-code field; the failure of an unmet `compare` threshold appends the result fields of the command after `error`); the document is ASCII-only and deterministic; see _ResultWriter Unit Design_ |
@@ -140,6 +142,7 @@ The template's `Program` runs one demo action. CanvasNetTool differs in these re
 | Log file | Outbound | Text file | Written when `--log <file>` is given, with every line written to standard output or standard error whether or not `--silent` is set, including the report of an expected or unexpected failure; truncated at open; failure to open is an expected failure |
 | Results file | Outbound | TRX (`.trx`) or JUnit XML (`.xml`) | Written by `--validate --results <file>`; any other extension is an error and no file is written |
 | Pandoc filter | Inbound and outbound | Pandoc JSON document (UTF-8) on standard input and standard output | `pandoc-filter` is run by the Lua shim `docs/filters/canvasnet.lua` (protocol 1) with `--protocol`, `--filter-path`, `--format`, `--pandoc-version`, `--resource-path`, `--pandoc-output`, and `--embed-resources`; the document is read and written as raw UTF-8 bytes (not ASCII-only), written only on success, with the warnings in the metadata key `canvasnet-warnings`; a failure is the JSON failure document; the pictures are written to `generated/canvasnet` beside the folder of the shim; the variables `CANVASNET_TOOL`, `CANVASNET_FILE_ACCESS`, `CANVASNET_ROOTS`, and `CANVASNET_JOBS` apply; see _PandocFilter Subsystem Design_ |
+
 <!-- markdownlint-enable MD013 -->
 
 The stable error codes are `usage-error`, `operation-failed`, `input-not-found`, `input-unreadable`,
@@ -147,7 +150,7 @@ The stable error codes are `usage-error`, `operation-failed`, `input-not-found`,
 `size-limit`, `same-input-output`, `output-exists`, `output-write-failed`, `scad-error`, `vega-lite-error`,
 `mermaid-error`, `budget-exceeded`, `file-access-denied`, `size-mismatch`, `threshold-failed`, `positions-unmatched`,
 `svg-binding-failed`, and `pandoc-filter-error`
-(the `ErrorCodes` type of the `ViewerException` unit of the Viewer library; see also _Program Unit Design_). A code is
+(the `ErrorCodes` type of the `ViewerException` unit of the Viewer library; see also *Program Unit Design*). A code is
 never changed once
 released. For a Vega-Lite chart the codes are exact: `vega-lite-error` is an invalid specification (including a
 nesting or string longer than the parser limit, as the SCAD nesting limit is a `scad-error`) or a chart the library
@@ -165,14 +168,14 @@ target size larger than the maximum image size (a diagram whose natural size is 
 `--theme` that is not a Mermaid theme or that is given for another kind of input. For `--positions` (a diagram or a
 chart) `usage-error` is a malformed selector, more than the selectors allowed, the option without `--json`, or the
 option for another kind of input, and `positions-unmatched` is a selector that matched nothing, with `--strict`
-(without it a warning of the same code). See _SourceLoader Unit Design_ for the
+(without it a warning of the same code). See *SourceLoader Unit Design* for the
 mapping.
 
 ## Dependencies
 
 - **DemaConsulting.TestResults** (OTS, runtime): records the self-validation results and, through its
-  `TestResults.IO` serializers, writes the TRX and JUnit files. See _DemaConsulting.TestResults OTS
-  Integration Design_ (`ots/test-results.md`).
+  `TestResults.IO` serializers, writes the TRX and JUnit files. See *DemaConsulting.TestResults OTS
+  Integration Design* (`ots/test-results.md`).
 - **The CanvasNet libraries** (same repository): the tool references the core `CanvasNet` package and the
   `CanvasNetSvg`, `CanvasNetPdf`, `CanvasNetPptx`, `CanvasNetVsdx`, `CanvasNetRender3D`, `CanvasNetScad`,
   `CanvasNetVegaLite`, `CanvasNetMermaid`, and `CanvasNetViewer` systems. The tool calls the operations of the `Imaging`
@@ -260,17 +263,17 @@ remove.
    given), and reports an expected failure by throwing `ToolException` (or by letting the `ViewerException` of a library
    call escape, which the registry wraps in a `ToolException` with the same code, message, and hint); the registry
    records the command name on it.
-5. `Execute` catches `ArgumentException` and `InvalidOperationException` (including `ViewerException` and `ToolException`),
-   writes the concise report through the `Context` (so `--silent` suppresses it and `--log` records it; to standard
-   error only when no context could be created) and, when `--json` was given without `--silent`, the failure
-   document to standard output, and returns 1. Any other exception is written as an
-   unexpected error and re-thrown. On normal completion `Execute` returns the context's exit code.
+5. `Execute` catches `ArgumentException` and `InvalidOperationException` (including `ViewerException` and
+   `ToolException`), writes the concise report through the `Context` (so `--silent` suppresses it and `--log` records
+   it; to standard error only when no context could be created) and, when `--json` was given without `--silent`, the
+   failure document to standard output, and returns 1. Any other exception is written as an unexpected error and
+   re-thrown. On normal completion `Execute` returns the context's exit code.
 
 For the Pandoc filter, Pandoc runs the Lua shim `docs/filters/canvasnet.lua`, which starts the tool once with
-`pandoc-filter` and the document on standard input; `PandocFilterCommand` checks the protocol, builds the settings of the
-run, and hands the bytes to `PandocFilterEngine`, which plans every picture, draws the pictures that are not in the
-cache through `RenderCommand.Execute` and `FlattenCommand.Execute`, and returns the rewritten document, which the command
-writes to standard output and the shim gives back to Pandoc.
+`pandoc-filter` and the document on standard input; `PandocFilterCommand` checks the protocol, builds the settings of
+the run, and hands the bytes to `PandocFilterEngine`, which plans every picture, draws the pictures that are not in the
+cache through `RenderCommand.Execute` and `FlattenCommand.Execute`, and returns the rewritten document, which the
+command writes to standard output and the shim gives back to Pandoc.
 
 ## Design Constraints
 
@@ -281,25 +284,25 @@ writes to standard output and the shim gives back to Pandoc.
   `crop`, and the `info` and `render` of a small Vega-Lite chart) so that the bundled libraries are proven to
   load on every platform.
 - Packaging: packed as a dotnet tool with the command name `canvasnet`; the sibling libraries are
-  bundled (see _Dependencies_). The help cards and their examples are embedded resources of the tool assembly, so
+  bundled (see *Dependencies*). The help cards and their examples are embedded resources of the tool assembly, so
   `canvasnet help <topic> [<card> ...]` needs no file beside the installed tool. The package readme is the repository
   README, so README links must be absolute URLs.
-- Threading: a console application with no shared mutable state between invocations. The pixel operations of the
-  photo tools may use row-partitioned parallel loops whose outputs are disjoint, and reduce histograms in fixed blocks
-  that are merged in order, so a result never depends on the number of cores. `pandoc-filter` draws up to a number of
-  pictures at once (`--jobs`, `CANVASNET_JOBS`, at most 4 by default) with stateless calls of `RenderCommand.Execute` and
-  `FlattenCommand.Execute`, and writes the document, the warnings, and the cache files in document order, so they never
-  depend on the scheduling. Tests that redirect the console run sequentially.
+- Threading: a console application with no shared mutable state between invocations. The pixel operations of the photo
+  tools may use row-partitioned parallel loops whose outputs are disjoint, and reduce histograms in fixed blocks that
+  are merged in order, so a result never depends on the number of cores. `pandoc-filter` draws up to a number of
+  pictures at once (`--jobs`, `CANVASNET_JOBS`, at most 4 by default) with stateless calls of `RenderCommand.Execute`
+  and `FlattenCommand.Execute`, and writes the document, the warnings, and the cache files in document order, so they
+  never depend on the scheduling. Tests that redirect the console run sequentially.
 - Resource lifecycle: `Context` is `IDisposable`; callers dispose it to flush and close the log file.
 - Output contract: standard output carries results and standard error carries diagnostics, so a caller may
   redirect each independently. Expected-failure messages never contain a stack trace.
-- Determinism: for the same inputs, tool version, and machine, command output is deterministic; JSON documents
-  are additionally independent of the current culture and the console code page (numbers use the invariant
-  culture and non-ASCII characters are escaped); the metrics of `compare` are computed from exact integer sums with
-  one final division, so they do not vary from run to run, the tone operations, the skew estimation, the trim, and the
-  analysis use integer arithmetic (the rotation uses `double` sampling), and the labels of `montage` and `--grid` use the
-  bundled font; output that
-  depends on installed fonts (text in SVG, PDF, PowerPoint, and Visio documents) may differ between machines.
+- Determinism: for the same inputs, tool version, and machine, command output is deterministic; JSON documents are
+  additionally independent of the current culture and the console code page (numbers use the invariant culture and
+  non-ASCII characters are escaped); the metrics of `compare` are computed from exact integer sums with one final
+  division, so they do not vary from run to run, the tone operations, the skew estimation, the trim, and the analysis
+  use integer arithmetic (the rotation uses `double` sampling), and the labels of `montage` and `--grid` use the bundled
+  font; output that depends on installed fonts (text in SVG, PDF, PowerPoint, and Visio documents) may differ between
+  machines.
 - Fill and defaults of the photo operations: the corners that a rotation (and `--deskew`) exposes are filled with
   `--rotate-fill`, else with `--background` when it is given, else with opaque white when every pixel of the image is
   opaque (a photograph, a scan, or a flattened drawing, whose corners then look like paper), else transparent; the

@@ -27,16 +27,16 @@ labels measure 40 by 24 pixels and whose label requests are recorded.
 
 The vector tests in `ShapeLibraryVectorTests.cs` compare every case of the upstream vectors
 `Fixtures/upstream-vectors/shapes.json` (296 cases) with this library. The vectors were recorded from the pinned Mermaid
-in headless Chrome with the bundled Liberation Sans by `tools/visual-diff/mermaid/gen-shape-vectors.mjs`, which
-inserts every node with Mermaid's own `insertNode` and records the node's size, its drawn box, the label's translation
-and measured box, the computed paint of every drawn element, and 48 intersections (24 directions at two radii). The
-cases cover the 53 documented shapes with a short HTML label, a wrapping HTML label, and an SVG label, the undocumented
+in headless Chrome with the bundled Liberation Sans by `tools/visual-diff/mermaid/gen-shape-vectors.mjs`, which inserts
+every node with Mermaid's own `insertNode` and records the node's size, its drawn box, the label's translation and
+measured box, the computed paint of every drawn element, and 48 intersections (24 directions at two radii). The cases
+cover the 53 documented shapes with a short HTML label, a wrapping HTML label, and an SVG label, the undocumented
 shapes, the bracket shapes, label, font, padding, style, image, and icon variants, and the two mindmap shapes
 (`defaultMindmapNode` and `mindmapCircle`) with short, long, and SVG labels and with the mindmap's padding of 10 and a
-width of 100, the node's own fields applied as Mermaid's mindmap renderer gives them. The helper `ShapeVectors` reads the
-vectors and draws a case's node, either with Mermaid's measured label box (to check the geometry alone) or with this
-library's label measurement (to check the node size). No mocking is required; the internal types are reached through
-the test assembly's `InternalsVisibleTo` access.
+width of 100, the node's own fields applied as Mermaid's mindmap renderer gives them. The helper `ShapeVectors` reads
+the vectors and draws a case's node, either with Mermaid's measured label box (to check the geometry alone) or with this
+library's label measurement (to check the node size). No mocking is required; the internal types are reached through the
+test assembly's `InternalsVisibleTo` access.
 
 Unit tests reside in `ShapeLibraryTests.cs`, `ShapeLibraryVectorTests.cs`, and `ShapeNamesTests.cs` (with the helper
 `ShapeVectors.cs`) within the `DemaConsulting.CanvasNet.Mermaid.Tests` project, in the `Rendering` folder.
@@ -55,14 +55,14 @@ Unit tests reside in `ShapeLibraryTests.cs`, `ShapeLibraryVectorTests.cs`, and `
 #### Acceptance Criteria
 
 A unit-level test run passes when every scenario below passes without error or exception beyond those explicitly
-asserted. With Mermaid's label box, a node size, drawn box, or label place that differs from the vector by more than 0.02
-pixel (0.06 pixel for the circles that Mermaid draws through rough.js and this library as true circles, a tolerance the
-vector test also applies to the end state, although its rough.js outline is ported exactly and its analytic scenario
-holds it to the thousandth of a pixel), or an intersection by more than 0.01 pixel, constitutes a failure; with
-this library's label measurement, a label box or node size beyond 0.02 pixel for an HTML label or 2 pixels for an SVG
-label (plus the documented differences of individual cases) constitutes a failure; a class box rectangle, divider, or
-row offset, a state shape, cluster, or paint, or an entity table column, row, or divider that differs from the
-hand-derived value, or a report count other than the expected, constitutes a failure.
+asserted. With Mermaid's label box, a node size, drawn box, or label place that differs from the vector by more than
+0.02 pixel (0.06 pixel for the circles that Mermaid draws through rough.js and this library as true circles, a tolerance
+the vector test also applies to the end state, although its rough.js outline is ported exactly and its analytic scenario
+holds it to the thousandth of a pixel), or an intersection by more than 0.01 pixel, constitutes a failure; with this
+library's label measurement, a label box or node size beyond 0.02 pixel for an HTML label or 2 pixels for an SVG label
+(plus the documented differences of individual cases) constitutes a failure; a class box rectangle, divider, or row
+offset, a state shape, cluster, or paint, or an entity table column, row, or divider that differs from the hand-derived
+value, or a report count other than the expected, constitutes a failure.
 
 #### Unit-Level Test Scenarios
 

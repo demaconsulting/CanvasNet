@@ -226,7 +226,7 @@ equal options; and that a raster in a box is fitted and charged.
 #### CanvasNetViewer-CanvasNetViewer-ExtraSources: Your Own Sources
 
 **Tests**: `CanvasNetViewer_CreateImageResolver_CreatesNewResolverWithBuiltInAndExtraSources` and the five custom-source
-system tests of the `CanvasNetViewerSystemIntegrationTests` class (see _CanvasNetViewer System Verification_,
+system tests of the `CanvasNetViewerSystemIntegrationTests` class (see *CanvasNetViewer System Verification*,
 `canvas-net-viewer.md`)
 
 Asserts that extra sources are placed after the built-in ones, that the later source wins for an extension, that a

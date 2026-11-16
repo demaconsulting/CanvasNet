@@ -25,7 +25,7 @@ fragment rule), the dialect of each primitive's parameters, and the translation 
 the right kind of report: a **warning** for an invalid argument, an **unsupported feature** for a shape that the
 polygon, polyhedron, or Render3D checks cannot accept, and a **`ScadEvaluationException`** for resource
 exhaustion. The dialect (parameter precedence, `center` truthiness, winding conventions, the fragment formula)
-is an original, test-pinned decision of CanvasNetScad (see _CanvasNetScad System Design_, Clean-Room
+is an original, test-pinned decision of CanvasNetScad (see *CanvasNetScad System Design*, Clean-Room
 Provenance); no OpenSCAD source or manual text was consulted. The fragment formula is the public, documented
 formula of the language plus two safety clamps.
 
@@ -47,15 +47,15 @@ are 12 and 2, and the floor of the automatic rule is 5.
 
 **`ScadPrimitives`** is stateless. It keeps one `string[]` of parameter names per module in positional order:
 
-| Module       | Parameters, in positional order                  |
-|--------------|--------------------------------------------------|
-| `cube`       | `size`, `center`                                 |
-| `sphere`     | `r`, `d`                                         |
-| `cylinder`   | `h`, `r1`, `r2`, `center`, `r`, `d`, `d1`, `d2`  |
-| `polyhedron` | `points`, `faces`, `convexity`, `triangles`      |
-| `square`     | `size`, `center`                                 |
-| `circle`     | `r`, `d`                                         |
-| `polygon`    | `points`, `paths`, `convexity`                   |
+| Module | Parameters, in positional order |
+| --- | --- |
+| `cube` | `size`, `center` |
+| `sphere` | `r`, `d` |
+| `cylinder` | `h`, `r1`, `r2`, `center`, `r`, `d`, `d1`, `d2` |
+| `polyhedron` | `points`, `faces`, `convexity`, `triangles` |
+| `square` | `size`, `center` |
+| `circle` | `r`, `d` |
+| `polygon` | `points`, `paths`, `convexity` |
 
 Two private value types support the length parameters: `LengthState` (`Absent`, `Valid`, `Invalid`) and the
 `Length(State, Value)` record struct, whose value is already scaled (a diameter is halved). The public method
@@ -178,11 +178,11 @@ the winding of a contour or of a path does not matter.
 - **`Solid`** charges the triangle budget with the exact count (`ChargeTriangles`), polls cancellation, builds the
   mesh, settles the charge against the mesh's triangle count (`SettleTriangles`; a rejected tessellation is
   refunded), and wraps it with `CreateMeshNode`, which records the mesh node's source location in the scene map.
-- **`Flat`** checks that the slab the region may become fits the budget (`EnsureTriangles(SlabTrianglesLowerBound(vertexEstimate))`)
-  **without charging it**; the exact charge happens when the slab is made at the root or when the region is extruded.
-  It then builds the region, returns `ScadGeo.Empty` for an empty region, and wraps the region with the
-  instance's location otherwise. The vertex estimate is 4 for `square`, the fragment count for `circle`, and the
-  point count for `polygon`.
+- **`Flat`** checks that the slab the region may become fits the budget
+  (`EnsureTriangles(SlabTrianglesLowerBound(vertexEstimate))`) **without charging it**; the exact charge happens when
+  the slab is made at the root or when the region is extruded. It then builds the region, returns `ScadGeo.Empty` for an
+  empty region, and wraps the region with the instance's location otherwise. The vertex estimate is 4 for `square`, the
+  fragment count for `circle`, and the point count for `polygon`.
 
 #### Error Handling
 
@@ -206,7 +206,7 @@ the winding of a contour or of a path does not matter.
     accepts either this id or the face id.
 - **`ScadEvaluationException`** (located at the instance): `Triangle limit exceeded (limit N)` when an estimate
   does not fit the remaining `ScadLimits.MaxTriangles` budget. The estimate is made before any allocation, so a
-  hostile `$fn` or face list fails before memory is spent. For `Flat`, only the slab's _possible_ cost is checked
+  hostile `$fn` or face list fails before memory is spent. For `Flat`, only the slab's *possible* cost is checked
   and nothing is charged until the slab is made.
 - **`OperationCanceledException`** — `Solid`, `Flat`, and `Polyhedron` poll cancellation before the tessellation;
   the exception is never wrapped.
@@ -214,8 +214,8 @@ the winding of a contour or of a path does not matter.
   module's list), never caused by user input.
 - **No recursion**: no method of the unit is recursive. The binder, the readers, the face loops, the fan, and the
   convexity test are loops, and the ear clipping is delegated to the Render3D triangulator. The unit is therefore
-  stack-safe on any caller stack, which supports the iterative guarantee of the engine (see _ScadGeometry
-  Subsystem Design_).
+  stack-safe on any caller stack, which supports the iterative guarantee of the engine (see *ScadGeometry
+  Subsystem Design*).
 - **Threading**: the builders are stateless and thread-safe; a `ScadArguments` instance and the context belong to
   one build on one thread.
 
@@ -223,7 +223,7 @@ the winding of a contour or of a path does not matter.
 
 - **`ScadEvaluation` subsystem** — `ScadInstance` (`Name`, `Arguments`, `Children`, `Fragments`, `Location`),
   `ScadFragmentSettings`, `ScadValue` and `ScadValueKind`, `ScadEvaluationSink` (reached through the reporter),
-  and `ScadEvaluationException` (see _ScadEvaluation Subsystem Design_).
+  and `ScadEvaluationException` (see *ScadEvaluation Subsystem Design*).
 - **`ScadGeometry` siblings** — `ScadGeometryContext` (reporter, `ChargeTriangles`, `EnsureTriangles`, `Poll`,
   `CreateMeshNode`), `ScadReporter`, `ScadGeo`, and `ScadFeatureIds`; `ScadLimits.MaxTriangles` through the
   context's settings.
@@ -237,7 +237,7 @@ the winding of a contour or of a path does not matter.
 
 `ScadGeometryBuilder` is the only production caller: its leaf table maps the module names `cube`, `sphere`,
 `cylinder`, `polyhedron`, `square`, `circle`, and `polygon` to the matching `ScadPrimitives` builder (see
-_ScadGeometryBuilder Unit Design_), and the builder consumes the returned `ScadGeo` (a solid, a flat result, or
+*ScadGeometryBuilder Unit Design*), and the builder consumes the returned `ScadGeo` (a solid, a flat result, or
 empty) according to its dimension rules. The `ScadTransforms` unit (its transform and color builders) and the
 `ScadExtrusions` unit reuse `ScadArguments`; the extrusion unit also reuses `ScadFragmentRule` and the
 `SlabTrianglesLowerBound` method. The tests in

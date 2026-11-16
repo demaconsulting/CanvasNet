@@ -4,30 +4,24 @@
 
 ### Verification Approach
 
-The `Commands` subsystem is verified at two tiers. The unit tests of `CommandRegistry`, `HelpTopics`, `DiscoveryCommands`,
-`RenderCommand`, `CompareCommand`, `MontageCommand`, `InspectCommand`, `FlattenCommand`, and `PandocFilterCommand` (see
-_CommandRegistry Unit Verification Design_, _HelpTopics Unit Verification Design_, _DiscoveryCommands Unit Verification
-Design_, _RenderCommand Unit
-Verification Design_, _CompareCommand Unit Verification Design_, _MontageCommand Unit Verification Design_,
-_InspectCommand Unit Verification Design_, _FlattenCommand Unit Verification Design_, and _PandocFilterCommand Unit
-Verification Design_
-under `commands/`)
-verify the registry and the commands in isolation. The subsystem tests in
-`CommandsSubsystemTests.cs` verify the registry working with `Context` and `Program` through the program's
-entry point, with a registry holding `TestCommand` instances (a configurable `ICommand` defined in the test
-project): resolution by name and alias, argument hand-off with global options mixed in, error context, the
-unknown-command report, and help; and, with the default registry, that the shipped `formats`, `info`, `render`,
-transform verb, `compare`, `montage`, `inspect`, `flatten`, and `pandoc-filter` commands are registered, run, and are
-listed in the help,
-and that
-the help topics and the cards below them are shown by name, by alias, by path, and as JSON, their examples are printed,
-and an unknown help subject is reported. The shipped
-commands are verified by their own unit tests. The content of the help cards, which the help requirement of the
-subsystem takes from its `HelpTopics` children (among them the `mermaid` topic, and its parity with the Mermaid user
-guide: the same class, state, and entity relationship diagram syntax, relation or cardinality, and setting rows and
-the same unsupported-feature and warning codes,
-item by item and in order), is verified by the `HelpTopics` unit tests, the parity by
-`HelpTopics_MermaidTopic_DiagramSyntaxItems_MatchUserGuide`.
+The `Commands` subsystem is verified at two tiers. The unit tests of `CommandRegistry`, `HelpTopics`,
+`DiscoveryCommands`, `RenderCommand`, `CompareCommand`, `MontageCommand`, `InspectCommand`, `FlattenCommand`, and
+`PandocFilterCommand` (see *CommandRegistry Unit Verification Design*, *HelpTopics Unit Verification Design*,
+*DiscoveryCommands Unit Verification Design*, *RenderCommand Unit Verification Design*, *CompareCommand Unit
+Verification Design*, *MontageCommand Unit Verification Design*, *InspectCommand Unit Verification Design*,
+*FlattenCommand Unit Verification Design*, and *PandocFilterCommand Unit Verification Design* under `commands/`) verify
+the registry and the commands in isolation. The subsystem tests in `CommandsSubsystemTests.cs` verify the registry
+working with `Context` and `Program` through the program's entry point, with a registry holding `TestCommand` instances
+(a configurable `ICommand` defined in the test project): resolution by name and alias, argument hand-off with global
+options mixed in, error context, the unknown-command report, and help; and, with the default registry, that the shipped
+`formats`, `info`, `render`, transform verb, `compare`, `montage`, `inspect`, `flatten`, and `pandoc-filter` commands
+are registered, run, and are listed in the help, and that the help topics and the cards below them are shown by name, by
+alias, by path, and as JSON, their examples are printed, and an unknown help subject is reported. The shipped commands
+are verified by their own unit tests. The content of the help cards, which the help requirement of the subsystem takes
+from its `HelpTopics` children (among them the `mermaid` topic, and its parity with the Mermaid user guide: the same
+class, state, and entity relationship diagram syntax, relation or cardinality, and setting rows and the same
+unsupported-feature and warning codes, item by item and in order), is verified by the `HelpTopics` unit tests, the
+parity by `HelpTopics_MermaidTopic_DiagramSyntaxItems_MatchUserGuide`.
 
 ### Test Environment
 
@@ -115,10 +109,10 @@ returns exit code 1 with the expected error `threshold-failed` on standard error
 their summaries; `help compare` and `montage --help` show the usage and the options (`--resize-to <a|b|WxH>`,
 `-o, --output <file>`).
 
-**CommandsSubsystem_Inspect_DefaultRegistry_RunsInspectAndIsListedInHelp**: through the default registry `inspect colors`
-and `inspect pixel --json` each succeed with nothing on standard error (the JSON names the command and the
-subcommand), an unknown subcommand is an expected `usage-error` on standard error with exit code 1, the top-level help
-lists `inspect` with its summary, and `inspect --help` and `help inspect` show both usage lines and the options of
+**CommandsSubsystem_Inspect_DefaultRegistry_RunsInspectAndIsListedInHelp**: through the default registry
+`inspect colors` and `inspect pixel --json` each succeed with nothing on standard error (the JSON names the command and
+the subcommand), an unknown subcommand is an expected `usage-error` on standard error with exit code 1, the top-level
+help lists `inspect` with its summary, and `inspect --help` and `help inspect` show both usage lines and the options of
 `render` such as `--deskew` and `--radius <R>`.
 
 **CommandsSubsystem_Flatten_DefaultRegistry_RunsFlattenAndListsItInHelp**: through the default registry `flatten`

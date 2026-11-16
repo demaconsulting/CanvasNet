@@ -11,16 +11,16 @@ together: each test builds its input `Chart` via `ChartBuilder` (or the model co
 directly) before rendering it, so `ChartRenderer`'s own unit-level test suite already provides
 the cross-unit integration coverage a dedicated system-level test would otherwise exist to
 provide (compare `CanvasNetSvg`, whose single `SvgCodec` unit itself integrates several of the
-core `CanvasNet` system's subsystems — see _CanvasNetSvg System Verification_,
+core `CanvasNet` system's subsystems — see *CanvasNetSvg System Verification*,
 `canvas-net-svg.md`). Several of `OpenXmlChartParser`'s own tests additionally feed its parsed
 `Chart` output directly into `ChartRenderer.Render`, providing the one cross-subsystem
 integration this release's two subsystems share, within that same unit-level test suite. System-
 level verification within `CanvasNetCharts` itself is therefore provided entirely by
 `ChartDocument`'s, `ChartRenderer`'s, and `OpenXmlChartParser`'s own comprehensive unit-level test
 suites — see
-_ChartDocument Unit Verification_ (`canvas-net-charts/chart-model/chart-document.md`),
-_ChartRenderer Unit Verification_ (`canvas-net-charts/chart-model/chart-renderer.md`), and
-_OpenXmlChartParser Unit Verification_
+*ChartDocument Unit Verification* (`canvas-net-charts/chart-model/chart-document.md`),
+*ChartRenderer Unit Verification* (`canvas-net-charts/chart-model/chart-renderer.md`), and
+*OpenXmlChartParser Unit Verification*
 (`canvas-net-charts/open-xml-chart/open-xml-chart-parser.md`) — which exercise every public
 type's constructor and every `ChartRenderer.Render`/`OpenXmlChartParser.Parse` overload directly
 through their own public API, with no mocking or stubbing required.
@@ -29,7 +29,7 @@ System-level, cross-system integration coverage — exercising the complete pipe
 PPTX chart part, through `OpenXmlChartParser.Parse`, to a rendered and composited `Surface` — is
 provided by `CanvasNetPptx`'s own `PptxChartsTests.cs` and fixture-corpus tests, which open a real
 `<p:graphicFrame>`-referenced `chart#.xml` OPC part and exercise the full pipeline end to end; see
-_CanvasNetPptx System Verification_ (`canvas-net-pptx.md`) for that integration's own verification
+*CanvasNetPptx System Verification* (`canvas-net-pptx.md`) for that integration's own verification
 design.
 
 ## Test Environment
@@ -49,7 +49,7 @@ public API accepts and returns only in-memory values (`Chart`, `ChartSeries`, `C
 XML element directly - it performs no file-system or network access of its own to obtain it, so
 no real untrusted-input channel is simulated; its tests instead construct the XML fragment
 in-process via `System.Xml.Linq` object construction (or, for one scenario, embed a real-fixture-
-derived excerpt as an inline fragment - see _OpenXmlChartParser Unit Verification_). `ChartRenderer`'s
+derived excerpt as an inline fragment - see *OpenXmlChartParser Unit Verification*). `ChartRenderer`'s
 tests verify pixel output by sampling specific `Surface` coordinates (and, where another
 always-present painted feature such as a gridline could contaminate an absolute region scan, by a
 differential pixel-count comparison between the same chart rendered with and without the feature
@@ -58,11 +58,11 @@ under test) — the same coordinate-sampling convention `CanvasNetSvg`/`CanvasNe
 
 ## System-Level Test Scenarios
 
-See _ChartModel Subsystem Verification_ (`canvas-net-charts/chart-model.md`),
-_ChartDocument Unit Verification_ (`canvas-net-charts/chart-model/chart-document.md`),
-_ChartRenderer Unit Verification_ (`canvas-net-charts/chart-model/chart-renderer.md`),
-_OpenXmlChart Subsystem Verification_ (`canvas-net-charts/open-xml-chart.md`), and
-_OpenXmlChartParser Unit Verification_
+See *ChartModel Subsystem Verification* (`canvas-net-charts/chart-model.md`),
+*ChartDocument Unit Verification* (`canvas-net-charts/chart-model/chart-document.md`),
+*ChartRenderer Unit Verification* (`canvas-net-charts/chart-model/chart-renderer.md`),
+*OpenXmlChart Subsystem Verification* (`canvas-net-charts/open-xml-chart.md`), and
+*OpenXmlChartParser Unit Verification*
 (`canvas-net-charts/open-xml-chart/open-xml-chart-parser.md`) for the complete set of test
 scenarios, each already exercising the system's full public API surface directly (there is no
 additional system-level wrapping or composition to verify beyond what the unit-level tests

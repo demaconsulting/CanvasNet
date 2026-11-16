@@ -188,7 +188,7 @@ as the positional member, and `--all-pages`, the `SourceOptions`, the `WriteOpti
 `ImagePipelineParser` set explicitly as `init` properties). The library
 reports every mistake about the pages and the outputs before decoding anything, renders every page, and publishes all
 the
-outputs together or none (see _ImageRenderer Unit Design_). The command then writes the result through
+outputs together or none (see *ImageRenderer Unit Design*). The command then writes the result through
 `context.WriteLine`: as one text line per
 output when `context.Json` is false, or as one JSON document. The diagnostics and the echo of a model are part of the
 JSON document; without `--json` they are written
@@ -218,7 +218,7 @@ and `<border>` in messages. A setting without the operation it modifies is a `us
 and `--rotate-fill` without a rotation or `--deskew`). **ParseFilter(text, option)** turns a filter name into a
 resampling mode with the library's `ImagePipeline.TryParseFilter`, and reports an unknown name as a `usage-error` that
 lists the filters. The parser and the pipeline are tested together by the text-driven tests of `ImagePipelineTests.cs`
-(see _ImagePipeline Unit Verification Design_).
+(see *ImagePipeline Unit Verification Design*).
 
 **Transformation and staging of a page** (performed by `ImageRenderer`, called by `Run`): when there are operations, it
 calls `ImagePipeline.Apply` on
@@ -274,8 +274,9 @@ appended for a document, for example `wrote out.png (816x1056 png, 41208 bytes) 
 fields after the envelope, in this order:
 
 <!-- markdownlint-disable MD013 -->
+
 | Key | Value |
-| --- | ----- |
+| --- | --- |
 | `tool` | object: `name` (`canvasnet`), `version` |
 | `input` | object: `path`, `format`, for a PDF, PPTX, or VSDX also `page` (omitted with `--all-pages`) and `pageCount`, and `natural` (object: `width`, `height`; the stored or intrinsic size, or the size of the first page rendered at the resolution) |
 | `operations` | array of objects in order, for every page: `op` and the operation's parameters. `render` (`width`, `height`) for an SVG, `render` (`page`, `dpi`, `width`, `height`, `background`) for a document page, `render` (`view`, `azimuth`, `elevation`, `projection`, `width`, `height`, `background`, and when given `defines` as a list of `name=value`, `time`, `maxTriangles`, `defaultColor`) for a model (the `view`, `azimuth`, and `elevation` are those asked for when a view was chosen explicitly, otherwise those the library used: `iso`, 45, 35.264... for a 3D model, `top`, 0, 90 for a model that is entirely 2D, and `custom` with the angles for a view the model set with its viewport variables), `render` (`width`, `height`, `timeZone` (`UTC`), `background` when one was given, and `params` - a list of `name=value` in name order, the value as JSON - when `--param` was given) for a Vega-Lite chart, `render` (`width` and `height` as drawn, `background`, and `theme` when one is set) for a Mermaid diagram, followed by one `embed` (`href`, `format`, `width`, `height`) for each picture of a node that was drawn, `fit` (`width`, `height`) when a page was fitted inside a box, `auto-orient` (`orientation`), `resize` (`width`, `height`, and `filter` when `--filter` was given), `flatten` (`background`) when transparency was flattened by the loader or for JPEG output; then the operations of the image pipeline in the order written: `crop` (`x`, `y`, `width`, `height`, `clamped`), `resize` (`width`, `height`, `filter`), `fit` (`width`, `height`, `boxWidth`, `boxHeight`, `filter`, `allowUpscale`, `scaled`), `rotate` (`degrees`, `width`, `height`; for an angle that is not a multiple of 90 also `fill` and `filter`), `flip` (`axis`, `width`, `height`), `pad` (`left`, `top`, `right`, `bottom`, `color`, `width`, `height`), and the photo operations `grayscale` and `invert` (`width`, `height`), `threshold` (`auto`, `level`, `width`, `height`), `levels` (`black`, `white`, `gamma`, `width`, `height`), `brightness` and `contrast` (`amount`, `width`, `height`), `auto-levels` (`clip`, `black`, `white`, `applied`, `width`, `height`), `deskew` (`skewDegrees`, `rotateDegrees`, `confidence`, `applied`, `fill`, `filter`, `width`, `height`), `trim` (`tolerance`, `x`, `y`, `width`, `height`, `trimmed`, `empty`), and `grid` (`spacing`, `color`, `verticalLines`, `horizontalLines`, `labels`, `width`, `height`); a JPEG's `flatten` comes last; with `--all-pages` of a document every operation also has `page` |
@@ -285,6 +286,7 @@ fields after the envelope, in this order:
 | `anchors` | **only for a model** (no member for any other input), after `echo`: an array of objects in echo order, duplicates included, `name`, `point` (the world `[x, y, z]`), `pixel` (`[x, y]` in the written image, continuous with the origin at the top-left corner, rounded to three decimals, or `null` when the position is unknown: a point behind a perspective eye or after a deskew that corrected the image) and `inside` (the pixel lies in `0 <= x < width`, `0 <= y < height` of the written image; `false` for a `null` pixel); `[]` when the model declares none (`WriteAnchors`) |
 | `positions` | **only with `--positions`** (no member otherwise, so a document without the option is unchanged), after `echo` and `anchors`: an array of the matched features in the order the library delivered them, each with `kind` and `id`, then only the facts it has - `text`, `line`, `view` (always for a chart, `""` for a single view), `name` (the view's name), `mark`, `from`, `to`, `index`, `values` (an object of channel values with their JSON types, numbers not rounded), and `data` (an object of the data fields of the source row of a chart mark, typed the same way) - then `box` (`x`, `y`, `width`, `height`, rounded to three decimals) or `null`, `pixel` (`[x, y]`, rounded to three decimals) or `null` when a pipeline step lost them, and `inside` (the pixel lies in `0 <= x < width`, `0 <= y < height` of the written image; `false` for a `null` pixel; not whether the feature is visible) (`WritePositions`, `WriteGeometry`, `WriteValues`, `WriteValue`) |
 | `positionsTruncated` | **only with `--positions`**, after `positions`: `true` when matching positions were left out because of the cap of 1,000 |
+
 <!-- markdownlint-enable MD013 -->
 
 The text result does not change for a model with anchors: the one `wrote` line is on standard output and the `ECHO:`
@@ -303,42 +305,39 @@ selection over `settings.Source`), and a page it names makes the render a single
 used is `image-fragment-invalid`, a page that does not exist `page-out-of-range`, and an unknown or repeated parameter
 name a warning, never an error (also with `--strict`); the check of the model, chart, and diagram options for the kind
 of the input applies to the options of the command only, so `render "part.scad#def.x=1"` of a PNG is a warning and not a
-usage error. A `#` is a fragment only when no file has that exact name (see `InputReference` in the _SourceLoader Unit
-Design_). The verb commands inherit all of it, because they are this class.
+usage error. A `#` is a fragment only when no file has that exact name (see `InputReference` in the *SourceLoader Unit
+Design*). The verb commands inherit all of it, because they are this class.
 
 #### Error Handling
 
 Command-line mistakes (no input or more than one, a verb without its operand or with more than one, no output, an
-unknown option, contradictory or malformed sizes,
-a quality out of range, an unknown format, `--page` with `--all-pages`, a page or a resolution that is not a
-number in range, `--all-pages` with an output that is the same file for every page, a view or projection that does
-not exist, a model value that is malformed or out of range, a definition that is not `name=value`, a model
-option for an input that is not a model, a `--theme` that is not a Mermaid theme or that is given for an input that is
-not a diagram, a malformed `--positions` selector or more than 32 of them, `--positions` without `--json` or for an input
-that is neither a diagram nor a chart, a malformed or out-of-range operation value (an angle that is not a number, a
-threshold, levels, brightness, contrast, clip, tolerance, or grid spacing out of range),
-`--allow-upscale` without `--fit`, `--pad-color` without a pad, `--rotate-fill` without a rotation or `--deskew`,
-`--auto-levels-clip` without `--auto-levels`, `--trim-tolerance` without `--trim`, a crop that starts outside the
-image or is smaller than a pixel, a `--file-access` value that is not a mode ("'{text}' is not a value of
---file-access."), `--allow-root` with `--file-access any` or `no-symlinks` ("The options --file-access any and
+unknown option, contradictory or malformed sizes, a quality out of range, an unknown format, `--page` with
+`--all-pages`, a page or a resolution that is not a number in range, `--all-pages` with an output that is the same file
+for every page, a view or projection that does not exist, a model value that is malformed or out of range, a definition
+that is not `name=value`, a model option for an input that is not a model, a `--theme` that is not a Mermaid theme or
+that is given for an input that is not a diagram, a malformed `--positions` selector or more than 32 of them,
+`--positions` without `--json` or for an input that is neither a diagram nor a chart, a malformed or out-of-range
+operation value (an angle that is not a number, a threshold, levels, brightness, contrast, clip, tolerance, or grid
+spacing out of range), `--allow-upscale` without `--fit`, `--pad-color` without a pad, `--rotate-fill` without a
+rotation or `--deskew`, `--auto-levels-clip` without `--auto-levels`, `--trim-tolerance` without `--trim`, a crop that
+starts outside the image or is smaller than a pixel, a `--file-access` value that is not a mode ("'{text}' is not a
+value of --file-access."), `--allow-root` with `--file-access any` or `no-symlinks` ("The options --file-access any and
 --allow-root cannot be used together."), and an `--allow-root` folder that does not exist ("The folder '{text}' of
 --allow-root does not exist.")) are `ViewerException` (the library's, or the tool's own `ToolException`) with
-`usage-error`; a size, box, or border larger than the maximum, a border that makes the image larger than the
-maximum, or a rotation whose canvas would be larger than the maximum, is `size-limit`. Input failures come from
-`SourceLoader`
+`usage-error`; a size, box, or border larger than the maximum, a border that makes the image larger than the maximum, or
+a rotation whose canvas would be larger than the maximum, is `size-limit`. Input failures come from `SourceLoader`
 (`input-not-found`, `input-unreadable`, `unsupported-format`, `corrupt-input`, `unsupported-feature` - also with
 `--strict` for a skipped picture, an approximated construct, or an unsupported feature of a model, a chart, or a diagram
 (including a diagram type that is not drawn) - `page-out-of-range`, `size-limit`, `scad-error` for a syntax error, a
 failed `assert`, or an `include` that cannot be read, `vega-lite-error` for an invalid chart specification or a chart
 that cannot be rendered, `mermaid-error` for diagram text that is not valid or a diagram that cannot be laid out, with
 the hint of the library, and `budget-exceeded` for a model that exceeds a limit such as `--max-triangles` or a chart or
-a diagram that exceeds a limit of the library, and `file-access-denied` for an include or a data file the
-file-access mode denies, or a denied picture with `--strict`; without it a denied picture is the warning
-`image-access-denied`; and `positions-unmatched` for a `--positions` selector that matched nothing with `--strict`,
-without it the warning of the same code among the `diagnostics`) and output failures
-from `ImageWriter` (`same-input-output`, `output-exists`, `output-write-failed`); none of them leaves an output file
-for the page that failed. Null arguments throw `ArgumentNullException`. The registry records the command name on
-every `ToolException`.
+a diagram that exceeds a limit of the library, and `file-access-denied` for an include or a data file the file-access
+mode denies, or a denied picture with `--strict`; without it a denied picture is the warning `image-access-denied`; and
+`positions-unmatched` for a `--positions` selector that matched nothing with `--strict`, without it the warning of the
+same code among the `diagnostics`) and output failures from `ImageWriter` (`same-input-output`, `output-exists`,
+`output-write-failed`); none of them leaves an output file for the page that failed. Null arguments throw
+`ArgumentNullException`. The registry records the command name on every `ToolException`.
 
 #### Dependencies
 

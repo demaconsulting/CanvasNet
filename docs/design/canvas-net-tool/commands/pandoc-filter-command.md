@@ -59,7 +59,7 @@ standard output, which the shim turns into the error of the build.
 #### Callers
 
 - **CommandRegistry** - registers it in `CreateDefault` after `flatten`.
-- **canvasnet.lua** (the Lua shim of a repository, see _PandocFilterShim_) - runs
+- **canvasnet.lua** (the Lua shim of a repository, see *PandocFilterShim*) - runs
   `pandoc-filter --json --protocol 1 --filter-path ... --format ...` once per Pandoc run with the document on standard
   input.
 - **Validation** - the self-test `CanvasNetTool_PandocFilter` runs it on a document file.

@@ -5,8 +5,8 @@ This document describes the subsystem-level verification strategy for the `Files
 
 ### Verification Approach
 
-Each unit is verified by its own unit tests (see _FileReferenceResolver Unit Verification Design_, _FileAccessPolicy
-Unit Verification Design_, _RealPath Unit Verification Design_, and _SandboxedFileResolver Unit Verification Design_).
+Each unit is verified by its own unit tests (see *FileReferenceResolver Unit Verification Design*, *FileAccessPolicy
+Unit Verification Design*, *RealPath Unit Verification Design*, and *SandboxedFileResolver Unit Verification Design*).
 The subsystem tests in `FilesTests.cs` exercise the units together through their public types: a resolver with the
 default policy and with combined built-in policies over real temporary trees, the race-free check of both resolvers
 with the tree changed inside the open seams, the references that are refused under every policy, the resolver
@@ -74,11 +74,11 @@ before the open: the file is `ThroughLink`. The scenario runs on Windows, Linux,
 
 **Test**: `Files_AlwaysRefused_NetworkDeviceAndNonRegularReferences_AreRefusedUnderAllowAll`
 
-A UNC path and a `//host` path are `NetworkPath`, a `\\.\` device path and an alternate data stream are `InvalidPath`,
-a directory is `NotARegularFile`, and on Linux and macOS `/dev/zero` is `NotARegularFile`. On Windows, the reserved
-device names `folder/NUL`, `folder/con.txt`, `folder/COM1` and `NUL/a.txt` are `InvalidPath` with nothing opened
-(recorded through the `BeforeOpen` seam), and a real local file whose real path is reported (through the `RealPathOf` seam)
-as a network share is `NetworkPath` under the default policy.
+A UNC path and a `//host` path are `NetworkPath`, a `\\.\` device path and an alternate data stream are `InvalidPath`, a
+directory is `NotARegularFile`, and on Linux and macOS `/dev/zero` is `NotARegularFile`. On Windows, the reserved device
+names `folder/NUL`, `folder/con.txt`, `folder/COM1` and `NUL/a.txt` are `InvalidPath` with nothing opened (recorded
+through the `BeforeOpen` seam), and a real local file whose real path is reported (through the `RealPathOf` seam) as a
+network share is `NetworkPath` under the default policy.
 
 #### The Reference Resolver Uses Only Its Callback
 

@@ -42,25 +42,25 @@ and print their own first line; the command is named `inspect`, has no alias, an
 **InspectCommand_Run_MissingOrUnknownSubcommand_ThrowsUsageErrorWithSuggestion**: no subcommand names the choices;
 `colours` suggests `colors`, `pixle` suggests `pixel`, and `frobnicate` suggests nothing and lists the subcommands.
 
-**InspectCommand_Run_OptionOfOtherSubcommand_ThrowsUsageError**: `--radius` with `colors` and `--count` with `pixel` name
-the subcommand they belong to; a pixel without a point, a colors with a point, and a colors without an input name the
-number of operands that were given.
+**InspectCommand_Run_OptionOfOtherSubcommand_ThrowsUsageError**: `--radius` with `colors` and `--count` with `pixel`
+name the subcommand they belong to; a pixel without a point, a colors with a point, and a colors without an input name
+the number of operands that were given.
 
 **InspectCommand_Options_SharedWithRenderExceptOutputOptions** and **InspectCommand_Help_ListsBothSubcommands**: the
-options are those of render in their order without `--output`, `--format`, `--quality`, `--no-clobber`,
-`--all-pages`, and `--positions` (the same declaration objects), then `--count` and `--radius` with their prefixed
-descriptions, every option has a value name exactly when it takes a value, the photo options and `--page` are
-present, and `-o` is an unknown option; the usage and the registry help show both usage lines, an example, and the options.
+options are those of render in their order without `--output`, `--format`, `--quality`, `--no-clobber`, `--all-pages`,
+and `--positions` (the same declaration objects), then `--count` and `--radius` with their prefixed descriptions, every
+option has a value name exactly when it takes a value, the photo options and `--page` are present, and `-o` is an
+unknown option; the usage and the registry help show both usage lines, an example, and the options.
 
 **InspectCommand_Colors_Text_PrintsColorsAndLumaLines**: the 20x10 image gives exactly
 `colors of <input> (20x10): #FF0000 75.00%, #0000FF 25.00%` and
-`luma: mean 65.00, min 29, max 77, p1 29, p50 77, p99 77, otsu 52` (the Otsu threshold of two levels is the middle of the
-gap, (29 + 76) / 2).
+`luma: mean 65.00, min 29, max 77, p1 29, p50 77, p99 77, otsu 52` (the Otsu threshold of two levels is the middle of
+the gap, (29 + 76) / 2).
 
 **InspectCommand_Colors_Json_HasDocumentedShape**: one line with the fields in the documented order, the tool, the input
 with its natural size, no operations, 200 pixels, the background `#FFFFFF`, the two colors with their channels, pixel
-counts 150 and 50 and fractions 0.75 and 0.25, the luma statistics, a 16-bin histogram with 50 pixels in bin 1 and 150 in
-bin 4 summing to 200, and empty diagnostics and echo.
+counts 150 and 50 and fractions 0.75 and 0.25, the luma statistics, a 16-bin histogram with 50 pixels in bin 1 and 150
+in bin 4 summing to 200, and empty diagnostics and echo.
 
 **InspectCommand_Colors_Count_LimitsTheList**: an image of three colors with 5, 3, and 1 pixels lists three colors,
 two with
@@ -84,33 +84,36 @@ corner is clipped to 3x3 at 0,0; the JSON has the neighborhood after the pixel.
 and -1 are
 usage errors.
 
-**InspectCommand_Colors_AfterCrop_AnalyzesTheCroppedRegion** and **InspectCommand_Pixel_AfterPipeline_UsesPipelineCoordinates**:
-a crop of the right quarter gives one blue color for all 50 pixels, the image size 5x10, and the operation `crop`; with
-`--grayscale` the color is the gray `#1D1D1D`; after the crop the point 0,0 is blue and 5,0 is outside the 5x10 image; after
-a rotation by 90 degrees the image is 10x20 and 0,19 is blue and 0,0 red.
+**InspectCommand_Colors_AfterCrop_AnalyzesTheCroppedRegion** and
+**InspectCommand_Pixel_AfterPipeline_UsesPipelineCoordinates**: a crop of the right quarter gives one blue color for all
+50 pixels, the image size 5x10, and the operation `crop`; with `--grayscale` the color is the gray `#1D1D1D`; after the
+crop the point 0,0 is blue and 5,0 is outside the 5x10 image; after a rotation by 90 degrees the image is 10x20 and 0,19
+is blue and 0,0 red.
 
-**InspectCommand_Run_WritesNoFiles**: both subcommands with operations that would draw or rotate, as text and as JSON, leave
-the directory exactly as it was and the input unchanged.
+**InspectCommand_Run_WritesNoFiles**: both subcommands with operations that would draw or rotate, as text and as JSON,
+leave the directory exactly as it was and the input unchanged.
 
 **InspectCommand_Errors_AreExpectedErrorsWithStableCodes**: a missing file is `input-not-found`, a text file
-`unsupported-format`, a bad angle, an unknown option, a rotation fill without a rotation, and a model option for a PNG are
-usage errors, a page 2 of a PNG is `page-out-of-range`, and a rotation of an 8192-pixel-wide image is `size-limit`.
+`unsupported-format`, a bad angle, an unknown option, a rotation fill without a rotation, and a model option for a PNG
+are usage errors, a page 2 of a PNG is `page-out-of-range`, and a rotation of an 8192-pixel-wide image is `size-limit`.
 
 **InspectCommand_Json_SameInputTwice_IsByteIdentical**: both subcommands on a generated sketch with `--auto-levels` and
 `--deskew` give the same bytes twice, and the result lists the deskew.
 
-**InspectCommand_Colors_JpegWithExif_UsesUprightImage**: a JPEG stored 12x8 with the EXIF orientation 6 is analyzed upright
-(8x12, with an `auto-orient` operation) and as stored (12x8) with `--no-auto-orient`; the natural size is as stored.
+**InspectCommand_Colors_JpegWithExif_UsesUprightImage**: a JPEG stored 12x8 with the EXIF orientation 6 is analyzed
+upright (8x12, with an `auto-orient` operation) and as stored (12x8) with `--no-auto-orient`; the natural size is as
+stored.
 
 **InspectCommand_Colors_SvgAndScad_AreRenderedFirst**: an SVG is rendered at 100x80 (50x40 with `--width 50`) and a
 model at
 800x800, each with a `render` operation first, over the white background.
 
-**InspectCommand_Colors_DocumentPage_UsesChosenPage**: the two pages of the PDF have swapped sizes, the document facts name
-the page and the page count, and page 3 is `page-out-of-range`.
+**InspectCommand_Colors_DocumentPage_UsesChosenPage**: the two pages of the PDF have swapped sizes, the document facts
+name the page and the page count, and page 3 is `page-out-of-range`.
 
-**InspectCommand_Colors_TransparentPng_FlattensOverBackground**: a fully transparent red PNG is one white color by default
-and with a transparent background, and one green color with `--background #00FF00`, which is reported as the background.
+**InspectCommand_Colors_TransparentPng_FlattensOverBackground**: a fully transparent red PNG is one white color by
+default and with a transparent background, and one green color with `--background #00FF00`, which is reported as the
+background.
 
 **InspectCommand_Run_DiagnosticsInTextMode_AreWrittenToStandardError** (for `colors` and `pixel`) and
 **InspectCommand_Run_ScadEchoInTextMode_IsWrittenToStandardError**: through the entry point, a chart with a `shape`
@@ -121,6 +124,6 @@ standard output too); a model that echoes `"hello"` gives the line `ECHO: "hello
 **InputFragment_Inspect_ReadsThePage** (`InputFragmentTests.cs`): `inspect colors source.pdf#page=2` reports the same
 colors and image width as `--page 2`, and its `input` object has `page` 2 and `fragment` `page=2`.
 
-**InspectCommand_Run_FileAccessRoots_DeniedPictureIsLeftOutAndReported** (`InspectCommandSourceTests.cs`): `inspect colors`
-of a red drawing that links a green picture in the folder above it reports, with `--file-access roots`, one
-`image-access-denied` note and only red, and by default no note and green among the colors.
+**InspectCommand_Run_FileAccessRoots_DeniedPictureIsLeftOutAndReported** (`InspectCommandSourceTests.cs`):
+`inspect colors` of a red drawing that links a green picture in the folder above it reports, with `--file-access roots`,
+one `image-access-denied` note and only red, and by default no note and green among the colors.

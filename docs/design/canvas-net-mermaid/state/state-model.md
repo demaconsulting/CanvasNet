@@ -209,7 +209,7 @@ parsing, so it is safe for concurrent renders.
   - a cluster nested deeper than `MaxNestingDepth` (`mermaid-limit-exceeded`, located at the statement of the composite
     state or region too deep, checked by `CheckDepth`): the composite states and their concurrent regions each count as
     a level, because each nests one more cluster that the shared rendering lays out recursively; the parser counts only
-    the composite states (see _StateParser Unit Design_);
+    the composite states (see *StateParser Unit Design*);
   - a text the model joins or derives from texts the parser checked apart, longer than `MaxLabelLength`
     (`mermaid-limit-exceeded`, with the message `a label is N characters long`, checked by `CheckLabel` and
     `CheckLabelLength`): the descriptions under a title, counted as `rectWithTitle` draws them, joined with `<br/>` (5
@@ -286,5 +286,5 @@ parsing, so it is safe for concurrent renders.
 - **Metadata direction.** The metadata gives the direction the diagram is laid out in (the last top-level `direction`
   statement), where Mermaid's `getDirection` gives the first.
 - **Reports.** A look other than `classic` (the hand-drawn look) and a layout other than `dagre` (such as `elk`) are
-  reported as unsupported and drawn in the classic look with dagre (see _CanvasNetMermaid System Design_, Fidelity and
+  reported as unsupported and drawn in the classic look with dagre (see *CanvasNetMermaid System Design*, Fidelity and
   Known Differences).

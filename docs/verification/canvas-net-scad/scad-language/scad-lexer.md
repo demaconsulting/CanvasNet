@@ -13,8 +13,8 @@ decoded text or numeric value, and the one-based line and column of each token. 
 as a `ScadSyntaxException` at an exact line and column with an expected message fragment. The unit has no
 dependencies other than `ScadSourceLocation` and `ScadSyntaxException`, so no mocking or stubbing is required;
 the internal types are reached through the test assembly's `InternalsVisibleTo` access. The lexer's interaction
-with the parser is verified at the subsystem tier (see _ScadLanguage Subsystem Verification Design_) and under
-the _ScadParser Unit Verification Design_. As elsewhere in the system, `ScadSyntaxException` is a
+with the parser is verified at the subsystem tier (see *ScadLanguage Subsystem Verification Design*) and under
+the *ScadParser Unit Verification Design*. As elsewhere in the system, `ScadSyntaxException` is a
 `FormatException` (not an `InvalidDataException`); the lexer applies no source-length limit of its own, which is
 enforced by the parser entry point.
 

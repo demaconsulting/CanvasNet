@@ -24,7 +24,7 @@ five units:
   renderer, which turns the layout data into compound graphs, lays out the subgraphs without links to the outside on
   their own, sizes every node and edge label, runs the dagre layout, and draws the result, and the shared end of the
   unified diagrams' renderers, which frames the drawing with the diagram title and the padded view box; see
-  _ClusterLayout Unit Design_ (`rendering/cluster-layout.md`)
+  *ClusterLayout Unit Design* (`rendering/cluster-layout.md`)
 - **ShapeLibrary** - the internal static `ShapeLibrary` (a partial class in `ShapeLibrary.cs`, `ShapeLibrary.Basic.cs`,
   `ShapeLibrary.Extended.cs`, `ShapeLibrary.Images.cs`, `ShapeLibrary.Intersect.cs`, `ShapeLibrary.Parts.cs`,
   `ShapeLibrary.Clusters.cs`, `ShapeLibrary.ClassBox.cs`, `ShapeLibrary.States.cs`, `ShapeLibrary.ErBox.cs`, and
@@ -35,25 +35,25 @@ five units:
   relationship diagram, and the two shapes of a mindmap (`defaultMindmapNode` and `mindmapCircle`), sized from its
   label, drawn in the classic look, with its intersect function, painted by the node's classes when the style sheet
   says so, and the subgraph
-  rectangle and the clusters of a state diagram; see _ShapeLibrary Unit Design_ (`rendering/shape-library.md`)
+  rectangle and the clusters of a state diagram; see *ShapeLibrary Unit Design* (`rendering/shape-library.md`)
 - **EdgeBuilder** - the internal static `EdgeBuilder` (a partial class in `EdgeBuilder.cs`, `EdgeBuilder.Curves.cs`,
   `EdgeBuilder.Markers.cs`, and `EdgeBuilder.Terminals.cs`) with `EdgeEnd`, `EdgeRoute`, `EdgeDrawing`,
   `EdgeLabelDrawing`, `MarkerPaint`, `UserSpaceMarker`, `MarkerPart`, `ICurveContext`, and `CurvePath`: the edge route
   cut at the node outlines and subgraph borders, drawn with a d3-shape curve, stroked and marked with the flowchart's
   markers, the class diagram's markers, the state diagram's `barb`, or the entity relationship diagram's cardinality
   markers, the edge labels measured, placed, and drawn, and the terminal labels (a class relation's cardinalities)
-  placed beside the ends of the route; see _EdgeBuilder Unit Design_ (`rendering/edge-builder.md`)
+  placed beside the ends of the route; see *EdgeBuilder Unit Design* (`rendering/edge-builder.md`)
 - **LabelBuilder** - the internal `LabelBuilder` (a partial class in `LabelBuilder.cs`, `LabelBuilder.Html.cs`,
   `LabelBuilder.Markdown.cs`, `LabelBuilder.MarkdownLexer.cs`, `LabelBuilder.Svg.cs`, and
   `LabelBuilder.TextDimensions.cs`) with `LabelFont`, `LabelRequest`, `LabelRun`, `LabelLine`, `LabelImage`,
   `LabelLayout`, and `TextDimensions`: the label text of Mermaid's `createText` (plain and markdown strings, HTML
   labels, and SVG labels) laid out and measured with the bundled fonts, Mermaid's text utilities, which measure and
   wrap the texts of sequence diagrams, and the test that finds a Font Awesome icon in a label
-  (`ContainsFontAwesome`), which the flowchart and the mindmap share; see _LabelBuilder Unit Design_
+  (`ContainsFontAwesome`), which the flowchart and the mindmap share; see *LabelBuilder Unit Design*
   (`rendering/label-builder.md`)
 - **NodeImages** - the internal sealed `NodeImages` (`NodeImages.cs`): the pictures of one rendering, loaded only
   through the caller's image resolver, with their natural sizes for the layout and their pixels for the painter; see
-  _NodeImages Unit Design_ (`rendering/node-images.md`)
+  *NodeImages Unit Design* (`rendering/node-images.md`)
 
 The subsystem's namespace documentation is in `Rendering/NamespaceDoc.cs`. Its behavior is specified by the
 `CanvasNetMermaid-Rendering-*` requirements in `docs/reqstream/canvas-net-mermaid/rendering.yaml`. The SysML2 model
@@ -219,14 +219,14 @@ a `ClusterLayout`, `LabelBuilder`, and `NodeImages` belong to one render on one 
 
 The documented differences are listed with the unit that owns them: the rough.js circles (all but the end state's,
 which is ported exactly), the icons, the legacy `ellipse`, the unloadable picture, the cluster title styles, and the
-CSS radii of a state (_ShapeLibrary Unit Design_); the SVG label box, the HTML subset, the character references, the
-label pictures, and the markdown subset (_LabelBuilder Unit Design_); the natural size of a picture (_NodeImages Unit
-Design_); the markers, the circle marker clipping, the half-pixel miter tip of the `extensionStart` marker, the
+CSS radii of a state (*ShapeLibrary Unit Design*); the SVG label box, the HTML subset, the character references, the
+label pictures, and the markdown subset (*LabelBuilder Unit Design*); the natural size of a picture (*NodeImages Unit
+Design*); the markers, the circle marker clipping, the half-pixel miter tip of the `extensionStart` marker, the
 viewport clip of the entity relationship marker curves, the clipping of HTML terminal labels, the animated edges, and
-the last bit of the trigonometric functions (_EdgeBuilder Unit Design_); and the failures for a subgraph cycle (also a
+the last bit of the trigonometric functions (*EdgeBuilder Unit Design*); and the failures for a subgraph cycle (also a
 state inside itself or an entity relationship subgraph that is its own parent), for a link to a subgraph without an
-anchor, and for an edge end that is not drawn (_ClusterLayout Unit Design_). The position of the underline of a static
-class member is a difference of the painter (_ScenePainter Unit Design_). Only what a flowchart, a class diagram, a
+anchor, and for an edge end that is not drawn (*ClusterLayout Unit Design*). The position of the underline of a static
+class member is a difference of the painter (*ScenePainter Unit Design*). Only what a flowchart, a class diagram, a
 state diagram, an entity relationship diagram, and a mindmap reach is ported: subgraphs, namespaces, and entity
 relationship
 subgraphs are drawn as `clusters.js`'s `rect`, and the clusters of a state diagram as its `roundedWithTitle`,

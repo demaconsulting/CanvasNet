@@ -16,11 +16,11 @@ system's `Canvas` subsystem (`Rgba32`, used by `NodeAppearance`).
 It contains three units:
 
 - **DoublePrecisionMath** — `Vector2D`, `Vector3D`, `Matrix4x4D`, and `BoundingBox3D`; see
-  _DoublePrecisionMath Unit Design_ (`scene-model/double-precision-math.md`)
+  *DoublePrecisionMath Unit Design* (`scene-model/double-precision-math.md`)
 - **Mesh** — `Mesh`, `MeshBuilder`, and the internal `MeshTopology` and `MeshTopologyDefects`; see
-  _Mesh Unit Design_ (`scene-model/mesh.md`)
+  *Mesh Unit Design* (`scene-model/mesh.md`)
 - **SceneGraph** — `SceneNode`, `MeshNode`, `GroupNode`, `CsgNode`, `OverlayNode`, `CsgOperation`,
-  `NodeAppearance`, `Scene`, and the internal `SceneInstance`; see _SceneGraph Unit Design_
+  `NodeAppearance`, `Scene`, and the internal `SceneInstance`; see *SceneGraph Unit Design*
   (`scene-model/scene-graph.md`)
 
 The subsystem's namespace documentation is in `NamespaceDoc.cs`, which declares no behavior.
@@ -63,5 +63,5 @@ Winding and mirroring are handled in this subsystem for the data model and in `S
 rendering: `Mesh.Transform` swaps two indices per triangle when the matrix has a negative
 determinant, and `Scene.EnumerateInstances` reports the composed world matrix so the renderer can
 apply the same correction to instances without materializing a transformed mesh. The coordinate and
-matrix conventions are defined in _CanvasNetRender3D System Design_ (`../canvas-net-render3d.md`),
+matrix conventions are defined in *CanvasNetRender3D System Design* (`../canvas-net-render3d.md`),
 Design Constraints.

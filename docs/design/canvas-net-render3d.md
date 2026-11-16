@@ -30,7 +30,7 @@ of `src/DemaConsulting.CanvasNet.Render3D/` (the root namespace itself contains 
   `MeshNode`, `GroupNode`, `CsgNode` (with `CsgOperation`: union, difference, intersection),
   `OverlayNode` (an independent translucent body),
   `NodeAppearance`, and the `Scene` root — and the internal `SceneInstance` flattened view. See
-  _SceneModel Subsystem Design_ (`canvas-net-render3d/scene-model.md`).
+  *SceneModel Subsystem Design* (`canvas-net-render3d/scene-model.md`).
 - **Tessellation** (namespace `DemaConsulting.CanvasNet.Render3D.Tessellation`, folder
   `Tessellation/`): five units. `PrimitiveTessellator` is a static factory for closed, welded,
   outward-oriented box, sphere, and cylinder (including cone and frustum) meshes, for polyhedron
@@ -42,7 +42,7 @@ of `src/DemaConsulting.CanvasNet.Render3D/` (the root namespace itself contains 
   of a point set as a closed, outward-oriented mesh (`Hull3D`) or a strictly convex polygon
   (`Hull2D`), and `MinkowskiSum` computes the Minkowski sum of two convex solids, rejecting
   non-convex operands instead of approximating them. See
-  _Tessellation Subsystem Design_ (`canvas-net-render3d/tessellation.md`).
+  *Tessellation Subsystem Design* (`canvas-net-render3d/tessellation.md`).
 - **SceneRendering** (namespace `DemaConsulting.CanvasNet.Render3D.SceneRendering`, folder
   `SceneRendering/`): the rasterization pipeline, with six units. `Camera` provides the
   perspective/orthographic `Camera`, `LookAt`, `FitToBounds`, and the internal camera-relative
@@ -56,7 +56,7 @@ of `src/DemaConsulting.CanvasNet.Render3D/` (the root namespace itself contains 
   provides the public `SceneRenderer`, `SceneRenderOptions`, `RenderBudgetExceededException`,
   `SceneRenderUnsupportedFeature` and `SceneRenderUnsupportedFeatureException`, and the internal
   tile binner, sample resolver, per-worker tile workspace, and `CsgOperandValidator`. See
-  _SceneRendering Subsystem Design_ (`canvas-net-render3d/scene-rendering.md`).
+  *SceneRendering Subsystem Design* (`canvas-net-render3d/scene-rendering.md`).
 
 Dependencies between the subsystems are strictly one-directional: `Tessellation` depends on
 `SceneModel`; `SceneRendering` depends on `SceneModel`; `SceneModel` depends on neither. The
@@ -88,8 +88,9 @@ The system exposes the following public API:
   `RenderFitted`.
 
 <!-- markdownlint-disable MD013 -->
+
 | Interface | Direction | Format | Constraints |
-| ------------------------------- | ---------------- | ------------------------------------ | ---------------------------------------------------------------------- |
+| --- | --- | --- | --- |
 | `Mesh` constructor | Inbound | Vertex and triangle-index sequences | Index count a multiple of three; indices in range; vertices finite; inputs copied |
 | `GroupNode` constructor | Inbound | Child node sequence | Sequence and each child non-null; sequence copied |
 | `OverlayNode` constructor | Inbound | `Rgba32` color (alpha honored), child node sequence | Sequence and each child non-null; sequence copied |
@@ -106,11 +107,12 @@ The system exposes the following public API:
 | `SceneRenderer.Render(...)` | Inbound/Outbound | `Scene`, `Camera`, size / `Surface` | Non-null scene and camera; each dimension 1 to `Surface.MaxDimension` |
 | `SceneRenderer.RenderFitted(...)` | Inbound/Outbound | `Scene`, size / `Surface` | Non-null scene; each dimension 1 to `Surface.MaxDimension` |
 | `CancellationToken` argument | Inbound | Cooperative cancellation token | Cancellation yields `OperationCanceledException` |
+
 <!-- markdownlint-enable MD013 -->
 
 The returned `Surface` is owned by the caller, who disposes it. See the subsystem and unit design
-documents (_SceneModel Subsystem Design_, _Tessellation Subsystem Design_, and _SceneRendering
-Subsystem Design_, and the unit designs beneath them) for every type's complete constructor,
+documents (*SceneModel Subsystem Design*, *Tessellation Subsystem Design*, and *SceneRendering
+Subsystem Design*, and the unit designs beneath them) for every type's complete constructor,
 property, and exception detail.
 
 ## Dependencies
@@ -142,9 +144,9 @@ same build-time analyzers and tooling packages as its sibling projects.
 
 This is an ordinary, same-repository, system-to-system dependency: both `CanvasNet` and
 `CanvasNetRender3D` are produced by this repository, so it is neither an OTS Software Item nor a
-Shared Package (that category is scoped to a package produced by a _different_ repository within
+Shared Package (that category is scoped to a package produced by a *different* repository within
 the same program). `CanvasNetRender3D` introduces no new OTS Software Item beyond those already
-used to build and verify the `CanvasNet` system — see _OTS Integration Design_
+used to build and verify the `CanvasNet` system — see *OTS Integration Design*
 (`docs/design/ots.md`).
 
 ## Risk Control Measures
@@ -174,12 +176,12 @@ defensive-correctness measures against invalid input, numeric failure, and resou
   worker additionally holds one fragment buffer that is never larger than the per-tile fragment
   budget (`SceneRenderOptions.MaxFragmentsPerTile`); a tile that would need more fails with a
   deterministic `RenderBudgetExceededException` instead of allocating without bound (see
-  _Fragment Budget and Memory Model_ below).
+  *Fragment Budget and Memory Model* below).
 - **Operand diagnostics.** A scene that takes the constructive-solid-geometry path is checked, before
   any rendering work, for operands that are not closed, consistently wound, outward solids; each
   problem is reported through the caller's handler (or thrown in strict mode) with a stable feature
-  token, and rendering stays bounded and deterministic regardless (see _Operand Validation
-  Contract_ below).
+  token, and rendering stays bounded and deterministic regardless (see *Operand Validation
+  Contract* below).
 - **Resource safety.** A `Surface` is allocated only after all validation and triangle preparation
   has succeeded, and is disposed before any exception (cancellation, budget, or otherwise) leaves the
   renderer, so a partially rendered surface is never leaked.
@@ -218,7 +220,7 @@ defensive-correctness measures against invalid input, numeric failure, and resou
 6. **Prepare triangles**: for each triangle (swapping two indices when the instance's world
    matrix has a negative determinant) compute the double-precision face normal, shade the front and
    back faces once (flat shading; on the constructive-solid-geometry path four shades, see
-   _Constructive Solid Geometry Algorithm_), narrow the vertices to single precision, clip against
+   *Constructive Solid Geometry Algorithm*), narrow the vertices to single precision, clip against
    the near plane (and the guard band when needed), project to the sample grid, convert to 24.8
    fixed point, and orient by sign of area to record front/back facing
 7. **Bin** the prepared triangles into 32 x 32-pixel tiles by a two-pass counting sort, preserving
@@ -255,12 +257,12 @@ ratio from the output size), and then follows the path above.
 The library targets the following frameworks, identical to the `CanvasNet` system it depends on,
 enabling compatibility across modern .NET runtimes:
 
-| Target Framework | Runtime / Environment                                   |
-| ---------------- | ------------------------------------------------------- |
-| `net8.0`         | .NET 8 LTS (end of support; kept for library consumers) |
-| `net9.0`         | .NET 9 STS (end of support; kept for library consumers) |
-| `net10.0`        | .NET 10 LTS                                             |
-| `net11.0`        | .NET 11                                                 |
+| Target Framework | Runtime / Environment |
+| --- | --- |
+| `net8.0` | .NET 8 LTS (end of support; kept for library consumers) |
+| `net9.0` | .NET 9 STS (end of support; kept for library consumers) |
+| `net10.0` | .NET 10 LTS |
+| `net11.0` | .NET 11 |
 
 The library is supported on the following operating systems:
 
@@ -352,9 +354,9 @@ The alpha of a `NodeAppearance` color **is honored** (Phase 8); the alpha of a l
 The background color's alpha is honored as well, so a render over a transparent background
 composites correctly with other content.
 
-- **Surfaces.** A color with alpha below 255 makes the _visible surfaces of the resolved solid_
+- **Surfaces.** A color with alpha below 255 makes the *visible surfaces of the resolved solid*
   translucent. A scene with a translucent appearance (or an overlay, or a boolean node) is resolved
-  per sample by the fragment-list resolver (see _Transparency Algorithm_); every other scene keeps
+  per sample by the fragment-list resolver (see *Transparency Algorithm*); every other scene keeps
   the z-buffer path and renders byte-identically to before.
 - **Union members merge.** Members of one union share a signed crossing counter, so a union of
   overlapping translucent bodies shows only the boundary of the union; geometry fully enclosed by a
@@ -395,10 +397,10 @@ inside-out and can be repaired with `Mesh.Reverse`. `PrimitiveTessellator.Polyhe
 the structure of its input and intentionally preserves the supplied faces and winding as given,
 without closing the surface or correcting its orientation; closure and outward orientation of a
 polyhedron are the caller's responsibility. Meshes produced by the `Extruder` always satisfy the
-contract (see _Polygon and Extrusion Contract_).
+contract (see *Polygon and Extrusion Contract*).
 
 For scenes on the constructive-solid-geometry path the contract is enforced by observation rather
-than by refusing to render: the operand validator (see _Operand Validation Contract_) names every
+than by refusing to render: the operand validator (see *Operand Validation Contract*) names every
 violating mesh through the handler or a strict-mode exception, and the mirror tests prove that the
 winding correction of a negative-determinant transform keeps mirrored operands correct. On the
 z-buffer path a back-facing surface is not culled but painted with `SceneRenderOptions.BackFaceColor`,
@@ -423,7 +425,7 @@ outer and hole shells: with that representation the coplanar outer cap would be 
 hole on the z-buffer path, which never evaluates solids, so the hole would not be visible. Only an
 island inside a hole is a separate shell (it is outside the ring solid), and it is outward oriented.
 Rotation requires the profile to lie on one side of the axis and rejects a profile that crosses it
-with an `ArgumentException`. See _Extruder Unit Design_ and _PolygonTriangulator Unit Design_ for
+with an `ArgumentException`. See *Extruder Unit Design* and *PolygonTriangulator Unit Design* for
 the algorithms and the exact conventions (twist sign, scale rules, apex, volume formulas, faceting
 tolerance).
 
@@ -439,18 +441,18 @@ ray, from the depth-sorted list of the ray's surface crossings (fragments):
    leaf is inside exactly while its counter is positive. A difference is "first operand minus all
    others"; an intersection requires all operands. Scenes with no difference or intersection of two
    or more operands and no overlay compile to no program. An `OverlayNode` is **false** in the main
-   program; its body is compiled into a program of its own (see _Transparency Algorithm_).
+   program; its body is compiled into a program of its own (see *Transparency Algorithm*).
 2. **Initial state.** The counter of each leaf at the start of the ray is minus the sum of the signed
    crossings of all its fragments (including those beyond the far distance), so a camera inside a
    solid starts with that solid inside.
 3. **Tie groups.** Fragments are sorted by the total order (depth, triangle index) and swept in
    atomic **tie groups**: a group starts at a fragment and contains the following fragments whose
-   depth is within the tolerance of the group's first depth (see _Known Limits_ for the tolerance).
+   depth is within the tolerance of the group's first depth (see *Known Limits* for the tolerance).
    All fragments of a group are applied to the counters before the program is re-evaluated, which is
    what makes coincident faces of different operands resolve without speckle.
 4. **Visible event.** The first group that changes the program's result is the visible surface of an
-   opaque result (with translucent surfaces and overlays it is the first _layer_; see _Transparency
-   Algorithm_). The
+   opaque result (with translucent surfaces and overlays it is the first *layer*; see *Transparency
+   Algorithm*). The
    fragment chosen within the group is the one whose leaf alone explains the change, then the lowest
    draw priority, then the lowest triangle index. Its depth and shade are written into the same
    sample buffer the z-buffer fills, so tile resolve, supersampling, and parallelism are shared.
@@ -461,7 +463,7 @@ ray, from the depth-sorted list of the ray's surface crossings (fragments):
 
    <!-- markdownlint-disable MD013 -->
    | Shade | Facing | Event | Color | Meaning |
-   | ----- | ------ | ----- | ----- | ------- |
+   | --- | --- | --- | --- | --- |
    | `FrontEnter` | Front | Enters the result | `Shade(n, leaf color)` | The outer surface of the result |
    | `FrontExit` | Front | Leaves the result | `Shade(n, BackFaceColor)` | Viewer inside material, seen at a front face |
    | `BackEnter` | Back | Enters the result | `Shade(-n, leaf color)` | A cut surface exposed by a subtrahend: its own color, lit from the flipped normal |
@@ -514,7 +516,7 @@ The algorithm is exact when all of the following hold:
 
 - **Operands are closed, consistently wound, outward-CCW meshes.** The signed counter is only
   meaningful for such meshes; open, non-manifold, inconsistently wound, degenerate, or inside-out
-  meshes produce unmatched crossings (see _Operand Validation Contract_).
+  meshes produce unmatched crossings (see *Operand Validation Contract*).
 - **Mirrored instances are wound correctly.** The renderer swaps two indices of every triangle of a
   negative-determinant instance (before the screen-winding classification), so the facing that
   yields the +1/-1 crossing of a leaf is the corrected one; mirrored operands behave like operands
@@ -528,8 +530,8 @@ The algorithm is exact when all of the following hold:
 ### Known Limits
 
 - **Near plane.** The camera's near plane clips the fragments in front of it, and the counter at the
-  start of the ray is inferred from the remaining fragments, i.e. it is the state _at the near
-  plane_. The result is therefore exactly the CSG solid clipped to the near plane of the view
+  start of the ray is inferred from the remaining fragments, i.e. it is the state *at the near
+  plane*. The result is therefore exactly the CSG solid clipped to the near plane of the view
   frustum; no cap surfaces are drawn on the near plane (the cut is open). Any near plane, derived or
   explicit, is supported, including a camera inside an operand (for example inside a hollow room,
   which shows the room's walls); it is not reported. Fragments beyond the far plane are retained
@@ -613,17 +615,19 @@ internal forced-fragment-path test seam), when `UnsupportedFeatureHandler` is se
   describes, so an outward mesh stays outward and an inward mesh stays inward under a mirror.
 
 <!-- markdownlint-disable MD013 -->
+
 | Feature token | Condition | Node |
-| ------------- | --------- | ---- |
+| --- | --- | --- |
 | `render3d-csg-open-mesh` | The mesh has a boundary edge | The mesh node |
 | `render3d-csg-non-manifold-edge` | An edge is shared by three or more triangles | The mesh node |
 | `render3d-csg-inconsistent-winding` | Neighboring triangles are wound in conflicting directions | The mesh node |
 | `render3d-csg-degenerate-triangle` | The mesh has zero-area triangles (a repeated index, or distinct vertices that are coincident or collinear) | The mesh node |
 | `render3d-csg-inverted-mesh` | A defect-free closed (welded) mesh has a connected shell whose signed volume (beyond its rounding error bound) disagrees with its nesting depth parity: an outermost shell or one nested at even depth must be positive, a cavity wall at odd depth negative (`Mesh.IsInverted`) | The mesh node |
 | `render3d-csg-singular-transform` | The instance's composed world transform has a zero or non-finite determinant (for example a zero scale), so the whole mesh collapses (reported per instance) | The mesh node of that instance |
+
 <!-- markdownlint-enable MD013 -->
 
-The camera's near plane is not validated: a camera inside an operand is supported (see _Known Limits_).
+The camera's near plane is not validated: a camera inside an operand is supported (see *Known Limits*).
 
 The mesh-level tokens depend only on the mesh and are reported once per node. Because a world
 transform can destroy a valid closed mesh, a second, transform-dependent check runs per **instance**

@@ -2,22 +2,22 @@
 
 This document describes the unit-level verification strategy for the `LabelExpressions` unit in the
 `DemaConsulting.CanvasNet.VegaLite.Guides` namespace: the internal sealed `LabelExpressions` class (the constructor,
-`Datum`, `Resolve`, and `Evaluate`) with the `LabelText` record struct, which evaluates the `labelExpr` of axes, legends,
-and facet headers on the shared expression evaluator of the call: the datum that each guide gives the expression, the
-coercion of the result to label text like Vega's text mark, the compilation of configured text, and the limits of the
-evaluation. The unit is also verified through its three callers, the axes of `AxisBuilder`, the legends of
-`LegendBuilder`, and the facet headers of `VegaLiteDocument`, whose label-expression tests are named below; the
-parser and the feature catalog behavior for `labelExpr` is verified in the _SpecParser_ and _FeatureCatalog Unit
-Verification Designs_.
+`Datum`, `Resolve`, and `Evaluate`) with the `LabelText` record struct, which evaluates the `labelExpr` of axes,
+legends, and facet headers on the shared expression evaluator of the call: the datum that each guide gives the
+expression, the coercion of the result to label text like Vega's text mark, the compilation of configured text, and the
+limits of the evaluation. The unit is also verified through its three callers, the axes of `AxisBuilder`, the legends of
+`LegendBuilder`, and the facet headers of `VegaLiteDocument`, whose label-expression tests are named below; the parser
+and the feature catalog behavior for `labelExpr` is verified in the *SpecParser* and *FeatureCatalog Unit Verification
+Designs*.
 
 #### Verification Approach
 
 The unit is verified in three parts. The unit itself is called directly (`LabelExpressionsTests`): `Datum` builds the
-datum, `Resolve` compiles the text of a configured expression with the real `ExpressionParser`, and `Evaluate` runs it on
-a real `ExpressionEvaluator` (the unit makes one of its own when it is given no `RowExpressions`; one test passes the
+datum, `Resolve` compiles the text of a configured expression with the real `ExpressionParser`, and `Evaluate` runs it
+on a real `ExpressionEvaluator` (the unit makes one of its own when it is given no `RowExpressions`; one test passes the
 real expressions of a parsed chart so that a parameter and the step counter of the call are involved), and the result is
-asserted as a `LabelText`. The axes and the legends are verified by parsing a small, original specification with the real
-`SpecParser`, resolving the configuration, data, scales, and ticks with the real `ConfigResolver`, `DataLoader`,
+asserted as a `LabelText`. The axes and the legends are verified by parsing a small, original specification with the
+real `SpecParser`, resolving the configuration, data, scales, and ticks with the real `ConfigResolver`, `DataLoader`,
 `ScaleResolver`, and `Ticks` (through the shared helper `ChartTestHelpers`), building the guide with the real
 `AxisBuilder` or `LegendBuilder` and the real `TextMeasurer`, and asserting on the label texts, the extents, and the
 scene items (`AxisBuilderLabelExprTests`, `LegendBuilderLabelExprTests`). The facet headers and the whole path are
@@ -85,9 +85,9 @@ not give (`perc` and an unknown name) reading `null`.
 `LabelExpressionsTests.LabelExpressions_Evaluate_ResultIsTrimmed`
 
 Asserts that null and a missing member are the empty text; that `1e21`, a comparison, and a date are the texts `1e+21`,
-`true`, and `2024-03-05T00:00:00.000Z` and that a date is still a date for the time functions (`2024/Mar`); that an array
-gives the lines `one`, ``, `2` and the joined text with line feeds; and that the white space of JavaScript's `trim` is
-removed from both ends.
+`true`, and `2024-03-05T00:00:00.000Z` and that a date is still a date for the time functions (`2024/Mar`); that an
+array gives the lines `one`, ``, `2` and the joined text with line feeds; and that the white space of JavaScript's
+`trim` is removed from both ends.
 
 ##### Configured Text Is Compiled Once
 
@@ -178,7 +178,8 @@ Asserts that `perc` is the position of the tick along the bar and `value` the ti
 
 ##### Facet Headers And Whole Charts Use Label Expressions
 
-**Tests**: `VegaLiteLabelExprIntegrationTests.CanvasNetVegaLite_SystemIntegration_LabelExpr_AxisLabelsAreReplacedAndStrictModeHasNothingToReport`,
+**Tests**:
+`VegaLiteLabelExprIntegrationTests.CanvasNetVegaLite_SystemIntegration_LabelExpr_AxisLabelsAreReplacedAndStrictModeHasNothingToReport`,
 `VegaLiteLabelExprIntegrationTests.CanvasNetVegaLite_SystemIntegration_LabelExpr_TemporalAxisUsesTheDateValue`,
 `VegaLiteLabelExprIntegrationTests.CanvasNetVegaLite_SystemIntegration_LabelExpr_LegendLabelsAreReplaced`,
 `VegaLiteLabelExprIntegrationTests.CanvasNetVegaLite_SystemIntegration_LabelExpr_HeaderLabelsAreReplacedWithPrecedence`,
@@ -201,7 +202,8 @@ chart with the one-line `datum.label` (the layout measures the lines of a header
 
 ##### Label Expressions Are Bounded And Deterministic
 
-**Tests**: `VegaLiteLabelExprIntegrationTests.CanvasNetVegaLite_SystemIntegration_LabelExpr_BudgetExceededIsARenderException`,
+**Tests**:
+`VegaLiteLabelExprIntegrationTests.CanvasNetVegaLite_SystemIntegration_LabelExpr_BudgetExceededIsARenderException`,
 `VegaLiteLabelExprIntegrationTests.CanvasNetVegaLite_SystemIntegration_LabelExpr_ResultDoesNotDependOnTheCulture`,
 `VegaLiteLabelExprIntegrationTests.CanvasNetVegaLite_SystemIntegration_LabelExpr_UnsupportedFunctionIsReportedAndEvaluatesToEmptyLabels`,
 `VegaLiteLabelExprIntegrationTests.CanvasNetVegaLite_SystemIntegration_LabelExpr_FormatAndTimeFormatDrawWithoutDiagnostics`
@@ -227,8 +229,7 @@ ends with `/axis/labelExpr`.
 Asserts that a supported label expression is reported nowhere (the retired `vl-expr-label` is never produced); that an
 unsupported function or view state is reported at the expression text with `vl-expr-function-<name>` or
 `vl-expr-view-state`, also for `config.axis*` and `config.header*`; that a syntax error is a located
-`VegaLiteSpecException` when the document is opened; that `config.legend.labelExpr` is neither compiled nor reported; and
-that the command line renders a chart with label expressions and offset channels in strict mode with no diagnostics:
-a grouped bar chart, a chart with `upper(datum.label)` and `datum.label + '%'` labels, a line chart whose
-labelExpr uses `timeFormat(datum.value, '%b %Y')` and `format(datum.value, '.0%')`, and a `yearmonth` bar chart with an
-`xOffset`.
+`VegaLiteSpecException` when the document is opened; that `config.legend.labelExpr` is neither compiled nor reported;
+and that the command line renders a chart with label expressions and offset channels in strict mode with no diagnostics:
+a grouped bar chart, a chart with `upper(datum.label)` and `datum.label + '%'` labels, a line chart whose labelExpr uses
+`timeFormat(datum.value, '%b %Y')` and `format(datum.value, '.0%')`, and a `yearmonth` bar chart with an `xOffset`.

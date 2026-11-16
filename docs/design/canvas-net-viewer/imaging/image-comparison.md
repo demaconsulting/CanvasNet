@@ -9,7 +9,7 @@
 `ImageComparison` is the threshold side of comparing two images. The comparison itself - the exact error metrics,
 the windowed structural similarity, the per-cell grid, and the difference, overlay, and side-by-side pictures - is
 computed by the core `Surface` class (`Compare`, `CreateDiff`, `CreateOverlay`, and `CreateSideBySide`; see
-_SurfaceComparison Unit Design_, `canvas/surface-comparison.md`). What stays here is what a caller that wants a pass
+*SurfaceComparison Unit Design*, `canvas/surface-comparison.md`). What stays here is what a caller that wants a pass
 or a fail needs: the
 **thresholds** that turn a comparison result into a pass or a fail, the names under which the metrics are written
 (on the command line of the tool and in its results), the range of the limit of each, and the defaults of the
@@ -40,8 +40,8 @@ names `mae`, `rmse`, `psnr`, `ssim`, `diff-ratio`, `max-diff`, and `cell-rmse`; 
 
 #### Error Handling
 
-All failures are defects of the caller, since the operations and the tool validate user input first: a null argument throws
-`ArgumentNullException`; an undefined metric throws `ArgumentOutOfRangeException`.
+All failures are defects of the caller, since the operations and the tool validate user input first: a null argument
+throws `ArgumentNullException`; an undefined metric throws `ArgumentOutOfRangeException`.
 
 #### Dependencies
 

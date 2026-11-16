@@ -2,8 +2,8 @@
 
 ![Data Structure](VegaLiteDataView.svg)
 
-The `DataLoader` unit is the second software unit in the `Data` subsystem. It is one source file, `DataLoader.cs`, in the
-`DemaConsulting.CanvasNet.VegaLite.Data` namespace, and defines one `internal` type, the sealed class `DataLoader`.
+The `DataLoader` unit is the second software unit in the `Data` subsystem. It is one source file, `DataLoader.cs`, in
+the `DemaConsulting.CanvasNet.VegaLite.Data` namespace, and defines one `internal` type, the sealed class `DataLoader`.
 
 #### Purpose
 
@@ -33,13 +33,13 @@ then `sequence`, then `name`. Anything else (no `data`, no source, or `values` t
 **Row rules.** An array of objects gives one row per object. An array of primitives (or of arrays) gives one row per
 value with the value in the field `data`. The JSON types are kept (number, string, boolean, null). A nested object or
 array is flattened to one field per leaf, named by the canonical path of the leaf (`FieldPath.Join`, which escapes a
-literal dot), and a field a row does not have is null. The same rules apply to a JSON data file, a top-level dataset, and
-a dataset of the caller. A caller's `DateTime` (local converted to UTC, unspecified taken as UTC) and `DateTimeOffset`
-values become dates in UTC; `DataLoader.FromDateTime` clamps a value past the last supported whole millisecond of the
-year 9999 - which is exactly `DateTime.MaxValue` and `DateTimeOffset.MaxValue`, the usual "no end" sentinels, whose
-sub-millisecond ticks the whole-millisecond date model cannot hold - to that last millisecond (`9999-12-31T23:59:59.999Z`)
-instead of failing, and reports any other unexpected failure to represent a date as a `VegaLiteRenderException`
-located at the data object (`FromObject` receives the location for that purpose).
+literal dot), and a field a row does not have is null. The same rules apply to a JSON data file, a top-level dataset,
+and a dataset of the caller. A caller's `DateTime` (local converted to UTC, unspecified taken as UTC) and
+`DateTimeOffset` values become dates in UTC; `DataLoader.FromDateTime` clamps a value past the last supported whole
+millisecond of the year 9999 - which is exactly `DateTime.MaxValue` and `DateTimeOffset.MaxValue`, the usual "no end"
+sentinels, whose sub-millisecond ticks the whole-millisecond date model cannot hold - to that last millisecond
+(`9999-12-31T23:59:59.999Z`) instead of failing, and reports any other unexpected failure to represent a date as a
+`VegaLiteRenderException` located at the data object (`FromObject` receives the location for that purpose).
 
 **Format.** For a local `url`, `format.type` decides (`json`, `csv`, `tsv`, `dsv`); without it the extension of the
 path does (`.csv`, `.tsv`, in any case; anything else is JSON). A DSV uses the single-character `format.delimiter` (a
@@ -76,11 +76,11 @@ UTC when it is omitted; `VegaLiteDocument` creates it once from the `TimeZone` o
 instance to the expression evaluator). It is the zone that reads a date-time without an offset and a `date:'%fmt'`
 format; `utc:'%fmt'` and dates without a time are UTC. The loader also receives the **implicit date fields** of the main
 data, an optional second argument of `Load` (`IReadOnlySet<string>`: the canonical names that `TemporalFields.Collect`
-found in the encoding, the transforms, and the predicates; see _Time Unit Transform Design_). They reach the main data
+found in the encoding, the transforms, and the predicates; see *Time Unit Transform Design*). They reach the main data
 of every source (inline `values`,
 a spec dataset, a caller dataset, a CSV, TSV, or DSV file, and a JSON file) and are passed on to
 `ParseDirectives.Read`, so a temporal field is date-parsed as if `parse` named it as a `date`, unless the `parse`
-property names the field or is `null`; see _DelimitedTextParser_ for the rules. The data of a `lookup` is loaded through
+property names the field or is `null`; see *DelimitedTextParser* for the rules. The data of a `lookup` is loaded through
 `Load(source)` without any, so a lookup source is never parsed implicitly. A caller's `DateTime` and `DateTimeOffset`
 are not read through the calendar: they are dates in UTC, as before.
 
@@ -95,7 +95,7 @@ than `file`, a `file:` URI with a host, `localhost` included, or a malformed one
 `C:x`: one letter is a drive), or a `file:` URI without a host (`file:///x`, `file:/x`). `LoadUrl` reads a `file:` URI
 at the local path `FeatureCatalog.LocalPathOfFileUri` returns and passes the `url` as written to
 `DataFileResolver.Load(path, location, written)`, so the messages name what the author wrote. Which file may be read
-is decided by the file-access policy of the open options (see _DataFileResolver Unit Design_).
+is decided by the file-access policy of the open options (see *DataFileResolver Unit Design*).
 
 #### Key Methods
 
@@ -125,11 +125,11 @@ is decided by the file-access policy of the open options (see _DataFileResolver 
 - `ReserveDerivedRows(rows, what, location)` and `ReleaseRows(rows)` - the row budget of the call as the row transforms
   use it: `ReserveDerivedRows` charges the rows of a derived table against `MaxDataRows` (through the same `Charge` as a
   loaded source, before anything is allocated, as a `double` so that a product that overflows an integer still fails the
-  limit) and adds them to `RowsLoaded`; `ReleaseRows` gives back the rows of a table that is no longer needed (never below
-  zero). A fold or flatten reserves its output while the input still counts, so the peak of two tables is bounded.
+  limit) and adds them to `RowsLoaded`; `ReleaseRows` gives back the rows of a table that is no longer needed (never
+  below zero). A fold or flatten reserves its output while the input still counts, so the peak of two tables is bounded.
 - `FromObject(value, location)` (internal static) - converts a caller value (null, boolean, string, a number of any
-  built-in type, `DateTime`, `DateTimeOffset`) to a `DataValue`; it is also what converts a `VegaLiteRenderOptions.Parameters`
-  override.
+  built-in type, `DateTime`, `DateTimeOffset`) to a `DataValue`; it is also what converts a
+  `VegaLiteRenderOptions.Parameters` override.
 - `Complete` - builds the table, adds its rows to `RowsLoaded`, and converts the parse failures into warnings.
 - `Charge`, `Add`, and `CheckFieldCount` - enforce `MaxDataRows` as a total, `MaxFieldCount` per row, and the string
   length of JSON values at the leaf's location.
@@ -143,26 +143,26 @@ list is complete for this call. Root-level data inheritance for layered views is
 
 Every failure of the data is a `VegaLiteRenderException` located at the construct that caused it, in lenient and strict
 mode alike: a file that the resolver refuses or cannot find or read (the resolver's exceptions are propagated, and the
-resolver also reports a failing callback or stream as the located read failure), invalid
-JSON or JSON nested deeper than `MaxJsonDepth`, a JSON root that is not an array or a `format.property` that is not
-found, JSON text that is not valid Unicode (an escaped lone surrogate in a string or a property name), a delimiter that
-is not one valid character, delimited text that is malformed (located by the parser), a
-`name` that is not defined, a sequence without a finite numeric `start` and `stop`, with a zero, non-finite, or
-non-numeric `step`, or with a value outside the range of a number, more rows than `MaxDataRows` (in total, also for an
-overflowing sequence length, a lookup source, and the output of a transform that reserves its rows), more fields in
-a row than `MaxFieldCount`, a
-string longer than `MaxStringLength`, and a number outside the range of a double. A canceled token is an
-`OperationCanceledException`, never wrapped. Values that an explicit `parse` could not convert are not errors: they are
-null and reported as `vl-data-parse-failed` warnings. Sources that are only recognized and not supported (remote data, `values`
-given as text or as an object, a topojson format, no source) are not errors: the table is empty and the `FeatureCatalog`
-reports the reason (`vl-data-empty`, `vl-data-remote-url`, `vl-data-values-text`, `vl-data-geo`), so the rest of the
-chart is still drawn.
+resolver also reports a failing callback or stream as the located read failure), invalid JSON or JSON nested deeper than
+`MaxJsonDepth`, a JSON root that is not an array or a `format.property` that is not found, JSON text that is not valid
+Unicode (an escaped lone surrogate in a string or a property name), a delimiter that is not one valid character,
+delimited text that is malformed (located by the parser), a `name` that is not defined, a sequence without a finite
+numeric `start` and `stop`, with a zero, non-finite, or non-numeric `step`, or with a value outside the range of a
+number, more rows than `MaxDataRows` (in total, also for an overflowing sequence length, a lookup source, and the output
+of a transform that reserves its rows), more fields in a row than `MaxFieldCount`, a string longer than
+`MaxStringLength`, and a number outside the range of a double. A canceled token is an `OperationCanceledException`,
+never wrapped. Values that an explicit `parse` could not convert are not errors: they are null and reported as
+`vl-data-parse-failed` warnings. Sources that are only recognized and not supported (remote data, `values` given as text
+or as an object, a topojson format, no source) are not errors: the table is empty and the `FeatureCatalog` reports the
+reason (`vl-data-empty`, `vl-data-remote-url`, `vl-data-values-text`, `vl-data-geo`), so the rest of the chart is still
+drawn.
 
 #### Dependencies
 
 - **`DataFileResolver`** and **`DelimitedTextParser`** (with `ParseDirectives` and `ParseFailures`) - the other units of
   the `Data` subsystem
-- **`TimeCalendar`** - the calendar of the date conversions, defined in the `Data` subsystem (see _Time Calendar Design_)
+- **`TimeCalendar`** - the calendar of the date conversions, defined in the `Data` subsystem (see *Time Calendar
+  Design*)
 - **`DataTable`**, **`DataValue`**, **`FieldPath`** - the value and table model of the `DataTable` unit
 - **`SpecNode`**, **`SpecNodeKind`**, **`FeatureReport`**, **`FeatureCatalog.IsRemoteDataUrl`**, and
   **`FeatureCatalog.LocalPathOfFileUri`** - the tree of the `SpecParser` unit and the report type, remote-URL rule and

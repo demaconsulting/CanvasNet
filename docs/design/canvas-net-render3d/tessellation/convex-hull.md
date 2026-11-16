@@ -19,19 +19,18 @@ the OpenSCAD `hull` operation and of `MinkowskiSum`.
 
 #### Data Model
 
-`ConvexHull` is stateless and thread-safe. `Hull3D` copies the input **once** into a single array (sized exactly
-when the count is known without enumerating, via `TryGetNonEnumeratedCount`, otherwise grown by doubling; no
-intermediate list) and then validates, canonicalizes and sorts that array in place: finite values only, `-0.0`
-canonicalized to `+0.0` by adding zero, sorting by X, then Y, then Z, and exact duplicates removed in place. The
-array and the count of distinct points (a prefix; no resize and no further copy) go to a single-use
-`HullBuilder3D`. The internal `Hull3DInPlace(Vector3D[] points, int length, CancellationToken)` skips the copy for
-a caller that owns a throw-away array (`MinkowskiSum` does) and gives the same mesh. The builder keeps the surface of the
-current hull as **face slots** in parallel arrays: three vertex indices and three neighbor indices per slot
-(neighbor `k` lies across the edge `v[k] -> v[k+1]`), an alive flag, a per-insertion classification stamp and a
-visibility flag, a LIFO free list of dead slots, and the most recently inserted vertex with one incident face.
-The invariants between insertions are: (1) the live faces are the boundary of the convex hull of the points
-inserted so far, with every edge shared by exactly two faces in opposite directions; (2) the last inserted
-point is the lexicographic maximum of all points so far.
+`ConvexHull` is stateless and thread-safe. `Hull3D` copies the input **once** into a single array (sized exactly when
+the count is known without enumerating, via `TryGetNonEnumeratedCount`, otherwise grown by doubling; no intermediate
+list) and then validates, canonicalizes and sorts that array in place: finite values only, `-0.0` canonicalized to
+`+0.0` by adding zero, sorting by X, then Y, then Z, and exact duplicates removed in place. The array and the count of
+distinct points (a prefix; no resize and no further copy) go to a single-use `HullBuilder3D`. The internal
+`Hull3DInPlace(Vector3D[] points, int length, CancellationToken)` skips the copy for a caller that owns a throw-away
+array (`MinkowskiSum` does) and gives the same mesh. The builder keeps the surface of the current hull as **face slots**
+in parallel arrays: three vertex indices and three neighbor indices per slot (neighbor `k` lies across the edge
+`v[k] -> v[k+1]`), an alive flag, a per-insertion classification stamp and a visibility flag, a LIFO free list of dead
+slots, and the most recently inserted vertex with one incident face. The invariants between insertions are: (1) the live
+faces are the boundary of the convex hull of the points inserted so far, with every edge shared by exactly two faces in
+opposite directions; (2) the last inserted point is the lexicographic maximum of all points so far.
 
 #### Key Methods
 
@@ -49,13 +48,13 @@ point is the lexicographic maximum of all points so far.
   `NonDegenerateProjection` finds a coordinate plane in which a triangle has non-zero projected area (exactly) or
   reports collinearity.
 
-**`Hull2D`.** Andrew's monotone chain on the sorted distinct points, with `PolygonPredicates.Orient2D`
-deciding every turn (a point is popped while the turn is not strictly counter-clockwise). The result is strictly
-convex (no collinear vertices), counter-clockwise and starts at the lexicographically smallest point. It is
-O(n log n) time in every case (the copy and the de-duplication are O(n), the sort is O(n log n), and the chain after
-the sort is O(n) because every point is pushed and popped at most once per half) and O(n) memory (the sorted copy,
-an index array and the chain buffer). A degenerate set returns no point, the one point, or the two extreme points (it never
-throws; the caller decides what a point or a segment means).
+**`Hull2D`.** Andrew's monotone chain on the sorted distinct points, with `PolygonPredicates.Orient2D` deciding every
+turn (a point is popped while the turn is not strictly counter-clockwise). The result is strictly convex (no collinear
+vertices), counter-clockwise and starts at the lexicographically smallest point. It is O(n log n) time in every case
+(the copy and the de-duplication are O(n), the sort is O(n log n), and the chain after the sort is O(n) because every
+point is pushed and popped at most once per half) and O(n) memory (the sorted copy, an index array and the chain
+buffer). A degenerate set returns no point, the one point, or the two extreme points (it never throws; the caller
+decides what a point or a segment means).
 
 **`Hull3D` algorithm (sorted incremental insertion).**
 

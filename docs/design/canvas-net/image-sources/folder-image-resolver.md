@@ -118,8 +118,8 @@ reports `false`. The plain `Resolve` is unchanged.
 resolver and of every scope resolves the link exactly as `Resolve` does (the same policy, fragment, depth, cycle, count,
 and pixel checks, in the same order) and sets `ImageSourceRequest.Positions` of the request it builds for that link
 only; the scope it gives the source carries no selection, so the links of the file are asked for none. `Draw` stores
-`ImageSourceResult.Positions` and `PositionsTruncated` in fields next to the natural-size flag, which the call reads right
-after the source returns (the outermost write wins, as for the natural size) and returns with the surface as an
+`ImageSourceResult.Positions` and `PositionsTruncated` in fields next to the natural-size flag, which the call reads
+right after the source returns (the outermost write wins, as for the natural size) and returns with the surface as an
 `ImageResolution`; a call that draws nothing returns `null`, and a null selection is `ArgumentNullException`.
 Requirement: `CanvasNet-ImageSources-FolderImageResolver-Positions`.
 

@@ -55,7 +55,7 @@ transform is now a `lookup` from a parameter (`vl-transform-lookup-param`) and, 
 stable-identifier specification needed one, the `projection` (`vl-projection`); the tests of the old reports assert that
 nothing is reported (the identifiers `vl-transform-regression`, `-loess`, `-density`, `-quantile`, `-extent`, and
 `vl-transform-pivot-op` are retired and asserted absent). The warning `vl-param-extent-static` is produced by the
-`ExpressionReferenceFolder` and verified with it (see _ExpressionReferenceFolder Unit Verification Design_).
+`ExpressionReferenceFolder` and verified with it (see *ExpressionReferenceFolder Unit Verification Design*).
 
 #### Test Environment
 
@@ -497,16 +497,15 @@ at all (so none of `vl-type-temporal`, `vl-encoding-timeunit`, `vl-transform-tim
 Asserts that a binned unit, by the name `binnedyearmonth` or by the object `{"unit":"yearmonth","binned":true}`, reports
 nothing in an encoding and in the `timeUnit` transform (Phase 14 retired `vl-timeunit-binned`), as `binned: false`; that
 the `{"maxbins": 10}` form reports nothing in an encoding, in the `timeUnit` transform, and in a predicate (retired
-`vl-timeunit-maxbins`: a predicate compares the field as it is); that
-a predicate whose unit has a `week` or `dayofyear` part (`yearweek` in a filter, `dayofyear` inside an `and`) is the
-warning `vl-predicate-timeunit-part` at the `timeUnit` of the predicate (`/transform/0/filter/timeUnit` and
-`/transform/1/filter/and/0/timeUnit`), of kind `Warning`, while `yearmonth` in a predicate and `yearweek` in an
-encoding are silent. Through the public API, a strict render of a specification with an unsupported part that is
-still reported (`axis.encode`, `vl-guide-encode`) throws a `VegaLiteUnsupportedFeatureException` whose `Feature` is that
-identifier, the same specification rendered leniently delivers exactly one report
-`vl-guide-encode /encoding/x/axis/encode` to the unsupported-feature handler (the identifiers of the binned and `maxbins`
-units are retired), and the
-`yearweek` predicate is delivered as a warning (its message names the week) and does not throw in strict mode.
+`vl-timeunit-maxbins`: a predicate compares the field as it is); that a predicate whose unit has a `week` or `dayofyear`
+part (`yearweek` in a filter, `dayofyear` inside an `and`) is the warning `vl-predicate-timeunit-part` at the `timeUnit`
+of the predicate (`/transform/0/filter/timeUnit` and `/transform/1/filter/and/0/timeUnit`), of kind `Warning`, while
+`yearmonth` in a predicate and `yearweek` in an encoding are silent. Through the public API, a strict render of a
+specification with an unsupported part that is still reported (`axis.encode`, `vl-guide-encode`) throws a
+`VegaLiteUnsupportedFeatureException` whose `Feature` is that identifier, the same specification rendered leniently
+delivers exactly one report `vl-guide-encode /encoding/x/axis/encode` to the unsupported-feature handler (the
+identifiers of the binned and `maxbins` units are retired), and the `yearweek` predicate is delivered as a warning (its
+message names the week) and does not throw in strict mode.
 
 ##### Band Position, Datum, And Interval Reports
 
@@ -783,11 +782,11 @@ an offset (also a nominal one with a time unit) is the warning `vl-scale-type-ig
 
 Asserts, for a specification whose `config.scale.invalid` has the entries `x: "zero-or-min"`, `y: {"value": 5}`, and
 `color: {"value": "#aaa"}` (readable, not reported), `size: {"value": {"expr": "1"}}` (an expression reference, reported
-by the generic check as `vl-expr-ref` at `/config/scale/invalid/size/value` and not twice), and `opacity: {"value": null}`,
-`fill: {"value": true}`, `stroke: "other"`, `angle: 3`, and `shape: {"value": [1]}` (not readable), that
-`vl-scale-invalid-value` is reported exactly five times, once at each unreadable entry
-(`/config/scale/invalid/opacity`, `/fill`, `/stroke`, `/angle`, and `/shape`), in document order, and that the
-readable entries produce no `vl-scale-invalid-value` report. The system test
+by the generic check as `vl-expr-ref` at `/config/scale/invalid/size/value` and not twice), and
+`opacity: {"value": null}`, `fill: {"value": true}`, `stroke: "other"`, `angle: 3`, and `shape: {"value": [1]}` (not
+readable), that `vl-scale-invalid-value` is reported exactly five times, once at each unreadable entry
+(`/config/scale/invalid/opacity`, `/fill`, `/stroke`, `/angle`, and `/shape`), in document order, and that the readable
+entries produce no `vl-scale-invalid-value` report. The system test
 `VegaLitePhase14SystemTests.CanvasNetVegaLite_SystemIntegration_ScaleInvalid_AnUnreadableEntryIsReported` asserts the
 report, with its location and strict mode, from a specification text.
 

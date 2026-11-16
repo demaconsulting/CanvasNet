@@ -6,8 +6,8 @@ supporting types (`PositionBox`, `PositionPoint`, `PositionValue`, `PositionValu
 
 ### Verification Approach
 
-The `Positions` subsystem is verified through its three units' tests (see _ImagePosition Unit Verification Design_,
-_PositionSelector Unit Verification Design_, and _PositionCollector Unit Verification Design_, in the `positions`
+The `Positions` subsystem is verified through its three units' tests (see *ImagePosition Unit Verification Design*,
+*PositionSelector Unit Verification Design*, and *PositionCollector Unit Verification Design*, in the `positions`
 folder): every public constructor, property, and method is exercised with positions built by hand, as a renderer would
 build them, so no format package is needed in the core test project. The subsystem-level requirements reuse those unit
 tests as verification evidence, because the units' only collaboration - `PositionCollector` evaluating the

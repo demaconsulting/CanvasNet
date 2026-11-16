@@ -89,4 +89,4 @@ this unit exposes a public mutator; every property is a read-only auto-property 
 only from the constructor.
 
 The `ChartModel` subsystem depends on the core `CanvasNet` system's `Canvas` subsystem's `Rgba32`
-unit — see _ChartModel Subsystem Design_ (`../chart-model.md`)'s Dependencies section.
+unit — see *ChartModel Subsystem Design* (`../chart-model.md`)'s Dependencies section.

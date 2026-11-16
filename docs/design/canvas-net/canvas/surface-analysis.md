@@ -36,10 +36,10 @@ The unit adds no state to `Surface`. Its public surface is:
 
 #### Conventions
 
-Colors are counted in 4096 buckets of 4 bits per channel and clustered greedily, so that a gradient of paper shades is one
-color; the luma statistics come from the same single pass. All arithmetic is exact integer arithmetic (the only floating
-point is the rounding of the reported fractions and mean), the pass is sequential, and nothing allocates per pixel, so the
-result is the same on every run. A surface must not be changed by another thread while it is analyzed.
+Colors are counted in 4096 buckets of 4 bits per channel and clustered greedily, so that a gradient of paper shades is
+one color; the luma statistics come from the same single pass. All arithmetic is exact integer arithmetic (the only
+floating point is the rounding of the reported fractions and mean), the pass is sequential, and nothing allocates per
+pixel, so the result is the same on every run. A surface must not be changed by another thread while it is analyzed.
 
 #### Key Methods
 

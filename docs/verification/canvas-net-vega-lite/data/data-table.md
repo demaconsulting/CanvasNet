@@ -15,8 +15,8 @@ The unit is verified by building tables from in-memory values and asserting on w
 cell values and their kinds, the immutability of the table, the limits, and the text and ordering of values. The unit
 has no dependencies other than `VegaLiteLimits`, `VegaLiteLocation`, and `VegaLiteRenderException`, so no mocking or
 stubbing is required; the internal types are reached through the test assembly's `InternalsVisibleTo` access. The
-unit's interaction with the loader and the parser is verified at the subsystem tier (see _Data Subsystem
-Verification Design_).
+unit's interaction with the loader and the parser is verified at the subsystem tier (see *Data Subsystem
+Verification Design*).
 
 The expected values of the JavaScript number formatting are written by hand from the ECMAScript `Number::toString`
 rules — shortest round-tripping digits, positional notation for magnitudes from 1e-6 up to but excluding 1e21, and
@@ -162,8 +162,8 @@ from `true`; and that the quantitative reading accepts numbers, booleans (1 and 
 
 Asserts that a table built from fields that are already in ordinal order and a flat row-major cell array (two rows of
 the fields `a` and `b`, the cell `b` of the first row an array of `x` and 2) has two rows and two fields, reads each
-cell back (a number, an array whose text is `x,2`, and a null), that a table of no fields with three rows keeps its three
-rows, and that unordered fields, a repeated field, and a cell count that does not match the rows and fields are
+cell back (a number, an array whose text is `x,2`, and a null), that a table of no fields with three rows keeps its
+three rows, and that unordered fields, a repeated field, and a cell count that does not match the rows and fields are
 `ArgumentException` errors, a null field list or cell array is an `ArgumentNullException`, and a negative row count is
 an `ArgumentOutOfRangeException`.
 
@@ -198,8 +198,8 @@ is JavaScript identity and never structure.
 
 **Tests**: `DataCompositeValueTests.DataObject_Create_KeepsInsertionOrderAndLastValueOfARepeatedKey`
 
-Asserts that an object built from the members `b`, `a`, and `b` again has the two keys `b` and `a` in that order with the
-last value (3) at the position of the first, that the object copied its input, that lookup by name is exact (case
+Asserts that an object built from the members `b`, `a`, and `b` again has the two keys `b` and `a` in that order with
+the last value (3) at the position of the first, that the object copied its input, that lookup by name is exact (case
 sensitive, a missing name gives null and false), that an object of twenty members, which uses an index, finds `k17` and
 not `k20`, that out-of-range positions and null arguments are refused, and that the value wrapper has the kind `Object`,
 shares the payload, and prints as `[object Object]`.

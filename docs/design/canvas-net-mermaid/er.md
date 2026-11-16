@@ -16,17 +16,17 @@ Mermaid's renderer. It is **internal**: its types are visible only to the other 
 - **ErParser** - the internal sealed `ErParser` (a partial class in `ErParser.cs` and `ErParser.Lexer.cs`) and the token
   names of `ErTokens` (in `ErParser.Lexer.cs`): the lexer and the grammar of Mermaid's ER language, the database
   operations it calls in Mermaid's order, the values of the statements that a subgraph takes as its nodes, the located
-  errors with Mermaid's expected tokens, and the nesting and label limits; see _ErParser Unit Design_
+  errors with Mermaid's expected tokens, and the nesting and label limits; see *ErParser Unit Design*
   (`er/er-parser.md`)
 - **ErModel** - the internal sealed `ErModel` (a partial class in `ErModel.cs` and `ErModel.LayoutData.cs`) and its
   element types in `ErModel.cs` (`ErEntity`, `ErAttribute`, `ErRelationshipSpec`, `ErRelationship`, `ErStyleClass`,
   and `ErSubgraph`): Mermaid's ER database, the diagram metadata, the node, edge, and label limits, the mapping to the
-  layout input of a render, the reports of what is not drawn, and the frame of the drawing; see _ErModel Unit Design_
+  layout input of a render, the reports of what is not drawn, and the frame of the drawing; see *ErModel Unit Design*
   (`er/er-model.md`)
 
 The subsystem's namespace documentation is in `Er/NamespaceDoc.cs`. Its behavior is specified by the
 `CanvasNetMermaid-Er-*` requirements in `docs/reqstream/canvas-net-mermaid/er.yaml`. The SysML2 model names the
-subsystem `MermaidEr` (see _CanvasNetMermaid System Design_).
+subsystem `MermaidEr` (see *CanvasNetMermaid System Design*).
 
 **Attribution.** The subsystem is a port of the entity relationship diagram of the pinned Mermaid release (MIT; see
 `third-party/README.md`): the parser ports the generated lexer and the grammar of `diagrams/er/parser/erDiagram.jison`
@@ -90,8 +90,8 @@ ER renderer takes the database's direction.
 `ClusterLayout.RenderDiagram` lay it out and draw it with the ER style sheet, the label builder, the node images, the
 text width of the configured font, and the layout work meter of the render, and with the frontmatter title at the
 `er.titleTopMargin` and the view box padding of 8 of Mermaid's ER renderer. The entity box shape (`erBox`), the ER
-markers of the cardinalities, and the clusters are parts of the shared `Rendering` subsystem (see _Rendering Subsystem
-Design_).
+markers of the cardinalities, and the clusters are parts of the shared `Rendering` subsystem (see *Rendering Subsystem
+Design*).
 
 **Fidelity is proven against Mermaid itself.** The upstream vectors (`er-parser.json`, 246 cases recorded from the
 pinned Mermaid release in a browser, 27 of them errors) give, for each valid text, Mermaid's database facts and the
@@ -122,7 +122,7 @@ text is linear in its length and only nested subgraphs recurse. The model keeps 
 and the nodes of the earlier subgraphs as a running set, so it stays linear too, and it is bounded by the limits above;
 the drawing is bounded by the layout work meter and the image limits of the shared rendering.
 
-**Known differences from Mermaid** are listed in each unit design and in _CanvasNetMermaid System Design_: errors and
+**Known differences from Mermaid** are listed in each unit design and in *CanvasNetMermaid System Design*: errors and
 limits are located CanvasNet exceptions with hints; the accessibility texts are metadata only; a relationship side
 named like a later subgraph and a subgraph that holds itself fail located where Mermaid's render fails too; the
 `data-color-id` of the `redux-color` themes, the background of the hand-drawn look, and the markers of the `neo` look

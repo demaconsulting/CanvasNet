@@ -2,40 +2,36 @@
 
 This document describes the unit-level verification strategy for the `SpecNormalizer` unit in the
 `DemaConsulting.CanvasNet.VegaLite.SpecModel` namespace: the view tree of a specification (`SpecNormalizer.Layers`,
-`LayerTree`, `LayerNode`, `LayerResolve`: layers, concatenations, facets, and the copies of repeats), the expansion of the
-composite marks `boxplot`, `errorbar`, and `errorband`
-into layers (`SpecNormalizer.Expand`, `ExpandedLayers`, `CompositeBuilder`, `SpecNormalizer.TryOrientation`), and the node
-factories and the expression extension that they use (`SpecNode.Overlay`, `SpecExpressions.With`). The unit applies the
-inheritance and normalization rules of Vega-Lite and bounds the number and the nesting of the views.
+`LayerTree`, `LayerNode`, `LayerResolve`: layers, concatenations, facets, and the copies of repeats), the expansion of
+the composite marks `boxplot`, `errorbar`, and `errorband` into layers (`SpecNormalizer.Expand`, `ExpandedLayers`,
+`CompositeBuilder`, `SpecNormalizer.TryOrientation`), and the node factories and the expression extension that they use
+(`SpecNode.Overlay`, `SpecExpressions.With`). The unit applies the inheritance and normalization rules of Vega-Lite and
+bounds the number and the nesting of the views.
 
 #### Verification Approach
 
 The unit is verified by parsing small, original specifications, building the layer tree or the expansion, and asserting
 on the structure it returns: the unit views and their order, the merged encoding of each layer, the mark types of the
-layers and compositions that are drawn, the transform entries of each view (their operations, fields, and the text of their
-expressions), and the properties of the marks of the parts. No mock or stub is needed: the unit reads only the parsed tree
-(`SpecParser`), the resolved configuration (`ConfigResolver`), and the expression compiler (`ExpressionParser`), all of
-which
-are used as they are, and it does no data, file, or network access. The expansion is the Vega-Lite normalization, so the
-expected structure is written into the tests from the public documentation of the composite marks and the upstream
-normalization sources that the third-party notice names, and never from the output of Vega-Lite. The numbers that these
-structures make the later stages compute (the quartiles, fences, means, and positions) are verified in the system
-scenarios (_CanvasNetVegaLite System Verification Design_), where they are derived by hand.
+layers and compositions that are drawn, the transform entries of each view (their operations, fields, and the text of
+their expressions), and the properties of the marks of the parts. No mock or stub is needed: the unit reads only the
+parsed tree (`SpecParser`), the resolved configuration (`ConfigResolver`), and the expression compiler
+(`ExpressionParser`), all of which are used as they are, and it does no data, file, or network access. The expansion is
+the Vega-Lite normalization, so the expected structure is written into the tests from the public documentation of the
+composite marks and the upstream normalization sources that the third-party notice names, and never from the output of
+Vega-Lite. The numbers that these structures make the later stages compute (the quartiles, fences, means, and positions)
+are verified in the system scenarios (*CanvasNetVegaLite System Verification Design*), where they are derived by hand.
 
 The inheritance rules are asserted with specifications that give the same property at several levels, so that the winner
 and the order are both visible: a channel of an inner view replaces the outer one in place and a new channel follows, at
-every
-nesting level; the size is that of the top-level view; and the data and the transform are each view's own. Identity is
-asserted as well: a merged view reads like the layer it stands for (the same pointer, line, and column), and every value
-in
-it is the original node with the pointer and parent that it had, because a diagnostic about an inherited channel must still
-point at the text of the author. The limits are asserted at the exact boundary (the limit is accepted, one more fails
-with a
-located `VegaLiteRenderException`), including that the views of an expansion count as views and not as nesting levels. The
-composite mark rules are asserted for the Tukey and the min-max box plot, the three kinds of error bar input (observations,
-ends, and errors), the one- and two-dimensional error band, the part switches in the mark and in the configuration, and
-the
-orientation rules, with the specification errors of the combinations that cannot be decided.
+every nesting level; the size is that of the top-level view; and the data and the transform are each view's own.
+Identity is asserted as well: a merged view reads like the layer it stands for (the same pointer, line, and column), and
+every value in it is the original node with the pointer and parent that it had, because a diagnostic about an inherited
+channel must still point at the text of the author. The limits are asserted at the exact boundary (the limit is
+accepted, one more fails with a located `VegaLiteRenderException`), including that the views of an expansion count as
+views and not as nesting levels. The composite mark rules are asserted for the Tukey and the min-max box plot, the three
+kinds of error bar input (observations, ends, and errors), the one- and two-dimensional error band, the part switches in
+the mark and in the configuration, and the orientation rules, with the specification errors of the combinations that
+cannot be decided.
 
 Unit tests reside in `SpecNormalizerTests.cs`, `SpecNormalizerCompositionTests.cs`, `SpecNormalizerRepeatTests.cs`,
 `SpecNormalizerFacetCellTests.cs`,
@@ -70,12 +66,11 @@ specification error constitutes a failure.
 `SpecNormalizerCompositionTests.SpecNormalizer_Layers_LayersInFacetSpecShareTheChart`,
 `SpecNormalizerTests.SpecNormalizer_Layers_NullTreeThrows`
 
-Asserts that a specification without a composition is one unit view that is the root object itself (so a single view takes
-its usual path); that the layers are the unit views in document order, layers of layers included, with the parent links
-and
-the depths that follow the nesting; that an `hconcat` is a concatenation node whose children are its views in order, the
-leaves being the view objects themselves with their own chart; that a `facet` is a node over its `spec` with the wrap
-definition of its field; that the layers of the `spec` of a facet share one chart; and that a null tree throws
+Asserts that a specification without a composition is one unit view that is the root object itself (so a single view
+takes its usual path); that the layers are the unit views in document order, layers of layers included, with the parent
+links and the depths that follow the nesting; that an `hconcat` is a concatenation node whose children are its views in
+order, the leaves being the view objects themselves with their own chart; that a `facet` is a node over its `spec` with
+the wrap definition of its field; that the layers of the `spec` of a facet share one chart; and that a null tree throws
 `ArgumentNullException`.
 
 ##### Inheritance: Encoding, Size, Data, And Transform
@@ -88,16 +83,15 @@ definition of its field; that the layers of the `spec` of a facet share one char
 `SpecNormalizerTests.SpecNormalizer_Layers_DataAndTransformAreEachViewsOwn`,
 `SpecNormalizerTests.SpecNormalizer_Layers_NullDataOfALayerInheritsLikeAbsentData`
 
-Asserts that a layer reads the encoding of the layered views above it with the parent channels in place, the layer's channel
-replacing the parent's in place and new channels after them, that the outermost encoding comes first through every nesting
-level, and that every value is the original node with its own pointer; that a layer takes the `width` and `height` of the
-top-level view and ignores its own while the merged view keeps the pointer and position of the layer, and that in a
-concatenation the size comes from the chart (the child of the concatenation), not from the root of the tree; that a
-concatenation hands no encoding down; and that the
-`data` and
-the `transform` of a view are its own (the document applies the layered view's transform first) and that a layer without
-them has none; and that a layer whose `data` is an explicit `null` has no data of its own either and so inherits, as
-Vega-Lite's `parseRoot` does (`model.data || !model.parent`; only the top-level `null` gives an empty source).
+Asserts that a layer reads the encoding of the layered views above it with the parent channels in place, the layer's
+channel replacing the parent's in place and new channels after them, that the outermost encoding comes first through
+every nesting level, and that every value is the original node with its own pointer; that a layer takes the `width` and
+`height` of the top-level view and ignores its own while the merged view keeps the pointer and position of the layer,
+and that in a concatenation the size comes from the chart (the child of the concatenation), not from the root of the
+tree; that a concatenation hands no encoding down; and that the `data` and the `transform` of a view are its own (the
+document applies the layered view's transform first) and that a layer without them has none; and that a layer whose
+`data` is an explicit `null` has no data of its own either and so inherits, as Vega-Lite's `parseRoot` does
+(`model.data || !model.parent`; only the top-level `null` gives an empty source).
 
 ##### Concatenations And Their Layout Settings
 
@@ -110,13 +104,13 @@ Vega-Lite's `parseRoot` does (`model.data || !model.parent`; only the top-level 
 `SpecNormalizerCompositionTests.SpecNormalizer_Layers_CompositeMarkInsideConcatIsExpanded`
 
 Asserts, with the numbers written into the specifications, that an `hconcat` has no columns, a `vconcat` one (whatever
-`columns` says) and a `concat` the `columns` of the view; that the spacing is 20 for both directions by default, a number
-for both, an object whose missing entry is the configured spacing (12 in the test), with the alignment each for a
-concatenation, no centering and full bounds by default; that a view's `columns`, `spacing` object (5 and 7),
-`align` object, `center` object, and `bounds: "flush"` are read as written; that the `columns` and `spacing` of the
-`config` apply and that `hconcat` ignores the configured columns; that a `facet` channel's own `columns` (4), `align`
-(none) and `spacing` win over the view and the configuration (9 and 11); and that a composite mark in a concatenation is
-expanded into layers that belong to its chart.
+`columns` says) and a `concat` the `columns` of the view; that the spacing is 20 for both directions by default, a
+number for both, an object whose missing entry is the configured spacing (12 in the test), with the alignment each for a
+concatenation, no centering and full bounds by default; that a view's `columns`, `spacing` object (5 and 7), `align`
+object, `center` object, and `bounds: "flush"` are read as written; that the `columns` and `spacing` of the `config`
+apply and that `hconcat` ignores the configured columns; that a `facet` channel's own `columns` (4), `align` (none) and
+`spacing` win over the view and the configuration (9 and 11); and that a composite mark in a concatenation is expanded
+into layers that belong to its chart.
 
 ##### Facets And Faceted Unit Views
 
@@ -130,14 +124,13 @@ expanded into layers that belong to its chart.
 `SpecNormalizerCompositionTests.SpecNormalizer_Layers_LayerChildWithRowChannelIsNotFaceted`,
 `SpecNormalizerCompositionTests.SpecNormalizer_Layers_UnitInConcatIsFacetedButNotInFacetSpec`
 
-Asserts that a facet of a `row` and a `column` has no wrap columns and drops the `columns` of the view with one
-warning at
-that property; that a composition as the `spec` of a facet or as a view of a `layer` is a specification error located at
-it; that a unit view with `row` and `column` channels is a facet over the same view object and one synthetic body whose
-unit has the mark, the width (100), and only the `x` channel (the same node as the original), with the facet and its
-body counting two views; that the data, the transform, and the title belong to the facet and the body reads none; that
-`row` wins over `facet`; and that a unit view in a `layer` or in the `spec` of a facet keeps its `row` or `column` channel
-while a unit view that is a child of a concatenation is faceted.
+Asserts that a facet of a `row` and a `column` has no wrap columns and drops the `columns` of the view with one warning
+at that property; that a composition as the `spec` of a facet or as a view of a `layer` is a specification error located
+at it; that a unit view with `row` and `column` channels is a facet over the same view object and one synthetic body
+whose unit has the mark, the width (100), and only the `x` channel (the same node as the original), with the facet and
+its body counting two views; that the data, the transform, and the title belong to the facet and the body reads none;
+that `row` wins over `facet`; and that a unit view in a `layer` or in the `spec` of a facet keeps its `row` or `column`
+channel while a unit view that is a child of a concatenation is faceted.
 
 ##### Facet Cells And Data Sites
 
@@ -152,25 +145,20 @@ while a unit view that is a child of a concatenation is faceted.
 
 Asserts, with the counts written into the specifications, that a facet whose template is one view (a facet and a body
 are two views) has three copies after three cells (four views), that the copies are the units in order with the cell
-(index 0 to 2, and the cell value) on each, have the facet as parent, share the `Source` and `Unit` objects of the template,
-are their own charts and leave the template without a cell; that a template that is a layered view with two layers
-(four views with the facet, three per cell) has seven views after two cells, the units `0, 0, 1, 1` by cell,
-all at depth 2,
-each leaf a child of the copy of the layered view of its cell, which is its chart (none an original), and the
-resolve of the layered view kept; that the synthetic body of a unit view with a `column` channel is copied as a body
-(no own
-data or transform; the same unit); that for a concatenation of a facet and a bar
-(four views) one cell holds 1 view and 3
-are outside, before and after two cells (five views), and that a facet without cells holds none (0 and 1); that
-a facet with no cell has no child and no unit, is still a composition, refuses a second instantiation
-(`InvalidOperationException`), and that a concatenation is refused (`ArgumentException`).
-For the sites it asserts that the
-three copies of a repeated view with its own data are one site (after the site of the root without data) whose views, read
-as date fields, give `a`, `b`, `c`; that the cells of a facet by a temporal field `d` are views of the root's site, whose
-facet is listed once whether or not the cells exist and gives the date field `d`;
-and that a child with its own data is a
-site of its own (with the views of its layers), that the root's site holds the root and the first child, and that a view
-outside the needed set leaves its site out.
+(index 0 to 2, and the cell value) on each, have the facet as parent, share the `Source` and `Unit` objects of the
+template, are their own charts and leave the template without a cell; that a template that is a layered view with two
+layers (four views with the facet, three per cell) has seven views after two cells, the units `0, 0, 1, 1` by cell, all
+at depth 2, each leaf a child of the copy of the layered view of its cell, which is its chart (none an original), and
+the resolve of the layered view kept; that the synthetic body of a unit view with a `column` channel is copied as a body
+(no own data or transform; the same unit); that for a concatenation of a facet and a bar (four views) one cell holds 1
+view and 3 are outside, before and after two cells (five views), and that a facet without cells holds none (0 and 1);
+that a facet with no cell has no child and no unit, is still a composition, refuses a second instantiation
+(`InvalidOperationException`), and that a concatenation is refused (`ArgumentException`). For the sites it asserts that
+the three copies of a repeated view with its own data are one site (after the site of the root without data) whose
+views, read as date fields, give `a`, `b`, `c`; that the cells of a facet by a temporal field `d` are views of the
+root's site, whose facet is listed once whether or not the cells exist and gives the date field `d`; and that a child
+with its own data is a site of its own (with the views of its layers), that the root's site holds the root and the first
+child, and that a view outside the needed set leaves its site out.
 
 ##### Repeats
 
@@ -188,10 +176,10 @@ Asserts that a repeat over three values is a concatenation of three copies (four
 the value of each copy; that rows `r1`, `r2` and columns `c1`, `c2`, `c3` give six copies in the order `r1/c1`, `r1/c2`,
 `r1/c3`, `r2/c1`, `r2/c2`, `r2/c3` with three columns; that a row-only repeat has one column and a column-only repeat as
 many columns as values; that a repeat of layers is a layered node (not a composition) of copies sharing its chart, and
-that rows and layers (2 and 2) make a concatenation of two layered cells with four units (seven views, depth 2); that the
-`columns` of the view next to rows or columns is dropped with a warning at it; that the data of the repeat stays on the
-concatenation and the data of the `spec` is the copies' own; that a copy with nothing to replace is the `spec` object
-itself with its pointer; and that an empty list has no views.
+that rows and layers (2 and 2) make a concatenation of two layered cells with four units (seven views, depth 2); that
+the `columns` of the view next to rows or columns is dropped with a warning at it; that the data of the repeat stays on
+the concatenation and the data of the `spec` is the copies' own; that a copy with nothing to replace is the `spec`
+object itself with its pointer; and that an empty list has no views.
 
 ##### Repeat References
 
@@ -230,13 +218,12 @@ still searched by name, and that null arguments throw.
 `SpecNormalizerCompositionTests.SpecNormalizer_Layers_FacetDefaultsSharedExceptTheta`
 
 Asserts that everything is shared when a view has no `resolve`, that an independent scale makes the axis and the legend
-of its
-channel independent, that an explicit guide mode applies to a shared scale, and that the modes of a channel that is not
-named
-are the default; that the scales of `x`, `y`, `xOffset`, `yOffset`, `theta`, and `radius` of a concatenation are
-independent and `color`, `size`, `shape`, `opacity`, and `stroke` shared (with their legends), an explicit mode winning;
-that the axes of a concatenation are independent whatever `resolve` says, with a warning at an explicit `shared` axis (one
-for `x`, none for an `independent` entry); and that a facet shares everything except `theta`.
+of its channel independent, that an explicit guide mode applies to a shared scale, and that the modes of a channel that
+is not named are the default; that the scales of `x`, `y`, `xOffset`, `yOffset`, `theta`, and `radius` of a
+concatenation are independent and `color`, `size`, `shape`, `opacity`, and `stroke` shared (with their legends), an
+explicit mode winning; that the axes of a concatenation are independent whatever `resolve` says, with a warning at an
+explicit `shared` axis (one for `x`, none for an `independent` entry); and that a facet shares everything except
+`theta`.
 
 ##### Limits
 
@@ -255,24 +242,18 @@ for `x`, none for an `independent` entry); and that a facet shares everything ex
 
 Asserts that nesting deeper than `MaxCompositionDepth` and more views than `MaxViews` are located
 `VegaLiteRenderException`s and that exactly the limit is accepted; that the views of a box plot expansion count as views
-(nine
-for a default box plot: the composite, two groups, the whisker view, and five unit views) and not as nesting levels; and
-that
-the views of an error bar count (three: the composite, its view, and the rule; five with the ticks); that a `vconcat`
-of an
-`hconcat` is two levels (a limit of one is refused at the inner `hconcat`, a limit of two accepted), and a `facet`
-over a
-`layer` two (refused at the `layer`); that the root and three children of a concatenation are four views (a limit of
-three is refused at the list, `/hconcat`); that the children of a concatenation or a layer are counted before any is
-made (2,000 children against a limit of five are refused at the list, and the queued sibling of a layer counts); that a
-faceted
-unit view is two views (a limit of one is refused at the view itself); and that the check of copies is a division (2^62
-copies of four views are refused where the wrapped product would be accepted); that a repeat of three rows and four
-columns
-is 13 views (a limit of twelve is refused at the `repeat`), that a repeat of a thousand rows and a thousand columns is
-refused with the number one million in the message without making the copies, that the layers of every cell count (two
-rows and three layers are nine views, a limit of eight is refused), and that a repeat in a repeat is two levels, the inner
-value overriding the outer.
+(nine for a default box plot: the composite, two groups, the whisker view, and five unit views) and not as nesting
+levels; and that the views of an error bar count (three: the composite, its view, and the rule; five with the ticks);
+that a `vconcat` of an `hconcat` is two levels (a limit of one is refused at the inner `hconcat`, a limit of two
+accepted), and a `facet` over a `layer` two (refused at the `layer`); that the root and three children of a
+concatenation are four views (a limit of three is refused at the list, `/hconcat`); that the children of a concatenation
+or a layer are counted before any is made (2,000 children against a limit of five are refused at the list, and the
+queued sibling of a layer counts); that a faceted unit view is two views (a limit of one is refused at the view itself);
+and that the check of copies is a division (2^62 copies of four views are refused where the wrapped product would be
+accepted); that a repeat of three rows and four columns is 13 views (a limit of twelve is refused at the `repeat`), that
+a repeat of a thousand rows and a thousand columns is refused with the number one million in the message without making
+the copies, that the layers of every cell count (two rows and three layers are nine views, a limit of eight is refused),
+and that a repeat in a repeat is two levels, the inner value overriding the outer.
 
 ##### Expansion: Derived Tree, Unchanged Views, And Arguments
 
@@ -285,11 +266,10 @@ value overriding the outer.
 
 Asserts that the expansion does not touch the parsed tree (the expressions it writes are only in the derived tree, and a
 specification without a composite mark gives back the very tree that was parsed); that the marks that are not composite
-are
-left as unit views and that null arguments throw; that the expressions of a collection can be extended without changing
-the
-collection that is extended; that a composite mark in a layer takes the encoding of the layered views above it and the expanded
-parts do not inherit the encodings again; and that the temporal fields of several views are collected together, each once.
+are left as unit views and that null arguments throw; that the expressions of a collection can be extended without
+changing the collection that is extended; that a composite mark in a layer takes the encoding of the layered views above
+it and the expanded parts do not inherit the encodings again; and that the temporal fields of several views are
+collected together, each once.
 
 ##### Box Plot: Tukey And Min-Max Layers
 
@@ -300,12 +280,11 @@ parts do not inherit the encodings again; and that the temporal fields of severa
 
 Asserts the layers of a default box plot in the order of Vega-Lite's normalization (the view of the outliers and of the
 whiskers whose rows have their quartiles, then the view of the box); the transforms (the quartiles by a `joinaggregate`
-grouped by the grouping field, the whisker view that keeps the rows inside the fences of 1.5 interquartile ranges and takes
-their extremes, the box view that aggregates the three quartiles) with all the expressions compiled; the min-max form as
-one
-view whose single aggregate adds the minimum and the maximum, with the whiskers, the box, and the median and no
-outliers; and
-that the extent is a multiple of the interquartile range in the fences, from the mark, else the configuration, else 1.5.
+grouped by the grouping field, the whisker view that keeps the rows inside the fences of 1.5 interquartile ranges and
+takes their extremes, the box view that aggregates the three quartiles) with all the expressions compiled; the min-max
+form as one view whose single aggregate adds the minimum and the maximum, with the whiskers, the box, and the median and
+no outliers; and that the extent is a multiple of the interquartile range in the fences, from the mark, else the
+configuration, else 1.5.
 
 ##### Box Plot: Parts, Properties, And Switches
 
@@ -344,29 +323,26 @@ mark for every part, then the part's own object).
 `SpecNormalizerBoxPlotTests.SpecNormalizer_Expand_UndecidableBoxPlotIsASpecificationError`
 
 Asserts that the measure is the continuous channel (a horizontal plot has it on `x` and `x2`, with vertical ticks), that
-an
-`orient` decides, and that two continuous channels are vertical unless only `y` is temporal; that the title of the
-measure is the
-field when none is written, on every part; that the color and the size go to the box (the median takes the size and a
-conditional color), the outliers get the color, the whiskers neither, a grouping channel is added to the group fields
-and the
-tooltip is left out; that the grouping channels are transformed as Vega-Lite's `extractTransformsFromEncoding` does
-(Phase 14): for an ordinal `x` with `bin: true`, a `year` time unit on a temporal `color`, and a `mean` aggregate on
-`size`, the box view starts with a `bin` transform of `g` (`maxbins` 10, the `autoMaxBins` of `x`, as `bin_maxbins_10_g`),
-then the `timeUnit` transform of `year` on `t` as `year_t`, then the aggregate that groups by `bin_maxbins_10_g`,
-`bin_maxbins_10_g_end`, and `year_t` and has the measure `mean z` as `mean_z`; the quartile view starts with the same two
-transforms; the binned channel reads `bin_maxbins_10_g` as quantitative data with `bin: "binned"`, the end
-`bin_maxbins_10_g_end` as `x2`, and the title `g (binned)`; the time unit channel reads `year_t` with no time unit and
-the title `t (year)`; the aggregated channel reads `mean_z` with the title `Mean of z`; that a `bin` of `"binned"`,
-and a
-binned time unit are dropped and the raw fields group the rows (`g` and `t`); that a `bin: false` next to a `maxbins`
-time unit is a `timeUnit` transform with `maxbins` 4 as `timeunit_maxbins_4_d`, a `count` aggregate reads
-`__count` (the title `Count of Records`) and an `argmax` reads `argmax_w.z`, each adding its measure to the aggregate, and
-the `bin` of a `size` channel reads `bin_maxbins_3_q` without a second channel; and for an ordinal `x` with a `month` unit
-the derived field is `month_d`, its axis gets the `formatType` `time` while keeping `labelAngle` 0, the title is
-`d (month)`, a nominal `color` with a `year` unit gets the legend `formatType` `time`, and a written title (`Own`) wins
-over the default; that a box plot without a grouping channel groups by nothing; and the
-specification errors of no continuous channel, one channel that is not continuous, and a measure that is not a field.
+an `orient` decides, and that two continuous channels are vertical unless only `y` is temporal; that the title of the
+measure is the field when none is written, on every part; that the color and the size go to the box (the median takes
+the size and a conditional color), the outliers get the color, the whiskers neither, a grouping channel is added to the
+group fields and the tooltip is left out; that the grouping channels are transformed as Vega-Lite's
+`extractTransformsFromEncoding` does (Phase 14): for an ordinal `x` with `bin: true`, a `year` time unit on a temporal
+`color`, and a `mean` aggregate on `size`, the box view starts with a `bin` transform of `g` (`maxbins` 10, the
+`autoMaxBins` of `x`, as `bin_maxbins_10_g`), then the `timeUnit` transform of `year` on `t` as `year_t`, then the
+aggregate that groups by `bin_maxbins_10_g`, `bin_maxbins_10_g_end`, and `year_t` and has the measure `mean z` as
+`mean_z`; the quartile view starts with the same two transforms; the binned channel reads `bin_maxbins_10_g` as
+quantitative data with `bin: "binned"`, the end `bin_maxbins_10_g_end` as `x2`, and the title `g (binned)`; the time
+unit channel reads `year_t` with no time unit and the title `t (year)`; the aggregated channel reads `mean_z` with the
+title `Mean of z`; that a `bin` of `"binned"`, and a binned time unit are dropped and the raw fields group the rows (`g`
+and `t`); that a `bin: false` next to a `maxbins` time unit is a `timeUnit` transform with `maxbins` 4 as
+`timeunit_maxbins_4_d`, a `count` aggregate reads `__count` (the title `Count of Records`) and an `argmax` reads
+`argmax_w.z`, each adding its measure to the aggregate, and the `bin` of a `size` channel reads `bin_maxbins_3_q`
+without a second channel; and for an ordinal `x` with a `month` unit the derived field is `month_d`, its axis gets the
+`formatType` `time` while keeping `labelAngle` 0, the title is `d (month)`, a nominal `color` with a `year` unit gets
+the legend `formatType` `time`, and a written title (`Own`) wins over the default; that a box plot without a grouping
+channel groups by nothing; and the specification errors of no continuous channel, one channel that is not continuous,
+and a measure that is not a field.
 
 ##### Error Bar: Inputs, Extents, And Parts
 
@@ -380,17 +356,15 @@ specification errors of no continuous channel, one channel that is not continuou
 `SpecNormalizerErrorBarTests.SpecNormalizer_Expand_ErrorBarSharesTheOtherChannels`
 
 Asserts the layers of a default error bar (one view whose transforms aggregate the standard error and the mean per group
-and
-compute the ends, and whose only layer is the rule between them; the ticks off); the aggregates of every extent and center
-(the center follows the extent when only that is given, and the extent follows the center), and that the center of the
-configuration applies when the mark gives neither; that a pre-aggregated range copies the ends by `calculate` without
-aggregating and that errors are added to the value (and subtracted, or the second error added, for the lower end); that
-the
-ticks that are switched on are a tick at each end across the rule, before the rule, with the size and thickness of the mark;
-that the mark's setting beats the configuration, a part with no setting follows the configuration, and a mark whose
-parts are
-all off has no layer; and that the grouping channels, a color, and a detail reach the rule while the size channel is dropped
-and the written `title`, `scale`, and `axis` of the measure go to the parts.
+and compute the ends, and whose only layer is the rule between them; the ticks off); the aggregates of every extent and
+center (the center follows the extent when only that is given, and the extent follows the center), and that the center
+of the configuration applies when the mark gives neither; that a pre-aggregated range copies the ends by `calculate`
+without aggregating and that errors are added to the value (and subtracted, or the second error added, for the lower
+end); that the ticks that are switched on are a tick at each end across the rule, before the rule, with the size and
+thickness of the mark; that the mark's setting beats the configuration, a part with no setting follows the
+configuration, and a mark whose parts are all off has no layer; and that the grouping channels, a color, and a detail
+reach the rule while the size channel is dropped and the written `title`, `scale`, and `axis` of the measure go to the
+parts.
 
 ##### Error Band: Dimensions, Borders, And Configuration
 
@@ -398,11 +372,10 @@ and the written `title`, `scale`, and `axis` of the measure go to the parts.
 `SpecNormalizerErrorBarTests.SpecNormalizer_Expand_ErrorBandTwoDimensionalIsAnAreaWithLineBorders`,
 `SpecNormalizerErrorBarTests.SpecNormalizer_Expand_ErrorBandPartsAndConfiguration`
 
-Asserts that a band with only the measure encoded is a `rect` between the ends at 30 percent opacity with no borders, that
-borders that are switched on are `rule` marks at the lower and upper ends drawn after the band, that a band with both
-`x` and
-`y` is an `area` with `line` borders that take the interpolation and, only with an interpolation, the tension, and the part
-switches and properties from the mark and the configuration, with the size channel kept.
+Asserts that a band with only the measure encoded is a `rect` between the ends at 30 percent opacity with no borders,
+that borders that are switched on are `rule` marks at the lower and upper ends drawn after the band, that a band with
+both `x` and `y` is an `area` with `line` borders that take the interpolation and, only with an interpolation, the
+tension, and the part switches and properties from the mark and the configuration, with the size channel kept.
 
 ##### Orientation And Specification Errors Of The Error Marks
 
@@ -421,12 +394,10 @@ errors; and that a range channel that is not a field is a specification error lo
 `MarkChannelGatingTests.ScaleResolver_Resolve_PointOverlayBuildsTheScalesOfThePointChannels`,
 `MarkChannelGatingTests.FeatureCatalog_Visit_ShapeOfAPathMarkWithAPointOverlayIsNotReported`
 
-`SpecNormalizer.HasPointOverlay` and `HasLineOverlay` have no test of their own; their callers pin them (the line overlay
-by `MarkChannelGatingTests.ScaleResolver_Resolve_PointOverlayBuildsTheScalesOfThePointChannels` and
-`MarkBuilderOverlayTests.MarkBuilder_Build_LineOverlayOfAnAreaDrawsTheSizeAndTheDashOfTheEncoding`). Asserts that a line,
-a trail, and an
-area with a `shape` and no `point` have the overlay points, that `point: false` and null leave none, that
-`"transparent"`, an
-object, and `true` have them, that a falsy `config.<mark>.point` leaves the decision to the shape while a truthy one
-enables the overlay, that a mark that is not a line, area, trail, or rule (a bar, an arc) has no overlay, and that the
-scales and the reports follow the decision.
+`SpecNormalizer.HasPointOverlay` and `HasLineOverlay` have no test of their own; their callers pin them (the line
+overlay by `MarkChannelGatingTests.ScaleResolver_Resolve_PointOverlayBuildsTheScalesOfThePointChannels` and
+`MarkBuilderOverlayTests.MarkBuilder_Build_LineOverlayOfAnAreaDrawsTheSizeAndTheDashOfTheEncoding`). Asserts that a
+line, a trail, and an area with a `shape` and no `point` have the overlay points, that `point: false` and null leave
+none, that `"transparent"`, an object, and `true` have them, that a falsy `config.<mark>.point` leaves the decision to
+the shape while a truthy one enables the overlay, that a mark that is not a line, area, trail, or rule (a bar, an arc)
+has no overlay, and that the scales and the reports follow the decision.

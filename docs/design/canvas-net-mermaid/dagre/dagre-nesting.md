@@ -19,9 +19,9 @@ The unit's behavior is specified by the `CanvasNetMermaid-Dagre-DagreNesting-*` 
 
 #### Data Model
 
-The unit writes the nesting state to the layout labels: `LayoutGraphLabel.NestingRoot` (the dummy root while it
-exists) and `NodeRankFactor` (the rank multiplier), `LayoutEdge.NestingEdge` on the edges it adds, `LayoutNode.BorderTop`
-and `BorderBottom` on every cluster, and `BorderLeft` and `BorderRight` (lists indexed by rank, as the JavaScript arrays
+The unit writes the nesting state to the layout labels: `LayoutGraphLabel.NestingRoot` (the dummy root while it exists)
+and `NodeRankFactor` (the rank multiplier), `LayoutEdge.NestingEdge` on the edges it adds, `LayoutNode.BorderTop` and
+`BorderBottom` on every cluster, and `BorderLeft` and `BorderRight` (lists indexed by rank, as the JavaScript arrays
 are) with the `BorderType` of each side node. The cluster tree is numbered in postorder (`Low`, `Lim`) to find the
 lowest common ancestor of the two ends of an edge. The comparisons on ranks that may be `undefined` (a cluster has no
 rank) follow JavaScript: they are false when either side is `undefined` or NaN.
@@ -47,11 +47,12 @@ cluster's size.
 
 #### Error Handling
 
-The recursions (`Visit`, `TreeDepths`, `Postorder`, the border walk) call `RuntimeHelpers.EnsureSufficientExecutionStack`,
-so a deeply nested graph fails with `mermaid-limit-exceeded` through `DagreLayout.Run`. A cluster path that reaches the
-top level without meeting the lowest common ancestor throws `InvalidOperationException`, reported as
-`mermaid-render-failed`. The stages charge the meter: the nesting graph its nodes and edges, the dummy chains their
-nodes and each path's length, and the border segments the nodes and two steps per border pair.
+The recursions (`Visit`, `TreeDepths`, `Postorder`, the border walk) call
+`RuntimeHelpers.EnsureSufficientExecutionStack`, so a deeply nested graph fails with `mermaid-limit-exceeded` through
+`DagreLayout.Run`. A cluster path that reaches the top level without meeting the lowest common ancestor throws
+`InvalidOperationException`, reported as `mermaid-render-failed`. The stages charge the meter: the nesting graph its
+nodes and edges, the dummy chains their nodes and each path's length, and the border segments the nodes and two steps
+per border pair.
 
 #### Dependencies
 

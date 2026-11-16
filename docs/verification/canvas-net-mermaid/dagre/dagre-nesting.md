@@ -33,7 +33,8 @@ constitutes a failure.
 
 ##### CanvasNetMermaid-Dagre-DagreNesting-ClusterBorders: Clusters Are Ranked Between Their Borders
 
-**Tests**: `DagreNestingTests.DagreNesting_Run_FlatGraph_ConnectsRoot`, `DagreNestingTests.DagreNesting_Run_Cluster_AddsBorders`
+**Tests**: `DagreNestingTests.DagreNesting_Run_FlatGraph_ConnectsRoot`,
+`DagreNestingTests.DagreNesting_Run_Cluster_AddsBorders`
 
 Asserts that a flat graph gets a root joined to every node, edge lengths multiplied by 1, and a rank factor of 1; and
 that a cluster gets a top and a bottom border node joined to its members, with every edge length multiplied by the rank

@@ -30,7 +30,7 @@ It contains eight units:
 - `PandocFilterShim` - the shim embedded in the tool, its protocol, and writing it.
 
 The command that runs the subsystem, `PandocFilterCommand`, is a unit of the `Commands` subsystem (see
-_PandocFilterCommand_).
+*PandocFilterCommand*).
 
 ### Interfaces
 

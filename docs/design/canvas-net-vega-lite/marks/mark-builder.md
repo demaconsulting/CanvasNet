@@ -2,7 +2,7 @@
 
 ![Marks Structure](VegaLiteMarksView.svg)
 
-The `MarkBuilder` unit is the first software unit in the `Marks` subsystem (the second is _CurveBuilder_). It comprises
+The `MarkBuilder` unit is the first software unit in the `Marks` subsystem (the second is *CurveBuilder*). It comprises
 ten
 source files in the `DemaConsulting.CanvasNet.VegaLite.Marks` namespace; together they define one `internal` type, the
 `sealed partial class MarkBuilder` (with private helper types for one channel, the sizing of a position, the paint of an
@@ -30,7 +30,7 @@ item, the settings of an overlay, and one build run, the nested `sealed partial 
   `TryConvertData`, and the `Run` members `CreateContext`, `DataFields`, `Datum`, and `VerticesOf`
 
 Every file carries the provenance header comment for the d3-shape, d3-path, Vega, and Vega-Lite behavior it ports (see
-_CanvasNetVegaLite System Design_, Third-Party Provenance and Attribution).
+*CanvasNetVegaLite System Design*, Third-Party Provenance and Attribution).
 
 #### Purpose
 
@@ -58,7 +58,7 @@ stroke opacity, and dash pattern). The `theta` and `radius` channels are read li
 the
 extent `min(width, height) / 2`), and the secondary channels `theta2` and `radius2` like `x2` and `y2`. The `init`
 property `RecordPositions` (false by default) says whether the items record what the feature positions need (see
-_Key Methods_); a render without a position handler that wants marks records nothing, so its scene is unchanged.
+*Key Methods*); a render without a position handler that wants marks records nothing, so its scene is unchanged.
 
 **Geometry** (Vega-Lite 6):
 
@@ -77,15 +77,14 @@ _Key Methods_); a render without a position handler that wants marks records not
   upper end (the field the channel reads). A row whose end is not a number is not drawn.
 - **Secondary channels.** `x2` and `y2` (a field, a datum, or a pixel `value`) make a position channel a range for
   `bar`, `rect`, and `rule`: the mark spans from the first to the second end, and a bar with a secondary channel is a
-  range, not a
-  thickness centered on the value. A rule with a range on one channel runs along that channel; with a range on both it
-  is the segment between the two points, except that a channel whose data is **binned already** (`bin: "binned"` with its
-  end) is not a range of a rule (Vega-Lite's orient of a rule, `compile/mark/init.ts`): with a range on `y` the rule is
-  vertical at the middle of the bin of `x` (Phase 14; the whiskers of a box plot over a bin). An explicit pixel
-  `value` of the secondary channel wins over the lower end of a
-  stack; a datum is mapped through the primary scale and is not part of the domain. An `area` takes its baseline from
-  the secondary channel the same way (see the area rules below). Marks other than these report the secondary
-  channels (`vl-channel-x2`, `vl-channel-y2`) and ignore them.
+  range, not a thickness centered on the value. A rule with a range on one channel runs along that channel; with a range
+  on both it is the segment between the two points, except that a channel whose data is **binned already**
+  (`bin: "binned"` with its end) is not a range of a rule (Vega-Lite's orient of a rule, `compile/mark/init.ts`): with a
+  range on `y` the rule is vertical at the middle of the bin of `x` (Phase 14; the whiskers of a box plot over a bin).
+  An explicit pixel `value` of the secondary channel wins over the lower end of a stack; a datum is mapped through the
+  primary scale and is not part of the domain. An `area` takes its baseline from the secondary channel the same way (see
+  the area rules below). Marks other than these report the secondary channels (`vl-channel-x2`, `vl-channel-y2`) and
+  ignore them.
 - **Binned geometry** (Vega-Lite's `rectBinPosition`). A `bar` or `rect` on a continuous channel that is binned (by the
   encoding, or `bin: "binned"` with `x2` or a bin `step`) spans from the position of the start of its bin to that of its
   end, each edge moved inward by half the `binSpacing` (1 for a bar, 0 for a rect and a tick; from the mark or the
@@ -192,17 +191,17 @@ position of a row is the **start of its band** and the offset scale places the m
 
 **Ranged offsets** (Phase 14; Vega-Lite 6.5.0 `isRangedOffset`, `rangePosition`, and `mark/area.ts`). When
 `ScaleResolver.HasRangedOffset` holds for a position (a `bar` or `area` whose nominal or ordinal position has no
-secondary channel and whose `xOffset` or `yOffset` is an unbinned quantitative field or numeric datum),
-`AttachOffsets` creates the `ChannelOffset` with `Ranged` true. The offset scale is linear with `zero: true`, so its
-zero is inside the band. `ChannelOffset.Range(table, row)` gives the distances of the offset value and of the zero of the
-offset scale from the start of the band (null for an invalid value: the row is not drawn). `RangePair` then returns the
-two ends of the range (the band start plus the value, the band start plus the zero) and `Span` turns them into the
-start and the length, so a **bar** is the rectangle between the baseline and the value (a negative value hangs on the
-other side of the baseline), and an **area** has `y` and `y2` (or `x` and `x2`) at those ends with its points along the
-other axis. The measure axis of an area follows the ranged offset (`xRangeFromOffset` and `yRangeFromOffset` of
-Vega-Lite: a ranged `xOffset` makes the area horizontal and a ranged `yOffset` vertical, whatever the orientation; the
-`y` offset wins when both are ranged) in `MarkBuilder.Paths.cs`. A mark that is not a `bar` or `area`, or that has a
-secondary channel, keeps the strip or jitter placement described above.
+secondary channel and whose `xOffset` or `yOffset` is an unbinned quantitative field or numeric datum), `AttachOffsets`
+creates the `ChannelOffset` with `Ranged` true. The offset scale is linear with `zero: true`, so its zero is inside the
+band. `ChannelOffset.Range(table, row)` gives the distances of the offset value and of the zero of the offset scale from
+the start of the band (null for an invalid value: the row is not drawn). `RangePair` then returns the two ends of the
+range (the band start plus the value, the band start plus the zero) and `Span` turns them into the start and the length,
+so a **bar** is the rectangle between the baseline and the value (a negative value hangs on the other side of the
+baseline), and an **area** has `y` and `y2` (or `x` and `x2`) at those ends with its points along the other axis. The
+measure axis of an area follows the ranged offset (`xRangeFromOffset` and `yRangeFromOffset` of Vega-Lite: a ranged
+`xOffset` makes the area horizontal and a ranged `yOffset` vertical, whatever the orientation; the `y` offset wins when
+both are ranged) in `MarkBuilder.Paths.cs`. A mark that is not a `bar` or `area`, or that has a secondary channel, keeps
+the strip or jitter placement described above.
 
 **Offsets inside a time unit** (Vega-Lite's `getOffsetRange`, `durationExpr`, and `timeUnitBandSize`). When the position
 is a temporal field with a time unit (the position scale stays a time scale; `ScaleResolver.HasTimeUnitOffset`),
@@ -227,16 +226,15 @@ is a temporal field with a time unit (the position scale stays a time scale; `Sc
   0.4 of a month wide, at 0.1 and 0.5 of the month from its start.
 
 Documented deviations: (a) a mark without `timeUnitBandPosition` and `bandPosition` (a point, a line, a text) uses 0.5,
-where Vega-Lite computes NaN; (b) a `rect` mark and a `day`, `weekday`, binned, or `maxbins` unit
-of a temporal parent are not drawn (`vl-offset-position`), and a continuous offset of a `bar` or `area` that is not a ranged
-offset (a temporal or binned offset, a position with a secondary channel or with a time unit) is not drawn
-(`vl-offset-ranged`); a nominal or ordinal parent with a time unit is an ordinary
-band parent and is drawn; (c) a UTC unit measures its reference duration in the
-calendar of the scale (UTC) where Vega-Lite uses the zone of the chart (up to an hour for a quarter in a zone with a
-daylight saving time); (d) a `bandPosition` other than 0.5 on a bar does not shift the scale domain as Vega-Lite's
-shifted rect fields do (`vl-encoding-bandposition-rect` is still reported); (e) `minBandSize` clamps around the start
-of the band, not its center. The unit `month` without a year puts all dates into the leap year 2012 (the reference span
-is still January 2001, the domain uses 2012 dates); `yearmonth` uses the real year.
+where Vega-Lite computes NaN; (b) a `rect` mark and a `day`, `weekday`, binned, or `maxbins` unit of a temporal parent
+are not drawn (`vl-offset-position`), and a continuous offset of a `bar` or `area` that is not a ranged offset (a
+temporal or binned offset, a position with a secondary channel or with a time unit) is not drawn (`vl-offset-ranged`); a
+nominal or ordinal parent with a time unit is an ordinary band parent and is drawn; (c) a UTC unit measures its
+reference duration in the calendar of the scale (UTC) where Vega-Lite uses the zone of the chart (up to an hour for a
+quarter in a zone with a daylight saving time); (d) a `bandPosition` other than 0.5 on a bar does not shift the scale
+domain as Vega-Lite's shifted rect fields do (`vl-encoding-bandposition-rect` is still reported); (e) `minBandSize`
+clamps around the start of the band, not its center. The unit `month` without a year puts all dates into the leap year
+2012 (the reference span is still January 2001, the domain uses 2012 dates); `yearmonth` uses the real year.
 
 **Path marks** (`MarkBuilder.Paths.cs`). A `line`, `area`, or `trail` is built group by group, in two passes over the
 rows
@@ -283,7 +281,7 @@ The rules of the three marks:
   **without a measure channel draws nothing** (a deviation from Vega-Lite, which draws a zero-height area at 0). A row
   is
   defined when its position along the axis and both ends of its range are numbers. The outline is the top edge forward
-  and the baseline backward along the same curve (see _CurveBuilder_).
+  and the baseline backward along the same curve (see *CurveBuilder*).
 - **Trail.** One `SceneTrail` (role `mark-trail`) per group whose runs are lists of `SceneTrailPoint(x, y, size)`: the
   size of a point is the `size` channel through the size scale, else the constant `value` or `{"expr": ...}`, else the
   `size` of the mark, else the Vega style (2); a row without a valid size is undefined. A trail is split into **runs**
@@ -362,7 +360,7 @@ null or false, or one without fields, keeps the order of the data. The step budg
 (role `mark-text`) per row. Each item records the location of the mark in the specification as its `Source`, which the
 `vl-text-missing-glyph` warning of `VegaLiteDocument` points at.
 
-- _Position._ The position is that of the `x` and `y` channels (the middle of the data rectangle for an absent channel)
+- *Position.* The position is that of the `x` and `y` channels (the middle of the data rectangle for an absent channel)
   plus the **polar offset** when the mark has a `radius` or a `theta` (a channel, or the mark property of the same name
   as the constant): with the radius `r` in pixels and the angle in radians clockwise from twelve o'clock, the anchor
   moves by `r` along that angle (x grows by `r` times the sine and y falls by `r` times the cosine), only when `r` is
@@ -372,14 +370,14 @@ null or false, or one without fields, keeps the order of the data. The step budg
   are not added to the position. A **stacked** `theta` or `radius` is placed inside its slice, at the scale of
   `(1 - p) * start + p * end` with `p` the `bandPosition` of the channel (0.5, the middle of the slice, by default), so
   that the labels of a pie sit in their slices.
-- _Properties._ `align` (default `center`; a name that Vega does not know gives `left`), `baseline` (default `middle`;
+- *Properties.* `align` (default `center`; a name that Vega does not know gives `left`), `baseline` (default `middle`;
   an unknown name gives `alphabetic`), `dx`, `dy`, `angle` (the property or the `angle` channel, in degrees), `font`,
   `fontStyle`, `fontWeight` (a text or a number), `limit`, `ellipsis` (an empty text gives the default ellipsis
   character), `lineHeight`, and `lineBreak`, plus the paint of a filled mark (black by default). The **font size** is,
   in order of precedence: the `size` channel through the size scale (or its constant `value`), the `fontSize` of the
   mark definition, a row-bound `size` expression, the `size` of the mark definition, the configuration's `fontSize` or
   `size`, the Vega style, and 11.
-- _The text of a row._ The `text` channel wins over the `text` property of the mark (a text or an array of texts). A
+- *The text of a row.* The `text` channel wins over the `text` property of the mark (a text or an array of texts). A
   **field** is formatted as Vega-Lite's `formatSignalRef` does: a `formatType` that is not `number`, `time`, or `utc` is
   a custom format that is not evaluated (the `format` is ignored, the default format of the type applies, and the
   catalog
@@ -396,9 +394,9 @@ null or false, or one without fields, keeps the order of the data. The step budg
   being an empty line). A time format applied to a value that is neither a date nor a finite number shows its
   JavaScript text. A `datum` is formatted the same way, and a `value` (a text, a number, a boolean, or an array of them;
   null and objects give no text) is used as given. An invalid `format` is a located `VegaLiteSpecException`.
-- _Lines._ An array is one line for each element. The `lineBreak` of the mark splits a text on that literal text (never
+- *Lines.* An array is one line for each element. The `lineBreak` of the mark splits a text on that literal text (never
   an array). An empty text or an empty array draws nothing.
-- _Limits._ A row is charged in this order: its position and paint are read (a row that is skipped costs one step and
+- *Limits.* A row is charged in this order: its position and paint are read (a row that is skipped costs one step and
   no item); then its label is made under the **allowance** `min(MaxStringLength, 16 * MaxStringLength - characters so
   far)`; then `characters + lines` are charged to the step budget; then the lines are charged to the scene budget; and
   only then is the `SceneText` created (see the charging table: rows T1 to T4). A label above `MaxStringLength`, or the
@@ -409,8 +407,8 @@ null or false, or one without fields, keeps the order of the data. The step budg
 **Arc mark** (`MarkBuilder.Arcs.cs`; Vega-Lite's `arc.ts` and the polar case of `rectPosition`). One `SceneArc` (role
 `mark-arc`) per row with a valid center, angular span, radial span, and paint.
 
-- _Center._ The position of `x` and `y` (the middle of the data rectangle for an absent channel).
-- _Span_ (`PolarSpan`, once for the angles and once for the radii). A band or point scale gives its band; a stacked
+- *Center.* The position of `x` and `y` (the middle of the data rectangle for an absent channel).
+- *Span* (`PolarSpan`, once for the angles and once for the radii). A band or point scale gives its band; a stacked
   channel, or a channel with `theta2` or `radius2` (a field, a datum, or a value), gives the range between the two ends;
   any other field gives the range from zero (or the first value of the domain) to the scaled value; a constant `value`
   channel is the main end. The second end of a channel without a secondary channel is the mark property (`theta2`,
@@ -420,12 +418,12 @@ null or false, or one without fields, keeps the order of the data. The step budg
   end is its mark property, else zero. The two ends are **ordered** (the smaller first), so the larger radius is the
   outer
   one and a reversed scale still makes a sector. A span with an end that is not finite is invalid.
-- _Properties._ `padAngle` and `cornerRadius` come from the mark definition, then the configuration (constants, not
+- *Properties.* `padAngle` and `cornerRadius` come from the mark definition, then the configuration (constants, not
   channels); the paint is that of the other filled marks (the mark color is the fill, a stroke only when one is given).
   A `theta2` or `radius2` without its main channel is ignored (the mark properties are the way to give a constant end).
-- _Limits._ Each row is charged one evaluation step, its position and paint are read, and then one scene item is charged
+- *Limits.* Each row is charged one evaluation step, its position and paint are read, and then one scene item is charged
   before the `SceneArc` is created; a row that draws nothing costs no item. The painter builds the outline from the
-  parameters of the arc (see _ArcGeometry_).
+  parameters of the arc (see *ArcGeometry*).
 
 **Image mark** (`MarkBuilder.Images.cs`; Vega-Lite 6.5 `compile/mark/image.ts`, `encode/position-rect.ts` and
 `position-range.ts`, `encode/text.ts` (for `url`), Vega's `vega-runtime/src/util.js` `adjustSpatial` for the `x2`, `xc`,
@@ -436,18 +434,18 @@ link, a placement on both axes, and a valid paint (the opacity). Vega-Lite compi
 `color`
 and `size` do nothing. The builder reproduces each axis by the order of `rectPosition`:
 
-1. _Binned._ A field that is binned (or has a time unit) on a continuous scale, with no size and no offset, spans its
+1. *Binned.* A field that is binned (or has a time unit) on a continuous scale, with no size and no offset, spans its
    bin
    (`BinSpan` of the rect, with a `binSpacing` of 0 and the half-pixel axis translation).
-2. _Point._ A channel (a field, a datum, or a value) with no size (`hasSizeDef`: a `size` channel, or a truthy `width`
+2. *Point.* A channel (a field, a datum, or a value) with no size (`hasSizeDef`: a `size` channel, or a truthy `width`
    or
    `height` or `size` of the mark or its configuration) and no second end is anchored at its position, **with the
    `align`
    (`baseline`) of the mark, center (middle) by default, as properties of the item and with no width (height)**: Vega
    knows the natural size of the picture only when it draws, so Vega-Lite cannot use `xc`/`yc`.
-3. _Discrete._ A field on a band scale with a size spans the band (`BandSpan`; the `width` or `height` of the mark, not
+3. *Discrete.* A field on a band scale with a size spans the band (`BandSpan`; the `width` or `height` of the mark, not
    its `size`, centers a fixed length in the band, as `getBandSize` reads it).
-4. _Range._ Otherwise the axis is a range: with a second end the range from `x` to `x2` (`RangePair`, either order);
+4. *Range.* Otherwise the axis is a range: with a second end the range from `x` to `x2` (`RangePair`, either order);
    with a
    `width` (`height`) of the mark a span of that length aligned at the position by the `align` (`baseline`) of the mark
    (`left`/`center`/`right`, `top`/`middle`/`bottom`); with an `x2` property of the mark the range to it; else the range
@@ -468,7 +466,7 @@ default) and the opacity (the `opacity` of the mark or channel, else 1: an image
 less opaque) are carried by the item. A row is charged one evaluation step and one scene item before its item exists;
 the
 characters of a link are charged to the steps and a link longer than `MaxStringLength` is a located
-`VegaLiteRenderException`. The picture itself is never loaded here (see _ScenePainter_).
+`VegaLiteRenderException`. The picture itself is never loaded here (see *ScenePainter*).
 
 **Stroke properties.** The `Style` methods give `strokeDash`, `strokeDashOffset`, `strokeCap`, `strokeJoin`, and
 `strokeMiterLimit` to every kind of item: rectangles, symbols, rules (which now also carry the join and the miter
@@ -548,7 +546,7 @@ reports the exhausted evaluation steps, and the text limits name `VegaLiteLimits
    of an area is a vertex with the value 0 in the stack, but the row is invalid: the area breaks its path there and a
    bar, arc, or label
    of a null slice is not drawn (see Invalid data modes). `"stack": null` turns the stack off.
-5. **Stack impute of a binned dimension** is not done (the warning `vl-encoding-stack-impute-bin`); see _EncodingPlan_.
+5. **Stack impute of a binned dimension** is not done (the warning `vl-encoding-stack-impute-bin`); see *EncodingPlan*.
 6. **Polar bins** on `theta` or `radius` are not drawn (reported as `vl-encoding-bin`), and a time unit on `theta` is
    read
    at the start of the unit. A stacked arc row whose value is null is not drawn (the stack takes null as 0, so the other
@@ -562,22 +560,22 @@ reports the exhausted evaluation steps, and the text limits name `VegaLiteLimits
    times that; a `condition` on `text` is reported and not applied.
 9. **Sort position of an invalid row**: a path is sorted by the position of a row even when another channel of the row
    is invalid, and the invalid row breaks the path at its sorted place.
-10. **Bundle for an area** is drawn with the linear curve (see _CurveBuilder_).
+10. **Bundle for an area** is drawn with the linear curve (see *CurveBuilder*).
 11. **`discreteBandSize`** still applies to a band `theta` through the band span (Vega-Lite reads it only for x and y).
 12. **Orientation**: `ScaleResolver.InferOrient` gives a trail and an arc `vertical`, and its temporal fall-through (a
     temporal x next to a y that is not temporal is vertical, and the reverse horizontal) applies to a line, an area,
-    and a tick only (see _ScaleResolver_).
+    and a tick only (see *ScaleResolver*).
 13. **Stack grouping**: the stack of the encoding plan does not group by the stacked field when a dimension channel
     reads
-    it, as in a radial chart whose `theta` and `radius` share a field (see _EncodingPlan_).
+    it, as in a radial chart whose `theta` and `radius` share a field (see *EncodingPlan*).
 14. **Totality of the painter**: the painter draws nothing for a value beyond `ScenePainter.MaxMagnitude` (32,768
     surface pixels), and the path and text builders use the same bound so that the scene never holds what the
     painter would skip: a path row whose position (or, for an area, baseline, or for a trail, size) is not finite or
     is beyond the bound is **undefined** like a row without a value, so it breaks the path, and the points are
     counted with the same rule before `MaxSegments` is asked; a text row whose font size, position, or angle is
     beyond the bound is skipped like an invalid row, and a text mark whose `dx`, `dy`, or `lineHeight` is beyond it
-    draws no label (see _ScenePainter_ and _CurveBuilder_).
-15. **Images** (phase 13): see _ScenePainter_ for the deviations of the drawing (the default size of a vector picture,
+    draws no label (see *ScenePainter* and *CurveBuilder*).
+15. **Images** (phase 13): see *ScenePainter* for the deviations of the drawing (the default size of a vector picture,
     the
     cache of a painting, the limit of pictures). The mark itself follows Vega-Lite's `rectPosition` for the image mark,
     except that the `x`/`y` offset channels are read by the shared position code (a point only) and that the conditions
@@ -675,8 +673,8 @@ has no
   are ignored and the channels draw as they do without them. (A `condition` on the `text` channel is reported by the
   catalog and not applied.)
 - Position rows (`MarkBuilder.Positions.cs`) - only when `RecordPositions` is set: `Build` gives the marks group a
-  `SceneMarkContext` from `Run.CreateContext`; every bar, rect, tick, rule, symbol, text, arc, and image item records the
-  row it draws in `SceneItem.Datum` (`Run.Datum`, -1 otherwise); and every line, area, and trail records a
+  `SceneMarkContext` from `Run.CreateContext`; every bar, rect, tick, rule, symbol, text, arc, and image item records
+  the row it draws in `SceneItem.Datum` (`Run.Datum`, -1 otherwise); and every line, area, and trail records a
   `SceneVertex` (row and point) for each drawn row in drawing order in its `Vertices` (`Run.VerticesOf`, null
   otherwise). `CreateContext` works out once which table field, or which scalar `datum`, gives each channel of the
   encoding (the first definition of a channel counts; the facet channels `row`, `column`, and `facet` are left to the
@@ -684,20 +682,20 @@ has no
   the row's own value before the stack, and for a binned channel or one with the end of a time unit (`x`, `y`, `theta`,
   or `radius`) also the end field as the secondary channel (`x2`, `y2`, `theta2`, `radius2`); the first source of each
   name counts, and the returned function reads a row's values by channel name, sorted case-sensitively.
-  `TryConvert(DataValue, out PositionValue)` (internal static) turns a
-  data value into a position value: a finite number, a text, a boolean, or null as it is, a number that is not finite
-  as null, a date as canonical UTC ISO-8601 text (`yyyy-MM-ddTHH:mm:ss.fffZ`), and `false` for an array, an object, or
-  a regular expression, which are left out. The context's `Data` function reads the data fields of a row, from the
-  field list `Run.DataFields` works out once per marks group: the top-level fields of the table (one path segment, and
-  not the parent of a nested field, so a nested object or array is left out), without the helper fields the plan adds
-  for its channels (the start, end, and range fields of `plan.Bins`, the start (unless `binned`) and end fields of
-  `plan.TimeUnits`, and the start and end fields of `plan.Stack`) unless they are group-by fields of
-  `plan.Aggregate`, sorted by name (ordinal). So a non-aggregated mark has its row after the specification's transforms
-  and before the encoding, an aggregated mark its group-by fields (a time unit or bin dimension by its derived name, such
-  as `month_month`) and its measures (`sum_revenue`, `__count`), and a vertex its own row. The function reads the
-  fields in that order with `TryConvertData` and stops after `ImagePosition.MaxDataFields` (32) scalar fields.
-  `TryConvertData(DataValue, out PositionValue)` (internal static) is `TryConvert` except that a date read from text
-  (`DataValue.SourceText`) is that text, so the data shows a date as the data wrote it (`"2025-11-01"`).
+  `TryConvert(DataValue, out PositionValue)` (internal static) turns a data value into a position value: a finite
+  number, a text, a boolean, or null as it is, a number that is not finite as null, a date as canonical UTC ISO-8601
+  text (`yyyy-MM-ddTHH:mm:ss.fffZ`), and `false` for an array, an object, or a regular expression, which are left out.
+  The context's `Data` function reads the data fields of a row, from the field list `Run.DataFields` works out once per
+  marks group: the top-level fields of the table (one path segment, and not the parent of a nested field, so a nested
+  object or array is left out), without the helper fields the plan adds for its channels (the start, end, and range
+  fields of `plan.Bins`, the start (unless `binned`) and end fields of `plan.TimeUnits`, and the start and end fields of
+  `plan.Stack`) unless they are group-by fields of `plan.Aggregate`, sorted by name (ordinal). So a non-aggregated mark
+  has its row after the specification's transforms and before the encoding, an aggregated mark its group-by fields (a
+  time unit or bin dimension by its derived name, such as `month_month`) and its measures (`sum_revenue`, `__count`),
+  and a vertex its own row. The function reads the fields in that order with `TryConvertData` and stops after
+  `ImagePosition.MaxDataFields` (32) scalar fields. `TryConvertData(DataValue, out PositionValue)` (internal static) is
+  `TryConvert` except that a date read from text (`DataValue.SourceText`) is that text, so the data shows a date as the
+  data wrote it (`"2025-11-01"`).
 
 **Preconditions and postconditions**: the scales were resolved from the same view and data; `table` is the
 **Main** table of
@@ -727,28 +725,28 @@ feature catalog has already reported it. The unit performs no I/O.
 - **`ResolvedScales`**, **`ResolvedScale`** (with `Field2Path`, `Bin`, `BinSpec`, `Stack`, `TimeUnit`, `HasBandEnd`,
   `Calendar`, and `IsTemporalField`), and **`ScaleModel`** -
   the scales of the `Scales` subsystem, and **`NumberFormat`** of the same subsystem (the d3 number format of the text
-  of a text mark; see _NumberFormat_)
+  of a text mark; see *NumberFormat*)
 - **`DataTable`** and **`DataValue`** - the data of the `Data` subsystem, and **`TimeCalendar`** and **`JsDateParser`**
-  of the same subsystem, which read the text of a temporal `datum` as a date in the calendar of its scale (see _Time
-  Calendar Design_ and _Time Format Design_)
+  of the same subsystem, which read the text of a temporal `datum` as a date in the calendar of its scale (see *Time
+  Calendar Design* and *Time Format Design*)
 - **`RowExpressions`** - the compiled expressions and the evaluator of the call (the `Transforms` subsystem), and
   **`BinKind`** of the same subsystem (the bin kind of a channel), and
   **`CompiledExpression`** and **`ExpressionEvaluator`** of the `Expressions` subsystem, for the row-bound paint values
   and the JavaScript text of a label
 - **`EncodingPlan`** (its `PathGroupFields`, `OrderFields`, `Stack`, and `PlanPathGroupFields`), **`WorkMeter`** (the
   step charges), and **`StableSorter`** (the stable sort of the rows) - the `Transforms` subsystem (see
-  _EncodingPlan_ and _AggregateTransforms_)
+  *EncodingPlan* and *AggregateTransforms*)
 - **`CurveBuilder`**, **`CurveKind`**, **`CurvePoint`**, and **`AreaPoint`** - the `CurveBuilder` unit of this
-  subsystem, which generates the segments of a line or an area (see _CurveBuilder_)
+  subsystem, which generates the segments of a line or an area (see *CurveBuilder*)
 - **`TimeLabels`** (`CreateBounded`) - the `Guides` subsystem, the time formatter of the text of a text mark with a
-  per-label limit (see _TimeLabels_)
+  per-label limit (see *TimeLabels*)
 - **`ResolvedConfig`**, **`ConfigNode`**, **`SpecNode`**, and **`FeatureCatalog`** (`IsEvaluatedFormatType`) - the
   `SpecModel` subsystem
 - **`SceneGroup`**, **`SceneRect`**, **`SceneRule`**, **`SceneSymbol`**, **`ScenePath`** with **`ScenePathSegment`**,
   **`SceneTrail`** with **`SceneTrailPoint`**, **`SceneText`**, **`SceneArc`**, **`SceneClip`**, and **`SceneBudget`** -
   the `Scenegraph` subsystem (the painter builds the outline of an arc and the capsules of a trail from their
   parameters;
-  see _SceneModel_, _ScenePainter_, and _ArcGeometry_), and **`SceneMarkContext`** and **`SceneVertex`** of the same
+  see *SceneModel*, *ScenePainter*, and *ArcGeometry*), and **`SceneMarkContext`** and **`SceneVertex`** of the same
   subsystem for the recorded positions
 - **`PositionValue`** - the core `Positions` subsystem (the values of the recorded positions)
 - **`VegaLiteLimits`**, **`VegaLiteLocation`**, **`VegaLiteRenderException`**, and **`VegaLiteSpecException`** - the

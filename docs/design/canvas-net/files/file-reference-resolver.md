@@ -166,7 +166,7 @@ it). Invalid options are `ArgumentNullException` / `ArgumentOutOfRangeException`
 **Known limits**: where Windows cannot tell the real path, the default policy reads the file without the network check
 (a restrictive policy fails closed with `RealPathUnavailable`); a SUBST or DFS path whose drive is local but whose
 target is remote is refused (fail closed); paths are compared case-insensitively on Windows and macOS (see
-_FileAccessPolicy Unit Design_).
+*FileAccessPolicy Unit Design*).
 
 #### Dependencies
 

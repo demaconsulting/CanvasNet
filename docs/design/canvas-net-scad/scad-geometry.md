@@ -14,24 +14,24 @@ primitives, applies transforms and colors, combines solids and shapes with union
 shapes, applies the modifiers, enforces the triangle budget, and reports everything it cannot build. The
 subsystem is **internal**: its types are visible only to the `ScadDocument` unit and, through
 `InternalsVisibleTo`, to the test assembly. The public entry points are `ScadDocument.BuildScene` and
-`ScadDocument.Render` (see _ScadDocument Unit Design_, `scad-document.md`). The subsystem contains five units:
+`ScadDocument.Render` (see *ScadDocument Unit Design*, `scad-document.md`). The subsystem contains five units:
 
 - **ScadGeometryBuilder** — the engine and everything common to all modules: the iterative walk, the dispatch
   tables, implicit unions, the `!`, `#`, and `%` modifiers, the difference and intersection combiners and the
   dimension rules, the `hull` and `minkowski` convex combinations (`ScadHulls`), the `projection` shadows and
   cross-sections (`ScadProjections`), the unsupported-module table,
   the triangle budget, cancellation, the reporting channel, the
-  node-to-location map, and the copy of the renderer options; see _ScadGeometryBuilder Unit Design_
+  node-to-location map, and the copy of the renderer options; see *ScadGeometryBuilder Unit Design*
   (`scad-geometry/scad-geometry-builder.md`)
 - **ScadPrimitives** — `cube`, `sphere`, `cylinder`, `polyhedron`, `square`, `circle`, and `polygon`, the
-  argument binder, and the fragment rule for `$fn`, `$fa`, and `$fs`; see _ScadPrimitives Unit Design_
+  argument binder, and the fragment rule for `$fn`, `$fa`, and `$fs`; see *ScadPrimitives Unit Design*
   (`scad-geometry/scad-primitives.md`)
 - **ScadTransforms** — `translate`, `rotate`, `scale`, `mirror`, `multmatrix`, `resize`, and `color` (with the
-  named color table); see _ScadTransforms Unit Design_ (`scad-geometry/scad-transforms.md`)
+  named color table); see *ScadTransforms Unit Design* (`scad-geometry/scad-transforms.md`)
 - **ScadExtrusions** — `linear_extrude` and `rotate_extrude`, the symbolic 2D shape tree, and the slabs of
-  top-level 2D shapes; see _ScadExtrusions Unit Design_ (`scad-geometry/scad-extrusions.md`)
+  top-level 2D shapes; see *ScadExtrusions Unit Design* (`scad-geometry/scad-extrusions.md`)
 - **ScadTextGeometry** — `text`: font resolution, glyph layout, outline flattening and the glyph contour policy,
-  producing flat 2D shapes that every consumer of 2D shapes accepts; see _ScadTextGeometry Unit Design_
+  producing flat 2D shapes that every consumer of 2D shapes accepts; see *ScadTextGeometry Unit Design*
   (`scad-geometry/scad-text-geometry.md`)
 
 The subsystem's namespace documentation is in `Geometry/NamespaceDoc.cs`. Its behavior is specified by the
@@ -58,20 +58,19 @@ The subsystem's namespace documentation is in `Geometry/NamespaceDoc.cs`. Its be
   substituted unsupported-feature handler (and, for a flat drawing whose caller set no lights, ambient light of
   intensity 1 only, so that a shape shows exactly its own color), and the mapping of a Render3D report identifier
   to a `scad-` identifier.
-- `ScadFeatureIds` — the stable unsupported-feature identifiers (see the table in _Design_).
+- `ScadFeatureIds` — the stable unsupported-feature identifiers (see the table in *Design*).
 
 **Consumed**: from the `ScadEvaluation` subsystem, the instantiation tree (`ScadInstance`, `ScadInstanceKind`,
-`ScadModifiers`, `ScadFragmentSettings`), the `ScadValue` of the evaluated arguments, and the
-`ScadEvaluationSink` that buffers warnings and unsupported-feature reports; from the `ScadDocument` unit, the
-public `ScadLimits`, `ScadEvaluationException`, `ScadUnsupportedFeatureException`, and `ScadSourceLocation`;
-from `CanvasNetRender3D`, the public scene-model types (`Scene`, `SceneNode`, `GroupNode`, `MeshNode`, `CsgNode`,
-`Mesh`, `Matrix4x4D`, `Vector3D`, `BoundingBox3D`, and, since Phase 8, `OverlayNode` and
-`Scene.ComputeBounds(bool)`), the tessellators and extruders (`PrimitiveTessellator`,
-`PolygonTriangulator`, `PolygonRegion`, `Extruder`, `ConvexHull`, `MinkowskiSum`), and `SceneRenderOptions`; and from
-`CanvasNet`, `Rgba32` and, for `text`, the `Fonts` subsystem (`TrueTypeFont`, `FontResolver`, `SystemFontCatalog`) and the
-`Geometry` subsystem (`Path`, the glyph outlines that a font returns), all through public API only; of this
-subsystem only the `ScadTextGeometry` unit uses `Fonts` and `Geometry`.
-The subsystem never uses the `ScadLanguage` subsystem or the syntax tree.
+`ScadModifiers`, `ScadFragmentSettings`), the `ScadValue` of the evaluated arguments, and the `ScadEvaluationSink` that
+buffers warnings and unsupported-feature reports; from the `ScadDocument` unit, the public `ScadLimits`,
+`ScadEvaluationException`, `ScadUnsupportedFeatureException`, and `ScadSourceLocation`; from `CanvasNetRender3D`, the
+public scene-model types (`Scene`, `SceneNode`, `GroupNode`, `MeshNode`, `CsgNode`, `Mesh`, `Matrix4x4D`, `Vector3D`,
+`BoundingBox3D`, and, since Phase 8, `OverlayNode` and `Scene.ComputeBounds(bool)`), the tessellators and extruders
+(`PrimitiveTessellator`, `PolygonTriangulator`, `PolygonRegion`, `Extruder`, `ConvexHull`, `MinkowskiSum`), and
+`SceneRenderOptions`; and from `CanvasNet`, `Rgba32` and, for `text`, the `Fonts` subsystem (`TrueTypeFont`,
+`FontResolver`, `SystemFontCatalog`) and the `Geometry` subsystem (`Path`, the glyph outlines that a font returns), all
+through public API only; of this subsystem only the `ScadTextGeometry` unit uses `Fonts` and `Geometry`. The subsystem
+never uses the `ScadLanguage` subsystem or the syntax tree.
 
 **Consumers**: `ScadDocument.BuildScene` and `ScadDocument.Render` (through the `Build` entry point and the
 renderer options helpers).
@@ -110,21 +109,23 @@ its first non-empty operand and warns about the others; a 3D child under an extr
 
 #### Event Classification
 
-The classes are those of the evaluation subsystem (see _ScadEvaluation Subsystem Design_, _Event
-Classification_), applied to geometry:
+The classes are those of the evaluation subsystem (see *ScadEvaluation Subsystem Design*, *Event
+Classification*), applied to geometry:
 
 <!-- markdownlint-disable MD013 -->
+
 | Class | Mechanism | Examples | Continues? |
-| ----- | --------- | -------- | ---------- |
+| --- | --- | --- | --- |
 | **Warning** | `ScadDiagnostic` through the shared sink, at the instance's location | an invalid or non-finite argument (a non-positive size, a wrong type), an unknown, surplus, or repeated argument, a child object under a primitive, a singular transform, a zero `rotate` axis or `mirror` normal, an invalid `color`, a mixed 2D and 3D combination, a 3D child under an extrusion, a polyhedron wound the wrong way round | Yes; an invalid instance is empty (a zero `rotate` axis or `mirror` normal, an invalid `color` value, and an invalid `alpha` warn and keep their children untransformed or uncolored) |
 | **Unsupported feature** | `ScadUnsupportedFeature` through the shared sink; in strict mode a `ScadUnsupportedFeatureException` at the first one | a recognized module that is not built, a `hull` or `minkowski` whose operands have no hull or sum, a `#` or `%` on a 2D shape that is not extruded, an extrusion the Render3D extruders cannot build, a renderer operand defect (see the identifier table) | Yes (the instance or subtree is omitted, or degraded), unless strict |
 | **Error** | `ScadEvaluationException` with the location of the module | the triangle budget would be exceeded (`MaxTriangles`), including for hostile sizes whose estimate would overflow | No |
 | **Cancellation** | `OperationCanceledException`, never wrapped | the token is canceled before or during the build | No |
+
 <!-- markdownlint-enable MD013 -->
 
-The rule is the evaluator's: invalid _arguments_ (what the author wrote is wrong) are warnings, things the
-language allows but this implementation _cannot build_ are unsupported features, and things that would
-_exhaust resources_ are errors. In no case is a module silently skipped. Geometry builders never throw an
+The rule is the evaluator's: invalid *arguments* (what the author wrote is wrong) are warnings, things the
+language allows but this implementation *cannot build* are unsupported features, and things that would
+*exhaust resources* are errors. In no case is a module silently skipped. Geometry builders never throw an
 `ArgumentException` out of the subsystem: arguments are validated before a Render3D tessellator or extruder is
 called, and a rejection that the validation did not anticipate is reported as `scad-geometry-rejected` (the
 message of the exception is kept).
@@ -147,7 +148,7 @@ anchor to a world point with the matrices of its enclosing `translate`, `rotate`
 the build used, and reports an anchor it cannot place (inside `resize`, an extrusion, `projection`, or an
 unsupported module, or out of the coordinate range) with a `scad-anchor-invalid` warning (an identifier at the
 start of the message of an ordinary warning, not an unsupported feature). The pass is documented under
-_ScadGeometryBuilder Unit Design_, _Anchors_.
+*ScadGeometryBuilder Unit Design*, *Anchors*.
 
 #### Unsupported-Feature Identifiers
 
@@ -155,8 +156,9 @@ Every identifier below is lower-case and stable; callers can match on `ScadUnsup
 identifiers of the evaluation subsystem (`scad-function-<name>`, `scad-search-form`) are unchanged.
 
 <!-- markdownlint-disable MD013 -->
+
 | Identifier | Trigger | Effect |
-| ---------- | ------- | ------ |
+| --- | --- | --- |
 | `scad-module-offset`, `scad-module-surface`, `scad-module-import`, `scad-module-roof` | The module is recognized but not implemented | The module and its children are omitted |
 | `scad-projection-too-complex` | A `projection` has children with more than 2^23 triangle visits (their triangles plus their vertices), or any pass of its silhouette, classification, or cut (the grouping and footprints of the faces, every slice) would take the total over 2^23 (counted before each pass runs) | The projection is omitted, never approximated |
 | `scad-projection-open-mesh` | The cross-section of a mesh below a `projection` that has to be sliced (a `cut = true`, or a mesh below a difference or an intersection) does not close, so the mesh is not a closed solid | The projection is omitted |
@@ -181,6 +183,7 @@ identifiers of the evaluation subsystem (`scad-function-<name>`, `scad-search-fo
 | `scad-rotate-extrude-axis-contact` | The profile touches the axis at an isolated vertex | The extrusion is omitted |
 | `scad-geometry-rejected` | Any other `ArgumentException` of a Render3D tessellator or extruder (including a cross-section of a `projection` that the polygon validator rejects, which omits the projection), or an instance whose coordinates are not finite or exceed 1e100 in magnitude (including hidden difference operands) | The affected instance is omitted; the message is kept |
 | `scad-csg-open-mesh`, `scad-csg-non-manifold-edge`, `scad-csg-inconsistent-winding`, `scad-csg-degenerate-triangle`, `scad-csg-inverted-mesh`, `scad-csg-singular-transform` | The renderer's operand check of a difference or an intersection (only `Render`, only when a handler or strict mode is set), mapped from `render3d-csg-*` | Reported at the producing module; the image is still drawn |
+
 <!-- markdownlint-enable MD013 -->
 
 #### Dialect Decisions Of The Geometry Phase
@@ -210,8 +213,8 @@ designs.
    the Render3D extruder, whose positive twist is counter-clockwise); the default height is 100.
 7. **`rotate_extrude` sweep step.** The number of segments is
    `ceil(max(fragments(maxAbsX) * |angle| / 360, 1))`, raised to `ceil(|angle| / 120)`, so that every angular
-   step is at most 120 degrees, the contract of `Extruder.Rotate` (see _Extruder Unit Design_ in the Render3D
-   _Tessellation_ subsystem). The raise never takes effect for a fragment count of at least three.
+   step is at most 120 degrees, the contract of `Extruder.Rotate` (see *Extruder Unit Design* in the Render3D
+   *Tessellation* subsystem). The raise never takes effect for a fragment count of at least three.
 8. **Modifiers.** `!` makes the outermost marked subtrees the new root of the design, without the transforms and
    colors of their ancestors (`translate([10, 0, 0]) { !cube(1); }` renders the cube at the origin); `%{ !x }` with
    a single child is one instance that is both, so only its ghost remains and the model has no ordinary geometry.
@@ -244,20 +247,20 @@ designs.
 12. **Text.** `text` is built by `ScadTextGeometry` into a flat 2D shape (a union of one region leaf per glyph
     component), so it is a 2D operand of everything that accepts 2D shapes. Its dialect decisions (size is the ink
     height of `H`, no shaping, `language` and `script` ignored, alignment by the measured ink extents, the
-    font resolution order, the bundled Liberation Sans default) are in _ScadTextGeometry Unit Design_. A mapped
+    font resolution order, the bundled Liberation Sans default) are in *ScadTextGeometry Unit Design*. A mapped
     glyph whose outline has no area is reported as `scad-text-invalid-outline` rather than dropped (an empty glyph
     such as a space just advances), and the scan of the additional font directories is bounded, does not follow
     links, and honors cancellation.
 13. **Projection.** `projection(cut = false)` is the shadow of the 3D children on the XY plane (`cut = true`: their
     cross-section at `z = 0`), computed exactly and kept as a symbolic 2D shape, so every consumer of 2D shapes
-    accepts it; the algorithm, the tie rule of the cut, and the budgets are in _ScadGeometryBuilder Unit Design_
-    (_Projection_). `cut` is honored when it is a boolean (anything else warns and counts as `false`),
+    accepts it; the algorithm, the tie rule of the cut, and the budgets are in *ScadGeometryBuilder Unit Design*
+    (*Projection*). `cut` is honored when it is a boolean (anything else warns and counts as `false`),
     `convexity` is ignored, 2D children are ignored with a warning, a `%` overlay is not projected, a `#` copy is not
     counted twice, and a color inside is dropped with a warning. The identifier `scad-module-projection` of earlier
     releases is **retired**; a projection that cannot be computed is `scad-projection-too-complex` or
     `scad-projection-open-mesh` and is omitted whole. `offset`, `surface`, `import`, and `roof` remain unsupported.
 14. **Flat models.** A model whose whole result is 2D is flagged (`ScadBuiltScene.IsFlatModel`) so that
-    `ScadDocument.Render` can draw it as a flat top-down drawing (see _ScadDocument Unit Design_); the slab of the
+    `ScadDocument.Render` can draw it as a flat top-down drawing (see *ScadDocument Unit Design*); the slab of the
     shape and its thickness are not affected, so a scene built with `BuildScene` is the same either way.
 
 #### Fragment Rule
@@ -268,7 +271,7 @@ with `$fa` and `$fs` clamped to at least 0.01 (a non-finite value falls back to 
 result is clamped to 3 through 1,048,576 as an overflow guard, and the real cost cap is the triangle limit.
 With the defaults, a radius of 1 gives 5 and a radius of 10 gives 30. A sphere uses the radius of the sphere, a
 cylinder the larger of its two radii, a circle its radius, `rotate_extrude` the largest profile abscissa, and a
-twisted `linear_extrude` the largest profile radius. See _ScadPrimitives Unit Design_.
+twisted `linear_extrude` the largest profile radius. See *ScadPrimitives Unit Design*.
 
 #### Resource Limits
 
@@ -292,8 +295,8 @@ follow-up. A `projection` counts the triangles and the vertices of its children 
 triangle visits before
 anything is allocated, then requires that the slabs its footprints could need (8 triangles per candidate triangle)
 fit the triangle budget, with the normal located error otherwise, and bounds every pass of its silhouette,
-classification, or cut (not only the slices) by a work meter with the same ceiling (see _ScadGeometryBuilder Unit
-Design_, _Projection_); the transformed copies
+classification, or cut (not only the slices) by a work meter with the same ceiling (see *ScadGeometryBuilder Unit
+Design*, *Projection*); the transformed copies
 of the vertices it makes are transient storage bounded by the size of meshes that are already charged, like those of
 `hull`. The renderer's own resource
 limit (`SceneRenderOptions.MaxFragmentsPerTile`) is reported by `ScadDocument.Render` as a
@@ -322,5 +325,5 @@ The geometry phase is an original implementation. No OpenSCAD source code, test,
 read, copied, ported, or paraphrased; every decision above is the dialect's own and is pinned by in-repo tests
 and fixtures (`ScadFixtures/render-*.scad`), whose assertions are analytic (areas, bounds, pixel rectangles, and
 exact volumes), not golden images. The named color table is the repository's own SVG table. Exact parity with
-any other implementation (pixels, tessellation, edge cases) is a non-goal. See _CanvasNetScad System Design_,
+any other implementation (pixels, tessellation, edge cases) is a non-goal. See *CanvasNetScad System Design*,
 Clean-Room Provenance.

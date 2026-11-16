@@ -47,8 +47,8 @@ The unit's behavior is specified by the `CanvasNet-Positions-ImagePosition-*` re
 **`PositionBox(X, Y, Width, Height)`** - the bounds of the geometry of a feature, the way SVG `getBBox` measures it
 (the stroke is not included); a vertex of a line has a box of zero size. `Center` is the middle of the box.
 
-**`PositionPoint(X, Y)`** - continuous pixel coordinates with the origin at the top-left corner of the picture: pixel `i`
-spans `[i, i + 1)`, x grows to the right and y downward.
+**`PositionPoint(X, Y)`** - continuous pixel coordinates with the origin at the top-left corner of the picture: pixel
+`i` spans `[i, i + 1)`, x grows to the right and y downward.
 
 **`PositionValue`** - a `PositionValueKind` (`Null`, `Boolean`, `Number`, or `String`) with `BooleanValue`,
 `NumberValue`, and `StringValue` accessors that return `false`, 0, or `null` for another kind; `default` is `Null`. A
@@ -62,7 +62,7 @@ of `ImagePosition` compares `Values`, `Data`, and `ChannelNames` by reference.
 
 #### Key Methods
 
-- **`ImagePosition` `init` setters** - check their value before storing it (see _Error Handling_). The `Values` setter
+- **`ImagePosition` `init` setters** - check their value before storing it (see *Error Handling*). The `Values` setter
   copies the list with `ToArray`, sorts the copy by name, and then checks the names, so a list the caller
   changes later does not change the position; an empty list becomes the shared empty array. The `Data` setter refuses
   more than `MaxDataFields` fields and then copies, sorts, and checks the list the same way.

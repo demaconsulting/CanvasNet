@@ -16,7 +16,7 @@ DEMA Consulting best practices. The system consists of ten implemented subsystem
   `src/DemaConsulting.CanvasNet/Canvas/`): the pixel-buffer primitives on which all other
   functionality builds — the `Surface` unit (a mutable, in-memory 32-bit RGBA pixel buffer with
   span-based row access and independent-copy cropping) and the `Rgba32` unit (a single-pixel
-  value type, documented inline within `Surface`). See _Canvas Subsystem Design_ (`canvas.md`).
+  value type, documented inline within `Surface`). See *Canvas Subsystem Design* (`canvas.md`).
 - **Codecs subsystem** (namespace `DemaConsulting.CanvasNet.Codecs`, folder
   `src/DemaConsulting.CanvasNet/Codecs/`, flat — no further nesting): six hand-rolled image
   format codecs operating on a `DemaConsulting.CanvasNet.Canvas.Surface` pixel buffer (`BmpCodec`,
@@ -32,7 +32,7 @@ DEMA Consulting best practices. The system consists of ten implemented subsystem
   the file's true total frame count without resolving later frames into a `Surface`), and
   `Jpeg2000Codec` (decode-only JPEG 2000 Part 1 decoder for JP2 files and raw codestreams, also
   exposing the decoded color space and opacity channel for PDF `/JPXDecode` images). See
-  _Codecs Subsystem Design_ (`codecs.md`).
+  *Codecs Subsystem Design* (`codecs.md`).
 - **Geometry subsystem** (namespace `DemaConsulting.CanvasNet.Geometry`, folder
   `src/DemaConsulting.CanvasNet/Geometry/`, flat — no further nesting): vector-geometry
   primitives, built directly on `System.Numerics.Vector2`/`Matrix3x2` — the `Rect` unit (an
@@ -44,7 +44,7 @@ DEMA Consulting best practices. The system consists of ten implemented subsystem
   (path-level pre-processing that rounds polyline corners into tangent-radius arcs via
   `PathBuilder.TangentArcTo`). `Geometry` has no dependency on `Canvas`
   or `Codecs`, and neither of those subsystems depends on `Geometry`. See
-  _Geometry Subsystem Design_ (`geometry.md`).
+  *Geometry Subsystem Design* (`geometry.md`).
 - **Drawing subsystem** (namespace `DemaConsulting.CanvasNet.Drawing`, folder
   `src/DemaConsulting.CanvasNet/Drawing/`, flat — no further nesting): vector rendering for
   `Geometry.Path` geometry through three public entry points — the `PathFiller` unit
@@ -63,7 +63,7 @@ DEMA Consulting best practices. The system consists of ten implemented subsystem
   `BezierFlattening`/`SvgArcConverter` units; neither `Canvas` nor `Geometry` depends on
   `Drawing`. `Geometry` is deliberately distinct from `Drawing`: `Geometry` describes shape
   geometry (paths, bounds, curve math) with no notion of pixels, color, or rasterization, while
-  `Drawing` turns that geometry into pixels. See _Drawing Subsystem Design_ (`drawing.md`).
+  `Drawing` turns that geometry into pixels. See *Drawing Subsystem Design* (`drawing.md`).
 - **Fonts subsystem** (namespace `DemaConsulting.CanvasNet.Fonts`, folder
   `src/DemaConsulting.CanvasNet/Fonts/`, flat — no further nesting): TrueType (`glyf`-based) and
   CFF/OpenType font loading through the `TrueTypeFont` unit, which fronts the internal
@@ -75,7 +75,7 @@ DEMA Consulting best practices. The system consists of ten implemented subsystem
   depends only on the `Geometry` subsystem (`Path`, `PathBuilder`, and path-command semantics)
   because it produces vector outlines and scalar metrics, not pixels. It does not depend on
   `Canvas`, `Drawing`, or `Codecs`; callers combine its output with `Drawing` and `Canvas` when
-  they want rendered text. See _Fonts Subsystem Design_ (`fonts.md`).
+  they want rendered text. See *Fonts Subsystem Design* (`fonts.md`).
 - **Rendering subsystem** (namespace `DemaConsulting.CanvasNet.Rendering`, folder
   `src/DemaConsulting.CanvasNet/Rendering/`, flat — no further nesting): higher-level
   rendering primitives that compose `Canvas`, `Geometry`, `Drawing`, and `Fonts` — the
@@ -83,7 +83,7 @@ DEMA Consulting best practices. The system consists of ten implemented subsystem
   (measure and draw TrueType text with alignment and kerning), and the `Shapes` extension
   helpers (rectangles, rounded rectangles, circles), and the `WordWrap` packer (a font- and
   unit-independent greedy word-wrap line packer shared by the Pptx and Vsdx text layout engines).
-  See _Rendering Subsystem Design_
+  See *Rendering Subsystem Design*
   (`rendering.md`).
 - **Files subsystem** (namespace `DemaConsulting.CanvasNet.Files`, folder
   `src/DemaConsulting.CanvasNet/Files/`, flat — no further nesting): access to the files a document
@@ -98,7 +98,7 @@ DEMA Consulting best practices. The system consists of ten implemented subsystem
   links or junctions, verified on the open file; it is kept unchanged for one release and no part of the
   library uses it any longer. `Files`
   depends on no other subsystem; the `ImageSources` subsystem and the satellite systems `CanvasNetVegaLite`
-  and `CanvasNetScad` use `FileReferenceResolver` through its public API. See _Files Subsystem Design_
+  and `CanvasNetScad` use `FileReferenceResolver` through its public API. See *Files Subsystem Design*
   (`files.md`).
 - **ImageSources subsystem** (namespace `DemaConsulting.CanvasNet.ImageSources`, folder
   `src/DemaConsulting.CanvasNet/ImageSources/`, flat — no further nesting): linked-picture support for
@@ -116,8 +116,8 @@ DEMA Consulting best practices. The system consists of ten implemented subsystem
   no other core subsystem depends on it.
   The format packages each ship one source (`SvgImageSource`, `ScadImageSource`, `VegaLiteImageSource`,
   `PdfImageSource`, `PptxImageSource`, `VsdxImageSource`), the `CanvasNetViewer` system lists them all, and
-  the `CanvasNetSvg` system takes an `IImageResolver` in its `SvgLoadOptions`. See _ImageSources Subsystem
-  Design_ (`image-sources.md`).
+  the `CanvasNetSvg` system takes an `IImageResolver` in its `SvgLoadOptions`. See *ImageSources Subsystem
+  Design* (`image-sources.md`).
 - **Positions subsystem** (namespace `DemaConsulting.CanvasNet.Positions`, folder
   `src/DemaConsulting.CanvasNet/Positions/`, flat — no further nesting): the feature positions of a rendered picture
   (where a node, an edge, a bar, or an axis is, so that a caller can place a callout without probing pixels) — the
@@ -129,7 +129,7 @@ DEMA Consulting best practices. The system consists of ten implemented subsystem
   bare selector values); only the `ImageSources` contract uses its types (for `IImagePositionResolver`). The
   `CanvasNetMermaid` and `CanvasNetVegaLite` systems
   report positions through it, the `CanvasNetViewer` system collects and maps them, and the `CanvasNetTool` system
-  prints them. See _Positions Subsystem Design_ (`positions.md`).
+  prints them. See *Positions Subsystem Design* (`positions.md`).
 - **Packaging subsystem** (namespace `DemaConsulting.CanvasNet.Packaging`, folder
   `src/DemaConsulting.CanvasNet/Packaging/`, flat — no further nesting): the hardened building
   blocks for reading untrusted Open Packaging Conventions (OPC, ECMA-376 Part 2) packages and
@@ -138,7 +138,7 @@ DEMA Consulting best practices. The system consists of ten implemented subsystem
   its `OpcFormatException`) and the `SafeXml` unit (XML loading with no DTD processing, no
   external resolution, and a character bound). `Packaging` depends only on the .NET base class
   library, and no other subsystem depends on it; the separately packaged `CanvasNetPptx`,
-  `CanvasNetVsdx`, and `CanvasNetSvg` systems use it. See _Packaging Subsystem Design_
+  `CanvasNetVsdx`, and `CanvasNetSvg` systems use it. See *Packaging Subsystem Design*
   (`packaging.md`).
 
 The `Codecs` subsystem depends on the `Canvas` subsystem's `Surface` unit (constructing surfaces
@@ -154,13 +154,13 @@ constant, so callers can perform this comparison themselves before ever calling 
 `CanDecode` (but never resolves those pixels into a rendered `Surface`) while scanning, without
 decoding, every later frame's block structure purely to report the file's true total frame count
 — see
-_Codecs Subsystem Design_ (`codecs.md`) for the shared `ImageInfo` type and header-only-probing
-pattern, and _Surface Unit Design_ (`canvas/surface.md`) for `MaxDimension`. See
-_Surface Unit Design_ (`canvas/surface.md`), _BmpCodec Unit Design_
-(`codecs/bmp-codec.md`), _PngCodec Unit Design_ (`codecs/png-codec.md`),
-_TiffCodec Unit Design_ (`codecs/tiff-codec.md`), _JpegCodec Unit Design_
-(`codecs/jpeg-codec.md`), _GifCodec Unit Design_ (`codecs/gif-codec.md`), and
-_Jpeg2000Codec Unit Design_ (`codecs/jpeg2000-codec.md`) for each unit's
+*Codecs Subsystem Design* (`codecs.md`) for the shared `ImageInfo` type and header-only-probing
+pattern, and *Surface Unit Design* (`canvas/surface.md`) for `MaxDimension`. See
+*Surface Unit Design* (`canvas/surface.md`), *BmpCodec Unit Design*
+(`codecs/bmp-codec.md`), *PngCodec Unit Design* (`codecs/png-codec.md`),
+*TiffCodec Unit Design* (`codecs/tiff-codec.md`), *JpegCodec Unit Design*
+(`codecs/jpeg-codec.md`), *GifCodec Unit Design* (`codecs/gif-codec.md`), and
+*Jpeg2000Codec Unit Design* (`codecs/jpeg2000-codec.md`) for each unit's
 internal collaboration.
 
 The `Geometry` subsystem's five units collaborate as follows: `PathBuilder` records raw drawing
@@ -173,10 +173,10 @@ points of their own). `Rect` has no dependency on the other units, but is the re
 `CornerRoundEffect` consumes an existing `Path` and produces a new `Path` with eligible corners
 replaced by tangent-radius arcs (via `PathBuilder.TangentArcTo`); it has no dependency on
 `BezierFlattening` or `SvgArcConverter`, and none of the other four units depends on it. See
-_Geometry Subsystem Design_ (`geometry.md`), _Rect Unit Design_ (`geometry/rect.md`),
-_Path Unit Design_ (`geometry/path.md`), _BezierFlattening Unit Design_
-(`geometry/bezier-flattening.md`), _SvgArcConverter Unit Design_
-(`geometry/svg-arc-converter.md`), and _CornerRoundEffect Unit Design_
+*Geometry Subsystem Design* (`geometry.md`), *Rect Unit Design* (`geometry/rect.md`),
+*Path Unit Design* (`geometry/path.md`), *BezierFlattening Unit Design*
+(`geometry/bezier-flattening.md`), *SvgArcConverter Unit Design*
+(`geometry/svg-arc-converter.md`), and *CornerRoundEffect Unit Design*
 (`geometry/corner-round-effect.md`) for each unit's internal collaboration.
 
 The `Drawing` subsystem's four units collaborate as follows. `PathFiller.Fill` first delegates to
@@ -195,9 +195,9 @@ visible polyline segments into closed outline polygons with cap and join geometr
 those polygons into a new `Geometry.Path` via `PathBuilder`; callers render the returned outline
 path through `PathFiller.Fill`. `GradientPaint` and `TilePaint` are both pure paint-description
 data types with no dependency on `PathFiller`, `PathStroker`, or each other; `PathFiller` is the
-sole consumer of either. See _Drawing Subsystem Design_ (`drawing.md`), _PathFiller Unit
-Design_ (`drawing/path-filler.md`), _PathStroker Unit Design_ (`drawing/path-stroker.md`),
-_GradientPaint Unit Design_ (`drawing/gradient-paint.md`), and _TilePaint Unit Design_
+sole consumer of either. See *Drawing Subsystem Design* (`drawing.md`), *PathFiller Unit
+Design* (`drawing/path-filler.md`), *PathStroker Unit Design* (`drawing/path-stroker.md`),
+*GradientPaint Unit Design* (`drawing/gradient-paint.md`), and *TilePaint Unit Design*
 (`drawing/tile-paint.md`) for
 full detail.
 
@@ -214,7 +214,7 @@ so callers who want pixels scale and flip that path before rendering it through 
 `LoadBundledFallback` constructs a `TrueTypeFont` from one of the library's bundled Liberation
 font embedded resources via `TrueTypeFont.Load`, making `TrueTypeFont` the sole unit
 `SystemFontCatalog` depends on within this subsystem. See
-_Fonts Subsystem Design_ (`fonts.md`) and _TrueTypeFont Unit Design_
+*Fonts Subsystem Design* (`fonts.md`) and *TrueTypeFont Unit Design*
 (`fonts/true-type-font.md`) for full detail.
 
 ## External Interfaces
@@ -464,78 +464,80 @@ The system exposes the following public API to external consumers:
   match was left out) and name the selectors that matched no candidate. Not thread-safe.
 
 <!-- markdownlint-disable MD013 -->
-| Interface                                    | Direction        | Format                         | Constraints                   |
-|----------------------------------------------|------------------|--------------------------------|-------------------------------|
-| `Surface(int, int)`                          | Inbound          | Constructor call               | `width`, `height` in 1-8192   |
-| `Surface[int, int]`                          | Inbound/Outbound | Indexer get/set                | `x`, `y` within bounds        |
-| `Surface.GetRowSpanBytes(int)`               | Outbound         | `Span<byte>` return            | `y` within bounds             |
-| `Surface.GetRowSpan(int)`                    | Outbound         | `Span<Rgba32>` return          | `y` within bounds             |
-| `Surface.Crop(int,int,int,int)`              | Inbound/Outbound | Method call / `Surface` return | Region within source bounds   |
-| `Surface.Resize(int,int,ResamplingMode)`     | Inbound/Outbound | Method call / `Surface` return | 1..MaxDimension, defined mode |
-| `Surface.ResizeToFit(int,int,ResamplingMode)`| Inbound/Outbound | Method call / `Surface` return | 1..MaxDimension, defined mode |
-| `ResamplingMode`                             | Inbound          | Enum argument                  | Six defined values            |
-| `Surface.PremultiplyAlpha()`                 | Inbound          | Method call                    | None                          |
-| `Surface.UnpremultiplyAlpha()`               | Inbound          | Method call                    | None                          |
-| `Surface.CompositeOver(Surface)`             | Inbound          | Method call                    | Equal dimensions, non-null    |
-| `Surface.CompositeOver(Rgba32)`              | Inbound          | Method call                    | None                          |
-| `Surface.CompositeOverSpan(...)`             | Inbound          | Method call                    | `y`, `x`+run within bounds    |
-| `BmpCodec.Load(...)`                         | Inbound/Outbound | Method call / `Surface` return | Valid BMP stream or path      |
-| `BmpCodec.Save(...)`                         | Inbound          | Method call                    | `surface` non-null            |
-| `PngCodec.Load(...)`                         | Inbound/Outbound | Method call / `Surface` return | Valid PNG stream or path      |
-| `PngCodec.Save(...)`                         | Inbound          | Method call                    | `surface` non-null            |
-| `TiffCodec.Load(...)`                        | Inbound/Outbound | Method call / `Surface` return | Valid TIFF stream or path     |
-| `TiffCodec.Save(...)`                        | Inbound          | Method call                    | `surface` non-null            |
-| `JpegCodec.Load(...)`                        | Inbound/Outbound | Method call / `Surface` return | Valid JPEG stream or path     |
-| `JpegCodec.Save(...)`                        | Inbound          | Method call                    | `surface` non-null            |
-| `GifCodec.Load(...)`                         | Inbound/Outbound | Method call / `Surface` return | Valid GIF stream or path      |
-| `GifCodec.GetInfo(...)`                      | Inbound/Outbound | Method call / `ImageInfo`      | Valid GIF stream or path      |
-| `Jpeg2000Codec.Load(...)`                    | Inbound/Outbound | Method call / `Surface` return | Valid JPEG 2000 stream/path   |
-| `Jpeg2000Codec.GetInfo(...)`                 | Inbound/Outbound | Method call / `ImageInfo`      | Valid JPEG 2000 stream/path   |
-| `Jpeg2000Codec.Decode(...)`                  | Inbound/Outbound | Method call / `Jpeg2000Image`  | Valid JPEG 2000 stream/bytes  |
-| `Jpeg2000DecoderLimits`                      | Inbound          | `Decode(...)` argument         | Positive limits               |
-| `Rect.Union(...)`                            | Inbound/Outbound | Method call / `Rect` return    | None                          |
-| `Rect.Intersect(...)`                        | Inbound/Outbound | Method call / `Rect` return    | None                          |
-| `Rect.Transform(Matrix3x2)`                  | Inbound/Outbound | Method call / `Rect` return    | None                          |
-| `PathBuilder.*To(...)`                       | Inbound/Outbound | Method call / `this` return    | Called after `MoveTo`         |
-| `PathBuilder.Build()`                        | Outbound         | Method call / `Path` return    | None                          |
-| `PathBuilder.AppendPath(...)`                | Inbound/Outbound | Method call / `this` return    | `path` not null               |
-| `Path.GetBounds(float)`                      | Outbound         | Method call / `Rect` return    | None                          |
-| `BezierFlattening.Flatten*(...)`             | Inbound/Outbound | Method call / list append      | `tolerance` greater than zero |
-| `SvgArcConverter.ToBeziers(...)`             | Inbound/Outbound | Method call / list append      | None                          |
-| `CornerRoundEffect.Apply(...)`               | Inbound/Outbound | Method call / `Path` return    | Non-null; radius/tol >= 0     |
-| `PathFiller.Fill(...)`                       | Inbound          | Method call                    | Non-null; fillRule ok; tol>0  |
-| `StrokeStyle(...)`                           | Inbound          | Constructor call               | Width > 0; valid style data   |
-| `PathStroker.Stroke(...)`                    | Inbound/Outbound | Method call / `Path` return    | Non-null; tol > 0             |
-| `TrueTypeFont.Load(...)`                     | Inbound/Outbound | Method / `TrueTypeFont`        | Valid TrueType stream or path |
-| `TrueTypeFont.GetGlyphIndex(int)`            | Outbound         | Method / `int`                 | Any Unicode codepoint         |
-| `TrueTypeFont.GetGlyphOutline(int)`          | Outbound         | Method / `Path`                | `glyphIndex` within range     |
-| `TrueTypeFont.GetAdvanceWidth(int)`          | Outbound         | Method / `int`                 | `glyphIndex` within range     |
-| `TrueTypeFont.GetKerning(int,int)`           | Outbound         | Method / `int`                 | Any glyph indices             |
-| `SystemFontCatalog.Fonts`                    | Outbound         | Property / list return         | None                          |
-| `SystemFontCatalog.FindBestMatch(...)`       | Outbound         | Method / `SystemFontInfo?`     | None                          |
-| `SystemFontCatalog.FindInFamily(...)`        | Outbound         | Method / `SystemFontInfo?`     | Non-null faces and family     |
-| `SystemFontCatalog.Load(...)`                | Outbound         | Method / `TrueTypeFont?`       | None                          |
-| `FontDirectoryScanner.Scan(...)`             | Outbound         | Method / list return           | Non-null directory list       |
-| `GenericFontFamilies.TryClassify(...)`       | Outbound         | Method / `bool`, out flags     | None                          |
-| `GenericFontFamilies.SplitFamilyList(...)`   | Outbound         | Method / list return           | None                          |
-| `FontResolver.Resolve(...)`                  | Outbound         | Method / `ResolvedFont`        | None                          |
-| `SystemFontCatalog.LoadBundledFallback(...)` | Outbound         | Method / `TrueTypeFont`        | None                          |
-| `OpcPackage.Open(...)`                       | Inbound/Outbound | Method / `OpcPackage`          | Readable stream; <= 256 MiB   |
-| `OpcPackage` part and relationship members   | Outbound         | Methods / paths, XML, bytes    | Non-null arguments            |
-| `SafeXml.Load(...)`                          | Inbound/Outbound | Method / `XDocument`           | Positive character bound      |
-| `SafeXml.CreateReader(...)`                  | Outbound         | Method / `XmlReader`           | Readable stream; bound > 0    |
-| `WordWrap.Pack(...)`                         | Inbound/Outbound | Method / list of lists         | Non-null args; width not NaN  |
-| `ImagePosition(...)` and `init` properties   | Inbound          | Constructor / record           | Valid kind and facts          |
-| `PositionSelector.Parse(...)`                | Inbound/Outbound | Method / `PositionSelector`    | 256 chars, 16 predicates max  |
-| `PositionSelection.Parse(...)`               | Inbound/Outbound | Method / `PositionSelection`   | 1 to 32 selectors             |
-| `PositionCollector.Offer(...)`               | Inbound/Outbound | Method / `bool`                | Non-null position; one render |
+
+| Interface | Direction | Format | Constraints |
+| --- | --- | --- | --- |
+| `Surface(int, int)` | Inbound | Constructor call | `width`, `height` in 1-8192 |
+| `Surface[int, int]` | Inbound/Outbound | Indexer get/set | `x`, `y` within bounds |
+| `Surface.GetRowSpanBytes(int)` | Outbound | `Span<byte>` return | `y` within bounds |
+| `Surface.GetRowSpan(int)` | Outbound | `Span<Rgba32>` return | `y` within bounds |
+| `Surface.Crop(int,int,int,int)` | Inbound/Outbound | Method call / `Surface` return | Region within source bounds |
+| `Surface.Resize(int,int,ResamplingMode)` | Inbound/Outbound | Method call / `Surface` return | 1..MaxDimension, defined mode |
+| `Surface.ResizeToFit(int,int,ResamplingMode)` | Inbound/Outbound | Method call / `Surface` return | 1..MaxDimension, defined mode |
+| `ResamplingMode` | Inbound | Enum argument | Six defined values |
+| `Surface.PremultiplyAlpha()` | Inbound | Method call | None |
+| `Surface.UnpremultiplyAlpha()` | Inbound | Method call | None |
+| `Surface.CompositeOver(Surface)` | Inbound | Method call | Equal dimensions, non-null |
+| `Surface.CompositeOver(Rgba32)` | Inbound | Method call | None |
+| `Surface.CompositeOverSpan(...)` | Inbound | Method call | `y`, `x`+run within bounds |
+| `BmpCodec.Load(...)` | Inbound/Outbound | Method call / `Surface` return | Valid BMP stream or path |
+| `BmpCodec.Save(...)` | Inbound | Method call | `surface` non-null |
+| `PngCodec.Load(...)` | Inbound/Outbound | Method call / `Surface` return | Valid PNG stream or path |
+| `PngCodec.Save(...)` | Inbound | Method call | `surface` non-null |
+| `TiffCodec.Load(...)` | Inbound/Outbound | Method call / `Surface` return | Valid TIFF stream or path |
+| `TiffCodec.Save(...)` | Inbound | Method call | `surface` non-null |
+| `JpegCodec.Load(...)` | Inbound/Outbound | Method call / `Surface` return | Valid JPEG stream or path |
+| `JpegCodec.Save(...)` | Inbound | Method call | `surface` non-null |
+| `GifCodec.Load(...)` | Inbound/Outbound | Method call / `Surface` return | Valid GIF stream or path |
+| `GifCodec.GetInfo(...)` | Inbound/Outbound | Method call / `ImageInfo` | Valid GIF stream or path |
+| `Jpeg2000Codec.Load(...)` | Inbound/Outbound | Method call / `Surface` return | Valid JPEG 2000 stream/path |
+| `Jpeg2000Codec.GetInfo(...)` | Inbound/Outbound | Method call / `ImageInfo` | Valid JPEG 2000 stream/path |
+| `Jpeg2000Codec.Decode(...)` | Inbound/Outbound | Method call / `Jpeg2000Image` | Valid JPEG 2000 stream/bytes |
+| `Jpeg2000DecoderLimits` | Inbound | `Decode(...)` argument | Positive limits |
+| `Rect.Union(...)` | Inbound/Outbound | Method call / `Rect` return | None |
+| `Rect.Intersect(...)` | Inbound/Outbound | Method call / `Rect` return | None |
+| `Rect.Transform(Matrix3x2)` | Inbound/Outbound | Method call / `Rect` return | None |
+| `PathBuilder.*To(...)` | Inbound/Outbound | Method call / `this` return | Called after `MoveTo` |
+| `PathBuilder.Build()` | Outbound | Method call / `Path` return | None |
+| `PathBuilder.AppendPath(...)` | Inbound/Outbound | Method call / `this` return | `path` not null |
+| `Path.GetBounds(float)` | Outbound | Method call / `Rect` return | None |
+| `BezierFlattening.Flatten*(...)` | Inbound/Outbound | Method call / list append | `tolerance` greater than zero |
+| `SvgArcConverter.ToBeziers(...)` | Inbound/Outbound | Method call / list append | None |
+| `CornerRoundEffect.Apply(...)` | Inbound/Outbound | Method call / `Path` return | Non-null; radius/tol >= 0 |
+| `PathFiller.Fill(...)` | Inbound | Method call | Non-null; fillRule ok; tol>0 |
+| `StrokeStyle(...)` | Inbound | Constructor call | Width > 0; valid style data |
+| `PathStroker.Stroke(...)` | Inbound/Outbound | Method call / `Path` return | Non-null; tol > 0 |
+| `TrueTypeFont.Load(...)` | Inbound/Outbound | Method / `TrueTypeFont` | Valid TrueType stream or path |
+| `TrueTypeFont.GetGlyphIndex(int)` | Outbound | Method / `int` | Any Unicode codepoint |
+| `TrueTypeFont.GetGlyphOutline(int)` | Outbound | Method / `Path` | `glyphIndex` within range |
+| `TrueTypeFont.GetAdvanceWidth(int)` | Outbound | Method / `int` | `glyphIndex` within range |
+| `TrueTypeFont.GetKerning(int,int)` | Outbound | Method / `int` | Any glyph indices |
+| `SystemFontCatalog.Fonts` | Outbound | Property / list return | None |
+| `SystemFontCatalog.FindBestMatch(...)` | Outbound | Method / `SystemFontInfo?` | None |
+| `SystemFontCatalog.FindInFamily(...)` | Outbound | Method / `SystemFontInfo?` | Non-null faces and family |
+| `SystemFontCatalog.Load(...)` | Outbound | Method / `TrueTypeFont?` | None |
+| `FontDirectoryScanner.Scan(...)` | Outbound | Method / list return | Non-null directory list |
+| `GenericFontFamilies.TryClassify(...)` | Outbound | Method / `bool`, out flags | None |
+| `GenericFontFamilies.SplitFamilyList(...)` | Outbound | Method / list return | None |
+| `FontResolver.Resolve(...)` | Outbound | Method / `ResolvedFont` | None |
+| `SystemFontCatalog.LoadBundledFallback(...)` | Outbound | Method / `TrueTypeFont` | None |
+| `OpcPackage.Open(...)` | Inbound/Outbound | Method / `OpcPackage` | Readable stream; <= 256 MiB |
+| `OpcPackage` part and relationship members | Outbound | Methods / paths, XML, bytes | Non-null arguments |
+| `SafeXml.Load(...)` | Inbound/Outbound | Method / `XDocument` | Positive character bound |
+| `SafeXml.CreateReader(...)` | Outbound | Method / `XmlReader` | Readable stream; bound > 0 |
+| `WordWrap.Pack(...)` | Inbound/Outbound | Method / list of lists | Non-null args; width not NaN |
+| `ImagePosition(...)` and `init` properties | Inbound | Constructor / record | Valid kind and facts |
+| `PositionSelector.Parse(...)` | Inbound/Outbound | Method / `PositionSelector` | 256 chars, 16 predicates max |
+| `PositionSelection.Parse(...)` | Inbound/Outbound | Method / `PositionSelection` | 1 to 32 selectors |
+| `PositionCollector.Offer(...)` | Inbound/Outbound | Method / `bool` | Non-null position; one render |
+
 <!-- markdownlint-enable MD013 -->
 
 ## Dependencies
 
 CanvasNet has one runtime NuGet dependency: `System.Numerics.Tensors`, used by the `Surface`
 unit's vectorized bulk pixel operations (`PremultiplyAlpha`, `UnpremultiplyAlpha`,
-`CompositeOver`) for their `TensorPrimitives`-based numeric work — see _Surface Unit Design_
+`CompositeOver`) for their `TensorPrimitives`-based numeric work — see *Surface Unit Design*
 (`canvas/surface.md`) for details. Every other member of `Surface`, and all of `BmpCodec`,
 `PngCodec`, `TiffCodec`, `JpegCodec`, `GifCodec`, and `Jpeg2000Codec`, are implemented exclusively against the
 .NET Base Class
@@ -562,27 +564,27 @@ with no dependency on `Canvas`, `Drawing`, or `Codecs` (`SystemFontCatalog`'s ho
 `System.IO`/`System.Environment` BCL APIs, with no platform-specific NuGet package). The `Positions` subsystem likewise
 introduces zero new runtime NuGet dependencies: it uses only in-box BCL types (`System.Text.Json.Utf8JsonReader` to read
 a quoted selector string, `System.Globalization`, and LINQ). The following OTS items are used
-for building and verifying this system (not consumed at runtime); see _OTS Integration Design_ (`docs/design/ots.md`)
+for building and verifying this system (not consumed at runtime); see *OTS Integration Design* (`docs/design/ots.md`)
 and each item's dedicated design document for
 details:
 
-- **BuildMark** — generates build-notes documentation; see _BuildMark Design_
+- **BuildMark** — generates build-notes documentation; see *BuildMark Design*
 - **FileAssert** — validates generated documents against acceptance criteria; see
-  _FileAssert Design_
-- **Pandoc** — converts Markdown documentation to HTML; see _Pandoc Design_
-- **ReqStream** — enforces requirements-to-test traceability; see _ReqStream Design_
-- **ReviewMark** — enforces file review coverage and currency; see _ReviewMark Design_
-- **SarifMark** — converts CodeQL SARIF results to markdown; see _SarifMark Design_
-- **SonarMark** — generates SonarCloud quality reports; see _SonarMark Design_
-- **VersionMark** — captures and publishes tool-version information; see _VersionMark Design_
-- **WeasyPrint** — converts HTML documentation to PDF; see _WeasyPrint Design_
-- **xUnit** — executes unit and integration tests; see _xUnit Design_
+  *FileAssert Design*
+- **Pandoc** — converts Markdown documentation to HTML; see *Pandoc Design*
+- **ReqStream** — enforces requirements-to-test traceability; see *ReqStream Design*
+- **ReviewMark** — enforces file review coverage and currency; see *ReviewMark Design*
+- **SarifMark** — converts CodeQL SARIF results to markdown; see *SarifMark Design*
+- **SonarMark** — generates SonarCloud quality reports; see *SonarMark Design*
+- **VersionMark** — captures and publishes tool-version information; see *VersionMark Design*
+- **WeasyPrint** — converts HTML documentation to PDF; see *WeasyPrint Design*
+- **xUnit** — executes unit and integration tests; see *xUnit Design*
 
 ## Risk Control Measures
 
 N/A - CanvasNet currently has no safety-critical functionality requiring risk control
 measures (IEC 62304 §5.3.3). The security controls for the files a document references are not safety
-segregation; they are described under _Design Constraints_ (_File Access Threat Model_).
+segregation; they are described under *Design Constraints* (*File Access Threat Model*).
 
 ## Data Flow
 
@@ -847,12 +849,12 @@ segregation; they are described under _Design Constraints_ (_File Access Threat 
 The library targets the following frameworks, enabling compatibility across modern
 .NET runtimes:
 
-| Target Framework | Runtime / Environment                                   |
-| ---------------- | ------------------------------------------------------- |
-| `net8.0`         | .NET 8 LTS (end of support; kept for library consumers) |
-| `net9.0`         | .NET 9 STS (end of support; kept for library consumers) |
-| `net10.0`        | .NET 10 LTS                                             |
-| `net11.0`        | .NET 11                                                 |
+| Target Framework | Runtime / Environment |
+| --- | --- |
+| `net8.0` | .NET 8 LTS (end of support; kept for library consumers) |
+| `net9.0` | .NET 9 STS (end of support; kept for library consumers) |
+| `net10.0` | .NET 10 LTS |
+| `net11.0` | .NET 11 |
 
 The library is supported on the following operating systems:
 
@@ -867,7 +869,7 @@ BCL API provides and which a race-free file-access check needs. It calls `kernel
 (`GetFinalPathNameByHandleW`, `GetFileType`, `CreateFileW`, `GetLongPathNameW`), the C library on Linux
 (`open`, `fstat`) together with `/proc/self/fd`, and the C library on macOS (`open`, `proc_pidfdinfo`,
 `fstat`, `realpath`).
-These calls are confined to that one unit (see _RealPath Unit Design_), use no unsafe code, and fail
+These calls are confined to that one unit (see *RealPath Unit Design*), use no unsafe code, and fail
 closed: where they are unavailable, the default file-access policy still works and every restrictive
 policy refuses the file. No other platform-specific native interop or framework-version-specific feature
 is used.
@@ -902,4 +904,5 @@ is used.
 - **CI/CD Integration**: Automated build, test, and quality validation
 - **Requirements Traceability**: All features linked to passing tests
 - **Review Management**: Systematic file review using ReviewMark patterns
+
 <!-- cspell:ignore Outliner -->

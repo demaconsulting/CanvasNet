@@ -16,7 +16,7 @@ value types holding 64-bit floating-point components:
 `DoublePrecisionMath` provides the double-precision vector, matrix, and bounding-box arithmetic the
 rest of `CanvasNetRender3D` is built on. Keeping all model-space math in 64-bit floating point is
 what lets the renderer place geometry far from the origin without visible precision loss (see
-_CanvasNetRender3D System Design_, `../../canvas-net-render3d.md`, Coordinate and Precision
+*CanvasNetRender3D System Design*, `../../canvas-net-render3d.md`, Coordinate and Precision
 Conventions). The unit exists in this repository rather than reusing `System.Numerics` because the
 BCL's vector and matrix types are single precision.
 

@@ -16,32 +16,32 @@ core `Surface`. It is **internal**: its types are visible only to the other subs
   `SceneGradient` and `SceneGradientStop`, the value types `ScenePoint`, `ScenePathSegment`, `SceneTrailPoint`,
   `SceneClip`, and `SceneEntry`, `SceneBounds`, `SceneLists`, and the `SceneBudget`, and the internal position data
   (`SceneItem.Position` with `ScenePositionTag`, `SceneItem.Datum`, `SceneGroup.Marks` with `SceneMarkContext`, and the
-  `Vertices` of a path or trail, `SceneVertex`); see _SceneModel Unit Design_
+  `Vertices` of a path or trail, `SceneVertex`); see *SceneModel Unit Design*
   (`scenegraph/scene-model.md`)
 - **ScenePainter** - the internal `ScenePainter` (a partial class in `ScenePainter.cs`, `ScenePainter.Paths.cs`, and
   `ScenePainter.Images.cs`), `ScenePlacement`, and `SceneImageSource` (the loader of the pictures of one painting):
   drawing a scene onto a `Surface` with fills (solid or linear gradient), strokes, dashes, miter limits,
   opacity, rotation, uniform scale, clipping, paths with curved segments, arcs, trails, pictures, and text; see
-  _ScenePainter Unit
-  Design_ (`scenegraph/scene-painter.md`)
+  *ScenePainter Unit
+  Design* (`scenegraph/scene-painter.md`)
 - **CssPaint** - the internal static `CssPaint`: the paint rules of a chart (no paint, opacity) on top of the core
-  `CssColor` parser; see _CssPaint Unit Design_ (`scenegraph/css-paint.md`)
+  `CssColor` parser; see *CssPaint Unit Design* (`scenegraph/css-paint.md`)
 - **ArcGeometry** - the internal static `ArcGeometry` and the helper `ArcPathWriter`: the outline of a circular or
   annular
-  sector (the d3-shape arc generator, with its pad angle and corner radius) as a core `Path`; see _ArcGeometry Unit
-  Design_ (`scenegraph/arc-geometry.md`)
+  sector (the d3-shape arc generator, with its pad angle and corner radius) as a core `Path`; see *ArcGeometry Unit
+  Design* (`scenegraph/arc-geometry.md`)
 - **SymbolPathParser** - the internal sealed `SymbolPathParser`: the parser, the canvas-rule drawing, and the bounds of
   the SVG path data of a custom symbol shape (a port of vega-scenegraph's path parser and renderer), with a cache of
-  parsed paths; see _SymbolPathParser Unit Design_ (`scenegraph/symbol-path-parser.md`)
+  parsed paths; see *SymbolPathParser Unit Design* (`scenegraph/symbol-path-parser.md`)
 - **ScenePositions** - the internal static `ScenePositions`: the feature positions of a laid-out chart (titles, views,
-  axes, legends, and marks) with their canonical view paths, ids, normalized values, data fields, geometry boxes, and attachment
-  pixels in the pixels of the surface; see _ScenePositions Unit Design_ (`scenegraph/scene-positions.md`)
+  axes, legends, and marks) with their canonical view paths, ids, normalized values, data fields, geometry boxes, and
+  attachment pixels in the pixels of the surface; see *ScenePositions Unit Design* (`scenegraph/scene-positions.md`)
 
 The subsystem's namespace documentation is in `Scenegraph/NamespaceDoc.cs`. Its behavior is specified by the
 `CanvasNetVegaLite-Scenegraph-*` requirements in `docs/reqstream/canvas-net-vega-lite/scenegraph.yaml`. The SysML2 model
 names the subsystem `VegaLiteScenegraph`, the scene unit `VegaLiteSceneModel`, and the positions unit
-`VegaLiteScenePositions` (see _CanvasNetVegaLite System
-Design_).
+`VegaLiteScenePositions` (see *CanvasNetVegaLite System
+Design*).
 
 ### Interfaces
 

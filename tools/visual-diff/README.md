@@ -260,8 +260,8 @@ is their vector file.
   of `--out`). It runs only in Chrome, never in Node: the cose layout of mindmaps is chaotic, so its results depend on
   the last bit of every sine, cosine, logarithm and power, and Node's `Math` differs from Chrome's. The script extracts
   cytoscape, layout-base, cose-base and cytoscape-cose-bilkent from mermaid's source map (it checks their paths and
-  versions), runs Mermaid's `createCytoscapeInstance` on seeded trees and on three mindmaps that the pinned mermaid draws
-  in the same browser (the replay must give what mermaid drew), and records every node center, every edge's start,
+  versions), runs Mermaid's `createCytoscapeInstance` on seeded trees and on three mindmaps that the pinned mermaid
+  draws in the same browser (the replay must give what mermaid drew), and records every node center, every edge's start,
   middle and end point, and the iteration count, or the error. It fails when `Math.random` is called during a layout or
   when a layout does not take the radial (flat forest) path. `js-math.json` holds Chrome's `Math.sin` and `Math.cos` of
   seeded angles and of every angle the layouts used, `Math.log` of seeded values and of the layouts' arguments, and

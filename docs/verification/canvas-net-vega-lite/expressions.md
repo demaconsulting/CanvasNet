@@ -14,8 +14,8 @@ the evaluation, never the host's time zone.
 
 ### Verification Approach
 
-The `Expressions` subsystem is verified at three tiers. The unit tests (see _ExpressionParser Unit Verification
-Design_, _ExpressionEvaluator Unit Verification Design_, and _ExpressionFunctions Unit Verification Design_ under
+The `Expressions` subsystem is verified at three tiers. The unit tests (see *ExpressionParser Unit Verification
+Design*, *ExpressionEvaluator Unit Verification Design*, and *ExpressionFunctions Unit Verification Design* under
 `expressions/`) verify each unit in isolation, including its internal types. The subsystem-level scenarios verify the
 three units working together on the texts that the specification parser hands over: the parser compiles an expression
 and collects the constructs it does not execute and the parameter names it reads; the evaluator runs the compiled
@@ -23,7 +23,7 @@ program against a table row, a value, or the parameter environment of a call and
 its function context; the function context charges size-proportional work to the same step budget as the instructions
 and holds the limits and the regular-expression cache; and the results are the `DataValue` model of the `Data`
 subsystem, which holds arrays, objects, and regular expressions beside the scalars (see the composite-value scenario of
-the _Data Subsystem Verification Design_). The unit tests already use this combination, because the parser is the only
+the *Data Subsystem Verification Design*). The unit tests already use this combination, because the parser is the only
 source of a compiled program and the evaluator is the only caller of the function table, so the subsystem-level
 scenarios name the unit tests that cross the boundary and the system-level scenarios that exercise the subsystem
 through the public API.
@@ -142,7 +142,7 @@ runs constitutes a failure.
   `DataLoaderCalendarTests.ExpressionEvaluator_Constructor_ForwardsTheCalendar`,
   `DataLoaderCalendarTests.DataLoader_Render_TimeZoneOptionReachesTheDataStage` — the calendar that the evaluator is
   given reaches the context and from it every local date function: `datetime(2024, 1, 29, 12, 34, 56, 789)` is
-  1,709,210,096,789 ms (the hand derivation is in the _ExpressionFunctions Unit Verification Design_: 19,782 days x
+  1,709,210,096,789 ms (the hand derivation is in the *ExpressionFunctions Unit Verification Design*: 19,782 days x
   86,400 s + 45,296 s, then x 1,000 + 789), at +05:30 the instant 2024-02-29T20:00Z has the wall time 01:30 on March 1
   (day of year 61) while the UTC getters keep the 29th, a month offset of January 31 is March 2 in the leap year 2024,
   a local day across the daylight-saving change of 2024-03-10 is 23 hours, the formats and the names do not depend on

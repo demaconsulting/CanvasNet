@@ -23,15 +23,16 @@ at 16 + 5.56, rounded up to 22) = 34.
 **Symbols of the path, text, and arc marks.** Vega-Lite gives the symbol of a legend the paint that its mark uses: the
 symbol is filled when the mark is filled, except for a trail (the legend encoding reads "filled and not a trail"), so a
 trail, which is filled by default, has a stroke symbol painted with the stroke color. The shape is the short line named
-`stroke` for a line, a rule, and a trail, and the circle of the legend (the `symbolType` of the legend, then a circle) for
-an area, an arc, and a text, which are filled. With the categories a, b, and c (the first three colors of the default
-scheme, `#4c78a8`, `#f58518`, and `#e45756`, in the order of the domain) a line therefore has three `stroke` symbols
-whose stroke is the color of the entry and whose fill is transparent, a rule and a trail the same shape and color, and an
-area, an arc, and a text three circles of the default symbol size 100 filled with the colors and with no stroke. The
-width of the line of a `stroke` symbol is the default stroke width of a legend symbol, 1.5, because the legend encoding
-of Vega-Lite does not read the width 2 of Vega's line style, while a `strokeWidth` of 5 on the mark is the width of the
-symbols, and the `symbolType` of the legend replaces the default shape of the mark (a circle for a line). A nominal
-`size` channel on a text mark is a font size and is shown as the symbol size, so its three entries differ in size.
+`stroke` for a line, a rule, and a trail, and the circle of the legend (the `symbolType` of the legend, then a circle)
+for an area, an arc, and a text, which are filled. With the categories a, b, and c (the first three colors of the
+default scheme, `#4c78a8`, `#f58518`, and `#e45756`, in the order of the domain) a line therefore has three `stroke`
+symbols whose stroke is the color of the entry and whose fill is transparent, a rule and a trail the same shape and
+color, and an area, an arc, and a text three circles of the default symbol size 100 filled with the colors and with no
+stroke. The width of the line of a `stroke` symbol is the default stroke width of a legend symbol, 1.5, because the
+legend encoding of Vega-Lite does not read the width 2 of Vega's line style, while a `strokeWidth` of 5 on the mark is
+the width of the symbols, and the `symbolType` of the legend replaces the default shape of the mark (a circle for a
+line). A nominal `size` channel on a text mark is a font size and is shown as the symbol size, so its three entries
+differ in size.
 
 **Gradient legends.** A continuous color over 1 to 3 on a 300 pixel view has a bar of 16 by 200 pixels (the height
 limited to 64 to 200) and asks for max(2, 2 x floor(200 / 100)) = 4 ticks (d3 steps of 0.5: five labels from the
@@ -66,10 +67,10 @@ through the public API and reads the opacity of the `legend-symbol` and `legend-
 
 #### Test Environment
 
-+ **Framework**: xUnit v3 running under the .NET SDK
-+ **Execution**: `dotnet test` invoked by `build.ps1` and the CI pipeline
-+ **Mocking**: None required
-+ **Isolation**: Each test builds its own specification; the bundled Liberation fonts only (the widths in the
+- **Framework**: xUnit v3 running under the .NET SDK
+- **Execution**: `dotnet test` invoked by `build.ps1` and the CI pipeline
+- **Mocking**: None required
+- **Isolation**: Each test builds its own specification; the bundled Liberation fonts only (the widths in the
   expectations are measured with the same measurer, so no host font enters); no files, clock, or shared state; the
   limits are exercised with small values of `VegaLiteLimits` and a pre-canceled token, never with timing
 
@@ -116,8 +117,8 @@ the shape, stroke, and size of its channels.
 `LegendBuilderTests.LegendBuilder_Symbol_ValuesFormatAndSymbolPropertiesApply`
 
 Assert the geometry and looks derived above, the seven tick entries with one decimal for a size, the limit with the
-ellipsis entry, the range labels, the fixed and base paints, the scaled opacity, stroke width, and dash, and the explicit
-values, format, and symbol properties.
+ellipsis entry, the range labels, the fixed and base paints, the scaled opacity, stroke width, and dash, and the
+explicit values, format, and symbol properties.
 
 ##### Symbols Of Path, Text, And Arc Marks
 
@@ -128,24 +129,21 @@ values, format, and symbol properties.
 `LegendBuilderPathMarkTests.LegendBuilder_Build_LineSizeLegendScalesTheSymbolSize`
 
 Assert, for a line over two quantitative positions with a nominal color of three categories, that the legend has three
-symbols of the shape `stroke` whose stroke is `#4c78a8`, `#f58518`, and `#e45756`, whose fill is `transparent`, and whose
-stroke width is 1.5; that a `strokeWidth` of 5 on the mark is the width of every symbol; that a legend `symbolType` of
-`circle` replaces the shape; and that a rule and a trail have the shape `stroke` as well, the trail with the category
-colors as its stroke even though a trail is filled (the trail legend rule above). Assert, for an area over two
-positions, an arc over a quantitative `theta`, and a text mark, each with the same color, that the three symbols are
+symbols of the shape `stroke` whose stroke is `#4c78a8`, `#f58518`, and `#e45756`, whose fill is `transparent`, and
+whose stroke width is 1.5; that a `strokeWidth` of 5 on the mark is the width of every symbol; that a legend
+`symbolType` of `circle` replaces the shape; and that a rule and a trail have the shape `stroke` as well, the trail with
+the category colors as its stroke even though a trail is filled (the trail legend rule above). Assert, for an area over
+two positions, an arc over a quantitative `theta`, and a text mark, each with the same color, that the three symbols are
 circles of the size 100 whose fill is the three colors and whose stroke is absent or transparent; and that a nominal
 `size` channel on the text mark gives three symbols of three different sizes. Assert, for a trail whose `size` is the
-quantitative field with the
-values 1, 3, 6, and 9 (the size range 1 to 4 over the domain 0 to 9), that the legend has the five entries 0, 2, 4, 6,
-and 8 whose
-symbols are `stroke` symbols of the size 100, transparent fill, and stroke `#4c78a8`, with the stroke widths 1, 1 + 3 *2
-/ 9, 1 + 3* 4 / 9, 3, and 1 + 3 * 8 / 9 (the oracle
-values 1, 1.667, 2.333, 3, and 3.667), and the labels start at 18 (the symbol column is `ceil(10 + 3.667) = 14` wide and
-the label offset 4); for a nominal trail size of four
-categories, the widths 1, 2, 3, and 4 and the size 100; for a trail whose color and size are the same field, one legend
-whose symbols have the category colors as the stroke and those widths;
-for an explicit `symbolSize` of 400, the size 400; and, for a line with the same size, the symbol sizes 1, 1.667, 2.333,
-3, and 3.667 with the stroke width 1.5.
+quantitative field with the values 1, 3, 6, and 9 (the size range 1 to 4 over the domain 0 to 9), that the legend has
+the five entries 0, 2, 4, 6, and 8 whose symbols are `stroke` symbols of the size 100, transparent fill, and stroke
+`#4c78a8`, with the stroke widths 1, 1 + 3 *2 / 9, 1 + 3* 4 / 9, 3, and 1 + 3 * 8 / 9 (the oracle values 1, 1.667,
+2.333, 3, and 3.667), and the labels start at 18 (the symbol column is `ceil(10 + 3.667) = 14` wide and the label offset
+4); for a nominal trail size of four categories, the widths 1, 2, 3, and 4 and the size 100; for a trail whose color and
+size are the same field, one legend whose symbols have the category colors as the stroke and those widths; for an
+explicit `symbolSize` of 400, the size 400; and, for a line with the same size, the symbol sizes 1, 1.667, 2.333, 3, and
+3.667 with the stroke width 1.5.
 
 ##### Grid
 
@@ -236,19 +234,19 @@ point mark are the subject. Without `clipHeight` there is no clipping group, the
 entry group at 6, 24, and 42 (the pitch of 18 above), and the roles are `legend-symbol` and `legend-label` in turn. With
 a `clipHeight` of 30 (taller than the 12-pixel symbols) the entry groups, which are the `legend-symbol-clip` groups, are
 at 0, 32, and 64 (the height plus the row padding of 2), each symbol is at (6, 15) in its group, the labels at (16, 15),
-(16, 47), and (16, 79), the clip rectangle of each is (0, 0) to the width of the widest label and 30 high, and the legend
-is as high as its entry origin plus 94 (64 + 30). With 10 (smaller than the symbols) the groups are at 0, 12, and 24, the
-symbols at (6, 5), the clip rectangles 10 high, and the legend 34 below the origin of the entries. With 4 the label (10
-high, centered at 2) reaches below the group, so the bounds of the entry are the label's united with the rectangle from
-(0, 0) to (0, 4) and the clip rectangle is as high as the bottom edge of those bounds (`bounds.y2 - y` = 7, the label
-not clipped), the pitch is 12 and the legend 31 below the origin. With `columns: 2` and `orient: top` the first column
-holds the entries 0 and 2 and the second the entry 1: the entries are at (0, 0), (ceil(first column width) + 10, 0), and
-(0, 12), and the clip width of an entry is the width of the widest entry of its column (the entry 2, `zzz`, for the
-first). With `symbolSize: 900`, `rowPadding: 5`, and `clipHeight: 20` the symbol is 32 wide at (16, 10), the labels
-start at 36, the pitch is 25 (0, 25, 50), and the legend is 70 below the origin. A gradient legend with a `clipHeight` of
-50 has the same size as without it and no clipping group (Vega-Lite passes 20 for a gradient and the gradient parser
-never reads it). A `clipHeight` of 0 is not truthy and draws the legend as without it, and the `clipHeight` of
-`config.legend` (30) is read and gives the entries at 0, 32, and 64.
+(16, 47), and (16, 79), the clip rectangle of each is (0, 0) to the width of the widest label and 30 high, and the
+legend is as high as its entry origin plus 94 (64 + 30). With 10 (smaller than the symbols) the groups are at 0, 12, and
+24, the symbols at (6, 5), the clip rectangles 10 high, and the legend 34 below the origin of the entries. With 4 the
+label (10 high, centered at 2) reaches below the group, so the bounds of the entry are the label's united with the
+rectangle from (0, 0) to (0, 4) and the clip rectangle is as high as the bottom edge of those bounds (`bounds.y2 - y` =
+7, the label not clipped), the pitch is 12 and the legend 31 below the origin. With `columns: 2` and `orient: top` the
+first column holds the entries 0 and 2 and the second the entry 1: the entries are at (0, 0), (ceil(first column
+width) + 10, 0), and (0, 12), and the clip width of an entry is the width of the widest entry of its column (the entry
+2, `zzz`, for the first). With `symbolSize: 900`, `rowPadding: 5`, and `clipHeight: 20` the symbol is 32 wide at (16,
+10), the labels start at 36, the pitch is 25 (0, 25, 50), and the legend is 70 below the origin. A gradient legend with
+a `clipHeight` of 50 has the same size as without it and no clipping group (Vega-Lite passes 20 for a gradient and the
+gradient parser never reads it). A `clipHeight` of 0 is not truthy and draws the legend as without it, and the
+`clipHeight` of `config.legend` (30) is read and gives the entries at 0, 32, and 64.
 
 ##### Limits, Cancellation, And Determinism
 
@@ -266,16 +264,13 @@ error of an invalid format, and that two builds give the same items.
 `LegendBuilderTests.LegendBuilder_Gradient_SqrtScalePlacesTheLabelsAlongTheRoot`,
 `LegendBuilderTests.LegendBuilder_Gradient_LogTicksAreLimitedAndCancelable`
 
-Assert, for the readings 1, 10, 100, and 1000 on a log color scale, a gradient legend with the labels `1`, `10`,
-`100`, and
-`1,000` (a count of 4 over 28 log ticks keeps the digit 1: k = 1.43) at the heights 200, 133.3, 66.7, and 0 of the
-200 pixel bar
-(a third per decade), 28 stops at the log ticks whose offsets are the fractions along the logarithm (ln 2 / ln 1000
-for the stop
-of 2, a third for 10) with the colors of the scale at those values; that a log size legend has the entries 1, 10, 100, and
-1,000 with sizes that grow by the same amount per decade; that a square root color legend places 2 and 3 of 1 to 4 at
-`sqrt 2 - 1` and `sqrt 3 - 1` of the bar; and that 28 ticks against a limit of 5 fail with a located error naming the limit
-and a canceled token stops the build.
+Assert, for the readings 1, 10, 100, and 1000 on a log color scale, a gradient legend with the labels `1`, `10`, `100`,
+and `1,000` (a count of 4 over 28 log ticks keeps the digit 1: k = 1.43) at the heights 200, 133.3, 66.7, and 0 of the
+200 pixel bar (a third per decade), 28 stops at the log ticks whose offsets are the fractions along the logarithm (ln 2
+/ ln 1000 for the stop of 2, a third for 10) with the colors of the scale at those values; that a log size legend has
+the entries 1, 10, 100, and 1,000 with sizes that grow by the same amount per decade; that a square root color legend
+places 2 and 3 of 1 to 4 at `sqrt 2 - 1` and `sqrt 3 - 1` of the bar; and that 28 ticks against a limit of 5 fail with a
+located error naming the limit and a canceled token stops the build.
 
 ##### Binned Legends
 
@@ -305,8 +300,8 @@ stops the build.
 `LegendPlanConditionTests.LegendBuilder_Symbol_ConditionalLegendIsDeterministic`
 
 Assert, for circles over three rows, that value conditions on a color, an opacity, and a size plan no legend; that a
-color whose condition holds the field `g` plans one legend (the categories `a`, `b`, `c` in the first three colors of the
-palette, titled `g`), as does a field with a value condition; that the symbols of a size legend are filled with the
+color whose condition holds the field `g` plans one legend (the categories `a`, `b`, `c` in the first three colors of
+the palette, titled `g`), as does a field with a value condition; that the symbols of a size legend are filled with the
 value of the first condition of a color (`red`, not the later `blue` or the base `gray`) and with the base value when
 there is no condition; that the symbols show the largest opacity of the base and condition values (0.9 for 0.2 and 0.9,
 and 0.4 for 0.4 and 0.1); and that building the same legend twice gives equal symbols.
@@ -349,20 +344,20 @@ January 1) are labeled in the order given (`Jan 03, 2024`, `Jan 09, 2024`, `Jan 
 `LegendBuilderTimeTests.LegendBuilder_Time_FormatSpecifierLimits_AreSpecificationErrors`,
 `LegendBuilderTimeTests.LegendBuilder_Time_Culture_InvariantAndDeterministic`
 
-Assert that for dates at 00:00Z on January 1 and 11 in a +05:30 zone the two-day ticks are the local midnights of the odd
-days, whose first (January 1, December 31 18:30Z) lies before the domain, so the labels are January 3 to 11 (five),
-against the six labels from January 1 in UTC; that a color with `scale.type: "utc"` in a zone five hours behind UTC takes
-the UTC calendar and the two-day ticks of the epoch days (2024-01-01 is day 19,723, odd, so the even days 19,724 to
-19,732 give the labels January 2, 4, 6, 8, and 10), the same labels as without a zone, while `type: "time"` in the zone
-gives other labels; that `scale.zero: true` on the temporal color is ignored (the labels stay the six dates of the data,
-not the years back to 1970); that `MaxStringLength` of 10 fails a 12 character label (`Jan 01, 2024`)
-with a located exception naming the limit of 10 while 12 passes with the single label of one explicit value, that the
-six 12-character labels (72 in all) fail under a limit of 40 at the fourth with `together longer than the limit of 40
-characters` and pass under 72, that an hourly `tickCount` over ten days
-(241 ticks) against a `MaxTicks` of 5 fails with a located exception naming `MaxTicks`, and that a canceled token
-throws `OperationCanceledException` while a live token builds the six labels; that a `config.timeFormat` or a legend
-`format` member of 1,025 characters is a located `VegaLiteSpecException` naming `the limit of 1024 characters`; and that
-the labels are the same under the Turkish, German, and invariant cultures and for two calls in a row.
+Assert that for dates at 00:00Z on January 1 and 11 in a +05:30 zone the two-day ticks are the local midnights of the
+odd days, whose first (January 1, December 31 18:30Z) lies before the domain, so the labels are January 3 to 11 (five),
+against the six labels from January 1 in UTC; that a color with `scale.type: "utc"` in a zone five hours behind UTC
+takes the UTC calendar and the two-day ticks of the epoch days (2024-01-01 is day 19,723, odd, so the even days 19,724
+to 19,732 give the labels January 2, 4, 6, 8, and 10), the same labels as without a zone, while `type: "time"` in the
+zone gives other labels; that `scale.zero: true` on the temporal color is ignored (the labels stay the six dates of the
+data, not the years back to 1970); that `MaxStringLength` of 10 fails a 12 character label (`Jan 01, 2024`) with a
+located exception naming the limit of 10 while 12 passes with the single label of one explicit value, that the six
+12-character labels (72 in all) fail under a limit of 40 at the fourth with
+`together longer than the limit of 40 characters` and pass under 72, that an hourly `tickCount` over ten days (241
+ticks) against a `MaxTicks` of 5 fails with a located exception naming `MaxTicks`, and that a canceled token throws
+`OperationCanceledException` while a live token builds the six labels; that a `config.timeFormat` or a legend `format`
+member of 1,025 characters is a located `VegaLiteSpecException` naming `the limit of 1024 characters`; and that the
+labels are the same under the Turkish, German, and invariant cultures and for two calls in a row.
 
 ##### Legends Of The Layers Of A Layered View
 
@@ -381,36 +376,28 @@ the labels are the same under the Turkish, German, and invariant cultures and fo
 `LegendPlanLayerTests.LegendPlan_Create_SingleLayerMatchesTheViewOverloadAndDisableIsHonored`,
 `MarkChannelGatingTests.LegendPlan_Create_ShapeOfALineWithAPointOverlayHasALegendMergedWithTheColorOfTheSameField`
 
-Asserts that layers that color by the same field share one legend with one member and the title of the field; that a line
-with a point overlay whose `shape` and `color` are one field has one legend that holds the color and the shape (its
+Asserts that layers that color by the same field share one legend with one member and the title of the field; that a
+line with a point overlay whose `shape` and `color` are one field has one legend that holds the color and the shape (its
 symbols a circle, a square, and a triangle filled with the colors of the groups, with no stroke of that color, as the
 filled overlay points are), that an overlay object with `filled: false` gives hollow symbols (the color is the stroke),
-that an area with a point overlay has filled symbols too, that a shape of another field has a legend of its own,
-and that with `point: false` there is no shape legend; that the titles
-of different fields on the shared scale join in layer order (`a, b`); that a written title (a channel `title` or a
-`legend.title`) of any layer, first, middle, or last, wins over the derived titles of the others, as Vega-Lite's merge of
-explicit and implicit titles does; that different written titles join (`One, Two`), equal ones are one, and a written
-`null` switches the title off; the `GuideTitle` merge itself (written over derived in either order, derived titles
-joined as distinct parts in order, written titles joined with the lines of an array flattened, a title without text
-neutral, a written `null` winning); that a
-channel that only a later layer has is planned from that layer, with the facts (filled, fixed paint, and opacity) of its
-mark;
-that channels of different layers that explain the same domain (the color of the bars and the shape of the points, both
-by one
-field) share one legend, as channels of one view do; that layers in different scopes have a legend each, in layer order,
-and
-that a scope can differ by channel (a legend for each layer's color and one for the shared size, in the order of the first
-channel); that the legend properties of every layer count as Vega-Lite's `mergeLegendComponent` merges them (the orient
-and values that only the second layer gives are those of the one legend, with the mark of the first layer; of two layers
-that give the number of columns differently the first wins; a `gradient` type and a `symbol` type that differ give
-symbols while a `gradient` type and a silent layer give a gradient); that layers that give different explicit orients
-are
-not merged (a legend for each layer, each with the mark of its layer, also when the layer before them is silent),
-while an
-explicit orient with a silent layer, or the same orient twice, is one legend; and that a single layer plans exactly what
-the view overload plans for the same view and that the legends can
-still
-be switched off.
+that an area with a point overlay has filled symbols too, that a shape of another field has a legend of its own, and
+that with `point: false` there is no shape legend; that the titles of different fields on the shared scale join in layer
+order (`a, b`); that a written title (a channel `title` or a `legend.title`) of any layer, first, middle, or last, wins
+over the derived titles of the others, as Vega-Lite's merge of explicit and implicit titles does; that different written
+titles join (`One, Two`), equal ones are one, and a written `null` switches the title off; the `GuideTitle` merge itself
+(written over derived in either order, derived titles joined as distinct parts in order, written titles joined with the
+lines of an array flattened, a title without text neutral, a written `null` winning); that a channel that only a later
+layer has is planned from that layer, with the facts (filled, fixed paint, and opacity) of its mark; that channels of
+different layers that explain the same domain (the color of the bars and the shape of the points, both by one field)
+share one legend, as channels of one view do; that layers in different scopes have a legend each, in layer order, and
+that a scope can differ by channel (a legend for each layer's color and one for the shared size, in the order of the
+first channel); that the legend properties of every layer count as Vega-Lite's `mergeLegendComponent` merges them (the
+orient and values that only the second layer gives are those of the one legend, with the mark of the first layer; of two
+layers that give the number of columns differently the first wins; a `gradient` type and a `symbol` type that differ
+give symbols while a `gradient` type and a silent layer give a gradient); that layers that give different explicit
+orients are not merged (a legend for each layer, each with the mark of its layer, also when the layer before them is
+silent), while an explicit orient with a silent layer, or the same orient twice, is one legend; and that a single layer
+plans exactly what the view overload plans for the same view and that the legends can still be switched off.
 
 ##### Legend Owners Of Composed Views
 
@@ -448,11 +435,11 @@ stay `a`, `b`, and `c`) while the explicit `legend.labelExpr` gives `a!`, `b!`, 
 `LegendBuilderLabelExprTests.LegendBuilder_Build_LabelExprDiscreteGradientGivesPercAndPerc2`,
 `LegendBuilderLabelExprTests.LegendBuilder_Build_LabelExprTemporalLegendGivesDate`
 
-Asserts that a gradient legend of a quantitative color with the values 0, 25, and 100 gives `round(datum.perc * 100) + '%
-of ' + datum.value + ' #' + datum.index` as `0% of 0 #0`, `25% of 25 #1`, and `100% of 100 #2` (`perc` is the position
-of the tick along the bar, 0 to 1); that a discrete gradient of a quantize scale gives the ends of each class as `perc`
-and `perc2` (`20-40`, `40-60`, `60-80`, and `80-100`); and that the value of a temporal legend is a date
-(`'in ' + year(datum.value)` gives `in 2024`).
+Asserts that a gradient legend of a quantitative color with the values 0, 25, and 100 gives
+`round(datum.perc * 100) + '% of ' + datum.value + ' #' + datum.index` as `0% of 0 #0`, `25% of 25 #1`, and
+`100% of 100 #2` (`perc` is the position of the tick along the bar, 0 to 1); that a discrete gradient of a quantize
+scale gives the ends of each class as `perc` and `perc2` (`20-40`, `40-60`, `60-80`, and `80-100`); and that the value
+of a temporal legend is a date (`'in ' + year(datum.value)` gives `in 2024`).
 
 ##### Legends Bound To A Selection
 
@@ -479,10 +466,10 @@ the legend symbol takes over), and 0.35 and the labels 0.35, 1, and 0.35; that a
 keeps those two entries; that a selection without a value dims nothing; that `config.legend.unselectedOpacity` of 0.2
 replaces 0.35; that the opacity 0.6 of the mark is the opacity of the selected symbol (but not of the label); that a
 `symbolOpacity` of the legend makes the selected symbol 1 (the rule of Vega-Lite has no opacity of the symbol to keep
-then); that the text `"2"` does not hold the number entry 2 of an ordinal field (every entry is dimmed) while the
-number 2 holds it; that a selection without `bind`, and one with another `resolve`, dim nothing; that a selection
-projected over the `color` channel binds the legend of the channel; that the six labels `0` to `10` of the gradient legend
-of a quantitative color over 0 to 10 get the opacities 0.35, 0.35, 1, 0.35, 0.35, and 0.35 for the value 4 while the bar
+then); that the text `"2"` does not hold the number entry 2 of an ordinal field (every entry is dimmed) while the number
+2 holds it; that a selection without `bind`, and one with another `resolve`, dim nothing; that a selection projected
+over the `color` channel binds the legend of the channel; that the six labels `0` to `10` of the gradient legend of a
+quantitative color over 0 to 10 get the opacities 0.35, 0.35, 1, 0.35, 0.35, and 0.35 for the value 4 while the bar
 keeps 1; that a legend that also explains the `opacity` channel keeps the opacities of its symbols and dims its labels;
 that a selection projected over the `color` channel of a field with a `timeUnit` (stored under `month_d`, while the rule
 reads the field `d` of the channel definition, as Vega-Lite does) dims all three entries; that the date of a selection

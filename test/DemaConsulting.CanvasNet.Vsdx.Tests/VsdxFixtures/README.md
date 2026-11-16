@@ -42,7 +42,7 @@ below.
 ## Included Files
 
 | File | Upstream source URL | Exercises |
-| ------ | ----------- | ----------- |
+| --- | --- | --- |
 | `davehoward-test1.vsdx` | <https://raw.githubusercontent.com/dave-howard/vsdx/master/tests/test1.vsdx> | Baseline multi-shape page, basic property sections. |
 | `davehoward-test3-house.vsdx` | <https://raw.githubusercontent.com/dave-howard/vsdx/master/tests/test3_house.vsdx> | Group master with `MasterShape` children, multi-section geometry. |
 | `davehoward-test4-connectors.vsdx` | <https://raw.githubusercontent.com/dave-howard/vsdx/master/tests/test4_connectors.vsdx> | Primary connector worked example, dynamic-connector master, whole-shape glue. |
@@ -64,7 +64,7 @@ Each `davehoward-*.vsdx` file here is byte-for-byte the upstream file at the cor
 below (verified by exact file size against the upstream file before inclusion):
 
 | This folder's file | Upstream source URL |
-| ------ | ----------- |
+| --- | --- |
 | `davehoward-test1.vsdx` | <https://raw.githubusercontent.com/dave-howard/vsdx/master/tests/test1.vsdx> |
 | `davehoward-test3-house.vsdx` | <https://raw.githubusercontent.com/dave-howard/vsdx/master/tests/test3_house.vsdx> |
 | `davehoward-test4-connectors.vsdx` | <https://raw.githubusercontent.com/dave-howard/vsdx/master/tests/test4_connectors.vsdx> |
@@ -79,7 +79,7 @@ Each `jgreywolfvsdxjs-*.vsdx` file here is byte-for-byte the upstream file at th
 below (verified by exact file size against the upstream file before inclusion):
 
 | This folder's file | Upstream source URL |
-| ------ | ----------- |
+| --- | --- |
 | `jgreywolfvsdxjs-basicshapes.vsdx` | <https://raw.githubusercontent.com/jgreywolf/vsdx-js/main/tests/BasicShapes.vsdx> |
 | `jgreywolfvsdxjs-connectors.vsdx` | <https://raw.githubusercontent.com/jgreywolf/vsdx-js/main/tests/Connectors.vsdx> |
 | `jgreywolfvsdxjs-diagramwithstyles.vsdx` | <https://raw.githubusercontent.com/jgreywolf/vsdx-js/main/tests/DiagramWithStyles.vsdx> |

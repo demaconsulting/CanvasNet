@@ -6,9 +6,9 @@ and metadata types of its files), `FeatureCatalog`, `ConfigResolver`, `SpecNorma
 
 ### Verification Approach
 
-The `SpecModel` subsystem is verified at two tiers. The unit tests (see _SpecParser Unit Verification Design_,
-_FeatureCatalog Unit Verification Design_, _ConfigResolver Unit Verification Design_, _SpecNormalizer Unit
-Verification Design_, and _ExpressionReferenceFolder Unit Verification Design_ under `spec-model/`) verify
+The `SpecModel` subsystem is verified at two tiers. The unit tests (see *SpecParser Unit Verification Design*,
+*FeatureCatalog Unit Verification Design*, *ConfigResolver Unit Verification Design*, *SpecNormalizer Unit
+Verification Design*, and *ExpressionReferenceFolder Unit Verification Design* under `spec-model/`) verify
 each unit in isolation, including its internal types. The subsystem-level scenarios verify the five units working
 together: the parser's immutable tree, with its JSON pointers and one-based line and column positions, is the input
 of the feature catalog (which reports the recognized-but-unsupported constructs at those locations), of the
@@ -146,12 +146,12 @@ scenario in the five unit verification documents passes without error or unexpec
   `FeatureCatalogLabelExprAndOffsetTests.FeatureCatalog_Visit_OffsetsAreReportedOnlyWhenTheyAreNotDrawn`,
   `FeatureCatalogTests.FeatureCatalog_Visit_LegendsAreDrawnAndOnlyTheirUnsupportedPropertiesAreReported`,
   `VegaLitePhase14SystemTests.CanvasNetVegaLite_SystemIntegration_ScaleInvalid_AnUnreadableEntryIsReported`,
-  `VegaLitePhase14SystemTests.CanvasNetVegaLite_SystemIntegration_Offset_ATemporalOffsetOfABarIsStillReported` — the five
-  entries of `config.scale.invalid` that are neither `"zero-or-min"` nor an object with a number or text `value` (an
-  expression reference is reported by `vl-expr-ref` instead) are
-  reported once each, at the entry, as `vl-scale-invalid-value`; a quantitative offset of a bar over a nominal position
-  (a ranged offset) is not reported while a temporal one is `vl-offset-ranged`; and a `legend.clipHeight` is not reported
-  (`vl-guide-legend-clipheight` is retired) while `legend.encode` still is `vl-guide-encode`.
+  `VegaLitePhase14SystemTests.CanvasNetVegaLite_SystemIntegration_Offset_ATemporalOffsetOfABarIsStillReported` — the
+  five entries of `config.scale.invalid` that are neither `"zero-or-min"` nor an object with a number or text `value`
+  (an expression reference is reported by `vl-expr-ref` instead) are reported once each, at the entry, as
+  `vl-scale-invalid-value`; a quantitative offset of a bar over a nominal position (a ranged offset) is not reported
+  while a temporal one is `vl-offset-ranged`; and a `legend.clipHeight` is not reported (`vl-guide-legend-clipheight` is
+  retired) while `legend.encode` still is `vl-guide-encode`.
 - **Time Constructs Are Validated At Open, Written As Expressions, And Reported Only Where They Are Not Applied**:
   `SpecParserTimeTests.SpecParser_TimeUnit_AcceptsEveryName`,
   `SpecParserTimeTests.SpecParser_TimeUnit_UnknownUnitIsLocated`,

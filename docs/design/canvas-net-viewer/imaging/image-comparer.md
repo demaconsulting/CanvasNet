@@ -6,9 +6,9 @@
 
 #### Purpose
 
-`ImageComparer` is the compare operation of the library: it brings two inputs to one size, measures how much they differ,
-checks the thresholds, and writes the pictures of the differences that were asked for. Its single responsibility is the
-order of that chain; the measures and the pictures are computed by the core `Surface`, the thresholds by
+`ImageComparer` is the compare operation of the library: it brings two inputs to one size, measures how much they
+differ, checks the thresholds, and writes the pictures of the differences that were asked for. Its single responsibility
+is the order of that chain; the measures and the pictures are computed by the core `Surface`, the thresholds by
 `ImageComparison`, the loading by `SourceLoader`, and the writing by `ImageWriter`. It is the library form of the
 `compare` command of the `canvasnet` tool. The unit is the static class `ImageComparer` (`ImageComparer.cs`) with the
 request and result records.
@@ -42,16 +42,16 @@ and the maximum difference on the 0 to 255 scale, the differing-pixel ratio as a
 
 #### Key Methods
 
-**Execute(request)**: first refuses a request with a missing member (`ArgumentNullException`: the inputs with their label,
-facts, and options, the thresholds, and the write options). It then checks what needs no pixels: the pictures' formats
-(`ImageWriter.ResolveFormat`, with the format of the write options when set, else the extension of each output) and paths
-(`CheckTargets` against both inputs, and two pictures may not be the same file). It then loads both inputs, a vector
-input at the size of the target and a raster input at its own size fitted into it with `Surface.FitInto` (flattened
-over the background); inputs of different sizes without a resize are `size-mismatch`, and a grid with more cells than
-pixels in a direction is a `usage-error`. It then measures with `Surface.Compare` (tolerance and grid of the request),
-checks the thresholds with `ImageComparison.Evaluate`, draws the pictures with `Surface.CreateDiff`,
-`CreateOverlay`, and `CreateSideBySide`, stages them, and publishes them all together with `ImageWriter.PublishAll`.
-A threshold that is not met is data (`ThresholdCheck.Passed` is `false`), not an exception: the pictures are written, and
+**Execute(request)**: first refuses a request with a missing member (`ArgumentNullException`: the inputs with their
+label, facts, and options, the thresholds, and the write options). It then checks what needs no pixels: the pictures'
+formats (`ImageWriter.ResolveFormat`, with the format of the write options when set, else the extension of each output)
+and paths (`CheckTargets` against both inputs, and two pictures may not be the same file). It then loads both inputs, a
+vector input at the size of the target and a raster input at its own size fitted into it with `Surface.FitInto`
+(flattened over the background); inputs of different sizes without a resize are `size-mismatch`, and a grid with more
+cells than pixels in a direction is a `usage-error`. It then measures with `Surface.Compare` (tolerance and grid of the
+request), checks the thresholds with `ImageComparison.Evaluate`, draws the pictures with `Surface.CreateDiff`,
+`CreateOverlay`, and `CreateSideBySide`, stages them, and publishes them all together with `ImageWriter.PublishAll`. A
+threshold that is not met is data (`ThresholdCheck.Passed` is `false`), not an exception: the pictures are written, and
 the caller decides what the miss means (the tool fails with the code `threshold-failed` and still prints the result).
 
 **Input fragment.** The page of the `SourceInfo.Selection` of an input replaces the `Page` of its `CompareInput`

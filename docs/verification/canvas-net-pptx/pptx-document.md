@@ -69,10 +69,9 @@ actually fail if the implementation is wrong.
 `PptxImageSource_Render_RequestedSize_FitsSlideInsideBoxKeepingAspectRatio`,
 `PptxImageSource_Render_SizeBeyondRemainingPixels_IsRefusedBeforeDrawing`,
 `PptxImageSource_Render_SkippedPicture_ReturnsDiagnosticOrThrowsWhenStrict`,
-`PptxImageSource_Render_InvalidInput_Throws`,
-`PptxImageSource_Properties_NameExtensionAndNoSchemes`, `PptxImageSource_Render_NoFragmentOrPageOne_DrawsFirstSlide`,
-`PptxImageSource_Render_SlideOrPageTwo_DrawsSecondSlide`, `PptxImageSource_Render_SlideBeyondTheLastOrInvalid_IsRefused`,
-`PackageImageSources_FragmentParameters_AreDeclared`
+`PptxImageSource_Render_InvalidInput_Throws`, `PptxImageSource_Properties_NameExtensionAndNoSchemes`,
+`PptxImageSource_Render_NoFragmentOrPageOne_DrawsFirstSlide`, `PptxImageSource_Render_SlideOrPageTwo_DrawsSecondSlide`,
+`PptxImageSource_Render_SlideBeyondTheLastOrInvalid_IsRefused`, `PackageImageSources_FragmentParameters_AreDeclared`
 
 `PptxImageSourceTests.cs` calls `PptxImageSource.Render` with requests built by hand over a one-slide presentation
 assembled by the

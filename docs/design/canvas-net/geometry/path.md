@@ -19,13 +19,13 @@ rendering loop.
 
 #### Data Model
 
-| Type              | Description                                                                   |
-| ----------------- | ----------------------------------------------------------------------------- |
-| `PathCommandType` | Enum: `LineTo`, `QuadraticBezierTo`, `CubicBezierTo`, `ArcTo`, `Close`.       |
-| `PathCommand`     | Readonly struct tagged union carrying `Type` plus the fields relevant to it.  |
-| `Subpath`         | Readonly struct: `Start` (`Vector2`), `Commands` (list), `IsClosed` (`bool`). |
-| `Path`            | Sealed class: `Subpaths` (`IReadOnlyList<Subpath>`); no public constructor.   |
-| `PathBuilder`     | Sealed class: mutable, fluent; produces `Path` via `Build()`.                 |
+| Type | Description |
+| --- | --- |
+| `PathCommandType` | Enum: `LineTo`, `QuadraticBezierTo`, `CubicBezierTo`, `ArcTo`, `Close`. |
+| `PathCommand` | Readonly struct tagged union carrying `Type` plus the fields relevant to it. |
+| `Subpath` | Readonly struct: `Start` (`Vector2`), `Commands` (list), `IsClosed` (`bool`). |
+| `Path` | Sealed class: `Subpaths` (`IReadOnlyList<Subpath>`); no public constructor. |
+| `PathBuilder` | Sealed class: mutable, fluent; produces `Path` via `Build()`. |
 
 **Architectural decision: `Subpaths`/`Commands` are wrapped in `ReadOnlyCollection<T>`, not just
 typed as `IReadOnlyList<T>`.** `IReadOnlyList<T>` only hides mutating members from the
@@ -58,7 +58,7 @@ its own.
 pre-inspects or pre-converts its `radius`/`rotationDegrees`/`largeArc`/`sweep`/`end` parameters;
 it stores them verbatim in a `PathCommand.ArcTo` value. Conversion to cubic Bezier segments is
 performed lazily, only when a consumer actually needs it (for example, `Path.GetBounds`), via
-`SvgArcConverter` - see _SvgArcConverter Unit Design_ (`svg-arc-converter.md`). A consumer that
+`SvgArcConverter` - see *SvgArcConverter Unit Design* (`svg-arc-converter.md`). A consumer that
 never needs Bezier segments (for example, a hit-testing implementation with its own arc math)
 never pays for the conversion.
 

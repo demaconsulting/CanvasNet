@@ -48,8 +48,8 @@ checked). Returns the root object.
 order mark. An unmodified element is written with the same content (a number keeps its text), so a document Pandoc
 wrote and the filter did not change is written back byte for byte.
 
-**FindAll(document, type)**: returns every JSON object whose `t` is the type, in the order Pandoc's Lua filter visits it:
-the metadata first, then the blocks, each in document order, and a node's children before the node (post-order). It
+**FindAll(document, type)**: returns every JSON object whose `t` is the type, in the order Pandoc's Lua filter visits
+it: the metadata first, then the blocks, each in document order, and a node's children before the node (post-order). It
 uses an explicit stack, so a deep document cannot overflow the call stack. The engine calls it once for `Image` and once
 for `CodeBlock`, which matches Pandoc's type-by-type traversal (every `Image` before any `CodeBlock`).
 
@@ -94,5 +94,5 @@ Every failure is a `ToolException` with the code `corrupt-input` (`ErrorCodes.Co
 
 - **PandocFilterEngine** - parses the input, finds the images and code blocks, reads and rewrites them, builds the
   replacement elements and caption placeholders, sets the warnings, and writes the output.
-- **canvasnet.lua** (the shim, see _PandocFilterShim_) - relies on the `canvasnet-warnings` key and the
+- **canvasnet.lua** (the shim, see *PandocFilterShim*) - relies on the `canvasnet-warnings` key and the
   `canvasnet-markdown` placeholder this unit defines; it does not call the class.

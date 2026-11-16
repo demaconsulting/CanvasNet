@@ -15,7 +15,7 @@ codestream) image and also exposes the decoded color space and opacity channel v
 
 Note: SVG rasterization is not part of this subsystem; it is provided by the separate
 `CanvasNetSvg` system (its own package, `DemaConsulting.CanvasNet.Svg`)
-— see _CanvasNetSvg System Design_ (`../canvas-net-svg.md`) and _SvgCodec Unit Design_
+— see *CanvasNetSvg System Design* (`../canvas-net-svg.md`) and *SvgCodec Unit Design*
 (`../canvas-net-svg/svg-codec.md`).
 
 ### Purpose
@@ -30,24 +30,24 @@ codec's `Load(Stream)`.
 ### Units
 
 - **BmpCodec** — hand-rolled loader/saver for uncompressed 24-bit and 32-bit Windows BMP files;
-  see _BmpCodec Unit Design_ (`codecs/bmp-codec.md`)
+  see *BmpCodec Unit Design* (`codecs/bmp-codec.md`)
 - **PngCodec** — hand-rolled saver for 8-bit-per-channel Truecolor and Truecolor-with-alpha,
   non-interlaced PNG files, and hand-rolled loader for every non-interlaced, spec-valid PNG
-  color type/bit depth combination; see _PngCodec Unit Design_ (`codecs/png-codec.md`)
+  color type/bit depth combination; see *PngCodec Unit Design* (`codecs/png-codec.md`)
 - **TiffCodec** — hand-rolled loader/saver for 8-bit-per-sample RGB, RGBA, and Grayscale,
-  strip-based TIFF 6.0 files; see _TiffCodec Unit Design_ (`codecs/tiff-codec.md`)
+  strip-based TIFF 6.0 files; see *TiffCodec Unit Design* (`codecs/tiff-codec.md`)
 - **JpegCodec** — hand-rolled loader/saver for a common real-world subset of JPEG files; see
-  _JpegCodec Unit Design_ (`codecs/jpeg-codec.md`)
+  *JpegCodec Unit Design* (`codecs/jpeg-codec.md`)
 - **GifCodec** — hand-rolled, decode-only loader for a common real-world subset of GIF files
   (first frame only); `GetInfo` additionally reports the file's true total frame count; see
-  _GifCodec Unit Design_ (`codecs/gif-codec.md`)
+  *GifCodec Unit Design* (`codecs/gif-codec.md`)
 - **Jpeg2000Codec** — hand-rolled, decode-only JPEG 2000 Part 1 decoder (JP2 and raw
   codestreams); `Decode` additionally exposes the decoded color space and opacity channel, and
-  is used by the PDF renderer for `/JPXDecode` images; see _Jpeg2000Codec Unit Design_
+  is used by the PDF renderer for `/JPXDecode` images; see *Jpeg2000Codec Unit Design*
   (`codecs/jpeg2000-codec.md`)
 - **ImageDecoder** — public `ImageFormat` enum, `ImageFormats.Detect`/`FromMediaType` recognizers
   (signature and media type), and `ImageDecoder.Load` dispatcher that decodes a stream or byte span
-  of any of the six formats into a `Surface`; see _ImageDecoder Unit Design_
+  of any of the six formats into a `Surface`; see *ImageDecoder Unit Design*
   (`codecs/image-decoder.md`)
 
 ### Shared Types
@@ -82,11 +82,11 @@ defaults to `true` and is set to `false` by `PngCodec.GetInfo` when the probed f
 per the PNG specification but declares Adam7 interlacing (the one well-formed-but-unsupported
 case), and by `GifCodec.GetInfo` when the first Image Descriptor's compressed data fails the same
 LZW decode `Load` itself performs for that frame (a well-formed container with an undecodable
-payload) — see below and _GifCodec Unit Design_ (`codecs/gif-codec.md`) for the exact rationale.
+payload) — see below and *GifCodec Unit Design* (`codecs/gif-codec.md`) for the exact rationale.
 `FrameCount` defaults to `1` and is overridden only by `GifCodec.GetInfo`, the only codec whose
 file format can legitimately declare more than one frame (an animation); it reports the file's
 true total Image Descriptor count by walking the file's block structure, never resolving any
-frame's decoded pixels into a `Surface` — see _GifCodec Unit Design_ (`codecs/gif-codec.md`) for
+frame's decoded pixels into a `Surface` — see *GifCodec Unit Design* (`codecs/gif-codec.md`) for
 the exact walk. Because `ImageInfo` is a record struct, `CanDecode` and `FrameCount` both
 participate in its generated value equality like every other member.
 
@@ -176,7 +176,7 @@ public static ImageInfo GetInfo(string path);
 
 `GetInfo` exists so callers can triage an untrusted or unknown-source image (for example, before
 allocating a `Surface`) by inspecting only its declared dimensions and channel layout, comparing
-them against `Surface.MaxDimension` (now public — see _Surface Unit Design_,
+them against `Surface.MaxDimension` (now public — see *Surface Unit Design*,
 `canvas/surface.md`) and rejecting suspiciously large images, without paying the cost of decoding
 pixel data that will only be thrown away. Deliberately, **`GetInfo` never enforces
 `Surface.MaxDimension` itself** — it always reports the raw header-declared dimensions, even when
@@ -189,7 +189,7 @@ first frame's compressed pixel data solely to validate `CanDecode` — see this 
 paragraph below for the exact scope and the bound that keeps this attempt from ever costing more
 than a well-formed, `Surface.MaxDimension`-sized frame would. (The `CanvasNetSvg` system's
 `SvgCodec` unit applies the same shared `ImageInfo` contract with its own document-resolved
-fallback policy — see _SvgCodec Unit Design_ (`../canvas-net-svg/svg-codec.md`) — rather than this
+fallback policy — see *SvgCodec Unit Design* (`../canvas-net-svg/svg-codec.md`) — rather than this
 header-parsing pattern, since its `Load` overloads take the requested output raster size as an
 ordinary caller-supplied parameter, not a value decoded from the file.)
 
@@ -200,7 +200,7 @@ with `Load`'s understanding of a well-formed header. `PngCodec` additionally thr
 orthogonal `bool validateDecodability` parameter through the same shared helper, gating only its
 Adam7-interlacing rejection (every other header-validity check is unconditional, since `Load`'s
 decodable color-type/bit-depth space now spans the PNG specification's entire legal space) — see
-_PngCodec Unit Design_ (`codecs/png-codec.md`) for the exact rationale; the other three raster
+*PngCodec Unit Design* (`codecs/png-codec.md`) for the exact rationale; the other three raster
 codecs still use only the single `enforceMaxDimension` flag, since none of them has a
 feature-based `Load` refusal that is independent of header well-formedness. `GifCodec` shares its
 per-frame structural-validation helpers (region bounds, minimum code size range, color table
@@ -208,13 +208,13 @@ resolution) between `Load` and `GetInfo`'s frame-counting walk, but with no bool
 unlike the other four raster codecs, `GifCodec.GetInfo` never enforces `Surface.MaxDimension`
 under any circumstance; every frame's own per-frame bounds-check arithmetic is bounded, and its
 budget-capped sub-block buffer (see `MaxTotalSubBlockBytes`) is its only allocation proportional
-to file size for every frame after the first — see _GifCodec Unit Design_ (`codecs/gif-codec.md`)
+to file size for every frame after the first — see *GifCodec Unit Design* (`codecs/gif-codec.md`)
 for the exact rationale, including how `GetInfo` never invokes the LZW decoder for any frame after
 the first, but does attempt an LZW decode of the first frame's compressed data (reusing `Load`'s
 own decoder, discarding its decoded output) purely to determine `CanDecode`, so a first-frame
 compressed-data corruption that makes `Load` throw is reflected as `CanDecode == false` rather
 than making `GetInfo` throw. Because the first frame's declared width/height is not itself bounded
-by `Surface.MaxDimension` here, this first-frame decode attempt _does_ allocate an index buffer
+by `Surface.MaxDimension` here, this first-frame decode attempt *does* allocate an index buffer
 proportional to that declared size — but only when their product (computed with widened
 arithmetic to avoid overflow) does not exceed `Surface.MaxDimension` squared; a pathologically
 large declared first frame instead skips this validation attempt entirely, leaving `CanDecode` at
@@ -226,7 +226,7 @@ document for the exact header-parsing strategy and any format-specific nuance (i
 `TiffCodec.GetInfo(Stream)`'s seek-based fast path with a buffering fallback for a non-seekable
 stream, and `JpegCodec`'s incremental marker scan continuing past its soft cap segment-by-segment
 rather than giving up) - see the
-_ImageInfo_ section above for the cross-codec invariant these fallbacks exist to uphold: GetInfo
+*ImageInfo* section above for the cross-codec invariant these fallbacks exist to uphold: GetInfo
 never throws for an input Load would successfully decode.
 
 **Well-formed but unsupported/undecodable: `UnsupportedImageFeatureException` and
@@ -239,7 +239,7 @@ only the first frame, by design, so a well-formed multi-frame GIF is not, by its
 `CanDecode == false` case. However, `GifCodec.GetInfo` does report `CanDecode == false` when the
 first frame's compressed data is corrupt enough that `Load`'s LZW decoder would reject it — a
 well-formed container with an undecodable payload, detected by `GetInfo` attempting (and
-discarding the result of) that same first-frame LZW decode — see _GifCodec Unit Design_,
+discarding the result of) that same first-frame LZW decode — see *GifCodec Unit Design*,
 `codecs/gif-codec.md`, for the full rationale.
 `PngCodec.Load` signals its specific case with `UnsupportedImageFeatureException`
 rather than `InvalidDataException`, so a caller can distinguish "well-formed but unsupported" from
@@ -253,18 +253,18 @@ behavior change (an existing `catch (InvalidDataException)`
 around `PngCodec.Load` no longer catches the Adam7 case); a caller that wants to handle both
 cases must add two explicit catch clauses, one per type. `ImageInfo.CanDecode` (see
 above) lets a caller detect this case from `GetInfo` before ever calling `Load` at all — see
-_PngCodec Unit Design_ (`codecs/png-codec.md`) for the exact throw site and `CanDecode`
+*PngCodec Unit Design* (`codecs/png-codec.md`) for the exact throw site and `CanDecode`
 computation.
 
 The `Codecs` subsystem depends on the `Canvas` subsystem's `Surface` unit (constructing surfaces
-when loading and reading/writing rows via `Surface.GetRowSpanBytes` when saving) — see _Canvas
-Subsystem Design_ (`canvas.md`). Beyond this, the `Codecs`
+when loading and reading/writing rows via `Surface.GetRowSpanBytes` when saving) — see *Canvas
+Subsystem Design* (`canvas.md`). Beyond this, the `Codecs`
 subsystem's units use only the .NET base class library (`System.IO`,
 `System.IO.Compression.DeflateStream`, and
 `System.Numerics.Vector<T>` for optional SIMD acceleration in `JpegCodec`), available on every one
 of CanvasNet's target frameworks with no new runtime NuGet dependency. (The separate
 `CanvasNetSvg` system's `SvgCodec` unit additionally depends on this system's `Geometry`,
-`Drawing`, and `Fonts` subsystems, and on `System.Xml.Linq` — see _CanvasNetSvg System Design_
+`Drawing`, and `Fonts` subsystems, and on `System.Xml.Linq` — see *CanvasNetSvg System Design*
 (`../canvas-net-svg.md`)'s Dependencies section.)
 
 ### Callers

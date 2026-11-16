@@ -5,16 +5,15 @@
 #### Purpose
 
 `HelpTopics` is the tree of help cards that `canvasnet help <topic> [<card> ...]` prints. A card is a short Markdown
-text about one subject. The sixteen root cards (the help topics) are one per format the tool reads (`scad`,
-`vega-lite`, `mermaid`, `svg`, `pdf`, `pptx`, `vsdx`, and `raster`), the two guidance hubs (`style` and `composition`),
-the feature-positions topic (`positions`: the `--positions` selectors and where the features of a diagram or a chart
-land), the cross-cutting subjects (`json`, `errors`, `limits`, and `files`), and the Pandoc filter (`pandoc`, alias `filter`:
-the `pandoc-filter` command and the Lua shim). A large topic is split into cards
-below its
-root, for example `mermaid gantt` and `mermaid gantt settings`, so an agent reads only the part it needs. The cards say
-what a format supports, what it does not, which options apply, which diagnostics can appear (and what `--strict` does
-with them), where the tool differs from the original program, how to make a picture look good, and how to compose
-pictures, and they carry tiny examples that an agent can print and run.
+text about one subject. The sixteen root cards (the help topics) are one per format the tool reads (`scad`, `vega-lite`,
+`mermaid`, `svg`, `pdf`, `pptx`, `vsdx`, and `raster`), the two guidance hubs (`style` and `composition`), the
+feature-positions topic (`positions`: the `--positions` selectors and where the features of a diagram or a chart land),
+the cross-cutting subjects (`json`, `errors`, `limits`, and `files`), and the Pandoc filter (`pandoc`, alias `filter`:
+the `pandoc-filter` command and the Lua shim). A large topic is split into cards below its root, for example
+`mermaid gantt` and `mermaid gantt settings`, so an agent reads only the part it needs. The cards say what a format
+supports, what it does not, which options apply, which diagnostics can appear (and what `--strict` does with them),
+where the tool differs from the original program, how to make a picture look good, and how to compose pictures, and they
+carry tiny examples that an agent can print and run.
 
 The unit's single responsibility is to load that content, keep it consistent with itself and the code, resolve a card
 by its path, and render it as plain text or as JSON. The dispatch of the `help` command and the index of commands and
@@ -81,7 +80,7 @@ The front matter has these keys:
 The body is ordinary Markdown: `##` headings, bullets, and fenced code blocks with a language. It has no `#` heading,
 because the renderer prints the title as one, and no heading of the generated footer (`## Cards`, `## Examples`, and
 `## See also`). An item with a term starts with a code span or bold text followed by a colon and a space, as in
-`` - `--strict`: ... ``.
+``- `--strict`: ...``.
 
 **Examples**: an example `name` is unique below its root, so `--example` finds it from any card of the tree. The
 `kind` is one of these:
@@ -220,7 +219,7 @@ subject is never ambiguous.
 
 **Resolve(path)**: splits every word of the path at `/`, finds the root with `Find`, and then each further word among
 the children of the previous card by name or alias, ignoring case. It returns `null` when the first word is not a
-root; an unknown further word is the `ToolException` described under _Error Handling_.
+root; an unknown further word is the `ToolException` described under *Error Handling*.
 
 **SourceExamples()**, **Snippets()**, **AllExamples()**, and **SubtreeExamples(card)**: enumerate the examples with
 their cards. **CardsBelowWithExamples(card)** enumerates the cards below a card that have examples of their own, depth
@@ -314,7 +313,7 @@ They include a front matter outside the subset, an unknown key, a missing title,
 a missing example file, a repeated name or alias, an orphan card, and children or See also entries that do not
 resolve. They are defects in the shipped content, not user errors: the unit tests load every card, so a malformed card
 fails the build before it reaches a user. The consistency of the content with the code is proven by the unit tests
-(see _HelpTopics Unit Verification Design_):
+(see *HelpTopics Unit Verification Design*):
 
 - the command lines (examples and code blocks) use known commands, options, and help cards;
 - the options listed exist in `render`, and the `errors codes` card lists every error code;
@@ -327,8 +326,8 @@ fails the build before it reaches a user. The consistency of the content with th
 
 - **ResultWriter** - the envelope, key order, and escaping of the JSON documents; `ResultWriter.SchemaVersion` for a
   token.
-- **ToolException** and **ErrorCodes** - the usage errors for an unknown example or card (documented in _Program Unit
-  Design_).
+- **ToolException** and **ErrorCodes** - the usage errors for an unknown example or card (documented in *Program Unit
+  Design*).
 - **CommandRegistry** - `ClosestName`, for the suggestion of an unknown card.
 - **ArgumentReader** - `MaxDpi`, for a token.
 - **ImageWriter** (Imaging) and the core `Surface` - the quality and size constants for tokens.

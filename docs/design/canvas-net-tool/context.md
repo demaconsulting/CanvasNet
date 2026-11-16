@@ -19,7 +19,7 @@ and the optional log file), and derive the exit code from whether any error was 
 
 **Version**, **Help**, **Silent**, **Validate**, **Json**: `bool` - `true` when `-v`/`--version`, `-?`/`-h`/`--help`,
 `--silent`, `--validate`, or `--json` was present anywhere on the command line. `Json` asks a command to write its
-result as one JSON document (see _ResultWriter Unit Design_) instead of text.
+result as one JSON document (see *ResultWriter Unit Design*) instead of text.
 
 **ResultsFile**: `string?` - Path supplied after `--results` or its legacy alias `--result`, or `null`.
 
@@ -38,10 +38,10 @@ or its value, in the original order. Tokens that look like options but are not g
 
 **Create**: Factory method that parses the arguments and returns a fully initialized `Context`.
 
-- _Parameters_: `string[] args` - raw command-line arguments.
-- _Returns_: `Context` - a new instance with all properties set.
-- _Preconditions_: `args` is not null.
-- _Postconditions_: the properties reflect the parsed command line; the log file is open if `--log` was given.
+- *Parameters*: `string[] args` - raw command-line arguments.
+- *Returns*: `Context` - a new instance with all properties set.
+- *Preconditions*: `args` is not null.
+- *Postconditions*: the properties reflect the parsed command line; the log file is open if `--log` was given.
 
 A private `ArgumentParser` walks the tokens once. A global option is recognized in any position and consumes its
 value when it takes one (`--log`, `--results`, `--result`, `--depth`); the flags are `-v`/`--version`,
@@ -61,21 +61,19 @@ contains no control characters.
 setting the error state, so the exit code stays 0. The message is colored yellow only when standard error is not
 redirected.
 
-**WriteDiagnostics**: Writes the notes of a successful command - `render`/`convert` and the verbs, `inspect`,
-`montage`, and `compare` (also before a failed `compare` threshold is reported) - and the `echo` lines of a model to
-standard error so
-that a feature left out of the picture is not silent in text mode. It writes nothing when `Json` is true (the JSON
+**WriteDiagnostics**: Writes the notes of a successful command - `render`/`convert` and the verbs, `inspect`, `montage`,
+and `compare` (also before a failed `compare` threshold is reported) - and the `echo` lines of a model to standard error
+so that a feature left out of the picture is not silent in text mode. It writes nothing when `Json` is true (the JSON
 result carries the same notes and standard output stays one document) and, like every other output, nothing to the
 console when silent (the log file still receives it). Each echo line is written as the model printed it
 (`ECHO: <text>`), then each note as `Unsupported: <code>: <message>` for severity `unsupported` or
-`Warning: <code>: <message>` for any other severity, followed by `(<origin>, page <n>)` with whichever of the origin
-(an input path or `input a`/`input b`) and the page there is. At most `MaxReportedLines` (20) echo lines and 20 notes are
+`Warning: <code>: <message>` for any other severity, followed by `(<origin>, page <n>)` with whichever of the origin (an
+input path or `input a`/`input b`) and the page there is. At most `MaxReportedLines` (20) echo lines and 20 notes are
 written; one closing line each counts the rest (`... and N more echo lines (use --json for all)` and
 `... and N more diagnostics (use --json for all)`). Every line is escaped first (`EscapeControlCharacters`): a control
 character (C0, DEL, C1, such as ESC and NUL), a line or paragraph separator, or a bidirectional control is written as
-`\n`, `\r`, `\t`, or `\uXXXX`, so that a model cannot inject terminal sequences; the same text is unchanged in the
-JSON result. Notes are colored yellow, echo lines are not colored, and neither
-sets the error state.
+`\n`, `\r`, `\t`, or `\uXXXX`, so that a model cannot inject terminal sequences; the same text is unchanged in the JSON
+result. Notes are colored yellow, echo lines are not colored, and neither sets the error state.
 
 **Dispose**: Disposes the log file writer, flushing buffered content.
 

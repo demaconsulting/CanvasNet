@@ -23,15 +23,15 @@ of two units and one subsystem:
   `FolderImageResolver` of the core `ImageSources` subsystem for one render, and renders any file by path or from a
   stream (with the feature positions of a Mermaid diagram or a Vega-Lite chart that its options select through the core
   `Positions` subsystem). The two supporting types, `ViewerRenderOptions` and `ViewerImage`, are covered inline. See
-  _CanvasNetViewer Unit
-  Design_ (`canvas-net-viewer/canvas-net-viewer.md`).
+  *CanvasNetViewer Unit
+  Design* (`canvas-net-viewer/canvas-net-viewer.md`).
 - **ViewerException** (unit; file `ViewerException.cs`): the exception with which every expected failure of the
-  operations is reported, and the stable `ErrorCodes`. See _ViewerException Unit Design_
+  operations is reported, and the stable `ErrorCodes`. See *ViewerException Unit Design*
   (`canvas-net-viewer/viewer-exception.md`).
 - **Imaging** (subsystem; namespace `DemaConsulting.CanvasNet.Viewer.Imaging`, folder `Imaging/`): `SourceLoader`,
   `ImagePipeline`, `ImageWriter`, `ImageComparison`, `ContactSheet`, and `GridOverlay`, and the operation units
-  `ImageRenderer`, `ImageInspector`, `ImageComparer`, `MontageBuilder`, and `SvgFlattener`. See _Imaging Subsystem
-  Design_ (`canvas-net-viewer/imaging.md`).
+  `ImageRenderer`, `ImageInspector`, `ImageComparer`, `MontageBuilder`, and `SvgFlattener`. See *Imaging Subsystem
+  Design* (`canvas-net-viewer/imaging.md`).
 
 `CanvasNetViewer` is modeled as its own top-level software system because it is distributed as its own NuGet package,
 per `software-items.md`'s rule that a software package contains exactly one software system. The `CanvasNetViewer` unit
@@ -85,21 +85,23 @@ The system exposes the following public API:
   `SvgFlattener.Execute` (a copy of an SVG drawing that other SVG readers can show), and the
   lower-level `ImagePipeline.Apply` (with `MapAnchors` and `MapPositions`), `ImageWriter.Write`, `ContactSheet`, and
   `GridOverlay.Draw`. Each takes plain
-  request values and returns plain result values; see _Imaging Subsystem Design_ for the signatures.
+  request values and returns plain result values; see *Imaging Subsystem Design* for the signatures.
 - **`ViewerException`** / **`ErrorCodes`**: the failure of an expected kind, with a stable code, a message, and a hint.
 
 <!-- markdownlint-disable MD013 -->
+
 | Interface | Direction | Format | Constraints |
-| ----------------------------------- | ---------------- | ---------------------------------------- | ---------------------------------------- |
+| --- | --- | --- | --- |
 | `ImageSources` / `Extensions` | Outbound | Property / read-only lists | Fixed; cannot be changed |
 | `CreateImageResolver(folder, ...)` | Outbound | Method call / `FolderImageResolver` | One resolver per render; folder not empty |
 | `Render(path, ...)` | Inbound/Outbound | Method call / `ViewerImage` return | Extension claimed by a source; the file itself is not judged by the file-access policy |
 | `Render(stream, fileName, ...)` | Inbound/Outbound | Method call / `ViewerImage` return | At most 16 MiB; extension claimed by a source |
 | `ImageRenderer.Execute` and the other operations | Inbound/Outbound | Method call / request and result records | Files read and written by path; failures are `ViewerException` |
+
 <!-- markdownlint-enable MD013 -->
 
-See _CanvasNetViewer Unit Design_ (`canvas-net-viewer/canvas-net-viewer.md`) for the complete parameter, return, and
-exception detail of the render path, and _Imaging Subsystem Design_ for the operations.
+See *CanvasNetViewer Unit Design* (`canvas-net-viewer/canvas-net-viewer.md`) for the complete parameter, return, and
+exception detail of the render path, and *Imaging Subsystem Design* for the operations.
 
 ## Dependencies
 
@@ -126,27 +128,27 @@ operations and creates the resolver for the SVG files it renders; a format packa
 ## Risk Control Measures
 
 `CanvasNetViewer` renders files and documents that may be untrusted. The risk control is the file-access policy of the
-core `FolderImageResolver` (`ViewerRenderOptions.FileAccess`, or `SourceOptions.FileAccess` and the `FileAccess` of
-the flatten and montage requests for the `Imaging` operations): every file a rendered file references goes through
-the core `FileReferenceResolver`, which asks the policy about the real path of the opened file; the policy reaches
-every nested picture, model include, and chart data file, anchored at the host-chosen origin of the chain. The
-default, `FileAccessPolicy.AllowAll`, reads every regular local file, like Pandoc (`..`, absolute paths, local `file:`
-URIs, and symbolic links are followed); a host that renders untrusted documents opts in to confinement with
+core `FolderImageResolver` (`ViewerRenderOptions.FileAccess`, or `SourceOptions.FileAccess` and the `FileAccess` of the
+flatten and montage requests for the `Imaging` operations): every file a rendered file references goes through the core
+`FileReferenceResolver`, which asks the policy about the real path of the opened file; the policy reaches every nested
+picture, model include, and chart data file, anchored at the host-chosen origin of the chain. The default,
+`FileAccessPolicy.AllowAll`, reads every regular local file, like Pandoc (`..`, absolute paths, local `file:` URIs, and
+symbolic links are followed); a host that renders untrusted documents opts in to confinement with
 `FileAccessPolicy.Combine(FileAccessPolicy.UnderRoots(folder), FileAccessPolicy.NoSymlinks)`. Under every policy,
 network paths and URLs are never loaded, device paths, alternate data streams, and non-regular files are refused, and
 depth, count, size, and the pixels allocated in total are bounded (a picture that would exceed the pixel budget being
-refused before it is decoded). A denied picture is the warning `image-access-denied` (with
-`ThrowOnUnsupportedFeature` or `--strict` the error `file-access-denied`), and a denied include or data file the
-error `file-access-denied`; the paths of a denial are only in `ImageSourceDiagnostic.Detail` and the exception
-properties, which a service that returns diagnostics to untrusted authors should redact. The file a caller names
-itself is never judged by the policy. The viewer adds no file access of its own on the render path. The `Imaging`
-operations read the files that a caller names and write the files that a caller names (the tool's own file access is
-the same), and the files that an SVG document, an OpenSCAD model, a Vega-Lite chart, or a Mermaid diagram refers to are
-read through the same resolver and policy, and never from the network. A source that a **library user** adds is
-trusted code of the application: a source that claims a URI scheme receives the link as written, with no file access, and
-alone owns what the link may reach (for example, a source that claims `http` must decide which hosts it fetches); no
-built-in source claims `http` or `https`, so such links stay unresolved. A viewer never caches a picture, so a live
-source is asked again on every render. The shape contains this risk control inherently (IEC 62304 §5.3.3).
+refused before it is decoded). A denied picture is the warning `image-access-denied` (with `ThrowOnUnsupportedFeature`
+or `--strict` the error `file-access-denied`), and a denied include or data file the error `file-access-denied`; the
+paths of a denial are only in `ImageSourceDiagnostic.Detail` and the exception properties, which a service that returns
+diagnostics to untrusted authors should redact. The file a caller names itself is never judged by the policy. The viewer
+adds no file access of its own on the render path. The `Imaging` operations read the files that a caller names and write
+the files that a caller names (the tool's own file access is the same), and the files that an SVG document, an OpenSCAD
+model, a Vega-Lite chart, or a Mermaid diagram refers to are read through the same resolver and policy, and never from
+the network. A source that a **library user** adds is trusted code of the application: a source that claims a URI scheme
+receives the link as written, with no file access, and alone owns what the link may reach (for example, a source that
+claims `http` must decide which hosts it fetches); no built-in source claims `http` or `https`, so such links stay
+unresolved. A viewer never caches a picture, so a live source is asked again on every render. The shape contains this
+risk control inherently (IEC 62304 §5.3.3).
 
 ## Data Flow
 
@@ -199,25 +201,26 @@ source is asked again on every render. The shape contains this risk control inhe
   `ErrorCodes`; the codes are stable, because scripts and the results of the tool rely on them
 - **No command-line concerns**: the library knows nothing of a command line, a console, or a result document; the
   tool parses and prints. The text of some messages and hints still names the options of the tool
-- **Not a tool plug-in point**: the command-line tool wires the viewer in for its commands and offers no plug-in mechanism
+- **Not a tool plug-in point**: the command-line tool wires the viewer in for its commands and offers no plug-in
+  mechanism
 - **Documented examples compile**: the C# examples of the Viewer user guide are complete programs that are compiled
   (never run) against the public API by a system test; a block is marked `<!-- compile -->` (a program) or
   `<!-- signature -->` (a listing), and an unmarked block fails the test. The test project, not the library, depends on
   the compiler package for this
 - **Request records**: required data is positional, everything optional is an `init` property with the default of the
-  command-line option (see _Imaging Subsystem Design_)
+  command-line option (see *Imaging Subsystem Design*)
 
 ### Platform Support
 
 The library targets the following frameworks, identical to the `CanvasNet` system it depends on, enabling compatibility
 across modern .NET runtimes:
 
-| Target Framework | Runtime / Environment                                   |
-| ---------------- | ------------------------------------------------------- |
-| `net8.0`         | .NET 8 LTS (end of support; kept for library consumers) |
-| `net9.0`         | .NET 9 STS (end of support; kept for library consumers) |
-| `net10.0`        | .NET 10 LTS                                             |
-| `net11.0`        | .NET 11                                                 |
+| Target Framework | Runtime / Environment |
+| --- | --- |
+| `net8.0` | .NET 8 LTS (end of support; kept for library consumers) |
+| `net9.0` | .NET 9 STS (end of support; kept for library consumers) |
+| `net10.0` | .NET 10 LTS |
+| `net11.0` | .NET 11 |
 
 The library is supported on the following operating systems:
 

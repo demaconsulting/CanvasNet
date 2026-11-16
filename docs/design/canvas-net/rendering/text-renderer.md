@@ -159,6 +159,6 @@ Library.
 
 `TextRenderer` is a public API entry point, invoked directly by consumers of the CanvasNet
 package. Within this repository the SVG codec (`DemaConsulting.CanvasNet.Svg`) calls
-`CreateTextPath` to lay out text runs (see _SvgCodec Unit Design_), the chart renderer
+`CreateTextPath` to lay out text runs (see *SvgCodec Unit Design*), the chart renderer
 (`DemaConsulting.CanvasNet.Charts`) calls `TruncateToWidth` to fit category and legend labels, and the
 command-line tool's contact sheet calls `TruncateToWidth` to fit file-name labels.

@@ -52,8 +52,9 @@ asserted. Any wrong result, kind, error indication, text, or exception type cons
 
 ##### CanvasNetScad-ScadEvaluation-ScadValue-Kinds: Kinds, Default, And Payload Access
 
-**Tests**: `ScadValueTests.ScadValue_Default_IsUndef`, `ScadValueTests.ScadValue_Factories_ProduceMatchingKindAndPayload`,
-`ScadValueTests.ScadValue_Payload_WrongKind_Throws`, `ScadValueTests.ScadValue_KindDescription_NamesEachKind`
+**Tests**: `ScadValueTests.ScadValue_Default_IsUndef`,
+`ScadValueTests.ScadValue_Factories_ProduceMatchingKindAndPayload`, `ScadValueTests.ScadValue_Payload_WrongKind_Throws`,
+`ScadValueTests.ScadValue_KindDescription_NamesEachKind`
 
 Asserts that `default` is `undef`, that each factory produces its kind and payload, that reading a payload of
 another kind throws `InvalidOperationException`, and the description text of each kind.
@@ -69,7 +70,8 @@ numbers, `true`, non-empty strings and vectors, ranges, and functions are true.
 
 **Tests**: `ScadValueTests.ScadValue_Equals_SameKind_ComparesByValue`,
 `ScadValueTests.ScadValue_Equals_DifferentKinds_AreNotEqual`,
-`ScadValueTests.ScadValue_Equals_NaNAndNegativeZero_FollowIeee`, `ScadValueTests.ScadValue_Equals_Functions_ByReference`,
+`ScadValueTests.ScadValue_Equals_NaNAndNegativeZero_FollowIeee`,
+`ScadValueTests.ScadValue_Equals_Functions_ByReference`,
 `ScadValueTests.ScadValue_GetHashCode_EqualValues_HaveEqualHashCodes`, `ScadTextTests.ScadNumbers_AreEqual_FollowsIeee`
 
 Asserts value equality within a kind (including deep vectors and ranges), inequality across kinds (`1` and `true`
@@ -142,13 +144,14 @@ thread.
 `ScadValueArithmeticTests.ScadValue_Index_String_UsesUnicodeScalars`,
 `ScadValueArithmeticTests.ScadValue_Member_XyzOnVector_ReturnsElements`,
 `ScadTextTests.ScadText_ScalarCount_CountsPairsOnce`, `ScadTextTests.ScadText_ScalarAt_ReturnsScalarOrNull`,
-`ScadTextTests.ScadText_Scalars_SplitsIntoScalars`, `ScadTextTests.ScadText_FirstCodePoint_HandlesPairsAndLoneSurrogates`,
+`ScadTextTests.ScadText_Scalars_SplitsIntoScalars`,
+`ScadTextTests.ScadText_FirstCodePoint_HandlesPairsAndLoneSurrogates`,
 `ScadTextTests.ScadText_FromCodePoint_ValidAndInvalid`
 
 Asserts element access with negative (including `-0.5`, which must not truncate to element 0), NaN, infinite, too large,
-non-negative fractional (`[10, 20, 30][1.5]` is `20`), and non-numeric indexes, for vectors and for strings, undef for non-indexable
-targets, string indexing over a string with a surrogate pair, the x, y, and z members, and the scalar helpers,
-including a lone surrogate and invalid code points.
+non-negative fractional (`[10, 20, 30][1.5]` is `20`), and non-numeric indexes, for vectors and for strings, undef for
+non-indexable targets, string indexing over a string with a surrogate pair, the x, y, and z members, and the scalar
+helpers, including a lone surrogate and invalid code points.
 
 ##### CanvasNetScad-ScadEvaluation-ScadValue-Ranges: Range Counting
 
@@ -184,8 +187,10 @@ produces a character outside digits, sign, point, `e`, and the special words.
 `ScadValueFormatTests.ScadValue_ToEchoText_Strings_AreQuotedAndEscaped`,
 `ScadValueFormatTests.ScadValue_ToEchoText_StringWithBreaks_HasNoRawLineBreak`,
 `ScadValueFormatTests.ScadValue_ToStr_Vectors_UseCommaSpaceAndQuoteNestedStrings`,
-`ScadValueFormatTests.ScadValue_ToStr_Range_ShowsStartStepEnd`, `ScadValueFormatTests.ScadValue_ToStr_Function_ShowsParameterNames`,
-`ScadValueFormatTests.ScadValue_ToStr_OtherCultures_IsIdentical`, `ScadValueFormatTests.ScadValue_TryToStr_Limit_FitsOrFails`,
+`ScadValueFormatTests.ScadValue_ToStr_Range_ShowsStartStepEnd`,
+`ScadValueFormatTests.ScadValue_ToStr_Function_ShowsParameterNames`,
+`ScadValueFormatTests.ScadValue_ToStr_OtherCultures_IsIdentical`,
+`ScadValueFormatTests.ScadValue_TryToStr_Limit_FitsOrFails`,
 `ScadValueFormatTests.ScadValue_TryToStr_HugeVector_StopsEarly`,
 `ScadValueFormatTests.ScadValueFormat_TryToStr_WithMeter_ChargesPerVisitedElement`,
 `ScadValueFormatTests.ScadValueFormat_TryToStr_StepLimitReached_StopsMidFormat`,

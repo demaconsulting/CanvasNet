@@ -22,9 +22,9 @@ The expected numbers are derived by hand from the Vega-Lite 6 defaults and the V
   padding give a 310 by 310 canvas with the data rectangle at (5, 5); explicit sizes of 200 by 100 with a padding of 20
   give 240 by 140; a padding object leaves the sides it does not name at 0 (so a padding of left 1, top 2 gives a
   canvas of 301 by 302 with the data rectangle at (1, 2)).
-- A top title: 13 pixels of text and 4 pixels of offset reach 17 pixels above the data rectangle, so the canvas is 310 by
-  327 with the origin at (5, 22) and the title group at (150, -17); a bottom title makes the canvas 310 by 327 with the
-  origin at (5, 5); left and right titles make it 327 by 310 with the origin at (22, 5) and (5, 5).
+- A top title: 13 pixels of text and 4 pixels of offset reach 17 pixels above the data rectangle, so the canvas is 310
+  by 327 with the origin at (5, 22) and the title group at (150, -17); a bottom title makes the canvas 310 by 327 with
+  the origin at (5, 5); left and right titles make it 327 by 310 with the origin at (22, 5) and (5, 5).
 - Autosize `none` keeps the given size plus padding whatever sticks out (100 by 100 with a title is 110 by 110); with
   `contains: padding` the width and height are the whole canvas, so 100 by 80 has a 90 by 70 data rectangle; the fit
   types are verified in `ViewLayoutFitTests` (below).
@@ -87,9 +87,9 @@ rounding that differs from the hand-derived value, or any missing argument check
 
 Asserts the derived empty view (a 310 by 310 canvas, data rectangle at (5, 5), a scene of root and a view group with the
 data rectangle's size and the one pixel `#ddd` border), explicit sizes and padding, the padding object, the four title
-sides, autosize `none` in string, object, and configuration forms, `contains: padding`, and the `fit` autosize, which makes
-the width and height the size of the whole view (100 by 100 with a title: a 100 by 83 data rectangle in a canvas of 110
-by 110).
+sides, autosize `none` in string, object, and configuration forms, `contains: padding`, and the `fit` autosize, which
+makes the width and height the size of the whole view (100 by 100 with a title: a 100 by 83 data rectangle in a canvas
+of 110 by 110).
 
 ##### Wide Title Grows The Canvas By Whole Pixels
 
@@ -170,7 +170,7 @@ background of the specification kept; content bounds of (-30.5, -0.5, 252.5, 110
 `ViewLayoutFitTests.ViewLayout_Resolve_ContainerWidthImpliesFitXContainsPadding`,
 `ViewLayoutFitTests.ViewLayout_Resolve_SpecAutosizeOverridesContainerDefault`
 
-Asserts the hand-derived fit numbers above: the canvas is the size (plus the padding for `contains: content`) whatever the
-guides and the title need, the data rectangle is the size less the whole-pixel reach of every side, a dimension that is
-not fitted pads, and the autosize that a `"container"` size, a configuration, a specification, and a step size give.
+Asserts the hand-derived fit numbers above: the canvas is the size (plus the padding for `contains: content`) whatever
+the guides and the title need, the data rectangle is the size less the whole-pixel reach of every side, a dimension that
+is not fitted pads, and the autosize that a `"container"` size, a configuration, a specification, and a step size give.
 The legend rule of a fitted view (a legend counts only across its side) is verified with `LegendLayout`.

@@ -6,9 +6,9 @@ This document describes the subsystem-level verification strategy for the `Geome
 ### Verification Approach
 
 The `Geometry` subsystem is verified primarily through each constituent unit's own tests (see
-_Rect Unit Verification Design_ (`geometry/rect.md`), _Path Unit Verification Design_
-(`geometry/path.md`), _BezierFlattening Unit Verification Design_
-(`geometry/bezier-flattening.md`), and _SvgArcConverter Unit Verification Design_
+*Rect Unit Verification Design* (`geometry/rect.md`), *Path Unit Verification Design*
+(`geometry/path.md`), *BezierFlattening Unit Verification Design*
+(`geometry/bezier-flattening.md`), and *SvgArcConverter Unit Verification Design*
 (`geometry/svg-arc-converter.md`)), each exercising its unit's public API in isolation. A single
 system-level integration test additionally exercises the units together end to end (see the
 system verification design, `../canvas-net.md`): building a `Path` via `PathBuilder` using a
@@ -32,8 +32,8 @@ system-level integration test described above passes.
 ### Test Scenarios
 
 The `Geometry` subsystem's test scenarios are those named in each of its four constituent unit
-verification documents (_Rect_, _Path_, _BezierFlattening_, and _SvgArcConverter Unit
-Verification Design_ under `geometry/`), covering normal-path construction/transformation,
+verification documents (*Rect*, *Path*, *BezierFlattening*, and *SvgArcConverter Unit
+Verification Design* under `geometry/`), covering normal-path construction/transformation,
 boundary conditions (empty/degenerate geometry, zero/negative tolerance or radius), and
 argument-validation error paths, plus the one system-level integration scenario named above:
 building a `Path` via `PathBuilder` with a `MoveTo`/`CubicBezierTo`/`ArcTo`/`Close` sequence,

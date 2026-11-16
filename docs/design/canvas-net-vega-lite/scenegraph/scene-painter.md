@@ -34,13 +34,11 @@ origin enlarged by a factor, and `Fit(sceneWidth, sceneHeight, targetWidth, targ
 largest factor that fits and centers it (a scene without area is not scaled).
 
 **`ScenePainter`** (stateless, thread-safe unless it was given a picture loader or a `DrawnImages` map) holds the
-`TextMeasurer` that resolves fonts and produces the lines
-to draw, an optional **`SceneImageSource`** for the pictures (below), and the limit of painted pixels (`maxPaintedPixels`,
-`long.MaxValue` for none; `VegaLiteDocument` passes `VegaLiteLimits.MaxPaintedPixels`). A private context carries the
-target surface,
-the current transform (a `Matrix3x2` holding the uniform scale and
-translations), the scale, the **paint meter** of the painting (null without a limit), and the location of the nearest
-enclosing group that has one.
+`TextMeasurer` that resolves fonts and produces the lines to draw, an optional **`SceneImageSource`** for the pictures
+(below), and the limit of painted pixels (`maxPaintedPixels`, `long.MaxValue` for none; `VegaLiteDocument` passes
+`VegaLiteLimits.MaxPaintedPixels`). A private context carries the target surface, the current transform (a `Matrix3x2`
+holding the uniform scale and translations), the scale, the **paint meter** of the painting (null without a limit), and
+the location of the nearest enclosing group that has one.
 
 **Paint budget** (phase 14, `ScenePainter.Budget.cs`). Before the work of every item, the painter charges the device
 pixels the work covers to the paint meter, a counter that exists for one `Paint` call and throws a
@@ -50,28 +48,26 @@ path in the item's units, which is `Path.GetBounds()` (curves lie inside the hul
 converted to the cubic curves of its ellipse, radii corrected as SVG does, so the box holds the whole arc and a full
 circle near the edge is charged the part of its box that is on the surface, not a sliver at its end point), maps its
 four corners with the item's matrix in double precision (a symbol is rotated), widens the box to whole pixels (a sliver
-still paints a pixel), grows the box by half
-the stroke width in surface pixels for a stroke (`StrokeOnly` charges after the width test, before the outline is
-made), and charges the part of it that lies on the target (the surface, or the clip layer when the item is inside a
-clipped group, so a huge rectangle in a small clip costs the clip); a fill and a stroke are two charges, a box with a
-NaN is the whole target and a box outside it is nothing. `ChargeText` estimates one box for each non-empty line of a text
-item where the painter places it: the line's characters times 0.6 of the font size (at most the `limit` of the item,
-which is what truncation leaves), by a font size plus a third (the ascent above the baseline and the descent
-below), from the
-baseline (the vertical offset, the baseline offset and the line number times the line height) and the alignment, moved
-to the anchor of the item in surface pixels, and cuts each to the target (a rotated item is one square around its
-anchor that holds the lines in any rotation). Text that `PaintText` does not draw (a font size that is not positive, a
-fill that is not visible, a position beyond the magnitude bound) returns before the charge and costs nothing, and a line
-that is off the target or clipped away costs nothing; a line height that is zero or negative (Vega steps baselines
-upward or not at all) still charges every line that is drawn, each at its own position. Measuring the text would be the
-work being charged, so the widths are estimates. The layer of a clipped group, the layers of a translucent trail (whose
-fill chunks are charged in the coordinates of the layer, as its stroke chunks are), the box of a
-picture and the pixels of every resampled copy (`SceneImageSource.GetTile` reports the work through a callback before
-it allocates) are charged the same way. The failure is located at the `SceneItem.Source` of the item (text and
-pictures carry their mark) or at the nearest enclosing group that has one: `MarkBuilder` gives the `marks` group of a
-mark the location of the mark, and `PaintGroup` carries it down in the context. The measured cost of one painted pixel
-(8 nanoseconds for a rectangle, 20 to 40 for large symbols and strokes) sets the default of 250,000,000 pixels: about ten
-seconds in the worst case.
+still paints a pixel), grows the box by half the stroke width in surface pixels for a stroke (`StrokeOnly` charges after
+the width test, before the outline is made), and charges the part of it that lies on the target (the surface, or the
+clip layer when the item is inside a clipped group, so a huge rectangle in a small clip costs the clip); a fill and a
+stroke are two charges, a box with a NaN is the whole target and a box outside it is nothing. `ChargeText` estimates one
+box for each non-empty line of a text item where the painter places it: the line's characters times 0.6 of the font size
+(at most the `limit` of the item, which is what truncation leaves), by a font size plus a third (the ascent above the
+baseline and the descent below), from the baseline (the vertical offset, the baseline offset and the line number times
+the line height) and the alignment, moved to the anchor of the item in surface pixels, and cuts each to the target (a
+rotated item is one square around its anchor that holds the lines in any rotation). Text that `PaintText` does not draw
+(a font size that is not positive, a fill that is not visible, a position beyond the magnitude bound) returns before the
+charge and costs nothing, and a line that is off the target or clipped away costs nothing; a line height that is zero or
+negative (Vega steps baselines upward or not at all) still charges every line that is drawn, each at its own position.
+Measuring the text would be the work being charged, so the widths are estimates. The layer of a clipped group, the
+layers of a translucent trail (whose fill chunks are charged in the coordinates of the layer, as its stroke chunks are),
+the box of a picture and the pixels of every resampled copy (`SceneImageSource.GetTile` reports the work through a
+callback before it allocates) are charged the same way. The failure is located at the `SceneItem.Source` of the item
+(text and pictures carry their mark) or at the nearest enclosing group that has one: `MarkBuilder` gives the `marks`
+group of a mark the location of the mark, and `PaintGroup` carries it down in the context. The measured cost of one
+painted pixel (8 nanoseconds for a rectangle, 20 to 40 for large symbols and strokes) sets the default of 250,000,000
+pixels: about ten seconds in the worst case.
 
 **Painting rules.**
 
@@ -331,8 +327,8 @@ limits is rejected by the `Surface` constructor (the document validates sizes fi
 `OperationCanceledException`, and the surface that an overload created is disposed; the token is also polled every 1,024
 points inside a trail and before every chunk of its capsules. Bad content never throws: an unparseable color draws
 nothing, a non-finite coordinate or a zero-sized rectangle or clip is skipped, a segment path, arc, trail, or text
-member that is not finite or is beyond the magnitude bound draws nothing (a trail
-point that is not usable only ends its run), and a shape that is neither a symbol name nor path data that parses is a circle.
+member that is not finite or is beyond the magnitude bound draws nothing (a trail point that is not usable only ends its
+run), and a shape that is neither a symbol name nor path data that parses is a circle.
 
 #### Dependencies
 

@@ -6,15 +6,15 @@
 
 The `Imaging` subsystem is verified at two tiers. The unit tests of `SourceLoader`, `ImagePipeline`, `ImageWriter`,
 `ImageComparison`, `ContactSheet`, `GridOverlay`, `ImageRenderer`, `ImageInspector`, `ImageComparer`,
-`MontageBuilder`, and `SvgFlattener` (see _SourceLoader Unit Verification Design_, _ImagePipeline Unit Verification
-Design_, _ImageWriter
-Unit Verification Design_, _ImageComparison Unit Verification Design_, _ContactSheet Unit Verification Design_,
-_GridOverlay Unit Verification Design_, _ImageRenderer Unit Verification Design_, _ImageInspector Unit Verification
-Design_, _ImageComparer Unit Verification Design_, _MontageBuilder Unit Verification Design_, and _SvgFlattener Unit
-Verification Design_
+`MontageBuilder`, and `SvgFlattener` (see *SourceLoader Unit Verification Design*, *ImagePipeline Unit Verification
+Design*, *ImageWriter
+Unit Verification Design*, *ImageComparison Unit Verification Design*, *ContactSheet Unit Verification Design*,
+*GridOverlay Unit Verification Design*, *ImageRenderer Unit Verification Design*, *ImageInspector Unit Verification
+Design*, *ImageComparer Unit Verification Design*, *MontageBuilder Unit Verification Design*, and *SvgFlattener Unit
+Verification Design*
 under `imaging/`) verify the units in isolation; the rotation, the skew estimation, the comparison metrics and pictures,
-and the analysis of colors are core `Surface` operations verified in the `Canvas` subsystem (see _SurfaceGeometry_,
-_SurfaceComparison_, and _SurfaceAnalysis Unit Verification Design_). The subsystem tests in `ImagingSubsystemTests.cs`
+and the analysis of colors are core `Surface` operations verified in the `Canvas` subsystem (see *SurfaceGeometry*,
+*SurfaceComparison*, and *SurfaceAnalysis Unit Verification Design*). The subsystem tests in `ImagingSubsystemTests.cs`
 verify them working together, the way every
 operation uses them: a source file of each supported kind (PNG, JPEG, BMP, TIFF, GIF, JPEG 2000, SVG, PDF, PPTX, VSDX,
 SCAD, Vega-Lite, and Mermaid) is loaded and written as each output format (PNG, JPEG, BMP, and TIFF) - an
@@ -30,12 +30,12 @@ library's render for that view (28 cases). The tests generate their inputs in a 
 for the fixture files and for how the PDF, PPTX, and VSDX documents and the models are written by the test project). The
 pictures that a chart or a diagram shows (the requirements of the Imaging subsystem for chart and diagram images) are
 verified by the tests of the pictures of the `SourceLoader` unit (`SourceLoaderVegaLiteImageTests.cs` and
-`SourceLoaderMermaidImageTests.cs`; see _SourceLoader Unit Verification Design_), which load real files of every
+`SourceLoaderMermaidImageTests.cs`; see *SourceLoader Unit Verification Design*), which load real files of every
 linked kind through the resolver of the loader. The file-access policy that every operation passes on
 (`SourceOptions.FileAccess`, `FlattenRequest.FileAccess`, and `MontageRequest.FileAccess`, by default `AllowAll`) is
 verified at the unit tier: under the default policy the pictures, includes, and data files of the parent folder are
 read, and under `UnderRoots` they are access-denied warnings or `file-access-denied` errors (see the `FileAccess`
-scenarios of the _SourceLoader_, _SvgFlattener_, and _MontageBuilder Unit Verification Design_).
+scenarios of the *SourceLoader*, *SvgFlattener*, and *MontageBuilder Unit Verification Design*).
 
 ### Test Environment
 
@@ -48,8 +48,8 @@ N/A - standard test environment; the tests write only to temporary directories t
 - Every page of a document loaded from one opened source is written with the pixels the library renders for it.
 - The same input gives the same output bytes on every run, for a lossless and for the lossy output.
 - A bad input, or a page that does not exist, is an expected error and leaves no output.
-- Sources loaded by the loader (a vector source into a box of the reference's size) are compared exactly, the pictures of
-  the differences are written, and the same comparison gives the same bytes.
+- Sources loaded by the loader (a vector source into a box of the reference's size) are compared exactly, the pictures
+  of the differences are written, and the same comparison gives the same bytes.
 - Sources of several kinds are composed one at a time into a contact sheet with the documented layout and written.
 - The render, inspect, compare, and montage operations chain the loader, the pipeline, and the writer on sources of
   several kinds with the documented results.
@@ -90,15 +90,15 @@ natural size, taken through a crop of the left half, a quarter turn, and a blue 
 PNG: the three operations are reported in order, the file decodes to exactly the transformed surface, which equals the
 same operations applied by hand to the cropped load, the border pixel is blue, and the loaded surface is unchanged.
 
-**Imaging_Photo_LoadedSourceAdjustedDeskewedTrimmedAndWritten**: a JPEG of a sketch with ruled lines tilted by 4 degrees,
-stored a quarter turn away with the EXIF orientation 6, is loaded upright (400x300), taken through the pipeline
+**Imaging_Photo_LoadedSourceAdjustedDeskewedTrimmedAndWritten**: a JPEG of a sketch with ruled lines tilted by 4
+degrees, stored a quarter turn away with the EXIF orientation 6, is loaded upright (400x300), taken through the pipeline
 operations auto-levels, deskew, and trim, and written as PNG: the three operations are reported in order, the contrast
-stretch was applied, the skew found is within 0.4 degrees of 4 and was corrected, the trim cropped the white border
-the rotation left (the result is smaller than the rotated canvas), the PNG decodes to exactly the transformed surface,
-and the skew that remains in it is within 0.4 degrees of level.
+stretch was applied, the skew found is within 0.4 degrees of 4 and was corrected, the trim cropped the white border the
+rotation left (the result is smaller than the rotated canvas), the PNG decodes to exactly the transformed surface, and
+the skew that remains in it is within 0.4 degrees of level.
 
-**Imaging_Photo_SameInputsTwice_WriteIdenticalBytes**: the same photo pipeline run twice on the same JPEG reports the same
-operations with the same parameters (the angle, the confidence, and the points) and writes identical PNG bytes.
+**Imaging_Photo_SameInputsTwice_WriteIdenticalBytes**: the same photo pipeline run twice on the same JPEG reports the
+same operations with the same parameters (the angle, the confidence, and the points) and writes identical PNG bytes.
 
 **Imaging_Compare_LoadedSourcesAreComparedAndVisualized**: the SVG fixture is loaded at its natural size and compared
 with a raster copy of it that has one black pixel at 50,40, the vector being loaded into a box of the raster's size with

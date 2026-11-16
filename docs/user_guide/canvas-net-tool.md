@@ -118,22 +118,23 @@ the front.
 input with more than one parameter in quotes (`"part.scad#view=top&def.width=20"`); and a `$` (as in `$vpd`) in single
 quotes, as in `-D '$vpd=300'`. A `#` in the middle of a word is not a comment, but one at the start of a word is.
 
-**Mistakes and warnings.** They have the codes of an SVG link. A value that cannot be used (a vector or a JSON value that
-is cut short, a `def.` name that is not an identifier, an unknown `view` or `theme`, a page that is not a whole number,
-a fragment over its limits) is an **error** with the code `image-fragment-invalid`, and a page the file does not have is
-`page-out-of-range`; nothing is written. A parameter that the kind of the file does not use (`pag=2`, `page=2` on a
-PNG, `def.x=1` on a chart) is the **warning** `image-fragment-unknown-parameter`, a parameter given twice with different
-values is `image-fragment-duplicate-parameter`, and a `param.` name that the chart does not declare is
-`vl-param-unknown` (the chart is drawn without it): they are warnings, never errors, **also with `--strict`**, so a
-typo does not lose the picture, and they are in `diagnostics` of the JSON result and on standard error as
+**Mistakes and warnings.** They have the codes of an SVG link. A value that cannot be used (a vector or a JSON value
+that is cut short, a `def.` name that is not an identifier, an unknown `view` or `theme`, a page that is not a whole
+number, a fragment over its limits) is an **error** with the code `image-fragment-invalid`, and a page the file does not
+have is `page-out-of-range`; nothing is written. A parameter that the kind of the file does not use (`pag=2`, `page=2`
+on a PNG, `def.x=1` on a chart) is the **warning** `image-fragment-unknown-parameter`, a parameter given twice with
+different values is `image-fragment-duplicate-parameter`, and a `param.` name that the chart does not declare is
+`vl-param-unknown` (the chart is drawn without it): they are warnings, never errors, **also with `--strict`**, so a typo
+does not lose the picture, and they are in `diagnostics` of the JSON result and on standard error as
 `Warning: <code>: <message>`. (`--param nope=1` on the command line is still a `vega-lite-error`, because a typo in an
 option should be loud.)
 
-**What the result says.** The text result names the input with its fragment (`wrote out.png (...) from
-part.scad#def.width=20`), the `input` object of the JSON result of `render`, `inspect`, `info`, and `compare` (and the cell
-of `montage`) has a `fragment` member (`path` stays the file), and `montage --labels` writes the file name, a `#`, and the
-fragment under each cell (`assembly.scad#def.explode=0.5`; a page of a document that the fragment names has no `p2`
-after it), so the cells of one file can be told apart. A label wider than the cell is cut with `...`.
+**What the result says.** The text result names the input with its fragment
+(`wrote out.png (...) from part.scad#def.width=20`), the `input` object of the JSON result of `render`, `inspect`,
+`info`, and `compare` (and the cell of `montage`) has a `fragment` member (`path` stays the file), and
+`montage --labels` writes the file name, a `#`, and the fragment under each cell (`assembly.scad#def.explode=0.5`; a
+page of a document that the fragment names has no `p2` after it), so the cells of one file can be told apart. A label
+wider than the cell is cut with `...`.
 
 **A fixed camera for a montage.** The camera of a model is fitted to the geometry of each picture, so a model that grows
 (an assembly that is pulled apart) is drawn smaller as it grows. To compare several versions at one scale, fix the
@@ -279,6 +280,7 @@ of the library. Use it to discover what the installed version supports; the last
 (`canvasnet help <topic>`), which say what each format supports, with examples and known differences.
 
 <!-- markdownlint-disable MD013 -->
+
 ```text
 $ canvasnet formats
 Input formats:
@@ -305,6 +307,7 @@ Versions:
 
 Run 'canvasnet help <topic>' for supported features, examples, and known differences (for example 'canvasnet help vega-lite'). An SVG drawing can embed files of these formats with <image href>, and #page=N chooses a page of a document; see 'canvasnet help svg'. 'canvasnet flatten' writes a copy of such a drawing that any SVG reader can show.
 ```
+
 <!-- markdownlint-enable MD013 -->
 
 The `--help` of every command (for example `canvasnet render --help` and `canvasnet formats --help`) ends with a
@@ -348,6 +351,7 @@ result has a `fragment` member (see *Fragments on Input Paths*).
   nodes, so no other file is read (see *Mermaid Diagrams* below).
 
 <!-- markdownlint-disable MD013 -->
+
 ```text
 $ canvasnet info shapes.svg
 shapes.svg: svg, 100x80 px (intrinsic size), 4 channels with alpha, 303 bytes
@@ -376,6 +380,7 @@ pets.mmd: mermaid, 595x450 px (laid out), pie, 3 nodes, 0 edges, 0 subgraphs, ti
 $ canvasnet info plan.mmd
 plan.mmd: mermaid, 784x220 px (laid out), gantt, 5 nodes, 0 edges, 2 subgraphs, title "Release plan", 365 bytes
 ```
+
 <!-- markdownlint-enable MD013 -->
 
 ### render and convert
@@ -2323,15 +2328,16 @@ CANVASNET_TOOL="dotnet src/DemaConsulting.CanvasNet.Tool/bin/Release/net10.0/Dem
   dotnet pandoc --defaults docs/user_guide/definition.yaml --output docs/user_guide/generated/user_guide.html
 ```
 
-**Shim protocol.** The shim passes `--protocol 1` with every run, with what only Pandoc knows: the path of the shim
-(the cache folder `generated/canvasnet` is beside its folder), the output format and file, the resource path, and
-whether the pictures are embedded. The tool writes the document back with its warnings in the metadata key
-`canvasnet-warnings`, which the shim removes and shows as Pandoc warnings, and a caption of a Mermaid block as a span of
-class `canvasnet-markdown`, which the shim reads as Markdown; a document must not use these two names. A shim that
-speaks a protocol the tool does not stops the build with a message such as `docs/filters/canvasnet.lua speaks protocol
-0; this tool needs protocol 1` and the command that fixes it, `dotnet canvasnet pandoc-filter --write-shim
-docs/filters/canvasnet.lua`; a shim newer than the tool asks to update the tool. A failure stops the build with the
-tool's message (the code `pandoc-filter-error` for a mistake in a picture), after the warnings of the pictures before it.
+**Shim protocol.** The shim passes `--protocol 1` with every run, with what only Pandoc knows: the path of the shim (the
+cache folder `generated/canvasnet` is beside its folder), the output format and file, the resource path, and whether the
+pictures are embedded. The tool writes the document back with its warnings in the metadata key `canvasnet-warnings`,
+which the shim removes and shows as Pandoc warnings, and a caption of a Mermaid block as a span of class
+`canvasnet-markdown`, which the shim reads as Markdown; a document must not use these two names. A shim that speaks a
+protocol the tool does not stops the build with a message such as
+`docs/filters/canvasnet.lua speaks protocol 0; this tool needs protocol 1` and the command that fixes it,
+`dotnet canvasnet pandoc-filter --write-shim docs/filters/canvasnet.lua`; a shim newer than the tool asks to update the
+tool. A failure stops the build with the tool's message (the code `pandoc-filter-error` for a mistake in a picture),
+after the warnings of the pictures before it.
 
 The CanvasNet repository does not pin the tool in its manifest. Its build installs the package it has just built as a
 local tool before the documents are built, and uses `CANVASNET_TOOL` only on a developer's machine. `canvasnet help

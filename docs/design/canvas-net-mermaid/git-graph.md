@@ -20,18 +20,18 @@ subsystems of the system and, through `InternalsVisibleTo`, to the test assembly
   exception factory `GitGraphFailure` (in `GitGraphParser.Database.cs`): the lexer and the grammar of Mermaid's git
   graph language, the value converters, the sanitizing, the operations of Mermaid's git graph database with their
   errors, the generated commit ids, the title and accessibility texts, the metadata of the diagram, the located errors
-  with Mermaid's expected tokens or messages, and the node and label limits; see _GitGraphParser Unit Design_
+  with Mermaid's expected tokens or messages, and the node and label limits; see *GitGraphParser Unit Design*
   (`git-graph/git-graph-parser.md`)
 - **GitGraphRenderer** - the internal sealed `GitGraphRenderer` (a partial class in `GitGraphRenderer.cs`,
   `GitGraphRenderer.Arrows.cs`, and `GitGraphRenderer.Labels.cs`): the drawing of Mermaid's git graph renderer (the
   branch positions, the commit places of both passes, the branch lines and labels, the arrows with their rerouting
   lanes, the commit bullets, the commit labels and tags with their rotations, the title, and the view box of the
-  browser's bounding box) with the texts as the browser measures and shows them; see _GitGraphRenderer Unit Design_
+  browser's bounding box) with the texts as the browser measures and shows them; see *GitGraphRenderer Unit Design*
   (`git-graph/git-graph-renderer.md`)
 
 The subsystem's namespace documentation is in `GitGraph/NamespaceDoc.cs`. Its behavior is specified by the
 `CanvasNetMermaid-GitGraph-*` requirements in `docs/reqstream/canvas-net-mermaid/git-graph.yaml`. The SysML2 model
-names the subsystem `MermaidGitGraph` (see _CanvasNetMermaid System Design_).
+names the subsystem `MermaidGitGraph` (see *CanvasNetMermaid System Design*).
 
 **Attribution.** The subsystem is a port of the git graph of the pinned Mermaid release (MIT; see
 `third-party/README.md`): the parser ports the Langium grammar of `@mermaid-js/parser`
@@ -103,9 +103,10 @@ and `cherryPick`: the texts sanitized as Mermaid's `sanitizeText` sanitizes them
 tags of a merge kept as written), the checks of each operation in Mermaid's order with Mermaid's messages, the messages
 and default tags Mermaid composes for merges and cherry-picks, the commits in the order of Mermaid's commit map (a
 commit whose id is already used replacing the earlier one in its place), and the branches sorted for drawing by their
-order, stably, as JavaScript's sort sorts them. A commit without an id gets an id of Mermaid's form, its sequence number,
-a dash, and seven hex digits; the digits come from the mulberry32 sequence with a fixed seed, restarted for every run,
-in place of Mermaid's `Math.random`, so the ids are the same in every render and equal to those of the seeded reference.
+order, stably, as JavaScript's sort sorts them. A commit without an id gets an id of Mermaid's form, its sequence
+number, a dash, and seven hex digits; the digits come from the mulberry32 sequence with a fixed seed, restarted for
+every run, in place of Mermaid's `Math.random`, so the ids are the same in every render and equal to those of the seeded
+reference.
 
 **Metadata from the text alone.** The counts of the document describe the diagram of the text's own configuration,
 whatever main branch a render's site configuration names: the commits as nodes, the links to their parents as edges,
@@ -138,14 +139,14 @@ authors use them; the subsystem tests open and draw all of them, and the system-
 their drawings with the goldens drawn by Mermaid.
 
 **Fail closed.** Everything that can be wrong with the text is found when the document is opened, as a located
-`MermaidSyntaxException`: a lexical error (at the first character no token matches, before any grammar error, as
-Mermaid lists the errors of its lexer first), a grammar error (with Mermaid's expected tokens), an operation the database
-rejects (with Mermaid's message), and the limits of the open call (`MaxNodes` for the main branch, the branches, and
-the commits, and `MaxLabelLength` for every text the parser keeps, converts, sanitizes, or composes, and for the
-frontmatter title it may draw). A render fails only where the database rejects an operation under the render's main
-branch, where Mermaid's renderer fails (`Closest parent not found for commit ...`), on the limits of the render (the
-limits of a database run again and the layout work limit), on cancellation, or, in strict mode, on a `themeCSS` rule
-that the git graph style sheet does not support.
+`MermaidSyntaxException`: a lexical error (at the first character no token matches, before any grammar error, as Mermaid
+lists the errors of its lexer first), a grammar error (with Mermaid's expected tokens), an operation the database
+rejects (with Mermaid's message), and the limits of the open call (`MaxNodes` for the main branch, the branches, and the
+commits, and `MaxLabelLength` for every text the parser keeps, converts, sanitizes, or composes, and for the frontmatter
+title it may draw). A render fails only where the database rejects an operation under the render's main branch, where
+Mermaid's renderer fails (`Closest parent not found for commit ...`), on the limits of the render (the limits of a
+database run again and the layout work limit), on cancellation, or, in strict mode, on a `themeCSS` rule that the git
+graph style sheet does not support.
 
 **Deterministic and bounded.** The parser, the database, and the diagram hold no shared state; a parsed diagram and its
 databases are never changed again, so they are safe for concurrent renders, and a renderer draws one render on one
@@ -155,7 +156,7 @@ statements, with hash lookups. The layout work meter of the render (`MaxLayoutWo
 commit of each pass and each parent looked at, each arrow and the commits its rerouting test scans, each lane try and
 the lanes it compares, and the length of each measured text, and checks cancellation.
 
-**Known differences from Mermaid** are listed in each unit design and in _CanvasNetMermaid System Design_: errors and
+**Known differences from Mermaid** are listed in each unit design and in *CanvasNetMermaid System Design*: errors and
 limits are located CanvasNet exceptions with hints, and only the first error is reported; the generated commit ids come
 from a fixed sequence; the statements run when the text is opened with the text's own main branch, so a text that relies
 on a main branch that only the site configuration names fails when it is opened; a commit whose id is used again

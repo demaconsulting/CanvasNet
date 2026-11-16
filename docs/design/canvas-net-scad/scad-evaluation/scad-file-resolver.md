@@ -7,8 +7,8 @@ source files in the `DemaConsulting.CanvasNet.Scad.Evaluation` namespace, all `i
 
 - `ScadFileResolver.cs` — `ScadFileResolver` (sealed partial class): the phase A driver — expansion, library
   loading from a work queue, and the cycle, depth, count, and statement limits
-- `ScadFileResolver.Paths.cs` — the bridge to the core `FileReferenceResolver` (see _FileReferenceResolver Unit
-  Design_, `canvas-net/files/file-reference-resolver.md`): decoding and parsing of the file it returns, the
+- `ScadFileResolver.Paths.cs` — the bridge to the core `FileReferenceResolver` (see *FileReferenceResolver Unit
+  Design*, `canvas-net/files/file-reference-resolver.md`): decoding and parsing of the file it returns, the
   per-file cache, display names, and the OpenSCAD wording of each refusal (`Translate`)
 - `ScadSourceUnit.cs` — `ScadSourceUnit`: a source file after `include` expansion plus the libraries it
   imports with `use`
@@ -28,7 +28,7 @@ the search context, cycles and limits, decoding, naming, and wording. Doing all 
 thread keeps the evaluator pure and restartable (a
 restart repeats no I/O and never calls the callback again) and makes missing-file warnings precede any output.
 The resolution policy and the file-access rules are original decisions of the CanvasNetScad dialect (see
-_CanvasNetScad System Design_, Clean-Room Provenance); no OpenSCAD source or manual text was consulted.
+*CanvasNetScad System Design*, Clean-Room Provenance); no OpenSCAD source or manual text was consulted.
 
 The unit's behavior is specified by the `CanvasNetScad-ScadEvaluation-ScadFileResolver-*` requirements
 (`Include`, `Use`, `Resolution`, `FileAccess`, `ResolverCallback`, `FileSystem`, `Cycles`, `AliasCycle`, `DepthLimit`,
@@ -74,7 +74,7 @@ stack). The main file is the first entry of the include stack, so a file that in
 `include <p>` is **textual inclusion**: the included file's top-level statements — assignments, definitions,
 module instantiations, `echo`, and everything else — replace the directive and keep their own source
 locations (so a diagnostic names the included file). Nested includes are expanded recursively, with paths
-resolved relative to the _including_ file. A file included several times is **expanded each time but read and
+resolved relative to the *including* file. A file included several times is **expanded each time but read and
 parsed once** (a missing file is remembered too, so the callback sees each candidate path at most once). The
 `use` directives found in an included file are collected into the `Uses` of the including file.
 
@@ -85,7 +85,7 @@ including file. The library's own includes are expanded inside the library, and 
 recorded in the library's own `Uses`, private to it. A library is loaded **once** per resolved file (by real path, so
 a library reached again through a link is the same library);
 the cache entry is registered before the library is expanded, so libraries that use each other (or themselves)
-terminate. What a library contributes at evaluation time is described in _ScadEvaluator Unit Design_ (the
+terminate. What a library contributes at evaluation time is described in *ScadEvaluator Unit Design* (the
 imports semantics).
 
 ##### Resolution policy
@@ -102,8 +102,8 @@ Windows and macOS (the platform comparer is used for the file keys and the root 
 - **File-system mode** (no `FileResolver`): `..`, absolute and drive paths and symbolic links or junctions are
   followed; whether the file they reach may be read is decided by `ScadOpenOptions.FileAccess`, which the core engine
   asks about the **real path of the opened file** before a byte is read (the policy, the fail-closed
-  `RealPathUnavailable` rule and the chain origin are specified at the core units: _FileReferenceResolver Unit Design_
-  and _FileAccessPolicy Unit Design_). Because the decision is made on the open handle, a directory swapped for a link
+  `RealPathUnavailable` rule and the chain origin are specified at the core units: *FileReferenceResolver Unit Design*
+  and *FileAccessPolicy Unit Design*). Because the decision is made on the open handle, a directory swapped for a link
   after any earlier check cannot redirect the read. The default `AllowAll` reads every regular local file;
   `FileAccessPolicy.Combine(FileAccessPolicy.UnderRoots(...), FileAccessPolicy.NoSymlinks)` restores the confinement
   of earlier versions. A denial raises `Include file '…' was denied by the file-access policy '<name>': <reason>`, and a
@@ -147,7 +147,7 @@ Windows and macOS (the platform comparer is used for the file keys and the root 
 - **Cycles**: a file already on the active include stack → `Include cycle: a → b → a` (with the arrows
   U+2192 and the chain of display names). A file is on the stack when its path or its real path matches an entry, so
   a file reached again through a link or another spelling is a cycle; the main file opened by path keeps its lexical
-  key, so an alias of the main file is caught one include later. A _diamond_ (one file included along two paths) is
+  key, so an alias of the main file is caught one include later. A *diamond* (one file included along two paths) is
   not a cycle.
 - **File count**: the total number of resolved inclusions plus each distinct library loaded exceeding
   `MaxIncludedFiles` → `Included file limit exceeded (limit N)`; this stops a diamond blow-up.

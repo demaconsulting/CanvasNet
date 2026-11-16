@@ -6,11 +6,11 @@ subsystem, as of this release containing one unit: `OpenXmlChartParser`.
 ### Verification Approach
 
 The `OpenXmlChart` subsystem is verified entirely through its one unit's own unit tests (see
-_OpenXmlChartParser Unit Verification Design_, `open-xml-chart/open-xml-chart-parser.md`). No
+*OpenXmlChartParser Unit Verification Design*, `open-xml-chart/open-xml-chart-parser.md`). No
 separate subsystem-level tests otherwise exist: with a single unit, there is no cross-unit
 integration surface within this subsystem to additionally verify, mirroring the same rationale
-already documented for the `ChartModel` subsystem (see _ChartModel Subsystem Verification
-Design_, `chart-model.md`). Several of `OpenXmlChartParser`'s own tests additionally hand its
+already documented for the `ChartModel` subsystem (see *ChartModel Subsystem Verification
+Design*, `chart-model.md`). Several of `OpenXmlChartParser`'s own tests additionally hand its
 parsed output directly to `ChartModel`'s `ChartRenderer.Render`, which exercises the one
 cross-subsystem call this subsystem's unit makes, within the same unit-level test suite.
 
@@ -25,11 +25,11 @@ cross-subsystem call this subsystem's unit makes, within the same unit-level tes
 ### Acceptance Criteria
 
 The `OpenXmlChart` subsystem's verification passes when every unit test scenario described in
-_OpenXmlChartParser Unit Verification Design_ (`open-xml-chart/open-xml-chart-parser.md`) passes
+*OpenXmlChartParser Unit Verification Design* (`open-xml-chart/open-xml-chart-parser.md`) passes
 without error or unexpected exception.
 
 ### Test Scenarios
 
 The `OpenXmlChart` subsystem's test scenarios are those named in
-_OpenXmlChartParser Unit Verification Design_ (`open-xml-chart/open-xml-chart-parser.md`); see
+*OpenXmlChartParser Unit Verification Design* (`open-xml-chart/open-xml-chart-parser.md`); see
 that document for the complete list.

@@ -9,12 +9,12 @@ and `ViewStyle`, `ViewLayoutRequest`, `ViewMeasure`, and `ViewLayoutResult` (sea
 
 #### Purpose
 
-`ViewLayout` lays out a single view, or a layered view as one view (the layers share the data rectangle, the axes, and the
-title; the unit is unchanged by layers, which differ only in the `ViewSizeHints` they are given): the size of the data
-rectangle, the padding, the room the guides and the title need,
-the size of the canvas that holds them, and the scene around the content that the builders produced. It exists so that the
-view-layout rules of Vega and Vega-Lite (default size, step sizing, padding, `autosize`, title bands, view background and
-border) are defined once and can be tested by analytic numbers without drawing anything.
+`ViewLayout` lays out a single view, or a layered view as one view (the layers share the data rectangle, the axes, and
+the title; the unit is unchanged by layers, which differ only in the `ViewSizeHints` they are given): the size of the
+data rectangle, the padding, the room the guides and the title need, the size of the canvas that holds them, and the
+scene around the content that the builders produced. It exists so that the view-layout rules of Vega and Vega-Lite
+(default size, step sizing, padding, `autosize`, title bands, view background and border) are defined once and can be
+tested by analytic numbers without drawing anything.
 
 The unit's behavior is specified by the `CanvasNetVegaLite-Layout-ViewLayout-*` requirements in
 `docs/reqstream/canvas-net-vega-lite/layout/view-layout.yaml`.
@@ -24,14 +24,14 @@ The unit's behavior is specified by the `CanvasNetVegaLite-Layout-ViewLayout-*` 
 - **`ViewPadding`** `(Left, Top, Right, Bottom)` with `Horizontal` and `Vertical` sums. **`ViewExtents`** `(Left, Top,
   Right, Bottom)` - how far the guides reach beyond the data rectangle on each side (zero or more).
 - **`AutosizeType`** - `Pad` (the canvas grows around the data rectangle to hold the guides and the title), `None` (the
-  canvas is the given size and the guides may overflow it), or `Fit`, `FitX`, `FitY` (the width and/or height is the size
-  of the **whole view**: the data rectangle shrinks to leave room for the guides, the title, and, for `contains:
-  padding`, the padding; a dimension that is not fitted pads).
-- **`ViewStyle`** - the fill, stroke, stroke width, opacities, dash, and corner radius of the plot area (CSS color strings
-  or null).
-- **`ViewSizeHints`** `(DiscreteWidth, DiscreteHeight, ContainerWidth, ContainerHeight)` - the sizes that the scale stage
-  (from the step of a discrete scale; for a layered view the step times the **combined** categories of the layers, from
-  the merged scale) and the host (the container size) provide.
+  canvas is the given size and the guides may overflow it), or `Fit`, `FitX`, `FitY` (the width and/or height is the
+  size of the **whole view**: the data rectangle shrinks to leave room for the guides, the title, and, for
+  `contains: padding`, the padding; a dimension that is not fitted pads).
+- **`ViewStyle`** - the fill, stroke, stroke width, opacities, dash, and corner radius of the plot area (CSS color
+  strings or null).
+- **`ViewSizeHints`** `(DiscreteWidth, DiscreteHeight, ContainerWidth, ContainerHeight)` - the sizes that the scale
+  stage (from the step of a discrete scale; for a layered view the step times the **combined** categories of the layers,
+  from the merged scale) and the host (the container size) provide.
 - **`ViewLayoutRequest`** - the data rectangle size, padding, autosize, `ContainsPadding`, `ViewStyle`, the canvas
   `Background`, an optional `Clip` to the data rectangle, the container sizes (the size a fitted `"container"`
   dimension fills), `IsFit`, and `DroppedFit` (the dimension, `x`, `y`, or `both`, whose fit a step size dropped,
@@ -79,8 +79,8 @@ canvas. For a fit the legends are counted only across their side (`LegendLayout.
 `LegendLayout` unit).
 
 **Scene shape.** The root group holds the view group, translated to the data rectangle's origin and carrying the plot
-background and border (the group paints its own fill and stroke, as a Vega group does); the content is its children in the
-order given, followed by the title group.
+background and border (the group paints its own fill and stroke, as a Vega group does); the content is its children in
+the order given, followed by the title group.
 
 #### Key Methods
 
@@ -111,8 +111,8 @@ order given, followed by the title group.
   with an axis 30 wide from -30.5; the single view, whose border is not part of its bounds, is not changed).
 - `CreateViewGroup(ViewStyle style, x, y, width, height, SceneClip? clip, children)` - the group of role `view` of a
   chart: the plot area with the fill and border of the style, positioned at its origin, holding the guides, the marks,
-  and the title; `Build` places the one of a single view on the canvas, and every chart of a composition makes one at the
-  origin of its cell (the composition layout moves it).
+  and the title; `Build` places the one of a single view on the canvas, and every chart of a composition makes one at
+  the origin of its cell (the composition layout moves it).
 
 **Preconditions and postconditions**: arguments are non-null where documented; the results are immutable and
 deterministic.

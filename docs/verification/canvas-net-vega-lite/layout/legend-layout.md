@@ -8,8 +8,8 @@ and its axes and joins their reach with the extents of the axes.
 #### Verification Approach
 
 The unit is verified with synthetic `LegendResult` boxes of a stated size and no content, placed against a data
-rectangle of 200 by 100 pixels with the real `SpecParser` and `ConfigResolver` (for the layout configuration). No text is
-measured, so no expectation depends on a font; no mocking or stubbing is used, and the internal types are reached
+rectangle of 200 by 100 pixels with the real `SpecParser` and `ConfigResolver` (for the layout configuration). No text
+is measured, so no expectation depends on a font; no mocking or stubbing is used, and the internal types are reached
 through the test assembly's `InternalsVisibleTo` access. The unit with real legends, axes, the layout iteration, and the
 painted canvas is verified at the document level by the legend integration scenarios (see the Layout subsystem
 verification document and `VegaLiteLegendIntegrationTests`).
@@ -22,8 +22,8 @@ direction `vertical` for the left and right side, rounding half up):
   (y = -18 - 40 = -58); a bottom row starts at 100 + 18 = 118, the second box at 50 + 8 = 58.
 - The inner orients are at 18 from the corners: top-left (18, 18), top-right (200 - 18 - 50 = 132, 18), bottom-left (18,
   100 - 18 - 40 = 42).
-- The anchor `middle` puts the center of a box of 40 at y = 50 (y = 30), the anchor `end` its bottom at y = 100 (y = 60),
-  and a row of 60 centers at x = 100 (x = 70).
+- The anchor `middle` puts the center of a box of 40 at y = 50 (y = 30), the anchor `end` its bottom at y = 100 (y =
+  60), and a row of 60 centers at x = 100 (x = 70).
 - A right axis that reaches 230.4 puts a right legend at ceil(230.4) + 18 = 249; a bottom axis that reaches 124.2 puts a
   bottom legend at 125 + 18 = 143, while the anchor `start` of the frame `group` keeps it at x = 0.
 - With the bounds `full`, the second of two boxes whose bounds are one pixel larger on every side is placed at

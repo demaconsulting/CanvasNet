@@ -66,7 +66,8 @@ not know (`steelblue`), and a khroma keyword (`CyanAqua`).
 
 ##### CanvasNetMermaid-Configuration-ColorMath-NotAColor: Failures Carry The Value
 
-**Tests**: `ColorMathTests.ColorMath_Invert_NotAString_ThrowsWithValue`, `ColorMathTests.ColorMath_Function_MatchesKhroma`
+**Tests**: `ColorMathTests.ColorMath_Invert_NotAString_ThrowsWithValue`,
+`ColorMathTests.ColorMath_Function_MatchesKhroma`
 
 Asserts that inverting the number 5 throws a `ColorFormatException` whose value is 5, and that the recorded calls on
 texts that are not colors fail with khroma's message.

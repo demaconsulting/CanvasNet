@@ -15,7 +15,7 @@ responsible for: opening a `.vsdx` package and resolving its content-type/relati
 enumerating pages and reporting their declared size; resolving a page's full shape tree,
 including Master/MasterShape cell-and-geometry-row inheritance, the StyleSheet chain, shape
 geometry/transform, text layout, and 1-D connector glue-point resolution; and rendering a
-requested page onto a core `CanvasNet.Canvas.Surface`. See _CanvasNetVsdx System Design_
+requested page onto a core `CanvasNet.Canvas.Surface`. See *CanvasNetVsdx System Design*
 (`canvas-net-vsdx.md`) for the system-level architecture and the Implementation Phase Plan this
 unit's own delivery follows.
 
@@ -30,7 +30,7 @@ unit's own delivery follows.
   `visio/theme/theme1.xml`, and a lazily-resolved, per-master-file cache
   of parsed `<MasterContents>` trees (a page's shape tree is not resolved until `Render` is first
   called for that page, mirroring `PptxDocument`'s own lazy-resolution precedent — see
-  _PptxDocument Unit Design_, `canvas-net-pptx/pptx-document.md`).
+  *PptxDocument Unit Design*, `canvas-net-pptx/pptx-document.md`).
 - **`VsdxPageInfo`** — a resolved page's declared `PageWidth`/`PageHeight` (converted from the raw
   inches value to the document's internal unit, EMU — `914400` EMU per inch, the same constant and
   internal unit already used by `PptxSlideSize`, so the existing EMU-to-pixel/DPI conversion
@@ -65,15 +65,15 @@ unit's own delivery follows.
 - **`VsdxRenderOptions`** — render-time options: `BackgroundColor` (default opaque white,
   mirroring `PptxRenderOptions`'s own precedent).
 - **Supporting exception type**: `VsdxUnsupportedFeatureException` — defined (mirroring
-  `PptxUnsupportedFeatureException`'s own precedent, see _PptxDocument Unit Design_,
+  `PptxUnsupportedFeatureException`'s own precedent, see *PptxDocument Unit Design*,
   `canvas-net-pptx/pptx-document.md`) for a recognized-but-unsupported VisioML construct,
   carrying a stable feature-token string. It is thrown only when
   `VsdxRenderOptions.ThrowOnUnsupportedFeature` opts into strict mode; by default the construct
   degrades tolerantly and is reported through the unsupported-feature handler (see
-  _Unsupported-feature reporting_ below). A non-solid `FillPattern` beyond the documented subset
+  *Unsupported-feature reporting* below). A non-solid `FillPattern` beyond the documented subset
   (drawn as solid fill) is reported as `vsdx-fill-pattern-<n>`; a dangling `Connect` target (glue
   resolution skipped) is a documented tolerant degradation that is not reported — per the Risk
-  Control Measures in _CanvasNetVsdx System Design_ (`canvas-net-vsdx.md`).
+  Control Measures in *CanvasNetVsdx System Design* (`canvas-net-vsdx.md`).
 
 **Invariants**: `PageCount` and `GetPageSize` are available immediately after `Open` succeeds,
 with no page shape tree resolved yet. A `VsdxShapeNode`'s effective cell set is always fully
@@ -88,7 +88,7 @@ from the leaf up to the page, with no separate `chOff`/`chExt`-style remap step.
 
 - **`Open(Stream stream)`** / **`Open(string path)`**: Validates the argument (`ArgumentNullException`
   for null, `ArgumentException` for an unreadable stream or an empty/whitespace path), opens the package with the core
-  `OpcPackage.Open` (bounded, hardened - see _OpcPackage Unit Design_,
+  `OpcPackage.Open` (bounded, hardened - see *OpcPackage Unit Design*,
   `canvas-net/packaging/opc-package.md`; `VsdxDocument.Package.cs` is a thin adapter that
   rethrows each `OpcFormatException` as `InvalidDataException` with the same message), resolves
   the `_rels/.rels` → `visio/document.xml` →
@@ -252,8 +252,8 @@ from the leaf up to the page, with no separate `chOff`/`chExt`-style remap step.
   `0` ("No Style"), which the format research confirms has no `F="Inh"` cells of its own. A
   literal value of `"Themed"` resolves through the optional parsed theme instead, falling back to
   a neutral default when no theme part is present or the referenced scheme entry is absent (see
-  the Design Constraints deferral in _CanvasNetVsdx System Design_, `canvas-net-vsdx.md`). A
-  _bare_ `"Themed"` line, fill or character-color cell (a `THEMEVAL()` formula that names no
+  the Design Constraints deferral in *CanvasNetVsdx System Design*, `canvas-net-vsdx.md`). A
+  *bare* `"Themed"` line, fill or character-color cell (a `THEMEVAL()` formula that names no
   theme slot, as in the built-in "Theme" StyleSheet, ID `6`, that real equipment shapes inherit)
   instead takes the same cell's value from the built-in "No Style" StyleSheet (ID `0`: black
   line and text, white solid fill, 0.0104 in weight) via `ApplyUnthemedFallback`; this matches
@@ -441,7 +441,7 @@ cannot safely process at all, as distinct from `VsdxUnsupportedFeatureException`
 recognized-but-unsupported construct. By default such a construct is degraded to a tolerant skip
 at the shape/row level (per the format research's Risk Control Measures) and reported to
 `VsdxRenderOptions.UnsupportedFeatureHandler`; `VsdxRenderOptions.ThrowOnUnsupportedFeature`
-opts into the exception instead (see _Unsupported-feature reporting_ above).
+opts into the exception instead (see *Unsupported-feature reporting* above).
 
 ### Dependencies
 
@@ -468,13 +468,13 @@ opts into the exception instead (see _Unsupported-feature reporting_ above).
   fonts are shared through `SystemFontCatalog.Load`'s process-lifetime path/face cache so one page does not re-parse the
   same font file per text shape)
 - **`CanvasNet.Codecs`** — reserved for the deferred embedded-image/`Foreign`-shape capability;
-  not exercised by this unit's in-scope feature set (see _CanvasNetVsdx System Design_'s Design
+  not exercised by this unit's in-scope feature set (see *CanvasNetVsdx System Design*'s Design
   Constraints section, `canvas-net-vsdx.md`)
 - **PPTX theme-parsing infrastructure** — `VsdxDocument`'s optional `visio/theme/theme1.xml`
   parsing reuses `CanvasNetPptx`'s existing OOXML DrawingML `<a:theme>`/`<a:clrScheme>` parsing
   logic where structurally identical (both are the same OOXML theme part format); this is a
   source-level reuse of parsing logic, not a project/package dependency on `CanvasNetPptx` itself
-  — see _CanvasNetVsdx System Design_'s Dependencies section (`canvas-net-vsdx.md`) for why
+  — see *CanvasNetVsdx System Design*'s Dependencies section (`canvas-net-vsdx.md`) for why
   `CanvasNetVsdx` must never take an actual package dependency on `CanvasNetPptx`.
 
 ### Callers

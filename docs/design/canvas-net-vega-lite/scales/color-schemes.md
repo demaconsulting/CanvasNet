@@ -27,7 +27,7 @@ hexadecimal colors (`rrggbb`, no separator) in category order for a categorical 
 continuous ramp (a ramp has between 7 and 64 stops). The catalog lists the 68 schemes with their Vega names (for
 example `blueGreen`; the lookup lower-cases the name, as Vega does) and says whether each is continuous. A
 `ColorScheme` decodes its run on first use (a thread-safe lazy value) into `RgbColor` values, `#rrggbb` CSS texts,
-and a `ColorRamp` that interpolates piecewise through the colors in sRGB (see _ColorInterpolator_). A scheme built
+and a `ColorRamp` that interpolates piecewise through the colors in sRGB (see *ColorInterpolator*). A scheme built
 from user colors with `ColorScheme.FromColors` is continuous, carries the interpolation space and gamma that the
 caller chose, and is complete at creation. The catalog and its lookup table are built once, under a thread-safe lazy
 initializer, and never change.

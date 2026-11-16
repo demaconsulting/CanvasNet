@@ -26,19 +26,19 @@ calendar dates, computed with `DateTimeOffset`), and not by running d3 and pasti
   03:04:09.007 is 1,709,596,800,000 + 11,049,007 = 1,709,607,849,007, which makes the hour a single digit.
 - **Every directive for the anchor, in UTC.** The text of each directive is derived from the definition:
 
-| Directive | Text                   | Directive | Text           | Directive | Text         |
-|-----------|------------------------|-----------|----------------|-----------|--------------|
-| `%a`      | `Tue`                  | `%L`      | `007`          | `%u`      | `2`          |
-| `%A`      | `Tuesday`              | `%m`      | `03`           | `%U`      | `09`         |
-| `%b`      | `Mar`                  | `%M`      | `04`           | `%V`      | `10`         |
-| `%B`      | `March`                | `%p`      | `PM`           | `%w`      | `2`          |
-| `%c`      | `3/5/2024, 1:04:09 PM` | `%q`      | `1`            | `%W`      | `10`         |
-| `%d`      | `05`                   | `%Q`      | `1709643849007`| `%x`      | `3/5/2024`   |
-| `%e`      | space, `5`             | `%s`      | `1709643849`   | `%X`      | `1:04:09 PM` |
-| `%f`      | `007000`               | `%S`      | `09`           | `%y`      | `24`         |
-| `%g`      | `24`                   | `%H`      | `13`           | `%Y`      | `2024`       |
-| `%G`      | `2024`                 | `%I`      | `01`           | `%Z`      | `+0000`      |
-| `%j`      | `065`                  |           |                | `%%`      | `%`          |
+| Directive | Text | Directive | Text | Directive | Text |
+| --- | --- | --- | --- | --- | --- |
+| `%a` | `Tue` | `%L` | `007` | `%u` | `2` |
+| `%A` | `Tuesday` | `%m` | `03` | `%U` | `09` |
+| `%b` | `Mar` | `%M` | `04` | `%V` | `10` |
+| `%B` | `March` | `%p` | `PM` | `%w` | `2` |
+| `%c` | `3/5/2024, 1:04:09 PM` | `%q` | `1` | `%W` | `10` |
+| `%d` | `05` | `%Q` | `1709643849007` | `%x` | `3/5/2024` |
+| `%e` | space, `5` | `%s` | `1709643849` | `%X` | `1:04:09 PM` |
+| `%f` | `007000` | `%S` | `09` | `%y` | `24` |
+| `%g` | `24` | `%H` | `13` | `%Y` | `2024` |
+| `%G` | `2024` | `%I` | `01` | `%Z` | `+0000` |
+| `%j` | `065` | | | `%%` | `%` |
 
 - **Week numbers of the anchor.** The Sunday-based `%U` counts the Sundays since January 1 up to the date: 2024-01-01
   is a Monday, so the Sundays are January 7, 14, 21, 28, February 4, 11, 18, 25, and March 3, which is 9. The
@@ -178,7 +178,7 @@ Unit tests reside in `TimeFormatTests.cs` (the formatter), `TimeFormatParseTests
 `TimeFormatMultiTests.cs` (Vega's multi-format), and `JsDateParserTests.cs` (the `Date.parse` rules), with the shared
 helper `TimeTestSupport.cs`, all within the `DemaConsulting.CanvasNet.VegaLite.Tests` project, in the `Data` folder.
 The label specifiers of the time units (`TimeUnitSpec.Specifier` and `TimeUnitSpec.TryGetUnitSpecifier`) are verified
-with the calendar unit (see the _TimeCalendar Unit Verification Design_).
+with the calendar unit (see the *TimeCalendar Unit Verification Design*).
 
 #### Test Environment
 
@@ -284,9 +284,9 @@ calendar passed to `Format`; and that NaN is `Invalid Date` and `Tue 05` needs a
 `TimeFormatParseTests.TimeFormatParse_IsoWeekOutOfRange_Fails`, `TimeFormatParseTests.TimeFormatParse_DayMonthYear`
 
 Asserts that the sixteen specifiers (milliseconds, microseconds, `%c`, `%x %X`, `%Q`, `%s`, a zone, names, a two-digit
-year, the three week numbering schemes with weekdays, and fields without padding) format the anchor and parse the text back
-to the derived instant; the quarter rules; the three week conversions; that the ISO weeks `W00`, `W54`, and `W99` fail;
-and that `05/03/2024` is March 5.
+year, the three week numbering schemes with weekdays, and fields without padding) format the anchor and parse the text
+back to the derived instant; the quarter rules; the three week conversions; that the ISO weeks `W00`, `W54`, and `W99`
+fail; and that `05/03/2024` is March 5.
 
 ##### Names, Defaults, Pivot, And Zones In Parsing
 
@@ -312,9 +312,9 @@ failure of a negative number and 40 digits; and the wall times of a zone in wint
 `TimeFormatParseTests.TimeFormatParse_YearsBelow100_FollowD3`
 
 Asserts that the 15 mismatching texts (trailing text, missing text, wrong literal case, non-ASCII digits, a partial
-name, an unknown directive, and a lone percent sign) give no result; that the empty specifier matches only empty text and
-gives 1900-01-01; the five roll-over results; the nine window results; that the flags `-`, `_`, and `0` are ignored; and
-the four small-year results.
+name, an unknown directive, and a lone percent sign) give no result; that the empty specifier matches only empty text
+and gives 1900-01-01; the five roll-over results; the nine window results; that the flags `-`, `_`, and `0` are ignored;
+and the four small-year results.
 
 ##### Parsing Is Bounded And Total
 

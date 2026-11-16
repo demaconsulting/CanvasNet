@@ -28,14 +28,13 @@ counted from 1; `null` for the first), `AllPages` (off), `Dpi` (none), `Scad` (`
 
 **Execute(infos, request)**: refuses an empty list as a defect of the caller, and a request with a missing member
 (`Output`, `Sheet`, or `Write`) or a missing input in the list as `ArgumentNullException`. It plans one cell for each
-input (with
-every page, one for each page of a document), calculates the layout with `ContactSheet.CalculateLayout` (a sheet larger
-than the maximum is `size-limit`, found before any input is decoded), resolves the output format (the format of the write
-options when set, else the extension of the output) and checks the output
-against every input (`same-input-output`, `output-exists`). It then opens each input in turn, loads its page into a cell
-at the cell size (a vector input rendered at that size, a raster input fitted), adds it to the sheet with the label (the
-file name, and `p` and the page number for a document page, when labels are on), and disposes it before the next, so the
-memory in use is the sheet and one input. The finished sheet is staged and published with `ImageWriter`.
+input (with every page, one for each page of a document), calculates the layout with `ContactSheet.CalculateLayout` (a
+sheet larger than the maximum is `size-limit`, found before any input is decoded), resolves the output format (the
+format of the write options when set, else the extension of the output) and checks the output against every input
+(`same-input-output`, `output-exists`). It then opens each input in turn, loads its page into a cell at the cell size (a
+vector input rendered at that size, a raster input fitted), adds it to the sheet with the label (the file name, and `p`
+and the page number for a document page, when labels are on), and disposes it before the next, so the memory in use is
+the sheet and one input. The finished sheet is staged and published with `ImageWriter`.
 
 **Input fragment.** `PlanCells` makes a page that the `SourceInfo.Selection` of an input names the one cell of that
 input, whatever `Page` and `AllPages` of the request say (the page is checked there); the other parts of the selection

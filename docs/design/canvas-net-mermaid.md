@@ -28,9 +28,9 @@ and gantt renderers with the d3 time scale, intervals, format, and axis and the 
 mindmap renderer with the cose-bilkent force-directed layout (cytoscape-cose-bilkent over cose-base and layout-base) and
 the cytoscape edge points it reads back, its packet renderer, and its git graph renderer. Every
 construct that is recognized but not drawn is **reported with a stable `mermaid-*` code and the exact location,
-never skipped silently** (see _Fidelity and Known Differences_).
+never skipped silently** (see *Fidelity and Known Differences*).
 
-This version (Phases 1a, 1b, 2a, 2b, 3a, 3b, 4a, and 4b, see _Phase Plan_) draws **flowcharts** (the `flowchart` and
+This version (Phases 1a, 1b, 2a, 2b, 3a, 3b, 4a, and 4b, see *Phase Plan*) draws **flowcharts** (the `flowchart` and
 `graph`
 keywords), **sequence diagrams** (the `sequenceDiagram` keyword), **class diagrams** (the `classDiagram` and
 `classDiagram-v2` keywords, and the legacy `class` id of `class.defaultRenderer: dagre-d3`), **state diagrams** (the
@@ -44,7 +44,7 @@ empty, transparent 16 by 16 pixel picture (an exception in strict mode).
 
 The system consists of one direct unit and seventeen internal subsystems:
 
-- **MermaidDocument** (unit, root namespace; see _MermaidDocument Unit Design_) - the public API: `MermaidDocument`
+- **MermaidDocument** (unit, root namespace; see *MermaidDocument Unit Design*) - the public API: `MermaidDocument`
   with `Parse`, `Open(path)`, `Open(stream)`, the metadata properties, `Measure`, `Render`, and
   `Render(width, height)`; the validated `MermaidOpenOptions`, `MermaidRenderOptions`, and `MermaidLimits`; the
   `MermaidLocation`, `MermaidDiagnostic`, `MermaidUnsupportedFeature`, and `MermaidSize` records; the
@@ -52,23 +52,23 @@ The system consists of one direct unit and seventeen internal subsystems:
   `MermaidUnsupportedFeatureException` types; the internal `MermaidReportSink` (ordered, de-duplicated, capped report
   delivery); the internal pipeline seam (`IMermaidDiagram`, `DiagramRenderContext`, `DiagramRegistry`); and the
   `MermaidImageSource` that plugs the package into the CanvasNet image-source contract.
-- **Syntax** (subsystem; see _Syntax Design_) - text to a clean diagram body: `Preprocessor` (line endings,
+- **Syntax** (subsystem; see *Syntax Design*) - text to a clean diagram body: `Preprocessor` (line endings,
   frontmatter, directives, comments, entity encoding, size limits, and the location map back to the original text),
   `DiagramDetector` (Mermaid's detectors and their order), `YamlSubsetParser` (the js-yaml subset of the frontmatter
   and the shape data), `SourceScanner` (the jison lexer semantics shared by the parsers), and `HtmlSanitizer` (the
   DOMPurify behavior that Mermaid applies to labels, with the `HtmlEntities` table).
-- **Configuration** (subsystem; see _Configuration Design_) - the effective configuration and paint:
+- **Configuration** (subsystem; see *Configuration Design*) - the effective configuration and paint:
   `MermaidConfigResolver` (defaults, precedence, secure keys, directive parsing, typed `MermaidConfig` view),
   `ThemeResolver` (the five themes and the flowchart, sequence, class, state, entity relationship, pie, gantt,
   mindmap, packet, and git graph style sheets, the gantt and git graph ones with a class-set cascade and the mindmap one
   painting each node by its classes), `ColorMath` (the khroma subset), and
   `StyleDeclarations` (the CSS declaration subset of `style`, `classDef`, `linkStyle`, and `themeCSS`).
-- **Graphlib** (subsystem; see _Graphlib Design_) - `Graph` (graphlib's directed, multi, and compound graph with
+- **Graphlib** (subsystem; see *Graphlib Design*) - `Graph` (graphlib's directed, multi, and compound graph with
   JavaScript key order) and `GraphAlgorithms` (the traversals dagre uses).
-- **Dagre** (subsystem; see _Dagre Design_) - the layered layout: `DagreLayout` (the pipeline and its utilities),
+- **Dagre** (subsystem; see *Dagre Design*) - the layered layout: `DagreLayout` (the pipeline and its utilities),
   `DagreAcyclic`, `DagreRanker`, `DagreNesting`, `DagreNormalizer`, `DagreOrdering`, `DagrePositioning`,
   `DagreCoordinateSystem`, and `LayoutWorkMeter` (the work budget, cancellation, and the shared unique-id counter).
-- **Rendering** (subsystem; see _Rendering Design_) - Mermaid's unified renderer for any layout data:
+- **Rendering** (subsystem; see *Rendering Design*) - Mermaid's unified renderer for any layout data:
   `ClusterLayout` (subgraph extraction, recursive layout, placement, the check of the edge ends, and the frame of a
   class, state, or entity relationship diagram), `ShapeLibrary` (the 53 documented shapes, their aliases, the bracket
   shapes, the two mindmap shapes, the class box, the state shapes and the clusters of composite states, concurrent
@@ -78,52 +78,52 @@ The system consists of one direct unit and seventeen internal subsystems:
   the terminal labels of class relations), `LabelBuilder` (HTML, markdown, and SVG labels measured with the
   bundled fonts, and the text utilities that measure and wrap the texts of sequence diagrams), and `NodeImages`
   (pictures through the caller's resolver).
-- **Scenegraph** (subsystem; see _Scenegraph Design_) - `SceneModel` (the immutable scene: groups, paths with their
+- **Scenegraph** (subsystem; see *Scenegraph Design*) - `SceneModel` (the immutable scene: groups, paths with their
   drop shadows, text that may be turned about a point, images, and their bounds, which is the assertion surface of the
   tests and goldens, and the internal position tags of the items that draw a feature),
   `ScenePainter` (scene to pixels), and `ScenePositions` (the feature positions of a laid-out scene in the pixels of
   the surface).
-- **Flowchart** (subsystem; see _Flowchart Design_) - `FlowchartParser` (the `flow.jison` lexer and grammar) and
+- **Flowchart** (subsystem; see *Flowchart Design*) - `FlowchartParser` (the `flow.jison` lexer and grammar) and
   `FlowchartModel` (the `flowDb` semantics, the mapping to layout data, and the flowchart's own drawing steps).
-- **Sequence** (subsystem; see _Sequence Design_) - `SequenceParser` (the `sequenceDiagram.jison` lexer and grammar),
+- **Sequence** (subsystem; see *Sequence Design*) - `SequenceParser` (the `sequenceDiagram.jison` lexer and grammar),
   `SequenceModel` (the `sequenceDb` semantics, the metadata, and the reports), `SequenceLayout` (Mermaid's sequence
   renderer: the bounds model, the placement of every element, and the view box), and `SequenceRenderer` (Mermaid's
   sequence drawing functions as scene items).
-- **Class** (subsystem; see _Class Design_) - `ClassParser` (the `classDiagram.jison` lexer and grammar) and
+- **Class** (subsystem; see *Class Design*) - `ClassParser` (the `classDiagram.jison` lexer and grammar) and
   `ClassModel` (the `classDb` semantics with Mermaid's `ClassMember`, the links checked by the shared check, the
   metadata, the reports, and the mapping to layout data for the shared renderer).
-- **State** (subsystem; see _State Design_) - `StateParser` (the `stateDiagram.jison` lexer and grammar, and the
+- **State** (subsystem; see *State Design*) - `StateParser` (the `stateDiagram.jison` lexer and grammar, and the
   statement tree its actions build) and `StateModel` (the `stateDb` semantics with the translation of the statement
   tree, the data fetcher with its note groups and DOM ids, the metadata, the reports, and the mapping to layout data
   for the shared renderer).
-- **Er** (subsystem; see _Er Design_) - `ErParser` (the `erDiagram.jison` lexer and grammar) and `ErModel` (the `erDb`
+- **Er** (subsystem; see *Er Design*) - `ErParser` (the `erDiagram.jison` lexer and grammar) and `ErModel` (the `erDb`
   semantics with its entities, relationships, subgraphs, and compiled styles, the metadata, the reports, and the
   mapping to layout data for the shared renderer).
-- **Pie** (subsystem; see _Pie Design_) - `PieParser` (the Langium pie grammar of the Mermaid parser package, its value
+- **Pie** (subsystem; see *Pie Design*) - `PieParser` (the Langium pie grammar of the Mermaid parser package, its value
   converters, and the `pieDb` semantics, with the `PieDiagram` that gives the metadata) and `PieRenderer` (Mermaid's
   pie renderer with d3's `pie` and `arc`: the slices, percentage labels, title, legend, and view box).
-- **Gantt** (subsystem; see _Gantt Design_) - `GanttParser` (the `gantt.jison` lexer and grammar), `GanttModel` (the
+- **Gantt** (subsystem; see *Gantt Design*) - `GanttParser` (the `gantt.jison` lexer and grammar), `GanttModel` (the
   `ganttDb` semantics, the metadata, and the compilation of the task dates of each render with the dayjs subset and
   the clock of the render options), `GanttRenderer` (Mermaid's gantt renderer with d3-axis: rows, bars, milestones,
   vertical markers, texts, section titles, excluded days, axes, today line, and title), and `TimeAxis` (JavaScript
   dates in UTC and the d3 time intervals, ticks, time scale, and time format).
-- **Mindmap** (subsystem; see _Mindmap Design_) - `MindmapParser` (the `mindmap.jison` lexer and grammar and the
+- **Mindmap** (subsystem; see *Mindmap Design*) - `MindmapParser` (the `mindmap.jison` lexer and grammar and the
   `mindmapDb` semantics, with the `MindmapDiagram` that gives the metadata and the sections, classes, and edges of
   `getData`) and `MindmapRenderer` (Mermaid's mindmap renderer: the node data and the changes per shape, the nodes drawn
   by the shared shapes, their sizes in single precision, the edges through the layout's points, the reports, and the
   view box).
-- **Cose** (subsystem; see _Cose Design_) - `CoseLayout` (the cose-bilkent layout of layout-base, cose-base, and
+- **Cose** (subsystem; see *Cose Design*) - `CoseLayout` (the cose-bilkent layout of layout-base, cose-base, and
   cytoscape-cose-bilkent as Mermaid runs it for one tree, cytoscape's straight-edge points, and the correctly rounded
   sine, cosine, logarithm, and power that make it equal to the browser's layout).
-- **Packet** (subsystem; see _Packet Design_) - `PacketParser` (the Langium packet grammar of the Mermaid parser
+- **Packet** (subsystem; see *Packet Design*) - `PacketParser` (the Langium packet grammar of the Mermaid parser
   package, its value converters, and the packet database semantics, with the `PacketDiagram` that gives the metadata
   and splits the blocks into rows as Mermaid's `populate` does) and `PacketRenderer` (Mermaid's packet renderer: the
   block rectangles, labels, and bit numbers of each row, the title, and the view box).
-- **GitGraph** (subsystem; see _GitGraph Design_) - `GitGraphParser` (the Langium git graph grammar of the Mermaid
+- **GitGraph** (subsystem; see *GitGraph Design*) - `GitGraphParser` (the Langium git graph grammar of the Mermaid
   parser package, its value converters, and the `GitGraphDatabase` port of Mermaid's git graph database with its
   generated commit ids, with the `GitGraphDiagram` that gives the metadata and runs the statements again for a render
-  that names another main branch) and `GitGraphRenderer` (Mermaid's git graph renderer: the branch lines and labels,
-  the commit places of both passes, the arrows with their rerouting lanes, the commit bullets, the rotated commit labels,
+  that names another main branch) and `GitGraphRenderer` (Mermaid's git graph renderer: the branch lines and labels, the
+  commit places of both passes, the arrows with their rerouting lanes, the commit bullets, the rotated commit labels,
   the tags, the title, and the view box of the browser's bounding box).
 
 The dependency direction is one way:
@@ -247,7 +247,7 @@ records the name and the class simply adds no style.
   graphlib, the d3 modules (shape, path, scale, time, time format, array, axis, and interpolate), dayjs, cytoscape,
   cytoscape-cose-bilkent, cose-base, layout-base, khroma, js-yaml, lodash, marked, and sanitize-url are **not**
   dependencies: their behavior is ported into local source (see
-  _Third-Party Provenance and Attribution_). The pinned `mermaid`, `@mermaid-js/mermaid-cli`, `dagre-d3-es`, and
+  *Third-Party Provenance and Attribution*). The pinned `mermaid`, `@mermaid-js/mermaid-cli`, `dagre-d3-es`, and
   `puppeteer` npm packages of the repository are used only by the developer scripts in `tools/visual-diff/` that
   generate the test vectors and layout goldens; CI never runs them.
 
@@ -261,18 +261,18 @@ and services, so its risk controls are about availability, integrity of the pict
   picture link is reported (`mermaid-image-unresolved`) and the diagram is still drawn. The Viewer library supplies
   a folder resolver that reads pictures under the caller's file-access policy.
 - **Bounded work and memory.** Every input-controlled loop and recursion is bounded by a `MermaidLimits` value (see
-  _Untrusted Input and Limits_); the parsers are scanner based with no regular-expression backtracking; YAML aliases,
+  *Untrusted Input and Limits*); the parsers are scanner based with no regular-expression backtracking; YAML aliases,
   anchors, and tags are refused.
 - **Fail closed.** Invalid text never yields a guessed picture: it is a located `MermaidSyntaxException`.
   Unsupported constructs are reported, and strict mode turns the first one into an exception, so a build can refuse an
   approximate picture.
 - **No secure-key escalation.** Text cannot change a key the site marks as secure (`mermaid-config-secure-key`);
   `securityLevel` values have no effect because nothing is executed.
-- **Determinism.** Only bundled fonts are used, the layout reproduces JavaScript iteration order, dates are computed
-  in UTC, the cose layout of a mindmap computes its sines, cosines, logarithms, and powers correctly rounded rather than
+- **Determinism.** Only bundled fonts are used, the layout reproduces JavaScript iteration order, dates are computed in
+  UTC, the cose layout of a mindmap computes its sines, cosines, logarithms, and powers correctly rounded rather than
   with the host's math library, and nothing reads the system clock, a random source, or the culture (a gantt chart takes
-  today only from `MermaidRenderOptions.Now`, and the generated commit ids of a git graph come from a fixed pseudo-random
-  sequence restarted for every run of its database), so the output can be cached and reviewed.
+  today only from `MermaidRenderOptions.Now`, and the generated commit ids of a git graph come from a fixed
+  pseudo-random sequence restarted for every run of its database), so the output can be cached and reviewed.
 
 ## Data Flow
 
@@ -799,7 +799,7 @@ misses (item 62 below).
       `Math.random`: a mindmap is one tree, a flat forest, so the layout always takes the radial path, and the only
       random code (cose-base's `findPlaceforPrunedNode`, and layout-base's `RandomSeed` through `positionNodesRandomly`
       and `LNode.scatter`) is unreachable. So no generator is ported, there is no tie case, and the layout is equal to
-      Mermaid's bit for bit whenever the node sizes are bit-identical (see _Cose Design_).
+      Mermaid's bit for bit whenever the node sizes are bit-identical (see *Cose Design*).
     - **Measured fidelity.** Given the browser's own node sizes, the layout of all 14 mindmap fixtures and of all 36
       recorded cose layouts is bit-identical to Chrome's. With the library's own sizes, 152 of the 155 fixture node
       sizes are bit-identical, and 11 of the 14 fixtures have exactly Mermaid's node centers; `03-root-shapes` is
@@ -827,8 +827,9 @@ misses (item 62 below).
     root with 40 children of 48 children each, 1,961 nodes, does), while one of 301 nodes is far within it.
 55. **Packet limits.** `MaxNodes` bounds the block statements of a packet diagram when it is opened and the parts that
     its rows split them into when it is drawn, so a range that Mermaid splits into up to 10,000 rows (`0-99999999`)
-    fails with a located `mermaid-limit-exceeded` at the default limits; with a raised limit, Mermaid's own cap of 10,000
-    rows is kept, and a natural size beyond `Surface.MaxDimension` is the documented `ArgumentOutOfRangeException`.
+    fails with a located `mermaid-limit-exceeded` at the default limits; with a raised limit, Mermaid's own cap of
+    10,000 rows is kept, and a natural size beyond `Surface.MaxDimension` is the documented
+    `ArgumentOutOfRangeException`.
 56. **Packet configuration and errors.** A packet setting of the wrong type is `mermaid-config-invalid` and ignored,
     where Mermaid computes with it (a string `paddingY` is joined as text). A fractional, zero, or negative
     `bitsPerRow` is split exactly as Mermaid splits it, and Mermaid's `Block start ... is greater than block end ...`

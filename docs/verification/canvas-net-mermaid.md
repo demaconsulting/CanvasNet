@@ -47,7 +47,7 @@ This document describes the system-level verification strategy for CanvasNetMerm
   `CanvasNetMermaid_<Area>_<Scenario>_<Result>`.
 - **Subsystem tests** (`{Subsystem}Tests.cs` in each folder) and **unit tests** (`{Unit}Tests.cs`) are described in
   the subsystem and unit verification designs that follow this document; the direct unit `MermaidDocument` is
-  described in _MermaidDocument Unit Verification Design_.
+  described in *MermaidDocument Unit Verification Design*.
 
 Two kinds of upstream evidence make the fidelity objective:
 
@@ -117,18 +117,17 @@ side-by-side pictures for a manual visual review and never gates.
 ## Acceptance Criteria
 
 A system-level test run passes when every scenario below passes on every target framework and platform without an
-exception beyond those explicitly asserted. A layout that differs from a golden beyond its documented tolerance
-(0.01 pixel, 0.1 pixel for the two fixtures with rough.js circles; for the sequence goldens 0.01 pixel, 0.02 pixel for
-text boxes and cylinder arcs; for the class goldens 0.01 pixel, 0.23 pixel for `16-config-title-links`, whose class
-texts are SVG text; for the state and ER goldens 0.01 pixel with no exception; for the pie and gantt goldens 0.01 pixel,
-0.02 pixel for text boxes and slice arc boxes; for the mindmap goldens 0.02 pixel for the node sizes, bit equality for
-the layout given the golden's sizes, and 0.01 pixel for the whole drawing of every fixture but `02-shapes`, whose cloud
-node Chrome measures 7.6e-6 pixel taller, which the chaotic layout turns into a different picture; for the packet goldens
+exception beyond those explicitly asserted. A layout that differs from a golden beyond its documented tolerance (0.01
+pixel, 0.1 pixel for the two fixtures with rough.js circles; for the sequence goldens 0.01 pixel, 0.02 pixel for text
+boxes and cylinder arcs; for the class goldens 0.01 pixel, 0.23 pixel for `16-config-title-links`, whose class texts are
+SVG text; for the state and ER goldens 0.01 pixel with no exception; for the pie and gantt goldens 0.01 pixel, 0.02
+pixel for text boxes and slice arc boxes; for the mindmap goldens 0.02 pixel for the node sizes, bit equality for the
+layout given the golden's sizes, and 0.01 pixel for the whole drawing of every fixture but `02-shapes`, whose cloud node
+Chrome measures 7.6e-6 pixel taller, which the chaotic layout turns into a different picture; for the packet goldens
 0.01 pixel, 0.02 pixel for text boxes; for the git graph goldens 0.01 pixel, 0.02 pixel for text boxes, with no
-exception), a fixture that gives
-a report it should
-not give in strict mode, a pixel of a documented theme color that differs, an undocumented exception type from the
-mutation fuzzer, or two renders of the same document that differ constitutes a failure.
+exception), a fixture that gives a report it should not give in strict mode, a pixel of a documented theme color that
+differs, an undocumented exception type from the mutation fuzzer, or two renders of the same document that differ
+constitutes a failure.
 
 ## System-Level Test Scenarios
 
@@ -454,7 +453,7 @@ with Mermaid's `Invalid date:next week` message. The gallery holds gantt charts 
 `MermaidGalleryTests.CanvasNetMermaid_SystemIntegration_Gallery_RendersStrictWithoutWarnings`
 
 Compares the whole drawing of each mindmap fixture but the documented `02-shapes` with its mermaid-cli golden (see
-_CanvasNetMermaid-LayoutFidelity_), which covers the tree of the indentation, every node shape, plain, quoted, and
+*CanvasNetMermaid-LayoutFidelity*), which covers the tree of the indentation, every node shape, plain, quoted, and
 markdown texts and their wrapping, classes and icons, the sections and the theme colors, the edges by section and
 depth, and the mindmap settings, laid out by cose-bilkent; asserts the root and section colors of a mindmap in pixels;
 asserts that the keyword alone renders strictly, without any report, as a transparent picture of 20 by 20 pixels with
@@ -475,7 +474,7 @@ Renders each of the 13 packet fixtures (ranges, single bits, bit counts, row spl
 geometry settings, titles and accessibility texts, the themes, theme variables, labels with escapes and entities, the
 keyword alone, and `themeCSS`) in strict mode and asserts the type, that it measures as it renders, that it draws
 something unless it has no block, and that it gives no report; compares the drawing of each fixture with its mermaid-cli
-golden (see _CanvasNetMermaid-LayoutFidelity_); asserts that `packet` and `packet-beta` draw the same pixels; asserts
+golden (see *CanvasNetMermaid-LayoutFidelity*); asserts that `packet` and `packet-beta` draw the same pixels; asserts
 the block colors of the default and dark themes in pixels; and asserts that a gap between two blocks fails at open,
 located, with Mermaid's message. The gallery holds a packet diagram that renders strictly without warnings, and holds
 every drawn diagram type, packet diagrams included.
@@ -497,7 +496,7 @@ rotated, hidden branches and commit labels, many branches with orders and a rena
 accessibility texts, labels with markup and entities, the dark, forest, and neutral themes with the `neo` look, and
 theme variables with `themeCSS`) in strict mode and asserts the type, the supported flag, that it measures as it
 renders, that it draws something, and that it gives no report; compares the drawing of each fixture with its
-mermaid-cli golden (see _CanvasNetMermaid-LayoutFidelity_); asserts the main branch's commit color of the default and
+mermaid-cli golden (see *CanvasNetMermaid-LayoutFidelity*); asserts the main branch's commit color of the default and
 dark themes in pixels; asserts that a merge of a branch that does not exist fails at open, located, with Mermaid's
 message; asserts that the ids generated for commits without one are the same in two documents of the same text, which
 draw the same pixels, and are `0-eb28011`, `1-cc99105`, and `3-4bc15df` for the labeled commits of a graph of two
@@ -739,11 +738,11 @@ patterns beyond single precision render a picture; and that 32 flowchart subgrap
 `S(i+1)`, declared in order or in reverse, so a subgraph is re-used inside one declared after it) render while 40 fail
 when measured with `mermaid-limit-exceeded` and the message `subgraphs are nested deeper than 32 levels`, located at
 `subgraph S33` (line 101 in order, line 20 in reverse), also when the root `S0` is collapsed and hides the whole chain
-from the layout (line 101, while 32 render). For sequence diagrams, asserts that 33 nested blocks fail at open
-with a located `mermaid-limit-exceeded` while 32 render, that 2,001 participants fail at the extra participant (line
-2,002), that 1,000 boxes of one participant each fail at the next box (line 3,002), that a participant metadata alias of
-9,000 `1e20` numbers (about 45,000 characters, 197,999 once converted) fails with `MaxLabelLength` at its line, and that
-a message longer than the label limit fails at its line; that wrapped messages and notes of one 4,000-character word
+from the layout (line 101, while 32 render). For sequence diagrams, asserts that 33 nested blocks fail at open with a
+located `mermaid-limit-exceeded` while 32 render, that 2,001 participants fail at the extra participant (line 2,002),
+that 1,000 boxes of one participant each fail at the next box (line 3,002), that a participant metadata alias of 9,000
+`1e20` numbers (about 45,000 characters, 197,999 once converted) fails with `MaxLabelLength` at its line, and that a
+message longer than the label limit fails at its line; that wrapped messages and notes of one 4,000-character word
 (Mermaid's hyphenation, quadratic in the word) render within the default layout work and fail with
 `mermaid-limit-exceeded` under a small one; that 300 nested activations render, fail with the limit at the diagram
 keyword under a small budget, and stop on a canceled token; that 200 messages under a work limit of 2,000 fail with
@@ -767,22 +766,22 @@ a boolean by a directive or the frontmatter render without an exception; that CS
 class (a class listed 1,000 times in three `cssClass` statements, a style class listed 2,000 times in one `classDef`,
 two style classes or two `style` statements of 2,099 characters each) fail at open with `MaxLabelLength` at the
 statement that makes them too long; that 32 namespaces chained by class names (namespace `Ni` holds a class named
-`N(i+1)`) render while 40 fail when measured with `mermaid-limit-exceeded` and the message `namespaces are nested deeper
-than 32 levels`, located at `class N33` (line 99); and that a class diagram under a small work limit fails with
-`mermaid-limit-exceeded`. For state diagrams, asserts that hostile diagrams (a `state` node and rank spacing of 1e300,
-theme font sizes of 1e300 and 1e-308, a dash of 1e300, self-loops on a state and on a composite state, a note on a
-composite state, markup and a script in a nested note, composite states inside each other, a note on a state that
-appears nowhere else, and a cycle through a fork, a join, and a choice) render fitted to 400 by 300 pixels or fail with
-a located render error; that 700 states with a note each (2,100 nodes once each note and its group are counted) fail at
-open with `MaxNodes` at the note that makes the 2,001st (line 1,335); that 16 composite states each nested in a
-concurrent region of the one before (32 nesting levels) render with 16 subgraphs while 17 fail at open with
+`N(i+1)`) render while 40 fail when measured with `mermaid-limit-exceeded` and the message
+`namespaces are nested deeper than 32 levels`, located at `class N33` (line 99); and that a class diagram under a small
+work limit fails with `mermaid-limit-exceeded`. For state diagrams, asserts that hostile diagrams (a `state` node and
+rank spacing of 1e300, theme font sizes of 1e300 and 1e-308, a dash of 1e300, self-loops on a state and on a composite
+state, a note on a composite state, markup and a script in a nested note, composite states inside each other, a note on
+a state that appears nowhere else, and a cycle through a fork, a join, and a choice) render fitted to 400 by 300 pixels
+or fail with a located render error; that 700 states with a note each (2,100 nodes once each note and its group are
+counted) fail at open with `MaxNodes` at the note that makes the 2,001st (line 1,335); that 16 composite states each
+nested in a concurrent region of the one before (32 nesting levels) render with 16 subgraphs while 17 fail at open with
 `MaxNestingDepth` at the 17th (line 18); that 500 descriptions `S : abcd` of one state fail at open at the 457th (line
-458), where the joined descriptions reach 4,099 characters; that 32 composite states chained by name (`state Si { S(i+1)
-}` at the top) render while chains of 40 and 1,700 fail when measured with `mermaid-limit-exceeded` naming
-`MaxNestingDepth`, located at `state S33` (line 101); that CSS classes and styles repeated on one state fail at open
-with `MaxLabelLength` at the statement that makes them too long, with the length they reach there (a theory shared with
-the ER cases): the reviewed shape of four `classDef c` statements of 1,000 styles, two `class` statements listing the
-state 2,000 times, and 300 mentions at the second definition (line 3, 4,099 characters), the two `class` statements
+458), where the joined descriptions reach 4,099 characters; that 32 composite states chained by name
+(`state Si { S(i+1) }` at the top) render while chains of 40 and 1,700 fail when measured with `mermaid-limit-exceeded`
+naming `MaxNestingDepth`, located at `state S33` (line 101); that CSS classes and styles repeated on one state fail at
+open with `MaxLabelLength` at the statement that makes them too long, with the length they reach there (a theory shared
+with the ER cases): the reviewed shape of four `classDef c` statements of 1,000 styles, two `class` statements listing
+the state 2,000 times, and 300 mentions at the second definition (line 3, 4,099 characters), the two `class` statements
 alone at the second (line 3, 4,098 characters with `statediagram-state`), and two style classes of 2,099 characters on
 one state at the statement that gave the second (line 5, 4,099 characters compiled); that a chain of 300 labeled
 transitions renders with the default work budget and fails with `mermaid-limit-exceeded` under a work limit of 5,000;
@@ -821,24 +820,24 @@ accessibility texts, and the `click` link and call arguments) longer than `MaxLa
 statement; that excluded days over a long span, tiny tick steps over a long domain, a long date format with many
 excluded days, and a tick label that a format makes longer than `MaxLabelLength` fail at render with
 `mermaid-limit-exceeded` (under a smaller work limit) while cancellation is honored; and that a seeded mutation fuzzer
-over the gantt fixtures only ever raises the documented exception types. For mindmaps, asserts that hostile mindmaps
-(a padding of 1e300, a `maxNodeWidth` and padding of 1e300 with cloud, bang, and hexagon nodes, negative and zero
-paddings and widths, theme font sizes of 1e300 and 1e-300, a root of 16 children, long cloud and bang labels, markup,
-references, and empty decorations, a lone root, and the keyword alone) render fitted to 400 by 300 pixels or fail with
-a located `MermaidRenderException`; that a root with 2,000 children fails at open with `MaxNodes` at the extra node
-(line 2,002); that a chain of 33 levels under the root fails at open with `MaxNestingDepth` at the 33rd (line 35) while
-a chain of 32 renders; that an id, a description, a quoted and a markdown string, an icon, and a class of 4,097
-characters fail at open with `MaxLabelLength` at their line, and that a class of 4,080 characters, which only the class
-list Mermaid derives for the root makes too long, fails at the root's line (a theory with seven cases); that under the
-default `MaxLayoutWork` a tree of 301 nodes (a root, 20 children, and 14 grandchildren of each) renders while one of
-1,961 nodes (40 children of 48 grandchildren each) stops with `mermaid-limit-exceeded` naming `MaxLayoutWork` at the
-keyword (line 1); that the seeded mutation fuzzer over the mindmap fixtures only ever raises the documented exception
-types; and that a mindmap of five nodes under a work limit of 500 fails with `mermaid-limit-exceeded` at line 1 naming
-`MaxLayoutWork`. For packet diagrams, asserts that hostile diagrams (row sizes of 0, -3, 1.5, and 1,000,000,000, a negative
-row height and padding, a horizontal padding, a bit width, and a row height of 1e300, the bit numbers turned off, theme
-font sizes of 1e300 pixels and a color that is not one, markup, entities, and escapes in the texts, and a bit count of
-301 digits) render fitted to 400 by 300 pixels or fail with a located `MermaidRenderException`; that the range
-`0-99999999` and the bit count `+99999999999999999999`, which Mermaid splits into 10,000 rows, fail when measured with
+over the gantt fixtures only ever raises the documented exception types. For mindmaps, asserts that hostile mindmaps (a
+padding of 1e300, a `maxNodeWidth` and padding of 1e300 with cloud, bang, and hexagon nodes, negative and zero paddings
+and widths, theme font sizes of 1e300 and 1e-300, a root of 16 children, long cloud and bang labels, markup, references,
+and empty decorations, a lone root, and the keyword alone) render fitted to 400 by 300 pixels or fail with a located
+`MermaidRenderException`; that a root with 2,000 children fails at open with `MaxNodes` at the extra node (line 2,002);
+that a chain of 33 levels under the root fails at open with `MaxNestingDepth` at the 33rd (line 35) while a chain of 32
+renders; that an id, a description, a quoted and a markdown string, an icon, and a class of 4,097 characters fail at
+open with `MaxLabelLength` at their line, and that a class of 4,080 characters, which only the class list Mermaid
+derives for the root makes too long, fails at the root's line (a theory with seven cases); that under the default
+`MaxLayoutWork` a tree of 301 nodes (a root, 20 children, and 14 grandchildren of each) renders while one of 1,961 nodes
+(40 children of 48 grandchildren each) stops with `mermaid-limit-exceeded` naming `MaxLayoutWork` at the keyword (line
+1); that the seeded mutation fuzzer over the mindmap fixtures only ever raises the documented exception types; and that
+a mindmap of five nodes under a work limit of 500 fails with `mermaid-limit-exceeded` at line 1 naming `MaxLayoutWork`.
+For packet diagrams, asserts that hostile diagrams (row sizes of 0, -3, 1.5, and 1,000,000,000, a negative row height
+and padding, a horizontal padding, a bit width, and a row height of 1e300, the bit numbers turned off, theme font sizes
+of 1e300 pixels and a color that is not one, markup, entities, and escapes in the texts, and a bit count of 301 digits)
+render fitted to 400 by 300 pixels or fail with a located `MermaidRenderException`; that the range `0-99999999` and the
+bit count `+99999999999999999999`, which Mermaid splits into 10,000 rows, fail when measured with
 `mermaid-limit-exceeded` naming `MermaidLimits.MaxNodes` at their statement (line 2), as the range does through the
 packet integration test; that 2,001 block statements fail at open with `MaxNodes` at the extra block (line 2,002); that
 a title, an accessible title, both forms of the accessible description, and a label of 4,097 characters fail at open
@@ -848,15 +847,15 @@ raises the documented exception types. For git graphs, asserts that hostile grap
 413 digits, theme font sizes of 1e300 pixels, markup, a script, and an image in the ids, tags, branch names, and
 messages, and the bottom-to-top placement on which Mermaid fails) render fitted to 400 by 300 pixels or fail with a
 located `MermaidRenderException`; that 2,001 commits fail at open with `MaxNodes` at the commit that makes the 2,001st
-node, the main branch counted (line 2,001); that a title, an accessible title, both forms of the accessible
-description, an id, a message, a tag, and a branch name of 4,097 characters fail at open with `MaxLabelLength` at their
-statement (line 3); that a chain of cherry-picks of cherry-picks, whose messages Mermaid composes from the picked
-commit's message, ends with `MaxLabelLength` instead of growing without bound; that a graph of 300 rounds of commits on
-two branches merged back each time, whose arrows are rerouted many times, lays out or fails with
-`mermaid-limit-exceeded` under the default work limit and fails with it under a work limit of 10,000; that a seeded
-mutation fuzzer over the git graph fixtures only ever raises the documented exception types; and that a graph of two
-branches, a tag, and a merge fails at open with `mermaid-limit-exceeded` at line 4 under a `MaxNodes` of 3 and fails
-the render with it under a `MaxLayoutWork` of 50.
+node, the main branch counted (line 2,001); that a title, an accessible title, both forms of the accessible description,
+an id, a message, a tag, and a branch name of 4,097 characters fail at open with `MaxLabelLength` at their statement
+(line 3); that a chain of cherry-picks of cherry-picks, whose messages Mermaid composes from the picked commit's
+message, ends with `MaxLabelLength` instead of growing without bound; that a graph of 300 rounds of commits on two
+branches merged back each time, whose arrows are rerouted many times, lays out or fails with `mermaid-limit-exceeded`
+under the default work limit and fails with it under a work limit of 10,000; that a seeded mutation fuzzer over the git
+graph fixtures only ever raises the documented exception types; and that a graph of two branches, a tag, and a merge
+fails at open with `mermaid-limit-exceeded` at line 4 under a `MaxNodes` of 3 and fails the render with it under a
+`MaxLayoutWork` of 50.
 
 ### CanvasNetMermaid-UnsafeLinks: Encoded Unsafe Links Are Checked And Never Exposed
 

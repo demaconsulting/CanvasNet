@@ -218,7 +218,7 @@ unfilled while the boundary is inked.
 #### Complexity Verification Policy
 
 Complexity expectations for dash splitting and outline generation are established in
-_PathStroker Unit Design_ (`../../../design/canvas-net/drawing/path-stroker.md`) through design
+*PathStroker Unit Design* (`../../../design/canvas-net/drawing/path-stroker.md`) through design
 analysis and code review only. There are intentionally **no** timing-based tests, elapsed-time
 assertions, or `Stopwatch`-based guards in this unit's automated verification because those are
 not stable compliance evidence on heterogeneous CI hardware.

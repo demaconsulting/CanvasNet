@@ -10,7 +10,7 @@ and `LabelBuilder.MarkdownLexer.cs`, SVG labels in `LabelBuilder.Svg.cs`, and th
 
 The unit is verified at two levels. The vector tests take the label cases of the upstream vectors
 `Fixtures/upstream-vectors/shapes.json` (recorded from the pinned Mermaid in headless Chrome with the bundled Liberation
-Sans; the fixture is described in the _ShapeLibrary Unit Verification Design_) and assert that every HTML label breaks
+Sans; the fixture is described in the *ShapeLibrary Unit Verification Design*) and assert that every HTML label breaks
 into Mermaid's lines with the same line tops and starts (within 0.02 pixel) and every SVG label into lines with the
 same text. The other tests are analytic: the markdown and plain-string functions are compared with the HTML and the
 lines Mermaid makes of the same text, and the layout rules are checked with numbers derived from the CSS and the font
@@ -137,14 +137,14 @@ Asserts that a picture alone in an HTML label at a 16 pixel configured font size
 Asserts that `parseFontSize` of a number is pixels (`16px`, `14.5px`) and of a string is its `parseInt` value with the
 string as the CSS size (`px` added to `16` and `-3` alone; `1.5em`, `14.5`, and `12` after a space kept; nothing for
 `abc`) (two theories); that the browser draws the inline size of an SVG text `16px` at 16 pixels, `1.5em` at 24, `12pt`
-at 16, the unitless `14.5`, `18`, `+18` with spaces around it, `.5`, `1e1`, and `0` at those pixels, and `18.`, `-3`, `abc`,
-and no size at the inherited 16 (a theory); that `splitBreaks` splits at `<br>` in any case with spaces and a slash,
-keeps empty lines, and leaves the malformed `<br/ >` in the text (a theory); that one line measures as its SVG label box
-rounded to whole pixels and 17 high (14 ascent and 3 descent at 16 pixels), and an empty text as nothing; that the box
-of `Async to itself` reaches 1 pixel left of its start and is 100.258 pixels wide, and that of `Dock` 1 pixel past its
-advance, as the reference's `getBBox` gives them; that the x-height is Liberation Sans's 1082 units of 2048 and zero for
-a size of zero; that a text of three lines (one empty) is as wide as its widest line and 51 high, and that bold is
-wider; and that a font size of zero fails with `mermaid-render-failed` while measuring charges 8 units to the meter.
+at 16, the unitless `14.5`, `18`, `+18` with spaces around it, `.5`, `1e1`, and `0` at those pixels, and `18.`, `-3`,
+`abc`, and no size at the inherited 16 (a theory); that `splitBreaks` splits at `<br>` in any case with spaces and a
+slash, keeps empty lines, and leaves the malformed `<br/ >` in the text (a theory); that one line measures as its SVG
+label box rounded to whole pixels and 17 high (14 ascent and 3 descent at 16 pixels), and an empty text as nothing; that
+the box of `Async to itself` reaches 1 pixel left of its start and is 100.258 pixels wide, and that of `Dock` 1 pixel
+past its advance, as the reference's `getBBox` gives them; that the x-height is Liberation Sans's 1082 units of 2048 and
+zero for a size of zero; that a text of three lines (one empty) is as wide as its widest line and 51 high, and that bold
+is wider; and that a font size of zero fails with `mermaid-render-failed` while measuring charges 8 units to the meter.
 
 ##### CanvasNetMermaid-Rendering-LabelBuilder-WrapLabel: Texts Wrap As Mermaid's WrapLabel
 

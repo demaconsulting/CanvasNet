@@ -469,9 +469,9 @@ the test lays each fixture out with `MermaidRenderOptions.Now` set to the same i
 - `diagram`: `gantt`.
 - `viewBox`: the view box Mermaid sets (`[0, 0, width, height]`).
 - `excludes`: each `rect.exclude-range` (a run of excluded days), with its `corners` and `paint`.
-- `axes`: each axis group (`g.grid`: the bottom axis and, with `topAxis`, the top one): the point of the group (`origin`)
-  and each tick, with the point of its line (`at`) and the line's other `end`, the opacity of the tick group, the
-  `paint` of the line, and its text.
+- `axes`: each axis group (`g.grid`: the bottom axis and, with `topAxis`, the top one): the point of the group
+  (`origin`) and each tick, with the point of its line (`at`) and the line's other `end`, the opacity of the tick group,
+  the `paint` of the line, and its text.
 - `sections`: each section background `rect.section`, with its `class`, `corners` and `paint`.
 - `tasks`: each task `rect` (and vert marker) in order, with its `id`, `class`, corner radius `rx`, the four
   `corners` (after the CSS transform of a milestone) and the `paint`.

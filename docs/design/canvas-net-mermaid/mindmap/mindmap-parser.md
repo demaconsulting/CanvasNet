@@ -26,9 +26,9 @@ The unit's behavior is specified by the `CanvasNetMermaid-Mindmap-MindmapParser-
 `SPACELIST`, `ICON`, `CLASS`, `NODE_DSTART`, `NODE_DESCR`, `NODE_DEND`, and `NODE_ID`) and their jison numbers, which
 order an expected-token list as jison prints it; the end of the text is named `EOF` in messages.
 
-**The lexer** is the table of the 37 rules of the generated jison lexer, in jison order, each a hand-written matcher with
-the action of the rule (a token, a push, or a pop of a start condition), and the conditions table that lists, for the
-initial condition and for `CLASS`, `ICON`, `NODE`, `NSTR`, and `NSTR2`, the rules it tries. The matching is
+**The lexer** is the table of the 37 rules of the generated jison lexer, in jison order, each a hand-written matcher
+with the action of the rule (a token, a push, or a pop of a start condition), and the conditions table that lists, for
+the initial condition and for `CLASS`, `ICON`, `NODE`, `NSTR`, and `NSTR2`, the rules it tries. The matching is
 case-insensitive, as `%options case-insensitive` makes it.
 
 **A parser instance** reads one text on one thread and holds the limits of the open call, the scanner and its token
@@ -64,8 +64,8 @@ changed after it is built and is safe for concurrent use.
   preprocessed source, and returns a `MindmapDiagram` of the nodes at the keyword's location.
 - **`Run`** reads the grammar's `start`: optional blank lines (`SPACELINE`, then `SPACELINE` or `NL`), the `MINDMAP`
   keyword, an optional `NL`, then the statements, each followed by one `stop` token (`SPACELINE`, `NL`, or the end) and
-  any further `NL` and end tokens, until the tokens end. After each token the lookahead is checked against the tokens the
-  LALR state accepts (`CheckLookahead`), so the error comes where jison reports it.
+  any further `NL` and end tokens, until the tokens end. After each token the lookahead is checked against the tokens
+  the LALR state accepts (`CheckLookahead`), so the error comes where jison reports it.
 - **`ParseStatement`** reads a blank line, a decoration, a node at indentation 0, or a `SPACELIST` followed by a
   decoration, a node at the length of the `SPACELIST` (each tab counting one), or nothing.
 - **`ParseNode(indent)`** reads `NODE_ID` alone (the id is also the description) or an optional `NODE_ID`, a

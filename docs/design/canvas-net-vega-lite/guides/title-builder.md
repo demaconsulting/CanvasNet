@@ -13,9 +13,9 @@ the provenance header comment for the Vega and Vega-Lite rules they port.
 
 `TitleBuilder` builds the title and subtitle of a chart from the `title` property of the specification and the
 configuration: the text items, their alignment, rotation, font, and limit, and their extent. `TitleBlock.Place` then
-positions the title next to the view as Vega's title layout does. It exists so that the title rules (orientation, anchor,
-frame, offset, subtitle padding, and the style defaults) are defined once, and so that the title can be built before the
-axes are measured and placed after.
+positions the title next to the view as Vega's title layout does. It exists so that the title rules (orientation,
+anchor, frame, offset, subtitle padding, and the style defaults) are defined once, and so that the title can be built
+before the axes are measured and placed after.
 
 The unit's behavior is specified by the `CanvasNetVegaLite-Guides-TitleBuilder-*` requirements in
 `docs/reqstream/canvas-net-vega-lite/guides/title-builder.yaml`.
@@ -43,13 +43,12 @@ function from the value of a cell to its label: `formatType` `number` or a quant
 d3 number format; `time`/`utc` or a temporal field (type or time unit) is the d3 time `format`, else the specifier of
 the time unit, else `config.timeFormat` (through `TimeLabels`); anything else is the text of the value (null is empty).
 A custom `formatType` is treated as absent, and the `orient` shortcut is not read (Vega-Lite's compiler does not read it
-either). `ExplicitNode(property)` returns the node of a property that the `header` of the field definition itself has (not
-the configuration), which is how the compiled `labelExpr` of the header is found; the facet code of `VegaLiteDocument`
-wraps the label formatter in the `labelExpr` of the header, else of the channel configuration, else of `config.header`
-(see _LabelExpressions Unit Design_; the datum has `value`, the raw value of the cell, and `label`, the formatted text,
-only, and an array result is several header lines: `BuildHeader` and `BuildHeaderBlock` take the lines). `Read(config,
-header, channel, honoredOrientsOnly)` reads a side
-that `IsHonoredOrient` does not honor (a row's
+either). `ExplicitNode(property)` returns the node of a property that the `header` of the field definition itself has
+(not the configuration), which is how the compiled `labelExpr` of the header is found; the facet code of
+`VegaLiteDocument` wraps the label formatter in the `labelExpr` of the header, else of the channel configuration, else
+of `config.header` (see *LabelExpressions Unit Design*; the datum has `value`, the raw value of the cell, and `label`,
+the formatted text, only, and an array result is several header lines: `BuildHeader` and `BuildHeaderBlock` take the
+lines). `Read(config, header, channel, honoredOrientsOnly)` reads a side that `IsHonoredOrient` does not honor (a row's
 `top` or `bottom`, a column's `left` or `right`, a wrapped facet's title on the `left` or `right`) as not given when the
 flag is set, which is how the facet pipeline draws the default side for what the feature catalog reports as
 `vl-header-orient`. **`HeaderPart`** says whether a block is a `Label` or the `Title` of the channel.
@@ -60,34 +59,34 @@ flag is set, which is how the facet pipeline draws the default side for what the
 properties `subtitle`, `anchor`, `orient`, `offset`, `frame`, `limit`, `dx`, `dy`, `align`, `baseline`, `angle`, `font`,
 `fontSize`, `fontStyle`, `fontWeight`, `color`, `lineHeight`, and the `subtitle` counterparts of the font, color, line
 height, and padding properties. A property that the title does not give comes from `config.title` and then from the
-`group-title` or `group-subtitle` style (13 pixel bold black sans-serif for the title, 12 pixel for the subtitle), so with
-no configuration the title is centered above the plot, 4 pixels from it, with subtitle padding of 3. Text in a string is
-also split at line feeds. An invalid orient, anchor, or frame from the configuration falls back to `top`, `middle`, or
-`bounds`.
+`group-title` or `group-subtitle` style (13 pixel bold black sans-serif for the title, 12 pixel for the subtitle), so
+with no configuration the title is centered above the plot, 4 pixels from it, with subtitle padding of 3. Text in a
+string is also split at line feeds. An invalid orient, anchor, or frame from the configuration falls back to `top`,
+`middle`, or `bounds`.
 
 **Layout rules.** A title line is as tall as the font size and further lines are a line height (font size plus 2) apart;
 the subtitle starts below the title (or beside it for the left and right orients) by the subtitle padding. A left title
 is rotated by -90 degrees and a right title by 90 degrees, and its text is aligned by the anchor (`start` left, `middle`
-center, `end` right). The frame is `group` for single and layered views whose anchor is `middle` or not set (as Vega-Lite
-assigns it) and `bounds` otherwise; the title of a composition anchors at `start`.
+center, `end` right). The frame is `group` for single and layered views whose anchor is `middle` or not set (as
+Vega-Lite assigns it) and `bounds` otherwise; the title of a composition anchors at `start`.
 
 #### Key Methods
 
-- `Build(SpecNode? title, ResolvedConfig config, bool unitOrLayer, SceneBudget? budget, string? sourceName, string?
-  viewName)` - returns
-  null for no title, a null title, or a title without text; otherwise reads the lines, resolves the layout properties
-  (the title's own, then the configuration, then the Vega defaults), creates the title text item and, when there is a
-  subtitle, the subtitle item below or beside it, charges the scene budget (when given) for the title group and the
-  title text before creating the text and for the subtitle before creating it (a `VegaLiteRenderException` located at
-  the title when the limit would be passed), measures both with the `TextMeasurer`, and returns the `TitleBlock` with
-  the union of their bounds as its extent and `viewName` (the `name` of the view the title belongs to) as its `ViewName`.
+- `Build(SpecNode? title, ResolvedConfig config, bool unitOrLayer, SceneBudget? budget, string? sourceName, string? viewName)` -
+  returns null for no title, a null title, or a title without text; otherwise reads the lines, resolves the layout
+  properties (the title's own, then the configuration, then the Vega defaults), creates the title text item and, when
+  there is a subtitle, the subtitle item below or beside it, charges the scene budget (when given) for the title group
+  and the title text before creating the text and for the subtitle before creating it (a `VegaLiteRenderException`
+  located at the title when the limit would be passed), measures both with the `TextMeasurer`, and returns the
+  `TitleBlock` with the union of their bounds as its extent and `viewName` (the `name` of the view the title belongs to)
+  as its `ViewName`.
 - `TitleBlock.Place(dataWidth, dataHeight, viewBounds)` - places the group: with the `group` frame the anchor refers to
-  the data rectangle (for a left title the bottom edge to the top edge, so rotated text reads upwards from its start), with
-  the `bounds` frame to the bounding box of the view's content; the title then sits `Offset` pixels beyond the content on
-  its side. Returns the positioned `SceneGroup` (role `title`) and its bounds in the view's coordinates. When the block
-  has a `PositionText` (the title lines joined by spaces, which `Build` sets; null for a header block) the group carries
-  the position tag `title` with that text, those bounds, and the block's `ViewName`, so the title reports its position;
-  a header reports none.
+  the data rectangle (for a left title the bottom edge to the top edge, so rotated text reads upwards from its start),
+  with the `bounds` frame to the bounding box of the view's content; the title then sits `Offset` pixels beyond the
+  content on its side. Returns the positioned `SceneGroup` (role `title`) and its bounds in the view's coordinates. When
+  the block has a `PositionText` (the title lines joined by spaces, which `Build` sets; null for a header block) the
+  group carries the position tag `title` with that text, those bounds, and the block's `ViewName`, so the title reports
+  its position; a header reports none.
 
 **Preconditions and postconditions**: the configuration is non-null; the result is immutable.
 

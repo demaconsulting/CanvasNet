@@ -21,11 +21,11 @@
   - PNG, JPEG, and remote pictures never start the tool (`CANVASNET_TOOL` names a program that does not exist and the
     build still succeeds), while a picture that needs a tool that cannot start is the clear `cannot run the canvasnet
     tool` error;
-  - an outdated shim (a copy with protocol 0) stops the build with `speaks protocol 0` and the `--write-shim` command for
-    its own path, and the output of `canvasnet pandoc-filter --write-shim` equals the repository shim;
-  - a document with five pictures (two models, a chart, and two Mermaid code blocks, one with a non-ASCII caption) starts
-    the tool exactly once per Pandoc run (a wrapper set as `CANVASNET_TOOL` counts the starts), and `CANVASNET_JOBS=1`
-    and `CANVASNET_JOBS=4` give the same HTML, warnings, and cache files;
+  - an outdated shim (a copy with protocol 0) stops the build with `speaks protocol 0` and the `--write-shim` command
+    for its own path, and the output of `canvasnet pandoc-filter --write-shim` equals the repository shim;
+  - a document with five pictures (two models, a chart, and two Mermaid code blocks, one with a non-ASCII caption)
+    starts the tool exactly once per Pandoc run (a wrapper set as `CANVASNET_TOOL` counts the starts), and
+    `CANVASNET_JOBS=1` and `CANVASNET_JOBS=4` give the same HTML, warnings, and cache files;
   - diagnostics and failures (an `echo()` of a model becomes a warning prefixed `canvasnet.lua:`, a model that cannot be
     drawn stops the build with the tool's message), attribute and path errors, paths resolved like Pandoc does, the
     opt-in file access of `CANVASNET_FILE_ACCESS` and `CANVASNET_ROOTS`, and the dependency limit of 512 hashed files.

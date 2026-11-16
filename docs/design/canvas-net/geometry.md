@@ -18,29 +18,29 @@ has no dependency on either of them. `Geometry` is deliberately distinct from th
 subsystem: `Geometry` is where shape geometry is described and measured; `Drawing` is where that
 geometry is turned into pixels on a `Canvas.Surface` (rasterization and solid/gradient/tile-paint
 fill, and stroke-to-fill conversion) by consuming `Geometry`'s `Path`/`PathBuilder`,
-`BezierFlattening`, and `SvgArcConverter` units - see _Drawing Subsystem Design_ (`drawing.md`).
+`BezierFlattening`, and `SvgArcConverter` units - see *Drawing Subsystem Design* (`drawing.md`).
 
 ### Units
 
 - **Rect** — an axis-aligned bounding rectangle (position plus size), with union, intersection,
   matrix transformation, containment testing, and a union-identity `Empty` sentinel; see
-  _Rect Unit Design_ (`geometry/rect.md`)
+  *Rect Unit Design* (`geometry/rect.md`)
 - **Path** — an immutable vector path (an ordered collection of independent subpaths) and its
   mutable, fluent `PathBuilder`, together with the supporting `Subpath`, `PathCommand`, and
   `PathCommandType` data types, documented inline within the `Path` unit design rather than as
   their own units, because none of them has any independent behavior beyond being a data carrier
   consumed exclusively by `Path`/`PathBuilder`; `PathBuilder.AppendPath` appends the subpaths of an
   existing path (optionally transformed) and is the implementation of `Path.Transform`; see
-  _Path Unit Design_ (`geometry/path.md`)
+  *Path Unit Design* (`geometry/path.md`)
 - **BezierFlattening** — adaptive, tolerance-driven flattening of quadratic and cubic Bezier
   curves into polylines, writing into a caller-supplied output collection; see
-  _BezierFlattening Unit Design_ (`geometry/bezier-flattening.md`)
+  *BezierFlattening Unit Design* (`geometry/bezier-flattening.md`)
 - **SvgArcConverter** — conversion of SVG-style endpoint-parameterized elliptical arcs into cubic
   Bezier curves, following the SVG 1.1 Appendix F algorithm; see
-  _SvgArcConverter Unit Design_ (`geometry/svg-arc-converter.md`)
+  *SvgArcConverter Unit Design* (`geometry/svg-arc-converter.md`)
 - **CornerRoundEffect** — path-level pre-processing that rounds polyline corners into
   tangent-radius arcs by delegating to `PathBuilder.TangentArcTo`; see
-  _CornerRoundEffect Unit Design_ (`geometry/corner-round-effect.md`)
+  *CornerRoundEffect Unit Design* (`geometry/corner-round-effect.md`)
 
 ### Dependencies
 

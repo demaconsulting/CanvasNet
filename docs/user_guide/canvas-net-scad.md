@@ -107,8 +107,9 @@ occurred, on the calling thread, before the method returns or throws.
 be shared between threads and calls.
 
 <!-- markdownlint-disable MD013 -->
+
 | Property | Default | Meaning |
-| -------- | ------- | ------- |
+| --- | --- | --- |
 | `Evaluation` | `null` (default `ScadEvaluationOptions`) | The options of the evaluation: `-D`-style `Variables`, `Time` (`$t`), `Limits`, the `EchoHandler`, `WarningHandler`, and `UnsupportedFeatureHandler`, and `ThrowOnUnsupportedFeature`. It is the single place that decides how problems are reported, for evaluation, geometry building, and rendering alike |
 | `Camera` | `null` | A Render3D `Camera`; `null` fits the view to the model. An invalid camera is rejected by `Render` before evaluation. `BuildScene` never throws for it: it is ignored and defines no viewport variable (the model sees the view angles or the defaults). An explicit valid camera also defines all four viewport variables for the model (see *Viewport Variables*) |
 | `ViewAzimuthDegrees` | 45 | Azimuth of the fitted view (rotation about +Z); finite. Used only without a `Camera`. **Setting it, even to the default value, makes the view explicit** (see *Choosing the View*) |
@@ -121,6 +122,7 @@ be shared between threads and calls.
 | `HighlightColor` | `(255, 64, 128, 110)`, a translucent pink | The color of the translucent copy that the `#` modifier draws over a highlighted solid (see *Transparency, Ghosts, and Highlights*). Any alpha is accepted: 255 draws an opaque copy and 0 an invisible one |
 | `GhostColor` | `(128, 128, 128, 80)`, a translucent gray | The color of the translucent ghost that the `%` modifier draws instead of a solid. Any alpha is accepted |
 | `FontResolution` | `null` (a default `ScadFontResolutionOptions`) | Where `text()` finds a font that the model names with `font = ...` (see *Text*): `UseSystemFonts` (default `true`) and `AdditionalDirectories` (default empty; copied and validated when set, a null, empty, or white-space directory is an `ArgumentException`). Text without a `font` argument always uses the bundled font and ignores these options |
+
 <!-- markdownlint-enable MD013 -->
 
 A `color()` in the model overrides `SceneOptions.DefaultColor` (and the alpha of a `color()` is rendered; the alpha of
@@ -194,8 +196,9 @@ forms (positional or named); an unknown, surplus, or repeated argument is a warn
 (see *Curve Resolution*) apply to the curved primitives. `convexity` arguments are accepted and ignored.
 
 <!-- markdownlint-disable MD013 -->
+
 | Module | Forms | Notes |
-| ------ | ----- | ----- |
+| --- | --- | --- |
 | `cube` | `cube(size, center)`; `size` is a number or `[x, y, z]` | Origin corner unless `center` |
 | `sphere` | `sphere(r)` or `sphere(d = ...)` | `d` overrides `r`; the number of fragments follows `$fn`, `$fa`, and `$fs`, except that a radius of 1e-8 or less always gives 3 fragments, even with `$fn` set |
 | `cylinder` | `cylinder(h, r, r1, r2, d, d1, d2, center)` | Cones and frusta with `r1`/`r2` (per-end values override `r`/`d`); `d1`/`d2` are strongest |
@@ -217,6 +220,7 @@ forms (positional or named); an unknown, surplus, or repeated argument is a warn
 | `*` (disable) | `*cube(5);` | The subtree is ignored |
 | `#` (highlight) | `#cube(5);` | The subtree is rendered normally **and** as a translucent copy in `HighlightColor`; it still takes part in the booleans around it. On a 2D shape that is not extruded it is reported as `scad-modifier-highlight` (see the next section) |
 | `%` (background) | `%cube(5);` | The subtree is drawn only as a translucent ghost in `GhostColor` that is not part of the model. On a 2D shape that is not extruded it is omitted and reported as `scad-modifier-background` (see the next section) |
+
 <!-- markdownlint-enable MD013 -->
 
 Language features (variables, functions, modules with `children()`, `for`, `if`, `let`, comprehensions, `echo`,
@@ -272,8 +276,9 @@ counter of an `O` are kept), so it works wherever a `square` does: extrude it wi
 it. A text that is not extruded is drawn as a thin slab like any 2D shape. The arguments, in positional order:
 
 <!-- markdownlint-disable MD013 -->
+
 | Argument | Default | Meaning |
-| -------- | ------- | ------- |
+| --- | --- | --- |
 | `text` | required | The string. A number or another value is converted like `str()`. An empty string builds nothing and is not reported |
 | `size` | 10 | The height in model units of the glyph `H` of the selected font, so a capital `H` is exactly `size` tall and stands on the baseline (`Y = 0`). A finite number greater than zero |
 | `font` | the bundled Liberation Sans Regular | A family, `"Family"`, or a family with a style, `"Family:style=Bold Italic"` (the words `Bold` and `Italic`, or `Oblique`, in any case). See *Fonts* below |
@@ -282,6 +287,7 @@ it. A text that is not extruded is drawn as a thin slab like any 2D shape. The a
 | `spacing` | 1 | A finite number that is not negative that multiplies the advance of every glyph (not the kerning); `spacing = 0` overlaps the glyphs |
 | `direction` | `"ltr"` | `"ltr"`; `"rtl"` (the characters in reverse order, laid out left to right); `"ttb"` and `"btt"` (upright characters stacked downwards or upwards by their advance, without kerning) |
 | `language`, `script` | none | Accepted with any value and **ignored** |
+
 <!-- markdownlint-enable MD013 -->
 
 The curve resolution follows `$fn`, `$fa`, and `$fs` like a circle of radius `size / 2` does (see *Curve Resolution*):
@@ -423,12 +429,14 @@ PngCodec.Save(sheet, "sheet.png");
 The model sees the camera of its own picture in four special variables, so it can place geometry relative to it:
 
 <!-- markdownlint-disable MD013 -->
+
 | Variable | Meaning | Default |
-| -------- | ------- | ------- |
+| --- | --- | --- |
 | `$vpt` | The target: the point the camera looks at | `[0, 0, 0]` |
 | `$vpr` | The rotation of the camera in degrees, as `[x, y, z]` angles composed like `rotate($vpr)` | From the requested view: about `[54.7356, 0, 45]` for the default isometric view |
 | `$vpd` | The distance from the eye to the target | `140` |
 | `$vpf` | The vertical field of view in degrees | `22.5` |
+
 <!-- markdownlint-enable MD013 -->
 
 A `ScadDocument.Evaluate()` call without render options has no picture, so it shows the literal defaults of a fresh
@@ -441,12 +449,14 @@ viewer instead, with `$vpr = [55, 0, 25]`.
 **Precedence.** Each variable takes the first value that exists, highest first:
 
 <!-- markdownlint-disable MD013 -->
+
 | Source | Applies to |
-| ------ | ---------- |
+| --- | --- |
 | An explicit render option | An explicit `Camera` supplies all four variables; explicit `ViewAzimuthDegrees` or `ViewElevationDegrees` sets `$vpr` only |
 | A variable override (`-D`, `def.` in a fragment, `ScadEvaluationOptions.Variables`) | Any of the four; a vector is a sequence in `Variables` and a JSON array in `-D` and `def.` (`-D '$vpt=[0,0,20]'`, `-D '$vpd=200'`) |
 | An assignment at the top level of the model file and its `include`s | Any of the four; not a `use`d library and not a nested scope |
 | The default | See the table above |
+
 <!-- markdownlint-enable MD013 -->
 
 **What the variables do to the picture.** Assigning only `$vpr` sets the orientation of the view, while the framing
@@ -497,13 +507,15 @@ a callout or a leader line on the picture. The statement is an ordinary `echo` f
 line is still printed), and `Render` reports each declaration to `ScadRenderOptions.AnchorHandler` as a `ScadAnchor`:
 
 <!-- markdownlint-disable MD013 -->
+
 | Member | Meaning |
-| ------ | ------- |
+| --- | --- |
 | `Name` | The non-empty name, the second argument |
 | `Point` | The **world point**: the `[x, y, z]` after every enclosing `translate`, `rotate`, `scale`, `mirror`, and `multmatrix` is applied (innermost first) |
 | `Pixel` | The continuous position in the rendered image, `Vector2D?`: origin at the top-left corner, pixel `i` spans `[i, i + 1)` (the center of the first pixel is `0.5`), x to the right, y down. `null` when the point cannot be projected (behind a perspective camera) |
 | `IsInsideImage` | `Pixel` is not `null` and lies within `0 <= x < width`, `0 <= y < height` |
 | `Location` | The line and column of the declaring `echo` |
+
 <!-- markdownlint-enable MD013 -->
 
 The pixel is computed with exactly the camera that drew the image (`Camera.TryProject` of the Render3D package, with the
@@ -636,8 +648,9 @@ included and used files), and the rest of the model is still built. Reports are 
 module in a loop is reported once. The identifiers are part of the documented behavior of the package:
 
 <!-- markdownlint-disable MD013 -->
+
 | Identifier | Trigger | Effect |
-| ---------- | ------- | ------ |
+| --- | --- | --- |
 | `scad-module-offset`, `scad-module-surface`, `scad-module-import`, `scad-module-roof` | The module is recognized but not implemented | The module and its children are omitted |
 | `scad-projection-too-complex` | A `projection` needs more work than the ceiling of 2^23 triangle visits (counting the vertices of the children and each pass over them), for example a very fine curved solid, or a model with a huge number of points | The projection is omitted; simplify the solid, lower `$fn`, or project the parts separately |
 | `scad-projection-open-mesh` | A `projection` meets a mesh whose cross-section does not close, that is, a mesh that is not a closed solid (for example an open `polyhedron`) | The projection is omitted; close the polyhedron |
@@ -663,6 +676,7 @@ module in a loop is reported once. The identifiers are part of the documented be
 | `scad-geometry-rejected` | Any other geometry the Render3D tessellators and extruders reject, or an instance whose coordinates are not finite or exceed 1e100 in magnitude (for example `translate([1.7e308, 0, 0])`) | The affected geometry is omitted; the message says why |
 | `scad-csg-open-mesh`, `scad-csg-non-manifold-edge`, `scad-csg-inconsistent-winding`, `scad-csg-degenerate-triangle`, `scad-csg-inverted-mesh`, `scad-csg-singular-transform` | `Render` found a defect in an operand of a `difference` or `intersection` (reported only when a handler or strict mode is set) | Reported at the module that produced the mesh; the image is still drawn |
 | `scad-function-<name>`, `scad-search-form` | An unimplemented built-in function (`parent_module`, `textmetrics`, `fontmetrics`) or `search` argument form | The call evaluates to `undef` |
+
 <!-- markdownlint-enable MD013 -->
 
 Pass a handler to receive the reports (and the warnings) as they are delivered, or set
@@ -722,29 +736,22 @@ SVG `<image href="part.scad" .../>`, for example) draws the model through a `Fol
 (or `CanvasNetViewer.CreateImageResolver` of the Viewer package, which lists it with the other sources). The model is
 drawn with the view the library chooses for it (the fitted isometric view for a 3D model, a flat top-down view for a
 model that is entirely 2D, or the view of the model's own `$vpr`, `$vpt`, `$vpd`, and `$vpf` assignments) and an
-orthographic projection, at the size of its placement (800 by 800 pixels
-when no size is requested), over a transparent background so the document shows through; its `include` and `use` files
-are looked up relative to the folder of the file, and a missing one is reported as a `scad-warning` note.
-Warnings and unsupported features of the model are returned as notes of the source `scad`, and its `echo` output as
-printed text. The `include` and `use` files are read under the file-access policy of the request (the policy of the
-resolver, judged from the folder the chain of links started from). Set
-`FolderImageResolverOptions.ThrowOnUnsupportedFeature` to fail on an unsupported feature instead.
-The source declares one family of fragment parameters, the **variables** of the model: `def.<name>=<value>` in the link
-sets
+orthographic projection, at the size of its placement (800 by 800 pixels when no size is requested), over a transparent
+background so the document shows through; its `include` and `use` files are looked up relative to the folder of the
+file, and a missing one is reported as a `scad-warning` note. Warnings and unsupported features of the model are
+returned as notes of the source `scad`, and its `echo` output as printed text. The `include` and `use` files are read
+under the file-access policy of the request (the policy of the resolver, judged from the folder the chain of links
+started from). Set `FolderImageResolverOptions.ThrowOnUnsupportedFeature` to fail on an unsupported feature instead. The
+source declares one family of fragment parameters, the **variables** of the model: `def.<name>=<value>` in the link sets
 the variable `<name>` exactly like `-D name=value` of the `canvasnet` tool (`part.scad#def.width=20`, and in an XML
-attribute
-`part.scad#def.width=20&amp;def.label=%22A%22`), by `ScadEvaluationOptions.Variables`: the value is a number, `true`,
-`false`, text (a pair of quotes is removed; `%22` is a double quote, decoded after the fragment is split), or a vector as
-a JSON array (`def.$vpt=[0,0,20]`, which is how the camera of a model is fixed from a link; `$vpd` alone fixes the
-scale), it replaces the
-assignments
-of the name in the file and creates the variable when the model has none, and the last value of a name wins. A value
-that is
-not usable (a vector that is cut short, or a name the evaluator does not accept) refuses the link with `ImageSourceRefusedException`,
-which the
-resolver reports as `image-fragment-invalid` and the picture is not drawn. Any other parameter in the link
-(`part.scad#page=2`) is the warning `image-fragment-unknown-parameter`; the view stays the library's choice, and the
-named views of the link
+attribute `part.scad#def.width=20&amp;def.label=%22A%22`), by `ScadEvaluationOptions.Variables`: the value is a number,
+`true`, `false`, text (a pair of quotes is removed; `%22` is a double quote, decoded after the fragment is split), or a
+vector as a JSON array (`def.$vpt=[0,0,20]`, which is how the camera of a model is fixed from a link; `$vpd` alone fixes
+the scale), it replaces the assignments of the name in the file and creates the variable when the model has none, and
+the last value of a name wins. A value that is not usable (a vector that is cut short, or a name the evaluator does not
+accept) refuses the link with `ImageSourceRefusedException`, which the resolver reports as `image-fragment-invalid` and
+the picture is not drawn. Any other parameter in the link (`part.scad#page=2`) is the warning
+`image-fragment-unknown-parameter`; the view stays the library's choice, and the named views of the link
 (`#view=iso|front|back|left|right|top|bottom`) are a feature of the source that `CanvasNetViewer` lists (see the Viewer
 user guide), which also treats a missing `include` as an error, as `canvasnet render` does.
 

@@ -262,16 +262,16 @@ matching the solid-color overload's own validation exactly.
 These tests verify the per-pixel-color `CompositeOverSpan` overload added to support gradient
 rendering: it matches the pre-existing constant-color overload byte-for-byte whenever every color
 in the span happens to be equal (an equivalence proof that the shared blend math introduced by
-this unit's `Surface` refactor is genuinely unchanged for the pre-existing overload, per _Surface
-Unit Design_, `../canvas/surface.md`); it applies each pixel's own color scaled by that pixel's
+this unit's `Surface` refactor is genuinely unchanged for the pre-existing overload, per *Surface
+Unit Design*, `../canvas/surface.md`); it applies each pixel's own color scaled by that pixel's
 own coverage; it rejects a coverage/colors length mismatch; and its internal workspace-reusing
 counterpart matches its public form exactly.
 
 #### Complexity Verification Policy
 
 No algorithmic complexity properties are newly established by this unit beyond those already
-documented for `ScanlineRasterizer`/`Surface.CompositeOverSpan` (see _PathFiller Unit Design_,
-`path-filler.md`, and _Surface Unit Design_, `../canvas/surface.md`); `GradientEvaluator` itself
+documented for `ScanlineRasterizer`/`Surface.CompositeOverSpan` (see *PathFiller Unit Design*,
+`path-filler.md`, and *Surface Unit Design*, `../canvas/surface.md`); `GradientEvaluator` itself
 performs a fixed, small amount of arithmetic per point/pixel with no loops over unbounded input.
 `GradientEvaluator` precomputes every per-fill-invariant quantity (the inverted transform, and the
 linear/radial gradient's own geometric coefficients) once per fill operation, via `CreatePlan`

@@ -43,7 +43,7 @@ scenario uses a timer or a timeout. Determinism is verified by evaluating twice,
 
 The golden fixtures are evaluated by `ScadEvaluatorFixtureTests` (every authored fixture must complete without a
 warning, except `include-and-use.scad`, whose paths intentionally do not exist) and, with their expectation files,
-through the public API (see _ScadDocument Unit Verification Design_).
+through the public API (see *ScadDocument Unit Verification Design*).
 
 Unit tests reside in `ScadEvaluatorScopingTests.cs`, `ScadEvaluatorSpecialVariableTests.cs`,
 `ScadEvaluatorFunctionTests.cs`, `ScadEvaluatorTailCallTests.cs`, `ScadEvaluatorModuleTests.cs`,
@@ -459,7 +459,8 @@ the cap produces no notice, and that a very large number of distinct warnings st
 
 ##### CanvasNetScad-ScadEvaluation-ScadEvaluator-UnsupportedFeatures: Unsupported-Feature Reports
 
-**Tests**: `ScadEvaluatorDiagnosticsTests.ScadEvaluatorDiagnostics_UnsupportedFunction_IsReportedAndEvaluationContinues`,
+**Tests**:
+`ScadEvaluatorDiagnosticsTests.ScadEvaluatorDiagnostics_UnsupportedFunction_IsReportedAndEvaluationContinues`,
 `ScadEvaluatorDiagnosticsTests.ScadEvaluatorDiagnostics_UnsupportedFeature_IsDeduplicatedByLocation`,
 `ScadEvaluatorDiagnosticsTests.ScadEvaluatorDiagnostics_ThrowOnUnsupportedFeature_AbortsWithFeatureAndLocation`,
 `ScadEvaluationSinkTests.ScadEvaluationSink_Unsupported_RecordsAndDeduplicates`

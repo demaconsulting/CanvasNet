@@ -23,15 +23,15 @@ system consists of a single implemented unit:
   their masters/theme, resolves each page's full shape tree — including master/stencil cell and
   geometry-row inheritance, the StyleSheet chain, shape geometry and transform, text layout, and
   1-D connector glue-point resolution — and renders a requested page onto a core
-  `CanvasNet.Canvas.Surface`. See _VsdxDocument Unit Design_ (`canvas-net-vsdx/vsdx-document.md`).
+  `CanvasNet.Canvas.Surface`. See *VsdxDocument Unit Design* (`canvas-net-vsdx/vsdx-document.md`).
 
 `CanvasNetVsdx` is modeled as its own top-level software system (rather than as a further unit of
 the `CanvasNet` system, or as a subsystem of a different document-rendering system) because it is
 distributed as its own independently-versioned NuGet package — per `software-items.md`'s rule
 that a software package contains exactly one software system, a system whose entire content ships
 in a distinct package must itself be modeled as a distinct system. This mirrors `CanvasNetSvg`'s
-and `CanvasNetPdf`'s own precedent (see _CanvasNetSvg System Design_, `canvas-net-svg.md`, and
-_CanvasNetPdf System Design_, `canvas-net-pdf.md`). `CanvasNetVsdx` contains exactly one unit, so
+and `CanvasNetPdf`'s own precedent (see *CanvasNetSvg System Design*, `canvas-net-svg.md`, and
+*CanvasNetPdf System Design*, `canvas-net-pdf.md`). `CanvasNetVsdx` contains exactly one unit, so
 no Subsystem tier is interposed between the system and `VsdxDocument`: inserting one here would
 not separate anything, since there is nothing else in the system to separate it from — identical
 reasoning to `CanvasNetSvg`'s own single-unit shape. Unlike `CanvasNetPptx`'s own
@@ -51,7 +51,7 @@ separately-shippable increment.
 `CanvasNetVsdx` has no dependency, in either direction, on `CanvasNetPptx`, `CanvasNetPdf`, or
 `CanvasNetCharts`. Nothing in the VSDX format research underlying this design found any construct
 analogous to a PPTX `<p:graphicFrame>` chart reference, so `CanvasNetVsdx` does not depend on
-`CanvasNetCharts` (unlike `CanvasNetPptx` — see _CanvasNetPptx System Design_,
+`CanvasNetCharts` (unlike `CanvasNetPptx` — see *CanvasNetPptx System Design*,
 `canvas-net-pptx.md`). A future `CanvasNetSvg` dependency (to rasterize an embedded SVG foreign
 object, mirroring `CanvasNetPptx`'s own "Phase 2 Follow-Up: SVG-Only Picture Blip Rendering") is
 an explicitly deferred, known gap — see the Design Constraints section below.
@@ -71,8 +71,8 @@ The system exposes the following public API, all on the `VsdxDocument` class:
   `visio/pages/pages.xml`).
 - **`PageCount`**: Reports the number of pages declared in `visio/pages/pages.xml`.
 - **`GetPageSize(int pageIndex)`**: Reports the requested page's declared `PageWidth`/
-  `PageHeight` (inches, converted to the document's internal unit — see _VsdxDocument Unit
-  Design_, `canvas-net-vsdx/vsdx-document.md`). Throws `ArgumentOutOfRangeException` for a
+  `PageHeight` (inches, converted to the document's internal unit — see *VsdxDocument Unit
+  Design*, `canvas-net-vsdx/vsdx-document.md`). Throws `ArgumentOutOfRangeException` for a
   `pageIndex` outside `[0, PageCount)`.
 - **`Render(int pageIndex, int width, int height, VsdxRenderOptions? options = null)`**: Resolves
   the requested page's full shape tree (master/stencil inheritance, StyleSheet chain, geometry/
@@ -85,15 +85,17 @@ The system exposes the following public API, all on the `VsdxDocument` class:
   before delegating to the pixel-dimension overload above.
 
 <!-- markdownlint-disable MD013 -->
+
 | Interface | Direction | Format | Constraints |
-| -------------------------------------- | ---------------- | ------------------------------ | ------------------------------- |
+| --- | --- | --- | --- |
 | `VsdxDocument.Open(...)` | Inbound | Method call / `VsdxDocument` return | Valid `.vsdx` stream or path |
 | `PageCount` / `GetPageSize(...)` | Outbound | Property / method call | `0 <= pageIndex < PageCount` |
 | `Render(pageIndex, width, height, ...)` | Inbound/Outbound | Method call / `Surface` return | `0 < width, height <= 8192` |
 | `Render(pageIndex, dpi, ...)` | Inbound/Outbound | Method call / `Surface` return | `0 < dpi`; resolved pixel size `<= 8192` |
+
 <!-- markdownlint-enable MD013 -->
 
-See _VsdxDocument Unit Design_ (`canvas-net-vsdx/vsdx-document.md`) for the complete in-scope
+See *VsdxDocument Unit Design* (`canvas-net-vsdx/vsdx-document.md`) for the complete in-scope
 VisioML feature subset (package/relationship resolution, geometry row vocabulary, master/stencil
 inheritance, StyleSheet resolution, text, connectors/glue points, color/fill resolution, and group
 nesting) and every method's full parameter and exception detail.
@@ -139,17 +141,17 @@ Shared Package. Beyond `CanvasNet`, `VsdxDocument` uses only the .NET base class
 `CanvasNetVsdx`'s target frameworks with no new runtime NuGet dependency. `CanvasNetVsdx`
 introduces no new OTS Software Item beyond those already used to build and verify the `CanvasNet`
 system (BuildMark, FileAssert, Pandoc, ReqStream, ReviewMark, SarifMark, SonarMark, VersionMark,
-WeasyPrint, xUnit) — see _OTS Integration Design_ (`docs/design/ots.md`).
+WeasyPrint, xUnit) — see *OTS Integration Design* (`docs/design/ots.md`).
 
 `CanvasNetVsdx` must never reference `CanvasNetPptx`, `CanvasNetPdf`, or `CanvasNetCharts`. A
 future, explicitly out-of-scope dependency on `CanvasNetSvg` (to rasterize an embedded SVG foreign
-object) is the single exception this constraint anticipates — see _CanvasNetSvg System Design_'s
+object) is the single exception this constraint anticipates — see *CanvasNetSvg System Design*'s
 own Dependencies section (`canvas-net-svg.md`), which already names `CanvasNetVsdx` as a future,
 one-directional consumer, identical to how `CanvasNetPptx` depends on `CanvasNetSvg` today.
 
 **Image sources.** The package also ships `VsdxImageSource`, an implementation of the core `ImageSources` subsystem's
 `IImageSource` for `.vsdx` files (the first page), so that a document can link to a Visio drawing through the shared
-`FolderImageResolver` (see _ImageSources Subsystem Design_, `canvas-net/image-sources.md`). It uses only the public
+`FolderImageResolver` (see *ImageSources Subsystem Design*, `canvas-net/image-sources.md`). It uses only the public
 contract types of the core package, so the package still references no other format package; the separate
 `CanvasNetViewer` system references this package one-way, to list the source with the other built-in ones, and nothing
 in this package refers to it.
@@ -161,7 +163,7 @@ a ZIP archive containing XML markup that may declare deeply nested groups, self-
 Master/MasterShape chains, or malformed geometry/transform cells. Risk control for this
 untrusted-input parsing is segregated entirely within the single `VsdxDocument` unit and falls
 into two distinct categories, mirroring `CanvasNetSvg`'s own established pattern (see
-_CanvasNetSvg System Design_, `canvas-net-svg.md`):
+*CanvasNetSvg System Design*, `canvas-net-svg.md`):
 
 - **Tolerantly skipped, no-effect constructs** — an unrecognized geometry row type (for example
   `InfiniteLine`), a malformed or over-cap `NURBSTo`/`PolylineTo`/`SplineKnot` row, an unresolvable
@@ -237,7 +239,7 @@ so this risk control is inherently contained within it (IEC 62304 §5.3.3).
     geometry/paint/text, when present, render normally; what remains deferred is decoding and
     rasterizing the embedded image/OLE object's own binary payload, which this delivery never
     attempts.
-  - **`Themed` color resolution against a non-trivial `theme1.xml` variation** — _update_: a
+  - **`Themed` color resolution against a non-trivial `theme1.xml` variation** — *update*: a
     bare `V="Themed" F="THEMEVAL()"` line/fill/text-color cell (the built-in "Theme" StyleSheet,
     ID `6`) now resolves to the built-in "No Style" StyleSheet's (ID `0`) value for that cell
     instead of neutral gray, matching Visio's reference render of equipment shapes (unfilled
@@ -269,15 +271,15 @@ so this risk control is inherently contained within it (IEC 62304 §5.3.3).
     Visio-reference PNG, and left untouched (documentation-only confirmation, no code change),
     consistent with the first instance above. Milestone 12's own real-world-corpus validation pass
     conducted an exhaustive cross-fixture investigation seeking a safe, narrowly-scoped
-    discriminator that would let `VsdxDocument` resolve _some_ `Themed` cells (where Visio's own
+    discriminator that would let `VsdxDocument` resolve *some* `Themed` cells (where Visio's own
     render shows a real, non-neutral theme color) while still safely falling back for others
     (where Visio's own render shows no fill/no distinct color at all) — motivated by two directly
     conflicting real-world counter-examples: `test_text_extraction.vsdx`/`60489.vsdx`'s
-    use-case-diagram ellipses, whose own `Themed` fill/line cells must resolve to _unfilled_
+    use-case-diagram ellipses, whose own `Themed` fill/line cells must resolve to *unfilled*
     (Visio renders them with no fill, an outline only) for the rendered diagram to match the
     reference, versus `60973.vsdx`'s `Nwwww`/`Neeeee` rack-slot bars (see above) and rack-frame
-    sub-shapes, whose own `Themed` fill/line cells must resolve to _filled, with real theme
-    colors_ for the rendered diagram to match the reference. Candidate discriminators
+    sub-shapes, whose own `Themed` fill/line cells must resolve to *filled, with real theme
+    colors* for the rendered diagram to match the reference. Candidate discriminators
     investigated and ruled out, each confirmed (by direct cross-fixture cell inspection) to
     produce the same value on both sides of the conflicting pair: the shape's own
     `QuickStyleType` cell; its `QuickStyleFillMatrix`/`QuickStyleLineMatrix` cell values; its
@@ -483,12 +485,12 @@ so this risk control is inherently contained within it (IEC 62304 §5.3.3).
 The library targets the following frameworks, identical to the `CanvasNet` system it depends on,
 enabling compatibility across modern .NET runtimes:
 
-| Target Framework | Runtime / Environment                                   |
-| ---------------- | ------------------------------------------------------- |
-| `net8.0`         | .NET 8 LTS (end of support; kept for library consumers) |
-| `net9.0`         | .NET 9 STS (end of support; kept for library consumers) |
-| `net10.0`        | .NET 10 LTS                                             |
-| `net11.0`        | .NET 11                                                 |
+| Target Framework | Runtime / Environment |
+| --- | --- |
+| `net8.0` | .NET 8 LTS (end of support; kept for library consumers) |
+| `net9.0` | .NET 9 STS (end of support; kept for library consumers) |
+| `net10.0` | .NET 10 LTS |
+| `net11.0` | .NET 11 |
 
 The library is supported on the following operating systems:
 

@@ -17,18 +17,18 @@ rectangles always produce the mathematically correct result.
 
 #### Data Model
 
-| Field/Property       | Type                   | Description                                                |
-| -------------------- | ---------------------- | ---------------------------------------------------------- |
-| `X`                  | `float`                | The x-coordinate of the top-left corner.                   |
-| `Y`                  | `float`                | The y-coordinate of the top-left corner.                   |
-| `Width`              | `float`                | The width. May be negative only for the `Empty` sentinel.  |
-| `Height`             | `float`                | The height. May be negative only for the `Empty` sentinel. |
-| `Left`/`Top`         | `float`                | Computed; equal to `X`/`Y`.                                |
-| `Right`/`Bottom`     | `float`                | Computed from `Width`/`Height` (see NaN-guard note below). |
-| `Location`/`TopLeft` | `Vector2`              | Computed; `(X, Y)`.                                        |
-| `Size`               | `Vector2`              | Computed; `(Width, Height)`.                               |
-| `BottomRight`        | `Vector2`              | Computed; `(Right, Bottom)`.                               |
-| `Empty`              | `static readonly Rect` | The union-identity sentinel (see below).                   |
+| Field/Property | Type | Description |
+| --- | --- | --- |
+| `X` | `float` | The x-coordinate of the top-left corner. |
+| `Y` | `float` | The y-coordinate of the top-left corner. |
+| `Width` | `float` | The width. May be negative only for the `Empty` sentinel. |
+| `Height` | `float` | The height. May be negative only for the `Empty` sentinel. |
+| `Left`/`Top` | `float` | Computed; equal to `X`/`Y`. |
+| `Right`/`Bottom` | `float` | Computed from `Width`/`Height` (see NaN-guard note below). |
+| `Location`/`TopLeft` | `Vector2` | Computed; `(X, Y)`. |
+| `Size` | `Vector2` | Computed; `(Width, Height)`. |
+| `BottomRight` | `Vector2` | Computed; `(Right, Bottom)`. |
+| `Empty` | `static readonly Rect` | The union-identity sentinel (see below). |
 
 #### The `Empty` Sentinel
 
@@ -131,5 +131,5 @@ Library.
 `Rect` is a public API entry point, invoked externally by consumers of the CanvasNet package. It
 is also invoked internally by `Path.GetBounds`, which returns a `Rect` computed by folding
 `Union` over every subpath's own bounds (and, for `Rect.Empty`'s benefit, over zero subpaths for
-an empty path) - see _Path Unit Design_ (`path.md`). `Rect` has no dependency on `Path`,
+an empty path) - see *Path Unit Design* (`path.md`). `Rect` has no dependency on `Path`,
 `BezierFlattening`, or `SvgArcConverter`.

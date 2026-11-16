@@ -8,9 +8,9 @@ the units it calls (`PandocAst`, `FilterSettings`, `FilterPaths`, `PictureAttrib
 Pandoc JSON documents and reads the image sources and the `canvasnet-warnings` metadata of an output; `FilterTree`, a
 temporary document tree with the sources in `docs/guide`, the cache in `docs/generated/canvasnet`, HTML output to
 `out/doc.html`, and its own environment variables; and `StubDrawer`, an `IPictureDrawer` that records each call as
-`render NAME` or `flatten NAME`, throws a configured failure, or returns a configured `PictureDrawing` and writes a fixed
-picture when it is flattened. `ToolPictureDrawer` is not exercised here; the drawing itself is verified with the render
-and flatten commands and through the subsystem and system tests of the filter.
+`render NAME` or `flatten NAME`, throws a configured failure, or returns a configured `PictureDrawing` and writes a
+fixed picture when it is flattened. `ToolPictureDrawer` is not exercised here; the drawing itself is verified with the
+render and flatten commands and through the subsystem and system tests of the filter.
 
 #### Test Environment
 
@@ -66,9 +66,9 @@ jobs its failure is held until the fourth has been drawn (signaled from the draw
 before the failure was known; both runs fail with the same code and message and leave the same cache files, the
 picture of the first diagram only, with no temporary file, while only the four-job run drew the fourth diagram.
 
-**PandocFilterEngine_Run_TwoFailures_ReportsTheLowestPosition** (one and four jobs): of seven diagrams, the third and the
-sixth fail; the error has the tool's code `mermaid-error` and the message `drawing 'd2.mmd' failed: d2.mmd is broken
-(Fix it.)`, and the pictures before it were drawn.
+**PandocFilterEngine_Run_TwoFailures_ReportsTheLowestPosition** (one and four jobs): of seven diagrams, the third and
+the sixth fail; the error has the tool's code `mermaid-error` and the message
+`drawing 'd2.mmd' failed: d2.mmd is broken (Fix it.)`, and the pictures before it were drawn.
 
 **PandocFilterEngine_Run_PlanningAndDrawingFailures_LowestPositionWins**: with four jobs, a failing drawing before a
 picture with `view=top` reports `drawing 'bad.mmd' failed: broken`, and the attribute error before a failing drawing

@@ -33,13 +33,13 @@ without blocking on Linux and macOS), and it keeps every resource limit: the byt
 (`MaxFileBytes`, 16 MiB by default) and an optional limit on the number of distinct files one resolver opens
 (`MaxFiles`). Any other limit (include depth, cycles, text length) belongs to the caller.
 
-On Windows, `FileReferenceResolver` also refuses, under every policy, a referenced file whose path as written is local but
-whose opened file lies on a network share (a symbolic link to a UNC target); a path the host itself placed on a
-mapped network drive or share is not affected. Opening the file is what follows the link, so the open itself may
-already contact the share (and offer the user's credentials) before the check refuses the file; Windows evaluates
+On Windows, `FileReferenceResolver` also refuses, under every policy, a referenced file whose path as written is local
+but whose opened file lies on a network share (a symbolic link to a UNC target); a path the host itself placed on a
+mapped network drive or share is not affected. Opening the file is what follows the link, so the open itself may already
+contact the share (and offer the user's credentials) before the check refuses the file; Windows evaluates
 local-to-remote symbolic links according to `fsutil behavior set SymlinkEvaluation` (local-to-remote is enabled by
-default). Hosts that let untrusted parties create symbolic links in folders documents are read from should disable
-it (`L2R:0`). Junctions cannot target a share, and creating a symbolic link needs a privilege or Developer Mode.
+default). Hosts that let untrusted parties create symbolic links in folders documents are read from should disable it
+(`L2R:0`). Junctions cannot target a share, and creating a symbolic link needs a privilege or Developer Mode.
 
 Known limit: paths are compared case-insensitively on Windows and macOS (their default file systems). On a
 case-sensitive volume or directory of those systems, a sibling folder whose name differs from a root only in letter
@@ -51,20 +51,20 @@ case counts as inside that root; hosts should not configure roots next to such f
   result (`FileReference`), and failure reporting (`FileReferenceException`, `FileReferenceFailureKind`): validates
   the reference text, finds the candidates, opens the file, has the open handle inspected and the policy asked, and
   reads from the same handle; supports a caller-supplied callback instead of the file system; see
-  _FileReferenceResolver Unit Design_ (`files/file-reference-resolver.md`)
+  *FileReferenceResolver Unit Design* (`files/file-reference-resolver.md`)
 - **FileAccessPolicy** - the public hook (`FileAccessPolicy`) with its request (`FileAccessRequest`) and decision
   (`FileAccessDecision`) and the built-in policies `AllowAll`, `UnderRoots`, `NoSymlinks`, `Combine`, and
-  `FromDelegate`; see _FileAccessPolicy Unit Design_ (`files/file-access-policy.md`)
+  `FromDelegate`; see *FileAccessPolicy Unit Design* (`files/file-access-policy.md`)
 - **RealPath** - the internal unit that opens a file per operating system and reports whether an open handle is a
   regular file and what its real path is, the real location of a folder, and the path comparison rules; the only
-  place in the library that calls the operating system directly (`NativeMethods`); see _RealPath Unit Design_
+  place in the library that calls the operating system directly (`NativeMethods`); see *RealPath Unit Design*
   (`files/real-path.md`)
 - **SandboxedFileResolver** - the public, obsolete folder sandbox (`SandboxedFileResolver`) with its options
   (`SandboxOptions`), result (`SandboxedFile`), and failure reporting (`SandboxException`, `SandboxFailureKind`):
   validates the path text,
   confines each candidate to its root, refuses symbolic links and junctions before the open and verifies the open
   file after it, reads with a byte bound, supports a caller-supplied callback, and caches per instance; see
-  _SandboxedFileResolver Unit Design_ (`files/sandboxed-file-resolver.md`)
+  *SandboxedFileResolver Unit Design* (`files/sandboxed-file-resolver.md`)
 
 ### Interfaces
 
@@ -110,7 +110,7 @@ the `RealPath` unit; it has no runtime NuGet dependency. It has no dependency on
 `FolderImageResolver` unit resolves every link of a document with `FileReferenceResolver` under the caller's
 policy); its other
 consumers are outside the core package: the `CanvasNetVegaLite` and `CanvasNetScad` systems depend on it through its
-public API (see _Callers_).
+public API (see *Callers*).
 
 ### Callers
 

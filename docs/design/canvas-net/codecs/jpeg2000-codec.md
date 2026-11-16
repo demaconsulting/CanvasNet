@@ -20,18 +20,18 @@ The class is a `static` partial class. The public surface lives in
 `Codecs/Jpeg2000Codec.cs`; the decoder is split by concern across the files in
 `Codecs/Jpeg2000/`:
 
-| File                          | Responsibility                                                      |
-| ----------------------------- | ------------------------------------------------------------------- |
-| `Jpeg2000Codec.Jp2.cs`        | JP2 box parsing (color, palette, component mapping, channel defs)   |
-| `Jpeg2000Codec.Codestream.cs` | Codestream markers (SIZ, COD/COC, QCD/QCC, POC, PPM/PPT, RGN, SOT)  |
-| `Jpeg2000Codec.Geometry.cs`   | Tile, component, resolution, subband, precinct and code-block grids |
-| `Jpeg2000Codec.Packets.cs`    | Tier-2 packet headers, tag trees, progression orders                |
-| `Jpeg2000Codec.Mq.cs`         | MQ arithmetic decoder                                               |
-| `Jpeg2000Codec.Probe.cs`      | Incremental header reader behind `GetInfo`                          |
-| `Jpeg2000Codec.Tier1.cs`      | EBCOT tier-1 decoding (all styles, ROI), dequantization on store    |
-| `Jpeg2000Codec.Dwt.cs`        | Inverse 5-3 and 9-7 wavelet transforms                              |
-| `Jpeg2000Codec.Decoder.cs`    | Orchestration, decode budget, inverse component transforms, scaling |
-| `Jpeg2000DecoderLimits.cs`    | Public resource limits applied before any allocation                |
+| File | Responsibility |
+| --- | --- |
+| `Jpeg2000Codec.Jp2.cs` | JP2 box parsing (color, palette, component mapping, channel defs) |
+| `Jpeg2000Codec.Codestream.cs` | Codestream markers (SIZ, COD/COC, QCD/QCC, POC, PPM/PPT, RGN, SOT) |
+| `Jpeg2000Codec.Geometry.cs` | Tile, component, resolution, subband, precinct and code-block grids |
+| `Jpeg2000Codec.Packets.cs` | Tier-2 packet headers, tag trees, progression orders |
+| `Jpeg2000Codec.Mq.cs` | MQ arithmetic decoder |
+| `Jpeg2000Codec.Probe.cs` | Incremental header reader behind `GetInfo` |
+| `Jpeg2000Codec.Tier1.cs` | EBCOT tier-1 decoding (all styles, ROI), dequantization on store |
+| `Jpeg2000Codec.Dwt.cs` | Inverse 5-3 and 9-7 wavelet transforms |
+| `Jpeg2000Codec.Decoder.cs` | Orchestration, decode budget, inverse component transforms, scaling |
+| `Jpeg2000DecoderLimits.cs` | Public resource limits applied before any allocation |
 
 #### Public API
 

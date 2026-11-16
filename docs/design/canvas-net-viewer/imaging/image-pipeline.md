@@ -7,26 +7,24 @@
 #### Purpose
 
 `ImagePipeline` is the ordered image pipeline. Its single responsibility is to apply a list of operations, left to
-right, to the pixels of a surface: crop, resize to an exact
-size, fit inside a box, rotate by any angle, flip, pad, the tone adjustments (grayscale, invert, threshold, levels,
-brightness, contrast, auto-levels), deskew, trim, and grid. The `ImageRenderer` and `ImageInspector` units share it, so
-a verb command of the tool (`crop`, `resize`, `rotate`, `flip`, `pad`) is exactly a render with one operation placed
-first. The arithmetic of the pixel operations lives in the core `Surface` class (flip, pad, trim, the tone
-adjustments, rotation by any angle, and skew estimation) and in the unit `GridOverlay`;
-the pipeline decides which surface they work on, maps a refusal to a `ViewerException`, and
-reports what they did. The reading of the operations from the text of a command line is not part of this unit: it is
-the `ImagePipelineParser` type of the `canvasnet` tool (documented with the `RenderCommand` unit of the `CanvasNetTool`
-system), which builds the operation records described below and the settings (the filter, the border color, the
-rotation fill, the clip of auto-levels, and the trim tolerance) that the records carry. The unit is the
-static class `ImagePipeline` (`ImagePipeline.cs`, `ImagePipeline.Validation.cs` for the check of the operation values, and
-`ImagePipeline.Anchors.cs` for the mapping of the anchors of a
-model through the applied steps, and `ImagePipeline.Positions.cs` for the mapping of the feature positions of a diagram
-or a chart) and the operation types in `ImageOperations.cs`, which also holds the value types
-`Dimension` (with the helpers `Dimension.Pixels(value)` and `Dimension.Percent(value)`), `GeometrySpec` (a rectangle in
-pixels or percent), `PadSpec`, and `FlipAxis` that the records carry. Every value of a crop region is non-negative
-(there is no inset form: x and y are 0 or more, the size more than 0, a percentage at most 100, all refused as
-`usage-error` by the check of the operation values), a percentage is of the size at that step of the pipeline, and a
-region past the right or bottom edge is cut at the edge.
+right, to the pixels of a surface: crop, resize to an exact size, fit inside a box, rotate by any angle, flip, pad, the
+tone adjustments (grayscale, invert, threshold, levels, brightness, contrast, auto-levels), deskew, trim, and grid. The
+`ImageRenderer` and `ImageInspector` units share it, so a verb command of the tool (`crop`, `resize`, `rotate`, `flip`,
+`pad`) is exactly a render with one operation placed first. The arithmetic of the pixel operations lives in the core
+`Surface` class (flip, pad, trim, the tone adjustments, rotation by any angle, and skew estimation) and in the unit
+`GridOverlay`; the pipeline decides which surface they work on, maps a refusal to a `ViewerException`, and reports what
+they did. The reading of the operations from the text of a command line is not part of this unit: it is the
+`ImagePipelineParser` type of the `canvasnet` tool (documented with the `RenderCommand` unit of the `CanvasNetTool`
+system), which builds the operation records described below and the settings (the filter, the border color, the rotation
+fill, the clip of auto-levels, and the trim tolerance) that the records carry. The unit is the static class
+`ImagePipeline` (`ImagePipeline.cs`, `ImagePipeline.Validation.cs` for the check of the operation values, and
+`ImagePipeline.Anchors.cs` for the mapping of the anchors of a model through the applied steps, and
+`ImagePipeline.Positions.cs` for the mapping of the feature positions of a diagram or a chart) and the operation types
+in `ImageOperations.cs`, which also holds the value types `Dimension` (with the helpers `Dimension.Pixels(value)` and
+`Dimension.Percent(value)`), `GeometrySpec` (a rectangle in pixels or percent), `PadSpec`, and `FlipAxis` that the
+records carry. Every value of a crop region is non-negative (there is no inset form: x and y are 0 or more, the size
+more than 0, a percentage at most 100, all refused as `usage-error` by the check of the operation values), a percentage
+is of the size at that step of the pipeline, and a region past the right or bottom edge is cut at the edge.
 
 #### Data Model
 
@@ -34,8 +32,9 @@ region past the right or bottom edge is cut at the edge.
 implement it are plain descriptions of what to do:
 
 <!-- markdownlint-disable MD013 -->
+
 | Record | Name | Parameters |
-| ------ | ---- | ---------- |
+| --- | --- | --- |
 | `CropOperation` | `crop` | `Region` (a `GeometrySpec`: origin and size, each in pixels or percent) |
 | `ResizeOperation` | `resize` | `Width`, `Height`, `Filter` (default auto) |
 | `FitOperation` | `fit` | `Width`, `Height` (the box), `AllowUpscale` (default off), `Filter` (default auto) |
@@ -52,6 +51,7 @@ implement it are plain descriptions of what to do:
 | `DeskewOperation` | `deskew` | `Fill` (`Rgba32?`), `Filter` |
 | `TrimOperation` | `trim` | `Tolerance` (0 to 255) |
 | `GridOperation` | `grid` | `Spacing` (8 to 4096), `Color` (`Rgba32?`; `null` for `GridOverlay.DefaultColor`) |
+
 <!-- markdownlint-enable MD013 -->
 
 **Command-line options of the tool.** The tool reads `--crop`, `--resize`, `--fit`,
@@ -71,10 +71,10 @@ copies pixels and every other filter interpolates bilinearly.
 
 **The values of the operations** (checked by the tool's parser for the text a user types, and again by
 `ImagePipeline.Validate` in `ImagePipeline.Validation.cs`, which `Apply` runs on the whole list before it applies the
-first operation and which `ImageRenderer` and `ImageInspector` also run before they decode anything, so a record built by
-hand, copied with `with`, or taken as a default value is refused like the same text would be). A violation is a `usage-error`
-(`size-limit` for a size or border above `Surface.MaxDimension`) whose message names the position (from 1) and the
-operation: `Operation 2 (resize): the width must be at least 1 pixel, not 0.` The rules:
+first operation and which `ImageRenderer` and `ImageInspector` also run before they decode anything, so a record built
+by hand, copied with `with`, or taken as a default value is refused like the same text would be). A violation is a
+`usage-error` (`size-limit` for a size or border above `Surface.MaxDimension`) whose message names the position (from 1)
+and the operation: `Operation 2 (resize): the width must be at least 1 pixel, not 0.` The rules:
 
 - A crop region has finite values, an origin of 0 or more, a width and height above 0, and a percentage of at most 100;
   what depends on the image (a region outside it) is decided when the step is applied.
@@ -89,11 +89,10 @@ operation: `Operation 2 (resize): the width must be at least 1 pixel, not 0.` Th
   tolerance from 0 to 255; a grid has a spacing (a whole number from 8 to 4096) and an optional color.
 - A null element of the list is a defect of the caller (`ArgumentNullException`), not a value error.
 
-**Apply(input, operations, defaultPadColor, out applied, userBackground)**: validates the list (see above), then runs the
-steps in order. The input is never
-modified or disposed, and the result is always a surface different from the input - for an empty list a copy - which
-the caller disposes. `userBackground` is the background color the user gave (or `null`) and only decides the fill of a
-rotation. Each step adds an `AppliedOperation` to `applied`.
+**Apply(input, operations, defaultPadColor, out applied, userBackground)**: validates the list (see above), then runs
+the steps in order. The input is never modified or disposed, and the result is always a surface different from the
+input - for an empty list a copy - which the caller disposes. `userBackground` is the background color the user gave (or
+`null`) and only decides the fill of a rotation. Each step adds an `AppliedOperation` to `applied`.
 
 *Ownership.* A step that changes pixels in place (`grayscale`, `invert`, `threshold`, `levels`, `brightness`,
 `contrast`, `auto-levels`, `grid`) is given the current surface when the pipeline owns it (an intermediate), and a
@@ -103,8 +102,9 @@ the input or the step returned it, and also when a step fails, so a failure leav
 most two full-size surfaces ever exist.
 
 <!-- markdownlint-disable MD013 -->
+
 | Operation | Fields (in order) |
-| --------- | ----------------- |
+| --- | --- |
 | `crop` | `x`, `y`, `width`, `height` (the rectangle actually cut out), `clamped` |
 | `resize` | `width`, `height`, `filter` |
 | `fit` | `width`, `height` (the result), `boxWidth`, `boxHeight`, `filter`, `allowUpscale`, `scaled` |
@@ -120,6 +120,7 @@ most two full-size surfaces ever exist.
 | `deskew` | `skewDegrees`, `rotateDegrees`, `confidence`, `applied`, then `reason` when a size limit skips the correction, then (only when applied) `fill`, `filter`, then `width`, `height` |
 | `trim` | `tolerance`, `x`, `y`, `width`, `height` (the box kept), `trimmed`, `empty` |
 | `grid` | `spacing`, `color`, `verticalLines`, `horizontalLines`, `labels`, `width`, `height` |
+
 <!-- markdownlint-enable MD013 -->
 
 **Crop**: a percentage is of the size of the image at that point of the pipeline. The four edges (`x`, `y`, `x + w`,
@@ -131,17 +132,16 @@ the image is larger than the box on some side or `AllowUpscale` is set (the core
 a copy and `scaled` is `false`.
 
 **Rotate**: the angle is a right angle when it is within 1e-9 degrees of a multiple of 90. A right angle is an exact
-pixel move: (x, y) goes to (height - 1 - y, x) for 90 degrees (the top row becomes the right column), to
-(width - 1 - x, height - 1 - y) for 180, and to (y, width - 1 - x) for 270, with the size swapped for a quarter turn;
-0 (or a full turn) is a copy. Any other angle is `Surface.RotateArbitrary` onto the expanded canvas
-(the pipeline's `CheckRotatedSize` refuses a canvas above 8192 on a side, found with `Surface.RotatedSize`, as `size-limit`
-before anything is allocated, with the hint to shrink first; the core method would refuse it with an
-`ArgumentException`), with the nearest kernel for `--filter nearest` and the bilinear kernel for every other
-value. **The fill** is the fill of the operation (`--rotate-fill`), else the background the user gave, else opaque white
-when every pixel of the surface being rotated is opaque (a photograph, a scan, a flattened drawing: the corners look
-like the paper and survive a viewer that paints transparency black), else transparent. This differs on purpose from
-`--pad`, whose raster default stays transparent: a pad adds a border that was asked for, a rotation exposes corners
-that nobody asked for.
+pixel move: (x, y) goes to (height - 1 - y, x) for 90 degrees (the top row becomes the right column), to (width - 1 - x,
+height - 1 - y) for 180, and to (y, width - 1 - x) for 270, with the size swapped for a quarter turn; 0 (or a full turn)
+is a copy. Any other angle is `Surface.RotateArbitrary` onto the expanded canvas (the pipeline's `CheckRotatedSize`
+refuses a canvas above 8192 on a side, found with `Surface.RotatedSize`, as `size-limit` before anything is allocated,
+with the hint to shrink first; the core method would refuse it with an `ArgumentException`), with the nearest kernel for
+`--filter nearest` and the bilinear kernel for every other value. **The fill** is the fill of the operation
+(`--rotate-fill`), else the background the user gave, else opaque white when every pixel of the surface being rotated is
+opaque (a photograph, a scan, a flattened drawing: the corners look like the paper and survive a viewer that paints
+transparency black), else transparent. This differs on purpose from `--pad`, whose raster default stays transparent: a
+pad adds a border that was asked for, a rotation exposes corners that nobody asked for.
 
 **Deskew**: `Surface.EstimateSkew` is run on the surface. The skew is corrected only when the estimate is correctable
 (`SkewEstimate.IsCorrectable`: it was estimated, its size is at least `MinCorrectedDegrees`, 0.05 degrees, and its
@@ -182,8 +182,9 @@ anchor with a position, step by step, the current width and height are those the
 (continuous, pixel `i` spanning `[i, i + 1)`) changes as follows:
 
 <!-- markdownlint-disable MD013 -->
+
 | Step | New position |
-| ---- | ------------ |
+| --- | --- |
 | `crop`, `trim` | `(x - x0, y - y0)` with the reported `x` and `y` of the box |
 | `resize`, `fit` | `(x * newWidth / width, y * newHeight / height)` |
 | `pad` | `(x + left, y + top)` |
@@ -191,6 +192,7 @@ anchor with a position, step by step, the current width and height are those the
 | `rotate` | clockwise by the reported `degrees`: `u = x - width / 2`, `v = y - height / 2`, then `(u cos a - v sin a + newWidth / 2, u sin a + v cos a + newHeight / 2)`, the inverse of the sampling of `Surface.RotateArbitrary`; a right angle uses the exact sine and cosine, so 90 gives `(height - y, x)` with no rounding noise |
 | `grayscale`, `invert`, `threshold`, `levels`, `brightness`, `contrast`, `auto-levels`, `grid`, a `deskew` that did not correct | unchanged (the size does not change) |
 | a `deskew` that corrected (`applied: true`), and any other step whose reported size differs from the current size | the position is lost: `null` |
+
 <!-- markdownlint-enable MD013 -->
 
 A lost position stays lost, so a step the mapping does not know (a future geometry step) gives no position rather

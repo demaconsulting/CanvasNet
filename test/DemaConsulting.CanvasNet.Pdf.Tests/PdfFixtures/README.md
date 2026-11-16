@@ -40,7 +40,7 @@ in those three exception files retain their own original third-party licenses (s
 own entry below for details).
 
 | File | Exercises |
-| ------ | ----------- |
+| --- | --- |
 | `classic-xref-single-page.pdf` | Classic `xref` table + `trailer` dictionary, one page |
 | `xref-stream-single-page.pdf` | A `/Type /XRef` cross-reference stream, no classic table |
 | `object-stream.pdf` | A `/Type /ObjStm` compressed-object stream holding the page dictionary |

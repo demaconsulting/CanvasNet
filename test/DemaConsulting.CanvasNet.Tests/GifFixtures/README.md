@@ -6,7 +6,7 @@ These 8 real-world GIF files were downloaded from
 byte streams.
 
 | File | Dimensions | Frames | Purpose |
-| ------ | ------------ | -------- | --------- |
+| --- | --- | --- | --- |
 | `sample-red-400x300.gif` | 400x300 | 1 | Solid-color fixture; no GCE (only a Comment extension) |
 | `sample-red-200x200.gif` | 200x200 | 1 | Solid-color fixture |
 | `sample-green-400x300.gif` | 400x300 | 1 | Solid-color fixture |

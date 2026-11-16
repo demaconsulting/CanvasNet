@@ -8,8 +8,8 @@ This document describes the system-level verification strategy for CanvasNetVsdx
 
 The CanvasNetVsdx system is verified through system-level integration tests that exercise the
 library as a whole from the perspective of a consumer, mirroring the already-established approach
-of _CanvasNetPptx System Verification_ (`canvas-net-pptx.md`) and _CanvasNetSvg System
-Verification_ (`canvas-net-svg.md`). Every test drives the library purely through its public API
+of *CanvasNetPptx System Verification* (`canvas-net-pptx.md`) and *CanvasNetSvg System
+Verification* (`canvas-net-svg.md`). Every test drives the library purely through its public API
 (`Open(string)`/`Open(Stream)`, `PageCount`, `GetPageSize`, and the `Render` overloads) and asserts
 on observable outputs, with no mocking or stubbing required at the system level. Most scenarios
 are proven against the real `.vsdx` fixture corpus staged in
@@ -21,8 +21,8 @@ correctly against genuine Visio-authored content, not just hand-authored fragmen
 scenarios (argument validation, a dangling-glue-target tolerance case, and a few Master-
 inheritance/StyleSheet-chain compositions not conveniently reproduced by any single staged fixture)
 instead use small, hand-authored, in-memory packages built via the shared `VsdxTestPackages`
-helper already established by the unit-level test tier (see _VsdxDocument Unit Verification
-Design_, `canvas-net-vsdx/vsdx-document.md`).
+helper already established by the unit-level test tier (see *VsdxDocument Unit Verification
+Design*, `canvas-net-vsdx/vsdx-document.md`).
 
 System tests reside in `VsdxSystemIntegrationTests.cs` within the
 `DemaConsulting.CanvasNet.Vsdx.Tests` project.

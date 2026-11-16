@@ -16,17 +16,17 @@ the test assembly. It contains three units:
   `SceneImage`, and their parts `SceneRect`, `SceneSegment` and `SceneSegmentKind`, `SceneStroke`, `SceneShadow`,
   `SceneFont`, `SceneTextRun` (which may be underlined), `SceneTextAnchor`, and `SceneRotation` (the turn of a text line
   about a point), and the internal position tag `ScenePositionTag` that an item carries in its internal `Position`; see
-  _SceneModel Unit Design_
+  *SceneModel Unit Design*
   (`scenegraph/scene-model.md`)
 - **ScenePainter** - the painter `ScenePainter` (a partial class in `ScenePainter.cs`, `ScenePainter.Shadow.cs`,
   `ScenePainter.Text.cs`, and `ScenePainter.Images.cs`), the placement `ScenePlacement`, and the picture-loader
   contract `ISceneImageLoader`: fills, strokes and dashes, drop shadows, text in the bundled fonts (filled and, when
   it has a stroke, stroked, an underlined run with a bar under its baseline, and a rotated line turned about its
-  pivot), pictures, the painted-pixel limit, and cancellation; see _ScenePainter Unit Design_
+  pivot), pictures, the painted-pixel limit, and cancellation; see *ScenePainter Unit Design*
   (`scenegraph/scene-painter.md`)
 - **ScenePositions** - the static class `ScenePositions` in `ScenePositions.cs`: the feature positions of a laid-out
   scene (the tagged items merged by kind and id, their box, their attachment pixel, their order, and the mapping by the
-  placement), reported to the `PositionHandler` of the render options; see _ScenePositions Unit Design_
+  placement), reported to the `PositionHandler` of the render options; see *ScenePositions Unit Design*
   (`scenegraph/scene-positions.md`)
 
 The subsystem's namespace documentation is in `Scenegraph/NamespaceDoc.cs`. Its behavior is specified by the
@@ -34,7 +34,7 @@ The subsystem's namespace documentation is in `Scenegraph/NamespaceDoc.cs`. Its 
 names the subsystem `MermaidScenegraph` and its units `MermaidSceneModel`, `MermaidScenePainter`, and
 `MermaidScenePositions`, because the
 `CanvasNetVegaLite` system already has a scene model, a scene painter, and scene positions in the shared model (see
-_CanvasNetMermaid System Design_).
+*CanvasNetMermaid System Design*).
 
 The subsystem is original work of this repository; it ports no upstream code. It reproduces the drawing rules of the
 SVG that Mermaid produces (the path commands, the fill rules, the dash rules of browsers, the bounding box of

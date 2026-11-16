@@ -46,10 +46,10 @@ constitutes a failure.
 
 Asserts that the blocks `0-15`, `16`, and `17-40` draw two rows with the rectangles (1, 15, 507, 32), (513, 15, 27, 32),
 (545, 15, 475, 32), and, for the part of `17-40` on the second row, (1, 62, 283, 32), with their labels centered at the
-x of 254.5, 526.5, 782.5, and 142.5; that with the bit numbers turned off the first row starts at a y of 5 instead of 15;
-that a row height of 40, a bit width of 20, 16 bits per row, and paddings of 2 and 8 give the rectangles
-(1, 18, 78, 40), (81, 18, 238, 40), and (1, 76, 98, 40); and that with a `paddingX` of 40 the block of one bit draws
-its label without a rectangle, while the block of two bits keeps its rectangle.
+x of 254.5, 526.5, 782.5, and 142.5; that with the bit numbers turned off the first row starts at a y of 5 instead of
+15; that a row height of 40, a bit width of 20, 16 bits per row, and paddings of 2 and 8 give the rectangles (1, 18, 78,
+40), (81, 18, 238, 40), and (1, 76, 98, 40); and that with a `paddingX` of 40 the block of one bit draws its label
+without a rectangle, while the block of two bits keeps its rectangle.
 
 ##### CanvasNetMermaid-Packet-PacketRenderer-BitNumbers: The First And Last Bits Above Each Part
 

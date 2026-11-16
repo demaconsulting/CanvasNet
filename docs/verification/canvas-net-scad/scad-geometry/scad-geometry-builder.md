@@ -494,19 +494,20 @@ that nests 3,000 translations around a cube, built under a projection on a threa
 (nothing recurses).
 
 Asserts that the tolerances do not depend on the translation or the absolute scale, by the doubles of the built slab
-rather than a picture (a single-precision rendering could not resolve them): a cube of side 1 translated by 1e9 in X,
-by 1e9 in Z, and by (-1e9, 1e9) in X and Y projects to one slab with exactly the bounds of its unit footprint, no
-warning, and no report; a 10 by 10 by 10 plate with a 4 by 4 through hole translated by 1e7 in X and Y still gives
-several slabs (the hole survives) between x = 1e7 and 1e7 + 10; a cube of side 1e-4 projects to one slab of that size; and
-a plate of side 1e-3 with a through hole keeps the hole.
+rather than a picture (a single-precision rendering could not resolve them): a cube of side 1 translated by 1e9 in X, by
+1e9 in Z, and by (-1e9, 1e9) in X and Y projects to one slab with exactly the bounds of its unit footprint, no warning,
+and no report; a 10 by 10 by 10 plate with a 4 by 4 through hole translated by 1e7 in X and Y still gives several slabs
+(the hole survives) between x = 1e7 and 1e7 + 10; a cube of side 1e-4 projects to one slab of that size; and a plate of
+side 1e-3 with a through hole keeps the hole.
 
-Asserts that every solid is judged by its own tolerance, not by the largest one, again by the doubles of the built slabs.
-A plate of side 1e-3 whose cutter ends 5e-10 below the top of the plate leaves a sliver over the cutter, so its
+Asserts that every solid is judged by its own tolerance, not by the largest one, again by the doubles of the built
+slabs. A plate of side 1e-3 whose cutter ends 5e-10 below the top of the plate leaves a sliver over the cutter, so its
 footprint is complete: the part of the plate (the slabs whose largest X is below 1) is one slab with the bounds of the
 unit square scaled to 1e-3, beside a cube of side 1e4 (a tolerance of about 1e-5) and beside one of side 1e6 (about
 1e-3). The control, a cutter that ends 5e-10 above the top, keeps its through hole (several slabs) beside the same
-cubes. A plate of side 1e-3 beside a cutter of side 1e6 at 1e9 projects to one slab of its own footprint (it also exercises
-a far plane against a tiny mesh, whose key quotient would not fit a long; the reach test runs before the key is built).
+cubes. A plate of side 1e-3 beside a cutter of side 1e6 at 1e9 projects to one slab of its own footprint (it also
+exercises a far plane against a tiny mesh, whose key quotient would not fit a long; the reach test runs before the key
+is built).
 
 ##### CanvasNetScad-ScadGeometry-ScadGeometryBuilder-ProjectionClassification: Shadow Of Differences And Intersections
 
@@ -582,7 +583,8 @@ the cube of side 1e6.
 
 ##### CanvasNetScad-ScadGeometry-ScadGeometryBuilder-ProjectionBudget: Work Ceiling And Triangle Budget
 
-**Tests**: `ScadGeometryBuilderProjectionBudgetTests.ScadGeometryBuilderProjectionBudget_TooComplexClassification_IsReportedAndOmitted`,
+**Tests**:
+`ScadGeometryBuilderProjectionBudgetTests.ScadGeometryBuilderProjectionBudget_TooComplexClassification_IsReportedAndOmitted`,
 `ScadGeometryBuilderProjectionBudgetTests.ScadGeometryBuilderProjectionBudget_TooComplexClassification_ThrowsInStrictMode`,
 `ScadGeometryBuilderProjectionBudgetTests.ScadGeometryBuilderProjectionBudget_SlabsOverTheBudget_FailBeforeAllocating`,
 `ScadGeometryBuilderProjectionBudgetTests.ScadGeometryBuilderProjectionBudget_Charge_EqualsTheMeshesCreated`,
@@ -593,10 +595,10 @@ the cube of side 1e6.
 `ScadGeometryBuilderProjectionBudgetTests.ScadGeometryBuilderProjectionBudget_PolyhedronWithManyPoints_IsBoundedByItsVertices`,
 `ScadGeometryBuilderProjectionBudgetTests.ScadGeometryBuilderProjectionBudget_PolyhedronWithManyPoints_ProjectsItsFace`
 
-Asserts that the projection of a sphere of 100 fragments with a cube subtracted, whose classification costs more than the
-work ceiling, is reported as exactly one `scad-projection-too-complex` at the module's location (1:1) whose message says
-that the projection is omitted, that no slab is built, and that the triangles charged equal those of the children alone
-(nothing was charged for the omitted projection); that strict mode turns the same report into a
+Asserts that the projection of a sphere of 100 fragments with a cube subtracted, whose classification costs more than
+the work ceiling, is reported as exactly one `scad-projection-too-complex` at the module's location (1:1) whose message
+says that the projection is omitted, that no slab is built, and that the triangles charged equal those of the children
+alone (nothing was charged for the omitted projection); that strict mode turns the same report into a
 `ScadUnsupportedFeatureException` with that feature; that a triangle budget that holds a sphere of 24 fragments but not
 the eight triangles per candidate that the slabs of its footprints could need fails with a `ScadEvaluationException`
 that says `Triangle limit exceeded` and names the location 2:3 of the projection, before any region is built; that the
@@ -635,9 +637,8 @@ inside a used library carries the file name `lib.scad` with the line and column 
 `ScadUnsupportedModuleTests.ScadUnsupportedModule_PublicHandlerAndStrictMode_SeeEveryModule`
 
 Asserts that strict mode throws at the first unsupported module with its feature and location while the sink keeps
-exactly that one report, that `#` on a 2D shape throws `scad-modifier-highlight`, and that through the public options the
-handler sees `roof`, `surface`, `import`, and `offset` at lines 1 to 4 in order and strict mode throws the
-first.
+exactly that one report, that `#` on a 2D shape throws `scad-modifier-highlight`, and that through the public options
+the handler sees `roof`, `surface`, `import`, and `offset` at lines 1 to 4 in order and strict mode throws the first.
 
 ##### CanvasNetScad-ScadGeometry-ScadGeometryBuilder-Difference: Position-Preserving Difference
 
@@ -803,15 +804,15 @@ built or reported, while an uncanceled token lets the same model complete.
 
 Asserts, through `ScadProjections.Projection` called directly with a token canceled up front (the tessellation of a
 primitive would poll first in a whole build), that the projection of a prism whose caps are two faces of about 5,000
-triangles each throws `OperationCanceledException` for the shadow and for the cut (the few face groups mean that only the
-per-triangle polls of the grouping, merging, footprint, and slicing loops can stop the shadow), that a cube, which costs
-fewer polls than one interval, completes its shadow with a canceled token (the counted schedule; the cut is not used
-there because it polls before every slice), and that the same prism completes with a live token. The loops are verified
-deterministically by the pre-canceled large mesh; a test that pins the exact loop in which the 256th poll falls would
-depend on the order of the polls and is deliberately not written, so each individual loop is verified by review. This
-applies to the walk of the nodes of a subtree (`Descendants`) and to the node loop of a section (`SectionTree`) as well:
-every earlier pass polls once per node, so the 256th poll of a count always falls in an earlier loop and a canceled
-token cannot isolate these two.
+triangles each throws `OperationCanceledException` for the shadow and for the cut (the few face groups mean that only
+the per-triangle polls of the grouping, merging, footprint, and slicing loops can stop the shadow), that a cube, which
+costs fewer polls than one interval, completes its shadow with a canceled token (the counted schedule; the cut is not
+used there because it polls before every slice), and that the same prism completes with a live token. The loops are
+verified deterministically by the pre-canceled large mesh; a test that pins the exact loop in which the 256th poll falls
+would depend on the order of the polls and is deliberately not written, so each individual loop is verified by review.
+This applies to the walk of the nodes of a subtree (`Descendants`) and to the node loop of a section (`SectionTree`) as
+well: every earlier pass polls once per node, so the 256th poll of a count always falls in an earlier loop and a
+canceled token cannot isolate these two.
 
 ##### CanvasNetScad-ScadGeometry-ScadGeometryBuilder-SceneMap: Location Map
 

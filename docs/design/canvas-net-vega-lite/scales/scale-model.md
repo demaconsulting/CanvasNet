@@ -2,11 +2,11 @@
 
 ![Scales Structure](VegaLiteScalesView.svg)
 
-The `ScaleModel` unit is the first software unit in the `Scales` subsystem. It is one source file, `ScaleModel.cs`, in the
-`DemaConsulting.CanvasNet.VegaLite.Scales` namespace, and defines five `internal` types: `ScaleKind` (enumeration),
+The `ScaleModel` unit is the first software unit in the `Scales` subsystem. It is one source file, `ScaleModel.cs`, in
+the `DemaConsulting.CanvasNet.VegaLite.Scales` namespace, and defines five `internal` types: `ScaleKind` (enumeration),
 `ScaleTransformKind` (enumeration), `ScaleTransform` (sealed class), `ScaleRange` (readonly struct), and `ScaleModel`
-(sealed class). The file carries the provenance header comments for the
-d3-scale arithmetic and the Vega scale it ports, and for the d3-time calendar behavior of the time scales.
+(sealed class). The file carries the provenance header comments for the d3-scale arithmetic and the Vega scale it ports,
+and for the d3-time calendar behavior of the time scales.
 
 #### Purpose
 
@@ -28,14 +28,14 @@ The unit's behavior is specified by the `CanvasNetVegaLite-Scales-ScaleModel-*` 
 `BinOrdinal`, `Time`, or `Utc`. A log, pow, sqrt, or symlog scale is not a kind of its own: it is a `Linear` (or, for
 colors, `Sequential` or `Diverging`) model that carries a transform, so that everything that works on a continuous scale
 (stacks, bin ends, ranges, ticks, gradient legends) keeps working. `Time` and `Utc` are kinds of their own (d3's
-`scaleTime` and `scaleUtc`), not a flag on `Linear`, because they differ in what surrounds the arithmetic (ticks, `nice`,
-labels, and the sites that mean "a linear scale" had to be revisited one by one); `IsLinearLike` is true for the three
-kinds that map numbers linearly (`Linear`, `Time`, and `Utc`), and the linear operations (`Map`, `Invert`, and the
+`scaleTime` and `scaleUtc`), not a flag on `Linear`, because they differ in what surrounds the arithmetic (ticks,
+`nice`, labels, and the sites that mean "a linear scale" had to be revisited one by one); `IsLinearLike` is true for the
+three kinds that map numbers linearly (`Linear`, `Time`, and `Utc`), and the linear operations (`Map`, `Invert`, and the
 quantitative reading of `Map(DataValue)`) accept all three.
 
 **`ScaleTransform`** (sealed class, immutable) is the transform of such a scale: `Kind` (`ScaleTransformKind`: `Linear`,
-`Log`, `Pow`, or `Symlog`), `Parameter` (the base, the exponent, or the constant), `IsLinear` (the identity, also the pow
-transform with the exponent 1), the factories `Log(base)`, `Pow(exponent)` (a sqrt scale is `Pow(0.5)`), and
+`Log`, `Pow`, or `Symlog`), `Parameter` (the base, the exponent, or the constant), `IsLinear` (the identity, also the
+pow transform with the exponent 1), the factories `Log(base)`, `Pow(exponent)` (a sqrt scale is `Pow(0.5)`), and
 `Symlog(constant)`, and `Forward(x, reflect)` and `Inverse(y, reflect)`, which are the functions of d3's `log.js`,
 `pow.js`, and `symlog.js`: the natural logarithm (the base only matters for ticks and `nice`; a log scale whose domain
 starts below zero is reflected, `-ln(-x)` and `-exp(-y)`), the sign-preserving power (`Math.Sqrt` and its square for
@@ -48,26 +48,24 @@ its values on creation and offers `Count`, `Texts`, `Numbers`, `TextAt(index)`, 
 
 **`ScaleModel`** (sealed class, immutable) exposes its `Kind` and the parameters that define it: `DomainStart` and
 `DomainEnd` (the first and last entry of the complete domain of a numeric scale) and `DomainMid` (diverging),
-`RangeStart` and `RangeEnd` (the first and last
-entry of the complete range for a linear scale), `Clamp`, `Round`, `PaddingInner`, `PaddingOuter`, `Align`, `Step` and
-`Bandwidth` (band and point), `Domain` (the categories of a discrete scale as a read-only `DataValue` list), `OrdinalRange`
-(the texts of an ordinal range), `Range` (its `ScaleRange`), `Interpolator` (the color function of a sequential or
-diverging scale), and
-`Thresholds` (the interval boundaries of a quantize, quantile, or threshold scale, or the bin edges of a bin-ordinal
-scale), `Transform` (the `ScaleTransform` of a continuous scale), `Calendar` (the `TimeCalendar` of a `Time` or `Utc`
-scale, which its ticks and `nice` follow; null for every other kind), `IsLinearLike`, `HasContinuousDomain` (Vega-Lite's
-`hasContinuousDomain`: a linear, time, UTC, sequential, diverging, quantize, quantile, or threshold scale), and
-`InvalidOutput` (Phase 14, below). The factories are
-`CreateLinear(domainStart,
-domainEnd, rangeStart, rangeEnd, clamp, round, transform)`, `CreateLinear(double[] domain, double[] range, clamp, round,
-transform)` (the piecewise form), `CreateTime(double[] domain, double[] range, clamp, round, calendar, utc)` (the same
-piecewise arithmetic over milliseconds since the epoch, with no transform; `utc` selects `ScaleKind.Utc`),
-`CreateBand(domain, rangeStart, rangeEnd, paddingInner, paddingOuter, align, round)`, `CreatePoint(domain, rangeStart,
-rangeEnd, padding, align, round)`, `CreateOrdinal(domain, range)` (texts or a `ScaleRange`),
-`CreateSequential(domain, interpolator, clamp, transform)`
-(two entries sequential, three diverging), `CreateQuantize(start, end, range)`, `CreateQuantile(sortedValues, range)`,
-`CreateThreshold(thresholds, range)`, and `CreateBinOrdinal(edges, range)`. The static `BandSpace(count, paddingInner,
-paddingOuter)` is Vega's `bandspace`: the number of steps a discrete scale needs.
+`RangeStart` and `RangeEnd` (the first and last entry of the complete range for a linear scale), `Clamp`, `Round`,
+`PaddingInner`, `PaddingOuter`, `Align`, `Step` and `Bandwidth` (band and point), `Domain` (the categories of a discrete
+scale as a read-only `DataValue` list), `OrdinalRange` (the texts of an ordinal range), `Range` (its `ScaleRange`),
+`Interpolator` (the color function of a sequential or diverging scale), and `Thresholds` (the interval boundaries of a
+quantize, quantile, or threshold scale, or the bin edges of a bin-ordinal scale), `Transform` (the `ScaleTransform` of a
+continuous scale), `Calendar` (the `TimeCalendar` of a `Time` or `Utc` scale, which its ticks and `nice` follow; null
+for every other kind), `IsLinearLike`, `HasContinuousDomain` (Vega-Lite's `hasContinuousDomain`: a linear, time, UTC,
+sequential, diverging, quantize, quantile, or threshold scale), and `InvalidOutput` (Phase 14, below). The factories are
+`CreateLinear(domainStart, domainEnd, rangeStart, rangeEnd, clamp, round, transform)`,
+`CreateLinear(double[] domain, double[] range, clamp, round, transform)` (the piecewise form),
+`CreateTime(double[] domain, double[] range, clamp, round, calendar, utc)` (the same piecewise arithmetic over
+milliseconds since the epoch, with no transform; `utc` selects `ScaleKind.Utc`),
+`CreateBand(domain, rangeStart, rangeEnd, paddingInner, paddingOuter, align, round)`,
+`CreatePoint(domain, rangeStart, rangeEnd, padding, align, round)`, `CreateOrdinal(domain, range)` (texts or a
+`ScaleRange`), `CreateSequential(domain, interpolator, clamp, transform)` (two entries sequential, three diverging),
+`CreateQuantize(start, end, range)`, `CreateQuantile(sortedValues, range)`, `CreateThreshold(thresholds, range)`, and
+`CreateBinOrdinal(edges, range)`. The static `BandSpace(count, paddingInner, paddingOuter)` is Vega's `bandspace`: the
+number of steps a discrete scale needs.
 
 **`ScaleInvalidOutput`** (Phase 14; a sealed record `(double? Number, string? Text)`) is the output that Vega-Lite's
 `config.scale.invalid` gives a channel as `{"value": ...}`: `Number` is read by a number channel (a position in pixels,
@@ -91,20 +89,20 @@ a calendar, and no other model has one.
   entries are one segment (`bimap`: a descending pair is swapped, entries beyond the first two are ignored); more are
   one segment between each pair of neighbors (`polymap`) chosen by `bisectRight(domain, x, 1, n - 1)`, so a value
   outside the domain continues the first or last segment, and a descending domain reverses both complete arrays before
-  the first `n` entries are used (d3's own behavior when the lengths differ is kept); a segment of zero width maps to the
-  middle of its output segment. `Invert` is the same map from range to domain, clamped to the domain when `Clamp` is set.
-  With a transform (d3's `transformer`) the value is clamped in the domain, then transformed, and the piecewise map runs
-  over the transformed domain; `Invert` undoes the transform of the result. A number the transform cannot take (the
-  logarithm of a number that is not above zero) maps to NaN as a number and to null as a data value, so that a mark
-  that would sit at a position that is not a number is not drawn.
+  the first `n` entries are used (d3's own behavior when the lengths differ is kept); a segment of zero width maps to
+  the middle of its output segment. `Invert` is the same map from range to domain, clamped to the domain when `Clamp` is
+  set. With a transform (d3's `transformer`) the value is clamped in the domain, then transformed, and the piecewise map
+  runs over the transformed domain; `Invert` undoes the transform of the result. A number the transform cannot take (the
+  logarithm of a number that is not above zero) maps to NaN as a number and to null as a data value, so that a mark that
+  would sit at a position that is not a number is not drawn.
 - Time and UTC scales: `Map(double)` is the same map, with the same clamp, round, reversed, piecewise, and zero-width
   rules, over milliseconds since the epoch (d3's `scaleTime` is a continuous scale whose domain is coerced to numbers),
   so a time and a UTC scale with the same numbers map identically; they differ only by `Calendar`. There is no zero rule
   and no transform. `Invert` returns the **number** of milliseconds, not a date. `Map(DataValue)` reads a date, or any
   value that reads as a number, as milliseconds; a date that is not valid has no position (null).
 - `Fraction(double)` - the position of a value between the ends of the domain along the transformed domain, 0.5 for a
-  domain without span (Vega's `scaleFraction`: for a log scale `ln(v / start) / ln(end / start)`); gradient legends place
-  their labels and stops with it.
+  domain without span (Vega's `scaleFraction`: for a log scale `ln(v / start) / ln(end / start)`); gradient legends
+  place their labels and stops with it.
 - `Map(DataValue)` - for a linear, time, or UTC scale the quantitative reading of the value (null when it has none);
   for a band or
   point scale the **start** of the value's band (or the point), null for a value outside the domain.
@@ -119,14 +117,12 @@ a calendar, and no other model has one.
   outputs that are neither text nor number, such as dash patterns). `Map(DataValue)` gives the number output of an
   ordinal or discretizing scale.
 - Sequential and diverging arithmetic (d3's `sequential.js` and `diverging.js`): the position is `(x - x0) / (x1 - x0)`
-  (the middle of the
-  interpolator for a domain of zero width), or `0.5 + (x - x1) * k` with the slope of the side of the middle value that
-  the number lies
-  on (`0.5 / (x1 - x0)` below, `0.5 / (x2 - x1)` above, zero for equal entries, the sides swapped for a descending
-  domain), clamped to 0 to 1
-  on request, and not otherwise (the interpolator extrapolates); with a transform the numbers are transformed first
-  (d3's `sequentialLog` and friends: the domain entries and the number go through the transform, the clamp applies to the
-  position), and a position that is not a finite number (a number the transform cannot take) has no color.
+  (the middle of the interpolator for a domain of zero width), or `0.5 + (x - x1) * k` with the slope of the side of the
+  middle value that the number lies on (`0.5 / (x1 - x0)` below, `0.5 / (x2 - x1)` above, zero for equal entries, the
+  sides swapped for a descending domain), clamped to 0 to 1 on request, and not otherwise (the interpolator
+  extrapolates); with a transform the numbers are transformed first (d3's `sequentialLog` and friends: the domain
+  entries and the number go through the transform, the clamp applies to the position), and a position that is not a
+  finite number (a number the transform cannot take) has no color.
 - Discretizing arithmetic: quantize thresholds are `((i + 1) * x1 - (i - n) * x0) / (n + 1)` for `n = range.Count - 1`
   (d3's
   `quantize.js`), quantile thresholds the R-7 quantiles `i / n` of the sorted values (`AggregateMeasures.Quantile`,
@@ -151,11 +147,10 @@ a mapping method requires a model of the matching kind; the results are determin
 #### Error Handling
 
 Programmer errors fail fast: a null domain or range is `ArgumentNullException`, and calling a mapping that belongs to
-another kind of scale (for example `Invert` on a band scale) is an `InvalidOperationException` that names the expected and
-actual kinds (the linear operations name `Linear`, `Time`, or `Utc`), and `CreateTime` with a null calendar is an
+another kind of scale (for example `Invert` on a band scale) is an `InvalidOperationException` that names the expected
+and actual kinds (the linear operations name `Linear`, `Time`, or `Utc`), and `CreateTime` with a null calendar is an
 `ArgumentNullException`. Data-dependent conditions are not errors: a value outside the domain maps to null, a domain of
-zero width
-maps to the middle of the range, and NaN maps to NaN. The unit performs no I/O.
+zero width maps to the middle of the range, and NaN maps to NaN. The unit performs no I/O.
 
 #### Dependencies
 
@@ -164,12 +159,12 @@ maps to the middle of the range, and NaN maps to NaN. The unit performs no I/O.
 - **`AggregateMeasures`** (the `Transforms` subsystem) - the R-7 `Quantile` that the quantile scale shares
   with the aggregate transform
 - **`TimeCalendar`** (the `TimeCalendar` unit of the `Data` subsystem) - the calendar a time or UTC model carries;
-  the model itself only stores it (see _Time Calendar Design_)
+  the model itself only stores it (see *Time Calendar Design*)
 - **.NET base class library** - `System` (`Math`), `System.Collections.Generic`
 
 #### Callers
 
 `ResolvedScale.CreateModel` (in the `ScaleResolver` unit) builds the models. `AxisBuilder` reads the domain, ticks, and
 positions; `MarkBuilder` maps rows to positions, sizes, opacities, and colors. The tests in
-`test/DemaConsulting.CanvasNet.VegaLite.Tests/Scales/ScaleModelTests.cs` call the factories and mappings directly through
-`InternalsVisibleTo`.
+`test/DemaConsulting.CanvasNet.VegaLite.Tests/Scales/ScaleModelTests.cs` call the factories and mappings directly
+through `InternalsVisibleTo`.

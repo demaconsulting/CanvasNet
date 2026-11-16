@@ -121,7 +121,7 @@ scene whose view box is the natural size, or an exception.
 - **Chaotic layout.** The node sizes the layout is given are the browser's when the label widths and the shape bounds
   are the same doubles; the bounds of the cloud and bang arcs, which the browser computes in single precision, and the
   height of a multi-line SVG label can differ in the last bit, and the cose-bilkent layout can turn such a difference
-  into a different picture (see _CanvasNetMermaid System Design_, item 49).
+  into a different picture (see *CanvasNetMermaid System Design*, item 49).
 - **Icons.** A node's icon is not drawn and is reported; Mermaid's current renderer does not draw mindmap icons either,
   and an icon still gives an SVG label its background, as in Mermaid.
 - **Other layouts.** A `layout` other than `cose-bilkent` (which mermaid-cli can load) is reported and not used.

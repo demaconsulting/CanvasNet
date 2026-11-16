@@ -658,7 +658,7 @@ public sealed class SceneRenderUnsupportedFeatureException : InvalidOperationExc
 The `Feature` tokens are stable and machine-matchable:
 
 | Token | Meaning |
-| ----- | ------- |
+| --- | --- |
 | `render3d-csg-open-mesh` | The mesh has a boundary edge (it is not closed) |
 | `render3d-csg-non-manifold-edge` | An edge is shared by three or more triangles |
 | `render3d-csg-inconsistent-winding` | Neighboring triangles are wound in conflicting directions |

@@ -73,11 +73,11 @@ file-symbolic-link scenarios skip where file links cannot be created (Windows wi
   mode.
 - The size policy follows the documented rules; a side beyond 8192 pixels is `size-limit`, before decoding.
 - A model is drawn from the named view chosen (iso by default, top for a model that is entirely 2D, the view the model
-  sets with its own viewport variables when it sets one) at 800x800 pixels unless a size is given; a view name,
-  azimuth, or elevation that was given always wins, and the operation reports the view that was drawn; with the
-  variables, time, default color, and triangle limit given, the same picture every time; its include and use files
-  are read under the file-access policy given; a missing include, a syntax error, and a failed assertion are `scad-error`,
-  an exceeded limit is `budget-exceeded`, and an unsupported feature is a note or, in strict mode, an error.
+  sets with its own viewport variables when it sets one) at 800x800 pixels unless a size is given; a view name, azimuth,
+  or elevation that was given always wins, and the operation reports the view that was drawn; with the variables, time,
+  default color, and triangle limit given, the same picture every time; its include and use files are read under the
+  file-access policy given; a missing include, a syntax error, and a failed assertion are `scad-error`, an exceeded
+  limit is `budget-exceeded`, and an unsupported feature is a note or, in strict mode, an error.
 - A chart (`.vl.json`, `.vl`, or a `.json` with a Vega-Lite `$schema` in its first 4 KiB, never taken for an SVG) is
   probed
   by parsing and measuring it (the laid-out size, four channels, the marks, data references, parameters, title, and
@@ -430,8 +430,8 @@ for each vector kind the box options carry the box and no scale and keep every o
 very same options come back; null arguments throw; an SVG loaded with the box options is exactly the box, and a 480x360
 slide loaded into a 300x300 box is 300x225 centered with bands of the background above and below.
 
-The fit of a raster into a box is the core `Surface.FitInto`, verified by its own tests (see _SurfaceTransforms Unit
-Verification Design_, `canvas/surface-transforms.md`); the loader's tests above check that the options it builds
+The fit of a raster into a box is the core `Surface.FitInto`, verified by its own tests (see *SurfaceTransforms Unit
+Verification Design*, `canvas/surface-transforms.md`); the loader's tests above check that the options it builds
 and the pixels it fits agree with it.
 
 **SourceLoader_Load_Background_IsWhatThePageIsRenderedOver**: a transparent background leaves an unpainted pixel
@@ -868,7 +868,8 @@ does a chart loaded with `axis:z` in strict mode, whose message names `'axis:z'`
 flowchart, loaded with every selector in strict mode, reports no position and no warning.
 
 **SourceLoader_Load_SvgBindingToMermaid_LandsOnTheNode**, **SourceLoader_Load_SvgBindingToVegaLite_LandsOnTheMark**,
-**SourceLoader_Load_SvgBindingToScadAnchor_LandsOnTheAnchor**, **SourceLoader_Load_SvgBindingUnmatched_WarnsOrFailsStrictly**,
+**SourceLoader_Load_SvgBindingToScadAnchor_LandsOnTheAnchor**,
+**SourceLoader_Load_SvgBindingUnmatched_WarnsOrFailsStrictly**,
 **SourceLoader_Load_SvgBindingToDeniedPicture_KeepsAccessDenied**,
 **SourceLoader_Load_SvgBindingToUnpaintedPicture_IsUnavailableWithoutOpeningIt**, and
 **SourceLoader_Load_NestedSvgBinding_ResolvesOrFailsStrictly** (`SourceLoaderSvgBindingTests.cs`; the requirement
@@ -876,11 +877,11 @@ flowchart, loaded with every selector in strict mode, reports no position and no
 box and binds a line to it. For a flowchart (`node:B`), a two-bar chart (`mark:x=B`), and a cube model with the anchor
 `corner` (`anchor:corner`), the `bind` operation (with the fields element, attribute, image, selector, x, y) is within
 1e-3 of the pixel the test reads from the picture loaded alone at 300 by 120 plus 20,30; the strict load of the
-flowchart has no note (no `positions-unmatched`). A binding to `node:Zed` is one `svg` warning
-`svg-binding-unmatched` with no `bind` operation, and the strict load throws `svg-binding-failed` naming the file. A
-diagram outside the only allowed root gives the notes `image-access-denied` then `svg-binding-unavailable`, and the
-strict load throws `file-access-denied`. The same denied diagram in a `scale(0)` group is not painted, so it is never
-opened: the only note is `svg-binding-unavailable` (no `image-access-denied`), there is no `bind` operation, and the
-strict load throws `svg-binding-failed`. A file that embeds an SVG file with a good binding loads strictly without a
-note; one that embeds an SVG file whose binding matches nothing has the warning `svg-binding-unmatched` with the origin
-of the nested file, and the strict load throws `svg-binding-failed` naming it.
+flowchart has no note (no `positions-unmatched`). A binding to `node:Zed` is one `svg` warning `svg-binding-unmatched`
+with no `bind` operation, and the strict load throws `svg-binding-failed` naming the file. A diagram outside the only
+allowed root gives the notes `image-access-denied` then `svg-binding-unavailable`, and the strict load throws
+`file-access-denied`. The same denied diagram in a `scale(0)` group is not painted, so it is never opened: the only note
+is `svg-binding-unavailable` (no `image-access-denied`), there is no `bind` operation, and the strict load throws
+`svg-binding-failed`. A file that embeds an SVG file with a good binding loads strictly without a note; one that embeds
+an SVG file whose binding matches nothing has the warning `svg-binding-unmatched` with the origin of the nested file,
+and the strict load throws `svg-binding-failed` naming it.

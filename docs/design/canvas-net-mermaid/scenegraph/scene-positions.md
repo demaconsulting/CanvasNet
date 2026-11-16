@@ -8,7 +8,7 @@ class `ScenePositions` (with its private `Feature` record). The SysML2 model nam
 
 #### Purpose
 
-`ScenePositions` turns the position tags that the renderers set on the items of a laid-out scene (see _SceneModel_,
+`ScenePositions` turns the position tags that the renderers set on the items of a laid-out scene (see *SceneModel*,
 `ScenePositionTag`) into the core `ImagePosition` values of the features of the diagram, in the pixels of the surface a
 placement draws on. Its single responsibility is the geometry and the order of the positions, the same for every
 diagram type: the renderers only say which item draws which feature.

@@ -42,8 +42,9 @@ of positional arguments. It is immutable once `Parse` has returned.
 Tokens are classified as follows, in this order:
 
 <!-- markdownlint-disable MD013 -->
+
 | Token | Meaning |
-| ----- | ------- |
+| --- | --- |
 | any token after a bare `--` | positional |
 | `--` | ends option parsing |
 | a token not starting with a dash, a lone `-`, or a dash followed by a digit (or `.` and a digit), such as `-90` | positional |
@@ -51,6 +52,7 @@ Tokens are classified as follows, in this order:
 | `--name` or `-a` (exact name or alias) | the option; a value option takes the next token as its value, whatever it looks like |
 | `-aValue`, `-a=Value` (a single-letter alias that takes a value, with the value attached) | the option with the value `Value` |
 | anything else | unknown option: a `usage-error` |
+
 <!-- markdownlint-enable MD013 -->
 
 A flag that is given an inline value, and a value option that is the last token, are `usage-error`s. An unknown
@@ -72,8 +74,9 @@ outside the range; when `max` is 0 the message says the command takes no argumen
 used in the message. Numbers always use the invariant culture.
 
 <!-- markdownlint-disable MD013 -->
+
 | Method | Accepts | Result |
-| ------ | ------- | ------ |
+| --- | --- | --- |
 | `ParseInt(text, option, min, max)` | optional sign and digits within the range | `int` |
 | `ParseNumber(text, option, min, max)` | a finite decimal number within the range | `double` |
 | `ParsePage(text, option)` | a whole number of at least 1 (1-based page) | `int` |
@@ -86,16 +89,17 @@ used in the message. Numbers always use the invariant culture.
 | `ParsePad(text, option)` | `N` or `l,t,r,b` in whole pixels | `PadSpec` |
 | `ParseDefines(defs)` | `name=value` entries: a finite number is a `double`, `true`/`false` a `bool`, anything else a `string` (one pair of quotes removed); the value grammar is `ImageParameterValues.TryParseVariable` of the core package, shared with the `def.` fragment of an SVG link | `IReadOnlyDictionary<string, object?>` |
 | `ParseParams(parameters)` | `name=value` entries of `--param`: any non-empty name before the first `=`; the value is read by `ImageParameterValues.TryParseParameter` (`true`, `false`, `null`, a finite number, a JSON string, array or object, otherwise text with one pair of single quotes removed), shared with the `param.` fragment of an SVG link; a missing `=`, an empty name or a value that starts like JSON and is not valid JSON is a `usage-error` with the reason and an example | `IReadOnlyDictionary<string, object?>` (null, `bool`, `double`, `string`, `List<object?>`, `Dictionary<string, object?>`) |
+
 <!-- markdownlint-enable MD013 -->
 
-`ParseColor` delegates the names and the hexadecimal digits to the core `CssColor` (`TryGetNamedColor`, which knows
-all 148 CSS color names and `transparent`, and `TryParseHex`); it adds only the optional leading `#`. The `rgb()` and
+`ParseColor` delegates the names and the hexadecimal digits to the core `CssColor` (`TryGetNamedColor`, which knows all
+148 CSS color names and `transparent`, and `TryParseHex`); it adds only the optional leading `#`. The `rgb()` and
 `hsl()` function forms are deliberately not offered on the command line. `ParseColor` is deliberately not
 `Rgba32.Parse`, which reads the alpha pair first. The `#` is optional because a shell treats an unquoted `#` at the
 start of a word as a comment. A definition name is an identifier (letters, digits, `_`, and `$`, not starting with a
-digit); a value starting with `[` is a vector and is read as a JSON array of numbers, booleans, `null`, text, and vectors
-(`$vpt=[0,0,20]`), and one that is not such an array (cut short, or holding an object) is rejected rather than silently
-turned into text.
+digit); a value starting with `[` is a vector and is read as a JSON array of numbers, booleans, `null`, text, and
+vectors (`$vpt=[0,0,20]`), and one that is not such an array (cut short, or holding an object) is rejected rather than
+silently turned into text.
 
 ### Error Handling
 

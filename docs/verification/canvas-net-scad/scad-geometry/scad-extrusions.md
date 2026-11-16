@@ -46,8 +46,8 @@ Evidence that belongs to other units' test files and is **not cited** by a requi
   `ScadGeometryBuilderLimitTests`.
 - The no-recursion guarantee (deep chains of 2D transforms and extruded booleans on a 256 KiB stack) is checked by
   `ScadGeometryBuilderStackTests` and `ScadGeometryBuilderTransformDepthTests`.
-- The `Extruder.Rotate` step contract itself is verified by the Render3D extruder tests (see _Extruder Unit
-  Verification Design_); this unit verifies that every angle and fragment count it produces honors it.
+- The `Extruder.Rotate` step contract itself is verified by the Render3D extruder tests (see *Extruder Unit
+  Verification Design*); this unit verifies that every angle and fragment count it produces honors it.
 
 #### Test Environment
 
@@ -184,7 +184,7 @@ Asserts that slices of 1e9 and 1e300, a twist of 1e15 (also with `$fn` of 1e6), 
 throw `ScadEvaluationException` ("Triangle limit") located at the extrusion, that the count is exact at its
 boundary (808 triangles for four vertices and 100 slices; 52 for one outer boundary and two holes of 12 vertices,
 whose two caps have 14 triangles each, so a limit of 51 rejects and 52 accepts), and that the budget accounts for all
-leaves. The exact charge equals the mesh triangle count across a matrix of shapes (see the _ScadGeometryBuilder_
+leaves. The exact charge equals the mesh triangle count across a matrix of shapes (see the *ScadGeometryBuilder*
 triangle budget verification).
 
 ##### CanvasNetScad-ScadGeometry-ScadExtrusions-RotateSweep: Angle, Direction, And Sweep Start

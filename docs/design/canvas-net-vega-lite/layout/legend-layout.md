@@ -13,7 +13,8 @@ Vega (BSD-3-Clause)`: the placement is a port of the legend layout of Vega's vie
 subsystem builds each legend relative to its own origin and measures its box; this unit turns the boxes into positions
 next to the data rectangle and the axes, so that the placement rule of Vega is defined once and can be tested with
 synthetic boxes, without text or fonts. The unit's behavior is specified by the
-`CanvasNetVegaLite-Layout-LegendLayout-*` requirements in `docs/reqstream/canvas-net-vega-lite/layout/legend-layout.yaml`.
+`CanvasNetVegaLite-Layout-LegendLayout-*` requirements in
+`docs/reqstream/canvas-net-vega-lite/layout/legend-layout.yaml`.
 
 #### Data Model
 
@@ -23,34 +24,34 @@ synthetic boxes, without text or fonts. The unit's behavior is specified by the
   and bottom ones; null stands for the union).
 - The input is the list of `LegendResult` records of the `LegendBuilder` (orient, requested offset, `legendX` and
   `legendY`, the size of the box, and the bounds, which include the border), the `ResolvedConfig` (for
-  `config.legend.layout`), the data rectangle united with the left and right axes (`horizontal`) and with the top and bottom
-  axes (`vertical`), and the size of the data rectangle.
+  `config.legend.layout`), the data rectangle united with the left and right axes (`horizontal`) and with the top and
+  bottom axes (`vertical`), and the size of the data rectangle.
 
 #### Key Methods
 
-- `AxisBounds(axes, width, height)` - the two union boxes that the legends are measured from: the data rectangle with the
-  bounds of the left and right axes, and the data rectangle with the bounds of the top and bottom axes.
-- `Place(legends, config, horizontal, vertical, width, height)` - groups the legends by orient (in the order of their first
-  appearance), builds the grid options of each group, and positions the boxes with the grid layout of the `LegendBuilder`
-  (alignment `each`, flush boxes unless `bounds` is `full`, the `margin` between boxes, the `center` option, rounding half
-  up):
+- `AxisBounds(axes, width, height)` - the two union boxes that the legends are measured from: the data rectangle with
+  the bounds of the left and right axes, and the data rectangle with the bounds of the top and bottom axes.
+- `Place(legends, config, horizontal, vertical, width, height)` - groups the legends by orient (in the order of their
+  first appearance), builds the grid options of each group, and positions the boxes with the grid layout of the
+  `LegendBuilder` (alignment `each`, flush boxes unless `bounds` is `full`, the `margin` between boxes, the `center`
+  option, rounding half up):
   - `right` and `left` legends form a column (the `direction` is `vertical` for these orients and `horizontal` for the
     others, from the default configuration); a `right` grid starts at the rounded-up right edge of `horizontal` plus
     the offset, a `left` grid ends at its rounded-down left edge minus the offset, `top` and `bottom` rows likewise
     above and below `vertical`. The offset is the largest `offset` that a legend asks for, else `layout.offset` (18).
   - The place along the side comes from the `anchor` (`start`, `middle`, `end`; the fraction 0, 0.5, 1) of the data
     rectangle, or of the axis bounds when the `frame` is `bounds`.
-  - `top-left`, `top-right`, `bottom-left`, and `bottom-right` legends are anchored at the offset from the corners of the
-    data rectangle, and a legend with the orient `none` stays at its own `legendX` and `legendY`.
+  - `top-left`, `top-right`, `bottom-left`, and `bottom-right` legends are anchored at the offset from the corners of
+    the data rectangle, and a legend with the orient `none` stays at its own `legendX` and `legendY`.
   - The properties of `config.legend.layout` are found as Vega finds them: the object of the orient, then the layout
     object, then the default.
 - `Combine(axes, legends, width, height)` - joins the extents of the axes with the bounds of the legends by the larger
   reach on each side.
-- `Combine(axes, LegendPlacement legends, width, height, bool fit)` - the same for a placement; for a view that is fitted
-  (`autosize` `fit`, `fit-x`, `fit-y`) it uses `FitBounds` instead of the union: Vega's rule that "for autosize fit,
-  incorporate the orthogonal dimension only", so a `left` or `right` legend counts by its horizontal extent, a `top` or
-  `bottom` legend by its vertical extent, and the inner orients and `none` not at all (a legend taller than the plot beside
-  it must not take room from the plot).
+- `Combine(axes, LegendPlacement legends, width, height, bool fit)` - the same for a placement; for a view that is
+  fitted (`autosize` `fit`, `fit-x`, `fit-y`) it uses `FitBounds` instead of the union: Vega's rule that "for autosize
+  fit, incorporate the orthogonal dimension only", so a `left` or `right` legend counts by its horizontal extent, a
+  `top` or `bottom` legend by its vertical extent, and the inner orients and `none` not at all (a legend taller than the
+  plot beside it must not take room from the plot).
 
 #### Error Handling and Limits
 
@@ -61,7 +62,7 @@ already counted.
 
 #### Interactions
 
-The unit is called by `VegaLiteDocument` in each pass of the layout iteration, after the axes and the legends were built,
-and its `Combine` result goes to `ViewLayout.Measure`. It consumes `AxisResult` and `LegendResult` (including the grid
-layout) from the `Guides` subsystem and `ResolvedConfig` from the `SpecModel` subsystem. It is stateless and safe for
-concurrent use.
+The unit is called by `VegaLiteDocument` in each pass of the layout iteration, after the axes and the legends were
+built, and its `Combine` result goes to `ViewLayout.Measure`. It consumes `AxisResult` and `LegendResult` (including the
+grid layout) from the `Guides` subsystem and `ResolvedConfig` from the `SpecModel` subsystem. It is stateless and safe
+for concurrent use.

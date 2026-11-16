@@ -15,12 +15,12 @@ the program and never opens another file.** A document can then be **evaluated**
 internal `ScadEvaluation` subsystem and returns the echo output, the warnings, the unsupported-feature
 reports, and the number of module instances produced; only evaluation opens other files (the files named
 by `include` and `use`), and only through the document's `ScadOpenOptions` and under its file-access policy
-(`ScadOpenOptions.FileAccess`) described in _CanvasNetScad System Design_. A document can also be **built** into a
+(`ScadOpenOptions.FileAccess`) described in *CanvasNetScad System Design*. A document can also be **built** into a
 Render3D `Scene`
 (`BuildScene`) and **rendered** onto a `Surface` (`Render`): both evaluate the document, drive the internal
 `ScadGeometry` subsystem, and (for `Render`) the Render3D renderer, steered by `ScadRenderOptions`. The package is
 an original implementation written from
-general language-design knowledge; see _ScadLexer_ (`scad-language/scad-lexer.md`) for the clean-room
+general language-design knowledge; see *ScadLexer* (`scad-language/scad-lexer.md`) for the clean-room
 statement that applies to the whole system. The unit covers the files `ScadDocument.cs`,
 `ScadDocument.Evaluate.cs`, `ScadOpenOptions.cs`, `ScadSourceLocation.cs`, `ScadSyntaxException.cs`,
 `ScadDirective.cs`, `ScadDirectiveKind.cs`, the evaluation contract `ScadEvaluationOptions.cs`,
@@ -35,7 +35,7 @@ view options of `ScadRenderOptions`, the viewport variables `$vpt`, `$vpr`, `$vp
 assigns (or that an override supplies), the flat top view of a model that is entirely 2D, or the isometric default,
 in that order of precedence per variable. The mapping between the renderer's camera and the four variables, the
 precedence, and the circularity that results from choosing the camera after the build are described under
-_ScadViewport_ in _Key Methods_.
+*ScadViewport* in *Key Methods*.
 
 The unit's behavior is specified by the `CanvasNetScad-ScadDocument-*` requirements in
 `docs/reqstream/canvas-net-scad/scad-document.yaml` and, at system level, by `CanvasNetScad-Open`,
@@ -154,8 +154,8 @@ The unit's behavior is specified by the `CanvasNetScad-ScadDocument-*` requireme
 - **`ScadFontResolutionOptions`** (sealed class, init-only) — `UseSystemFonts` (default `true`) and
   `AdditionalDirectories` (`IReadOnlyList<string>`, default empty; a null list is an `ArgumentNullException`, a
   null, empty, or white-space entry an `ArgumentException`, both on initialization; a private copy is taken and
-  exposed read-only). Where an explicitly named `text` font is found is specified in _ScadTextGeometry Unit
-  Design_.
+  exposed read-only). Where an explicitly named `text` font is found is specified in *ScadTextGeometry Unit
+  Design*.
 - **`ScadDiagnostic`** (sealed record) — `Message` and `Location`, plus the init property `Code` (default
   `ScadDiagnosticCodes.Warning`, `scad-warning`): the stable kind of the warning, part of the value equality and not of
   `ToString()`, which is `{Location}: {Message}` with the invariant culture. There is no severity: a diagnostic is a
@@ -290,7 +290,7 @@ listed. Directives are only legal at file scope, so `Directives` is the complete
   top-level assignment in the main file and its `include`d files (not in a `use`d library and not in a nested
   scope). (4) The defaults above. The first two are injected into the evaluator as overrides, so they also win
   over an assignment in the file; the evaluator reads back what the document ended up with (see
-  _ScadEvaluator Unit Design_).
+  *ScadEvaluator Unit Design*).
 - `ScadViewport.ChooseCamera(plan, document, isFlatModel, scene, aspectRatio, out view)` (internal static) — chooses
   the camera after the build, from the bounds of the scene, and reports the `ScadResolvedView`.
   - An explicit `Camera` is used as given (`Source = Camera`).
@@ -344,8 +344,8 @@ document, the options, and the files the options make reachable.
   caught or converted. `ScadOpenOptions`, `ScadEvaluationOptions`, and `ScadLimits` fail closed in the same
   way when a property is initialized with an invalid value.
 - Source that cannot be tokenized or parsed throws `ScadSyntaxException` with the location of the
-  first error (see _ScadLanguage_, `scad-language.md`, for the fail-fast model and the exact message
-  catalog in _ScadParser_ and _ScadLexer_). Nesting deeper than 256 levels is reported the same way
+  first error (see *ScadLanguage*, `scad-language.md`, for the fail-fast model and the exact message
+  catalog in *ScadParser* and *ScadLexer*). Nesting deeper than 256 levels is reported the same way
   rather than overflowing the stack. Every `Parse`/`Open` call parses inline on the caller's thread and
   restarts on a dedicated 16 MiB-stack thread (at most a bounded number at once) only when the caller's
   stack is too small, so the limit does not depend on the caller's stack size;
@@ -366,16 +366,16 @@ document, the options, and the files the options make reachable.
   for cancellation; and `ScadEvaluationException` (cannot be read) for a referenced file that cannot be read.
   Recoverable problems (an
   unknown name, a bad operand, a missing include file) are **warnings** in the result, not exceptions; see
-  _ScadEvaluation_ (`scad-evaluation.md`, _Event Classification_).
+  *ScadEvaluation* (`scad-evaluation.md`, *Event Classification*).
 - `BuildScene` and `Render` throw everything `Evaluate` throws, plus `ScadEvaluationException` (located) when
   the triangle limit would be exceeded, `ScadUnsupportedFeatureException` at the first unsupported feature of
   **any** stage (evaluation, geometry building, or the renderer's operand checks) when strict mode is on, and,
   for `Render`, `ArgumentOutOfRangeException` for a width or height outside 1 to `Surface.MaxDimension`,
   `ArgumentException` for an invalid camera, and `ScadEvaluationException` (without a location) for the
   renderer's fragment-budget overflow. Invalid arguments of a model are warnings, constructs that are not
-  supported are unsupported-feature reports (see _ScadGeometry_, `scad-geometry.md`), and neither stops the
+  supported are unsupported-feature reports (see *ScadGeometry*, `scad-geometry.md`), and neither stops the
   build. A viewport variable with an unusable value is a warning of the evaluator and is ignored (see
-  _ScadEvaluator Unit Design_); `ResolvedViewHandler` and `AnchorHandler` run on the calling thread and an exception
+  *ScadEvaluator Unit Design*); `ResolvedViewHandler` and `AnchorHandler` run on the calling thread and an exception
   they throw
   propagates like any other failure. Cancellation is never wrapped.
 
@@ -385,17 +385,17 @@ document, the options, and the files the options make reachable.
   `ScadParser.Parse(string, string?)` (which tokenizes with `ScadLexer` and parses), the `ScadProgram`
   syntax tree and its statement nodes (`ScadDirectiveStatement`, `ScadModuleDefinition`,
   `ScadFunctionDefinition`), and the constants and factory behind the source-length limit
-  (`ScadParser.MaxSourceLength`, `ScadParser.CreateSourceTooLongException`). See _ScadLanguage_
+  (`ScadParser.MaxSourceLength`, `ScadParser.CreateSourceTooLongException`). See *ScadLanguage*
   (`scad-language.md`).
 - **`ScadEvaluation` subsystem** (internal, namespace `DemaConsulting.CanvasNet.Scad.Evaluation`) —
   `ScadEvaluator.Evaluate`, `ScadEvaluationSettings` (including its `Viewport` defaults), `ScadEvaluationSink`,
   `ScadEvaluationOutput` (including the `Viewport` the document defined), `ScadViewportValues`,
   `ScadDocumentViewport`, and `ScadValue.TryFromObject` (for the `Variables` of the evaluation options). See
-  _ScadEvaluation_ (`scad-evaluation.md`).
+  *ScadEvaluation* (`scad-evaluation.md`).
 - **`ScadGeometry` subsystem** (internal, namespace `DemaConsulting.CanvasNet.Scad.Geometry`) —
   `ScadGeometryBuilder.Build`, `ScadGeometrySettings`, `ScadBuiltScene` (including `IsFlatModel`), `ScadSceneMap`,
   `ScadReporter`, and `ScadSceneOptions` (the copy of the renderer options, the ambient-only lights of a flat
-  drawing, and the report-identifier mapping). See _ScadGeometry_ (`scad-geometry.md`).
+  drawing, and the report-identifier mapping). See *ScadGeometry* (`scad-geometry.md`).
 - **`CanvasNetRender3D` package** — `Scene`, `Camera`, `CameraProjection`, `SceneRenderer`,
   `SceneRenderOptions`, `SceneRenderUnsupportedFeature`, and `RenderBudgetExceededException` (public API only;
   `Scene`, `Camera`, `CameraProjection`, and `SceneRenderOptions` appear in the public signatures of this unit).
@@ -420,7 +420,7 @@ the unit tests in `ScadDocumentTests.cs`, `ScadOpenOptionsTests.cs`, `ScadSource
 `ScadViewportTests.cs`, `ScadDocumentViewportRenderTests.cs`, `ScadDocumentAnchorTests.cs`, and `ScadAnchorTests.cs`
 verify the individual types and the geometry and
 rendering entry points. The command-line tool reads `ScadRenderOptions.ResolvedViewHandler` and
-`ScadResolvedView` to report the view it used (see _SourceLoader Unit Design_ in `canvas-net-tool`).
+`ScadResolvedView` to report the view it used (see *SourceLoader Unit Design* in `canvas-net-tool`).
 
 ### Image Source
 

@@ -213,7 +213,7 @@ nested chain of translate, rotate, union, cube, and sphere reports neither a war
 that 2D resizing uses X and Y only (a third component is ignored), and that a `%` ghost 50 units away from a
 rotated cube does not take part in the exact extent (the cube is resized to exactly 4 by 4 by 4).
 
-_Additional evidence, not cited by the requirement:_ the approximate-bounds report is exercised at the builder
+*Additional evidence, not cited by the requirement:* the approximate-bounds report is exercised at the builder
 level by `ScadGeometryBuilderBooleanTests.ScadBooleans_Resize_OverBoolean_ReportsApproximateBoundsAndStillResizes`
 (`scad-resize-approximate` at the instance location for a difference, an intersection, and a 2D difference, with
 geometry still produced), `ScadBooleans_Resize_OverDifference_UsesTheFirstOperandExtent`, and

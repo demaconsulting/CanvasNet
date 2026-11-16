@@ -19,25 +19,25 @@ two units:
   `ParsedBlock`, the block `PacketBlock`, and the diagram `PacketDiagram` with its row split (in `PacketParser.cs`): the
   lexer and the grammar of Mermaid's packet language, the value converters, the checks of the packet database, the
   title and accessibility texts, the metadata of the diagram, the split into rows, the located errors with Mermaid's
-  expected tokens, and the node and label limits; see _PacketParser Unit Design_ (`packet/packet-parser.md`)
+  expected tokens, and the node and label limits; see *PacketParser Unit Design* (`packet/packet-parser.md`)
 - **PacketRenderer** - the internal sealed `PacketRenderer` (in `PacketRenderer.cs`): the drawing of Mermaid's packet
   renderer (the rectangles, labels, and bit numbers of each row, the title row, and the view box) with the texts as the
-  browser measures and shows them; see _PacketRenderer Unit Design_ (`packet/packet-renderer.md`)
+  browser measures and shows them; see *PacketRenderer Unit Design* (`packet/packet-renderer.md`)
 
 The subsystem's namespace documentation is in `Packet/NamespaceDoc.cs`. Its behavior is specified by the
 `CanvasNetMermaid-Packet-*` requirements in `docs/reqstream/canvas-net-mermaid/packet.yaml`. The SysML2 model names
-the subsystem `MermaidPacket` (see _CanvasNetMermaid System Design_).
+the subsystem `MermaidPacket` (see *CanvasNetMermaid System Design*).
 
 **Attribution.** The subsystem is a port of the packet diagram of the pinned Mermaid release (MIT; see
-`third-party/README.md`): the parser ports the Langium grammar of `@mermaid-js/parser` (`src/language/packet/packet.langium`
-with `src/language/common/common.langium`), its token builder (`packet/tokenBuilder.ts`, the suffix of the `packet`
-keyword) and common value converter, Langium's `convertString`, `convertInt`, and the order of its token builder, and
-Mermaid's packet database (`diagrams/packet/db.ts` with the `populate` and `getNextFittingBlock` of
-`diagrams/packet/parser.ts`, `populateCommonDb.ts`, and the title and accessibility setters of `commonDb.ts`); the
-renderer ports the `draw` and `drawWord` of `diagrams/packet/renderer.ts`. The first-match lexing and the error
-positions of chevrotain, which Langium uses, are reproduced from their documented behavior, not ported. The packet style
-sheet of `diagrams/packet/styles.ts` and the packet defaults of Mermaid's configuration schema are ported by the
-Configuration subsystem. Every ported file carries the provenance header comment.
+`third-party/README.md`): the parser ports the Langium grammar of `@mermaid-js/parser`
+(`src/language/packet/packet.langium` with `src/language/common/common.langium`), its token builder
+(`packet/tokenBuilder.ts`, the suffix of the `packet` keyword) and common value converter, Langium's `convertString`,
+`convertInt`, and the order of its token builder, and Mermaid's packet database (`diagrams/packet/db.ts` with the
+`populate` and `getNextFittingBlock` of `diagrams/packet/parser.ts`, `populateCommonDb.ts`, and the title and
+accessibility setters of `commonDb.ts`); the renderer ports the `draw` and `drawWord` of `diagrams/packet/renderer.ts`.
+The first-match lexing and the error positions of chevrotain, which Langium uses, are reproduced from their documented
+behavior, not ported. The packet style sheet of `diagrams/packet/styles.ts` and the packet defaults of Mermaid's
+configuration schema are ported by the Configuration subsystem. Every ported file carries the provenance header comment.
 
 ### Interfaces
 
@@ -113,9 +113,9 @@ comparison.
 **Fidelity is proven against Mermaid itself.** The upstream vectors (`packet-parser.json`, 162 cases recorded from the
 pinned Mermaid release in a browser, 60 of them errors, 23 from Mermaid's own packet tests) give, for each valid text,
 the facts of Mermaid's packet database, its effective configuration, and its rows, and for each invalid text the first
-error Mermaid reports, with its place and, for a grammar error, the tokens its parser expects; the unit tests compare the
-parser with all of them. The 13 original fixtures in `Fixtures/packet/` cover the language, the settings, and the themes
-as authors use them; the subsystem tests open and draw all of them, and the system-level reference layout tests
+error Mermaid reports, with its place and, for a grammar error, the tokens its parser expects; the unit tests compare
+the parser with all of them. The 13 original fixtures in `Fixtures/packet/` cover the language, the settings, and the
+themes as authors use them; the subsystem tests open and draw all of them, and the system-level reference layout tests
 compare their drawings with the goldens drawn by Mermaid.
 
 **Fail closed.** Everything that can be wrong with the text is found when the document is opened, as a located
@@ -134,7 +134,7 @@ and never recursive. The split checks `MaxNodes` as each part is made, so a rang
 thousands of rows fails after at most `MaxNodes` parts, and the layout work meter of the render (`MaxLayoutWork`) is
 charged for each block, each part, and the length of each measured text and checks cancellation.
 
-**Known differences from Mermaid** are listed in each unit design and in _CanvasNetMermaid System Design_: errors and
+**Known differences from Mermaid** are listed in each unit design and in *CanvasNetMermaid System Design*: errors and
 limits are located CanvasNet exceptions with hints, and only the first error is reported; every block is checked when
 the text is read, before the rows are split; the parts of the rows are bounded by `MaxNodes`; the accessibility texts
 are metadata only; and the texts of a packet diagram give no report of a missing glyph.

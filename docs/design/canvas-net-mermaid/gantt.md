@@ -17,27 +17,27 @@ subsystems of the system and, through `InternalsVisibleTo`, to the test assembly
 - **GanttParser** - the internal sealed `GanttParser` (a partial class in `GanttParser.cs` and `GanttParser.Lexer.cs`)
   and the static token kinds `GanttTokens` (in `GanttParser.Lexer.cs`): the jison lexer and the grammar of Mermaid's
   gantt language, the values the grammar's actions pass to the database, the click statements, the located errors with
-  jison's expected tokens, the failures of Mermaid's own parser, and the node and label limits; see _GanttParser Unit
-  Design_ (`gantt/gantt-parser.md`)
+  jison's expected tokens, the failures of Mermaid's own parser, and the node and label limits; see *GanttParser Unit
+  Design* (`gantt/gantt-parser.md`)
 - **GanttModel** - the internal sealed `GanttModel` (a partial class in `GanttModel.cs`, `GanttModel.Tasks.cs`, and
   `GanttModel.Dayjs.cs`) with the raw task `GanttRawTask` and the start kind `GanttStartKind` (in `GanttModel.cs`), the
   compiled task `GanttTask` and the clock `GanttClock` (in `GanttModel.Tasks.cs`), and the static `Dayjs` (in
   `GanttModel.Dayjs.cs`): Mermaid's gantt database, the metadata of the diagram, and the compilation of the task dates
-  of each render with the dayjs functions Mermaid bundles and the clock of the render options; see _GanttModel Unit
-  Design_ (`gantt/gantt-model.md`)
+  of each render with the dayjs functions Mermaid bundles and the clock of the render options; see *GanttModel Unit
+  Design* (`gantt/gantt-model.md`)
 - **GanttRenderer** - the internal sealed `GanttRenderer` (a partial class in `GanttRenderer.cs`,
   `GanttRenderer.Tasks.cs`, and `GanttRenderer.Axis.cs`): the drawing of Mermaid's gantt renderer (the size of the
   chart, the section rows, the bars, milestones, and vertical markers, the task texts, the section titles, the excluded
-  days, the axes, the today line, and the title) with d3-axis; see _GanttRenderer Unit Design_
+  days, the axes, the today line, and the title) with d3-axis; see *GanttRenderer Unit Design*
   (`gantt/gantt-renderer.md`)
 - **TimeAxis** - the JavaScript date `JsDate`, the d3-time interval `TimeInterval`, the static `TimeAxis`, and the time
   scale `TimeScale` (in `TimeAxis.cs`, `TimeAxis.Scale.cs`, and `TimeAxis.Format.cs`): the JavaScript date arithmetic
   in UTC and the d3 time intervals, tick generator, time scale, and time format that the chart is built on; see
-  _TimeAxis Unit Design_ (`gantt/time-axis.md`)
+  *TimeAxis Unit Design* (`gantt/time-axis.md`)
 
 The subsystem's namespace documentation is in `Gantt/NamespaceDoc.cs`. Its behavior is specified by the
 `CanvasNetMermaid-Gantt-*` requirements in `docs/reqstream/canvas-net-mermaid/gantt.yaml`. The SysML2 model names the
-subsystem `MermaidGantt` (see _CanvasNetMermaid System Design_).
+subsystem `MermaidGantt` (see *CanvasNetMermaid System Design*).
 
 **Attribution.** The subsystem is a port of the gantt chart of the pinned Mermaid release (MIT; see
 `third-party/README.md`): the parser ports the jison grammar `diagrams/gantt/parser/gantt.jison` (its lexer rules and
@@ -131,7 +131,7 @@ rows, the bars with their texts, the section titles, the today line, and the tit
 of the gantt style sheet (`GanttStyles`). Mermaid leaves out the ticks of a `tickInterval` whose span is more than
 10,000 intervals and the shading of the excluded days of a chart that spans more than five years, writing a warning to
 its console; the renderer leaves them out too and reports them as `mermaid-gantt-ticks-skipped` and
-`mermaid-gantt-excludes-skipped`. See _GanttRenderer Unit Design_ and _TimeAxis Unit Design_.
+`mermaid-gantt-excludes-skipped`. See *GanttRenderer Unit Design* and *TimeAxis Unit Design*.
 
 **Fidelity is proven against Mermaid itself.** The upstream vectors (`gantt-parser.json`, 295 cases recorded from the
 pinned Mermaid release in headless Chrome with the UTC time zone and the clock fixed at 2024-06-12T10:30:00Z) give,
@@ -159,7 +159,7 @@ the excluded-days loops, each tick and tick label, the rows of the compact mode,
 charged to the layout work meter of the render (`MaxLayoutWork`), which checks cancellation. The dates are bounded by
 the range of JavaScript dates and by Mermaid's guard of 10,000 years, so no arithmetic can overflow.
 
-**Known differences from Mermaid** are listed in each unit design and in _CanvasNetMermaid System Design_: today comes
+**Known differences from Mermaid** are listed in each unit design and in *CanvasNetMermaid System Design*: today comes
 only from `MermaidRenderOptions.Now`, and without it the today line is not drawn and 1970-01-01 is taken as today; all
 dates are in UTC rather than the viewer's time zone; the date fallback reads only the ECMAScript date time string
 format, not the legacy forms of browsers; the failures of Mermaid's parser and compilation, and the tasks Mermaid would

@@ -8,8 +8,8 @@ drawn, on top of the shared CSS color grammar of the core `CssColor` unit, whose
 #### Verification Approach
 
 The unit is verified by resolving paints and comparing them with the pixel values that CSS defines for the text, which
-the tests state as `Rgba32` literals worked out by hand: `#000` at the opacity 0.5 has the alpha 0.5 x 255 = 127.5, which
-rounds to 128; `rgba(0,0,0,0.5)` at 0.5 has the alpha 128 x 0.5 = 64; `#123456` at the opacity 7 clamps to opaque;
+the tests state as `Rgba32` literals worked out by hand: `#000` at the opacity 0.5 has the alpha 0.5 x 255 = 127.5,
+which rounds to 128; `rgba(0,0,0,0.5)` at 0.5 has the alpha 128 x 0.5 = 64; `#123456` at the opacity 7 clamps to opaque;
 `steelblue` is (70, 130, 180, 255); `#abcd` is (170, 187, 204, 221); and `hsl(120 100% 25%)` is (0, 128, 0). The last
 three prove that the unit uses the shared grammar (a named color, a short hexadecimal with alpha, and an `hsl()`
 function). The unit has no dependencies other than the core `Rgba32` and `CssColor`, so no mocking or stubbing is
@@ -38,8 +38,9 @@ documented, constitutes a failure.
 **Tests**: `CssPaintTests.CssPaint_IsNone_NullEmptyAndNone_AreNoPaint`,
 `CssPaintTests.CssPaint_TryResolvePaint_NothingToDraw_ReturnsFalseWithDefaultColor`
 
-Asserts that null, empty, blank, and ` NONE ` are no paint while `transparent` and `#000` are colors, and that no paint,
-`none`, garbage text, `transparent`, `rgba(0,0,0,0)`, and an opacity of 0 each resolve to nothing with the default color.
+Asserts that null, empty, blank, and `NONE` are no paint while `transparent` and `#000` are colors, and that no paint,
+`none`, garbage text, `transparent`, `rgba(0,0,0,0)`, and an opacity of 0 each resolve to nothing with the default
+color.
 
 ##### CanvasNetVegaLite-Scenegraph-CssPaint-Opacity: Opacity Multiplies The Alpha
 

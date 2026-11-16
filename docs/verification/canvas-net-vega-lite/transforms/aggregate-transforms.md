@@ -105,11 +105,10 @@ polled in a loop or that is wrapped in another exception; or an exception of the
 Asserts that the 24 aggregate operation names (`average` being an alias of `mean`) and the 13 window operation names
 parse, that each canonical name is distinct and parses back, and that unknown names are refused; the statistics of the
 sample above to five decimals; that null and the empty text are missing, NaN is neither missing nor valid, `count` and
-`distinct` see every row, and the other operations see the valid values only; that a single valid value gives a population
-variance and deviation of 0 (and none gives null) while the sample variance, deviation, and standard error need two; that
-the variance is stable for a large
-common offset; the R-7 quartiles of `[1, 2, 3, 4, 5]` (2, 3, 4), `[1, 2]` (1.25, 1.5, 1.75), and `[9, 1, 5, 3]` (2.5,
-4, 6) whatever the row order; and the exponential vectors above.
+`distinct` see every row, and the other operations see the valid values only; that a single valid value gives a
+population variance and deviation of 0 (and none gives null) while the sample variance, deviation, and standard error
+need two; that the variance is stable for a large common offset; the R-7 quartiles of `[1, 2, 3, 4, 5]` (2, 3, 4),
+`[1, 2]` (1.25, 1.5, 1.75), and `[9, 1, 5, 3]` (2.5, 4, 6) whatever the row order; and the exponential vectors above.
 
 ##### Values Are Read Like JavaScript
 
@@ -219,8 +218,8 @@ when a `step` is given.
 Asserts that a span of 3 over the data 1 to 8 with 20 bins gives the step 0.2 (the data span 7 gives 0.5) and the bins
 still start at 1 and stop at 8, that a zero or NaN span falls back to the span of the data (JavaScript's `||`), that a
 span applies to a single value, that `SpanOf` is the last minus the first element of an array and 0 for anything else,
-and, through the public API, that the `bin` transform with 10 bins and the span 3 gives the step 0.5 (1 without it), that
-an empty selection leaves the bins of the data, and that a variable parameter holding a range gives its span.
+and, through the public API, that the `bin` transform with 10 bins and the span 3 gives the step 0.5 (1 without it),
+that an empty selection leaves the bins of the data, and that a variable parameter holding a range gives its span.
 
 ##### Bins Fail Closed
 
@@ -281,26 +280,26 @@ Asserts the ranking vectors above; that `percent_rank` of a one-row partition is
 two rows are peers, so `rank` is the row number; that peers at the start of a partition get the cumulative distribution
 of their whole group; the default names (`op` or `op_field`) and the default frame `[null, 0]`; the peer-widened frame
 against `ignorePeers`; that partitions sort separately and the output keeps the input order; that the sort is stable,
-puts null first, and reverses for descending, with several fields in order of significance; that `lag` and `lead` default
-to offset 1, give null beyond the partition, and do not overflow at the largest integer; that a negative offset, which
-the parser accepts as Vega does, reads the other way through the parser and the engine (a `lag` of -1 is a `lead` of 1,
-a `lead` of -2 a `lag` of 2) and a zero offset is 1; `first_value`, `last_value`,
-and `nth_value` over `[-1, 1]` clamped at the ends; that `prev_value` and `next_value` take the nearest non-null value
-and do not carry across partitions; the sliding average; the clamped and empty frames above; the whole-partition frame
-per partition; that `values` follows the frame and peers share one array; aggregate operations over a partition; that
-the rank of a descending sort can drive a following `filter`; and that an empty table gives an empty table with the new
-fields and the row budget does not change. Regression of a defect that review found (the index arithmetic of the
-window engine): frame bounds of any size (`-2147483649` to `2147483648`, `int.MinValue` to `int.MaxValue`, `1e12`,
-`1e18`, `1e300`, `9.2e18`) clamp to the partition (the whole partition: sum 80 over rows 10, 20, 20, 30, 4 rows,
-first 10, last 30), a frame wholly beyond either end is empty (null sum, count 0; also `[1e12, 2e12]` and
-`[-2e12, -1e12]`), a `lag`, `lead`, or `nth_value` beyond the partition or the frame (`2147483647`, `4294967296`,
-`1e12`, `9.2e18`, `2147483648`) is `null` and an `ntile` of `4294967296` gives the tile numbers of a count that no
-int holds; and an exact reference with unbounded integers (`BigInteger`) agrees with the engine on every combination
-of 25 parameters (from `-1.79e308` and the infinities to 1.79e308 and NaN, including the largest and the smallest
-long, `-1e12` and `1e12`, negative offsets, zero as the offset 1 of Vega's `|| 1`) and 20 frame bounds (null,
-`long.MinValue`, `long.MaxValue`, `-1e12`, `1e12`, the ends of the int range and small offsets), for `lag`, `lead`,
-`nth_value`, `first_value`, and `last_value`, with no `IndexOutOfRangeException`; a `frame` that is not an integer,
-or has not two entries, is still a located specification error.
+puts null first, and reverses for descending, with several fields in order of significance; that `lag` and `lead`
+default to offset 1, give null beyond the partition, and do not overflow at the largest integer; that a negative offset,
+which the parser accepts as Vega does, reads the other way through the parser and the engine (a `lag` of -1 is a `lead`
+of 1, a `lead` of -2 a `lag` of 2) and a zero offset is 1; `first_value`, `last_value`, and `nth_value` over `[-1, 1]`
+clamped at the ends; that `prev_value` and `next_value` take the nearest non-null value and do not carry across
+partitions; the sliding average; the clamped and empty frames above; the whole-partition frame per partition; that
+`values` follows the frame and peers share one array; aggregate operations over a partition; that the rank of a
+descending sort can drive a following `filter`; and that an empty table gives an empty table with the new fields and the
+row budget does not change. Regression of a defect that review found (the index arithmetic of the window engine): frame
+bounds of any size (`-2147483649` to `2147483648`, `int.MinValue` to `int.MaxValue`, `1e12`, `1e18`, `1e300`, `9.2e18`)
+clamp to the partition (the whole partition: sum 80 over rows 10, 20, 20, 30, 4 rows, first 10, last 30), a frame wholly
+beyond either end is empty (null sum, count 0; also `[1e12, 2e12]` and `[-2e12, -1e12]`), a `lag`, `lead`, or
+`nth_value` beyond the partition or the frame (`2147483647`, `4294967296`, `1e12`, `9.2e18`, `2147483648`) is `null` and
+an `ntile` of `4294967296` gives the tile numbers of a count that no int holds; and an exact reference with unbounded
+integers (`BigInteger`) agrees with the engine on every combination of 25 parameters (from `-1.79e308` and the
+infinities to 1.79e308 and NaN, including the largest and the smallest long, `-1e12` and `1e12`, negative offsets, zero
+as the offset 1 of Vega's `|| 1`) and 20 frame bounds (null, `long.MinValue`, `long.MaxValue`, `-1e12`, `1e12`, the ends
+of the int range and small offsets), for `lag`, `lead`, `nth_value`, `first_value`, and `last_value`, with no
+`IndexOutOfRangeException`; a `frame` that is not an integer, or has not two entries, is still a located specification
+error.
 
 ##### Window Cumulative Fast Path Equals Recomputation
 
@@ -325,13 +324,13 @@ exactly the rows of the frame `[-100000, 0]`, which is recomputed from scratch f
 `AggregateTransformsStackTests.AggregateTransforms_Stack_EmptyInputGivesNoRows`,
 `AggregateTransformsStackTests.AggregateTransforms_Stack_EngineStacksWithGivenNames`
 
-Asserts the stack vectors above with the default names `v_start` and `v_end` and the rows unchanged; that negative values
-stack by absolute value under `normalize`; that interleaved groups stack independently and a structural group key
+Asserts the stack vectors above with the default names `v_start` and `v_end` and the rows unchanged; that negative
+values stack by absolute value under `normalize`; that interleaved groups stack independently and a structural group key
 separates `1` from `"1"`; that the first row of the `sort` is at the bottom, equal sort values stack in input order, and
 the output keeps the input row order; one name in `as` gives the name and `name_end`; that null reads as 0, numeric text
 as its number, other text as NaN, which poisons the positive stack from that row on, and a negative value is not
-poisoned; that a group with a zero sum under `normalize` has NaN ends (0 times infinity) and a NaN in a group makes every
-end of it NaN under `center` without touching other groups; that an empty table gives an empty table with the two
+poisoned; that a group with a zero sum under `normalize` has NaN ends (0 times infinity) and a NaN in a group makes
+every end of it NaN under `center` without touching other groups; that an empty table gives an empty table with the two
 fields; and that the engine entry used by the encoding stacks with group-by, a descending sort, and explicit names
 without counting groups in the row budget.
 
@@ -354,17 +353,17 @@ Asserts that the rows `a|1|10|1`, `a|3|30|1`, `b|2|5|1` are followed by `a|2|0|n
 keys 1, 3, 2 in first-seen order, group order then key order, the other fields of an imputed row null); that `keyvals`
 come first as an array (a lacks 2 and 4, b lacks 1, 3, and 4 for `[1, 2, 3, 4]`) or as a sequence with a start, stop,
 step, a negative step, and a step that points away (empty), with the observed keys after them; that without a group-by
-there is one series; that a field no row has is added; the constant forms (a text, a number, and an explicit null that is
-not replaced by 0); the statistical vectors above; that with a statistical method an existing null is replaced as well
-while with a constant it is left alone; that `1` and `"1"` are different keys, a key twice in a group counts once, and
-nothing is added when every group has every key; and that an empty table is returned as it is. For the typed entry that
-the impute of an encoding calls (`ImputeField`, which the transform itself delegates to) it asserts that the field, key,
-group-by, method `max`, frame `[null, 0]`, and keys `[1, 2, 3, 4]` give the same rows in the same order as the transform
-with those parameters, that the shared reader of the parameters gives the defaults (the method `value`, the constant 0,
-and no frame) for `{"impute": "y", "key": "x"}` and reads the method `min`, the constant `n/a`, and the frame `[-1, 1]`
-when they are given, and that a null table or a null object is refused with an `ArgumentNullException`; and that its row
-accounting gives the input rows back by default (the result has six rows, the three input rows and the three imputed
-ones, so 6 stay counted) and keeps them counted when the caller still uses the input table (3 + 6 = 9).
+there is one series; that a field no row has is added; the constant forms (a text, a number, and an explicit null that
+is not replaced by 0); the statistical vectors above; that with a statistical method an existing null is replaced as
+well while with a constant it is left alone; that `1` and `"1"` are different keys, a key twice in a group counts once,
+and nothing is added when every group has every key; and that an empty table is returned as it is. For the typed entry
+that the impute of an encoding calls (`ImputeField`, which the transform itself delegates to) it asserts that the field,
+key, group-by, method `max`, frame `[null, 0]`, and keys `[1, 2, 3, 4]` give the same rows in the same order as the
+transform with those parameters, that the shared reader of the parameters gives the defaults (the method `value`, the
+constant 0, and no frame) for `{"impute": "y", "key": "x"}` and reads the method `min`, the constant `n/a`, and the
+frame `[-1, 1]` when they are given, and that a null table or a null object is refused with an `ArgumentNullException`;
+and that its row accounting gives the input rows back by default (the result has six rows, the three input rows and the
+three imputed ones, so 6 stay counted) and keeps them counted when the caller still uses the input table (3 + 6 = 9).
 
 ##### Limits Bound Every Allocation
 
@@ -398,15 +397,14 @@ row limit of 1,000 while one shared array of the whole partition fits; that sequ
 are refused with `the limit of 1000000 (MaxDataRows)` before they are materialized, and 2,000 keys under a limit of
 1,000 as well; and that more output fields than the field limit and a text longer than the string limit are refused
 before any row is read. A key count beyond the cells of a derived table is refused with
-`the limit of 33554432 (TableLayout.MaxCells)` even when the row limit is `long.MaxValue` (regression of two defects: the
-count was cast to an int for the loop, a wrapped number on .NET 8, and a count in the range of an int, a hundred million
-keys, was materialized key by key before the groups-by-keys bound; the domain is now bounded by the cells before the
-first key is allocated, which the test checks by the bytes allocated), and an aggregate whose group-by field is not a
-valid field name (an empty field
-name on the channel of a boxplot) is a located `VegaLiteRenderException`, covered by the fuzz regression corpus
-(`VegaLiteFuzzTests.CanvasNetVegaLite_SystemIntegration_Fuzz_FoundDefectsStayFixed`). The frame of an impute shares the
-window engine: bounds at the ends of the int range and beyond the int and long ranges (`-2147483649` to `2147483648`,
-`int.MinValue` to `int.MaxValue`, `-1e12` to `1e12`, `-1e300` to `1e300`) clamp to the
+`the limit of 33554432 (TableLayout.MaxCells)` even when the row limit is `long.MaxValue` (regression of two defects:
+the count was cast to an int for the loop, a wrapped number on .NET 8, and a count in the range of an int, a hundred
+million keys, was materialized key by key before the groups-by-keys bound; the domain is now bounded by the cells before
+the first key is allocated, which the test checks by the bytes allocated), and an aggregate whose group-by field is not
+a valid field name (an empty field name on the channel of a boxplot) is a located `VegaLiteRenderException`, covered by
+the fuzz regression corpus (`VegaLiteFuzzTests.CanvasNetVegaLite_SystemIntegration_Fuzz_FoundDefectsStayFixed`). The
+frame of an impute shares the window engine: bounds at the ends of the int range and beyond the int and long ranges
+(`-2147483649` to `2147483648`, `int.MinValue` to `int.MaxValue`, `-1e12` to `1e12`, `-1e300` to `1e300`) clamp to the
 group (the means 20, 5, 5), and a frame wholly beyond either end of it is empty (null).
 
 ##### Work Is Charged To The Step Budget
@@ -427,9 +425,9 @@ Asserts that the meter pays one step for every complete block of 64 elements, ca
 `VegaLiteLimits.MaxEvaluationSteps` when the budget is spent; that the rows, the sort of a median (n x ceil(log2 n)
 elements), the bootstrap (1,000 samples per value), the distinct keys, and the conversion of text to a number are
 charged, so a small budget fails located at the transform and a larger one succeeds (a rank sort of 5,000 rows costs
-5,000 x 13 / 64 = 1,015 steps and fails under 500); and that a window frame recomputed for every row is charged per frame
-row (one step per 16 rows), which the wide-frame vector above shows; and that hashing the text of a group value is charged
-(200 rows with a 2,000-character group text cost 31 steps each: a budget of 100,000 passes and 1,000 fails).
+5,000 x 13 / 64 = 1,015 steps and fails under 500); and that a window frame recomputed for every row is charged per
+frame row (one step per 16 rows), which the wide-frame vector above shows; and that hashing the text of a group value is
+charged (200 rows with a 2,000-character group text cost 31 steps each: a budget of 100,000 passes and 1,000 fails).
 
 ##### Stable Sort
 
@@ -456,15 +454,15 @@ comparison, and that a canceled token and an exception of the comparison propaga
 `StackRulesTests.StackRules_DimensionChannel_PairsTheChannels`
 
 Asserts the Vega-Lite decision: which channel stacks and with which offset (the default for `bar`, `area`, and `arc`),
-that an `area` stacks by default along `y` or along `x` like a bar and an explicit `stack: false` switches it off,
-that the fields of the non-position channels in channel order (array items included) split a group, and that nothing
-stacks for an explicit `null` or `false`, a mark that does not stack, an aggregate without a field to split, a range
-(`x2` or `y2`), or a channel that cannot stack; that a measure whose `scale.type` is `log`, `pow`, `sqrt`, or `symlog` is
-not stacked (by default or with an explicit `stack`, vertical or horizontal) while `linear` and the same type on the dimension
-channel keep the stack; that a missing mark is refused and a missing or non-object encoding
-does not stack; and the small predicates for a field definition, its defaulted type, and what counts as switched on. For
-the polar channels it asserts, over twelve encodings, that when `x` and `y` give no stack the same rule runs on `theta`
-and `radius` with each as the dimension of the other (the pie chart of a `theta` and a color stacks `theta` with one
+that an `area` stacks by default along `y` or along `x` like a bar and an explicit `stack: false` switches it off, that
+the fields of the non-position channels in channel order (array items included) split a group, and that nothing stacks
+for an explicit `null` or `false`, a mark that does not stack, an aggregate without a field to split, a range (`x2` or
+`y2`), or a channel that cannot stack; that a measure whose `scale.type` is `log`, `pow`, `sqrt`, or `symlog` is not
+stacked (by default or with an explicit `stack`, vertical or horizontal) while `linear` and the same type on the
+dimension channel keep the stack; that a missing mark is refused and a missing or non-object encoding does not stack;
+and the small predicates for a field definition, its defaulted type, and what counts as switched on. For the polar
+channels it asserts, over twelve encodings, that when `x` and `y` give no stack the same rule runs on `theta` and
+`radius` with each as the dimension of the other (the pie chart of a `theta` and a color stacks `theta` with one
 stack-by field, a color on the field of the `radius` dimension is no layer, a `radius` alone or over a nominal `theta`
 stacks the other way, an explicit `stack: true` on `radius` beside a quantitative `theta` stacks `radius`, `normalize`
 is kept, an aggregate and a `text` mark with `stack: true` stack, and `x` is still decided first), and, over sixteen
@@ -483,17 +481,16 @@ is refused.
 `StackRulesOffsetTests.StackRules_Decide_JsonNullDimensionIsAbsentForTheQuantitativeOffset`,
 `StackRulesOffsetTests.StackRules_DimensionOffsetChannel_NamesTheOffsetOfTheDimension`
 
-Asserts that the field of the offset channel of the dimension (`xOffset` for a stacked `y`) is a group-by of the stack and
-not a stack-by: a color on the same field as the offset does not make layers (the stack-by list is empty and the stacked
-channel is still `y`), while a color on another field is one stack-by definition; that an aggregated grouped bar chart whose
-color is the offset field has nothing to stack (the decision is null); that a quantitative offset on a view that has no
-dimension channel (a strip of points) disables the default stack of a bar while the same bar without the offset stacks
-and an
-explicit `stack` is kept; that, as in Vega-Lite's `!encoding.y`, a dimension that is a JSON null counts as absent (the
-default stack is off, an explicit stack is kept) while a dimension that is a `value` or `datum` object or a field keeps
-the stack, an explicit null `stack` is never overridden, a numeric datum offset is quantitative while a string datum, a
-binned field, and a nominal field are not; and that the offset channel of the dimension is `yOffset` for `x`, `xOffset`
-for `y`, and none for `theta` and `radius`, and a null channel is refused.
+Asserts that the field of the offset channel of the dimension (`xOffset` for a stacked `y`) is a group-by of the stack
+and not a stack-by: a color on the same field as the offset does not make layers (the stack-by list is empty and the
+stacked channel is still `y`), while a color on another field is one stack-by definition; that an aggregated grouped bar
+chart whose color is the offset field has nothing to stack (the decision is null); that a quantitative offset on a view
+that has no dimension channel (a strip of points) disables the default stack of a bar while the same bar without the
+offset stacks and an explicit `stack` is kept; that, as in Vega-Lite's `!encoding.y`, a dimension that is a JSON null
+counts as absent (the default stack is off, an explicit stack is kept) while a dimension that is a `value` or `datum`
+object or a field keeps the stack, an explicit null `stack` is never overridden, a numeric datum offset is quantitative
+while a string datum, a binned field, and a nominal field are not; and that the offset channel of the dimension is
+`yOffset` for `x`, `xOffset` for `y`, and none for `theta` and `radius`, and a null channel is refused.
 
 ##### Cancellation, Determinism, And Culture
 

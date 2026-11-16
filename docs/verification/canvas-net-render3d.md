@@ -11,8 +11,8 @@ library purely through its public API from the perspective of a consumer: it bui
 public node types, `MeshBuilder`, `PrimitiveTessellator`, `Extruder`, `ConvexHull`, and `MinkowskiSum`, renders
 them with `SceneRenderer`, and
 asserts on observable outputs — returned values, thrown exceptions, and pixel values of the returned
-`Surface`. No mocking or stubbing is used. The subsystem tier (see _SceneModel Subsystem
-Verification_, _Tessellation Subsystem Verification_, and _SceneRendering Subsystem Verification_
+`Surface`. No mocking or stubbing is used. The subsystem tier (see *SceneModel Subsystem
+Verification*, *Tessellation Subsystem Verification*, and *SceneRendering Subsystem Verification*
 under `canvas-net-render3d/`) verifies each subsystem's cross-unit behavior, and the unit tier
 verifies each unit in isolation, including the internal types made visible to the test assembly
 through `InternalsVisibleTo`.
@@ -269,7 +269,8 @@ surfaces for a maximum degree of parallelism of 1, 2, and -1 and for a repeated 
 
 ### Transparency: Translucent CSG Scene With An Overlay Renders Composited And Deterministic
 
-**Test**: `CanvasNetRender3D_SystemIntegration_Transparency_TranslucentCsgSceneWithOverlayRendersCompositedAndDeterministic`
+**Test**:
+`CanvasNetRender3D_SystemIntegration_Transparency_TranslucentCsgSceneWithOverlayRendersCompositedAndDeterministic`
 
 Satisfies `CanvasNetRender3D-Transparency` (and, with the unit and subsystem scenarios,
 `CanvasNetRender3D-Determinism` for transparent scenes). Builds, with the public API only, a

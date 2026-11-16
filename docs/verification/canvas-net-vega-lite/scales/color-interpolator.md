@@ -8,12 +8,12 @@ d3-color; the third-party notice of the system names the upstream behavior that 
 
 #### Verification Approach
 
-The unit is verified with values derived by hand from the formulas, never by running d3 or Vega and pasting the
-results. In sRGB the arithmetic is exact: black to white at 0.5 is 127.5 and rounds half away from zero to 128, at 0.25
-it is 63.75 (64), and at 0.75 it is 191.25 (191); the channels 10, 20, and 30 moving a quarter of the way towards 20,
-40, and 60 are 12.5 (13), 25, and 37.5 (38); a position of 2 or -1 extrapolates and is clamped to white or black; the
-opacity from 0 to 1 at 0.5 is 0.5, which as an alpha byte is 127.5 and rounds to 128. A gamma of 2 from black to white at
-0.5 is the square root of 0.5 x 255^2 = 32,512.5, that is 180.31, which is 180.
+The unit is verified with values derived by hand from the formulas, never by running d3 or Vega and pasting the results.
+In sRGB the arithmetic is exact: black to white at 0.5 is 127.5 and rounds half away from zero to 128, at 0.25 it is
+63.75 (64), and at 0.75 it is 191.25 (191); the channels 10, 20, and 30 moving a quarter of the way towards 20, 40, and
+60 are 12.5 (13), 25, and 37.5 (38); a position of 2 or -1 extrapolates and is clamped to white or black; the opacity
+from 0 to 1 at 0.5 is 0.5, which as an alpha byte is 127.5 and rounds to 128. A gamma of 2 from black to white at 0.5 is
+the square root of 0.5 x 255^2 = 32,512.5, that is 180.31, which is 180.
 
 For HSL the expected colors follow from the conversion formulas: red (hue 0) to blue (hue 240) differs by 240 degrees,
 which is more than 180, so the shorter way goes the other direction (the difference becomes -120) and the middle hue
@@ -57,8 +57,8 @@ Asserts the rounded values, the exact ends, the clamped extrapolation, and the o
 
 **Tests**: `ColorInterpolatorTests.ColorInterpolator_Hsl_Lab_Hcl_Match_HandDerivedVectors`
 
-Asserts the magenta and green hue paths, the grey-to-red color, the CIELAB grey, the equality of HCL and CIELAB for greys,
-the ends of every space, a color interpolated into itself, and that the shorter and the long hue ways differ.
+Asserts the magenta and green hue paths, the grey-to-red color, the CIELAB grey, the equality of HCL and CIELAB for
+greys, the ends of every space, a color interpolated into itself, and that the shorter and the long hue ways differ.
 
 ##### Gamma
 
@@ -98,26 +98,25 @@ recognized, `cubehelix-short` and null are not).
 `ColorInterpolatorCubehelixTests.ColorInterpolator_Cubehelix_OpacityGammaAndExtrapolationFollowD3`,
 `ColorInterpolatorCubehelixTests.ColorInterpolator_Cubehelix_BlackToWhiteIsGreyAndColorsRoundTrip`
 
-The expected colors are the output of d3-interpolate 3.0.1 and d3-color 3.1.1 (the versions of vega 6.4) for the
-colors named in each test, written as whole channels, and each channel may differ by one (the last-bit differences of
+The expected colors are the output of d3-interpolate 3.0.1 and d3-color 3.1.1 (the versions of vega 6.4) for the colors
+named in each test, written as whole channels, and each channel may differ by one (the last-bit differences of
 `Math.Pow`, `Math.Sin`, and `Math.Cos`). Red to blue samples `#ff0000` to `#0000ff` at 0, 0.25, 0.5, 0.75, and 1: with
-gamma 1 the colors are (255, 0, 0), (255, 0, 94), **(238, 0, 209)** (`#ee00d1`, the midpoint), (125, 0, 255), and
-(0, 0, 255); with gamma 2 the lightness moves at `t^2`, so the midpoint is brighter, **(255, 0, 246)** (`#ff00f6`),
-with (255, 0, 106) and (149, 0, 255) between the ends; and with gamma 0.5 (243, 0, 78), (200, 0, 175), and (110, 0, 244).
-The ends are exactly the colors. A grey (128, 128, 128) has no hue, so it takes the hue of red: the samples to red are
-(128, 128, 128), (168, 93, 93), (204, 59, 59), (234, 27, 27), and (255, 0, 0), and red to the grey at 0.75 is the
-sample (168, 93, 93) of the reversed order. Red (hue 351.8) to green (hue 110.0) are more than 180 degrees apart, so
-the short variant goes through the oranges and yellows, (237, 56, 0), (166, 131, 0), and (73, 204, 0) at 0.25, 0.5, and
-0.75, and the long variant through the purples and blues, (245, 0, 238), (61, 96, 255), and (0, 224, 216), and with
-gamma 2
-(221, 0, 214), (45, 78, 255), and (0, 209, 202); yellow to red gives the short (255, 185, 0), (255, 93, 0), and
-(255, 26, 0) and the long (0, 255, 64), (0, 210, 255), and (255, 0, 255). The ramp of the three stops `#0d0887`,
-`#cc4778`, and `#f0f921` is the d3 `piecewise` and passes through the stop (204, 71, 120) at 0.5 and gives (13, 8, 135),
-(189, 4, 180), (255, 140, 0), and (240, 249, 33) at 0, 0.3, 0.8, and 1. The opacity of a transparent red and an opaque
-blue is 0.5 at the middle, a gamma that is not a number is 1, a gamma does not change HSL (only sRGB and the two
-cubehelix spaces have one), positions of 1.5 and -0.5 extrapolate with channels clamped to 0 to 255, black to white
-is a grey with equal channels near 128 at the middle (the lightness goes from 0 to 1 and there is no hue), and a color
-interpolated with itself comes back with at most one in a channel.
+gamma 1 the colors are (255, 0, 0), (255, 0, 94), **(238, 0, 209)** (`#ee00d1`, the midpoint), (125, 0, 255), and (0, 0,
+255); with gamma 2 the lightness moves at `t^2`, so the midpoint is brighter, **(255, 0, 246)** (`#ff00f6`), with (255,
+0, 106) and (149, 0, 255) between the ends; and with gamma 0.5 (243, 0, 78), (200, 0, 175), and (110, 0, 244). The ends
+are exactly the colors. A grey (128, 128, 128) has no hue, so it takes the hue of red: the samples to red are (128, 128,
+128), (168, 93, 93), (204, 59, 59), (234, 27, 27), and (255, 0, 0), and red to the grey at 0.75 is the sample (168,
+93, 93) of the reversed order. Red (hue 351.8) to green (hue 110.0) are more than 180 degrees apart, so the short
+variant goes through the oranges and yellows, (237, 56, 0), (166, 131, 0), and (73, 204, 0) at 0.25, 0.5, and 0.75, and
+the long variant through the purples and blues, (245, 0, 238), (61, 96, 255), and (0, 224, 216), and with gamma 2 (221,
+0, 214), (45, 78, 255), and (0, 209, 202); yellow to red gives the short (255, 185, 0), (255, 93, 0), and (255, 26, 0)
+and the long (0, 255, 64), (0, 210, 255), and (255, 0, 255). The ramp of the three stops `#0d0887`, `#cc4778`, and
+`#f0f921` is the d3 `piecewise` and passes through the stop (204, 71, 120) at 0.5 and gives (13, 8, 135), (189, 4, 180),
+(255, 140, 0), and (240, 249, 33) at 0, 0.3, 0.8, and 1. The opacity of a transparent red and an opaque blue is 0.5 at
+the middle, a gamma that is not a number is 1, a gamma does not change HSL (only sRGB and the two cubehelix spaces have
+one), positions of 1.5 and -0.5 extrapolate with channels clamped to 0 to 255, black to white is a grey with equal
+channels near 128 at the middle (the lightness goes from 0 to 1 and there is no hue), and a color interpolated with
+itself comes back with at most one in a channel.
 
 ##### Determinism
 

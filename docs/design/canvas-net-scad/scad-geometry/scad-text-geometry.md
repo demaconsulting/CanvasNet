@@ -24,13 +24,13 @@ internal `ScadText` helper (Unicode-scalar string helpers); the two are unrelate
 
 `ScadTextGeometry` builds the `text(text, size, font, halign, valign, spacing, direction, language, script)` module:
 it lays a string out with a TrueType font and turns the glyph outlines into flat 2D regions. Text is a
-`ScadShape2D` like a `square` is (see _ScadExtrusions Unit Design_), so transforms, 2D booleans, `hull`,
+`ScadShape2D` like a `square` is (see *ScadExtrusions Unit Design*), so transforms, 2D booleans, `hull`,
 `linear_extrude`, `rotate_extrude`, `color`, the modifiers, and the slab of a top-level 2D shape all accept it
 without special cases. The unit exists separately from the primitives because it needs font resolution, layout,
 curve flattening, and a policy for outlines that cannot be represented, each with its own failure modes.
 
-The dialect decisions of the unit are original decisions of the CanvasNetScad dialect (see _CanvasNetScad System
-Design_, Clean-Room Provenance), pinned by tests; no OpenSCAD source, test, or manual text was consulted, and no
+The dialect decisions of the unit are original decisions of the CanvasNetScad dialect (see *CanvasNetScad System
+Design*, Clean-Room Provenance), pinned by tests; no OpenSCAD source, test, or manual text was consulted, and no
 parity with any other implementation's text metrics is claimed. The behavior is specified by the
 `CanvasNetScad-ScadGeometry-ScadTextGeometry-*` requirements (`Arguments`, `FontResolution`, `Size`, `Layout`,
 `Alignment`, `Glyphs`, `Contours`, `Flat2D`, `Invalid`, `Budget`, `Cancellation`, `FontResolutionSafety`, and
@@ -142,7 +142,7 @@ lies on the chord line beyond an end point still counts and a curve that oversho
 is at most the tolerance, or when the subdivision depth reaches ten (at most 1,024
 segments per curve, a bound on the work of a hostile outline). The tolerance in model units is
 `(size / 2) * (1 - cos(pi / n))` with `n = max(3, fragments(size / 2))`, the sagitta of a circle of radius
-`size / 2` under the instance's `$fn`, `$fa`, and `$fs` (the fragment rule of _ScadPrimitives Unit Design_), and
+`size / 2` under the instance's `$fn`, `$fa`, and `$fs` (the fragment rule of *ScadPrimitives Unit Design*), and
 it is divided by the scale to give the tolerance in font units; the default fragment settings give about 1% of
 the size for a size of 10. Consecutive duplicate vertices and a closing duplicate are dropped; a subpath with
 fewer than three vertices or no area is dropped; an unreadable glyph (`InvalidDataException`) is reported as
@@ -177,7 +177,7 @@ solids that touch are accepted as separate regions, exactly like the glyph compo
 reject glyphs that fonts really draw this way (a cedilla or an accent that touches its base), omitting the whole
 text. The contact is instead left to the union that consumes the leaves: an extrusion builds one closed mesh per
 region, and a union of meshes whose contact is not a valid solid is reported by the renderer through the mapped
-`scad-csg-*` identifiers (for example `scad-csg-non-manifold-edge`, see _ScadGeometryBuilder Unit Design_) at the
+`scad-csg-*` identifiers (for example `scad-csg-non-manifold-edge`, see *ScadGeometryBuilder Unit Design*) at the
 producing module. The same holds for touching glyphs.
 
 An invalid glyph omits the **whole** `text` (a partial word would silently change the meaning of what is drawn)
@@ -199,7 +199,7 @@ closed mesh per glyph component.
 following `key=value` fields, `style` (any case) with the words `Bold`, `Italic`, and `Oblique` (any case, split at
 white space and commas) sets the flags; everything else is ignored. `Resolve` spells the OpenSCAD family names `sans`
 and `mono` as the generic keywords `sans-serif` and `monospace` and hands the family and the flags to the core
-`FontResolver` (see _FontResolver Unit Design_), which follows a fixed order and never fails; the resolver here owns
+`FontResolver` (see *FontResolver Unit Design*), which follows a fixed order and never fails; the resolver here owns
 only the translation and the warning text:
 
 1. **No family** (no `font` argument, or an empty family): the bundled Liberation Sans in the requested style,
@@ -273,8 +273,8 @@ so a model without `text` pays nothing.
   laid out, while the font directories are scanned, while the reference glyph is flattened, after every glyph,
   after every flattened contour, and before every glyph's regions are built.
 
-`textmetrics()` and `fontmetrics()` stay recognized-but-unsupported evaluator functions (see _ScadBuiltinFunctions
-Unit Design_); they are not part of this unit.
+`textmetrics()` and `fontmetrics()` stay recognized-but-unsupported evaluator functions (see *ScadBuiltinFunctions
+Unit Design*); they are not part of this unit.
 
 #### Dependencies
 

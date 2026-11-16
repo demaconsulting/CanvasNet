@@ -76,8 +76,8 @@ Asserts, with the default theme, that a plain task is filled `#8a90dd` and strok
 task is filled `lightgrey` and stroked `grey`, and an `active` and `crit` task is filled `#bfc7ff` and stroked
 `#ff8888`, and that the text of a task with a `click` link is bold and colored `#003163`. Asserts that with
 `gantt.numberSectionStyles: 0` the chart renders without a warning or failure and its plain and `done` bars are both
-filled `#333`: the section number is JavaScript's `i % 0`, NaN, so the classes (`taskNaN`, `doneNaN`, `sectionNaN`) match
-no rule of the style sheet, as mermaid-cli draws them (the fixture `18-number-section-styles-zero` pins the whole
+filled `#333`: the section number is JavaScript's `i % 0`, NaN, so the classes (`taskNaN`, `doneNaN`, `sectionNaN`)
+match no rule of the style sheet, as mermaid-cli draws them (the fixture `18-number-section-styles-zero` pins the whole
 picture in its golden).
 
 ##### CanvasNetMermaid-Gantt-GanttRenderer-Milestones: The Milestone Diamond

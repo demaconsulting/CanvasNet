@@ -8,10 +8,10 @@ subsystem, containing six units: `Camera`, `Lighting`, `TriangleRasterizer`, `Fr
 
 ### Verification Approach
 
-The `SceneRendering` subsystem is verified at two tiers. The unit tests (see _Camera Unit
-Verification Design_, _Lighting Unit Verification Design_, _TriangleRasterizer Unit Verification
-Design_, _FragmentBuffer Unit Verification Design_, _CsgResolver Unit Verification Design_, and
-_SceneRenderer Unit Verification Design_ under `scene-rendering/`) verify each unit in
+The `SceneRendering` subsystem is verified at two tiers. The unit tests (see *Camera Unit
+Verification Design*, *Lighting Unit Verification Design*, *TriangleRasterizer Unit Verification
+Design*, *FragmentBuffer Unit Verification Design*, *CsgResolver Unit Verification Design*, and
+*SceneRenderer Unit Verification Design* under `scene-rendering/`) verify each unit in
 isolation, including its internal types. The subsystem-level tests in `SceneRenderingTests.cs`
 verify the units working together: a fitted camera frames an object inside
 the image, a custom headlight shades a face with the analytic Lambert value, two adjacent quads

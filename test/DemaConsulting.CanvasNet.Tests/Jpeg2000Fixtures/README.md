@@ -9,7 +9,7 @@ licensing constraints beyond the repository's own license.
 ## Sources
 
 | File | Description |
-| ------ | ------------- |
+| --- | --- |
 | `source_rgb.png` | 100x70, 8-bit RGB: gradients, a white disc and seeded Gaussian noise |
 | `source_gray.png` | 100x70, 8-bit gray: `source_rgb.png` converted to gray |
 | `source_rgba.png` | 100x70, 8-bit RGBA: `source_rgb.png` with a horizontal opacity gradient |
@@ -34,7 +34,7 @@ decomposition levels, MCT flag, SIZ component count and bit depth) and decoded b
 (`magick fixture -depth 8 out.png`, `magick compare -metric AE`) before committing.
 
 | File | Source | Options | Verified by OpenJPEG |
-| ------ | -------- | --------- | ---------------------- |
+| --- | --- | --- | --- |
 | `lossless_rct.jp2` | RGB | `jp2:rate=1`; LRCP, 5 levels, RCT | AE 0 |
 | `progression_rlcp.jp2` | RGB | `jp2:rate=1`, `jp2:progression-order=RLCP` | AE 0 |
 | `progression_rpcl.jp2` | RGB | `jp2:rate=1`, `jp2:progression-order=RPCL` | AE 0 |

@@ -25,8 +25,8 @@ by its scaled offset, under the box and outside its bounds; the underline bar li
 underlined run only; and the failures carry the
 code and the location of the node. No golden images are used.
 
-The subsystem-level positions requirement reuses the `ScenePositions` unit tests as its evidence (see _ScenePositions
-Unit Verification Design_): they build scenes from `SceneModel` records carrying position tags, as the renderers tag
+The subsystem-level positions requirement reuses the `ScenePositions` unit tests as its evidence (see *ScenePositions
+Unit Verification Design*): they build scenes from `SceneModel` records carrying position tags, as the renderers tag
 them, and map them with a `ScenePlacement`, so they exercise the three units' collaboration without painting.
 
 The scenarios use a test picture loader that gives a red picture of the requested size and records the requests, as

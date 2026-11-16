@@ -20,13 +20,13 @@ files in the `DemaConsulting.CanvasNet.Scad.Geometry` namespace, all `internal`:
 
 `ScadExtrusions` turns the 2D results of a model into 3D solids: it builds `linear_extrude` and `rotate_extrude`
 and the thin slabs of 2D shapes that stand alone at the top of a model. The package has no 2D boolean kernel
-(see _ScadGeometry Subsystem Design_), so a 2D result is a `ScadShape2D` tree and the extrusion is
+(see *ScadGeometry Subsystem Design*), so a 2D result is a `ScadShape2D` tree and the extrusion is
 **distributed over the tree**: the extrusion of `difference() { A; B; }` is the 3D difference of the extrusion
 of `A` and the extrusion of `B`. That is exact because an extrusion maps a point of the profile domain to a
 point of the solid bijectively, so set operations commute with it, and the renderer's constructive solid
 geometry then resolves the result per pixel. The dialect decisions of the unit (the extrusion defaults, the twist
 sign, the sweep direction, and the segment rules) are original decisions of the CanvasNetScad dialect (see
-_CanvasNetScad System Design_, Clean-Room Provenance); no OpenSCAD source or manual text was consulted.
+*CanvasNetScad System Design*, Clean-Room Provenance); no OpenSCAD source or manual text was consulted.
 
 The unit's behavior is specified by the `CanvasNetScad-ScadGeometry-ScadExtrusions-*` requirements
 (`Distribution`, `ProfileTransforms`, `InvalidProfile`, `RejectedExtrusion`, `ChildDimensions`, `LinearHeight`,
@@ -96,7 +96,7 @@ difference or intersection). `ExtrudeLeaf` polls cancellation, calls the extrude
 mesh's actual triangle count, and creates the mesh node with
 `ScadGeometryContext.CreateMeshNode`, which records the **extrusion instance's location** for the node (this is
 how a later Render3D report finds its way back to the source). A mesh without triangles is an empty operand. An
-`ArgumentException` from the extruder is the **catch-all mapping** (see _Error Handling_): it sets `Failed`,
+`ArgumentException` from the extruder is the **catch-all mapping** (see *Error Handling*): it sets `Failed`,
 reports `scad-geometry-rejected`, and the **whole extrusion** is then omitted, because a partial extrusion would
 silently change the meaning of a boolean.
 
@@ -127,11 +127,11 @@ Builds `linear_extrude(height, center, convexity, twist, slices, scale)`:
    `$fs`. The twist turns about the origin, so the farthest vertex sweeps the longest arc.
 7. **Budget.** The **exact** triangle count of every valid leaf is computed from its contours before anything is
    tessellated and charged with `ScadGeometryContext.ChargeTriangles`: `2·V·slices` wall triangles (`2·V·(slices − 1)
-   - V` with an apex, whose last slice has one triangle per edge) plus `V + 2H − 2P` triangles per cap (an apex
-   has only the bottom cap), where `V` is the vertex count of the leaf, `H` its number of holes (clockwise
+   - V`with an apex, whose last slice has one triangle per edge) plus`V + 2H − 2P` triangles per cap (an apex
+   has only the bottom cap), where `V`is the vertex count of the leaf,`H` its number of holes (clockwise
    contours) and `P` its number of solid contours (counter-clockwise outer boundaries and islands); the cap count
    is the documented triangle count of `PolygonTriangulator`, which adds no Steiner points. The arithmetic is done
-   in`double` and saturated at 1e18 with `Saturate`; the slice count handed to the extruder is clamped to
+   in`double`and saturated at 1e18 with`Saturate`; the slice count handed to the extruder is clamped to
    `int.MaxValue` (the budget check has already failed by then for any hostile value). A profile of one outer
    boundary and two holes with 12 vertices is therefore charged `24 + 2·14 = 52` (a rule of four triangles per
    vertex would have charged 48). The charge of each leaf is computed **once**, kept in the job, and is the very
@@ -179,7 +179,7 @@ Builds `rotate_extrude(angle, convexity)`:
    $fa, $fs)`, and `segments = ceil(max(fragments · sweep / 360, 1))` where `sweep = min(|angle|, 360)`. The
    count is then raised to at least `ceil(sweep / 120)`. This honors the **`Extruder.Rotate` step contract**: every
    angular step (`sweep / segments`) must be at most 120 degrees, the step of the coarsest full revolution, because
-   wider steps make the wall chords pass through the axis or face the wrong way (see _Extruder Unit Design_ in
+   wider steps make the wall chords pass through the axis or face the wrong way (see *Extruder Unit Design* in
    `docs/design/canvas-net-render3d/tessellation/extruder.md`, Rotational extrusion rules). A caller that
    tessellates by fragment count (at least 3 for a full turn) satisfies the bound for a full turn; the extra rule
    covers partial sweeps (for example 121 degrees in one segment) and small `$fn` values. A partial sweep gets flat
@@ -207,7 +207,7 @@ leaf is left out. The result is an empty group when nothing could be built.
 
 #### Error Handling
 
-The unit follows the subsystem rule (see _ScadGeometry Subsystem Design_): argument problems are warnings, CanvasNet
+The unit follows the subsystem rule (see *ScadGeometry Subsystem Design*): argument problems are warnings, CanvasNet
 capability limits are unsupported features, and only a resource overrun throws.
 
 - **Warning** (`ScadReporter.Warn`, at the instance, instance omitted): invalid `linear_extrude` height, twist,
@@ -218,7 +218,7 @@ capability limits are unsupported features, and only a resource overrun throws.
   `ScadUnsupportedFeatureException`): the whole extrusion is omitted.
 
   | Cause | Feature id | Location |
-  | ----- | ----- | ----- |
+  | --- | --- | --- |
   | Scale with a negative component or exactly one zero component | `scad-linear-extrude-scale` | extrusion |
   | Scale 0 over a leaf with holes or islands | `scad-linear-extrude-apex-multiple-contours` | extrusion |
   | Profile on both sides of the axis | `scad-rotate-extrude-axis-crossing` | extrusion |
@@ -268,4 +268,4 @@ combiner of the `linear_extrude` and `rotate_extrude` instances, after the child
 call the unit through `ScadGeometryBuilder.Build` using `ScadGeometryTestSupport`, with exact analytic volumes
 as the oracle. The pixel equivalence of an extruded 2D difference with a hand-built difference of extrusions is
 checked in `ScadDocumentRenderExtrusionTests.cs`, and the builder-level stack and slab behavior in the builder,
-primitives, and colors tests; see _ScadExtrusions Unit Verification Design_.
+primitives, and colors tests; see *ScadExtrusions Unit Verification Design*.

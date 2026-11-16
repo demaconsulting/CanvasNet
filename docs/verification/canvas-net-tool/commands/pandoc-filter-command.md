@@ -7,8 +7,8 @@ through the tool's entry point with the `ToolHost` helper, which captures standa
 document is read from and written to files with `--input` and `--output`, so no standard input is redirected, and the
 pictures are drawn by the real `ToolPictureDrawer` into a temporary folder. The filter itself is verified with the
 units of the `PandocFilter` subsystem; these tests verify the options, the shim writing, the protocol check, the bytes
-in and out, and the errors. The real standard input and output are verified by the system tests (see _CanvasNetTool
-Verification_).
+in and out, and the errors. The real standard input and output are verified by the system tests (see *CanvasNetTool
+Verification*).
 
 #### Test Environment
 
@@ -25,14 +25,14 @@ N/A - standard test environment. The tests belong to the "Sequential" collection
 
 #### Test Scenarios
 
-**PandocFilterCommand_Run_WriteShim_WritesTheShimAsTextOrJson**: `--write-shim` into a new folder writes the bytes of the
-embedded shim and the line `wrote <file> (protocol 1)`; with `--json` the document has `ok` true, the command
+**PandocFilterCommand_Run_WriteShim_WritesTheShimAsTextOrJson**: `--write-shim` into a new folder writes the bytes of
+the embedded shim and the line `wrote <file> (protocol 1)`; with `--json` the document has `ok` true, the command
 `pandoc-filter`, `protocol` 1, and the output path.
 
 **PandocFilterCommand_Run_ProtocolMismatch_IsUsageErrorNamingTheFix**: `--protocol 0` with an input that does not exist
-fails with `usage-error`, the message `docs/filters/canvasnet.lua speaks protocol 0; this tool needs protocol 1`, and the
-hint `Write the shim again: dotnet canvasnet pandoc-filter --write-shim docs/filters/canvasnet.lua` (the input is never
-read); `--protocol 2` says `this tool speaks protocol 1 at most`.
+fails with `usage-error`, the message `docs/filters/canvasnet.lua speaks protocol 0; this tool needs protocol 1`, and
+the hint `Write the shim again: dotnet canvasnet pandoc-filter --write-shim docs/filters/canvasnet.lua` (the input is
+never read); `--protocol 2` says `this tool speaks protocol 1 at most`.
 
 **PandocFilterCommand_Run_BadOptions_AreUsageErrors**: a theory over a missing `--protocol`, a protocol that is not a
 whole number, a missing `--filter-path`, `--jobs 0`, and a positional argument; each exits with code 1 and its message

@@ -9,7 +9,7 @@ trails, symbols, and text, with fill,
 stroke, dash, cap, join, miter limit, opacity, rotation, uniform scale, and clipping, using the core path filler, path
 stroker, and text renderer. The painter is a partial class: the paths of segments, the arcs, the trails, and the miter
 limit are in `ScenePainter.Paths.cs`, and the outline of an arc is built by the `ArcGeometry` unit (see the
-_ArcGeometry Unit Verification Design_).
+*ArcGeometry Unit Verification Design*).
 
 #### Verification Approach
 
@@ -223,7 +223,7 @@ by minus and plus 3.4641), of `triangle-right` and `triangle-left` (the transpos
 of an unknown shape (drawn as a circle); that `arrow`, `wedge`, and `triangle` have shapes; that a size that is not
 positive has no shape; and, as a theory, that `IsSymbolShape` is true for each of the twelve names that have a shape and
 false for another case of a name, the empty text, and an SVG path (which `IsDrawableShape` accepts when it parses; the
-custom path is drawn and measured in `SymbolPathParserTests`, see the _SymbolPathParser Unit Verification Design_).
+custom path is drawn and measured in `SymbolPathParserTests`, see the *SymbolPathParser Unit Verification Design*).
 
 ##### Paths, Rounded Rectangles, And Group Backgrounds
 
@@ -460,8 +460,8 @@ and the dash offset of 2 at the derived pixels and with the miter, bevel, and ro
 `ScenePainterImageTests.ScenePainter_Paint_RasterThatEqualsTheRequestInOneDimension_KeepsItsOwnAspect`,
 `ScenePainterImageTests.SceneImageSource_Get_ResolverThatDoesNotSay_GivesNoKindAndCachesTheKindOfOneThatDoes`
 
-Asserts, with a resolver that reports its kind, that a 512 by 512 raster that is exactly the size asked for at a scale of
-2 (no size on the mark) covers 1024 device pixels (512 units), not the 256 units of a picture drawn for the request;
+Asserts, with a resolver that reports its kind, that a 512 by 512 raster that is exactly the size asked for at a scale
+of 2 (no size on the mark) covers 1024 device pixels (512 units), not the 256 units of a picture drawn for the request;
 that a picture drawn for the request covers the 512 device pixels it was drawn for; that a 40 by 20 raster asked for as
 40 by 40 keeps its own aspect ratio (a 20 by 10 unit box for a width of 20); and that the resolver's answer about the
 kind is cached with the picture while a resolver that does not say gives no kind.
@@ -533,30 +533,29 @@ limit of exactly 20,000 pixels and fail, naming `VegaLiteLimits.MaxPaintedPixels
 19,999; that the item that fails leaves the surface as the earlier item painted it (the charge is made before the fill);
 that the failure is located at the `Source` of the item that has one and, for an item that has none, at the nearest
 enclosing group that has one; that a rectangle beyond the surface costs nothing (a limit of 1), that one that covers the
-surface from far outside is charged exactly the surface, and that nothing is charged beyond it; that a horizontal rule 10
-pixels wide across the surface costs exactly 1,000 pixels (the box grown by half the width) and fails with 999; that a
-50 by 50 rectangle with a fill and a 2 pixel stroke costs 2,500 plus 2,704 (the stroke box is 52 by 52); that a group
+surface from far outside is charged exactly the surface, and that nothing is charged beyond it; that a horizontal rule
+10 pixels wide across the surface costs exactly 1,000 pixels (the box grown by half the width) and fails with 999; that
+a 50 by 50 rectangle with a fill and a 2 pixel stroke costs 2,500 plus 2,704 (the stroke box is 52 by 52); that a group
 clipped to 50 by 50 pixels costs its 2,500 pixel layer plus the 2,500 pixels of the rectangle in it that is cut to the
 layer; that text of eleven characters at a font size of 20 on a baseline of 50 costs the estimated 100 by 26 pixels (132
 wide, cut to the surface; a font size and a third tall), that three lines of it with a zero or negative line height
 (which Vega steps upward or not at all) are charged line by line where each is (3 x 2,600 pixels for a step of -5 or 0,
-and 2,600 for a step of -200, where the other two lines are above the surface), never a negative or smaller charge;
-that text is not over-charged: text beyond the surface, or to the left of a right-aligned anchor, or above it costs
-nothing (the smallest limit accepts it), an anchor at 90 costs the 10 by 26 pixels that are on the surface, a centered
-anchor at 0 the half of the width (66 by 26), an empty line costs nothing, a text limited to 30 pixels costs 30 by 26,
-and text with no fill, a fully transparent fill, an opacity of zero or a font size of zero costs nothing (a hundred of
-each under the limit of 1); that a rotated text item is charged the square around its anchor, cut to the surface, and
-nothing when it is far outside; that arcs (pies,
-donuts, rounded corners, a full circle, a sliver) centered on and beyond the edges and corners of the surface are each
-charged at least the pixels that they paint (a limit of one pixel less refuses them), which the box of the end point of
-an arc grown by its radius did not guarantee, and that the box is widened to whole pixels; that the fill chunks of a
-translucent trail painted through a layer are charged in the coordinates of the layer (a limit one pixel below the layer
-plus the painted pixels refuses the trail); that a painter without a
-limit counts nothing (a rectangle of two billion pixels is painted) and rejects a limit below one; and that the limit is
-per painting. Asserts that a 60 by 60 picture costs exactly 3,600 pixels, is located at the mark of the picture and is
-not painted when it fails; that three items that draw one 2 by 1 picture without smoothing in 100 by 50 boxes cost 5,000
-pixels each and 5,000 once for the resampled copy (a limit of 20,000 passes and 19,999 fails, where a copy for every item
-would need 30,000); and that `SceneImageSource.GetTile` gives the same copy for the same picture, size and opacity
+and 2,600 for a step of -200, where the other two lines are above the surface), never a negative or smaller charge; that
+text is not over-charged: text beyond the surface, or to the left of a right-aligned anchor, or above it costs nothing
+(the smallest limit accepts it), an anchor at 90 costs the 10 by 26 pixels that are on the surface, a centered anchor at
+0 the half of the width (66 by 26), an empty line costs nothing, a text limited to 30 pixels costs 30 by 26, and text
+with no fill, a fully transparent fill, an opacity of zero or a font size of zero costs nothing (a hundred of each under
+the limit of 1); that a rotated text item is charged the square around its anchor, cut to the surface, and nothing when
+it is far outside; that arcs (pies, donuts, rounded corners, a full circle, a sliver) centered on and beyond the edges
+and corners of the surface are each charged at least the pixels that they paint (a limit of one pixel less refuses
+them), which the box of the end point of an arc grown by its radius did not guarantee, and that the box is widened to
+whole pixels; that the fill chunks of a translucent trail painted through a layer are charged in the coordinates of the
+layer (a limit one pixel below the layer plus the painted pixels refuses the trail); that a painter without a limit
+counts nothing (a rectangle of two billion pixels is painted) and rejects a limit below one; and that the limit is per
+painting. Asserts that a 60 by 60 picture costs exactly 3,600 pixels, is located at the mark of the picture and is not
+painted when it fails; that three items that draw one 2 by 1 picture without smoothing in 100 by 50 boxes cost 5,000
+pixels each and 5,000 once for the resampled copy (a limit of 20,000 passes and 19,999 fails, where a copy for every
+item would need 30,000); and that `SceneImageSource.GetTile` gives the same copy for the same picture, size and opacity
 without charging again, another copy for another size or opacity (the opacity 0.5 gives an alpha of 128), the picture
 itself for a smoothed opaque picture, and, for a copy of 9,000,000 pixels that does not fit the 8,388,608 that are kept,
 a copy that the caller owns and that is made (and charged) for every request.

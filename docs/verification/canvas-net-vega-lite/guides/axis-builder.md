@@ -22,33 +22,33 @@ internal types are reached through the test assembly's `InternalsVisibleTo` acce
 The expected values are derived by hand from the d3 tick algorithm, the scale arithmetic, and the Vega axis layout
 rules, and not recorded from the code:
 
-- A linear x axis of 0 to 100 over 300 pixels asks for ceil(300 / 40) = 8 ticks; d3 `ticks(0, 100, 8)` has 100 / 8 = 12.5,
-  power 10, error 1.25 below the square root of 2, so the step is 10 and the ticks are 0, 10, ..., 100 (eleven); a y axis
-  of 0 to 50 over 200 pixels asks for 5 ticks, 50 / 5 = 10 has error 1, so the ticks are 0, 10, ..., 50 (six). Tick positions
-  are 3 pixels per unit on x and 200 - 4 x value on y, labels sit at the unrounded position, tick marks are 5 pixels
-  long, grid lines run the 200 pixels of the data rectangle, the x axis group is at (0.5, 200.5), and `labelFlush` aligns
-  the first label left and the last label right while the others are centered.
+- A linear x axis of 0 to 100 over 300 pixels asks for ceil(300 / 40) = 8 ticks; d3 `ticks(0, 100, 8)` has 100 / 8 =
+  12.5, power 10, error 1.25 below the square root of 2, so the step is 10 and the ticks are 0, 10, ..., 100 (eleven); a
+  y axis of 0 to 50 over 200 pixels asks for 5 ticks, 50 / 5 = 10 has error 1, so the ticks are 0, 10, ..., 50 (six).
+  Tick positions are 3 pixels per unit on x and 200 - 4 x value on y, labels sit at the unrounded position, tick marks
+  are 5 pixels long, grid lines run the 200 pixels of the data rectangle, the x axis group is at (0.5, 200.5), and
+  `labelFlush` aligns the first label left and the last label right while the others are centered.
 - Three bands over 300 pixels with the bar padding (inner 0.1, outer 0.05) have step 300 / (3 - 0.1 + 0.1) = 100, band
   width 90, and the first band at (300 - 100 x 2.9) / 2 = 5; the tick of a band is at round(5 + 45 - 0.5) =
   round(49.5) = 50 (half up), so the ticks are at 50, 150, 250, while the labels use the unrounded 49.5, 149.5,
   249.5 and, for a discrete x axis, Vega-Lite's default angle of 270. A point scale has no band offset.
 - The bottom axis extent: tick marks are rules from 0 to 5 that grow by half their 1 pixel width (5.5); a 10 pixel label
   hangs from y = 5 + 2 = 7 (the baseline offset round(0.79 x 10) = 8 cancels the box offset round(0.8 x 10) = 8), so its
-  box is 7 to 17; the extent is 17; the 11 pixel title hangs from 17 + 4 = 21 and ends at 32, so the bottom extent is 32,
-  the group's bounds end at 232, and the side extents are the half pixel shift 0.5. For a left axis, the labels end 7
-  pixels left of the data rectangle, so the extent is 7 plus the measured width of the widest label ("50") and the
+  box is 7 to 17; the extent is 17; the 11 pixel title hangs from 17 + 4 = 21 and ends at 32, so the bottom extent is
+  32, the group's bounds end at 232, and the side extents are the half pixel shift 0.5. For a left axis, the labels end
+  7 pixels left of the data rectangle, so the extent is 7 plus the measured width of the widest label ("50") and the
   rotated title is at x = -(extent + 4), for a total of extent + 4 + 11. `minExtent: 40` pushes the title to 44, and
   `offset: 10` moves the group to y = 210.5 and the bounds to 200 + 10 + 44 + 11.
 - Label overlap by parity: 21 ticks 5 pixels apart (`tickCount` 20 over 100 pixels) each have a label wider than the
   spacing; parity keeps every other label until none overlaps: 21 becomes 11 (every 10), then 6 (0, 20, ..., 100,
   where "80" and the right-aligned "100" still overlap), then 3 (0, 40, 80), which no longer overlap.
 - Explicit values: `values` of 25, 0, 50, 500, 100 on a 0 to 100 domain over 300 pixels keep the values in range order,
-  drop 500, and give positions 0, 75, 150, 300 with the `.1f` labels `0.0`, `25.0`, `50.0`, `100.0`; `tickCount: 2` gives
-  100 / 2 = 50, error 5 (from the square root of 10 up to the square root of 50), step 50, so the labels are `0`, `50`,
-  `100`; a `$,.2f` format gives `$0.00` and `$100.00`.
-- Binned and normalized axes: the twelve weights of the histogram binned into 0 to 35 by 5 over 200 pixels ask for one tick
-  per ten pixels (20), which the d3 algorithm turns into the step 2, so the ticks are 0, 2, ..., 34 (eighteen) and the
-  explicit `tickCount` of 5 gives 0, 5, ..., 35 (eight); a field that is binned already keeps one tick per 40 pixels
+  drop 500, and give positions 0, 75, 150, 300 with the `.1f` labels `0.0`, `25.0`, `50.0`, `100.0`; `tickCount: 2`
+  gives 100 / 2 = 50, error 5 (from the square root of 10 up to the square root of 50), step 50, so the labels are `0`,
+  `50`, `100`; a `$,.2f` format gives `$0.00` and `$100.00`.
+- Binned and normalized axes: the twelve weights of the histogram binned into 0 to 35 by 5 over 200 pixels ask for one
+  tick per ten pixels (20), which the d3 algorithm turns into the step 2, so the ticks are 0, 2, ..., 34 (eighteen) and
+  the explicit `tickCount` of 5 gives 0, 5, ..., 35 (eight); a field that is binned already keeps one tick per 40 pixels
   (5), so the domain 0 to 30 has 0, 5, ..., 30 (seven); a normalized stack has the domain 0 to 1, so a 100 pixel axis
   has the ticks 0, 0.5, and 1, labeled `0%`, `50%`, and `100%` by the default `.0%`, `0.0%`, `50.0%`, and `100.0%` by a
   configured `.1%`, and `0.00`, `0.50`, and `1.00` by an explicit `.2f`.
@@ -105,9 +105,9 @@ expectations are derived from the d3 interval table, the multi-format rule, and 
 #### Acceptance Criteria
 
 A unit-level test run passes when every scenario below passes without error or exception beyond those explicitly
-asserted. Any tick value, label, position, alignment, baseline, angle, stroke, font size, extent, or z-order that differs
-from the hand-derived expectation, or any exception of the wrong type or without the documented location, constitutes a
-failure.
+asserted. Any tick value, label, position, alignment, baseline, angle, stroke, font size, extent, or z-order that
+differs from the hand-derived expectation, or any exception of the wrong type or without the documented location,
+constitutes a failure.
 
 #### Unit-Level Test Scenarios
 
@@ -215,19 +215,16 @@ canceled token throws `OperationCanceledException`; and that a null request thro
 `AxisBuilderTests.AxisBuilder_Build_PowSqrtAndSymlogAxesUseOrdinaryTicksAtTransformedPositions`,
 `AxisBuilderTests.AxisBuilder_Build_LogAxisEnforcesTheTickLimitAndCancellation`
 
-Assert, for 1 to 1000 over 300 pixels, 28 ticks (1 to 9, 10 to 90, 100 to 900, 1000) at the positions 300, 200, 100,
-and 0
-for the powers, and that the labels of the digits above 3 are empty (k = 10 * 10 / 28 = 3.57) while the others use the grouped
-variable-precision format (`1`, `2`, `3`, `10`, ..., `1,000`); that explicit values are all labeled, a tick count of 2 gives
-the powers 1 and 100, a precision format keeps its zeros (`1.0`) and a type without one is trimmed (`10k`, `1M`),
-and -1000 to
--1 gives 28 ascending ticks with the labels `−1,000`, `−300`, ..., `−1`; that on 40 pixels the ten labels overlap and are
-thinned by default but all drawn with `labelOverlap: false`; that a pow axis (the square of 0 to 100 over 200
-pixels) has the
-ordinary ticks 0, 20, ..., 100 at the positions 200, 192, 168, 128, 72, and 0, a sqrt axis puts 20 at the square
-root, and a
-symlog axis of -100 to 100 has the ticks -100, -50, 0, 50, 100 with zero in the middle; and that a limit of 5 gives a
-`VegaLiteRenderException` at `/encoding/y` containing `the limit of 5` and a canceled token an `OperationCanceledException`.
+Assert, for 1 to 1000 over 300 pixels, 28 ticks (1 to 9, 10 to 90, 100 to 900, 1000) at the positions 300, 200, 100, and
+0 for the powers, and that the labels of the digits above 3 are empty (k = 10 * 10 / 28 = 3.57) while the others use the
+grouped variable-precision format (`1`, `2`, `3`, `10`, ..., `1,000`); that explicit values are all labeled, a tick
+count of 2 gives the powers 1 and 100, a precision format keeps its zeros (`1.0`) and a type without one is trimmed
+(`10k`, `1M`), and -1000 to -1 gives 28 ascending ticks with the labels `−1,000`, `−300`, ..., `−1`; that on 40 pixels
+the ten labels overlap and are thinned by default but all drawn with `labelOverlap: false`; that a pow axis (the square
+of 0 to 100 over 200 pixels) has the ordinary ticks 0, 20, ..., 100 at the positions 200, 192, 168, 128, 72, and 0, a
+sqrt axis puts 20 at the square root, and a symlog axis of -100 to 100 has the ticks -100, -50, 0, 50, 100 with zero in
+the middle; and that a limit of 5 gives a `VegaLiteRenderException` at `/encoding/y` containing `the limit of 5` and a
+canceled token an `OperationCanceledException`.
 
 ##### Time Axis Defaults: Multi-Format Labels, Grid, Flush, And Overlap
 
@@ -319,11 +316,9 @@ in a US-like zone gives the same instants, positions, labels, and item count.
 **Test**: `AxisBuilderTests.AxisBuilder_Build_DefaultOrientAndGridApplyOnlyWhenTheAxisSaysNothing`
 
 Builds the quantitative `y` axis of one specification three ways and asserts that with no defaults (the single-view
-path) it is
-on the left with a grid; that with the defaults of a second independent axis (`right`, no grid) it is on the right, has
-no grid
-group, stands at the right edge of the data rectangle, and its bounds reach outwards from that edge; and that an axis whose
-`axis` object names `orient: "left"` and `grid: true` keeps both whatever the defaults say.
+path) it is on the left with a grid; that with the defaults of a second independent axis (`right`, no grid) it is on the
+right, has no grid group, stands at the right edge of the data rectangle, and its bounds reach outwards from that edge;
+and that an axis whose `axis` object names `orient: "left"` and `grid: true` keeps both whatever the defaults say.
 
 ##### Axes In The Headers And Footers Of A Facet
 
@@ -351,29 +346,29 @@ axis at 4.5 in a header, where it would be at 204.5 next to the rectangle.
 `AxisBuilderStaticPropertiesTests.AxisBuilder_Build_LabelBoundHidesLabelsThatPassTheRange`,
 `AxisBuilderStaticPropertiesTests.AxisBuilder_Build_LabelBoundAppliesAlongYForAVerticalAxis`
 
-The linear chart is 300 by 200 pixels with the x domain 0 to 100; the band chart has the three categories a, b, c, so the
-band scale of 300 pixels has the step 100, the bandwidth 90 (padding 0.1), and the bands start at 5, 105, and 205. Asserts
-that the group of the bottom axis is at `(translate, height + translate)`: (0.5, 200.5) by default, (3, 203) with a
-`translate` of 3 (the grid group with it), and (0, 200) with 0, and the left axis at (2.5, 2.5) with 2.5; that a
+The linear chart is 300 by 200 pixels with the x domain 0 to 100; the band chart has the three categories a, b, c, so
+the band scale of 300 pixels has the step 100, the bandwidth 90 (padding 0.1), and the bands start at 5, 105, and 205.
+Asserts that the group of the bottom axis is at `(translate, height + translate)`: (0.5, 200.5) by default, (3, 203)
+with a `translate` of 3 (the grid group with it), and (0, 200) with 0, and the left axis at (2.5, 2.5) with 2.5; that a
 `position` of 10 with an `offset` of 4 puts the group at (10.5, 204.5) and moves the bounds by 10 along and 4 across the
 axis, that the top axis with -6 is at (-5.5, 0.5), the left axis with 15 at (0.5, 15.5), and the right axis with 8 at
 (300.5, 8.5); that `titleX` of 40 gives the title of the bottom axis the x of 40 and `titleY` of 30 the y of 30 with the
 other coordinate unchanged (the default x is the middle of the range, 150), that both replace the two, and that on the
 left axis `titleX` of -50 is the distance from the axis and `titleY` of 20 the position along it (the default is the
 middle of the range, 100). For the band positions the ticks are at `round(start + width x band - 0.5)`, half up (the
-`-0.5` of the band axis): 5 + 45 - 0.5 = 49.5 -> 50 by default, 4.5 -> **5** for `bandPosition` 0, and 94.5 -> **95** for
-1, so the ticks and the grid lines are (50, 150, 250), (5, 105, 205), and (95, 195, 295) while the labels stay at the
-middle of the bands, (49.5, 149.5, 249.5), whatever the band position. `tickBand: "extent"` puts the ticks at the end
-of the bands without the offset, `round(5 + 90)` = 95, 195, 295, with the extra tick at the start of the first band,
+`-0.5` of the band axis): 5 + 45 - 0.5 = 49.5 -> 50 by default, 4.5 -> **5** for `bandPosition` 0, and 94.5 -> **95**
+for 1, so the ticks and the grid lines are (50, 150, 250), (5, 105, 205), and (95, 195, 295) while the labels stay at
+the middle of the bands, (49.5, 149.5, 249.5), whatever the band position. `tickBand: "extent"` puts the ticks at the
+end of the bands without the offset, `round(5 + 90)` = 95, 195, 295, with the extra tick at the start of the first band,
 `round(5)` = 5, appended last, with no label (the labels are a, b, c at 50, 150, 250, the offset of the labels being 0);
-`"center"` is the middle (50, 150, 250) with no extra tick whatever `bandPosition` and `tickExtra` say. `tickExtra`
-adds the extra tick (round(5 - 0.5) = 5) for a band position of 1 and 0.5 and none for a band position of 0 (the band
-of the extra tick is 0), and on a linear axis it repeats the first tick. For `labelBound` on the x axis of 0 to 300
-pixels with the labels 0, 10, to 100 centered on the ends (flush off), `true` (tolerance 1) hides "0" and "100", whose
-boxes pass the range by about 3 and 8 pixels, a tolerance of 4 hides only "100", and a tolerance of 10 hides none; no
-label is hidden without a label overlap method (`labelOverlap: false`), for false, 0, or a negative number. On the y axis
-the boxes are bound along y: "0" at the bottom and "50" at the top of the range of 200 pixels pass it by about half
-their height (5 pixels) and are hidden with a tolerance of 1.
+`"center"` is the middle (50, 150, 250) with no extra tick whatever `bandPosition` and `tickExtra` say. `tickExtra` adds
+the extra tick (round(5 - 0.5) = 5) for a band position of 1 and 0.5 and none for a band position of 0 (the band of the
+extra tick is 0), and on a linear axis it repeats the first tick. For `labelBound` on the x axis of 0 to 300 pixels with
+the labels 0, 10, to 100 centered on the ends (flush off), `true` (tolerance 1) hides "0" and "100", whose boxes pass
+the range by about 3 and 8 pixels, a tolerance of 4 hides only "100", and a tolerance of 10 hides none; no label is
+hidden without a label overlap method (`labelOverlap: false`), for false, 0, or a negative number. On the y axis the
+boxes are bound along y: "0" at the bottom and "50" at the top of the range of 200 pixels pass it by about half their
+height (5 pixels) and are hidden with a tolerance of 1.
 
 ##### Ranged Offsets Move The Ticks And Labels To The Baseline
 
@@ -382,19 +377,19 @@ their height (5 pixels) and are hidden with a tolerance of 1.
 `AxisBuilderRangedOffsetTests.AxisBuilder_Build_ExplicitBandPositionWinsOverTheRangedDefault`,
 `AxisBuilderRangedOffsetTests.AxisBuilder_Build_OtherAxesStayInTheMiddleOfTheBand`
 
-The expected numbers are those of Vega 6.4 with Vega-Lite 6.5.0 for the same specifications (the ticks and labels of
-the SVG of `vega.View.toSVG`), read once and written out in the tests; the data rectangle is 150 by 100. The first chart
-is a bar over an ordinal `x` (three quarters) and a nominal `y` with one category, with a quantitative `yOffset`: the
-band of `y` starts at 16.67 and is 66.67 high, and the axis of `y` (a ranged position, which defaults its
-`bandPosition` to 1) has one tick at **83** (the band end, 83.33, as Vega draws it with the half-pixel translate of the
-axis) and one label, the text `A`, at y = 83.333333333 (the labels are at the band position of the axis, not in the
-middle). The second chart has the roles exchanged (a bar over an ordinal `y` and a nominal `x` of two categories, with a
-quantitative `xOffset`): the axis of `x` has its ticks at the band starts, **13** and **81**, and its labels `A` and `B`
-at x = 13.636363636 and 81.818181818 (the default `bandPosition` of `x` is 0). An explicit `bandPosition` wins: 0.5 on
-the first chart leaves the label in the middle of the band (y = 49.5, with the tick at 50), and 0 puts it at the start of
-the band (y = 16.666666667, without the tick offset). The other axes stay in the middle of the band: the `x` axis of
-the first chart (the quarters, whose bars span their whole bands) has its labels at 24.5, 74.5, and 124.5, and the `x`
-axis of an ordinary grouped bar chart (a nominal `xOffset`, which is not ranged) has its one label at 74.5.
+The expected numbers are those of Vega 6.4 with Vega-Lite 6.5.0 for the same specifications (the ticks and labels of the
+SVG of `vega.View.toSVG`), read once and written out in the tests; the data rectangle is 150 by 100. The first chart is
+a bar over an ordinal `x` (three quarters) and a nominal `y` with one category, with a quantitative `yOffset`: the band
+of `y` starts at 16.67 and is 66.67 high, and the axis of `y` (a ranged position, which defaults its `bandPosition`
+to 1) has one tick at **83** (the band end, 83.33, as Vega draws it with the half-pixel translate of the axis) and one
+label, the text `A`, at y = 83.333333333 (the labels are at the band position of the axis, not in the middle). The
+second chart has the roles exchanged (a bar over an ordinal `y` and a nominal `x` of two categories, with a quantitative
+`xOffset`): the axis of `x` has its ticks at the band starts, **13** and **81**, and its labels `A` and `B` at x =
+13.636363636 and 81.818181818 (the default `bandPosition` of `x` is 0). An explicit `bandPosition` wins: 0.5 on the
+first chart leaves the label in the middle of the band (y = 49.5, with the tick at 50), and 0 puts it at the start of
+the band (y = 16.666666667, without the tick offset). The other axes stay in the middle of the band: the `x` axis of the
+first chart (the quarters, whose bars span their whole bands) has its labels at 24.5, 74.5, and 124.5, and the `x` axis
+of an ordinary grouped bar chart (a nominal `xOffset`, which is not ranged) has its one label at 74.5.
 
 ##### Label Expressions Replace The Tick Labels
 

@@ -2007,26 +2007,24 @@ is caught alongside the malformed-payload cases above rather than propagating ou
 `SvgCodec_Load_ImageResolverSet_FeImageExternalHrefDoesNotCallResolver`,
 `SvgCodec_Load_ImageResolverSet_SameHrefTwiceAndTwoRenders_CallsResolverEachTime`
 
-`SvgImageResolverTests.cs` renders small documents (a 10 by 10 viewBox with a red background) with a
-resolver and asserts: the request holds the raw `href` of both the `href` and the `xlink:href` forms,
-trimmed (`ReceivesRawHrefAndXlinkHref`); the pixel size is the edge length of the placement after the
-composed transform, rounded up and at least 1, for the viewBox scale, a group `scale`, a `rotate(90)`,
-a fractional size, and a tiny size (`ReceivesPixelSizeAfterTransform`); a returned surface is drawn
-exactly like the same picture as a PNG data URI, pixel for pixel (`IsPlacedLikeADataUri`, which proves
-the placement and the shared pipeline at once); `preserveAspectRatio` meet, slice, and none fit a 2:1
-picture into a square placement (the top edge is drawn only for slice and none); `opacity` and a
-`clip-path` apply (the clipped half still shows the background and the other half is a blend);
-`image-rendering='pixelated'` gives at most two gray levels and the default more; a `null` result and
-every `href` the codec handles itself (a valid `data:` URI, a malformed one, an SVG one, a text one, one
-with leading whitespace, a `#fragment`, an empty, a blank, and an absent `href`) never reach or
-silently pass through the resolver (`NeverCallResolver` asserts zero calls); a resolver exception
-propagates as the same instance (`PropagatesTheSameException` repeats this for an `ImageSourceException`, an
-`ImageSourceBudgetException`, an `IOException`, an `OperationCanceledException`, and an `InvalidOperationException`;
-`Load` releases its output surface on every such exit), and a `FormatException` becomes an `InvalidOperationException` that
-keeps it as the inner exception (not an `InvalidDataException` about numeric data); the codec disposes
-a returned surface after drawing it (the surface throws `ObjectDisposedException`); and an external
-`feImage` `href` does not call the resolver, documenting the scope boundary. Two `image` elements with the same `href`,
-rendered twice, call the resolver four times (nothing is cached).
+`SvgImageResolverTests.cs` renders small documents (a 10 by 10 viewBox with a red background) with a resolver and
+asserts: the request holds the raw `href` of both the `href` and the `xlink:href` forms, trimmed
+(`ReceivesRawHrefAndXlinkHref`); the pixel size is the edge length of the placement after the composed transform,
+rounded up and at least 1, for the viewBox scale, a group `scale`, a `rotate(90)`, a fractional size, and a tiny size
+(`ReceivesPixelSizeAfterTransform`); a returned surface is drawn exactly like the same picture as a PNG data URI, pixel
+for pixel (`IsPlacedLikeADataUri`, which proves the placement and the shared pipeline at once); `preserveAspectRatio`
+meet, slice, and none fit a 2:1 picture into a square placement (the top edge is drawn only for slice and none);
+`opacity` and a `clip-path` apply (the clipped half still shows the background and the other half is a blend);
+`image-rendering='pixelated'` gives at most two gray levels and the default more; a `null` result and every `href` the
+codec handles itself (a valid `data:` URI, a malformed one, an SVG one, a text one, one with leading whitespace, a
+`#fragment`, an empty, a blank, and an absent `href`) never reach or silently pass through the resolver
+(`NeverCallResolver` asserts zero calls); a resolver exception propagates as the same instance
+(`PropagatesTheSameException` repeats this for an `ImageSourceException`, an `ImageSourceBudgetException`, an
+`IOException`, an `OperationCanceledException`, and an `InvalidOperationException`; `Load` releases its output surface
+on every such exit), and a `FormatException` becomes an `InvalidOperationException` that keeps it as the inner exception
+(not an `InvalidDataException` about numeric data); the codec disposes a returned surface after drawing it (the surface
+throws `ObjectDisposedException`); and an external `feImage` `href` does not call the resolver, documenting the scope
+boundary. Two `image` elements with the same `href`, rendered twice, call the resolver four times (nothing is cached).
 
 #### CanvasNetSvg-SvgCodec-ImageResolverBudget: Resolver Work Is Bounded
 
@@ -2229,9 +2227,10 @@ with a `dx` all resolve. A value without `#`, without a selector, with an empty 
 
 #### CanvasNetSvg-SvgCodec-PositionBindingResolution: Same Render, Exact Placement
 
-**Tests**: `SvgCodec_Binding_Transforms_AreAppliedBothWays`, `SvgCodec_Binding_PreserveAspectRatio_FitsTheActualSurface`,
-`SvgCodec_Binding_OutputSize_GivesTheSameUserCoordinates`, `SvgCodec_Binding_BoundImage_IsLoadedOnceAndPainted`,
-`SvgCodec_Binding_WorkBudget_IsChargedOnce`, `SvgCodec_Binding_ImageWithValidEffects_StillResolves`
+**Tests**: `SvgCodec_Binding_Transforms_AreAppliedBothWays`,
+`SvgCodec_Binding_PreserveAspectRatio_FitsTheActualSurface`, `SvgCodec_Binding_OutputSize_GivesTheSameUserCoordinates`,
+`SvgCodec_Binding_BoundImage_IsLoadedOnceAndPainted`, `SvgCodec_Binding_WorkBudget_IsChargedOnce`,
+`SvgCodec_Binding_ImageWithValidEffects_StillResolves`
 
 A callout in a translated, rotated, and scaled group lands at the inverse of that group (computed by the test with
 `Matrix3x2`) applied to 20,30; an image in a translated and halved group and an image rotated about 50,50 give 20,15 and
@@ -2250,14 +2249,14 @@ valid still resolves to 20,30 from one call, with the same work as without the b
 `SvgImageSource_Render_UnresolvedBinding_IsAWarningOfTheResult`
 
 `center` on a line, an unknown name, an image or a callout inside `defs`, an image or a group drawn by a `use`, and a
-`data:` image are `svg-binding-unsupported`, as are a text with a list of x (reported before the codec refuses the list),
-a plain resolver, and a source without positions. A selector that matches nothing, two positions, a match without a
-pixel, and a callout in `scale(0)` are `svg-binding-unmatched`, `svg-binding-ambiguous`, `svg-binding-unavailable`,
+`data:` image are `svg-binding-unsupported`, as are a text with a list of x (reported before the codec refuses the
+list), a plain resolver, and a source without positions. A selector that matches nothing, two positions, a match without
+a pixel, and a callout in `scale(0)` are `svg-binding-unmatched`, `svg-binding-ambiguous`, `svg-binding-unavailable`,
 and `svg-binding-singular`; a truncated list is ambiguous, and a picture that is not drawn or has no width is
-unavailable; a failed binding has no coordinates. A bound image under `scale(0)` or a matrix with a zero scale, or
-with a filter or mask region of zero or more than the maximum size, is unavailable, the resolver is never called, and
-the work charged equals that of the document without the binding. `SvgImageSource` returns an unresolved binding of the
-file as an `svg` warning with its code and still draws the file.
+unavailable; a failed binding has no coordinates. A bound image under `scale(0)` or a matrix with a zero scale, or with
+a filter or mask region of zero or more than the maximum size, is unavailable, the resolver is never called, and the
+work charged equals that of the document without the binding. `SvgImageSource` returns an unresolved binding of the file
+as an `svg` warning with its code and still draws the file.
 
 ### Additional Regression Test Scenarios (Unlinked)
 

@@ -50,7 +50,7 @@ otherwise `InvalidOperationException` is thrown. Throws `ArgumentNullException` 
 
 **Run(Context)**: requires a command name (else a `usage-error` `ToolException` with a hint to run
 `canvasnet --help`). The name `help` is handled by `RunHelp` and returns. Otherwise
-`Find` resolves the command (an unknown name throws the exception described under _Error Handling_), and the
+`Find` resolves the command (an unknown name throws the exception described under *Error Handling*), and the
 command's `Run` is called with `Context.CommandArguments`. A `ToolException` escaping the command has its
 `Command` set to the command's canonical name when empty and is re-thrown.
 
@@ -152,7 +152,7 @@ programming errors detected at start-up.
 - **ArgumentReader** - parses the options of the `help` command and supplies the edit distance for suggestions.
 - **ResultWriter** - the JSON help documents.
 - **HelpTopics** - the tree of help cards and its renderings, for the topic list, the cards, the tree, and the examples.
-- **ToolException** and **ErrorCodes** - the error report (documented in _Program Unit Design_).
+- **ToolException** and **ErrorCodes** - the error report (documented in *Program Unit Design*).
 
 #### Callers
 

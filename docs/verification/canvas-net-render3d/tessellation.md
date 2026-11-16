@@ -7,9 +7,9 @@ containing five units: `PrimitiveTessellator`, `PolygonTriangulator`, `Extruder`
 ### Verification Approach
 
 The `Tessellation` subsystem is verified by the unit tests of `PrimitiveTessellator`,
-`PolygonTriangulator`, `Extruder`, `ConvexHull`, and `MinkowskiSum` (see _PrimitiveTessellator Unit
-Verification Design_, _PolygonTriangulator Unit Verification Design_, _Extruder Unit Verification Design_,
-_ConvexHull Unit Verification Design_, and _MinkowskiSum Unit Verification Design_ under
+`PolygonTriangulator`, `Extruder`, `ConvexHull`, and `MinkowskiSum` (see *PrimitiveTessellator Unit
+Verification Design*, *PolygonTriangulator Unit Verification Design*, *Extruder Unit Verification Design*,
+*ConvexHull Unit Verification Design*, and *MinkowskiSum Unit Verification Design* under
 `tessellation/`) and by six subsystem-level tests in `TessellationTests.cs`. Because the subsystem
 consumes the `SceneModel` subsystem's `Mesh` and `MeshBuilder`, the subsystem-level tests verify the
 combination through the public API. The primitive test creates one mesh of each primitive kind and
@@ -33,9 +33,9 @@ used.
 ### Acceptance Criteria
 
 The `Tessellation` subsystem's verification passes when the subsystem-level scenarios below and every
-unit-level scenario in the _PrimitiveTessellator Unit Verification Design_, the
-_PolygonTriangulator Unit Verification Design_, the _Extruder Unit Verification Design_, the
-_ConvexHull Unit Verification Design_, and the _MinkowskiSum Unit Verification Design_ pass
+unit-level scenario in the *PrimitiveTessellator Unit Verification Design*, the
+*PolygonTriangulator Unit Verification Design*, the *Extruder Unit Verification Design*, the
+*ConvexHull Unit Verification Design*, and the *MinkowskiSum Unit Verification Design* pass
 without error or unexpected exception.
 
 ### Test Scenarios

@@ -6,9 +6,9 @@
 
 `MontageBuilder` is verified with unit tests in `MontageBuilderTests.cs` in the Viewer test project. The tests write
 small PNG files and the PDF of the fixture factory to a temporary directory, probe them, and call
-`MontageBuilder.Execute` with a request of small cells; the expected layout is hand-computed (three cells of 32 pixels in
-two columns with spacing and padding of 4). Nothing is mocked; the geometry and pixels of the sheet are verified with the
-`ContactSheet` unit.
+`MontageBuilder.Execute` with a request of small cells; the expected layout is hand-computed (three cells of 32 pixels
+in two columns with spacing and padding of 4). Nothing is mocked; the geometry and pixels of the sheet are verified with
+the `ContactSheet` unit.
 
 #### Test Environment
 
@@ -30,8 +30,8 @@ N/A - standard test environment; the tests write only to temporary directories t
 width and height 76, the written file has that size, and the second cell is to the right of the first and the third is
 below it.
 
-**MontageBuilder_Execute_Labels_AreTheFileNames**: with labels the cells are labeled with the file names and the sheet is
-taller than without labels.
+**MontageBuilder_Execute_Labels_AreTheFileNames**: with labels the cells are labeled with the file names and the sheet
+is taller than without labels.
 
 **MontageBuilder_Execute_DocumentPage_IsLabeledWithThePageNumber**: the first page of the PDF is labeled `source.pdf p1`
 and reports page 1 and input 0.
@@ -58,6 +58,6 @@ with `usage-error`, and the default policy builds both cells.
 or the write options throws `ArgumentNullException` that names the member; a missing input in the list throws it for
 `infos` with the position; nothing is written.
 
-**Operations_InputWithPageFragment_UseThePageAndTheLabel** (`InputSelectionTests.cs`): the montage of `source.pdf#page=2`
-and `source.pdf` has the labels `source.pdf#page=2` (no page number after it) and `source.pdf p1`, and the pages 2 and
-1; a fragment page is the one cell of its input.
+**Operations_InputWithPageFragment_UseThePageAndTheLabel** (`InputSelectionTests.cs`): the montage of
+`source.pdf#page=2` and `source.pdf` has the labels `source.pdf#page=2` (no page number after it) and `source.pdf p1`,
+and the pages 2 and 1; a fragment page is the one cell of its input.

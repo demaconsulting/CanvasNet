@@ -366,9 +366,9 @@ corresponding `Load` scenarios, plus JPEG-specific malformed-ordering cases `Loa
 `JpegCodec_ReadExifOrientation_ValueOutOfRange_ReturnsNull`,
 `JpegCodec_ReadExifOrientation_TruncatedAtEveryLength_NeverThrows`,
 `JpegCodec_ReadExifOrientation_AfterOtherSegmentsInForwardOnlyStream_ReturnsOrientation`,
-`JpegCodec_ReadExifOrientation_Path_ReadsFile`, `JpegCodec_ReadExifOrientation_EndlessFillBytes_ReturnsNullWithinBudget`,
-`JpegCodec_ReadExifOrientation_NullArgument_ThrowsArgumentNullException`
-(in `JpegCodecExifTests.cs`)
+`JpegCodec_ReadExifOrientation_Path_ReadsFile`,
+`JpegCodec_ReadExifOrientation_EndlessFillBytes_ReturnsNullWithinBudget`,
+`JpegCodec_ReadExifOrientation_NullArgument_ThrowsArgumentNullException` (in `JpegCodecExifTests.cs`)
 
 A JPEG written by the codec (which writes no EXIF) has an EXIF segment injected right after its start-of-image marker by
 a test-only helper that writes the TIFF structure by hand, in either byte order. All eight orientations are read in both

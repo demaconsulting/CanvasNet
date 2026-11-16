@@ -5,10 +5,9 @@ This document describes the unit-level verification strategy for the `TextMeasur
 `Truncate`, `TextValue`, `Measure`, `GetBounds`, `GetMetrics`, and the static `BaselineOffset`, `LineHeight`,
 `RoundHalfUp`, `SplitLines`, `IsMappedFamily`, `IsBold`, and `IsItalic`), and the `TextFont`, `TextExtent`, and
 `FontMetrics` types of its file (the resolved face is the core `ResolvedFont`). The unit resolves CSS family lists to
-fonts through the core `FontResolver` (the bundled Liberation fonts by default, additional directories and installed fonts
-only on request), measures text with
-the advance widths of the resolved font, and applies the Vega text rules for truncation, line height, baselines, and
-bounds.
+fonts through the core `FontResolver` (the bundled Liberation fonts by default, additional directories and installed
+fonts only on request), measures text with the advance widths of the resolved font, and applies the Vega text rules for
+truncation, line height, baselines, and bounds.
 
 #### Verification Approach
 
@@ -47,14 +46,15 @@ Unit tests reside in `TextMeasurerTests.cs` within the `DemaConsulting.CanvasNet
   measurer does not map itself and skips itself (`Assert.Skip`) on a machine that has none; the checks before the skip
   (a family that does not exist resolves to the bundled sans-serif font, with and without system fonts) always run
 - **Files**: The additional-directory tests copy one bundled font resource (Noto Sans) into a per-test temporary
-  directory next to files that are not fonts (one directory, and one seven levels deep), and delete the directory afterwards
+  directory next to files that are not fonts (one directory, and one seven levels deep), and delete the directory
+  afterwards
 - **Isolation**: Each test creates its own measurer
 
 #### Acceptance Criteria
 
 A unit-level test run passes when every scenario below passes without error or exception beyond those explicitly
-asserted. Any family that does not resolve to the documented font, any width that differs from the core text measure, any
-truncation that violates the rule, any baseline or bounds value that differs from the hand-derived number, or any
+asserted. Any family that does not resolve to the documented font, any width that differs from the core text measure,
+any truncation that violates the rule, any baseline or bounds value that differs from the hand-derived number, or any
 dependence on installed fonts in a test that must not have it constitutes a failure.
 
 #### Unit-Level Test Scenarios
@@ -88,14 +88,14 @@ returns the same object.
 Asserts that a family that does not exist resolves to the bundled sans-serif; that, on a machine that has one, an
 installed family that the measurer does not map itself (the test asks `TextMeasurer.IsMappedFamily`, so a name such as
 `Helvetica Neue` that macOS installs is not chosen), that a family list can carry unchanged and whose face loads, is
-ignored by default and by an explicit `UseSystemFonts = false`, is loaded from the host
-(case-insensitive) with `UseSystemFonts`, and that a missing first family in a list falls through to it; that a font
-file in an additional directory is found by family name (case-insensitive, also from a list and with a requested weight
-the file does not have), with a missing directory, a broken file, and a text file ignored, that generic families never
-come from the directories, that without the option the family is not found, and that the directory font measures
-differently from the fallback, so the option really changes the layout; and that a font file seven directories deep in an
-additional directory is found (the scan is the core scanner's: recursive without the earlier depth limit, with its
-bounds, determinism, and link policy verified by the `FontDirectoryScanner` unit tests and the resolution order by the
+ignored by default and by an explicit `UseSystemFonts = false`, is loaded from the host (case-insensitive) with
+`UseSystemFonts`, and that a missing first family in a list falls through to it; that a font file in an additional
+directory is found by family name (case-insensitive, also from a list and with a requested weight the file does not
+have), with a missing directory, a broken file, and a text file ignored, that generic families never come from the
+directories, that without the option the family is not found, and that the directory font measures differently from the
+fallback, so the option really changes the layout; and that a font file seven directories deep in an additional
+directory is found (the scan is the core scanner's: recursive without the earlier depth limit, with its bounds,
+determinism, and link policy verified by the `FontDirectoryScanner` unit tests and the resolution order by the
 `FontResolver` unit tests).
 
 ##### Measurement, Truncation, And Line Blocks

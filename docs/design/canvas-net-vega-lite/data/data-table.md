@@ -9,11 +9,11 @@ The `DataTable` unit is the first software unit in the `Data` subsystem. It comp
 `ToInt64Saturating`, the one place where a `double` becomes a count, size, step or index: truncation toward zero,
 saturation at the range of the integer, NaN is zero, the same on every runtime, where a plain cast gave the smallest
 value on .NET 8 and saturated on .NET 9 and later); `DataObject.cs` defines `DataObject` (sealed class) and `DataArray`
-(sealed class), the immutable payloads
-of the composite values, and `FlatRowNode` (sealed class), the tree that rebuilds an array or an object from the flattened
-fields of a table row (an array when the names below a path are exactly the indexes 0 to n-1, with trailing nulls dropped;
-an object otherwise; shared by the field reader of the transforms and the datum of the expression evaluator, with an optional
-cache of the composites it built so that reading the same path again gives the same value).
+(sealed class), the immutable payloads of the composite values, and `FlatRowNode` (sealed class), the tree that rebuilds
+an array or an object from the flattened fields of a table row (an array when the names below a path are exactly the
+indexes 0 to n-1, with trailing nulls dropped; an object otherwise; shared by the field reader of the transforms and the
+datum of the expression evaluator, with an optional cache of the composites it built so that reading the same path again
+gives the same value).
 
 #### Purpose
 
@@ -75,15 +75,15 @@ placed in fixed or exponential notation by JavaScript's rules), `ShortestDecimal
 and backslash escapes), `Join` and `Escape` build a canonical name from segments, and `Canonicalize` maps any accepted
 spelling of a path to its canonical name; a malformed path parses to null.
 
-**`DataTable`** (sealed class, immutable) holds `Fields` (canonical names, in ordinal order), the typed rows, `RowCount`,
-and `FieldCount`. `DataTable.Empty` is the shared empty table. `Create(fields, rows, limits, location)` builds a table from
-a field list and rows of one value per field (field names must be unique, every row must have one value per field);
-`FromRecords(records, limits, location)` builds one from dictionaries, taking the union of the keys in ordinal order and
-filling missing values with null; the internal `FromSortedCells(fields, cells, rowCount)` adopts a finished block of cells
-(row by row, fields already unique and in ordinal order) without copying it. Lookups are `IndexOfField(canonical)` and
-`FindField(path)` (-1 when absent or
-malformed), `GetValue(row, fieldIndex)` and `GetValue(row, path)` (null for an unknown field), the strict kind accessors
-`GetNumber`, `GetString`, and `GetBoolean`, `GetRow`, and `Column`.
+**`DataTable`** (sealed class, immutable) holds `Fields` (canonical names, in ordinal order), the typed rows,
+`RowCount`, and `FieldCount`. `DataTable.Empty` is the shared empty table. `Create(fields, rows, limits, location)`
+builds a table from a field list and rows of one value per field (field names must be unique, every row must have one
+value per field); `FromRecords(records, limits, location)` builds one from dictionaries, taking the union of the keys in
+ordinal order and filling missing values with null; the internal `FromSortedCells(fields, cells, rowCount)` adopts a
+finished block of cells (row by row, fields already unique and in ordinal order) without copying it. Lookups are
+`IndexOfField(canonical)` and `FindField(path)` (-1 when absent or malformed), `GetValue(row, fieldIndex)` and
+`GetValue(row, path)` (null for an unknown field), the strict kind accessors `GetNumber`, `GetString`, and `GetBoolean`,
+`GetRow`, and `Column`.
 
 **Invariants**: a table never exceeds `MaxDataRows` rows or `MaxFieldCount` fields; its field names are unique; a row
 has exactly one value per field; nothing in a table changes after it is built.
@@ -95,9 +95,9 @@ has exactly one value per field; nothing in a table changes after it is built.
 - `DataTable.FromRecords(...)` - collects the key union while checking `MaxFieldCount` and the row count against
   `MaxDataRows`, orders the fields in ordinal order, and builds the rows.
 - `DataTable.FromSortedCells(...)` - checks that the fields are unique and in ordinal order and that the cell count is
-  the number of rows times the number of fields, and adopts the cells. It does **not** check the limits: the row transforms
-  bound a derived table before they allocate it (`TableLayout` and the loader's row budget), so the table is built only
-  from cells that were already counted.
+  the number of rows times the number of fields, and adopts the cells. It does **not** check the limits: the row
+  transforms bound a derived table before they allocate it (`TableLayout` and the loader's row budget), so the table is
+  built only from cells that were already counted.
 - `DataValue.Compare`, `DataValue.ToText`, and `DataValue.TryGetQuantitative` - the ordering, text, and numeric readings
   described above.
 - `JsNumber.ToString(double)` and `ShortestDecimal(double, out digits, out pointPosition)` - the shortest round-trip
@@ -109,13 +109,13 @@ within its limits, or an exception was thrown and nothing is returned.
 
 #### Error Handling
 
-An exceeded row or field limit is a `VegaLiteRenderException` carrying the supplied location (the `values` array, or
-the offending leaf). A null argument is `ArgumentNullException`; duplicate field names and a row of the wrong length are
+An exceeded row or field limit is a `VegaLiteRenderException` carrying the supplied location (the `values` array, or the
+offending leaf). A null argument is `ArgumentNullException`; duplicate field names and a row of the wrong length are
 `ArgumentException`s (also for the cells of `FromSortedCells`), and a date that is not finite or is outside the years 1
-to 9999 is an `ArgumentOutOfRangeException`;
-these are programming errors of the caller and are not converted (the parse conversions check the range and treat an
-unrepresentable date as an unconverted value). Lookups never throw for a
-missing field: they return -1 or null. Numeric readings return `false` rather than throwing for text that is not a number.
+to 9999 is an `ArgumentOutOfRangeException`; these are programming errors of the caller and are not converted (the parse
+conversions check the range and treat an unrepresentable date as an unconverted value). Lookups never throw for a
+missing field: they return -1 or null. Numeric readings return `false` rather than throwing for text that is not a
+number.
 
 #### Dependencies
 
@@ -127,10 +127,9 @@ missing field: they return -1 or null. Numeric readings return `false` rather th
 #### Callers
 
 `DataLoader` builds tables with `FromRecords` and `Create`, and its parse conversions create date values.
-`RowTransforms` builds the tables it derives with `FromSortedCells` and stores composite values created with `FromArray`,
-`FromObject`, and `FromRegExp` (which the `ExpressionEvaluator` and `ExpressionFunctions` also create and read).
-`ScaleResolver` reads the table to infer domains; `ScaleModel` keys its
-discrete domains on `DataValue`; `AxisBuilder` reads `DataValue` for category labels; `MarkBuilder` reads the rows to
-build marks; `NumberFormat` uses `JsNumber`. The tests in
-`test/DemaConsulting.CanvasNet.VegaLite.Tests/Data/DataTableTests.cs` and `DataCompositeValueTests.cs` call the types directly
-through `InternalsVisibleTo`.
+`RowTransforms` builds the tables it derives with `FromSortedCells` and stores composite values created with
+`FromArray`, `FromObject`, and `FromRegExp` (which the `ExpressionEvaluator` and `ExpressionFunctions` also create and
+read). `ScaleResolver` reads the table to infer domains; `ScaleModel` keys its discrete domains on `DataValue`;
+`AxisBuilder` reads `DataValue` for category labels; `MarkBuilder` reads the rows to build marks; `NumberFormat` uses
+`JsNumber`. The tests in `test/DemaConsulting.CanvasNet.VegaLite.Tests/Data/DataTableTests.cs` and
+`DataCompositeValueTests.cs` call the types directly through `InternalsVisibleTo`.

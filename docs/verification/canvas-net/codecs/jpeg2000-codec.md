@@ -202,15 +202,15 @@ is also checked: `_RawFourComponents_IsCmyk` (heuristic for unspecified color) a
 
 #### Requirements Coverage
 
-| Requirement                                         | Covered by                               |
-| --------------------------------------------------- | ---------------------------------------- |
-| `CanvasNet-Codecs-Jpeg2000Codec-Load`               | Load tests                               |
-| `CanvasNet-Codecs-Jpeg2000Codec-Decode`             | Decode round-trip tests                  |
-| `CanvasNet-Codecs-Jpeg2000Codec-EntropyCoding`      | MQ, code-block style and ROI tests       |
-| `CanvasNet-Codecs-Jpeg2000Codec-PacketStructure`    | Tile, precinct, layer, progression tests |
-| `CanvasNet-Codecs-Jpeg2000Codec-Codestream`         | Header override, POC, PPM/PPT, tile-part |
-| `CanvasNet-Codecs-Jpeg2000Codec-Jp2Container`       | JP2 box tests                            |
-| `CanvasNet-Codecs-Jpeg2000Codec-GetInfo`            | GetInfo tests                            |
-| `CanvasNet-Codecs-Jpeg2000Codec-ArgumentValidation` | Argument validation tests                |
-| `CanvasNet-Codecs-Jpeg2000Codec-Malformed`          | Malformed and robustness tests           |
-| `CanvasNet-Codecs-Jpeg2000Codec-Unsupported`        | Unsupported-feature tests                |
+| Requirement | Covered by |
+| --- | --- |
+| `CanvasNet-Codecs-Jpeg2000Codec-Load` | Load tests |
+| `CanvasNet-Codecs-Jpeg2000Codec-Decode` | Decode round-trip tests |
+| `CanvasNet-Codecs-Jpeg2000Codec-EntropyCoding` | MQ, code-block style and ROI tests |
+| `CanvasNet-Codecs-Jpeg2000Codec-PacketStructure` | Tile, precinct, layer, progression tests |
+| `CanvasNet-Codecs-Jpeg2000Codec-Codestream` | Header override, POC, PPM/PPT, tile-part |
+| `CanvasNet-Codecs-Jpeg2000Codec-Jp2Container` | JP2 box tests |
+| `CanvasNet-Codecs-Jpeg2000Codec-GetInfo` | GetInfo tests |
+| `CanvasNet-Codecs-Jpeg2000Codec-ArgumentValidation` | Argument validation tests |
+| `CanvasNet-Codecs-Jpeg2000Codec-Malformed` | Malformed and robustness tests |
+| `CanvasNet-Codecs-Jpeg2000Codec-Unsupported` | Unsupported-feature tests |

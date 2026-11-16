@@ -5,8 +5,8 @@ namespace `DemaConsulting.CanvasNet.Scad.Language`), containing two units: `Scad
 
 ### Verification Approach
 
-The `ScadLanguage` subsystem is verified at two tiers. The unit tests (see _ScadLexer Unit Verification Design_
-and _ScadParser Unit Verification Design_ under `scad-language/`) verify each unit in isolation, including its
+The `ScadLanguage` subsystem is verified at two tiers. The unit tests (see *ScadLexer Unit Verification Design*
+and *ScadParser Unit Verification Design* under `scad-language/`) verify each unit in isolation, including its
 internal types. The subsystem-level tests in `ScadLanguageTests.cs` verify the lexer and parser working together
 through the internal `ScadParser.Parse(string, string?)` entry point on realistic programs, on the authored
 fixtures, and on hostile input: that every valid fixture parses; that a program has an identical tree and
@@ -80,4 +80,4 @@ scenario in the two unit verification documents passes without error or unexpect
   vector and parenthesis nesting 50,000 levels deep on a thread with a 1 MiB stack and asserts that the
   outcome is a `ScadSyntaxException` and not a stack overflow or another exception type. The source-length
   half of this requirement (rejecting more than 4,194,304 characters with a plain `InvalidDataException`) is
-  verified at the unit tier in the _ScadParser Unit Verification Design_ source-length scenarios.
+  verified at the unit tier in the *ScadParser Unit Verification Design* source-length scenarios.

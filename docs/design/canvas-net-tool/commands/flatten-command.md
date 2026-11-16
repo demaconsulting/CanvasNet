@@ -5,8 +5,8 @@
 #### Purpose
 
 `FlattenCommand` is the `flatten` command: it writes a copy of an SVG drawing in which every `image` link that only
-CanvasNet can draw is a PNG picture, so that any SVG reader shows it. Its single responsibility is to turn a command line
-into one `SvgFlattener` request and to report the result; the drawing, the rewrite, and the writing are the
+CanvasNet can draw is a PNG picture, so that any SVG reader shows it. Its single responsibility is to turn a command
+line into one `SvgFlattener` request and to report the result; the drawing, the rewrite, and the writing are the
 `SvgFlattener` of the Viewer library. The unit is the class `FlattenCommand` in `FlattenCommand.cs`. The command has no
 alias.
 
@@ -43,10 +43,10 @@ state of its own, so it is safe to call from several threads at once.
 
 #### Position Bindings
 
-When the drawing has position bindings (`FlattenResult.ResolvedBindings + UnresolvedBindings > 0`), the JSON document has
-the object `bindings` (`resolved`, `unresolved`) right after `rebased`; a drawing without bindings keeps the documented
-keys unchanged. The text summary ends with `, 1 binding resolved` or `, N bindings resolved` when at least one binding
-was baked. Requirement: `CanvasNetTool-Commands-FlattenCommand-Bindings`.
+When the drawing has position bindings (`FlattenResult.ResolvedBindings + UnresolvedBindings > 0`), the JSON document
+has the object `bindings` (`resolved`, `unresolved`) right after `rebased`; a drawing without bindings keeps the
+documented keys unchanged. The text summary ends with `, 1 binding resolved` or `, N bindings resolved` when at least
+one binding was baked. Requirement: `CanvasNetTool-Commands-FlattenCommand-Bindings`.
 
 #### Error Handling
 

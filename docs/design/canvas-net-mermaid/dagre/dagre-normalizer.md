@@ -34,7 +34,7 @@ a new `LayoutEdge` with the original weight and the original name. The first dum
 
 **Preconditions and postconditions**: `Run` is called on the ranked graph after the edge-label proxies are removed and
 the ranks normalized; `Undo` after positioning and the removal of border nodes. Only whole ranks equal to the label
-rank get a label dummy: the half-rank label rank that dagre's quirk leaves on some edges (see _Dagre Subsystem Design_)
+rank get a label dummy: the half-rank label rank that dagre's quirk leaves on some edges (see *Dagre Subsystem Design*)
 never matches, so such a label gets no position, exactly as in dagre.
 
 #### Error Handling

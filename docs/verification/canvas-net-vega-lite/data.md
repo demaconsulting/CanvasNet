@@ -8,9 +8,9 @@ calendar, the zone rules, the d3-time intervals, the Vega-Lite time units, and t
 
 ### Verification Approach
 
-The `Data` subsystem is verified at two tiers. The unit tests (see _DataTable Unit Verification Design_, _DataLoader
-Unit Verification Design_, _DataFileResolver Unit Verification Design_, _DelimitedTextParser Unit Verification
-Design_, _TimeCalendar Unit Verification Design_, and _TimeFormat Unit Verification Design_ under `data/`) verify each
+The `Data` subsystem is verified at two tiers. The unit tests (see *DataTable Unit Verification Design*, *DataLoader
+Unit Verification Design*, *DataFileResolver Unit Verification Design*, *DelimitedTextParser Unit Verification
+Design*, *TimeCalendar Unit Verification Design*, and *TimeFormat Unit Verification Design* under `data/`) verify each
 unit in isolation, including its internal types. The subsystem-level scenarios
 verify the units working together on specifications parsed by the real `SpecParser`: the loader reads the inline
 `values`, a local file, a named dataset, or a sequence of a parsed `data` node; for a file it asks the real resolver
@@ -20,8 +20,8 @@ immutable table through `DataTable.Create`; enforces the row, field, file, and b
 node; and the resulting table is queried by Vega-Lite field paths. The same loader instance also loads the sources of
 the lookup transforms through its file cache, file-access policy, and row budget and reserves the rows of the tables
 that the
-transforms derive (see the _Transforms Subsystem Verification Design_), and the table's cells can hold the composite
-values of the expression engine (see the _Expressions Subsystem Verification Design_). The subsystem's unit tests
+transforms derive (see the *Transforms Subsystem Verification Design*), and the table's cells can hold the composite
+values of the expression engine (see the *Expressions Subsystem Verification Design*). The subsystem's unit tests
 already use this combination (the loader tests build their input with `SpecParser.Parse`, read files through the real
 resolver, and read the result through the table's accessors), so the subsystem-level scenarios name the unit tests that
 cross the boundary and the system-level scenarios that exercise the subsystem through the public API.
@@ -35,8 +35,8 @@ test is `JsDateParser`) and the implicit date parse of the fields that `Temporal
 the transforms, and the predicates (an explicit `parse` entry and `parse: null` win). A date-time without an offset is
 therefore a wall time of the zone of the chart, a date alone is UTC midnight, an offset or `Z` is honored, the dates
 that the caller supplies are never moved, and the data of a lookup, which has no temporal fields of its own, stays
-text. The same calendar then reaches the transforms, the scales, the guides, and the marks (see the _Transforms_ and
-_Guides Subsystem Verification Designs_), so the system-level scenarios of the time chart draw it in a zone and compare
+text. The same calendar then reaches the transforms, the scales, the guides, and the marks (see the *Transforms* and
+*Guides Subsystem Verification Designs*), so the system-level scenarios of the time chart draw it in a zone and compare
 its pixels with hand-derived columns. Every zone of these tests is a custom zone that the test creates, and no test
 reads the host's zone, clock, or culture.
 
@@ -81,11 +81,11 @@ the six unit verification documents passes without error or unexpected exception
   `DataLoaderTests.DataLoader_Load_JsonPropertyAndExplicitParseAreApplied`,
   `DataLoaderTests.DataLoader_Load_FileIsReadOnceWhenNamedAgain`,
   `VegaLiteSystemIntegrationTests.CanvasNetVegaLite_SystemIntegration_Data_LocalFileLoadsFromOpenedSpecFolder` — a CSV
-  (with quoted commas and CRLF line ends), a TSV, a DSV, and a JSON file with a nested property are read through the real
-  resolver and parser, each with its format chosen by `format.type` or the extension, with typed columns by explicit
-  `parse: "auto"` inference and by explicit `parse` maps, a file named twice is read once, and a chart drawn from the file
-  has the pixels of the same rows written inline (also when the fixture's line ends are LF or CRLF, so no test depends on
-  how the checkout normalized the file).
+  (with quoted commas and CRLF line ends), a TSV, a DSV, and a JSON file with a nested property are read through the
+  real resolver and parser, each with its format chosen by `format.type` or the extension, with typed columns by
+  explicit `parse: "auto"` inference and by explicit `parse` maps, a file named twice is read once, and a chart drawn
+  from the file has the pixels of the same rows written inline (also when the fixture's line ends are LF or CRLF, so no
+  test depends on how the checkout normalized the file).
 - **Delimited Text Is Not Inferred Unless Asked, And Quantitative Channels Still Coerce**:
   `DataLoaderTests.DataLoader_Load_DefaultDelimitedTextKeepsTextValues`,
   `VegaLiteSystemIntegrationTests.CanvasNetVegaLite_SystemIntegration_Data_DefaultDelimitedTextPreservesTextAndQuantitativeRenderCoerces`
@@ -144,9 +144,9 @@ the six unit verification documents passes without error or unexpected exception
   `DataTableTests.DataTable_Create_LimitsFailClosedWithLocation`,
   `VegaLiteSystemIntegrationTests.CanvasNetVegaLite_SystemIntegration_Data_LimitsFailBeforeSceneBudget` — a document
   over the row limit fails before any row is converted, a row with too many fields fails at the leaf that exceeded the
-  limit, the row limit is a total across the tables of a call, a file over the row or byte limit fails with that
-  limit named and located at the url even when the scene limit would also fail, and all carry the pointer and position of
-  the offending node.
+  limit, the row limit is a total across the tables of a call, a file over the row or byte limit fails with that limit
+  named and located at the url even when the scene limit would also fail, and all carry the pointer and position of the
+  offending node.
 - **Other Sources Are Empty, Never Opened**:
   `DataLoaderTests.DataLoader_Load_RemoteUrlReportsVlDataRemoteUrl`,
   `DataLoaderTests.DataLoader_Load_OtherSourcesAreEmptyTablesReportedByTheCatalog` — remote data (a scheme, a UNC
@@ -216,23 +216,23 @@ the six unit verification documents passes without error or unexpected exception
   `ParseDirectivesDateTests.ParseDirectives_Auto_UsesTheCalendarZone`,
   `DataLoaderCalendarTests.DataLoader_Render_CustomDateFormatRendersInStrictMode`,
   `VegaLiteTimeIntegrationTests.CanvasNetVegaLite_SystemIntegration_Time_CustomDateParseDirectiveReadsDayMonthYear` —
-  the directive `date:'%d/%m/%Y'` reads 05/03/2024 as March 5, `utc:` ignores the zone, a failure is null with one warning
-  per field, `parse: "auto"` infers the ISO and the legacy forms in the zone, and a CSV whose days are 5, 15, and 25
-  March 2024 draws its points 10 days apart (0, 100, and 200 pixels on a 200-pixel axis of 20 days) and is not reported
-  in strict mode, while without the directive `15/03/2024` is the fifteenth month, so those rows do not draw and the
-  load is reported.
+  the directive `date:'%d/%m/%Y'` reads 05/03/2024 as March 5, `utc:` ignores the zone, a failure is null with one
+  warning per field, `parse: "auto"` infers the ISO and the legacy forms in the zone, and a CSV whose days are 5, 15,
+  and 25 March 2024 draws its points 10 days apart (0, 100, and 200 pixels on a 200-pixel axis of 20 days) and is not
+  reported in strict mode, while without the directive `15/03/2024` is the fifteenth month, so those rows do not draw
+  and the load is reported.
 - **A Time Zone Moves Dates, Unit Boundaries, And Days End To End**:
   `VegaLiteTimeIntegrationTests.CanvasNetVegaLite_SystemIntegration_Time_PointsSitAtTheirDatesOnAMultiFormatAxis`,
   `VegaLiteTimeIntegrationTests.CanvasNetVegaLite_SystemIntegration_Time_TimeZoneOptionShiftsTimeUnitBoundaries`,
   `VegaLiteTimeIntegrationTests.CanvasNetVegaLite_SystemIntegration_Time_DstDayIsNot24Hours`,
   `VegaLiteTimeIntegrationTests.CanvasNetVegaLite_SystemIntegration_Time_UtcScaleIgnoresTheZoneOption`,
   `VegaLiteTimeIntegrationTests.CanvasNetVegaLite_SystemIntegration_Time_HostZoneDoesNotMatter` — three points sit at
-  their dates on an axis with a tick every two days (60 pixels apart over 300 pixels), a point at 2024-03-05T20:00Z is on
-  March 6 (local 01:30) in a zone 5:30 hours ahead and on March 5 in UTC, one day of the scale (40 pixels) apart, with
-  the same ticks and labels, a zone that follows the United States rule makes March 10, 2024 a day of 23 hours, so with
-  the days March 9, 10, and 11 across 470 pixels (47 hours, 10 pixels an hour) the middle day starts 240 pixels in and
-  not 235 as in UTC, a `utc` scale ignores the zone, and a chart without a zone and one in a zone with a zero offset are
-  byte-identical.
+  their dates on an axis with a tick every two days (60 pixels apart over 300 pixels), a point at 2024-03-05T20:00Z is
+  on March 6 (local 01:30) in a zone 5:30 hours ahead and on March 5 in UTC, one day of the scale (40 pixels) apart,
+  with the same ticks and labels, a zone that follows the United States rule makes March 10, 2024 a day of 23 hours, so
+  with the days March 9, 10, and 11 across 470 pixels (47 hours, 10 pixels an hour) the middle day starts 240 pixels in
+  and not 235 as in UTC, a `utc` scale ignores the zone, and a chart without a zone and one in a zone with a zero offset
+  are byte-identical.
 - **Dates Do Not Depend On The Culture, The Host, Or The Run**:
   `TimeFormatTests.TimeFormat_Format_IgnoresTheCurrentCulture`,
   `TimeFormatParseTests.TimeFormatParse_IgnoresTheCurrentCulture`,

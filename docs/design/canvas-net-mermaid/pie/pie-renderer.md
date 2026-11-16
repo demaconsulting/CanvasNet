@@ -86,9 +86,9 @@ labels, and the legend items carry the section label as their id and the locatio
 - **`DisplayText`** gives the text the browser shows: each of Mermaid's entity placeholders decoded into its character,
   everything else, a reference the author wrote included, shown as written, and the white space collapsed as in all SVG
   text.
-- **`Pie(values)`** is d3-shape's `pie()` with `sort(null)`, the start angle 0, the end angle τ, and no padding: the arcs
-  of the values in their order, each the share of a full turn that the value has of the sum of the positive values, a
-  value that is not positive taking no angle, and every arc empty when the sum is 0.
+- **`Pie(values)`** is d3-shape's `pie()` with `sort(null)`, the start angle 0, the end angle τ, and no padding: the
+  arcs of the values in their order, each the share of a full turn that the value has of the sum of the positive values,
+  a value that is not positive taking no angle, and every arc empty when the sum is 0.
 - **`ArcPath(innerRadius, outerRadius, arc)`** is d3-shape's `arc()` without corners or padding, written by d3-path with
   3 digits: the angles turned by a quarter so that 0 is at twelve o'clock, the larger radius used as the outer one, and
   a point (an outer radius of at most the epsilon), a circle or an annulus (an arc of a full turn), or a circular or

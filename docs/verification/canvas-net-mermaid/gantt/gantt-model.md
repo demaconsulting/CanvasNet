@@ -221,7 +221,7 @@ format back) and `01/05/2024` as `L` (no long-date format in the locale); that i
 2024-01-05, and refuses `123 45-May 2024` as `MMM YYYY` (the word found after the digit runs does not format back) and
 `x2024-01-05` as `[[x]YYYY-MM-DD`, as the bundled dayjs does; that 2,600 digits followed by 600 words parsed with 600
 `A` tokens charge at least twice 3,200 characters for each token; that `Number` gives 0 for spaces, 16 for
-`0x10`, 1000 for ` 1e3 `, and NaN for `12px`, rounds the hexadecimal, binary, and octal literals near the largest
+`0x10`, 1000 for `1e3`, and NaN for `12px`, rounds the hexadecimal, binary, and octal literals near the largest
 double as JavaScript does (256 hexadecimal `F` digits and an octal 1 followed by 342 zeros are infinite, 255 `F` digits
 are 1.1235582092889474e+307, and a binary 1 followed by 1,023 zeros is 8.98846567431158e+307), reads 5,000 leading
 zeros, and gives NaN for an invalid digit after 5,000 valid ones; that the year difference from 2024-06-01 to

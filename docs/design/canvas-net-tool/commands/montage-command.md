@@ -7,11 +7,11 @@
 #### Purpose
 
 `MontageCommand` is the `montage` command: it composes images, and the pages of documents, into one contact sheet. Its
-single responsibility is to turn a command line into one montage and to
-report the result; the planning, the loading, the composition, and the writing are the `MontageBuilder` of the Viewer
-library, which uses `ContactSheet` for the layout and the composition and `SourceLoader` for the loading. The unit is the
-partial class `MontageCommand` in `MontageCommand.cs` (the run, the planning of the cells, and the reporting) and
-`MontageCommand.Options.cs` (the option table and the reading of the settings). The command has no alias.
+single responsibility is to turn a command line into one montage and to report the result; the planning, the loading,
+the composition, and the writing are the `MontageBuilder` of the Viewer library, which uses `ContactSheet` for the
+layout and the composition and `SourceLoader` for the loading. The unit is the partial class `MontageCommand` in
+`MontageCommand.cs` (the run, the planning of the cells, and the reporting) and `MontageCommand.Options.cs` (the option
+table and the reading of the settings). The command has no alias.
 
 #### Data Model
 
@@ -48,15 +48,13 @@ to 64), `--spacing` and `--padding` (0 to the maximum image size), `--fit` (with
 **Run(context, args)**: reads the settings; without `--all-pages` the number of cells is the number of inputs, so
 `ContactSheet.CalculateLayout` is called first and a sheet that is too large is refused with `size-limit` before any
 input is opened (the refusal mentions the options of the tool, which is why the call is made here); then probes every
-input (`SourceLoader.Probe` under the policy), checks that model options were given only when an
-input is a model, and calls `MontageBuilder.Execute(infos, request)` of the Viewer library with a `MontageRequest`
-built from the settings (the output is the positional member; every other value, with the `SheetOptions`, the
-`WriteOptions`, and `FileAccess`, is set explicitly, so the defaults of the records do not matter to the command). The
-library plans the
-cells, calculates the layout (again, with the real count, so that with
-`--all-pages` the check happens after the page counts were read from the headers), checks the output against every input,
-composes the sheet one input at a time, and publishes it (see _MontageBuilder Unit Design_). The command reports the
-`MontageResult`.
+input (`SourceLoader.Probe` under the policy), checks that model options were given only when an input is a model, and
+calls `MontageBuilder.Execute(infos, request)` of the Viewer library with a `MontageRequest` built from the settings
+(the output is the positional member; every other value, with the `SheetOptions`, the `WriteOptions`, and `FileAccess`,
+is set explicitly, so the defaults of the records do not matter to the command). The library plans the cells, calculates
+the layout (again, with the real count, so that with `--all-pages` the check happens after the page counts were read
+from the headers), checks the output against every input, composes the sheet one input at a time, and publishes it (see
+*MontageBuilder Unit Design*). The command reports the `MontageResult`.
 
 **Planning, options, and labels** (performed by `MontageBuilder`): one cell for an input that is a single image or a
 model; for a document, the page chosen with `--page`

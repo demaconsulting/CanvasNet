@@ -24,7 +24,7 @@ projection for a single world point, so a caller can find where the renderer dra
 `Camera` has init-only properties, each validated when initialized:
 
 | Property | Type | Default | Validation |
-| -------- | ---- | ------- | ---------- |
+| --- | --- | --- | --- |
 | `Eye` | `Vector3D` | `(0, -1, 0)` | Finite |
 | `Target` | `Vector3D` | origin | Finite |
 | `Up` | `Vector3D` | `+Z` | Finite |
@@ -49,10 +49,10 @@ camera looking down -Z and +Y up.
 
 #### Key Methods
 
-- `Camera.LookAt(eye, target, up)`: validates that all three are finite, eye differs from target,
-  and `up` is non-zero (`ArgumentException`; the checks use the overflow/underflow-safe
-  `Vector3D.Length`, so any finite non-zero offset or up hint is accepted), then returns a camera whose stored `Up` is already
-  the alternative up vector when the view direction is parallel to `up` (see below).
+- `Camera.LookAt(eye, target, up)`: validates that all three are finite, eye differs from target, and `up` is non-zero
+  (`ArgumentException`; the checks use the overflow/underflow-safe `Vector3D.Length`, so any finite non-zero offset or
+  up hint is accepted), then returns a camera whose stored `Up` is already the alternative up vector when the view
+  direction is parallel to `up` (see below).
 - **Degenerate up**: when the view direction is parallel to the up hint (for example a camera
   looking straight down), the basis builder substitutes `-Y` when looking up or `+Y` when looking
   down rather than failing; this keeps a top or bottom view of a Z-up scene well defined.
@@ -95,7 +95,7 @@ camera looking down -Z and +Y up.
 
 The near and far clip distances are **not** computed in this unit: a `null` `NearPlane` or
 `FarPlane` means "automatic", and `SceneRenderer` derives the values from the scene's depth range
-(see _SceneRenderer Unit Design_, `scene-renderer.md`).
+(see *SceneRenderer Unit Design*, `scene-renderer.md`).
 
 #### Error Handling
 

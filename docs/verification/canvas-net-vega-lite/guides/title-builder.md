@@ -3,8 +3,8 @@
 This document describes the unit-level verification strategy for the `TitleBuilder` unit in the
 `DemaConsulting.CanvasNet.VegaLite.Guides` namespace: the internal `TitleBuilder` class (`Build`) and the `TitleBlock`
 class it returns (the orient, anchor, frame, offset, scene items, extent, and the `Place` method that positions the
-title group around the data rectangle and the guides, as Vega's title layout does). The unit turns the `title`
-property of a view (a string, an array of lines, or an object with a subtitle and font, anchor, orient, offset, and limit
+title group around the data rectangle and the guides, as Vega's title layout does). The unit turns the `title` property
+of a view (a string, an array of lines, or an object with a subtitle and font, anchor, orient, offset, and limit
 properties) into text scene items with the Vega-Lite 6 defaults and the configuration applied.
 
 #### Verification Approach
@@ -34,8 +34,8 @@ arithmetic; the tests measure the title width with the bundled font directly so 
   (20 high) below the anchor, at y = 26.
 
 The unit's collaborators are real, so no mocking or stubbing is used; the internal types are reached through the test
-assembly's `InternalsVisibleTo` access. The title's interaction with the layout is verified in the _ViewLayout Unit
-Verification Design_ and at the document level.
+assembly's `InternalsVisibleTo` access. The title's interaction with the layout is verified in the *ViewLayout Unit
+Verification Design* and at the document level.
 
 The header part is verified the same way (a facet specification is parsed with the real `SpecParser` to get the `header`
 of a field definition, the configuration is resolved with the real `ConfigResolver`) with these derived numbers:
@@ -158,8 +158,8 @@ Asserts the number, time, unit and default formats with the values derived above
 null is empty, that a value that is no date stays its text under a time format, that a format that is not a d3 specifier
 is a spec error, and that a label past the limit is a render error. The `labelExpr` of a header wraps this formatter in
 the facet code of `VegaLiteDocument` (with `HeaderSettings.ExplicitNode` finding the compiled expression of the header
-itself) and is verified at the system tier by `VegaLiteLabelExprIntegrationTests` (see the _LabelExpressions Unit
-Verification Design_ and the _VegaLiteDocument Unit Verification Design_); an array result is several lines of the
+itself) and is verified at the system tier by `VegaLiteLabelExprIntegrationTests` (see the *LabelExpressions Unit
+Verification Design* and the *VegaLiteDocument Unit Verification Design*); an array result is several lines of the
 header, which the builder measures like the lines of any header label.
 
 ##### Label And Title Blocks

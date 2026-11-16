@@ -41,17 +41,17 @@ tests state the arithmetic next to them:
   January 6 and of 40 is one day after the start; the inverse returns the number of milliseconds, not a date.
 
 The calendar of the ticks of a time scale (the interval arithmetic and the zone offsets) is verified with the calendar
-unit (see _TimeCalendar Unit Verification Design_); the scale model only stores it.
+unit (see *TimeCalendar Unit Verification Design*); the scale model only stores it.
 
 The unit has no dependencies other than the data value type of the `Data` namespace (and the color type of the
 interpolator unit, which a
 test passes as a probe function), so no mocking or stubbing is
 required; the internal type is reached through the test assembly's `InternalsVisibleTo` access. The unit's use by the
-resolver and the axis and mark builders is verified at the subsystem tier (see _Scales Subsystem Verification
-Design_).
+resolver and the axis and mark builders is verified at the subsystem tier (see *Scales Subsystem Verification
+Design*).
 
-Unit tests reside in `ScaleModelTests.cs` and `ScaleModelTimeTests.cs` within the `DemaConsulting.CanvasNet.VegaLite.Tests`
-project, in the `Scales` folder.
+Unit tests reside in `ScaleModelTests.cs` and `ScaleModelTimeTests.cs` within the
+`DemaConsulting.CanvasNet.VegaLite.Tests` project, in the `Scales` folder.
 
 #### Test Environment
 
@@ -152,8 +152,8 @@ thresholds.
 **Tests**: `ScaleModelTests.ScaleModel_BinOrdinal_MapsByBinIndex`
 
 With the edges 0, 10, 20, 30 and three values, 0 and 5 map to the first, 10 and 19.5 to the second, 20 and 29 to the
-third; -1 has no value; 30 and 35 map
-to index 3 modulo 3, the first value (Vega's behavior for a value at or above the last edge); a range of two values cycles.
+third; -1 has no value; 30 and 35 map to index 3 modulo 3, the first value (Vega's behavior for a value at or above the
+last edge); a range of two values cycles.
 
 ##### Band Space
 
@@ -165,10 +165,10 @@ Asserts the five derived band spaces above, including the five bands without pad
 
 **Tests**: `ScaleModelTests.ScaleModel_WrongKind_Throws`
 
-Asserts that numeric mapping and inversion of a band scale, an ordinal mapping and a color mapping of a linear scale throw
-`InvalidOperationException`, that a sequential scale needs two or three domain entries and an interpolator, that the
-center of an unknown
-category on a linear scale is nothing, and that the kinds of a band and a point scale are reported.
+Asserts that numeric mapping and inversion of a band scale, an ordinal mapping and a color mapping of a linear scale
+throw `InvalidOperationException`, that a sequential scale needs two or three domain entries and an interpolator, that
+the center of an unknown category on a linear scale is nothing, and that the kinds of a band and a point scale are
+reported.
 
 ##### Log, Pow, Sqrt, And Symlog Transforms
 
@@ -178,22 +178,17 @@ category on a linear scale is nothing, and that the kinds of a band and a point 
 `ScaleModelTests.ScaleModel_Transform_SequentialAndDivergingUseTheTransformedPosition`,
 `ScaleModelTests.ScaleModel_Fraction_FollowsTheTransformedDomain`
 
-Assert the positions derived by hand from the d3 formulas: 1 to 1000 over 300 pixels puts the powers of ten at 0,
-100, 200, and
-300 (the geometric mean at 150, 0.1 at -100), the inverse gives the exponential, clamping happens in the domain,
-a number that
-is not above zero is NaN (null for a data value), -1000 to -1 is reflected (-10 at 200), a descending domain runs backwards;
-the square of 0 to 10 puts 5 at 25 and -2 at -4, the square root of 0 to 100 puts 25 at 5 of 10 and the signed root
-of -100 to
-100 puts -25 at 50 of 200, the cube puts 1 at 9 and -1 at 7 of 0 to 16, and the exponent 1 is no transform; symlog over
-+-(e-1) puts 1 at 50 + 50 ln 2, the constant 10 puts 9 at ln(1.9) / ln(10), and a tiny number (1e-12) keeps its
-digits to a part
-in a billion (the accurate `log1p`); a sequential log scale over 1 to 100 puts 10 at the middle color and 1000 at 1.5, a
-diverging log scale over 1, 10, 1000 puts 100 at 0.75, no color is given to zero or a negative number (and clamping
-holds the
-ends); and the fraction of a value runs along the transformed domain (a decade is a third of three decades, 25 is
-half of the
-square root domain 0 to 100, a domain without span is 0.5).
+Assert the positions derived by hand from the d3 formulas: 1 to 1000 over 300 pixels puts the powers of ten at 0, 100,
+200, and 300 (the geometric mean at 150, 0.1 at -100), the inverse gives the exponential, clamping happens in the
+domain, a number that is not above zero is NaN (null for a data value), -1000 to -1 is reflected (-10 at 200), a
+descending domain runs backwards; the square of 0 to 10 puts 5 at 25 and -2 at -4, the square root of 0 to 100 puts 25
+at 5 of 10 and the signed root of -100 to 100 puts -25 at 50 of 200, the cube puts 1 at 9 and -1 at 7 of 0 to 16, and
+the exponent 1 is no transform; symlog over +-(e-1) puts 1 at 50 + 50 ln 2, the constant 10 puts 9 at ln(1.9) / ln(10),
+and a tiny number (1e-12) keeps its digits to a part in a billion (the accurate `log1p`); a sequential log scale over 1
+to 100 puts 10 at the middle color and 1000 at 1.5, a diverging log scale over 1, 10, 1000 puts 100 at 0.75, no color is
+given to zero or a negative number (and clamping holds the ends); and the fraction of a value runs along the transformed
+domain (a decade is a third of three decades, 25 is half of the square root domain 0 to 100, a domain without span is
+0.5).
 
 ##### Time Scales Map Instants Linearly
 
