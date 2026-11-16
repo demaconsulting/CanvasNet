@@ -97,8 +97,9 @@ surface is not.
 ##### CanvasNet-Canvas-SurfaceTransforms-ExifOrientation: EXIF Orientation
 
 **Tests**: `Surface_ApplyExifOrientation_Orientation_MapsPixels`,
-`Surface_ApplyExifOrientation_Pixels_AreExactCopiesIncludingAlpha`, `Surface_ApplyExifOrientation_InvalidArguments_Throw`
-(in `test/DemaConsulting.CanvasNet.Tests/Canvas/SurfaceExifOrientationTests.cs`)
+`Surface_ApplyExifOrientation_Pixels_AreExactCopiesIncludingAlpha`,
+`Surface_ApplyExifOrientation_InvalidArguments_Throw` (in
+`test/DemaConsulting.CanvasNet.Tests/Canvas/SurfaceExifOrientationTests.cs`)
 
 A 3 by 2 image whose six pixels are numbered `a` to `f` in reading order is turned by each orientation 1 to 8 and the
 letters of the result are compared with the table of the EXIF specification (for example orientation 6 gives

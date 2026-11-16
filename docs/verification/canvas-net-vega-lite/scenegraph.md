@@ -26,16 +26,15 @@ centered on the edge; half-transparent paint over white gives 127 in the red and
 a clip covers exactly its rectangle at integer coordinates and by fractional coverage otherwise; a symbol of a given
 size covers the area that the size defines; an arc covers its wedge and leaves the hole of a ring empty, and the area of
 its outline is the area of the sector formula; and a trail is as wide as twice the interpolated half width of its
-points. No golden images and no output of another implementation are used. The
-subsystem uses no mocking or stubbing; the core `Surface`, `Rgba32`, `PathFiller`, `PathStroker`, `TextRenderer`, and the
-bundled fonts are real. The subsystem is internal, so its tests reach it through the test assembly's `InternalsVisibleTo`
-access.
+points. No golden images and no output of another implementation are used. The subsystem uses no mocking or stubbing;
+the core `Surface`, `Rgba32`, `PathFiller`, `PathStroker`, `TextRenderer`, and the bundled fonts are real. The subsystem
+is internal, so its tests reach it through the test assembly's `InternalsVisibleTo` access.
 
 The positions of a chart are verified by the `ScenePositions` unit tests on scenes built from `SceneModel` records that
 carry position tags, rows, mark contexts, and vertices, mapped with a `ScenePlacement` and measured with the
 `TextMeasurer` of the `Guides` subsystem; the subsystem-level positions requirement reuses them, because they exercise
 the units' collaboration without painting. The view paths and values that need a real view tree are verified through
-`VegaLiteDocument.Render` (see _ScenePositions Unit Verification Design_).
+`VegaLiteDocument.Render` (see *ScenePositions Unit Verification Design*).
 
 ### Test Environment
 
@@ -79,8 +78,8 @@ in the six unit verification documents passes without error or unexpected except
   `ArcGeometryTests.ArcGeometry_Build_FlattenedAreaMatchesTheSectorFormula`,
   `SceneModelTests.SceneModel_PathSegments_AreCopiedAndTakePrecedenceOverPoints`,
   `SceneModelTests.SceneModel_ArcAndTrail_ExposeTheirGeometryAndCopyLists` — segment paths, arc items, and trail items
-  built from model records are drawn along their curves, as the wedge and the hole of the `ArcGeometry` outline, and with
-  a width that follows the sizes of the trail points; the outline of an arc has the area of the sector formula.
+  built from model records are drawn along their curves, as the wedge and the hole of the `ArcGeometry` outline, and
+  with a width that follows the sizes of the trail points; the outline of an arc has the area of the sector formula.
 - **Custom Symbol Paths Are Drawn At The Symbol Radius**:
   `SymbolPathParserTests.SymbolPathParser_Render_ScalesTheCoordinatesByTheRadius`,
   `SymbolPathParserTests.ScenePainter_SymbolPath_DrawsCustomPathsAndFallsBackToACircle`,
@@ -131,10 +130,9 @@ in the six unit verification documents passes without error or unexpected except
   `ScenePainterTests.ScenePainter_Paint_InvalidArgumentsAndCancellation`,
   `MarkBuilderTests.MarkBuilder_Build_LimitsCancellationAndUnsupportedMarks` — the painter honors cancellation and
   rejects invalid arguments, and the scene item budget is enforced when the model is built.
-- **Whole Chart Pixels**:
-  `CanvasNetVegaLite_SystemIntegration_Render_EmptyTitleViewHasDocumentedSizeAndColors`,
-  `CanvasNetVegaLite_SystemIntegration_Determinism_RepeatedAndConcurrentRendersAreByteIdentical` — the painted empty view
-  has the documented colors at exact pixels, and painting is byte-identical across repeated and concurrent renders.
+- **Whole Chart Pixels**: `CanvasNetVegaLite_SystemIntegration_Render_EmptyTitleViewHasDocumentedSizeAndColors`,
+  `CanvasNetVegaLite_SystemIntegration_Determinism_RepeatedAndConcurrentRendersAreByteIdentical` — the painted empty
+  view has the documented colors at exact pixels, and painting is byte-identical across repeated and concurrent renders.
 - **CanvasNetVegaLite-Scenegraph-Positions: Tagged Groups And Mark Items Become Positions**:
   `ScenePositionsTests.ScenePositions_Collect_ViewAndBars_BoxesCentersAndIds`,
   `ScenePositionsTests.ScenePositions_Geometry_RuleSymbolTextArc_AimAsDocumented`,

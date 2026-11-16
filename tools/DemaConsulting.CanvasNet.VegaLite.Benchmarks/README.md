@@ -48,7 +48,7 @@ machine** (and on the garbage collector: the first run of the scatter plot took 
 they are a guide to the order of magnitude, not a promise.
 
 | Workload | Units | Median ms | Min ms | ns per unit | Allocated MB |
-| -------- | ----: | --------: | -----: | ----------: | -----------: |
+| --- | ---: | ---: | ---: | ---: | ---: |
 | scatter | 100,000 rows | 2,317 | 1,125 | 23,166 | 1,014 |
 | stacked-bars | 200,000 rows | 683 | 656 | 3,416 | 237 |
 | facet-grid | 60,000 rows | 2,853 | 2,844 | 47,551 | 1,922 |
@@ -60,7 +60,7 @@ they are a guide to the order of magnitude, not a promise.
 | full-rects | 200 rects (160 M pixels) | 7,885 | 7,559 | 39,423,463 | 10 |
 
 | Probe | Stopped after ms | Factor | Estimated seconds at the default limit |
-| ----- | ---------------: | -----: | -------------------------------------: |
+| --- | ---: | ---: | ---: |
 | loess (bandwidth 1, 20,000 rows) | 33 | 50 | 1.7 |
 | density (1,000 steps) | 58 | 50 | 2.9 |
 | polynomial regression (order 8) | 63 | 50 | 3.1 |

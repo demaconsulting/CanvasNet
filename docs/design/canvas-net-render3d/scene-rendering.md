@@ -11,24 +11,24 @@ folder `src/DemaConsulting.CanvasNet.Render3D/SceneRendering/`) renders a `Scene
 onto a new core `Surface`. It contains six units:
 
 - **Camera** — `Camera`, `CameraProjection`, and the internal camera-relative `ViewTransform`;
-  see _Camera Unit Design_ (`scene-rendering/camera.md`)
+  see *Camera Unit Design* (`scene-rendering/camera.md`)
 - **Lighting** — `Light`, `AmbientLight`, `DirectionalLight`, and the internal `LightingModel`;
-  see _Lighting Unit Design_ (`scene-rendering/lighting.md`)
+  see *Lighting Unit Design* (`scene-rendering/lighting.md`)
 - **TriangleRasterizer** — the internal `TriangleRasterizer`, `TriangleClipper`, `ClipVertex`,
   `ClipPlane`, `SampleProjection`, `ViewTriangle`, `ScreenTriangle`, `TileRect`,
-  `IFragmentVisitor`, and `DepthTestVisitor`; see _TriangleRasterizer Unit Design_
+  `IFragmentVisitor`, and `DepthTestVisitor`; see *TriangleRasterizer Unit Design*
   (`scene-rendering/triangle-rasterizer.md`)
 - **FragmentBuffer** — the internal per-worker `FragmentBuffer` that collects every fragment of a
-  tile for the fragment-list CSG path; see _FragmentBuffer Unit Design_
+  tile for the fragment-list CSG path; see *FragmentBuffer Unit Design*
   (`scene-rendering/fragment-buffer.md`)
 - **CsgResolver** — the internal `CsgCompiler`, `CsgProgram`, `LayerCompositor`, and `CsgResolver` that
   compile the scene tree (and the overlay bodies) and resolve each sample's visible surface layers;
-  see _CsgResolver Unit Design_
+  see *CsgResolver Unit Design*
   (`scene-rendering/csg-resolver.md`)
 - **SceneRenderer** — the public `SceneRenderer`, `SceneRenderOptions`,
   `RenderBudgetExceededException`, `SceneRenderUnsupportedFeature`, and
   `SceneRenderUnsupportedFeatureException`, and the internal `TileBinner` (with `TileBins`),
-  `SampleResolver`, `TileWorkspace`, and `CsgOperandValidator`; see _SceneRenderer Unit Design_
+  `SampleResolver`, `TileWorkspace`, and `CsgOperandValidator`; see *SceneRenderer Unit Design*
   (`scene-rendering/scene-renderer.md`)
 
 The subsystem's namespace documentation is in `NamespaceDoc.cs`.
@@ -75,7 +75,7 @@ operand reporting, cancellation).
 Fixed-point integer coverage and independent tiles are the two properties that make the output
 deterministic: coverage never depends on floating-point rounding, and tiles share no mutable state
 beyond disjoint regions of the output `Surface`. The conventions and numeric rules are defined in
-_CanvasNetRender3D System Design_ (`../canvas-net-render3d.md`), Design Constraints; the detailed
+*CanvasNetRender3D System Design* (`../canvas-net-render3d.md`), Design Constraints; the detailed
 algorithms are in the unit designs.
 
 **Fragment-list CSG.** Difference and intersection cannot be resolved by a depth test, so the
@@ -94,6 +94,6 @@ back with `LayerCompositor` (until an opaque layer; translucent surfaces and ove
 the visible surface into the `TileWorkspace` in the same form
 the z-buffer does, so the existing `SampleResolver`, tiling, and supersampling are reused
 unchanged. `SceneRenderer` classifies the facing of mirrored operands with the winding correction
-it already applies, and validates the meshes of a fragment-list scene (see _SceneRenderer Unit
-Design_, Operand validation). `CsgCompiler`, `FragmentBuffer`, and `CsgResolver` know nothing of
+it already applies, and validates the meshes of a fragment-list scene (see *SceneRenderer Unit
+Design*, Operand validation). `CsgCompiler`, `FragmentBuffer`, and `CsgResolver` know nothing of
 scenes beyond the node tree, cameras, or lights; the `SceneRenderer` unit is their only caller.

@@ -25,8 +25,8 @@ The `RowTransforms` unit is the first software unit in the `Transforms` subsyste
 #### Purpose
 
 `RowTransforms` produces the rows a chart draws from the rows it loaded: it applies the supported row transforms of the
-`transform` array in order (handing the six aggregating transforms to the _AggregateTransforms_ unit, the `timeUnit`
-transform to the `TimeUnitTransform` unit, and the five statistical transforms to the _StatTransforms_ unit) and
+`transform` array in order (handing the six aggregating transforms to the *AggregateTransforms* unit, the `timeUnit`
+transform to the `TimeUnitTransform` unit, and the five statistical transforms to the *StatTransforms* unit) and
 computes the
 values of the static variable parameters. It exists
 so that the semantics of each
@@ -65,7 +65,7 @@ rebuilding is the `FlatRowNode` tree of the data unit, which the expression eval
 **The transforms** (in the order of the `transform` array; an entry whose operation the parser does not know is skipped,
 `aggregate`, `joinaggregate`, `window`, `bin`, `stack`, and `impute` are computed by
 `AggregateTransforms`, and `regression`, `loess`, `density`, `quantile`, and `extent` by `StatTransforms`, which `Run`
-calls with the same `TransformContext`, see _AggregateTransforms_ and _StatTransforms_; `timeUnit` is
+calls with the same `TransformContext`, see *AggregateTransforms* and *StatTransforms*; `timeUnit` is
 dispatched to `TimeUnitTransform`, see below):
 
 - **`calculate`** - `calculate` (the expression) and `as` (a non-empty text). The expression is evaluated once per row
@@ -90,8 +90,8 @@ dispatched to `TimeUnitTransform`, see below):
   compiled expression and returns an `ExpressionPredicate` over the evaluator of the call, so an unselected chart keeps
   every row and a selection keeps the rows that its tuples match. **A predicate with a `timeUnit`, or one that compares
   with a date-time object, is evaluated through the
-  expression engine**: `SpecParser` compiled the expression that `PredicateSource` writes for it (see _SpecParser Unit
-  Design_) and stored it under the predicate object, and `BuildFieldPredicate` finds it with
+  expression engine**: `SpecParser` compiled the expression that `PredicateSource` writes for it (see *SpecParser Unit
+  Design*) and stored it under the predicate object, and `BuildFieldPredicate` finds it with
   `Tree.Expressions.Get(node)` and returns an `ExpressionPredicate` over the evaluator of the call, so its meaning
   depends on the calendar of the chart (a month of a date is the month in the render zone; a `utc` unit reads UTC), it
   is
@@ -117,7 +117,7 @@ dispatched to `TimeUnitTransform`, see below):
   counts
   as an array of one value, null, a missing field, and an empty array as none, and a row whose fields are all empty
   produces no row. The element goes to `as[i]` (default the field itself).
-- **`sample`** - a number of rows to keep (a non-negative number). See _RowSampler_ below.
+- **`sample`** - a number of rows to keep (a non-negative number). See *RowSampler* below.
 - **`pivot`** - the pivot field, `value`, optional `groupby`, `limit`, and `op`. Rows are grouped by the `groupby`
   values in first-seen order; the columns are the distinct pivot values as text (the JavaScript text of
   `ExpressionEvaluator.ToJsString`, bounded by `MaxStringLength`: a longer text, such as that of an array value, is a
@@ -173,7 +173,7 @@ dispatched to `TimeUnitTransform`, see below):
   `TimeUnitRequest` whose end field is `<as>_end`, and calls `TimeUnitTransform.Apply` with the context and the location
   of the transform entry. Every row then has the start of the unit of its date in `as` and the end in `as_end`, both
   dates in the calendar of the chart (a `utc` unit in UTC); a null, non-date, or out-of-range value gives null in both.
-  The computation, its limits, and the `maxbins` form belong to the _Time Unit Transform Design_.
+  The computation, its limits, and the `maxbins` form belong to the *Time Unit Transform Design*.
 
 **`RowSampler`.** `RowSampler.Select(count, size, pointer, token)` is a pure function of the
 number of rows, the size, and the
@@ -293,11 +293,11 @@ performs no I/O itself; a lookup source is read only through the `DataLoader`.
 - **`SpecTree`**, **`SpecNode`**, **`SpecParser`** (`FindTransformOperation`,
   `IsSupportedTransform`, `ParameterGraph`), and
   **`FeatureReport`** - the tree, the helpers, and the report record of the `SpecModel` subsystem
-- **`AggregateTransforms`** - the six aggregating transforms (see _AggregateTransforms_), and `MeasureCell` for the
+- **`AggregateTransforms`** - the six aggregating transforms (see *AggregateTransforms*), and `MeasureCell` for the
   operations of a pivot
-- **`StatTransforms`** - the five statistical transforms (see _StatTransforms_)
-- **`TimeUnitTransform`**, `TimeUnitRequest`, and **`TimeUnitSpec`** - the `timeUnit` transform (see _Time Unit
-  Transform Design_) and the unit grammar of the `Data` subsystem (see _Time Calendar Design_)
+- **`StatTransforms`** - the five statistical transforms (see *StatTransforms*)
+- **`TimeUnitTransform`**, `TimeUnitRequest`, and **`TimeUnitSpec`** - the `timeUnit` transform (see *Time Unit
+  Transform Design*) and the unit grammar of the `Data` subsystem (see *Time Calendar Design*)
 - **`VegaLiteLimits`**, **`VegaLiteLocation`**, and **`VegaLiteRenderException`** - the public types of the
   `VegaLiteDocument`
   unit

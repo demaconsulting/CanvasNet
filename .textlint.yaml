@@ -5,9 +5,34 @@
 # - Maintain professional documentation and code quality
 # - Catch spelling errors before publication
 # - Support consistent technical terminology usage
-# - Misspelled words should be fixed in the source
-# - NEVER add a misspelled word to the 'words' list
+# - NEVER add a misspelled word - fix the typo in the source instead
+# - NEVER add a British-English spelling - correct to US-English in the source
 # - PROPOSE only genuine technical terms/names as needed
+#
+# Run from the repository root (the pinned tool is restored by 'dotnet tool restore'):
+#   dotnet textlint
+#
+# WHERE AN EXCEPTION BELONGS:
+# - Never ours (vendored, generated, build output): 'ignorePaths'. It always wins and cannot use '!'.
+# - What is permanently in scope: 'files', with '!' excludes. Patterns apply in order and the last match wins.
+# - Ours, but skipped for a stated reason: an override with 'enabled: false' and a comment giving the reason.
+# - Different rules for some files (fixtures, test data, a folder in another dialect): an override with settings.
+#
+# OVERRIDES (the real entries are under 'overrides:' at the end of this file):
+# - List settings ('words', 'ignoreWords', 'flagWords', 'ignoreRegExpList', 'patterns') add to the top-level
+#   values; single values ('language', 'minWordLength', 'ignoreRandomStrings', 'minRandomLength', 'enabled')
+#   replace them. Matching entries apply in the order written, so put general entries first.
+# - An 'enabled: false' entry must not hold other settings.
+# - Use an override instead of an inline 'cspell:' or 'textlint:' directive in the file itself.
+#
+# Examples: the first gives the test fixtures a pattern for ticket numbers, which are not words; the second skips
+# sample transcripts that are captured from a third-party service in another language. Give each real entry a
+# comment with its reason.
+#   - filename: test/**/Fixtures/**
+#     ignoreRegExpList:
+#       - /\bticket-\d+\b/
+#   - filename: docs/samples/transcripts/**
+#     enabled: false
 
 version: "0.2"
 language: en
@@ -1141,8 +1166,10 @@ words:
   - vnode
   # Tool, package, and configuration tokens that cspell's software dictionaries knew and TextLint's do not: the DEMA
   # Consulting package prefix, the SonarScanner and ncipollo release-action names, the .NET runtime configuration file
-  # name, the yamllint/markdownlint path and rule vocabulary, and terms from the shared agent standards
+  # name, the yamllint/markdownlint path and rule vocabulary, the LintMark tool, and terms from the shared agent
+  # standards
   - demaconsulting
+  - lintmark
   - sonarscanner
   - ncipollo
   - runtimeconfig
@@ -1183,10 +1210,6 @@ words:
 # glued to it are not words
 ignoreRegExpList:
   - "/%[0-9A-Fa-f]{2}[A-Za-z]*/g"
-  # The Mermaid math vectors: every value is the 16 hexadecimal digits of a double
-  - "/\"[0-9a-f]{16}\"/g"
-  # Mermaid's entity-encoding markers around encoded text in the upstream test vectors
-  - "/ﬂ°°?|¶ß/g"
   # Escaped line feeds and tabs in JSON and C# texts (the escape letter would be read as part of the word)
   - "/\\\\[nt]/g"
   # Hexadecimal literals in C# code (such as 0xDEADBEEFu)
@@ -1217,3 +1240,47 @@ ignorePaths:
   # made from the test names, and Mermaid's entity-encoding markers. Data, not prose.
   - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/upstream-vectors/gitgraph-parser.json"
   - "**/TestResults/**"
+
+# Per-file exceptions (see WHERE AN EXCEPTION BELONGS above); each entry names exactly the files that need it
+overrides:
+  # The C++ standards shared with the other repositories: the Allman brace style, the GCC/Clang warning flags
+  # (-Wextra, -Werror), and the Google Mock library (also named in this file, which lists them)
+  - filename:
+      - ".github/standards/cpp-*.md"
+      - .textlint.yaml
+    words:
+      - Allman
+      - gmock
+      - Werror
+      - Wextra
+  # The link-check test vectors: string literals that spell unsafe URL schemes in encoded, split or truncated forms
+  # (such as an entity-encoded letter or a tab inside the scheme name), which are deliberately not words
+  - filename:
+      - test/DemaConsulting.CanvasNet.Mermaid.Tests/Class/ClassModelTests.cs
+      - test/DemaConsulting.CanvasNet.Mermaid.Tests/Class/ClassParserTests.cs
+      - test/DemaConsulting.CanvasNet.Mermaid.Tests/MermaidHardeningTests.cs
+      - test/DemaConsulting.CanvasNet.Mermaid.Tests/Sequence/SequenceModelTests.cs
+      - test/DemaConsulting.CanvasNet.Mermaid.Tests/State/StateModelTests.cs
+      - test/DemaConsulting.CanvasNet.Mermaid.Tests/Syntax/SourceScannerTests.cs
+      - test/DemaConsulting.CanvasNet.Mermaid.Tests/Syntax/SyntaxTests.cs
+    ignoreRegExpList:
+      - '/"(?:[^"\\\n]|\\.)*"/g'
+  # The same link-check test vectors quoted as code spans in the StateModel verification design
+  - filename: docs/verification/canvas-net-mermaid/state/state-model.md
+    ignoreRegExpList:
+      - '/`[^`\n]*`/g'
+  # The PngSuite conformance file names (such as "basn0g01.png"): eight letters and digits that encode the test
+  # properties, not words
+  - filename: test/DemaConsulting.CanvasNet.Tests/Codecs/PngSuiteTests.cs
+    ignoreRegExpList:
+      - '/"[a-z0-9]{8}\.png"/g'
+  # The Mermaid math vectors: every value is the 16 hexadecimal digits of a double
+  - filename: test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/upstream-vectors/js-math.json
+    ignoreRegExpList:
+      - '/"[0-9a-f]{16}"/g'
+  # Mermaid's entity-encoding markers around encoded text in the upstream test vectors
+  - filename:
+      - test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/upstream-vectors/gantt-parser.json
+      - test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/upstream-vectors/mindmap-parser.json
+    ignoreRegExpList:
+      - "/ﬂ°°?|¶ß/g"

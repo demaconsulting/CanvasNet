@@ -6,8 +6,8 @@ grammar and the row shaping), `ParseDirectives` (the conversions of `format.pars
 `ParseFailures` (the values that an explicit conversion could not read), and the `DelimitedOptions` and
 `DelimitedResult` records. Since Phase 8 the unit also converts dates in the zone of a `TimeCalendar` with the rules of
 JavaScript's `Date.parse` (the `date` conversion and the inference), applies the custom formats `date:'%fmt'` and
-`utc:'%fmt'`, and applies the implicit date parse of the fields that the encoding uses as temporal (see _Time Calendar
-Verification_ and _Time Format Verification_ for the calendar and the format parser themselves).
+`utc:'%fmt'`, and applies the implicit date parse of the fields that the encoding uses as temporal (see *Time Calendar
+Verification* and *Time Format Verification* for the calendar and the format parser themselves).
 
 #### Verification Approach
 
@@ -66,8 +66,8 @@ text, and that a quote inside an unquoted field is ordinary; that a quote that i
 quote (even a space) are located failures that name the data; that comma, tab, semicolon, and pipe each split only at
 their own delimiter and leave the others as text, and that a quote, a line feed, a carriage return, and half of a
 surrogate pair are refused as delimiters; that a byte-order mark, line feeds, carriage return and line feed pairs, lone
-carriage returns, empty lines, and a missing final line end are all accepted; and that a header name with a dot is stored
-as an escaped canonical field name so that the table finds it under the path that addresses it.
+carriage returns, empty lines, and a missing final line end are all accepted; and that a header name with a dot is
+stored as an escaped canonical field name so that the table finds it under the path that addresses it.
 
 ##### Ragged Rows
 
@@ -135,8 +135,8 @@ hand check being 10:00 minus 5 h 30 min).
 `ParseDirectivesDateTests.ParseDirectives_CustomDate_FailureIsNullWithOneWarningPerField`,
 `ParseDirectivesDateTests.ParseDirectives_CustomDate_NumberIsParsedThroughItsText`
 
-Asserts that the custom directives `date:'%fmt'` and `utc:'%fmt'` are applied by the d3 time format parser (see _Time
-Format Verification_): `05/03/2024` and `31/12/1999` read with `%d/%m/%Y` are dates (kind date, no failure); `date:`
+Asserts that the custom directives `date:'%fmt'` and `utc:'%fmt'` are applied by the d3 time format parser (see *Time
+Format Verification*): `05/03/2024` and `31/12/1999` read with `%d/%m/%Y` are dates (kind date, no failure); `date:`
 reads local time in the zone of the calendar while `utc:` ignores the zone (`05/03/2024 10` at five hours behind UTC is
 `15:00Z` for `date:` and `10:00Z` for `utc:`, and a double-quoted format works like a single-quoted one); a text that
 does not match (`yesterday`, and an ISO text that does not fit the format) and the empty text are null, and the two
@@ -146,8 +146,8 @@ text (`2020` is the year 2020 with `%Y`, `2020.5` does not match), a date passes
 catalog scenario `DelimitedTextParser_Parse_CustomDateFormatIsApplied` shows that `date:'%d/%m/%Y'`, `utc:'%Y%m%d'`
 and the plain `date` give the same UTC date for the same day (`05/03/2024`, `20240305`, `2024-03-05`), with no failure,
 and that the feature catalog has nothing to report for that specification: a custom date format is no longer an
-unsupported feature, so the former identifier `vl-data-parse-date-format` is not reported for it (see _Feature Catalog
-Verification_).
+unsupported feature, so the former identifier `vl-data-parse-date-format` is not reported for it (see *Feature Catalog
+Verification*).
 
 ##### Implicit Date Parse
 

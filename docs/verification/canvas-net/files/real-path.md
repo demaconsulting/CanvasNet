@@ -25,7 +25,7 @@ The named-pipe open runs on the test thread with no time limit and no duration i
 never return, which the time limit of the CI job reports.
 
 Unit tests reside in `RealPathTests.cs` in the `Files` folder of the `DemaConsulting.CanvasNet.Tests` project; the
-seams in `FileOpenHooks` are exercised by the resolver tests (see _FileReferenceResolver Unit Verification Design_).
+seams in `FileOpenHooks` are exercised by the resolver tests (see *FileReferenceResolver Unit Verification Design*).
 
 #### Test Environment
 

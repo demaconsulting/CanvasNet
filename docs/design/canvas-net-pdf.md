@@ -21,7 +21,7 @@ single implemented unit:
   `src/DemaConsulting.CanvasNet.Pdf/`, flat — no further nesting): a hand-rolled PDF document
   parser and page-rendering codec, opening a PDF document once and reporting its page
   count/size/rotation, then rasterizing a requested page into a
-  `DemaConsulting.CanvasNet.Canvas.Surface` pixel buffer. See _PdfDocument Unit Design_
+  `DemaConsulting.CanvasNet.Canvas.Surface` pixel buffer. See *PdfDocument Unit Design*
   (`canvas-net-pdf/pdf-document.md`).
 
 `CanvasNetPdf` is modeled as its own top-level software system (rather than as a further unit of
@@ -32,7 +32,7 @@ must itself be modeled as a distinct system, not folded into the package it depe
 `CanvasNetPdf` contains exactly one unit, so no Subsystem tier is interposed between the system
 and `PdfDocument`: inserting one here would not separate anything (there is nothing else in the
 system to separate it from), mirroring `CanvasNetSvg`'s own single-unit precedent (see
-_CanvasNetSvg System Design_, `docs/design/canvas-net-svg.md`).
+*CanvasNetSvg System Design*, `docs/design/canvas-net-svg.md`).
 
 **Phased delivery.** `PdfDocument` is being delivered incrementally. Phase 1 implemented document
 structure parsing only: cross-reference resolution (in all of PDF's common forms), the
@@ -133,7 +133,7 @@ The system exposes the following public API to external consumers, all on the se
   `ArgumentException` for an empty/whitespace-only `path`, `InvalidDataException` for
   malformed/unresolvable document structure, and `Codecs.UnsupportedImageFeatureException` for an
   encrypted document using an unsupported security handler/crypt-filter method/`/V`/`/R`
-  combination, or whose correct password was not supplied (see _PdfDocument Unit Design_ for the
+  combination, or whose correct password was not supplied (see *PdfDocument Unit Design* for the
   complete, distinguishable `Feature` token set).
 - **PdfDocument.PageCount**: Reports the document's true resolved page count. Throws
   `ObjectDisposedException` once the document has been disposed.
@@ -149,8 +149,8 @@ The system exposes the following public API to external consumers, all on the se
   `DCTDecode`, `CCITTFaxDecode` (Group 4 only), individually or composed — any nested
   `/Subtype /Form` XObject executed as a nested content stream, and any shown text painted with a
   resolved embedded TrueType/Type1/Type1C/Type3/composite font, or an automatically substituted
-  system/bundled fallback font when a simple TrueType font has none embedded — see _PdfDocument
-  Unit Design_ for the full operator set and its documented fail-closed boundaries), or a fully
+  system/bundled fallback font when a simple TrueType font has none embedded — see *PdfDocument
+  Unit Design* for the full operator set and its documented fail-closed boundaries), or a fully
   transparent surface when the page declares no `/Contents`. Validates
   `pageIndex` the same way as `GetPageInfo`, propagates `Surface`'s own `width`/`height`
   validation unwrapped, throws `InvalidDataException` for malformed `/Contents` or a malformed
@@ -167,17 +167,19 @@ The system exposes the following public API to external consumers, all on the se
 - **PdfDocument.Dispose()**: Idempotent; releases the buffered/parsed document state. No other
   public member may be called afterward without throwing `ObjectDisposedException`.
 
-<!-- markdownlint-disable MD013 -->
-| Interface | Direction | Format | Constraints |
-| -------------------------------------- | ---------------- | ------------------------------------ | ------------------------------- |
-| `PdfDocument.Open(...)` | Inbound/Outbound | Method call / `PdfDocument` return | Valid PDF stream or path; optional `password` for an encrypted document |
-| `PdfDocument.PageCount` | Outbound | Property read / `int` return | Not disposed |
-| `PdfDocument.GetPageInfo(...)` | Inbound/Outbound | Method call / `PdfPageInfo` return | `0 <= pageIndex < PageCount`; not disposed |
-| `PdfDocument.Render(...)` | Inbound/Outbound | Method call / `Surface` return | `0 <= pageIndex < PageCount`; `0 < width, height <= 8192`; not disposed |
-| `PdfDocument.Render(int, float)` | Inbound/Outbound | Method call / `Surface` return | `0 <= pageIndex < PageCount`; `dpi` positive and finite; not disposed |
-<!-- markdownlint-enable MD013 -->
+Each interface, with its direction and format, and its constraints:
 
-See _PdfDocument Unit Design_ (`canvas-net-pdf/pdf-document.md`) for the complete parsing
+- **`PdfDocument.Open(...)`** (Inbound/Outbound; Method call / `PdfDocument` return): Valid PDF stream or path; optional
+  `password` for an encrypted document.
+- **`PdfDocument.PageCount`** (Outbound; Property read / `int` return): Not disposed.
+- **`PdfDocument.GetPageInfo(...)`** (Inbound/Outbound; Method call / `PdfPageInfo` return):
+  `0 <= pageIndex < PageCount`; not disposed.
+- **`PdfDocument.Render(...)`** (Inbound/Outbound; Method call / `Surface` return): `0 <= pageIndex < PageCount`;
+  `0 < width, height <= 8192`; not disposed.
+- **`PdfDocument.Render(int, float)`** (Inbound/Outbound; Method call / `Surface` return): `0 <= pageIndex < PageCount`;
+  `dpi` positive and finite; not disposed.
+
+See *PdfDocument Unit Design* (`canvas-net-pdf/pdf-document.md`) for the complete parsing
 internals (tokenizer, object model, all three cross-reference forms, the linear-scan fallback,
 and page-tree traversal/inheritance) and every method's full parameter and exception detail.
 
@@ -235,17 +237,17 @@ introduced no such dependency.
 This is an ordinary, same-repository, system-to-system dependency: both `CanvasNet` and
 `CanvasNetPdf` are produced by this repository, so it is neither an OTS Software Item (not a
 third-party/external-program dependency) nor a Shared Package (that category is scoped to a
-package produced by a _different_ repository within the same program). Beyond `CanvasNet`,
+package produced by a *different* repository within the same program). Beyond `CanvasNet`,
 `PdfDocument` uses only the .NET base class library's `System.IO.Compression.DeflateStream`
 (decompressing `FlateDecode`-filtered object streams), available on every one of CanvasNetPdf's
 target frameworks with no new runtime NuGet dependency. `CanvasNetPdf` introduces no new OTS
 Software Item beyond those already used to build and verify the `CanvasNet` system (BuildMark,
 FileAssert, Pandoc, ReqStream, ReviewMark, SarifMark, SonarMark, VersionMark, WeasyPrint, xUnit)
-— see _OTS Integration Design_ (`docs/design/ots.md`).
+— see *OTS Integration Design* (`docs/design/ots.md`).
 
 **Image sources.** The package also ships `PdfImageSource`, an implementation of the core `ImageSources` subsystem's
 `IImageSource` for `.pdf` files (the first page), so that a document can link to a PDF file through the shared
-`FolderImageResolver` (see _ImageSources Subsystem Design_, `canvas-net/image-sources.md`). It uses only the public
+`FolderImageResolver` (see *ImageSources Subsystem Design*, `canvas-net/image-sources.md`). It uses only the public
 contract types of the core package, so the package still references no other format package; the separate
 `CanvasNetViewer` system references this package one-way, to list the source with the other built-in ones, and nothing
 in this package refers to it.
@@ -384,7 +386,7 @@ Beyond rejecting out-of-scope constructs, several decoders and interpreter loops
 resource (decoded-output size, stack depth, or expansion factor) that an otherwise well-formed
 but adversarially crafted document could otherwise drive unboundedly large, closing a class of
 decompression-bomb/resource-exhaustion risks without rejecting any legitimate document; see
-_Resource and Input Bounds_ in `PdfDocument`'s own unit design for the complete set of caps and
+*Resource and Input Bounds* in `PdfDocument`'s own unit design for the complete set of caps and
 guards.
 
 ## Data Flow
@@ -452,12 +454,12 @@ guards.
 The library targets the following frameworks, identical to the `CanvasNet` system it depends on,
 enabling compatibility across modern .NET runtimes:
 
-| Target Framework | Runtime / Environment                                   |
-| ---------------- | ------------------------------------------------------- |
-| `net8.0`         | .NET 8 LTS (end of support; kept for library consumers) |
-| `net9.0`         | .NET 9 STS (end of support; kept for library consumers) |
-| `net10.0`        | .NET 10 LTS                                             |
-| `net11.0`        | .NET 11                                                 |
+| Target Framework | Runtime / Environment |
+| --- | --- |
+| `net8.0` | .NET 8 LTS (end of support; kept for library consumers) |
+| `net9.0` | .NET 9 STS (end of support; kept for library consumers) |
+| `net10.0` | .NET 10 LTS |
+| `net11.0` | .NET 11 |
 
 The library is supported on the following operating systems:
 

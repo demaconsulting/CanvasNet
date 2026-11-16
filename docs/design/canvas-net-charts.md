@@ -18,18 +18,18 @@ but depending on, the core `CanvasNet` system (its own separate package,
   `ChartLegend`/`ChartTitle`/`ChartType`), the `ChartBuilder` fluent construction API, and a
   pixel-rendering engine (`ChartRenderer`/`ChartRenderOptions`/`ChartColorPalette`) that paints a
   `Chart` onto a core `CanvasNet.Canvas.Surface`, contained in two implemented units,
-  `ChartDocument` and `ChartRenderer`. See _ChartModel Subsystem Design_
+  `ChartDocument` and `ChartRenderer`. See *ChartModel Subsystem Design*
   (`canvas-net-charts/chart-model.md`).
 - **OpenXmlChart** (folder `src/DemaConsulting.CanvasNet.Charts/OpenXml/`): a format-agnostic
   `OpenXmlChartParser` that produces a `Chart` directly from a raw ECMA-376 DrawingML-Charts
   `c:chartSpace`/`c:chart` `System.Xml.Linq` element, reading only cached values, plus the
   `ChartUnsupportedFeatureException` it throws for a recognized-but-unimplemented chart kind or
-  data shape, contained in one unit, `OpenXmlChartParser`. See _OpenXmlChart Subsystem Design_
+  data shape, contained in one unit, `OpenXmlChartParser`. See *OpenXmlChart Subsystem Design*
   (`canvas-net-charts/open-xml-chart.md`).
 
 No Subsystem tier would normally be needed for a system containing only one or two units
-(compare `CanvasNetSvg`'s `SvgCodec`, which has no interposed subsystem — see _CanvasNetSvg
-System Design_, `canvas-net-svg.md`). A `ChartModel` subsystem was nonetheless introduced from
+(compare `CanvasNetSvg`'s `SvgCodec`, which has no interposed subsystem — see *CanvasNetSvg
+System Design*, `canvas-net-svg.md`). A `ChartModel` subsystem was nonetheless introduced from
 Phase 1 onward, ahead of `CanvasNetCharts` containing more than one unit, to avoid a disruptive
 re-model of the system's tier structure partway through its incremental delivery. Phase 2's
 `ChartRenderer` was added as a second unit within the existing `ChartModel` subsystem — rather
@@ -43,7 +43,7 @@ implementation), so it was given its own `OpenXmlChart` subsystem as originally 
 `CanvasNetPptx` integrates both subsystems into its own slide rendering: it locates and opens a
 `chart1.xml` OPC part and hands its content to `OpenXmlChartParser`, then renders the resulting
 `Chart` via `ChartRenderer`, so that a `<p:graphicFrame>` containing a chart reference renders its
-chart content instead of throwing — see _CanvasNetPptx System Design_ (`canvas-net-pptx.md`) for
+chart content instead of throwing — see *CanvasNetPptx System Design* (`canvas-net-pptx.md`) for
 that integration's own detail.
 
 ## External Interfaces
@@ -86,19 +86,21 @@ namespace:
   `IOException`-derived exception, carrying a short, stable `Feature` token, thrown by
   `OpenXmlChartParser` for a recognized-but-unimplemented chart kind or data shape.
 
-<!-- markdownlint-disable MD013 -->
-| Interface | Direction | Format | Constraints |
-| ------------------------ | ---------------- | -------------------------- | --------------------------------------------------------------- |
-| `Chart` constructor | Inbound | Method call / `Chart` instance | At least one non-null series; see _ChartModel Subsystem Design_ |
-| `ChartBuilder.Build()` | Inbound/Outbound | Method call / `Chart` return | A chart type and at least one series must be configured first |
-| `ChartRenderer.Render(...)` | Inbound/Outbound | Method call / `Surface` return | `chart` must not be null; pixel/physical dimensions must be positive and within `Surface`'s supported range |
-| `OpenXmlChartParser.Parse(...)` | Inbound/Outbound | Method call / `Chart` return | `chartDocument`/`chartSpaceOrChartElement` must not be null; must resolve to a `c:chart` with a `c:plotArea` |
-<!-- markdownlint-enable MD013 -->
+Each interface, with its direction and format, and its constraints:
 
-See _ChartModel Subsystem Design_ (`canvas-net-charts/chart-model.md`), _ChartDocument Unit
-Design_ (`canvas-net-charts/chart-model/chart-document.md`), _ChartRenderer Unit Design_
-(`canvas-net-charts/chart-model/chart-renderer.md`), _OpenXmlChart Subsystem Design_
-(`canvas-net-charts/open-xml-chart.md`), and _OpenXmlChartParser Unit Design_
+- **`Chart` constructor** (Inbound; Method call / `Chart` instance): At least one non-null series; see *ChartModel
+  Subsystem Design*.
+- **`ChartBuilder.Build()`** (Inbound/Outbound; Method call / `Chart` return): A chart type and at least one series must
+  be configured first.
+- **`ChartRenderer.Render(...)`** (Inbound/Outbound; Method call / `Surface` return): `chart` must not be null;
+  pixel/physical dimensions must be positive and within `Surface`'s supported range.
+- **`OpenXmlChartParser.Parse(...)`** (Inbound/Outbound; Method call / `Chart` return):
+  `chartDocument`/`chartSpaceOrChartElement` must not be null; must resolve to a `c:chart` with a `c:plotArea`.
+
+See *ChartModel Subsystem Design* (`canvas-net-charts/chart-model.md`), *ChartDocument Unit
+Design* (`canvas-net-charts/chart-model/chart-document.md`), *ChartRenderer Unit Design*
+(`canvas-net-charts/chart-model/chart-renderer.md`), *OpenXmlChart Subsystem Design*
+(`canvas-net-charts/open-xml-chart.md`), and *OpenXmlChartParser Unit Design*
 (`canvas-net-charts/open-xml-chart/open-xml-chart-parser.md`) for every type's complete
 constructor parameter and exception detail.
 
@@ -129,17 +131,17 @@ already depends on the core `CanvasNet` system — never the other way around; s
 This is an ordinary, same-repository, system-to-system dependency: both `CanvasNet` and
 `CanvasNetCharts` are produced by this repository, so it is neither an OTS Software Item (not a
 third-party/external-program dependency) nor a Shared Package (that category is scoped to a
-package produced by a _different_ repository within the same program). `CanvasNetCharts`
+package produced by a *different* repository within the same program). `CanvasNetCharts`
 introduces no new OTS Software Item beyond those already used to build and verify the `CanvasNet`
 system (BuildMark, FileAssert, Pandoc, ReqStream, ReviewMark, SarifMark, SonarMark, VersionMark,
-WeasyPrint, xUnit) — see _OTS Integration Design_ (`docs/design/ots.md`).
+WeasyPrint, xUnit) — see *OTS Integration Design* (`docs/design/ots.md`).
 
 ## Risk Control Measures
 
 Construction-time validation remains the primary risk control measure: every `ChartModel`
 subsystem type validates its complete set of constructor arguments eagerly and fails closed (via
 `ArgumentException`/`ArgumentNullException`/`ArgumentOutOfRangeException`) rather than silently
-coercing, clamping, or accepting invalid data — see _ChartModel Subsystem Design_
+coercing, clamping, or accepting invalid data — see *ChartModel Subsystem Design*
 (`canvas-net-charts/chart-model.md`) for the complete set of validation rules; `OpenXmlChartParser`
 ultimately calls these same constructors, so it inherits this same risk control rather than
 duplicating it.
@@ -158,7 +160,7 @@ constructed `Chart` would throw, rather than a second, parser-specific validatio
 drift out of sync. `OpenXmlChartParser` performs no XML entity expansion of its own (no `DTD`
 processing is attempted; `System.Xml.Linq`'s own default `XDocument.Load`/`Parse` behavior does
 not resolve external entities), so it carries no XXE risk either, consistent with
-`CanvasNetSvg`'s own precedent for untrusted-XML parsing — see _CanvasNetSvg System Design_,
+`CanvasNetSvg`'s own precedent for untrusted-XML parsing — see *CanvasNetSvg System Design*,
 `canvas-net-svg.md`, Risk Control Measures.
 
 ## Data Flow
@@ -231,12 +233,12 @@ themselves.
 The library targets the following frameworks, identical to the `CanvasNet` system it depends on,
 enabling compatibility across modern .NET runtimes:
 
-| Target Framework | Runtime / Environment                                   |
-| ---------------- | ------------------------------------------------------- |
-| `net8.0`         | .NET 8 LTS (end of support; kept for library consumers) |
-| `net9.0`         | .NET 9 STS (end of support; kept for library consumers) |
-| `net10.0`        | .NET 10 LTS                                             |
-| `net11.0`        | .NET 11                                                 |
+| Target Framework | Runtime / Environment |
+| --- | --- |
+| `net8.0` | .NET 8 LTS (end of support; kept for library consumers) |
+| `net9.0` | .NET 9 STS (end of support; kept for library consumers) |
+| `net10.0` | .NET 10 LTS |
+| `net11.0` | .NET 11 |
 
 The library is supported on the following operating systems:
 

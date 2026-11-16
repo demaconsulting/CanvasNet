@@ -44,16 +44,16 @@ font-specific logic.
   set of internal clip-aware `Fill` overloads consumed solely by
   `DemaConsulting.CanvasNet.Pdf` to enforce a PDF content stream's active clipping path
   (PDF 32000-1 §8.5.4) without widening `PathFiller`'s own public contract - see
-  _PathFiller Unit Design_ (`drawing/path-filler.md`)
+  *PathFiller Unit Design* (`drawing/path-filler.md`)
 - **PathStroker** — a public static `Stroke` entry point that converts a `Path` centerline plus a
   `StrokeStyle` into one or more closed outline polygons expressed as a new `Path`, together with
   the supporting public `LineCap`, `LineJoin`, and `StrokeStyle` types and the internal
   `StrokePathFlattener`/`DashSplitter`/`StrokeOutliner` helpers, all documented inline within the
-  `PathStroker` unit design; see _PathStroker Unit Design_ (`drawing/path-stroker.md`)
+  `PathStroker` unit design; see *PathStroker Unit Design* (`drawing/path-stroker.md`)
 - **GradientPaint** — the public `Gradient` abstract base type and its `LinearGradient`/
   `RadialGradient` subtypes, the supporting `GradientStop`/`GradientSpread` types, and the
   internal `GradientEvaluator` helper that resolves a gradient's color at a point or across a
-  pixel row, consumed by `PathFiller`'s gradient overload; see _GradientPaint Unit Design_
+  pixel row, consumed by `PathFiller`'s gradient overload; see *GradientPaint Unit Design*
   (`drawing/gradient-paint.md`)
 - **TilePaint** — a public sealed type pairing a pre-rendered one-cell tile `Surface`, a
   `Transform` mapping the tile's own pattern-space coordinates into the caller's path coordinate
@@ -62,7 +62,7 @@ font-specific logic.
   `TilePaintEvaluator` helper that resolves a wrapped-around tile sample at a point or across a
   pixel row, consumed by `PathFiller`'s tile overload; `TilePaint` does not own the tile
   `Surface`'s lifetime - the caller that constructed it remains responsible for disposal; see
-  _TilePaint Unit Design_ (`drawing/tile-paint.md`)
+  *TilePaint Unit Design* (`drawing/tile-paint.md`)
 
 ### Dependencies
 

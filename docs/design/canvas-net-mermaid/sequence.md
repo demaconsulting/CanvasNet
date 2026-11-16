@@ -16,24 +16,24 @@ system and, through `InternalsVisibleTo`, to the test assembly. It contains four
   `SequenceParser.Lexer.cs`, and `SequenceParser.Statements.cs`) and the token names of `SequenceTokens` (in
   `SequenceParser.Lexer.cs`): the lexer and the grammar of Mermaid's sequence language, the statements it collects
   for the database, the located errors with Mermaid's expected tokens, and the nesting and label limits; see
-  _SequenceParser Unit Design_ (`sequence/sequence-parser.md`)
+  *SequenceParser Unit Design* (`sequence/sequence-parser.md`)
 - **SequenceModel** - the internal sealed `SequenceModel` (a partial class in `SequenceModel.cs` and
   `SequenceModel.Render.cs`), its elements and constants in `SequenceModel.Elements.cs`, and the statement records in
   `SequenceModel.Statements.cs`: Mermaid's sequence database, the diagram metadata, and the reports of what is not
-  drawn; see _SequenceModel Unit Design_ (`sequence/sequence-model.md`)
+  drawn; see *SequenceModel Unit Design* (`sequence/sequence-model.md`)
 - **SequenceLayout** - the internal sealed `SequenceLayout` (a partial class in `SequenceLayout.cs`,
   `SequenceLayout.Bounds.cs`, `SequenceLayout.Messages.cs`, and `SequenceLayout.Blocks.cs`) and its layout state types
   in `SequenceLayout.Bounds.cs`: Mermaid's sequence renderer for one render, from the sizes of the participants to the
-  view box; see _SequenceLayout Unit Design_ (`sequence/sequence-layout.md`)
+  view box; see *SequenceLayout Unit Design* (`sequence/sequence-layout.md`)
 - **SequenceRenderer** - the internal sealed `SequenceRenderer` (a partial class in `SequenceRenderer.cs`,
   `SequenceRenderer.Actors.cs`, `SequenceRenderer.Messages.cs`, `SequenceRenderer.Blocks.cs`, and
   `SequenceRenderer.Text.cs`) with `SceneSlot` and `SequenceTextData`: Mermaid's sequence drawing functions, which
-  turn what the layout places into scene items in Mermaid's paint order; see _SequenceRenderer Unit Design_
+  turn what the layout places into scene items in Mermaid's paint order; see *SequenceRenderer Unit Design*
   (`sequence/sequence-renderer.md`)
 
 The subsystem's namespace documentation is in `Sequence/NamespaceDoc.cs`. Its behavior is specified by the
 `CanvasNetMermaid-Sequence-*` requirements in `docs/reqstream/canvas-net-mermaid/sequence.yaml`. The SysML2 model
-names the subsystem `MermaidSequence` (see _CanvasNetMermaid System Design_).
+names the subsystem `MermaidSequence` (see *CanvasNetMermaid System Design*).
 
 **Attribution.** The subsystem is a port of the sequence diagram of the pinned Mermaid release (MIT; see
 `third-party/README.md`): the parser ports the generated lexer and the grammar of
@@ -107,7 +107,7 @@ The lexer replaces every regular expression of Mermaid with matchers that cannot
 time linear in its length; the model is bounded by the limits above, and the layout charges its measuring, wrapping,
 and placing to the layout work meter of the render, which also observes cancellation.
 
-**Known differences from Mermaid** are listed in each unit design and in _CanvasNetMermaid System Design_: errors and
+**Known differences from Mermaid** are listed in each unit design and in *CanvasNetMermaid System Design*: errors and
 limits are located CanvasNet exceptions; links, menus, and the accessibility texts are kept as data and menus are not
 interactive; other looks, participant image icons, and math are reported and drawn without them; the `fo` text
 placement is reported and drawn as the default placement; and the text boxes of the browser are emulated with the

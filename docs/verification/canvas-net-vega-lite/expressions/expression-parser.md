@@ -18,8 +18,8 @@ values the program produces, and on the exact message and location of every fail
 `ExpressionTestSupport` helpers compile a text for a fixed location (file `spec.vl.json`, pointer
 `/transform/0/calculate`, line 12, column 17) and evaluate it with the real evaluator where the observable result of a
 parse is a value; the internal types are reached through the test assembly's `InternalsVisibleTo` access. The evaluator
-itself is verified under its own design (see _ExpressionEvaluator Unit Verification Design_) and the interaction of the
-units is verified at the subsystem tier (see _Expressions Subsystem Verification Design_).
+itself is verified under its own design (see *ExpressionEvaluator Unit Verification Design*) and the interaction of the
+units is verified at the subsystem tier (see *Expressions Subsystem Verification Design*).
 
 The expected values are written out by hand from the JavaScript grammar and the public Vega expression documentation,
 never produced by running a JavaScript engine: `1 + 2 * 3` is `7`, `2 - 3 - 4` is `-5` (left associative),
@@ -66,10 +66,10 @@ difference between repeated or concurrent parses constitutes a failure.
 Asserts that number literals of every supported syntax have their exact values (`0`, `42`, `1.5`, `.5`, `5.`, `1e3`,
 `1E3`, `1.5e-2`, `2e+2`, `0x1F`, `0Xff`, and `007` as `7`); that string literals in single or double quotes decode the
 escapes `\n`, `\t`, `\\`, `\'`, `\x41`, `\u0042`, `\u{43}`, `\u{1F600}`, `\0`, an unknown escape such as `\q` (the
-letter itself), and a backslash before a line break (the line break is dropped); that `null`, `true`, `false`, `PI`, `E`,
-`NaN`, `Infinity`, and `-Infinity` have their values; and that an array literal with a trailing comma keeps its four
-elements in order (the last one an object) and an object literal keeps the insertion order of its keys, converts the
-number key `3` to the text `3`, and has a missing member that reads as null.
+letter itself), and a backslash before a line break (the line break is dropped); that `null`, `true`, `false`, `PI`,
+`E`, `NaN`, `Infinity`, and `-Infinity` have their values; and that an array literal with a trailing comma keeps its
+four elements in order (the last one an object) and an object literal keeps the insertion order of its keys, converts
+the number key `3` to the text `3`, and has a missing member that reads as null.
 
 ##### Precedence And Associativity Match JavaScript
 
@@ -104,12 +104,12 @@ call name, the constants, and `datum` are not parameter references.
 
 Asserts that an unknown function (`foo`, `geoArea`), the view state names `signal`, `event`, and `item`, and the
 operators of a later phase (`&`, `|`, `^`, `<<`, `>>`, `>>>`, and `in`) parse and are collected in order of appearance
-with their kind, name, and offset, and with the stable identifiers `vl-expr-function-<name>` (the name lower-cased, while
-the construct keeps the name as written: `geoArea` and `GEOAREA` both give `vl-expr-function-geoarea`),
-`vl-expr-view-state`, and `vl-expr-construct-<name>` (`bitwise-and`, `bitwise-or`, `bitwise-xor`, `bitwise-not`, `shift-left`,
-`shift-right`, `shift-right-unsigned`, and `in`); that the parameter names of the operands are still collected; and that
-each deferred operator evaluates to null, so the feature catalog and strict mode, not the parser, decide what happens to
-them.
+with their kind, name, and offset, and with the stable identifiers `vl-expr-function-<name>` (the name lower-cased,
+while the construct keeps the name as written: `geoArea` and `GEOAREA` both give `vl-expr-function-geoarea`),
+`vl-expr-view-state`, and `vl-expr-construct-<name>` (`bitwise-and`, `bitwise-or`, `bitwise-xor`, `bitwise-not`,
+`shift-left`, `shift-right`, `shift-right-unsigned`, and `in`); that the parameter names of the operands are still
+collected; and that each deferred operator evaluates to null, so the feature catalog and strict mode, not the parser,
+decide what happens to them.
 
 ##### Regular Expression Literals And Division
 

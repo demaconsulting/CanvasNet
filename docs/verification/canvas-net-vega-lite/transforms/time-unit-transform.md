@@ -7,7 +7,7 @@ contains a date (the `timeUnit` transform with `as` naming the two fields, and t
 resolving the `maxbins` form against the data; and the internal static `TemporalFields` class (`Collect`), which finds
 the fields of a view that are read as dates (the implicit date parse of the data loader). The calendar arithmetic that
 both rely on (the unit floors and ends, the time zone, and the end-of-range rules) belongs to `TimeCalendar` and is
-verified there (see the _TimeCalendar Unit Verification Design_); this document verifies that the transform applies it
+verified there (see the *TimeCalendar Unit Verification Design*); this document verifies that the transform applies it
 to the rows correctly, charges and bounds its work, and fails closed.
 
 #### Verification Approach
@@ -18,8 +18,8 @@ and applying the transform the way a render does (the `Run`, `Prepare`, and `Enc
 or by calling `TimeUnitTransform.Apply` directly with a hand-built request. The collaborators (`SpecParser`,
 `DataLoader`, `DataTable`, `ExpressionEvaluator`, `RowTransforms` as the dispatcher, `TimeCalendar`, `TimeUnitSpec`, and
 `VegaLiteLimits`) are real and no mocking or stubbing is used; the internal types are reached through the test
-assembly's `InternalsVisibleTo` access. Every zone is built in the test (`TimeTestSupport.UsLike` and `Fixed`) and no test
-reads the host's zone, clock, or culture. The expected values are derived by hand, with the derivation in the test
+assembly's `InternalsVisibleTo` access. Every zone is built in the test (`TimeTestSupport.UsLike` and `Fixed`) and no
+test reads the host's zone, clock, or culture. The expected values are derived by hand, with the derivation in the test
 comments and repeated here (the day numbers and the anchors are those of the calendar verification: the epoch is day 0
 and 2024-01-01 is day 19,723 = 54 x 365 + 13 leap days; a day is 86,400,000 ms):
 
@@ -41,9 +41,9 @@ and 2024-01-01 is day 19,723 = 54 x 365 + 13 leap days; a day is 86,400,000 ms):
 - **Quarters.** `yearquarter` of 2024-05-17 starts on 2024-04-01 (1,711,929,600,000) and ends on 2024-07-01, which is
   30 + 31 + 30 = 91 days later; `quarter` alone starts on 2012-04-01 (1,333,238,400,000) and ends on 2012-07-01, 91
   days later.
-- **Step 3.** `{unit: month, step: 3}` floors March (month index 2) to the multiple of 3, January 2012 (1,325,376,000,000)
-  and keeps April (index 3) as April 2012, which is 31 + 29 + 31 = 91 days after January 1; the ends are three months
-  after the starts: April 2012 (the start plus 91 days) and July 2012.
+- **Step 3.** `{unit: month, step: 3}` floors March (month index 2) to the multiple of 3, January 2012
+  (1,325,376,000,000) and keeps April (index 3) as April 2012, which is 31 + 29 + 31 = 91 days after January 1; the ends
+  are three months after the starts: April 2012 (the start plus 91 days) and July 2012.
 - **`maxbins` over five days.** The rows 2024-03-01, 2024-03-03T12:00, and 2024-03-06 have an extent of 5 days; with 5
   bins the target is 1 day, which is the day step of Vega's table, so the unit is year, month, date with step 1: the
   starts are 1,709,251,200,000 and that plus 2 and 5 days, and the ends are the starts plus one day (86,400,000 ms).
@@ -60,14 +60,14 @@ and 2024-01-01 is day 19,723 = 54 x 365 + 13 leap days; a day is 86,400,000 ms):
   warning).
 - **Binned unit.** `binnedyearmonth` does not floor: the value 2024-03-01T00:00Z is the start, 1,709,251,200,000, and
   the end follows one month later, 1,711,929,600,000.
-- **Zones.** At +05:30 the instant 2024-03-05T20:00Z is 2024-03-06 01:30 local, so `date` starts at the local midnight of
-  January 6 of the reference year, which is 2012-01-05T18:30Z, and ends 24 hours later at 2012-01-06T18:30Z, while
+- **Zones.** At +05:30 the instant 2024-03-05T20:00Z is 2024-03-06 01:30 local, so `date` starts at the local midnight
+  of January 6 of the reference year, which is 2012-01-05T18:30Z, and ends 24 hours later at 2012-01-06T18:30Z, while
   `utcdate` (or `{unit: date, utc: true}`) ignores the zone: the UTC date is the 5th, so it starts at 2012-01-05T00:00Z
   and ends at 2012-01-06T00:00Z. In the United States like zone (standard time -5 h, daylight time -4 h from
-  2024-03-10T07:00Z) the instant 2024-03-10T12:00Z is 08:00 local, so `yearmonthdate` starts at local midnight,
-  00:00 at -5 h = 05:00Z, and ends at the next local midnight, 00:00 at -4 h = 2024-03-11T04:00Z, which is 23 hours
-  (82,800,000 ms) later. The instant 2024-12-31T23:59:59.999Z is 18:59:59.999 on December 31 at -5 h, so `yearmonth`
-  starts at local midnight of December 1, 05:00Z.
+  2024-03-10T07:00Z) the instant 2024-03-10T12:00Z is 08:00 local, so `yearmonthdate` starts at local midnight, 00:00 at
+  -5 h = 05:00Z, and ends at the next local midnight, 00:00 at -4 h = 2024-03-11T04:00Z, which is 23 hours (82,800,000
+  ms) later. The instant 2024-12-31T23:59:59.999Z is 18:59:59.999 on December 31 at -5 h, so `yearmonth` starts at local
+  midnight of December 1, 05:00Z.
 - **Charging.** A row costs 2 elements per request in UTC (or for a `utc` unit) and 8 in a zone, and the work meter pays
   one step for each complete block of 64 elements. Ten thousand rows of one request cost 20,000 elements = 312 steps
   (312.5, whole blocks only) in UTC, so a budget of 100 steps fails and the default budget does not; in a zone the same
@@ -84,8 +84,8 @@ Unit tests reside in `TimeUnitTransformTests.cs` and `TemporalFieldsTests.cs`, w
 `TimeTestPipeline.cs` (and `TimeTestSupport.cs` of the `Data` folder for the zones), all within the
 `DemaConsulting.CanvasNet.VegaLite.Tests` project, in the `Transforms` folder. The time units in the explicit transform
 dispatch and in the encoding are verified in `RowTransformsTimeTests.cs`, `EncodingPlanTimeTests.cs`, and
-`EncodingTransformsTimeTests.cs` of the same folder, which are referenced below (see also the _RowTransforms_ and
-_EncodingPlan Unit Verification Designs_).
+`EncodingTransformsTimeTests.cs` of the same folder, which are referenced below (see also the *RowTransforms* and
+*EncodingPlan Unit Verification Designs*).
 
 #### Test Environment
 
@@ -136,7 +136,8 @@ April 2012 and July 2012 for March 17 and April 2.
 
 ##### Max-Bins Resolves Against The Data
 
-**Tests**: `TimeUnitTransformTests.TimeUnitTransform_MaxBins_Day`, `TimeUnitTransformTests.TimeUnitTransform_MaxBins_Month`,
+**Tests**: `TimeUnitTransformTests.TimeUnitTransform_MaxBins_Day`,
+`TimeUnitTransformTests.TimeUnitTransform_MaxBins_Month`,
 `TimeUnitTransformTests.TimeUnitTransform_MaxBins_ResolvedUnitsAndEmptyTables`
 
 Asserts the day bins of the five-day extent and the month bins of the 366-day extent derived above; that the unit chosen
@@ -242,10 +243,10 @@ every date field parsed that any of them needs.
 `TemporalFieldsTests.TemporalFields_CollectAll_UnitesTheViewsAndTheFacets`
 
 Asserts that the `row`, `column`, and wrapped field definitions of a facet are judged like an encoding definition: a
-`temporal` row field `r` and an ordinal column field `c` with a `timeUnit` are date fields, a wrapped field with the format
-type `time` (`w`) is, a nominal field (`n`) and a field that is a repeat reference rather than a name are not; that a null
-facet is refused; and that `CollectAll(views, facets)` is the union of the fields of the views (`t`) and of the facets
-(`d`), each once, with a null list of facets refused.
+`temporal` row field `r` and an ordinal column field `c` with a `timeUnit` are date fields, a wrapped field with the
+format type `time` (`w`) is, a nominal field (`n`) and a field that is a repeat reference rather than a name are not;
+that a null facet is refused; and that `CollectAll(views, facets)` is the union of the fields of the views (`t`) and of
+the facets (`d`), each once, with a null list of facets refused.
 
 ##### Time Units In The Encoding Are Named, Titled, And Planned
 
@@ -288,10 +289,11 @@ Cross-reference to the encoding and the explicit transform (the unit verificatio
 `RowTransforms` own the scenarios): the six dates of January (two), February (three, the 29th being a leap day), and
 March (one) are counted per month in first-seen order, 2, 3, 1, with the starts 2024-01-01, 2024-02-01, 2024-03-01 and
 the ends one month later and no end field for a point; the values 5, 15, 15 in the bins [0, 10) and [10, 20) with the
-months January, January, and February of 2012 stack descending on y (February (0, 1) at the bottom and January (1, 2)
-on top in the second bin); the Raw table keeps the unit fields of the six rows while the Main table has three groups;
-the five-day `maxbins` unit is handed on with the day parts and the starts March 1, 3, and 6; the local day of
+months January, January, and February of 2012 stack descending on y (February (0, 1) at the bottom and January (1, 2) on
+top in the second bin); the Raw table keeps the unit fields of the six rows while the Main table has three groups; the
+five-day `maxbins` unit is handed on with the day parts and the starts March 1, 3, and 6; the local day of
 2024-03-10T12:00Z starts at 2024-03-10T05:00Z and ends 23 hours later in the United States like zone and at the UTC
 midnight in UTC; the step budget of 100 fails at `/encoding/x/timeUnit` naming `MaxEvaluationSteps`; and the explicit
-`timeUnit` transform dispatched by `RowTransforms` feeds an aggregate and follows the zone of the chart (2024-03-01T02:00Z
-is February 29 at 21:00 at -5 h, so its month starts at 2024-02-01T05:00Z and ends at 2024-03-01T05:00Z).
+`timeUnit` transform dispatched by `RowTransforms` feeds an aggregate and follows the zone of the chart
+(2024-03-01T02:00Z is February 29 at 21:00 at -5 h, so its month starts at 2024-02-01T05:00Z and ends at
+2024-03-01T05:00Z).

@@ -57,35 +57,35 @@ pixel rendering remain outside this subsystem's boundary.
   outlines, advance widths, and kerning, `GetNameInfo()` for the font's name-table strings, and
   `IsBold`/`IsItalic`/`IsFixedPitch` for its derived style classification. Its unit design
   documents the internal helpers inline because none has an independent public contract beyond
-  supporting `TrueTypeFont`; see _TrueTypeFont Unit Design_ (`fonts/true-type-font.md`)
+  supporting `TrueTypeFont`; see *TrueTypeFont Unit Design* (`fonts/true-type-font.md`)
 - **SystemFontCatalog** — the second public unit of the subsystem, added this phase. It exposes
   `Fonts` (the lazily-built, process-lifetime-cached OS font catalog), `FindBestMatch` (best-effort
   family-name/style matching against that catalog), `FindInFamily` (exact-family, closest-style
   matching over any list of faces), `Load` (a process-wide cached, failure-tolerant font load for a
   catalog entry), and `LoadBundledFallback` (the bundled Liberation Sans/Serif/Mono last resort);
-  see _SystemFontCatalog Unit Design_ (`fonts/system-font-catalog.md`)
+  see *SystemFontCatalog Unit Design* (`fonts/system-font-catalog.md`)
 - **FontDirectoryScanner** — the third public unit of the subsystem. It exposes `Scan`, a
   deterministic, bounded (`FontScanLimits`), link-safe, header-only scan of directory trees that
   returns a `SystemFontInfo` per well-formed face; `SystemFontCatalog.Fonts` is built with it and a
-  caller may use it directly for its own font directories; see _FontDirectoryScanner Unit Design_
+  caller may use it directly for its own font directories; see *FontDirectoryScanner Unit Design*
   (`fonts/font-directory-scanner.md`)
 - **GenericFontFamilies** — the fourth public unit. It holds the one table of CSS generic font
   families and well-known aliases that classify a family name as sans-serif, serif or monospace
   (`TryClassify`), and the one quote-aware CSS `font-family` list splitter (`SplitFamilyList`); see
-  _GenericFontFamilies Unit Design_ (`fonts/generic-font-families.md`)
+  *GenericFontFamilies Unit Design* (`fonts/generic-font-families.md`)
 - **FontResolver** — the fifth public unit. `FontResolver.Resolve` resolves a CSS family list, a
   bold flag and an italic flag to a loaded `ResolvedFont` without ever failing: a generic keyword
   (optionally a well-known alias) maps to the bundled Liberation fonts, any other family is looked
   up by exact name in additional directories (scanned with `FontDirectoryScanner`), then optionally
   in the installed fonts (`SystemFontCatalog`), then among the bundled family names, and the
   reason for a fallback is reported. It is configured by `FontResolverOptions`; see
-  _FontResolver Unit Design_ (`fonts/font-resolver.md`)
+  *FontResolver Unit Design* (`fonts/font-resolver.md`)
 - **GlyphFallback** — the sixth public unit, a static class. `GlyphFallback.Resolve` gives a
   character that a chosen font has no glyph for the glyph of the first bundled font that has one
   (Noto Sans, Noto Sans Math, Noto Sans Symbols 2 - the three Noto fonts already embedded for the PDF
   `Symbol` substitute - never an installed font, so the result is the same on every machine), and
   `FindMissing` lists the characters that even that chain does not cover so a caller can report
-  them; see _GlyphFallback Unit Design_ (`fonts/glyph-fallback.md`)
+  them; see *GlyphFallback Unit Design* (`fonts/glyph-fallback.md`)
 
 ### Dependencies
 

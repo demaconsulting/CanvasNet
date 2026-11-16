@@ -53,9 +53,10 @@ Mermaid's comparison).
   state of Mermaid's database while it applies statements (the previous participant, the current box, and the last
   created and destroyed participants that still need their message).
 
-**`SequenceText`** is a text with its explicit wrap setting, as Mermaid's `parseMessage` reads it. **`SequencePropertyMap`**
-keeps the properties of a JavaScript object with JSON values, enumerated in JavaScript's order (keys that are array
-indexes first, in numeric order, then the other keys in insertion order; a key set again keeps its place).
+**`SequenceText`** is a text with its explicit wrap setting, as Mermaid's `parseMessage` reads it.
+**`SequencePropertyMap`** keeps the properties of a JavaScript object with JSON values, enumerated in JavaScript's order
+(keys that are array indexes first, in numeric order, then the other keys in insertion order; a key set again keeps its
+place).
 
 #### Key Methods
 
@@ -174,5 +175,5 @@ indexes first, in numeric order, then the other keys in insertion order; a key s
   because `sanitizeUrl` calls `trim` on it; the model keeps such a value and the menu is drawn.
 - **Accessibility.** `accTitle` and `accDescr` are metadata only; a rendered picture has no SVG title or description.
 - **Reports.** A look other than `classic`, a `properties` icon that names an image, and `$$` math are reported as
-  unsupported, and a participant of an unknown type and the `fo` text placement as warnings (see _CanvasNetMermaid
-  System Design_, Fidelity and Known Differences).
+  unsupported, and a participant of an unknown type and the `fo` text placement as warnings (see *CanvasNetMermaid
+  System Design*, Fidelity and Known Differences).

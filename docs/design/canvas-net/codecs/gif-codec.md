@@ -45,34 +45,34 @@ is rejected.
 
 ##### Logical Screen Descriptor (7 bytes, little-endian, immediately following the signature)
 
-| Offset | Size | Field                  | Notes                    |
-| ------ | ---- | ---------------------- | ------------------------ |
-| 0      | 2    | Logical Screen Width   | Canvas width, in pixels  |
-| 2      | 2    | Logical Screen Height  | Canvas height, in pixels |
-| 4      | 1    | Packed Fields          | See below                |
-| 5      | 1    | Background Color Index | Ignored                  |
-| 6      | 1    | Pixel Aspect Ratio     | Ignored                  |
+| Offset | Size | Field | Notes |
+| --- | --- | --- | --- |
+| 0 | 2 | Logical Screen Width | Canvas width, in pixels |
+| 2 | 2 | Logical Screen Height | Canvas height, in pixels |
+| 4 | 1 | Packed Fields | See below |
+| 5 | 1 | Background Color Index | Ignored |
+| 6 | 1 | Pixel Aspect Ratio | Ignored |
 
 The Packed Fields byte's bit 7 is the global color table flag; bits 4-6 are the color resolution
 (ignored); bit 3 is the sort flag (ignored); bits 0-2 are the global color table size exponent.
 
 ##### Color Table entry (3 bytes per entry — used for both the Global and any Local Color Table)
 
-| Offset | Size | Field | Notes                          |
-| ------ | ---- | ----- | ------------------------------ |
-| 0      | 1    | Red   | Promoted to an opaque `Rgba32` |
-| 1      | 1    | Green |                                |
-| 2      | 1    | Blue  |                                |
+| Offset | Size | Field | Notes |
+| --- | --- | --- | --- |
+| 0 | 1 | Red | Promoted to an opaque `Rgba32` |
+| 1 | 1 | Green | |
+| 2 | 1 | Blue | |
 
 A color table's entry count is `2 << (packed & 0x07)` (2 to 256 entries).
 
 ##### Graphic Control Extension data (4 bytes, following the `0x21 0xF9` introducer/label and a size byte)
 
-| Offset | Size | Field                   | Notes                                 |
-| ------ | ---- | ----------------------- | ------------------------------------- |
-| 0      | 1    | Packed Fields           | See below                             |
-| 1-2    | 2    | Delay Time              | Little-endian; ignored                |
-| 3      | 1    | Transparent Color Index | Used only when bit 0 of byte 0 is set |
+| Offset | Size | Field | Notes |
+| --- | --- | --- | --- |
+| 0 | 1 | Packed Fields | See below |
+| 1-2 | 2 | Delay Time | Little-endian; ignored |
+| 3 | 1 | Transparent Color Index | Used only when bit 0 of byte 0 is set |
 
 The Packed Fields byte's bit 0 is the transparency flag; bits 1-3 are the disposal method
 (ignored); bit 4 is the user input flag (ignored).
@@ -83,13 +83,13 @@ Time field). `GifCodec` reads it from `data[3]`.
 
 ##### Image Descriptor (9 bytes, little-endian, following the `0x2C` Image Separator)
 
-| Offset | Size | Field         | Notes                                                  |
-| ------ | ---- | ------------- | ------------------------------------------------------ |
-| 0      | 2    | Left Position | Offset, in pixels, from the left of the logical screen |
-| 2      | 2    | Top Position  | Offset, in pixels, from the top of the logical screen  |
-| 4      | 2    | Width         | Frame width, in pixels                                 |
-| 6      | 2    | Height        | Frame height, in pixels                                |
-| 8      | 1    | Packed Fields | See below                                              |
+| Offset | Size | Field | Notes |
+| --- | --- | --- | --- |
+| 0 | 2 | Left Position | Offset, in pixels, from the left of the logical screen |
+| 2 | 2 | Top Position | Offset, in pixels, from the top of the logical screen |
+| 4 | 2 | Width | Frame width, in pixels |
+| 6 | 2 | Height | Frame height, in pixels |
+| 8 | 1 | Packed Fields | See below |
 
 The Packed Fields byte's bit 7 is the local color table flag; bit 6 is the interlace flag; bits
 0-2 are the local color table size exponent.

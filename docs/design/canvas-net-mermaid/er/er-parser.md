@@ -169,7 +169,7 @@ value; at the top level it sets the diagram's direction.
   `style` statement, an attribute type, name, backticked word, key, and comment, a style component, a subgraph id and
   the words of its title, and the accessibility texts) and every text it joins from tokens (a style, counted while it
   grows, a bracketed subgraph title, and an attribute type with its `?`). The texts that the model joins or derives
-  from these are checked by the model (see _ErModel Unit Design_).
+  from these are checked by the model (see *ErModel Unit Design*).
 - The errors of the model while a statement is applied (the `MaxNodes` and `MaxEdges` limits and the `MaxLabelLength`
   checks of the texts it joins) propagate unchanged. Because each operation runs after the lookahead that decides its
   reduction has been checked, grammar and limit errors come in Mermaid's order.

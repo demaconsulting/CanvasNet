@@ -46,7 +46,8 @@ length.
 
 **Tests**: `DagreRankerTests.DagreRanker_InitLowLimValues_Tree_NumbersInPostorder`,
 `DagreRankerTests.DagreRanker_CalcCutValue_GansnerTree_MatchesPaper`,
-`DagreRankerTests.DagreRanker_LeaveEdge_NegativeCutValue_Found`, `DagreRankerTests.DagreRanker_EnterEdge_HeadToTail_Found`
+`DagreRankerTests.DagreRanker_LeaveEdge_NegativeCutValue_Found`,
+`DagreRankerTests.DagreRanker_EnterEdge_HeadToTail_Found`
 
 Asserts the postorder low, lim, and parent of every node of a five-node tree; the cut values of the paper's tree; that
 no edge leaves when every cut value is non-negative and that the first negative one leaves; and that the entering edge

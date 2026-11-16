@@ -10,15 +10,15 @@ canvas that holds everything, the place of the title, and the background and bor
 types are visible only to the other subsystems of the system and, through `InternalsVisibleTo`, to the test assembly. It
 contains three units:
 
-- **ViewLayout** - the internal static `ViewLayout` with its request, measure, and result records; see _ViewLayout Unit
-  Design_ (`layout/view-layout.md`)
-- **LegendLayout** - the internal static `LegendLayout` with the `LegendPlacement` record, which places the built legends
-  around the data rectangle and the axes and joins their reach with that of the axes; see _LegendLayout Unit Design_
-  (`layout/legend-layout.md`)
+- **ViewLayout** - the internal static `ViewLayout` with its request, measure, and result records; see *ViewLayout Unit
+  Design* (`layout/view-layout.md`)
+- **LegendLayout** - the internal static `LegendLayout` with the `LegendPlacement` record, which places the built
+  legends around the data rectangle and the axes and joins their reach with that of the axes; see *LegendLayout Unit
+  Design* (`layout/legend-layout.md`)
 - **CompositionLayout** - the internal static partial `CompositionLayout` with the `CompositionCell`, `HeaderGroup`,
   `CompositionHeaders`, and `CompositionResult` records, a port of Vega's grid layout and trellis layout that places the
-  cells of a concatenation or a facet in a grid with the headers, footers, and titles of a facet; see _CompositionLayout
-  Unit Design_ (`layout/composition-layout.md`)
+  cells of a concatenation or a facet in a grid with the headers, footers, and titles of a facet; see *CompositionLayout
+  Unit Design* (`layout/composition-layout.md`)
 
 The subsystem's namespace documentation is in `Layout/NamespaceDoc.cs`. Its behavior is specified by the
 `CanvasNetVegaLite-Layout-*` requirements in `docs/reqstream/canvas-net-vega-lite/layout.yaml`. The subsystem lays out
@@ -26,8 +26,8 @@ The subsystem's namespace documentation is in `Layout/NamespaceDoc.cs`. Its beha
 shared by all its layers (the size comes from the top-level view, and the discrete step hints from the **combined**
 discrete scale of the layers). For composed charts (concatenation, facets, repeats) `ViewLayout` also provides the
 helpers of one chart in a composition (`ResolveSize`, `CellBounds`, and the composition root of `Resolve`) and
-`CompositionLayout` places the cells with the headers, footers, and titles of a facet; both are pure and are called by the
-`Composer` of the rendering pipeline for every concatenation and facet.
+`CompositionLayout` places the cells with the headers, footers, and titles of a facet; both are pure and are called by
+the `Composer` of the rendering pipeline for every concatenation and facet.
 
 ### Interfaces
 
@@ -54,32 +54,31 @@ and the records of `CompositionLayout` carry the data.
 
 ### Design
 
-**Two phases, as in Vega.** Layout runs in two steps so that content can be measured before it is placed. `Resolve` reads
-the settings that do not depend on the content (the data rectangle from `width`, `height`, and the view configuration, the
-padding, `autosize`, the plot background, and the canvas background). The guide builders then measure themselves against
-the data rectangle and report how far they reach (`ViewExtents`) and build the title; `Measure` places the title, computes
-the bounds of everything and from them the canvas size; and `Build` assembles the scene around caller-supplied content.
-`Compute` runs both. Because the natural size of a chart depends on the data and the axes, the pipeline calls `Measure`
-repeatedly (at most three passes) until the data rectangle is stable.
+**Two phases, as in Vega.** Layout runs in two steps so that content can be measured before it is placed. `Resolve`
+reads the settings that do not depend on the content (the data rectangle from `width`, `height`, and the view
+configuration, the padding, `autosize`, the plot background, and the canvas background). The guide builders then measure
+themselves against the data rectangle and report how far they reach (`ViewExtents`) and build the title; `Measure`
+places the title, computes the bounds of everything and from them the canvas size; and `Build` assembles the scene
+around caller-supplied content. `Compute` runs both. Because the natural size of a chart depends on the data and the
+axes, the pipeline calls `Measure` repeatedly (at most three passes) until the data rectangle is stable.
 
 **The scene is the only product.** The subsystem returns an immutable `Scene` (root group, view group with the plot
 background and border, the content in the order given, then the title) and the natural size; it draws nothing, so its
 numbers can be asserted analytically without pixels.
 
 **Sizes follow Vega-Lite 6.** The data rectangle is the number in `width` and `height`; without one it is the configured
-continuous view size (300 by 300), or, for a discrete scale, the size computed from the step; `"container"` is Vega-Lite's
-fit to the container size from the options (`autosize: fit` with `contains: padding`). With `autosize: pad` (the default)
-the canvas grows to hold everything that reaches beyond the data rectangle; with `none` it is the stated size plus the
-padding (or exactly the stated size when `contains` is `padding`) and anything that does not fit is cut off; with `fit`,
-`fit-x`, or `fit-y` the stated size (or the container) is the size of the whole view and the data rectangle is what the
-guides, the title, and the padding leave of it, so the canvas has exactly that size (Phase 11).
+continuous view size (300 by 300), or, for a discrete scale, the size computed from the step; `"container"` is
+Vega-Lite's fit to the container size from the options (`autosize: fit` with `contains: padding`). With `autosize: pad`
+(the default) the canvas grows to hold everything that reaches beyond the data rectangle; with `none` it is the stated
+size plus the padding (or exactly the stated size when `contains` is `padding`) and anything that does not fit is cut
+off; with `fit`, `fit-x`, or `fit-y` the stated size (or the container) is the size of the whole view and the data
+rectangle is what the guides, the title, and the padding leave of it, so the canvas has exactly that size (Phase 11).
 
 **Legends.** After the axes are built, the legends are built for the same data rectangle and `LegendLayout` places them
 against the data rectangle united with the axes on their side; the union of their bounds joins the extents of the axes
 (`LegendLayout.Combine`) before the title is laid out, so a legend outside the data rectangle grows the canvas with
-`autosize: pad` and sticks out with `none`; for a fit only the extent of a legend across its side counts, as in Vega. Each
-pass of the iteration builds the axes and the legends again against the
-new data rectangle.
+`autosize: pad` and sticks out with `none`; for a fit only the extent of a legend across its side counts, as in Vega.
+Each pass of the iteration builds the axes and the legends again against the new data rectangle.
 
 **Compositions.** A concatenation or a facet has no data rectangle of its own: every chart in it sizes itself
 (`ResolveSize`) and reports the bounds of its cell (`CellBounds`: data rectangle, guides, title, and the half stroke of

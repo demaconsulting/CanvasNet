@@ -55,7 +55,7 @@ items carry the location of their task, of the `todayMarker` statement, of the t
 
 - **`Draw()`** follows Mermaid's `draw`:
   - It compiles the task dates of the render with the clock and the meter (`GanttModel.Compile`, see
-    _GanttModel Unit Design_), takes the width as `gantt.useWidth` when it is set and else 784, and keeps the sections
+    *GanttModel Unit Design*), takes the width as `gantt.useWidth` when it is set and else 784, and keeps the sections
     of the tasks that are not vertical markers, each once in order (`checkUnique`, whose object never holds the key
     `__proto__`, so that name is kept each time).
   - The height is two top paddings plus a row of the bar height and the bar gap for each task that is not a vertical
@@ -140,7 +140,7 @@ items carry the location of their task, of the `todayMarker` statement, of the t
 #### Error Handling
 
 - The failures of the task dates propagate from `GanttModel.Compile` as located `MermaidRenderException`s (see
-  _GanttModel Unit Design_).
+  *GanttModel Unit Design*).
 - In the compact mode, a section named like a name that every JavaScript object inherits fails as Mermaid's render
   fails on it (`categoryElements[section].push is not a function`): a `MermaidRenderException` with code
   `mermaid-render-failed`, located at the task, with a hint.
@@ -197,7 +197,7 @@ items carry the location of their task, of the `todayMarker` statement, of the t
   mermaid-cli's default page, or `gantt.useWidth`, which takes precedence as in Mermaid.
 - **The clock and the time zone.** Today is the `Now` of the render options, never the system clock; without it the
   today line is not drawn and a `todayMarker` style is reported. The dates are those of a browser whose time zone is UTC
-  (see _TimeAxis Unit Design_).
+  (see *TimeAxis Unit Design*).
 - **The axis offset.** The ticks are half a pixel past their whole pixels at every render scale, as d3-axis places them
   at a device pixel ratio of 1.
 - **Reports in place of console warnings.** The excluded days skipped for a span of more than five years and a tick

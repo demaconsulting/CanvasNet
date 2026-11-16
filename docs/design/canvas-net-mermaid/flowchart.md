@@ -15,17 +15,17 @@ renderer does. It is **internal**: its types are visible only to the other subsy
 - **FlowchartParser** - the internal sealed `FlowchartParser` (a partial class in `FlowchartParser.cs`,
   `FlowchartParser.Lexer.cs`, `FlowchartParser.Statements.cs`, and `FlowchartParser.Links.cs`) and the token names of
   `FlowchartTokens` (in `FlowchartParser.Lexer.cs`): the lexer and the grammar of Mermaid's flowchart language, the
-  located errors with Mermaid's expected tokens, and the subgraph nesting limit; see _FlowchartParser Unit Design_
+  located errors with Mermaid's expected tokens, and the subgraph nesting limit; see *FlowchartParser Unit Design*
   (`flowchart/flowchart-parser.md`)
 - **FlowchartModel** - the internal sealed `FlowchartModel` (a partial class in `FlowchartModel.cs`,
   `FlowchartModel.LayoutData.cs`, and `FlowchartModel.Render.cs`) and the element types of `FlowchartModel.Elements.cs`
   (`FlowVertex`, `FlowEdge`, `FlowSubgraph`, `FlowClass`, `FlowText`, `FlowLink`, `ShapeDataText`, and `DocumentItem`):
   Mermaid's flowchart database, the diagram metadata, the mapping to the layout input of a render, the reports of what
-  is not drawn, and the drawing of the diagram; see _FlowchartModel Unit Design_ (`flowchart/flowchart-model.md`)
+  is not drawn, and the drawing of the diagram; see *FlowchartModel Unit Design* (`flowchart/flowchart-model.md`)
 
 The subsystem's namespace documentation is in `Flowchart/NamespaceDoc.cs`. Its behavior is specified by the
 `CanvasNetMermaid-Flowchart-*` requirements in `docs/reqstream/canvas-net-mermaid/flowchart.yaml`. The SysML2 model
-names the subsystem `MermaidFlowchart` (see _CanvasNetMermaid System Design_).
+names the subsystem `MermaidFlowchart` (see *CanvasNetMermaid System Design*).
 
 **Attribution.** The subsystem is a port of the flowchart diagram of the pinned Mermaid release (MIT; see
 `third-party/README.md`): the parser ports the generated lexer and the grammar of `diagrams/flowchart/parser/flow.jison`

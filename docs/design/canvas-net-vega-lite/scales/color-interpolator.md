@@ -82,9 +82,9 @@ size the caller bounds (the `ColorSchemes` unit checks the count against the sca
 unit performs no I/O.
 
 **Determinism.** The sRGB space uses only `+ - * /` and the rounding, so its results are bit-exact on every platform.
-HSL, CIELAB, HCL, and cubehelix use `Math.Pow`, `Math.Atan2`, `Math.Sin`, and `Math.Cos`, whose last bit can differ between
-platforms, so a color can differ by one in a channel between machines; no scheme table, no default space, and no test
-that pins exact bytes depends on that (the tests allow a tolerance of one step for those spaces).
+HSL, CIELAB, HCL, and cubehelix use `Math.Pow`, `Math.Atan2`, `Math.Sin`, and `Math.Cos`, whose last bit can differ
+between platforms, so a color can differ by one in a channel between machines; no scheme table, no default space, and no
+test that pins exact bytes depends on that (the tests allow a tolerance of one step for those spaces).
 
 #### Dependencies
 

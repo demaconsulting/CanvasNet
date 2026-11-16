@@ -23,8 +23,8 @@ functions of the position. The unit needs no files and no mocking.
 
 - All unit tests pass with zero failures on every target framework.
 - Shades in one 4-bit bucket are one color whose value is the mean of the pixels.
-- Colors are ordered by pixel count with the documented tie-breaks, limited to the requested number, and clustered by the
-  distance to the leader; fractions are rounded to 6 decimals.
+- Colors are ordered by pixel count with the documented tie-breaks, limited to the requested number, and clustered by
+  the distance to the leader; fractions are rounded to 6 decimals.
 - Translucent pixels are flattened over the background.
 - The luma statistics (mean, range, percentiles, Otsu, 16-bin histogram) follow their definitions.
 - A sample reports the pixel, its luma, and a clipped window with its mean; a point outside the image is an
@@ -38,8 +38,8 @@ functions of the position. The unit needs no files and no mocking.
 
 **Test**: `Surface_Analyze_FourBitBuckets_GroupNearbyShadesIntoOneColor`
 
-Three pixels `(16, 32, 48)` and one `(31, 47, 63)` fall in one bucket and give one color `(20, 36, 52)` with 4 pixels and
-the fraction 1.
+Three pixels `(16, 32, 48)` and one `(31, 47, 63)` fall in one bucket and give one color `(20, 36, 52)` with 4 pixels
+and the fraction 1.
 
 ##### CanvasNet-Canvas-SurfaceAnalysis-Dominant: Dominant Colors
 
@@ -49,9 +49,9 @@ the fraction 1.
 
 75 white and 25 black pixels give white with 0.75 and then black with 0.25; one black and two white pixels give the
 fraction 0.666667. Red, green, and blue with two pixels each are reported blue, green, red (the buckets 0x00F, 0x0F0,
-0xF00). Five grays with 5, 4, 3, 2, and 1 pixels give the two most common for a count of 2 and all five for a count of 32.
-The grays 128 (4 pixels), 144 (2), 160 (1) make one color 137 with 7 pixels and 0.875, and 208 is a second color with
-0.125; the cluster radius is 2.
+0xF00). Five grays with 5, 4, 3, 2, and 1 pixels give the two most common for a count of 2 and all five for a count
+of 32. The grays 128 (4 pixels), 144 (2), 160 (1) make one color 137 with 7 pixels and 0.875, and 208 is a second color
+with 0.125; the cluster radius is 2.
 
 ##### CanvasNet-Canvas-SurfaceAnalysis-Alpha: Translucent Pixels
 

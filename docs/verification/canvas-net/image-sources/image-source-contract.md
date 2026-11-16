@@ -171,27 +171,18 @@ implementation that does not override `FragmentParameterPrefixes` declares none.
 `ImageParameterValues_ReadParameters_ReadsJsonAndRefusesMalformedValues`
 
 These tests are in `ImageFragmentPrefixTests.cs`. They assert the variable grammar (`true`, `false`, `20`, `-1.5`,
-`1e3`, the
-quoted texts `"a b"` and `'a b'`, unquoted text, the empty text, and the texts `NaN`, `1e999` and `null`, which are
-text; a
-value that starts with `[` is a vector: `[0, 0.5, [true, "a", null], -3e2]` is a list of doubles, flags, text, a null and
-a nested list, and `[1,2`, `[1 2]`, `[{"a":1}]` and `[[1,[{}]]]` are refused with a reason that names the array or the
-object) and the parameter grammar (the same scalars,
-`null` as
-a null value, `'EU west'` and `"EU west"` as text, a JSON string with escapes, objects and arrays as dictionaries and
-lists
-of doubles, strings, booleans and nulls; `{x`, `{"x":}`, `[1,`, `[1] 2`, `"abc`, `{"x":1e999}` and `[1,]` are refused
-with a
-one-line reason that has neither a line break nor the position of the JSON failure; 32 nested arrays and 65,536 values
-are
-accepted and 33 levels and 65,537 values refused). `ReadVariables` of
-`view=top&def.width=20&def.label=%22A%26B%22&def.show=true`
+`1e3`, the quoted texts `"a b"` and `'a b'`, unquoted text, the empty text, and the texts `NaN`, `1e999` and `null`,
+which are text; a value that starts with `[` is a vector: `[0, 0.5, [true, "a", null], -3e2]` is a list of doubles,
+flags, text, a null and a nested list, and `[1,2`, `[1 2]`, `[{"a":1}]` and `[[1,[{}]]]` are refused with a reason that
+names the array or the object) and the parameter grammar (the same scalars, `null` as a null value, `'EU west'` and
+`"EU west"` as text, a JSON string with escapes, objects and arrays as dictionaries and lists of doubles, strings,
+booleans and nulls; `{x`, `{"x":}`, `[1,`, `[1] 2`, `"abc`, `{"x":1e999}` and `[1,]` are refused with a one-line reason
+that has neither a line break nor the position of the JSON failure; 32 nested arrays and 65,536 values are accepted and
+33 levels and 65,537 values refused). `ReadVariables` of `view=top&def.width=20&def.label=%22A%26B%22&def.show=true`
 gives a double, the text `A&B` (decoded after the split), and a boolean; `def.$vpt=[0,0,20]` is a list of three doubles
-beside the double `$vpd`; a vector that is cut short is an `ImageSourceRefusedException`
-with the code
+beside the double `$vpd`; a vector that is cut short is an `ImageSourceRefusedException` with the code
 `image-fragment-invalid` that names `'def.size'`, quotes the value, and says a vector must be a valid JSON array; and
-`ReadParameters`
-reads a number, text and the object `{"x":[2,6]}` and refuses `%7Bx` naming `'param.brush'`.
+`ReadParameters` reads a number, text and the object `{"x":[2,6]}` and refuses `%7Bx` naming `'param.brush'`.
 
 ##### CanvasNet-ImageSources-ImageSourceContract-FragmentReview: One Review Of A Fragment For Links And Inputs
 

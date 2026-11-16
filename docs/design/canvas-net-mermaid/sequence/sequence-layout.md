@@ -128,7 +128,7 @@ is Mermaid's and whose items are in Mermaid's paint order. The layout does not c
 
 - **Measured heights.** Where Mermaid reads `getBBox` of the SVG it has drawn, the layout uses the heights that the
   renderer returns from the text utilities of `LabelBuilder`, which emulate the browser's SVG text boxes with the
-  bundled fonts (see _CanvasNetMermaid System Design_, Fidelity and Known Differences).
+  bundled fonts (see *CanvasNetMermaid System Design*, Fidelity and Known Differences).
 - **An empty block** fails the render at its start instead of giving a picture with coordinates that are not numbers.
 - **Work limit.** The layout work is bounded by `MaxLayoutWork`, which Mermaid does not have.
 - **Hidden menus** are empty groups whose size still counts in the view box, as Mermaid's hidden menus do.

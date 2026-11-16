@@ -24,36 +24,36 @@ utility shape was chosen over an object with nothing to construct or configure.
 
 ##### BmpBitDepth enum
 
-| Value   | Numeric Value | Description                                                          |
-| ------- | ------------- | -------------------------------------------------------------------- |
-| `Bit24` | 24            | 8 bits each for blue, green, red. Alpha is dropped when saving.      |
-| `Bit32` | 32            | 8 bits each for blue, green, red, alpha. Alpha is preserved exactly. |
+| Value | Numeric Value | Description |
+| --- | --- | --- |
+| `Bit24` | 24 | 8 bits each for blue, green, red. Alpha is dropped when saving. |
+| `Bit32` | 32 | 8 bits each for blue, green, red, alpha. Alpha is preserved exactly. |
 
 ##### BITMAPFILEHEADER (14 bytes, little-endian)
 
-| Offset | Size | Field         | Value Written                      |
-| ------ | ---- | ------------- | ---------------------------------- |
-| 0      | 2    | `bfType`      | `0x42, 0x4D` ("BM")                |
-| 2      | 4    | `bfSize`      | Total file size, in bytes          |
-| 6      | 2    | `bfReserved1` | 0                                  |
-| 8      | 2    | `bfReserved2` | 0                                  |
-| 10     | 4    | `bfOffBits`   | 54 (14 + 40; offset to pixel data) |
+| Offset | Size | Field | Value Written |
+| --- | --- | --- | --- |
+| 0 | 2 | `bfType` | `0x42, 0x4D` ("BM") |
+| 2 | 4 | `bfSize` | Total file size, in bytes |
+| 6 | 2 | `bfReserved1` | 0 |
+| 8 | 2 | `bfReserved2` | 0 |
+| 10 | 4 | `bfOffBits` | 54 (14 + 40; offset to pixel data) |
 
 ##### BITMAPINFOHEADER (40 bytes, little-endian) — the only info-header variant supported
 
-| Offset | Size | Field             | Value Written                                |
-| ------ | ---- | ----------------- | -------------------------------------------- |
-| 14     | 4    | `biSize`          | 40                                           |
-| 18     | 4    | `biWidth`         | `surface.Width`                              |
-| 22     | 4    | `biHeight`        | `surface.Height` (always positive/bottom-up) |
-| 26     | 2    | `biPlanes`        | 1                                            |
-| 28     | 2    | `biBitCount`      | 24 or 32                                     |
-| 30     | 4    | `biCompression`   | 0 (BI_RGB)                                   |
-| 34     | 4    | `biSizeImage`     | Padded-row-bytes x height                    |
-| 38     | 4    | `biXPelsPerMeter` | 0                                            |
-| 42     | 4    | `biYPelsPerMeter` | 0                                            |
-| 46     | 4    | `biClrUsed`       | 0                                            |
-| 50     | 4    | `biClrImportant`  | 0                                            |
+| Offset | Size | Field | Value Written |
+| --- | --- | --- | --- |
+| 14 | 4 | `biSize` | 40 |
+| 18 | 4 | `biWidth` | `surface.Width` |
+| 22 | 4 | `biHeight` | `surface.Height` (always positive/bottom-up) |
+| 26 | 2 | `biPlanes` | 1 |
+| 28 | 2 | `biBitCount` | 24 or 32 |
+| 30 | 4 | `biCompression` | 0 (BI_RGB) |
+| 34 | 4 | `biSizeImage` | Padded-row-bytes x height |
+| 38 | 4 | `biXPelsPerMeter` | 0 |
+| 42 | 4 | `biYPelsPerMeter` | 0 |
+| 46 | 4 | `biClrUsed` | 0 |
+| 50 | 4 | `biClrImportant` | 0 |
 
 All multi-byte header fields are read and written by explicit byte composition (bit shifting),
 never `BitConverter` or `BinaryPrimitives`, so behavior is identical regardless of host CPU
@@ -172,7 +172,7 @@ validation fails, because all argument checks precede any header write.
 CanvasNet. No new public members were added to `Surface` to support this: its existing
 constructor and `GetRowSpanBytes` accessor were already sufficient. `BmpCodec` also depends on
 the `Codecs` subsystem's shared `ImageInfo` record struct as the return type of `GetInfo` — see
-_Codecs Subsystem Design_ (`../codecs.md`). Beyond `Surface` and `ImageInfo`, `BmpCodec` uses only
+*Codecs Subsystem Design* (`../codecs.md`). Beyond `Surface` and `ImageInfo`, `BmpCodec` uses only
 the .NET base class library's `System.IO` namespace (`Stream`, `FileStream`,
 `InvalidDataException`), available on every one of CanvasNet's target frameworks with no new
 runtime NuGet dependency.
@@ -180,5 +180,5 @@ runtime NuGet dependency.
 #### Callers
 
 `BmpCodec` is a public API entry point invoked directly by consumers of the CanvasNet package; it
-is not called by any other unit within this system. It calls into `Surface` (see _Dependencies_
+is not called by any other unit within this system. It calls into `Surface` (see *Dependencies*
 above) but nothing calls into it from within CanvasNet itself.

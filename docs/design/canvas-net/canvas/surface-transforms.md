@@ -35,9 +35,9 @@ The unit adds no state to `Surface`. Its public surface is:
 
 Every transformation is a **pure function**: it never modifies or disposes the surface it is called on and returns a new
 surface that the caller owns. `(x, y)` has its origin at the top left with y down; surfaces hold straight
-(non-premultiplied) alpha. The flips, the half turn, `ApplyExifOrientation`, `Pad`, and `Trim` are pixel moves or per-row
-copies with no resampling, so the pixels of their results are exact copies of pixels of the source; `FitInto` resamples
-(through `Resize`) and `FlattenOver` blends translucent pixels over its background.
+(non-premultiplied) alpha. The flips, the half turn, `ApplyExifOrientation`, `Pad`, and `Trim` are pixel moves or
+per-row copies with no resampling, so the pixels of their results are exact copies of pixels of the source; `FitInto`
+resamples (through `Resize`) and `FlattenOver` blends translucent pixels over its background.
 
 #### Key Methods
 
@@ -46,14 +46,14 @@ copies with no resampling, so the pixels of their results are exact copies of pi
 mirror about both axes.
 
 **ApplyExifOrientation(orientation)**: the orientation is the EXIF `Orientation` value 1 to 8, as read by
-`JpegCodec.ReadExifOrientation` (a camera stores the pixels as the sensor delivered them and records how the image has to
-be turned to be viewed upright; the JPEG decoder ignores the tag). For every pixel `(x, y)` of the result the source pixel
-is, with `W` and `H` the size of the source: 1 `(x, y)`, 2 `(W - 1 - x, y)` (mirrored left to right), 3
-`(W - 1 - x, H - 1 - y)` (turned 180 degrees), 4 `(x, H - 1 - y)` (mirrored top to bottom), 5 `(y, x)` (transposed),
-6 `(y, H - 1 - x)` (to be turned 90 degrees clockwise), 7 `(W - 1 - y, H - 1 - x)` (transversed), and 8
-`(W - 1 - y, x)` (to be turned 90 degrees counter-clockwise). For 5 to 8 the result is `H` wide and `W` high. The pixels,
-alpha included, are copied exactly; orientation 1 is an independent copy. An orientation outside 1 to 8 throws before
-anything is allocated.
+`JpegCodec.ReadExifOrientation` (a camera stores the pixels as the sensor delivered them and records how the image has
+to be turned to be viewed upright; the JPEG decoder ignores the tag). For every pixel `(x, y)` of the result the source
+pixel is, with `W` and `H` the size of the source: 1 `(x, y)`, 2 `(W - 1 - x, y)` (mirrored left to right), 3
+`(W - 1 - x, H - 1 - y)` (turned 180 degrees), 4 `(x, H - 1 - y)` (mirrored top to bottom), 5 `(y, x)` (transposed), 6
+`(y, H - 1 - x)` (to be turned 90 degrees clockwise), 7 `(W - 1 - y, H - 1 - x)` (transversed), and 8 `(W - 1 - y, x)`
+(to be turned 90 degrees counter-clockwise). For 5 to 8 the result is `H` wide and `W` high. The pixels, alpha included,
+are copied exactly; orientation 1 is an independent copy. An orientation outside 1 to 8 throws before anything is
+allocated.
 
 **Pad(left, top, right, bottom, color)**: refuses a negative width (`ArgumentOutOfRangeException`) and a result wider or
 higher than `MaxDimension` (`ArgumentException`, computed with `long` arithmetic before anything is allocated), then

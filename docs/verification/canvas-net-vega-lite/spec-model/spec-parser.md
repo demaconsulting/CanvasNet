@@ -25,7 +25,7 @@ location, pointer, or message fragment. The unit depends only on the BCL `Utf8Js
 `VegaLiteLocation`, `VegaLiteSpecException`, and the real `ExpressionParser` unit (which compiles the expression
 texts), so no mocking or stubbing is required; the internal types are
 reached through the test assembly's `InternalsVisibleTo` access. The unit's interaction with the feature catalog and
-the configuration resolver is verified at the subsystem tier (see _SpecModel Subsystem Verification Design_).
+the configuration resolver is verified at the subsystem tier (see *SpecModel Subsystem Verification Design*).
 
 Expected positions are derived by hand from the source text. For example, in a specification whose second line (after
 a CRLF line break) is a tab followed by `"note": "😀", "mark": "bar"`, the value of `mark` is on line 2 at column
@@ -50,8 +50,8 @@ the scenarios `SpecParser_Parse_LabelExpressionErrorIsASpecExceptionAtTheText` a
 `SpecParser_Parse_StepForMustBePositionOrOffset`), and `ChannelDefinitionsTests.cs`; the large-inline-data test is in
 `VegaLiteDocumentSpecModelTests.cs` in the same folder, and the test of the marks that evaluate the conditions of a
 `size` channel is in `MarkChannelGatingTests.cs` in the `Scales` folder. The time scenarios use the rules of the `Data`
-subsystem that the parser calls (`TimeUnitSpec`, `DateTimeObject`; see _Time Calendar Verification_ and _Time Format
-Verification_), so a unit name, a date-time key, or an interval is checked here only as far as the parser locates the
+subsystem that the parser calls (`TimeUnitSpec`, `DateTimeObject`; see *Time Calendar Verification* and *Time Format
+Verification*), so a unit name, a date-time key, or an interval is checked here only as far as the parser locates the
 error.
 
 Expected values of the time scenarios are counted by hand. The local time unit names of Vega-Lite are 11 single units
@@ -491,7 +491,7 @@ the keys of the value and the `config.selection.point.fields` default are honore
 and a legacy `multi` with an empty `fields` is a field test; the third lists the predicates that no expression can say
 (a parameter whose name is not an identifier, alone, in an `and`, and in a `not`) as refused with an empty source, while
 the former refusals of a time unit, of a date object and of a selection are gone because those predicates are now
-written (see _Time Predicates As Expressions_ and _Selections_); and a null predicate is refused. The helper tests list
+written (see *Time Predicates As Expressions* and *Selections*); and a null predicate is refused. The helper tests list
 the eleven channels that take a condition (and the position, secondary, order, and tooltip channels that do not), find
 the field definition of a channel (its own, the first field condition on a test, none for a parameter condition), list
 the conditions in order with the parameter conditions included in their written place (since Phase 12 a `param` or a
@@ -591,7 +591,7 @@ an interval that is not one (`fortnight`, `Month`, and the object with `interval
 `millisecond`, `second`, `minute`, `hour`, `day`, `week`, `month`, and `year` (the plural `milliseconds`, `date`,
 `quarter`, the `utc`-prefixed `utcmonth`, the wrongly cased `Month`, and the empty text are refused). The rule is
 checked for every field type, because the parser does not know the type of the scale; whether the interval is used on a
-channel without a time scale is the catalog's concern (see _FeatureCatalog Unit Verification Design_).
+channel without a time scale is the catalog's concern (see *FeatureCatalog Unit Verification Design*).
 
 ##### Time Format Limits
 

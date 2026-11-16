@@ -48,8 +48,9 @@ N/A - standard test environment. The tests belong to the "Sequential" collection
 examples, every option declared once with a description (`--file-access` and `--allow-root` among them), and the
 declaration of `--page` that is the render command's.
 
-**CompareCommand_Run_IdenticalImages_ReportsIdentical**, **CompareCommand_Run_DifferentImages_ReportsMetricsAndGridInText**,
-and **CompareCommand_Run_JsonIdenticalImages_PsnrIsNull**: identical inputs give the one line
+**CompareCommand_Run_IdenticalImages_ReportsIdentical**,
+**CompareCommand_Run_DifferentImages_ReportsMetricsAndGridInText**, and
+**CompareCommand_Run_JsonIdenticalImages_PsnrIsNull**: identical inputs give the one line
 `compared {a} with {b} (8x6): identical`; the different pair gives MAE 3.33, RMSE 5.77, the PSNR, 100.00% of pixels
 differing, and a 2x2 grid of 5.8; with JSON identical inputs have a null PSNR, a similarity of 1, no worst cell, and a
 passing PSNR threshold whose value is null.
@@ -67,10 +68,10 @@ gives six cells and the default sixteen; `0x3`, `100x100`, `4`, `65x1`, `x4`, `4
 are usage errors.
 
 **CompareCommand_Run_ThresholdMet_Succeeds**, **CompareCommand_Run_Thresholds_EachMetricDirection**,
-**CompareCommand_Run_InvalidThreshold_ThrowsUsageError**, and **CompareCommand_Run_DuplicateThreshold_ThrowsUsageError**:
-a met threshold writes `passed` lines; each of the seven metrics passes on the side of its measured value that the
-direction allows and fails on the other; ten malformed or out-of-range thresholds, and a metric given twice (in any
-case), are usage errors.
+**CompareCommand_Run_InvalidThreshold_ThrowsUsageError**, and
+**CompareCommand_Run_DuplicateThreshold_ThrowsUsageError**: a met threshold writes `passed` lines; each of the seven
+metrics passes on the side of its measured value that the direction allows and fails on the other; ten malformed or
+out-of-range thresholds, and a metric given twice (in any case), are usage errors.
 
 **CompareCommand_Run_ThresholdNotMet_WritesResultThenThrowsThresholdFailed**: with `--diff` and two thresholds, the
 standard output holds the summary, the line of the picture, and a `failed` and a `passed` line before the command throws
@@ -88,13 +89,13 @@ after 30 bytes (and no picture), and null arguments.
 **CompareCommand_Run_SameInputsTwice_WriteIdenticalJsonAndBytes**: two runs with all three pictures give the same JSON,
 the same text, and the same bytes of every picture.
 
-**CompareCommand_Run_DifferentSizesWithoutResize_ThrowsSizeMismatchWithHint**, **CompareCommand_Run_ResizeToA_FitsRasterBToA**,
-**CompareCommand_Run_ResizeToB_FitsAToB**, **CompareCommand_Run_ResizeToExplicitSize_FitsBoth**,
-**CompareCommand_Run_ResizeToTooLarge_ThrowsSizeLimit**, and **CompareCommand_Run_InvalidResizeToOrFit_ThrowsUsageError**:
-8x6 against 4x3 is `size-mismatch` naming both sizes with a hint; `a` enlarges the second to 8x6, `b` shrinks the first
-to
-8x6, and `10x10` with `stretch` resamples both, each with the loaded and compared size, a `fit` or `resize` operation,
-and the `resize` field in the result; `9000x10` is `size-limit`; `--resize-to c` and `--fit cover` are usage errors.
+**CompareCommand_Run_DifferentSizesWithoutResize_ThrowsSizeMismatchWithHint**,
+**CompareCommand_Run_ResizeToA_FitsRasterBToA**, **CompareCommand_Run_ResizeToB_FitsAToB**,
+**CompareCommand_Run_ResizeToExplicitSize_FitsBoth**, **CompareCommand_Run_ResizeToTooLarge_ThrowsSizeLimit**, and
+**CompareCommand_Run_InvalidResizeToOrFit_ThrowsUsageError**: 8x6 against 4x3 is `size-mismatch` naming both sizes with
+a hint; `a` enlarges the second to 8x6, `b` shrinks the first to 8x6, and `10x10` with `stretch` resamples both, each
+with the loaded and compared size, a `fit` or `resize` operation, and the `resize` field in the result; `9000x10` is
+`size-limit`; `--resize-to c` and `--fit cover` are usage errors.
 
 **CompareCommand_Run_FitContainVsStretch_DifferInLetterboxing**: a 10x10 image against a 20x10 reference differs in half
 of the pixels with `contain` (a white margin) and is identical with `stretch`.
@@ -103,23 +104,25 @@ of the pixels with `contain` (a white margin) and is identical with `stretch`.
 200x160 raster as the reference with `--resize-to a` is rendered at 200x160 with no `fit` or `resize` operation, and the
 two are identical.
 
-**CompareCommand_Run_PerSidePages_CompareDifferentPagesOfDocuments** and **CompareCommand_Run_DocumentsInText_NamePages**:
-slide 1 against slide 2 of one presentation differs, with each side's page and the page count in the result; a shared
-`--page 1` gives two equal slides; `--b-page` wins over `--page`; the text names `{path} page 1` and `{path} page 2`.
+**CompareCommand_Run_PerSidePages_CompareDifferentPagesOfDocuments** and
+**CompareCommand_Run_DocumentsInText_NamePages**: slide 1 against slide 2 of one presentation differs, with each side's
+page and the page count in the result; a shared `--page 1` gives two equal slides; `--b-page` wins over `--page`; the
+text names `{path} page 1` and `{path} page 2`.
 
-**CompareCommand_Run_PerSideOptionsOnWrongKind_ThrowUsageError**: `--a-page`, `--b-dpi`, `--a-view`, and `--b-define` with
-PNG inputs are usage errors that name the kind.
+**CompareCommand_Run_PerSideOptionsOnWrongKind_ThrowUsageError**: `--a-page`, `--b-dpi`, `--a-view`, and `--b-define`
+with PNG inputs are usage errors that name the kind.
 
-**CompareCommand_Run_ScadSharedOptions_ApplyToModelSideOnly**, **CompareCommand_Run_ScadOptionsWithoutModel_ThrowsUsageError**,
-and **CompareCommand_Run_PerSideDefines_OverrideSharedDefines**: `--view` is applied to the model against a PNG (another
+**CompareCommand_Run_ScadSharedOptions_ApplyToModelSideOnly**,
+**CompareCommand_Run_ScadOptionsWithoutModel_ThrowsUsageError**, and
+**CompareCommand_Run_PerSideDefines_OverrideSharedDefines**: `--view` is applied to the model against a PNG (another
 view gives another image) and skipped for the PNG; `--view` with two PNGs is a usage error; a shared `-D width=10` gives
 two equal models and `--b-define width=30` changes the second.
 
 **CompareCommand_Run_PageOutOfRange_NamesTheSide**: `--b-page 5` is `page-out-of-range` with `Input b:` in the message.
 
-**CompareCommand_Run_Background_FlattensTransparencyBothSides** and **CompareCommand_Run_TransparentBackground_ThrowsUsageError**:
-a half transparent blue agrees with the opaque half blue to within one level over black and not over the default white,
-and `transparent` and `#ff000080` are usage errors.
+**CompareCommand_Run_Background_FlattensTransparencyBothSides** and
+**CompareCommand_Run_TransparentBackground_ThrowsUsageError**: a half transparent blue agrees with the opaque half blue
+to within one level over black and not over the default white, and `transparent` and `#ff000080` are usage errors.
 
 **CompareCommand_Run_Strict_UnsupportedFeature_Fails**: a slide with a picture the renderer skips is reported in the
 diagnostics with the side `b`, and with `--strict` is `unsupported-feature`.
@@ -130,26 +133,29 @@ standard error that end with `(input a)` and `(input b)`; with `--json` standard
 nothing is written, and with `--threshold rmse=0` (which fails) the two lines are written first and the
 `Error: threshold-failed: ...` line follows, with exit code 1.
 
-**CompareCommand_Run_DiffOutput_WritesHeatmapOfDifferences** and **CompareCommand_Run_DiffStyleAbsAndGain_ChangePixels**:
-a difference of 50 at gain 4 is (255, 255, 90), identical pixels are black, and the line of the picture ends with `[diff]`;
-`abs` at gain 2 gives (0, 0, 100) and the heat map at gain 1 gives (150, 0, 0).
+**CompareCommand_Run_DiffOutput_WritesHeatmapOfDifferences** and
+**CompareCommand_Run_DiffStyleAbsAndGain_ChangePixels**: a difference of 50 at gain 4 is (255, 255, 90), identical
+pixels are black, and the line of the picture ends with `[diff]`; `abs` at gain 2 gives (0, 0, 100) and the heat map at
+gain 1 gives (150, 0, 0).
 
-**CompareCommand_Run_SideBySide_WritesThreePanels** and **CompareCommand_Run_Overlay_WritesBlendAndWeightChangesIt**: the
-side-by-side picture is 40x6 with the first image, the second image, and the heat map, separated by gray gaps; the overlay
-of grays 100 and 200 is the integer blend at the default weight and the images themselves at weights 0 and 1.
+**CompareCommand_Run_SideBySide_WritesThreePanels** and **CompareCommand_Run_Overlay_WritesBlendAndWeightChangesIt**:
+the side-by-side picture is 40x6 with the first image, the second image, and the heat map, separated by gray gaps; the
+overlay of grays 100 and 200 is the integer blend at the default weight and the images themselves at weights 0 and 1.
 
-**CompareCommand_Run_AllOutputs_WrittenTogetherAndListedInJson** and **CompareCommand_Run_OutputFormatFromExtension_WritesDecodableFile**:
-all three pictures in a new folder are listed as `diff`, `sideBySide`, and `overlay` in that order with their widths and
-sizes on disk; `.png`, `.bmp`, `.tif`, and `.jpg` give `png`, `bmp`, `tiff`, and `jpeg` files that decode at 8x6.
+**CompareCommand_Run_AllOutputs_WrittenTogetherAndListedInJson** and
+**CompareCommand_Run_OutputFormatFromExtension_WritesDecodableFile**: all three pictures in a new folder are listed as
+`diff`, `sideBySide`, and `overlay` in that order with their widths and sizes on disk; `.png`, `.bmp`, `.tif`, and
+`.jpg` give `png`, `bmp`, `tiff`, and `jpeg` files that decode at 8x6.
 
 **CompareCommand_Run_OutputIsInputA_ThrowsSameInputOutputAndWritesNothing**,
 **CompareCommand_Run_OutputIsInputB_ThrowsSameInputOutputAndWritesNothing**,
 **CompareCommand_Run_TwoOutputsSameFile_ThrowsUsageError**,
 **CompareCommand_Run_NoClobberAndExistingOutput_ThrowsOutputExistsAndKeepsFile**,
-**CompareCommand_Run_ExistingOutput_IsOverwritten**, and **CompareCommand_Run_SecondOutputPathInvalid_LeavesNoFirstOutput**:
-a picture that is an input leaves the input and every other picture untouched; `diff` and `overlay` spelled as one file
-with `.` are a usage error; with `--no-clobber` an existing picture is kept and no other picture is written; by default
-it is overwritten and no temporary file remains; a path inside a file fails before the first picture is written.
+**CompareCommand_Run_ExistingOutput_IsOverwritten**, and
+**CompareCommand_Run_SecondOutputPathInvalid_LeavesNoFirstOutput**: a picture that is an input leaves the input and
+every other picture untouched; `diff` and `overlay` spelled as one file with `.` are a usage error; with `--no-clobber`
+an existing picture is kept and no other picture is written; by default it is overwritten and no temporary file remains;
+a path inside a file fails before the first picture is written.
 
 **CompareCommand_Run_InvalidOptionValues_ThrowUsageError**: `--quality 0`, `--tolerance 256` and `-1`, `--gain 0` and
 `300`, `--overlay-weight 2`, `--diff-style glow`, and `--filter sharp` are usage errors.

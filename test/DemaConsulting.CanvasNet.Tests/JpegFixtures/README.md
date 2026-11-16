@@ -5,7 +5,7 @@ These JPEG files were generated with [ImageMagick](https://imagemagick.org/) 7.1
 subsampling combinations `JpegCodec` supports:
 
 | File | SOF Marker | Chroma Subsampling | Notes |
-| ------ | ----------- | --------------------- | ------- |
+| --- | --- | --- | --- |
 | `baseline_420.jpg` | SOF0 (baseline) | 4:2:0 | Most common combination in the wild |
 | `baseline_422.jpg` | SOF0 (baseline) | 4:2:2 | |
 | `baseline_444.jpg` | SOF0 (baseline) | 4:4:4 (no subsampling) | |

@@ -20,8 +20,8 @@ the same internal pipeline, which drives the `SpecModel`, `Data`, `Expressions`,
 `Scenegraph` subsystems and delivers the warnings and unsupported-feature reports to the caller's handlers. **Only
 `Measure` and `Render` read data and run the parameters and the row transforms over it:** inline rows, named datasets,
 and sequences need no I/O, and a local
-`data.url` is read from the places and under the file-access policy that the open options define (see _Data Subsystem
-Design_); a file that cannot be
+`data.url` is read from the places and under the file-access policy that the open options define (see *Data Subsystem
+Design*); a file that cannot be
 used is a `VegaLiteRenderException`, and a remote URL is reported and never fetched.
 
 The unit covers the files `VegaLiteDocument.cs` (the entry points and the descriptive properties),
@@ -93,7 +93,7 @@ rendering, diagnostics, unsupported features, limits and cancellation, determini
   kinds (a dataset row takes no structured value), deep-copied; a caller dataset replaces a top-level dataset of the
   same name, and a `DateTime` or
   `DateTimeOffset` becomes a date in UTC), `TimeZone` (`TimeZoneInfo?`; **null is UTC**; the one zone in which the chart
-  works, see _Time zone and calendar_ below), `ContainerWidth` (default 400) and
+  works, see *Time zone and calendar* below), `ContainerWidth` (default 400) and
   `ContainerHeight` (default 300) (each 1 to `Surface.MaxDimension`), `Fonts` (`VegaLiteFontOptions?`), `Limits`
   (default `VegaLiteLimits.Default`; null throws `ArgumentNullException`), `WarningHandler`
   (`Action<VegaLiteDiagnostic>?`), `UnsupportedFeatureHandler` (`Action<VegaLiteUnsupportedFeature>?`), and
@@ -123,7 +123,7 @@ rendering, diagnostics, unsupported features, limits and cancellation, determini
   `MaxSceneItems`, `MaxScaleDomainSize`, `MaxTicks`, `MaxExpressionLength`, `MaxExpressionDepth` (1 to 256),
   `MaxEvaluationSteps`, `MaxStringLength`, and `MaxDiagnostics`, with the `Default` instance; a value outside its range
   throws `ArgumentOutOfRangeException` when set. The defaults and the stage that enforces each are listed in
-  _CanvasNetVegaLite System Design_. The three expression limits (`MaxExpressionLength`, `MaxExpressionDepth`, and
+  *CanvasNetVegaLite System Design*. The three expression limits (`MaxExpressionLength`, `MaxExpressionDepth`, and
   `MaxEvaluationSteps`) are active since phase 5, and `MaxDataRows` and `MaxFieldCount` also bound the tables that the
   row
   and aggregating transforms and the implicit pipeline derive; since phase 6 `MaxEvaluationSteps` also bounds the work
@@ -215,7 +215,7 @@ rendering, diagnostics, unsupported features, limits and cancellation, determini
   bounds of its ticks, labels, domain, and title) and each legend group (by its first channel, with its title), with the
   path of the view that owns them. `BuildMarks` gives the
   `SceneMarkContext` of each marks group the view path, view name, and facet values of its layer, and `WithView` gives
-  the title of a chart or composition the path of its view (see _ScenePositions Unit Design_).
+  the title of a chart or composition the path of its view (see *ScenePositions Unit Design*).
 - `Run(options, token, plan, finish)` - creates the sink, records the reports (`BuildPlan` ->
   `RecordReports`: warnings through `Warn`, unsupported features through `Unsupported`, which throws in strict mode),
   runs the finish step, and delivers the sink. On a failure the reports recorded so far are delivered with handler
@@ -282,7 +282,7 @@ rendering, diagnostics, unsupported features, limits and cancellation, determini
   evaluator) go to `MarkBuilder`. `ApplyStandalone` (the entry the tests use for the implicit pipeline alone) passes
   `TimeCalendar.Utc` explicitly. The `RowExpressions` also go to the `AxisBuilder` and `LegendBuilder` (and to the facet
   headers of the composition), so the `labelExpr` of axes, legends, and headers runs on the same evaluator, step
-  budget, and parameters as every other expression of the call (see _LabelExpressions Unit Design_). The findings of
+  budget, and parameters as every other expression of the call (see *LabelExpressions Unit Design*). The findings of
   the data stage are kept in the plan in this order: the loader's
   warnings (`vl-data-parse-failed`), the warnings of a lookup source (the loader's warnings that arose while the
   transforms ran), and then the transform warnings (`vl-expr-runtime`, `vl-transform-runtime`); they are recorded in the
@@ -390,8 +390,7 @@ rendering, diagnostics, unsupported features, limits and cancellation, determini
   as the guides of a root of size zero). The `Composer` is built from the drawn layers with their scales and plans the
   guides of the whole tree once: the axes (`PlanAxes`, each given to the chart that owns it) and, for each owner in
   `LegendPlan.Owners`, the legends of that owner over the layers below it (a chart's own legends go to its cell, those
-  of
-  a concatenation to the concatenation). It then builds the views of the tree **bottom up with an explicit stack**
+  of a concatenation to the concatenation). It then builds the views of the tree **bottom up with an explicit stack**
   (children before parents, so the nesting cannot overflow the call stack): a **chart** (a unit or layered view that is
   a child of a concatenation or the root) resolves its own size (`ViewLayout.ResolveSize` with the step hints of its own
   scales, `LayeredScales.HintsFor`), builds its guides and marks as a cell (`BuildCellGuides`, `BuildCell`), places its
@@ -406,23 +405,21 @@ rendering, diagnostics, unsupported features, limits and cancellation, determini
   wrapped field, or for each row value and column value, row major) with `CompositionLayout.Place` and the
   `CompositionHeaders` it builds, then adds its legends and its title as a concatenation does. The **cells** are built
   by the same `ComposeChart`: the title of the cell is the label of its value in a wrapped facet (the label of a facet
-  field with a time unit that has parts is formatted with the time format of the unit, through the `HeaderLabelFormat` that
-  the document builds for the header, since phase 13; the block is built by `TitleBuilder.BuildHeaderBlock`, which
-  replaces the title of the chart; the body of a faceted unit view has no title
-  of its own), and the axes that the cells share (the plans whose owner is the facet) are built for every cell with
-  `AxisRequest.InHeader` (`CellInputs.HeaderAxisPlans`, `CellGuides.HeaderAxes`): the cell keeps their grids and does
-  not reach into the room of the axes, the axis groups are taken from the first cell of each column (the x axes: top
-  into the column header, bottom into the column footer) and of each row (the y axes: left into the row header, right
-  into the row footer; a cell builds, and is charged to the scene item limit for, the main part of the axes of the sides
-  that it supplies only (`AxisRequest.KeepInHeader`: the first column for left and right, the first row for top and
-  bottom) and its grids otherwise). The headers and footers are built by `TitleBuilder.BuildHeader` (one for each row
-  and column,
-  with the label of its value and the shared axes; the label of a cell is the formatted value, replaced by the
-  `labelExpr` of the header when it has one (`Composer.WithLabelExpression`, on the shared evaluator of the
-  call, with the precedence header, then `headerRow`/`headerColumn`/`headerFacet`, then `config.header`; the label
-  is the **lines** of the result, so an array result such as `[datum.label, 'n=' + datum.value]` is a header, footer,
-  or wrapped-facet cell title of several lines, which `TitleBuilder` measures so that the header is taller, and a
-  string result stays one line);
+  field with a time unit that has parts is formatted with the time format of the unit, through the `HeaderLabelFormat`
+  that the document builds for the header, since phase 13; the block is built by `TitleBuilder.BuildHeaderBlock`, which
+  replaces the title of the chart; the body of a faceted unit view has no title of its own), and the axes that the cells
+  share (the plans whose owner is the facet) are built for every cell with `AxisRequest.InHeader`
+  (`CellInputs.HeaderAxisPlans`, `CellGuides.HeaderAxes`): the cell keeps their grids and does not reach into the room
+  of the axes, the axis groups are taken from the first cell of each column (the x axes: top into the column header,
+  bottom into the column footer) and of each row (the y axes: left into the row header, right into the row footer; a
+  cell builds, and is charged to the scene item limit for, the main part of the axes of the sides that it supplies only
+  (`AxisRequest.KeepInHeader`: the first column for left and right, the first row for top and bottom) and its grids
+  otherwise). The headers and footers are built by `TitleBuilder.BuildHeader` (one for each row and column, with the
+  label of its value and the shared axes; the label of a cell is the formatted value, replaced by the `labelExpr` of the
+  header when it has one (`Composer.WithLabelExpression`, on the shared evaluator of the call, with the precedence
+  header, then `headerRow`/`headerColumn`/`headerFacet`, then `config.header`; the label is the **lines** of the result,
+  so an array result such as `[datum.label, 'n=' + datum.value]` is a header, footer, or wrapped-facet cell title of
+  several lines, which `TitleBuilder` measures so that the header is taller, and a string result stays one line);
   `HeaderSettings.Read(config, header, channel, honoredOrientsOnly: true)` reads the header properties, so a side that
   the renderer does not draw is read as not given and the default side is used), the row and column titles by
   `BuildHeader` with the `title` part (the title of the header, else that of the field definition, else the field name;
@@ -503,7 +500,7 @@ the stage stopped before it reported its end. The whole pipeline runs on the cal
   delimited text through `DelimitedTextParser`, and carries the row budget of the call), `DataTable`,
   `DataFileResolver`,
   `DelimitedTextParser`, and `TimeCalendar` (created once per call from `VegaLiteRenderOptions.TimeZone` and passed to
-  the loader and the evaluator; see _Time Calendar Design_)
+  the loader and the evaluator; see *Time Calendar Design*)
 - **`Expressions` subsystem** - `ExpressionEvaluator` (one instance per call, with the parameter dictionary and the
   calendar)
 - **`Transforms` subsystem** - `ParameterEnvironment`, `RowTransforms` (which dispatches to `AggregateTransforms` and
@@ -519,8 +516,8 @@ the stage stopped before it reported its end. The whole pipeline runs on the cal
 - **`Scenegraph` subsystem** - `Scene`, `SceneItem`, `SceneBudget`, `ScenePainter`, `ScenePlacement`, `ScenePositions`,
   `ScenePositionTag`, and `SceneMarkContext`
 - **Core `CanvasNet`** - `Surface`, `Rgba32`, and `CssColor` (`ToCss` turns the caller's `Background` option into the
-  scene's string), and `ImagePosition` (the type of the position handler) (public API); see _CanvasNetVegaLite System
-  Design_
+  scene's string), and `ImagePosition` (the type of the position handler) (public API); see *CanvasNetVegaLite System
+  Design*
 - **.NET base class library** - `System.IO`, `System.Text`, `System.Text.Json` (the configuration check),
   `System.Collections.ObjectModel`, `System.Globalization`
 

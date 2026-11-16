@@ -3,10 +3,11 @@
 ![Guides Structure](VegaLiteGuidesView.svg)
 
 The `TimeLabels` unit is the sixth software unit in the `Guides` subsystem. It is one source file, `TimeLabels.cs`, in
-the `DemaConsulting.CanvasNet.VegaLite.Guides` namespace, and defines one `internal` static class, `TimeLabels`, with its
-nested `Options` record. The file carries the attribution header comment for the d3-time, d3-time-format, d3-scale, Vega,
-and Vega-Lite behavior it follows. The unit is shared by `AxisBuilder` and by the temporal part of `LegendBuilder`
-(`LegendBuilder.Time.cs`, described below), which is a partial file of the `LegendBuilder` unit and not a unit of its own.
+the `DemaConsulting.CanvasNet.VegaLite.Guides` namespace, and defines one `internal` static class, `TimeLabels`, with
+its nested `Options` record. The file carries the attribution header comment for the d3-time, d3-time-format, d3-scale,
+Vega, and Vega-Lite behavior it follows. The unit is shared by `AxisBuilder` and by the temporal part of `LegendBuilder`
+(`LegendBuilder.Time.cs`, described below), which is a partial file of the `LegendBuilder` unit and not a unit of its
+own.
 
 #### Purpose
 
@@ -20,7 +21,7 @@ Vega-Lite gives to time guides are written once, apart from the geometry of eith
 
 The unit's behavior is specified by the `CanvasNetVegaLite-Guides-TimeLabels-*` requirements in
 `docs/reqstream/canvas-net-vega-lite/guides/time-labels.yaml`. The rules are those of Vega-Lite and Vega, re-implemented
-from their public description (see _CanvasNetVegaLite System Design_, Third-Party Provenance and Attribution).
+from their public description (see *CanvasNetVegaLite System Design*, Third-Party Provenance and Attribution).
 
 #### Data Model
 
@@ -42,7 +43,7 @@ guide), and `FormatLocation` (the location of the `format` property).
 3. A `format` that is an object is **Vega's multi-format** with its members as the overrides of the levels
    (`milliseconds`, `seconds`, `minutes`, `hours`, `date` or `day`, `week`, `month`, `quarter`, `year`; a member that is
    not a text is ignored).
-4. A field with a time unit uses the **specifier of the unit** (`%b %Y` for `yearmonth`; see _TimeCalendar_).
+4. A field with a time unit uses the **specifier of the unit** (`%b %Y` for `yearmonth`; see *TimeCalendar*).
 5. Otherwise the guide's default: `DefaultSpecifier` when it has one, which is how a legend uses `config.timeFormat`
    (`%b %d, %Y` by default), and Vega's multi-format otherwise, which is what an axis uses (axes ignore
    `config.timeFormat`).
@@ -54,9 +55,9 @@ formats as `Invalid Date`.
 
 **The interval `tickCount` request.** `IntervalRequest(tickCount)` reads the `tickCount` of a time axis or legend when
 it names a calendar interval, as Vega's three forms allow: a text that is an interval name (`day`, `week`, `utcmonth`,
-`quarter`, ...) or an object `{interval, step}`, through `TimeTickRequest.TryFromInterval` (see _Ticks_). It returns null
-when the property is absent, a number (then the count is read as a number by the caller), or not an interval, and the
-caller falls back to the default count.
+`quarter`, ...) or an object `{interval, step}`, through `TimeTickRequest.TryFromInterval` (see *Ticks*). It returns
+null when the property is absent, a number (then the count is read as a number by the caller), or not an interval, and
+the caller falls back to the default count.
 
 **The default tick count rule.** `UsesVegaDefaultCount(unit)` is Vega-Lite's rule that leaves the default tick count of
 a time axis to Vega: true for a field whose time unit keeps exactly one part and that part is a month, an hour
@@ -75,14 +76,14 @@ by the unit rule (`DateTimeObject.FromScalar`: the text `Mar` against `month` is
 
 **Bounded labels** (`CreateBounded`, phase 9). The text mark labels its rows with the same format rules but owns the
 budget of the whole mark (it limits every label and all the labels together by sixteen times `MaxStringLength`; see
-_MarkBuilder_), so `CreateBounded(Options)` returns a function of an instant **and a limit** that does **not keep a
-running total**: the caller passes what is left of its own budget as the limit of each label, and the function returns the
-label, or **null when the label would be longer than that limit** (a time format stops as soon as it would write more, so
-a huge specifier cannot allocate more; a number label is checked after it is made; a negative limit counts as 0). It never
-throws for the length, and a refused label changes nothing for the next call. `Options.MaxLength` is not used. The format
-rules above are the same, and the format errors are the located specification errors of `Create`, thrown when the function
-is created. `Create` is unchanged; the compile of the d3 number format of `formatType: "number"` is shared by the two
-through a private helper.
+*MarkBuilder*), so `CreateBounded(Options)` returns a function of an instant **and a limit** that does **not keep a
+running total**: the caller passes what is left of its own budget as the limit of each label, and the function returns
+the label, or **null when the label would be longer than that limit** (a time format stops as soon as it would write
+more, so a huge specifier cannot allocate more; a number label is checked after it is made; a negative limit counts as
+0). It never throws for the length, and a refused label changes nothing for the next call. `Options.MaxLength` is not
+used. The format rules above are the same, and the format errors are the located specification errors of `Create`,
+thrown when the function is created. `Create` is unchanged; the compile of the d3 number format of
+`formatType: "number"` is shared by the two through a private helper.
 
 **Use by the legend** (`LegendBuilder.Time.cs`). A legend of a temporal field is drawn from the resolved scale
 (`ResolvedScale.IsTemporalField`, `Calendar`, `TimeUnit`): a gradient legend of a temporal color, whose sequential scale
@@ -97,23 +98,23 @@ ticks of a time or UTC scale and for the labels of the dates of a time unit, wit
 
 **Limits** (every loop or allocation of the unit; the callers poll and charge):
 
-- _One label_: at most `MaxStringLength` characters (the formatter stops as soon as it would write more; a number label
+- *One label*: at most `MaxStringLength` characters (the formatter stops as soon as it would write more; a number label
   is checked after it is made); a longer one is a located `VegaLiteRenderException` that contains `the limit of`.
-- _All the labels of a guide_: the function that `Create` returns keeps a running total of the characters of the labels
+- *All the labels of a guide*: the function that `Create` returns keeps a running total of the characters of the labels
   it has returned and gives the formatter what is left of `MaxStringLength` as its limit, so the labels of one axis or
   one legend are together at most `MaxStringLength` characters, charged before the text is built, measured, or kept
   (a thousand ticks of a hostile format cannot add up to a gigabyte). The overflow is a located
   `VegaLiteRenderException` whose message is "The labels of the axis are together longer than the limit of N characters
   (VegaLiteLimits.MaxStringLength)"; a refused label is not counted.
-- _A specifier_: at most 1,024 characters and 4,096 tokens (see _TimeFormat_); a longer one fails when `Create` compiles
+- *A specifier*: at most 1,024 characters and 4,096 tokens (see *TimeFormat*); a longer one fails when `Create` compiles
   it, with a located `VegaLiteSpecException` at the `format`.
-- _Ticks of a guide_: at most `MaxTicks`, checked by the caller before any label is made; `TimeInterval.Range` polls the
+- *Ticks of a guide*: at most `MaxTicks`, checked by the caller before any label is made; `TimeInterval.Range` polls the
   token every 1,024 items.
-- _`IntervalRequest` and `ReadInstant`_: O(1) per entry, with date text of at most 128 characters (the `JsDateParser`
+- *`IntervalRequest` and `ReadInstant`*: O(1) per entry, with date text of at most 128 characters (the `JsDateParser`
   bound); the caller bounds the `values` list by `MaxScaleDomainSize`.
-- _Label text of a legend_: its length is also charged through `ExpressionFunctionContext.ChargeSize` (one step per 64
+- *Label text of a legend*: its length is also charged through `ExpressionFunctionContext.ChargeSize` (one step per 64
   characters).
-- _`CreateBounded`_: one label is at most the limit that the caller passes (the formatter stops at it and the function
+- *`CreateBounded`*: one label is at most the limit that the caller passes (the formatter stops at it and the function
   gives null), and the unit keeps no total: the caller's budget bounds all the labels.
 
 **Determinism.** Nothing here reads the clock, the host time zone, or the host culture: the zone is the calendar of the
@@ -127,7 +128,7 @@ machine, and under any culture.
   are together longer than it.
 - `TimeLabels.CreateBounded(Options)` - builds the function that turns an instant and a limit into its label by the same
   resolution, without a running total: it returns null when the label is longer than the limit it is given (see
-  _Bounded labels_); it throws the same located `VegaLiteSpecException` as `Create` for a format that is not valid.
+  *Bounded labels*); it throws the same located `VegaLiteSpecException` as `Create` for a format that is not valid.
 - `TimeLabels.IntervalRequest(SpecNode?)` - the interval request of a `tickCount`, or null.
 - `TimeLabels.UsesVegaDefaultCount(TimeUnitSpec?)` - whether the default tick count is Vega's ten.
 - `TimeLabels.ReadInstant(SpecNode, TimeCalendar)` - the instant of an entry of `values`, or NaN.
@@ -162,8 +163,8 @@ A null argument is an `ArgumentNullException`. The unit performs no I/O.
 
 #### Dependencies
 
-- **`TimeFormat`**, **`TimeFormatter`**, and **`TimeFormatTooLongException`** - the compiled formats and the multi-format
-  (the `TimeFormat` unit)
+- **`TimeFormat`**, **`TimeFormatter`**, and **`TimeFormatTooLongException`** - the compiled formats and the
+  multi-format (the `TimeFormat` unit)
 - **`TimeCalendar`**, **`TimeUnitSpec`**, and **`DateTimeObject`** - the calendar, the unit specifier, and the date-time
   objects (the `TimeCalendar` unit), and **`JsDateParser`** for date text
 - **`TimeTickRequest`**, **`NumberFormat`** - the interval request of the ticks (the `Ticks` unit) and the number

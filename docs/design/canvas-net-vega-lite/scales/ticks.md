@@ -52,9 +52,10 @@ minutes, 1, 3, 6, and 12 hours, 1 and 2 days, 1 week, 1 and 3 months, and 1 year
   `VegaLiteRenderException` thrown before the array is allocated.
 - `TickIncrement(first, second, count)` and `TickStep(start, stop, count)` - the encoded increment and the signed step
   (positive when `stop` is at or above `start`).
-- `Nice(start, stop, count)` - the `nice` method of a d3-scale linear scale: the interval is rounded outward to multiples
-  of the tick step for the count and the rounding repeated (at most ten rounds) until the step settles; a reversed domain
-  keeps its direction; a domain that does not settle, or whose step is not finite (zero width), is returned unchanged.
+- `Nice(start, stop, count)` - the `nice` method of a d3-scale linear scale: the interval is rounded outward to
+  multiples of the tick step for the count and the rounding repeated (at most ten rounds) until the step settles; a
+  reversed domain keeps its direction; a domain that does not settle, or whose step is not finite (zero width), is
+  returned unchanged.
 - `DefaultAxisTickCount(size)` - Vega-Lite's default of one tick per 40 pixels, `ceil(size / 40)`.
 - `DefaultAxisTickMinStep(format)` - 1 for the integer format `d`, otherwise none.
 - `ResolveTickCount(domainStart, domainEnd, count, minStep, logarithmic, temporal)` - Vega's `tickCount`: the count is
@@ -68,14 +69,14 @@ minutes, 1, 3, 6, and 12 hours, 1 and 2 days, 1 week, 1 and 3 months, and 1 year
   the log scale has a `ticks` method of its own).
 - `LogTicks(start, stop, count, logBase, maxTicks, cancellationToken)` - the `ticks` method of d3's `scaleLog`. With a
   whole-number base and a domain that spans fewer powers than the count, the ticks are the multiples `1 .. base - 1` of
-  every power inside the domain (a power below one is divided, which keeps the decimals exact; the multiples run downward
-  for a domain below zero, which d3 reflects through `-log(-x)` and `-pow(-x)`); when they are fewer than half the count
-  the ordinary ticks of the domain are used; otherwise the ticks are the `GetTicks` of the exponents turned into powers
-  (`Pow10` parses `"1e" + x` for a whole exponent, as d3 does, which is exact where `Math.Pow` is not guaranteed to be).
-  A descending domain gives descending ticks. A domain that contains or crosses zero, an infinite end, or a base that is
-  not above zero or is 1 has no ticks. The work is bounded: more than `maxTicks` ticks, or more than a hundred times
-  `maxTicks` multiples looked at (a huge whole-number base), is a `VegaLiteRenderException` that names the limit, and the
-  token is polled every 4,096 multiples.
+  every power inside the domain (a power below one is divided, which keeps the decimals exact; the multiples run
+  downward for a domain below zero, which d3 reflects through `-log(-x)` and `-pow(-x)`); when they are fewer than half
+  the count the ordinary ticks of the domain are used; otherwise the ticks are the `GetTicks` of the exponents turned
+  into powers (`Pow10` parses `"1e" + x` for a whole exponent, as d3 does, which is exact where `Math.Pow` is not
+  guaranteed to be). A descending domain gives descending ticks. A domain that contains or crosses zero, an infinite
+  end, or a base that is not above zero or is 1 has no ticks. The work is bounded: more than `maxTicks` ticks, or more
+  than a hundred times `maxTicks` multiples looked at (a huge whole-number base), is a `VegaLiteRenderException` that
+  names the limit, and the token is polled every 4,096 multiples.
 - `LogNice(start, stop, logBase)` - the `nice` method of d3's `scaleLog`: the first end is floored and the last
 ceiled to a
   power of the base (the same reflected functions below zero), keeping the direction; the count plays no part; a
@@ -83,35 +84,36 @@ domain the
   logarithm is not defined on is returned unchanged.
 - `LogLabelTest(logBase, count, tickCount)` - the label filter of `scaleLog.tickFormat` that Vega applies (`tickLog`): a
   tick is labeled when `d / base^round(log(d) / log(base))` (multiplied by the base when below `1 - 0.5 / base`) is not
-  above `max(1, base * count / ticks)`. Vega computes it with `Math.log(d)`, which is NaN for a negative tick and so hides
-  every label of a negative log axis; the unit uses the magnitude (a documented deviation) so that a negative log axis is
-  labeled by the same rule.
+  above `max(1, base * count / ticks)`. Vega computes it with `Math.log(d)`, which is NaN for a negative tick and so
+  hides every label of a negative log axis; the unit uses the magnitude (a documented deviation) so that a negative log
+  axis is labeled by the same rule.
 - `IsLogDomain(start, stop)` - whether the two ends make a domain the logarithm is defined on (finite, not zero, on the
   same side of zero).
 - `TimeTickInterval(start, stop, count, calendar, utcScale)` - d3-time's `tickInterval`: the target length is
   `|stop - start| / count`; the table entry that follows the target is found by bisection (`bisector.right`: the entries
   not longer than the target are skipped), and the entry before it is chosen instead when the target is nearer to it by
   ratio (`target / previous < next / target`; a target of 10 minutes, with the ratios 10 / 5 = 2 and 15 / 10 = 1.5,
-  picks 15 minutes). A target below the first entry (1 second) gives whole milliseconds, `max(tickStep(start, stop,
-  count), 1)` through the calendar's millisecond interval, and a target beyond the last (1 year) gives whole years by
-  `tickStep` over the years. The result is the calendar's interval made `Every(step)`; it is null for a count that is not
-  positive or a NaN span. For a **UTC** scale (`utcScale`) the two-day entry uses `TimeInterval.EveryEpochDay`: d3's UTC
-  table uses `unixDay` there, so its two-day ticks count the days since the epoch (a UTC domain that starts on 2024-01-01,
-  day 19,723, gets the ticks of January 2, 4, and so on), while a local `timeDay.every(2)` counts the day of the month
-  (1, 3, 5, and so on); the other entries use the calendar's `Every` in both cases.
+  picks 15 minutes). A target below the first entry (1 second) gives whole milliseconds,
+  `max(tickStep(start, stop, count), 1)` through the calendar's millisecond interval, and a target beyond the last (1
+  year) gives whole years by `tickStep` over the years. The result is the calendar's interval made `Every(step)`; it is
+  null for a count that is not positive or a NaN span. For a **UTC** scale (`utcScale`) the two-day entry uses
+  `TimeInterval.EveryEpochDay`: d3's UTC table uses `unixDay` there, so its two-day ticks count the days since the epoch
+  (a UTC domain that starts on 2024-01-01, day 19,723, gets the ticks of January 2, 4, and so on), while a local
+  `timeDay.every(2)` counts the day of the month (1, 3, 5, and so on); the other entries use the calendar's `Every` in
+  both cases.
 - `ResolveTimeInterval(request, start, stop, calendar, utcScale)` - turns a request into the interval: a count goes to
   `TimeTickInterval`; an interval name is the interval of the calendar (of the UTC calendar when the name had the `utc`
-  prefix), and a step makes it every `Step`-th boundary; a step that gives no interval (below one, or negative) falls back
-  to the default of about ten ticks, as d3 does when the scale has no interval.
-- `TimeTicks(model, request, maxTicks, cancellationToken)` and `TimeTicks(domainStart, domainEnd, request, calendar,
-  utcScale, maxTicks, cancellationToken)` - d3-time's `ticks` of the domain: the boundaries of the resolved interval from
-  the first one at or after the start of the domain up to **and including** the stop (d3 asks the range for `stop + 1`),
-  in descending order for a reversed domain; empty when there is no interval. The model overload reads the domain and
-  the calendar of a `Time` or `Utc` model (an `ArgumentException` for another kind) and delegates; the instant overload
-  serves a domain that no time scale model holds, the instants of a **temporal color scale**. The interval's range is
-  asked for at most `maxTicks` values and its `TimeRangeLimitException` becomes a `VegaLiteRenderException` that names
-  the limit (without a location); a degenerate domain gives its single instant as one tick (the d3 millisecond interval
-  `every(max(tickStep, 1))`).
+  prefix), and a step makes it every `Step`-th boundary; a step that gives no interval (below one, or negative) falls
+  back to the default of about ten ticks, as d3 does when the scale has no interval.
+- `TimeTicks(model, request, maxTicks, cancellationToken)` and
+  `TimeTicks(domainStart, domainEnd, request, calendar, utcScale, maxTicks, cancellationToken)` - d3-time's `ticks` of
+  the domain: the boundaries of the resolved interval from the first one at or after the start of the domain up to **and
+  including** the stop (d3 asks the range for `stop + 1`), in descending order for a reversed domain; empty when there
+  is no interval. The model overload reads the domain and the calendar of a `Time` or `Utc` model (an
+  `ArgumentException` for another kind) and delegates; the instant overload serves a domain that no time scale model
+  holds, the instants of a **temporal color scale**. The interval's range is asked for at most `maxTicks` values and its
+  `TimeRangeLimitException` becomes a `VegaLiteRenderException` that names the limit (without a location); a degenerate
+  domain gives its single instant as one tick (the d3 millisecond interval `every(max(tickStep, 1))`).
 - `TimeNice(start, stop, request, calendar, utcScale)` - the `nice` method of d3's time scale: the start is floored and
   the end ceiled to the boundaries of the resolved interval (the count form picks the interval with `TimeTickInterval`,
   so `nice: true` is a count of 10), keeping the direction of a reversed domain; the domain is returned unchanged when
@@ -139,7 +141,7 @@ the `TimeCalendar` it is given.
 - **`VegaLiteRenderException`** and the `MaxTicks` default of **`VegaLiteLimits`** - the public types of the
   `VegaLiteDocument` unit
 - **`TimeCalendar`**, **`TimeInterval`**, **`TimeIntervalKind`**, and **`TimeRangeLimitException`** (the `TimeCalendar`
-  unit of the `Data` subsystem) - the calendar arithmetic of the time ticks and `nice`; see _Time Calendar Design_
+  unit of the `Data` subsystem) - the calendar arithmetic of the time ticks and `nice`; see *Time Calendar Design*
 - **.NET base class library** - `System` (`Math`), `System.Globalization` (the invariant parse of `"1e" + x`)
 
 The unit depends on `ScaleModel` (the `ModelTicks` dispatch reads its transform and `TimeTicks` its calendar) within the
@@ -148,11 +150,9 @@ The unit depends on `ScaleModel` (the `ModelTicks` dispatch reads its transform 
 #### Callers
 
 `ScaleResolver` (through `CreateModel`) calls `Nice` and `LogNice` (and `IsLogDomain` to refuse a log domain) and
-`TimeNice` for a time scale with `nice`; `AxisBuilder`
-and `LegendBuilder` call `DefaultAxisTickCount`, `DefaultAxisTickMinStep`, `ResolveTickCount` (with `temporal` for a time
-axis), `ModelTicks`, `LogLabelTest`, and `TimeTicks` (the model overload for a time axis, the instant overload for the
-gradient legend of a temporal color); the `TimeTickRequest` they pass is read from `tickCount` by the guides (see
-_Time Labels Design_).
-`NumberFormat.TickFormat` takes the same start, stop, and count. The tests in
-`test/DemaConsulting.CanvasNet.VegaLite.Tests/Scales/TicksTests.cs` and `TicksTimeTests.cs` call the methods directly
-through `InternalsVisibleTo`.
+`TimeNice` for a time scale with `nice`; `AxisBuilder` and `LegendBuilder` call `DefaultAxisTickCount`,
+`DefaultAxisTickMinStep`, `ResolveTickCount` (with `temporal` for a time axis), `ModelTicks`, `LogLabelTest`, and
+`TimeTicks` (the model overload for a time axis, the instant overload for the gradient legend of a temporal color); the
+`TimeTickRequest` they pass is read from `tickCount` by the guides (see *Time Labels Design*). `NumberFormat.TickFormat`
+takes the same start, stop, and count. The tests in `test/DemaConsulting.CanvasNet.VegaLite.Tests/Scales/TicksTests.cs`
+and `TicksTimeTests.cs` call the methods directly through `InternalsVisibleTo`.

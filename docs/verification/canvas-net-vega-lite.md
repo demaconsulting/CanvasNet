@@ -14,10 +14,10 @@ in-memory text, streams, and the fixture files with `VegaLiteDocument.Parse` and
 `VegaLiteRenderException`, the events delivered to the warning and unsupported-feature handlers (their stable
 `vl-*` identifiers, JSON pointers, and one-based line and column), the `VegaLiteSize` returned by `Measure`, the
 pixels of the rendered `Surface`, and the exception types thrown for invalid arguments and hostile input. No
-mocking or stubbing is used. The subsystem tier (see the _SpecModel_, _Data_, _Expressions_, _Transforms_, _Scales_,
-_Guides_, _Layout_, _Marks_, and _Scenegraph_ Subsystem Verification Designs under `canvas-net-vega-lite/`) verifies the
+mocking or stubbing is used. The subsystem tier (see the *SpecModel*, *Data*, *Expressions*, *Transforms*, *Scales*,
+*Guides*, *Layout*, *Marks*, and *Scenegraph* Subsystem Verification Designs under `canvas-net-vega-lite/`) verifies the
 units of each internal subsystem working together, and the unit tier verifies each unit in isolation (see the
-_VegaLiteDocument Unit Verification Design_ and the unit verification designs under `canvas-net-vega-lite/spec-model/`,
+*VegaLiteDocument Unit Verification Design* and the unit verification designs under `canvas-net-vega-lite/spec-model/`,
 `canvas-net-vega-lite/data/`, `canvas-net-vega-lite/expressions/`, `canvas-net-vega-lite/transforms/`,
 `canvas-net-vega-lite/scales/`, `canvas-net-vega-lite/guides/`, `canvas-net-vega-lite/layout/`,
 `canvas-net-vega-lite/marks/`, and `canvas-net-vega-lite/scenegraph/`), including the internal types made visible to the
@@ -92,18 +92,16 @@ table, Vega's multi-format, and the layout of the chart, and never from the outp
 January 1, 6, and 11 sit at 0, 150, and 300 pixels of 300 on a time axis whose ticks are every second day and whose
 labels are `2024`, `Wed 03`, `Fri 05`, `Jan 07`, `Tue 09`, and `Thu 11`; the bars of three months span the 91 days of
 January 1 to April 1 (the bar of January starts at 1 and is 31 x 300 / 91 - 1 = 101.198 wide); a zone 5:30 hours ahead
-of
-UTC moves a reading at 20:00Z to the next day, which shifts its point by exactly one day of the scale; in a zone that
+of UTC moves a reading at 20:00Z to the next day, which shifts its point by exactly one day of the scale; in a zone that
 follows the United States rule the day of March 10, 2024 is 23 hours long, so the middle of three days is 240 pixels in
 of 470 instead of 235; a UTC time unit ignores the zone; a parse directive reads day-first dates that the default parse
 rejects; text dates are parsed like `Date.parse`; a filter by time unit and date-time object keeps four of eight rows; a
-temporal color has a gradient legend of dates; an ordinal time unit is a band scale; a binned time unit has the bars
-of the
-unit (a binned unit is not floored by the encoding but by the transform) and its predicates compare the field, and a band
-position other than one half on a bar is reported and stops a strict render; the tick and string limits and the
+temporal color has a gradient legend of dates; an ordinal time unit is a band scale; a binned time unit has the bars of
+the unit (a binned unit is not floored by the encoding but by the transform) and its predicates compare the field, and a
+band position other than one half on a bar is reported and stops a strict render; the tick and string limits and the
 cancellation fail closed; and the renders are byte-identical on repeated and concurrent calls, under other cultures, and
-whatever the host's time zone is. The units under it are verified in the _TimeCalendar_, _TimeFormat_, _TimeLabels_, and
-_TimeUnitTransform_ Unit Verification Designs.
+whatever the host's time zone is. The units under it are verified in the *TimeCalendar*, *TimeFormat*, *TimeLabels*, and
+*TimeUnitTransform* Unit Verification Designs.
 
 The line, area, trail, text, and arc scenarios assert on what the system draws from the path and polar marks, with
 expectations derived by hand from the scale formulas and the path rules, and never from the output of a real Vega-Lite
@@ -128,10 +126,10 @@ geoshape mark, the sizes of an area, and so on) are reported once and in order w
 the chart is drawn, that a path, an arc, and a label above the limits fail closed with a located exception before they
 are
 created, that a canceled token stops every one of the marks, and that repeated, concurrent, scaled, and other-culture
-renders are identical. The units under them are verified in the _CurveBuilder_, _ArcGeometry_, and _SymbolPathParser_
+renders are identical. The units under them are verified in the *CurveBuilder*, *ArcGeometry*, and *SymbolPathParser*
 Unit Verification
 Designs
-and in the _MarkBuilder_ and _ScenePainter_ Unit Verification Designs.
+and in the *MarkBuilder* and *ScenePainter* Unit Verification Designs.
 
 The layer and composite mark scenarios assert on what the system draws from `layer`, `resolve`, and the marks `boxplot`,
 `errorbar`, and `errorband`, with every number derived by hand from the scale formulas and the layout (a 300 pixel data
@@ -155,8 +153,8 @@ the given range or errors), and an error band a rect or an area between the same
 of the
 nesting, the specification errors of an undecidable composite mark, the identifiers that are reported and the ones that
 are
-retired, and `Measure` equal to `Render` are asserted. The units under them are verified in the _SpecNormalizer_,
-_ScaleResolver_, _LegendBuilder_, and _FeatureCatalog_ Unit Verification Designs.
+retired, and `Measure` equal to `Render` are asserted. The units under them are verified in the *SpecNormalizer*,
+*ScaleResolver*, *LegendBuilder*, and *FeatureCatalog* Unit Verification Designs.
 
 The data scenarios assert on what the system reads and how it fails: a specification opened from a file reads its
 relative data file from its own folder, and the base directory, a data path, and a resolver callback find the same
@@ -220,9 +218,9 @@ documented in `Fixtures/README.md` beside them.
 - **Threads**: The determinism scenario renders one document from sixteen concurrent tasks and compares each
   result with a single-threaded baseline, and the transforms scenario does the same from twelve tasks; the
   handler-thread scenario records the managed thread on which each handler ran and compares it with the caller's
-- **Isolation**: Each test method builds its own sources, options, and streams; no shared mutable state between
-  tests. The path-based scenarios read the checked-in fixture files; the tests that need a file of their own (the
-  path entry point, the font directory, and the data and lookup file-access scenarios) create it in a uniquely named per-test
+- **Isolation**: Each test method builds its own sources, options, and streams; no shared mutable state between tests.
+  The path-based scenarios read the checked-in fixture files; the tests that need a file of their own (the path entry
+  point, the font directory, and the data and lookup file-access scenarios) create it in a uniquely named per-test
   temporary folder and delete the folder when they finish
 
 ## External Interface Simulation
@@ -408,7 +406,7 @@ first report (`vl-data-remote-url`; and for a single view with remote data, `vl-
 the callback was never
 asked for anything. The classification of every other form (remote: other schemes, UNC and protocol-relative paths;
 local: absolute and drive-letter paths and `file:` URIs without a host) is verified at the unit tier in the
-_FeatureCatalog Unit Verification Design_.
+*FeatureCatalog Unit Verification Design*.
 
 ### Data: A Local File Loads From The Folder Of The Opened Specification
 
@@ -438,12 +436,12 @@ that says that the document has no base directory, data path, or file resolver, 
 
 Renders charts against a base directory in a temporary folder that holds a good file, a file of invalid UTF-8, and a
 file beside the root, under `FileAccess = UnderRoots(root)`. Asserts that a missing file ("was not found"),
-`../outside.csv`, `dir/../../outside.csv`, and the absolute path of the file beside the root ("denied by the
-file-access policy 'roots'"), a file that is not UTF-8 ("is not valid UTF-8"), and a path with a colon ("is not
-allowed") each fail with a `VegaLiteRenderException` located at `/data/url`, in lenient and strict mode alike; and that
-the good file renders. The directory-in-place-of-file, existing-file-open-failure, callback-failure, stream-disposal, and
-invalid-Unicode JSON failures, and the clamping of a caller's maximum dates, are verified at the
-`DataFileResolver` and `DataLoader` unit levels.
+`../outside.csv`, `dir/../../outside.csv`, and the absolute path of the file beside the root ("denied by the file-access
+policy 'roots'"), a file that is not UTF-8 ("is not valid UTF-8"), and a path with a colon ("is not allowed") each fail
+with a `VegaLiteRenderException` located at `/data/url`, in lenient and strict mode alike; and that the good file
+renders. The directory-in-place-of-file, existing-file-open-failure, callback-failure, stream-disposal, and
+invalid-Unicode JSON failures, and the clamping of a caller's maximum dates, are verified at the `DataFileResolver` and
+`DataLoader` unit levels.
 
 ### Data: The Default Policy Reads Parent, Absolute, And File URI Paths
 
@@ -881,10 +879,10 @@ limit) and a canceled token stops the render with an `OperationCanceledException
 
 Renders the five fixtures with a handler and asserts that the aggregate, bin, stack, and window are drawn without a
 report, since the color legend of the stacked bars is drawn too (the fixtures report nothing); and that adding an
-`encode` object to the axis (a custom guide encoding, still unsupported; the binned time unit that this scenario used until
-Phase 13 is applied now) next to the aggregate of `aggregate-bars.vl.json` is
-reported once (`vl-guide-encode` at `/encoding/x/axis/encode`) with the chart still drawn, and stops a strict render
-with a `VegaLiteUnsupportedFeatureException` for that feature.
+`encode` object to the axis (a custom guide encoding, still unsupported; the binned time unit that this scenario used
+until Phase 13 is applied now) next to the aggregate of `aggregate-bars.vl.json` is reported once (`vl-guide-encode` at
+`/encoding/x/axis/encode`) with the chart still drawn, and stops a strict render with a
+`VegaLiteUnsupportedFeatureException` for that feature.
 
 ### Limits: Oversized Source And Excessive Depth Fail Closed
 
@@ -932,24 +930,22 @@ Uses the three original legend fixtures and small inline specifications, reads t
 asserts hand-derived geometry (the sizes of the legend boxes are those of the unit-tested legend builder): the color and
 size legends of `legend-symbols.vl.json` are one column 18 pixels right of the data rectangle and 8 pixels apart, with
 the explicit title `Crop`, the colors of the scheme, and a canvas as wide as the legends need; `legend: null` removes
-them; the
-quantitative color of `legend-gradient.vl.json` (and of a small scatter plot without any legend property) has a gradient
-bar of 16 by 160 pixels whose stops are the ends of the domain and the ticks (the second at 0.04), whose first and last
-colors are the ends of the default ramp and whose painted rows are light at the bottom and dark at the top, titled `Rain
-(mm)`; a color and a shape on the same field of `legend-merged.vl.json` share one legend (stroked symbols with both a
-shape and a color) while the size has its own legend 8 pixels below, and a shape on another field is a third legend; a
-bottom legend is 18 pixels below the x axis, a top legend 18 pixels above the data rectangle, an inner orient does not
-change the canvas, a left legend ends 18 pixels left of the y axis, and `autosize: none` keeps the canvas size so the
-legend
-sticks out; the size legend of a trail (four rows with the sizes 1, 3, 6, and 9) has five symbols of the size 100 whose
-stroke widths run from 1 to 3 + 2 / 3, and the ink of the largest symbol is
-about 3.7 pixels thick in the rendered picture (the sum of the coverage of the column through its center is at least
-3.4, where a symbol of the width 1.5 was about 1.5 thick); the `titleOrient` of a legend is drawn since Phase 13 and not
-reported (see the _LegendBuilder Unit Verification Design_), as is the `clipHeight` (see _Legends: Clip Height_ below; the
-test of the unsupported properties now uses `legend.encode`, which is still reported as `vl-guide-encode` at
-`/encoding/color/legend/encode`, where it used `clipHeight` before); a `MaxSceneItems` of
-the exact scene count renders and one less fails with the name of the limit, as does a limit that only the legends fit
-in, and a canceled token stops the render; and four concurrent renders are byte-identical to the first.
+them; the quantitative color of `legend-gradient.vl.json` (and of a small scatter plot without any legend property) has
+a gradient bar of 16 by 160 pixels whose stops are the ends of the domain and the ticks (the second at 0.04), whose
+first and last colors are the ends of the default ramp and whose painted rows are light at the bottom and dark at the
+top, titled `Rain (mm)`; a color and a shape on the same field of `legend-merged.vl.json` share one legend (stroked
+symbols with both a shape and a color) while the size has its own legend 8 pixels below, and a shape on another field is
+a third legend; a bottom legend is 18 pixels below the x axis, a top legend 18 pixels above the data rectangle, an inner
+orient does not change the canvas, a left legend ends 18 pixels left of the y axis, and `autosize: none` keeps the
+canvas size so the legend sticks out; the size legend of a trail (four rows with the sizes 1, 3, 6, and 9) has five
+symbols of the size 100 whose stroke widths run from 1 to 3 + 2 / 3, and the ink of the largest symbol is about 3.7
+pixels thick in the rendered picture (the sum of the coverage of the column through its center is at least 3.4, where a
+symbol of the width 1.5 was about 1.5 thick); the `titleOrient` of a legend is drawn since Phase 13 and not reported
+(see the *LegendBuilder Unit Verification Design*), as is the `clipHeight` (see *Legends: Clip Height* below; the test
+of the unsupported properties now uses `legend.encode`, which is still reported as `vl-guide-encode` at
+`/encoding/color/legend/encode`, where it used `clipHeight` before); a `MaxSceneItems` of the exact scene count renders
+and one less fails with the name of the limit, as does a limit that only the legends fit in, and a canceled token stops
+the render; and four concurrent renders are byte-identical to the first.
 
 ### Log, Pow, Sqrt, And Symlog Scales: Positions, Ticks, Legends, Limits, And Determinism
 
@@ -1026,8 +1022,8 @@ found before the failure (a `bandPosition` report in the test) are still deliver
 
 Asserts that 100 symbols of a hundred million square pixels, each covering the 110 by 110 image, are a
 `VegaLiteRenderException` that names `VegaLiteLimits.MaxPaintedPixels` and is located at `/mark` when the limit is
-100,000 pixels, that `Measure` of the same chart with the same limit returns the size of the unlimited render (nothing is
-painted, so nothing is charged), and that a limit that the chart fits renders it.
+100,000 pixels, that `Measure` of the same chart with the same limit returns the size of the unlimited render (nothing
+is painted, so nothing is charged), and that a limit that the chart fits renders it.
 
 ### Limits: A Size That Is Not A Finite Number Fails With A Location
 
@@ -1114,7 +1110,7 @@ case is written to the dump folder).
 `CanvasNetVegaLite_SystemIntegration_LimitAudit_ImputeKeysBeyondTheCellLimitAreRefusedWhateverTheRowLimit`,
 `CanvasNetVegaLite_SystemIntegration_LimitAudit_InfinitePaddingOfAChartWithoutDataIsLocated`
 
-Asserts, for each of 41 rows of the inventory of the design document (_Resource Limits And Hardening_), that the hostile
+Asserts, for each of 41 rows of the inventory of the design document (*Resource Limits And Hardening*), that the hostile
 specification is refused with the exception type of the row, located under the JSON pointer of the row, with a message
 that contains the limit, and with less than 96 MiB allocated on the thread (the cost is charged before the allocation);
 that the costs that are bounded without a refusal (a format width of a billion, a dash period of 1e-30, a flood of
@@ -1313,14 +1309,13 @@ twice as high as January's; the labels are `Jan`, `Feb`, and `Mar` and are not t
 `VegaLiteTimeIntegrationTests.CanvasNetVegaLite_SystemIntegration_Time_BinnedUnitInTheTransformFloors`
 
 Asserts, in strict mode (nothing is reported), that a bar chart with the unit `binnedyearmonth` has four bars with the
-same geometry as the unit `yearmonth` whether the dates are the first or the 15th of the months (the encoding reads
-the field
-as it is and its end is one month after it; the first bar is 300 x 31 / 121 - 1 wide), with the title `d` where the
-unit has `d (year-month)`; that a point with a binned unit sits at the date (0, 150, and 300 pixels for January 1, 6, and
-11); that predicates of a binned unit compare the instant of the field (`gte` of February 2024 keeps three of four
-months, `equal` `2024-03-01` one, a `oneOf` of January and April two) and the `maxbins` form, which names no unit, compares
-the numeric field as a number (`lt` 3 keeps two); and that the `timeUnit` transform with a binned unit floors the
-15th, 20th, and 25th to the first of their month (points at 0, 300, and 300 pixels).
+same geometry as the unit `yearmonth` whether the dates are the first or the 15th of the months (the encoding reads the
+field as it is and its end is one month after it; the first bar is 300 x 31 / 121 - 1 wide), with the title `d` where
+the unit has `d (year-month)`; that a point with a binned unit sits at the date (0, 150, and 300 pixels for January 1,
+6, and 11); that predicates of a binned unit compare the instant of the field (`gte` of February 2024 keeps three of
+four months, `equal` `2024-03-01` one, a `oneOf` of January and April two) and the `maxbins` form, which names no unit,
+compares the numeric field as a number (`lt` 3 keeps two); and that the `timeUnit` transform with a binned unit floors
+the 15th, 20th, and 25th to the first of their month (points at 0, 300, and 300 pixels).
 
 ### Time: Strict Mode Reports Only What Is Unsupported
 
@@ -2083,7 +2078,7 @@ start and drawn last, that the data and the transform of the concatenation are i
 the warning `vl-concat-axis-shared` (each delivered once, and the axes stay independent), that `Measure` equals
 `Render`, and that strict mode has nothing to throw for. The remaining scenarios of the concatenation (bounds, center,
 resolve of scales and legends, nesting, the second axis of a layered chart, the limits, determinism under concurrency)
-are listed in the _VegaLiteDocument_ unit verification.
+are listed in the *VegaLiteDocument* unit verification.
 
 ### Compositions: Repeats Expand Into Concatenations And Layers
 
@@ -2155,7 +2150,7 @@ and a `maxbins` time unit are drawn (`Jan 2024` and `Feb 2024`, and two cells of
 the field of its name (`sum_v`; title `Sum of v`). The
 remaining scenarios of the facet (the order and the null cell, the header properties, the sides, the aggregate and the
 stack of a cell, the layered body, the unit view with facet channels, the size of independent step scales, the limits,
-cancellation, and determinism under concurrency) are listed in the _VegaLiteDocument_ unit verification.
+cancellation, and determinism under concurrency) are listed in the *VegaLiteDocument* unit verification.
 
 ### Compositions: Limits, Strict Mode, Cancellation, And Determinism Hold For Every Kind
 
@@ -2325,27 +2320,27 @@ a resolver reports `vl-mark-image` once (and fails in strict mode) and draws not
 give
 is the warning `vl-mark-image-unresolved` that strict mode accepts, and that the number of distinct pictures is limited
 by
-`MaxImages` with the call beyond it failing at the mark. The units are verified in the _MarkBuilder_, _SceneModel_,
-_ScenePainter_, _FeatureCatalog_, and _VegaLiteDocument_ Unit Verification Designs, and the Viewer wiring in the
-_SourceLoader_ Unit Verification Design.
+`MaxImages` with the call beyond it failing at the mark. The units are verified in the *MarkBuilder*, *SceneModel*,
+*ScenePainter*, *FeatureCatalog*, and *VegaLiteDocument* Unit Verification Designs, and the Viewer wiring in the
+*SourceLoader* Unit Verification Design.
 
 ### Legends: Clip Height Clips The Symbols To Their Entries (Phase 14)
 
-**Test**: `VegaLitePhase14SystemTests.CanvasNetVegaLite_SystemIntegration_Legend_ClipHeightClipsTheSymbolsToTheirEntries`,
+**Test**:
+`VegaLitePhase14SystemTests.CanvasNetVegaLite_SystemIntegration_Legend_ClipHeightClipsTheSymbolsToTheirEntries`,
 `VegaLitePhase14SystemTests.CanvasNetVegaLite_SystemIntegration_Legend_ClipHeightIsChargedToTheSceneBudget`
 
 Renders a 100 by 100 chart of three categories as filled, opaque points whose color legend has `clipHeight: 10` and
-`symbolSize: 3000` (symbols 62 pixels across in entries 10 high) with the strict policy, so that nothing may be reported.
-Asserts that the scene holds three `legend-symbol-clip` groups at y = 0, 12, and 24 (the entry height plus the row padding
-of 2), the first with a clip rectangle 10 high, and that in the rendered picture the column through the center of the
-first symbol holds between 9 and 11 pixels of the symbol color, against more than 40 for the same legend without the
-property, so the clip reaches the pixels. The test
+`symbolSize: 3000` (symbols 62 pixels across in entries 10 high) with the strict policy, so that nothing may be
+reported. Asserts that the scene holds three `legend-symbol-clip` groups at y = 0, 12, and 24 (the entry height plus the
+row padding of 2), the first with a clip rectangle 10 high, and that in the rendered picture the column through the
+center of the first symbol holds between 9 and 11 pixels of the symbol color, against more than 40 for the same legend
+without the property, so the clip reaches the pixels. The test
 `VegaLitePhase14SystemTests.CanvasNetVegaLite_SystemIntegration_Legend_ClipHeightIsChargedToTheSceneBudget` renders the
-same kind of chart with `clipHeight: 12` and asserts that the number of items of the scene is that of the legend
-without the property plus one clipping group for each of the three entries, that a `MaxSceneItems` of exactly that
-count renders, and that one item less fails with a `VegaLiteRenderException` that names `MaxSceneItems`. The geometry of
-the legend is verified in the _LegendBuilder_ Unit
-Verification Design.
+same kind of chart with `clipHeight: 12` and asserts that the number of items of the scene is that of the legend without
+the property plus one clipping group for each of the three entries, that a `MaxSceneItems` of exactly that count
+renders, and that one item less fails with a `VegaLiteRenderException` that names `MaxSceneItems`. The geometry of the
+legend is verified in the *LegendBuilder* Unit Verification Design.
 
 ### Offset Channels: Ranged Offsets Draw Bars And Areas From The Baseline (Phase 14)
 
@@ -2362,7 +2357,7 @@ that the area of the same data is a polygon of seven segments (Vega's `M25,16.66
 L75,54.762 L25,54.762 Z`) whose pixels between the offset values and the baseline have the area color, those beyond it
 white; and that a bar whose `yOffset` is a temporal field is not a ranged offset, so strict mode throws a
 `VegaLiteUnsupportedFeatureException` with the feature `vl-offset-ranged` at `/encoding/yOffset`. The axes are verified
-in the _AxisBuilder_ Unit Verification Design and the geometry in the _MarkBuilder_ one.
+in the *AxisBuilder* Unit Verification Design and the geometry in the *MarkBuilder* one.
 
 ### Scale Invalid: Rows Without A Value Take The Configured Output (Phase 14)
 
@@ -2370,12 +2365,12 @@ in the _AxisBuilder_ Unit Verification Design and the geometry in the _MarkBuild
 `VegaLitePhase14SystemTests.CanvasNetVegaLite_SystemIntegration_ScaleInvalid_RowsWithoutAValueTakeTheConfiguredOutput`,
 `VegaLitePhase14SystemTests.CanvasNetVegaLite_SystemIntegration_ScaleInvalid_AnUnreadableEntryIsReported`
 
-Renders four filled circles of size 400 over `a`, `b`, and `c`, the second without a color value and the third without an
-x, with `config.scale.invalid` of `{"color": {"value": "#aaa"}, "x": {"value": 5}}` under the strict policy. Asserts that
-all four rows are drawn where the same chart without the configuration draws two, that the second has the fill `#aaa`
-and the pixel at its center has that color, and that the third is at x = 5. A second chart whose configuration gives the
-entry `x` the value `null` (not readable) makes strict mode throw a `VegaLiteUnsupportedFeatureException`
-with the feature `vl-scale-invalid-value` at `/config/scale/invalid/x`.
+Renders four filled circles of size 400 over `a`, `b`, and `c`, the second without a color value and the third without
+an x, with `config.scale.invalid` of `{"color": {"value": "#aaa"}, "x": {"value": 5}}` under the strict policy. Asserts
+that all four rows are drawn where the same chart without the configuration draws two, that the second has the fill
+`#aaa` and the pixel at its center has that color, and that the third is at x = 5. A second chart whose configuration
+gives the entry `x` the value `null` (not readable) makes strict mode throw a `VegaLiteUnsupportedFeatureException` with
+the feature `vl-scale-invalid-value` at `/config/scale/invalid/x`.
 
 ### Expressions: Distribution Functions Draw Their Results And Sampling Is Still Reported (Phase 14)
 
@@ -2391,7 +2386,7 @@ table), that exactly the points x = 2, 2.5, and 3 remain (the cumulative values 
 the next
 as the density falls. A calculate of `random()` is not in the table: strict mode throws a
 `VegaLiteUnsupportedFeatureException` with the feature `vl-expr-function-random`. The numbers of the functions are
-verified in the _ExpressionFunctions_ Unit Verification Design.
+verified in the *ExpressionFunctions* Unit Verification Design.
 
 ### Gallery: Every Specification Of The Documentation Gallery Renders Strict Without A Warning
 
@@ -2420,17 +2415,17 @@ specification is rendered once plainly and once with a `PositionHandler` that of
 `Widgets per day`), the `y` axis, and the bar of the day `b`, in that order, with no unmatched selector, that the bar
 is in the view `layer[0]`, that its pixel lies within the returned surface, and that it has the data `count` = 5 of its
 row and is selected by `mark:day=b+count=5`. The ids, values, geometry, view paths,
-scale and fit mapping, and the handler's contract are verified in the _VegaLiteDocument Unit Verification Design_ and
-the _ScenePositions Unit Verification Design_.
+scale and fit mapping, and the handler's contract are verified in the *VegaLiteDocument Unit Verification Design* and
+the *ScenePositions Unit Verification Design*.
 
 ### Platform: Every System Scenario Runs On Every Target
 
 **Tests**: all system scenarios above, run by `dotnet test` on each target framework and operating system.
 
-Asserts, by running the full system test class on the Windows, Linux, and macOS CI runners and on `net8.0`,
-`net9.0`, `net10.0`, and `net11.0`, that the rendered pixels, the reported identifiers, and the exception contract do not
-depend on the platform. The platform requirements in `docs/reqstream/canvas-net-vega-lite/platform-requirements.yaml`
-link to one representative test from the list above per platform and runtime.
+Asserts, by running the full system test class on the Windows, Linux, and macOS CI runners and on `net8.0`, `net9.0`,
+`net10.0`, and `net11.0`, that the rendered pixels, the reported identifiers, and the exception contract do not depend
+on the platform. The platform requirements in `docs/reqstream/canvas-net-vega-lite/platform-requirements.yaml` link to
+one representative test from the list above per platform and runtime.
 
 ### Integration: Image Source Draws A chart At The Size Of Its Placement
 

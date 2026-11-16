@@ -112,7 +112,8 @@ reflex vertex, a hole vertex collinear with outer vertices, and 100 random hole 
 
 ##### CanvasNetRender3D-Tessellation-PolygonTriangulator-CollinearAndDuplicatePoints: Collinear Vertices Are Kept
 
-**Tests**: `PolygonTriangulatorTests.PolygonTriangulator_Triangulate_CollinearVerticesOnEdges_UseEveryVertexWithoutDegenerateTriangles`,
+**Tests**:
+`PolygonTriangulatorTests.PolygonTriangulator_Triangulate_CollinearVerticesOnEdges_UseEveryVertexWithoutDegenerateTriangles`,
 `PolygonTriangulatorTests.PolygonTriangulator_Triangulate_RectangleWithManyCollinearPointsOnAllSides_IsExact`,
 `PolygonTriangulatorTests.PolygonTriangulator_Triangulate_NearlyCollinearVertices_StillTriangulates`
 

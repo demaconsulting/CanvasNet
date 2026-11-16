@@ -12,8 +12,8 @@ it).
 
 ### Verification Approach
 
-The `Layout` subsystem has three units, and their unit verification (see the _ViewLayout_, _LegendLayout_, and
-_CompositionLayout Unit Verification Design_ documents under `layout/`) is complete for the subsystem's own behavior.
+The `Layout` subsystem has three units, and their unit verification (see the *ViewLayout*, *LegendLayout*, and
+*CompositionLayout Unit Verification Design* documents under `layout/`) is complete for the subsystem's own behavior.
 The first two units do not call each other (`CompositionLayout` uses only the grid layout of the `Guides` subsystem and
 is verified with pure boxes, its document-level scenarios belonging to the concatenation and facet work packages):
 `LegendLayout.Combine` produces the `ViewExtents` record that `ViewLayout.Measure` consumes, and the document pipeline
@@ -54,23 +54,23 @@ the unit verification document passes without error or unexpected exception.
   the empty 310 by 310 canvas 310 by 327, and the title ink lies in the band above the plot.
 - **Guides Grow The Canvas And Fit Is Uniform**:
   `CanvasNetVegaLite_SystemIntegration_Render_InlineBarHasExpectedSamplePixels`,
-  `CanvasNetVegaLite_SystemIntegration_Render_WidthHeightUniformlyFitsAndCenters` — the axes and title of the bar fixture
-  grow the canvas around the 240 by 200 data rectangle to the derived size, and an explicit size fits the chart
+  `CanvasNetVegaLite_SystemIntegration_Render_WidthHeightUniformlyFitsAndCenters` — the axes and title of the bar
+  fixture grow the canvas around the 240 by 200 data rectangle to the derived size, and an explicit size fits the chart
   uniformly and centers it.
 - **Container Sizes Are Laid Out Again For The Container**:
   `CanvasNetVegaLite_SystemIntegration_Render_ContainerWidthFillsTheContainer` — a container width gives a canvas of
   exactly the container width with the data rectangle computed from what the padding and the guides leave.
 - **Layout Is Deterministic**:
-  `VegaLiteDocumentLayoutTests.VegaLiteDocument_Render_TitledViewIsDeterministicAcrossThreadsAndFontOptions` — the layout
-  and the pixels of a titled view are identical across threads and font options.
+  `VegaLiteDocumentLayoutTests.VegaLiteDocument_Render_TitledViewIsDeterministicAcrossThreadsAndFontOptions` — the
+  layout and the pixels of a titled view are identical across threads and font options.
 - **Legends Are Placed Around The Data Rectangle And Grow The Canvas**:
   `CanvasNetVegaLite_SystemIntegration_Legend_SymbolLegendsStackRightOfTheDataRectangle`,
   `CanvasNetVegaLite_SystemIntegration_Legend_OrientsPlaceTheLegendAroundTheDataRectangle`,
   `CanvasNetVegaLite_SystemIntegration_Legend_ConfigurationAndAutosizeNone` — with the original fixture
   `legend-symbols.vl.json` (a 200 by 150 data rectangle), two legends are one column at 18 pixels right of the data
-  rectangle, 8 pixels apart, and the canvas is the padding, the data rectangle, the 18 pixels, the widest legend (the box
-  that the legend builder measures), and the padding wide, and as high as the legends reach below the data rectangle
-  (the legends are taller than the 150 pixels); a bottom legend starts 18 pixels below the rounded-up bottom of the x axis,
-  a top legend ends 18 pixels above the data rectangle (which moves down by the legend and the offset), a top-right legend
-  sits inside the data rectangle without changing the canvas, a left legend ends 18 pixels left of the y axis, and with
-  `autosize: none` the canvas is that of the chart without legends and the legend sticks out of it.
+  rectangle, 8 pixels apart, and the canvas is the padding, the data rectangle, the 18 pixels, the widest legend (the
+  box that the legend builder measures), and the padding wide, and as high as the legends reach below the data rectangle
+  (the legends are taller than the 150 pixels); a bottom legend starts 18 pixels below the rounded-up bottom of the x
+  axis, a top legend ends 18 pixels above the data rectangle (which moves down by the legend and the offset), a
+  top-right legend sits inside the data rectangle without changing the canvas, a left legend ends 18 pixels left of the
+  y axis, and with `autosize: none` the canvas is that of the chart without legends and the legend sticks out of it.

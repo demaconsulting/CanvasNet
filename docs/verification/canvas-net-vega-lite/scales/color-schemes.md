@@ -2,8 +2,8 @@
 
 This document describes the unit-level verification strategy for the `ColorSchemes` unit in the
 `DemaConsulting.CanvasNet.VegaLite.Scales` namespace: the internal static partial `ColorSchemes` class (the catalog of
-68 schemes, `TryGetColorScheme`, `TryGetScheme`, `Configure`, `CategoryColor`, `Tableau10`, and `Tableau10Color`) and the
-types `ColorScheme`, `SchemeRange`, and `SchemeUse`. `tableau10` is the default category palette of Vega-Lite, and
+68 schemes, `TryGetColorScheme`, `TryGetScheme`, `Configure`, `CategoryColor`, `Tableau10`, and `Tableau10Color`) and
+the types `ColorScheme`, `SchemeRange`, and `SchemeUse`. `tableau10` is the default category palette of Vega-Lite, and
 category `i` receives color `i` modulo the number of colors.
 
 #### Verification Approach
@@ -21,15 +21,15 @@ of cividis and Turbo.
 
 The interpolation and the range configuration are verified with values derived by hand. The sixth of the eleven stops of
 `blues` is `#5ba3cf`, so position 0.5 is exactly that color; the middle of the first segment (position 0.05) is the mean
-of `#cfe1f2` (207, 225, 242) and `#bed8ec` (190, 216, 236), that is 198.5, 220.5, and 239, which round half away from zero
-to `#c7ddef`. A discrete range of three colors from `blues` is taken at 0.25, 0.5, and 0.75 (stop positions 2.5, 5, and
-7.5 of ten): between `#a8cee5` and `#8fc1de` (155.5, 199.5, 225.5), on `#5ba3cf`, and between `#3181bd` and `#206fb2`
-(40.5, 120, 183.5), giving `#9cc8e2`, `#5ba3cf`, `#2978b8`. The counts follow the Vega rules: threshold with three
-thresholds gives four colors, bin-ordinal with five edges four, quantile and quantize five unless a count is given,
-and ordinal the count, else the domain size, else five. The unit has no outputs of another implementation to compare
-with, and no dependency needs mocking: the sibling unit `ColorInterpolator` is exercised for real, and the internal
-types are reached through the test assembly's `InternalsVisibleTo` access. The use of the unit by the scale resolver,
-with the documented fallback for other schemes, is verified in the _ScaleResolver Unit Verification Design_.
+of `#cfe1f2` (207, 225, 242) and `#bed8ec` (190, 216, 236), that is 198.5, 220.5, and 239, which round half away from
+zero to `#c7ddef`. A discrete range of three colors from `blues` is taken at 0.25, 0.5, and 0.75 (stop positions 2.5, 5,
+and 7.5 of ten): between `#a8cee5` and `#8fc1de` (155.5, 199.5, 225.5), on `#5ba3cf`, and between `#3181bd` and
+`#206fb2` (40.5, 120, 183.5), giving `#9cc8e2`, `#5ba3cf`, `#2978b8`. The counts follow the Vega rules: threshold with
+three thresholds gives four colors, bin-ordinal with five edges four, quantile and quantize five unless a count is
+given, and ordinal the count, else the domain size, else five. The unit has no outputs of another implementation to
+compare with, and no dependency needs mocking: the sibling unit `ColorInterpolator` is exercised for real, and the
+internal types are reached through the test assembly's `InternalsVisibleTo` access. The use of the unit by the scale
+resolver, with the documented fallback for other schemes, is verified in the *ScaleResolver Unit Verification Design*.
 
 The notice test copies the files of the `third-party` folder next to the test assembly (the test project includes them
 as linked files) and checks, as strict UTF-8, that each notice carries the text of its license and that the provenance
@@ -61,15 +61,16 @@ expectation constitutes a failure.
 
 Asserts that `Tableau10` equals the ten documented colors in order, that its name is `tableau10`, that each index below
 ten returns the color at that position, that larger indexes cycle (10, 24, and 107 give the colors derived by hand, also
-through `CategoryColor` over a user list), and that a negative index, an empty list, and a null list are rejected with the
-documented exception types.
+through `CategoryColor` over a user list), and that a negative index, an empty list, and a null list are rejected with
+the documented exception types.
 
 ##### The Catalog Has Every Scheme
 
 **Tests**: `ColorSchemesTests.ColorSchemes_Catalog_HasSixtyEightSchemesWithUniqueNames`,
 `ColorSchemesTests.ColorSchemes_Catalog_HasEverySchemeWithItsStopCount` (a theory over the 68 schemes),
 `ColorSchemesTests.ColorSchemes_Catalog_FirstAndLastStopsMatchTheTable` (the same theory: first and last color, opaque
-colors, and a ramp that starts and ends on them), and `ColorSchemesTests.ColorSchemes_Catalog_InteriorStopsMatchThePublishedValues`
+colors, and a ramp that starts and ends on them), and
+`ColorSchemesTests.ColorSchemes_Catalog_InteriorStopsMatchThePublishedValues`
 
 Asserts the 68 names (15 categorical and 53 continuous, unique ignoring case, equal to the published list), the kind and
 the number of colors of each, the first and last color, and the interior values named above.

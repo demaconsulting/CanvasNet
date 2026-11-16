@@ -53,8 +53,8 @@ in place of its regular expression; the first that matches at a position wins, a
   the number `2`, and the digits before a dot give back their last digit); `STRING` (a double- or single-quoted text in
   which a backslash escapes any character but a line terminator); and `NEWLINE` (`\r?\n`). The terminals `BOOLEAN`,
   `FLOAT`, `NUMBER`, and `ID` of `common.langium` are not reached by the grammar and are not in the lexer.
-- **The hidden terminals**, which the parser never sees: white space (tabs and spaces), a `---` YAML block, a `%%{...}%%`
-  directive, and a `%%` comment up to the end of its line.
+- **The hidden terminals**, which the parser never sees: white space (tabs and spaces), a `---` YAML block, a
+  `%%{...}%%` directive, and a `%%` comment up to the end of its line.
 - **`REFERENCE` last** (`\w([-\./\w]*[-\w])?` with ASCII word characters, given back to its last character that is not
   a dot or a slash), as Langium orders the terminals of the git graph grammar after the hidden ones of
   `common.langium`. So `TITLE` and `INT` come first: `branch titles` reads a `TITLE`, and `branch 10` reads an `INT`.
@@ -166,7 +166,7 @@ text's own main branch (`OpenDatabase`). `DrawnTitle` is the title Mermaid draws
   accessible title or null, `Direction` the direction, `NodeCount` the commits of `OpenDatabase`, `EdgeCount` the
   number of their parents, and `SubgraphCount` 0.
 - **`GitGraphDiagram.Layout(DiagramRenderContext)`** creates a `GitGraphRenderer` for the render and returns the scene
-  it draws (see _GitGraphRenderer Unit Design_).
+  it draws (see *GitGraphRenderer Unit Design*).
 - **`Is`**, **`Expect`**, **`Fail`**, **`TextOf`**, **`Checked`**, **`CheckDerived`**, and **`Locate`**: `Is` tests the
   lookahead, `Expect` consumes a token of a kind or fails, `Fail` builds the located exception for the lookahead with
   the token names chevrotain lists and a hint, `TextOf` gives the text of a token that is kept and checks it,

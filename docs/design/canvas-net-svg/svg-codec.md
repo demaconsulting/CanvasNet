@@ -13,7 +13,7 @@ units of the `CanvasNet` system's `Codecs` subsystem, whose dependencies are lim
 `Canvas.Surface`, `SvgCodec`'s dependencies extend to `CanvasNet`'s `Geometry`, `Drawing`, and
 `Fonts` subsystems as well (the `Fonts` dependency includes `Fonts.FontResolver`, used to
 resolve a `text` element's font when the caller registers none - see the Dependencies section of
-_CanvasNetSvg System Design_,
+*CanvasNetSvg System Design*,
 `../canvas-net-svg.md`). It provides hand-rolled, decode/
 rasterize-only support for a common real-world subset of SVG (Scalable Vector Graphics)
 documents, rendering them directly into a `Surface` pixel buffer. Unlike `BmpCodec`, `PngCodec`,
@@ -35,11 +35,11 @@ same reason as the other codecs: rasterizing an SVG document has no instance sta
 - Root `svg` sizing: `viewBox`/`width`/`height` resolve the document's intrinsic user-space
   origin/size, fit into the caller-requested raster via an optional `preserveAspectRatio`
   (`[defer] <align> [<meetOrSlice>]` - all 10 aligns and both `meet`/`slice`; `defer` is parsed
-and ignored - it only ever has an observable effect for a browser negotiating a _separately
-fetched, cacheable_ external image resource's own `preserveAspectRatio` against an embedding
+and ignored - it only ever has an observable effect for a browser negotiating a *separately
+fetched, cacheable* external image resource's own `preserveAspectRatio` against an embedding
 `<img>`/CSS reference, a negotiation this codec has no equivalent for even now that `<image>`
 is partially supported, since its own supported `data:` URI case is neither separately fetched
-nor cacheable) - see _ViewBox Fitting Policy_ below
+nor cacheable) - see *ViewBox Fitting Policy* below
 - Shapes: `rect` (including `rx`/`ry` rounded corners - an unspecified or `auto` radius takes the
   other axis's value, each radius clamps to half the corresponding side, and the outline runs
   top edge, top-right arc, right edge, bottom-right arc, bottom edge, bottom-left arc, left
@@ -61,7 +61,7 @@ nor cacheable) - see _ViewBox Fitting Policy_ below
   `min()`/`max()`/`clamp()`; `font-size` takes lengths, keywords (`xx-small` to `xxx-large`,
   `larger`, `smaller`) and the CSS-wide keywords from an attribute, an inline style, a stylesheet
   rule or the `font` shorthand; a `text` element's first `dx`/`dy` value offsets its origin - see
-  _Length Units and font-size_ below
+  *Length Units and font-size* below
 - Colors: every color value (`fill`, `stroke`, `stop-color`, `flood-color`, `lighting-color`) is parsed by
   the core `Canvas.CssColor` unit: the 148 CSS color names and `transparent`, `#rgb`/`#rgba`/`#rrggbb`/
   `#rrggbbaa`, `rgb()`/`rgba()` and `hsl()`/`hsla()` in comma or space-and-slash syntax, with fractional
@@ -72,15 +72,15 @@ nor cacheable) - see _ViewBox Fitting Policy_ below
   (`pad`/`reflect`/`repeat`), and a bounded, cycle-checked `href`/`xlink:href` template
   inheritance chain for color stops
 - `use`, referencing any element by id via `href`/`xlink:href`, with `x`/`y` translation (each
-  accepting a trailing `%`, resolved against the current viewport - see _Percentage-Based
-  Geometry Resolution_ below), and, when the referenced element is a `symbol` with its own
+  accepting a trailing `%`, resolved against the current viewport - see *Percentage-Based
+  Geometry Resolution* below), and, when the referenced element is a `symbol` with its own
   `viewBox`, a `preserveAspectRatio`-driven fit of that `viewBox` into the `use`/`symbol`
-  element's resolved `width`/`height` (see _ViewBox Fitting Policy_ below)
+  element's resolved `width`/`height` (see *ViewBox Fitting Policy* below)
 - `marker`, referenced from `line`/`polyline`/`polygon`/`path` via the `marker-start`/
   `marker-mid`/`marker-end` presentation attributes (`url(#id)`), with `markerWidth`/
   `markerHeight`, `refX`/`refY`, `markerUnits` (`strokeWidth`/`userSpaceOnUse`), `orient`
   (`auto`/`auto-start-reverse`/a fixed angle in degrees), an optional `viewBox`, and an optional
-  explicit `preserveAspectRatio` (see _ViewBox Fitting Policy_ below)
+  explicit `preserveAspectRatio` (see *ViewBox Fitting Policy* below)
 - `filter`, referenced from any renderable shape or `text` element, or from a `g`/`symbol`
   reference/`use` element (applied to the whole referenced subtree as a single unit), via the
   `filter` presentation attribute (`url(#id)`), with `x`/`y`/`width`/`height` filter-region
@@ -93,32 +93,32 @@ nor cacheable) - see _ViewBox Fitting Policy_ below
   `clip-path` presentation attribute (`url(#id)`), hard-clipping that element's own content to
   the union of the `clipPath` element's own direct `rect`/`circle`/`ellipse`/`polyline`/
   `polygon`/`path`/`text` children, honoring `clipPathUnits`
-  (`userSpaceOnUse`/`objectBoundingBox`) and each child's own `clip-rule` - see _Clipping and
-  Masking_ below
+  (`userSpaceOnUse`/`objectBoundingBox`) and each child's own `clip-rule` - see *Clipping and
+  Masking* below
 - `mask`, referenced from any renderable shape/text/`g`/`symbol`/`use` element via the `mask`
   presentation attribute (`url(#id)`), attenuating that element's own alpha by the referenced
   `mask` element's own rendered content, evaluated as a luminance mask (the SVG-specification
   default), honoring `maskUnits`/`x`/`y`/`width`/`height` (the mask's own region box) and
   `maskContentUnits` (the mask content's own coordinate system) as independent attributes - see
-  _Clipping and Masking_ below
+  *Clipping and Masking* below
 - `pattern`, referenced from any renderable shape/text element's own `fill`/`stroke`
   presentation attribute (`url(#id)`) as a tiled paint server, honoring `patternUnits`/
   `patternContentUnits` (`objectBoundingBox`/`userSpaceOnUse`, resolved as two independent
   attributes exactly as `clipPathUnits`/`maskContentUnits` already are), `patternTransform`, an
   optional `viewBox`/`preserveAspectRatio` pair, and a bounded, cycle-checked `href`/
-  `xlink:href` template-inheritance chain for tile content - see _Pattern Paint-Server_ below
+  `xlink:href` template-inheritance chain for tile content - see *Pattern Paint-Server* below
 - `image`, whose `href`/`xlink:href` is a base64-encoded `data:` URI with a supported raster MIME
   type (`image/png`, `image/jpeg`, `image/bmp`, `image/tiff`, or `image/gif`), decoded through
   that format's own existing codec and drawn into the element's own `x`/`y`/`width`/`height`
-  placement rect, fitted per an optional `preserveAspectRatio` (see _ViewBox Fitting Policy_
+  placement rect, fitted per an optional `preserveAspectRatio` (see *ViewBox Fitting Policy*
   below) - integrated with the same `clip-path`/`mask`/`filter`/opacity effects pipeline every
-  other renderable element already uses - see _Image_ below
+  other renderable element already uses - see *Image* below
 - `text`, with `x`/`y`, `font-family`, `font-size`, `fill`, `text-anchor`
   (`start`/`middle`/`end`), and `font-weight`/`font-style`, rendered through a caller-supplied
   dictionary of per-family `SvgFontFace` lists (or, via the legacy single-font-per-family
   overload, a plain `TrueTypeFont` dictionary) and, for any family the caller did not register,
   through installed fonts, the bundled Liberation fonts for the generic families, and a bundled
-  Liberation Sans last resort (see _Text_ below)
+  Liberation Sans last resort (see *Text* below)
 
 #### Out-of-scope subset (tolerated, silently skipped)
 
@@ -128,9 +128,9 @@ constructs this codec does not implement. Encountering one of these does not fai
 document: `SvgCodec` silently skips just that element (and, for a container element, everything
 nested inside it) and continues walking the rest of the tree. This is a deliberate,
 tolerant-parsing policy distinct from the codec's malformed-input rejection policy (see
-_Error Handling_ below) — a document using an out-of-scope construct is not itself invalid SVG,
+*Error Handling* below) — a document using an out-of-scope construct is not itself invalid SVG,
 only partially outside this codec's supported feature set. Within a `style` element's own CSS
-engine (see _CSS `<style>` Element and Selector-Based Styling_ below), sibling (`+`/`~`)
+engine (see *CSS `<style>` Element and Selector-Based Styling* below), sibling (`+`/`~`)
 combinators, pseudo-classes, `@media`/other at-rules, and `!important` are explicitly out of
 scope - see that section for the per-construct rationale and failure-mode. Within the supported
 `marker` feature itself, `markerContentUnits` (a rarely-used SVG 2 attribute) and clipping marker
@@ -152,7 +152,7 @@ implemented - encountering either keyword tolerantly falls back to the inherited
 `font-style` keyword `oblique` is folded into the same `SvgFontStyle.Italic` value as `italic`
 rather than being distinguished as a third style (see
 `SvgFontStyle`'s remarks in the source for the rationale). Within the supported `clipPath`/`mask`
-features themselves, the following are explicitly out of scope (see _Clipping and Masking_ below
+features themselves, the following are explicitly out of scope (see *Clipping and Masking* below
 for the full rationale behind each): a nested `clip-path`/`mask`/`filter` applied to a `clipPath`
 element's own children (clip children are rasterized directly, not walked through the ordinary
 element-rendering recursion that resolves those attributes elsewhere); a `clip-path`/`mask`/
@@ -165,9 +165,9 @@ mask semantics are implemented; an alpha-mode request tolerantly falls back to l
 `clipPath`/`mask` `href`/`xlink:href` template-inheritance chain (mirroring the gradient
 chain-walk pattern) - an empty `clipPath`/`mask` with only an `href` resolves to "no children."
 Within the supported `pattern` feature itself, the following are explicitly out of scope (see
-_Pattern Paint-Server_ below for the full rationale behind each): `href`/`xlink:href` inheritance
+*Pattern Paint-Server* below for the full rationale behind each): `href`/`xlink:href` inheritance
 of a pattern's own `x`/`y`/`width`/`height`/`patternUnits`/`patternContentUnits`/
-`patternTransform`/`viewBox`/`preserveAspectRatio` geometry attributes (only tile _content_ is
+`patternTransform`/`viewBox`/`preserveAspectRatio` geometry attributes (only tile *content* is
 inherited through the chain, mirroring the gradient `href` chain's identical "geometry is never
 inherited, only stops/content are" simplification); a rendered tile-buffer cache (every pattern
 fill/stroke re-renders its own tile from scratch, since a tile's own pixel size depends on the
@@ -176,9 +176,9 @@ pattern-reference cycle-depth counter (a pattern-content cycle is instead caught
 pre-existing `MaxElementDepth` guard, mirroring `mask`'s identical reliance); and per-element
 control of tile resampling beyond the automatic magnified/minified smoothing described below. Within the supported
 `image` feature itself, the following are explicitly
-out of scope (see _Image_ below for the full rationale behind each): an `href`/`xlink:href` that
+out of scope (see *Image* below for the full rationale behind each): an `href`/`xlink:href` that
 is not a base64-encoded `data:` URI - an external file path or URL is tolerantly rendered as
-nothing unless the caller opts in with `SvgLoadOptions.ImageResolver` (an `IImageResolver`; see _Image Resolver_ below):
+nothing unless the caller opts in with `SvgLoadOptions.ImageResolver` (an `IImageResolver`; see *Image Resolver* below):
 the codec itself never opens a file or the network, since a base path inferred from the document
 would be an arbitrary-file-read vector, and what a resolver may reach is the caller's decision; a
 `data:image/svg+xml` payload (a
@@ -195,11 +195,11 @@ from the decoded content); and `image-rendering` values other than the recognize
 A percentage value on a shape/text geometry attribute (`x`, `y`, `width`, `height`, `rx`, `ry`,
 `cx`, `cy`, `r`, `x1`/`y1`/`x2`/`y2`, `font-size`, `stroke-width`, `stroke-dasharray`,
 `stroke-dashoffset`, `use`'s `x`/`y`/`width`/`height`, and `text`'s `x`/`y`) is now a supported
-new capability, resolved against the current viewport (see _Percentage-Based Geometry
-Resolution_ below) rather than rejected. `stroke-miterlimit` is the sole documented exception -
+new capability, resolved against the current viewport (see *Percentage-Based Geometry
+Resolution* below) rather than rejected. `stroke-miterlimit` is the sole documented exception -
 a unitless ratio, not a length, so a trailing `%` there continues to be treated as an
 unparseable/unrecognized value and tolerantly falls back to the inherited miter limit (see
-_Error Handling_ below), matching this codec's existing tolerant handling of a malformed
+*Error Handling* below), matching this codec's existing tolerant handling of a malformed
 `stroke-miterlimit`.
 
 ### Percentage-Based Geometry Resolution
@@ -233,7 +233,7 @@ percentage inside marker content resolves against the referencing shape's own vi
 `r`/`fx`/`fy`/`fr` on a gradient, `x`/`y`/`width`/`height` on a pattern or a mask region) resolve a
 percentage through the same `TryResolveLength` funnel as every other length, with an axis chosen by
 the units mode (`GetPaintServerAxis`), so a plain `%` and a `%` inside `calc()` always agree (SVG 2,
-_Paint Servers_). Under the default `objectBoundingBox` units the axis is `Fraction`: a `%` is a
+*Paint Servers*). Under the default `objectBoundingBox` units the axis is `Fraction`: a `%` is a
 fraction of 1 (basis 1), and, because the grammar of these attributes is `<number> | <percentage>`,
 a math expression may resolve to either a number or a length/percentage. Under `userSpaceOnUse` the axis is the
 attribute's own viewport axis - Horizontal for the `x` family and `width`, Vertical for the `y`
@@ -242,12 +242,12 @@ above, and the viewport is the referencing element's current one. (`ParsePercent
 always basis 1 and has no state, remains only for opacity-like and fraction-only values such as a
 stop `offset` and the filter primitive fractions.) A plain `%` under `userSpaceOnUse` was previously a
 basis-1 fraction (and, for a mask region, a fraction of the shape's bounds), so this is an intended
-behavior change; unit-bearing coordinates are handled by the same funnel (see _Length Units and
-font-size_ below). The percentage **initial values** of an omitted attribute use the same basis
+behavior change; unit-bearing coordinates are handled by the same funnel (see *Length Units and
+font-size* below). The percentage **initial values** of an omitted attribute use the same basis
 (`GetPaintServerDefault`): `x2` is `100%`, and `cx`, `cy` and `r` are `50%`, so under
 `userSpaceOnUse` an omitted `x2` is the viewport width and an omitted `cx`/`cy`/`r` is half the
-viewport width, height and diagonal basis, exactly like the explicit percentage (SVG 2, _Paint
-Servers_); under `objectBoundingBox` the basis is 1 and they stay `1` and `0.5`. `fx`/`fy` default
+viewport width, height and diagonal basis, exactly like the explicit percentage (SVG 2, *Paint
+Servers*); under `objectBoundingBox` the basis is 1 and they stay `1` and `0.5`. `fx`/`fy` default
 to the resolved `cx`/`cy`, `fr` to 0, and a pattern's omitted `x`, `y`, `width` and `height` stay
 their initial value `0` (SVG 2: a zero `width`/`height` disables rendering) in either mode. This
 is an intended behavior change: a `userSpaceOnUse` gradient that omits those attributes used to be
@@ -258,12 +258,12 @@ the viewport width or height, not of the shape's bounds as before.
 
 ### Length Units and font-size
 
-Specification references: SVG 2 _Units_ (`coords.html#Units`: a unit-less number is in user units,
-and a unit is converted at the CSS reference pixel); CSS Values and Units Level 4 _Distance
-Units_ (`#lengths`, with `#absolute-lengths`, `#font-relative-lengths`,
-`#viewport-relative-lengths`) and _Mathematical Expressions_ (`#calc-func`); CSS Fonts Level 4
+Specification references: SVG 2 *Units* (`coords.html#Units`: a unit-less number is in user units,
+and a unit is converted at the CSS reference pixel); CSS Values and Units Level 4 *Distance
+Units* (`#lengths`, with `#absolute-lengths`, `#font-relative-lengths`,
+`#viewport-relative-lengths`) and *Mathematical Expressions* (`#calc-func`); CSS Fonts Level 4
 `font-size` (`#font-size-prop`, `<absolute-size>`, `<relative-size>`) and `font` (`#font-prop`);
-SVG 2 _Presentation attributes_ (`styling.html#PresentationAttributes`).
+SVG 2 *Presentation attributes* (`styling.html#PresentationAttributes`).
 
 **Root cause that motivated this section.** The strict length parser (`ParseCoordinate`) knew only
 a number or a `%`, so `font-size="10px"` (the form Vega emits) failed with "invalid numeric data".
@@ -304,14 +304,14 @@ grammar, the unit conversions and the safety bounds exist once.
   needs a non-zero number divisor. Input length (1024 characters) and nesting depth (16) are
   bounded and the result must be finite and within `MaxCoordinateMagnitude`.
 - **Result type.** The evaluator reports whether the result is a length (`TryEvaluate(out result,
-  out isLength)`), and `TryResolveLengthCore` keeps that type (CSS Values 4 _Type Checking_:
+  out isLength)`), and `TryResolveLengthCore` keeps that type (CSS Values 4 *Type Checking*:
   numbers never become lengths inside a math function, so `width: calc(0 + 5px)` and
   `calc(10% + 1)` are invalid). A math result that is a **number** is accepted wherever SVG 2
   allows a `<number>`, and is then user units, exactly like a literal unitless number
   (`allowNumberResult` defaults to `true` on `TryResolveLength`). Two SVG 2 rules make that
   everywhere the codec reads a length except one: (1) the property grammar of `stroke-width`,
   `stroke-dasharray` entries and `stroke-dashoffset` is `<length-percentage> | <number>` (SVG 2
-  _Painting_, "A `<number>` value represents a value in user units"); (2) SVG 2 _Types_ section 4.2
+  *Painting*, "A `<number>` value represents a value in user units"); (2) SVG 2 *Types* section 4.2
   "Attribute syntax" says a presentation attribute parsed from a CSS value-definition grammar
   replaces `<length>` with `[ <length> | <number> ]` and `<length-percentage>` with
   `[ <length-percentage> | <number> ]`, which covers every geometry attribute (the codec reads all
@@ -327,12 +327,12 @@ grammar, the unit conversions and the safety bounds exist once.
   and `ReadRootFontSize` mirrors the source rule (it shares `ResolveFontSize` with the element
   cascade) so `GetInfo` and `Load` agree. A literal bare number
   in a CSS `font-size` longhand stays accepted (pre-existing leniency); the `font` shorthand is
-  stricter (see _font shorthand_ below). `line-height` is unchanged: a
+  stricter (see *font shorthand* below). `line-height` is unchanged: a
   number-typed result is a multiplier via `TryResolveLengthOrNumber`. That the `font-size`
-  _attribute_ (a range-restricted `<length-percentage [0,inf]>`) is covered by the 4.2 rule is the
+  *attribute* (a range-restricted `<length-percentage [0,inf]>`) is covered by the 4.2 rule is the
   one reading of the specification text that is likely rather than certain. This reverses the earlier
   decision that rejected number math wherever a length is required, which read only CSS Values 4 and
-  not SVG 2 _Types_ 4.2; it rests on the specification text alone, and browser behavior for a
+  not SVG 2 *Types* 4.2; it rests on the specification text alone, and browser behavior for a
   number-typed math function in an SVG attribute has not been verified. The optional CSS Values 4
   quirks-mode allowance is not what this rests on.
 
@@ -346,15 +346,14 @@ height so `rem` and `vw` mean the same inside such content. The root element's o
 with `isRoot` so its own font size is the `rem` basis for the rest of its properties.
 
 **Call sites by malformed-value class** (this table is the consistency contract; see also
-_Error Handling_):
+*Error Handling*):
 
 | Class | Call sites | Malformed value |
 | --- | --- | --- |
-<!-- markdownlint-disable MD013 -->
+
 | S, strict | rect/ellipse/circle/line/image/use/symbol/marker geometry (`x`, `y`, `width`, `height`, `rx`, `ry`, `cx`, `cy`, `r`, `x1`..`y2`, `refX`, `refY`, `markerWidth`, `markerHeight`), text `x`/`y`, `stroke-width`, `stroke-dashoffset`, each `stroke-dasharray` entry | `InvalidDataException` naming the attribute (never a raw `FormatException`) |
 | T, tolerant | root `width`/`height`, gradient, pattern and mask-region coordinates | treated as absent; the default or fallback applies |
 | F, font | `font-size`, `line-height`, `font-family`, `font-weight`, `font-style`, the `font` shorthand; text `dx`/`dy` | the declaration is dropped: the next lower source applies (inline style, then stylesheet, then the presentation attribute, then the `font` attribute), and the value is inherited only when none is valid (no offset for `dx`/`dy`) |
-<!-- markdownlint-enable MD013 -->
 
 Not lengths, and unchanged: `viewBox`, `transform` arguments, path data, `points`,
 `stroke-miterlimit`, filter primitive parameters, `stdDeviation`, and the filter region and
@@ -369,25 +368,24 @@ else `normal`, resolved with the root's own font size through the same `ResolveC
 the element cascade uses; a `line-height` that needs the viewport (`vw`...) has no basis here and is
 dropped. Stylesheet rules are not consulted because the stylesheet
 is built after the size is known. `GetInfo` and `Load` therefore agree. A number-typed math result
-in the root `width`/`height` is user units (px), like a literal (SVG 2 _Types_ 4.2; _Coordinates_
+in the root `width`/`height` is user units (px), like a literal (SVG 2 *Types* 4.2; *Coordinates*
 8.1); in the root's `font-size` it is accepted only from the `font-size` attribute, mirroring the
 element cascade. Intended behavior changes:
 `1in` now reports 96 (not 1), `210mm` 794, `10rem` 160; `12 px` (a space before the unit, invalid
 CSS) is no longer accepted.
 
-**font-size.** `ParseFontSizeValue` accepts the absolute keywords (browser table 9/10/13/16/18/24/
-32/48; the CSS Fonts 4 factors 3/5, 3/4, 8/9, 1, 6/5, 3/2, 2, 3 would give 9.6, 12, 14.22, 16, 19.2,
-24, 32, 48 - the choice is one table, `AbsoluteFontSizes`), `larger`/`smaller` (1.2 times and a
-fifth of the parent's), `inherit`/`unset` (parent), `initial` (16), and any length, percentage or
-math function against the parent. An invalid value is dropped, so the next lower source applies,
-else the size is inherited; `revert` is a valid declaration with no effect of its own, so it still
-masks the lower sources and inherits. A zero or negative size still renders no text (existing
-behavior). `medium` is 16 regardless of the parent. A number-typed math result (`calc(5 + 5)`) is user units only when it
-comes from the `font-size` presentation attribute; from an inline style, stylesheet rule, the
-`font` shorthand or the `font` attribute it is ignored (class F), as described under _Result type_.
+**font-size.** `ParseFontSizeValue` accepts the absolute keywords (browser table 9/10/13/16/18/24/ 32/48; the CSS Fonts
+4 factors 3/5, 3/4, 8/9, 1, 6/5, 3/2, 2, 3 would give 9.6, 12, 14.22, 16, 19.2, 24, 32, 48 - the choice is one table,
+`AbsoluteFontSizes`), `larger`/`smaller` (1.2 times and a fifth of the parent's), `inherit`/`unset` (parent), `initial`
+(16), and any length, percentage or math function against the parent. An invalid value is dropped, so the next lower
+source applies, else the size is inherited; `revert` is a valid declaration with no effect of its own, so it still masks
+the lower sources and inherits. A zero or negative size still renders no text (existing behavior). `medium` is 16
+regardless of the parent. A number-typed math result (`calc(5 + 5)`) is user units only when it comes from the
+`font-size` presentation attribute; from an inline style, stylesheet rule, the `font` shorthand or the `font` attribute
+it is ignored (class F), as described under *Result type*.
 
 **Invalid font declarations never mask a lower source.** CSS drops a declaration whose value is
-invalid when it is parsed, so the cascade never sees it (CSS Syntax 3; SVG 2 _Styling_ 6.6 ranks
+invalid when it is parsed, so the cascade never sees it (CSS Syntax 3; SVG 2 *Styling* 6.6 ranks
 presentation attributes below CSS). The codec resolves each CSS property to one raw string, so this
 is done in two layers. (A) `ParseDeclarationBlock` - the only producer of inline-style and
 stylesheet declarations - drops an invalid `font-size`, `font-family`, `font-weight`, `font-style`
@@ -425,8 +423,8 @@ the user-agent sheet sets none): `inherit` takes the parent's value and `initial
 `font-family`, `font-weight` and `font-style` longhands, so `font-family: inherit` is no longer
 stored as a literal family name (a quoted `"inherit"` still is a family name).
 `oblique` may be followed by an angle: `TryParseObliqueAngle` accepts `<number><unit>` (no space)
-with `deg`, `grad` (400 per turn), `rad` or `turn` (ASCII case-insensitive, CSS Values 4 _Angle
-Units_) within `[-90deg, 90deg]` (CSS Fonts 4; a 1e-9 epsilon keeps `100grad` and `0.25turn` exact),
+with `deg`, `grad` (400 per turn), `rad` or `turn` (ASCII case-insensitive, CSS Values 4 *Angle
+Units*) within `[-90deg, 90deg]` (CSS Fonts 4; a 1e-9 epsilon keeps `100grad` and `0.25turn` exact),
 and a unitless number is rejected; the angle is consumed and ignored (the codec has no slant model),
 and a bad or out-of-range angle falls through to the size slot, fails its syntax check and drops
 the shorthand. The same validator backs `ParseFontStyle`, which now accepts only `normal`, `italic`,
@@ -468,7 +466,7 @@ size wherever the codec resolves it (`NormalLineHeightMultiplier`).
 ### Data Model
 
 `SvgCodec` now has three small public data types of its own, alongside the shared
-`Codecs.ImageInfo` record struct (see _Codecs Subsystem Design_,
+`Codecs.ImageInfo` record struct (see *Codecs Subsystem Design*,
 `docs/design/canvas-net/codecs.md`): `SvgFontFace`
 (a `readonly record struct` pairing a `Fonts.TrueTypeFont` with the `Weight`/`Style` face it
 represents, modeled directly on `ImageInfo`'s "plain immutable data carrier" style),
@@ -477,10 +475,10 @@ three-way `normal`/`italic`/`oblique` keyword set — the reported use case, "bo
 italic keywords", never needs to distinguish a true italic face from a mechanically-slanted
 `oblique` one, so `SvgCodec`'s `font-style` parser maps both keywords onto `Italic`), and
 `SvgLoadOptions` (a sealed record of optional, additive load settings: `UseSystemFonts`, default
-`true`, which can be set to `false` for reproducible text output - see _Text_ below - and
+`true`, which can be set to `false` for reproducible text output - see *Text* below - and
 `ImageResolver`, default `null`, the opt-in `IImageResolver` of the core `ImageSources` subsystem that loads external
-`image` references - see _Image Resolver_ below), and `SvgImageSource` (the `IImageSource` for `.svg` files - see
-_Image Source_ below). Internally,
+`image` references - see *Image Resolver* below), and `SvgImageSource` (the `IImageSource` for `.svg` files - see
+*Image Source* below). Internally,
 it defines a private `RenderState` record capturing the cascading presentation state (fill,
 stroke, fill-opacity, stroke-opacity, opacity, fill-rule, stroke-width, stroke-linecap,
 stroke-linejoin, stroke-miterlimit, stroke-dasharray, stroke-dashoffset, font-family, font-size,
@@ -496,10 +494,10 @@ resolved fit transform).
 Both `LoadRootElement` (backing `Load`'s full-document parse) and `LoadRootElementAttributesOnly`
 (backing `GetInfo`'s root-start-tag-only parse) obtain their XML reader from the core `Packaging`
 subsystem's `SafeXml` (`SafeXml.Load(stream, MaxDocumentCharacters)` and
-`SafeXml.CreateReader(stream, MaxDocumentCharacters)` respectively; see _SafeXml Unit Design_,
+`SafeXml.CreateReader(stream, MaxDocumentCharacters)` respectively; see *SafeXml Unit Design*,
 `canvas-net/packaging/safe-xml.md`), which sets `DtdProcessing = DtdProcessing.Prohibit`,
-`XmlResolver = null` and the `MaxCharactersInDocument` budget each already enforced (see _GetInfo
-Fallback Policy_ and _Error Handling_ below), in one place, rather than in two settings
+`XmlResolver = null` and the `MaxCharactersInDocument` budget each already enforced (see *GetInfo
+Fallback Policy* and *Error Handling* below), in one place, rather than in two settings
 constructions here. A reader that processed a `DOCTYPE`
 declaration, or resolved an external entity referenced from one, could otherwise be used to read
 arbitrary local files or trigger unexpected network requests merely by parsing a maliciously
@@ -507,7 +505,7 @@ crafted SVG document; sharing one hardened factory ensures this hardening cannot
 by an incomplete edit to only one of two settings-construction sites. A `DOCTYPE`-bearing document -
 including one declaring
 an external or parameter entity - is rejected with `InvalidDataException` via both `Load` and
-`GetInfo`, exactly as any other malformed-XML input is (see _Error Handling_ below).
+`GetInfo`, exactly as any other malformed-XML input is (see *Error Handling* below).
 
 ### Key Methods
 
@@ -521,14 +519,14 @@ SVG document from an open stream and rasterizes it into a new `width`x`height`
 `Surface`. Parses the document with `XDocument.Load`, builds an id→`XElement` index over the
 whole tree up front (so `use`/`href`/gradient-template references resolve correctly regardless of
 document order), resolves the root `viewBox`/`width`/`height` into an intrinsic size, computes
-the `preserveAspectRatio`-driven fit transform into the requested raster (see _ViewBox Fitting
-Policy_ below), then recursively walks the tree, baking every transform (the root fit transform composed
+the `preserveAspectRatio`-driven fit transform into the requested raster (see *ViewBox Fitting
+Policy* below), then recursively walks the tree, baking every transform (the root fit transform composed
 with every nested `g`/element `transform`) directly into the `Vector2` points fed into
 `Geometry.PathBuilder` before calling `Drawing.PathFiller.Fill`/`Drawing.PathStroker.Stroke` —
 neither of which has a transform parameter; they treat `Geometry.Path` coordinates as final
 pixel-space. `fonts` is optional; when supplied, `text` elements are matched against it by family
 name, then, when a family has more than one registered `SvgFontFace`, by closest
-`font-weight`/`font-style` match (see _Text_ under _Gradient, Use, and Text Support and Limits_
+`font-weight`/`font-style` match (see *Text* under *Gradient, Use, and Text Support and Limits*
 below); a family the caller did not register is resolved to an installed, generic, or bundled
 default font instead (see the same section). This is the richer of the two `fonts`-accepting
 overloads — the legacy single-font-per-
@@ -538,14 +536,14 @@ family overload below delegates to this one.
 
 - `ArgumentNullException` — `stream` is null
 - `InvalidDataException` — the stream is not well-formed XML, or the document's `viewBox`,
-  `transform`, gradient, or path `d` data is malformed (see _Error Handling_ below)
+  `transform`, gradient, or path `d` data is malformed (see *Error Handling* below)
 - `ArgumentOutOfRangeException` — `width` or `height` is not positive (propagated, unwrapped,
-  from `Surface`'s own constructor — see _Error Handling_ below)
+  from `Surface`'s own constructor — see *Error Handling* below)
 
 `fonts` is optional; a `null` dictionary, a dictionary with no entry matching a requested
 `font-family`, or a matching entry whose face list is empty, all cause the affected `text`
 element(s) to fall back to the default font resolution rather than being skipped or throwing —
-see _Gradient, Use, and Text Support and Limits_ below.
+see *Gradient, Use, and Text Support and Limits* below.
 
 #### LoadWithFontFaces(Stream, int, int, IReadOnlyDictionary\<string, IReadOnlyList\<SvgFontFace\>\>?, SvgLoadOptions)
 
@@ -581,20 +579,20 @@ every `text` element resolves to that single registered font regardless of its o
 `font-weight`/`font-style`, preserving this overload's behavior exactly as it was before
 `SvgFontFace` existed. Reads an SVG document from an open stream and rasterizes it into a new
 `width`x`height` `Surface`. `fonts` is optional; when supplied, `text` elements are matched
-against it by family name (see _Text_ below).
+against it by family name (see *Text* below).
 
 **Throws:**
 
 - `ArgumentNullException` — `stream` is null
 - `InvalidDataException` — the stream is not well-formed XML, or the document's `viewBox`,
-  `transform`, gradient, or path `d` data is malformed (see _Error Handling_ below)
+  `transform`, gradient, or path `d` data is malformed (see *Error Handling* below)
 - `ArgumentOutOfRangeException` — `width` or `height` is not positive (propagated, unwrapped,
-  from `Surface`'s own constructor — see _Error Handling_ below)
+  from `Surface`'s own constructor — see *Error Handling* below)
 
 `fonts` is optional (defaulting to `null`); a `null` dictionary, or a dictionary containing a
 `null`-valued entry that happens to match a requested `font-family`, both cause the affected
 `text` element(s) to fall back to the default font resolution rather than being skipped or
-throwing — see _Gradient, Use, and Text Support and Limits_ below.
+throwing — see *Gradient, Use, and Text Support and Limits* below.
 
 #### Load(..., fonts, SvgLoadOptions) (Stream and string overloads, single-font dictionary)
 
@@ -621,8 +619,8 @@ body. This reader is still bounded by the same fixed `MaxCharactersInDocument` c
 `Load`'s own parse enforces: even though the reader never advances into the document body, it
 still advances character-by-character through the root start-tag's own attribute values, so an
 oversized single attribute value alone could otherwise force an unbounded amount of data to be
-materialized. Resolves the intrinsic size per the three-tier fallback policy described in _GetInfo
-Fallback Policy_ below. This is intentionally narrower than `Load`'s full `XDocument.Load` parse
+materialized. Resolves the intrinsic size per the three-tier fallback policy described in *GetInfo
+Fallback Policy* below. This is intentionally narrower than `Load`'s full `XDocument.Load` parse
 of the whole document: a document that is malformed only beyond the root `svg` element's own
 attributes is accepted by `GetInfo` (which never reads that far) even though `Load` would reject
 it. Always reports `Channels = 4` and `HasAlpha = true`, because every SVG document this codec
@@ -653,7 +651,7 @@ Opens `path` as a read-only `FileStream` and delegates to `GetInfo(Stream)`.
 `SvgCodec` resolves the root element's intrinsic user-space origin/size from its `viewBox`
 attribute when present; otherwise from its `width`/`height` attributes when both are present and
 positive; otherwise it falls back to the CSS/UA default replaced-element intrinsic size of
-300x150 (see _GetInfo Fallback Policy_ below — `Load` and `GetInfo` share this resolution logic).
+300x150 (see *GetInfo Fallback Policy* below — `Load` and `GetInfo` share this resolution logic).
 That intrinsic size is then fit into the caller-requested raster via the root `svg` element's own
 `preserveAspectRatio` attribute, parsed as `[defer] <align> [<meetOrSlice>]`: `defer` is parsed
 and ignored (it only matters when an `<image>` element also declares its own
@@ -663,7 +661,7 @@ and ignored (it only matters when an `<image>` element also declares its own
 equivalent of CSS `object-fit: contain` — scaling uniformly by the smaller of the width and
 height ratios and centering the result in the raster, leaving transparent letterbox bars along
 whichever axis the intrinsic aspect ratio does not fill: **this default behavior is unchanged
-from before this codec parsed `preserveAspectRatio` at all**, since "meet, centered" already _is_
+from before this codec parsed `preserveAspectRatio` at all**, since "meet, centered" already *is*
 `xMidYMid meet`. An explicit `align="none"` instead stretches the intrinsic size independently on
 each axis to exactly fill the raster (no letterboxing, no uniform-scale constraint); every other
 explicit `<align>` scales uniformly (by the smaller ratio for `meet`, matching CSS
@@ -680,16 +678,16 @@ both new capabilities:
   `width`/`height`, then the `symbol`'s own `width`/`height`, then the current viewport's own
   size), honoring the `symbol`'s own `preserveAspectRatio` attribute exactly like the root `svg`
   case above. The `symbol`'s own viewBox becomes the current viewport for its content's own
-  percentage-geometry resolution (see _Percentage-Based Geometry Resolution_ above).
+  percentage-geometry resolution (see *Percentage-Based Geometry Resolution* above).
 - **`marker`'s own explicit `preserveAspectRatio`.** A `marker` element with both a `viewBox` and
-  an _explicit_ `preserveAspectRatio` attribute fits its `viewBox` into its own
+  an *explicit* `preserveAspectRatio` attribute fits its `viewBox` into its own
   `markerWidth`/`markerHeight` through this same shared helper, honoring the viewBox's own origin
   and the requested `<align>`/`<meetOrSlice>`. A marker with a `viewBox` but **no** explicit
   `preserveAspectRatio` attribute instead keeps its original, simpler fit (a plain "meet"-
   equivalent uniform scale-down with no centering step) completely unchanged, for two reasons:
   first, to guarantee this default path's pre-existing pixel output never regresses; second,
   because a marker's content is always anchored by its own `refX`/`refY` (never clipped to
-  `markerWidth`/`markerHeight` - see _Out-of-scope subset_ above), so once that anchoring is
+  `markerWidth`/`markerHeight` - see *Out-of-scope subset* above), so once that anchoring is
   applied, a viewBox's own origin and an `<align>`'s `Min`/`Mid`/`Max` offset both algebraically
   cancel out of the final rendered position regardless of their value - only the uniform scale
   factor itself (`meet`'s smaller ratio versus `slice`'s larger one) is ever visibly different
@@ -711,14 +709,14 @@ all — a worse "quiet" failure than the sibling non-positive-size case already 
 `symbol`/`use` and `marker` reuse sites above apply the same non-finite-fit tolerance: a
 non-finite fit at either site is treated as "no paint" for that `use`/marker instance (skipped
 rather than propagating a non-finite value into the rasterizer), matching this codec's existing
-tolerant-skip convention for other overflow cases (see _Error Handling_ below).
+tolerant-skip convention for other overflow cases (see *Error Handling* below).
 
 ### GetInfo Fallback Policy
 
 `GetInfo` (and `Load`, internally, for the same purpose) resolves a document's size in three
 tiers, in order: (1) the `viewBox` attribute, if present; (2) the `width`/`height` attributes, if
 both are present and resolve to positive numbers - each converted from its CSS unit to user units
-(see _Length Units and font-size_ above; `1in` is 96, and a percentage or viewport unit counts as
+(see *Length Units and font-size* above; `1in` is 96, and a percentage or viewport unit counts as
 absent); (3) the CSS/UA default replaced-element
 intrinsic size of 300x150, if neither of the above is present. This mirrors how a web browser
 sizes a sizeless, viewBox-less `<img src="...svg">` element, and ensures `GetInfo` always returns
@@ -732,7 +730,7 @@ well-defined, valid `ImageInfo` dimension instead.
 
 ### Presentation-Attribute Inheritance Model
 
-Every presentation attribute this codec understands (see _In-scope subset_ above) cascades from
+Every presentation attribute this codec understands (see *In-scope subset* above) cascades from
 a `g` element (or the root `svg` element) to its descendants, exactly like CSS inheritance for
 the same SVG properties: a child that does not specify its own value for an attribute inherits
 its nearest ancestor's resolved value; a child that does specify its own value overrides the
@@ -755,7 +753,7 @@ the filtered result is composited onto the canvas.
 
 `SvgCodec` implements a small, purpose-built CSS engine for a `style` element's text content -
 not a general-purpose CSS parser, only the subset needed to resolve the presentation properties
-this codec already understands (see _In-scope subset_ above). The engine is split across three
+this codec already understands (see *In-scope subset* above). The engine is split across three
 source files by concern, mirroring this codec's existing partial-class-per-concern convention:
 `SvgCodec.Css.Parser.cs` (tokenizing/parsing a stylesheet's raw text into rules and declarations),
 `SvgCodec.Css.Selectors.cs` (selector types, parsing, ancestor-walk matching, and specificity),
@@ -802,7 +800,7 @@ tiers: a plain presentation attribute (lowest), any matching stylesheet rule (ne
 inline `style="..."` attribute (highest, unconditionally overriding a matching stylesheet rule
 regardless of that rule's own specificity). This resolution happens through a single chokepoint,
 `ResolveStyledValue`, called once per cascaded property from `ApplyPresentationAttributes` (see
-_Presentation-Attribute Inheritance Model_ above) for every `RenderState`-inherited property
+*Presentation-Attribute Inheritance Model* above) for every `RenderState`-inherited property
 (`fill`, `stroke`, `fill-opacity`, `stroke-opacity`, `opacity`, `fill-rule`, `stroke-width`,
 `stroke-linecap`, `stroke-linejoin`, `stroke-miterlimit`, `stroke-dasharray`,
 `stroke-dashoffset`, `font-family`, `font-size`, `font-weight`, `font-style`, `text-anchor`, and
@@ -811,14 +809,14 @@ declaration's raw value, or `null` if neither tier has one, in which case the ca
 through to reading the plain presentation attribute directly - preserving exactly the
 pre-existing, backward-compatible behavior for a document with no `style` element and no inline
 `style` attributes anywhere. Critically, every tier's raw value - whichever origin it came from -
-is handed to the _exact same_ value parser (`ParseFillRule`, `ParseGeometryCoordinate`,
+is handed to the *exact same* value parser (`ParseFillRule`, `ParseGeometryCoordinate`,
 `ParseOpacityValue`, and so on) a plain presentation attribute already used before this feature
 existed: the CSS engine itself never understands SVG paint/numeric/keyword syntax, only
 property/value token boundaries, so no SVG-specific value-parsing logic is duplicated between a
 presentation attribute and a CSS declaration carrying the same property. The six element-level
-properties that do _not_ flow through `RenderState` inheritance - `filter`, `clip-path`, `mask`,
-`clip-rule`, `stop-color`, and `stop-opacity` (see **Filters** and _Clipping and Masking_ below,
-and _Gradients_ above/below for why each is resolved independently of ordinary paint
+properties that do *not* flow through `RenderState` inheritance - `filter`, `clip-path`, `mask`,
+`clip-rule`, `stop-color`, and `stop-opacity` (see **Filters** and *Clipping and Masking* below,
+and *Gradients* above/below for why each is resolved independently of ordinary paint
 inheritance) - still resolve through this same three-tier precedence: each call site (filter/
 clip-path/mask reference resolution, a `clipPath` child's own `clip-rule`, a gradient `stop`'s
 own `stop-color`/`stop-opacity`) reads its property via a shared `ResolveElementProperty(element,
@@ -847,12 +845,12 @@ documented with the same "generous but bounded" rationale style as
 rejected outright, it simply stops retaining further rules/selectors/declarations past the cap.
 Separately, a mutable `CssMatchWorkBudget` - following the exact
 `GeometryWorkBudget`/`FilterWorkBudget` pattern (`Charge`, throwing `InvalidDataException` once a
-fixed cumulative ceiling is exceeded) - bounds the _cumulative_ selector-matching work performed
+fixed cumulative ceiling is exceeded) - bounds the *cumulative* selector-matching work performed
 across the whole document, charged once per element against each stylesheet's own precomputed
 `CssStylesheet.MatchWorkPerElement` - the sum, across every retained rule, of every one of that
 rule's comma-separated selectors' own worst-case matching weight. Because `Descendant`-combinator
 matching backtracks (retrying every matching ancestor for the remaining, further-left chain
-rather than committing to only the nearest one - see _Selector support_ above), the weight for a
+rather than committing to only the nearest one - see *Selector support* above), the weight for a
 segment chain is computed with the same recurrence the matcher itself follows, left to right:
 `Child` adds a flat `1`; `Descendant` multiplies `MaxElementDepth` by `1 +` the accumulated weight
 of everything still further left, since a failing match from any one of up to `MaxElementDepth`
@@ -894,9 +892,9 @@ the referenced element (translated by the `use` element's own `x`/`y`), resolved
 document-order-independent id index described above. When the referenced element is a `symbol`
 with its own `viewBox`, the `symbol`'s content is additionally fit into the `use`/`symbol`
 element's resolved `width`/`height` via the shared `preserveAspectRatio` fit helper - see
-_ViewBox Fitting Policy_'s "`symbol`/`use` viewBox-fit" bullet above - composed as
+*ViewBox Fitting Policy*'s "`symbol`/`use` viewBox-fit" bullet above - composed as
 `viewportFit * Translate(x, y) * transform`, so the `use` element's own `x`/`y` translation is
-applied in the _outer_, already-fitted coordinate space, exactly as the SVG specification
+applied in the *outer*, already-fitted coordinate space, exactly as the SVG specification
 describes. A `use` referencing a nonexistent id, or a resolved `width`/`height`/fit that is
 non-positive, non-finite, or otherwise degenerate, is tolerated as a silent no-op. Because `use`
 can reference another `use` (directly or through intervening groups), rendering guards against
@@ -913,7 +911,7 @@ outline (never re-parsed from the shape's own raw attribute text): the first ver
 `marker-start`, the last uses `marker-end`, and every vertex between uses `marker-mid` - a
 2-vertex shape therefore has a start and an end but no mid. For a multi-subpath `path`, this
 whole-shape first/last classification is a deliberate, documented simplification: `marker-start`/
-`marker-end` apply only to the very first/last vertex of the _whole_ path, not to each subpath's
+`marker-end` apply only to the very first/last vertex of the *whole* path, not to each subpath's
 own start/end (matches at least one common browser's behavior, rather than a spec clause verified
 directly). A vertex's `orient="auto"` rotation angle is the average of its incoming and outgoing
 segment tangents (falling back to whichever one is present at an open subpath's own start/end),
@@ -923,7 +921,7 @@ vertex only. Per the SVG specification, an absent/blank `orient` attribute uses 
 `auto`/`auto-start-reverse` keywords opt into tangent-following behavior; an unparseable explicit
 value also tolerantly falls back to this same 0-degree default. Each marker instance is scaled by
 `markerWidth`/`markerHeight` (further fitted by the marker's own optional `viewBox` - see
-_ViewBox Fitting Policy_'s "marker's own explicit `preserveAspectRatio`" bullet above for the two
+*ViewBox Fitting Policy*'s "marker's own explicit `preserveAspectRatio`" bullet above for the two
 distinct code paths this fitting takes depending on whether the marker declares an explicit
 `preserveAspectRatio` attribute), then
 by the referencing shape's own effective stroke width when `markerUnits` is `strokeWidth` (the
@@ -951,7 +949,7 @@ evaluated against that one element's own rendered content - `filter` never casca
 `RenderState` (matching `transform`'s own non-cascading handling), so a filter on an ancestor
 element has no effect on its descendants' own, independent `filter` attributes. A `g`/`symbol`
 reference or `use` element's own `filter` attribute is resolved the same way but is instead
-evaluated against the _whole resolved subtree_'s combined rendered content, as one unit (see
+evaluated against the *whole resolved subtree*'s combined rendered content, as one unit (see
 **Group-level filters** below); `marker` content is never recursed into by the ordinary element
 walk regardless of any `filter` attribute present there, so filters on marker content continue to
 have no effect. The filter region - the rectangular area, in the
@@ -1142,7 +1140,7 @@ with `InvalidDataException` and charges `feTurbulence`'s resolved octave count t
 
 **Group-level filters.** A `filter` attribute on a `g`/`symbol` reference or `use` element
 (`RenderFilteredGroup`) reuses the same per-shape pipeline above - offscreen render, primitive
-chain, final composite - applied to the group's _combined_ subtree instead of a single element's
+chain, final composite - applied to the group's *combined* subtree instead of a single element's
 own content. Because the filter region must be computed before anything is rendered (the region
 determines the temporary buffer's own size), and a group has no single `Path` to call
 `GetBounds()` on, a dedicated bounds-only pre-pass (`ComputeSubtreeLocalBounds`) mirrors
@@ -1162,7 +1160,7 @@ invocation, however, leaves a distinct resource-safety gap open: a document with
 nested filtered `g`/`symbol`/`use` elements, each wrapping a large subtree, causes each nesting
 level's own `RenderFilteredGroup` call to re-walk an overlapping portion of that same subtree
 (the real render pass only descends into a nested filtered group's own content after that
-group's _own_ pre-pass has already walked it once more), so total pre-pass work grows with
+group's *own* pre-pass has already walked it once more), so total pre-pass work grows with
 `depth * subtree-size` even though every individual invocation's own element count stays
 comfortably under `MaxTotalRenderedElements`. A third, cumulative, per-`Load`-call
 `BoundsPrePassWorkBudget` closes this gap the same way `FilterWorkBudget` closes the analogous
@@ -1228,7 +1226,7 @@ certain to still be rejected by `ComputeFilterRegionPixelBounds`'s own pixel-spa
 `MaxCoordinateMagnitude` check once the real render pass eventually transforms it into actual
 pixel space: without this, a descendant filter that is pathologically oversized and therefore
 guaranteed to fall back to unfiltered rendering at real render time could still inflate this
-pre-pass's own combined bounds enough to trip an _outer_ ancestor filter's own real pixel-space
+pre-pass's own combined bounds enough to trip an *outer* ancestor filter's own real pixel-space
 rejection checks, incorrectly skipping a perfectly reasonable outer filter purely because of an
 inner descendant filter that was never actually going to apply. This is a deliberately
 conservative approximation, not a precise predictor (the ancestor's own further transform, not
@@ -1250,8 +1248,8 @@ source content), the primitive chain evaluates identically to the single-shape c
 filtered result is composited back onto the canvas with the group's own `opacity` applied at that
 final step - transform applies to the group as a whole via the transform already baked into the
 region computation and the offscreen render; `clip-path`/`mask`, when present on the same
-element, are applied to that offscreen content before the filter chain runs (see _Clipping and
-Masking_ below for the full clip/mask algorithm and how this ordering was generalized across both
+element, are applied to that offscreen content before the filter chain runs (see *Clipping and
+Masking* below for the full clip/mask algorithm and how this ordering was generalized across both
 the single-shape and group entry points).
 
 **Clipping and masking.** A directly renderable shape/`text` element's, or a `g`/`symbol`
@@ -1267,7 +1265,7 @@ rendering model specifies, so an element combining `filter` with `clip-path`/`ma
 filter chain evaluate against the already-clipped-and-masked result, not the raw, unclipped
 geometry.
 
-_Clip-path._ `ApplyClipPath` builds a fresh `coverage` `Surface` the same size as the element's
+*Clip-path.* `ApplyClipPath` builds a fresh `coverage` `Surface` the same size as the element's
 own offscreen content, then rasterizes each direct child of the referenced `clipPath` element
 (`rect`/`circle`/`ellipse`/`polyline`/`polygon`/`path`/`text` only - see the out-of-scope list
 above for excluded child kinds) as opaque white directly onto that same buffer via
@@ -1289,7 +1287,7 @@ helper gradients already use for `gradientUnits="objectBoundingBox"`, generalize
 `userSpaceOnUse`, resolves children directly in the referencing element's own local space with no
 such prepended map.
 
-_Mask._ `ApplyMask` renders the referenced `mask` element's own children through the _ordinary_
+*Mask.* `ApplyMask` renders the referenced `mask` element's own children through the *ordinary*
 `RenderElement` recursive walk (not direct rasterization, unlike clip-path) into a fresh
 `maskSource` `Surface`, then `ApplyLuminanceMask` multiplies the element's own content's alpha by
 each mask pixel's own computed luminance (the standard sRGB coefficients
@@ -1317,16 +1315,16 @@ of the reference bounds, evaluated with the `Fraction` axis (a plain `%` is a fr
 expression may be a number or a length/percentage, so `calc(10% + 5%)` and `calc(0.1 + 0.2)` work
 while `calc(10% + 0.1)` mixes a percentage and a number, is invalid and falls back to the default
 region). Under `maskUnits="userSpaceOnUse"` the value is an absolute local-space coordinate, a
-number-typed math result (`calc(1 + 1)`) is user units like a literal (SVG 2 _Types_ 4.2), and a
+number-typed math result (`calc(1 + 1)`) is user units like a literal (SVG 2 *Types* 4.2), and a
 percentage - plain or inside a math function - resolves against the current viewport on the
 attribute's own axis (width for `x`/`width`, height for `y`/`height`), as for gradients and patterns
-(see _Percentage-Based Geometry Resolution_ above); this replaces the earlier simplification that
+(see *Percentage-Based Geometry Resolution* above); this replaces the earlier simplification that
 resolved such a percentage against the reference bounds. An omitted, empty or unparseable attribute
 takes its initial value (`-10%`, `-10%`, `120%`, `120%`) on the same basis as an explicit
 percentage in the active mode: the reference bounds under `objectBoundingBox`, the current viewport
 under `userSpaceOnUse` (one reader, `ReadMaskRegionValue`, serves all four attributes).
 
-_Resource safety._ Both clip and mask reuse `FilterWorkBudget` (not a separate budget class) for
+*Resource safety.* Both clip and mask reuse `FilterWorkBudget` (not a separate budget class) for
 their own offscreen-buffer allocation charge - a deliberate judgment call rather than the
 originally-considered new `EffectWorkBudget` class, because clip/mask offscreen-buffer allocation
 is the exact same "region-area × content-count" cost shape `FilterWorkBudget` already bounds for
@@ -1348,7 +1346,7 @@ inherited for free from the same `ConvertLocalRegionToPixelBounds`/region-comput
 generalization filter regions already used, now shared via `ResolveEffectsRegionPixelBounds` (see
 **Region precedence** immediately below).
 
-_Region precedence._ When more than one of `filter`/`clip-path`/`mask` are present on the same
+*Region precedence.* When more than one of `filter`/`clip-path`/`mask` are present on the same
 element, `ResolveEffectsRegionPixelBounds` decides whose region sizes the shared offscreen
 buffer(s): the filter's own region wins if a filter is present (unchanged pre-Phase-2 behavior -
 filter regions are always objectBoundingBox-relative, a pre-existing simplification); otherwise
@@ -1362,10 +1360,10 @@ straightforward inline version of this logic triggered at each call site.
 **Pattern paint-server.** A `fill`/`stroke` of `url(#id)` referencing a `pattern` element (resolved
 through the same id index and dangling-reference/wrong-element-type tolerance as a gradient
 `fill`/`stroke` reference above) is painted as a repeating tiled fill, entirely within
-`SvgCodec.Patterns.cs`, dispatched from `RenderFill`/`RenderStroke` _before_ their existing
+`SvgCodec.Patterns.cs`, dispatched from `RenderFill`/`RenderStroke` *before* their existing
 `ResolvePaint` call - a purely additive branch that leaves every pre-existing solid-color/
 gradient/`none`/dangling-reference code path byte-identical. A `pattern` paint is deliberately
-_not_ modeled as a `Drawing.Gradient` subtype: `Gradient`'s own constructor is `private protected`,
+*not* modeled as a `Drawing.Gradient` subtype: `Gradient`'s own constructor is `private protected`,
 closing that hierarchy to exactly `LinearGradient`/`RadialGradient` by design, because
 `GradientEvaluator`/`ScanlineRasterizer`'s own `Fill(Surface, Path, Gradient, ...)` entry point
 pattern-matches exhaustively on those two subtypes alone; extending that closed hierarchy for
@@ -1385,7 +1383,7 @@ a non-positive tile size, in either of which cases the fill/stroke tolerantly pa
 Second, the tile's own pixel size is computed by reusing `ConvertLocalRegionToPixelBounds` (the
 same helper filter/mask regions already use for their own pixel-space sizing/`Surface.MaxDimension`
 enforcement - see `MaxPatternTileDimension`'s remarks), and a fresh tile-sized `Surface` is
-rendered by walking the resolved content element's own children through the _ordinary_
+rendered by walking the resolved content element's own children through the *ordinary*
 `RenderElement` recursion (not a bespoke, feature-limited renderer) with `elementDepth + 1` -
 exactly the deliberate asymmetry Phase 2's `mask` support already established over `clipPath`'s
 direct rasterization, letting tile content freely use `clipPath`/`mask`/`filter`/nested `pattern`s
@@ -1397,7 +1395,7 @@ buffer via `ComputePreserveAspectRatioFit` (verbatim reuse of the same helper al
 present; otherwise, `patternContentUnits` (default `userSpaceOnUse`) is resolved independently of
 `patternUnits` - a content coordinate is mapped through `ComputeObjectBoundingBoxMap` (for
 `objectBoundingBox`) or left as-is (for `userSpaceOnUse`) against the referencing element's own
-_whole_ bounding box, then back through the tile placement transform's own inverse into the tile
+*whole* bounding box, then back through the tile placement transform's own inverse into the tile
 buffer's pixel space - so `patternContentUnits="objectBoundingBox"` always maps relative to the
 whole referencing shape, never re-normalized to an individual repeated tile's own smaller
 sub-range, exactly mirroring how `maskContentUnits` and `patternUnits` are each resolved as
@@ -1417,8 +1415,8 @@ coverage-multiply since this buffer also carries the sampled tile's own color). 
 result is composited onto the real canvas via `CompositeFilterResultOntoCanvas` (verbatim reuse,
 applying the combined `fill-opacity`/`stroke-opacity`/cascaded-`opacity` multiplier uniformly).
 
-_Resource safety._ Because no rendered-tile cache exists (a tile's own pixel size and content
-mapping both depend on the _referencing_ shape's own bounding box, so a naive per-pattern-element
+*Resource safety.* Because no rendered-tile cache exists (a tile's own pixel size and content
+mapping both depend on the *referencing* shape's own bounding box, so a naive per-pattern-element
 cache would be incorrect across differently sized referencing shapes), every pattern fill/stroke
 re-renders its own tile from scratch - bounded, not by a cache, but by reusing `FilterWorkBudget`
 (the same cumulative budget class filter/clip-path/mask application already charges, rather than
@@ -1442,10 +1440,10 @@ regardless of whether any effect is present. The codec itself decodes only an `h
 `data:<mime-type>;base64,<payload>`; `TryParseDataUri` requires the literal
 `;base64,` token and rejects a percent-encoded or plain-text `data:` payload, or a
 `data:image/svg+xml` payload, as an out-of-scope no-op, and an external file
-path/URL is a no-op unless the caller supplied an `ImageResolver` (see _Image Resolver_ below and
+path/URL is a no-op unless the caller supplied an `ImageResolver` (see *Image Resolver* below and
 the out-of-scope list above for the full rationale behind each).
 
-_Image Resolver._ `SvgLoadOptions.ImageResolver` (`IImageResolver?`, default `null`) is the only way an
+*Image Resolver.* `SvgLoadOptions.ImageResolver` (`IImageResolver?`, default `null`) is the only way an
 external reference is ever loaded, so the codec itself still performs no I/O: a host that opts in decides
 what the resolver may reach (`FolderImageResolver` of the core package reads through `FileReferenceResolver` under
 `FolderImageResolverOptions.FileAccess`, a `FileAccessPolicy`: `AllowAll` by default, confinement opt-in with
@@ -1459,26 +1457,23 @@ a deferred `ImageLoad` (extra work units plus a loader), so the work-budget char
 fit/sample/effects pipeline, and the disposal of the loaded surface (`using`) are shared.
 
 The resolver path computes the pixel size, which `Resolve(href, pixelWidth, pixelHeight)` receives, as the edge lengths
-of
-the placement rectangle after the composed transform - `width` times the length of the transform's
-first basis row, `height` times that of the second, so rotation and skew are covered - rounded up
-(with a 0.001 tolerance against floating-point noise) and clamped to 1 through
-`Surface.MaxDimension`; this is the size at which a vector source should be drawn to look crisp. The
-charge against the shared `FilterWorkBudget` is the effects-pipeline units plus the requested pixel
-area plus `ResolverCallOverheadUnits` (100,000), made _before_ the call; a declined charge skips the
-call. With the 50,000,000-unit cumulative budget that allows fewer than 500 calls per document, which
-bounds `use` fan-out. After the call, a returned surface larger than requested is charged for the
-extra pixels; a declined charge disposes it and draws nothing. That after-the-fact charge is only the defense
-against a resolver that returns more than it was asked for: it cannot undo the allocation. The memory is protected by
-the resolver, which refuses a picture that exceeds its own pixel budget (`FolderImageResolverOptions.MaxDecodedPixels`)
-before it is allocated (a raster is checked from its header), reporting `svg-image-too-large` and returning `null`
-here; the requested size passed to it never exceeds `Surface.MaxDimension` per side. The surface then follows the data-URI
-route (`preserveAspectRatio`, `image-rendering`, clip/mask/filter/opacity) and is disposed by the
-codec.
+of the placement rectangle after the composed transform - `width` times the length of the transform's first basis row,
+`height` times that of the second, so rotation and skew are covered - rounded up (with a 0.001 tolerance against
+floating-point noise) and clamped to 1 through `Surface.MaxDimension`; this is the size at which a vector source should
+be drawn to look crisp. The charge against the shared `FilterWorkBudget` is the effects-pipeline units plus the
+requested pixel area plus `ResolverCallOverheadUnits` (100,000), made *before* the call; a declined charge skips the
+call. With the 50,000,000-unit cumulative budget that allows fewer than 500 calls per document, which bounds `use`
+fan-out. After the call, a returned surface larger than requested is charged for the extra pixels; a declined charge
+disposes it and draws nothing. That after-the-fact charge is only the defense against a resolver that returns more than
+it was asked for: it cannot undo the allocation. The memory is protected by the resolver, which refuses a picture that
+exceeds its own pixel budget (`FolderImageResolverOptions.MaxDecodedPixels`) before it is allocated (a raster is checked
+from its header), reporting `svg-image-too-large` and returning `null` here; the requested size passed to it never
+exceeds `Surface.MaxDimension` per side. The surface then follows the data-URI route (`preserveAspectRatio`,
+`image-rendering`, clip/mask/filter/opacity) and is disposed by the codec.
 
-_Error policy._ A `null` result is a tolerant no-op, exactly like an undecodable data URI. An
+*Error policy.* A `null` result is a tolerant no-op, exactly like an undecodable data URI. An
 exception thrown by the resolver propagates to the caller unchanged: the codec's tolerance is for
-untrusted _document_ content, while the resolver is trusted _host_ code whose failures would
+untrusted *document* content, while the resolver is trusted *host* code whose failures would
 otherwise be hidden (and the tool needs a `ToolException` to reach the user intact). The one guard is
 `FormatException`, which `LoadCore` converts to "invalid numeric data" for the document; the resolver
 call wraps it in an `InvalidOperationException` so a host error is not mislabeled as bad SVG data. `LoadCore`
@@ -1487,7 +1482,7 @@ rethrows, so the exception type is preserved and no surface is leaked.
 `feImage` does not use the resolver: its primitive-subregion path is separate, and an external
 `feImage` href stays a no-op (a possible follow-up).
 
-_Decode dispatch._ `ResolveRasterDecoder` maps the parsed MIME type through the core
+*Decode dispatch.* `ResolveRasterDecoder` maps the parsed MIME type through the core
 `ImageFormats.FromMediaType` recognizer to one of the five existing raster codecs, decoded with
 `ImageDecoder.Load(Stream, ImageFormat)` (a thin dispatcher over each codec's own `Load(Stream)`) -
 `image/png` → `PngCodec`, `image/jpeg` → `JpegCodec`, `image/bmp` → `BmpCodec`, `image/tiff` →
@@ -1511,10 +1506,10 @@ can distinguish "well-formed but unsupported" from "malformed" without string-ma
 call site and treated as a tolerant per-element no-op, mirroring this codec's general
 dangling/malformed-reference convention rather than aborting the whole document's rendering.
 
-_Compositing._ Once decoded, `SampleImageIntoRegion` composites the decoded `Surface` into the
+*Compositing.* Once decoded, `SampleImageIntoRegion` composites the decoded `Surface` into the
 element's own placement rect - a single, non-tiled draw, deliberately simpler than `pattern`'s own
 `SampleTileIntoRegion`: no `WrapCoordinate`/modulo wrap (there is exactly one draw, not a repeating
-grid), and no separate fractional path-coverage multiply (the destination region _is_ the
+grid), and no separate fractional path-coverage multiply (the destination region *is* the
 placement rect itself, with no partial-shape-coverage case to account for). `preserveAspectRatio`
 (default `xMidYMid meet`) is resolved via the verbatim-reused `ComputePreserveAspectRatioFit`
 helper - the same helper `<svg>`/`<symbol>`/`<marker>`/`pattern` viewBox fitting already uses -
@@ -1538,7 +1533,7 @@ uniformly), after `ApplyClipPath`/`ApplyMask` have already been applied to it, a
 `EvaluateFilterChain` if a `filter` is also present - the same geometry → content → clip → mask →
 filter → opacity ordering every other effects-capable element already follows.
 
-_Resource safety._ `RenderImageWithEffects` charges `FilterWorkBudget` (the same cumulative budget
+*Resource safety.* `RenderImageWithEffects` charges `FilterWorkBudget` (the same cumulative budget
 class filter/clip-path/mask/`pattern` application already charges, not a new, parallel budget
 class) for the element's own placement-region pixel area (via the shared
 `ComputeEffectsPipelineWorkUnits` helper, exactly as every other effects-capable element already
@@ -1567,7 +1562,7 @@ before descending any further. This mirrors the same fixed-depth-cap pattern the
 `GlyfLocaReader` unit uses to bound composite glyph nesting, applied here to bound the SVG element
 tree instead.
 
-Neither depth cap bounds _total_ rendering work, only how deep any single reference chain may go.
+Neither depth cap bounds *total* rendering work, only how deep any single reference chain may go.
 A group legitimately (non-cyclically) referenced by several sibling `use` elements, itself
 containing further such fan-out, re-renders its entire subtree once per reference - so the total
 number of elements rendered grows exponentially with nesting depth even while every individual
@@ -1581,7 +1576,7 @@ beyond any real-world document's element count but small enough to keep worst-ca
 CPU/memory bounded to a small, practical amount. Every fixed counter/budget in this class
 (`GeometryWorkBudget.Charge`, the total-rendered-element counter above, `BuildIdIndex`'s own
 whole-document-walk counter described below) checks the new amount against the remaining budget
-_before_ adding it to the running total, rather than adding first and checking afterward - a
+*before* adding it to the running total, rather than adding first and checking afterward - a
 single call charging an amount large enough to make the addition itself overflow `int` cannot
 therefore bypass the budget by wrapping past a small, still-under-budget-looking value. This is
 defense-in-depth: given today's fixed constants, no call site can charge an amount anywhere close
@@ -1607,7 +1602,7 @@ its entire unbounded content has already been scanned. This budget mirrors the F
 magnitude precedent for bounding a single pathological structure's parsing cost, applied here as
 an independent combined counter across all three sources rather than one bound per source.
 
-None of the above budgets bound a single _attribute value's_ own length independent of any
+None of the above budgets bound a single *attribute value's* own length independent of any
 element/geometry counting: `ParseNumberList` - the shared parser behind `viewBox`, every
 transform function's arguments, and `stroke-dasharray` - previously appended every parsed number
 to an unbounded list with no upper bound, and this attribute family is not charged against the
@@ -1618,7 +1613,7 @@ charged the moment each number is added rather than after the list is fully buil
 excess with `InvalidDataException` - a hard rejection, not a tolerant fallback, matching this
 codec's existing convention for every other size/arity/syntax budget violation.
 
-None of the budgets above bound the _magnitude_ of an individual coordinate, only how many of them
+None of the budgets above bound the *magnitude* of an individual coordinate, only how many of them
 appear. A document with only a handful of `path`/`points`/shape-geometry commands using an
 extreme-but-individually-finite coordinate magnitude (for example `3e38`) counts as a negligible
 amount of parsed work toward every count-based budget above, yet can still drive
@@ -1643,7 +1638,7 @@ calculations proving this.
 literal at parse time, before any `transform` attribute has been applied. `RenderShape` calls
 `Path.Transform` to bake every shape/glyph-run outline's local-space points into final pixel-space
 coordinates through `Vector2.Transform` - but a `transform="scale(...)"` function's own argument
-only needs to stay _at or under_ `MaxCoordinateMagnitude` to pass its own parse-time check (the
+only needs to stay *at or under* `MaxCoordinateMagnitude` to pass its own parse-time check (the
 comparison is strict `>`, so a literal of exactly `1,000,000` is not rejected), so an in-bound
 local coordinate composed with an in-bound-but-large transform can still produce a final
 pixel-space magnitude the flattening/stroking pipeline was never meant to see - a second,
@@ -1665,7 +1660,7 @@ tolerant, consistent choice.
 A closely related, but independent, gap exists for stroke width: `RenderStroke` scales the
 already-validated, locally-finite `stroke-width` by the same transform's estimated uniform scale,
 guarding only `!float.IsFinite(strokeWidth) || strokeWidth <= 0f` - a check that catches an
-overflow-to-`Infinity` composed scale, but says nothing about a _finite-but-extreme_ effective
+overflow-to-`Infinity` composed scale, but says nothing about a *finite-but-extreme* effective
 width. A compliant, in-bound `stroke-width` (up to `MaxCoordinateMagnitude`) composed with a
 large-but-finite transform scale can still yield an effective width many orders of magnitude
 beyond what `PathStroker`'s offset-curve generation was ever meant to see, without ever tripping
@@ -1712,36 +1707,30 @@ entirely. `BuildIdIndex`'s whole-document walk therefore reuses the existing
 with a single guard - since it runs before rendering and covers every element in the document, it
 transitively bounds `ParseStops`'s later, otherwise-unbounded `<stop>` enumeration too.
 
-**Text.** A `text` element's `font-family` list is split by the core `GenericFontFamilies.SplitFamilyList`
-(commas inside quotes do not split, the quotes are removed, CSS backslash escapes are decoded) and
-each name is matched, case-insensitively, against a
-caller-supplied `fonts` dictionary keyed by family name, walking the fallback list
-of families exactly as CSS `font-family` does; the registered-font pass and the default-resolution
-pass use that one splitter, so they always agree on the candidate names. Once a family name matches, the matching family's
-registered `SvgFontFace` list is narrowed to a single face via a private `SelectClosestFace`
-helper, scoring each candidate face against the element's own cascaded `font-weight`/
-`font-style` (parsed by private `ParseFontWeight`/`ParseFontStyle` helpers alongside every other
-presentation attribute in `ApplyPresentationAttributes` - `font-weight` accepts the keywords
-`normal`(`400`)/`bold`(`700`), ASCII case-insensitively, or a literal integer, tolerantly falling
-back to the inherited value
-for the unimplemented relative keywords `bolder`/`lighter` or any other unparseable value;
-`font-style` accepts `normal`/`italic`/`oblique` (ASCII case-insensitive, `oblique` optionally with
-an angle in `deg`/`grad`/`rad`/`turn` within `[-90deg, 90deg]`), the latter two both resolving to
-`SvgFontStyle.Italic`; any other shape is ignored, so the inherited style applies. The CSS-wide keywords
-`inherit`/`initial`/`unset` on `font-family`, `font-weight` and `font-style` take the parent's or the
-initial value - see _font shorthand_ above) in priority order: (1) an exact style match always beats a style mismatch,
-regardless of weight; (2) among faces tied on style match, the smallest absolute
-`font-weight` distance wins; (3) among faces tied on both, the face on the same "boldness side"
-as the request (its own weight and the requested weight are both `>= 400` or both `< 400`) wins
-over one on the opposite side. This is a deliberately simple approximation of the CSS Fonts
-Module Level 4 font-weight fallback cascade - not a byte-for-byte clone of it - matching a
-documented "do not over-engineer" design choice; the first-registered face wins any remaining
-tie, since the running best is only replaced by a strictly better-scoring candidate. A caller
-registering exactly one `SvgFontFace` per family (including every family registered via the
-legacy single-font-per-family `Load` overload, which always wraps its entries as a single
-normal-weight/normal-style face) is therefore unaffected by this algorithm: with only one
-candidate, it is always selected regardless of the requested `font-weight`/`font-style`,
-preserving that overload's pre-existing behavior exactly.
+**Text.** A `text` element's `font-family` list is split by the core `GenericFontFamilies.SplitFamilyList` (commas
+inside quotes do not split, the quotes are removed, CSS backslash escapes are decoded) and each name is matched,
+case-insensitively, against a caller-supplied `fonts` dictionary keyed by family name, walking the fallback list of
+families exactly as CSS `font-family` does; the registered-font pass and the default-resolution pass use that one
+splitter, so they always agree on the candidate names. Once a family name matches, the matching family's registered
+`SvgFontFace` list is narrowed to a single face via a private `SelectClosestFace` helper, scoring each candidate face
+against the element's own cascaded `font-weight`/ `font-style` (parsed by private `ParseFontWeight`/`ParseFontStyle`
+helpers alongside every other presentation attribute in `ApplyPresentationAttributes` - `font-weight` accepts the
+keywords `normal`(`400`)/`bold`(`700`), ASCII case-insensitively, or a literal integer, tolerantly falling back to the
+inherited value for the unimplemented relative keywords `bolder`/`lighter` or any other unparseable value; `font-style`
+accepts `normal`/`italic`/`oblique` (ASCII case-insensitive, `oblique` optionally with an angle in
+`deg`/`grad`/`rad`/`turn` within `[-90deg, 90deg]`), the latter two both resolving to `SvgFontStyle.Italic`; any other
+shape is ignored, so the inherited style applies. The CSS-wide keywords `inherit`/`initial`/`unset` on `font-family`,
+`font-weight` and `font-style` take the parent's or the initial value - see *font shorthand* above) in priority
+order: (1) an exact style match always beats a style mismatch, regardless of weight; (2) among faces tied on style
+match, the smallest absolute `font-weight` distance wins; (3) among faces tied on both, the face on the same "boldness
+side" as the request (its own weight and the requested weight are both `>= 400` or both `< 400`) wins over one on the
+opposite side. This is a deliberately simple approximation of the CSS Fonts Module Level 4 font-weight fallback
+cascade - not a byte-for-byte clone of it - matching a documented "do not over-engineer" design choice; the
+first-registered face wins any remaining tie, since the running best is only replaced by a strictly better-scoring
+candidate. A caller registering exactly one `SvgFontFace` per family (including every family registered via the legacy
+single-font-per-family `Load` overload, which always wraps its entries as a single normal-weight/normal-style face) is
+therefore unaffected by this algorithm: with only one candidate, it is always selected regardless of the requested
+`font-weight`/`font-style`, preserving that overload's pre-existing behavior exactly.
 
 Each mapped character's glyph outline, advance width, and kerning (against the previous glyph) are
 looked up by core `Rendering.TextRenderer.CreateTextPath` (through `Fonts.TrueTypeFont.GetGlyphIndex`/
@@ -1831,7 +1820,7 @@ differently:
   is instead tolerated — treated as absent/unrecognized and resolved via each attribute's own
   documented fallback — because rendering can still proceed meaningfully without that one value,
   unlike a malformed `viewBox`/`transform`/`path` `d`, without which nothing can be rendered at
-  all. The same three-class policy governs every length (see _Length Units and font-size_): a
+  all. The same three-class policy governs every length (see *Length Units and font-size*): a
   malformed length (an unknown unit, whitespace between number and unit, a malformed `calc()`, a
   mixed-type `calc()` such as `calc(1 + 1px)`, or a
   non-finite or over-magnitude result) in shape/text/use/image/marker geometry, `stroke-width`,
@@ -1881,7 +1870,7 @@ differently:
   dashing" (a solid stroke) — a more conservative choice than skipping the whole stroke, since the
   stroke geometry itself remains perfectly valid and only its dash pattern overflowed — mirroring
   `ParseDashArray`'s own existing tolerant "malformed dash array -> no dashing" convention.
-- **Well-formed but out-of-scope constructs** — see _Out-of-scope subset_ above. These are
+- **Well-formed but out-of-scope constructs** — see *Out-of-scope subset* above. These are
   silently skipped, not errors.
 
 **Accepted limitation: document-size bound is a raw character count, not a streaming parse.**
@@ -1902,7 +1891,7 @@ fit into — not values decoded from the (untrusted) SVG document itself. `SvgCo
 **not** pre-validate or wrap them: they are passed straight through to `new Surface(width,
 height)`, and that constructor's own `ArgumentOutOfRangeException` is allowed to propagate
 unwrapped. This is a deliberate asymmetry with, for example, `BmpCodec`'s handling of a BMP's
-_declared_ width/height (which **is** untrusted file data, and so **is** validated against
+*declared* width/height (which **is** untrusted file data, and so **is** validated against
 `Surface.MaxDimension` and re-thrown as `InvalidDataException`): the two cases look superficially
 similar (both end up as `Surface` dimensions) but have different trust boundaries, and this
 codec's exception contract reflects that difference rather than collapsing it.
@@ -1926,7 +1915,7 @@ paint), `Fonts` subsystem's `TrueTypeFont` (font selection and metrics), and `Re
 `SafeXml` (the hardened, bounded XML reader behind both document parses). This is a cross-system
 dependency: `SvgCodec` is the sole unit of the `CanvasNetSvg`
 system, referencing the separate `CanvasNet` system's public API — see the Dependencies section
-of _CanvasNetSvg System Design_ (`../canvas-net-svg.md`). Beyond these
+of *CanvasNetSvg System Design* (`../canvas-net-svg.md`). Beyond these
 units, `SvgCodec` uses only the .NET base class library's `System.Xml.Linq` (`XDocument`/
 `XElement`) and `System.Numerics` (`Matrix3x2`/`Vector2`) namespaces, available on every one of
 CanvasNetSvg's target frameworks with no new runtime NuGet dependency.
@@ -1936,7 +1925,7 @@ CanvasNetSvg's target frameworks with no new runtime NuGet dependency.
 `SvgCodec` is a public API entry point invoked directly by consumers of the
 `DemaConsulting.CanvasNet.Svg` package; it is not called by any other unit within this system
 (the sole unit of `CanvasNetSvg`). It calls into the `CanvasNet` system's `Canvas.Surface`,
-`Geometry`, `Drawing`, and `Fonts` (see _Dependencies_ above) but nothing in `CanvasNet` calls
+`Geometry`, `Drawing`, and `Fonts` (see *Dependencies* above) but nothing in `CanvasNet` calls
 into it.
 
 ### Image Source

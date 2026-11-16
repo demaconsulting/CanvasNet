@@ -25,7 +25,7 @@ only cached values (`c:numCache`/`c:strCache`) and never recomputes from a `c:f`
 
 - **OpenXmlChartParser** — the `OpenXmlChartParser` static class and its
   `ChartUnsupportedFeatureException`; see
-  _OpenXmlChartParser Unit Design_ (`open-xml-chart/open-xml-chart-parser.md`)
+  *OpenXmlChartParser Unit Design* (`open-xml-chart/open-xml-chart-parser.md`)
 
 ### Dependencies
 
@@ -34,7 +34,7 @@ The `OpenXmlChart` subsystem depends on the `ChartModel` subsystem's `ChartDocum
 `OpenXmlChartParser` constructs directly), and, beyond that, only the .NET base class library's
 `System.Xml.Linq` (`XDocument`/`XElement`/`XNamespace`, for XML parsing) and `System.Globalization`
 (`CultureInfo.InvariantCulture`, for formatting a numeric category label deterministically) — see
-_CanvasNetCharts System Design_ (`../canvas-net-charts.md`)'s Dependencies section. It introduces
+*CanvasNetCharts System Design* (`../canvas-net-charts.md`)'s Dependencies section. It introduces
 no new runtime NuGet dependency, and - per that same System Design document's hard architectural
 constraint - must never reference `CanvasNetPptx`, `CanvasNetPdf`, `CanvasNetSvg`, or a future
 `CanvasNetVsdx`.

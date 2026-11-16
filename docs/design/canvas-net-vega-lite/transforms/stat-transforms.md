@@ -35,7 +35,7 @@ differs in the first digits is a different chart.
 
 The unit's behavior is specified by the `CanvasNetVegaLite-Transforms-StatTransforms-*` requirements in
 `docs/reqstream/canvas-net-vega-lite/transforms/stat-transforms.yaml`. The behavior rules are those of the sources
-listed in _CanvasNetVegaLite System Design_, Third-Party Provenance and Attribution: `vega-regression`'s `Regression`
+listed in *CanvasNetVegaLite System Design*, Third-Party Provenance and Attribution: `vega-regression`'s `Regression`
 and `Loess` transforms; `vega-transforms`' `KDE`, `Quantile`, and `Extent` transforms and `partition`;
 `vega-statistics`' `regression/*`, `loess`, `kde`, `bandwidth`, `normal`, `quantiles`, `numbers`, and `sampleCurve`;
 `vega-util`'s `extent`; and `d3-array`'s `deviation`, `quantile`, and `range`; plus the way Vega-Lite 6 compiles the
@@ -45,7 +45,7 @@ transforms (`regression.ts`, `loess.ts`, `density.ts`, `quantile.ts`, and `exten
 
 An instance serves one call on one thread: it holds the `TransformContext` (the budgets, the token, the warnings, the
 parameters) of the call. The input is an immutable `DataTable`; the output is built with `TableLayout` (see
-_RowTransforms_: ordinal field order, `MaxFieldCount` and the 2^25 cells checked before allocation), and the field
+*RowTransforms*: ordinal field order, `MaxFieldCount` and the 2^25 cells checked before allocation), and the field
 names
 are the literal names of `as` or of the defaults (a name with a dot is one field, not a path).
 

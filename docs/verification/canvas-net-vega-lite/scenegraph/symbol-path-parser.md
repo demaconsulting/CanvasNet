@@ -5,8 +5,8 @@ This document describes the unit-level verification strategy for the `SymbolPath
 the SVG path data of a custom symbol shape the way vega-scenegraph's `path/parse.js` does, draws it scaled to a symbol
 size the way `customSymbol` does (`path/render.js`, `path/arc.js`, and the scaling of `path/symbols.js`), and computes
 the bounds of the drawing with the extrema of its curves (`bound/boundContext.js`). The painter draws the returned path
-and the legend uses its bounds (see the _ScenePainter Unit Verification Design_ and the _LegendBuilder Unit
-Verification Design_).
+and the legend uses its bounds (see the *ScenePainter Unit Verification Design* and the *LegendBuilder Unit
+Verification Design*).
 
 #### Verification Approach
 
@@ -60,14 +60,14 @@ radius `sqrt(size) / 2`, and the curve formulas.
 The scenarios cover the requirements of the unit as follows: `CanvasNetVegaLite-Scenegraph-SymbolPathParser-Parse` by
 the repetition, number grammar, error, skipped text, and limit scenarios; `-RenderCanvasRules` by the canvas rules, the
 reflected control points, the scaled `t`, and the arcs; `-Bounds` by the curve extrema, the scaled `t`, and the painter
-and legend bounds; `-Cache` by the sharing scenario, the scenario that a repeated invalid path is cached as a failure and
-parsed once while a path longer than 8,192 characters is not cached, and the scenario that unique long paths added from
-four threads never make the cache exceed
-its 256 entries or 262,144 characters; and `-Scaling` by the scaling scenario and the painter scenario.
+and legend bounds; `-Cache` by the sharing scenario, the scenario that a repeated invalid path is cached as a failure
+and parsed once while a path longer than 8,192 characters is not cached, and the scenario that unique long paths added
+from four threads never make the cache exceed its 256 entries or 262,144 characters; and `-Scaling` by the scaling
+scenario and the painter scenario.
 
 Unit tests reside in `SymbolPathParserTests.cs` within the `DemaConsulting.CanvasNet.VegaLite.Tests` project, in the
 `Scenegraph` folder. The report of the invalid path by the catalog is verified in `FeatureCatalogTests.cs` (see the
-_FeatureCatalog Unit Verification Design_), and the whole path from a specification is verified in the system test
+*FeatureCatalog Unit Verification Design*), and the whole path from a specification is verified in the system test
 `VegaLiteChartIntegrationTests.CanvasNetVegaLite_SystemIntegration_CustomPathShapeIsDrawnAtTheSymbolRadius`.
 
 #### Test Environment
@@ -83,8 +83,8 @@ _FeatureCatalog Unit Verification Design_), and the whole path from a specificat
 
 A unit-level test run passes when every scenario below passes without error or exception beyond those explicitly
 asserted. Any command count, bounds, sub-path, or end point that differs from the hand-derived value (within the single
-precision tolerance), a text that vega rejects and is accepted (or the reverse), a path that is not scaled by the radius,
-a cache that does not share, or any exception constitutes a failure.
+precision tolerance), a text that vega rejects and is accepted (or the reverse), a path that is not scaled by the
+radius, a cache that does not share, or any exception constitutes a failure.
 
 #### Unit-Level Test Scenarios
 

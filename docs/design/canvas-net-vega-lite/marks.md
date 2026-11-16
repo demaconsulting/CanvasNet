@@ -13,10 +13,10 @@ and, through `InternalsVisibleTo`, to the test assembly. It contains two units:
 - **MarkBuilder** - the internal `MarkBuilder`, a sealed partial class in nine files, for the marks `bar`, `rect`,
   `point`, `circle`, `square`, `rule`, `tick`, `line`, `area`, `trail`, `text`, `arc`, and `image`, with the point and
   line
-  overlays of the path marks; see _MarkBuilder Unit Design_ (`marks/mark-builder.md`)
+  overlays of the path marks; see *MarkBuilder Unit Design* (`marks/mark-builder.md`)
 - **CurveBuilder** - the internal static `CurveBuilder` with `CurveKind`, `CurvePoint`, and `AreaPoint`: the sixteen
   d3-shape curves, the `line` and `area` generators, and the upper bound of the number of path segments, for the
-  paths of the `line` and `area` marks; see _CurveBuilder Unit Design_ (`marks/curve-builder.md`)
+  paths of the `line` and `area` marks; see *CurveBuilder Unit Design* (`marks/curve-builder.md`)
 
 The subsystem's namespace documentation is in `Marks/NamespaceDoc.cs`. Its behavior is specified by the
 `CanvasNetVegaLite-Marks-*` requirements in `docs/reqstream/canvas-net-vega-lite/marks.yaml`. Marks other than the
@@ -84,7 +84,7 @@ position (plus a polar offset), with the label formatted from the field, the dat
 An `arc` mark is one sector per row, a rectangle in polar coordinates whose angles come from `theta` and `theta2` and
 whose radii come from `radius` and `radius2`; the polar position of a stacked `text` is the middle of its slice, so
 that the labels of a pie sit in their slices. The `order` channel decides the drawing order of every other mark that is
-not stacked. See _MarkBuilder Unit Design_ for the rules.
+not stacked. See *MarkBuilder Unit Design* for the rules.
 
 **Bounded.** The item budget is charged for each item as it is created (a row that draws nothing costs nothing), so a
 huge or hostile data set fails with a located `VegaLiteRenderException` before more memory is spent, and the

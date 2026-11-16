@@ -27,18 +27,18 @@ the special variables that control curve resolution) — and **render** it: `Sca
 onto a `Surface` (the core `CanvasNet` pixel buffer) with a camera fitted to the model or supplied by the
 caller. Everything that cannot be built is reported, never silently skipped. The package is packable and is
 the first release in which the roadmap's user-visible rendering capability exists; the 2D Minkowski sum
-and a few other constructs remain deferred and are reported as unsupported features (see _Supported And
-Deferred Features_). Phase 7 added `hull` and `minkowski`; Phase 8 added transparency (the alpha of a color)
+and a few other constructs remain deferred and are reported as unsupported features (see *Supported And
+Deferred Features*). Phase 7 added `hull` and `minkowski`; Phase 8 added transparency (the alpha of a color)
 and the `#` and `%` modifiers as translucent overlays; the text delivery added `text()`, which lays a string
 out with a TrueType font (the bundled Liberation Sans unless a font is named) into flat 2D shapes. The text
 dialect is deliberately simple and is CanvasNetScad's own: no shaping or ligatures, `language` and `script`
 accepted and ignored, simple vertical directions, `size` as the ink height of `H`, and alignment by the measured
 ink extents; unusable mapped glyph outlines are reported rather than silently dropped, and the scan of explicit font
-directories is bounded and cancelable; `textmetrics()` and `fontmetrics()` stay unsupported (see _ScadTextGeometry
-Unit Design_). A later delivery added `projection()` (the exact shadow or cross-section of solids as a 2D shape, so
+directories is bounded and cancelable; `textmetrics()` and `fontmetrics()` stay unsupported (see *ScadTextGeometry
+Unit Design*). A later delivery added `projection()` (the exact shadow or cross-section of solids as a 2D shape, so
 that a drawing sheet can be assembled from views of a model), the viewport variables `$vpt`, `$vpr`, `$vpd`, and
 `$vpf` (the document can read the camera and steer it), and a flat top-down default view for a model that is
-entirely 2D (see _Supported And Deferred Features_ and _Design Constraints_). The anchor delivery added
+entirely 2D (see *Supported And Deferred Features* and *Design Constraints*). The anchor delivery added
 `echo("anchor", "name", [x, y, z])` declarations whose world point and rendered pixel position a render reports to
 `ScadRenderOptions.AnchorHandler`, so that callouts and leader lines can be placed on the picture.
 
@@ -55,22 +55,22 @@ entirely 2D (see _Supported And Deferred Features_ and _Design Constraints_). Th
   options `ScadRenderOptions`, the view report `ScadResolvedView` with its `ScadViewSource`, and the anchor report
   `ScadAnchor`. The camera
   choice of `Render`, including the viewport variables, is part of this unit (internal `ScadViewport`).
-  See _ScadDocument Unit Design_ (`canvas-net-scad/scad-document.md`).
+  See *ScadDocument Unit Design* (`canvas-net-scad/scad-document.md`).
 - **ScadLanguage** (internal subsystem; namespace `DemaConsulting.CanvasNet.Scad.Language`, folder
   `Language/`): the language front end, with two units. `ScadLexer` converts source text into a token
   list (the internal `ScadLexer`, `ScadToken`, `ScadTokenKind`). `ScadParser` converts the tokens into
   an immutable syntax tree (the internal `ScadParser`, the syntax-tree records, and `ScadTreeDepth`,
   which verifies the finished tree's height). The subsystem has no public types: the syntax tree is
   deliberately internal so that it can evolve while geometry generation is added. See
-  _ScadLanguage Subsystem Design_ (`canvas-net-scad/scad-language.md`).
+  *ScadLanguage Subsystem Design* (`canvas-net-scad/scad-language.md`).
 - **ScadEvaluation** (internal subsystem; namespace `DemaConsulting.CanvasNet.Scad.Evaluation`, folder
   `Evaluation/`): the evaluator, with four units. `ScadValue` is the value model. `ScadEvaluator`
   evaluates a resolved program into the instantiation tree. `ScadBuiltinFunctions` is the built-in function
   library with a platform-independent random generator. `ScadFileResolver` resolves `include` and `use`
   under the caller's file-access policy before evaluation. The subsystem has no public types of its own: the value model
   and the
-  instantiation tree stay internal so that they can evolve with the geometry phase. See _ScadEvaluation
-  Subsystem Design_ (`canvas-net-scad/scad-evaluation.md`).
+  instantiation tree stay internal so that they can evolve with the geometry phase. See *ScadEvaluation
+  Subsystem Design* (`canvas-net-scad/scad-evaluation.md`).
 - **ScadGeometry** (internal subsystem; namespace `DemaConsulting.CanvasNet.Scad.Geometry`, folder
   `Geometry/`): the geometry builder, with five units. `ScadGeometryBuilder` walks the instantiation tree
   iteratively and combines it into a `Scene` (implicit unions, modifiers, booleans, the `hull` and `minkowski`
@@ -80,8 +80,8 @@ entirely 2D (see _Supported And Deferred Features_ and _Design Constraints_). Th
   `square`, `circle`, and `polygon` and resolves `$fn`, `$fa`, and `$fs`. `ScadTransforms` applies `translate`,
   `rotate`, `scale`, `mirror`, `multmatrix`, `resize`, and `color`. `ScadExtrusions` builds `linear_extrude` and
   `rotate_extrude` over a symbolic 2D shape tree. `ScadTextGeometry` builds `text` from the glyph outlines of a
-  TrueType font into flat 2D shapes. The subsystem has no public types. See _ScadGeometry
-  Subsystem Design_ (`canvas-net-scad/scad-geometry.md`).
+  TrueType font into flat 2D shapes. The subsystem has no public types. See *ScadGeometry
+  Subsystem Design* (`canvas-net-scad/scad-geometry.md`).
 
 Dependencies inside the system are one-directional: `ScadDocument` calls `ScadParser`, which calls
 `ScadLexer`, `ScadEvaluator`, which calls `ScadFileResolver` (which calls `ScadParser` for each included
@@ -91,7 +91,7 @@ file), `ScadValue`, and `ScadBuiltinFunctions`, and `ScadGeometryBuilder`, which
 `ScadDirectiveKind` value types), `ScadEvaluation` depends on `ScadLanguage`, never the reverse, and
 `ScadGeometry` depends on the instantiation tree and sink of `ScadEvaluation`, never the reverse and never on
 `ScadLanguage`. Outside the system, `ScadGeometry` and the `Render` and `BuildScene` methods of `ScadDocument`
-use `CanvasNetRender3D` and the core `CanvasNet` (see _Dependencies_).
+use `CanvasNetRender3D` and the core `CanvasNet` (see *Dependencies*).
 
 ## External Interfaces
 
@@ -149,42 +149,77 @@ The system exposes the following public API in the `DemaConsulting.CanvasNet.Sca
 - **`ScadDirective`** (sealed record) and **`ScadDirectiveKind`** (`Include`, `Use`): one recorded
   file-scope directive.
 
-<!-- markdownlint-disable MD013 -->
-| Interface | Direction | Format | Constraints |
-| --------- | --------- | ------ | ----------- |
-| `ScadDocument.Parse(string, ...)` | Inbound | OpenSCAD-language source text | Non-null; at most 4,194,304 UTF-16 characters; empty, whitespace-only, and comment-only text is a valid empty document; a leading U+FEFF is ignored |
-| `ScadDocument.Open(string, ...)` | Inbound | File path | Non-null and not empty or whitespace; read as UTF-8 with byte-order-mark detection; missing file or directory surfaces the natural .NET exception |
-| `ScadDocument.Open(Stream, ...)` | Inbound | Readable stream | Non-null and readable; read from the current position as UTF-8; left open; reading stops one 8 KiB chunk past the size limit |
-| `ScadOpenOptions` properties | Inbound | Text, list, delegate | Each value validated when initialized (text null or non-whitespace; library paths a non-null list without null or whitespace entries, copied); instance therefore always valid |
-| `ScadDocument` properties | Outbound | Names, read-only lists | `Directives`, `ModuleNames`, and `FunctionNames` are file-scope only, in source order, read-only |
-| `ScadDocument.Evaluate(...)` | Inbound and outbound | `ScadEvaluationOptions`, a `CancellationToken`; a `ScadEvaluationResult` | Synchronous; thread-safe on a shared document; options validated when set; handlers run on the calling thread after evaluation; the file resolver callback runs only on the calling thread |
-| `ScadDocument.BuildScene(...)` | Inbound and outbound | `ScadRenderOptions` (its camera and view angles also define the viewport variables the model sees), a `CancellationToken`; a Render3D `Scene` | Synchronous; thread-safe on a shared document; every call returns a new scene; events delivered once, in order, on the calling thread; bounded by `ScadLimits` including `MaxTriangles`; never recurses, so it is safe on any caller stack |
-| `ScadDocument.Render(...)` | Inbound and outbound | Width and height, `ScadRenderOptions`, a `CancellationToken`; a `Surface` | Width and height from 1 to `Surface.MaxDimension` and a valid camera, validated before anything is evaluated; the caller owns the surface; byte-identical output for identical input; the camera is chosen after the build (see _Design Constraints_) |
-| `ScadRenderOptions` properties | Inbound | Numbers, an enumeration, `ScadEvaluationOptions`, `Camera`, `SceneRenderOptions`, two `Rgba32` colors, a handler | View angles finite, projection defined, thickness finite and positive, overlay colors of any alpha; instance immutable |
-| `ScadRenderOptions.ResolvedViewHandler` | Outbound | `Action<ScadResolvedView>` | Called by `Render` once, on the calling thread, after the build and before drawing; never called by `BuildScene`; an exception it throws propagates |
-| `ScadRenderOptions.AnchorHandler` | Outbound | `Action<ScadAnchor>` | Called by `Render` once per declared anchor, in echo order (duplicates kept), on the calling thread, after `ResolvedViewHandler` and before drawing; never called by `BuildScene`; an exception it throws propagates |
-| Anchor declaration `echo("anchor", "name", [x, y, z]);` | Inbound | A statement of the model | Statement form only; a non-empty string name and exactly three finite numbers, all unnamed; the echo line is still printed; anything else with the tag `"anchor"` is skipped with one `scad-anchor-invalid` warning (the identifier starts the message); the point is a world point (the enclosing `translate`, `rotate`, `scale`, `mirror`, and `multmatrix` applied) |
-| Viewport variables `$vpt`, `$vpr`, `$vpd`, `$vpf` | Inbound and outbound | Special variables of the model (a vector, a vector, a number, a number) | Defined for every document; set by an explicit camera or view angles, a `-D` override, or a top-level assignment, in that order of precedence; an unusable value is a warning and is ignored |
-| `ScadEvaluationOptions.Variables` | Inbound | Name to value dictionary | Names match an optional `$` then ASCII letters, digits, and underscores (not starting with a digit); values are null, booleans, numeric types, strings, or non-string sequences of these (nested at most 256 levels, at most 1,000,000 elements in total); invalid entries throw `ArgumentException` when set |
-| `ScadOpenOptions.FileResolver` | Inbound | `Func<string, Stream?>` | Receives only normalized logical paths, only on the calling thread; a null result means "not found"; the stream is disposed after reading |
-| `ScadEvaluationResult` | Outbound | Read-only lists and a count | Cannot be turned into mutable collections |
-| `ScadSyntaxException` | Outbound | Exception with `Location` | Thrown for the first lexical or grammatical error, for nesting deeper than 256 levels, and for a syntax error in a file loaded by `include` or `use` |
-| `ScadEvaluationException` | Outbound | Exception with `Location` | Thrown for a failed assertion, an exceeded limit (including the triangle limit, with the module's location), an include cycle, a file-access denial or another refused include file (the core `FileReferenceException` as the inner exception), a directive with no place to look, and, without a location, the renderer's fragment budget |
-| `ScadUnsupportedFeatureException` | Outbound | Exception with `Feature` and `Location` | Thrown only when `ThrowOnUnsupportedFeature` is set, at the first unsupported feature of any stage (evaluation, geometry, renderer operand checks) |
-| `ArgumentOutOfRangeException`, `ArgumentException` | Outbound | Exception | `Render` throws them, before any work, for a width or height outside 1 to `Surface.MaxDimension` and for an invalid camera |
-| `OperationCanceledException` | Outbound | Exception | Thrown, never wrapped, when the token is canceled before or during evaluation, geometry building, or rendering |
-| `InvalidDataException` | Outbound | Exception | Thrown, not as a `ScadSyntaxException`, when the source or an included file exceeds 4,194,304 characters (no location is meaningful) |
-<!-- markdownlint-enable MD013 -->
+Each interface, with its direction and format, and its constraints:
+
+- **`ScadDocument.Parse(string, ...)`** (Inbound; OpenSCAD-language source text): Non-null; at most 4,194,304 UTF-16
+  characters; empty, whitespace-only, and comment-only text is a valid empty document; a leading U+FEFF is ignored.
+- **`ScadDocument.Open(string, ...)`** (Inbound; File path): Non-null and not empty or whitespace; read as UTF-8 with
+  byte-order-mark detection; missing file or directory surfaces the natural .NET exception.
+- **`ScadDocument.Open(Stream, ...)`** (Inbound; Readable stream): Non-null and readable; read from the current position
+  as UTF-8; left open; reading stops one 8 KiB chunk past the size limit.
+- **`ScadOpenOptions` properties** (Inbound; Text, list, delegate): Each value validated when initialized (text null or
+  non-whitespace; library paths a non-null list without null or whitespace entries, copied); instance therefore always
+  valid.
+- **`ScadDocument` properties** (Outbound; Names, read-only lists): `Directives`, `ModuleNames`, and `FunctionNames` are
+  file-scope only, in source order, read-only.
+- **`ScadDocument.Evaluate(...)`** (Inbound and outbound; `ScadEvaluationOptions`, a `CancellationToken`; a
+  `ScadEvaluationResult`): Synchronous; thread-safe on a shared document; options validated when set; handlers run on
+  the calling thread after evaluation; the file resolver callback runs only on the calling thread.
+- **`ScadDocument.BuildScene(...)`** (Inbound and outbound; `ScadRenderOptions` (its camera and view angles also define
+  the viewport variables the model sees), a `CancellationToken`; a Render3D `Scene`): Synchronous; thread-safe on a
+  shared document; every call returns a new scene; events delivered once, in order, on the calling thread; bounded by
+  `ScadLimits` including `MaxTriangles`; never recurses, so it is safe on any caller stack.
+- **`ScadDocument.Render(...)`** (Inbound and outbound; Width and height, `ScadRenderOptions`, a `CancellationToken`; a
+  `Surface`): Width and height from 1 to `Surface.MaxDimension` and a valid camera, validated before anything is
+  evaluated; the caller owns the surface; byte-identical output for identical input; the camera is chosen after the
+  build (see *Design Constraints*).
+- **`ScadRenderOptions` properties** (Inbound; Numbers, an enumeration, `ScadEvaluationOptions`, `Camera`,
+  `SceneRenderOptions`, two `Rgba32` colors, a handler): View angles finite, projection defined, thickness finite and
+  positive, overlay colors of any alpha; instance immutable.
+- **`ScadRenderOptions.ResolvedViewHandler`** (Outbound; `Action<ScadResolvedView>`): Called by `Render` once, on the
+  calling thread, after the build and before drawing; never called by `BuildScene`; an exception it throws propagates.
+- **`ScadRenderOptions.AnchorHandler`** (Outbound; `Action<ScadAnchor>`): Called by `Render` once per declared anchor,
+  in echo order (duplicates kept), on the calling thread, after `ResolvedViewHandler` and before drawing; never called
+  by `BuildScene`; an exception it throws propagates.
+- **Anchor declaration `echo("anchor", "name", [x, y, z]);`** (Inbound; A statement of the model): Statement form only;
+  a non-empty string name and exactly three finite numbers, all unnamed; the echo line is still printed; anything else
+  with the tag `"anchor"` is skipped with one `scad-anchor-invalid` warning (the identifier starts the message); the
+  point is a world point (the enclosing `translate`, `rotate`, `scale`, `mirror`, and `multmatrix` applied).
+- **Viewport variables `$vpt`, `$vpr`, `$vpd`, `$vpf`** (Inbound and outbound; Special variables of the model (a vector,
+  a vector, a number, a number)): Defined for every document; set by an explicit camera or view angles, a `-D` override,
+  or a top-level assignment, in that order of precedence; an unusable value is a warning and is ignored.
+- **`ScadEvaluationOptions.Variables`** (Inbound; Name to value dictionary): Names match an optional `$` then ASCII
+  letters, digits, and underscores (not starting with a digit); values are null, booleans, numeric types, strings, or
+  non-string sequences of these (nested at most 256 levels, at most 1,000,000 elements in total); invalid entries throw
+  `ArgumentException` when set.
+- **`ScadOpenOptions.FileResolver`** (Inbound; `Func<string, Stream?>`): Receives only normalized logical paths, only on
+  the calling thread; a null result means "not found"; the stream is disposed after reading.
+- **`ScadEvaluationResult`** (Outbound; Read-only lists and a count): Cannot be turned into mutable collections.
+- **`ScadSyntaxException`** (Outbound; Exception with `Location`): Thrown for the first lexical or grammatical error,
+  for nesting deeper than 256 levels, and for a syntax error in a file loaded by `include` or `use`.
+- **`ScadEvaluationException`** (Outbound; Exception with `Location`): Thrown for a failed assertion, an exceeded limit
+  (including the triangle limit, with the module's location), an include cycle, a file-access denial or another refused
+  include file (the core `FileReferenceException` as the inner exception), a directive with no place to look, and,
+  without a location, the renderer's fragment budget.
+- **`ScadUnsupportedFeatureException`** (Outbound; Exception with `Feature` and `Location`): Thrown only when
+  `ThrowOnUnsupportedFeature` is set, at the first unsupported feature of any stage (evaluation, geometry, renderer
+  operand checks).
+- **`ArgumentOutOfRangeException`, `ArgumentException`** (Outbound; Exception): `Render` throws them, before any work,
+  for a width or height outside 1 to `Surface.MaxDimension` and for an invalid camera.
+- **`OperationCanceledException`** (Outbound; Exception): Thrown, never wrapped, when the token is canceled before or
+  during evaluation, geometry building, or rendering.
+- **`InvalidDataException`** (Outbound; Exception): Thrown, not as a `ScadSyntaxException`, when the source or an
+  included file exceeds 4,194,304 characters (no location is meaningful).
 
 Parsing never opens any file named by an `include` or `use` directive: directives are recorded only. Files
 are accessed only by `Evaluate`, `BuildScene`, and `Render` (which evaluate), only through the open options,
-and only under the file-access policy described in _Risk Control Measures_. The types of the `ScadLanguage`,
+and only under the file-access policy described in *Risk Control Measures*. The types of the `ScadLanguage`,
 `ScadEvaluation`, and `ScadGeometry` subsystems are internal and visible only to the test assembly through
 `InternalsVisibleTo`. The unsupported-feature identifiers that the geometry phase adds (`scad-module-*`,
 `scad-modifier-*` (a `#` or `%` on a 2D shape that is not extruded only), `scad-csg-*`, the Phase 7 `scad-hull-*`
 and `scad-minkowski-*`, the `scad-projection-too-complex` and `scad-projection-open-mesh` of `projection`, and the
 others) are listed with their triggers in
-_ScadGeometry Subsystem Design_ and in the user guide. See the unit and subsystem design documents
+*ScadGeometry Subsystem Design* and in the user guide. See the unit and subsystem design documents
 for every type's complete constructor, property, and exception detail.
 
 ## Dependencies
@@ -238,13 +273,13 @@ NuGet dependency; the project references exactly the same build-time analyzers a
 as its sibling projects.
 
 This is an ordinary, same-repository, system-to-system dependency: it is neither an OTS Software
-Item nor a Shared Package (that category is scoped to a package produced by a _different_
-repository). `CanvasNetScad` introduces no new OTS Software Item — see _OTS Integration Design_
+Item nor a Shared Package (that category is scoped to a package produced by a *different*
+repository). `CanvasNetScad` introduces no new OTS Software Item — see *OTS Integration Design*
 (`docs/design/ots.md`).
 
 **Image sources.** The package also ships `ScadImageSource`, an implementation of the core `ImageSources` subsystem's
 `IImageSource` for `.scad` files, so that a document can link to a model through the shared `FolderImageResolver` (see
-_ImageSources Subsystem Design_, `canvas-net/image-sources.md`). It uses only the public contract types of the core
+*ImageSources Subsystem Design*, `canvas-net/image-sources.md`). It uses only the public contract types of the core
 package, so the package still references no other format package; the separate `CanvasNetViewer` system references this
 package one-way, to list the source with the other built-in ones, and nothing in this package refers to it.
 
@@ -280,8 +315,8 @@ invalid and hostile input:
 - **Deterministic, culture-independent behavior.** Numbers are parsed and locations formatted with the
   invariant culture, so results do not depend on the host's locale.
 
-Evaluation runs untrusted programs, so it adds the following measures (details in _ScadEvaluation Subsystem
-Design_, `canvas-net-scad/scad-evaluation.md`):
+Evaluation runs untrusted programs, so it adds the following measures (details in *ScadEvaluation Subsystem
+Design*, `canvas-net-scad/scad-evaluation.md`):
 
 - **Resource limits, fail closed.** Recursion depth, evaluation steps, loop iterations, list length, string
   length, value nesting (256), include depth, included files, instance count, echo output length, and the number
@@ -430,7 +465,7 @@ Design_, `canvas-net-scad/scad-evaluation.md`):
    is 2D. A model without geometry is a scene with an empty root. A valid anchor declaration (an `Anchor`
    instance) is never built: the walk skips it, and a separate pass over the same forest (the `!` roots, or all
    roots) resolves each anchor to a world point by the matrices of its enclosing transforms, which is why the
-   anchors are resolved here and not in the evaluator (see _ScadGeometryBuilder Unit Design_).
+   anchors are resolved here and not in the evaluator (see *ScadGeometryBuilder Unit Design*).
 4. **Choose the camera and render** (`Render` only): the camera is the caller's; or the manual camera that a
    defined `$vpt`, `$vpd`, or `$vpf` describes; or fitted to the bounds of the
    scene from the explicit angles, the model's `$vpr`, the flat top view of a model that is entirely 2D, or the
@@ -465,7 +500,7 @@ Design_, `canvas-net-scad/scad-evaluation.md`):
 - **Number formatting contract**: A number is rendered (by `str` and `echo`) with at most six significant
   digits, trailing zeros removed, fixed notation for a decimal exponent from -4 to 5 and scientific notation
   (`1e+06`, `1.5e-07`) otherwise, `nan`, `inf`, `-inf`, and `-0` for the special values, using only
-  invariant-culture characters; the exact algorithm is in _ScadValue Unit Design_
+  invariant-culture characters; the exact algorithm is in *ScadValue Unit Design*
 - **Name-agnostic parsing**: The parser does not know any built-in module or function. Every
   `name(arguments) children` statement is a module instantiation, so an unknown or unsupported name
   never produces a syntax error; resolving names is the job of the evaluation subsystem
@@ -502,11 +537,11 @@ Design_, `canvas-net-scad/scad-evaluation.md`):
   by ambient light of intensity 1 only (unless `SceneOptions.Lights` is set), so every shape is exactly its
   `color()` or the default neutral gray 180. The thickness of the slabs is unchanged; a mixed 2D and 3D model keeps the
   isometric view and the warning.
-- **Fail-visible**: Nothing the model asks for may disappear without a report; see _Event Classification_ in
-  _ScadEvaluation Subsystem Design_ and _ScadGeometry Subsystem Design_
+- **Fail-visible**: Nothing the model asks for may disappear without a report; see *Event Classification* in
+  *ScadEvaluation Subsystem Design* and *ScadGeometry Subsystem Design*
 - **Event classification**: A mistake in a model that still allows a meaningful result is a warning, a
   feature this implementation does not provide is an unsupported-feature report, and a problem that makes
-  the result meaningless or dangerous is an error (see _ScadEvaluation Subsystem Design_)
+  the result meaningless or dangerous is an error (see *ScadEvaluation Subsystem Design*)
 - **Additive evolution**: The public types are sealed, options are init-only, results are read-only
   lists, and records and enumerations tolerate added members, so later phases extend the API without
   breaking it
@@ -516,12 +551,12 @@ Design_, `canvas-net-scad/scad-evaluation.md`):
 The library targets the following frameworks, identical to the `CanvasNet` system it references,
 enabling compatibility across modern .NET runtimes:
 
-| Target Framework | Runtime / Environment                                   |
-| ---------------- | ------------------------------------------------------- |
-| `net8.0`         | .NET 8 LTS (end of support; kept for library consumers) |
-| `net9.0`         | .NET 9 STS (end of support; kept for library consumers) |
-| `net10.0`        | .NET 10 LTS                                             |
-| `net11.0`        | .NET 11                                                 |
+| Target Framework | Runtime / Environment |
+| --- | --- |
+| `net8.0` | .NET 8 LTS (end of support; kept for library consumers) |
+| `net9.0` | .NET 9 STS (end of support; kept for library consumers) |
+| `net10.0` | .NET 10 LTS |
+| `net11.0` | .NET 11 |
 
 The library is supported on the following operating systems:
 
@@ -573,46 +608,94 @@ fixture README, and the purpose of each unit design, and every `CanvasNetScad` r
 
 ### Supported And Deferred Features
 
-<!-- markdownlint-disable MD013 -->
-| Feature | Status | Notes |
-| ------- | ------ | ----- |
-| Lexical forms: numbers, strings with escapes, identifiers, special variables, comments, directives | Supported (Phase 4) | See _ScadLexer Unit Design_ |
-| Assignments, module and function definitions, module instantiations with positional and named arguments | Supported (Phase 4) | The parser does not know built-in names |
-| Modifier characters (disable, show-only, highlight, background) | Supported (Phase 4) | On instantiation-like statements and blocks |
-| `if`/`else`, `for`, `intersection_for`, `let`, `echo`, `assert` (statements and expressions) | Supported (Phase 4) | |
-| Expressions: literals, vectors, ranges, postfix index/member/call, function literals, conditional, operators | Supported (Phase 4) | Precedence table in _ScadParser Unit Design_ |
-| List comprehensions: `for`, C-style `for`, `if`/`else`, `let`, `each` | Supported (Phase 4) | Valid only inside a vector |
-| `include`/`use` directives | Recorded (Phase 4); resolved on evaluation (Phase 5) | File-scope only; never opened while parsing |
-| `ScadOpenOptions.BaseDirectory`, `LibraryPaths`, `FileResolver`, `FileAccess` | Supported (Phase 5; `FileAccess` with the file-access policy) | Govern `include`/`use` resolution; the file-access policy is described in _Risk Control Measures_ |
-| Expression evaluation, variable scoping, special-variable semantics | Supported (Phase 5) | Dialect semantics in _ScadEvaluator Unit Design_ |
-| Built-in functions: mathematics, trigonometry in degrees, `len`, `concat`, `norm`, `cross`, `lookup`, `search` (documented forms), `str`, `chr`, `ord`, type tests, `version`, `rands` | Supported (Phase 5) | See _ScadBuiltinFunctions Unit Design_ |
-| `parent_module`, `textmetrics`, `fontmetrics`, and unimplemented `search` argument forms | Reported as unsupported features (Phase 5) | Feature ids `scad-function-<name>` and `scad-search-form` |
-| Module evaluation into an instantiation tree, `children()`, user functions, closures, tail calls | Supported (Phase 5) | The tree is internal and geometry-agnostic |
-| `include`/`use` file resolution, file-access policy, library paths, resolver callback | Supported (Phase 5) | Environment variables are never consulted |
-| Variable overrides (`-D` style), special-variable overrides, animation time | Supported (Phase 5) | `ScadEvaluationOptions.Variables` and `Time` |
-| Resource limits, cancellation, deterministic recursion limit | Supported (Phase 5) | `ScadLimits`, `CancellationToken` |
-| `cube`, `sphere`, `cylinder` (cones and frusta), `polyhedron`, `square`, `circle`, `polygon`; `$fn`, `$fa`, `$fs` | Supported (Phase 6) | See _ScadPrimitives Unit Design_; the fragment rule is public and documented |
-| `translate`, `rotate`, `scale`, `mirror`, `multmatrix`, `resize`, `color` | Supported (Phase 6) | See _ScadTransforms Unit Design_; `multmatrix` with a projective row is `scad-multmatrix-projective` |
-| `union`, `render`, implicit unions, `difference`, `intersection`, `intersection_for`, for solids and 2D shapes | Supported (Phase 6) | 2D booleans are symbolic and are distributed over by extrusion; mixed dimensions warn |
-| `linear_extrude`, `rotate_extrude` | Supported (Phase 6) | See _ScadExtrusions Unit Design_; `convexity` is accepted and ignored |
-| `!` (show only) | Supported (Phase 6) | The marked subtree becomes the new root of the design, without the transforms and colors of its ancestors |
-| `#` (highlight) | Supported (Phase 8) | On a solid: the subtree renders normally **and** as a translucent copy (`HighlightColor`) that shares its meshes and still takes part in the booleans around it; on a 2D shape that is not extruded: rendered normally and reported as `scad-modifier-highlight` |
-| `%` (background) | Supported (Phase 8) | On a solid: a translucent ghost (`GhostColor`) that is not part of the model (it does not cut or add, contributes no propagated bounds so `resize` ignores it, but is part of `Scene.ComputeBounds()` and so of the fitted view); on a 2D shape that is not extruded: omitted and reported as `scad-modifier-background` |
-| Color with alpha below 1, `transparent` | Supported (Phase 8) | The alpha becomes the alpha of the appearance and surfaces are composited; nothing is reported |
-| `ScadDocument.BuildScene`, `ScadDocument.Render`, `ScadRenderOptions`, `ScadLimits.MaxTriangles` | Supported (Phase 6) | Evaluation options, strict mode, and handlers cover every stage |
-| Geometry-level unsupported-feature reporting | Supported (Phase 6) | Identifier table in _ScadGeometry Subsystem Design_ |
-| Packaging as a NuGet package, README and user guide | Delivered (Phase 6) | `IsPackable` is enabled |
-| `hull` (3D and 2D children) | Supported (Phase 7) | The convex hull of the children's points; booleans below it, mixed dimensions and degenerate points are `scad-hull-csg-operand`, `scad-hull-mixed-dimensions`, `scad-hull-degenerate`; colors inside are dropped with a warning |
-| `minkowski` (convex 3D children) | Supported (Phase 7) | Folded from the left, unions distribute; `convexity` ignored; a non-convex operand is `scad-minkowski-nonconvex`, too much work is `scad-minkowski-too-complex`, mixed dimensions are `scad-minkowski-mixed-dimensions` |
-| `minkowski` of 2D children | Deferred | Reported as `scad-minkowski-2d`; omitted |
-| `text` (`text`, `size`, `font`, `halign`, `valign`, `spacing`, `direction`; `language` and `script` accepted and ignored) | Supported (text delivery) | See _ScadTextGeometry Unit Design_; flat 2D glyph shapes (holes kept) laid out left to right, right to left, top to bottom, or bottom to top without shaping; `size` is the ink height of `H`; alignment by the measured ink extents; the default font is the bundled Liberation Sans; an unusable outline is `scad-text-invalid-outline` or `scad-text-overlapping-contours` |
-| `import`, `offset`, `surface`, `roof` | Not supported | Reported as `scad-module-<name>`; omitted |
-| `projection` (`cut = false`: the shadow on the XY plane; `cut = true`: the cross-section at `z = 0`) | Supported (projection delivery) | See _ScadGeometryBuilder Unit Design_ (_Projection_); exact for solids with booleans below it, symbolic 2D result; `convexity` ignored, 2D children ignored with a warning, colors inside dropped with a warning; too much work is `scad-projection-too-complex`, a mesh that is not a closed solid where a section is needed is `scad-projection-open-mesh`, and the projection is omitted; the identifier `scad-module-projection` is retired |
-| Viewport variables `$vpt`, `$vpr`, `$vpd`, `$vpf` | Supported (projection delivery) | Defined for every document; mapped to the camera of `Render` (see _Design Constraints_ and _ScadDocument Unit Design_); `rotate($vpr)` faces the camera; a document that assigns `$vpt`, `$vpd`, or `$vpf` gets a manual camera instead of the automatic fit |
-| A model that is entirely 2D | Supported (projection delivery) | Drawn from the top, orthographic, with ambient light only, unless a view is chosen; reported through `ScadRenderOptions.ResolvedViewHandler` (public `ScadResolvedView`) |
-| Anchors: `echo("anchor", "name", [x, y, z])` | Supported (anchor delivery) | World point under `translate`, `rotate`, `scale`, `mirror`, `multmatrix` and through groups and the combining containers; reported with the pixel position by `ScadRenderOptions.AnchorHandler` (public `ScadAnchor`); malformed or inside `resize`, an extrusion, `projection`, or an unsupported module is `scad-anchor-invalid` (a warning, the identifier starts the message); no occlusion flag (the renderer keeps no depth buffer) |
-| Multiple error reporting and error recovery | Not planned | Additive later, for example as an errors list |
-<!-- markdownlint-enable MD013 -->
+Each feature, its status, and notes:
+
+- **Lexical forms: numbers, strings with escapes, identifiers, special variables, comments, directives** (Supported
+  (Phase 4)): See *ScadLexer Unit Design*.
+- **Assignments, module and function definitions, module instantiations with positional and named arguments** (Supported
+  (Phase 4)): The parser does not know built-in names.
+- **Modifier characters (disable, show-only, highlight, background)** (Supported (Phase 4)): On instantiation-like
+  statements and blocks.
+- **`if`/`else`, `for`, `intersection_for`, `let`, `echo`, `assert` (statements and expressions)** (Supported (Phase
+  4)):
+- **Expressions: literals, vectors, ranges, postfix index/member/call, function literals, conditional, operators**
+  (Supported (Phase 4)): Precedence table in *ScadParser Unit Design*.
+- **List comprehensions: `for`, C-style `for`, `if`/`else`, `let`, `each`** (Supported (Phase 4)): Valid only inside a
+  vector.
+- **`include`/`use` directives** (Recorded (Phase 4); resolved on evaluation (Phase 5)): File-scope only; never opened
+  while parsing.
+- **`ScadOpenOptions.BaseDirectory`, `LibraryPaths`, `FileResolver`, `FileAccess`** (Supported (Phase 5; `FileAccess`
+  with the file-access policy)): Govern `include`/`use` resolution; the file-access policy is described in *Risk Control
+  Measures*.
+- **Expression evaluation, variable scoping, special-variable semantics** (Supported (Phase 5)): Dialect semantics in
+  *ScadEvaluator Unit Design*.
+- **Built-in functions: mathematics, trigonometry in degrees, `len`, `concat`, `norm`, `cross`, `lookup`, `search`
+  (documented forms), `str`, `chr`, `ord`, type tests, `version`, `rands`** (Supported (Phase 5)): See
+  *ScadBuiltinFunctions Unit Design*.
+- **`parent_module`, `textmetrics`, `fontmetrics`, and unimplemented `search` argument forms** (Reported as unsupported
+  features (Phase 5)): Feature ids `scad-function-<name>` and `scad-search-form`.
+- **Module evaluation into an instantiation tree, `children()`, user functions, closures, tail calls** (Supported (Phase
+  5)): The tree is internal and geometry-agnostic.
+- **`include`/`use` file resolution, file-access policy, library paths, resolver callback** (Supported (Phase 5)):
+  Environment variables are never consulted.
+- **Variable overrides (`-D` style), special-variable overrides, animation time** (Supported (Phase 5)):
+  `ScadEvaluationOptions.Variables` and `Time`.
+- **Resource limits, cancellation, deterministic recursion limit** (Supported (Phase 5)): `ScadLimits`,
+  `CancellationToken`.
+- **`cube`, `sphere`, `cylinder` (cones and frusta), `polyhedron`, `square`, `circle`, `polygon`; `$fn`, `$fa`, `$fs`**
+  (Supported (Phase 6)): See *ScadPrimitives Unit Design*; the fragment rule is public and documented.
+- **`translate`, `rotate`, `scale`, `mirror`, `multmatrix`, `resize`, `color`** (Supported (Phase 6)): See
+  *ScadTransforms Unit Design*; `multmatrix` with a projective row is `scad-multmatrix-projective`.
+- **`union`, `render`, implicit unions, `difference`, `intersection`, `intersection_for`, for solids and 2D shapes**
+  (Supported (Phase 6)): 2D booleans are symbolic and are distributed over by extrusion; mixed dimensions warn.
+- **`linear_extrude`, `rotate_extrude`** (Supported (Phase 6)): See *ScadExtrusions Unit Design*; `convexity` is
+  accepted and ignored.
+- **`!` (show only)** (Supported (Phase 6)): The marked subtree becomes the new root of the design, without the
+  transforms and colors of its ancestors.
+- **`#` (highlight)** (Supported (Phase 8)): On a solid: the subtree renders normally **and** as a translucent copy
+  (`HighlightColor`) that shares its meshes and still takes part in the booleans around it; on a 2D shape that is not
+  extruded: rendered normally and reported as `scad-modifier-highlight`.
+- **`%` (background)** (Supported (Phase 8)): On a solid: a translucent ghost (`GhostColor`) that is not part of the
+  model (it does not cut or add, contributes no propagated bounds so `resize` ignores it, but is part of
+  `Scene.ComputeBounds()` and so of the fitted view); on a 2D shape that is not extruded: omitted and reported as
+  `scad-modifier-background`.
+- **Color with alpha below 1, `transparent`** (Supported (Phase 8)): The alpha becomes the alpha of the appearance and
+  surfaces are composited; nothing is reported.
+- **`ScadDocument.BuildScene`, `ScadDocument.Render`, `ScadRenderOptions`, `ScadLimits.MaxTriangles`** (Supported (Phase
+  6)): Evaluation options, strict mode, and handlers cover every stage.
+- **Geometry-level unsupported-feature reporting** (Supported (Phase 6)): Identifier table in *ScadGeometry Subsystem
+  Design*.
+- **Packaging as a NuGet package, README and user guide** (Delivered (Phase 6)): `IsPackable` is enabled.
+- **`hull` (3D and 2D children)** (Supported (Phase 7)): The convex hull of the children's points; booleans below it,
+  mixed dimensions and degenerate points are `scad-hull-csg-operand`, `scad-hull-mixed-dimensions`,
+  `scad-hull-degenerate`; colors inside are dropped with a warning.
+- **`minkowski` (convex 3D children)** (Supported (Phase 7)): Folded from the left, unions distribute; `convexity`
+  ignored; a non-convex operand is `scad-minkowski-nonconvex`, too much work is `scad-minkowski-too-complex`, mixed
+  dimensions are `scad-minkowski-mixed-dimensions`.
+- **`minkowski` of 2D children** (Deferred): Reported as `scad-minkowski-2d`; omitted.
+- **`text` (`text`, `size`, `font`, `halign`, `valign`, `spacing`, `direction`; `language` and `script` accepted and
+  ignored)** (Supported (text delivery)): See *ScadTextGeometry Unit Design*; flat 2D glyph shapes (holes kept) laid out
+  left to right, right to left, top to bottom, or bottom to top without shaping; `size` is the ink height of `H`;
+  alignment by the measured ink extents; the default font is the bundled Liberation Sans; an unusable outline is
+  `scad-text-invalid-outline` or `scad-text-overlapping-contours`.
+- **`import`, `offset`, `surface`, `roof`** (Not supported): Reported as `scad-module-<name>`; omitted.
+- **`projection` (`cut = false`: the shadow on the XY plane; `cut = true`: the cross-section at `z = 0`)** (Supported
+  (projection delivery)): See *ScadGeometryBuilder Unit Design* (*Projection*); exact for solids with booleans below it,
+  symbolic 2D result; `convexity` ignored, 2D children ignored with a warning, colors inside dropped with a warning; too
+  much work is `scad-projection-too-complex`, a mesh that is not a closed solid where a section is needed is
+  `scad-projection-open-mesh`, and the projection is omitted; the identifier `scad-module-projection` is retired.
+- **Viewport variables `$vpt`, `$vpr`, `$vpd`, `$vpf`** (Supported (projection delivery)): Defined for every document;
+  mapped to the camera of `Render` (see *Design Constraints* and *ScadDocument Unit Design*); `rotate($vpr)` faces the
+  camera; a document that assigns `$vpt`, `$vpd`, or `$vpf` gets a manual camera instead of the automatic fit.
+- **A model that is entirely 2D** (Supported (projection delivery)): Drawn from the top, orthographic, with ambient
+  light only, unless a view is chosen; reported through `ScadRenderOptions.ResolvedViewHandler` (public
+  `ScadResolvedView`).
+- **Anchors: `echo("anchor", "name", [x, y, z])`** (Supported (anchor delivery)): World point under `translate`,
+  `rotate`, `scale`, `mirror`, `multmatrix` and through groups and the combining containers; reported with the pixel
+  position by `ScadRenderOptions.AnchorHandler` (public `ScadAnchor`); malformed or inside `resize`, an extrusion,
+  `projection`, or an unsupported module is `scad-anchor-invalid` (a warning, the identifier starts the message); no
+  occlusion flag (the renderer keeps no depth buffer).
+- **Multiple error reporting and error recovery** (Not planned): Additive later, for example as an errors list.
 
 ### Deliberate Strictness And Deviations
 
@@ -664,7 +747,7 @@ unit design documents:
     document with `include` or `use` and no base directory, library path, or resolver is an error.
 
 The geometry phase adds the following dialect decisions, each pinned by a test and described in
-_ScadGeometry Subsystem Design_ and the unit designs:
+*ScadGeometry Subsystem Design* and the unit designs:
 
  1. Invalid arguments (a non-positive size, a wrong type, a non-finite number) are a **warning at the
     instance's location and an empty instance**; things the language allows but this implementation cannot
@@ -709,8 +792,8 @@ _ScadGeometry Subsystem Design_ and the unit designs:
     just above), which is a documented divergence from backends that treat vertices on the plane asymmetrically (not
     verified against any other implementation). `cut` honored only when boolean; `convexity` ignored; `%` children
     skipped; the result takes the enclosing color.
-10. The viewport variables, their precedence, and the circularity of choosing the camera after the build are those
-    of _Design Constraints_; `ScadResolvedView` and `ScadViewSource` are public API.
+ 10. The viewport variables, their precedence, and the circularity of choosing the camera after the build are those
+     of *Design Constraints*; `ScadResolvedView` and `ScadViewSource` are public API.
 
 ### Determinism And Immutability
 

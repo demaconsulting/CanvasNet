@@ -104,7 +104,7 @@ A missing embedded resource is a defect of the build: `InvalidOperationException
   `pandoc.log`, and the globals `PANDOC_SCRIPT_FILE`, `FORMAT`, `PANDOC_VERSION`, `PANDOC_STATE`, and
   `PANDOC_WRITER_OPTIONS`.
 - **PandocFilterCommand** (shim) - the `pandoc-filter` command the shim starts; its output contract (the
-  `canvasnet-warnings` key and the `canvasnet-markdown` placeholder) is defined by _PandocAst_.
+  `canvasnet-warnings` key and the `canvasnet-markdown` placeholder) is defined by *PandocAst*.
 
 #### Callers
 

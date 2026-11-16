@@ -19,17 +19,17 @@ engines of the Pptx and Vsdx packages share.
 ### Units
 
 - **Canvas** — the sole stateful unit of the subsystem. Wraps a `Canvas.Surface`, owns the
-  transform stack, and bakes the current transform into every fill or stroke; see _Canvas Unit
-  Design_ (`rendering/canvas.md`).
+  transform stack, and bakes the current transform into every fill or stroke; see *Canvas Unit
+  Design* (`rendering/canvas.md`).
 - **TextRenderer** — a stateless static class exposing `MeasureText`, `CreateTextPath`,
-  `TruncateToWidth`, and the `DrawText` extension on `Rendering.Canvas`; see _TextRenderer Unit
-  Design_ (`rendering/text-renderer.md`).
+  `TruncateToWidth`, and the `DrawText` extension on `Rendering.Canvas`; see *TextRenderer Unit
+  Design* (`rendering/text-renderer.md`).
 - **Shapes** — a stateless static class of `FillRect` / `StrokeRect` / `FillRoundRect` /
   `StrokeRoundRect` / `FillCircle` / `StrokeCircle` extension methods on `Rendering.Canvas`;
-  see _Shapes Unit Design_ (`rendering/shapes.md`).
+  see *Shapes Unit Design* (`rendering/shapes.md`).
 - **WordWrap** — a stateless static class whose `Pack` methods pack a paragraph's tokens into
   lines with a greedy word wrap that never splits a word group, independent of text, fonts and
-  units; see _WordWrap Unit Design_ (`rendering/word-wrap.md`).
+  units; see *WordWrap Unit Design* (`rendering/word-wrap.md`).
 
 The subsystem-scoped enum `TextAlign` and value type `TextMetrics` are covered inline in the
 `TextRenderer` unit design, and the enum `WordWrapTokenKind` in the `WordWrap` unit design.

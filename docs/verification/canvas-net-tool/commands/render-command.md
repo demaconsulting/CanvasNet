@@ -679,8 +679,8 @@ exit with code 1 and the error `file-access-denied` (the message of the model na
 folder above it, rendered with `--file-access roots --strict`, exits with code 1 and the error `file-access-denied`, and
 writes no output.
 
-**RenderCommand_Verb_FileAccessOption_AppliesToTheVerbs**: `resize` of that diagram with `--file-access roots` exits with
-code 0, reports one `image-access-denied` warning, and leaves the picture undrawn.
+**RenderCommand_Verb_FileAccessOption_AppliesToTheVerbs**: `resize` of that diagram with `--file-access roots` exits
+with code 0, reports one `image-access-denied` warning, and leaves the picture undrawn.
 
 **RenderCommand_Positions_Json_HasTheDocumentedShape**, **RenderCommand_Positions_ConvertCropAndPad_PixelOnTheNode**,
 **RenderCommand_Positions_ChartWithGrid_ReportsMarkValues**,

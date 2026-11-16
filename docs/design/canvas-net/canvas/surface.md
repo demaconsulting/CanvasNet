@@ -21,15 +21,15 @@ section below).
 
 #### Data Model
 
-| Field/Property  | Type               | Description                                                          |
-| --------------- | ------------------ | -------------------------------------------------------------------- |
-| `Width`         | `int`              | The width of the surface, in pixels (read-only after construction).  |
-| `Height`        | `int`              | The height of the surface, in pixels (read-only after construction). |
-| `MaxDimension`  | `public const int` | The maximum permitted `width`/`height` value (8192; see below).      |
-| `_buffer`       | `byte[]`           | Contiguous, row-major pixel storage, sized `Height * _strideBytes`.  |
-| `_strideBytes`  | `int`              | The physical byte size of one row, including trailing padding.       |
-| `BytesPerPixel` | `const int`        | The number of bytes per pixel (always 4: R, G, B, A).                |
-| `_disposed`     | `bool`             | Set once by `Dispose()`; guarded members then throw.                 |
+| Field/Property | Type | Description |
+| --- | --- | --- |
+| `Width` | `int` | The width of the surface, in pixels (read-only after construction). |
+| `Height` | `int` | The height of the surface, in pixels (read-only after construction). |
+| `MaxDimension` | `public const int` | The maximum permitted `width`/`height` value (8192; see below). |
+| `_buffer` | `byte[]` | Contiguous, row-major pixel storage, sized `Height * _strideBytes`. |
+| `_strideBytes` | `int` | The physical byte size of one row, including trailing padding. |
+| `BytesPerPixel` | `const int` | The number of bytes per pixel (always 4: R, G, B, A). |
+| `_disposed` | `bool` | Set once by `Dispose()`; guarded members then throw. |
 
 `MaxDimension` is `public` (not merely internal) so that callers can compare a probed image's
 declared dimensions — for example, a codec's `GetInfo(Stream)`/`GetInfo(string)` result — against
@@ -38,12 +38,12 @@ a codec's `Load` method.
 
 A supporting value type, `Rgba32`, represents a single pixel:
 
-| Field | Type   | Description              |
-| ----- | ------ | ------------------------ |
-| `R`   | `byte` | The red channel value.   |
-| `G`   | `byte` | The green channel value. |
-| `B`   | `byte` | The blue channel value.  |
-| `A`   | `byte` | The alpha channel value. |
+| Field | Type | Description |
+| --- | --- | --- |
+| `R` | `byte` | The red channel value. |
+| `G` | `byte` | The green channel value. |
+| `B` | `byte` | The blue channel value. |
+| `A` | `byte` | The alpha channel value. |
 
 `Rgba32` is a `[StructLayout(LayoutKind.Sequential)]` struct with exactly these four `byte`
 fields and no other state, so that it is blittable and can be reinterpreted directly over a row
@@ -100,7 +100,7 @@ version of this codec suite) specifically so that each codec's `GetInfo(Stream)`
 method — which reports a candidate image's declared dimensions without decoding its pixel data —
 lets callers perform exactly this `width <= Surface.MaxDimension && height <= Surface.MaxDimension`
 comparison themselves before ever calling `Load` and allocating a `Surface`, instead of hard-coding
-or guessing the bound. See _Codecs Subsystem Design_ (`../codecs.md`) for the `GetInfo`/`ImageInfo`
+or guessing the bound. See *Codecs Subsystem Design* (`../codecs.md`) for the `GetInfo`/`ImageInfo`
 pattern that motivated this change.
 
 **Architectural decision**: a freshly constructed surface is always fully transparent black (every
@@ -346,7 +346,7 @@ that pixel `i`'s foreground color comes from `colors[i]` rather than a single sh
 value. Producing byte-for-byte identical output to the constant-color overload whenever every
 entry of `colors` happens to be equal is a direct consequence of both overloads sharing the same
 private `CompositeOverSpanCore`/`CompositeOverSpanCoreShared` blend body (see the shared-blend
-refactor note below) - only the foreground buffer's _population_ differs between the two
+refactor note below) - only the foreground buffer's *population* differs between the two
 overloads, never the blend math itself.
 
 **Architectural motivation**: this overload exists for per-pixel-varying-color callers - most
@@ -387,9 +387,9 @@ repeated calls.
 
 In this release, `_buffer` is a plain managed `byte[]`, not rented from an `ArrayPool<T>`, so
 there is nothing for `Dispose()` to actually release yet — it exists purely to establish the
-disposal contract _before_ the pixel-storage strategy changes, so that a future release can back
+disposal contract *before* the pixel-storage strategy changes, so that a future release can back
 `_buffer` with a pooled array (returning it to the pool inside `Dispose()`) without another
-breaking _API surface_ change. That claim is limited to the API surface: a future pooled
+breaking *API surface* change. That claim is limited to the API surface: a future pooled
 implementation must still honor the span-lifetime rule below as a design constraint, since it
 cannot retroactively invalidate a span a caller obtained before `Dispose()` was called — pooling
 does not get to relax that rule, only to make violating it (a stale span read/write after the
@@ -407,7 +407,7 @@ used by `ScanlineRasterizer` carry the same guard, so a disposed surface cannot 
 either the public or the internal fill path.
 
 **Span lifetime**: `GetRowSpanBytes`/`GetRowSpan` return a span that aliases `_buffer` directly,
-and the disposal guard only runs when those methods are _called_ - it cannot revoke a span a
+and the disposal guard only runs when those methods are *called* - it cannot revoke a span a
 caller already obtained and is still holding. A caller that retains such a span across a call to
 `Dispose()` and continues reading or writing through it gets undefined behavior: harmless today
 (the backing array is merely unreachable through `Surface` itself), but under a future pooled-array
@@ -452,16 +452,16 @@ against the now-public `MaxDimension` constant in their own `Load` methods befor
 constructing a `Surface`) — see each codec's own unit design document under `../codecs/` for
 details of that dependency. Only each codec's `Load` method enforces `MaxDimension`; `GetInfo`
 deliberately does not — it reports the raw header-declared dimensions even when they exceed the
-bound (see _Codecs Subsystem Design_, `../codecs.md`, and `ImageInfo`'s own documentation for why).
+bound (see *Codecs Subsystem Design*, `../codecs.md`, and `ImageInfo`'s own documentation for why).
 Callers of `GetInfo` who want to reject an oversized file before ever calling `Load` must perform
 their own `width <= Surface.MaxDimension && height <= Surface.MaxDimension` comparison against the
 now-public `Surface.MaxDimension`. `Surface` is also invoked internally by the `Drawing`
 subsystem's `PathFiller` unit, which calls `CompositeOverSpan` to composite each rasterized row's
-antialiased coverage directly — see _PathFiller Unit Design_ (`../drawing/path-filler.md`) for
+antialiased coverage directly — see *PathFiller Unit Design* (`../drawing/path-filler.md`) for
 details of that dependency, and by the `Drawing` subsystem's `GradientPaint` unit's
 `ScanlineRasterizer.Fill` gradient overload, which calls the per-pixel-color
 `CompositeOverSpan(int, int, ReadOnlySpan<float>, ReadOnlySpan<Rgba32>)` overload to composite one
-gradient-evaluated color per pixel — see _GradientPaint Unit Design_
+gradient-evaluated color per pixel — see *GradientPaint Unit Design*
 (`../drawing/gradient-paint.md`) for details of that dependency. `Surface` itself has no
 dependency on any codec, on `Drawing`, or on any other unit.
 

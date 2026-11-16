@@ -36,7 +36,7 @@ options: handlers that record the events they receive, tiny limits, and scales. 
 that are derived by hand from the Vega layout constants (a 13 pixel bold title, a 4 pixel offset, a 3 pixel subtitle
 padding, and 5 pixels of padding), and the tests assert that `Measure` reports exactly the size of the surface that
 `Render` produces. The system-level behavior of the entry points (string, stream, and path agreement, limits,
-cancellation, determinism) is verified in the _CanvasNetVegaLite System Verification Design_, which also holds the
+cancellation, determinism) is verified in the *CanvasNetVegaLite System Verification Design*, which also holds the
 data scenarios that this unit's requirements cite.
 
 Unit tests reside in `VegaLiteOpenOptionsTests.cs` (the open options and, in the same file, the font options),
@@ -57,8 +57,8 @@ through the public API: its stages are internal and are exercised for real), and
 - **Framework**: xUnit v3 running under the .NET SDK
 - **Execution**: `dotnet test` invoked by `build.ps1` and the CI pipeline
 - **Mocking**: None required; the internal subsystems are exercised for real
-- **Files**: None are read or written by the option and record scenarios of this unit; the data scenarios (see _Data
-  Options_) use real files in per-test temporary directories and the fixtures, and never the network
+- **Files**: None are read or written by the option and record scenarios of this unit; the data scenarios (see *Data
+  Options*) use real files in per-test temporary directories and the fixtures, and never the network
 - **Threads**: The layout scenario that proves determinism renders from eight concurrent tasks and compares each
   result with a baseline; all other scenarios run on the test thread
 - **Isolation**: Each test constructs its own sources, options, and handlers
@@ -192,7 +192,8 @@ base directory and source name that were not set.
 
 #### CanvasNetVegaLite-VegaLiteDocument-FileAccessOption: The File-Access Option
 
-**Tests**: `VegaLiteOpenOptionsTests.VegaLiteOpenOptions_FileAccess_DefaultsToAllowAllRejectsNullAndSurvivesWithEffective`,
+**Tests**:
+`VegaLiteOpenOptionsTests.VegaLiteOpenOptions_FileAccess_DefaultsToAllowAllRejectsNullAndSurvivesWithEffective`,
 `VegaLiteImageSourceTests.VegaLiteImageSource_Render_RequestPolicy_AppliesToDataFiles`
 
 Asserts that `VegaLiteOpenOptions.FileAccess` is `AllowAll` by default, refuses `null`, and is kept by
@@ -422,7 +423,7 @@ the
 file again; that a data limit fails before the scene limit; and that a remote URL is reported, never fetched, and never
 given to the callback. The pure option contracts (the validation and copying of `BaseDirectory`, `DataPaths`,
 `FileResolver`, and `Datasets`, and the default and ceilings of `MaxDataFiles` and `MaxDataBytes`) are the scenarios
-_Open Options_, _Render Options: Parameters And Datasets Are Copied And Validated_, and _Limits_ above.
+*Open Options*, *Render Options: Parameters And Datasets Are Copied And Validated*, and *Limits* above.
 
 #### Parameters, Expressions, And Transforms: Open-Time Errors, Stages, And Warning Order
 
@@ -497,9 +498,9 @@ the 15th. The temporal scale scenarios derive the positions of dates on a 200 pi
 (January 1 to 11 and January 6 to 11, `x` and `x2`) is a bar from its start to its end on the time scale whose domain
 holds both, so the bars are 200 and 100 pixels wide, end at the same right edge, and the second starts 100 pixels after
 the first; and a color over a `utcyearmonthdate` time unit renders without a report with three different fills. The
-behavior of the scenarios is carried further by the time scenarios of the _CanvasNetVegaLite System Verification
-Design_ (the zone shifting a point by exactly one day, the day of the daylight saving change, and the host's zone not
-mattering), and the calendar and data details by the _TimeCalendar_ and _DataLoader_ designs.
+behavior of the scenarios is carried further by the time scenarios of the *CanvasNetVegaLite System Verification
+Design* (the zone shifting a point by exactly one day, the day of the daylight saving change, and the host's zone not
+mattering), and the calendar and data details by the *TimeCalendar* and *DataLoader* designs.
 
 #### Layers And Composite Marks: Inherited Data, Transforms, Guides, And Limits
 
@@ -565,9 +566,9 @@ located error at the exact boundary; that a composite mark is computed from the 
 above it
 left, draws its parts as layers that share the scale of the measure, and counts its views against `MaxViews`; and that
 `Measure` equals `Render` and the render is deterministic. The numbers of every scenario are listed in the
-_CanvasNetVegaLite
-System Verification Design_ (the layer and composite mark scenarios); the structure that they rely on is verified in the
-_SpecNormalizer_, _ScaleResolver_, _AxisBuilder_, and _LegendBuilder_ unit designs.
+*CanvasNetVegaLite
+System Verification Design* (the layer and composite mark scenarios); the structure that they rely on is verified in the
+*SpecNormalizer*, *ScaleResolver*, *AxisBuilder*, and *LegendBuilder* unit designs.
 
 #### Fit: A Fitted View Is The Size It Is Given
 
@@ -587,9 +588,9 @@ fit to the container with `contains: padding`), goes through the iteration of th
 combined with those of the axes counting only the legends' extent across their side). The layout takes the title into
 the
 fit and rounds the reach of each side up to whole pixels, so the canvas is the size, whatever the guides need. The
-numbers of every scenario are listed in the _CanvasNetVegaLite System Verification Design_ (the autosize scenario) and
+numbers of every scenario are listed in the *CanvasNetVegaLite System Verification Design* (the autosize scenario) and
 in
-the _ViewLayout_ and _LegendLayout_ unit designs; the scenarios also verify that a step size drops the fit with the
+the *ViewLayout* and *LegendLayout* unit designs; the scenarios also verify that a step size drops the fit with the
 warning `vl-layout-fit-step` (delivered after the data stage's own reports), that `Measure` equals `Render`, and that a
 composition ignores a fit and a container size with `vl-composition-property-ignored`. A fit that does not settle in the
 three passes (the width of the y axis labels
@@ -673,7 +674,7 @@ deliberate change of the output is captured again by running the test with the e
 
 The drawing of a concatenation and a repeat (Phase 11) is verified through the public API with the positions derived by
 hand from the layout rules, because its stages (the view tree, the scales across the charts, the guides, the grid) are
-internal and meaningful only together; the grid arithmetic itself is verified on fixed boxes in the _CompositionLayout_
+internal and meaningful only together; the grid arithmetic itself is verified on fixed boxes in the *CompositionLayout*
 design. The charts without axes have as bounds their data rectangle and the half pixel of the one pixel `#ddd` border
 (Vega unions the bounds of a stroked group), so the second chart of a row of two 100 by 80 charts is at
 `ceil(100.5) + 20 + ceil(0.5)` = 122 pixels from the first and the canvas is `1 + ceil(222.5) + 10` = 234 by
@@ -804,13 +805,13 @@ unsupported mark draws its empty cells and reports the mark once.
 
 The `bin`, the `aggregate`, and the time unit of a facet field (Phase 14, with strict mode throwing nothing) are
 verified through the scene: the values 1, 2, 12, 14, and 25 of a `column` with `bin: {maxbins: 3}` give the headers
-`0 – 10`, `10 – 20`, and `20 – 30` with five bars in all and the title `c (binned)`; a `bin` with `step: 1000` over 1000,
-2500, and a missing value gives `null`, `1000 – 2000`, and `2000 – 3000`, which the header `format` `,.1f` writes as
-`1,000.0 – 2,000.0` and the `numberFormat` `.2s` of the configuration as `1.0k – 2.0k`; a binned `yearmonth` unit of the
-dates 2024-01-01 and 2024-02-01 has the same headers `Jan 2024` and `Feb 2024` as the unit and the title `d` (the unit has
-`d (year-month)`), and a `maxbins` unit of 3 gives the two cells of the weeks that hold the dates; and the `aggregate`
-`sum` of `v` reads the field `sum_v` that the data has (the headers `10` and `20`, the title `Sum of v`), and the one
-cell `null` for a field of that name that the data lacks.
+`0 – 10`, `10 – 20`, and `20 – 30` with five bars in all and the title `c (binned)`; a `bin` with `step: 1000` over
+1000, 2500, and a missing value gives `null`, `1000 – 2000`, and `2000 – 3000`, which the header `format` `,.1f` writes
+as `1,000.0 – 2,000.0` and the `numberFormat` `.2s` of the configuration as `1.0k – 2.0k`; a binned `yearmonth` unit of
+the dates 2024-01-01 and 2024-02-01 has the same headers `Jan 2024` and `Feb 2024` as the unit and the title `d` (the
+unit has `d (year-month)`), and a `maxbins` unit of 3 gives the two cells of the weeks that hold the dates; and the
+`aggregate` `sum` of `v` reads the field `sum_v` that the data has (the headers `10` and `20`, the title `Sum of v`),
+and the one cell `null` for a field of that name that the data lacks.
 
 #### Label Expressions: Axes, Legends, And Headers Are Labeled By Their Expressions
 
@@ -875,26 +876,23 @@ which also draws a chart whose labels use `format` and `timeFormat` and a `yearm
 A grouped bar chart of three categories and two groups through the whole pipeline is 160 pixels wide, has bars 20 pixels
 wide at 10, 30, 60, 80, and 110 from the left of the view (the position step 20 x 2 / 0.8 = 50, the nested paddings
 0.2), and reports nothing, so strict mode has nothing to throw. The x axis has one tick for each category centered in
-its
-band (the offset does not move the axis) and the legend lists the groups; `yOffset` draws the horizontal variant (160
-pixels high, bars 20 high at y = 10, 30, 60, 80, and 110); an offset padding makes the view 140 wide with bars of 15 and
-a gap of 5 inside the group; a width of 200 gives bars of 25 from 12.5. The offset scales of the children of a
+its band (the offset does not move the axis) and the legend lists the groups; `yOffset` draws the horizontal variant
+(160 pixels high, bars 20 high at y = 10, 30, 60, 80, and 110); an offset padding makes the view 140 wide with bars of
+15 and a gap of 5 inside the group; a width of 200 gives bars of 25 from 12.5. The offset scales of the children of a
 concatenation are independent (the second chart is 80 pixels wider, with bars of 20) unless `resolve.scale.xOffset` says
 `shared`, the cells of a facet share the offset domain (every cell has the same grouped bars), and a bar layer and a
 text layer over the same offsets share the position and the offset scales (each label is at the center of its bar). An
 offset that is not drawn is reported and the marks are drawn at their position (`vl-offset-position` for a quantitative
 position or a `day` time unit, and `vl-offset-ranged` for a continuous offset of a bar that is not a ranged offset (a
-temporal one; an unbinned quantitative offset over a nominal position is drawn since Phase 14); a `month` unit reports nothing),
-a grouped bar chart over months (`month` unit, width 300, three months of two groups: the domain is January 1 to April 1
-of the leap year 2012, 91 days, so a day is 300 / 91 pixels and the reference month of 31 days is 31 x 300 / 91 =
-102.2 pixels) has six bars 0.4 of a month (40.9 pixels) wide, the first two touching at 0.1 and 0.5 of a month from the
-left of the view and the next two at one month plus 0.1 and 0.5 of a month, with a legend `a`, `b` and nothing
+temporal one; an unbinned quantitative offset over a nominal position is drawn since Phase 14); a `month` unit reports
+nothing), a grouped bar chart over months (`month` unit, width 300, three months of two groups: the domain is January 1
+to April 1 of the leap year 2012, 91 days, so a day is 300 / 91 pixels and the reference month of 31 days is 31 x 300 /
+91 = 102.2 pixels) has six bars 0.4 of a month (40.9 pixels) wide, the first two touching at 0.1 and 0.5 of a month from
+the left of the view and the next two at one month plus 0.1 and 0.5 of a month, with a legend `a`, `b` and nothing
 reported in strict mode, a grouped bar chart over a nominal `x` with the `month` unit (an ordinary band parent: width
-300,
-three bands with the nested paddings 0.2, the step 300 / 3.2 = 93.75) has six bars 37.5 wide at 18.75, 56.25, 112.5,
-150,
-206.25, and 243.75 and nothing reported, and the three boxes of a boxplot with an offset
-channel sit side by side with equal widths.
+300, three bands with the nested paddings 0.2, the step 300 / 3.2 = 93.75) has six bars 37.5 wide at 18.75, 56.25,
+112.5, 150, 206.25, and 243.75 and nothing reported, and the three boxes of a boxplot with an offset channel sit side by
+side with equal widths.
 
 #### Selections: The Model Is Bound To The Drawn Units And Reaches The Data Stage, The Scales, And The Marks
 

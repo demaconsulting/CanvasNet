@@ -6,10 +6,10 @@ repository.
 ## Overview
 
 CanvasNet has one shipped runtime NuGet package dependency, `System.Numerics.Tensors` (used by the
-`Canvas.Surface` unit's vectorized bulk pixel operations — see _Surface Unit Design_
+`Canvas.Surface` unit's vectorized bulk pixel operations — see *Surface Unit Design*
 (`canvas-net/canvas/surface.md`) for details), and otherwise implements every unit exclusively
 against the .NET Base Class Library. The separate CanvasNet tool package has one runtime dependency of
-its own, `DemaConsulting.TestResults` (used by the tool's self-validation — see _Validation Unit Design_
+its own, `DemaConsulting.TestResults` (used by the tool's self-validation — see *Validation Unit Design*
 (`canvas-net-tool/validation.md`)). The remaining OTS items listed below are a separate category: they are
 build-time and quality-pipeline tools, not runtime library dependencies of the shipped package.
 Each OTS item provides one stage of the documentation, requirements-traceability, testing, and
@@ -25,26 +25,26 @@ core package, and `DemaConsulting.TestResults`, whose assemblies are bundled ins
 
 ### Build-Time and Quality-Pipeline Tools
 
-| OTS Item    | Purpose                                                              |
-|-------------|----------------------------------------------------------------------|
-| BuildMark   | Generates build-notes documentation from GitHub Actions metadata     |
-| FileAssert  | Validates generated documents (HTML/PDF) against acceptance criteria |
-| Pandoc      | Converts Markdown documentation to HTML                              |
-| ReqStream   | Enforces requirements-to-test traceability                           |
-| ReviewMark  | Enforces file review coverage and currency                           |
-| SarifMark   | Converts CodeQL SARIF results into a markdown report                 |
-| SonarMark   | Generates a SonarCloud quality report                                |
+| OTS Item | Purpose |
+| --- | --- |
+| BuildMark | Generates build-notes documentation from GitHub Actions metadata |
+| FileAssert | Validates generated documents (HTML/PDF) against acceptance criteria |
+| Pandoc | Converts Markdown documentation to HTML |
+| ReqStream | Enforces requirements-to-test traceability |
+| ReviewMark | Enforces file review coverage and currency |
+| SarifMark | Converts CodeQL SARIF results into a markdown report |
+| SonarMark | Generates a SonarCloud quality report |
 | SysML2Tools | Validates the SysML2 architecture model and renders its views to SVG |
-| VersionMark | Captures and publishes tool-version information                      |
-| WeasyPrint  | Converts HTML documentation to PDF                                   |
-| xUnit       | Discovers and executes unit and integration tests                    |
+| VersionMark | Captures and publishes tool-version information |
+| WeasyPrint | Converts HTML documentation to PDF |
+| xUnit | Discovers and executes unit and integration tests |
 
 ### Runtime OTS Dependency
 
-| OTS Item                   | Purpose                                                                           |
-|----------------------------|-----------------------------------------------------------------------------------|
-| System.Numerics.Tensors    | Vectorized numerics for the `Surface` bulk pixel operations; shipped transitively |
-| DemaConsulting.TestResults | Self-validation result recording and TRX/JUnit output in the tool package         |
+| OTS Item | Purpose |
+| --- | --- |
+| System.Numerics.Tensors | Vectorized numerics for the `Surface` bulk pixel operations; shipped transitively |
+| DemaConsulting.TestResults | Self-validation result recording and TRX/JUnit output in the tool package |
 
 Each item's individual design document (`docs/design/ots/{ots-name}.md`) records its Purpose,
 Features Used, and Integration Pattern. Each item's requirements and verification evidence are

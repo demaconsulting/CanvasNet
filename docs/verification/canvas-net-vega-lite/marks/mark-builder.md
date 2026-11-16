@@ -10,8 +10,8 @@ the scene items of a `bar`, `rect`, `point`, `circle`, `square`, `rule`, `tick`,
 `arc` mark (roles `mark-<type>`) with the geometry and the paint that Vega-Lite assigns: positions from the scale
 models,
 band sizes, default sizes, the filled or outlined appearance, the colors, the sizes, the opacities, the invalid-data
-rules, the grouping, sort, and curves of the paths (through the `CurveBuilder` unit, verified in the _CurveBuilder Unit
-Verification Design_), the overlays, the formatted labels, the polar angles and radii, and the scene item budget.
+rules, the grouping, sort, and curves of the paths (through the `CurveBuilder` unit, verified in the *CurveBuilder Unit
+Verification Design*), the overlays, the formatted labels, the polar angles and radii, and the scene item budget.
 
 #### Verification Approach
 
@@ -129,14 +129,13 @@ with the arithmetic stated in the tests (positions are rounded to nine decimals 
   layers meet vertex for vertex. With `impute: null` b has the two vertices of its own rows,
   `M0,133.333333 L300,133.333333 L300,200 L0,200 Z`.
 - Invalid rows (x = 0 to 4, so x(v) = 75 v, y = 1, 2, null, 3, 4 on the domain 0 to 4, so y(v) = 200 - 50 v): the
-  default
-  mode breaks the line, `M0,150 L75,100 M225,50 L300,0`, as do the three other modes that start with `break-paths` and
-  a text that is not a number (`"n/a"`); the filter mode connects the neighbors, `M0,150 L75,100 L225,50 L300,0`, from
-  the
-  mark, or from `config.line` when the mark says nothing (the mark wins over the configuration); an unstacked area
-  gives the two polygons `M0,150 L75,100 L75,200 L0,200 Z M225,50 L300,0 L300,200 L225,200 Z` or, in the filter mode,
-  `M0,150 L75,100 L225,50 L300,0 L300,200 L225,200 L75,200 L0,200 Z`; the `show` mode and null draw the invalid row at the
-  position of zero (see the scenario of the invalid rows below, which derives it), and nothing is reported at
+  default mode breaks the line, `M0,150 L75,100 M225,50 L300,0`, as do the three other modes that start with
+  `break-paths` and a text that is not a number (`"n/a"`); the filter mode connects the neighbors,
+  `M0,150 L75,100 L225,50 L300,0`, from the mark, or from `config.line` when the mark says nothing (the mark wins over
+  the configuration); an unstacked area gives the two polygons
+  `M0,150 L75,100 L75,200 L0,200 Z M225,50 L300,0 L300,200 L225,200 Z` or, in the filter mode,
+  `M0,150 L75,100 L225,50 L300,0 L300,200 L225,200 L75,200 L0,200 Z`; the `show` mode and null draw the invalid row at
+  the position of zero (see the scenario of the invalid rows below, which derives it), and nothing is reported at
   `/mark/invalid`; a mode that is not known in the configuration is ignored.
 - Trail (the same view): the points are the pixels (0, 200), (150, 0), and (300, 100) with the sizes 4, 8, and 12 of the
   identity size scale (domain 4 to 12, range 4 to 12), in one run, filled with `#4c78a8` and not stroked; without a size
@@ -305,7 +304,7 @@ constants are the expressions `31 * PerDay` and so on, with `PerDay` = 300 / 91,
 figure 102.2527 in the plan is wrong; 31 / 91 x 300 = 102.198, and the tests are right).
 
 The offset channels use three categories `A`, `B`, and `C` and two groups, where `C` has only the first group, with
-the default step of 20 pixels (see _ScaleResolver_ for the step): the position step is 50, the nested paddings of the
+the default step of 20 pixels (see *ScaleResolver* for the step): the position step is 50, the nested paddings of the
 position are 0.2 and 0.2, so the bands start at 0.2 x 50 = 10, 60, and 110 with the bandwidth 40, and each of the two
 offset bands is 20 wide, so the bars are at x = 10, 30 (A), 60, 80 (B), and 110 (C; the slot at 130 stays empty) and all
 are 20 wide; with a width of 200 the step is 62.5, the bandwidth 50, and the bars are 25 wide at 12.5, 37.5, 75, 100,
@@ -719,17 +718,19 @@ Assert for the `show` invalid mode of Phase 13 (`MarkBuilderInvalidShowTests`, w
 `MarkBuilderPathTests.MarkBuilder_Build_InvalidShowUsesTheFirstDomainValueWhenZeroIsNotInTheDomain`) that the fallback
 is the scale output of zero when the domain holds zero and else of its first value, derived by hand:
 
-- A null `size` on the domain 0 to 20 has the size of the row with the value 0 (`InvalidShowGivesANullSizeTheSizeOfZero`),
-  four symbols against three in the default mode.
+- A null `size` on the domain 0 to 20 has the size of the row with the value 0
+  (`InvalidShowGivesANullSizeTheSizeOfZero`), four symbols against three in the default mode.
 - A null `color` on the domain 5 to 15 (a color scale has no zero by default) has the fill of the row of the value 5,
   the first value of the domain, and a null `opacity` on the domain 0 to 10 the opacity of the value 0
   (`InvalidShowGivesANullColorTheColorOfTheFirstDomainValue`).
 - A bar whose value is null on the domain 0 to 3 over 150 pixels (50 per unit) has the height 0 at the zero line,
-  `y + height = 150`, while the bars of the values 1 and 3 have the tops 100 and 0 (`InvalidShowDrawsABarOfNoHeightAtZero`).
-- On a log scale over 1 to 100 (100 pixels: 1 at 100) the null is drawn at y = 100, the position of the first value of the
-  domain, and on a time scale at the first date, so its x equals that of the first row, as neither scale ever has zero
-  (`InvalidShowUsesTheFirstDomainValueOnLogAndTimeScales`); the explicit linear domain 10 to 30 over 200 pixels puts
-  the null at y = 200, where 10 is (`MarkBuilder_Build_InvalidShowUsesTheFirstDomainValueWhenZeroIsNotInTheDomain`).
+  `y + height = 150`, while the bars of the values 1 and 3 have the tops 100 and 0
+  (`InvalidShowDrawsABarOfNoHeightAtZero`).
+- On a log scale over 1 to 100 (100 pixels: 1 at 100) the null is drawn at y = 100, the position of the first value of
+  the domain, and on a time scale at the first date, so its x equals that of the first row, as neither scale ever has
+  zero (`InvalidShowUsesTheFirstDomainValueOnLogAndTimeScales`); the explicit linear domain 10 to 30 over 200 pixels
+  puts the null at y = 200, where 10 is
+  (`MarkBuilder_Build_InvalidShowUsesTheFirstDomainValueWhenZeroIsNotInTheDomain`).
 - The `filter` mode still drops the row and the rows with a number are at the same positions in the `show` mode as in
   the default mode (`OtherInvalidModesStillDropTheRowAndValidRowsAreUntouched`).
 
@@ -748,24 +749,24 @@ asserts the same chain from a specification text.
 
 The expected numbers are those of Vega 6.4 with Vega-Lite 6.5.0 for the same specifications (the SVG of
 `vega.View.toSVG`), read once and written out in the tests; the data rectangle is 200 by 100. The scatter plot has four
-rows over `a`, `b`, and `c` (the color, the size, and the opacity read `c`), with a null `c` in the second row and a null
-`a` in the third. With `config.scale.invalid` of `{"color": {"value": "#aaa"}, "x": {"value": 5}, "size":
-"zero-or-min", "opacity": {"value": 0.25}}` all four rows are drawn: the positions are (50, 66.667), (100, 50), (5,
-33.333), and (200, 0) (the second row has a valid x, the third has the pixel position 5 given by the entry and not passed
-through the scale), the strokes are `#6daed5`, `#aaa` (the value of the entry as it is), `#0a4a90`, and `#cfe1f2`, the
-opacities 0.514, 0.25 (the entry), 0.8, and 0.3, and the radii of the symbols 7.112, 1 (the size of the row at the zero
-of the size domain, `zero-or-min`), 9.5, and 4.564. A channel without an entry keeps the mode of the mark: when the
-`b` of
-the second row is null as well, that row is not drawn and the other three are (the third at x = 5). Without the
-configuration the rows with a null color (the second) and a null x (the third) are not drawn, and only the first and
-fourth remain, which is the output of Phase 13. An entry beats the `invalid` mode of the mark: with `"invalid":
-"filter"` on the mark and an entry for every channel that has a missing value, all four rows are drawn and the second
-has the stroke `#aaa`. For a line over `a` and `c` with a null `c` in the second of four rows, `"y": "zero-or-min"`
-draws the path through the baseline, `M0,44.444 L66.667,100 L133.333,0 L200,77.778`, as Vega does, while without the
-entry the path breaks at the row (`M0,44.444 Z M133.333,0 L200,77.778`). The entries that are not read (a `null` or a
-boolean `value`, the text `other`, an `{"expr": ...}`) leave the channels in the mode of the mark: with them the rows
-with a null color and a null x are filtered (two points remain), and the readable entry of the channel `y`, which has no
-missing value, changes nothing. The system tests
+rows over `a`, `b`, and `c` (the color, the size, and the opacity read `c`), with a null `c` in the second row and a
+null `a` in the third. With `config.scale.invalid` of
+`{"color": {"value": "#aaa"}, "x": {"value": 5}, "size": "zero-or-min", "opacity": {"value": 0.25}}` all four rows are
+drawn: the positions are (50, 66.667), (100, 50), (5, 33.333), and (200, 0) (the second row has a valid x, the third has
+the pixel position 5 given by the entry and not passed through the scale), the strokes are `#6daed5`, `#aaa` (the value
+of the entry as it is), `#0a4a90`, and `#cfe1f2`, the opacities 0.514, 0.25 (the entry), 0.8, and 0.3, and the radii of
+the symbols 7.112, 1 (the size of the row at the zero of the size domain, `zero-or-min`), 9.5, and 4.564. A channel
+without an entry keeps the mode of the mark: when the `b` of the second row is null as well, that row is not drawn and
+the other three are (the third at x = 5). Without the configuration the rows with a null color (the second) and a null x
+(the third) are not drawn, and only the first and fourth remain, which is the output of Phase 13. An entry beats the
+`invalid` mode of the mark: with `"invalid": "filter"` on the mark and an entry for every channel that has a missing
+value, all four rows are drawn and the second has the stroke `#aaa`. For a line over `a` and `c` with a null `c` in the
+second of four rows, `"y": "zero-or-min"` draws the path through the baseline,
+`M0,44.444 L66.667,100 L133.333,0 L200,77.778`, as Vega does, while without the entry the path breaks at the row
+(`M0,44.444 Z M133.333,0 L200,77.778`). The entries that are not read (a `null` or a boolean `value`, the text `other`,
+an `{"expr": ...}`) leave the channels in the mode of the mark: with them the rows with a null color and a null x are
+filtered (two points remain), and the readable entry of the channel `y`, which has no missing value, changes nothing.
+The system tests
 `VegaLitePhase14SystemTests.CanvasNetVegaLite_SystemIntegration_ScaleInvalid_RowsWithoutAValueTakeTheConfiguredOutput`
 and `VegaLitePhase14SystemTests.CanvasNetVegaLite_SystemIntegration_ScaleInvalid_AnUnreadableEntryIsReported` assert the
 chain from a specification text.
@@ -1045,18 +1046,18 @@ The expected numbers are those of Vega 6.4 with Vega-Lite 6.5.0 for the same spe
 `vega.View.toSVG`), read once and written out in the tests; the data rectangle is 150 by 100. The first chart has three
 quarters of one team (`x` ordinal, `y` nominal with one category) and a quantitative `yOffset` of 12, -9, and 4: the
 band of `y` starts at 16.667 and is 66.667 high, the offset scale maps the domain -9 to 12 (zero is included) to 66.667
-down to 0, so the baseline is at 38.095 inside the band, and the bars are 45 wide at x = 2.5, 52.5, and 102.5 with the
-y and height (16.667, 38.095) for the value 12 (from the top of the band to the baseline), (54.762, 28.571) for -9 (from
+down to 0, so the baseline is at 38.095 inside the band, and the bars are 45 wide at x = 2.5, 52.5, and 102.5 with the y
+and height (16.667, 38.095) for the value 12 (from the top of the band to the baseline), (54.762, 28.571) for -9 (from
 the baseline to the bottom of the band, hanging on the other side), and (42.063, 12.698) for 4 (from the value to the
-baseline). The second chart has two teams over three quarters with a quantitative `xOffset`: the bars of the team A start
-at the baseline x = 37.013 and run to the value (31.169 wide for 12, 10.390 wide for 4, and, for -9, from 13.636 to the
-baseline, 23.377 wide) and those of B start at 105.195 (7.792, 18.182, and 20.779 wide for 3, 7, and 8), 30 high at
-y = 1.667, 35, and 68.333. The area of the first chart is the path `M25,16.667 L75,83.333 L125,42.063 L125,54.762 L75,54.762
-L25,54.762 Z`: the top edge follows the offset values along the points of `x`, and the lower edge is the baseline inside
-the band (the measure axis of the area is `y` because of the ranged `yOffset`). A point mark with the same encoding is not
-ranged: it has one symbol per row at distinct y inside the band (from 16.667 to 83.333). A bar with a `y2` channel is
-not a
-ranged offset: `DecideOffset` gives `UnsupportedContinuous`. The system tests
+baseline). The second chart has two teams over three quarters with a quantitative `xOffset`: the bars of the team A
+start at the baseline x = 37.013 and run to the value (31.169 wide for 12, 10.390 wide for 4, and, for -9, from 13.636
+to the baseline, 23.377 wide) and those of B start at 105.195 (7.792, 18.182, and 20.779 wide for 3, 7, and 8), 30 high
+at y = 1.667, 35, and 68.333. The area of the first chart is the path
+`M25,16.667 L75,83.333 L125,42.063 L125,54.762 L75,54.762 L25,54.762 Z`: the top edge follows the offset values along
+the points of `x`, and the lower edge is the baseline inside the band (the measure axis of the area is `y` because of
+the ranged `yOffset`). A point mark with the same encoding is not ranged: it has one symbol per row at distinct y inside
+the band (from 16.667 to 83.333). A bar with a `y2` channel is not a ranged offset: `DecideOffset` gives
+`UnsupportedContinuous`. The system tests
 `VegaLitePhase14SystemTests.CanvasNetVegaLite_SystemIntegration_Offset_RangedYOffsetDrawsBarsFromTheBaseline`,
 `VegaLitePhase14SystemTests.CanvasNetVegaLite_SystemIntegration_Offset_RangedYOffsetDrawsAnAreaBetweenTheValuesAndTheBaseline`,
 and `VegaLitePhase14SystemTests.CanvasNetVegaLite_SystemIntegration_Offset_ATemporalOffsetOfABarIsStillReported` assert
@@ -1147,4 +1148,4 @@ sum 8); and that `TryConvert` writes a date as UTC ISO-8601 text, a number that 
 a text as itself, and `TryConvertData` a date read from text as that text. The data fields the context reads (the
 source row of a time-unit line, the aggregated row of a stacked bar, the scalar top-level fields of a row after a
 `calculate` without bin fields, and the first 32 fields of a wide row) are asserted as described in the
-`CanvasNetVegaLite-Scenegraph-ScenePositions-Data` scenario of _ScenePositions Unit Verification Design_.
+`CanvasNetVegaLite-Scenegraph-ScenePositions-Data` scenario of *ScenePositions Unit Verification Design*.

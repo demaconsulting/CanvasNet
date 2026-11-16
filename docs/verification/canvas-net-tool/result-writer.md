@@ -54,8 +54,8 @@ parses back to the original message.
 adds no member to its object.
 
 **ResultWriter_WriteDiagnosticExtras_DetailLocationOrigin_AreWrittenInOrder**: a diagnostic with a detail, a location of
-a file, a line, and a column, and an origin of two files writes `detail`, `location` (with only the three known members),
-and `origin`, in that order, byte for byte.
+a file, a line, and a column, and an origin of two files writes `detail`, `location` (with only the three known
+members), and `origin`, in that order, byte for byte.
 
 **ResultWriter_WriteDiagnosticExtras_PointerAndEmptyLocation_AreHandled** and
 **ResultWriter_WriteDiagnosticExtras_NullArguments_ThrowsArgumentNullException**: a location with only a JSON pointer

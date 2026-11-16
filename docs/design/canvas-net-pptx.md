@@ -16,8 +16,8 @@ system consists of a single implemented unit:
 
 - **PptxDocument** (namespace `DemaConsulting.CanvasNet.Pptx`, folder
   `src/DemaConsulting.CanvasNet.Pptx/`, flat — no further nesting): a hand-rolled OOXML (Office
-  Open XML) package parser and, in later phases, presentation-rendering codec. See _PptxDocument
-  Unit Design_ (`canvas-net-pptx/pptx-document.md`).
+  Open XML) package parser and, in later phases, presentation-rendering codec. See *PptxDocument
+  Unit Design* (`canvas-net-pptx/pptx-document.md`).
 
 `CanvasNetPptx` is modeled as its own top-level software system (rather than as a further unit of
 the `CanvasNet` system's `Codecs` subsystem) because it is distributed as its own
@@ -27,7 +27,7 @@ must itself be modeled as a distinct system, not folded into the package it depe
 `CanvasNetPptx` contains exactly one unit, so no Subsystem tier is interposed between the system
 and `PptxDocument`: inserting one here would not separate anything (there is nothing else in the
 system to separate it from), mirroring `CanvasNetPdf`'s own single-unit precedent (see
-_CanvasNetPdf System Design_, `docs/design/canvas-net-pdf.md`).
+*CanvasNetPdf System Design*, `docs/design/canvas-net-pdf.md`).
 
 **Phased delivery — this is an in-progress, multi-phase feature.** A `.pptx` file is an OOXML
 package: a ZIP archive whose parts (`[Content_Types].xml`, `_rels/.rels`, `ppt/presentation.xml`,
@@ -65,7 +65,7 @@ paint, including scheme-color lookup through the resolved theme, the `lumMod`/`l
 `tint`/`alpha` color-transform pipeline, and a stroked outline realized via the core
 `PathStroker`. Pattern/picture fill, radial/path gradients, `<a:avLst>` adjustment-value parsing,
 and full group-shape rendering semantics beyond transform composition remain explicitly deferred
-(see _PptxDocument Unit Design_'s "Geometry and Paint (Phase 1c)" section for the complete
+(see *PptxDocument Unit Design*'s "Geometry and Paint (Phase 1c)" section for the complete
 supported/deferred boundary). **No non-placeholder (freeform) shape _enumeration_ from a slide's
 full `<p:spTree>`, font loading, or rendering surface is implemented yet** - all deferred to later
 phases, which will build on this model to actually render a presentation's slides.
@@ -81,7 +81,7 @@ autofit within the owning shape's own bounding box; and the resulting glyphs are
 `Canvas.Surface` via the core `Fonts.TrueTypeFont`/`SystemFontCatalog` and `Drawing.PathFiller`,
 mirroring `CanvasNetPdf`'s own glyph-painting pattern. Full text justification,
 `<a:spAutoFit>` shape-resize autofit, kerning, text clipping on overflow, and a full per-slide
-rendering entry point remain explicitly deferred (see _PptxDocument Unit Design_'s "Text Layout
+rendering entry point remain explicitly deferred (see *PptxDocument Unit Design*'s "Text Layout
 and Rendering (Phase 1d)" section for the complete supported/deferred boundary; bullets/numbering
 were deferred at that time but were later implemented by a Phase 2 Follow-Up). **No non-
 placeholder (freeform) shape _enumeration_ from a slide's full `<p:spTree>`, nor a full per-slide
@@ -110,19 +110,19 @@ The system exposes the following public API to external consumers, all on the se
   `ObjectDisposedException` (enforced, as of Phase 1b, by `SlideCount`/`SlideSize`/
   `GetSlideSizeInPixels`).
 
-<!-- markdownlint-disable MD013 -->
-| Interface | Direction | Format | Constraints |
-| -------------------------------------- | ---------------- | ------------------------------------ | ------------------------------- |
-| `PptxDocument.Open(...)` | Inbound/Outbound | Method call / `PptxDocument` return | Valid `.pptx`/OPC presentation stream or path |
-| `PptxDocument.SlideCount` / `SlideSize` | Outbound | Property access | Document must not be disposed |
-| `PptxDocument.GetSlideSizeInPixels(...)` | Inbound/Outbound | Method call / `(int, int)` return | Positive, finite `dpi`; document must not be disposed |
-| `PptxDocument.Dispose()` | Inbound | Method call | Safe to call more than once |
-<!-- markdownlint-enable MD013 -->
+Each interface, with its direction and format, and its constraints:
+
+- **`PptxDocument.Open(...)`** (Inbound/Outbound; Method call / `PptxDocument` return): Valid `.pptx`/OPC presentation
+  stream or path.
+- **`PptxDocument.SlideCount` / `SlideSize`** (Outbound; Property access): Document must not be disposed.
+- **`PptxDocument.GetSlideSizeInPixels(...)`** (Inbound/Outbound; Method call / `(int, int)` return): Positive, finite
+  `dpi`; document must not be disposed.
+- **`PptxDocument.Dispose()`** (Inbound; Method call): Safe to call more than once.
 
 The package layer's `ResolvePart`/`ResolveRelationship` methods, and every Phase 1b
 presentation/theme/master/layout/slide/inheritance member, are `internal` (not part of the
 public surface), used by later phases of `PptxDocument` itself to navigate the package and
-resolve placeholder properties - see _PptxDocument Unit Design_
+resolve placeholder properties - see *PptxDocument Unit Design*
 (`canvas-net-pptx/pptx-document.md`) for their complete contract.
 
 ## Dependencies
@@ -172,7 +172,7 @@ only at its own Phase 4, not at Phase 1). Added this phase (Phase 1d), mirroring
 precedent: `dependency usesFonts from CanvasNetPptxSystem to Fonts;`. No other `CanvasNet`
 subsystem (`Codecs`) is used yet; a future phase that implements picture fill may add a further
 `dependency` edge at that time. Added at Phase 4 (this release), mirroring that same per-phase
-pattern but targeting a sibling _system_ rather than a `CanvasNet` subsystem:
+pattern but targeting a sibling *system* rather than a `CanvasNet` subsystem:
 `dependency usesCharts from CanvasNetPptxSystem to CanvasNetCharts;` - the SysML2 edge for the
 new, one-directional `ProjectReference` from `DemaConsulting.CanvasNet.Pptx.csproj` to
 `DemaConsulting.CanvasNet.Charts.csproj` described above.
@@ -195,14 +195,14 @@ new, one-directional `ProjectReference` from `DemaConsulting.CanvasNet.Pptx.cspr
 This is an ordinary, same-repository, system-to-system dependency: both `CanvasNet` and
 `CanvasNetPptx` are produced by this repository, so it is neither an OTS Software Item (not a
 third-party/external-program dependency) nor a Shared Package (that category is scoped to a
-package produced by a _different_ repository within the same program). `CanvasNetPptx`
+package produced by a *different* repository within the same program). `CanvasNetPptx`
 introduces no new OTS Software Item beyond those already used to build and verify the
 `CanvasNet` system (BuildMark, FileAssert, Pandoc, ReqStream, ReviewMark, SarifMark, SonarMark,
-VersionMark, WeasyPrint, xUnit) — see _OTS Integration Design_ (`docs/design/ots.md`).
+VersionMark, WeasyPrint, xUnit) — see *OTS Integration Design* (`docs/design/ots.md`).
 
 **Image sources.** The package also ships `PptxImageSource`, an implementation of the core `ImageSources` subsystem's
 `IImageSource` for `.pptx` files (the first slide), so that a document can link to a presentation through the shared
-`FolderImageResolver` (see _ImageSources Subsystem Design_, `canvas-net/image-sources.md`). It uses only the public
+`FolderImageResolver` (see *ImageSources Subsystem Design*, `canvas-net/image-sources.md`). It uses only the public
 contract types of the core package, so the package still references no other format package; the separate
 `CanvasNetViewer` system references this package one-way, to list the source with the other built-in ones, and nothing
 in this package refers to it.
@@ -271,12 +271,12 @@ with incorrect geometry or paint - the same fail-closed-over-silent-approximatio
 The library targets the following frameworks, identical to the `CanvasNet` system it depends on,
 enabling compatibility across modern .NET runtimes:
 
-| Target Framework | Runtime / Environment                                   |
-| ---------------- | ------------------------------------------------------- |
-| `net8.0`         | .NET 8 LTS (end of support; kept for library consumers) |
-| `net9.0`         | .NET 9 STS (end of support; kept for library consumers) |
-| `net10.0`        | .NET 10 LTS                                             |
-| `net11.0`        | .NET 11                                                 |
+| Target Framework | Runtime / Environment |
+| --- | --- |
+| `net8.0` | .NET 8 LTS (end of support; kept for library consumers) |
+| `net9.0` | .NET 9 STS (end of support; kept for library consumers) |
+| `net10.0` | .NET 10 LTS |
+| `net11.0` | .NET 11 |
 
 The library is supported on the following operating systems:
 

@@ -75,7 +75,8 @@ normalization of white space and of the child combinator.
 
 ##### CanvasNetMermaid-Configuration-StyleDeclarations-Values: CSS Values Are Read As A Browser Reads Them
 
-**Tests**: `StyleDeclarationsTests.StyleDeclarations_TryParseLength`, `StyleDeclarationsTests.StyleDeclarations_ValueParsers`
+**Tests**: `StyleDeclarationsTests.StyleDeclarations_TryParseLength`,
+`StyleDeclarationsTests.StyleDeclarations_ValueParsers`
 
 Asserts the lengths of `4px`, `4`, `1.5em`, `1rem`, and `3pt` and the refusal of `-1px` and `wide`; the dash arrays
 `5, 5`, `3` (repeated), and `0` (solid) and the refusal of `a b`; the opacity `50%`; the weights `700` and `normal`

@@ -107,11 +107,12 @@ subject `topics` (in any case) gives the tree of every card as text and as JSON,
 every root, the aliases (`scad = openscad`), and the pointers to `canvasnet help <topic> [<card> ...]`,
 `canvasnet help topics`, `canvasnet help style`, and `canvasnet help composition`.
 
-**CommandRegistry_RenderHelp_Json_Command_HasOptions** and **CommandRegistry_RenderHelp_Json_Index_ListsCommandsAndTopics**:
-the JSON help of a command (asked for by alias) has the kind `command`, the canonical name, aliases, summary, usage, the
-options (with `takesValue`, and the `valueName` only for an option that takes a value), and the global options; the JSON
-index (the same for no subject and for `help`) has exactly the keys of the envelope, `kind` (`index`), `usage`,
-`commands`, `topics` (every root card with its aliases and summary), and `globalOptions`.
+**CommandRegistry_RenderHelp_Json_Command_HasOptions** and
+**CommandRegistry_RenderHelp_Json_Index_ListsCommandsAndTopics**: the JSON help of a command (asked for by alias) has
+the kind `command`, the canonical name, aliases, summary, usage, the options (with `takesValue`, and the `valueName`
+only for an option that takes a value), and the global options; the JSON index (the same for no subject and for `help`)
+has exactly the keys of the envelope, `kind` (`index`), `usage`, `commands`, `topics` (every root card with its aliases
+and summary), and `globalOptions`.
 
 **CommandRegistry_Run_HelpExample_WritesOnlyTheSource**: `help svg --example shapes` writes the exact source of the
 example and one line end, and with `--json` the example document.
@@ -125,8 +126,9 @@ has examples and none of the content of the `svg flatten` example, and with `--j
 usage error `'mermaid differences' has no examples.` with a hint to `canvasnet help mermaid --examples`, which finds the
 cards of `mermaid` that have examples.
 
-**CommandRegistry_Run_HelpExampleUnknown_ThrowsUsageErrorWithNames**: an unknown example name is a usage error that names
-the card and the example (`Help card 'svg' has no example 'nothing'.`) and lists the valid example names in the hint.
+**CommandRegistry_Run_HelpExampleUnknown_ThrowsUsageErrorWithNames**: an unknown example name is a usage error that
+names the card and the example (`Help card 'svg' has no example 'nothing'.`) and lists the valid example names in the
+hint.
 
 **CommandRegistry_Run_HelpExampleOnCommand_ThrowsUsageError** and
 **CommandRegistry_Run_HelpExampleWithoutSubject_ThrowsUsageError**: `--example` or `--examples` on a command or on

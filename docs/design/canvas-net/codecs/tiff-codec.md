@@ -29,12 +29,12 @@ static utility shape was chosen over an object with nothing to construct or conf
 
 ##### TiffCompression enum
 
-| Value      | Numeric Value | Description                                                   |
-| ---------- | ------------- | ------------------------------------------------------------- |
-| `None`     | 1             | Uncompressed strip data.                                      |
-| `Lzw`      | 5             | TIFF-flavor LZW (TIFF 6.0 Section 13).                        |
-| `Deflate`  | 8             | zlib-wrapped DEFLATE, matching `PngCodec`'s own IDAT wrapper. |
-| `PackBits` | 32773         | Apple/TIFF PackBits run-length encoding (TIFF 6.0 Section 9). |
+| Value | Numeric Value | Description |
+| --- | --- | --- |
+| `None` | 1 | Uncompressed strip data. |
+| `Lzw` | 5 | TIFF-flavor LZW (TIFF 6.0 Section 13). |
+| `Deflate` | 8 | zlib-wrapped DEFLATE, matching `PngCodec`'s own IDAT wrapper. |
+| `PackBits` | 32773 | Apple/TIFF PackBits run-length encoding (TIFF 6.0 Section 9). |
 
 **Architectural decision**: the TIFF-flavor LZW implementation (`EncodeLzw` in
 `TiffCodec.Compression.cs` and the shared decoder `LzwDecoder`, `Codecs/LzwDecoder.cs`) deliberately
@@ -66,19 +66,19 @@ be referenced) and writes each sequence directly into a bounded, on-demand-grown
 
 ##### TIFF header (8 bytes)
 
-| Offset | Size | Field            | Value                                               |
-| ------ | ---- | ---------------- | --------------------------------------------------- |
-| 0      | 2    | Byte-order mark  | `"II"` (little-endian) or `"MM"` (big-endian)       |
-| 2      | 2    | Magic number     | 42                                                  |
-| 4      | 4    | First IFD offset | Byte offset of the (only) Image File Directory read |
+| Offset | Size | Field | Value |
+| --- | --- | --- | --- |
+| 0 | 2 | Byte-order mark | `"II"` (little-endian) or `"MM"` (big-endian) |
+| 2 | 2 | Magic number | 42 |
+| 4 | 4 | First IFD offset | Byte offset of the (only) Image File Directory read |
 
 ##### IFD layout
 
-| Field           | Size               | Description                                        |
-| --------------- | ------------------ | -------------------------------------------------- |
-| Entry count     | 2                  | Number of 12-byte entries that follow              |
-| Entries         | `count * 12` bytes | See below                                          |
-| Next IFD offset | 4                  | Ignored - only the first IFD is read (single-page) |
+| Field | Size | Description |
+| --- | --- | --- |
+| Entry count | 2 | Number of 12-byte entries that follow |
+| Entries | `count * 12` bytes | See below |
+| Next IFD offset | 4 | Ignored - only the first IFD is read (single-page) |
 
 Each 12-byte IFD entry: 2-byte tag, 2-byte type (BYTE=1, SHORT=3, LONG=4 are handled), 4-byte
 count, and a 4-byte value/offset field (holding the value directly when `count * typeSize <= 4`,
@@ -118,22 +118,22 @@ without risking a denial-of-service from a crafted file:
 
 ##### Recognized TIFF tags
 
-| Tag Number | Name                      | Required | Notes                                              |
-| ---------- | ------------------------- | -------- | -------------------------------------------------- |
-| 256        | ImageWidth                | Yes      |                                                    |
-| 257        | ImageLength               | Yes      |                                                    |
-| 258        | BitsPerSample             | Yes      | Every sample must be 8.                            |
-| 259        | Compression               | Yes      | 1, 5, 8, or 32773 only.                            |
-| 262        | PhotometricInterpretation | Yes      | 1 (Grayscale) or 2 (RGB) only.                     |
-| 273        | StripOffsets              | Yes      | One entry per strip.                               |
-| 277        | SamplesPerPixel           | No       | Defaults to `BitsPerSample`'s entry count.         |
-| 278        | RowsPerStrip              | Yes      |                                                    |
-| 279        | StripByteCounts           | Yes      | Same entry count as StripOffsets.                  |
-| 284        | PlanarConfiguration       | No       | Defaults to 1 (Chunky); 2 (Planar) is rejected.    |
-| 317        | Predictor                 | No       | Defaults to 1 (none); 2 (horizontal diff) allowed. |
-| 322        | TileWidth                 | No       | Presence (with 323) means tiled TIFF; rejected.    |
-| 323        | TileLength                | No       | See TileWidth.                                     |
-| 338        | ExtraSamples              | No*      | *Value 2 when SamplesPerPixel is 4 (RGBA).         |
+| Tag Number | Name | Required | Notes |
+| --- | --- | --- | --- |
+| 256 | ImageWidth | Yes | |
+| 257 | ImageLength | Yes | |
+| 258 | BitsPerSample | Yes | Every sample must be 8. |
+| 259 | Compression | Yes | 1, 5, 8, or 32773 only. |
+| 262 | PhotometricInterpretation | Yes | 1 (Grayscale) or 2 (RGB) only. |
+| 273 | StripOffsets | Yes | One entry per strip. |
+| 277 | SamplesPerPixel | No | Defaults to `BitsPerSample`'s entry count. |
+| 278 | RowsPerStrip | Yes | |
+| 279 | StripByteCounts | Yes | Same entry count as StripOffsets. |
+| 284 | PlanarConfiguration | No | Defaults to 1 (Chunky); 2 (Planar) is rejected. |
+| 317 | Predictor | No | Defaults to 1 (none); 2 (horizontal diff) allowed. |
+| 322 | TileWidth | No | Presence (with 323) means tiled TIFF; rejected. |
+| 323 | TileLength | No | See TileWidth. |
+| 338 | ExtraSamples | No* | *Value 2 when SamplesPerPixel is 4 (RGBA). |
 
 The tiled-TIFF rejection (`TileWidth`/`TileLength` presence) lives in the shared
 `ReadTiffImageInfo` helper, so `Load` and `GetInfo` reject a tiled image identically
@@ -148,11 +148,11 @@ is applied strictly after decompression (on load) or strictly before compression
 
 ##### Zlib wrapper layout (used only for `TiffCompression.Deflate`)
 
-| Field            | Size         | Description                                                       |
-| ---------------- | ------------ | ----------------------------------------------------------------- |
-| CMF/FLG header   | 2 bytes      | Fixed `0x78 0x9C` on write; validated on read                     |
-| DEFLATE data     | variable     | Compressed strip bytes, via `System.IO.Compression.DeflateStream` |
-| Adler-32 trailer | 4 bytes (BE) | Checksum of the decompressed strip bytes, hand-computed           |
+| Field | Size | Description |
+| --- | --- | --- |
+| CMF/FLG header | 2 bytes | Fixed `0x78 0x9C` on write; validated on read |
+| DEFLATE data | variable | Compressed strip bytes, via `System.IO.Compression.DeflateStream` |
+| Adler-32 trailer | 4 bytes (BE) | Checksum of the decompressed strip bytes, hand-computed |
 
 This is structurally identical to `PngCodec`'s own `IDAT` zlib wrapper, and both codecs use the
 same internal `ZlibHelper` (see *Zlib Helper* in the Codecs subsystem design, `../codecs.md`) for
@@ -305,16 +305,15 @@ would successfully decode") at the cost of `Load`'s own memory/read profile, whi
 when the caller's stream genuinely cannot seek.
 
 Once past that branch, for a seekable stream a `StreamTiffDataSource` backs the parser directly, so only the bytes the
-parser actually asks for are ever read from the stream — the 8-byte header, the IFD entry count
-and entries, and any out-of-line tag value `ReadTiffImageInfo` needs (for example a multi-value
-`BitsPerSample` tag, which typically requires one additional seek-and-read of 3-4 bytes).
-`ReadTiffImageInfo` never resolves `StripOffsets`/`RowsPerStrip`/`StripByteCounts`, so strip/pixel
-data is never requested (on the seekable fast path). `GetInfo(Stream)` captures `stream.Position` *before* reading the header
-and passes it to `StreamTiffDataSource` as a base offset that every subsequent position/seek is
-added to, so a caller that has already advanced `stream` past some other content (for example a
-container format embedding a TIFF payload after a header of its own) is still resolved correctly,
-rather than `StreamTiffDataSource` treating every TIFF-file-relative position as if it were an
-absolute offset from byte 0 of the underlying stream.
+parser actually asks for are ever read from the stream — the 8-byte header, the IFD entry count and entries, and any
+out-of-line tag value `ReadTiffImageInfo` needs (for example a multi-value `BitsPerSample` tag, which typically requires
+one additional seek-and-read of 3-4 bytes). `ReadTiffImageInfo` never resolves
+`StripOffsets`/`RowsPerStrip`/`StripByteCounts`, so strip/pixel data is never requested (on the seekable fast path).
+`GetInfo(Stream)` captures `stream.Position` *before* reading the header and passes it to `StreamTiffDataSource` as a
+base offset that every subsequent position/seek is added to, so a caller that has already advanced `stream` past some
+other content (for example a container format embedding a TIFF payload after a header of its own) is still resolved
+correctly, rather than `StreamTiffDataSource` treating every TIFF-file-relative position as if it were an absolute
+offset from byte 0 of the underlying stream.
 
 `GetInfo` performs the full set of format-support validation `Load` performs (bit depth,
 compression, photometric interpretation, planar configuration, predictor, and the RGBA

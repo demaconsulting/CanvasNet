@@ -48,13 +48,11 @@ ships with (`formats`, `info`, `render` with its alias `convert`, the verbs `cro
 `OptionSpec` table, and writes JSON results through `ResultWriter` when `Context.Json` is set.
 
 **Imaging** (consumed, from the `CanvasNetViewer` system): the `info`, `render`, verb, `compare`, `montage`, `inspect`,
-and `flatten` commands read, compare, compose,
-transform, analyze, and write files only through the `Imaging` subsystem of the Viewer library (`SourceLoader` for `info`,
-and the operations `ImageRenderer`, `ImageComparer`, `MontageBuilder`, `ImageInspector`, and `SvgFlattener`, with
-`ImagePipeline`,
-`ImageComparison`, `ContactSheet`, and `ImageWriter` behind them) and the core `Surface` (comparison and analysis); a
-command never calls a codec directly. A command passes the library plain request records and prints the plain result
-records; the library knows nothing of the command line.
+and `flatten` commands read, compare, compose, transform, analyze, and write files only through the `Imaging` subsystem
+of the Viewer library (`SourceLoader` for `info`, and the operations `ImageRenderer`, `ImageComparer`, `MontageBuilder`,
+`ImageInspector`, and `SvgFlattener`, with `ImagePipeline`, `ImageComparison`, `ContactSheet`, and `ImageWriter` behind
+them) and the core `Surface` (comparison and analysis); a command never calls a codec directly. A command passes the
+library plain request records and prints the plain result records; the library knows nothing of the command line.
 
 **PandocFilter** (consumed, a sibling subsystem of the tool): `PandocFilterCommand` reads the document and runs
 `PandocFilterEngine` with the `FilterSettings` of the run and a `ToolPictureDrawer`, and writes the shim with

@@ -18,7 +18,7 @@ d3-time, d3-time-format, d3-scale, and Vega behavior it ports:
 
 The unit was placed in `Data` instead of `Transforms` or `Scales` (plan decision P8-D1): the data parser needs the
 calendar to parse dates, and the `Expressions` subsystem needs it to format, parse, and offset dates, but the
-`Expressions` subsystem must not depend on `Scales` or `Transforms`. See _CanvasNetVegaLite System Design_ for the
+`Expressions` subsystem must not depend on `Scales` or `Transforms`. See *CanvasNetVegaLite System Design* for the
 deviation.
 
 #### Purpose
@@ -33,7 +33,7 @@ JavaScript libraries read the host's zone, the host's clock, and the host's cult
 
 The unit's behavior is specified by the `CanvasNetVegaLite-Data-TimeCalendar-*` requirements in
 `docs/reqstream/canvas-net-vega-lite/data/time-calendar.yaml`. The rules are those of d3-time, Vega, and Vega-Lite,
-re-implemented from their public description (see _CanvasNetVegaLite System Design_, Third-Party Provenance and
+re-implemented from their public description (see *CanvasNetVegaLite System Design*, Third-Party Provenance and
 Attribution).
 
 #### Data Model
@@ -115,11 +115,11 @@ days whose day of the month is a multiple of `k`; it exists for the UTC calendar
   Vega-Lite. The object form is `{unit, maxbins, step, utc, binned}`; a `unit` or a `maxbins` is required, `step` and
   `maxbins` are positive numbers, and `TryParse(SpecNode, ..., ignoreUnknown)` can skip members that a unit does not
   define (the parser warns about them; the executors must not fail on them).
-- **Parts.** `Parts` lists the calendar parts the unit keeps in Vega-Lite's order (`year quarter month week day dayofyear
-  date hours minutes seconds milliseconds`); the parts of a name are found by Vega-Lite's containment rule, which
-  does not count `seconds` inside `milliseconds`, `day` at the start of `dayofyear`, or `year` at the end of
-  `dayofyear`. The `maxbins` form without a unit has no parts until it is resolved against data. A private copy in
-  Vega's own order decides the **last part**, which is the part the step and the end refer to.
+- **Parts.** `Parts` lists the calendar parts the unit keeps in Vega-Lite's order
+  (`year quarter month week day dayofyear date hours minutes seconds milliseconds`); the parts of a name are found by
+  Vega-Lite's containment rule, which does not count `seconds` inside `milliseconds`, `day` at the start of `dayofyear`,
+  or `year` at the end of `dayofyear`. The `maxbins` form without a unit has no parts until it is resolved against data.
+  A private copy in Vega's own order decides the **last part**, which is the part the step and the end refer to.
 - **Field names.** `FieldName(field)` is Vega-Lite's `timeUnitToString` naming: `yearmonth_date`, `utcmonth_date`,
   `month_step_2_date`, and `timeunit_maxbins_10_date`, with the members of an object written in document order (so
   `{"step": 2, "unit": "month"}` gives `_step_2month_date`, a quirk of Vega-Lite that is reproduced) and every character
@@ -154,11 +154,11 @@ days whose day of the month is a multiple of `k`; it exists for the UTC calendar
   included, because Vega-Lite's `durationExpr` builds its dates without `utc` (vega-lite 6.5.0 `src/timeunit.ts`;
   `dateTimeToExpr` in `src/datetime.ts` emits `utc(...)` only for a date with the `utc` flag), unlike `Floor` and `End`,
   whose `fieldExpr` prefixes `utc` (the scale of a UTC unit already has the UTC calendar, which is deviation (c) of
-  _MarkBuilder Design_),
+  *MarkBuilder Design*),
   and `ReferenceSpan(TimeCalendar)` gives the two instants `(Start, End)` it is the difference of: 2001-01-01 and one
   step of the smallest part later in that calendar (null for the same cases, and for dates outside the calendar's
   range). The offset of a position with a time unit measures the pixels of that span on the position scale (see
-  _MarkBuilder Design_).
+  *MarkBuilder Design*).
 - `IsSingleLocalUnit` tells the units for which a bare number or text can stand for one part.
 
 **`DateTimeObject`** (immutable; safe for concurrent use) is the Vega-Lite `DateTime` object. The keys are `year`,
@@ -167,25 +167,25 @@ numeric text, or a month name (full or the first three letters, any case); a qua
 month (the month wins); a day is 1 (Monday) to 7 or 0, or a day name, and stands for that day of January 2012. Like
 Vega-Lite, the object **drops its `day` when it has any other key** (the `utc` flag included, recorded in `DayDropped`),
 and a quarter above 4 is recorded in `QuarterOutOfRange`. A missing year is 2012, a missing month January, a missing
-date the first, and a missing time part zero. `ToMilliseconds(calendar)` evaluates the object like Vega's `datetime(...)`
-or `utc(...)` function: years 0 to 99 mean 1900 to 1999 (`FullYear`, as in the JavaScript constructor), and parts that
-are too large roll over (`FromParts`); `ToExpression` writes the same call as expression source text. The static
-`FromScalar` is Vega-Lite's `valueExpr` rule for a bare number or text compared with a field that has a time unit: a
-number below 10,000 or a text such as `Mar`, against a single local unit, is that part of the reference year (the number
-3 against `month` is March 2012); otherwise a number is milliseconds and a text goes through a caller-supplied
-`Func<string, double>` (the `Date.parse` rules of `JsDateParser`, plugged in by the callers). `TryUnitPartExpression`
-writes the same single part as a `datetime(...)` expression for the predicate source.
+date the first, and a missing time part zero. `ToMilliseconds(calendar)` evaluates the object like Vega's
+`datetime(...)` or `utc(...)` function: years 0 to 99 mean 1900 to 1999 (`FullYear`, as in the JavaScript constructor),
+and parts that are too large roll over (`FromParts`); `ToExpression` writes the same call as expression source text. The
+static `FromScalar` is Vega-Lite's `valueExpr` rule for a bare number or text compared with a field that has a time
+unit: a number below 10,000 or a text such as `Mar`, against a single local unit, is that part of the reference year
+(the number 3 against `month` is March 2012); otherwise a number is milliseconds and a text goes through a
+caller-supplied `Func<string, double>` (the `Date.parse` rules of `JsDateParser`, plugged in by the callers).
+`TryUnitPartExpression` writes the same single part as a `datetime(...)` expression for the predicate source.
 
 **Limits** (every loop or allocation of the unit; the caller charges the rows or elements):
 
-- _Calendar arithmetic, one conversion_: O(1), at most 1 offset lookup for `ToParts` and 4 for `FromParts` in a zone;
+- *Calendar arithmetic, one conversion*: O(1), at most 1 offset lookup for `ToParts` and 4 for `FromParts` in a zone;
   charged by the caller (transform `WorkMeter`: 2 steps per row for UTC, 8 for a zone).
-- _Filter interval operation_: at most 128 underlying boundaries, and offsets of at most 64 steps; nothing to charge.
-- _`TimeInterval.Range`_: at most `maxCount` items, then `TimeRangeLimitException`; cancellation is polled every 1,024
+- *Filter interval operation*: at most 128 underlying boundaries, and offsets of at most 64 steps; nothing to charge.
+- *`TimeInterval.Range`*: at most `maxCount` items, then `TimeRangeLimitException`; cancellation is polled every 1,024
   items.
-- _`TimeUnitSpec` parse and field name_: linear in the text, which the callers bound by their text limits.
-- _`maxbins` resolution_: a bisection over 17 entries.
-- _Offset probes_: clamped one day inside the `DateTime` range.
+- *`TimeUnitSpec` parse and field name*: linear in the text, which the callers bound by their text limits.
+- *`maxbins` resolution*: a bisection over 17 entries.
+- *Offset probes*: clamped one day inside the `DateTime` range.
 
 **Determinism.** Only the passed calendar, the English names, and invariant ASCII digits reach any result; no
 host zone, clock, or culture is read (a grep gate over the time sources for `TimeZoneInfo.Local`, `DateTime.Now`,
@@ -258,20 +258,20 @@ about); `SpecParser` turns it into a located `VegaLiteSpecException`. A null arg
 
 `VegaLiteDocument` creates one calendar per `Measure` or `Render` call from `VegaLiteRenderOptions.TimeZone` and gives
 it to the `DataLoader`, which hands it to `ParseDirectives` for dates without an offset and for `date:'%fmt'`
-formats (see _DelimitedTextParser_ and _DataLoader_), and to the `ExpressionFunctionContext`, which the date and time
-functions of `ExpressionFunctions` read. `TimeFormat` and `JsDateParser` (see _TimeFormat_) format and parse in the
+formats (see *DelimitedTextParser* and *DataLoader*), and to the `ExpressionFunctionContext`, which the date and time
+functions of `ExpressionFunctions` read. `TimeFormat` and `JsDateParser` (see *TimeFormat*) format and parse in the
 calendar. `SpecParser` (`SpecParser.Time.cs`) validates time units, date-time objects, and tick and nice intervals with
 `TimeUnitSpec.TryParse` and `DateTimeObject.TryRead`, and `PredicateSource` writes time-aware predicates with
 `DateTimeObject.ToExpression` and `TimeUnitSpec`. `TimeUnitTransform`, `EncodingPlan`, and `TemporalFields` (see
-_TimeUnitTransform_) compute and plan the units. `ScaleModel` (`CreateTime`), `Ticks` (`Ticks.Time.cs`), and
+*TimeUnitTransform*) compute and plan the units. `ScaleModel` (`CreateTime`), `Ticks` (`Ticks.Time.cs`), and
 `ScaleResolver` (`ScaleResolver.Time.cs`) build the time scales and their ticks and `nice` boundaries from the
 intervals and read the domains with `DateTimeObject` and the unit rule. `AxisBuilder`, `LegendBuilder`, and
-`TimeLabels` (see _TimeLabels_) label and place the ticks, and `MarkBuilder` reads the band of a unit. The tests in
+`TimeLabels` (see *TimeLabels*) label and place the ticks, and `MarkBuilder` reads the band of a unit. The tests in
 `test/DemaConsulting.CanvasNet.VegaLite.Tests/Data/` (`TimeCalendarTests.cs`, `TimeCalendarZoneTests.cs`,
 `TimeCalendarIntervalTests.cs`, `TimeCalendarEpochDayTests.cs`, `TimeUnitSpecTests.cs`, and `DateTimeObjectTests.cs`,
 with the zone helpers in `TimeTestSupport.cs`) call the types directly through `InternalsVisibleTo`, with zones they
 construct themselves, so they do not depend on the time zone database of the operating system.
 
 Phase 14 hardening: the casts of a floating-point value to an integer in `TimeCalendar` (and in `TimeFormat` and
-`TimeUnits`) go through the saturating `NumericConversions` (see _DataTable_), and `TimeCalendar.MakeDay` refuses a NaN
+`TimeUnits`) go through the saturating `NumericConversions` (see *DataTable*), and `TimeCalendar.MakeDay` refuses a NaN
 day, so a hostile time value is a refusal or an invalid date on every runtime and never a wrapped integer.

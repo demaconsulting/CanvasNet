@@ -16,7 +16,7 @@ equality (see below), and errors are asserted as a `ScadSyntaxException` with an
 and a message fragment. The parser is name-agnostic (every `name(arguments) children` statement is a module
 instantiation), so the tests use arbitrary names without needing any module library. Parsing is fail-fast and
 tokenizes the whole source first; the interplay with the lexer is verified at the subsystem tier (see
-_ScadLanguage Subsystem Verification Design_). The unit has no dependencies other than the lexer, which is used
+*ScadLanguage Subsystem Verification Design*). The unit has no dependencies other than the lexer, which is used
 for real, so no mocking or stubbing is required; the internal types are reached through the test assembly's
 `InternalsVisibleTo` access.
 

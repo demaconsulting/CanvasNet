@@ -23,7 +23,7 @@ source files in the `DemaConsulting.CanvasNet.VegaLite.Transforms` namespace, al
   the polar channels, from the specification alone)
 - `WorkMeter.cs` - `WorkMeter` (charges work proportional to a number of elements to the step budget)
 - `StableSorter.cs` - `StableSorter` (a stable, cancelable merge sort of row numbers)
-- `TransformContext.cs` - shared with _RowTransforms_; it gained `Locate`, `Tick`, and `CheckText` for these
+- `TransformContext.cs` - shared with *RowTransforms*; it gained `Locate`, `Tick`, and `CheckText` for these
   transforms
 
 #### Purpose
@@ -38,14 +38,14 @@ place, whether the aggregation was written as a transform or implied by an encod
 
 The unit's behavior is specified by the `CanvasNetVegaLite-Transforms-AggregateTransforms-*` requirements in
 `docs/reqstream/canvas-net-vega-lite/transforms/aggregate-transforms.yaml`. The behavior rules are those of the
-Vega and Vega-Lite transforms, re-implemented from their public description (see _CanvasNetVegaLite System
-Design_, Third-Party Provenance and Attribution).
+Vega and Vega-Lite transforms, re-implemented from their public description (see *CanvasNetVegaLite System
+Design*, Third-Party Provenance and Attribution).
 
 #### Data Model
 
 An instance serves **one call on one thread**: it holds the `TransformContext`, a `WorkMeter` on the step budget
 of the evaluator, and the `MeasureEnvironment` that the accumulators work in. Tables are immutable `DataTable`
-values built with `TableLayout` (see _RowTransforms_ for the layout rules: ordinal field order, an added field
+values built with `TableLayout` (see *RowTransforms* for the layout rules: ordinal field order, an added field
 replaces a field of the same name and the fields nested below it, `MaxFieldCount` and 2^25 cells checked before
 allocation).
 
@@ -57,7 +57,7 @@ members in ordinal order, bounded by `MaxStringLength` and charged to the step b
 `aggregate` of nothing is no row even without a `groupby`. A group field is written with its field path, so a
 nested path stays nested.
 
-**Value classification** (`MeasureCell.Add`). A value is _missing_ when it is null or the empty text, and _valid_
+**Value classification** (`MeasureCell.Add`). A value is *missing* when it is null or the empty text, and *valid*
 unless it is missing or the number NaN; NaN is neither. The operations see only the valid values, except `count`
 (every row), `missing`, `distinct` (the JavaScript text of every value, nulls included), and `values` (every value
 in row order). A number is read like JavaScript's unary plus (`ToNumber`, charged by the text length): numeric
@@ -81,7 +81,7 @@ the canonical operation name, and `count` for a count of rows):
   object.
 - `exponential` (`exp * (1 - r) / (1 - r^n)`, the mean at `r = 1`) and `exponentialb` (`exp * (1 - r)`), with
   `exp = exp * r + v` per valid value. The weight `r` is the `param`; **a missing `param` is 0.5** (deviation).
-- `ci0`, `ci1` - the 2.5% and 97.5% R-7 quantiles of the means of 1,000 bootstrap resamples (see _Key Methods_).
+- `ci0`, `ci1` - the 2.5% and 97.5% R-7 quantiles of the means of 1,000 bootstrap resamples (see *Key Methods*).
 
 **Window operations** (`WindowOp`): `row_number`, `rank`, `dense_rank`, `percent_rank`, `cume_dist`, `ntile`,
 `lag`, `lead`, `first_value`, `last_value`, `nth_value`, `prev_value`, and `next_value`, plus every aggregate
@@ -117,7 +117,7 @@ The imputed field is the `value` (default 0; an explicit null is honored) or, fo
 `max`, that operation over the `frame` (default `[null, null]`) of the group in data order, and replaces every
 null of the field, including the nulls that were already in the rows (the pair of a window and a formula in
 Vega-Lite). The same engine serves the `impute` property of an encoding and the implicit impute of a stacked line or
-area (see _EncodingPlan_); it does not know where its parameters come from. The number of `keyvals` is checked against
+area (see *EncodingPlan*); it does not know where its parameters come from. The number of `keyvals` is checked against
 the row limit and `TableLayout.MaxCells` (the smaller of the two) before it is converted to an int, so a row
 limit above that range cannot make a count beyond it wrap (.NET 8) or saturate (.NET 9 and later) in the loop.
 
@@ -130,28 +130,27 @@ an explicit `extent` fall in the bins at minus and plus infinity. An `extent` of
 range of the bins: it sets `span` (Vega-Lite's `span(N["field"])` of the `bin` transform; `TransformContext.BinSpanOf`),
 which only chooses the step, while the bins still start and stop at the extent of the data.
 
-**Stack rules.** `StackRules.Decide(markType, orient, encoding)` returns the `StackDecision` (stacked channel,
-offset, stack-by definitions) or null. A mark is stackable when it is `arc`, `area`, `bar`, `rule`, `point`,
-`circle`, `square`, `line`, `text`, or `tick`; `arc`, `area`, and `bar` stack by default (offset `zero`) and the
-others only with an explicit `stack`. The stacked channel is the unbinned quantitative one of `x` and `y` (a type that is
-not written is the inferred one, `ChannelDefinitions.TypeOf`: an aggregate is quantitative, a plain field nominal) (the
-aggregating one wins when both are, then the `orient` of a bar or area). **When `x` and `y` give no stack, the same
-rule is applied to the polar pair `theta` and `radius`** (Vega-Lite's `potentialStackedChannel`): the unbinned
-quantitative one is stacked, the aggregating one wins when both are, and an explicit `stack` decides before that;
-the `orient` of a bar or area applies to `x` and `y` only. `StackRules.DimensionChannel(channel)` pairs the channels
-(`x` with `y`, `theta` with `radius`). The group-by is the dimension channel (the other channel of the pair), unless it
-reads the stacked field itself (a radial chart reads its `theta` and its `radius` from one field); **the offset channel
-of the dimension** (`StackRules.DimensionOffsetChannel(channel)`: `yOffset` for a stacked `x`, `xOffset` for a stacked
-`y`, null for a polar channel) is a group-by too (unless it reads the stacked field), as in Vega-Lite's stack
-(`stack.ts`), so the bars of one offset value stack among themselves and the bars of the offset groups stand side by
-side, and it is **not a stack-by** field (it does not split the layers of a stack). Without an explicit `stack`, a
-quantitative offset (an unbinned quantitative field, or a numeric datum) on a view whose dimension channel is absent or
-JSON null disables the default stack (Vega-Lite's `!encoding.y` is falsy for both; a dimension that is a `value` or
-`datum` object is present and keeps the stack, and an explicit `stack`, even null, is never overridden). The
-stack-by channels are the non-position channels with a field that does not aggregate (the tooltip
-is excluded; `order` counts). There is no stack when an aggregating encoding has no stack-by field, when the
-stacked channel has a range (`x2`, `y2`, `theta2`, or `radius2` with a field, datum, or aggregate: a ranged mark draws
-its own extent), when `stack` is false or null, or when
+**Stack rules.** `StackRules.Decide(markType, orient, encoding)` returns the `StackDecision` (stacked channel, offset,
+stack-by definitions) or null. A mark is stackable when it is `arc`, `area`, `bar`, `rule`, `point`, `circle`, `square`,
+`line`, `text`, or `tick`; `arc`, `area`, and `bar` stack by default (offset `zero`) and the others only with an
+explicit `stack`. The stacked channel is the unbinned quantitative one of `x` and `y` (a type that is not written is the
+inferred one, `ChannelDefinitions.TypeOf`: an aggregate is quantitative, a plain field nominal) (the aggregating one
+wins when both are, then the `orient` of a bar or area). **When `x` and `y` give no stack, the same rule is applied to
+the polar pair `theta` and `radius`** (Vega-Lite's `potentialStackedChannel`): the unbinned quantitative one is stacked,
+the aggregating one wins when both are, and an explicit `stack` decides before that; the `orient` of a bar or area
+applies to `x` and `y` only. `StackRules.DimensionChannel(channel)` pairs the channels (`x` with `y`, `theta` with
+`radius`). The group-by is the dimension channel (the other channel of the pair), unless it reads the stacked field
+itself (a radial chart reads its `theta` and its `radius` from one field); **the offset channel of the dimension**
+(`StackRules.DimensionOffsetChannel(channel)`: `yOffset` for a stacked `x`, `xOffset` for a stacked `y`, null for a
+polar channel) is a group-by too (unless it reads the stacked field), as in Vega-Lite's stack (`stack.ts`), so the bars
+of one offset value stack among themselves and the bars of the offset groups stand side by side, and it is **not a
+stack-by** field (it does not split the layers of a stack). Without an explicit `stack`, a quantitative offset (an
+unbinned quantitative field, or a numeric datum) on a view whose dimension channel is absent or JSON null disables the
+default stack (Vega-Lite's `!encoding.y` is falsy for both; a dimension that is a `value` or `datum` object is present
+and keeps the stack, and an explicit `stack`, even null, is never overridden). The stack-by channels are the
+non-position channels with a field that does not aggregate (the tooltip is excluded; `order` counts). There is no stack
+when an aggregating encoding has no stack-by field, when the stacked channel has a range (`x2`, `y2`, `theta2`, or
+`radius2` with a field, datum, or aggregate: a ranged mark draws its own extent), when `stack` is false or null, or when
 the stacked channel's `scale.type` is `log`, `pow`, `sqrt`, or `symlog` (Vega-Lite warns that it cannot stack on a
 non-linear scale and draws the marks from the baseline).
 
@@ -196,7 +195,7 @@ clock, the environment, a random source, or the current culture.
 - `Stack(input, field, groupBy, sort, offset, startName, endName, location)` (internal) - the engine of `stack`
   and of the implicit stack: it groups, reads the field once as numbers, sorts each group, and stacks it as
   described above. The caller supplies the **order** as a list of `SortField`; the transform reads it from
-  `sort`, the encoding stage builds it from the `order` channel or from the stack-by fields (see _EncodingPlan_).
+  `sort`, the encoding stage builds it from the `order` channel or from the stack-by fields (see *EncodingPlan*).
   The default output names of the `stack` transform are `field_start` and `field_end`; an `as` of one name gives
   `name` and `name_end`.
 - `Impute(...)` - the engine of the `impute` transform. `ReadImputeParameters(parameters)` (internal, static) reads the
@@ -235,20 +234,44 @@ clock, the environment, a random source, or the current culture.
   operations), `IsArgOp`, and `IsExponential` - the pure registry functions that the parser, the catalog, the
   plan, and the scale resolver share, so that validation, reports, and execution agree on what an operation is.
 
-**Charging matrix.** Every row loop calls `TransformContext.Tick(row)` (cancellation every 1,024 rows) and
-charges the `WorkMeter`; every limit message contains `the limit of`, `the limit (Max...)`, or `VegaLiteLimits.` (or names
+**Charging matrix.** Every row loop calls `TransformContext.Tick(row)` (cancellation every 1,024 rows) and charges the
+`WorkMeter`; every limit message contains `the limit of`, `the limit (Max...)`, or `VegaLiteLimits.` (or names
 `MaxDataRows`) so that the tool classifies it as a budget failure.
 
-<!-- markdownlint-disable MD013 -->
-| Transform | Row budget (`MaxDataRows`) | Cells (2^25) and field limits | Work charged to the step budget |
-| --------- | -------------------------- | ----------------------------- | ------------------------------- |
-| `aggregate` | One row reserved per group as the group appears; the whole input is released when the output is complete (peak: input plus groups) | Each new group checks `groups * (output width + 4 * measures)`; `rows * value-keeping operations` checked up front; `TableLayout` | 1 + group fields per row, the text length of each text group value per row (hashing it), measures per row, 1 per stored value, n log n per sort, 1,000 n per bootstrap, text length per `distinct` key and per text-to-number conversion |
-| `joinaggregate` | Unchanged (groups are not rows) | Per group `measures * (4 + 1) + group fields`; same value-state check; `TableLayout` | As `aggregate`, plus measures + 1 per output row |
-| `window` | Unchanged; the `values` arrays are bounded by `MaxDataRows` in total | Partition keys 2 + group fields per group; sort keys `rows * sort fields`; value-state check; `TableLayout` | operations + 1 per row; n log n per sort; **4 per row of every recomputed frame per aggregate** (cumulative frames are not recomputed); `values` length |
-| `bin` | Unchanged | `TableLayout`; bin count at most `MaxScaleDomainSize` (also for an explicit `step`) | 1 per row for the extent, 1 per row for the assignment |
-| `stack` | Unchanged | 2 + group fields per group; sort keys; `TableLayout` | 1 per row for the copy and 1 for the number, the group size per group, n log n per sort |
-| `impute` | `groups * keys` reserved, then the exact remainder; the input is released at the end unless the caller keeps it (peak: input plus output) | `keyvals` count against `MaxDataRows` and `TableLayout.MaxCells`; one bit per combination; `MaxFieldCount`; output cells | 1 or 2 per row, 1 + group fields per imputed row, the window engine for the other methods |
-<!-- markdownlint-enable MD013 -->
+- **`aggregate`**
+  - Row budget (`MaxDataRows`): One row reserved per group as the group appears; the whole input is released when the
+    output is complete (peak: input plus groups).
+  - Cells (2^25) and field limits: Each new group checks `groups * (output width + 4 * measures)`;
+    `rows * value-keeping operations` checked up front; `TableLayout`.
+  - Work charged to the step budget: 1 + group fields per row, the text length of each text group value per row (hashing
+    it), measures per row, 1 per stored value, n log n per sort, 1,000 n per bootstrap, text length per `distinct` key
+    and per text-to-number conversion.
+- **`joinaggregate`**
+  - Row budget (`MaxDataRows`): Unchanged (groups are not rows).
+  - Cells (2^25) and field limits: Per group `measures * (4 + 1) + group fields`; same value-state check; `TableLayout`.
+  - Work charged to the step budget: As `aggregate`, plus measures + 1 per output row.
+- **`window`**
+  - Row budget (`MaxDataRows`): Unchanged; the `values` arrays are bounded by `MaxDataRows` in total.
+  - Cells (2^25) and field limits: Partition keys 2 + group fields per group; sort keys `rows * sort fields`;
+    value-state check; `TableLayout`.
+  - Work charged to the step budget: operations + 1 per row; n log n per sort; **4 per row of every recomputed frame per
+    aggregate** (cumulative frames are not recomputed); `values` length.
+- **`bin`**
+  - Row budget (`MaxDataRows`): Unchanged.
+  - Cells (2^25) and field limits: `TableLayout`; bin count at most `MaxScaleDomainSize` (also for an explicit `step`).
+  - Work charged to the step budget: 1 per row for the extent, 1 per row for the assignment.
+- **`stack`**
+  - Row budget (`MaxDataRows`): Unchanged.
+  - Cells (2^25) and field limits: 2 + group fields per group; sort keys; `TableLayout`.
+  - Work charged to the step budget: 1 per row for the copy and 1 for the number, the group size per group, n log n per
+    sort.
+- **`impute`**
+  - Row budget (`MaxDataRows`): `groups * keys` reserved, then the exact remainder; the input is released at the end
+    unless the caller keeps it (peak: input plus output).
+  - Cells (2^25) and field limits: `keyvals` count against `MaxDataRows` and `TableLayout.MaxCells`; one bit per
+    combination; `MaxFieldCount`; output cells.
+  - Work charged to the step budget: 1 or 2 per row, 1 + group fields per imputed row, the window engine for the other
+    methods.
 
 **Preconditions and postconditions**: `SpecParser` validated the transform shapes (operation names, parameters,
 frames, bin parameters, key values) and the texts of the specification fit the limits it was parsed with; on
@@ -314,7 +337,7 @@ output, as documented per operation. The unit performs no I/O.
 `RowTransforms.Apply` dispatches the six transform names to `AggregateTransforms.Apply`. `EncodingTransforms`
 calls the `Aggregate`, `ImputeField`, and `Stack` engines, `ReadImputeParameters`, and `BinAlgorithm` for the implicit
 pipeline of a view (see
-_EncodingPlan_), and `EncodingPlan` uses `StackRules`, `BinSettings`, `AggregateSpec`, and `AggregateMeasures`.
+*EncodingPlan*), and `EncodingPlan` uses `StackRules`, `BinSettings`, `AggregateSpec`, and `AggregateMeasures`.
 `ScaleResolver` uses `MeasureCell`, `MeasureEnvironment`, `WorkMeter`, `BinSpec`, and `AggregateMeasures` to sort
 categories by an aggregate and to read the bins. `SpecParser` (`SpecParser.Aggregates.cs`) uses
 `AggregateMeasures` to validate operation names, and `FeatureCatalog` calls `StackRules.Decide` (with the

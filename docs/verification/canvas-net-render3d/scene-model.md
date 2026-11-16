@@ -6,8 +6,8 @@ containing three units: `DoublePrecisionMath`, `Mesh`, and `SceneGraph`.
 ### Verification Approach
 
 The `SceneModel` subsystem is verified at two tiers. The unit tests of its three units (see
-_DoublePrecisionMath Unit Verification Design_, `scene-model/double-precision-math.md`, _Mesh Unit
-Verification Design_, `scene-model/mesh.md`, and _SceneGraph Unit Verification Design_,
+*DoublePrecisionMath Unit Verification Design*, `scene-model/double-precision-math.md`, *Mesh Unit
+Verification Design*, `scene-model/mesh.md`, and *SceneGraph Unit Verification Design*,
 `scene-model/scene-graph.md`) verify each unit in isolation. The subsystem-level tests in
 `SceneModelTests.cs` verify cross-unit integration through the subsystem's public API only: that
 transforms compose in double precision through a nested scene graph, that a mirrored mesh inside a

@@ -30,7 +30,8 @@ unchanged, from the unit tests of the command-line tool's former `ImageAdjustmen
 - Grayscale, invert, and threshold give the documented pixels and keep or replace alpha as documented.
 - Otsu's method puts the threshold in the middle of a gap between modes, returns 127 for a single level, and separates
   classes of different sizes.
-- The levels, brightness, and contrast tables follow their formulas, and a table is applied to red, green, and blue only.
+- The levels, brightness, and contrast tables follow their formulas, and a table is applied to red, green, and blue
+  only.
 - The auto-levels points are the clipped percentiles of the histogram, a flat image has none, and a low-contrast image
   is stretched to the full range.
 - The same input gives identical pixels, and the parallel histogram and table application equal a sequential reference.
@@ -119,7 +120,8 @@ levels adjustment applied in parallel equals the per-pixel mapping.
 
 ##### CanvasNet-Canvas-SurfaceAdjustments-Arguments: Invalid Arguments
 
-**Tests**: `Surface_Adjustments_OutOfRangeArguments_Throw`, `Surface_Adjustments_AfterDispose_ThrowObjectDisposedException`
+**Tests**: `Surface_Adjustments_OutOfRangeArguments_Throw`,
+`Surface_Adjustments_AfterDispose_ThrowObjectDisposedException`
 
 A threshold of -1 and 256, a brightness of 256 and -256, a contrast of 101, -100.5, and NaN, a clip of -0.1, 20.5, and
 NaN, a gamma of 10.5, a black level not below white, a table of 255 entries, and histograms of 255 and 257 entries or

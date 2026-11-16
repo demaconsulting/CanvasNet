@@ -25,7 +25,7 @@ are limited to `CanvasNet`'s `Canvas` subsystem (`Surface`, `Rgba32`), `Codecs` 
 (`UnsupportedImageFeatureException`, and, as of Phase 3, `JpegCodec`), `Geometry` subsystem
 (`PathBuilder`, `Path`), `Drawing` subsystem (`PathFiller`, `PathStroker`, `StrokeStyle`,
 `FillRule`, `LineCap`, `LineJoin`), and, as of Phase 4, `Fonts` subsystem (`TrueTypeFont`, and, as
-of Phase 6, `SystemFontCatalog`) — see the Dependencies section of _CanvasNetPdf System Design_
+of Phase 6, `SystemFontCatalog`) — see the Dependencies section of *CanvasNetPdf System Design*
 (`../canvas-net-pdf.md`). It provides
 hand-rolled parsing of a PDF document's structure (cross-references, trailer, page tree), a
 content-stream interpreter (`Render` tokenizes and executes a page's `/Contents` path-
@@ -46,43 +46,43 @@ Phase 6 (this phase), a `/Subtype /TrueType` simple font with an embedded
 `/FontDescriptor/FontFile2` still always wins, but a font with no embedded `/FontFile2` is no
 longer an unconditional failure: it is instead substituted with the closest-matching font
 actually installed on the host operating system, or - when nothing matches - a bundled Liberation
-Sans/Serif/Mono font, fully automatically and silently (see _Font Resolution_ and _Font Fallback
-Resolution_ below, and `Fonts.SystemFontCatalog`'s own unit design,
+Sans/Serif/Mono font, fully automatically and silently (see *Font Resolution* and *Font Fallback
+Resolution* below, and `Fonts.SystemFontCatalog`'s own unit design,
 `../canvas-net/fonts/system-font-catalog.md`). As of Phase 9, a composite
 `/Subtype /Type0`/`/Encoding /Identity-H` font naming a single `/CIDFontType2` descendant font
 (with its own embedded `/FontDescriptor/FontFile2`) is also resolved and rendered end to end,
 decoding each shown string as 2-byte-per-code (CID) values rather than 1-byte-per-code; as of
 Phase 12 (this phase), a `/CIDFontType0` descendant font (with its own embedded, non-CID-keyed-
-CFF, `/OpenType`-wrapped `/FontDescriptor/FontFile3`) is resolved identically (see _Composite Font
-Resolution_ below). As of Phase B, a `/Subtype /Type1` simple font with an embedded
+CFF, `/OpenType`-wrapped `/FontDescriptor/FontFile3`) is resolved identically (see *Composite Font
+Resolution* below). As of Phase B, a `/Subtype /Type1` simple font with an embedded
 `/FontDescriptor/FontFile` (a classic PostScript Type 1 program) is also resolved and rendered,
 exactly like a `/FontFile2`-embedded `/TrueType` font; as of Phase C (this phase), a `/Subtype
 /Type1` simple font with an embedded `/FontDescriptor/FontFile3` whose own `/Subtype` is `Type1C`
-(a bare, un-wrapped CFF program) is resolved identically (see _Type 1C Font Resolution_ below); as
+(a bare, un-wrapped CFF program) is resolved identically (see *Type 1C Font Resolution* below); as
 of Phase D (this phase), a `/Subtype /Type3` font (whose glyphs are arbitrary content-stream
 procedures rather than an outline/CFF program) is also resolved and rendered, via its own
-dedicated resolution and glyph-painting path (see _Type 3 Font Resolution_/_Type 3 Glyph Painting_
+dedicated resolution and glyph-painting path (see *Type 3 Font Resolution*/*Type 3 Glyph Painting*
 below). As of Phase 16 (this phase), a document encrypted with the PDF "Standard" security
 handler (`/Filter /Standard`) using RC4 (40 to 128-bit), AES-128 (`/CFM /AESV2`), or AES-256 using
 the R5 or R6 (hardened hash) key derivation (`/CFM /AESV3`/`/R 5` or `/R 6`) and an empty user password is also opened
 and
 rendered transparently, with every indirect object's strings and every stream's raw bytes
-decrypted before any other parsing logic observes them (see _Encryption (Standard Security
-Handler)_ below); every other encrypted-document shape (a non-`/Standard` security handler,
+decrypted before any other parsing logic observes them (see *Encryption (Standard Security
+Handler)* below); every other encrypted-document shape (a non-`/Standard` security handler,
 an `/R` other than 5/6, a non-`/StdCF` crypt filter, or a document that genuinely
 requires a non-empty password) still fails closed exactly as before. As of Phase 18 (this phase),
 both `LoadType1CFont` (simple `/Type1` fonts) and `LoadCidFontType0Font` (composite `CIDFontType0`
 descendant fonts) resolve a `/FontFile3` stream by sniffing the stream's own decoded bytes for a
 recognized SFNT container (`'OTTO'`/`'true'`/`1.0`/`'ttcf'`) or a structurally plausible bare CFF
 header, rather than gating on the stream's declared `/Subtype` name: a bare, non-SFNT-wrapped CFF
-program is now accepted on a _composite_ `/Type0` font regardless of whether its `/Subtype` reads
+program is now accepted on a *composite* `/Type0` font regardless of whether its `/Subtype` reads
 `/CIDFontType0C`, `/Type1C`, `/OpenType`, or is absent entirely, and an SFNT-wrapped (`'OTTO'`) CFF
-program is likewise now accepted on a _simple_ `/Type1` font regardless of its declared `/Subtype`
+program is likewise now accepted on a *simple* `/Type1` font regardless of its declared `/Subtype`
 — matching PDF 32000-1's own leniency around `/Subtype` versus the stream's actual byte container
 shape, and real-world producers that emit one without exactly matching the other. Only a stream
 whose bytes match neither recognized shape still fails closed with
-`Codecs.UnsupportedImageFeatureException` (see _Type 1C Font Resolution_/_Composite Font
-Resolution_ below).
+`Codecs.UnsupportedImageFeatureException` (see *Type 1C Font Resolution*/*Composite Font
+Resolution* below).
 **Phase 4 limitations (narrowed by Phase 6/9/12/B/C/D/18, see
 above)**: CID-keyed CFF (`ROS`/`FDArray`/`FDSelect`), non-`/Identity-H` composite `/Encoding`s
 (including `/Identity-V` and predefined CJK encodings), and `/MMType1` fonts remain
@@ -99,12 +99,12 @@ out of scope (along with `/ImageMask` stencil images, which are not rendered) an
 skipped (any other undefined keyword) or explicitly rejected
 (unsupported color spaces/filters/fonts/encodings/render modes), per the operator/exception
 taxonomy documented below. Since then the following have been added: shading/tiling pattern fills
-(`/ShadingType 2`/`3`, `/PatternType 1`/`2` — see _`/Pattern` Color Space (Shading and Tiling
-Patterns)_ below, reusing the `/FunctionType 0` sampled-function evaluator originally landed as
+(`/ShadingType 2`/`3`, `/PatternType 1`/`2` — see *`/Pattern` Color Space (Shading and Tiling
+Patterns)* below, reusing the `/FunctionType 0` sampled-function evaluator originally landed as
 Phase 1 groundwork, alongside new `/FunctionType 2`/`3` support); the `LZWDecode`/`ASCII85Decode`/
 `ASCIIHexDecode`/`RunLengthDecode` filters (Phase 7); `CCITTFaxDecode` — Group 4 (T.6 MMR) only —
-(Phase 15, see below); and `JPXDecode` images and explicit `/SMask` soft masks (see _Image
-XObjects_ below). As of Phase 13 (see below), `Do` on a `/Subtype /Form` XObject is no longer one
+(Phase 15, see below); and `JPXDecode` images and explicit `/SMask` soft masks (see *Image
+XObjects* below). As of Phase 13 (see below), `Do` on a `/Subtype /Form` XObject is no longer one
 of the rejected constructs: it decodes and executes the Form's content stream, subject to its own
 documented Phase 13 limitations (no `/BBox` clipping, no `/Group` transparency-group handling, and
 a hard recursion-depth limit of 12).
@@ -116,7 +116,7 @@ inspect its page count and each page's display size/rotation, and request a rend
 page into a `Surface` of a caller-chosen pixel size. Unlike the static, no-instance-state codecs
 in `CanvasNet.Codecs` and `SvgCodec`, `PdfDocument` is an instantiable, disposable class: parsing
 a PDF document's cross-reference data and page tree is comparatively expensive, and a caller
-typically wants to call `GetPageInfo`/`Render` for several pages of the _same_ document without
+typically wants to call `GetPageInfo`/`Render` for several pages of the *same* document without
 re-parsing it each time — a property a purely static API could not express.
 
 ### Data Model
@@ -136,7 +136,7 @@ re-parsing it each time — a property a purely static API could not express.
   `GetPageInfo`/`Render` calls) is only ever parsed/decompressed once per `PdfDocument` instance.
 - **`_pages` (`IReadOnlyList<PdfPageInfo>`)** — every page's already-rotated
   `PdfPageInfo`, computed once during `Open`'s page-tree traversal (see
-  _PageTree Inheritance_ below), so `GetPageInfo` is an O(1) list lookup rather than a
+  *PageTree Inheritance* below), so `GetPageInfo` is an O(1) list lookup rather than a
   re-traversal.
 - **`_disposed` (`bool`)** — mirrors `Canvas.Surface`'s own disposal field exactly: `false` until
   `Dispose()` is called, then permanently `true`; every other public member checks this first via
@@ -213,7 +213,7 @@ re-parsing it each time — a property a purely static API could not express.
   can be overwritten in place with its decrypted plaintext without rebuilding the object tree.
   **Design decision**: both deliberately break this class's otherwise-uniform `private init`
   immutability idiom; this is scoped intentionally to only ever be written by
-  `ParseIndirectObjectAt`/`DecryptStringsInPlace` (see _Encryption (Standard Security Handler)_
+  `ParseIndirectObjectAt`/`DecryptStringsInPlace` (see *Encryption (Standard Security Handler)*
   below), since `_objectCache` shares a single `PdfObject` instance across every caller and
   mutating it from anywhere else would alias-corrupt every other holder of the same reference.
 - **`_encryptionKey` (`byte[]?`) / `_encryptionCipher` (`EncryptionCipher`, nested enum: `None`/
@@ -255,14 +255,14 @@ re-parsing it each time — a property a purely static API could not express.
   `PngCodec.Load(string)`'s open/consume/close pattern exactly — then calls the same shared
   private parse implementation the stream overload uses. Parsing runs the tokenizer, object
   model, cross-reference resolution (classic/stream/ObjStm/hybrid, with the linear-scan
-  fallback), `/Encrypt` detection/decryption (see _Encryption (Standard Security Handler)_
+  fallback), `/Encrypt` detection/decryption (see *Encryption (Standard Security Handler)*
   below, Phases 16/17), and page-tree traversal exactly once, producing a fully
   resolved `PdfDocument` instance. The optional `password` parameter (added in Phase 17) is
   consulted only when the resolved trailer declares an `/Encrypt` key: when `null` (the
   default), only the empty user password is authenticated, matching Phase 16's original
   encrypted-document support; when supplied, it is tried first as the user password and, if that
   fails, as the owner password, so a caller need not know in advance which of the two passwords
-  it holds — see _Encryption (Standard Security Handler)_ below for the full authentication and
+  it holds — see *Encryption (Standard Security Handler)* below for the full authentication and
   fail-closed detail.
 - **`PageCount` (get)** — disposed-check, then returns `_pages.Count`.
 - **`GetPageInfo(int pageIndex)`** — disposed-check, then `ArgumentOutOfRangeException` for
@@ -274,7 +274,7 @@ re-parsing it each time — a property a purely static API could not express.
   PdfRenderOptions.Default).BackgroundColor)` (opaque white when `options` is `null` or leaves
   `BackgroundColor` at its own default), resolves the page's leaf node, raw `/MediaBox` origin,
   and inherited `/Resources` via `ResolvePageDetails`, derives the page's base CTM via
-  `BuildBaseCtm` (see _Content-Stream Interpreter_ below), resolves the page's `/Contents` bytes
+  `BuildBaseCtm` (see *Content-Stream Interpreter* below), resolves the page's `/Contents` bytes
   via `ResolvePageContentBytes`, executes them via `ExecuteContentStream` (passing the resolved
   `/Resources`), and returns the painted surface. The surface is owned by `Render` until it is
   returned: any exception from page resolution or content execution disposes it before
@@ -386,9 +386,9 @@ truncation rule.
   still relied on deliberately, instead of also carrying a redundant "is this the Encrypt
   dictionary's own object number" guard field, to avoid dead/speculative code (see
   `PdfDocument_Open_Encrypted_EncryptDictionaryStringsAreNeverDecrypted` for the regression test).
-  However, by the time `InitializeEncryption` runs, _other_ objects may already be cached pre-key
+  However, by the time `InitializeEncryption` runs, *other* objects may already be cached pre-key
   too: the trailer's own `/Root` Catalog (resolved by the constructor's own `IsValidCatalogRoot`
-  check before `InitializeEncryption` ever runs) and, on the linear-scan fallback path, _every_
+  check before `InitializeEncryption` ever runs) and, on the linear-scan fallback path, *every*
   object in the document (resolved by `BuildLinearScanFallback`'s own scan looking for a
   `/Type /Catalog` object) — none of those pre-key cache entries' own strings were decrypted
   either. Once `_encryptionKey` is established by whichever `/V` branch succeeds, this method
@@ -513,8 +513,8 @@ its own distinguishable `Feature` token.
   implements (graphics-state, path-construction, path-painting, clipping-path, device-color,
   image-XObject, and the `sh` shading operator), silently doing nothing for any other keyword
   (text, `gs` (ExtGState), inline images, and any other operator not yet implemented). `sh` is
-  dispatched to `OpPaintShading` (`PdfDocument.Patterns.Shading.cs`) — see _`/Pattern` Color Space
-  (Shading and Tiling Patterns)_ below for what it paints and how it reuses the shading-pattern
+  dispatched to `OpPaintShading` (`PdfDocument.Patterns.Shading.cs`) — see *`/Pattern` Color Space
+  (Shading and Tiling Patterns)* below for what it paints and how it reuses the shading-pattern
   resolution/clip-mask mechanisms already documented there.
 - **`ResolvePageContentBytes(PdfObject pageNode)` (`PdfDocument.ContentStream.cs`)** — resolves
   `/Contents`: a single stream is decoded directly via `GetStreamDecodedBytes`; an array of
@@ -547,7 +547,7 @@ its own distinguishable `Feature` token.
   (`f`/`F`/`f*`/`S`/`s`/`B`/`B*`/`b`/`b*`/`n`): fills via `Drawing.PathFiller.Fill` with the
   current graphics state's `FillColor` and the operator's documented fill rule; strokes via a
   shared `PaintStroke` helper (extracted so it is also reusable by `PdfDocument.Text.cs`'s
-  `ShowGlyph`, for `Tr` modes `1`/`2` - see _Text Rendering_ below), which runs
+  `ShowGlyph`, for `Tr` modes `1`/`2` - see *Text Rendering* below), which runs
   `Drawing.PathStroker.Stroke` then fills the resulting outline with `StrokeColor`, using a
   `Drawing.StrokeStyle` built from the current graphics state's line width/cap/join/miter-limit/
   dash pattern — every `StrokeStyle` field is passed explicitly (the PDF specification's own
@@ -589,7 +589,7 @@ its own distinguishable `Feature` token.
     above shares this exact `Drawing.PathStroker.Stroke`/`StrokeOutliner` code path, so the
     investigation confirmed the same underlying defect is reproducible here too, with plain
     large-magnitude device-space coordinates independent of PPTX/EMU. In practice, `PaintStroke`
-    strokes `path` _after_ it is already device-space-baked (unlike the PPTX caller that was
+    strokes `path` *after* it is already device-space-baked (unlike the PPTX caller that was
     stroking in native, pre-transform EMU space) and typical PDF device-space coordinates stay at
     a modest, page/pixel scale, so this defect was judged unlikely to manifest for ordinary PDF
     documents - no `PdfDocument` source change was required. The shared `StrokeOutliner` tolerance
@@ -600,18 +600,18 @@ its own distinguishable `Feature` token.
     (not a solid disc) through this exact code path.
 - **Clipping-path operators (`W`/`W*`, `PdfDocument.ContentStream.cs`/`PdfDocument.PathOps.cs`/
   `PdfDocument.GraphicsState.cs`, per PDF 32000-1 §8.5.4)** — `W`/`W*` do not themselves modify the
-  active clip immediately; each only records a _pending_ clip fill rule
+  active clip immediately; each only records a *pending* clip fill rule
   (`_pendingClipFillRule`, nonzero for `W`, even-odd for `W*`) on a field scoped exactly like
   `_pathBuilder` (not part of `GraphicsState`, since it tracks in-progress-path state, not a
   graphics-state attribute that survives `q`/`Q`). `PaintCurrentPath` - the single shared dispatch
-  point for every path-painting operator - applies the pending clip _after_ that operator's own
-  fill/stroke painting (so, for example, `W f` still fills using the _previous_ clip, then installs
+  point for every path-painting operator - applies the pending clip *after* that operator's own
+  fill/stroke painting (so, for example, `W f` still fills using the *previous* clip, then installs
   the new one for whatever comes next; `W n` paints nothing but still installs the new clip): it
   rasterizes the just-painted path into a fresh `Drawing.ClipMask` (via `ClipMask.FromPathOrNull`,
   under the pending fill rule, bound to the destination surface's own pixel extent; an
   axis-aligned rectangle is represented analytically with no dense mask, and a rectangle covering
   the whole surface yields `null`, i.e. no clip) and assigns
-  `_gs.Clip = ClipMask.Combine(_gs.Clip, newMask)` - an _intersection_ with any
+  `_gs.Clip = ClipMask.Combine(_gs.Clip, newMask)` - an *intersection* with any
   already-active clip (with `null` meaning "no clip"), never a wholesale replacement, per the
   specification's own wording ("the new
   clipping path ... shall be the intersection of the current clipping path and the newly
@@ -631,7 +631,7 @@ its own distinguishable `Feature` token.
   rather than through `Drawing.PathFiller` - that method instead multiplies each sampled source
   pixel's own alpha by `_gs.Clip?.GetCoverage(x, y)` before compositing it "over" the destination,
   the same technique applied at the one paint call site that does not go through `Drawing.PathFiller`.
-  See `docs/design/canvas-net/drawing/path-filler.md`'s own _ClipMask_ subsection for the
+  See `docs/design/canvas-net/drawing/path-filler.md`'s own *ClipMask* subsection for the
   `Drawing`-layer rasterization/intersection mechanics.
 - **Device color operators (`PdfDocument.Color.cs`, added in Phase 3; color-space model replaced
   in Phase 14)** — a private, immutable `PdfColorSpace` class (nested `Family` enum:
@@ -663,8 +663,8 @@ its own distinguishable `Feature` token.
   nothing is painted (mesh vertices keep only RGB, so this is lost there); `/All` is treated like any
   colorant; the initial color after `cs`/`CS` for these spaces is all tints `1.0` (other spaces: opaque
   black); a `/Pattern` array
-  form is dispatched instead to `PdfColorSpace.Pattern` (see _`/Pattern` Color Space (Shading and
-  Tiling Patterns)_ below). `OpSetColorFill`/`OpSetColorStroke` (`sc`/`SC`/`scn`/`SCN`) require
+  form is dispatched instead to `PdfColorSpace.Pattern` (see *`/Pattern` Color Space (Shading and
+  Tiling Patterns)* below). `OpSetColorFill`/`OpSetColorStroke` (`sc`/`SC`/`scn`/`SCN`) require
   exactly `ComponentCount` numeric operands for the current color space when it is not
   `/Pattern`; a `/Pattern` color space instead dispatches `scn`/`SCN` (never `sc`/`SC`, which the
   specification never pairs with a pattern name) to the dedicated pattern-operand path described
@@ -824,7 +824,7 @@ its own distinguishable `Feature` token.
   1:1, with the clip coverage applied (for a rectangle or rectangle-union clip as the geometric
   coverage of image-and-clip divided by coverage of the image, so an image edge coincident with a
   clip edge is not attenuated twice; a dense clip keeps the per-pixel product) (image sample row `0`
-  is the _top_ of the unit square per the PDF specification's image-space convention, the opposite
+  is the *top* of the unit square per the PDF specification's image-space convention, the opposite
   of user-space's y-up convention). A rotated or
   skewed placement falls back to inverse-mapped bilinear sampling of an area-prefiltered source
   (`Prefilter` + `SampleBilinear`). Thin features such as one-pixel rules are therefore attenuated
@@ -908,9 +908,9 @@ its own distinguishable `Feature` token.
   — `ResolveFont(PdfObject fontResource)` looks up (and caches, via `_fontCache`) an
   `IResolvedFont`. `BuildResolvedFont` dispatches on `/Subtype`: `/TrueType` and `/Type1` both
   build a `ResolvedSimpleFont` via `BuildResolvedSimpleFont`; `/Type0` builds a
-  `ResolvedCompositeFont` via `BuildResolvedCompositeFont` (see _Composite Font Resolution_
-  below); `/Type3` builds a `ResolvedType3Font` via `BuildResolvedType3Font` (see _Type 3 Font
-  Resolution_ below); any other `/Subtype` (`/MMType1`) throws
+  `ResolvedCompositeFont` via `BuildResolvedCompositeFont` (see *Composite Font Resolution*
+  below); `/Type3` builds a `ResolvedType3Font` via `BuildResolvedType3Font` (see *Type 3 Font
+  Resolution* below); any other `/Subtype` (`/MMType1`) throws
   `Codecs.UnsupportedImageFeatureException` naming the rejected subtype. `IResolvedFont` exposes
   `Font` (the underlying `Fonts.TrueTypeFont`, nullable as of Phase D since a `ResolvedType3Font`
   has no such outline-glyph font program at all - `ShowGlyph` branches on the concrete resolved-
@@ -924,11 +924,11 @@ its own distinguishable `Feature` token.
   to a stream, that (TrueType-outline) embedded font always wins - decoded via the same
   `GetStreamDecodedBytes` every other stream in this class uses, then loaded via
   `Fonts.TrueTypeFont.Load(new MemoryStream(decodedBytes))`; else, when `/FontFile` resolves to a
-  stream, `LoadType1Font` loads the embedded classic PostScript Type 1 program (see _Type 1 Font
-  Resolution_ below); else, when `subtype == "Type1"` and `/FontFile3` is present (with neither
+  stream, `LoadType1Font` loads the embedded classic PostScript Type 1 program (see *Type 1 Font
+  Resolution* below); else, when `subtype == "Type1"` and `/FontFile3` is present (with neither
   `/FontFile` nor `/FontFile2`), `LoadType1CFont` loads the embedded bare Type1C/CFF program (see
-  _Type 1C Font Resolution_ below); only when none of those apply does `BuildResolvedSimpleFont`
-  call `ResolveFallbackFont` (see _Font Fallback Resolution_ immediately below) instead of failing
+  *Type 1C Font Resolution* below); only when none of those apply does `BuildResolvedSimpleFont`
+  call `ResolveFallbackFont` (see *Font Fallback Resolution* immediately below) instead of failing
   closed - reachable for `/Type1` fonts exactly as it already was for `/TrueType` fonts. Before
   dispatching on those embedded-font keys, `BuildResolvedSimpleFont` calls
   `BuildEmbeddedFontGlyphNameMap(fontDict.Get("Encoding"))` - deliberately ahead of (not after,
@@ -978,7 +978,7 @@ its own distinguishable `Feature` token.
 - **Type 1 font resolution (`PdfDocument.Fonts.Type1.cs`, added in Phase B)** —
   `LoadType1Font(PdfObject descriptor, IReadOnlyDictionary<int, string> codepointToGlyphName)`
   is `BuildResolvedSimpleFont`'s `/FontFile` loader
-  counterpart to `LoadCidFontType2Font`/`LoadCidFontType0Font` (see _Composite Font Resolution_
+  counterpart to `LoadCidFontType2Font`/`LoadCidFontType0Font` (see *Composite Font Resolution*
   below): it requires `/FontDescriptor/FontFile` to resolve to a stream
   (`InvalidDataException` otherwise), then reads that stream's own `/Length1`
   (cleartext-segment byte count) and `/Length2` (`eexec`-encrypted-segment byte count) entries -
@@ -1006,7 +1006,7 @@ its own distinguishable `Feature` token.
   is
   `BuildResolvedSimpleFont`'s `/FontFile3` loader counterpart (reached only when `/FontFile` is
   absent, per the priority order above), mirroring `LoadCidFontType0Font`'s own shape-sniffing
-  precedent (see _Composite Font Resolution_ below): it requires `/FontDescriptor/FontFile3` to
+  precedent (see *Composite Font Resolution* below): it requires `/FontDescriptor/FontFile3` to
   resolve to a stream (`InvalidDataException` otherwise), decodes it via the same
   `GetStreamDecodedBytes` every other embedded font stream in this class uses, then sniffs the
   decoded bytes themselves - via the shared `SniffFontFile3Shape` helper
@@ -1028,7 +1028,7 @@ its own distinguishable `Feature` token.
   **Non-Goals**:
   unlike `LoadType1Font`'s classic Type 1 `seac` operator (still rejected, see above), the CFF/Type
   2 charstring format's own deprecated seac-style 4-operand `endchar` composition form (`adx ady
-  bchar achar endchar`) _is_ supported by the core `Fonts` layer (`Fonts.CffCharstringInterpreter`)
+  bchar achar endchar`) *is* supported by the core `Fonts` layer (`Fonts.CffCharstringInterpreter`)
   and therefore renders correctly here too; otherwise identical to `LoadType1Font`'s own Non-Goals
   above (the non-1000-unit-em `/FontMatrix` and built-in `/Encoding` scope boundaries), plus the
   predefined Expert/ExpertSubset CFF charsets are recognized by the core `Fonts` layer but not
@@ -1042,7 +1042,7 @@ its own distinguishable `Feature` token.
   absent, non-array, wrong length, or any element non-numeric) and requires `/CharProcs` to
   resolve to a dictionary (`InvalidDataException` otherwise) - each entry an indirect reference to
   a glyph procedure's own content stream, resolved lazily (at paint time, by
-  _Type 3 Glyph Painting_ below) rather than eagerly here. `/Encoding` is resolved via
+  *Type 3 Glyph Painting* below) rather than eagerly here. `/Encoding` is resolved via
   `ResolveType3Encoding`, reusing the same `ParseDifferences` run-length-decoding helper
   `ApplyDifferences` itself now delegates to (extracted in this phase so both call sites share one
   implementation): an absent, non-dictionary, or `/Differences`-less `/Encoding` leniently
@@ -1057,9 +1057,9 @@ its own distinguishable `Feature` token.
   ignoring any translation component for a displacement vector) to obtain the text-space advance
   width - never divided by `1000`, since a Type 3 font's own `/FontMatrix` is the sole authority
   on its glyph-space-to-text-space scale (which need not be `0.001` at all - see
-  _Type 3 Glyph Painting_'s own highest-risk geometry proof). `/Resources` is read but not
+  *Type 3 Glyph Painting*'s own highest-risk geometry proof). `/Resources` is read but not
   otherwise processed here (optional; its paint-time fallback behavior is also documented in
-  _Type 3 Glyph Painting_ below).
+  *Type 3 Glyph Painting* below).
 - **Type 3 glyph painting (`PdfDocument.Fonts.Type3.cs`, added in Phase D)** —
   `ShowGlyph` branches early, via a `font is ResolvedType3Font type3Font` pattern-matched check -
   performed before ever consulting `IResolvedFont.Font` (which is `null` for this font kind) - to
@@ -1073,7 +1073,7 @@ its own distinguishable `Feature` token.
   both lookups succeed, the glyph procedure's content stream is decoded via the same
   `GetStreamDecodedBytes` every other stream in this class uses, and executed recursively via
   `ExecuteOperators` - the exact same re-entrance pattern `OpDrawFormXObject` already established
-  for Form XObjects (see _Form XObjects_ above): `_resources`/`_gs`/`_gsStack` are saved, `_resources`
+  for Form XObjects (see *Form XObjects* above): `_resources`/`_gs`/`_gsStack` are saved, `_resources`
   is set to the Type 3 font's own `/Resources` when present else left as the invoking content
   stream's own (falling back exactly like a `/Subtype /Form` XObject with no `/Resources` of its
   own), a cloned `GraphicsState` (inheriting the invoking state's fill color/font/etc.) has its
@@ -1093,7 +1093,7 @@ its own distinguishable `Feature` token.
   `DispatchOperator` exactly like every other operator) and their operand count/type validated via
   the same `RequireNumbers` helper every other fixed-arity operator uses, but their result is
   otherwise discarded: this class's authoritative advance width remains the font's own `/Widths`
-  entry (see _Type 3 Font Resolution_ above), consulted independently of whichever glyph procedure
+  entry (see *Type 3 Font Resolution* above), consulted independently of whichever glyph procedure
   happens to be painted - a stray `d0`/`d1` outside a glyph procedure is therefore a harmless,
   validated no-op. **Non-Goal (deliberate Phase D scope boundary)**: `d1`'s optional
   color-operator-suppression behavior (PDF 32000-1 §9.6.5.2 permits, but does not require, a
@@ -1313,8 +1313,8 @@ its own distinguishable `Feature` token.
   `/Identity-H` font (`InvalidDataException` if the byte string's length is not a multiple of 2)
   - showing each decoded code via `ShowGlyph`: `ShowGlyph` calls the selected font's
   `IResolvedFont.Resolve(code)` once (folding in the encoding/glyph-index/advance-width lookup
-  each concrete `IResolvedFont` implementation documents its own priority for - see _Font
-  Resolution_/_Composite Font Resolution_ above), looks up the resolved glyph index's outline via
+  each concrete `IResolvedFont` implementation documents its own priority for - see *Font
+  Resolution*/*Composite Font Resolution* above), looks up the resolved glyph index's outline via
   `Fonts.TrueTypeFont.GetGlyphOutline`, computes the text-rendering matrix `Trm = [Tfs·Th, 0, 0,
   Tfs, 0, Trise] × Tm × CTM` (row-vector composition, matching `OpConcatMatrix`'s own convention),
   combines it with a `1/UnitsPerEm` glyph-space scale, transforms every glyph outline point
@@ -1361,7 +1361,7 @@ its own distinguishable `Feature` token.
   `/BitsPerSample` other than `8`/`16` likewise throws (feature `pdf-function-bitspersample-{n}`).
   This was originally landed as resolved-but-unconsumed groundwork (Phase 1 of the `/Pattern`
   color-space roadmap); it is now consumed directly by shading-pattern gradient construction (see
-  _`/Pattern` Color Space (Shading and Tiling Patterns)_ below), mirroring
+  *`/Pattern` Color Space (Shading and Tiling Patterns)* below), mirroring
   `PdfDocument.Fonts.ToUnicode.cs`'s own precedent of landing a narrowly-scoped parser ahead of
   the feature that consumes it.
 - **Exponential and Stitching Function Evaluation (`PdfDocument.Functions.cs`, added alongside
@@ -1414,9 +1414,9 @@ its own distinguishable `Feature` token.
   resolution precedent); an array form with any element count other than 1 or 2 throws
   `Codecs.UnsupportedImageFeatureException` (feature `pdf-colorspace-Pattern`).
   `OpSetColorFill`/`OpSetColorStroke` (`scn`/`SCN` — the plain `sc`/`SC` operators never carry a
-  pattern name per spec) branch on the active color space's `Kind == Family.Pattern` _before_
+  pattern name per spec) branch on the active color space's `Kind == Family.Pattern` *before*
   reaching the existing numeric-component path: the trailing operand must be a `Name` (else
-  `InvalidDataException`); every operand before it must be numeric, with a count driven _solely_
+  `InvalidDataException`); every operand before it must be numeric, with a count driven *solely*
   by whether the active color space declared a `PatternBase` — exactly `ComponentCount
   (PatternBase)` numbers when one was declared (regardless of whether the pattern the name
   resolves to actually turns out to be a shading or a tiling pattern), or exactly `0` numbers
@@ -1436,7 +1436,7 @@ its own distinguishable `Feature` token.
   either color field.
 - **Shading patterns (`PdfDocument.Patterns.cs`/`PdfDocument.Patterns.Shading.cs`, added
   alongside `/Pattern` color-space support)** — a `/PatternType 2` dictionary's `/Shading`
-  resolves `/ShadingType 2` (axial), `3` (radial) or `4`-`7` (mesh, see _Mesh shadings_ below);
+  resolves `/ShadingType 2` (axial), `3` (radial) or `4`-`7` (mesh, see *Mesh shadings* below);
   any other `/ShadingType` throws
   `Codecs.UnsupportedImageFeatureException` (feature `pdf-shading-type-{n}`). `/ColorSpace` must not be
   `/Pattern`; `/Indexed` is accepted only for a mesh shading without `/Function` (vertex colors are
@@ -1488,7 +1488,7 @@ its own distinguishable `Feature` token.
   `pdf-pattern-not-declared` precedent exactly), calls `ResolveShadingDescriptor` (propagating the
   exact same `pdf-shading-type-{n}`/`pdf-shading-colorspace-{family}` exceptions the shading-
   pattern path already throws, since it is the same method), and builds a transient
-  `ResolvedPattern` with `Matrix = Matrix3x2.Identity` — unlike a shading _pattern_'s own
+  `ResolvedPattern` with `Matrix = Matrix3x2.Identity` — unlike a shading *pattern*'s own
   `/Matrix` (anchored against the page's initial CTM via `PatternToDeviceTransform`), `sh` has no
   pattern wrapper of its own, so `BuildShadingGradient` is instead composed directly against
   `GraphicsState.CurrentTransform`, the CTM in effect when `sh` executes, per spec. The painted
@@ -1496,7 +1496,7 @@ its own distinguishable `Feature` token.
   (transformed by the current CTM) form the region; otherwise a rectangle spanning the full
   destination surface is used — either way the region is passed to the same clip-aware
   `Drawing.PathFiller.Fill(Surface, Path, Gradient, ClipMask?, FillRule, float)` overload
-  `PaintPatternFill`/`PaintCurrentPath`/`PaintStroke` already call (see _Clipping-path operators_
+  `PaintPatternFill`/`PaintCurrentPath`/`PaintStroke` already call (see *Clipping-path operators*
   above), so `sh` composes with an active `W`/`W*` clip with zero new clip-related code, and can
   never paint beyond the destination surface regardless of whether a `/BBox` was declared (that
   overload's own existing `TryFlattenForFill` step always intersects the fill's path bounds
@@ -1522,14 +1522,14 @@ its own distinguishable `Feature` token.
   `OpDrawFormXObject` already established — with one necessary addition: the cell's own nested
   content-stream execution also saves, resets to a fresh value, and restores the path-building
   scalar fields (`_pathBuilder`/`_currentPoint`/`_subpathStart`/`_hasOpenSubpath`), since (unlike
-  `Do`, which is never invoked mid-path-paint) a tiling-pattern cell can be rendered _from inside_
+  `Do`, which is never invoked mid-path-paint) a tiling-pattern cell can be rendered *from inside*
   an in-progress fill/stroke paint operation, after the host's own path has already been captured
   but before it has been cleared — without this extra save/reset/restore, the cell's own path data
   would silently accumulate onto the host's still-live path and corrupt both. For `/PaintType 2`
   (uncolored) patterns, every color the cell's content stream itself sets is overridden by the
   caller-supplied tint before compositing, preserving each pixel's own painted alpha exactly (so a
   partially transparent cell stays partially transparent, just recolored). The rendered cell
-  becomes a `Drawing.TilePaint` (new `Drawing` subsystem unit — see _Introduction_ and
+  becomes a `Drawing.TilePaint` (new `Drawing` subsystem unit — see *Introduction* and
   `Drawing/TilePaint.cs`/`Drawing/TilePaintEvaluator.cs`), sampled per destination
   pixel (exact lookup at 1:1, smoothed when magnified or minified) by `Drawing.PathFiller`'s new `TilePaint` fill
   overload, mirroring the existing `Gradient`
@@ -1542,7 +1542,7 @@ its own distinguishable `Feature` token.
   entry being the color-space conversion of the function output evaluated at that entry's exact t, and a
   pixel takes its nearest entry so converted 8-bit colors are never blended (conversion always follows
   evaluation); the function is applied to the
-  _interpolated_ t, per PDF 32000-1 §8.7.4.5.5-.8, never to the vertices beforehand;
+  *interpolated* t, per PDF 32000-1 §8.7.4.5.5-.8, never to the vertices beforehand;
   Type 4 functions are accepted when single-input) and `/Background`. An `/Indexed` mesh color space is accepted
   only without a `/Function` (vertex components are palette indices). Type 4 reads free-form triangles
   (flag 0 starts a triangle, 1 reuses the previous edge vb-vc, 2 reuses va-vc); type 5 reads a lattice
@@ -1594,7 +1594,7 @@ risks without rejecting any legitimate, real-world PDF document:
   legitimate PDF image or content stream while still bounding a single decode's worst-case
   allocation.
 - **`RunLengthDecode` output cap** — each repeat/literal run is checked against the remaining
-  budget under `RunLengthMaxOutputBytes` (64 MiB) _before_ the run's bytes are appended, throwing
+  budget under `RunLengthMaxOutputBytes` (64 MiB) *before* the run's bytes are appended, throwing
   `InvalidDataException` rather than only detecting the overrun after the full (already expanded)
   output has been materialized; a single 2-byte repeat run can expand to up to 128 output bytes (a
   64x amplification), so checking the budget first closes the window where a tiny crafted stream
@@ -1626,7 +1626,7 @@ risks without rejecting any legitimate, real-world PDF document:
   and corrupt unrelated, subsequently-painted geometry.
 - **CCITT dimension/bounds validation ordering** — `DecodeCcittFaxImageXObject` validates a
   non-positive (zero or negative) `/Columns`/`/Rows` value, and performs its row/column bounds
-  check, _before_ invoking the Group 4 (T.6 MMR) decoder, rather than after: validating first
+  check, *before* invoking the Group 4 (T.6 MMR) decoder, rather than after: validating first
   prevents an oversized allocation from being attempted ahead of the existing bounds check ever
   running.
 - **Xref stream-data-length overflow fix** — `GetStreamRawBytes` computes a compressed object
@@ -1662,7 +1662,7 @@ change behavior for any document within normal real-world limits.
   password containing a character outside ASCII 0-127 for an R2-R4 document** (feature
   `pdf-encrypted-password-non-ascii`) — `Codecs.UnsupportedImageFeatureException` for each,
   thrown directly, each with its own distinguishable `Feature` token (added in Phase 16/17, see
-  _Encryption (Standard Security Handler)_ above; narrows the previous Phase 1 blanket
+  *Encryption (Standard Security Handler)* above; narrows the previous Phase 1 blanket
   `"pdf-encrypted"` rejection of every encrypted document regardless of shape).
 - **Out-of-range `pageIndex` to `GetPageInfo`/`Render`** — `ArgumentOutOfRangeException`, thrown
   directly.
@@ -1672,8 +1672,8 @@ change behavior for any document within normal real-world limits.
   does not itself resolve to a stream) — `InvalidDataException`.
 - **Malformed content-stream syntax, or a malformed operand count/type for a recognized
   operator** — `InvalidDataException`, matching `PdfDocument.Xref.cs`'s own established
-  malformed-input convention. An unrecognized operator is never an error (see _Content-Stream
-  Interpreter_ above); an unbalanced `Q` with no matching prior `q` is likewise tolerated as a
+  malformed-input convention. An unrecognized operator is never an error (see *Content-Stream
+  Interpreter* above); an unbalanced `Q` with no matching prior `q` is likewise tolerated as a
   documented no-op, not an error.
 - **An unsupported color space** (`cs`/`CS`, or an image XObject's `/ColorSpace`:
   `/Separation` or `/DeviceN` with a `Pattern`/`Indexed`/`Separation`/`DeviceN` alternate or a tint transform
@@ -1728,7 +1728,7 @@ change behavior for any document within normal real-world limits.
   that runs past `/Columns`, or running out of bits mid-row) — `InvalidDataException` instead.
 - **`Do` on a `/Subtype /Form` XObject whose nesting depth already equals
   `MaxFormNestingDepth` (`12`), or whose own `/Matrix` is present but is not an array of exactly
-  6 numbers** — `InvalidDataException` (added in Phase 13; see _Image XObjects_/_Form XObjects_
+  6 numbers** — `InvalidDataException` (added in Phase 13; see *Image XObjects*/*Form XObjects*
   above).
 - **`Do` with a name undeclared in `/Resources/XObject` (or no `/Resources` at all), a
   non-stream/missing-`/Subtype` resolved value, or a malformed operand count/type** —
@@ -1740,7 +1740,7 @@ change behavior for any document within normal real-world limits.
   as of Phase 6 (widened to `/Type1` in Phase B) - it is resolved
   via fallback substitution instead (see below). A `/BaseFont` of exactly `Symbol` or
   `ZapfDingbats` resolves via a bundled Noto substitute font union instead of reaching this list
-  either (see _Font fallback resolution_ above); any other font whose `/FontDescriptor/Flags`
+  either (see *Font fallback resolution* above); any other font whose `/FontDescriptor/Flags`
   declares `Symbolic` without also
   declaring `Nonsymbolic` still throws `Codecs.UnsupportedImageFeatureException` (feature
   `pdf-font-symbolic-not-embedded`) - a symbol/dingbat glyph set with no bundled substitute has no
@@ -1768,7 +1768,7 @@ change behavior for any document within normal real-world limits.
   kind, a Type 3 font has no fallback-substitution path at all, so either condition fails
   closed unconditionally). A Type 3 glyph procedure's recursion exceeding
   `MaxType3NestingDepth` (`12`, tracked independently of `MaxFormNestingDepth` - see
-  _Type 3 Glyph Painting_ above) is `InvalidDataException` as well, mirroring
+  *Type 3 Glyph Painting* above) is `InvalidDataException` as well, mirroring
   `OpDrawFormXObject`'s own nesting-depth precedent. An unmapped character code, or a mapped
   glyph name absent from `/CharProcs`, is never an exception for a Type 3 font - it paints
   nothing but still advances (a deliberate leniency, matching `ResolveWidths`'s own established
@@ -1833,7 +1833,7 @@ change behavior for any document within normal real-world limits.
   unmodified, for `/Encrypt` detection and, as of Phase 3, an unsupported color space/stream
   filter/image bit depth; as of Phase 14, also an unsupported pattern type/shading
   type/shading color space/function type; as of Phase 16, also each of the five distinct
-  narrowed encryption rejection reasons documented under _Error Handling_ above
+  narrowed encryption rejection reasons documented under *Error Handling* above
 - `Codecs.JpegCodec` (from the core `CanvasNet` system, new as of Phase 3) — `Load(Stream)`
   decodes an image XObject's bare `DCTDecode` (JPEG) bitstream directly, without requiring
   APP0/JFIF framing
@@ -1848,7 +1848,7 @@ change behavior for any document within normal real-world limits.
   (`LinearGradient`) or radial (`RadialGradient`) shading pattern built from the resolved
   `/Shading` dictionary's evaluated function and `/Coords`; its `TilePaint`-typed `Fill` overload
   paints a colored/uncolored tiling pattern's own pre-rendered repeating tile cell through the
-  pattern-to-device transform — see _`/Pattern` Color Space (Shading and Tiling Patterns)_ above
+  pattern-to-device transform — see *`/Pattern` Color Space (Shading and Tiling Patterns)* above
   for the full construction detail
 - `Fonts.TrueTypeFont` (from the core `CanvasNet` system, new as of Phase 4, `LoadType1` added in
   Phase A) — loads an embedded `/FontFile2` byte stream and resolves each shown codepoint to a
@@ -1887,21 +1887,20 @@ no other unit or subsystem in this repository calls into it.
 `PdfImageSource` (`PdfImageSource.cs`) is the `IImageSource` of the package for `.pdf` files, so that a document can
 link to a PDF file through the shared `FolderImageResolver`; it draws the **first page, or the page the fragment of the
 link names** (`report.pdf#page=3`). The source implements `IFragmentImageSource` (`FragmentParameters` is `["page"]`)
-and reads `request.Fragment.GetPositiveInt32("page")` before it reads the file, so an unusable value (`image-fragment-invalid`
-through `ImageSourceRefusedException`) costs nothing. `Render(request)` opens the
-document with `PdfDocument.Open(request.OpenContent())`, throws `ImageSourceRefusedException` with the code
-`image-page-out-of-range` when the page is beyond `PageCount`, takes the displayed (rotation-adjusted) size of the chosen
-page from
-`GetPageInfo` at 96 dots per inch as the natural size (points times 96/72, rounded), asks `request.SizeFor(naturalWidth,
-naturalHeight, fitInside: true)` for the largest size of the aspect ratio of the page inside the requested box, charges
-that size with `request.EnsureWithinBudget(width, height)` (a size that does not fit in the live budget is
-refused with
-`ImageSourceBudgetException` before any surface is allocated; the contract is on `ImageSourceRequest`), and
-draws it with `Render(index, width, height, new PdfRenderOptions { BackgroundColor = transparent })`, so the page is sharp
-at the size of its placement, not distorted, and the embedding document shows through. The PDF library has no
-diagnostics channel and cannot be canceled while it draws, so the result has no notes (the strictness switch has no
-effect) and the cancellation token is checked before the document is opened and before it is drawn. The class is
-stateless, thread-safe, claims no URI scheme, and references only the core package.
+and reads `request.Fragment.GetPositiveInt32("page")` before it reads the file, so an unusable value
+(`image-fragment-invalid` through `ImageSourceRefusedException`) costs nothing. `Render(request)` opens the document
+with `PdfDocument.Open(request.OpenContent())`, throws `ImageSourceRefusedException` with the code
+`image-page-out-of-range` when the page is beyond `PageCount`, takes the displayed (rotation-adjusted) size of the
+chosen page from `GetPageInfo` at 96 dots per inch as the natural size (points times 96/72, rounded), asks
+`request.SizeFor(naturalWidth, naturalHeight, fitInside: true)` for the largest size of the aspect ratio of the page
+inside the requested box, charges that size with `request.EnsureWithinBudget(width, height)` (a size that does not fit
+in the live budget is refused with `ImageSourceBudgetException` before any surface is allocated; the contract is on
+`ImageSourceRequest`), and draws it with
+`Render(index, width, height, new PdfRenderOptions { BackgroundColor = transparent })`, so the page is sharp at the size
+of its placement, not distorted, and the embedding document shows through. The PDF library has no diagnostics channel
+and cannot be canceled while it draws, so the result has no notes (the strictness switch has no effect) and the
+cancellation token is checked before the document is opened and before it is drawn. The class is stateless, thread-safe,
+claims no URI scheme, and references only the core package.
 
 The behavior of the class is specified by the `CanvasNetPdf-PdfDocument-ImageSource` requirement and verified by
 `PdfImageSourceTests.cs`. Its **callers** are the shared `FolderImageResolver` of the core package (through

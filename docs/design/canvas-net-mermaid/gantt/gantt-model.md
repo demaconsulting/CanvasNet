@@ -52,7 +52,7 @@ The unit's behavior is specified by the `CanvasNetMermaid-Gantt-GanttModel-*` re
 
 **`GanttTask`** is a task of one render, as `getTasks` gives it to the renderer: its raw task and its row, and the
 start, the end, and the end of the drawn bar when excluded days moved the end (`RenderEndTime`), each a `JsDate` (see
-_TimeAxis Unit Design_) or null while undefined, whether the dates are resolved (`Processed`), and whether the end is a
+*TimeAxis Unit Design*) or null while undefined, whether the dates are resolved (`Processed`), and whether the end is a
 `YYYY-MM-DD` date that excluded days do not move (`ManualEndTime`). The renderer may set the row again for the compact
 mode.
 
@@ -90,7 +90,7 @@ three letters, the meridiem `AM`/`PM`, and no long-date formats) and the token l
   sections of the tasks that are not vertical markers, each once, without a section named `__proto__` (whose title
   Mermaid does not draw).
 - **`Layout(DiagramRenderContext)`** creates a `GanttRenderer` for the render and returns the scene it draws (see
-  _GanttRenderer Unit Design_).
+  *GanttRenderer Unit Design*).
 - **`Compile(GanttClock, LayoutWorkMeter)`** is Mermaid's `getTasks` for one render: it copies the raw tasks into
   `GanttTask`s of the render and runs one pass over them, then up to ten more while a task is unresolved
   (`compileTasks`), charging one unit of work for each task in each pass. A task (`compileTask`) takes its start from

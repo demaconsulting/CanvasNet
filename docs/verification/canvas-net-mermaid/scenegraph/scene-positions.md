@@ -18,7 +18,7 @@ internal types are reached through the test assembly's `InternalsVisibleTo` acce
 
 The positions that real diagrams report through `MermaidDocument.Render` - every diagram type's kinds, source ids,
 and facts, the mapping by the scale and the fit, and the unchanged pixels - are verified by the `MermaidDocument`
-position tests (see _MermaidDocument Unit Verification Design_).
+position tests (see *MermaidDocument Unit Verification Design*).
 
 Unit tests reside in `ScenePositionsTests.cs` within the `DemaConsulting.CanvasNet.Mermaid.Tests` project, in the
 `Scenegraph` folder.

@@ -46,7 +46,7 @@ and every pixel's alpha is 255, regardless of the source alpha.
 Builds a surface with varied pixel values, saves it using the default `PngColorType.Rgba` to a
 `MemoryStream`, loads it back, and asserts every pixel (including alpha) matches the source
 exactly. This also exercises a correct round-trip Adler-32 checksum (see
-_CanvasNet-Codecs-PngCodec-AdlerValidation_ below).
+*CanvasNet-Codecs-PngCodec-AdlerValidation* below).
 
 ##### CanvasNet-Codecs-PngCodec-MultiIdatChunks: IDAT Data Is Concatenated Across Multiple Chunks
 

@@ -19,23 +19,21 @@ The unit's behavior is specified by the `CanvasNet-ImageSources-RasterImageSourc
 
 #### Data Model
 
-The class has no mutable state. `Name` is `raster`; `Extensions` are `.png .jpg .jpeg .bmp .tif .tiff .gif .jp2 .j2k .j2c`;
-`Schemes` is empty. Both lists are shared `ReadOnlyCollection<string>` instances, so a caller cannot change them by
-casting. The class is stateless and thread-safe, so one instance serves any number of resolvers.
+The class has no mutable state. `Name` is `raster`; `Extensions` are
+`.png .jpg .jpeg .bmp .tif .tiff .gif .jp2 .j2k .j2c`; `Schemes` is empty. Both lists are shared
+`ReadOnlyCollection<string>` instances, so a caller cannot change them by casting. The class is stateless and
+thread-safe, so one instance serves any number of resolvers.
 
 #### Key Methods
 
 **`Render(request)`**: check the token and that the request has content; detect the format from the first bytes with
 `ImageFormats.Detect` (the name of the file is not used, so a mislabeled file loads); **read the declared size from the
-header and charge it to the budget of the request with `EnsureWithinBudget` (once, before decoding anything)**; decode with
-`ImageDecoder.Load(stream, format)`; for a JPEG read the Exif orientation from the same bytes and, when it is greater
-than 1,
-replace the surface with `Surface.ApplyExifOrientation` (disposing the first); return the surface at its natural size
-with
-`Format` set to the lower-case name of the detected format and `IsNaturalSize` set to true (the picture is a raster at
-its own pixel size, even when that size equals the request). The size of the request is deliberately ignored: a raster
-has no
-sharper rendering at another size, and the renderer that draws it resamples once.
+header and charge it to the budget of the request with `EnsureWithinBudget` (once, before decoding anything)**; decode
+with `ImageDecoder.Load(stream, format)`; for a JPEG read the Exif orientation from the same bytes and, when it is
+greater than 1, replace the surface with `Surface.ApplyExifOrientation` (disposing the first); return the surface at its
+natural size with `Format` set to the lower-case name of the detected format and `IsNaturalSize` set to true (the
+picture is a raster at its own pixel size, even when that size equals the request). The size of the request is
+deliberately ignored: a raster has no sharper rendering at another size, and the renderer that draws it resamples once.
 
 **`ReadDeclaredSize`** (private): the header probe of each codec, `PngCodec.GetInfo`, `JpegCodec.GetInfo`,
 `BmpCodec.GetInfo`, `TiffCodec.GetInfo`, and `Jpeg2000Codec.GetInfo`, read only the header and return the declared

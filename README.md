@@ -78,15 +78,15 @@ at any size, and `flatten` bakes the numbers in (`canvasnet help svg bindings`).
 ## Features
 
 > **Breaking change: linked files are no longer confined by default.** SVG images, Mermaid pictures, Vega-Lite image
-> marks and data files, OpenSCAD `include` and `use`, and linked document pages now follow `..`, absolute paths,
-> `file:` URIs and symbolic links, as Pandoc does. To keep the old folder confinement, set
+> marks and data files, OpenSCAD `include` and `use`, and linked document pages now follow `..`, absolute paths, `file:`
+> URIs and symbolic links, as Pandoc does. To keep the old folder confinement, set
 > `FileAccess = FileAccessPolicy.Combine(FileAccessPolicy.UnderRoots(folder), FileAccessPolicy.NoSymlinks)` on the
 > options of the operation. The `SandboxedFileResolver` family is obsolete. The `canvasnet` tool follows the same
-> default. Exactly the old confinement is `--file-access roots,no-symlinks --allow-root <folder of the input>`;
-> without `--allow-root`, `roots` also allows everything under the current folder. For a document you do not trust,
-> add `--allow-root <the document's folder>`. The Pandoc filter stays unrestricted unless
-> `CANVASNET_FILE_ACCESS` and `CANVASNET_ROOTS` opt in. See *Migrating from the Folder Sandbox* in
-> the [core library user guide](https://github.com/demaconsulting/CanvasNet/blob/main/docs/user_guide/canvas-net.md#migrating-from-the-folder-sandbox).
+> default. Exactly the old confinement is `--file-access roots,no-symlinks --allow-root <folder of the input>`; without
+> `--allow-root`, `roots` also allows everything under the current folder. For a document you do not trust, add
+> `--allow-root <the document's folder>`. The Pandoc filter stays unrestricted unless `CANVASNET_FILE_ACCESS` and
+> `CANVASNET_ROOTS` opt in. See *Migrating from the Folder Sandbox* in the
+> [core library user guide](https://github.com/demaconsulting/CanvasNet/blob/main/docs/user_guide/canvas-net.md#migrating-from-the-folder-sandbox).
 
 - 🖼️ **Pixel Buffer** - Mutable 32-bit RGBA surface with span access
 - ✂️ **Cropping** - Independent-copy crop for load/crop/save workflows
@@ -163,19 +163,19 @@ dotnet tool install --global DemaConsulting.CanvasNet.Tool
 Each optional file-format/rendering feature ships as its own additional package - install only
 the ones you need, the same way as above:
 
-| Package                             | Adds                                             |
-|-------------------------------------|--------------------------------------------------|
-| `DemaConsulting.CanvasNet.Svg`      | SVG rasterization                                |
-| `DemaConsulting.CanvasNet.Pdf`      | PDF document rendering                           |
-| `DemaConsulting.CanvasNet.Charts`   | Chart building/rendering and OOXML chart parsing |
-| `DemaConsulting.CanvasNet.Pptx`     | PowerPoint (`.pptx`) document rendering          |
-| `DemaConsulting.CanvasNet.Vsdx`     | Visio (`.vsdx`) diagram rendering                |
-| `DemaConsulting.CanvasNet.Render3D` | 3D mesh/scene rasterization                      |
-| `DemaConsulting.CanvasNet.Scad`     | OpenSCAD-language model rendering                |
-| `DemaConsulting.CanvasNet.VegaLite` | Vega-Lite static chart rendering                 |
-| `DemaConsulting.CanvasNet.Mermaid`  | Mermaid diagrams, mindmaps, packets, git graphs  |
-| `DemaConsulting.CanvasNet.Viewer`   | The `canvasnet` operations as library calls      |
-| `DemaConsulting.CanvasNet.Tool`     | The `canvasnet` command-line tool (dotnet tool)  |
+| Package | Adds |
+| --- | --- |
+| `DemaConsulting.CanvasNet.Svg` | SVG rasterization |
+| `DemaConsulting.CanvasNet.Pdf` | PDF document rendering |
+| `DemaConsulting.CanvasNet.Charts` | Chart building/rendering and OOXML chart parsing |
+| `DemaConsulting.CanvasNet.Pptx` | PowerPoint (`.pptx`) document rendering |
+| `DemaConsulting.CanvasNet.Vsdx` | Visio (`.vsdx`) diagram rendering |
+| `DemaConsulting.CanvasNet.Render3D` | 3D mesh/scene rasterization |
+| `DemaConsulting.CanvasNet.Scad` | OpenSCAD-language model rendering |
+| `DemaConsulting.CanvasNet.VegaLite` | Vega-Lite static chart rendering |
+| `DemaConsulting.CanvasNet.Mermaid` | Mermaid diagrams, mindmaps, packets, git graphs |
+| `DemaConsulting.CanvasNet.Viewer` | The `canvasnet` operations as library calls |
+| `DemaConsulting.CanvasNet.Tool` | The `canvasnet` command-line tool (dotnet tool) |
 
 ## Command-Line Tool
 
@@ -208,39 +208,38 @@ unhandled-exception output, and should be reported. Use `canvasnet --version` to
 `canvasnet --validate` to run the built-in self-validation, which can write its results as TRX or JUnit XML with
 `--results`.
 
-| Command                    | Purpose                                                                          |
-|----------------------------|----------------------------------------------------------------------------------|
-| `formats`                  | List the formats the tool reads and writes, and its limits                       |
-| `info`                     | Show the size, format, pages, or modules of a file without rendering it          |
-| `render` (alias `convert`) | Write PNG, JPEG, BMP, or TIFF from an image, drawing, page, or model             |
-| `crop`                     | Cut a rectangle (pixels or percent) out of an image                              |
-| `resize`                   | Resample an image to an exact size                                               |
-| `rotate`                   | Rotate clockwise by any angle (grows the canvas, fills the corners)              |
-| `flip`                     | Mirror horizontally, vertically, or both                                         |
-| `pad`                      | Add a border around an image                                                     |
-| `compare`                  | Measure how much two images differ (MAE, RMSE, PSNR, SSIM, grid)                 |
-| `montage`                  | Compose images and document pages into one labeled contact sheet                 |
-| `inspect`                  | Report the dominant colors and luma statistics, or the value of a pixel          |
-| `flatten`                  | Copy an SVG drawing with its linked models, charts, and diagrams as PNG pictures |
-| `pandoc-filter`            | Draw the pictures of a Pandoc document for the Lua shim, in one process          |
+| Command | Purpose |
+| --- | --- |
+| `formats` | List the formats the tool reads and writes, and its limits |
+| `info` | Show the size, format, pages, or modules of a file without rendering it |
+| `render` (alias `convert`) | Write PNG, JPEG, BMP, or TIFF from an image, drawing, page, or model |
+| `crop` | Cut a rectangle (pixels or percent) out of an image |
+| `resize` | Resample an image to an exact size |
+| `rotate` | Rotate clockwise by any angle (grows the canvas, fills the corners) |
+| `flip` | Mirror horizontally, vertically, or both |
+| `pad` | Add a border around an image |
+| `compare` | Measure how much two images differ (MAE, RMSE, PSNR, SSIM, grid) |
+| `montage` | Compose images and document pages into one labeled contact sheet |
+| `inspect` | Report the dominant colors and luma statistics, or the value of a pixel |
+| `flatten` | Copy an SVG drawing with its linked models, charts, and diagrams as PNG pictures |
+| `pandoc-filter` | Draw the pictures of a Pandoc document for the Lua shim, in one process |
 
-| File-access option      | Purpose                                                                           |
-|-------------------------|-----------------------------------------------------------------------------------|
-| `--file-access <mode>`  | Which local files a document may reference (`any`, the default, or a confinement) |
-| `--allow-root <folder>` | A folder referenced files may be in (repeatable; implies `--file-access roots`)   |
+| File-access option | Purpose |
+| --- | --- |
+| `--file-access <mode>` | Which local files a document may reference (`any`, the default, or a confinement) |
+| `--allow-root <folder>` | A folder referenced files may be in (repeatable; implies `--file-access roots`) |
 
 Both apply to `render` and its verbs, `inspect`, `compare`, `montage`, and `flatten`; the modes are `any` (every regular
 local file, as Pandoc reads them), `roots`, `no-symlinks`, and `roots,no-symlinks`. `canvasnet help files` explains
 the modes, the diagnostics of a denied file, and the opt-in of the Pandoc filter.
 
-`render` reads PNG, JPEG, BMP, TIFF, GIF, JPEG 2000, SVG, PDF, PPTX, VSDX, SCAD, Vega-Lite charts
-(`.vl.json`, `.vl`), and Mermaid diagrams (`.mmd`, `.mermaid`), and applies `--crop`, `--resize`,
-`--fit`, `--rotate` (any angle), `--flip`, and `--pad` in the order written, together with the photo operations
-`--grayscale`, `--invert`, `--threshold`, `--levels`, `--brightness`, `--contrast`, `--auto-levels`, `--deskew`, `--trim`,
-and `--grid`; `crop`, `resize`, `rotate`, `flip`, and `pad` are
-the same pipeline with one operation first. Defaults: an existing output is replaced (`--no-clobber` refuses),
-vector sources are flattened over white, a JPEG is turned upright by its EXIF orientation, document pages are
-drawn at 96 dpi (`--page`, `--all-pages`, `--dpi`), and no side of an image may exceed 8192 pixels.
+`render` reads PNG, JPEG, BMP, TIFF, GIF, JPEG 2000, SVG, PDF, PPTX, VSDX, SCAD, Vega-Lite charts (`.vl.json`, `.vl`),
+and Mermaid diagrams (`.mmd`, `.mermaid`), and applies `--crop`, `--resize`, `--fit`, `--rotate` (any angle), `--flip`,
+and `--pad` in the order written, together with the photo operations `--grayscale`, `--invert`, `--threshold`,
+`--levels`, `--brightness`, `--contrast`, `--auto-levels`, `--deskew`, `--trim`, and `--grid`; `crop`, `resize`,
+`rotate`, `flip`, and `pad` are the same pipeline with one operation first. Defaults: an existing output is replaced
+(`--no-clobber` refuses), vector sources are flattened over white, a JPEG is turned upright by its EXIF orientation,
+document pages are drawn at 96 dpi (`--page`, `--all-pages`, `--dpi`), and no side of an image may exceed 8192 pixels.
 
 The photo operations clean up a photograph of a sketch so it can be read and measured: `--auto-levels` stretches the
 contrast, `--deskew` finds the tilt of the near-horizontal lines (within 15 degrees) and levels the image, reporting the
@@ -261,17 +260,14 @@ schema, and is drawn at the size its specification lays out (`--scale`, `--width
 for example `canvasnet render chart.vl.json -o chart.png --json`. It is a `chart` in the `kind` column of
 `canvasnet formats`, and `canvasnet info chart.vl.json` reports its laid-out size, marks, data sources, parameters,
 title, and schema version without drawing it. The library implements a defined subset of the language (single, layered,
-concatenated, faceted, and repeated views with
-inline, local-file, named, or generated data; the row, aggregating, binning, and stacking transforms with a subset of the
-expression language and static parameters; bar, rect, point, circle, square, rule, tick, line, area, trail, text, and arc
-marks; position, color,
-size, shape, and opacity encodings with legends, color schemes, and time scales and axes), draws only the bundled
-fonts, and never reads the
-network; a chart's CSV, TSV, DSV, or JSON data file is read relative to the folder of its specification, under the
-mode of `--file-access` (there is no data-folder option, and a missing file is a `vega-lite-error`); everything else
-(other marks,
-remote data, and so on) is left out and reported in `diagnostics` with a stable `vl-*` code (`--strict` turns the first
-such report into a failure). A malformed or invalid specification is the error `vega-lite-error`.
+concatenated, faceted, and repeated views with inline, local-file, named, or generated data; the row, aggregating,
+binning, and stacking transforms with a subset of the expression language and static parameters; bar, rect, point,
+circle, square, rule, tick, line, area, trail, text, and arc marks; position, color, size, shape, and opacity encodings
+with legends, color schemes, and time scales and axes), draws only the bundled fonts, and never reads the network; a
+chart's CSV, TSV, DSV, or JSON data file is read relative to the folder of its specification, under the mode of
+`--file-access` (there is no data-folder option, and a missing file is a `vega-lite-error`); everything else (other
+marks, remote data, and so on) is left out and reported in `diagnostics` with a stable `vl-*` code (`--strict` turns the
+first such report into a failure). A malformed or invalid specification is the error `vega-lite-error`.
 
 A Mermaid diagram is read from a file named `.mmd` or `.mermaid` and is drawn with Mermaid's own layout at the size of
 Mermaid's SVG (`--scale`, `--width`, `--height`, and `--size` change it), for example

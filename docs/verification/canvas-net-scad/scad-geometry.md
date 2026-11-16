@@ -8,8 +8,8 @@ namespace `DemaConsulting.CanvasNet.Scad.Geometry`), containing five units: `Sca
 
 ### Verification Approach
 
-The `ScadGeometry` subsystem is verified at two tiers. The unit tests (see _ScadGeometryBuilder_,
-_ScadPrimitives_, _ScadTransforms_, _ScadExtrusions_, and _ScadTextGeometry Unit Verification Design_ under
+The `ScadGeometry` subsystem is verified at two tiers. The unit tests (see *ScadGeometryBuilder*,
+*ScadPrimitives*, *ScadTransforms*, *ScadExtrusions*, and *ScadTextGeometry Unit Verification Design* under
 `scad-geometry/`) verify
 each unit through the subsystem's internal entry point with focused programs and hand-built instantiation trees,
 including the internal types made visible to the test assembly through `InternalsVisibleTo`. The subsystem-level
@@ -24,7 +24,7 @@ the whole subsystem on a caller thread with a 256 KiB stack and on a thread with
 mesh count, the nesting depth, and the total volume.
 
 The renderer is not involved at this tier: the pixels are verified by the `ScadDocument` unit and system tests
-(see _ScadDocument Unit Verification Design_ and _CanvasNetScad System Verification_). No mocking or stubbing is
+(see *ScadDocument Unit Verification Design* and *CanvasNetScad System Verification*). No mocking or stubbing is
 used: the subsystem has no collaborators outside `ScadEvaluation` and the public Render3D and core types, all of
 which are used for real. The subsystem is internal, so its tests reach it through the test assembly's
 `InternalsVisibleTo` access.
@@ -35,7 +35,7 @@ which are used for real. The subsystem is internal, so its tests reach it throug
 - **Execution**: `dotnet test` invoked by `build.ps1` and the CI pipeline, on every target framework
 - **Mocking**: None required
 - **Files**: None at the subsystem tier (the text unit's font-resolution tests use temporary directories, see
-  _ScadTextGeometry Unit Verification Design_); every subsystem program is an in-memory string
+  *ScadTextGeometry Unit Verification Design*); every subsystem program is an in-memory string
 - **Threads**: The deep-model scenario runs the build on dedicated threads with a 256 KiB and a 256 MiB stack and
   joins each before asserting
 - **Isolation**: Each test evaluates and builds its own program and settings; no state is shared between tests
@@ -84,7 +84,7 @@ framework.
   extrusion, the bounds of the rounded box, a boolean node for the cut, and no warning or report.
 - **Projection Is A 2D Shape** (the `projection` requirements of `ScadGeometryBuilder`): the shadow and the section of
   solids, the classification of booleans, the budgets, and the reports are verified at the unit tier (see
-  _ScadGeometryBuilder Unit Verification Design_, _Projection_ scenarios); at this tier `projection` is no longer
+  *ScadGeometryBuilder Unit Verification Design*, *Projection* scenarios); at this tier `projection` is no longer
   used as the example of an unsupported module (the strict-mode scenario above uses `roof`), and the render-level
   behavior (a drawing sheet built from projections, drawn flat from above) is verified in the `ScadDocument` unit and
   the system tests.
@@ -94,7 +94,7 @@ framework.
   feature, one boolean node of two closed extrusions, and for the first the exact Y extent 0 to 10 of the glyph
   and the Z extent 0 to 2 of the extrusion. That a mapped glyph with only degenerate outlines is reported as an invalid
   outline rather than dropped, and that font discovery is bounded and cancelable, is verified at the unit tier
-  (see _ScadTextGeometry Unit Verification Design_).
+  (see *ScadTextGeometry Unit Verification Design*).
 - **Reporting Never Skips Silently** (requirement `CanvasNetScad-ScadGeometry-Reporting`):
   `ScadGeometryTests.ScadGeometry_Build_InvalidAndUnsupportedConstructs_AreReportedAtTheirLocations` — builds a
   program with a valid cube, an invalid cube, `surface`, `roof`, and an `offset` on consecutive lines

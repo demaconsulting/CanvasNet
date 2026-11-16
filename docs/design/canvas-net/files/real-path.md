@@ -31,7 +31,7 @@ The unit's behavior is specified by the `CanvasNet-Files-RealPath-*` requirement
 **`HandleFacts`** (readonly record struct): `IsRegularFile` (`bool?`) and `FinalPath` (`string?`); `null` means the
 platform cannot tell. **`PathComparison`** / **`PathComparer`**: `OrdinalIgnoreCase` on Windows and macOS, `Ordinal`
 elsewhere. On a case-sensitive volume or directory of Windows or macOS this comparison is a known limit (see
-_FileAccessPolicy Unit Design_). The unit is stateless except for one cached flag in `NativeMethods` that remembers
+*FileAccessPolicy Unit Design*). The unit is stateless except for one cached flag in `NativeMethods` that remembers
 whether the C library exports `fstat`.
 
 #### Key Methods
@@ -60,10 +60,10 @@ whether the C library exports `fstat`.
 
 Per system:
 
-- **Windows**: the final path buffer starts at 512 characters and grows to the size the call asks for (at most
-  32,768); `\\?\UNC\` becomes `\\` and the `\\?\` prefix is stripped from a drive path; any other spelling (which the
-  `VOLUME_NAME_DOS` flag should never yield) is no path (unknown, fail closed). The result resolves symbolic links, junctions,
-  substituted and mapped drives, and short (8.3) names.
+- **Windows**: the final path buffer starts at 512 characters and grows to the size the call asks for (at most 32,768);
+  `\\?\UNC\` becomes `\\` and the `\\?\` prefix is stripped from a drive path; any other spelling (which the
+  `VOLUME_NAME_DOS` flag should never yield) is no path (unknown, fail closed). The result resolves symbolic links,
+  junctions, substituted and mapped drives, and short (8.3) names.
 - **Linux**: `open` is imported without its optional mode argument, which is only read with `O_CREAT` (never passed),
   so the call is correct on every ABI; `EINTR` is retried. `errno` maps to the framework's exceptions (`ENOENT` to
   `FileNotFoundException`, `ENOTDIR` to `DirectoryNotFoundException`, `EACCES`/`EPERM` to

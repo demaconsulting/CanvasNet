@@ -21,8 +21,8 @@ Two kinds of file source are used, and both are real implementations of the unit
   deletes, for real files, folders, library paths, byte-order marks, and (where the host permits creating them)
   directory links.
 
-The file-access mechanics are verified once, at the core units (see _FileReferenceResolver Unit Verification Design_
-and _FileAccessPolicy Unit Verification Design_): the real path of the open handle, the race-free check, and the
+The file-access mechanics are verified once, at the core units (see *FileReferenceResolver Unit Verification Design*
+and *FileAccessPolicy Unit Verification Design*): the real path of the open handle, the race-free check, and the
 built-in policies are proven there with internal seams that this project cannot reach. What this unit proves is its own
 layer: that includes are read through the engine with `ScadOpenOptions.FileAccess` (by default `AllowAll`, so `..`,
 absolute paths, and links are read like OpenSCAD reads them; `UnderRoots` and `NoSymlinks` restore the confinement),
@@ -165,9 +165,9 @@ target and followed by default; and a base directory that is itself reached thro
 default policy and under `NoSymlinks`. The end-to-end
 `ScadDocumentEvaluateSafetyTests.ScadDocument_Evaluate_FileSystemNoSymlinks_DirectoryLinkEscape_IsDenied` is
 additional evidence.
-_Not verified, by design:_ a hard link has no marker that tells it from a regular file, and its real path is the path
+*Not verified, by design:* a hard link has no marker that tells it from a regular file, and its real path is the path
 of the link, so under `UnderRoots` a hard link inside a root to a file outside it is read like a regular file; this is
-a documented residual risk of the file-system mode (see the design, _File-system mode_), and no test claims otherwise.
+a documented residual risk of the file-system mode (see the design, *File-system mode*), and no test claims otherwise.
 A component swapped for a link around the open cannot change the decision: the core engine judges the real path of the
 file it opened, which is covered at the core unit (`CanvasNet-Files-FileReferenceResolver-RaceFree`).
 

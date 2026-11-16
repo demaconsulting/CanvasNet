@@ -198,11 +198,11 @@ nodes, 3 edges, and 0 subgraphs, and its text line is exactly `<path>: mermaid, 
 edges, 0 subgraphs, title "Garden", <bytes> bytes`.
 
 **DiscoveryCommands_Info_Packet_ReportsBlocks**: a packet diagram titled `Frame` with `accTitle: A frame` and the blocks
-`0-23`, `+16` (split across the end of the first row), and `+8` is described with the type `packet`, `supported` true, no
-`direction`, the title `Frame`, the accessible title `A frame`, 3 nodes (the block split across two rows counted once),
-0 edges, and 0 subgraphs, laid out at 1026 by 141 pixels (two rows and the title row), and its text line is exactly
-`<path>: mermaid, WxH px (laid out), packet, 3 nodes, 0 edges, 0 subgraphs, title "Frame", accTitle "A frame", <bytes>
-bytes`.
+`0-23`, `+16` (split across the end of the first row), and `+8` is described with the type `packet`, `supported` true,
+no `direction`, the title `Frame`, the accessible title `A frame`, 3 nodes (the block split across two rows counted
+once), 0 edges, and 0 subgraphs, laid out at 1026 by 141 pixels (two rows and the title row), and its text line is
+exactly
+`<path>: mermaid, WxH px (laid out), packet, 3 nodes, 0 edges, 0 subgraphs, title "Frame", accTitle "A frame", <bytes> bytes`.
 
 **DiscoveryCommands_Info_GitGraph_ReportsCommitsAndParentLinks**: a `gitGraph TB:` git graph titled `History` with
 `accTitle: A history`, a commit, the branch `dev` with a commit, and a merge of `dev` into `main` tagged `v1` is

@@ -5,7 +5,7 @@ in the `PngSuite` conformance corpus (`basn2c08.png`, an RGB image, and `basn6a0
 image), exercising the byte-order, compression, and photometric combinations `TiffCodec` supports:
 
 | File | Source | Byte Order | Compression | Photometric |
-| ------ | -------- | ------------ | ------------- | ------------- |
+| --- | --- | --- | --- | --- |
 | `rgb_none_le.tiff` | `basn2c08.png` | Little-endian (II) | None | RGB |
 | `rgb_none_be.tiff` | `basn2c08.png` | Big-endian (MM) | None | RGB |
 | `rgb_lzw.tiff` | `basn2c08.png` | Little-endian (II) | LZW | RGB |

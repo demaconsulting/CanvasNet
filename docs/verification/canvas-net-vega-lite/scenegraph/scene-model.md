@@ -165,7 +165,7 @@ draw nothing cost nothing (`CanvasNetVegaLite_SystemIntegration_Limits_RowsThatD
 largest `long` rather than wrapping around (`SceneBudget_Add_CountsExactlyAndFailsBeyondTheLimit`,
 `SceneBudget_Add_SaturatesInsteadOfOverflowing`). Every scene item is charged before it is created and a limit of N
 allows exactly N items; that boundary is verified through the whole pipeline by the system tests listed in
-_CanvasNetVegaLite System Verification_ ("Limits: Scene Item Limit Is Exact And Charged Before Creation"), and the fork
+*CanvasNetVegaLite System Verification* ("Limits: Scene Item Limit Is Exact And Charged Before Creation"), and the fork
 and adopt used to charge the repeated axis passes by
 `CanvasNetVegaLite_SystemIntegration_Limits_BudgetForkIsAdoptedOnlyWhenKept`.
 

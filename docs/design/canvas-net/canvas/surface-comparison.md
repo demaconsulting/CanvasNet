@@ -12,10 +12,10 @@ surface (`reference.Compare(redraw, 8, 4, 4)`).
 
 A caller that redraws an image needs to know how close the result is to its reference and where it differs. The unit
 gives exact, repeatable error and similarity measures, the error of each cell of a grid, and pictures of the difference.
-It was originally part of the command-line tool (`ImageComparison`); it lives in the core library so that every CanvasNet
-package, and any library user, can use it. What only a command line needs - the names of the metrics, the thresholds that
-turn a result into pass or fail, and the defaults of the options - stays in the tool. The unit knows nothing of files,
-options, or commands.
+It was originally part of the command-line tool (`ImageComparison`); it lives in the core library so that every
+CanvasNet package, and any library user, can use it. What only a command line needs - the names of the metrics, the
+thresholds that turn a result into pass or fail, and the defaults of the options - stays in the tool. The unit knows
+nothing of files, options, or commands.
 
 #### Data Model
 
@@ -63,15 +63,15 @@ measures are then:
 
 The grid divides the width into `C` columns with boundaries `x_i = floor(i * W / C)` and the height into `R` rows with
 `y_j = floor(j * H / R)` (integer division), so the cells partition the image exactly. A cell reports the same measures
-over its own pixels, with `3 * cellPixels` in place of `3 N`; tables that map each x and y to its column and row make the
-accumulation one pass. The grid sides are 1 to 64 and no larger than the image. The sums cannot overflow: the largest
-surface is 8192 by 8192 pixels and `d^2 <= 65025`, so a sum is below `2^64` by a wide margin.
+over its own pixels, with `3 * cellPixels` in place of `3 N`; tables that map each x and y to its column and row make
+the accumulation one pass. The grid sides are 1 to 64 and no larger than the image. The sums cannot overflow: the
+largest surface is 8192 by 8192 pixels and `d^2 <= 65025`, so a sum is below `2^64` by a wide margin.
 
 **Ssim(a, b)** (internal): the "SSIM-lite" of the luma. The luma of a pixel is the integer
 `Y = (77 R + 150 G + 29 B + 128) >> 8` (BT.601 in fixed point, the same as `OpaqueLuma` of the adjustments, with alpha
-ignored). The windows are uniform (box) windows of `min(8, W)` by `min(8, H)` pixels with origins every 4 pixels in x and
-in y (`0, 4, 8, ...` while the window fits) plus one final window flush with the right and bottom edge when the stride
-does not land there, so every pixel is covered. For a window of `n = w * h` pixels with the exact integer sums
+ignored). The windows are uniform (box) windows of `min(8, W)` by `min(8, H)` pixels with origins every 4 pixels in x
+and in y (`0, 4, 8, ...` while the window fits) plus one final window flush with the right and bottom edge when the
+stride does not land there, so every pixel is covered. For a window of `n = w * h` pixels with the exact integer sums
 `sA = sum(Ya)`, `sB = sum(Yb)`, `sAA = sum(Ya^2)`, `sBB = sum(Yb^2)`, and `sAB = sum(Ya * Yb)`:
 
 ```text
@@ -88,9 +88,9 @@ cost is about four reads per pixel, with no extra memory.
 
 **CreateDiff(other, style, gain)**: an opaque surface of the size of the inputs. The gain is 0.1 to 255. A channel
 difference `d` is amplified to `round(d * gain)` (half away from zero) clamped to 255, through a 256-entry table. With
-`Heat` the pixel's value is `v = amplify(max_c d)` and the color is `R = min(255, 3v)`, `G = min(255, max(0, 3v - 255))`,
-`B = min(255, max(0, 3v - 510))`: black, then red (v = 85), yellow (v = 170), white (v = 255); identical pixels are
-pure black. With `Abs` each channel is its own amplified difference.
+`Heat` the pixel's value is `v = amplify(max_c d)` and the color is `R = min(255, 3v)`,
+`G = min(255, max(0, 3v - 255))`, `B = min(255, max(0, 3v - 510))`: black, then red (v = 85), yellow (v = 170), white
+(v = 255); identical pixels are pure black. With `Abs` each channel is its own amplified difference.
 
 **CreateOverlay(other, weightOfOther)**: the weight is 0 to 1; `bw = round(weight * 255)` (half away from zero) and each
 color channel is `(a * (255 - bw) + b * bw + 127) / 255` in integer arithmetic, so weight 0 gives the colors of this
@@ -108,8 +108,8 @@ with the `Area` filter to `floor(W s)` by `floor(H s)`, where `s` is the smaller
 A null surface throws `ArgumentNullException`; surfaces of different sizes throw `ArgumentException` naming both sizes;
 a tolerance outside 0 to 255, a grid side outside 1 to 64 or larger than the image, a gain outside 0.1 to 255 (or not a
 number), a weight outside 0 to 1 (or not a number), an undefined style, or a negative cell count throw
-`ArgumentOutOfRangeException`; a disposed surface, as either operand, throws `ObjectDisposedException`. Every argument is
-validated before anything is allocated. A picture that was allocated is disposed if its creation fails, and the
+`ArgumentOutOfRangeException`; a disposed surface, as either operand, throws `ObjectDisposedException`. Every argument
+is validated before anything is allocated. A picture that was allocated is disposed if its creation fails, and the
 intermediate panel of a scaled side-by-side image is disposed on every path.
 
 #### Dependencies

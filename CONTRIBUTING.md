@@ -169,7 +169,7 @@ dotnet test --collect "XPlat Code Coverage"
 
 ### Markdown Guidelines
 
-All markdown files must follow these rules (enforced by markdownlint):
+All markdown files must follow these rules (enforced by LintMark, `dotnet lintmark`):
 
 - Maximum line length: 120 characters
 - Use ATX-style headers (`# Header`)
@@ -210,7 +210,7 @@ All tests must pass with zero warnings.
 ### 2. Linting
 
 ```pwsh
-# After making changes: applies dotnet format, markdown, and YAML fixes silently
+# After making changes: applies dotnet format, markdown (LintMark), and YAML fixes silently
 pwsh ./fix.ps1
 
 # Before submitting a pull request: all linters must pass

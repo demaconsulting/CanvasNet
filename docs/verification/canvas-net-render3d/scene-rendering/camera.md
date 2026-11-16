@@ -14,7 +14,7 @@ when its lateral offset does not exceed the depth times the tangent of the half 
 `ViewTransform` is verified through the test assembly's `InternalsVisibleTo` access. The unit has no
 dependencies other than `DoublePrecisionMath`, so no mocking or stubbing is required. The
 renderer-side rejection of an invalid cross-property camera (for example an orthographic camera
-without a height) is verified under the _SceneRenderer Unit Verification Design_.
+without a height) is verified under the *SceneRenderer Unit Verification Design*.
 
 Unit tests reside in `CameraTests.cs` within the `DemaConsulting.CanvasNet.Render3D.Tests` project,
 in the `SceneRendering` folder.

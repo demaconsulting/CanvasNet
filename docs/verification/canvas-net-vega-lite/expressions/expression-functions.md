@@ -33,7 +33,7 @@ table, and neither is `now` (the clock is not an input
 of a pure expression): a call to them is parsed, reported by the feature catalog, and evaluates to null. The date and
 time functions compute in the calendar of the evaluation (a `TimeCalendar`: UTC unless the render was given a time
 zone) and never in the host's zone, clock, or culture; the calendar, the d3 time format, and the unit specifier that
-they build on are verified in their own units (see _Time Calendar Verification_ and _Time Format Verification_).
+they build on are verified in their own units (see *Time Calendar Verification* and *Time Format Verification*).
 
 #### Verification Approach
 
@@ -190,26 +190,23 @@ null. The repeated scenario asserts bit-identical results on a second call of fo
 
 Assert, with hand-built stores, that `data` gives the tuples of a store as objects (`unit`, `fields` with their `field`,
 `channel`, and `type`, and `values`) and an empty array for an unknown name or a call without stores; that the predicate
-`!length(data("s")) || vlSelectionTest("s", datum)` selects 4, 5, and 7 and not 3 and 8 for the range 4 to 7 (both
-ends included), selects everything for a store without tuples or an unknown store, and, with `length(...) &&` for
-`empty: false`, nothing; that an empty store gives the number 0; that a tuple of type `E` matches by strict equality (the
-number 1 is not the text `"1"`, a datum without the field never matches) or by membership of an array; that a range
-`R` includes both ends, is swapped when reversed, and has no NaN, that `R-RE` includes its start and excludes its end, and
-that `R-E`, `R-LE`, `E-LT`, `E-LTE`, `E-GT`, `E-GTE`, `E-VALID`, and `E-ONE` follow vega-selections; that a date is
-compared as its
-milliseconds; that the union selects what any tuple holds and the intersection unites the tuples of one unit and
-intersects the units (the ranges 1 to 3 and 6 to 8 of one unit and 2 to 7 of another select 7 and 2.5 and not 1 or 4);
-that two identical tuples of one unit never satisfy a unit that a datum misses (`Test`) and that the identity test, as
-`selectionIdTest` of vega-selections, compares the number of tuples that hold a row with the number of units;
+`!length(data("s")) || vlSelectionTest("s", datum)` selects 4, 5, and 7 and not 3 and 8 for the range 4 to 7 (both ends
+included), selects everything for a store without tuples or an unknown store, and, with `length(...) &&` for
+`empty: false`, nothing; that an empty store gives the number 0; that a tuple of type `E` matches by strict equality
+(the number 1 is not the text `"1"`, a datum without the field never matches) or by membership of an array; that a range
+`R` includes both ends, is swapped when reversed, and has no NaN, that `R-RE` includes its start and excludes its end,
+and that `R-E`, `R-LE`, `E-LT`, `E-LTE`, `E-GT`, `E-GTE`, `E-VALID`, and `E-ONE` follow vega-selections; that a date is
+compared as its milliseconds; that the union selects what any tuple holds and the intersection unites the tuples of one
+unit and intersects the units (the ranges 1 to 3 and 6 to 8 of one unit and 2 to 7 of another select 7 and 2.5 and not 1
+or 4); that two identical tuples of one unit never satisfy a unit that a datum misses (`Test`) and that the identity
+test, as `selectionIdTest` of vega-selections, compares the number of tuples that hold a row with the number of units;
 that the identity test needs the row identity in the store (in every unit when intersecting) and, for a store that is
 projected over fields, is the field test (the specification names the identity test from the projection it can see,
-which a default projection of the host's configuration or a value of the host can replace; Vega-Lite never compiles
-the mismatch);
-that the resolution
-gives the values of each field in order without repeats with `vlPoint` (`vlMulti` for the earlier version) for a point
-selection, the sorted range for an interval, the union (smallest range, all values) or the intersection (the overlap, or
-an empty list) of units, the identities of a row-identity store, and an empty object for an empty store; and that the
-work of a test is charged to the step budget (a located error).
+which a default projection of the host's configuration or a value of the host can replace; Vega-Lite never compiles the
+mismatch); that the resolution gives the values of each field in order without repeats with `vlPoint` (`vlMulti` for the
+earlier version) for a point selection, the sorted range for an interval, the union (smallest range, all values) or the
+intersection (the overlap, or an empty list) of units, the identities of a row-identity store, and an empty object for
+an empty store; and that the work of a test is charged to the step budget (a located error).
 
 ##### Math Functions Are Exact At Representable Points
 
@@ -245,13 +242,13 @@ an object give null).
 `ExpressionFunctionsTests.ExpressionFunctions_CaseConversion_IsCultureInvariantAndBounded`
 
 Asserts, as theories, that `upper` applies the full mappings of JavaScript that make longer text (the sharp s gives
-`SS`, a word with it gains a letter, the ligatures `ﬀ` to `ﬆ` and the Armenian `ﬓ`, the letters with a combining mark, the
-Greek letters with an iota subscript, and the dotless i giving `I`) and the plain letters and the empty text unchanged;
-that `lower` gives `i` and a combining dot for the capital I with a dot above and the final sigma exactly where
-JavaScript does (after a letter and not before one, ignoring a soft hyphen and the punctuation inside a word); that the
-results are the same under the Turkish (set on a dedicated worker thread) and the invariant culture; and that a result
-that is longer than its input is
-refused when it passes `MaxStringLength` (two sharp s give four characters under a limit of 4, three give six).
+`SS`, a word with it gains a letter, the ligatures `ﬀ` to `ﬆ` and the Armenian `ﬓ`, the letters with a combining mark,
+the Greek letters with an iota subscript, and the dotless i giving `I`) and the plain letters and the empty text
+unchanged; that `lower` gives `i` and a combining dot for the capital I with a dot above and the final sigma exactly
+where JavaScript does (after a letter and not before one, ignoring a soft hyphen and the punctuation inside a word);
+that the results are the same under the Turkish (set on a dedicated worker thread) and the invariant culture; and that a
+result that is longer than its input is refused when it passes `MaxStringLength` (two sharp s give four characters under
+a limit of 4, three give six).
 
 ##### Arrays: Slice, Search, And Membership
 
@@ -293,16 +290,16 @@ back-reference).
 `ExpressionFunctionsTests.ExpressionFunctions_Split_EmptyRegexAndTextSplitBetweenCodeUnits`
 
 Asserts, as theories of twenty-two and twenty-six texts, `replace` with a text pattern (first occurrence only) and with
-regular expressions (first or all matches), the replacement patterns `$&`, `` $` ``, `$'`, `$$`, `$1` to `$9`, a
-group that does not exist (kept as text), `$0` (kept as text), and named groups `$<name>`, an empty match replaced at
-every position (`replace('abc', /x*/g, '-')` is `-a-b-c-`), and null as the text; `split` with a text separator, an
-empty separator, a limit (zero, below, and above the number of parts), a missing or null separator, leading and
-trailing empty parts, and regular-expression separators with and without capture groups, including the empty regular
-expression and the patterns that match the empty text (`split('abc', /(?:)/)` and `split('abc', /x*/)` are `a`, `b`, `c`,
-`split('abc', /()/)` keeps the empty captures, `split('aXbXc', /(x)|(b)/i)` keeps the groups that did not take part as null);
-and the degenerate splits that have no printable form (`split('', ',')` has one empty part, `split('', '')` has none);
-and that the empty regular expression and the empty text separator both split a surrogate pair into its two UTF-16 code
-units.
+regular expressions (first or all matches), the replacement patterns `$&`, `` $` ``, `$'`, `$$`, `$1` to `$9`, a group
+that does not exist (kept as text), `$0` (kept as text), and named groups `$<name>`, an empty match replaced at every
+position (`replace('abc', /x*/g, '-')` is `-a-b-c-`), and null as the text; `split` with a text separator, an empty
+separator, a limit (zero, below, and above the number of parts), a missing or null separator, leading and trailing empty
+parts, and regular-expression separators with and without capture groups, including the empty regular expression and the
+patterns that match the empty text (`split('abc', /(?:)/)` and `split('abc', /x*/)` are `a`, `b`, `c`,
+`split('abc', /()/)` keeps the empty captures, `split('aXbXc', /(x)|(b)/i)` keeps the groups that did not take part as
+null); and the degenerate splits that have no printable form (`split('', ',')` has one empty part, `split('', '')` has
+none); and that the empty regular expression and the empty text separator both split a surrogate pair into its two
+UTF-16 code units.
 
 ##### Regular Expression Safety
 
@@ -413,16 +410,16 @@ and 240 at 07:00Z (the change instant).
 `ExpressionFunctionsTimeTests.ExpressionFunctions_WeekFunctions_LocalAndUtcFormsDiffer`
 
 Asserts the quarter of each month (1, 1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 4, for both forms), the Vega `week` (the number of
-Sundays since the first of January: 2012-01-01 is a Sunday so it is week 1, January 7 is still week 1 and January 8
-is week 2; 2013-01-01 is a Tuesday, so it and January 2 and 5 are week 0 and Sunday January 6 is week 1; the Sundays
-before 2024-03-05 are January 7, 14, 21, 28, February 4, 11, 18, 25 and March 3, nine, so it is 9), `dayofyear` (65 for
-2024-03-05 = 31 + 29 + 5, 1 for January 1, 366 for December 31 of the leap year 2024 and 365 for 2023). The ISO week
-is checked around the year boundaries: 2020 starts on a Wednesday, so it has 53 weeks and Sunday 2021-01-03 is week 53
+Sundays since the first of January: 2012-01-01 is a Sunday so it is week 1, January 7 is still week 1 and January 8 is
+week 2; 2013-01-01 is a Tuesday, so it and January 2 and 5 are week 0 and Sunday January 6 is week 1; the Sundays before
+2024-03-05 are January 7, 14, 21, 28, February 4, 11, 18, 25 and March 3, nine, so it is 9), `dayofyear` (65 for
+2024-03-05 = 31 + 29 + 5, 1 for January 1, 366 for December 31 of the leap year 2024 and 365 for 2023). The ISO week is
+checked around the year boundaries: 2020 starts on a Wednesday, so it has 53 weeks and Sunday 2021-01-03 is week 53
 while Monday 2021-01-04 is week 1; 2024-12-30 (a Monday) belongs to week 1 of 2025 and December 29 to week 52;
-2022-01-01 (a Saturday) is week 52 of 2021; December 31, 2015 and 2016-01-03 are week 53 and 2016-01-04 is week 1
-(2015 started on a Thursday); and 2024-03-05 is week 10 (day 65: 1 + 64 div 7 = 10). The local forms use the zone and the
-UTC forms do not: 2024-03-03T23:00Z is Sunday in UTC (day of year 63, ISO week 9) and Monday March 4 at 04:30 at
-+05:30 (day of year 64, ISO week 10), and 2024-03-31T23:00Z is in the first quarter in UTC and the second at +05:30.
+2022-01-01 (a Saturday) is week 52 of 2021; December 31, 2015 and 2016-01-03 are week 53 and 2016-01-04 is week 1 (2015
+started on a Thursday); and 2024-03-05 is week 10 (day 65: 1 + 64 div 7 = 10). The local forms use the zone and the UTC
+forms do not: 2024-03-03T23:00Z is Sunday in UTC (day of year 63, ISO week 9) and Monday March 4 at 04:30 at +05:30 (day
+of year 64, ISO week 10), and 2024-03-31T23:00Z is in the first quarter in UTC and the second at +05:30.
 
 ##### Offsets By Calendar Units
 
@@ -454,16 +451,16 @@ Asserts that a sequence runs from the first boundary at or after the start up to
 January 4 by day has three dates (January 1, 2, and 3); a start at 06:00 begins at the next midnight (two dates); six
 hourly steps give 00:00, 06:00, 12:00, and 18:00 (four); `date` by 2 over a week gives four, `dayofyear` seven, month
 twelve, quarter four (the last on October 1), year four, milliseconds five, and minutes with a step of 1.9 (taken as 1,
-so three); and the result is an empty array when the stop is not after the start, the step is below 1, or an argument
-is not a date, null for an unknown unit, and an array otherwise. The local form follows the zone across a daylight
-change: local midnights of March 9, 10, and 11 in the US-like zone are 05:00Z, 05:00Z (the change is at 02:00 local,
-after midnight), and 04:00Z (-4 h), while the UTC form starts at the next UTC midnight. A sequence is bounded by the
-`MaxScaleDomainSize` limit: with a limit of 10, ten days are allowed and eleven fail with an `ExpressionRuntimeException`
-(through an evaluator a located `VegaLiteRenderException`) that names `VegaLiteLimits.MaxScaleDomainSize` and "the limit
-of 10", and a million-millisecond request under the default limit is refused for the same limit long before a million
-dates are built. A sequence costs one step per date (a sequence of 100 days is exactly 100 steps) and a budget of 500
-steps refuses 800 days with the error that names `VegaLiteLimits.MaxEvaluationSteps`; a canceled token stops it with
-an `OperationCanceledException`.
+so three); and the result is an empty array when the stop is not after the start, the step is below 1, or an argument is
+not a date, null for an unknown unit, and an array otherwise. The local form follows the zone across a daylight change:
+local midnights of March 9, 10, and 11 in the US-like zone are 05:00Z, 05:00Z (the change is at 02:00 local, after
+midnight), and 04:00Z (-4 h), while the UTC form starts at the next UTC midnight. A sequence is bounded by the
+`MaxScaleDomainSize` limit: with a limit of 10, ten days are allowed and eleven fail with an
+`ExpressionRuntimeException` (through an evaluator a located `VegaLiteRenderException`) that names
+`VegaLiteLimits.MaxScaleDomainSize` and "the limit of 10", and a million-millisecond request under the default limit is
+refused for the same limit long before a million dates are built. A sequence costs one step per date (a sequence of 100
+days is exactly 100 steps) and a budget of 500 steps refuses 800 days with the error that names
+`VegaLiteLimits.MaxEvaluationSteps`; a canceled token stops it with an `OperationCanceledException`.
 
 ##### Unit Specifier
 

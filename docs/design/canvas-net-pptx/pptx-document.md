@@ -27,15 +27,15 @@ part. As of Phase 1c, the
 unit additionally depends on several core `DemaConsulting.CanvasNet` types - `Geometry.Path`/
 `PathBuilder`, `Drawing.PathStroker`/`StrokeStyle`, and `Canvas.Rgba32`/`Gradient`/
 `LinearGradient` - reusing the already-tested core geometry/drawing machinery rather than
-reimplementing it in this package (see _CanvasNetPptx System Design_'s Dependencies section,
-`../canvas-net-pptx.md`, and the _Geometry and Paint (Phase 1c)_ section below). As of Phase 1d
+reimplementing it in this package (see *CanvasNetPptx System Design*'s Dependencies section,
+`../canvas-net-pptx.md`, and the *Geometry and Paint (Phase 1c)* section below). As of Phase 1d
 (this release), the unit additionally depends on core `Fonts.TrueTypeFont`/`SystemFontCatalog`
 (font resolution and glyph-outline extraction) and `Drawing.PathFiller` (glyph-ink fill), reusing
 the same font-resolution/glyph-painting pattern `DemaConsulting.CanvasNet.Pdf` already established
-(see the _Text Layout and Rendering (Phase 1d)_ section below). As of Phase 1e (this release),
+(see the *Text Layout and Rendering (Phase 1d)* section below). As of Phase 1e (this release),
 the unit additionally reuses the raster codec dispatch pattern established by
 `DemaConsulting.CanvasNet.Svg`'s `SvgCodec.ResolveRasterDecoder` to decode a `<p:pic>` shape's
-embedded image (see the _Images, Tables, and Shape Tree (Phase 1e)_ section below); no new core
+embedded image (see the *Images, Tables, and Shape Tree (Phase 1e)* section below); no new core
 `CanvasNet` type is introduced by Phase 1e beyond what Phase 1c/1d already established.
 
 ### Package Layer (Phase 1a)
@@ -43,7 +43,7 @@ embedded image (see the _Images, Tables, and Shape Tree (Phase 1e)_ section belo
 A `.pptx` file is an OOXML (Office Open XML) package: a ZIP archive whose parts are discovered by
 following a chain of relationships, starting from the package root. The generic package layer,
 independent of any presentation-specific semantics, is implemented once, in the core `Packaging`
-subsystem's `OpcPackage` unit (see _OpcPackage Unit Design_, `canvas-net/packaging/opc-package.md`),
+subsystem's `OpcPackage` unit (see *OpcPackage Unit Design*, `canvas-net/packaging/opc-package.md`),
 which `PptxDocument` opens and owns. `PptxDocument.Package.cs` is now only a thin adapter over it:
 each of `ResolvePart`, `ResolveRelationship`, `GetRelationshipType`, `ResolveRelationshipByType`,
 `TryResolveRelationshipByType`, `LoadPartXmlRoot` and `GetPartBytes` calls the same-named
@@ -148,7 +148,7 @@ lazy (per-part relationships) split.
 ### Theme Parsing (Phase 1b)
 
 `PptxDocument.Theme.cs` resolves a theme part (`ppt/theme/themeN.xml`, reached via a slide
-master's `/theme` relationship - see _Master/Layout/Slide Placeholder Models_ below) into a
+master's `/theme` relationship - see *Master/Layout/Slide Placeholder Models* below) into a
 `PptxTheme`, lazily and cached by part path (`GetTheme(string themePartPath)`):
 
 - **Color scheme**: `<a:clrScheme>`'s 12 named slots (`dk1`/`lt1`/`dk2`/`lt2`/`accent1`-`accent6`/
@@ -168,7 +168,7 @@ master's `/theme` relationship - see _Master/Layout/Slide Placeholder Models_ be
 This is `internal` state (`PptxTheme`/`PptxColorScheme`/`PptxFontScheme`/`PptxFontCollection` are
 all `internal` records), carried alongside the placeholder property-inheritance chain as context
 for a later rendering phase to resolve a scheme-color/font token - not itself part of the
-placeholder matching chain (see _Placeholder Inheritance Resolution_ below).
+placeholder matching chain (see *Placeholder Inheritance Resolution* below).
 
 ### Master/Layout/Slide Placeholder Models (Phase 1b)
 
@@ -207,7 +207,7 @@ single-criterion matches**, not a uniform "type+idx exact match, then type-only 
 2. **Layout -> master**: matched by `type` ALONE, through a fixed remapping table (`body`/`chart`/
    `bitmap`/`orgChart`/`mediaClip`/`obj`/`pic`/`subTitle`/`tbl`/`clipArt`/`dgm`/`media` all remap
    to `"body"`; `ctrTitle` remaps to `"title"`; every other type maps to itself), using the
-   _matched layout placeholder's own type_ (not the slide placeholder's type). `idx` is not
+   *matched layout placeholder's own type* (not the slide placeholder's type). `idx` is not
    consulted at this hop. This hop only runs when hop 1 found a layout match - a hop 1 miss
    short-circuits the chain entirely (no fallback to matching the master directly against the
    slide's own type).
@@ -233,7 +233,7 @@ may reference, rather than containing placeholder-shaped XML to match against.
 - **`SlideCount`** (`int`): the presentation's declared slide count (`_slidePartPaths.Count`).
 - **`SlideSize`** (`PptxSlideSize`): the presentation's declared slide size, in EMU.
 - **`GetSlideSizeInPixels(float dpi)`** (`(int Width, int Height)`): converts `SlideSize` to
-  pixels at the given resolution - see _Presentation Parsing (Phase 1b)_ above.
+  pixels at the given resolution - see *Presentation Parsing (Phase 1b)* above.
 
 All other Phase 1b members (`GetTheme`/`GetMaster`/`GetLayout`/`GetSlide`/
 `ResolvePlaceholderProperties`, and every new record type) are `internal`, exercised by the test
@@ -269,7 +269,7 @@ transform with the shape's own declared width/height in EMU):
   value converts directly to radians with no extra sign negation needed.
 - **Flip**: `flipH`/`flipV` (optional boolean attributes, `"1"`/`"true"` truthy, defaulting to
   `false`) mirror the shape about its own center's vertical/horizontal axis respectively, applied
-  _before_ rotation (matching DrawingML's own documented order of operations: flip, then
+  *before* rotation (matching DrawingML's own documented order of operations: flip, then
   rotate, then translate).
 - **Composition order**: the final transform is `flip * rotate * translate(off)`, composed so
   that `Vector2.Transform(localPoint, frame.Transform)` (row-vector convention, matching
@@ -278,15 +278,15 @@ transform with the shape's own declared width/height in EMU):
 
 #### Group Shape Child Transform Composition
 
-A group shape (`<p:grpSp>`) has its own `<a:xfrm>` carrying _two_ coordinate boxes: `off`/`ext`
+A group shape (`<p:grpSp>`) has its own `<a:xfrm>` carrying *two* coordinate boxes: `off`/`ext`
 (the group's own placement, in its parent's coordinate space - resolved exactly like any other
 shape's frame via `ResolveShapeFrame`) and `chOff`/`chExt` (the child coordinate space every
 shape nested directly inside the group is authored in, which generally differs in both offset
 and scale from the group's own `off`/`ext` box).
 
 `ResolveGroupChildTransform(XElement groupXfrm)` resolves only the `chOff`/`chExt`-to-`off`/`ext`
-half of this composition - a `Matrix3x2` mapping a point in the group's _child_ coordinate space
-into the group's _parent_ coordinate space (not merely its own local box - the group's own
+half of this composition - a `Matrix3x2` mapping a point in the group's *child* coordinate space
+into the group's *parent* coordinate space (not merely its own local box - the group's own
 resolved `ResolveShapeFrame` transform, including its own flip/rotation about its own center, is
 folded in as the final step). `chOff` defaults to `(0,0)` and `chExt` defaults to the group's own
 `ext` (`WidthEmu`/`HeightEmu`) when either is omitted - a common case for an unscaled,
@@ -294,7 +294,7 @@ un-translated child coordinate space. A zero-width/height `chExt` (which cannot 
 scaled from) falls back to an identity scale factor of `1` along that axis rather than dividing by
 zero.
 
-A child shape nested in the group resolves its _own_ `ResolveShapeFrame(childXfrm).Transform`
+A child shape nested in the group resolves its *own* `ResolveShapeFrame(childXfrm).Transform`
 exactly as it would as a top-level shape (its `<a:xfrm>` is still expressed in the group's child
 coordinate space, not the group's own parent space), then composes
 `childFrame.Transform * groupChildTransform` to obtain the child's full transform into the
@@ -307,11 +307,11 @@ its own parent group's child transform before being combined with a descendant's
 **Group-semantics deferral boundary**: this phase implements transform composition only. Full
 group-shape semantics beyond that - inherited/overridden fill or line style cascading from a
 group to its children, and group-level effects - remain deferred to a later phase (see
-_Deferred to a Later Phase_ below). The `<p:grpSp>`'s own enumeration/recursion through a slide's
-full shape tree (Phase 1b's placeholder parser still only walks a `<p:spTree>`'s _immediate_
+*Deferred to a Later Phase* below). The `<p:grpSp>`'s own enumeration/recursion through a slide's
+full shape tree (Phase 1b's placeholder parser still only walks a `<p:spTree>`'s *immediate*
 `<p:sp>` children, not recursing into `<p:grpSp>`/parsing freeform shapes at all) was deferred to
 Phase 1e at the time this phase was written, and is now implemented - see
-_Images, Tables, and Shape Tree (Phase 1e)_'s _Shape Tree_ subsection below.
+*Images, Tables, and Shape Tree (Phase 1e)*'s *Shape Tree* subsection below.
 
 #### Preset Geometry
 
@@ -328,8 +328,8 @@ coordinates (the caller then applies the shape's resolved `PptxShapeFrame.Transf
 (`rect`/`roundRect`/`ellipse`/`triangle`) PowerPoint itself defaults new shapes to, plus a
 practical cross-section of the arrow, star, and other basic-shape categories real-world
 presentations most commonly use, per the approved plan's "aim for ~24 total" guidance. The four
-curved-arrow presets were added in a later real-world-corpus hardening pass (see _Phase 2: Real-
-World Corpus Hardening_'s "Genuine bug 3" entry below) once `curvedUpArrow` was found to crash
+curved-arrow presets were added in a later real-world-corpus hardening pass (see *Phase 2: Real-
+World Corpus Hardening*'s "Genuine bug 3" entry below) once `curvedUpArrow` was found to crash
 rendering of a real-world deck; the remaining three (`curvedDownArrow`/`curvedLeftArrow`/
 `curvedRightArrow`) were added alongside it because the existing `Mirror`/`RotateQuarter`
 derivation pattern already used for `upArrow`/`downArrow`/`leftArrow` (each derived from
@@ -392,7 +392,7 @@ DrawingML color-definition element to a concrete `Rgba32`:
 - **`<a:srgbClr val="RRGGBB"/>`**: resolved directly via `Rgba32.Parse`.
 - **`<a:sysClr .../>`**: resolved via its `lastClr` attribute, identical to Phase 1b's own theme
   `sysClr` handling.
-- **`<a:schemeClr val="..."/>`**: resolved by looking the named slot up in the _supplied_
+- **`<a:schemeClr val="..."/>`**: resolved by looking the named slot up in the *supplied*
   `PptxTheme`'s `PptxColorScheme` - reusing Phase 1b's already-verified theme resolver rather than
   re-implementing its 12-slot lookup table a second time. The 12 ordinary slot names
   (`dk1`/`lt1`/`dk2`/`lt2`/`accent1`-`accent6`/`hlink`/`folHlink`) map directly to their
@@ -443,12 +443,12 @@ shape's fill from its `<p:spPr>` (or lack thereof) into one of three closed `Ppt
 - **`PptxGradientFill(Gradient Gradient)`**: resolved from `<a:gradFill>`, via
   `ResolveGradientFill` below.
 - **`PptxImageFill(Surface Image, Matrix3x2 ImageToLocalTransform)`**: resolved from
-  `<a:blipFill>` when a blip-image resolver is supplied by the caller - see _Picture Fill
-  (`<a:blipFill>`) as a Shape/Paragraph Fill_ below (a Phase 2 follow-up to this phase's own,
+  `<a:blipFill>` when a blip-image resolver is supplied by the caller - see *Picture Fill
+  (`<a:blipFill>`) as a Shape/Paragraph Fill* below (a Phase 2 follow-up to this phase's own,
   originally fail-closed, posture).
 - **`PptxPatternFill(PptxPresetPattern Preset, Rgba32 Foreground, Rgba32 Background)`**: resolved
-  from `<a:pattFill prst="..."/>` for a covered preset-pattern name - see _Pattern Fill
-  (`<a:pattFill>`) (Phase 2 Follow-Up)_ below (a later Phase 2 follow-up to this phase's own,
+  from `<a:pattFill prst="..."/>` for a covered preset-pattern name - see *Pattern Fill
+  (`<a:pattFill>`) (Phase 2 Follow-Up)* below (a later Phase 2 follow-up to this phase's own,
   originally fail-closed, posture). An uncovered `prst` still throws
   `PptxUnsupportedFeatureException` (feature token `"pptx-pattern-fill"`).
 
@@ -482,16 +482,16 @@ element into a `PptxLineStyle` (an `internal sealed record` capturing width in E
 `PptxPaint`, and an optional dash array), or `null` (meaning "no stroke is drawn") when:
 
 - `lnElement` is `null` (no `<a:ln>` element at all - a documented simplification: this does
-  _not_ resolve a theme-inherited default line width/style, matching this phase's broader
+  *not* resolve a theme-inherited default line width/style, matching this phase's broader
   decision not to implement placeholder/theme format-scheme property inheritance for shape
   styling);
-- `<a:ln>`'s `w` attribute (width, in EMU) is _explicitly present_ with a non-positive
+- `<a:ln>`'s `w` attribute (width, in EMU) is *explicitly present* with a non-positive
   (`<= 0`) value (covering both `w="0"` and any negative `w` - OOXML's own "explicit zero/negative
   width means no stroke" idiom); or
 - the resolved fill (typically `<a:solidFill>`, via `ResolveFill`) is `PptxNoFill` (an explicit
   `<a:noFill/>` line, or a line with no recognized fill child).
 
-A `w` attribute that is genuinely _absent_ (as opposed to explicitly zero/negative) instead
+A `w` attribute that is genuinely *absent* (as opposed to explicitly zero/negative) instead
 resolves to a documented default stroke width of `9525` EMU (`0.75`pt), provided the `<a:ln>`
 still resolves a recognized (non-`PptxNoFill`) fill. This matches a real-world, commonly seen
 document pattern - an `<a:ln>` that declares only a color/fill (for example
@@ -545,7 +545,7 @@ package. This phase has no rendering surface yet, so only the outline geometry i
   `ResolveStrokeOutline` now derives its own `flattenTolerance` from `localToSurface`'s own scale
   (the larger of its two row-vector lengths, a conservative choice ensuring the more-magnified
   axis still stays within the intended deviation), via a private `ResolveFlattenTolerance` helper
-  that returns `0.25f / scale` - keeping the _effective_, post-transform flattening deviation at
+  that returns `0.25f / scale` - keeping the *effective*, post-transform flattening deviation at
   the library's intended ~0.25 device-pixel target regardless of the shape's own native EMU
   magnitude, falling back to the unscaled `0.25f` default when the transform's scale is
   non-finite or non-positive (for example, a degenerate zero-size shape). This both resolves the
@@ -565,12 +565,12 @@ yet implemented anywhere in `CanvasNet` (not merely unimplemented in this packag
 - **Radial/path gradients** - require a core `RadialGradient`/path-gradient paint type this
   package can reuse; deferred to a later phase.
 - **`<a:avLst>` adjustment-value parsing** for preset geometries - deferred to a later phase; see
-  _Preset Geometry_ above.
+  *Preset Geometry* above.
 - **Full group-shape semantics** beyond transform composition and shape-tree recursion (style
   cascading, group-level effects) - remains deferred to a later phase. The `<p:grpSp>`'s own
   enumeration/recursion through a slide's full shape tree, listed here as deferred at the time
-  this phase was written, is now implemented - see _Shape Tree_ in
-  _Images, Tables, and Shape Tree (Phase 1e)_ below.
+  this phase was written, is now implemented - see *Shape Tree* in
+  *Images, Tables, and Shape Tree (Phase 1e)* below.
 
 ### Text Layout and Rendering (Phase 1d)
 
@@ -608,7 +608,7 @@ convention): resolved body properties plus an ordered list of paragraphs.
   malformed structure, not merely sparse/empty content. An `<a:fld>` (e.g. `type="slidenum"` or
   `type="datetime1"`) is parsed the same way as `<a:r>` (same `<a:rPr>`/`<a:t>` shape), additionally
   capturing its own `type` attribute into `PptxRunItem.FieldType` (`null` for a plain `<a:r>` run) -
-  see _Phase 2 Follow-Up: Slide-Number Field (`<a:fld type="slidenum">`) Substitution_ below for how
+  see *Phase 2 Follow-Up: Slide-Number Field (`<a:fld type="slidenum">`) Substitution* below for how
   `FieldType` is later consulted at render time.
 - **`ParseParagraphProperties(XElement? pPrElement)`** resolves `<a:pPr>`'s `algn`, `marL`,
   `indent`, `lnSpc`, `spcBef`, `spcAft`, and `defRPr` child/attributes, each retained **raw and
@@ -636,13 +636,13 @@ buckets inside are `null`), and `PptxPlaceholderProperties` gains a new optional
 `MasterTextStyles` field threaded through unconditionally from `ResolvePlaceholderProperties`'s
 new optional `masterTextStyles` parameter - independent of whether a layout/master placeholder
 match was found, since a master's own default text styling exists even for a shape with no
-placeholder match at all (see _Property Inheritance_ below).
+placeholder match at all (see *Property Inheritance* below).
 
 #### Property Inheritance
 
 **Design decision: attribute-level, not element-level, fallback.** Phase 1b's placeholder
 property inheritance (`<p:spPr>` and `<p:txBody>/<a:lstStyle>`) resolves at the level of the
-_whole element_: the first category-level element present anywhere in the chain wins outright,
+*whole element*: the first category-level element present anywhere in the chain wins outright,
 with no deeper merging. Run/paragraph text-property inheritance deliberately does **not** reuse
 that same element-level pattern. Real-world DrawingML very commonly overrides a single attribute
 at the run level (for example, bolding one word within an otherwise plain sentence) without
@@ -665,8 +665,8 @@ independently taking its own first non-`null` hit.
 - **`ResolveEffectiveParagraphProperties(...)`** resolves a `PptxEffectiveParagraphProperties`
   (alignment, left margin, indent, line spacing). Alignment normalizes `algn="just"`/`"justLow"`
   (full/low text justification) to `"l"` (left) - full justification requires redistributing
-  inter-word spacing per line, a separable refinement explicitly deferred (see _Deferred to a
-  Later Phase_ below). Line spacing (`<a:lnSpc>`) is either `<a:spcPct val="…"/>` (percentage,
+  inter-word spacing per line, a separable refinement explicitly deferred (see *Deferred to a
+  Later Phase* below). Line spacing (`<a:lnSpc>`) is either `<a:spcPct val="…"/>` (percentage,
   `val / 100000`) or `<a:spcPts val="…"/>` (fixed points, `val / 100 * 12700` EMU) - mutually
   exclusive per schema - modeled as a `PptxLineSpacing(float? Percent, float? FixedEmu)`
   discriminated record (exactly one field non-`null`), with a static `Default` of 100%.
@@ -690,7 +690,7 @@ plus the resolved total block height.
 2. **Autofit** (the body's raw autofit element) is applied in three tiers, resolved once for the
    whole text body before layout:
    - **No scaling** - `<a:noAutofit>`, an absent autofit element, or `<a:spAutoFit>` (shape-resize
-     autofit; deliberately not implemented - see _Deferred to a Later Phase (Phase 1d)_ below,
+     autofit; deliberately not implemented - see *Deferred to a Later Phase (Phase 1d)* below,
      since it would require resizing the owning shape itself, a cross-cutting concern beyond this
      unit's text-layout scope).
    - **Explicit `<a:normAutofit fontScale="…" lnSpcReduction="…"/>`** - the stored factors are
@@ -711,12 +711,12 @@ plus the resolved total block height.
    below).
    (Phase 1b's own theme/master/layout caches remain per-document, not static.)
    Tokens are packed greedily onto lines bounded by `widthEmu` less the body's horizontal insets,
-   by the core `Rendering.WordWrap` packer (see _WordWrap Unit Design_,
+   by the core `Rendering.WordWrap` packer (see *WordWrap Unit Design*,
    `canvas-net/rendering/word-wrap.md`; this package supplies only each token's role - word,
    whitespace, or explicit line break - and a tab token's position-dependent width);
    a single token that alone exceeds the available width is placed alone on its own (overflowing)
    line rather than looping indefinitely - a documented overflow policy, not a crash.
-4. **Line height** is computed from the _tallest_ run on that line:
+4. **Line height** is computed from the *tallest* run on that line:
    `(Ascender - Descender + LineGap) / UnitsPerEm * SizeEmu * LineSpacingFactor`. **Horizontal
    start X** is computed from the effective alignment (`l`/`ctr`/`r` - `just`/`justLow` already
    normalized to `l` by property inheritance, above) against the available width, honoring
@@ -724,14 +724,14 @@ plus the resolved total block height.
 5. **Vertical start Y** is computed from `PptxBodyProperties.Anchor` (`t`/`ctr`/`b`) and the
    total resolved block height within `heightEmu` less the body's vertical insets. No clipping is
    applied when the block overflows the available height - text is positioned exactly as
-   computed, even past the shape's own box (see _Deferred to a Later Phase (Phase 1d)_ below).
+   computed, even past the shape's own box (see *Deferred to a Later Phase (Phase 1d)* below).
 6. **Per-character glyph-coverage fallback**: for each non-whitespace character, the run's own
    primary font (resolved once per run - see step 3 above) is tried first
    (`TrueTypeFont.GetGlyphIndex(ch)`); only when that returns glyph `0` (`.notdef`) is a single
    bundled fallback font (one per `(bold, italic)` pair, memoized the same way the primary-font
    cache is) consulted, and that character alone paints from whichever font actually resolved a
    non-`.notdef` glyph for it. A run is never rebound to the fallback font as a whole - each
-   character's resolution is independent, so a character the primary font _does_ cover is
+   character's resolution is independent, so a character the primary font *does* cover is
    unaffected by a neighboring character's fallback substitution.
 7. One `PptxGlyphPlacement` is emitted per non-whitespace glyph, carrying whichever font (primary
    or fallback) actually resolved that specific character per step 6.
@@ -766,7 +766,7 @@ behavior-identical). This resolves only a run's **primary** font (one call per d
 `(FontFamily, Bold, Italic)` combination, before any character is inspected); it is the default
 `fontResolver` delegate `ResolveTextLayout` is driven with in production use. Per-character
 coverage fallback (when the primary font itself lacks a given codepoint) is a distinct, later
-step living entirely in `PptxDocument.TextLayout.cs` - see _Text Layout_ step 6 above - and is
+step living entirely in `PptxDocument.TextLayout.cs` - see *Text Layout* step 6 above - and is
 driven by a second, independent delegate (`fallbackFontResolver`, defaulting to
 `Fonts.SystemFontCatalog.LoadBundledFallback` with the same `serif: false, fixedPitch: false`
 convention, keyed/cached by `(bold, italic)` only, not by family name, since a fallback font is
@@ -787,17 +787,17 @@ design cost:
 
 - ~~**Bullets and numbering** (`<a:buChar>`/`<a:buAutoNum>`/`<a:buNone>`) - require a separate
   glyph/counter-rendering pass distinct from run-text layout; deferred to a later phase.~~ (closed
-  by the _Phase 2 Follow-Up: Bullets and Numbering Rendering_ section below.)
+  by the *Phase 2 Follow-Up: Bullets and Numbering Rendering* section below.)
 - **Full text justification** (`algn="just"`/`"justLow"`) - requires redistributing inter-word
   spacing per line to reach the line's own right margin exactly; normalized to left-alignment
-  this phase (see _Property Inheritance_ above).
+  this phase (see *Property Inheritance* above).
 - **`<a:spAutoFit>` shape-resize autofit** - requires resizing the owning shape itself in response
   to its own text content, a cross-cutting concern beyond this unit's text-layout scope; treated
-  as a pass-through (no scaling) this phase (see _Text Layout_ above).
+  as a pass-through (no scaling) this phase (see *Text Layout* above).
 - **Kerning** - `<a:rPr kern="…"/>` and font-pair kerning tables are not consulted; glyph advances
   use each glyph's own unscaled advance width only.
 - **Text clipping on overflow** - an overflowing text block is positioned exactly as computed,
-  without being clipped to the shape's own bounding box (see _Text Layout_ above).
+  without being clipped to the shape's own bounding box (see *Text Layout* above).
 - **Per-character glyph-coverage fallback is a single-tier, single-font mechanism, not a full
   font-linking/script-itemization pipeline** - a character missing from the primary font falls
   back to exactly one bundled font (step 6 above); DrawingML's own `<a:ea>` (East Asian) and
@@ -807,8 +807,8 @@ design cost:
   still paints as `.notdef` (unchanged from pre-fix behavior for that residual case).
 
 A full per-slide public `Render` API was deferred to a later phase alongside full group-shape
-semantics and picture/table support, and is now implemented (see _Images, Tables, and Shape Tree
-(Phase 1e)_ and _Full Slide Rendering (Phase 1f)_ below).
+semantics and picture/table support, and is now implemented (see *Images, Tables, and Shape Tree
+(Phase 1e)* and *Full Slide Rendering (Phase 1f)* below).
 
 ### Images, Tables, and Shape Tree (Phase 1e)
 
@@ -825,12 +825,12 @@ image decoding reuses the core codec infrastructure the `DemaConsulting.CanvasNe
 document format.
 
 **Scope decision**: only a dedicated `<p:pic>` picture shape is in scope this phase for image
-rendering. An ordinary shape's own _background_ fill as a picture or pattern
+rendering. An ordinary shape's own *background* fill as a picture or pattern
 (`<a:blipFill>`/`<a:pattFill>` under `<p:spPr>`/`ResolveFill`, as distinct from a `<p:pic>` shape)
 remains out of scope this phase and continues to be rejected by `ResolveFill` exactly as Phase 1c
-left it (see _Fill Resolution_ above) - this phase does not touch `ResolveFill` at all. (Both are
-implemented in later Phase 2 follow-ups - see _Picture Fill (`<a:blipFill>`) as a Shape/Paragraph
-Fill_ and _Pattern Fill (`<a:pattFill>`) (Phase 2 Follow-Up)_ below - which reuse this phase's own
+left it (see *Fill Resolution* above) - this phase does not touch `ResolveFill` at all. (Both are
+implemented in later Phase 2 follow-ups - see *Picture Fill (`<a:blipFill>`) as a Shape/Paragraph
+Fill* and *Pattern Fill (`<a:pattFill>`) (Phase 2 Follow-Up)* below - which reuse this phase's own
 picture decoding/color resolution directly, unchanged.)
 
 #### Picture Decoding, Cropping, and Painting
@@ -852,7 +852,7 @@ resolves a `<p:pic>` shape's `<p:blipFill>/<a:blip>` into a decoded core `Surfac
   `<asvg:svgBlip>` element - the "Insert Icon" SVG-with-no-raster-fallback pattern real PowerPoint
   produces) is resolved via the `<asvg:svgBlip>` element's own `r:embed` relationship and
   rasterized through the sibling `DemaConsulting.CanvasNet.Svg` package's `SvgCodec` (see
-  _Phase 2 Follow-Up: SVG-Only Picture Blip Rendering_ below for the full rationale and rasterization
+  *Phase 2 Follow-Up: SVG-Only Picture Blip Rendering* below for the full rationale and rasterization
   policy). Only when neither an embed/link attribute nor this recognized extension fallback is
   present (or when the `<asvg:svgBlip>` extension element itself declares no `r:embed` of its
   own) does `<a:blip>` throw `InvalidDataException` (genuinely malformed - ECMA-376 requires at
@@ -909,7 +909,7 @@ resolves a `<p:pic>` shape's `<p:blipFill>/<a:blip>` into a decoded core `Surfac
 row flip `DemaConsulting.CanvasNet.Pdf`'s own image-painting code applies. PDF's content stream
 coordinate space is y-up, so painting a top-down-row-ordered decoded image there requires
 flipping its sampled V coordinate; this package's shape-local/surface space is already y-down
-(matching every other transform in this unit - see _Shape Frame Transform_ above), so the image's
+(matching every other transform in this unit - see *Shape Frame Transform* above), so the image's
 own top-down row order already matches the surface's own row order with no flip needed. Applying
 the PDF renderer's flip here, by copy-paste habit, would paint every picture upside down - this
 is a deliberate, documented decision, not an oversight. Both renderers' per-pixel alpha-blending
@@ -921,9 +921,9 @@ A later Phase 2 follow-up lifted the "Scope decision" above's own original restr
 implemented `<a:blipFill>` used as a fill-definition child (an ordinary shape's own `<p:spPr>`,
 table-cell `<a:tcPr>`, line/stroke `<a:ln>`, slide/layout/master background `<p:bgPr>`, and
 connector style fills - everywhere `ResolveFill`/`ResolveLineStyle` are consulted), as distinct
-from the `<p:pic>` picture _shape_ this phase (Phase 1e) already implements above. Pattern fill
+from the `<p:pic>` picture *shape* this phase (Phase 1e) already implements above. Pattern fill
 (`<a:pattFill>`) remained separately out of scope at the time of this follow-up - see
-_Pattern Fill (`<a:pattFill>`) (Phase 2 Follow-Up)_ below for the later follow-up that covers it,
+*Pattern Fill (`<a:pattFill>`) (Phase 2 Follow-Up)* below for the later follow-up that covers it,
 for a documented preset subset.
 
 - **`PptxImageFill(Surface Image, Matrix3x2 ImageToLocalTransform)`** (`PptxPaint.cs`) is the new
@@ -958,7 +958,7 @@ for a documented preset subset.
   derives `ImageToLocalTransform` from whichever sub-element is present, consulting `<a:tile>`
   first when both could theoretically coexist:
   - **`<a:tile tx="..." ty="..." sx="..." sy="..."/>`** (the mandatory, common case - see
-    _Pythonpptx-DML-Fill Fixture_ below) - `tx`/`ty` are EMU offsets (each defaulting to `0`) and
+    *Pythonpptx-DML-Fill Fixture* below) - `tx`/`ty` are EMU offsets (each defaulting to `0`) and
     `sx`/`sy` are 1/100000-of-a-percent scale factors (each defaulting to `100000`, 100%) applied
     to the image's own native 96-DPI pixel size (`914400` EMU/inch over `96` pixels/inch =
     `9525` EMU/pixel, a private `EmuPerPixelAt96Dpi` constant): `scaleX = sx * 9525`,
@@ -979,7 +979,7 @@ for a documented preset subset.
     axis, rather than producing a non-finite or divide-by-zero transform.
 - **Painting**: every `FillPaint`-style switch over a resolved `PptxPaint` (currently only
   `PptxDocument.Tables.cs`'s own `FillPaint`, the sole such switch in this package - see
-  _Table Parsing_ below) gained a `case PptxImageFill imageFill` branch constructing
+  *Table Parsing* below) gained a `case PptxImageFill imageFill` branch constructing
   `new TilePaint(imageFill.Image, imageFill.ImageToLocalTransform, imageFill.Image.Width,
   imageFill.Image.Height).WithTransform(shapeToSurfaceTransform)` and filling via the existing
   `PathFiller.Fill(Surface, Path, TilePaint, FillRule, float)` overload - composing the
@@ -994,17 +994,17 @@ for a documented preset subset.
   already throws for a `<p:pic>` in that case - no new, divergent exception behavior was
   introduced for the fill-context case. A `<a:blip>` carrying only the Microsoft SVG-extension
   fallback pattern likewise now decodes successfully in the fill context exactly as it does for a
-  `<p:pic>` (see _Phase 2 Follow-Up: SVG-Only Picture Blip Rendering_ below) - no special-casing
+  `<p:pic>` (see *Phase 2 Follow-Up: SVG-Only Picture Blip Rendering* below) - no special-casing
   was needed here either, since both call sites share the same `ResolvePictureSurface` decode path.
 - **Pythonpptx-DML-Fill Fixture**: this package's own `pythonpptx-dml-fill.pptx` fixture's slide 0
   places six shapes in document order - an inherited fill, an explicit `<a:noFill/>`, a solid RGB
   fill, a real embedded `<a:blipFill>`/`<a:tile tx="0" ty="0" sx="100000" sy="100000"/>` picture
   fill, a linear gradient fill, and finally an `<a:pattFill prst="divot"/>` pattern fill, on this
-  _same_ slide. Before the picture-fill follow-up, rendering that slide threw `"pptx-picture-fill"`
+  *same* slide. Before the picture-fill follow-up, rendering that slide threw `"pptx-picture-fill"`
   as soon as the walk reached the fourth shape; the picture-fill follow-up made it proceed past
   that shape and instead throw `"pptx-pattern-fill"` from the sixth shape. **Update (pattern-fill
-  follow-up)**: `divot` is now a covered preset (see _Pattern Fill (`<a:pattFill>`) (Phase 2
-  Follow-Up)_ below), so this fixture's slide 0 now renders completely, end-to-end, without
+  follow-up)**: `divot` is now a covered preset (see *Pattern Fill (`<a:pattFill>`) (Phase 2
+  Follow-Up)* below), so this fixture's slide 0 now renders completely, end-to-end, without
   throwing at all - see that section's own "Pythonpptx-DML-Fill Fixture" note for the full detail,
   including slide 1's own three additional pattern-fill shapes. A genuine, full end-to-end
   "renders without throwing, with a pixel-level sanity check" proof of picture fill specifically
@@ -1045,7 +1045,7 @@ image/relationship resolution of any kind.
   the shape's own `<p:style>/<a:fillRef>` (its text run's own name notwithstanding - a deliberate
   design decision, not an attempt to honor that name) or throwing. Resolving it to `PptxNoFill`
   keeps this edge case consistent with every other "absent/unrecognized fill" case `ResolveFill`
-  already resolves to `PptxNoFill` (see _Fill Resolution_ above), rather than inventing new,
+  already resolves to `PptxNoFill` (see *Fill Resolution* above), rather than inventing new,
   divergent handling for one non-conformant attribute-less element.
 - **Foreground/background color resolution**: `<a:fgClr>`/`<a:bgClr>`'s own single
   color-definition child is resolved via the existing `ResolveColor` helper - the same one
@@ -1086,7 +1086,7 @@ image/relationship resolution of any kind.
   separately-scoped follow-up" rather than fixed there. For a pattern fill's own small, fixed-size
   repeat tile, this gap is not cosmetic: since a surface pixel coordinate divided by the fill's
   own ~1/9525 EMU-per-pixel scale is always tiny relative to an 8-pixel tile step, every sampled
-  pixel across the _entire_ render surface (not just the one shape) collapses onto the same
+  pixel across the *entire* render surface (not just the one shape) collapses onto the same
   single tile cell unless the shape's own position and scale are composed in first - flattening
   the pattern to a single solid color (gradient/picture fill at these same call sites share the
   identical gap, but it remains cosmetically invisible for a gradient spanning a shape's own
@@ -1110,7 +1110,7 @@ image/relationship resolution of any kind.
   (the arrowhead's own rotated/translated local-to-surface composition), not the connector's plain
   `localToSurface`, since an arrowhead's own local origin is itself offset/rotated relative to the
   connector (see `PaintArrowhead`'s own remarks). Every one of these call sites is now covered for
-  `PptxPatternFill`, exactly like the pre-existing shape/connector _fill_ call sites.
+  `PptxPatternFill`, exactly like the pre-existing shape/connector *fill* call sites.
 
   The slide/layout/master background fill (`PptxDocument.Render.cs`'s own `Render` method) is now
   also covered: `ResolveFill` is shared there too, so a background `<p:bgPr>` pattern fill is
@@ -1121,7 +1121,7 @@ image/relationship resolution of any kind.
   `FillPaintComposingLocalTransform(surface, backgroundPath, backgroundFill, baseTransform)`
   instead of the 3-parameter overload directly - no remaining call site in production code calls
   the 3-parameter overload directly any more.
-- **Pythonpptx-DML-Fill Fixture**: slide 0's sixth shape (see the _Picture Fill_ section's own
+- **Pythonpptx-DML-Fill Fixture**: slide 0's sixth shape (see the *Picture Fill* section's own
   "Pythonpptx-DML-Fill Fixture" note above) is a `prst="divot"` pattern fill, now covered - the
   slide renders completely, end-to-end, without throwing. Slide 1 adds three more shapes
   exercising pattern fill specifically: a non-conformant, attribute-less `<a:pattFill/>` (resolves
@@ -1142,8 +1142,8 @@ image/relationship resolution of any kind.
   `ParseTable` itself does not implement. A missing `<a:graphicData>`/`<a:tbl>` throws
   `InvalidDataException` (structurally malformed). **`ParseTable` itself is unchanged as of
   Phase 4**: a chart-kind `<a:graphicData>` (`uri` ending in `"/chart"`) is dispatched to the new
-  `ParseChart` by `ParseShapeTree` _before_ `ParseTable` is ever called for that graphic frame -
-  see _Chart Graphic Frames (Phase 4 — delegation to `CanvasNetCharts`)_ below - so `ParseTable`
+  `ParseChart` by `ParseShapeTree` *before* `ParseTable` is ever called for that graphic frame -
+  see *Chart Graphic Frames (Phase 4 — delegation to `CanvasNetCharts`)* below - so `ParseTable`
   only ever sees a chart-kind `<a:graphicData>` if a caller invokes it directly, bypassing
   `ParseShapeTree`'s own dispatch.
 - **Column grid**: `<a:tblGrid>/<a:gridCol>` elements resolve `PptxTable.ColumnWidthsEmu` (each
@@ -1181,8 +1181,8 @@ cells (a cell with neither `hMerge` nor `vMerge` set) into a `PptxResolvedTableC
 own EMU-space rectangle (`X`, `Y`, `Width`, `Height`), by walking each row's `<a:tc>` entries in
 document order while accumulating a running column offset. A row's own `HeightEmu` consulted
 during this walk is its **effective** height - its own stored `<a:tr h="...">` value, or a grown
-replacement, when a `theme`/`fontResolver` are supplied - see _Phase 2 Follow-Up: Table
-Row-Height Growth_ below for the growth algorithm the new optional parameters enable.
+replacement, when a `theme`/`fontResolver` are supplied - see *Phase 2 Follow-Up: Table
+Row-Height Growth* below for the growth algorithm the new optional parameters enable.
 
 **Merge-continuation column-advancement rule**: each `<a:tc>` XML entry - whether a real cell or
 an `hMerge`/`vMerge` continuation placeholder - represents (in the common, well-formed case) one
@@ -1254,7 +1254,7 @@ closed `PptxShapeTreeNode` hierarchy (`PptxShapeTree.cs`):
   pure-XML work).
 - **`<p:graphicFrame>` → `PptxGraphicFrameShapeNode`**: eagerly parses its table via `ParseTable`,
   or, as of Phase 4, its chart via `ParseChart` when its `<a:graphicData>` `uri` ends in
-  `"/chart"` - see _Chart Graphic Frames (Phase 4 — delegation to `CanvasNetCharts`)_ below.
+  `"/chart"` - see *Chart Graphic Frames (Phase 4 — delegation to `CanvasNetCharts`)* below.
 - **`<p:grpSp>` → `PptxGroupShapeNode`**: resolves its own child-coordinate-space transform via
   the already-verified Phase 1c `ResolveGroupChildTransform` (reading its `<p:grpSpPr>/<a:xfrm>`
   element, throwing `InvalidDataException` when absent) and recurses `ParseShapeTree` on the same
@@ -1263,11 +1263,11 @@ closed `PptxShapeTreeNode` hierarchy (`PptxShapeTree.cs`):
   element kind) is **silently skipped** - a tree-walk tolerance, not a fail-closed feature
   rejection, matching the existing Phase 1b precedent of silently excluding non-placeholder
   shapes from the flat placeholder list. (`<p:cxnSp>` is recognized and dispatched to its own
-  `PptxConnectorShapeNode`, not silently skipped - see the _Phase 2 Follow-Up: Connector Shape
-  Rendering_ section below.)
+  `PptxConnectorShapeNode`, not silently skipped - see the *Phase 2 Follow-Up: Connector Shape
+  Rendering* section below.)
 
 **Deferred, lazy theme resolution**: a `<p:graphicFrame>`'s table needs a `PptxTheme` to resolve
-its cells' fills (see _Table Parsing_ above), but the overwhelming majority of slides declare no
+its cells' fills (see *Table Parsing* above), but the overwhelming majority of slides declare no
 tables at all. Rather than `GetSlide` eagerly walking its slide's layout → master → theme
 relationship chain for every slide, `ParseShapeTree` accepts a `Func<PptxTheme> themeResolver`
 invoked lazily, only when a `<p:graphicFrame>` is actually encountered - confirmed by a dedicated
@@ -1295,21 +1295,21 @@ design cost:
   cell's rectangle purely from the table's own declared column widths/row heights; a cell whose
   text content overflows its own declared row height is not given additional vertical space
   (beyond the row height the table itself declares) the way PowerPoint's own auto-grow-row
-  behavior does.~~ (closed by the _Phase 2 Follow-Up: Table Row-Height Growth_ section below.)
+  behavior does.~~ (closed by the *Phase 2 Follow-Up: Table Row-Height Growth* section below.)
 - ~~**Table style/banding** (`<a:tblPr>`'s `<a:tableStyleId>` and first-row/banded-row
-  styling)~~ (closed by the _Phase 2 Follow-Up: Table Style/Banding Resolution_ section below -
+  styling)~~ (closed by the *Phase 2 Follow-Up: Table Style/Banding Resolution* section below -
   `firstCol`/`lastCol`/`lastRow`/corner-cell style parts, column banding (`band1V`/`band2V`), and
   table-style-driven font color remain deferred, as documented in that section).
-- ~~`<p:cxnSp>` connector shapes~~ (closed by the _Phase 2 Follow-Up: Connector Shape Rendering_
+- ~~`<p:cxnSp>` connector shapes~~ (closed by the *Phase 2 Follow-Up: Connector Shape Rendering*
   section below).
 - **Master/layout full shape-tree enumeration** - `PptxMaster`/`PptxLayout` still only expose
-  their own flat placeholder lists, not a full `ParseShapeTree` result (see _Shape Tree_ above).
+  their own flat placeholder lists, not a full `ParseShapeTree` result (see *Shape Tree* above).
 - **Group-level style cascading** - a group's own `<p:grpSpPr>` (for example an inherited line/
   fill style flowing down to a child with no `<p:spPr>` of its own) is not implemented; each
   child shape's own properties are resolved independently of its enclosing group's properties.
 
 A full per-slide public `Render` API was deferred to a later phase and is now implemented (see
-_Full Slide Rendering (Phase 1f)_ below).
+*Full Slide Rendering (Phase 1f)* below).
 
 ### Full Slide Rendering (Phase 1f)
 
@@ -1341,7 +1341,7 @@ baseTransform = Scale(width / SlideSize.WidthEmu, height / SlideSize.HeightEmu)
 Unlike `PdfDocument`'s own `BuildBaseCtm`, this transform needs no page-rotation handling (PPTX
 slides have no rotation concept analogous to a PDF page's own `/Rotate` entry) and no y-axis flip
 (PPTX's coordinate space is already y-down, matching this library's own surface convention - see
-_Picture Decoding, Cropping, and Painting_'s own "Deliberate divergence from the PDF renderer"
+*Picture Decoding, Cropping, and Painting*'s own "Deliberate divergence from the PDF renderer"
 note in the Phase 1e section above for the same point applied to picture compositing).
 `SlideSize.WidthEmu`/`HeightEmu` are `long`; both are explicitly
 cast to a floating-point type before dividing, so a requested pixel size far smaller than the
@@ -1351,7 +1351,7 @@ division.
 #### Shape-Tree Walk and Per-Node-Kind Dispatch
 
 `Render` resolves the slide's layout/master/theme chain once, eagerly, at the top of the method -
-unlike `GetSlide`'s own lazy, invoke-on-demand theme resolution (see _Shape Tree_ in the Phase 1e
+unlike `GetSlide`'s own lazy, invoke-on-demand theme resolution (see *Shape Tree* in the Phase 1e
 section above) - because virtually any shape's own fill or text can reference a theme scheme
 color at paint time, not only a table's own cell fills. It then walks the slide's own
 `PptxSlide.ShapeTree` (Phase 1e) recursively, in document order, threading an accumulating
@@ -1383,14 +1383,14 @@ color at paint time, not only a table's own cell fills. It then walks the slide'
 
 A `<p:cxnSp>` connector shape is now represented in the parsed shape tree as its own
 `PptxConnectorShapeNode`, with a dedicated `RenderConnector` case in `Render`'s own dispatch (see
-the _Phase 2 Follow-Up: Connector Shape Rendering_ section below).
+the *Phase 2 Follow-Up: Connector Shape Rendering* section below).
 
 #### Tolerant Skip Policy
 
 A shape, picture, or graphic-frame whose fully-resolved geometry element declares no `<a:xfrm>`/
 `<p:xfrm>` anywhere in its own ancestry is **skipped silently**, not treated as an error - a
 position-less shape is a genuinely unrenderable (not malformed) construct this phase tolerates,
-mirroring `ParseShapeTree`'s own established "tolerant tree walk" precedent (see _Shape Tree_
+mirroring `ParseShapeTree`'s own established "tolerant tree walk" precedent (see *Shape Tree*
 above). The same policy applies to a `<p:pic>` missing its own `<p:blipFill>`.
 
 #### Deferred to a Later Phase (Phase 1f)
@@ -1398,16 +1398,16 @@ above). The same policy applies to a `<p:pic>` missing its own `<p:blipFill>`.
 With this phase, the planned PPTX 1.0 feature set is complete. The following remain
 unimplemented, carried forward unchanged from Phase 1d/1e's own deferred-items lists (see above):
 ~~a slide's own `<p:bg>` background fill (no parsing support exists anywhere in this codebase),~~
-(closed by the _Phase 2 Follow-Up: Slide/Layout/Master Background Fill_ section below - the single
+(closed by the *Phase 2 Follow-Up: Slide/Layout/Master Background Fill* section below - the single
 highest-visual-impact gap left by this phase),
-~~`<p:cxnSp>` connector shapes,~~ (closed by the _Phase 2 Follow-Up: Connector Shape Rendering_
+~~`<p:cxnSp>` connector shapes,~~ (closed by the *Phase 2 Follow-Up: Connector Shape Rendering*
 section below), nested tables, table auto-sizing/banding, group-level style
 cascading beyond transform composition, picture effects/shadows,
 ~~master/layout full shape-tree rendering,~~
-(closed by the _Phase 2 Follow-Up: Master/Layout Decorative Shape Rendering_ section below - a
+(closed by the *Phase 2 Follow-Up: Master/Layout Decorative Shape Rendering* section below - a
 still-later pass that independently walks and paints each master's/layout's own non-placeholder
-shapes), ~~bullets/numbering,~~ (closed by the _Phase 2 Follow-Up: Bullets and Numbering
-Rendering_ section below) full text justification, `<a:spAutoFit>` shape-resize autofit,
+shapes), ~~bullets/numbering,~~ (closed by the *Phase 2 Follow-Up: Bullets and Numbering
+Rendering* section below) full text justification, `<a:spAutoFit>` shape-resize autofit,
 kerning, and text clipping on overflow. None of these is a currently planned phase; any of them
 remaining important is a candidate for a future, corpus-driven hardening pass (`pptx-phase-2`),
 not a scheduled increment of this unit's own design.
@@ -1441,8 +1441,8 @@ two slides known in advance to declare chart/SmartArt `<p:graphicFrame>` content
 render instead throws `PptxUnsupportedFeatureException`, since charts/diagrams remain an
 explicitly deferred feature (see the Phase 1e deferred-items list above). **This chart-specific
 half of the methodology no longer reflects current behavior**: as of Phase 4, a chart
-`<p:graphicFrame>` renders successfully (see _Chart Graphic Frames (Phase 4 — delegation to
-`CanvasNetCharts`)_ below) - only a SmartArt/diagram or OLE-object graphic frame still throws
+`<p:graphicFrame>` renders successfully (see *Chart Graphic Frames (Phase 4 — delegation to
+`CanvasNetCharts`)* below) - only a SmartArt/diagram or OLE-object graphic frame still throws
 `PptxUnsupportedFeatureException`; `PptxFixturesCorpusTests.cs`'s own assertions for these two
 fixtures were updated accordingly in that later phase.
 
@@ -1636,7 +1636,7 @@ an already-correct, merely-undocumented behavior and two of which were genuine, 
     applied there too. No code change made for `effectiveSpPr` in this pass.
 
 **What remains intentionally deferred**: every item already listed in the Phase 1c, 1d, 1e, and
-1f _Deferred to a Later Phase_ sections above remains deferred unchanged - this phase fixed two
+1f *Deferred to a Later Phase* sections above remains deferred unchanged - this phase fixed two
 genuine inheritance/alignment bugs on already-implemented features, confirmed one already-graceful
 deferred-feature boundary (chart/diagram graphic frames) against real files, and confirmed one
 already-correct deferred-feature boundary (shape-style-matrix fill/line resolution) likewise; it
@@ -1645,20 +1645,20 @@ movies, connectors, nested tables, table auto-sizing/banding, group-level style 
 bullets/numbering, full text justification, shape auto-fit, kerning, text-overflow clipping,
 picture effects/shadows,
 pattern/picture shape fill, radial/path gradients, or adjustment-value (`avLst`) geometry
-parsing). Slide background fill (`<p:bg>`) is no longer on this list - see _Phase 2 Follow-Up:
-Slide/Layout/Master Background Fill (`<p:bg>`)_ below, which closed this gap in a later pass.
-Master/layout full shape-tree rendering is likewise no longer on this list - see _Phase 2
-Follow-Up: Master/Layout Decorative Shape Rendering_ below, which closed that gap in a
+parsing). Slide background fill (`<p:bg>`) is no longer on this list - see *Phase 2 Follow-Up:
+Slide/Layout/Master Background Fill (`<p:bg>`)* below, which closed this gap in a later pass.
+Master/layout full shape-tree rendering is likewise no longer on this list - see *Phase 2
+Follow-Up: Master/Layout Decorative Shape Rendering* below, which closed that gap in a
 still-later pass. Bullets and numbering rendering is likewise no longer on this list - see
-_Phase 2 Follow-Up: Bullets and Numbering Rendering_ below, which closed that gap in a still
-later pass. Chart graphic frames are likewise no longer on this list - see _Chart Graphic Frames
-(Phase 4 — delegation to `CanvasNetCharts`)_ below, added in a still-later phase that delegates
+*Phase 2 Follow-Up: Bullets and Numbering Rendering* below, which closed that gap in a still
+later pass. Chart graphic frames are likewise no longer on this list - see *Chart Graphic Frames
+(Phase 4 — delegation to `CanvasNetCharts`)* below, added in a still-later phase that delegates
 chart rendering to the sibling `CanvasNetCharts` system; SmartArt/diagram and OLE-object graphic
 frames remain deferred. The shape-style-matrix (`<p:style>`'s `fillRef`/`lnRef`) fill/line
 resolution noted above as an "already-correct deferred-feature boundary" has since been
 superseded: it was in fact
 a genuine, unimplemented gap (the matrix reference was parsed by nothing at all, rather than
-gracefully deferred) - see _Phase 2 Follow-Up: Shape Style References (`<p:style>`)_ below, which
+gracefully deferred) - see *Phase 2 Follow-Up: Shape Style References (`<p:style>`)* below, which
 closed it in a still-later pass.
 
 #### Phase 2 Follow-Up: Corpus Growth to Three Sources
@@ -1683,12 +1683,12 @@ Phase 2 pass established.
   At the time of this pass, `ResolveFill` threw `PptxUnsupportedFeatureException` for both cases
   (feature tokens `pptx-picture-fill` and `pptx-pattern-fill` respectively) - this pass was the
   first to exercise either exception token against a real file; no source change was needed then.
-  **Update (Phase 2 follow-up)**: picture fill (`<a:blipFill>`) is now implemented - see _Picture
-  Fill (`<a:blipFill>`) as a Shape/Paragraph Fill_ above - so this fixture's own slide 0 no longer
+  **Update (Phase 2 follow-up)**: picture fill (`<a:blipFill>`) is now implemented - see *Picture
+  Fill (`<a:blipFill>`) as a Shape/Paragraph Fill* above - so this fixture's own slide 0 no longer
   throws `pptx-picture-fill`; at that point it instead reached, and still threw,
   `pptx-pattern-fill` from a later pattern-filled shape on that same slide. **Update (pattern-fill
-  follow-up)**: that shape's own preset (`divot`) is now covered too - see _Pattern Fill
-  (`<a:pattFill>`) (Phase 2 Follow-Up)_ above - so this fixture's slide 0 now renders completely,
+  follow-up)**: that shape's own preset (`divot`) is now covered too - see *Pattern Fill
+  (`<a:pattFill>`) (Phase 2 Follow-Up)* above - so this fixture's slide 0 now renders completely,
   end-to-end, without throwing at all.
 - `aiden0z-table-stale-frame.pptx`'s single table graphic frame declares a `<p:xfrm>` extent that
   does not match the sum of its own `<a:gridCol>` widths - a real-world "stale frame size"
@@ -1714,7 +1714,7 @@ disqualifying precedent as the original pass's two excluded candidates), and
 structure to the included `aiden0z-image-crop-css-reset.pptx`; the font-embedding differentiator
 is not observable to CanvasNet, which has no custom font-embedding support).
 
-Every item in this unit's own _Deferred to a Later Phase_ lists (Phase 1c/1d/1e/1f, reproduced
+Every item in this unit's own *Deferred to a Later Phase* lists (Phase 1c/1d/1e/1f, reproduced
 above) remains deferred unchanged after this follow-up pass; this pass grew real-file test
 coverage and confirmed additional already-graceful boundaries, it did not implement any
 previously-deferred feature.
@@ -1732,7 +1732,7 @@ rendered as plain white before this pass.
 
 **Resolution algorithm** (`PptxDocument.Background.cs`'s `ResolveSlideBackgroundFill`): mirrors
 the Phase 1b placeholder-inheritance "first element present at all wins" precedent exactly (see
-_Placeholder Inheritance_ above) - a slide's own `<p:bg>` wins outright when present (even an
+*Placeholder Inheritance* above) - a slide's own `<p:bg>` wins outright when present (even an
 empty `<p:bg/>`); otherwise its layout's own `<p:bg>` wins; otherwise its master's own `<p:bg>`
 wins; when none of the three declare a `<p:bg>` at all, `Render` falls back unchanged to
 `PptxRenderOptions.BackgroundColor`, matching this unit's pre-existing behavior exactly for every
@@ -1783,11 +1783,11 @@ compatible change - every pre-existing call site continues to compile and behave
   `<a:blipFill>` resolves through the same `ResolveFill`/`PptxImageFill` pipeline every shape fill
   now uses, with `ResolveSlideBackgroundFill` supplying a tier-appropriate resolver (slide, layout,
   or master, selected per the winning background tier, since an embedded blip's own relationship
-  is part-scoped to its owning part) - see _Picture Fill (`<a:blipFill>`) as a Shape/Paragraph
-  Fill_ above.
+  is part-scoped to its owning part) - see *Picture Fill (`<a:blipFill>`) as a Shape/Paragraph
+  Fill* above.
 - **Pattern background fills**: a covered preset now resolves and paints exactly like any other
   shape's own `<a:pattFill>` (`ResolveFill` is shared, un-specialized, across every fill context -
-  see _Pattern Fill (`<a:pattFill>`) (Phase 2 Follow-Up)_ above); an uncovered preset still throws
+  see *Pattern Fill (`<a:pattFill>`) (Phase 2 Follow-Up)* above); an uncovered preset still throws
   exactly as before. This background call site (`PptxDocument.Render.cs`'s own slide-background
   paint) is now also covered by the shape/connector-specific transform-composition fix documented
   in that same section: it uses `FillPaintComposingLocalTransform`, passing the slide's own
@@ -1954,16 +1954,16 @@ master/layout-owned shapes only).
 
 #### Phase 2 Follow-Up: Bullets and Numbering Rendering
 
-A still-later follow-up pass closed Phase 1d's own longest-standing deferred item (see _Deferred
-to a Later Phase (Phase 1d)_ above): a paragraph's own bullet or number glyph
+A still-later follow-up pass closed Phase 1d's own longest-standing deferred item (see *Deferred
+to a Later Phase (Phase 1d)* above): a paragraph's own bullet or number glyph
 (`<a:buChar>`/`<a:buAutoNum>`/`<a:buNone>`, plus the `<a:buFont>`/`<a:buSzPct>`/`<a:buSzPts>`/
 `<a:buClr>`/`<a:buClrTx>` modifiers that style it) was never parsed or painted - a bulleted or
 numbered list rendered as plain, un-marked paragraphs, a visually obvious gap against a real
 PowerPoint export of the same deck.
 
 **Parsing** (`PptxDocument.Text.cs`'s `ParseBulletProperties`): a paragraph's own `<a:pPr>` (or a
-placeholder/master level-override element - see _Resolution_ below) is inspected for four
-_independent_ choice-groups, each captured as its own raw `XElement?` on a new
+placeholder/master level-override element - see *Resolution* below) is inspected for four
+*independent* choice-groups, each captured as its own raw `XElement?` on a new
 `PptxRawBulletProperties` record (`PptxTextBody.cs`): **type** (`<a:buNone>` / `<a:buAutoNum>` /
 `<a:buChar>` - mutually exclusive per ECMA-376's own `EG_TextBulletColor`/`EG_TextBulletTypeface`/
 `EG_TextBulletSizeGroup`/`EG_TextBullet` choice groups), **color** (`<a:buClrTx>` / `<a:buClr>`),
@@ -1974,10 +1974,10 @@ independent inheritance chain - see below.
 
 **Resolution** (`PptxDocument.TextInheritance.cs`'s `ResolveEffectiveBulletProperties`): reuses
 this unit's own established attribute-level inheritance pattern (own paragraph -> placeholder
-level element -> master level element -> hard-coded default) _four times_, once per choice-group,
+level element -> master level element -> hard-coded default) *four times*, once per choice-group,
 exactly mirroring how `algn`/`marL`/`indent` are each already resolved independently in
 `ResolveEffectiveParagraphProperties`. This is deliberate and load-bearing: a real-world paragraph
-commonly declares only its own bullet _character_ while relying on its placeholder/master level
+commonly declares only its own bullet *character* while relying on its placeholder/master level
 style for the bullet's color/font/size (or vice versa) - resolving bullets as one monolithic
 "whichever tier's whole bullet block wins" object, copied wholesale from a single tier, would
 silently defeat that common partial-override pattern. A `Kind == None` result (explicit
@@ -1988,7 +1988,7 @@ CreateNone`.
 `<a:buAutoNum>`'s `type` attribute defaults to `"arabicPeriod"` and `startAt` to `1` per ECMA-376's
 own schema defaults, in `ResolveBulletType`. The three "follow text" sentinels - `<a:buClrTx>`,
 `<a:buFontTx>`, `<a:buSzTx>` (and, identically, no color/font/size markup at all) - resolve to the
-paragraph's own _first run's_ already-resolved effective color/typeface/size (falling back to the
+paragraph's own *first run's* already-resolved effective color/typeface/size (falling back to the
 theme's `Dark1`/the placeholder-type default typeface/the hard-coded default font size for a
 run-less paragraph), which required `ResolveEffectiveParagraphProperties` to grow a new, optional
 `firstRunProperties` parameter so its caller (`ResolveTextLayout`) can resolve a paragraph's first
@@ -2016,12 +2016,12 @@ paragraph's bullet, render normally.
 **Auto-number counter sequencing** (`PptxDocument.TextLayout.cs`'s `BuildLines`, new private
 `AdvanceBulletCounters`): a small per-call (that is, per-shape/text-body) state machine tracks one
 running counter and one "last scheme used" value per indent level (`0`-`8`, mirroring this unit's
-own existing `MaxParagraphLevel` bound). For each paragraph, in level order: every level _strictly
-deeper_ than the paragraph's own level is reset to zero (closing out any nested list once the
+own existing `MaxParagraphLevel` bound). For each paragraph, in level order: every level *strictly
+deeper* than the paragraph's own level is reset to zero (closing out any nested list once the
 list returns to a shallower level); a `None` or `Char` bullet resets and clears its own level's
 counter (breaking any numbered run a literal bullet character interrupts); an `AutoNum` bullet
 resets to its own `startAt` the first time that level is used with that particular scheme (or
-after an intervening paragraph at that level used a _different_ scheme, or after any deeper level
+after an intervening paragraph at that level used a *different* scheme, or after any deeper level
 was closed and reused), otherwise increments by one. This reproduces real PowerPoint's own
 behavior for a list that returns to a shallower level after a nested sub-list: the shallower
 level's own sequence resumes where it left off, while the (now-closed) deeper level restarts from
@@ -2032,8 +2032,8 @@ closely-related defect, found and fixed alongside the bullet glyph itself becaus
 together to be visually indistinguishable from PowerPoint - a bulleted paragraph's first line
 incorrectly placed its own run text at the full `marL + indent` first-line position (the same
 rule a non-bulleted paragraph's first line correctly uses), rather than at `marL`. ECMA-376's own
-convention (and every real PowerPoint export) treats `indent` as the _hanging-indent gutter
-width_ reserved for the bullet glyph alone, not as an additional first-line indent applied to the
+convention (and every real PowerPoint export) treats `indent` as the *hanging-indent gutter
+width* reserved for the bullet glyph alone, not as an additional first-line indent applied to the
 text itself once a bullet occupies that gutter - the bullet glyph paints at `marL + indent` (the
 gutter) while the paragraph's own text, even on its first line, starts flush at `marL`, exactly as
 every other line of that same paragraph already does. This fix is strictly gated on "this line
@@ -2136,7 +2136,7 @@ paragraph still consumes its own position in the sequence (matching real PowerPo
 semantics) even though nothing is painted for it. **Known, accepted limitation**: a run whose
 text is whitespace-only (for example a single run containing only `" "`) still counts as "has a
 run" under this simpler zero-runs rule, so such a paragraph's bullet still paints - PowerPoint's
-own true rule (zero _non-whitespace-only_ runs) is not resolved by this fix and remains a
+own true rule (zero *non-whitespace-only* runs) is not resolved by this fix and remains a
 documented, minor gap.
 
 **Closed risk (bullet/text gutter clearance)**: a further, visually similar defect was reported
@@ -2170,7 +2170,7 @@ typed digits separated from the following word by a literal tab character, and t
 `Tokenize`/`MeasureTokenWidthEmu` treat a tab as ordinary collapsible whitespace with no OOXML
 tab-stop (`defTabSz`/`tabLst`) expansion; this is a distinct, pre-existing, out-of-scope defect
 (tab-stop support), flagged for a separate unit of work rather than folded into this fix (closed by
-the _Phase 2 Follow-Up: Default Tab-Stop Expansion_ section below). Status:
+the *Phase 2 Follow-Up: Default Tab-Stop Expansion* section below). Status:
 closed, proven by `ResolveTextLayout_BulletedParagraphWithZeroIndent_TextClearsBulletWidth` (exact
 numeric clamp proof), `PaintTextLayout_BulletedParagraphWithZeroIndent_BulletAndTextInkDoNotOverlap`
 (pixel-level disjoint-ink proof), and
@@ -2384,7 +2384,7 @@ helper and delegating to the existing `ResolveLineStyle` unchanged; (2) is the s
 `<a:noFill/>` sub-case, which `ResolveLineStyle` already correctly resolves to "no stroke",
 distinguishing it from case 3 below; (3) a present `<a:ln>` that declares no recognized
 fill-definition child of its own (for example `<a:ln w="76200"/>` - width/dash/cap attributes
-only) keeps its own width and dash from that `<a:ln>` verbatim, but defers only its _color_ to the
+only) keeps its own width and dash from that `<a:ln>` verbatim, but defers only its *color* to the
 style `<a:lnRef>` via `ResolveShapeStyleLineStyle`, falling back to "no stroke" when the style
 itself supplies no usable color (no `<p:style>` at all, no `<a:lnRef>`, an `<a:lnRef idx="0"/>`,
 or a style entry that itself resolves to `PptxNoFill`); (4) a fully absent `<a:ln>` defers
@@ -2455,7 +2455,7 @@ the style's own (much wider) line-style-list entry width.
 
 A `<p:cxnSp>` connector shape - the straight/elbow/curved lines PowerPoint draws between other
 shapes in flowcharts and diagrams - was, until this fix, never represented in the parsed shape
-tree at all (see _Shape Tree_ in the Phase 1e section above): `ParseShapeTree` silently dropped
+tree at all (see *Shape Tree* in the Phase 1e section above): `ParseShapeTree` silently dropped
 every `<p:cxnSp>` it encountered, so a slide containing one rendered with that connector simply
 absent, no error, no visible line. This closes that gap.
 
@@ -2706,8 +2706,8 @@ any kind - every picture's footprint was always its full `(0,0)-(1,1)` unit squa
   difference: instead of post-multiplying an already-fully-painted offscreen buffer's own alpha by
   that coverage mask (`ApplyClipPath`'s own `ApplyCoverageClip` approach - unsuitable here, since
   `PaintPicture` composites directly onto the live destination surface pixel-by-pixel, not into an
-  isolated offscreen buffer), `PaintPicture` instead scales each _sampled source pixel's own
-  alpha_ by that same pixel's mask coverage (`0` outside the clip geometry, `255` fully inside it,
+  isolated offscreen buffer), `PaintPicture` instead scales each *sampled source pixel's own
+  alpha* by that same pixel's mask coverage (`0` outside the clip geometry, `255` fully inside it,
   an anti-aliased in-between value exactly on its edge) immediately before compositing via the
   existing `Rgba32.CompositeOver` - a zero-pixels-touched early-out skips a destination pixel
   outright when its own mask coverage is `0`. When `clipPath` is non-null, it is transformed by
@@ -2941,9 +2941,9 @@ superseded by the broader guard documented immediately below, which also covers 
 
 **Correction - short-circuit every non-`solidFill` run outline paint (a fourth post-merge
 code-review finding)**: the picture-fill-only guard above was itself incomplete. `ResolveFill`
-resolves a _supported_ `<a:gradFill>`/`<a:pattFill>` variant successfully to a non-solid
+resolves a *supported* `<a:gradFill>`/`<a:pattFill>` variant successfully to a non-solid
 `PptxPaint`, which `GetRunOutline`'s own `is { Paint: PptxSolidFill }` pattern match already
-discards harmlessly as "no outline" - but an _unsupported_ variant (a path/no-direction gradient,
+discards harmlessly as "no outline" - but an *unsupported* variant (a path/no-direction gradient,
 or a pattern preset outside `PptxPresetPattern`'s covered set) still throws
 `PptxUnsupportedFeatureException` out of `ResolveFill`, exactly like the picture-fill case the
 third correction above fixed. The guard in `GetRunOutline` now checks for any of `<a:gradFill>`,
@@ -3099,8 +3099,8 @@ stored `<a:tr h="...">` EMU height, regardless of how much text a cell's own wra
 actually requires. Unlike PowerPoint (which grows a row to fit its own cell content), a cell whose
 text wraps to more lines than its stored row height can fit painted past its own row's bottom
 edge, visibly overlapping the next row's own content - exactly the row-height growth gap this
-unit's own `pptx-document.md` already flagged (see the now-closed _Deferred to a Later Phase
-(Phase 1e)_ bullet above).
+unit's own `pptx-document.md` already flagged (see the now-closed *Deferred to a Later Phase
+(Phase 1e)* bullet above).
 
 **Investigation finding - no new cell-margin plumbing needed**: no `<a:tcPr marL/marR/marT/marB>`
 cell-margin parsing exists anywhere in this unit; a table cell's only margin/inset source is its
@@ -3131,7 +3131,7 @@ code changed.
     exact chicken-and-egg circularity ("does the text need to grow the row, or shrink itself, to
     fit a height we are still trying to determine?") this feature must not reintroduce. The
     sentinel guarantees the shrink loop's own `totalHeight <= availableHeight` check is `true` on
-    its first (unscaled) iteration and never shrinks, while an _explicit_ `fontScale`/
+    its first (unscaled) iteration and never shrinks, while an *explicit* `fontScale`/
     `lnSpcReduction` attribute on `<a:normAutofit>` (a value PowerPoint itself persisted,
     independent of `availableHeight`) is still honored exactly as before - matching PowerPoint's
     own table behavior (tables grow rows to fit text at natural size; they do not autofit-shrink
@@ -3158,7 +3158,7 @@ code changed.
     (`effectiveHeightsEmu[rowIndex] = MathF.Max(effectiveHeightsEmu[rowIndex], requiredHeightEmu)` -
     never shrink, grow exactly enough to fit); a `RowSpan > 1` cell's own requirement is deferred.
     (2) each deferred row-spanning cell's own shortfall - its required height minus the (now
-    possibly singly-grown) sum of its spanned rows - is added entirely onto its _last_ spanned row
+    possibly singly-grown) sum of its spanned rows - is added entirely onto its *last* spanned row
     when positive.
   - **Row-span distribution policy - "grow the last spanned row"** (over proportional
     distribution across the span): (a) it is the simplest rule that satisfies "never shrink below
@@ -3192,7 +3192,7 @@ code changed.
 gradient-fill-sizing peek (used only to position a merged cell's own gradient paint at parse time)
 is unchanged - at parse time, no font resolver/theme-driven text measurement has run yet, and
 restructuring table parsing into a render-time-aware two-pass model is a materially larger,
-separately-scoped change. A cell with both a growing row-spanning text body _and_ a gradient fill
+separately-scoped change. A cell with both a growing row-spanning text body *and* a gradient fill
 may show a gradient ramp sized slightly differently than its own now-larger rectangle - a
 pre-existing, narrow, cosmetic approximation this fix does not regress or worsen. No `<a:tcPr>`
 cell-margin parsing is added (not needed - see the Investigation finding above).
@@ -3338,7 +3338,7 @@ too narrow/short, with the gradient's own end stop landing partway across the me
 rectangle instead of at its far edge. **Fix**: `ParseTable` now precomputes a `rowHeightsEmu` list
 once, up front, before its per-row loop (replacing the previous once-per-row inline parse); for
 each `<a:tc>`, it peeks the cell's own `gridSpan`/`rowSpan` attributes (via the existing
-`ParseOptionalIntAttribute` helper) _before_ calling `ParseTableCell`, and passes a merged
+`ParseOptionalIntAttribute` helper) *before* calling `ParseTableCell`, and passes a merged
 (summed) `cellWidthEmu`/`cellHeightEmu` computed via a new `SumConsecutive(IReadOnlyList<float>
 valuesEmu, int startIndex, int count)` private helper - a generalization of the pre-existing
 `SumColumnWidths`, which now delegates to it as a one-line wrapper, reused here for the new
@@ -3401,7 +3401,7 @@ rather than the default `lt1`.
 
 Before this phase, every `<p:graphicFrame>` declaring a chart (`<a:graphicData>` whose `uri`
 attribute ends in `"/chart"`) fell through `ParseTable`'s own graphic-frame-kind dispatch (see
-_Table Parsing_ above) and always threw `PptxUnsupportedFeatureException` (feature token
+*Table Parsing* above) and always threw `PptxUnsupportedFeatureException` (feature token
 `"pptx-graphic-frame-kind"`) - no presentation containing a chart could ever render past that
 slide. The sibling `DemaConsulting.CanvasNet.Charts` system (its own separate NuGet package,
 `CanvasNetCharts`) had, by its own Phases 1-3, already independently implemented and verified a
@@ -3416,7 +3416,7 @@ modified by this phase at all (see `docs/design/canvas-net-charts.md`'s "Depende
 `DemaConsulting.CanvasNet.Charts.csproj` only).
 
 **Dispatch (`PptxDocument.ShapeTree.cs`)**: `ParseShapeTree` inspects a `<p:graphicFrame>`'s own
-`<a:graphicData>` `uri` attribute _before_ either `ParseTable` or the new `ParseChart` is called -
+`<a:graphicData>` `uri` attribute *before* either `ParseTable` or the new `ParseChart` is called -
 a chart-kind `uri` (ending in `"/chart"`), when a non-null `resolveChartPart` delegate was
 supplied, dispatches to `ParseChart` and records the result as
 `PptxGraphicFrameShapeNode(GraphicFrameElement, Table: null, Chart: <parsed Chart>)`; every other
@@ -3427,7 +3427,7 @@ recorded as `PptxGraphicFrameShapeNode(GraphicFrameElement, Table: <parsed table
 nullable (a behavior-visible change from before this phase, when `Table` was never null for any
 graphic frame node) and mutually exclusive - exactly one is non-null for any graphic frame node
 `ParseShapeTree` actually produces. `ParseTable` itself is **not modified** by this phase (see the
-corrected _Table Parsing_ note above) - the chart/table decision is made entirely by
+corrected *Table Parsing* note above) - the chart/table decision is made entirely by
 `ParseShapeTree`'s own dispatch, before either parser is invoked.
 
 **`ParseChart` (new `PptxDocument.Charts.cs`)**: resolves the graphic frame's own
@@ -3504,7 +3504,7 @@ not "Chart 2") alongside the new, narrower "Chart 2"-isolation fact above.
 
 **Root cause**: a user-reported real-world deck places its
 company logo as a `<p:pic>` directly on `ppt/slideMasters/slideMaster1.xml` (a master-owned
-decorative shape - see _Phase 2 Follow-Up: Master/Layout Decorative Shape Rendering_ above). That
+decorative shape - see *Phase 2 Follow-Up: Master/Layout Decorative Shape Rendering* above). That
 logo's own `<a:blip>` declares **no raster `r:embed`/`r:link`** at all - only the Microsoft SVG
 blip extension (`<a:extLst>/<a:ext uri="{96DAC541-7B7A-43D3-8B79-37D633B846F1}">` wrapping an
 `<asvg:svgBlip r:embed="rId75"/>`), referencing `ppt/media/image1.svg`, a pure SVG media part with
@@ -3650,8 +3650,8 @@ existing range guard) and threaded, unchanged, through all three existing `Rende
 `ResolveTextLayout`/`PaintTextLayout` calls - so every other already-verified code path
 (geometry/fill/stroke resolution, table/picture/connector rendering) is completely untouched. Only
 the slide's own shape-tree walk's placeholder shapes are real content (a master/layout's own
-placeholder shapes are never painted at all - see _Phase 2 Follow-Up: Master/Layout Decorative
-Shape Rendering_ above), matching the real-world fact that PowerPoint writes a `<p:ph
+placeholder shapes are never painted at all - see *Phase 2 Follow-Up: Master/Layout Decorative
+Shape Rendering* above), matching the real-world fact that PowerPoint writes a `<p:ph
 type="sldNum">`/`<a:fld type="slidenum">` placeholder onto each slide's own part when the "Slide
 Number" footer option is enabled, not only onto the layout/master.
 
@@ -3686,22 +3686,21 @@ run changes).
 ### Image Source
 
 `PptxImageSource` (`PptxImageSource.cs`) is the `IImageSource` of the package for `.pptx` files, so that a document can
-link to a presentation through the shared `FolderImageResolver`; it draws the **first slide, or the slide the fragment of
-the link names** (`deck.pptx#slide=3`, or `#page=3`; the last of the two wins). The source implements
-`IFragmentImageSource` (`["page", "slide"]`) and reads the number with `request.Fragment.GetPositiveInt32("page",
-"slide")` before it reads the file; a slide beyond `SlideCount` is an `ImageSourceRefusedException` with the code
-`image-page-out-of-range`. `Render(request)` opens
-the presentation with `PptxDocument.Open(request.OpenContent())`, takes `SlideSize` in English Metric Units divided by
-9525 (96 dots per inch) as the natural size, asks `request.SizeFor(..., fitInside: true)` for the largest size of the
-aspect ratio of the slide inside the requested box, charges that size with `request.EnsureWithinBudget(width, height)`
-(a size that does not fit in the live budget is refused with `ImageSourceBudgetException` before any surface
-is allocated; the contract is on `ImageSourceRequest`), and
-draws the chosen slide with a `PptxRenderOptions` whose background is
-transparent, whose `StrictUnsupportedPictures` is the request's `ThrowOnUnsupportedFeature` and whose
-`OnUnsupportedPictureSkipped` handler adds an `Unsupported` note of the source `pptx` with the feature name as the code.
-The PPTX library cannot be canceled while it draws, so the cancellation token is checked before the presentation is
-opened and before it is drawn. The class is stateless, thread-safe, claims no URI scheme, and references only the core
-package (and the packages the document already uses).
+link to a presentation through the shared `FolderImageResolver`; it draws the **first slide, or the slide the fragment
+of the link names** (`deck.pptx#slide=3`, or `#page=3`; the last of the two wins). The source implements
+`IFragmentImageSource` (`["page", "slide"]`) and reads the number with
+`request.Fragment.GetPositiveInt32("page", "slide")` before it reads the file; a slide beyond `SlideCount` is an
+`ImageSourceRefusedException` with the code `image-page-out-of-range`. `Render(request)` opens the presentation with
+`PptxDocument.Open(request.OpenContent())`, takes `SlideSize` in English Metric Units divided by 9525 (96 dots per inch)
+as the natural size, asks `request.SizeFor(..., fitInside: true)` for the largest size of the aspect ratio of the slide
+inside the requested box, charges that size with `request.EnsureWithinBudget(width, height)` (a size that does not fit
+in the live budget is refused with `ImageSourceBudgetException` before any surface is allocated; the contract is on
+`ImageSourceRequest`), and draws the chosen slide with a `PptxRenderOptions` whose background is transparent, whose
+`StrictUnsupportedPictures` is the request's `ThrowOnUnsupportedFeature` and whose `OnUnsupportedPictureSkipped` handler
+adds an `Unsupported` note of the source `pptx` with the feature name as the code. The PPTX library cannot be canceled
+while it draws, so the cancellation token is checked before the presentation is opened and before it is drawn. The class
+is stateless, thread-safe, claims no URI scheme, and references only the core package (and the packages the document
+already uses).
 
 The behavior of the class is specified by the `CanvasNetPptx-PptxDocument-ImageSource` requirement and verified by
 `PptxImageSourceTests.cs`. Its **callers** are the shared `FolderImageResolver` of the core package (through

@@ -41,47 +41,81 @@ below.
 
 ## Included Files
 
-| File | Upstream source URL | Exercises |
-| ------ | ----------- | ----------- |
-| `davehoward-test1.vsdx` | <https://raw.githubusercontent.com/dave-howard/vsdx/master/tests/test1.vsdx> | Baseline multi-shape page, basic property sections. |
-| `davehoward-test3-house.vsdx` | <https://raw.githubusercontent.com/dave-howard/vsdx/master/tests/test3_house.vsdx> | Group master with `MasterShape` children, multi-section geometry. |
-| `davehoward-test4-connectors.vsdx` | <https://raw.githubusercontent.com/dave-howard/vsdx/master/tests/test4_connectors.vsdx> | Primary connector worked example, dynamic-connector master, whole-shape glue. |
-| `davehoward-test5-master.vsdx` | <https://raw.githubusercontent.com/dave-howard/vsdx/master/tests/test5_master.vsdx> | Group master with `NURBSTo`, rotation, and a `Property` section (Lucidchart-authored). |
-| `davehoward-test6-shape-properties.vsdx` | <https://raw.githubusercontent.com/dave-howard/vsdx/master/tests/test6_shape_properties.vsdx> | `Section N="Property"` rows; `Type="Guide"` master with `InfiniteLine`. |
-| `davehoward-test9-rect-and-line.vsdx` | <https://raw.githubusercontent.com/dave-howard/vsdx/master/tests/test9_rect_and_line.vsdx> | 1-D line shape transform derivation, straight connector. |
-| `davehoward-test10-nested-shapes.vsdx` | <https://raw.githubusercontent.com/dave-howard/vsdx/master/tests/test10_nested_shapes.vsdx> | Three-level nested/grouped shapes. |
-| `davehoward-test11-rotate.vsdx` | <https://raw.githubusercontent.com/dave-howard/vsdx/master/tests/test11_rotate.vsdx> | Multiple distinct `Angle` values - rotation transform/rotation-math validation. |
-| `davehoward-test12-colors.vsdx` | <https://raw.githubusercontent.com/dave-howard/vsdx/master/tests/test12_colors.vsdx> | Direct line/text/fill color overrides, `THEMEGUARD`/`SHADE` formulas. |
-| `jgreywolfvsdxjs-basicshapes.vsdx` | <https://raw.githubusercontent.com/jgreywolf/vsdx-js/main/tests/BasicShapes.vsdx> | Large stencil (`master1`-`master33`+); basic shapes, `EllipticalArcTo` circle master with explicit `U='IN'` units. |
-| `jgreywolfvsdxjs-connectors.vsdx` | <https://raw.githubusercontent.com/jgreywolf/vsdx-js/main/tests/Connectors.vsdx> | `theme1.xml` present; connectors/connection-point-indexed glue worked example. |
-| `jgreywolfvsdxjs-diagramwithstyles.vsdx` | <https://raw.githubusercontent.com/jgreywolf/vsdx-js/main/tests/DiagramWithStyles.vsdx> | `theme1.xml` present; group master/stencil with cross-reference (`Sheet.N!Cell`) child-style inheritance. |
-| `jgreywolfvsdxjs-drawing.vsdx` | <https://raw.githubusercontent.com/jgreywolf/vsdx-js/main/tests/Drawing.vsdx> | Additional master/stencil variety - general drawing coverage. |
-| `jgreywolfvsdxjs-flowchartshapes.vsdx` | <https://raw.githubusercontent.com/jgreywolf/vsdx-js/main/tests/FlowchartShapes.vsdx> | Large flowchart stencil with styled shapes; page 1 has no `<Connects>` section (confirms it is optional). |
+- **`davehoward-test1.vsdx`**
+  - Upstream source URL: <https://raw.githubusercontent.com/dave-howard/vsdx/master/tests/test1.vsdx>.
+  - Exercises: Baseline multi-shape page, basic property sections.
+- **`davehoward-test3-house.vsdx`**
+  - Upstream source URL: <https://raw.githubusercontent.com/dave-howard/vsdx/master/tests/test3_house.vsdx>.
+  - Exercises: Group master with `MasterShape` children, multi-section geometry.
+- **`davehoward-test4-connectors.vsdx`**
+  - Upstream source URL: <https://raw.githubusercontent.com/dave-howard/vsdx/master/tests/test4_connectors.vsdx>.
+  - Exercises: Primary connector worked example, dynamic-connector master, whole-shape glue.
+- **`davehoward-test5-master.vsdx`**
+  - Upstream source URL: <https://raw.githubusercontent.com/dave-howard/vsdx/master/tests/test5_master.vsdx>.
+  - Exercises: Group master with `NURBSTo`, rotation, and a `Property` section (Lucidchart-authored).
+- **`davehoward-test6-shape-properties.vsdx`**
+  - Upstream source URL: <https://raw.githubusercontent.com/dave-howard/vsdx/master/tests/test6_shape_properties.vsdx>.
+  - Exercises: `Section N="Property"` rows; `Type="Guide"` master with `InfiniteLine`.
+- **`davehoward-test9-rect-and-line.vsdx`**
+  - Upstream source URL: <https://raw.githubusercontent.com/dave-howard/vsdx/master/tests/test9_rect_and_line.vsdx>.
+  - Exercises: 1-D line shape transform derivation, straight connector.
+- **`davehoward-test10-nested-shapes.vsdx`**
+  - Upstream source URL: <https://raw.githubusercontent.com/dave-howard/vsdx/master/tests/test10_nested_shapes.vsdx>.
+  - Exercises: Three-level nested/grouped shapes.
+- **`davehoward-test11-rotate.vsdx`**
+  - Upstream source URL: <https://raw.githubusercontent.com/dave-howard/vsdx/master/tests/test11_rotate.vsdx>.
+  - Exercises: Multiple distinct `Angle` values - rotation transform/rotation-math validation.
+- **`davehoward-test12-colors.vsdx`**
+  - Upstream source URL: <https://raw.githubusercontent.com/dave-howard/vsdx/master/tests/test12_colors.vsdx>.
+  - Exercises: Direct line/text/fill color overrides, `THEMEGUARD`/`SHADE` formulas.
+- **`jgreywolfvsdxjs-basicshapes.vsdx`**
+  - Upstream source URL: <https://raw.githubusercontent.com/jgreywolf/vsdx-js/main/tests/BasicShapes.vsdx>.
+  - Exercises: Large stencil (`master1`-`master33`+); basic shapes, `EllipticalArcTo` circle master with explicit
+    `U='IN'` units.
+- **`jgreywolfvsdxjs-connectors.vsdx`**
+  - Upstream source URL: <https://raw.githubusercontent.com/jgreywolf/vsdx-js/main/tests/Connectors.vsdx>.
+  - Exercises: `theme1.xml` present; connectors/connection-point-indexed glue worked example.
+- **`jgreywolfvsdxjs-diagramwithstyles.vsdx`**
+  - Upstream source URL: <https://raw.githubusercontent.com/jgreywolf/vsdx-js/main/tests/DiagramWithStyles.vsdx>.
+  - Exercises: `theme1.xml` present; group master/stencil with cross-reference (`Sheet.N!Cell`) child-style inheritance.
+- **`jgreywolfvsdxjs-drawing.vsdx`**
+  - Upstream source URL: <https://raw.githubusercontent.com/jgreywolf/vsdx-js/main/tests/Drawing.vsdx>.
+  - Exercises: Additional master/stencil variety - general drawing coverage.
+- **`jgreywolfvsdxjs-flowchartshapes.vsdx`**
+  - Upstream source URL: <https://raw.githubusercontent.com/jgreywolf/vsdx-js/main/tests/FlowchartShapes.vsdx>.
+  - Exercises: Large flowchart stencil with styled shapes; page 1 has no `<Connects>` section (confirms it is optional).
 
 ## Exact Source URLs
 
 Each `davehoward-*.vsdx` file here is byte-for-byte the upstream file at the corresponding URL
 below (verified by exact file size against the upstream file before inclusion):
 
-| This folder's file | Upstream source URL |
-| ------ | ----------- |
-| `davehoward-test1.vsdx` | <https://raw.githubusercontent.com/dave-howard/vsdx/master/tests/test1.vsdx> |
-| `davehoward-test3-house.vsdx` | <https://raw.githubusercontent.com/dave-howard/vsdx/master/tests/test3_house.vsdx> |
-| `davehoward-test4-connectors.vsdx` | <https://raw.githubusercontent.com/dave-howard/vsdx/master/tests/test4_connectors.vsdx> |
-| `davehoward-test5-master.vsdx` | <https://raw.githubusercontent.com/dave-howard/vsdx/master/tests/test5_master.vsdx> |
-| `davehoward-test6-shape-properties.vsdx` | <https://raw.githubusercontent.com/dave-howard/vsdx/master/tests/test6_shape_properties.vsdx> |
-| `davehoward-test9-rect-and-line.vsdx` | <https://raw.githubusercontent.com/dave-howard/vsdx/master/tests/test9_rect_and_line.vsdx> |
-| `davehoward-test10-nested-shapes.vsdx` | <https://raw.githubusercontent.com/dave-howard/vsdx/master/tests/test10_nested_shapes.vsdx> |
-| `davehoward-test11-rotate.vsdx` | <https://raw.githubusercontent.com/dave-howard/vsdx/master/tests/test11_rotate.vsdx> |
-| `davehoward-test12-colors.vsdx` | <https://raw.githubusercontent.com/dave-howard/vsdx/master/tests/test12_colors.vsdx> |
+- **`davehoward-test1.vsdx`**: <https://raw.githubusercontent.com/dave-howard/vsdx/master/tests/test1.vsdx>
+- **`davehoward-test3-house.vsdx`**: <https://raw.githubusercontent.com/dave-howard/vsdx/master/tests/test3_house.vsdx>
+- **`davehoward-test4-connectors.vsdx`**:
+  <https://raw.githubusercontent.com/dave-howard/vsdx/master/tests/test4_connectors.vsdx>
+- **`davehoward-test5-master.vsdx`**:
+  <https://raw.githubusercontent.com/dave-howard/vsdx/master/tests/test5_master.vsdx>
+- **`davehoward-test6-shape-properties.vsdx`**:
+  <https://raw.githubusercontent.com/dave-howard/vsdx/master/tests/test6_shape_properties.vsdx>
+- **`davehoward-test9-rect-and-line.vsdx`**:
+  <https://raw.githubusercontent.com/dave-howard/vsdx/master/tests/test9_rect_and_line.vsdx>
+- **`davehoward-test10-nested-shapes.vsdx`**:
+  <https://raw.githubusercontent.com/dave-howard/vsdx/master/tests/test10_nested_shapes.vsdx>
+- **`davehoward-test11-rotate.vsdx`**:
+  <https://raw.githubusercontent.com/dave-howard/vsdx/master/tests/test11_rotate.vsdx>
+- **`davehoward-test12-colors.vsdx`**:
+  <https://raw.githubusercontent.com/dave-howard/vsdx/master/tests/test12_colors.vsdx>
 
 Each `jgreywolfvsdxjs-*.vsdx` file here is byte-for-byte the upstream file at the corresponding URL
 below (verified by exact file size against the upstream file before inclusion):
 
-| This folder's file | Upstream source URL |
-| ------ | ----------- |
-| `jgreywolfvsdxjs-basicshapes.vsdx` | <https://raw.githubusercontent.com/jgreywolf/vsdx-js/main/tests/BasicShapes.vsdx> |
-| `jgreywolfvsdxjs-connectors.vsdx` | <https://raw.githubusercontent.com/jgreywolf/vsdx-js/main/tests/Connectors.vsdx> |
-| `jgreywolfvsdxjs-diagramwithstyles.vsdx` | <https://raw.githubusercontent.com/jgreywolf/vsdx-js/main/tests/DiagramWithStyles.vsdx> |
-| `jgreywolfvsdxjs-drawing.vsdx` | <https://raw.githubusercontent.com/jgreywolf/vsdx-js/main/tests/Drawing.vsdx> |
-| `jgreywolfvsdxjs-flowchartshapes.vsdx` | <https://raw.githubusercontent.com/jgreywolf/vsdx-js/main/tests/FlowchartShapes.vsdx> |
+- **`jgreywolfvsdxjs-basicshapes.vsdx`**:
+  <https://raw.githubusercontent.com/jgreywolf/vsdx-js/main/tests/BasicShapes.vsdx>
+- **`jgreywolfvsdxjs-connectors.vsdx`**:
+  <https://raw.githubusercontent.com/jgreywolf/vsdx-js/main/tests/Connectors.vsdx>
+- **`jgreywolfvsdxjs-diagramwithstyles.vsdx`**:
+  <https://raw.githubusercontent.com/jgreywolf/vsdx-js/main/tests/DiagramWithStyles.vsdx>
+- **`jgreywolfvsdxjs-drawing.vsdx`**: <https://raw.githubusercontent.com/jgreywolf/vsdx-js/main/tests/Drawing.vsdx>
+- **`jgreywolfvsdxjs-flowchartshapes.vsdx`**:
+  <https://raw.githubusercontent.com/jgreywolf/vsdx-js/main/tests/FlowchartShapes.vsdx>

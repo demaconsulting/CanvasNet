@@ -20,7 +20,7 @@ through `InternalsVisibleTo`, to the test assembly. It contains four units:
   `PacketConfig`, `GitGraphConfig`, `MermaidFontConfig`, and `ConfigScalar`
   (`MermaidConfig.cs`): the layers of the configuration in Mermaid's order with Mermaid's merge rules, sanitizers,
   secure keys, and theme recomputation, and the located reports of the keys and values that have no effect; see
-  _MermaidConfigResolver Unit Design_ (`configuration/mermaid-config-resolver.md`)
+  *MermaidConfigResolver Unit Design* (`configuration/mermaid-config-resolver.md`)
 - **ThemeResolver** - the internal static `ThemeResolver` (a partial class in `ThemeResolver.cs` and one file per
   theme, `ThemeResolver.Default.cs`, `.Base.cs`, `.Dark.cs`, `.Forest.cs`, and `.Neutral.cs`), the JavaScript object
   model `ThemeObject` and `Js`, the shared base `DiagramStyles`, the base `UnifiedStyles` of the diagrams that the
@@ -34,17 +34,17 @@ through `InternalsVisibleTo`, to the test assembly. It contains four units:
   `GitGraphComputedStyle` (`ThemeResolver.GitGraphStyles.cs`): the five built-in themes and the style rules
   Mermaid writes for a flowchart, a sequence diagram, a class diagram, a state diagram, an entity relationship
   diagram, a pie chart, a gantt chart, a mindmap, a packet diagram, and a git graph; see
-  _ThemeResolver Unit Design_ (`configuration/theme-resolver.md`)
+  *ThemeResolver Unit Design* (`configuration/theme-resolver.md`)
 - **ColorMath** - the internal static `ColorMath` (`ColorMath.cs` and `ColorMath.Parsers.cs`, with the channel model
   `Channels` and the exception `ColorFormatException`): the subset of the khroma color library that the themes derive
-  their colors with; see _ColorMath Unit Design_ (`configuration/color-math.md`)
+  their colors with; see *ColorMath Unit Design* (`configuration/color-math.md`)
 - **StyleDeclarations** - the internal static `StyleDeclarations` with `StyleDeclaration`, `StyleDeclarationSet`, and
   `StyleRule` (`StyleDeclarations.cs`): the CSS subset of the `style`, `classDef`, and `linkStyle` statements and of
-  `themeCSS`; see _StyleDeclarations Unit Design_ (`configuration/style-declarations.md`)
+  `themeCSS`; see *StyleDeclarations Unit Design* (`configuration/style-declarations.md`)
 
 The subsystem's namespace documentation is in `Configuration/NamespaceDoc.cs`. Its behavior is specified by the
 `CanvasNetMermaid-Configuration-*` requirements in `docs/reqstream/canvas-net-mermaid/configuration.yaml`. The SysML2
-model names the subsystem `MermaidConfiguration` (see _CanvasNetMermaid System Design_).
+model names the subsystem `MermaidConfiguration` (see *CanvasNetMermaid System Design*).
 
 ### Interfaces
 
@@ -111,31 +111,30 @@ and their locations), the YAML nodes of the `YamlSubsetParser`, and `DiagramDete
 root; the core `CanvasNet` `Rgba32` and `CssColor` (the `Canvas` subsystem), through the public API; and
 `System.Text.Json` of the .NET base class library.
 
-**Consumers**: `MermaidDocument` resolves the configuration without reports when a text is opened (to give the
-detector its settings and the class parser the text's own `class.hierarchicalNamespaces`) and with reports for every
-measure or render call, and builds the `FlowchartStyles` of the call; the `Flowchart` subsystem (`FlowchartModel`)
-reads the typed configuration (and reports an unsupported look or layout at `LocationOf`) and the styles; the
-`Sequence` subsystem (`SequenceModel`, `SequenceLayout`, and `SequenceRenderer`) reads the sequence section and builds
-and draws with the `SequenceStyles` of the call; the `Class` subsystem (`ClassModel`) reads the class section (the
-namespace and note paddings, `hierarchicalNamespaces`, the spacing, and the title margin), reports an unsupported look
-or layout at `LocationOf`, and builds the `ClassStyles` of the call; the `State` subsystem (`StateModel`) reads the
-state section (the spacing, the title margin, and the default renderer it names when it reports the legacy renderer)
-and builds the `StateStyles` of the call; the `Er` subsystem (`ErModel`) reads the `er` section (the spacing and the
-title margin) and builds the `ErStyles` of the call; the `Pie` subsystem (`PieRenderer`) reads the `pie` section and
-builds the `PieStyles` of the call; the `Gantt` subsystem (`GanttRenderer`) reads the `gantt` section and builds the
-`GanttStyles` of the call; the `Mindmap` subsystem (`MindmapRenderer`) reads the `mindmap` section, the look, and the
-layout (and reports an unsupported look or layout at `LocationOf`) and builds the `MindmapStyles` of the call, which
-the shared shapes and edges draw with; the `Packet` subsystem (`PacketRenderer`) reads the `packet` section and builds the
+**Consumers**: `MermaidDocument` resolves the configuration without reports when a text is opened (to give the detector
+its settings and the class parser the text's own `class.hierarchicalNamespaces`) and with reports for every measure or
+render call, and builds the `FlowchartStyles` of the call; the `Flowchart` subsystem (`FlowchartModel`) reads the typed
+configuration (and reports an unsupported look or layout at `LocationOf`) and the styles; the `Sequence` subsystem
+(`SequenceModel`, `SequenceLayout`, and `SequenceRenderer`) reads the sequence section and builds and draws with the
+`SequenceStyles` of the call; the `Class` subsystem (`ClassModel`) reads the class section (the namespace and note
+paddings, `hierarchicalNamespaces`, the spacing, and the title margin), reports an unsupported look or layout at
+`LocationOf`, and builds the `ClassStyles` of the call; the `State` subsystem (`StateModel`) reads the state section
+(the spacing, the title margin, and the default renderer it names when it reports the legacy renderer) and builds the
+`StateStyles` of the call; the `Er` subsystem (`ErModel`) reads the `er` section (the spacing and the title margin) and
+builds the `ErStyles` of the call; the `Pie` subsystem (`PieRenderer`) reads the `pie` section and builds the
+`PieStyles` of the call; the `Gantt` subsystem (`GanttRenderer`) reads the `gantt` section and builds the `GanttStyles`
+of the call; the `Mindmap` subsystem (`MindmapRenderer`) reads the `mindmap` section, the look, and the layout (and
+reports an unsupported look or layout at `LocationOf`) and builds the `MindmapStyles` of the call, which the shared
+shapes and edges draw with; the `Packet` subsystem (`PacketRenderer`) reads the `packet` section and builds the
 `PacketStyles` of the call; the `GitGraph` subsystem reads the `gitGraph` section (`GitGraphParser` the main branch name
 and order of the text's own configuration when a text is opened, `GitGraphRenderer` the whole section of a render) and
-builds the `GitGraphStyles` of the call; the `Rendering` subsystem reads the configuration
-through its `LayoutData` (`ClusterLayout` the subgraph margins), `ShapeLibrary` reads the class section for a class box
-(its padding and `hideEmptyMembersBox`) and the `er` section for an entity box (its two paddings and the minimum
-entity width), and `ShapeLibrary`, `EdgeBuilder`, and `LabelBuilder` parse the `style`,
-`classDef`, and `linkStyle` declarations and inline label styles with `StyleDeclarations` and draw with the resolved
-paints of the call's `UnifiedStyles` (`ClusterLayout` the diagram title; `ShapeLibrary` the subgraph and composite
-state titles through `ClusterTitle(html)` and the SVG node text through `CentersNodeSvgText`; `EdgeBuilder` the SVG
-edge labels in the size of `RootText`).
+builds the `GitGraphStyles` of the call; the `Rendering` subsystem reads the configuration through its `LayoutData`
+(`ClusterLayout` the subgraph margins), `ShapeLibrary` reads the class section for a class box (its padding and
+`hideEmptyMembersBox`) and the `er` section for an entity box (its two paddings and the minimum entity width), and
+`ShapeLibrary`, `EdgeBuilder`, and `LabelBuilder` parse the `style`, `classDef`, and `linkStyle` declarations and inline
+label styles with `StyleDeclarations` and draw with the resolved paints of the call's `UnifiedStyles` (`ClusterLayout`
+the diagram title; `ShapeLibrary` the subgraph and composite state titles through `ClusterTitle(html)` and the SVG node
+text through `CentersNodeSvgText`; `EdgeBuilder` the SVG edge labels in the size of `RootText`).
 
 ### Design
 
@@ -154,45 +153,45 @@ frontmatter key or at the directive that caused it; the silent sanitizers of Mer
 
 **Themes derived as Mermaid derives them.** `ThemeResolver` ports each `theme-*.js` class to a constructor and an
 `updateColors` in the class's own derivation order, over a `ThemeObject` that behaves as the JavaScript `this` of the
-class. Every color is derived with `ColorMath`, the port of khroma, so a derived color has the same text as in
-Mermaid. `FlowchartStyles`, `ClassStyles`, `StateStyles`, `ErStyles`, and `SequenceStyles` share the global rules of
-Mermaid's `getStyles` (`DiagramStyles`), add the flowchart's `styles.ts`, the class diagram's `styles.js`, the state
-diagram's `styles.js`, the entity relationship diagram's `styles.ts`, or the sequence diagram's `styles.js` from the
-theme variables as selector-keyed rules, append the `themeCSS` rules of the same selectors (parsed
-by `StyleDeclarations`), and resolve the cascade into typed paints for the drawing; the sequence resolvers apply the
-cascade over the attributes that Mermaid writes on each element, as a browser does. The flowchart and the class, state,
-and entity relationship diagrams are drawn by the same rendering units, which read every sheet only through
-`UnifiedStyles`: each sheet supplies its title selector, the rule its labels are colored by, the selectors of its label
-backgrounds, the paint of a subgraph or composite state title as an HTML label and as SVG text (`ClusterTitle(html)`),
-and whether it centers the SVG text of a node's label on its anchor (`CentersNodeSvgText`: the flowchart and class
-sheets do, the state and entity relationship sheets have no such rule); `RootText` gives the root font and fill that a
-text inherits where no rule of its own applies. The class and entity relationship diagrams' titles have a CSS class
-that no rule of the sheet styles, so they take the root font and fill, as in Mermaid; the state diagram's title takes
-the 18 pixels of `.statediagramTitleText`. `PieStyles` and `GanttStyles` are not unified sheets, because pie and gantt
-charts have their own renderers: `PieStyles` resolves the few pie rules into typed paints, and `GanttStyles`, whose
-rules select by compound classes (`.doneText0.taskTextOutsideRight`), descendants (`.grid .tick text`), and
-`!important` fills, computes the style of each element from its own classes and those of its ancestors as a browser's
-cascade does (important declarations, then specificity, then the order of the rules, over the element's presentation
-attributes), with the `themeCSS` rules of the known gantt selectors after them. `MindmapStyles` is a unified sheet,
-because a mindmap is drawn by the shared shapes and edges, but its rules select by a node's classes and the element
-its shape draws (`.section-2 rect`, `.section-root text`, `.section-3 line`), so it overrides `NodePaintFor` and
-`NodeLabelFor` to cascade those rules over the node's classes in sheet order; the edges take the single-class rules of
-their classes (`.section-edge-k`, `.edge-depth-n`, and `.edge`) through the edge builder's cascade. The mindmap
-sheet's negative `stroke-width` declarations (`.edge-depth-5` onward) are dropped as a browser drops them, and the
-gradient rules that the themes with `useGradient` and `mainBkg` append make the line under a default node 0 pixels
-wide. `PacketStyles` is not a unified sheet either: it builds its six rules from the sheet's default options merged
-with the theme variable `packet` (an object that replaces the theme's own, as Mermaid's `calculate` re-applies the
-user's overrides; each value written as JavaScript's `String` writes it), drops a font size without a unit as the
-browser drops it, and resolves the paint of a block (inheriting the root rule's paint, as SVG paint is inherited,
-where its own is dropped) and the fonts and colors of the labels, the bit numbers, and the title. `GitGraphStyles` is
-not a unified sheet either: it builds the rules of the git graph's `styles.js` for every color index up to the theme's
-`THEME_COLOR_LIMIT` (`git{i % 8}` and its kin), with the `themeCSS` rules of the known git graph selectors after them,
-and computes the style of each element over the chain from the svg element through its groups as a browser's cascade
-does (presentation attributes, then the matching single-compound rules by specificity and sheet order, then the inline
-style, with `!important` declarations first, and the inherited fill, stroke, stroke width, dashes, line cap, font, and
-text anchor), so a commit id written into the class attribute, as Mermaid writes it, is styled by a rule of the same
-class; it drops a font size without a unit as the browser drops it, and in the `neo` look gives the rectangle of a branch
-label the theme's `dropShadow` as its inline `filter`.
+class. Every color is derived with `ColorMath`, the port of khroma, so a derived color has the same text as in Mermaid.
+`FlowchartStyles`, `ClassStyles`, `StateStyles`, `ErStyles`, and `SequenceStyles` share the global rules of Mermaid's
+`getStyles` (`DiagramStyles`), add the flowchart's `styles.ts`, the class diagram's `styles.js`, the state diagram's
+`styles.js`, the entity relationship diagram's `styles.ts`, or the sequence diagram's `styles.js` from the theme
+variables as selector-keyed rules, append the `themeCSS` rules of the same selectors (parsed by `StyleDeclarations`),
+and resolve the cascade into typed paints for the drawing; the sequence resolvers apply the cascade over the attributes
+that Mermaid writes on each element, as a browser does. The flowchart and the class, state, and entity relationship
+diagrams are drawn by the same rendering units, which read every sheet only through `UnifiedStyles`: each sheet supplies
+its title selector, the rule its labels are colored by, the selectors of its label backgrounds, the paint of a subgraph
+or composite state title as an HTML label and as SVG text (`ClusterTitle(html)`), and whether it centers the SVG text of
+a node's label on its anchor (`CentersNodeSvgText`: the flowchart and class sheets do, the state and entity relationship
+sheets have no such rule); `RootText` gives the root font and fill that a text inherits where no rule of its own
+applies. The class and entity relationship diagrams' titles have a CSS class that no rule of the sheet styles, so they
+take the root font and fill, as in Mermaid; the state diagram's title takes the 18 pixels of `.statediagramTitleText`.
+`PieStyles` and `GanttStyles` are not unified sheets, because pie and gantt charts have their own renderers: `PieStyles`
+resolves the few pie rules into typed paints, and `GanttStyles`, whose rules select by compound classes
+(`.doneText0.taskTextOutsideRight`), descendants (`.grid .tick text`), and `!important` fills, computes the style of
+each element from its own classes and those of its ancestors as a browser's cascade does (important declarations, then
+specificity, then the order of the rules, over the element's presentation attributes), with the `themeCSS` rules of the
+known gantt selectors after them. `MindmapStyles` is a unified sheet, because a mindmap is drawn by the shared shapes
+and edges, but its rules select by a node's classes and the element its shape draws (`.section-2 rect`,
+`.section-root text`, `.section-3 line`), so it overrides `NodePaintFor` and `NodeLabelFor` to cascade those rules over
+the node's classes in sheet order; the edges take the single-class rules of their classes (`.section-edge-k`,
+`.edge-depth-n`, and `.edge`) through the edge builder's cascade. The mindmap sheet's negative `stroke-width`
+declarations (`.edge-depth-5` onward) are dropped as a browser drops them, and the gradient rules that the themes with
+`useGradient` and `mainBkg` append make the line under a default node 0 pixels wide. `PacketStyles` is not a unified
+sheet either: it builds its six rules from the sheet's default options merged with the theme variable `packet` (an
+object that replaces the theme's own, as Mermaid's `calculate` re-applies the user's overrides; each value written as
+JavaScript's `String` writes it), drops a font size without a unit as the browser drops it, and resolves the paint of a
+block (inheriting the root rule's paint, as SVG paint is inherited, where its own is dropped) and the fonts and colors
+of the labels, the bit numbers, and the title. `GitGraphStyles` is not a unified sheet either: it builds the rules of
+the git graph's `styles.js` for every color index up to the theme's `THEME_COLOR_LIMIT` (`git{i % 8}` and its kin), with
+the `themeCSS` rules of the known git graph selectors after them, and computes the style of each element over the chain
+from the svg element through its groups as a browser's cascade does (presentation attributes, then the matching
+single-compound rules by specificity and sheet order, then the inline style, with `!important` declarations first, and
+the inherited fill, stroke, stroke width, dashes, line cap, font, and text anchor), so a commit id written into the
+class attribute, as Mermaid writes it, is styled by a rule of the same class; it drops a font size without a unit as the
+browser drops it, and in the `neo` look gives the rectangle of a branch label the theme's `dropShadow` as its inline
+`filter`.
 
 **Checked against upstream vectors.** The fixture `Fixtures/upstream-vectors/themes.json`, generated from the pinned
 Mermaid and khroma by `tools/visual-diff/mermaid/gen-theme-vectors.mjs`, records 622 khroma calls, 53

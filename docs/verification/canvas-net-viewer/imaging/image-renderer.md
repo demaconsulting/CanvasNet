@@ -11,7 +11,7 @@ unit is the chain of the real loader, pipeline, and writer. The pixels of a writ
 expected surface (`SurfaceAssert`), and the failure cases assert the error code and that the input is unchanged and no
 file or temporary file is left. The positions of a written page are verified with a two-node flowchart written by
 `ImageRenderer_Execute_Positions_FollowCropAndPad` and, end to end, by the system test that renders a bar chart with a
-pad (see _CanvasNetViewer System Verification_).
+pad (see *CanvasNetViewer System Verification*).
 
 #### Test Environment
 
@@ -31,8 +31,9 @@ N/A - standard test environment; the tests write only to temporary directories t
 
 #### Test Scenarios
 
-**ImageRenderer_Execute_SingleImage_WritesCopyAndReportsPage**: a gradient PNG rendered without operations gives one page
-numbered 1 whose file has the size and exactly the pixels of the input, and the result carries the path of the input.
+**ImageRenderer_Execute_SingleImage_WritesCopyAndReportsPage**: a gradient PNG rendered without operations gives one
+page numbered 1 whose file has the size and exactly the pixels of the input, and the result carries the path of the
+input.
 
 **ImageRenderer_Execute_Operations_AreAppliedInOrderAndReported**: a request with a crop to 8 by 4 and a resize to 4 by
 2
@@ -41,8 +42,8 @@ gives a file of 4 by 2, and the last two operations of the page are `crop` and `
 **ImageRenderer_Execute_AllPagesIntoDirectory_NamesEachPageAfterTheInput**: the PDF rendered with every page into a
 folder that does not exist yet writes `source-1.png` and `source-2.png`, and reports the pages 1 and 2.
 
-**ImageRenderer_Execute_OutputIsInput_ThrowsSameInputOutput**: an output that is the input is `same-input-output` and the
-input keeps its bytes.
+**ImageRenderer_Execute_OutputIsInput_ThrowsSameInputOutput**: an output that is the input is `same-input-output` and
+the input keeps its bytes.
 
 **ImageRenderer_Execute_UnknownExtension_ThrowsUsageError**: an output extension that no format claims is `usage-error`
 and nothing is written.
@@ -56,8 +57,8 @@ and nothing is written.
 existing output keeps its old content, and the directory holds nothing but the input and that output (no temporary
 file).
 
-**ImageRenderer_Execute_ExplicitFormatAndExtensionlessOutput_WritesThatFormat**: with JPEG in the write options an output
-named `out` is written as a JPEG (it starts with FF D8) and reported as one.
+**ImageRenderer_Execute_ExplicitFormatAndExtensionlessOutput_WritesThatFormat**: with JPEG in the write options an
+output named `out` is written as a JPEG (it starts with FF D8) and reported as one.
 
 **ImageRenderer_Execute_NullRequestMember_ThrowsArgumentNullException** and
 **ImageRenderer_Execute_NullOperationElement_ThrowsArgumentNullException**: a request without the output, the source

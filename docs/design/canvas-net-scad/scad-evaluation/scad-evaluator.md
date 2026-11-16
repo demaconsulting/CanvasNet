@@ -31,7 +31,7 @@ source files in the `DemaConsulting.CanvasNet.Scad.Evaluation` namespace, all `i
 unsupported-feature reports, or throws an evaluation error. It implements the **normative semantics of the
 CanvasNetScad dialect** described below, which are original decisions pinned by in-repo tests: no OpenSCAD
 source, grammar, manual text, or test material was consulted, and parity with any other implementation is a
-non-goal (see _CanvasNetScad System Design_, Clean-Room Provenance). It never interprets geometry, never
+non-goal (see *CanvasNetScad System Design*, Clean-Room Provenance). It never interprets geometry, never
 touches the file system, and never calls user code; it is pure computation over immutable inputs.
 
 The unit's behavior is specified by the `CanvasNetScad-ScadEvaluation-ScadEvaluator-*` requirements
@@ -68,8 +68,8 @@ the chain.
 **Closure (`ScadClosure`)** implements `IScadFunctionValue`: the name (or none for a literal), the parameters,
 the result expression, the scope the function closes over, and the definition location.
 
-**Instance (`ScadInstance`).** The immutable tree node described in _ScadEvaluation Subsystem Design_
-(`scad-evaluation.md`, _The Instantiation Tree_): kind, name, evaluated arguments (with optional names),
+**Instance (`ScadInstance`).** The immutable tree node described in *ScadEvaluation Subsystem Design*
+(`scad-evaluation.md`, *The Instantiation Tree*): kind, name, evaluated arguments (with optional names),
 children, modifiers, fragment settings, and location.
 
 **Settings and output.** `ScadEvaluationSettings` carries `Limits`, `Time`, `Overrides` (a dictionary of
@@ -82,7 +82,7 @@ variables the main file or an override defined, each `null` when it was not defi
 **Viewport values.** `ScadViewportValues` is a readonly record struct of `Target` (`$vpt`), `Rotation` (`$vpr`,
 degrees), `Distance` (`$vpd`), and `FieldOfView` (`$vpf`, degrees), with the variable names as constants. Its
 `OpenScadDefaults` are `[0, 0, 0]`, `[55, 0, 25]`, `140`, and `22.5`; `ScadDocument.Render` and `BuildScene` supply
-the values of the requested view instead (see _ScadDocument Unit Design_). `ScadDocumentViewport` (sealed record)
+the values of the requested view instead (see *ScadDocument Unit Design*). `ScadDocumentViewport` (sealed record)
 holds the four nullable valid values and `IsManual`, true when `$vpt`, `$vpd`, or `$vpf` was defined (which selects
 a manual camera instead of the automatic framing).
 
@@ -122,15 +122,15 @@ test reaches the fallback path deterministically instead of depending on how sma
   a replayed warning keeps its code), and runs the pass again on
   the large-stack thread (`RunOnEvaluatorThread`).
 - `RunPass(stackShortageIsRecursionError)` — builds the root scope, **reads the viewport variables of the main
-  file** (`ReadViewport`, see _Normative Semantics: Viewport Variables_), executes the file's statements, and
+  file** (`ReadViewport`, see *Normative Semantics: Viewport Variables*), executes the file's statements, and
   assembles the output. On the large-stack thread a tripped guard is reported as the recursion-limit error
   (defense in depth), located at the last frame entered.
 - `EnterFrame`, `LeaveFrame`, `Charge`, `ChargeLoopTurn`, `CheckLoopBudget`, `ChargeHops` — the accounting
-  (see _Accounting_).
+  (see *Accounting*).
 
 ##### Normative Semantics: Scoping
 
-_Scopes_ are the file root, a module body, a function call, a braced block or child list, an `if` branch,
+*Scopes* are the file root, a module body, a function call, a braced block or child list, an `if` branch,
 a `let` (statement and expression), a `for` iteration, and a comprehension element. Names live in three
 namespaces per scope: variables, functions, and modules.
 
@@ -156,7 +156,7 @@ callee that is not an identifier (`(function(x) x)(1)`, `fs[0](2)`) is evaluated
 the warning `Cannot call a value that is not a function` and `undef`.
 
 **Lazy cells.** A cell's expression is evaluated **in its defining scope**, at most once, and memoized. All
-cells of a scope are _forced in source order when the scope is entered_ (so an unreferenced assignment still
+cells of a scope are *forced in source order when the scope is entered* (so an unreferenced assignment still
 runs its `echo` and `assert` effects in source order, and a forward reference simply forces the cell it
 refers to first). Statements — instantiations, `echo`, `assert`, and so on — execute **after** the scope's
 cells have been forced. Reading a cell that is in the `Evaluating` state is a circular reference: the warning
@@ -191,7 +191,7 @@ A name beginning with `$` is a special variable with **dynamic scope**:
   arguments applied (a non-numeric one is ignored for the instance itself), so the nearest binding wins (an
   argument of the instance beats an enclosing assignment, and a nested instance's argument beats the outer one).
   The arguments remain visible in the instance's recorded argument list.
-- `$children` (modules only) is the number of child **slots** of the call (see _Children_).
+- `$children` (modules only) is the number of child **slots** of the call (see *Children*).
 - A tail call that binds no `$` name does not grow the chain; a recursion that binds a `$` name at every level
   adds one frame per level, so the chain depth is capped by `MaxRecursionDepth` and such a recursion fails with
   the recursion error (also for `$` tail recursion).
@@ -261,7 +261,7 @@ counts as a slot. The assignments and definitions in the child list are bound in
   the warning `Ignoring a range with a zero step or a non-finite bound` and no iterations; `s > 0` requires
   `a <= b` and `s < 0` requires `a >= b`, otherwise the range is empty **without** a diagnostic; the count is
   `floor((b - a) / s) + 1`, corrected by at most one element so that the last element is judged by the value that
-  is generated (see _Range count_ in the ScadValue design), and element `i` is `a + i * s` (computed from the
+  is generated (see *Range count* in the ScadValue design), and element `i` is `a + i * s` (computed from the
   index, never accumulated). A range with a non-numeric part evaluates to
   `undef` with the warning `Range bounds and step must be numbers`. The range count is checked against the
   **remaining loop budget before the first iteration**, so `[0 : 1e12]` never loops: it fails at once with the
@@ -322,7 +322,7 @@ assignments nested in modules or blocks.
 
 The viewport variables `$vpt` (the point the camera looks at), `$vpr` (the camera rotation in degrees), `$vpd` (the
 distance from the camera to the target), and `$vpf` (the vertical field of view in degrees) are ordinary special
-variables as far as scoping is concerned: the root defaults scope defines them (see _Scoping_), a top-level
+variables as far as scoping is concerned: the root defaults scope defines them (see *Scoping*), a top-level
 assignment in the main file or an `include`d file replaces the default, and a `-D` override replaces the
 assignment. The evaluator does not interpret them while it evaluates; the renderer gives them meaning afterwards.
 
@@ -370,15 +370,14 @@ is entered for: each expression node, each statement, each comprehension element
 each `children()` expansion, and each user-module body. A user **function call adds no frame of its own** (its
 body is an expression, which does), and **tail calls and built-in calls add none**.
 
-<!-- markdownlint-disable MD013 -->
 | Shape | Cost |
-| ----- | ---- |
-| `f(n) = n == 0 ? 0 : 1 + f(n - 1)` (non-tail) | 2 frames per level plus 4 at the bottom, so a limit of 104 admits depth 50 and rejects 51; the default 5,000 admits 2,498 levels |
+| --- | --- |
+| `f(n) = n == 0 ? 0 : 1 + f(n - 1)` (non-tail) | 2 frames per level plus 4 at the bottom (see below) |
 | user module recursion | 3 frames per level plus 5 |
 | `children()` chains and nested blocks | 5 frames per level |
 | tail recursion of a user function | constant |
-<!-- markdownlint-enable MD013 -->
 
+For the non-tail function, a limit of 104 admits depth 50 and rejects 51, and the default 5,000 admits 2,498 levels.
 These formulas are pinned by tests in `ScadEvaluatorStackTests`, `ScadEvaluatorTailCallTests`, and
 `ScadEvaluatorLimitTests`.
 
@@ -398,10 +397,10 @@ operand, and are the same on every stack and thread. The count polls cancellatio
 elements. Because negation, element-wise arithmetic, scaling, equality and comparison keep the shape of their
 operands, the charged count also bounds what they allocate or visit, so no operator allocates more than was
 charged. A **matrix product** additionally charges its result elements plus its multiply-add work divided by
-16, rounded up, before it computes anything (see _ScadValue_, Products and limits). `str`, `echo`, and the
+16, rounded up, before it computes anything (see *ScadValue*, Products and limits). `str`, `echo`, and the
 assert message charge `8` steps per vector element **while** they format (a string element one more per 16
 characters), and indexing a string charges `position / 512` steps for the scan and, when the prefix has a
-surrogate, `position / 16` more for the walk (see _ScadValue_, Text forms and Indexing). Scope and special-chain walks
+surrogate, `position / 16` more for the walk (see *ScadValue*, Text forms and Indexing). Scope and special-chain walks
 of 32 hops or more charge `hops / 32` extra steps. Built-in functions charge their own O(n) work through the host.
 Every element a vector operation creates is charged at least one step before it is allocated, so live elements
 are bounded by `MaxEvaluationSteps` as well as by the per-list `MaxListLength`; there is no separate
@@ -418,7 +417,7 @@ product and every 65,536 candidate comparisons inside a `search`; counting an op
 
 ##### Stack Safety: Restart On A Large Stack
 
-See _ScadEvaluation Subsystem Design_ (`scad-evaluation.md`, _Stack Safety_) for the design. In summary,
+See *ScadEvaluation Subsystem Design* (`scad-evaluation.md`, *Stack Safety*) for the design. In summary,
 `Evaluate` holds no state between calls; the nominal recursion limit is a **counter**; the
 pass runs inline guarded by `RuntimeHelpers.EnsureSufficientExecutionStack`; and only
 `InsufficientExecutionStackException` (a property of the caller's stack, never of the nominal limit) causes the
@@ -432,20 +431,20 @@ background thread with `EvaluatorStackSize`, joins it, releases the slot in `fin
 exception with `ExceptionDispatchInfo`; the caller's `CurrentCulture` and `CurrentUICulture` are applied to the
 thread. The parser's gate has no token (the parser has no cancellation), so its wait is unchanged.
 
-_Measured stack figures._ For each worst-case shape at the ceiling `MaxRecursionDepth = 16,384`, the smallest
+*Measured stack figures.* For each worst-case shape at the ceiling `MaxRecursionDepth = 16,384`, the smallest
 **caller** stack on which the whole pass completes inline with the runtime guard active was found by
 bisection (a hop is detected through `LastRunThreadId`). The figures include the 64 to 128 KiB the guard
 reserves:
 
-<!-- markdownlint-disable MD013 -->
 | Shape at 16,384 frames | Debug minimum | Debug per frame | Release minimum | Release per frame |
-| ---------------------- | ------------- | --------------- | --------------- | ----------------- |
-| function, closure, and mutual recursion; `let`, `echo`, and `assert` chains; ternary chains | about 37.4 MiB | about 2,390 bytes | about 17.1 MiB | about 1,090 bytes |
+| --- | --- | --- | --- | --- |
+| recursion and chains (1) | about 37.4 MiB | about 2,390 bytes | about 17.1 MiB | about 1,090 bytes |
 | nested expressions inside recursion (100 binary operators per level) | 28.8 MiB | 1,840 bytes | 14.6 MiB | 930 bytes |
 | vector literals inside recursion | 25.8 MiB | 1,650 bytes | 11.5 MiB | 730 bytes |
-| module recursion, blocks, `children()` chains | 11.4 to 12.7 MiB | 730 to 810 bytes | 6.2 to 6.9 MiB | 390 to 440 bytes |
+| module recursion, blocks, `children()` chains | 11.4-12.7 MiB | 730-810 bytes | 6.2-6.9 MiB | 390-440 bytes |
 | comprehensions (value nesting bounds them at 255 levels) | 1.7 MiB | — | 0.9 MiB | — |
-<!-- markdownlint-enable MD013 -->
+
+1. Function, closure, and mutual recursion; `let`, `echo`, and `assert` chains; and ternary chains.
 
 The default of 5,000 frames needs about 12.6 MiB (Debug) for function recursion. A split of expression
 evaluation into a small dispatcher and per-node methods reduced the worst case by 9 percent (from about
@@ -456,14 +455,14 @@ worst case and about twenty-two times the Release worst case, which also absorbs
 architectures and runtimes. The memory is reserved address space committed only as it is touched, and the
 gate bounds the reservation of a burst of concurrent small-stack callers.
 
-_Memory reservation and cost._ At most `max(2, ProcessorCount)` fallback threads exist at once and each reserves
+*Memory reservation and cost.* At most `max(2, ProcessorCount)` fallback threads exist at once and each reserves
 **384 MiB** of address space, so the worst-case reservation is the product: **768 MiB on one or two cores, 24 GiB
 on 64 cores**. The range is reserved, not committed. Measured on the development machine (Windows x64, .NET 10,
 Release; `Process.PrivateMemorySize64` and `VirtualMemorySize64` sampled every few milliseconds before, during, and
 after a tiny-stack caller evaluated a function recursion):
 
 | Scenario | Private bytes during (increase) | Virtual size during (increase) | After the thread ends |
-| -------- | ------------------------------- | ------------------------------ | --------------------- |
+| --- | --- | --- | --- |
 | trivial program (recursion of 10) | +0.1 MiB | +771 MiB | back to baseline |
 | recursion of 2,498 levels (the default limit of 5,000 frames), 200 times | +19.3 MiB | +773 MiB | back to baseline |
 | recursion of 8,190 levels (the ceiling of 16,384 frames), 60 times | +20.9 MiB | +772 MiB | back to baseline |
@@ -492,7 +491,7 @@ bit-identical to an uninterrupted one.
 #### Error Handling
 
 The classification of events into warnings, unsupported features, errors, cancellation, and I/O failures is in
-_ScadEvaluation Subsystem Design_ (`scad-evaluation.md`, _Event Classification_). In this unit:
+*ScadEvaluation Subsystem Design* (`scad-evaluation.md`, *Event Classification*). In this unit:
 
 - A **warning** is recorded through `Warn`, which forwards to the sink; evaluation continues with `undef` or
   nothing. Locations: an unknown function at the identifier; call-site problems at the `(` token (the parser's
@@ -504,11 +503,11 @@ _ScadEvaluation Subsystem Design_ (`scad-evaluation.md`, _Event Classification_)
   `Loop iteration limit exceeded (limit N)`, `List too long (limit N)`, `String too long (limit N)`,
   `List nesting too deep (limit 256)`, `Instance limit exceeded (limit N)`, `Echo output limit exceeded
   (limit N)`), the errors of the resolver, and a dedicated fallback thread that cannot be created or started
-  (no location; see _Memory reservation and cost_). The recursion error is located at the offending node on the
+  (no location; see *Memory reservation and cost*). The recursion error is located at the offending node on the
   nominal path (identical on every stack size, as tested) and at the last frame entered on the defense-in-depth
   path.
 - An **unsupported feature** is recorded with `sink.Unsupported`; when `ThrowOnUnsupportedFeature` is set the
-  first _new_ report throws `ScadUnsupportedFeatureException`.
+  first *new* report throws `ScadUnsupportedFeatureException`.
 - **Cancellation** throws `OperationCanceledException` from `Charge`, `ChargeLoopTurn`, and the entry, and is
   never wrapped. The sink holds the events recorded before any failure.
 - `InsufficientExecutionStackException` is caught **only** at the entry point; no `try`/`finally` is needed
@@ -516,10 +515,10 @@ _ScadEvaluation Subsystem Design_ (`scad-evaluation.md`, _Event Classification_)
 
 #### Dependencies
 
-- **`ScadValue`** — values, operators, text forms, and conversion (see _ScadValue Unit Design_).
+- **`ScadValue`** — values, operators, text forms, and conversion (see *ScadValue Unit Design*).
 - **`ScadBuiltinFunctions`** — `TryInvoke` and `IsKnown`, through the `IScadBuiltinHost` that
-  `ScadEvaluator.Host.cs` implements (see _ScadBuiltinFunctions Unit Design_).
-- **`ScadFileResolver`** and **`ScadSourceUnit`** — phase A (see _ScadFileResolver Unit Design_).
+  `ScadEvaluator.Host.cs` implements (see *ScadBuiltinFunctions Unit Design*).
+- **`ScadFileResolver`** and **`ScadSourceUnit`** — phase A (see *ScadFileResolver Unit Design*).
 - **`ScadLanguage` subsystem** — the syntax tree (`ScadProgram`, statements, expressions, `ScadModifiers`,
   and the operator enumerations).
 - **`ScadDocument` unit** — `ScadLimits`, `ScadDiagnostic`, `ScadUnsupportedFeature`,
@@ -534,7 +533,7 @@ _ScadEvaluation Subsystem Design_ (`scad-evaluation.md`, _Event Classification_)
 
 `ScadDocument.Evaluate` is the only production caller: it builds `ScadEvaluationSettings` from the public
 options (converting the `Variables`, merging the overrides that an explicit camera or explicit view angles fix
-for the viewport variables, and supplying the viewport defaults of the plan; see _ScadDocument Unit Design_),
+for the viewport variables, and supplying the viewport defaults of the plan; see *ScadDocument Unit Design*),
 creates the `ScadEvaluationSink`, calls `ScadEvaluator.Evaluate`, and
 delivers the sink on the calling thread in both the success and the failure path. The tests in
 `test/DemaConsulting.CanvasNet.Scad.Tests/Evaluation/ScadEvaluator*Tests.cs` and

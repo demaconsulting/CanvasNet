@@ -16,7 +16,7 @@ Mermaid's jison grammar `gantt.jison` and making the calls on the gantt database
 the values those actions pass. It exists so that every text means what it means to Mermaid, quirks included, so that
 an invalid text fails with Mermaid's diagnosis at the right place in the original file, and so that reading untrusted
 text costs time linear in its length. The meaning of the statements - the database, the tasks, and their dates - is
-the `GanttModel` unit's (see _GanttModel Unit Design_).
+the `GanttModel` unit's (see *GanttModel Unit Design*).
 
 The unit's behavior is specified by the `CanvasNetMermaid-Gantt-GanttParser-*` requirements in
 `docs/reqstream/canvas-net-mermaid/gantt/gantt-parser.yaml`.
@@ -110,7 +110,7 @@ expected list of an error where a statement must start.
 - **Mermaid's own failures.** The action of the `topAxis` statement calls a database function that Mermaid's gantt
   database does not have, and a task whose data holds only tags makes the database read past the end of its fields;
   Mermaid fails at both with a JavaScript error. The parser fails at the `topAxis` statement, and the model (see
-  _GanttModel Unit Design_) at the task, with a `MermaidSyntaxException` with code `mermaid-syntax-error`, a message
+  *GanttModel Unit Design*) at the task, with a `MermaidSyntaxException` with code `mermaid-syntax-error`, a message
   that starts `Mermaid fails`, no expected tokens, and a hint (to set `gantt.topAxis` in the configuration, or to give
   the task a start or a duration after its tags).
 - More task and section statements together than `MaxNodes` are refused at the statement one too many, with the

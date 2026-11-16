@@ -20,8 +20,8 @@ box and assert only on observable behavior.
   through `ArgumentReader`, and the re-throw of an unexpected exception.
 
 The tool is a thin shell over the `Imaging` subsystem of the CanvasNetViewer system, so the loading, the pipeline, the
-writing, the comparison, and the contact sheet are verified with the tests of the Viewer (see _Imaging Subsystem
-Verification Design_), and the tests of this project verify the command line, the dispatch, the printing, and the result
+writing, the comparison, and the contact sheet are verified with the tests of the Viewer (see *Imaging Subsystem
+Verification Design*), and the tests of this project verify the command line, the dispatch, the printing, and the result
 documents on top of them. The generated test inputs and assertions that both projects use (`FixtureFactory`,
 `SurfaceAssert`, and the fixture files) live in the Viewer test project and are linked into this one; a change to them
 needs both test projects to be run.
@@ -116,8 +116,8 @@ hint, and `--theme` on another kind of input is a `usage-error`;
   pictures drawn into `generated/canvasnet` to standard output as UTF-8, reuses the cache on a second run, writes the
   Lua shim with `--write-shim`, and reports an outdated shim (`usage-error`, with a hint that names `--write-shim`) and
   a mistake in a picture (`pandoc-filter-error`) as expected errors. They are verified in
-  `CanvasNetToolTests.PandocFilter.cs`; the shim running inside real Pandoc is verified by `docs/filters/test-canvasnet.ps1`
-  (see _PandocFilterShim_).
+  `CanvasNetToolTests.PandocFilter.cs`; the shim running inside real Pandoc is verified by
+  `docs/filters/test-canvasnet.ps1` (see *PandocFilterShim*).
 
 ## Test Scenarios
 
@@ -277,8 +277,8 @@ equivalent `render` invocation.
 **CanvasNetTool_Pipeline_UnsupportedOrImpossibleOperations_AreReportedAsExpectedErrors**: an angle that is not a number,
 a grid spacing of 3, levels with equal black and white points, a crop that starts outside the image, a border of 9000
 pixels, and a size of 10000x10 are run in-process; each returns exit code 1 with `usage-error` (the value and the option
-are named in the message, the crop names the image size) or `size-limit` in the message and in the JSON document, without
-a stack trace and with no output.
+are named in the message, the crop names the image size) or `size-limit` in the message and in the JSON document,
+without a stack trace and with no output.
 
 **CanvasNetTool_Determinism_SameInputTwice_WritesIdenticalBytes**: a PNG, a JPEG, an SVG, a PDF, a presentation, a
 drawing, and a model are rendered twice to every output format at a given width; the two files are byte-identical.
@@ -339,12 +339,12 @@ of 100, a definition without `=`, and a triangle limit of 0 are rendered in-proc
 one-line message that starts with its stable error code (`scad-error`, `budget-exceeded`, `unsupported-feature`, or
 `usage-error`), no stack trace, the code in the JSON document, and no output.
 
-**CanvasNetTool_VegaLite_RenderAsProcess_DescribesAndWritesImage**: the two-bar chart is described with `info --json` and
-rendered to a PNG with `render --json`, each as a real process (so the Vega-Lite assembly bundled next to the tool is
-loaded); exit code 0, `info` names the `vega-lite` format and the `bar` mark, `render` names the format and the `render`
-operation, and the image has the size `info` reported, a white corner, and the default mark color `#4c78a8` at a point of
-the second bar computed from the layout (5 pixels of padding at the right, 50 pixels from the right edge of the data
-rectangle, 15 pixels from the top).
+**CanvasNetTool_VegaLite_RenderAsProcess_DescribesAndWritesImage**: the two-bar chart is described with `info --json`
+and rendered to a PNG with `render --json`, each as a real process (so the Vega-Lite assembly bundled next to the tool
+is loaded); exit code 0, `info` names the `vega-lite` format and the `bar` mark, `render` names the format and the
+`render` operation, and the image has the size `info` reported, a white corner, and the default mark color `#4c78a8` at
+a point of the second bar computed from the layout (5 pixels of padding at the right, 50 pixels from the right edge of
+the data rectangle, 15 pixels from the top).
 
 **CanvasNetTool_SvgEmbed_RenderAsProcess_DrawsModelAndChartAndWarnsOutsideFolder**: a 240 by 120 red diagram in a
 sub folder that embeds the model fixture and the chart fixture beside it, and a green `../outside.png` in the folder
@@ -402,10 +402,10 @@ the system requirement, run in-process through the real command, loader, and lib
 file in a sub folder beside its specification renders, whatever the current directory is, to the same PNG bytes as the
 chart with the rows inline; a chart that names a missing file returns exit code 1 with a one-line `vega-lite-error`
 ("was not found") and writes no output; a chart with a remote URL renders with exit code 0 and the `vl-data-remote-url`
-diagnostic in the JSON result (nothing is fetched), and with `--strict` returns an `unsupported-feature` error and writes
-no output; and `--data-dir` is a `usage-error`, because this release has no option for another data folder. The
-self-validation suite had fifteen tests when chart data was added: no self-test was added for chart data, and the existing
-`CanvasNetTool_RenderVegaLite` self-test still renders an inline chart.
+diagnostic in the JSON result (nothing is fetched), and with `--strict` returns an `unsupported-feature` error and
+writes no output; and `--data-dir` is a `usage-error`, because this release has no option for another data folder. The
+self-validation suite had fifteen tests when chart data was added: no self-test was added for chart data, and the
+existing `CanvasNetTool_RenderVegaLite` self-test still renders an inline chart.
 
 **CanvasNetTool_Mermaid_RenderAsProcess_DescribesAndWritesImage**: a three-node flowchart (`flowchart LR` with `One`,
 `Two`, and `Three` in a row) is listed, described, rendered, and explained by real processes (so the Mermaid assembly
@@ -522,33 +522,35 @@ rendered with `--deskew`; the command succeeds, the output remains 8192x400, JSO
 size-limit reason, and normal output includes a non-fatal warning.
 
 **CanvasNetTool_Photo_Trim_CropsUniformBorder**: a 100x80 block on a white image with a near-white ring around it is
-trimmed with the default tolerance (the box 30,20 100x80, the file 100x80) and with `--trim-tolerance 2` (the ring is kept,
-102x82).
+trimmed with the default tolerance (the box 30,20 100x80, the file 100x80) and with `--trim-tolerance 2` (the ring is
+kept, 102x82).
 
-**CanvasNetTool_Photo_Grid_DrawsLabeledLinesAtSpacing**: a 160x100 sketch gets `--grid 20,#FF0000`; the operation reports
-8 vertical and 5 horizontal lines and labels, the pixels on a vertical and a horizontal line are red, a pixel between the
-lines is unchanged, the label box at the origin changes the pixels under it, and the input file is not modified.
+**CanvasNetTool_Photo_Grid_DrawsLabeledLinesAtSpacing**: a 160x100 sketch gets `--grid 20,#FF0000`; the operation
+reports 8 vertical and 5 horizontal lines and labels, the pixels on a vertical and a horizontal line are red, a pixel
+between the lines is unchanged, the label box at the origin changes the pixels under it, and the input file is not
+modified.
 
-**CanvasNetTool_Inspect_Colors_ReportsDominantColorsAndLumaAsJson**: `inspect colors --json` on 70 red and 30 blue pixels
-as a real process; one document with the colors `#FF0000` (70 pixels, 0.7) and `#0000FF` (30), the luma minimum 29,
-maximum 77, mean 62.6, a histogram of 16 counts, one color with `--count 1`, and no file written.
+**CanvasNetTool_Inspect_Colors_ReportsDominantColorsAndLumaAsJson**: `inspect colors --json` on 70 red and 30 blue
+pixels as a real process; one document with the colors `#FF0000` (70 pixels, 0.7) and `#0000FF` (30), the luma minimum
+29, maximum 77, mean 62.6, a histogram of 16 counts, one color with `--count 1`, and no file written.
 
 **CanvasNetTool_Inspect_Pixel_ReportsValueAndNeighborhood**: `inspect pixel` on the gradient at `3,2 --radius 1` as a
 real process; the JSON document has the point, the color and hex of the pixel, and the clipped 3x3 window at 2,1; the
 text line starts `pixel 3,2 of`; after `--crop 2,1,4,4` the point `1,1` is the same pixel.
 
-**CanvasNetTool_Inspect_Errors_AreReportedAsExpectedErrors**: a missing subcommand, a misspelled subcommand, an option of
-the other subcommand, a point outside the image, a point that is not numbers, `--count` for `pixel`, and a missing input
-are run in-process; each returns exit code 1 with `usage-error` (or `input-not-found`) in the message and in the document
-and no stack trace.
+**CanvasNetTool_Inspect_Errors_AreReportedAsExpectedErrors**: a missing subcommand, a misspelled subcommand, an option
+of the other subcommand, a point outside the image, a point that is not numbers, `--count` for `pixel`, and a missing
+input are run in-process; each returns exit code 1 with `usage-error` (or `input-not-found`) in the message and in the
+document and no stack trace.
 
-**CanvasNetTool_Help_ListsInspectAndPhotoOptions**: the top-level help lists `inspect`, `inspect --help` shows both usage
-lines, and `render --help` lists the photo options.
+**CanvasNetTool_Help_ListsInspectAndPhotoOptions**: the top-level help lists `inspect`, `inspect --help` shows both
+usage lines, and `render --help` lists the photo options.
 
-**CanvasNetTool_Photo_NapkinWorkflow_ChainedOperationsApplyInOrderAndReport**: the workflow of the user guide on a 400x300
-tilted, low-contrast sketch: `--fit 300x300 --auto-levels --deskew --trim` reports the four operations in order (300x225
-after the fit, both corrections applied, a skew between 2.4 and 3.6, a trim box that matches the file); `--grid 50` on the
-result reports the final size; and `inspect colors --auto-levels` reports `#FFFFFF` as the dominant color.
+**CanvasNetTool_Photo_NapkinWorkflow_ChainedOperationsApplyInOrderAndReport**: the workflow of the user guide on a
+400x300 tilted, low-contrast sketch: `--fit 300x300 --auto-levels --deskew --trim` reports the four operations in order
+(300x225 after the fit, both corrections applied, a skew between 2.4 and 3.6, a trim box that matches the file);
+`--grid 50` on the result reports the final size; and `inspect colors --auto-levels` reports `#FFFFFF` as the dominant
+color.
 
 **CanvasNetTool_Photo_SameInputsTwice_WriteIdenticalBytes**: three option sets that use the photo operations (including
 Otsu, deskew, an oblique rotation, gamma, and the grid) are rendered twice in-process; the two files of each are

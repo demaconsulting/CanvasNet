@@ -8,10 +8,10 @@ The `PandocFilter` subsystem is verified at two tiers. The unit tests of `Pandoc
 with a stub drawer. The subsystem tests in `PandocFilterSubsystemTests.cs` run the real engine with the real
 `ToolPictureDrawer`, so every picture is drawn by the `render` and `flatten` commands and the libraries of the tool, in
 a temporary document tree built by the `FilterTree` helper of `FilterTestSupport.cs` (a guide folder as the resource
-path, the shim's path in `docs/filters`, and the cache in `docs/generated/canvasnet`), with Pandoc documents built by the
-`PandocDoc` helper as `pandoc -t json` writes them. Nothing is mocked at the subsystem boundary except the environment,
-which is a dictionary of the test. The Lua shim running inside real Pandoc is verified end to end by
-`docs/filters/test-canvasnet.ps1` (see _PandocFilterShim_).
+path, the shim's path in `docs/filters`, and the cache in `docs/generated/canvasnet`), with Pandoc documents built by
+the `PandocDoc` helper as `pandoc -t json` writes them. Nothing is mocked at the subsystem boundary except the
+environment, which is a dictionary of the test. The Lua shim running inside real Pandoc is verified end to end by
+`docs/filters/test-canvasnet.ps1` (see *PandocFilterShim*).
 
 ### Test Environment
 
@@ -48,7 +48,8 @@ nothing is written to the cache.
 
 **PandocFilter_Run_FileAccessVariables_ConfineWhatAPictureReads**: a diagram whose node shows a picture in the folder
 above the guide fails with `file-access-denied` and `drawing 'flow.mmd' failed: ...` under `CANVASNET_FILE_ACCESS=roots`
-with `CANVASNET_ROOTS` set to the guide folder, and is drawn without warnings when `CANVASNET_ROOTS` is the folder above.
+with `CANVASNET_ROOTS` set to the guide folder, and is drawn without warnings when `CANVASNET_ROOTS` is the folder
+above.
 
 **PandocFilter_Shim_WrittenShimSpeaksTheProtocolTheToolAccepts**: the shim written by `PandocFilterShim.Write` passes
 `--protocol` with its `PROTOCOL`, the tool accepts that protocol, and the protocol before it is a `usage-error` whose

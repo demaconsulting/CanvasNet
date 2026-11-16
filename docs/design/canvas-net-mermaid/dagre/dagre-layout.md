@@ -77,7 +77,7 @@ The unit's behavior is specified by the `CanvasNetMermaid-Dagre-DagreLayout-*` r
 
 **Preconditions and postconditions**: the input graph is a `Graphlib` graph whose node labels may be null (a parent
 created only by naming it); the edge labels are not null. After `Run` the input labels hold the results and the input
-graph's structure is unchanged. The faithful quirks listed in _Dagre Subsystem Design_ that belong to `layout.js` are
+graph's structure is unchanged. The faithful quirks listed in *Dagre Subsystem Design* that belong to `layout.js` are
 kept here: the `_.max(a, b)` of `AssignRankMinMax`, the upper-case `TB`/`BT` test of `MakeSpaceForEdgeLabels`, the
 case-sensitive `l`/`r` of `FixupEdgeLabelCoords`, the half-rank edge-label proxies that `RemoveEmptyRanks` neither
 counts nor shifts, and the maximum x and y of `TranslateGraph` that start at 0.

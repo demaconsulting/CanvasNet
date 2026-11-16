@@ -9,7 +9,8 @@ the `DemaConsulting.CanvasNet.Files` namespace, all `public`:
   open and bounded read, the resolver-callback boundary, and the per-instance cache
 - `SandboxedFileResolver.Paths.cs` - the path-text rules, candidate generation, root confinement, the link walk, and the
   roots of file-system and resolver mode
-- `SandboxOptions.cs` - `SandboxOptions` (sealed record): base directory, search paths, resolver callback, and byte limit
+- `SandboxOptions.cs` - `SandboxOptions` (sealed record): base directory, search paths, resolver callback, and byte
+  limit
 - `SandboxedFile.cs` - `SandboxedFile` (sealed class): the result
 - `SandboxException.cs` - `SandboxException` (sealed class): the failure
 - `SandboxFailureKind.cs` - `SandboxFailureKind` (enum): the reasons for a failure
@@ -39,10 +40,10 @@ The unit's behavior is specified by the `CanvasNet-Files-SandboxedFileResolver-*
 #### Data Model
 
 **`SandboxOptions`** (immutable record): `BaseDirectory` (trusted directory searched first; ignored in callback mode),
-`SearchPaths` (additional trusted roots, searched in order; copied when the resolver is created, so a later change to the
-caller's list has no effect), `FileResolver` (`Func<string, Stream?>`, a callback that
-replaces the file system), `MaxFileBytes` (default 16 MiB, must be positive), and `MaxFiles` (optional, default none: the
-number of distinct files one resolver may read; must not be negative).
+`SearchPaths` (additional trusted roots, searched in order; copied when the resolver is created, so a later change to
+the caller's list has no effect), `FileResolver` (`Func<string, Stream?>`, a callback that replaces the file system),
+`MaxFileBytes` (default 16 MiB, must be positive), and `MaxFiles` (optional, default none: the number of distinct files
+one resolver may read; must not be negative).
 
 **`SandboxedFile`** (immutable): `Key` (the identity of the file: its normalized full path, or its normalized logical
 path in callback mode; compared under the resolver's `KeyComparer`), `Directory` (the file's directory), `Root` (the
@@ -61,22 +62,21 @@ inner exception. The message is an English sentence that never contains a host d
 
 **`SandboxedFileResolver`** is created for one logical operation with the options and a cancellation token. It holds the
 cache of the files found by root and candidate key (a `null` remembers a candidate that does not exist; the root is part
-of the identity because the link checks run on the components below a candidate's own root, so a file reached through one
-root - for example a trusted search path that is itself a link - must never answer for another root), a cache of what
-was read (by root and key in file-system mode, but by logical key alone in callback mode, so the callback sees each
+of the identity because the link checks run on the components below a candidate's own root, so a file reached through
+one root - for example a trusted search path that is itself a link - must never answer for another root), a cache of
+what was read (by root and key in file-system mode, but by logical key alone in callback mode, so the callback sees each
 logical path once whichever root reaches it; a file that is too large or could not be read is remembered there without
-bytes), the keys of
-the distinct files that exist (for `MaxFiles`), the result of each link
-probe by full path, and the roots, which are computed on first use. **It is not thread-safe**: its caches are
-unsynchronized and the callback is invoked on the calling thread; use one instance per operation or serialize access.
-The options and results are immutable and may be shared. An internal constructor accepts a link probe
-(`Func<string, bool>`) and a file opener (`Func<string, Stream>`) as test seams, so the link and open rules are proven
-on every platform without any link privilege or file permission; an injected stream opener has no handle, so the
-post-open verification is skipped for it. A second internal constructor adds the `FileOpenHooks` seams around the
-verified open (see _RealPath Unit Design_). None of them is a public option.
+bytes), the keys of the distinct files that exist (for `MaxFiles`), the result of each link probe by full path, and the
+roots, which are computed on first use. **It is not thread-safe**: its caches are unsynchronized and the callback is
+invoked on the calling thread; use one instance per operation or serialize access. The options and results are immutable
+and may be shared. An internal constructor accepts a link probe (`Func<string, bool>`) and a file opener
+(`Func<string, Stream>`) as test seams, so the link and open rules are proven on every platform without any link
+privilege or file permission; an injected stream opener has no handle, so the post-open verification is skipped for it.
+A second internal constructor adds the `FileOpenHooks` seams around the verified open (see *RealPath Unit Design*). None
+of them is a public option.
 
-**Modes.** _File-system mode_ (no callback): the roots are the full path of `BaseDirectory` and of each `SearchPaths`
-entry. _Callback mode_ (`FileResolver` set): the file system is never touched; the logical root is the empty path, and
+**Modes.** *File-system mode* (no callback): the roots are the full path of `BaseDirectory` and of each `SearchPaths`
+entry. *Callback mode* (`FileResolver` set): the file system is never touched; the logical root is the empty path, and
 each search path that is itself a valid relative logical path is a logical directory prefix; the base directory plays no
 role. `HasSource` says whether either mode has anything to look in.
 
@@ -99,21 +99,21 @@ a cancellation or an argument error is a `SandboxException`.
 - `Resolve(path, relativeTo)` - the entry point. Validates the path text; walks the candidates (the directory of
   `relativeTo` with its root, or else the base directory, or in callback mode the logical root, and then each search
   path in declaration order), loading each through the cache and returning the first file that exists, or `null` when
-  none does (and when no source is configured). A null `path` is an `ArgumentNullException`. A `relativeTo` file is first
-  checked by `ValidateRelativeTo`: its root must equal one of this resolver's own roots and its directory must lie under
-  that root, otherwise it is an `ArgumentException` (a `SandboxedFile` cannot be created outside the assembly, so a file
-  from another resolver with wider roots is the only way to violate this, and it is refused).
+  none does (and when no source is configured). A null `path` is an `ArgumentNullException`. A `relativeTo` file is
+  first checked by `ValidateRelativeTo`: its root must equal one of this resolver's own roots and its directory must lie
+  under that root, otherwise it is an `ArgumentException` (a `SandboxedFile` cannot be created outside the assembly, so
+  a file from another resolver with wider roots is the only way to violate this, and it is refused).
 - `LoadCandidate` - answers from the cache (keyed by root and candidate key); otherwise, when `MaxFiles` is set and that
   many distinct files were already read, refuses a candidate whose key was not read before with `TooManyFiles` **before
-  anything is opened or requested** (so a file beyond the limit is never touched, and a file already read through another
-  root does not count again); otherwise reads the bytes, remembers the outcome, and counts the file when it exists,
-  **whatever the size outcome** (an oversized file was opened or requested, so it consumes the limit). The outcome is
-  remembered per candidate in file-system mode and per logical key in callback mode (the callback is asked once per
-  path across roots; the returned `SandboxedFile` is still built per root with the root it was found under), and a file
-  that is too large is remembered too, so asking again throws `TooLarge` without opening or requesting it again. A
-  `CannotRead` failure of the read (a callback or stream that throws, an open that fails) is remembered the same way
-  and counts the same way: asking again throws an equivalent `CannotRead` (same path, same cause) without a new request
-  or open.
+  anything is opened or requested** (so a file beyond the limit is never touched, and a file already read through
+  another root does not count again); otherwise reads the bytes, remembers the outcome, and counts the file when it
+  exists, **whatever the size outcome** (an oversized file was opened or requested, so it consumes the limit). The
+  outcome is remembered per candidate in file-system mode and per logical key in callback mode (the callback is asked
+  once per path across roots; the returned `SandboxedFile` is still built per root with the root it was found under),
+  and a file that is too large is remembered too, so asking again throws `TooLarge` without opening or requesting it
+  again. A `CannotRead` failure of the read (a callback or stream that throws, an open that fails) is remembered the
+  same way and counts the same way: asking again throws an equivalent `CannotRead` (same path, same cause) without a new
+  request or open.
 - `ReadBytes` - in callback mode delegates to `ReadFromCallback`; in file-system mode first runs the link walk (which
   stops a candidate whose directory is missing but leaves the final component to the open), treats an existing
   directory where the file is expected as `CannotRead` (not a missing file), then reads the file through
@@ -144,7 +144,7 @@ a cancellation or an argument error is a `SandboxException`.
 - `ReadFromStream` - the open-and-read of a stream opener (the verified handle wrapped in a `FileStream`, or a test's
   injected opener) with the missing/unreadable mapping above.
 - `ComponentExists` - the existence check of a directory component above the file during the link walk. It reads
-  `FileInfo.Attributes` rather than calling `File.Exists`/`Directory.Exists` (which answer `false` for _every_ failure):
+  `FileInfo.Attributes` rather than calling `File.Exists`/`Directory.Exists` (which answer `false` for *every* failure):
   only a component that is genuinely not there reads as missing and ends the candidate; a component that exists but
   cannot be examined (access denied, a name too long or invalid for the file system, an unreachable share) is
   `CannotRead` and ends the search, consistent with a final component that cannot be opened.
@@ -170,11 +170,11 @@ a cancellation or an argument error is a `SandboxException`.
 - `DefaultIsLink` - a component is a link when its `LinkTarget` is not null (symbolic links and junctions, for files and
   directories, existing or dangling); other reparse points that redirect nothing, such as the placeholders of a
   synchronized folder, are not rejected.
-- `ValidatePathText`, `TryDescribeInvalidPath`, `Candidates`, `Combine`, `CombineFileSystem`, `CombineLogical`, `IsUnder`,
-  `EnsureRoots`, `FullRoot`, and `NormalizePrefix` - the path rules above.
+- `ValidatePathText`, `TryDescribeInvalidPath`, `Candidates`, `Combine`, `CombineFileSystem`, `CombineLogical`,
+  `IsUnder`, `EnsureRoots`, `FullRoot`, and `NormalizePrefix` - the path rules above.
 - `KeyComparer` - the comparer under which two keys name the same file: ordinal for logical paths, the platform's path
-  comparison for full paths. It is exposed so that callers can detect that two spellings reached one file (for example an
-  include cycle) without re-deriving the platform rule.
+  comparison for full paths. It is exposed so that callers can detect that two spellings reached one file (for example
+  an include cycle) without re-deriving the platform rule.
 
 **Preconditions and postconditions**: `path` is untrusted text; on return the file exists, is a regular file, is not
 behind a link (checked on the names before the open and on the open handle after it), is within the size limit, and
@@ -212,9 +212,9 @@ it), thrown before any request or file access and between files and chunks. Inva
 
 **Design decision: file sharing.** Files are opened read-only with `FileShare.ReadWrite | FileShare.Delete`. The unit
 reads a bounded snapshot and never writes, so it is the least restrictive reader: another process that is writing,
-replacing, renaming, or deleting the file (an editor saving a file while it is read) does not turn the read into a sharing
-violation. The trade-off is that the bytes read may be a mix of two versions of a file that is being rewritten; the
-unit reads a snapshot and does not defend against a concurrent writer of the file's content.
+replacing, renaming, or deleting the file (an editor saving a file while it is read) does not turn the read into a
+sharing violation. The trade-off is that the bytes read may be a mix of two versions of a file that is being rewritten;
+the unit reads a snapshot and does not defend against a concurrent writer of the file's content.
 
 #### Dependencies
 

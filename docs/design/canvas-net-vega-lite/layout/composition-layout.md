@@ -15,10 +15,9 @@ layout is a port of `gridLayout` and `trellisLayout` of `vega-view-transforms` (
 `CompositionLayout` decides where the charts of a concatenation, a facet, or a repeat go and where the headers, footers,
 and titles of a facet go around them. The cells are built (and measured) by the rendering pipeline, each relative to its
 own origin; this unit turns their boxes into positions, so that the layout rule of Vega is defined once and can be
-tested with plain boxes, without text, fonts, data, or a canvas. The `Composer` of the rendering pipeline calls it for every
-concatenation and facet. The unit's behavior is specified by the
-`CanvasNetVegaLite-Layout-CompositionLayout-*` requirements in
-`docs/reqstream/canvas-net-vega-lite/layout/composition-layout.yaml`.
+tested with plain boxes, without text, fonts, data, or a canvas. The `Composer` of the rendering pipeline calls it for
+every concatenation and facet. The unit's behavior is specified by the `CanvasNetVegaLite-Layout-CompositionLayout-*`
+requirements in `docs/reqstream/canvas-net-vega-lite/layout/composition-layout.yaml`.
 
 #### Data Model
 
@@ -26,10 +25,10 @@ concatenation and facet. The unit's behavior is specified by the
   (data rectangle, axes and legends it owns, its title, the stroke of its border) in the coordinates of the cell, that
   is relative to the origin of the group; empty for a cell without content. The width and height of the group are the
   box that `bounds: "flush"` lays out. The position of the group is replaced by the layout.
-- **`HeaderGroup`** `(Group, Bounds)` - the built group of a header, footer, or title of a facet, at the origin, with its
-  bounds in its own coordinates.
-- **`CompositionHeaders`** - the lists `RowHeaders`, `RowFooters`, `ColumnHeaders`, `ColumnFooters` (one entry per row or
-  column), the `RowTitle` and `ColumnTitle`, the offsets of the headers and footers from the cells (default 0), the
+- **`HeaderGroup`** `(Group, Bounds)` - the built group of a header, footer, or title of a facet, at the origin, with
+  its bounds in its own coordinates.
+- **`CompositionHeaders`** - the lists `RowHeaders`, `RowFooters`, `ColumnHeaders`, `ColumnFooters` (one entry per row
+  or column), the `RowTitle` and `ColumnTitle`, the offsets of the headers and footers from the cells (default 0), the
   offsets of the titles (Vega-Lite uses 10), whether a title is at the end (after the footers) and its band (default
   0.5).
 - **`CompositionResult`** `(Items, Bounds, CellOrigins)` - the placed groups in drawing order, the union of the full
@@ -40,7 +39,8 @@ concatenation and facet. The unit's behavior is specified by the
 
 #### Key Methods
 
-`Place(cells, headers, settings)` is the one entry point. A cell that is `null` is an empty cell. It works in five steps:
+`Place(cells, headers, settings)` is the one entry point. A cell that is `null` is an empty cell. It works in five
+steps:
 
 1. **Boxes.** With `Flush` the box of a cell is `(0, 0, width, height)` of its group; otherwise its `Bounds` (the point
    at the origin when the bounds are empty or the cell is `null`), as Vega's `bboxFlush` and `bboxFull`.
@@ -51,13 +51,13 @@ concatenation and facet. The unit's behavior is specified by the
    track; `none` lets each cell follow its neighbor with its own margin; `center` moves a smaller cell by half the room
    that is left in its track, as Vega does (which only reaches the cells at the start of a track). The anchor is the
    origin, so every origin follows from the boxes.
-3. **Headers.** `LayoutHeaders` (Vega's `layoutHeaders`) finds the margin of one kind of header: the edge of the cells of
-   the first column (left edge, row headers), the first row (top, column headers), the last column (right, row footers),
-   or the last row (bottom, column footers), starting at 0, rounded down (headers) or up (footers) after each cell, and
-   adding the offset (as a negative number for headers) only when there are headers; without headers the margin without
-   the offset is the result. Each header is then placed at the origin of its row or column (the nearest earlier cell of
-   that row or column when its cell is missing, for the empty slots of the last row of a wrapped grid, and at 0 when
-   there is none): column headers and footers at `(x of the cell, margin)`, row headers and footers at
+3. **Headers.** `LayoutHeaders` (Vega's `layoutHeaders`) finds the margin of one kind of header: the edge of the cells
+   of the first column (left edge, row headers), the first row (top, column headers), the last column (right, row
+   footers), or the last row (bottom, column footers), starting at 0, rounded down (headers) or up (footers) after each
+   cell, and adding the offset (as a negative number for headers) only when there are headers; without headers the
+   margin without the offset is the result. Each header is then placed at the origin of its row or column (the nearest
+   earlier cell of that row or column when its cell is missing, for the empty slots of the last row of a wrapped grid,
+   and at 0 when there is none): column headers and footers at `(x of the cell, margin)`, row headers and footers at
    `(margin, y of the cell)`; headers beyond the number of rows or columns are ignored as in Vega. The returned edge is
    the margin rounded again over the bounds of the headers placed, and is what the titles are placed from. With `Flush`
    the edges of a cell are those of its group, with full bounds a cell without content takes no part.

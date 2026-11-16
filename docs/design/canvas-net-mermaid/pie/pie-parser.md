@@ -45,8 +45,8 @@ hand-written matcher in place of its regular expression; the first that matches 
   of the line before any `%%`); `TITLE` (`title` followed by a tab or a space and the rest of the line before any `%%`,
   or `title` alone); `STRING` (a double- or single-quoted text in which a backslash escapes any character but a line
   terminator); and `NEWLINE` (`\r?\n`).
-- **The hidden terminals**, which the parser never sees: white space (tabs and spaces), a `---` YAML block, a `%%{...}%%`
-  directive, and a `%%` comment up to the end of its line.
+- **The hidden terminals**, which the parser never sees: white space (tabs and spaces), a `---` YAML block, a
+  `%%{...}%%` directive, and a `%%` comment up to the end of its line.
 
 **A parser instance** parses one text on one thread and holds the parser text of the source (a `MappedText`, whose
 characters stay mapped to the original text), the `MermaidLimits` of the open call, the list of tokens, and the index of
@@ -93,8 +93,8 @@ statement with a value set it (`IsTitleSet`), the location of the `title` statem
   braced form of an accessible description.
 - **`ConvertMultiLine`** converts the text in the braces of an accessible description as the converter's regular
   expressions do: the white space that starts each line removed (`/^\s*/gm`, line breaks in it included), the white
-  space before each line end removed (`/\s+$/gm`), runs of two or more tabs and spaces made one space, and runs of two or
-  more line breaks one line feed.
+  space before each line end removed (`/\s+$/gm`), runs of two or more tabs and spaces made one space, and runs of two
+  or more line breaks one line feed.
 - **`PieDiagram.Sanitize`**, **`SanitizeAccTitle`**, and **`SanitizeDescription`** are the setters of Mermaid's
   `commonDb.ts`: the text sanitized with `HtmlSanitizer` (an empty text kept), the accessible title without its leading
   white space, and the description without the white space after each line feed.
@@ -103,7 +103,7 @@ statement with a value set it (`IsTitleSet`), the location of the `title` statem
   accessible title or null, `Direction` null, `NodeCount` the number of sections (the legend entries), and `EdgeCount`
   and `SubgraphCount` 0.
 - **`PieDiagram.Layout(DiagramRenderContext)`** creates a `PieRenderer` for the render and returns the scene it draws
-  (see _PieRenderer Unit Design_).
+  (see *PieRenderer Unit Design*).
 - **`Is`**, **`Expect`**, **`Fail`**, **`TextOf`**, **`Checked`**, **`CheckDerived`**, and **`Locate`**: `Is` tests the
   lookahead, `Expect` consumes a token of a kind or fails, `Fail` builds the located exception for the lookahead with
   the token names chevrotain lists and a hint, `TextOf` gives the text of a token that is kept and checks it,

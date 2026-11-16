@@ -13,13 +13,13 @@ the test assembly. It contains two units:
 - **Graph** - the generic graph `Graph<TGraph, TNode, TEdge>` (`Graph.cs`), the edge identity `GraphEdge`
   (`GraphEdge.cs`), and the string-keyed map that keeps the key order of a JavaScript object, `ObjectKeyMap<TValue>`
   (`ObjectKeyMap.cs`): directed or undirected, simple or multi, flat or compound graphs with labels on the graph, the
-  nodes, and the edges; see _Graph Unit Design_ (`graphlib/graph.md`)
+  nodes, and the edges; see *Graph Unit Design* (`graphlib/graph.md`)
 - **GraphAlgorithms** - the static `GraphAlgorithms` (`GraphAlgorithms.cs`): the graphlib traversals `preorder` and
-  `postorder`; see _GraphAlgorithms Unit Design_ (`graphlib/graph-algorithms.md`)
+  `postorder`; see *GraphAlgorithms Unit Design* (`graphlib/graph-algorithms.md`)
 
 The subsystem's namespace documentation is in `Graphlib/NamespaceDoc.cs`. Its behavior is specified by the
 `CanvasNetMermaid-Graphlib-*` requirements in `docs/reqstream/canvas-net-mermaid/graphlib.yaml`. The SysML2 model
-names the subsystem `MermaidGraphlib` (see _CanvasNetMermaid System Design_).
+names the subsystem `MermaidGraphlib` (see *CanvasNetMermaid System Design*).
 
 ### Interfaces
 

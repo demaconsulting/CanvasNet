@@ -121,10 +121,10 @@ Every fixture lays out into a scene with between one and as many task bars as it
 is not drawn, as in the browser), exactly one task text for each task, between one and as many section rows as it has
 tasks that are not vertical markers, and at least one tick, and lays out a second time into the same view box and the
 same number of items. The text above draws the task texts `Code`, `Test`, and `Release`, the section titles `Build` and
-`Ship`, and the task bars with the ids `c`, `t`, and `r`. A chart with `excludes weekends`, `tickInterval 1second`,
-and one task of seven years, drawn with the clock set, reports exactly one `mermaid-gantt-excludes-skipped` and one
-`mermaid-gantt-ticks-skipped` warning, still draws ticks (the default ones), and shades no excluded day. The size,
-rows, bars, milestones, vertical markers, task texts, compact mode, section titles, excluded days, axes, tick
-intervals, today line, and title are verified at the unit level (see the GanttRenderer and TimeAxis unit verification designs),
-the paint of the gantt style sheet by the Configuration subsystem, and the positions and sizes against Mermaid's goldens
-by the system-level reference layout tests.
+`Ship`, and the task bars with the ids `c`, `t`, and `r`. A chart with `excludes weekends`, `tickInterval 1second`, and
+one task of seven years, drawn with the clock set, reports exactly one `mermaid-gantt-excludes-skipped` and one
+`mermaid-gantt-ticks-skipped` warning, still draws ticks (the default ones), and shades no excluded day. The size, rows,
+bars, milestones, vertical markers, task texts, compact mode, section titles, excluded days, axes, tick intervals, today
+line, and title are verified at the unit level (see the GanttRenderer and TimeAxis unit verification designs), the paint
+of the gantt style sheet by the Configuration subsystem, and the positions and sizes against Mermaid's goldens by the
+system-level reference layout tests.

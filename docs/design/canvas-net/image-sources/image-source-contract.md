@@ -48,9 +48,8 @@ so that the claims of every source are validated once, where the list is compose
 later source wins) is implemented in one place for every consumer.
 
 The unit's behavior is specified by the `CanvasNet-ImageSources-ImageSourceContract-*` requirements (`SourceClaims`,
-`Request`, `SizeRule`, `Result`, `FailureReporting`, `ImageFragment`, `FragmentPrefix`, `ParameterValues`, `FragmentReview`,
-`Refusal`,
-`DiagnosticDetail`, and `Positions`) in
+`Request`, `SizeRule`, `Result`, `FailureReporting`, `ImageFragment`, `FragmentPrefix`, `ParameterValues`,
+`FragmentReview`, `Refusal`, `DiagnosticDetail`, and `Positions`) in
 `docs/reqstream/canvas-net/image-sources/image-source-contract.yaml`.
 
 #### Data Model

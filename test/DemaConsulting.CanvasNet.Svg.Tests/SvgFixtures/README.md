@@ -10,7 +10,7 @@ fixtures sourced from Wikimedia Commons; see the "Real-world third-party fixture
 for their provenance and licensing.
 
 | File | Exercises |
-| ------ | ----------- |
+| --- | --- |
 | `shapes.svg` | `rect`, `circle`, `ellipse`, `polygon` basic shapes with solid fills |
 | `groups-and-transforms.svg` | `g` grouping with fill inheritance, combined `translate`/`rotate` transforms |
 | `gradient.svg` | `linearGradient` with `stop` children, referenced via `fill="url(#id)"` |
@@ -30,6 +30,6 @@ domain under the CC0 1.0 Universal Public Domain Dedication. See `WikimediaCommo
 this folder for full source URLs, authorship, license text, and retrieval dates.
 
 | File | Exercises |
-| ------ | ----------- |
+| --- | --- |
 | `SvgGradient.svg` | `userSpaceOnUse`/default `linearGradient`s, percentage stop offsets, `rgb()`/hex `stop-color` |
 | `InkscapeFilters.svg` | `defs`/`use` templating, composed `rotate`/`scale`/`translate`, tolerated `filter` refs |

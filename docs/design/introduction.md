@@ -123,7 +123,7 @@ software items, specifically:
   decodes/rasterizes a subset of SVG vector documents into a `CanvasNet.Canvas.Surface`.
   `CanvasNetSvg` depends on this `CanvasNet` system's `Canvas`, `Geometry`, `Drawing`, `Fonts`
   (including `SystemFontCatalog`, which resolves the font of SVG text when the caller registers
-  none), `Codecs`, and `Packaging` subsystems — see _CanvasNetSvg System Design_ (`canvas-net-svg.md`)
+  none), `Codecs`, and `Packaging` subsystems — see *CanvasNetSvg System Design* (`canvas-net-svg.md`)
 - **CanvasNetPdf (System)** — A separate, independently-distributed software system providing
   PDF page-rendering support, containing a single unit, `PdfDocument`, which parses a PDF
   document's structure (cross-references, trailer, page tree), optionally decrypting a document
@@ -136,7 +136,7 @@ software items, specifically:
   Type 1, Type 1C, Type 3, or Type 0/CID-keyed font, or an automatically substituted
   system/bundled fallback font when none is embedded. `CanvasNetPdf` depends on this
   `CanvasNet` system's `Canvas`, `Geometry`, `Drawing`, `Fonts`, and `Codecs` subsystems — see
-  _CanvasNetPdf System Design_ (`canvas-net-pdf.md`)
+  *CanvasNetPdf System Design* (`canvas-net-pdf.md`)
 - **CanvasNetPptx (System)** — A separate, independently-distributed software system providing
   PowerPoint (`.pptx`) presentation-rendering support, containing a single unit, `PptxDocument`.
   This feature was delivered incrementally across Phases 1a–1f, each additive to the last: Phase
@@ -164,13 +164,13 @@ software items, specifically:
   nested tables remain explicitly deferred. Pattern fill (a
   documented subset of 30 of the 54 named ECMA-376 `ST_PresetPatternVal` preset names, including
   background fills; the remaining 24 are deferred) and picture fill are both implemented — see
-  _CanvasNetPptx System Design_ (`canvas-net-pptx.md`) for the full supported/deferred boundary.
+  *CanvasNetPptx System Design* (`canvas-net-pptx.md`) for the full supported/deferred boundary.
   `CanvasNetPptx` depends on the `CanvasNet` system's `Canvas`, `Geometry`,
   `Drawing`, `Fonts`, `Codecs`, `Packaging`, and `Rendering` subsystems (for the `Rgba32` color type, path geometry/
   stroking, font/glyph resolution, and image decoding used to resolve and render shape/text/
   picture content), and on the `CanvasNetCharts` system (for parsing and rendering embedded
   `<p:graphicFrame>` charts — see `OpenXmlChartParser`/`ChartRenderer` below) — see
-  _CanvasNetPptx System Design_ (`canvas-net-pptx.md`)
+  *CanvasNetPptx System Design* (`canvas-net-pptx.md`)
 - **CanvasNetCharts (System)** — A separate, independently-distributed software system providing
   chart support, containing two subsystems: `ChartModel`, containing two units, `ChartDocument` —
   the public, immutable, validating chart data model (`Chart`/`ChartSeries`/
@@ -179,16 +179,16 @@ software items, specifically:
   containing a single unit, `OpenXmlChartParser`, which parses an OOXML `chart1.xml` part into
   the `ChartModel` data model. The `CanvasNetPptx` system integrates `CanvasNetCharts` into its
   own slide rendering, automatically parsing and rendering embedded `<p:graphicFrame>` charts —
-  see _CanvasNetPptx System Design_ (`canvas-net-pptx.md`) for that integration's detail. Bar,
+  see *CanvasNetPptx System Design* (`canvas-net-pptx.md`) for that integration's detail. Bar,
   column, line, pie, doughnut, and area OOXML chart types are supported; radar, scatter, bubble,
   stock, surface, 3-D, "of pie", and multi-chart-type ("combo") OOXML charts remain explicitly
-  deferred (see _OpenXmlChartParser Unit Design_ (`open-xml-chart-parser.md`) for the complete
+  deferred (see *OpenXmlChartParser Unit Design* (`open-xml-chart-parser.md`) for the complete
   supported/deferred boundary). `CanvasNetCharts` depends on this `CanvasNet`
   system's `Canvas`, `Drawing`, `Geometry`, `Fonts`, and `Rendering` subsystems (for the `Rgba32`
   color type and pixel buffer, path filling/stroking and tile-paint primitives, transforms and
   rectangles, TrueType text layout/metrics, and the bundled Liberation Sans fallback font), and
   must never reference `CanvasNetSvg`, `CanvasNetPdf`, `CanvasNetPptx`, or `CanvasNetVsdx` — see
-  _CanvasNetCharts System Design_ (`canvas-net-charts.md`)
+  *CanvasNetCharts System Design* (`canvas-net-charts.md`)
 - **CanvasNetVsdx (System)** — A separate, independently-distributed software system providing
   Microsoft Visio (`.vsdx`) diagram-rendering support, containing a single unit, `VsdxDocument`.
   Unlike `CanvasNetPptx`'s own incrementally-delivered phase history, this feature is delivered as
@@ -209,12 +209,12 @@ software items, specifically:
   theme-variation resolution, non-solid
   fill-pattern combinations beyond solid, the full arrowhead style-index table, and several
   documented-but-unobserved geometry row types remain explicitly deferred — see
-  _CanvasNetVsdx System Design_ (`canvas-net-vsdx.md`) for the full supported/deferred boundary and
+  *CanvasNetVsdx System Design* (`canvas-net-vsdx.md`) for the full supported/deferred boundary and
   its Implementation Phase Plan. `CanvasNetVsdx` depends on the `CanvasNet` system's `Canvas`,
   `Geometry`, `Drawing`, and `Fonts` subsystems, and must never reference `CanvasNetPptx`,
   `CanvasNetPdf`, or `CanvasNetCharts` — a future, explicitly out-of-scope dependency on the
   sibling `CanvasNetSvg` system (to rasterize an embedded SVG foreign object) is anticipated but
-  not yet modeled — see _CanvasNetVsdx System Design_ (`canvas-net-vsdx.md`)
+  not yet modeled — see *CanvasNetVsdx System Design* (`canvas-net-vsdx.md`)
 - **CanvasNetRender3D (System)** — A separate, independently-distributed, format-agnostic software
   system providing a pure-managed 3D mesh/scene rasterizer, containing three subsystems:
   `SceneModel` (units `DoublePrecisionMath` — `Vector2D`/`Vector3D`/`Matrix4x4D`/`BoundingBox3D`;
@@ -237,7 +237,7 @@ software items, specifically:
   cooperative cancellation). It renders a `Scene` onto a new core `Surface`. Constructive solid
   geometry (union, difference, intersection) is delivered through per-pixel fragment lists, and
   scenes without a difference or intersection keep the z-buffer path; transparency and any 3D
-  file-format front end remain out of scope — see _CanvasNetRender3D System Design_
+  file-format front end remain out of scope — see *CanvasNetRender3D System Design*
   (`canvas-net-render3d.md`) for the full supported/deferred boundary and its Implementation Phase
   Plan. `CanvasNetRender3D` depends on the `CanvasNet` system's `Canvas`
   subsystem only (for `Surface` and `Rgba32`), and must never reference `CanvasNetSvg`,
@@ -267,7 +267,7 @@ software items, specifically:
   scale, mirror, multmatrix, resize, and color), `ScadExtrusions` (linear and rotational extrusion over a
   symbolic 2D shape tree), and `ScadTextGeometry` (the text module: font resolution, glyph layout, and flat 2D
   glyph regions). The 2D Minkowski sum and a few other constructs are deferred and reported as
-  unsupported features — see _CanvasNetScad System Design_ (`canvas-net-scad.md`) for the full
+  unsupported features — see *CanvasNetScad System Design* (`canvas-net-scad.md`) for the full
   supported/deferred boundary and its Implementation Phase Plan. `CanvasNetScad` depends on the `CanvasNet`
   system's `Canvas` subsystem (`Surface`, `Rgba32`, `CssColor`), its `Files` subsystem (`FileReferenceResolver`, for
   `include` and `use`), and, for the `text` module, on its `Fonts` (`TrueTypeFont`,
@@ -348,7 +348,7 @@ software items, specifically:
   text, and arc marks with curve interpolation, overlays, `impute`, and polar channels, layers, concatenations
   (`concat`, `hconcat`, `vconcat`), facets (the `facet` operator and the `row`/`column` channels), and repeats, with
   their headers and titles, `autosize` of `fit`, `fit-x`, and `fit-y`, and container sizes are supported; remote data
-  is never fetched) — see _CanvasNetVegaLite System Design_ (`canvas-net-vega-lite.md`) for the full supported/deferred
+  is never fetched) — see *CanvasNetVegaLite System Design* (`canvas-net-vega-lite.md`) for the full supported/deferred
   boundary and its Implementation Phase Plan. `CanvasNetVegaLite` depends on the `CanvasNet` system's `Canvas`,
   `Geometry`, `Drawing`, `Fonts`, `Files`, `Rendering`, and `Positions` subsystems through their public API, and must
   never reference
@@ -376,7 +376,7 @@ software items, specifically:
   `Packet` (`PacketParser` and `PacketRenderer`), and `GitGraph` (`GitGraphParser` and `GitGraphRenderer`). This
   version draws flowcharts, sequence diagrams, class diagrams, state diagrams, entity relationship diagrams, pie charts,
   gantt charts, mindmaps, packet diagrams, and git graphs; every other
-  Mermaid diagram type is recognized and reported as unsupported — see _CanvasNetMermaid System Design_
+  Mermaid diagram type is recognized and reported as unsupported — see *CanvasNetMermaid System Design*
   (`canvas-net-mermaid.md`) for the known differences from Mermaid and its Phase Plan. `CanvasNetMermaid` depends on the
   `CanvasNet` system's `Canvas`, `Geometry`, `Drawing`, `Fonts`, `Rendering`, `ImageSources`, and `Positions` subsystems
   through their public API only
@@ -405,7 +405,7 @@ software items, specifically:
   `PandocFilterEngine`, and `PandocFilterShim` units).
   It uses
   the other systems of this repository through private project references, so that their assemblies are bundled
-  into the tool package — see _CanvasNetTool System Design_ (`canvas-net-tool.md`)
+  into the tool package — see *CanvasNetTool System Design* (`canvas-net-tool.md`)
 
 - **CanvasNetViewer (System)** — A separate software system (packable as `DemaConsulting.CanvasNet.Viewer`) that
   aggregates the image sources of every format and is the library form of the `canvasnet` tool. It contains two direct
@@ -428,7 +428,7 @@ software items, specifically:
   `ImageComparer` (compare two images), `MontageBuilder` (a contact sheet), and `SvgFlattener` (a copy of an SVG drawing
   that other SVG readers can show). It references the core package and the
   Svg, Pdf, Pptx, Vsdx, Scad, Render3D, VegaLite, and Mermaid packages, is referenced only by the tool, and has no
-  plug-in mechanism of its own — see _CanvasNetViewer System Design_ (`canvas-net-viewer.md`)
+  plug-in mechanism of its own — see *CanvasNetViewer System Design* (`canvas-net-viewer.md`)
 
 The following OTS items are also covered:
 
@@ -530,7 +530,7 @@ A sibling top-level system, `CanvasNetSvg`, lives in this same repository alongs
 (rather than as one of its subsystems): its sole unit, `SvgCodec`, namespace
 `DemaConsulting.CanvasNet.Svg`, is distributed as its own separate NuGet package and depends on
 the `CanvasNet` system's `Canvas`, `Geometry`, `Drawing`, `Fonts`, `Codecs`, and `Packaging` subsystems — see
-the Folder Layout section below and _CanvasNetSvg System Design_ (`canvas-net-svg.md`).
+the Folder Layout section below and *CanvasNetSvg System Design* (`canvas-net-svg.md`).
 
 A second sibling top-level system, `CanvasNetPdf`, likewise lives in this same repository
 alongside `CanvasNet`: its sole unit, `PdfDocument`, namespace `DemaConsulting.CanvasNet.Pdf`, is
@@ -539,8 +539,8 @@ distributed as its own separate NuGet package and depends on the `CanvasNet` sys
 geometry, device color (including shading/tiling pattern fills), image XObjects and nested Form
 XObjects, and text — TrueType, Type 1, Type 1C, Type 3, or Type 0/CID-keyed — with automatic
 font-fallback substitution, optionally decrypting an encrypted document first) —
-see the Folder Layout section below and _CanvasNetPdf
-System Design_ (`canvas-net-pdf.md`).
+see the Folder Layout section below and *CanvasNetPdf
+System Design* (`canvas-net-pdf.md`).
 
 A third sibling top-level system, `CanvasNetPptx`, likewise lives in this same repository
 alongside `CanvasNet`: its sole unit, `PptxDocument`, namespace `DemaConsulting.CanvasNet.Pptx`,
@@ -551,7 +551,7 @@ on `CanvasNetCharts` (for chart graphic frames) (`Render` opens a `.pptx` packag
 structure, resolves the slide/layout/master/theme chain and placeholder property inheritance,
 resolves DrawingML shape geometry, paint, connectors, pictures, tables, and chart graphic frames,
 lays out and paints text including bullets and numbering, and paints a slide's full shape tree in
-document order) — see the Folder Layout section below and _CanvasNetPptx System Design_
+document order) — see the Folder Layout section below and *CanvasNetPptx System Design*
 (`canvas-net-pptx.md`).
 
 A fourth sibling top-level system, `CanvasNetVsdx`, likewise lives in this same repository
@@ -564,7 +564,7 @@ StyleSheet line/fill/text style chain, resolves shape/connector transforms and g
 paintable paths — including Milestone 11's real `EllipticalArcTo`/`ArcTo`-to-Bezier conversion —
 composes arbitrarily nested group/child-shape transforms, and paints a page's full shape tree,
 including text, in document order) — see the Folder Layout section below and
-_CanvasNetVsdx System Design_ (`canvas-net-vsdx.md`).
+*CanvasNetVsdx System Design* (`canvas-net-vsdx.md`).
 
 A fifth sibling top-level system, `CanvasNetCharts`, likewise lives in this same repository
 alongside `CanvasNet`, distributed as its own separate NuGet package
@@ -576,7 +576,7 @@ and `OpenXmlChart` (the `OpenXmlChartParser` unit: a format-agnostic parser from
 DrawingML-Charts element to a `Chart`; namespace `DemaConsulting.CanvasNet.Charts.OpenXml`) — so
 that the untrusted-input XML parser sits behind its own architectural boundary. `CanvasNetPptx`
 consumes both subsystems; `CanvasNetCharts` never references `CanvasNetPptx`. See the Folder
-Layout section below and _CanvasNetCharts System Design_ (`canvas-net-charts.md`).
+Layout section below and *CanvasNetCharts System Design* (`canvas-net-charts.md`).
 
 A further sibling top-level system, `CanvasNetRender3D`, likewise lives in this same repository
 alongside `CanvasNet`, distributed as its own separate NuGet package
@@ -590,7 +590,7 @@ subsystem. Unlike the single-unit siblings it has three subsystems of its own �
 and the rasterization pipeline can each evolve (the constructive-solid-geometry phase, for
 example, added units to `SceneRendering` without touching the other two) behind their own
 architectural boundary. The root namespace contains no types. See the Folder Layout section below
-and _CanvasNetRender3D System Design_ (`canvas-net-render3d.md`).
+and *CanvasNetRender3D System Design* (`canvas-net-render3d.md`).
 
 A further sibling top-level system, `CanvasNetScad`, likewise lives in this same repository
 alongside `CanvasNet` and is distributed as its own NuGet package. It is a clean-room front end for the OpenSCAD
@@ -604,7 +604,7 @@ subsystem (namespace `DemaConsulting.CanvasNet.Scad.Geometry`) holds the `ScadGe
 system's `Canvas` (`Surface`, `Rgba32`), `Fonts` (for `text`: `TrueTypeFont` and `SystemFontCatalog`), and
 `Geometry` (for `text`: the `Path` of a glyph outline) subsystems, and on `CanvasNetRender3D` (the scene model,
 tessellation, and renderer), through their public API. See
-the Folder Layout section below and _CanvasNetScad System Design_ (`canvas-net-scad.md`).
+the Folder Layout section below and *CanvasNetScad System Design* (`canvas-net-scad.md`).
 
 A further sibling top-level system, `CanvasNetVegaLite`, likewise lives in this same repository alongside `CanvasNet`
 and is distributed as its own NuGet package. It is a static renderer for the public Vega-Lite specification language
@@ -630,7 +630,7 @@ every system and `SceneModel` already names a `CanvasNetRender3D` subsystem (and
 `CanvasNetMermaid`). It depends on the `CanvasNet` system's
 `Canvas` (`Surface`, `Rgba32`), `Geometry`, `Drawing`, `Fonts`, `Rendering`, and `Positions` subsystems through their
 public API. See
-the Folder Layout section below and _CanvasNetVegaLite System Design_ (`canvas-net-vega-lite.md`).
+the Folder Layout section below and *CanvasNetVegaLite System Design* (`canvas-net-vega-lite.md`).
 
 A further sibling top-level system, `CanvasNetMermaid`, likewise lives in this same repository alongside `CanvasNet`
 and is distributed as its own NuGet package. It is a static, offline renderer for the Mermaid diagram language that
@@ -663,8 +663,8 @@ scene units are
 because the model package is shared by every system and `Rendering`, `SceneModel`, `ScenePainter`, and
 `ScenePositions` are already
 taken. It depends on the `CanvasNet` system's `Canvas`, `Geometry`, `Drawing`, `Fonts`, `Rendering`, `ImageSources`,
-and `Positions` subsystems through their public API. See the Folder Layout section below and _CanvasNetMermaid System
-Design_ (`canvas-net-mermaid.md`).
+and `Positions` subsystems through their public API. See the Folder Layout section below and *CanvasNetMermaid System
+Design* (`canvas-net-mermaid.md`).
 A further sibling top-level system, `CanvasNetViewer`, likewise lives in this same repository and is distributed as its
 own NuGet package (`DemaConsulting.CanvasNet.Viewer`). It aggregates the image sources of every format and is the
 library form of the `canvasnet` tool: its direct unit `CanvasNetViewer` (namespace `DemaConsulting.CanvasNet.Viewer`)
@@ -681,7 +681,7 @@ and the `ImageRenderer`, `ImageInspector`, `ImageComparer`, `MontageBuilder`, an
 into the render, inspect, compare, montage, and flatten operations. It references the core package and the
 `CanvasNetSvg`, `CanvasNetPdf`,
 `CanvasNetPptx`, `CanvasNetVsdx`, `CanvasNetScad`, `CanvasNetRender3D`, `CanvasNetVegaLite`, and `CanvasNetMermaid`
-packages; the tool references it. See the Folder Layout section below and _CanvasNetViewer System Design_
+packages; the tool references it. See the Folder Layout section below and *CanvasNetViewer System Design*
 (`canvas-net-viewer.md`).
 
 A final sibling top-level system, `CanvasNetTool`, likewise lives in this same repository and is distributed as
@@ -701,7 +701,7 @@ results. It uses the `CanvasNet`, `CanvasNetSvg`,
 `CanvasNetPdf`, `CanvasNetPptx`, `CanvasNetVsdx`, `CanvasNetRender3D`, `CanvasNetScad`, `CanvasNetVegaLite`,
 `CanvasNetMermaid`, and `CanvasNetViewer` systems
 through their public API and bundles their assemblies in its package. No library system references the tool. See the
-Folder Layout section below and _CanvasNetTool System Design_ (`canvas-net-tool.md`).
+Folder Layout section below and *CanvasNetTool System Design* (`canvas-net-tool.md`).
 
 ## Folder Layout
 
@@ -915,7 +915,7 @@ src/DemaConsulting.CanvasNet/
 `SvgCodec` lives in the sibling `src/DemaConsulting.CanvasNet.Svg/` project folder (namespace
 `DemaConsulting.CanvasNet.Svg`, distributed as the separate `DemaConsulting.CanvasNet.Svg` NuGet
 package). This is not a subsystem-mirroring structure of `CanvasNet` — it is the source folder of
-the separate, sibling `CanvasNetSvg` system's sole unit (see _CanvasNetSvg System Design_,
+the separate, sibling `CanvasNetSvg` system's sole unit (see *CanvasNetSvg System Design*,
 `canvas-net-svg.md`), a flat structure with no further nesting:
 
 ```text
@@ -942,12 +942,12 @@ subsystem now includes the additional stroking files listed above, along with th
 paint files added for linear/radial gradient support in `PathFiller`. The sibling `CanvasNetSvg`
 system's sole unit, `SvgCodec`, depends on the `CanvasNet` system's `Geometry`, `Drawing`,
 `Fonts`, and `Codecs` subsystems (not only `Canvas`) to build and rasterize the vector paths and
-text it decodes from SVG documents — see _CanvasNetSvg System Design_ (`canvas-net-svg.md`).
+text it decodes from SVG documents — see *CanvasNetSvg System Design* (`canvas-net-svg.md`).
 
 `PdfDocument` lives in the second sibling `src/DemaConsulting.CanvasNet.Pdf/` project folder
 (namespace `DemaConsulting.CanvasNet.Pdf`, distributed as the separate
 `DemaConsulting.CanvasNet.Pdf` NuGet package). Like `SvgCodec`'s own folder, this is the source
-folder of a separate, sibling system's sole unit (see _CanvasNetPdf System Design_,
+folder of a separate, sibling system's sole unit (see *CanvasNetPdf System Design*,
 `canvas-net-pdf.md`), a flat structure with no further nesting:
 
 ```text
@@ -1011,13 +1011,13 @@ src/DemaConsulting.CanvasNet.Pdf/
 `Geometry` (`PathBuilder`/`Path`), `Drawing` (`PathFiller`/`PathStroker`/`StrokeStyle`/
 `Gradient`/`LinearGradient`/`RadialGradient`/`GradientStop`/`GradientSpread`/`TilePaint`),
 `Fonts` (`TrueTypeFont`, `SystemFontCatalog`), and `Codecs` (`UnsupportedImageFeatureException`,
-`JpegCodec`) subsystems — see _CanvasNetPdf System Design_ (`canvas-net-pdf.md`) for exactly
+`JpegCodec`) subsystems — see *CanvasNetPdf System Design* (`canvas-net-pdf.md`) for exactly
 which file introduced each dependency.
 
 `VsdxDocument` lives in the `src/DemaConsulting.CanvasNet.Vsdx/` project folder (namespace
 `DemaConsulting.CanvasNet.Vsdx`, distributed as the separate `DemaConsulting.CanvasNet.Vsdx`
 NuGet package). Like `SvgCodec`'s and `PdfDocument`'s own folders, this is the source folder of
-a separate, sibling system's sole unit (see _CanvasNetVsdx System Design_,
+a separate, sibling system's sole unit (see *CanvasNetVsdx System Design*,
 `canvas-net-vsdx.md`), a flat structure with no further nesting:
 
 ```text
@@ -1073,13 +1073,13 @@ src/DemaConsulting.CanvasNet.Vsdx/
 
 `VsdxDocument`'s dependencies span the `CanvasNet` system's `Canvas` (`Surface`/`Rgba32`),
 `Geometry` (`PathBuilder`/`Path`), `Drawing` (`PathFiller`/`PathStroker`/`StrokeStyle`), and
-`Fonts` (`TrueTypeFont`, `SystemFontCatalog`) subsystems — see _CanvasNetVsdx System Design_
+`Fonts` (`TrueTypeFont`, `SystemFontCatalog`) subsystems — see *CanvasNetVsdx System Design*
 (`canvas-net-vsdx.md`) for exactly which file introduced each dependency.
 
 `PptxDocument` lives in the `src/DemaConsulting.CanvasNet.Pptx/` project folder (namespace
 `DemaConsulting.CanvasNet.Pptx`, distributed as the separate `DemaConsulting.CanvasNet.Pptx`
 NuGet package). Like `SvgCodec`'s, `PdfDocument`'s, and `VsdxDocument`'s own folders, this is the
-source folder of a separate, sibling system's sole unit (see _CanvasNetPptx System Design_,
+source folder of a separate, sibling system's sole unit (see *CanvasNetPptx System Design*,
 `canvas-net-pptx.md`), a flat structure with no further nesting:
 
 ```text
@@ -1140,14 +1140,14 @@ src/DemaConsulting.CanvasNet.Pptx/
 `Geometry` (`PathBuilder`/`Path`), `Drawing` (`PathFiller`/`PathStroker`/`StrokeStyle`/
 `LinearGradient`), `Fonts` (`TrueTypeFont`, `SystemFontCatalog`), and `Codecs` subsystems, plus the
 sibling `CanvasNetSvg` system (SVG pictures) and the sibling `CanvasNetCharts` system
-(`OpenXmlChartParser`, `ChartRenderer`) — see _CanvasNetPptx System Design_ (`canvas-net-pptx.md`)
+(`OpenXmlChartParser`, `ChartRenderer`) — see *CanvasNetPptx System Design* (`canvas-net-pptx.md`)
 for exactly which phase introduced each dependency.
 
 `CanvasNetCharts` lives in the `src/DemaConsulting.CanvasNet.Charts/` project folder (distributed
 as the separate `DemaConsulting.CanvasNet.Charts` NuGet package). Its two subsystems occupy
 different folders: `ChartModel` occupies the project's root folder (flat — no further nesting),
 and `OpenXmlChart` occupies the `OpenXml/` sub-folder, whose name equals its sub-namespace
-`DemaConsulting.CanvasNet.Charts.OpenXml` (see _CanvasNetCharts System Design_,
+`DemaConsulting.CanvasNet.Charts.OpenXml` (see *CanvasNetCharts System Design*,
 `canvas-net-charts.md`):
 
 ```text
@@ -1183,7 +1183,7 @@ src/DemaConsulting.CanvasNet.Charts/
 The `CanvasNetRender3D` system lives in the `src/DemaConsulting.CanvasNet.Render3D/` project folder
 (distributed as the separate `DemaConsulting.CanvasNet.Render3D` NuGet package). Its three
 subsystems each occupy one sub-folder whose name equals the sub-namespace; no unit has a
-nested sub-folder of its own (see _CanvasNetRender3D System Design_, `canvas-net-render3d.md`):
+nested sub-folder of its own (see *CanvasNetRender3D System Design*, `canvas-net-render3d.md`):
 
 ```text
 src/DemaConsulting.CanvasNet.Render3D/
@@ -1256,14 +1256,14 @@ src/DemaConsulting.CanvasNet.Render3D/
 ```
 
 `CanvasNetRender3D`'s only dependency on the rest of this repository is the `CanvasNet` system's
-`Canvas` subsystem (`Surface`, `Rgba32`) — see _CanvasNetRender3D System Design_
+`Canvas` subsystem (`Surface`, `Rgba32`) — see *CanvasNetRender3D System Design*
 (`canvas-net-render3d.md`).
 
 The `CanvasNetScad` system lives in the `src/DemaConsulting.CanvasNet.Scad/` project folder (the separate
 `DemaConsulting.CanvasNet.Scad` package). The `ScadDocument` unit
 occupies the project root; the internal `ScadLanguage`, `ScadEvaluation`, and `ScadGeometry` subsystems occupy the
 `Language/`, `Evaluation/`, and `Geometry/` sub-folders, whose names equal their sub-namespaces; no unit has a
-nested sub-folder of its own (see _CanvasNetScad System Design_, `canvas-net-scad.md`):
+nested sub-folder of its own (see *CanvasNetScad System Design*, `canvas-net-scad.md`):
 
 ```text
 src/DemaConsulting.CanvasNet.Scad/
@@ -1388,14 +1388,14 @@ src/DemaConsulting.CanvasNet.Scad/
 tessellation, rendering) through their public API from the `ScadGeometry` subsystem (the `ScadTextGeometry` unit
 for `Fonts` and `Geometry`) and the `BuildScene` and
 `Render` methods of `ScadDocument`, and declares both packages as its dependencies — see
-_CanvasNetScad System Design_ (`canvas-net-scad.md`).
+*CanvasNetScad System Design* (`canvas-net-scad.md`).
 
 The `CanvasNetVegaLite` system lives in the `src/DemaConsulting.CanvasNet.VegaLite/` project folder (the separate
 `DemaConsulting.CanvasNet.VegaLite` package). The `VegaLiteDocument` unit occupies the project root; the internal
 `SpecModel`, `Data`, `Expressions`, `Transforms`, `Scales`, `Guides`, `Layout`, `Marks`, and `Scenegraph` subsystems
 occupy the sub-folders of the same
-names, whose names equal their sub-namespaces; no unit has a nested sub-folder of its own (see _CanvasNetVegaLite System
-Design_, `canvas-net-vega-lite.md`):
+names, whose names equal their sub-namespaces; no unit has a nested sub-folder of its own (see *CanvasNetVegaLite System
+Design*, `canvas-net-vega-lite.md`):
 
 ```text
 src/DemaConsulting.CanvasNet.VegaLite/
@@ -1601,7 +1601,7 @@ src/DemaConsulting.CanvasNet.VegaLite/
 `Geometry`,
 `PathFiller` and `PathStroker` of `Drawing`, `TrueTypeFont` and `SystemFontCatalog` of `Fonts`, and `TextRenderer` of
 `Rendering`) through its public API, and declares it as its only package dependency; the `ScenePainter`, `ArcGeometry`,
-`SymbolPathParser`, and `TextMeasurer` units use it — see _CanvasNetVegaLite System Design_ (`canvas-net-vega-lite.md`).
+`SymbolPathParser`, and `TextMeasurer` units use it — see *CanvasNetVegaLite System Design* (`canvas-net-vega-lite.md`).
 
 The `CanvasNetMermaid` system lives in the `src/DemaConsulting.CanvasNet.Mermaid/` project folder (the separate
 `DemaConsulting.CanvasNet.Mermaid` package). The `MermaidDocument` unit occupies the project root; the internal
@@ -1610,7 +1610,7 @@ subsystems occupy the sub-folders `Syntax/`, `Configuration/`, `Graphlib/`, `Dag
 `GitGraph/`, whose
 names equal
 their sub-namespaces; partial files and small helper types
-belong to the unit named before the dash (see _CanvasNetMermaid System Design_, `canvas-net-mermaid.md`):
+belong to the unit named before the dash (see *CanvasNetMermaid System Design*, `canvas-net-mermaid.md`):
 
 ```text
 src/DemaConsulting.CanvasNet.Mermaid/
@@ -1713,7 +1713,7 @@ Each sub-folder also holds a `NamespaceDoc.cs` with the namespace documentation.
 The `CanvasNetViewer` system lives in the `src/DemaConsulting.CanvasNet.Viewer/` project folder (the separate
 `DemaConsulting.CanvasNet.Viewer` package). Its two direct units, `CanvasNetViewer` and `ViewerException`, occupy the
 project root, and its `Imaging` subsystem occupies the `Imaging/` sub-folder, whose name equals its sub-namespace (see
-_CanvasNetViewer System Design_, `canvas-net-viewer.md`):
+*CanvasNetViewer System Design*, `canvas-net-viewer.md`):
 
 ```text
 src/DemaConsulting.CanvasNet.Viewer/
@@ -1765,7 +1765,7 @@ The `CanvasNetTool` system lives in the `src/DemaConsulting.CanvasNet.Tool/` pro
 `DemaConsulting.CanvasNet.Tool` dotnet tool package). The six direct units occupy the project root, and the
 `Commands` and `PandocFilter` subsystems occupy the `Commands/` and `PandocFilter/` sub-folders, whose names equal their
 sub-namespaces
-(see _CanvasNetTool System Design_, `canvas-net-tool.md`):
+(see *CanvasNetTool System Design*, `canvas-net-tool.md`):
 
 ```text
 src/DemaConsulting.CanvasNet.Tool/
@@ -1929,9 +1929,9 @@ design `docs/design/canvas-net-vega-lite/marks/curve-builder.md`, verification
 `CurveBuilder.Splines.cs`), and tests `test/DemaConsulting.CanvasNet.VegaLite.Tests/Marks/CurveBuilderTests.cs` (with
 `CurveBuilderSplineTests.cs` and `CurveBuilderAreaTests.cs`); for `ArcGeometry` in the `Scenegraph` subsystem, the same
 paths with `scenegraph/arc-geometry`, `Scenegraph/ArcGeometry.cs` (which also holds the internal `ArcPathWriter`), and
-`ArcGeometryTests.cs`; and for `SymbolPathParser`, `scenegraph/symbol-path-parser`, `Scenegraph/SymbolPathParser.cs`, and
-`SymbolPathParserTests.cs`. The path, text, and arc marks themselves are in the partial files of the existing `MarkBuilder`
-unit (`MarkBuilder.Paths.cs`, `.Order.cs`, `.Overlays.cs`, `.Text.cs`, and `.Arcs.cs`, with the tests
+`ArcGeometryTests.cs`; and for `SymbolPathParser`, `scenegraph/symbol-path-parser`, `Scenegraph/SymbolPathParser.cs`,
+and `SymbolPathParserTests.cs`. The path, text, and arc marks themselves are in the partial files of the existing
+`MarkBuilder` unit (`MarkBuilder.Paths.cs`, `.Order.cs`, `.Overlays.cs`, `.Text.cs`, and `.Arcs.cs`, with the tests
 `MarkBuilderPathTests.cs`, `MarkBuilderOrderTests.cs`, `MarkBuilderOverlayTests.cs`, `MarkBuilderTextTests.cs`,
 `MarkBuilderArcTests.cs`, and `MarkBuilderPolarTextTests.cs`), and the painting of the segment paths, arcs, and trails
 is in `ScenePainter.Paths.cs`, a partial file of the `ScenePainter` unit (with `ScenePainterPathTests.cs`). The
@@ -1941,9 +1941,8 @@ have no companion artifacts of their own: the original gallery specifications an
 `docs/user_guide/examples/gallery/` (drawn by the Pandoc filter, rendered strictly by
 `test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteGalleryTests.cs`, and shown in the montage
 `docs/images/vegalite-gallery.png`, which `docs/images/render-images.ps1` draws and checks), the Stopwatch benchmark
-harness is the project `tools/DemaConsulting.CanvasNet.VegaLite.Benchmarks/` (compiled by the solution build, run
-by hand), and the visual-diff scripts against Vega and Vega-Lite are in `tools/visual-diff/` (run by hand, never in
-CI).
+harness is the project `tools/DemaConsulting.CanvasNet.VegaLite.Benchmarks/` (compiled by the solution build, run by
+hand), and the visual-diff scripts against Vega and Vega-Lite are in `tools/visual-diff/` (run by hand, never in CI).
 
 For the `CanvasNetMermaid` system the parallel paths are, for example for the `DagreRanker` unit in the `Dagre`
 subsystem: requirements `docs/reqstream/canvas-net-mermaid/dagre/dagre-ranker.yaml`, design
@@ -1997,4 +1996,5 @@ unit of the `Scenegraph` subsystem of each renderer has `scenegraph/scene-positi
 - CanvasNet User Guide — the compiled User Guide document for this repository.
 - CanvasNet Repository — the CanvasNet source repository hosted on
   GitHub.
+
 <!-- cspell:ignore Outliner -->

@@ -59,7 +59,7 @@ lays out the diagram.
   `PositionHandler` (`Action<ImagePosition>?`, null by default: the callback that receives the feature positions of a
   render), and `PositionKindFilter` (`Func<string, bool>?`, null for every kind: the kinds the handler wants; a host
   passes `PositionCollector.IncludesKind`).
-- **`MermaidLimits`**: the ten limits of the system design (_Untrusted Input and Limits_), each validated to be at
+- **`MermaidLimits`**: the ten limits of the system design (*Untrusted Input and Limits*), each validated to be at
   least 1, the two depth limits at most 256; `Default` is a shared instance.
 - **Records**: `MermaidLocation(File, Line, Column)` (`IsKnown` when the line is positive; `ToString` gives
   `file:line:column`, `line:column`, or the file alone); `MermaidDiagnostic(Code, Message, Location)` and
@@ -112,7 +112,7 @@ lays out the diagram.
   returned surface (following the scale or the fit), and only the kinds that `PositionKindFilter` accepts are built;
   the pixels are the same with or without the handler. `Measure` never calls the handler. The contract (the kinds,
   their ids, and their attachment rules) is documented in the XML remarks of `MermaidRenderOptions.PositionHandler`
-  and in _ScenePositions Unit Design_.
+  and in *ScenePositions Unit Design*.
 - **`Run`** (private): creates the call's `MermaidReportSink`, resolves the configuration with
   `MermaidConfigResolver.Resolve` (silently for a type that is not drawn), creates the `DiagramRenderContext` (source,
   detected diagram, options, configuration, sink, a fresh `FontResolver`, token), builds the scene, and delivers the

@@ -88,8 +88,8 @@ parameter.
 **Test**: `CanvasNetViewer_SystemIntegration_CustomSourceForNewExtension_IsEmbedded`
 
 Asserts that a source for a file type the library does not know is embedded by `<image href>` once it is passed to
-`CreateImageResolver`, receives the file name, folder, and the placement size, and is listed as an embedded image, and that
-without the source the same link is only the `svg-image-unresolved` warning.
+`CreateImageResolver`, receives the file name, folder, and the placement size, and is listed as an embedded image, and
+that without the source the same link is only the `svg-image-unresolved` warning.
 
 ### Integration: Custom Source Overriding Built In Extension Wins
 
@@ -124,10 +124,10 @@ source, and an SVG file rendered by path embeds a scheme-claimed live frame.
 
 **Test**: `CanvasNetViewer_SystemIntegration_ImageOperations_ProbeRenderInspectCompareMontage`
 
-Writes the SVG fixture, probes it, renders it twice with `ImageRenderer` (once flipped), inspects the flipped picture with
-`ImageInspector`, compares the two renders with `ImageComparer`, and puts both on a contact sheet with `MontageBuilder`.
-Asserts that every operation produced its result, that the two renders have the same size and are not identical, and
-that the sheet has two cells and exists.
+Writes the SVG fixture, probes it, renders it twice with `ImageRenderer` (once flipped), inspects the flipped picture
+with `ImageInspector`, compares the two renders with `ImageComparer`, and puts both on a contact sheet with
+`MontageBuilder`. Asserts that every operation produced its result, that the two renders have the same size and are not
+identical, and that the sheet has two cells and exists.
 
 ### Integration: Flatten Composed SVG Becomes Plain SVG
 
@@ -217,9 +217,9 @@ guide test can fail and does not pass on an empty check.
 
 ## Acceptance Criteria
 
-A system-level test run passes when all scenarios above pass without error or exception beyond those explicitly asserted.
-An unexpected exception, a wrong source drawing a file, a missing or extra extension, a cached frame, a reference that
-the file-access policy denies that is read, an allowed reference that is not read, or a wrong return value constitutes
-a failure. Every requirement in `docs/reqstream/canvas-net-viewer.yaml` and
-`docs/reqstream/canvas-net-viewer/platform-requirements.yaml` links to at least one passing test listed above or in
-the unit verification design.
+A system-level test run passes when all scenarios above pass without error or exception beyond those explicitly
+asserted. An unexpected exception, a wrong source drawing a file, a missing or extra extension, a cached frame, a
+reference that the file-access policy denies that is read, an allowed reference that is not read, or a wrong return
+value constitutes a failure. Every requirement in `docs/reqstream/canvas-net-viewer.yaml` and
+`docs/reqstream/canvas-net-viewer/platform-requirements.yaml` links to at least one passing test listed above or in the
+unit verification design.

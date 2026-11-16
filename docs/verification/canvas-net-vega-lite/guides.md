@@ -94,13 +94,13 @@ documented above as machine-dependent is not a failure.
   `LabelOverlapTests.LabelOverlap_Hidden_GreedyHidesLabelsThatOverlapTheLastOneKept`,
   `AxisBuilderTests.AxisBuilder_Build_OverlappingLabelsAreRemovedByParity` — the extracted unit hides the labels derived
   by hand, and the axis, which now calls it, still keeps 0, 40, and 80 of 21 ticks.
-- **Legends Of A Parsed Specification**:
-  `LegendPlanTests.LegendPlan_Merge_ChannelsOfTheSameDomainShareOneLegend`,
+- **Legends Of A Parsed Specification**: `LegendPlanTests.LegendPlan_Merge_ChannelsOfTheSameDomainShareOneLegend`,
   `LegendBuilderTests.LegendBuilder_Symbol_NominalColorOnAPointDrawsStrokedCirclesInOneColumn`,
   `LegendBuilderTests.LegendBuilder_Gradient_ContinuousColorDrawsAVerticalBarWithTickLabels`,
-  `LegendBuilderTests.LegendBuilder_Discrete_QuantizeColorDrawsOneBandPerClass` — a parsed specification's scales produce
-  merged legends whose entries, labels, gradient stops, and box sizes equal the values derived by hand from Vega's legend
-  rules and the measured text widths, through the whole chain of parser, scales, ticks, number format, and measurer.
+  `LegendBuilderTests.LegendBuilder_Discrete_QuantizeColorDrawsOneBandPerClass` — a parsed specification's scales
+  produce merged legends whose entries, labels, gradient stops, and box sizes equal the values derived by hand from
+  Vega's legend rules and the measured text widths, through the whole chain of parser, scales, ticks, number format, and
+  measurer.
 - **Legends Of Path, Text, And Arc Marks Look Like Their Marks**:
   `LegendBuilderPathMarkTests.LegendBuilder_Build_LineMarkUsesAStrokeSymbolInTheMarkColor`,
   `LegendBuilderPathMarkTests.LegendBuilder_Build_AreaArcAndTextMarksUseFilledCircles`,
@@ -108,14 +108,13 @@ documented above as machine-dependent is not a failure.
   `LegendBuilderPathMarkTests.LegendBuilder_Build_TrailSizeLegendOfACategoryAndOfAMergedColorUseStrokeWidths`,
   `LegendBuilderPathMarkTests.LegendBuilder_Build_LineSizeLegendScalesTheSymbolSize` — the size legend of a trail scales
   the stroke width of its symbols (1 to 3.667 over the entries 0 to 8) and keeps the symbol size 100, while that of a
-  line scales the symbol size; a parsed specification of a
-  line, a rule, or a trail with a nominal color gives a legend of three `stroke` symbols (a short line) painted with the
-  stroke colors `#4c78a8`, `#f58518`, and `#e45756` and the legend default width 1.5 (a trail is filled by default but
-  is drawn with a stroke in its legend, as Vega-Lite does), and an area, an arc, or a text mark gives three filled circles
-  of the size 100 in the same colors, through the chain of parser, scales, legend plan, and builder. The gradient legend
-  is pinned to the labels of Vega 6.4
-  by `LegendBuilderTests.LegendBuilder_Gradient_LabelsMatchVegaForALengthOf160And200` (the two ends 0 and 5 for a length
-  of 160, the five labels 1 to 5 for 200).
+  line scales the symbol size; a parsed specification of a line, a rule, or a trail with a nominal color gives a legend
+  of three `stroke` symbols (a short line) painted with the stroke colors `#4c78a8`, `#f58518`, and `#e45756` and the
+  legend default width 1.5 (a trail is filled by default but is drawn with a stroke in its legend, as Vega-Lite does),
+  and an area, an arc, or a text mark gives three filled circles of the size 100 in the same colors, through the chain
+  of parser, scales, legend plan, and builder. The gradient legend is pinned to the labels of Vega 6.4 by
+  `LegendBuilderTests.LegendBuilder_Gradient_LabelsMatchVegaForALengthOf160And200` (the two ends 0 and 5 for a length of
+  160, the five labels 1 to 5 for 200).
 - **Legends Fail Closed With A Location**:
   `LegendBuilderTests.LegendBuilder_Limits_AreEnforcedBeforeAnythingIsCreated`,
   `LegendBuilderTests.LegendBuilder_Build_CancellationAndInvalidFormat` — too many values, ticks, characters, or scene
@@ -128,9 +127,9 @@ documented above as machine-dependent is not a failure.
   `AxisBuilderRangedOffsetTests.AxisBuilder_Build_ExplicitBandPositionWinsOverTheRangedDefault`,
   `VegaLitePhase14SystemTests.CanvasNetVegaLite_SystemIntegration_Legend_ClipHeightClipsTheSymbolsToTheirEntries` — a
   symbol legend with a `clipHeight` has its entries at the pitch that Vega gives them (the height plus the row padding)
-  with each symbol in a clipping group, and the clip reaches the pixels, while a gradient legend ignores the property; the
-  axis of a band position that holds a ranged offset has its ticks and labels at the band end for `y` and the band start
-  for `x`, an explicit `bandPosition` winning over that default.
+  with each symbol in a clipping group, and the clip reaches the pixels, while a gradient legend ignores the property;
+  the axis of a band position that holds a ranged offset has its ticks and labels at the band end for `y` and the band
+  start for `x`, an explicit `bandPosition` winning over that default.
 - **Fonts Do Not Depend On The Machine**:
   `TextMeasurerTests.TextMeasurer_Resolve_DefaultUsesBundledFonts`,
   `CanvasNetVegaLite_SystemIntegration_Fonts_DefaultUsesBundledLiberation` — layout and pixels of text are identical
@@ -146,8 +145,8 @@ documented above as machine-dependent is not a failure.
   `VegaLiteTimeIntegrationTests.CanvasNetVegaLite_SystemIntegration_Time_YearMonthBarsSpanTheirMonthsAndLabelTheMonths`
   — ten days over 400 pixels (the count is ceil(400 / 40) = 10, so the target is one day) have eleven daily ticks 40
   pixels apart labeled by the coarsest boundary they sit on (`2024` for January 1, `Jan 07` for the Sunday, and the
-  weekday and date for the rest), a count of 5 targets two days, and `week`, `{day, 5}`, and `month` give one, three, and
-  one tick; three months as `yearmonth` over 300 pixels have the default count ceil(300 / 40) = 8 lowered to
+  weekday and date for the rest), a count of 5 targets two days, and `week`, `{day, 5}`, and `month` give one, three,
+  and one tick; three months as `yearmonth` over 300 pixels have the default count ceil(300 / 40) = 8 lowered to
   floor(91 / 31) + 1 = 3 by the minimum step of a month and give the four month starts at 0, 102, 198, and 300 pixels
   (31 / 91 x 300 = 102.198 and 60 / 91 x 300 = 197.802) with the labels `Jan 2024` to `Apr 2024`, and the bars of the
   three months span their months with a pixel of spacing off every pair of edges.
@@ -184,9 +183,9 @@ documented above as machine-dependent is not a failure.
   two-day ticks `Jan 01, 2024`, `Jan 03, 2024`, and so on in the format of `config.timeFormat`, its ramp is sampled at
   the time ticks of a count of 15 (every 12 hours, 21 stops from the first date to the last), the legend format, the
   configuration, and the unit specifier choose other labels, a size over dates has six symbols, an ordinal time unit has
-  one symbol and label per month, at +05:30 the first tick is the 3rd because local midnight of the 1st is before
-  the domain, an explicit `utc` scale type of the color keeps the UTC calendar and the epoch-day ticks (January 2, 4, ...,
-  10) in a zone five hours behind UTC, and `scale.zero` is ignored.
+  one symbol and label per month, at +05:30 the first tick is the 3rd because local midnight of the 1st is before the
+  domain, an explicit `utc` scale type of the color keeps the UTC calendar and the epoch-day ticks (January 2, 4,
+  ..., 10) in a zone five hours behind UTC, and `scale.zero` is ignored.
 - **Time Guides Fail Closed, Are Deterministic, And Ignore The Culture**:
   `AxisBuilderTimeTests.AxisBuilder_Time_TooManyTicks_IsLocated`,
   `AxisBuilderTimeTests.AxisBuilder_Time_LabelTooLong_IsLocated`,
@@ -223,24 +222,23 @@ documented above as machine-dependent is not a failure.
   `VegaLiteLabelExprIntegrationTests.CanvasNetVegaLite_SystemIntegration_LabelExpr_HeaderArrayResultIsSeveralLines`,
   `VegaLiteLabelExprIntegrationTests.CanvasNetVegaLite_SystemIntegration_LabelExpr_BudgetExceededIsARenderException` —
   `datum.label + '%'` gives every label of an axis a percent sign, so the extent grows and the overlap removal sees the
-  replaced text; the datum of the guide has the members of Vega (the fraction `index` and the whole-number `tickIndex` of
-  an axis, `perc` of a gradient legend); a legend with blank labels is measured narrower; the label of a facet header
+  replaced text; the datum of the guide has the members of Vega (the fraction `index` and the whole-number `tickIndex`
+  of an axis, `perc` of a gradient legend); a legend with blank labels is measured narrower; the label of a facet header
   follows the precedence header, `headerRow` or `headerColumn`, then `config.header`, and an array result of a header
-  expression is several lines of the header; and an expression over the step
-  budget of the call is a render error located at the expression. The details are in the _LabelExpressions Unit
-  Verification Design_.
+  expression is several lines of the header; and an expression over the step budget of the call is a render error
+  located at the expression. The details are in the *LabelExpressions Unit Verification Design*.
 - **Axes And Legends Of A Layered View**:
   `AxisBuilderTests.AxisBuilder_Build_DefaultOrientAndGridApplyOnlyWhenTheAxisSaysNothing`,
   `LegendPlanLayerTests.LegendPlan_Create_SameFieldInTwoLayersIsOneLegend`,
   `LegendPlanLayerTests.LegendPlan_Create_TitlesOfDifferentFieldsJoin`,
   `LegendPlanLayerTests.LegendPlan_Create_LayersInDifferentScopesKeepTheirOwnLegends`,
   `LegendPlanLayerTests.LegendPlan_Create_PropertiesOfALaterLayerAreKeptWhenTheFirstIsSilent`,
-  `LegendPlanLayerTests.LegendPlan_Create_ExplicitOrientConflictMakesTheLegendsIndependent` — builds the axis that a layered
-  view gives the second independent axis of a channel (the opposite side, no grid) and an axis that names its side and
-  grid itself, and plans the legends of the layers: one legend for the layers that share a color, the titles of
+  `LegendPlanLayerTests.LegendPlan_Create_ExplicitOrientConflictMakesTheLegendsIndependent` — builds the axis that a
+  layered view gives the second independent axis of a channel (the opposite side, no grid) and an axis that names its
+  side and grid itself, and plans the legends of the layers: one legend for the layers that share a color, the titles of
   different fields joined, the legend properties of every layer merged, a legend for each layer when their explicit
-  orients differ, and one legend for each layer in different scopes; the way the document plans the axes and
-  scopes from `resolve` is verified at the system tier.
+  orients differ, and one legend for each layer in different scopes; the way the document plans the axes and scopes from
+  `resolve` is verified at the system tier.
 - **Guides Of The Views Of A Composition**:
   `HeaderSettingsTests.HeaderSettings_Read_HeaderOverRowColumnConfigOverHeaderConfig`,
   `TitleBuilderHeaderTests.TitleBuilder_BuildHeaderBlock_LabelUsesGuideLabelStyleSizeTen`,

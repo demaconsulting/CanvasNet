@@ -10,7 +10,7 @@ device-space `Transform` and a pattern-space `XStep`/`YStep` repeat pitch - and 
 (exact pixel lookup at 1:1 scale, wrapped bilinear when magnified, an area-averaged copy when minified). It has no
 independent externally visible behavior of its
 own: it exists to be consumed by `PathFiller`'s tile-paint `Fill(Surface, Path, TilePaint,
-FillRule, float)` overload (see _PathFiller Unit Design_, `path-filler.md`), mirroring
+FillRule, float)` overload (see *PathFiller Unit Design*, `path-filler.md`), mirroring
 `GradientPaint`'s own public-type-plus-internal-evaluator shape (see `gradient-paint.md`).
 
 #### Purpose
@@ -18,7 +18,7 @@ FillRule, float)` overload (see _PathFiller Unit Design_, `path-filler.md`), mir
 `TilePaint` lets a caller paint a filled path by repeating a small pre-rendered bitmap ("tile")
 across the filled region, instead of a single solid color or a smoothly varying gradient ramp -
 the standard "tiling pattern" capability used by PDF `PatternType 1` tiling patterns (see
-_PdfDocument Unit Design_, `pdf-document.md`, `/Pattern` Color Space section) and equivalent
+*PdfDocument Unit Design*, `pdf-document.md`, `/Pattern` Color Space section) and equivalent
 tiled-brush concepts in other 2D graphics APIs. Unlike `GradientPaint`, which evaluates a
 continuous mathematical function per pixel, `TilePaint` samples a caller-supplied, already-rendered
 `Surface` - the caller (in practice, `PdfDocument`'s tiling-pattern cell renderer) is responsible
@@ -79,8 +79,8 @@ every row of that fill. The per-pixel evaluation pipeline:
    `[0, Width - 1] x [0, Height - 1]` (guarding a floating-point edge case landing exactly on the
    width/height boundary).
 4. **Sample the tile `Surface`.** The plan classifies the tile scale (device pixels per tile pixel)
-   once per fill: above 1.05 the tile is _magnified_ and sampled bilinearly with wrap-around
-   (`SurfaceResampler.SampleBilinearWrapped`); below 0.95 it is _minified_ and replaced for the fill by
+   once per fill: above 1.05 the tile is *magnified* and sampled bilinearly with wrap-around
+   (`SurfaceResampler.SampleBilinearWrapped`); below 0.95 it is *minified* and replaced for the fill by
    an `Area`-resized copy (owned by the plan and released by `plan.Release()` in a `finally` block
    of the rasterizer); otherwise the exact tile pixel at the resolved integer coordinate is used, so
    device-scale pattern cells stay bit-exact.
@@ -120,6 +120,6 @@ new runtime NuGet package.
 a `TilePaint` (see `pdf-document.md`, `/Pattern` Color Space section) - and passed to
 `PathFiller.Fill(Surface, Path, TilePaint, FillRule, float)`. The internal `TilePaintEvaluator`
 helper is invoked exclusively by `ScanlineRasterizer`'s tile-aware `Fill` overload (see
-_PathFiller Unit Design_, `path-filler.md`). The unit is exercised by `TilePaintTests` and
+*PathFiller Unit Design*, `path-filler.md`). The unit is exercised by `TilePaintTests` and
 `TilePaintEvaluatorTests`, and indirectly by `PathFillerTests`'/`ScanlineRasterizerTests`'
 tile-paint-specific scenarios.

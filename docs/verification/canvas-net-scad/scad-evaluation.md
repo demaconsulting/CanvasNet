@@ -8,8 +8,8 @@ namespace `DemaConsulting.CanvasNet.Scad.Evaluation`), containing four units: `S
 
 ### Verification Approach
 
-The `ScadEvaluation` subsystem is verified at two tiers. The unit tests (see _ScadValue_, _ScadEvaluator_,
-_ScadBuiltinFunctions_, and _ScadFileResolver Unit Verification Design_ under `scad-evaluation/`) verify each unit
+The `ScadEvaluation` subsystem is verified at two tiers. The unit tests (see *ScadValue*, *ScadEvaluator*,
+*ScadBuiltinFunctions*, and *ScadFileResolver Unit Verification Design* under `scad-evaluation/`) verify each unit
 in isolation, including its internal types. The subsystem-level scenarios below verify the four units working
 together through the subsystem's internal boundary, `ScadEvaluator.Evaluate`, which resolves files with the real
 `ScadFileResolver`, evaluates with the real `ScadValue` and `ScadBuiltinFunctions`, and returns the instantiation
@@ -30,8 +30,8 @@ Trees are compared through `ScadInstanceDumper`, a test helper that renders an i
 location-free text with one instance per line (and, for the golden files, an indented form that also shows
 fragment settings that differ from the defaults). The dumper is **iterative**, because a recursive dumper
 overflowed a 256 KiB test thread on a 5,000-level tree; the same constraint applies to the `ScadGeometry`
-subsystem, whose builder never recurses (see _ScadEvaluation Subsystem Design_ and _ScadGeometry Subsystem
-Design_). No mocking or stubbing is used: the only test doubles are
+subsystem, whose builder never recurses (see *ScadEvaluation Subsystem Design* and *ScadGeometry Subsystem
+Design*). No mocking or stubbing is used: the only test doubles are
 the in-memory `ScadVirtualFiles` resolver, which records every path it is asked for, and per-test temporary
 directories. The subsystem is internal, so the tests reach it through the test assembly's `InternalsVisibleTo`
 access.

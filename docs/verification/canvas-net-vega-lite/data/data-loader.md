@@ -139,31 +139,31 @@ found" naming the URI as written; and that in resolver-callback mode the absolut
 `DataLoaderTests.DataLoader_Load_SequenceWrongDirectionWithPositiveStepIsEmpty`,
 `DataLoaderTests.DataLoader_Load_SequenceArithmeticOverflowFailsBeforeAllocation`
 
-Asserts that a caller's dataset replaces a top-level dataset of the same name (and keeps the kinds of its values: numbers
-of several types, text, booleans, null, and a `DateTime` or `DateTimeOffset` as a UTC date, with a dotted key escaped),
-that a dataset only the specification defines is used, and that one given as text is the shared empty table. A caller
-dataset holding `DateTime.MaxValue`, `DateTimeOffset.MaxValue`, a local-kind `DateTime.MaxValue`, and the exact last
-supported millisecond gives, for each, the date with milliseconds 253402300799999 and the text
-`9999-12-31T23:59:59.999Z` instead of failing, while `DateTime.MinValue` is `0001-01-01T00:00:00.000Z`; that a
-sequence runs from the start up to, and excluding, the stop in the field `data` by default, with a custom step and field
-name, with a negative step counting down, and empty for a step in the wrong direction, and computes each value from
-its index (ten values and no drift for a step of 0.1); and that a sequence of 1e15 values is refused against the
-row limit, at `/data/sequence`, before any row is allocated, while exactly the limit is accepted. The invalid-input
-scenarios build the `sequence` node directly through the internal `SpecNode` constructor (the specification parser
-already refuses most of these forms and cannot represent a non-finite number, so the loader is exercised on its own):
-a missing `start`, `stop`, or both; a `start` or `stop` that is text, a boolean, null, an object, `NaN`, or an infinity;
-and a `step` of zero or negative zero, `NaN`, an infinity, text, a boolean, null, or an object each fail with a located
-failure at `/data/sequence`, while an absent step defaults to 1. A positive step with the stop below the start, a
-negative step with the stop above the start, and equal endpoints give an empty table with the field. An endpoint
-difference that overflows (`-MaxValue` to `MaxValue`), a quotient that overflows with a tiny step, and a finite but
-astronomically long sequence fail against `MaxDataRows` at `/data/sequence` with no `Infinity` or `NaN` in the message
-and without allocating, while an overflowing difference in the wrong direction is still empty. The comparison with the
-row limit is made on integers (regression of a defect that review found): with `MaxDataRows` at `long.MaxValue`, a
-sequence of 2^63 (or 9.3e18, or 1e300) values is refused at `/data/sequence` with `(MaxDataRows)` because no long
-holds it, and a sequence of 2^53 (or 2^53 + 1, 1e12, or 33,554,433) values is refused with
-`(TableLayout.MaxCells)` before any row is generated (the bytes allocated stay small), while a sequence of 1,000 rows
-is accepted under the same limit; `ReserveDerivedRows` of a `long` compares exactly, so one above a limit of 2^53 is
-refused and exactly the limit is accepted.
+Asserts that a caller's dataset replaces a top-level dataset of the same name (and keeps the kinds of its values:
+numbers of several types, text, booleans, null, and a `DateTime` or `DateTimeOffset` as a UTC date, with a dotted key
+escaped), that a dataset only the specification defines is used, and that one given as text is the shared empty table. A
+caller dataset holding `DateTime.MaxValue`, `DateTimeOffset.MaxValue`, a local-kind `DateTime.MaxValue`, and the exact
+last supported millisecond gives, for each, the date with milliseconds 253402300799999 and the text
+`9999-12-31T23:59:59.999Z` instead of failing, while `DateTime.MinValue` is `0001-01-01T00:00:00.000Z`; that a sequence
+runs from the start up to, and excluding, the stop in the field `data` by default, with a custom step and field name,
+with a negative step counting down, and empty for a step in the wrong direction, and computes each value from its index
+(ten values and no drift for a step of 0.1); and that a sequence of 1e15 values is refused against the row limit, at
+`/data/sequence`, before any row is allocated, while exactly the limit is accepted. The invalid-input scenarios build
+the `sequence` node directly through the internal `SpecNode` constructor (the specification parser already refuses most
+of these forms and cannot represent a non-finite number, so the loader is exercised on its own): a missing `start`,
+`stop`, or both; a `start` or `stop` that is text, a boolean, null, an object, `NaN`, or an infinity; and a `step` of
+zero or negative zero, `NaN`, an infinity, text, a boolean, null, or an object each fail with a located failure at
+`/data/sequence`, while an absent step defaults to 1. A positive step with the stop below the start, a negative step
+with the stop above the start, and equal endpoints give an empty table with the field. An endpoint difference that
+overflows (`-MaxValue` to `MaxValue`), a quotient that overflows with a tiny step, and a finite but astronomically long
+sequence fail against `MaxDataRows` at `/data/sequence` with no `Infinity` or `NaN` in the message and without
+allocating, while an overflowing difference in the wrong direction is still empty. The comparison with the row limit is
+made on integers (regression of a defect that review found): with `MaxDataRows` at `long.MaxValue`, a sequence of 2^63
+(or 9.3e18, or 1e300) values is refused at `/data/sequence` with `(MaxDataRows)` because no long holds it, and a
+sequence of 2^53 (or 2^53 + 1, 1e12, or 33,554,433) values is refused with `(TableLayout.MaxCells)` before any row is
+generated (the bytes allocated stay small), while a sequence of 1,000 rows is accepted under the same limit;
+`ReserveDerivedRows` of a `long` compares exactly, so one above a limit of 2^53 is refused and exactly the limit is
+accepted.
 
 ##### Parse Failures Are Warnings
 
@@ -197,7 +197,7 @@ same position in UTC (both are 10:00Z), while with `TimeZone` at +05:00 the row 
 hours earlier, and so is to the left of the other. A specification with `date:'%d/%m/%Y'` renders in strict mode, since
 a custom date format is no longer an unsupported feature, and the 5th of March (`05/03/2024`) lies to the left of the
 15th. The calendar that the expression context and the evaluator carry is verified in the expression units (see
-_Expression Functions Verification_ and _Expression Evaluator Verification_).
+*Expression Functions Verification* and *Expression Evaluator Verification*).
 
 ##### Hard Failures
 
@@ -263,9 +263,8 @@ unrepresentable number of" rows and refused.
 **Tests**: `DataLoaderTests.DataLoader_Load_LookupSourcesShareTheSandboxCacheAndBudgetOfTheCall`
 
 Asserts, with a file limit of one and a row limit of four, that the main data and the source of a lookup that name the
-same two-row file read it once (one request in the virtual file set), that four rows are counted in total, that a
-lookup source that leaves the root of the file source (`../secret.csv`) is a `VegaLiteRenderException` ("leaves the
-root of the file source")
-located at `/transform/1/from/data/url`, that a remote lookup source (`https`) is an empty table that no request reached
-and that the feature catalog reports as `vl-data-remote-url` at `/transform/2/from/data`, and that a third table over the
-row limit is refused naming `MaxDataRows`.
+same two-row file read it once (one request in the virtual file set), that four rows are counted in total, that a lookup
+source that leaves the root of the file source (`../secret.csv`) is a `VegaLiteRenderException` ("leaves the root of the
+file source") located at `/transform/1/from/data/url`, that a remote lookup source (`https`) is an empty table that no
+request reached and that the feature catalog reports as `vl-data-remote-url` at `/transform/2/from/data`, and that a
+third table over the row limit is refused naming `MaxDataRows`.

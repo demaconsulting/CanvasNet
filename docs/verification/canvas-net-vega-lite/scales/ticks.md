@@ -2,11 +2,10 @@
 
 This document describes the unit-level verification strategy for the `Ticks` unit in the
 `DemaConsulting.CanvasNet.VegaLite.Scales` namespace: the internal static `Ticks` class (`GetTicks`, `TickIncrement`,
-`TickStep`, `Nice`, `DefaultAxisTickCount`, `DefaultAxisTickMinStep`, `ResolveTickCount`, and `AxisTicks`, the log ticks,
-and the time ticks `TimeTickInterval`, `TimeTicks`, and `TimeNice` with the `TimeTickRequest` struct). It is an
+`TickStep`, `Nice`, `DefaultAxisTickCount`, `DefaultAxisTickMinStep`, `ResolveTickCount`, and `AxisTicks`, the log
+ticks, and the time ticks `TimeTickInterval`, `TimeTicks`, and `TimeNice` with the `TimeTickRequest` struct). It is an
 own C# implementation of the d3-array tick algorithms, the d3-scale linear `nice`, the d3-time tick intervals, and the
-Vega and Vega-Lite tick
-count rules; the third-party notice of the system names the upstream behavior that was studied.
+Vega and Vega-Lite tick count rules; the third-party notice of the system names the upstream behavior that was studied.
 
 #### Verification Approach
 
@@ -45,10 +44,10 @@ project, in the `Scales` folder.
 The time ticks (`TimeTickInterval`, `TimeTicks`, `TimeNice`, and the `TimeTickRequest` of an explicit interval) are
 verified in `TicksTimeTests` with ticks that are listed by hand from the calendar (the instants of the expectations are
 computed with the base class library, not with the calendar under test) and with the d3 anchors of the interval table.
-The rule is d3's `tickInterval`: the target is `|stop - start| / count`, the table entry just below the target is used when
-the target over it is below the next entry over the target, and otherwise the next entry (the ratio rule), the stop is
-inclusive, and whole milliseconds below a second and whole years beyond a year use the numeric `tickStep`. The anchors
-derived in the tests are:
+The rule is d3's `tickInterval`: the target is `|stop - start| / count`, the table entry just below the target is used
+when the target over it is below the next entry over the target, and otherwise the next entry (the ratio rule), the stop
+is inclusive, and whole milliseconds below a second and whole years beyond a year use the numeric `tickStep`. The
+anchors derived in the tests are:
 
 - January 1 to January 11, 2024 with count 10 has a target of 10 days / 10 = 1 day, so the day, and the eleven midnights
   January 1 to 11 (the stop is inclusive).
@@ -58,9 +57,9 @@ derived in the tests are:
 - 0 to 1000 ms with count 10 has a target of 100 ms, below a second, so `tickStep` of whole milliseconds gives every 100
   ms, 11 ticks (0, 100, ..., 1000); 2000 to 2100 with count 10 has a target of 10 years, beyond the year entry, so
   whole years by `tickStep` (10), 11 ticks.
-- The minute entries by the ratio rule: 30 minutes / 10 = 3 minutes is nearer to 5 (3 / 1 = 3 is not below 5 / 3 = 1.67),
-  so 5 minutes and 7 ticks; 100 minutes / 10 = 10 minutes: 10 / 5 = 2 is not below 15 / 10 = 1.5, so 15 minutes and 7
-  ticks; 50 minutes / 10 = 5 minutes is the entry itself and 11 ticks. 42 days / 6 = 7 days is the week, with the
+- The minute entries by the ratio rule: 30 minutes / 10 = 3 minutes is nearer to 5 (3 / 1 = 3 is not below 5 / 3 =
+  1.67), so 5 minutes and 7 ticks; 100 minutes / 10 = 10 minutes: 10 / 5 = 2 is not below 15 / 10 = 1.5, so 15 minutes
+  and 7 ticks; 50 minutes / 10 = 5 minutes is the entry itself and 11 ticks. 42 days / 6 = 7 days is the week, with the
   Sundays January 7, 14, 21, 28, and February 4 and 11 (6 ticks); 20 days / 10 = 2 days.
 - `nice` on January 10 13:00 to March 20 05:00, 2024 (31 + 29 = 60 days to March 10 plus 9 days 16 hours is 69.667
   days) with count 10 has a target of 6.97 days, nearer the week than two days, so the domain extends to the Sundays
@@ -157,39 +156,33 @@ over 0 to 100 gives 0, 20, 40, 60, 80, 100).
 `TicksTests.Ticks_ResolveTickCount_LogarithmicScaleDoesNotLowerTheCountByTheStep`,
 `TicksTests.Ticks_ModelTicks_DispatchesByTheTransform`
 
-Asserts the log ticks derived by hand from `scaleLog.ticks`: three decades with a count of 10 give the 28 multiples
-1 to 9,
-10 to 90, 100 to 900 and 1000; 0.01 to 1 gives 19 ticks whose decimals are exact (3 / 100 is 0.03); 2 to 30 starts at 2
-(the multiples below 2 are skipped); twelve decades with a count of 5 give the powers 1, 1e2, ..., 1e12 (the d3
-ticks of 0 to
-12, step 2); 2 to 8 with a count of 20 has 7 multiples, fewer than half of the count, so the ordinary ticks 2, 2.2,
-..., 8 are
-used (31); a descending domain gives the same ticks reversed; -1000 to -1 gives the 28 reflected ticks in ascending order;
-base 2 gives 1, 2, 4, 8, 16; a base of 2.5 gives the powers 2.5^0 to 2.5^7 of the ticks 0 to 7; and domains the
-logarithm is
-not defined on (zero, both signs, an infinite end) and bases that are not usable (1, 0, negative) give no ticks. Asserts
-that a minimum step of 25 on 1 to 100 lowers the count of a linear scale to 3 (step 50) while a log scale keeps the 4 that
-fit, and that the ticks of a scale model follow its transform (log ticks for a log scale, the ordinary ticks of the domain
-for pow and symlog).
+Asserts the log ticks derived by hand from `scaleLog.ticks`: three decades with a count of 10 give the 28 multiples 1 to
+9, 10 to 90, 100 to 900 and 1000; 0.01 to 1 gives 19 ticks whose decimals are exact (3 / 100 is 0.03); 2 to 30 starts at
+2 (the multiples below 2 are skipped); twelve decades with a count of 5 give the powers 1, 1e2, ..., 1e12 (the d3 ticks
+of 0 to 12, step 2); 2 to 8 with a count of 20 has 7 multiples, fewer than half of the count, so the ordinary ticks 2,
+2.2, ..., 8 are used (31); a descending domain gives the same ticks reversed; -1000 to -1 gives the 28 reflected ticks
+in ascending order; base 2 gives 1, 2, 4, 8, 16; a base of 2.5 gives the powers 2.5^0 to 2.5^7 of the ticks 0 to 7; and
+domains the logarithm is not defined on (zero, both signs, an infinite end) and bases that are not usable (1, 0,
+negative) give no ticks. Asserts that a minimum step of 25 on 1 to 100 lowers the count of a linear scale to 3 (step 50)
+while a log scale keeps the 4 that fit, and that the ticks of a scale model follow its transform (log ticks for a log
+scale, the ordinary ticks of the domain for pow and symlog).
 
 ##### Log Ticks Respect The Limits
 
 **Tests**: `TicksTests.Ticks_LogTicks_LimitsAndCancellationAreEnforced`
 
-Asserts that 28 ticks against a limit of 5 and a base of 1e9 whose multiples below the domain are 5e8 (the work
-budget of a
-hundred times the tick limit) throw `VegaLiteRenderException` whose message contains `the limit of`, that a canceled token
-stops the same walk with `OperationCanceledException` (polled every 4,096 multiples), and that the ticks of the exponents
-over 1e-300 to 1e300 keep the tick limit too.
+Asserts that 28 ticks against a limit of 5 and a base of 1e9 whose multiples below the domain are 5e8 (the work budget
+of a hundred times the tick limit) throw `VegaLiteRenderException` whose message contains `the limit of`, that a
+canceled token stops the same walk with `OperationCanceledException` (polled every 4,096 multiples), and that the ticks
+of the exponents over 1e-300 to 1e300 keep the tick limit too.
 
 ##### Log Nice
 
 **Tests**: `TicksTests.Ticks_LogNice_ExtendsToPowersOfTheBase`
 
-Asserts the hand-derived domains (3 to 800 becomes 1 to 1000, 0.02 to 5 becomes 0.01 to 10, 800 to 3 keeps its direction,
--800 to -3 becomes -1000 to -1, 3 to 100 in base 2 becomes 2 to 128, 5 to 5 becomes 1 to 10) and that a domain with
-zero, both
-signs, or the base 1 is unchanged.
+Asserts the hand-derived domains (3 to 800 becomes 1 to 1000, 0.02 to 5 becomes 0.01 to 10, 800 to 3 keeps its
+direction, -800 to -3 becomes -1000 to -1, 3 to 100 in base 2 becomes 2 to 128, 5 to 5 becomes 1 to 10) and that a
+domain with zero, both signs, or the base 1 is unchanged.
 
 ##### Log Labels
 
@@ -260,9 +253,10 @@ one `ArgumentNullException`, and that a canceled token stops the generation with
 Assert the week example derived above (January 7 to March 24, 6.97 days per tick), that a reversed domain keeps its
 direction and a domain already on the boundaries is unchanged; that the month interval gives January 1 to April 1, the
 quarter step gives January 1 to July 1 for February 10 to May 20 (floored to the months 0, 3, 6, 9 and ceiled to July
-1), the count 2 (34.8 days) the month, that a count of zero and a boundary beyond the supported years (9999-12-31T12:00Z)
-leave the domain unchanged, and that a null calendar is `ArgumentNullException`; and that in the daylight saving zone
-the domain of March 15 12:00Z to April 20 12:00Z extends to March 1 00:00 EST (05:00Z) and May 1 00:00 EDT (04:00Z).
+1), the count 2 (34.8 days) the month, that a count of zero and a boundary beyond the supported years
+(9999-12-31T12:00Z) leave the domain unchanged, and that a null calendar is `ArgumentNullException`; and that in the
+daylight saving zone the domain of March 15 12:00Z to April 20 12:00Z extends to March 1 00:00 EST (05:00Z) and May 1
+00:00 EDT (04:00Z).
 
 ##### Tick Count For A Time Scale
 

@@ -34,8 +34,8 @@ character, a `%` without two hexadecimal digits stays, and bytes that are not va
 Windows a drive with a separator or a share, so `\x` and `C:x` are relative; elsewhere a leading `/`), `Directory`
 (`takeDirectory`; `.` for a bare name), `FileName` (`takeFileName`), `Stem` (the path without the last extension of its
 file name), `SplitSearchPath` (`;` on Windows, where an empty entry is dropped and a double-quoted entry unquoted; `:`
-elsewhere, where an empty entry is `.`), and `Normalize` (`normalise`: platform separators, no repeated separators or `.`
-segments, `..` kept, a Windows drive letter upper-cased, one trailing separator for a folder path, `.` for an empty
+elsewhere, where an empty entry is `.`), and `Normalize` (`normalise`: platform separators, no repeated separators or
+`.` segments, `..` kept, a Windows drive letter upper-cased, one trailing separator for a folder path, `.` for an empty
 path).
 
 **Collapse(path)**: normalizes the path and removes each `..` with the segment before it; a `..` above the root of a
@@ -58,8 +58,8 @@ read as `/`, then an absolute path collapsed, a path rooted without a drive plac
 path joined to the folder and collapsed. Percent signs of a plain path are kept. **LocalImageFile(folder, link)** does
 the same after `CutFragment`, which removes everything from the first `#` or `?`.
 
-**IsSameOrUnder(path, folder)**: compares whole segments after removing trailing separators, with `/` read as `\` and the
-ASCII letter case ignored on Windows only.
+**IsSameOrUnder(path, folder)**: compares whole segments after removing trailing separators, with `/` read as `\` and
+the ASCII letter case ignored on Windows only.
 
 **LocateSource(src, resourceDirectories)**: tries the name as written and then its percent-decoded form when that
 differs; an absolute name is collapsed and used when it opens, and a relative name is joined to each resource folder in

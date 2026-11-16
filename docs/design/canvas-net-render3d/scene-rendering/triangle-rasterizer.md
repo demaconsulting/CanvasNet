@@ -96,7 +96,7 @@ sample units and the gradient `(gx, gy)` solved as a 2 x 2 linear system, so the
   non-positive vertex depth, and when the value is not finite.
 
 The `CsgResolver` unit uses the slope to widen the tie tolerance of independently placed coincident
-faces (see _CsgResolver Unit Design_); it does not affect coverage, depth, or the z-buffer.
+faces (see *CsgResolver Unit Design*); it does not affect coverage, depth, or the z-buffer.
 
 ##### Clipping (`TriangleClipper.Clip`)
 

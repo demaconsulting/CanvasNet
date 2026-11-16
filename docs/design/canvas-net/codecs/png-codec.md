@@ -28,13 +28,13 @@ capability: any color-type/bit-depth combination the PNG specification itself do
 example color type 3 with bit depth 16), which is malformed and is rejected with a descriptive
 `System.IO.InvalidDataException`; and Adam7-interlaced scanline order (`Load` has no interlacing
 reconstruction logic), which is well-formed but unsupported, and is rejected with the distinct
-`UnsupportedImageFeatureException` (see _Load(Stream stream)_ below) rather than
+`UnsupportedImageFeatureException` (see *Load(Stream stream)* below) rather than
 `InvalidDataException`, so a caller can tell the two cases apart without string-matching
 `Exception.Message`. `GetInfo`, by contrast, succeeds and
 reports width/height for **every** PNG whose `IHDR` chunk is well-formed, including
 Adam7-interlaced files and every bit-depth/color-type combination `Load` accepts — because
 probing a file's declared size is a strictly weaker, always-safe operation than decoding its
-pixels; see _GetInfo(Stream stream)_ below for the exact design rationale. For Adam7-interlaced
+pixels; see *GetInfo(Stream stream)* below for the exact design rationale. For Adam7-interlaced
 files specifically, `GetInfo` also reports `ImageInfo.CanDecode = false`, letting a caller detect
 this case before ever calling `Load`.
 
@@ -46,77 +46,77 @@ utility shape was chosen over an object with nothing to construct or configure, 
 
 ##### PngColorType enum
 
-| Value  | Numeric Value | Description                                                          |
-| ------ | ------------- | -------------------------------------------------------------------- |
-| `Rgb`  | 2             | 8 bits each for red, green, blue. Alpha is dropped when saving.      |
-| `Rgba` | 6             | 8 bits each for red, green, blue, alpha. Alpha is preserved exactly. |
+| Value | Numeric Value | Description |
+| --- | --- | --- |
+| `Rgb` | 2 | 8 bits each for red, green, blue. Alpha is dropped when saving. |
+| `Rgba` | 6 | 8 bits each for red, green, blue, alpha. Alpha is preserved exactly. |
 
 ##### PNG signature (8 bytes)
 
-| Byte Offset | Value                      |
-| ----------- | -------------------------- |
-| 0-7         | `137 80 78 71 13 10 26 10` |
+| Byte Offset | Value |
+| --- | --- |
+| 0-7 | `137 80 78 71 13 10 26 10` |
 
 ##### Chunk layout (all multi-byte fields big-endian)
 
-| Field  | Size           | Description                                               |
-| ------ | -------------- | --------------------------------------------------------- |
-| Length | 4              | Number of bytes in the `Data` field                       |
-| Type   | 4              | 4-character ASCII chunk type (for example `IHDR`, `IDAT`) |
-| Data   | `Length` bytes | The chunk's payload                                       |
-| CRC-32 | 4              | CRC-32 of `Type` + `Data` (not `Length`)                  |
+| Field | Size | Description |
+| --- | --- | --- |
+| Length | 4 | Number of bytes in the `Data` field |
+| Type | 4 | 4-character ASCII chunk type (for example `IHDR`, `IDAT`) |
+| Data | `Length` bytes | The chunk's payload |
+| CRC-32 | 4 | CRC-32 of `Type` + `Data` (not `Length`) |
 
 ##### IHDR chunk (13 bytes)
 
-| Offset | Size | Field                | Value Written (Save)                     |
-| ------ | ---- | -------------------- | ---------------------------------------- |
-| 0      | 4    | Width                | `surface.Width` (greater than zero)      |
-| 4      | 4    | Height               | `surface.Height` (greater than zero)     |
-| 8      | 1    | Bit depth            | 8 (only value written)                   |
-| 9      | 1    | Color type           | 2 (RGB) or 6 (RGBA)                      |
-| 10     | 1    | Compression method   | 0 (zlib/DEFLATE, only value written)     |
-| 11     | 1    | Filter method        | 0 (adaptive, only value written)         |
-| 12     | 1    | Interlace method     | 0 (none, only value written)             |
+| Offset | Size | Field | Value Written (Save) |
+| --- | --- | --- | --- |
+| 0 | 4 | Width | `surface.Width` (greater than zero) |
+| 4 | 4 | Height | `surface.Height` (greater than zero) |
+| 8 | 1 | Bit depth | 8 (only value written) |
+| 9 | 1 | Color type | 2 (RGB) or 6 (RGBA) |
+| 10 | 1 | Compression method | 0 (zlib/DEFLATE, only value written) |
+| 11 | 1 | Filter method | 0 (adaptive, only value written) |
+| 12 | 1 | Interlace method | 0 (none, only value written) |
 
-| Offset | Field                | Value Accepted (Load)                                                |
-| ------ | -------------------- | -------------------------------------------------------------------- |
-| 0      | Width                | greater than zero (also &le; `Surface.MaxDimension` when decoding)   |
-| 4      | Height               | greater than zero (same rule as Width)                               |
-| 8      | Bit depth            | 1, 2, 4, 8, or 16 — only combinations the color type permits (below) |
-| 9      | Color type           | 0, 2, 3, 4, or 6 — see _Data Model_ above                            |
-| 10     | Compression method   | 0 (only value accepted)                                              |
-| 11     | Filter method        | 0 (only value accepted)                                              |
-| 12     | Interlace method     | 0 (none) or 1 (Adam7 — well-formed, but `Load` rejects it)           |
+| Offset | Field | Value Accepted (Load) |
+| --- | --- | --- |
+| 0 | Width | greater than zero (also &le; `Surface.MaxDimension` when decoding) |
+| 4 | Height | greater than zero (same rule as Width) |
+| 8 | Bit depth | 1, 2, 4, 8, or 16 — only combinations the color type permits (below) |
+| 9 | Color type | 0, 2, 3, 4, or 6 — see _Data Model_ above |
+| 10 | Compression method | 0 (only value accepted) |
+| 11 | Filter method | 0 (only value accepted) |
+| 12 | Interlace method | 0 (none) or 1 (Adam7 — well-formed, but `Load` rejects it) |
 
 **Bit-depth/color-type combination validity** (per the PNG specification; any other pairing is
 rejected as malformed by both `Load` and `GetInfo`, since it is invalid regardless of decode
 capability):
 
-| Color type           | Valid bit depths        |
-| -------------------- | ----------------------- |
-| 0 (Grayscale)        | 1, 2, 4, 8, 16          |
-| 2 (Truecolor)        | 8, 16                   |
-| 3 (Palette)          | 1, 2, 4, 8 (never 16)   |
-| 4 (Grayscale+alpha)  | 8, 16                   |
-| 6 (Truecolor+alpha)  | 8, 16                   |
+| Color type | Valid bit depths |
+| --- | --- |
+| 0 (Grayscale) | 1, 2, 4, 8, 16 |
+| 2 (Truecolor) | 8, 16 |
+| 3 (Palette) | 1, 2, 4, 8 (never 16) |
+| 4 (Grayscale+alpha) | 8, 16 |
+| 6 (Truecolor+alpha) | 8, 16 |
 
 ##### Zlib wrapper layout (the `IDAT` payload, concatenated across chunks)
 
-| Field            | Size         | Description                                                                        |
-| ---------------- | ------------ | ---------------------------------------------------------------------------------- |
-| CMF/FLG header   | 2 bytes      | Fixed `0x78 0x9C` on write; validated (method/FCHECK/no preset dictionary) on read |
-| DEFLATE data     | variable     | Compressed scanline bytes, via `System.IO.Compression.DeflateStream`               |
-| Adler-32 trailer | 4 bytes (BE) | Checksum of the decompressed scanline bytes, hand-computed                         |
+| Field | Size | Description |
+| --- | --- | --- |
+| CMF/FLG header | 2 bytes | Fixed `0x78 0x9C` on write; validated (method/FCHECK/no preset dictionary) on read |
+| DEFLATE data | variable | Compressed scanline bytes, via `System.IO.Compression.DeflateStream` |
+| Adler-32 trailer | 4 bytes (BE) | Checksum of the decompressed scanline bytes, hand-computed |
 
 ##### Scanline filter types
 
-| Type | Name    | Reconstruction (raw byte = filtered byte + ...)                 |
-| ---- | ------- | --------------------------------------------------------------- |
-| 0    | None    | 0 (no change)                                                   |
-| 1    | Sub     | the byte `bpp` positions to the left in the same (raw) row      |
-| 2    | Up      | the byte at the same position in the previous (raw) row         |
-| 3    | Average | floor((left + up) / 2), using the raw left/up bytes (0 if none) |
-| 4    | Paeth   | the Paeth predictor of left, up, and upper-left raw bytes       |
+| Type | Name | Reconstruction (raw byte = filtered byte + ...) |
+| --- | --- | --- |
+| 0 | None | 0 (no change) |
+| 1 | Sub | the byte `bpp` positions to the left in the same (raw) row |
+| 2 | Up | the byte at the same position in the previous (raw) row |
+| 3 | Average | floor((left + up) / 2), using the raw left/up bytes (0 if none) |
+| 4 | Paeth | the Paeth predictor of left, up, and upper-left raw bytes |
 
 `bpp` is the number of whole or partial bytes per pixel, rounded up: `max(1, ceil(samplesPerPixel * bitDepth / 8))`,
 where `samplesPerPixel` is 1 for Grayscale/Palette, 2 for Grayscale+alpha, 3 for Truecolor, and 4 for Truecolor+alpha.
@@ -126,8 +126,8 @@ For every color type/bit-depth combination `Save` writes (RGB/RGBA at bit depth 
 PDF package's PNG predictors) reconstruction logic works identically for
 every bit depth and color type it now decodes, including sub-byte depths where `bpp` is 1 (multiple pixels, or
 fractional pixels for depth 1/2/4, share a single filter-reference byte, per the PNG specification). All five filter
-types are reconstructed on load. On save, every scanline uses filter type 0 (None) - see _Key
-Methods_ below for the rationale.
+types are reconstructed on load. On save, every scanline uses filter type 0 (None) - see *Key
+Methods* below for the rationale.
 
 All multi-byte PNG fields (chunk length, CRC-32, IHDR width/height, Adler-32 trailer) are read
 and written by explicit byte composition (bit shifting), never `BitConverter` or
@@ -135,10 +135,10 @@ and written by explicit byte composition (bit shifting), never `BitConverter` or
 
 ##### PLTE and tRNS chunks (Load only; never written by Save)
 
-| Chunk  | Required when                       | Payload shape                                   |
-| ------ | ----------------------------------- | ----------------------------------------------- |
-| `PLTE` | color type is Palette (3)           | one RGB triple (3 bytes) per palette entry      |
-| `tRNS` | optional, color types 0, 2, and 3   | see below                                       |
+| Chunk | Required when | Payload shape |
+| --- | --- | --- |
+| `PLTE` | color type is Palette (3) | one RGB triple (3 bytes) per palette entry |
+| `tRNS` | optional, color types 0, 2, and 3 | see below |
 
 A `PLTE` chunk is permitted only for color types 2 (Truecolor), 3 (Palette, where it is
 mandatory), and 6 (Truecolor-with-alpha, as an optional suggested-palette hint this codec accepts
@@ -149,11 +149,11 @@ there is nothing for a palette to resolve — and `Load` rejects such a file wit
 
 `tRNS`'s payload shape depends on the color type it appears with:
 
-| Color type       | `tRNS` payload shape                                             |
-| ---------------- | ---------------------------------------------------------------- |
-| 0 (Grayscale)    | one 2-byte big-endian gray sample (the transparent key value)    |
-| 2 (Truecolor)    | three 2-byte big-endian samples (the transparent RGB key)        |
-| 3 (Palette)      | up to one alpha byte per palette entry, in index order           |
+| Color type | `tRNS` payload shape |
+| --- | --- |
+| 0 (Grayscale) | one 2-byte big-endian gray sample (the transparent key value) |
+| 2 (Truecolor) | three 2-byte big-endian samples (the transparent RGB key) |
+| 3 (Palette) | up to one alpha byte per palette entry, in index order |
 
 A `tRNS` chunk on either alpha-carrying color type (4 or 6) is not defined by the PNG
 specification — since those color types already carry an explicit per-pixel alpha sample, there is
@@ -165,14 +165,14 @@ representable at the file's declared bit depth (`(1 << bitDepth) - 1`) — for e
 Grayscale image can only encode gray sample values 0 or 1, so a `tRNS` key of 200 can never match
 a real pixel — and rejects an out-of-range key with `InvalidDataException`, even though such a key
 is otherwise harmless in effect, since it is still non-conforming input. A `tRNS` chunk on a Palette
-(color-type-3) file must also appear _after_ the `PLTE` chunk, not merely after `IHDR` and before
+(color-type-3) file must also appear *after* the `PLTE` chunk, not merely after `IHDR` and before
 the first `IDAT` (the ordering `Load` already enforced for every color type): a tRNS chunk's
 per-palette-entry alpha values are meaningless before the palette they index into has been read,
 so `Load` rejects a Palette file whose `tRNS` chunk precedes its `PLTE` chunk with
 `InvalidDataException` naming `PLTE` as the cause. A `PLTE` chunk missing on a Palette-color-type
 file is a hard rejection (`InvalidDataException` naming "PLTE"), since there is no way to resolve
 a palette index to a color without it. Conversely, `Load` also rejects a `PLTE` chunk that appears
-_after_ a `tRNS` chunk has already been accepted, with `InvalidDataException` naming `tRNS` as the
+*after* a `tRNS` chunk has already been accepted, with `InvalidDataException` naming `tRNS` as the
 cause — this direction of the ordering requirement applies regardless of color type, not only to
 Palette files, since Truecolor and Truecolor-with-alpha files may also legally carry both chunks
 (with PLTE as an optional suggested palette) and PLTE must still come first whenever both are
@@ -194,9 +194,9 @@ such malformed chunk type with `InvalidDataException` instead.
 specification uses a (now type-code-validated, see above) chunk type's first byte's case to mark
 it critical (uppercase) or ancillary (lowercase). `Load` recognizes exactly five chunk types
 (`IHDR`, `PLTE`, `tRNS`, `IDAT`, `IEND`); any other chunk whose first type byte is uppercase is an
-unrecognized _critical_ chunk — one that may change how pixel data must be interpreted — and
+unrecognized *critical* chunk — one that may change how pixel data must be interpreted — and
 `Load` rejects it with `InvalidDataException` naming the chunk type, rather than risk silently
-producing incorrect pixels from a chunk it does not understand. An unrecognized _ancillary_ chunk
+producing incorrect pixels from a chunk it does not understand. An unrecognized *ancillary* chunk
 (lowercase first type byte, for example `tEXt`, `pHYs`, or `gAMA`) remains safe to skip, exactly as
 before: its CRC-32 is still validated, but its data is not accumulated anywhere — except that, like
 every other chunk type, it must still not appear before the mandatory `IHDR` chunk (see the next
@@ -249,7 +249,7 @@ works uniformly for both seekable and non-seekable streams) and rejects the file
 end-of-stream — any trailing byte or additional chunk appended after `IEND` is non-conforming.
 Once `IEND` is reached, the concatenated `IDAT` payload is unwrapped as a zlib stream (2-byte
 header validated, `DeflateStream` inflates the DEFLATE data, the 4-byte Adler-32 trailer is
-validated against the decompressed bytes) by the shared internal `ZlibHelper` (see _Zlib Helper_ in
+validated against the decompressed bytes) by the shared internal `ZlibHelper` (see *Zlib Helper* in
 the Codecs subsystem design, `../codecs.md`), then each scanline is defiltered (reconstructing all
 five standard filter types) and its samples extracted (per-bit-depth unpacking — direct byte copy
 at 8-bit, big-endian 16-bit-sample combination, or MSB-first sub-byte unpacking at 1/2/4-bit) and
@@ -266,7 +266,7 @@ proportion to the output actually produced and never beyond that limit (initial 
 `min(limit, max(64 KiB, 4 * compressedLength))`, doubling, inflating directly into the buffer's
 free tail, no `MemoryStream` and no final copy), so a tiny truncated `IDAT` on a huge declared
 image allocates only a small buffer; total output-buffer allocation is at most 2 x the final
-capacity (itself at most the limit), plus fixed inflater working memory (see _Zlib Helper_ in the
+capacity (itself at most the limit), plus fixed inflater working memory (see *Zlib Helper* in the
 Codecs subsystem design). It throws `InvalidDataException` as soon as any byte beyond the limit
 appears, so a few-kilobyte `IDAT`
 payload crafted to expand to gigabytes can never exhaust memory; output of exactly the limit is
@@ -278,7 +278,7 @@ sum of the seven passes' sizes.
 
 **Design decision — 16-bit `tRNS` comparison ordering**: for 16-bit Grayscale/Truecolor data, the
 raw 16-bit sample is compared against the `tRNS` chunk's 16-bit key value **before** the sample is
-downshifted to 8 bits (see _Design Decisions_ below) — comparing after downshifting would produce
+downshifted to 8 bits (see *Design Decisions* below) — comparing after downshifting would produce
 false-positive transparency matches for any two distinct 16-bit values that happen to share the
 same high byte.
 
@@ -287,17 +287,17 @@ an Adam7-interlaced PNG is a completely valid PNG file; `Load` rejects it only b
 has no interlaced-scanline reconstruction logic (deinterlacing 7 separate reduced images per the
 Adam7 pass pattern), not because the file itself is malformed. This is why `GetInfo` — which never
 attempts to decode any pixel data — succeeds and reports correct dimensions for these files even
-though `Load` refuses them (setting `ImageInfo.CanDecode = false`); see _GetInfo(Stream stream)_
+though `Load` refuses them (setting `ImageInfo.CanDecode = false`); see *GetInfo(Stream stream)*
 below. Because this is a decode-capability limitation rather than a well-formedness defect, `Load`
 signals it with the distinct `UnsupportedImageFeatureException` (`Feature` =
 `"png-adam7-interlace"`) rather than `InvalidDataException` — see
-`UnsupportedImageFeatureException`'s own unit design in _Shared Types_ (`codecs.md`) for the full
+`UnsupportedImageFeatureException`'s own unit design in *Shared Types* (`codecs.md`) for the full
 rationale, including why it derives from `IOException` rather than `InvalidDataException`.
 
 **Throws:**
 
-* `ArgumentNullException` — `stream` is null
-* `InvalidDataException` — missing PNG signature; a first chunk whose type is not `IHDR`, or an
+- `ArgumentNullException` — `stream` is null
+- `InvalidDataException` — missing PNG signature; a first chunk whose type is not `IHDR`, or an
   `IHDR` first chunk whose declared length is not exactly 13 (both checked before any
   length-dependent allocation, mirroring `GetInfo`'s equivalent guard — see the pre-allocation
   validation design decision above); missing (past the first chunk), duplicate, or malformed
@@ -327,7 +327,7 @@ rationale, including why it derives from `IOException` rather than `InvalidDataE
   Adler-32 checksum mismatch; an unexpected decompressed data length (including an `IDAT`
   payload that would inflate beyond the size implied by `IHDR`); an unsupported scanline
   filter type; or the stream ends before all header, chunk, or pixel data has been read
-* `UnsupportedImageFeatureException` — the file is well-formed but Adam7-interlaced (`Feature` =
+- `UnsupportedImageFeatureException` — the file is well-formed but Adam7-interlaced (`Feature` =
   `"png-adam7-interlace"`); this is a distinct type from `InvalidDataException` — see the design
   decision above
 
@@ -337,10 +337,10 @@ Opens `path` as a read-only `FileStream` and delegates to `Load(Stream)`.
 
 **Throws:**
 
-* `ArgumentNullException` — `path` is null
-* `ArgumentException` — `path` is an empty string
-* `InvalidDataException`/`UnsupportedImageFeatureException` — see `Load(Stream)`
-* Underlying file-system exceptions (`FileNotFoundException`, `DirectoryNotFoundException`,
+- `ArgumentNullException` — `path` is null
+- `ArgumentException` — `path` is an empty string
+- `InvalidDataException`/`UnsupportedImageFeatureException` — see `Load(Stream)`
+- Underlying file-system exceptions (`FileNotFoundException`, `DirectoryNotFoundException`,
   `UnauthorizedAccessException`, `IOException`) propagate uncaught
 
 ##### Save(Surface surface, Stream stream, PngColorType colorType = PngColorType.Rgba)
@@ -366,8 +366,8 @@ a smaller, alpha-free file pass `PngColorType.Rgb` explicitly.
 
 **Throws:**
 
-* `ArgumentNullException` — `surface` or `stream` is null
-* `ArgumentOutOfRangeException` — `colorType` is not a defined `PngColorType` value
+- `ArgumentNullException` — `surface` or `stream` is null
+- `ArgumentOutOfRangeException` — `colorType` is not a defined `PngColorType` value
 
 ##### Save(Surface surface, string path, PngColorType colorType = PngColorType.Rgba)
 
@@ -375,10 +375,10 @@ Creates (or overwrites) `path` as a `FileStream` and delegates to `Save(Surface,
 
 **Throws:**
 
-* `ArgumentNullException` — `surface` or `path` is null
-* `ArgumentException` — `path` is an empty string
-* `ArgumentOutOfRangeException` — see `Save(Surface, Stream, PngColorType)`
-* Underlying file-system exceptions (`UnauthorizedAccessException`, `DirectoryNotFoundException`,
+- `ArgumentNullException` — `surface` or `path` is null
+- `ArgumentException` — `path` is an empty string
+- `ArgumentOutOfRangeException` — see `Save(Surface, Stream, PngColorType)`
+- Underlying file-system exceptions (`UnauthorizedAccessException`, `DirectoryNotFoundException`,
   `IOException`) propagate uncaught
 
 ##### GetInfo(Stream stream)
@@ -388,7 +388,7 @@ and in particular never any `IDAT` chunk — and returns an `ImageInfo` describi
 and `GetInfo` share a `ReadIhdrOnly(Stream, bool enforceMaxDimension, bool validateDecodability)`
 helper, but the two use distinct chunk-frame readers: `Load` reuses the general `ReadChunkFrame`
 helper, while `ReadIhdrOnly` calls a dedicated `ReadIhdrChunkFrame` helper that validates the chunk
-type is `IHDR` **and** that the declared length is exactly 13 _before_ allocating or reading any
+type is `IHDR` **and** that the declared length is exactly 13 *before* allocating or reading any
 data payload at all. This ordering matters specifically for `GetInfo`'s "cheap probe of untrusted
 input" purpose: without it, a crafted non-`IHDR` (or wrong-length `IHDR`) first chunk declaring an
 attacker-controlled multi-gigabyte length could force a huge allocation on `GetInfo`'s fast path
@@ -506,15 +506,15 @@ that upper limit.
 `validateDecodability` gate two orthogonal concerns, and `GetInfo` passes `false` for both while
 `Load` passes `true` for both:
 
-* `enforceMaxDimension` gates only the `Surface.MaxDimension` check. `GetInfo` deliberately skips
+- `enforceMaxDimension` gates only the `Surface.MaxDimension` check. `GetInfo` deliberately skips
   it so an oversized declared width or height is returned as-is rather than throwing, letting a
   caller triage a suspiciously large (or decompression-bomb-suspect) file by its declared size
   before deciding whether to call `Load` at all.
-* `validateDecodability` gates only the Adam7-interlacing rejection. Every other `IHDR` field
+- `validateDecodability` gates only the Adam7-interlacing rejection. Every other `IHDR` field
   check (bit depth range, color type range, bit-depth/color-type combination legality,
   compression/filter method, interlace method being 0 or 1) is a well-formedness check enforced
   unconditionally by `ReadIhdrOnly`/`ParseIhdr`, regardless of either flag's value — because
-  `Load`'s decodable color-type/bit-depth space is now the PNG specification's _entire_ legal
+  `Load`'s decodable color-type/bit-depth space is now the PNG specification's *entire* legal
   space, the only decode-capability gap left for `GetInfo` to bypass is Adam7 interlacing.
 
 This means `GetInfo` succeeds — reporting the file's true declared width and height — for every
@@ -529,7 +529,7 @@ output**: `GetInfo` maps `IHDR`'s color type directly to `(Channels, HasAlpha)` 
 knowledge of `PLTE`/`tRNS` (which it never reads): Grayscale (0) → `(1, false)`; Truecolor (2) →
 `(3, false)`; **Palette (3) → `(1, false)`** — one palette-index sample per pixel in the file
 (packed at sub-byte bit depths, not always one byte per pixel), deliberately
-_not_ the four-channel RGBA result `Load` would produce after resolving each index through
+*not* the four-channel RGBA result `Load` would produce after resolving each index through
 `PLTE`/`tRNS`; Grayscale+alpha (4) → `(2, true)`; Truecolor+alpha (6) → `(4, true)`. This
 asymmetry between `GetInfo`'s and `Load`'s notion of "channels" for Palette files is intentional:
 `GetInfo` describes what is present in the file's bytes, while `Load` always produces a
@@ -537,8 +537,8 @@ fully-resolved 4-channel `Surface` regardless of source color type.
 
 **Throws:**
 
-* `ArgumentNullException` — `stream` is null
-* `InvalidDataException` — missing PNG signature; a first chunk whose type is not `IHDR`
+- `ArgumentNullException` — `stream` is null
+- `InvalidDataException` — missing PNG signature; a first chunk whose type is not `IHDR`
   (checked before any length-dependent allocation); an `IHDR` chunk whose declared length is not
   exactly 13 (also checked before any length-dependent allocation); a bad `IHDR` CRC-32; a bit
   depth other than 1, 2, 4, 8, or 16; a color type other than 0, 2, 3, 4, or 6; a
@@ -554,10 +554,10 @@ Opens `path` as a read-only `FileStream` and delegates to `GetInfo(Stream)`.
 
 **Throws:**
 
-* `ArgumentNullException` — `path` is null
-* `ArgumentException` — `path` is an empty string
-* `InvalidDataException` — see `GetInfo(Stream)`
-* Underlying file-system exceptions propagate uncaught
+- `ArgumentNullException` — `path` is null
+- `ArgumentException` — `path` is an empty string
+- `InvalidDataException` — see `GetInfo(Stream)`
+- Underlying file-system exceptions propagate uncaught
 
 #### Design Decisions
 
@@ -583,7 +583,7 @@ data is read or written. `Load` performs incremental format validation as each c
 failing at the first invalid chunk, header field, checksum, or filter type with a message naming
 the actual invalid value found. There is no local recovery or retry logic anywhere in `PngCodec`
 
-* every validation failure results in an exception that propagates directly to the caller. `Save`
+- every validation failure results in an exception that propagates directly to the caller. `Save`
 never mutates the destination stream/file if an argument validation fails, because all argument
 checks precede any byte write.
 
@@ -594,7 +594,7 @@ checks precede any byte write.
 `BmpCodec` does. No new public members were added to `Surface` or `Rgba32` to support this codec.
 `PngCodec` also depends on the `Codecs` subsystem's shared `ImageInfo` record struct as the
 return type of `GetInfo`, and its shared `UnsupportedImageFeatureException` type (thrown by
-`Load` for Adam7-interlaced files) — see _Codecs Subsystem Design_ (`../codecs.md`). Beyond
+`Load` for Adam7-interlaced files) — see *Codecs Subsystem Design* (`../codecs.md`). Beyond
 `Surface`, `ImageInfo`, and `UnsupportedImageFeatureException`, `PngCodec` uses only the .NET base
 class library's `System.IO` namespace (`Stream`,
 `FileStream`, `InvalidDataException`) and `System.IO.Compression.DeflateStream` (available on
@@ -602,7 +602,7 @@ every one of CanvasNet's target frameworks with no new runtime NuGet dependency)
 wrapper (2-byte header, Adler-32 trailer) and every PNG chunk's CRC-32 are computed by hand-rolled
 algorithms rather than any third-party library. The zlib wrapper itself (compression, Adler-32, and
 bounded decompression) is provided by the `Codecs` subsystem's internal `ZlibHelper`, shared with
-`TiffCodec` — see _Zlib Helper_ in `../codecs.md`.
+`TiffCodec` — see *Zlib Helper* in `../codecs.md`.
 
 #### Conformance Testing
 
@@ -626,5 +626,5 @@ and report correct dimensions via `GetInfo`, exactly like the Adam7-interlaced f
 #### Callers
 
 `PngCodec` is a public API entry point invoked directly by consumers of the CanvasNet package; it
-is not called by any other unit within this system. It calls into `Surface` (see _Dependencies_
+is not called by any other unit within this system. It calls into `Surface` (see *Dependencies*
 above) but nothing calls into it from within CanvasNet itself.

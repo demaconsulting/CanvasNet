@@ -13,7 +13,7 @@ six units:
 
 - **ScaleModel** - the internal `ScaleModel`, `ScaleKind`, and `ScaleRange`: the immutable linear, time, UTC, band,
   point, ordinal, sequential, diverging, quantize, quantile, threshold, and bin-ordinal mappings;
-  see _ScaleModel Unit Design_ (`scales/scale-model.md`)
+  see *ScaleModel Unit Design* (`scales/scale-model.md`)
 - **ScaleResolver** - the internal static partial `ScaleResolver` (nine files) with `ResolvedScales`, `ResolvedScale`,
   `LayeredScales`,
   and
@@ -22,18 +22,18 @@ six units:
   the dates of a time unit), ranges, paddings, the colors and
   schemes of color scales, the ranges of the non-position channels, the polar `theta` and `radius` channels of the arc
   and text marks (the full-circle angle range, the radius range, and the zero rule), and the scales that the layers of
-  a layered view share or keep apart; see _ScaleResolver Unit Design_
+  a layered view share or keep apart; see *ScaleResolver Unit Design*
   (`scales/scale-resolver.md`)
 - **Ticks** - the internal static partial `Ticks` (two files): the d3-array tick algorithms, the linear `nice`, the Vega
-  tick-count rules, and the d3-time calendar ticks and `nice` of time and UTC scales; see _Ticks Unit Design_
+  tick-count rules, and the d3-time calendar ticks and `nice` of time and UTC scales; see *Ticks Unit Design*
   (`scales/ticks.md`)
 - **NumberFormat** - the internal `NumberFormat` and `FormatSpecifier`: the d3-format number formatter and the
-  `tickFormat` precision rule; see _NumberFormat Unit Design_ (`scales/number-format.md`)
+  `tickFormat` precision rule; see *NumberFormat Unit Design* (`scales/number-format.md`)
 - **ColorSchemes** - the internal static partial `ColorSchemes` (two files) with `ColorScheme`, `SchemeRange`, and
   `SchemeUse`: the 68 Vega color schemes as data, the lookup by name, and the configuration of a color range; see
-  _ColorSchemes Unit Design_ (`scales/color-schemes.md`)
+  *ColorSchemes Unit Design* (`scales/color-schemes.md`)
 - **ColorInterpolator** - the internal static `ColorInterpolator` with `RgbColor`, `InterpolationSpace`, and
-  `ColorRamp`: the sRGB, HSL, CIELAB, and HCL color interpolation; see _ColorInterpolator Unit Design_
+  `ColorRamp`: the sRGB, HSL, CIELAB, and HCL color interpolation; see *ColorInterpolator Unit Design*
   (`scales/color-interpolator.md`)
 
 The subsystem's namespace documentation is in `Scales/NamespaceDoc.cs`. Its behavior is specified by the
@@ -41,29 +41,28 @@ The subsystem's namespace documentation is in `Scales/NamespaceDoc.cs`. Its beha
 
 ### Interfaces
 
-**Exposed** (internal only): `ScaleResolver.Resolve(SpecNode, EncodingPlan, EncodingData, ResolvedConfig, string?,
-VegaLiteLimits?, CancellationToken)` (the pipeline entry), the convenience overload `ScaleResolver.Resolve(SpecNode,
-DataTable, ResolvedConfig, string?, VegaLiteLimits?, CancellationToken)` (which plans and runs the implicit pipeline
-itself), `ScaleResolver.ResolveLayers(IReadOnlyList<LayerScaleInput>, ResolvedConfig, string?, VegaLiteLimits?,
-CancellationToken)` (the scales of the layers of a layered view; one layer gives the `Resolve` result),
-`ScaleResolver.InferOrient`, `ScaleResolver.AcceptsScaleType`, and `ScaleResolver.ChannelIsDrawn`;
-`ResolvedScale.CreateModel(extent)`; the `ScaleModel` factories (`CreateLinear`, `CreateTime`, `CreateBand`,
-`CreatePoint`,
-`CreateOrdinal`, `CreateSequential`, `CreateQuantize`, `CreateQuantile`, `CreateThreshold`, `CreateBinOrdinal`) with the
-`ScaleTransform` of log, pow, sqrt, and symlog scales,
-mappings (`Map`, `MapCenter`, `MapOrdinal`, `MapText`, `MapColor`, `MapIndex`, `Invert`, `IndexOf`, `Fraction`), and `BandSpace`;
-`Ticks.GetTicks`, `TickStep`, `TickIncrement`, `Nice`, `DefaultAxisTickCount`, `DefaultAxisTickMinStep`,
-`ResolveTickCount`, `AxisTicks`, `ModelTicks`, `LogTicks`, `LogNice`, and `LogLabelTest`, and the time versions
-`TimeTickRequest`, `TimeTickInterval`, `ResolveTimeInterval`, `TimeTicks` (two overloads), and `TimeNice`;
-`NumberFormat.Create`, `CreatePrefix`,
-`TickFormat`, `FormatFloat`, `ParseSpecifier`, and the
-precision helpers; `ColorSchemes.TryGetColorScheme`, `TryGetScheme`, `Configure`, `Tableau10`, and `CategoryColor`; and
+**Exposed** (internal only):
+`ScaleResolver.Resolve(SpecNode, EncodingPlan, EncodingData, ResolvedConfig, string?, VegaLiteLimits?, CancellationToken)`
+(the pipeline entry), the convenience overload
+`ScaleResolver.Resolve(SpecNode, DataTable, ResolvedConfig, string?, VegaLiteLimits?, CancellationToken)` (which plans
+and runs the implicit pipeline itself),
+`ScaleResolver.ResolveLayers(IReadOnlyList<LayerScaleInput>, ResolvedConfig, string?, VegaLiteLimits?, CancellationToken)`
+(the scales of the layers of a layered view; one layer gives the `Resolve` result), `ScaleResolver.InferOrient`,
+`ScaleResolver.AcceptsScaleType`, and `ScaleResolver.ChannelIsDrawn`; `ResolvedScale.CreateModel(extent)`; the
+`ScaleModel` factories (`CreateLinear`, `CreateTime`, `CreateBand`, `CreatePoint`, `CreateOrdinal`, `CreateSequential`,
+`CreateQuantize`, `CreateQuantile`, `CreateThreshold`, `CreateBinOrdinal`) with the `ScaleTransform` of log, pow, sqrt,
+and symlog scales, mappings (`Map`, `MapCenter`, `MapOrdinal`, `MapText`, `MapColor`, `MapIndex`, `Invert`, `IndexOf`,
+`Fraction`), and `BandSpace`; `Ticks.GetTicks`, `TickStep`, `TickIncrement`, `Nice`, `DefaultAxisTickCount`,
+`DefaultAxisTickMinStep`, `ResolveTickCount`, `AxisTicks`, `ModelTicks`, `LogTicks`, `LogNice`, and `LogLabelTest`, and
+the time versions `TimeTickRequest`, `TimeTickInterval`, `ResolveTimeInterval`, `TimeTicks` (two overloads), and
+`TimeNice`; `NumberFormat.Create`, `CreatePrefix`, `TickFormat`, `FormatFloat`, `ParseSpecifier`, and the precision
+helpers; `ColorSchemes.TryGetColorScheme`, `TryGetScheme`, `Configure`, `Tableau10`, and `CategoryColor`; and
 `ColorInterpolator.Interpolate`, `Range`, and `Quantize` with `ColorRamp`.
 
 **Consumed**: `SpecNode` and `ResolvedConfig` from the `SpecModel` subsystem; `DataTable` and `DataValue` from the
 `Data` subsystem, together with its calendar units (`TimeCalendar`, `TimeInterval`, `TimeUnitSpec`, `DateTimeObject`,
 and `JsDateParser`: the zone, the calendar intervals of ticks and `nice`, the time unit of a field, and the reading of
-dates in a specification; see _Time Calendar Design_ and _Time Format Design_); `EncodingPlan`, `EncodingData`,
+dates in a specification; see *Time Calendar Design* and *Time Format Design*); `EncodingPlan`, `EncodingData`,
 `MeasureCell`, `WorkMeter`, `BinSpec`, and `AggregateMeasures` from the
 `Transforms` subsystem (the plan names the field every channel reads and the time unit it carries, and the accumulators
 order a discrete domain by an aggregate); and the public `VegaLiteLimits`, `VegaLiteLocation`, `VegaLiteSpecException`,
@@ -88,32 +87,32 @@ needs the discrete step to size the view, run before the extent exists, and lets
 data rectangle. `ScaleModel` itself is pure arithmetic with no knowledge of the specification.
 
 **Vega-Lite's rules, not an approximation.** The scale type is chosen per field type, channel, and mark (position
-channels of discrete fields are band scales for `rect`, `bar`, `image`, `rule`, and `tick` marks and point scales for the
-others; the polar channels of an `arc` are band scales and those of a `text` mark point scales); zero, nice, padding,
-and the default ranges follow the Vega-Lite 6 rules and configuration; Vega's order of
-applying zero, pixel padding, and nice is preserved. Anything outside the supported subset is already reported by the
-`FeatureCatalog`; the resolver ignores or falls back deliberately (a property that the scale type or channel does not
-support is ignored; a color domain of four or more entries is a specification error) and the deviations are listed in
-_CanvasNetVegaLite System Design_.
+channels of discrete fields are band scales for `rect`, `bar`, `image`, `rule`, and `tick` marks and point scales for
+the others; the polar channels of an `arc` are band scales and those of a `text` mark point scales); zero, nice,
+padding, and the default ranges follow the Vega-Lite 6 rules and configuration; Vega's order of applying zero, pixel
+padding, and nice is preserved. Anything outside the supported subset is already reported by the `FeatureCatalog`; the
+resolver ignores or falls back deliberately (a property that the scale type or channel does not support is ignored; a
+color domain of four or more entries is a specification error) and the deviations are listed in *CanvasNetVegaLite
+System Design*.
 
 **Layers share scales by merging, not by rewriting.** The layers of a layered view are each resolved as a view of their
 own, then the scales of a channel that several layers carry are merged into one: the owner is the scale of the highest
 precedence (band before point before the rest), its domain is replaced by the union of the layers' domains and it is
 resolved again so that everything that depends on the domain is consistent, and each layer receives that scale bound to
 its own field. Every property that places a value is the shared scale's, so a line over a bar chart cannot be
-misaligned; `resolve` can keep the scales of a channel apart, and scales that cannot be combined stay the layer's own with
-a warning. The single-view path is unchanged: one layer is the single-view result.
+misaligned; `resolve` can keep the scales of a channel apart, and scales that cannot be combined stay the layer's own
+with a warning. The single-view path is unchanged: one layer is the single-view result.
 
 **A raw domain is the domain, not an input to the rules.** A `scale.domainRaw`, or the value of the variable parameter
 that `scale.domain` names, replaces the domain of the scale and nothing adjusts it afterwards (no zero rule, bounds,
 pixel padding, or `nice`), as Vega's `configureDomain` returns at once for a raw domain; an unusable value keeps the
 scale's own domain with a `vl-scale-domain-raw` warning, and a scale whose domain is a parameter clips its marks (see
-_ScaleResolver Unit Design_).
+*ScaleResolver Unit Design*).
 
 **Time scales are linear scales with a calendar.** A temporal field (and any field with a time unit) has values that
 are instants, milliseconds since the Unix epoch. `ScaleKind.Time` and `ScaleKind.Utc` are kinds of their own, not a flag
 on `Linear`, so that every site that means "linear" had to be revisited deliberately (the audit is recorded in
-_ScaleResolver Unit Design_); they reuse the piecewise linear arithmetic of `ScaleModel` unchanged and carry the
+*ScaleResolver Unit Design*); they reuse the piecewise linear arithmetic of `ScaleModel` unchanged and carry the
 `TimeCalendar` that `Ticks` needs for the d3-time interval table, the tick boundaries, and `nice`. The calendar is the
 zone of `VegaLiteRenderOptions.TimeZone` (UTC when none is given), or UTC for a `utc` scale or a `utc` time unit; it is
 read from the evaluation facts of the render, so the `ScaleResolver.Resolve` signature did not change. No unit of the
@@ -121,9 +120,9 @@ subsystem reads the host zone, the clock, or the culture.
 
 **Ported algorithms are exact and tested by hand.** `Ticks` and `NumberFormat` are ports of the d3-array, d3-time, and
 d3-format algorithms and `ScaleModel` of the d3-scale arithmetic, all carrying attribution headers; test vectors are
-derived by hand, not copied from any upstream test suite. The number formatter reproduces JavaScript's `toFixed`, `toExponential`,
-and `toPrecision` digits from the exact decimal expansion of the double (using `BigInteger`), so labels do not depend on
-the platform's floating-point formatting.
+derived by hand, not copied from any upstream test suite. The number formatter reproduces JavaScript's `toFixed`,
+`toExponential`, and `toPrecision` digits from the exact decimal expansion of the double (using `BigInteger`), so labels
+do not depend on the platform's floating-point formatting.
 
 **Determinism and limits.** Every unit is culture-invariant and free of shared mutable state; the models are immutable
 and thread-safe. A discrete domain larger than `MaxScaleDomainSize` and an axis (numeric or time) with more than

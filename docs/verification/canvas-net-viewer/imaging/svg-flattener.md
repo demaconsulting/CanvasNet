@@ -30,9 +30,10 @@ N/A - standard test environment; the tests write only to temporary directories t
 **SvgFlattener_Execute_MermaidImage_ReplacedWithPngDataUri**: a 60 by 40 placement of a diagram becomes one PNG of 60 by
 40 pixels, the link is gone, and the result reports the size of the copy.
 
-**SvgFlattener_Execute_ReplacedLink_OnlyAttributeValueChanges** and **SvgFlattener_Execute_BomAndLineEndings_Preserved**:
-a comment that contains an `image` tag, an unknown element, character data, odd spacing around `=`, single quotes, a byte
-order mark, and CRLF and lone CR line breaks are kept; the copy is the input with only the value changed.
+**SvgFlattener_Execute_ReplacedLink_OnlyAttributeValueChanges** and
+**SvgFlattener_Execute_BomAndLineEndings_Preserved**: a comment that contains an `image` tag, an unknown element,
+character data, odd spacing around `=`, single quotes, a byte order mark, and CRLF and lone CR line breaks are kept; the
+copy is the input with only the value changed.
 
 **SvgFlattener_Execute_ViewBoxTransformAndScale_RenderAtPlacementSize**,
 **SvgFlattener_Execute_RotatedPlacement_UsesEdgeLengths**, and
@@ -59,9 +60,9 @@ hidden `flow%2emmd#theme=dark` is the warning `svg-flatten-image-not-drawn`.
 **SvgFlattener_Execute_SameHrefTwice_BothReplacedAtLargestSize**: one link in two placements gives one entry with two
 elements and the larger size in both.
 
-**SvgFlattener_Execute_SameHrefSmallThenLarge_ChargesImageCountOnce**: one link shown small, then 63 other diagrams, then
-the same link large (64 different links) replaces all 64 with no diagnostic, the repeated one at the larger size, so a
-repeated link counts once against the limit of 64 pictures.
+**SvgFlattener_Execute_SameHrefSmallThenLarge_ChargesImageCountOnce**: one link shown small, then 63 other diagrams,
+then the same link large (64 different links) replaces all 64 with no diagnostic, the repeated one at the larger size,
+so a repeated link counts once against the limit of 64 pictures.
 
 **SvgFlattener_Execute_SameHrefSmallThenLarge_ChargesPixelBudgetOnce**: one link shown at 5700 and then at 5800 pixels
 square (whose sum, but not the larger alone, exceeds the budget of 64,000,000 pixels) is drawn once at 5800 by 5800
@@ -73,7 +74,8 @@ pixels with no `svg-image-too-large` warning, so the smaller placement is never 
 **SvgFlattener_Execute_HiddenDiagramInNestedSvg_ReportsNotDrawnWithOrigin** and
 **SvgFlattener_Execute_ShownDiagramInNestedSvg_NotReported**: a diagram in an unused definition of `parts/inner.svg`,
 which the drawing shows, is the warning `svg-flatten-image-not-drawn` with `parts/inner.svg`, line 2 as its location and
-`["parts/inner.svg"]` as its origin, and nothing is written; a diagram a nested file shows is flattened and not reported.
+`["parts/inner.svg"]` as its origin, and nothing is written; a diagram a nested file shows is flattened and not
+reported.
 
 **SvgFlattener_Execute_MissingLinkedFile_ReportsUnresolved**,
 **SvgFlattener_Execute_MissingLinkedFileStrict_ThrowsUnsupportedFeature**,
@@ -101,8 +103,10 @@ check while the copy is built counts UTF-8 bytes as the final check does.
 rebased, and the copy is written.
 
 **SvgFlattener_Execute_NotSvg_ThrowsUnsupportedFormat**, **SvgFlattener_Execute_Doctype_ThrowsCorruptInput**,
-**SvgFlattener_Execute_InvalidUtf8_ThrowsCorruptInput**, **SvgFlattener_Execute_NonUtf8Declaration_ThrowsUnsupportedFeature**,
-**SvgFlattener_Execute_OutputIsInput_ThrowsSameInputOutput**, **SvgFlattener_Execute_NoClobberExisting_ThrowsOutputExists**,
+**SvgFlattener_Execute_InvalidUtf8_ThrowsCorruptInput**,
+**SvgFlattener_Execute_NonUtf8Declaration_ThrowsUnsupportedFeature**,
+**SvgFlattener_Execute_OutputIsInput_ThrowsSameInputOutput**,
+**SvgFlattener_Execute_NoClobberExisting_ThrowsOutputExists**,
 **SvgFlattener_Execute_BrokenLinkedModel_ThrowsScadErrorNamingBothFiles**, and
 **SvgFlattener_Execute_ScaleOutOfRange_ThrowsUsageError**: each refused input, output, or option has its code, and an
 existing output is left as it was.
@@ -115,18 +119,18 @@ is the raw value with its entities while the link is decoded; markup in comments
 prefixed `s:image` with `x:href` is found.
 
 **SvgFlattener_RebaseLink_\*** (`SvgFlattenerLinkTests.cs`): sibling and parent folders give relative paths with `/`,
-the query and the fragment are kept and escaped for the quote, a space is percent-encoded, and a data URI, a network URL,
-a `#` link, a rooted path, and an empty link are left alone; a path with a null character is left alone, and a path too
-long for the file system does not throw. **SvgFlattener_IsWindowsRootedPath_\*** and
+the query and the fragment are kept and escaped for the quote, a space is percent-encoded, and a data URI, a network
+URL, a `#` link, a rooted path, and an empty link are left alone; a path with a null character is left alone, and a path
+too long for the file system does not throw. **SvgFlattener_IsWindowsRootedPath_\*** and
 **SvgFlattener_RebaseLink_WindowsDriveOrUncLink_UntouchedOnEveryPlatform** (regressions, on every platform): a drive
 path (`C:\x.png`, `C:/x.png`, `c:x.png`, `Z:`), a UNC path, and a backslash-rooted path are Windows rooted paths, while
 relative paths, POSIX rooted paths, `//server/share/x.png`, `1:x.png`, a lone letter, and the empty path are not; and
 such a link, plain or percent-encoded and with a fragment, is left as written when the copy goes to another folder.
 
 **SvgFlattener_Execute_ResolvedBinding_IsBaked**, **SvgFlattener_Execute_MissingCoordinates_AreInserted**,
-**SvgFlattener_Execute_UnresolvedBinding_IsKeptAndWarned**, **SvgFlattener_Execute_StrictUnresolvedBinding_WritesNothing**,
-**SvgFlattener_Execute_BindingToUsedImage_IsKept**, and **SvgFlattener_Execute_BindingToUnpaintedImage_IsNotCaptured**
-(`SvgFlattenerBindingTests.cs`; the requirement
+**SvgFlattener_Execute_UnresolvedBinding_IsKeptAndWarned**,
+**SvgFlattener_Execute_StrictUnresolvedBinding_WritesNothing**, **SvgFlattener_Execute_BindingToUsedImage_IsKept**, and
+**SvgFlattener_Execute_BindingToUnpaintedImage_IsNotCaptured** (`SvgFlattenerBindingTests.cs`; the requirement
 `CanvasNetViewer-Imaging-SvgFlattener-Bindings`): a 400 by 200 drawing places a two-node flowchart at 20,30 in a 300 by
 120 box. A line bound with `cn:x2y2='#pic node:B'` (under the prefix `cn` and, in a second case, `q`) is baked: the copy
 is the drawing with only the link, the two numbers, the binding attribute, and the namespace declaration changed, and

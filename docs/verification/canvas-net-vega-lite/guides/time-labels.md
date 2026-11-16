@@ -2,13 +2,13 @@
 
 This document describes the unit-level verification strategy for the `TimeLabels` unit in the
 `DemaConsulting.CanvasNet.VegaLite.Guides` namespace: the internal static `TimeLabels` class (`Create`, `CreateBounded`,
-`IsKnownFormatType`, `IntervalRequest`, `UsesVegaDefaultCount`, and `ReadInstant`) with its `Options` record, which holds
-what the axes and the legends of temporal fields share: the format that a label of a date gets (the `format` and
+`IsKnownFormatType`, `IntervalRequest`, `UsesVegaDefaultCount`, and `ReadInstant`) with its `Options` record, which
+holds what the axes and the legends of temporal fields share: the format that a label of a date gets (the `format` and
 `formatType` of the guide, the unit specifier, the default of the guide, and Vega's multi-format), the reading of a
 `tickCount` that names a calendar interval, Vega-Lite's rule for the default tick count of a time axis, and the reading
 of an explicit list of dates. The unit is also verified through its two callers, the time axes of `AxisBuilder` and the
 temporal legends of `LegendBuilder` (`LegendBuilder.Time.cs`), whose time tests are named below; the text mark of the
-`Marks` subsystem is the third caller, through `CreateBounded` (see the _MarkBuilder Unit Verification Design_).
+`Marks` subsystem is the third caller, through `CreateBounded` (see the *MarkBuilder Unit Verification Design*).
 
 #### Verification Approach
 
@@ -37,7 +37,7 @@ ms), and the derivations are repeated here:
   multi-format is the label of the coarsest boundary the instant sits on (in UTC): 2024-03-05T00:00 is a day, `Tue 05`;
   2024-03-03T00:00 is a Sunday that is not the first of a month, `Mar 03`; 2024-03-01 is `March`; 2024-04-01 is
   `April`; 2024-01-01 is `2024`; 2024-03-05T13:00 is `01 PM`; 13:45 is `01:45`; 13:45:30 is `:30`; and 13:45:30.250 is
-  `.250` (the formatter itself is verified in the _TimeFormat Unit Verification Design_).
+  `.250` (the formatter itself is verified in the *TimeFormat Unit Verification Design*).
 - **Format types.** `formatType: "number"` formats the milliseconds as a number: `,d` of 1,709,596,800,000 is
   `1,709,596,800,000` (thirteen digits in groups of three) and no format at all gives the JavaScript text
   `1709596800000`; the time format `%H:%M` at +05:30 gives `05:30` for March 5 at 00:00Z (the local time) and `00:00`
@@ -47,22 +47,22 @@ ms), and the derivations are repeated here:
 - **Label length.** `Mar 05, 2024` has 12 characters and the number `1709596800000` has 13, so a limit of 12 returns
   the time label and a limit of 11 is a located render exception that contains `the limit of 11`, and a limit of 12
   fails the number with `the limit of 12`.
-- **Labels together.** The labels of one guide are limited together to the same length: under a limit of 30 two `Mar 05,
-  2024` labels (24 characters) are made and the third (36) is a located render exception that contains `are together
-  longer than the limit of 30 characters` (as is every later one, since a refused label is not counted); under a limit of
-  36 three are made (exactly 36) and the fourth is refused; a second label function keeps its own total; the 13-character
-  number labels are 26 under a limit of 30 and the third (39) is refused. On an axis, the eleven `%c` labels of the ten-day
-  axis are 9 x 21 + 2 x 22 = 233 characters (the 10th and 11th are `1/10/2024, 12:00:00 AM` and `1/11/2024, 12:00:00 AM`),
-  so a limit of 240 allows them and a limit of 100 refuses the fifth (5 x 21 = 105); on a legend the six `Jan 01, 2024`
-  labels are 72 characters, so a limit of 72 allows them and a limit of 40 refuses the fourth (48). With the default limit
-  of 1,048,576, a format of 512 `%B` (1,024 characters, the longest allowed) on the 481 month starts of January 1980 to
-  January 2020 makes labels of about 6.2 x 512 = 3,200 characters, which pass the limit at about the 330th tick, so the
-  axis fails with `the limit of 1048576 characters`.
+- **Labels together.** The labels of one guide are limited together to the same length: under a limit of 30 two
+  `Mar 05, 2024` labels (24 characters) are made and the third (36) is a located render exception that contains
+  `are together longer than the limit of 30 characters` (as is every later one, since a refused label is not counted);
+  under a limit of 36 three are made (exactly 36) and the fourth is refused; a second label function keeps its own
+  total; the 13-character number labels are 26 under a limit of 30 and the third (39) is refused. On an axis, the eleven
+  `%c` labels of the ten-day axis are 9 x 21 + 2 x 22 = 233 characters (the 10th and 11th are `1/10/2024, 12:00:00 AM`
+  and `1/11/2024, 12:00:00 AM`), so a limit of 240 allows them and a limit of 100 refuses the fifth (5 x 21 = 105); on a
+  legend the six `Jan 01, 2024` labels are 72 characters, so a limit of 72 allows them and a limit of 40 refuses the
+  fourth (48). With the default limit of 1,048,576, a format of 512 `%B` (1,024 characters, the longest allowed) on the
+  481 month starts of January 1980 to January 2020 makes labels of about 6.2 x 512 = 3,200 characters, which pass the
+  limit at about the 330th tick, so the axis fails with `the limit of 1048576 characters`.
 - **Specifier limits.** A time format of 1,025 characters, or 400 `%c` (5,200 tokens, over 4,096), is a located
   specification exception at the format: from `TimeLabels.Create` ("The axis time format is not valid: ...") and from
   the specification parser for a format of an axis or a legend that is read as a time (a temporal field, a time unit, or
-  `formatType` of `time` or `utc`: the text, or a member of a format object; see the _SpecParser Unit Verification
-  Design_); the `config.timeFormat` of a legend is found by `TimeLabels.Create`. A specifier of exactly 1,024 characters
+  `formatType` of `time` or `utc`: the text, or a member of a format object; see the *SpecParser Unit Verification
+  Design*); the `config.timeFormat` of a legend is found by `TimeLabels.Create`. A specifier of exactly 1,024 characters
   works.
 - **Interval requests.** `tickCount: "month"` is the month interval (step 0, since none is given),
   `{interval: "week", step: 2}` is the week interval with step 2, `"quarter"` is the month interval with step 3,
@@ -120,25 +120,25 @@ ms), and the derivations are repeated here:
   Labels that are 12 characters long fit a limit of 12 for one label (one explicit value) and not 10, and a count of an
   hourly interval over ten days (241 ticks) is above a tick limit of 5.
 - **Discrete dates.** The months of three dates as an ordinal field with the unit `month` are labeled `Jan`, `Feb`, and
-  `Mar` (the specifier `%b`), `January`, `February`, and `March` with the format `%B`, and `Jan` and `Mar` for the values
-  `["Mar", 1]` (a name or a number that names a part of the unit); the labels are not turned.
+  `Mar` (the specifier `%b`), `January`, `February`, and `March` with the format `%B`, and `Jan` and `Mar` for the
+  values `["Mar", 1]` (a name or a number that names a part of the unit); the labels are not turned.
 - **Limits.** More ticks than the limit are refused before any label is made: with a tick limit of 5 the 11 days, the
   864,000,000 milliseconds of an interval request of `millisecond` over ten days, and a list of 6 values are located
   render exceptions; a label longer than the string limit is refused: `%c` is `1/1/2024, 12:00:00 AM` (21 characters)
   and `%c %c` is 43, so for a single tick (an explicit value) a limit of 30 allows the first and refuses the second.
 - **Per-call limit.** `CreateBounded` makes the label of `Create` under a limit that the caller gives for each call and
   keeps no total (the text mark charges all its labels to one total itself): the label `Mar 05, 2024` of the instant
-  2024-03-05T00:00Z has 12 characters, so the limit 12 gives it and 11, 0, and -3 give none (a null, never an exception),
-  and a refused label changes nothing, so the limit 12 gives it again afterwards; the number label of the same instant,
-  `1709596800000`, has 13 characters, so 13 gives it and 12 gives none; with the format `,d` it is `1,709,596,800,000`,
-  17 characters, so 17 gives it and 16 none; and the UTC time `%H:%M` of the same instant is `00:00`, 5 characters, so 5
-  gives it.
+  2024-03-05T00:00Z has 12 characters, so the limit 12 gives it and 11, 0, and -3 give none (a null, never an
+  exception), and a refused label changes nothing, so the limit 12 gives it again afterwards; the number label of the
+  same instant, `1709596800000`, has 13 characters, so 13 gives it and 12 gives none; with the format `,d` it is
+  `1,709,596,800,000`, 17 characters, so 17 gives it and 16 none; and the UTC time `%H:%M` of the same instant is
+  `00:00`, 5 characters, so 5 gives it.
 - **Culture.** The labels are the English ones under `tr-TR` and `de-DE` as under the invariant culture: `Monday January
   12 AM` for the format `%A %B %I %p` on January 1, 2024 at 00:00, and `1,704,067,200,000` for the number format.
 
 Unit tests reside in `TimeLabelsTests.cs` within the `DemaConsulting.CanvasNet.VegaLite.Tests` project, in the `Guides`
 folder, with the time tests of the two callers in `AxisBuilderTimeTests.cs` and `LegendBuilderTimeTests.cs` of the same
-folder (see also the _AxisBuilder_ and _LegendBuilder Unit Verification Designs_) and the zones of
+folder (see also the *AxisBuilder* and *LegendBuilder Unit Verification Designs*) and the zones of
 `Data/TimeTestSupport.cs`.
 
 #### Test Environment
@@ -167,7 +167,8 @@ result that depends on the host's zone or the current culture constitutes a fail
 ##### The Label Format Is Chosen In The Order Of Vega-Lite
 
 **Tests**: `TimeLabelsTests.TimeLabels_Create_ChoosesTheFormatInTheOrderOfVegaLite`,
-`TimeLabelsTests.TimeLabels_Create_FormatTypesNumberAndUtc`, `TimeLabelsTests.TimeLabels_IsKnownFormatType_NumberTimeAndUtc`
+`TimeLabelsTests.TimeLabels_Create_FormatTypesNumberAndUtc`,
+`TimeLabelsTests.TimeLabels_IsKnownFormatType_NumberTimeAndUtc`
 
 Asserts the five labels of March 5 for the format text, the format object, the unit specifier, the default of the guide,
 and the multi-format (`2024/03/05`, `05.`, `Mar 2024`, `Mar 05, 2024`, and `Tue 05`) and `Invalid Date` for NaN; the
@@ -181,8 +182,8 @@ specification error of an invalid number format; and that `number`, `time`, and 
 `TimeLabelsTests.TimeLabels_UsesVegaDefaultCount_OnlyForSingleMonthHoursDayQuarter`
 
 Asserts the four interval requests (the month interval with step 0, the week with step 2, the quarter as the month with
-step 3, and a UTC day) and that null, a number, an unknown name, and an object with no interval are not requests; and the
-eleven units of the default count rule (true for `month`, `hours`, `day`, `quarter`, and `utcmonth` and false for
+step 3, and a UTC day) and that null, a number, an unknown name, and an object with no interval are not requests; and
+the eleven units of the default count rule (true for `month`, `hours`, `day`, `quarter`, and `utcmonth` and false for
 `yearmonth`, `date`, `year`, `minutes`, `hoursminutes`, and no unit).
 
 ##### Explicit Dates Are Read As Instants
@@ -191,8 +192,8 @@ eleven units of the default count rule (true for `month`, `hours`, `day`, `quart
 
 Asserts that a timestamp (truncated), a date text, and a date-time object are read as March 5 (1,709,596,800,000); that
 the object is read in the calendar of the scale unless it has the `utc` flag (at +05:30 it is 5.5 hours earlier) and a
-date-only text is UTC; and that a boolean, a null, a text that is not a date, a number beyond the range, and an array are
-NaN.
+date-only text is UTC; and that a boolean, a null, a text that is not a date, a number beyond the range, and an array
+are NaN.
 
 ##### Labels Are Bounded By The Limit
 
@@ -276,8 +277,8 @@ invariant culture; and that two builds in a zone give the same ticks, labels, po
 
 Asserts the six `%b %d, %Y` labels of the gradient legend and its 21 color stops at 0, 0.05, ..., 1 with the title of
 the field; the `legend.format` text (`01/01` and so on) and object, the `config.timeFormat` (`2024.01.01` and so on),
-and the unit specifier (`Jan 2024`, `Feb 2024`, and `Mar 2024`); one symbol and label per month for an ordinal field with
-a time unit, with `%B` and with the value `Feb`; the six symbols of a size over dates; and the values given as an
+and the unit specifier (`Jan 2024`, `Feb 2024`, and `Mar 2024`); one symbol and label per month for an ordinal field
+with a time unit, with `%B` and with the value `Feb`; the six symbols of a size over dates; and the values given as an
 object, a text, and a timestamp in the order written (`Jan 03, 2024`, `Jan 09, 2024`, and `Jan 01, 2024`).
 
 ##### Temporal Legends Follow The Zone, Fail Closed, And Are Deterministic
@@ -298,10 +299,11 @@ culture and on repeated calls.
 `LegendBuilderTimeTests.LegendBuilder_Time_LabelsTogetherTooLong_IsLocated`,
 `LegendBuilderTimeTests.LegendBuilder_Time_FormatSpecifierLimits_AreSpecificationErrors`
 
-Asserts that a temporal color with `scale.type: "utc"` in a chart five hours behind UTC labels the whole-day ticks counted
-from the epoch (2024-01-01 is day 19,723, so the even days 19,724 to 19,732: `Jan 02, 2024`, `Jan 04, 2024`, ...,
-`Jan 10, 2024`), the same as without a zone, and that the `time` type in the zone gives other labels (the local odd
-days); that `scale.zero: true` leaves the six labels `Jan 01, 2024` to `Jan 11, 2024` (the domain is not pulled to 1970);
-that the six 12-character labels are 72 characters, refused at the fourth under a limit of 40 (`are together longer than
-the limit of 40 characters`) and allowed under 72; and that a `config.timeFormat` and a legend `format` member of 1,025
-characters are located specification exceptions that contain `the limit of 1024 characters`.
+Asserts that a temporal color with `scale.type: "utc"` in a chart five hours behind UTC labels the whole-day ticks
+counted from the epoch (2024-01-01 is day 19,723, so the even days 19,724 to 19,732: `Jan 02, 2024`, `Jan 04, 2024`,
+..., `Jan 10, 2024`), the same as without a zone, and that the `time` type in the zone gives other labels (the local odd
+days); that `scale.zero: true` leaves the six labels `Jan 01, 2024` to `Jan 11, 2024` (the domain is not pulled to
+1970); that the six 12-character labels are 72 characters, refused at the fourth under a limit of 40
+(`are together longer than the limit of 40 characters`) and allowed under 72; and that a `config.timeFormat` and a
+legend `format` member of 1,025 characters are located specification exceptions that contain
+`the limit of 1024 characters`.

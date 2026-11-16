@@ -2560,34 +2560,23 @@ declare `["page"]` (`PdfImageSource`, `VsdxImageSource`), `["page", "slide"]` (`
 wins), and none for the others (the viewer's SCAD source adds `view`). With no parameter **page 1 is drawn**.
 
 A source whose parameters are named by the author of the link (the variables of a model, the parameters of a chart)
-cannot list the
-names, so it declares a **prefix** in `FragmentParameterPrefixes` instead (a default interface member: a source written
-before it
-declares none): every parameter whose name starts with the prefix (ASCII case-insensitive) and has at least one
-character after it is
-understood, and the resolver gives it no unknown-parameter warning. The built-in sources declare `def.`
-(`ScadImageSource`: `part.scad#def.width=20` sets the
-variable `width` like `-D width=20`) and `param.` (`VegaLiteImageSource`: `chart.vl.json#param.threshold=5` sets a chart
-parameter
-like `--param threshold=5`). A source reads them with `request.Fragment.GetPrefixed("def.")` (the parameters with the
-prefix removed, the name
-as written, the last value of a name winning), or with `ImageParameterValues`: `ReadVariables(fragment, "def.")` reads
-the values with the
-grammar of `-D` (a number as a `double`, `true`, `false`, text with one pair of quotes removed, or a vector, a JSON array,
-as a `List<object?>` of such values, for `def.$vpt=[0,0,20]`)
-and
+cannot list the names, so it declares a **prefix** in `FragmentParameterPrefixes` instead (a default interface member: a
+source written before it declares none): every parameter whose name starts with the prefix (ASCII case-insensitive) and
+has at least one character after it is understood, and the resolver gives it no unknown-parameter warning. The built-in
+sources declare `def.` (`ScadImageSource`: `part.scad#def.width=20` sets the variable `width` like `-D width=20`) and
+`param.` (`VegaLiteImageSource`: `chart.vl.json#param.threshold=5` sets a chart parameter like `--param threshold=5`). A
+source reads them with `request.Fragment.GetPrefixed("def.")` (the parameters with the prefix removed, the name as
+written, the last value of a name winning), or with `ImageParameterValues`: `ReadVariables(fragment, "def.")` reads the
+values with the grammar of `-D` (a number as a `double`, `true`, `false`, text with one pair of quotes removed, or a
+vector, a JSON array, as a `List<object?>` of such values, for `def.$vpt=[0,0,20]`) and
 `ReadParameters(fragment, "param.")` with the grammar of `--param` (also `null`, and a JSON array or object as a
-`List<object?>` or a
-`Dictionary<string, object?>`), and both throw `ImageSourceRefusedException` with the code `image-fragment-invalid` for
-a value that is not
-usable; `TryParseVariable` and `TryParseParameter` read one value and say why it is bad instead of throwing. Two names
-that differ only
-in the case of the part after a prefix (`def.a`, `def.A`) are two parameters.
-`fragment.ReviewParameters("input", href, source)`
-is the check the resolver makes (unknown and duplicate parameters, as `ImageFragmentNote` records of a code and a
-message), for a caller that reads a fragment outside a document, as the `canvasnet` tool does for the fragment of an
-input path. The resolver reports, as `Diagnostics` of
-`Source` `"svg"`:
+`List<object?>` or a `Dictionary<string, object?>`), and both throw `ImageSourceRefusedException` with the code
+`image-fragment-invalid` for a value that is not usable; `TryParseVariable` and `TryParseParameter` read one value and
+say why it is bad instead of throwing. Two names that differ only in the case of the part after a prefix (`def.a`,
+`def.A`) are two parameters. `fragment.ReviewParameters("input", href, source)` is the check the resolver makes (unknown
+and duplicate parameters, as `ImageFragmentNote` records of a code and a message), for a caller that reads a fragment
+outside a document, as the `canvasnet` tool does for the fragment of an input path. The resolver reports, as
+`Diagnostics` of `Source` `"svg"`:
 
 - `image-fragment-unknown-parameter` (`Warning`): a parameter the source does not declare; the picture is drawn without
   it.

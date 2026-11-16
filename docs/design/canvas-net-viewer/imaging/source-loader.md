@@ -250,14 +250,13 @@ plug-in mechanism: it never passes extra sources, so the supported types are exa
 
 An unresolved reference is the warning `svg-image-unresolved` (source `svg`, message
 `image '<href>' was not drawn: <reason>`) and nothing is drawn; a reference the file-access policy denies is the warning
-`image-access-denied` (message `image '<href>' was not drawn: access denied by the file-access policy '<name>':
-<reason>. Hint:
-<hint>`, the paths only in `Detail`) and nothing is read or drawn; a picture that is too large for the pixel budget of the
-render (64 million pixels in all, charged by the resolver before anything is decoded) is the warning
-`svg-image-too-large` in the same form; in strict mode each is the error
-above (`file-access-denied` for a denial, `unsupported-feature` otherwise) (the same rule as a skipped picture of a PPTX
-slide). A query or fragment after the file name of an `href` is not
-part of the name (the resolver cuts it off), and `KindOfName` ignores it when it words an error.
+`image-access-denied` (message
+`image '<href>' was not drawn: access denied by the file-access policy '<name>': <reason>. Hint: <hint>`, the paths only
+in `Detail`) and nothing is read or drawn; a picture that is too large for the pixel budget of the render (64 million
+pixels in all, charged by the resolver before anything is decoded) is the warning `svg-image-too-large` in the same
+form; in strict mode each is the error above (`file-access-denied` for a denial, `unsupported-feature` otherwise) (the
+same rule as a skipped picture of a PPTX slide). A query or fragment after the file name of an `href` is not part of the
+name (the resolver cuts it off), and `KindOfName` ignores it when it words an error.
 
 A *document page* load (`DocumentPageSource`, shared by the PDF, PPTX, and VSDX page sources) sizes the page at
 the resolution (`options.Dpi`, 96 by default; a resolution that is not finite and greater than zero is
@@ -548,32 +547,28 @@ image is enlarged, and each side is rounded half away from zero and limited to 1
 documented in *SurfaceTransforms Unit Design*, `canvas/surface-transforms.md`).
 
 **SourceInput and LoadContext** (`SourceLoader.Input.cs`): the loader reads a file through a `SourceInput`, not a path.
-`SourceInput.FromFile(path)` opens a new `FileStream` for every use, and `SourceInput.FromMemory(bytes, name,
-directory)` serves bytes; both expose `Name` (the path as given, used in every message), `Directory` (the folder that
-the
-files a format names itself are looked up in), `Length`, and `Open()`. Every `ProbeX` and page source reads through it
-and
-calls the library by its **stream** overload with `BaseDirectory = input.Directory` and
-`SourceName = input.Name`, which is
-what the path overloads of the libraries do, so a file loaded from disk and the same bytes loaded from memory give the
-same
-kind, size, pixels, and notes. The public `Probe(path)`, `Load`, and `OpenPages` use `FromFile` and the default
-`LoadContext`, so the command line behaves as before (it probes once for `info` and opens once for `render`, as
-before). The internal entry points `ProbeInput(input, kind, fileAccess)`, `OpenInput(input, kind, fileAccess)` (the policy
-of the files the source reads beside it; `ProbeScad`, `ProbeVegaLite`, `OpenScad`, and `OpenVegaLite` take it too) and
+`SourceInput.FromFile(path)` opens a new `FileStream` for every use, and
+`SourceInput.FromMemory(bytes, name, directory)` serves bytes; both expose `Name` (the path as given, used in every
+message), `Directory` (the folder that the files a format names itself are looked up in), `Length`, and `Open()`. Every
+`ProbeX` and page source reads through it and calls the library by its **stream** overload with
+`BaseDirectory = input.Directory` and `SourceName = input.Name`, which is what the path overloads of the libraries do,
+so a file loaded from disk and the same bytes loaded from memory give the same kind, size, pixels, and notes. The public
+`Probe(path)`, `Load`, and `OpenPages` use `FromFile` and the default `LoadContext`, so the command line behaves as
+before (it probes once for `info` and opens once for `render`, as before). The internal entry points
+`ProbeInput(input, kind, fileAccess)`, `OpenInput(input, kind, fileAccess)` (the policy of the files the source reads
+beside it; `ProbeScad`, `ProbeVegaLite`, `OpenScad`, and `OpenVegaLite` take it too) and
 `OpenInputPages(input, info, options, context, opened)` serve `LoaderImageSource` of the `CanvasNetViewer` unit:
 `OpenInput` returns an `OpenedSource` that keeps the parsed PDF, presentation or drawing open after reading its pages,
 and `OpenInputPages` takes the document from it (`TakeDocument`, which transfers ownership to the page source), so a
 render parses a document once. A per-thread counter (`DocumentParseCount`) counts the parses, for the tests.
 `LoadContext` carries the hooks of a render that embeds the file: a `CancellationToken` (checked before each load, and
-passed to the model and chart renderers), `Charge(width, height)` (called once for every surface before it is
-allocated, so the pixel budget of the render is charged first - a raster from its declared size, before the stored-size
-check, so a huge picture stays a `svg-image-too-large` warning and not a `size-limit` error; a Mermaid diagram that its
-pictures enlarge is charged the rest right after the draw, before it is returned), `ScopedResolver` (used
-instead of building an `SvgImages` resolver for the nested pictures of an SVG file, so the depth, cycle, and budget
-limits of the embedding render apply and the resolver's notes are not duplicated), and `ReturnFittedPage` (a document
-page
-comes back at its fitted size without the margin, as a linked page is drawn). The default context has no hook.
+passed to the model and chart renderers), `Charge(width, height)` (called once for every surface before it is allocated,
+so the pixel budget of the render is charged first - a raster from its declared size, before the stored-size check, so a
+huge picture stays a `svg-image-too-large` warning and not a `size-limit` error; a Mermaid diagram that its pictures
+enlarge is charged the rest right after the draw, before it is returned), `ScopedResolver` (used instead of building an
+`SvgImages` resolver for the nested pictures of an SVG file, so the depth, cycle, and budget limits of the embedding
+render apply and the resolver's notes are not duplicated), and `ReturnFittedPage` (a document page comes back at its
+fitted size without the margin, as a linked page is drawn). The default context has no hook.
 
 **Option validation** (`FindOptionProblem`): `Load(path, options)`, `Load(info, options)`, and `OpenPages` check the
 `SourceOptions` first, before any file is touched, with the ranges of the command-line readers: `Width` and `Height`

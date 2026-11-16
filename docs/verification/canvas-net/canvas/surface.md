@@ -537,9 +537,9 @@ A zero or oversized box dimension reports `maxWidth` or `maxHeight`.
 
 **Tests**: `TryResampleToDevice_RotatedMatrix_ReturnsFalse`,
 `TryResampleToDevice_WideImageSmallM12_DeclinedOnlyWhenDriftMatters`,
-`TryResampleToDevice_TallImageSmallM21_DeclinedOnlyWhenDriftMatters`, `TryResampleToDevice_AxisAligned_ReturnsWindowAtOrigin`,
-`TryResampleToDevice_OffScreen_ReturnsTrueWithNullWindow`, `BoxReduce_MatchesAreaResize`,
-`BoxReduce_NonDivisibleSize_AveragesOnlyCoveredPixelsInPartialBlock`,
+`TryResampleToDevice_TallImageSmallM21_DeclinedOnlyWhenDriftMatters`,
+`TryResampleToDevice_AxisAligned_ReturnsWindowAtOrigin`, `TryResampleToDevice_OffScreen_ReturnsTrueWithNullWindow`,
+`BoxReduce_MatchesAreaResize`, `BoxReduce_NonDivisibleSize_AveragesOnlyCoveredPixelsInPartialBlock`,
 `BoxReduce_NonDivisibleSizeWithAlpha_PartialBlockUsesCoveredPixelsOnly`
 
 Rotation is declined, an axis-aligned placement yields a window of the expected size and origin, an

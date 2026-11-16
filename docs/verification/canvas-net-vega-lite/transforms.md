@@ -18,8 +18,8 @@ fields that group and order the rows of a path mark; and `TimeUnitTransform` (wi
 
 ### Verification Approach
 
-The unit verification (see the _RowTransforms_, _AggregateTransforms_, _EncodingPlan_, and _TimeUnitTransform Unit
-Verification Designs_ under `transforms/`) is complete for each unit's own behavior. The subsystem-level scenarios
+The unit verification (see the *RowTransforms*, *AggregateTransforms*, *EncodingPlan*, and *TimeUnitTransform Unit
+Verification Designs* under `transforms/`) is complete for each unit's own behavior. The subsystem-level scenarios
 verify the units working together and with the units that feed them and consume their output. `RowTransforms` dispatches
 the six grouped transforms to `AggregateTransforms` in the order of the specification, so the scenarios compose them (a
 window whose rank drives a following filter; the grouped transforms run as one pipeline under other cultures), and
@@ -43,7 +43,7 @@ position of every mark is derived by hand from a scale domain of 0 to 10, so a d
 of the implicit pipeline use the fixtures `aggregate-bars`, `histogram`, `stacked-bars`, `binned-ranges`, and
 `window-cumulative`, in which the bars are derived by hand from the scale formulas. The time scenarios build every zone
 in the test (`TimeZoneInfo.CreateCustomTimeZone`, never `TimeZoneInfo.Local`), use the dates of 2024 whose day numbers
-are derived in the _TimeCalendar Unit Verification Design_, and assert on the start and the end of each unit, so the
+are derived in the *TimeCalendar Unit Verification Design*, and assert on the start and the end of each unit, so the
 result of a time unit never depends on the host's zone, clock, or culture.
 
 No mocking or stubbing is used. The subsystem is internal, so its tests reach it through the test assembly's
@@ -64,14 +64,14 @@ reads the network.
 
 ### Acceptance Criteria
 
-The `Transforms` subsystem's verification passes when every subsystem-level scenario below and every unit-level
-scenario in the unit verification documents passes without error or unexpected exception. Any row that is kept, dropped,
-reordered, or computed differently from the hand-derived expectation, a group, bin, or stack range that differs from
-the hand-derived one, a time unit whose start or end differs from the hand-derived instant (or that ignores the zone of
-the chart or does not ignore it for a `utc` unit), a different sample for the same data and
-pointer, a pixel outside its analytic position, a limit that does not fail closed with the location of the transform,
-a read the file-access policy denies, a measured size that differs from the rendered size, or a render that is not byte-identical
-to the baseline constitutes a failure.
+The `Transforms` subsystem's verification passes when every subsystem-level scenario below and every unit-level scenario
+in the unit verification documents passes without error or unexpected exception. Any row that is kept, dropped,
+reordered, or computed differently from the hand-derived expectation, a group, bin, or stack range that differs from the
+hand-derived one, a time unit whose start or end differs from the hand-derived instant (or that ignores the zone of the
+chart or does not ignore it for a `utc` unit), a different sample for the same data and pointer, a pixel outside its
+analytic position, a limit that does not fail closed with the location of the transform, a read the file-access policy
+denies, a measured size that differs from the rendered size, or a render that is not byte-identical to the baseline
+constitutes a failure.
 
 ### Test Scenarios
 

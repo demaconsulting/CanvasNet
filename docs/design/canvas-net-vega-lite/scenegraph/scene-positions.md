@@ -17,7 +17,8 @@ turns those tags and rows into ids, values, boxes, and attachment pixels in one 
 composition.
 
 The unit's behavior is specified by the `CanvasNetVegaLite-Scenegraph-ScenePositions-*` requirements (`ViewPaths`,
-`Ids`, `Values`, `Data`, `Geometry`, and `Filter`) in `docs/reqstream/canvas-net-vega-lite/scenegraph/scene-positions.yaml`.
+`Ids`, `Values`, `Data`, `Geometry`, and `Filter`) in
+`docs/reqstream/canvas-net-vega-lite/scenegraph/scene-positions.yaml`.
 
 #### Data Model
 
@@ -25,9 +26,9 @@ The class is static and stateless; a call builds its own lists. `GuideOrder` is 
 `title`, `view`, `axis`, `legend`; marks come after them.
 
 **Kinds and ids.** A `title` has the id `title`; a `view` (the data rectangle of a chart) has its view path; an `axis`
-has its channel; a `legend` has its first channel; a `mark` has the id `<mark>-<n>`, where `<mark>` is the mark type (the
-role of the item without its `mark-` prefix) and `n` counts the items of that mark type in that view from 0 in drawing
-order (each vertex of a line, area, or trail counts).
+has its channel; a `legend` has its first channel; a `mark` has the id `<mark>-<n>`, where `<mark>` is the mark type
+(the role of the item without its `mark-` prefix) and `n` counts the items of that mark type in that view from 0 in
+drawing order (each vertex of a line, area, or trail counts).
 
 **View paths.** Every view has a canonical path: `""` for the root, then one `operator[index]` segment per level below
 the root, joined by `.` (`hconcat[1]`, `vconcat[0].layer[1]`, `facet[3]`, `repeat[2]`). The operator is that of the
@@ -67,12 +68,11 @@ measurer, and filter always give the same list.
 - **`AddMarks`** (private) - a `ScenePath` or `SceneTrail` with `Vertices` (a line, area, or trail) gives one position
   per vertex, at the vertex, with a box of zero size and the vertex's row; any other item gives one position when its
   `Datum` is a row (not -1) and `Geometry` gives it a shape.
-- **`Geometry(item, measurer, drawnImages)`** (internal) - the geometry bounds (stroke not included) and the aim
-  point, in the coordinates of the marks group: a rectangle (bar, rect, tick) its normalized rectangle and its center;
-  a rule the
-  normalized box of its two ends and their midpoint; a symbol the bounds of `ScenePainter.SymbolPath` of its shape and
-  size, rotated by its angle and moved to its center (flattened at 0.01; a point when empty), aimed at its center; a text
-  the box `TextMeasurer.GetBounds` measures, aimed at its anchor (`X + Dx`, `Y + Dy`); an arc the bounds of the
+- **`Geometry(item, measurer, drawnImages)`** (internal) - the geometry bounds (stroke not included) and the aim point,
+  in the coordinates of the marks group: a rectangle (bar, rect, tick) its normalized rectangle and its center; a rule
+  the normalized box of its two ends and their midpoint; a symbol the bounds of `ScenePainter.SymbolPath` of its shape
+  and size, rotated by its angle and moved to its center (flattened at 0.01; a point when empty), aimed at its center; a
+  text the box `TextMeasurer.GetBounds` measures, aimed at its anchor (`X + Dx`, `Y + Dy`); an arc the bounds of the
   `ArcGeometry.Build` outline moved to its center, aimed at its mid-angle (`(start + end) / 2`, measured clockwise from
   12 o'clock) at its mid-radius (`(inner + outer) / 2`); an image the rectangle the painter drew its picture in
   (`drawnImages`, recorded by `ScenePainter.DrawnImages`, where a missing width or height is resolved from the loaded
@@ -114,6 +114,7 @@ delivers the reports recorded before it).
 
 The `VegaLiteDocument` unit calls `Report` in both `Render` overloads after the painting, with the rectangles the
 painter drew the pictures in, and calls `ViewPath`, `ViewName`, and `FacetValues` when it tags the root view, the views,
-guides, and titles of a composition, and the marks groups of each layer (`VegaLiteDocument.Render.cs` and `VegaLiteDocument.Composition.cs`).
-The tests in `test/DemaConsulting.CanvasNet.VegaLite.Tests/Scenegraph/ScenePositionsTests.cs` call `Collect` and
-`Geometry` directly through `InternalsVisibleTo`.
+guides, and titles of a composition, and the marks groups of each layer (`VegaLiteDocument.Render.cs` and
+`VegaLiteDocument.Composition.cs`). The tests in
+`test/DemaConsulting.CanvasNet.VegaLite.Tests/Scenegraph/ScenePositionsTests.cs` call `Collect` and `Geometry` directly
+through `InternalsVisibleTo`.

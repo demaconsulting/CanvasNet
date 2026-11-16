@@ -8,9 +8,9 @@ The `SceneModel` unit is the first software unit in the `Scenegraph` subsystem. 
 - `SceneModel.cs` - `Scene`, `SceneItem` and its subtypes `SceneGroup`, `SceneRect`, `SceneRule`, `ScenePath`,
   `SceneSymbol`, `SceneText`, `SceneArc`, and `SceneTrail`, the gradient types `SceneGradient` and `SceneGradientStop`,
   the path types `ScenePathSegmentKind` and `ScenePathSegment`, the value types `ScenePoint`, `SceneTrailPoint`,
-  `SceneClip`, and `SceneEntry`, and the `SceneLists` copy helper; every `SceneItem` has a `Source` (a `VegaLiteLocation`,
-  unknown by default) that the painter reports a paint-limit failure at (phase 14); and the internal position data of
-  the feature positions: `ScenePositionTag`, `SceneMarkContext`, and `SceneVertex`
+  `SceneClip`, and `SceneEntry`, and the `SceneLists` copy helper; every `SceneItem` has a `Source` (a
+  `VegaLiteLocation`, unknown by default) that the painter reports a paint-limit failure at (phase 14); and the internal
+  position data of the feature positions: `ScenePositionTag`, `SceneMarkContext`, and `SceneVertex`
 - `SceneBounds.cs` - `SceneBounds` (readonly record struct): axis-aligned bounding boxes
 - `SceneBudget.cs` - `SceneBudget` (sealed class): the item counter behind `MaxSceneItems`
 
@@ -35,7 +35,7 @@ paint), `StrokeWidth` (null means 1), `Opacity`, `FillOpacity`, and `StrokeOpaci
 fill is drawn with fill opacity times opacity, the stroke with stroke opacity times opacity), the `StrokeDash` pattern
 (copied, read-only), `StrokeDashOffset`, the `StrokeCap` and `StrokeJoin`, and the `StrokeMiterLimit` (null means the
 default of 4 and the painter clamps a value that is not finite or is below 1 to 1 and one above 1,000 to 1,000; see
-_ScenePainter_). Items are immutable; a changed copy is made
+*ScenePainter*). Items are immutable; a changed copy is made
 with a `with` expression, and list-valued members are copied when set. An item can also carry a `FillGradient`, which
 replaces the solid `Fill` when it is set and can be drawn.
 
@@ -92,7 +92,7 @@ replaces the solid `Fill` when it is set and can be drawn.
   picture
   itself is not part of the scene**: the scale of the paint is known only when the scene is painted, so the painter
   loads it
-  (see _ScenePainter_), and building a scene (and measuring a chart) never reads a file. The role is `mark-image`.
+  (see *ScenePainter*), and building a scene (and measuring a chart) never reads a file. The role is `mark-image`.
 - **`SceneArc`** `(X, Y)` - a circular or annular sector centered at `(X, Y)`, with `InnerRadius` (0, a pie slice),
   `OuterRadius` (0, a point), `StartAngle` and `EndAngle` (radians, clockwise from 12 o'clock, 0 by default),
   `PadAngle`,
@@ -155,7 +155,7 @@ the drawing order; the empty bounds contain nothing.
   overflowing) and throws a `VegaLiteRenderException` carrying the location when the total passes the maximum
   (`MaxSceneItems`). Every `SceneItem` of the finished scene counts once, groups included (the root and view groups, the
   title group and its texts, each axis group with its grid group, grid lines, ticks, labels, domain and title, the marks
-  group and each mark; a clip is a property of its group, not an item), and a builder calls `Add` _before_ it creates
+  group and each mark; a clip is a property of its group, not an item), and a builder calls `Add` *before* it creates
   the item, so a limit of N allows a chart of exactly N items and fails on the (N+1)th without allocating it. The axes
   are rebuilt until the data rectangle is stable, so each pass is charged to a `Fork()` of the budget and only the pass
   that is kept is taken over with `Adopt`. A tick label that is removed because it overlaps another is not in the scene

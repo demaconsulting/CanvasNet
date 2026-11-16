@@ -23,14 +23,14 @@ contract applies unchanged.
 
 ##### ImageFormat enum
 
-| Value      | Codec           | Signature recognized by `ImageFormats.Detect`                         |
-| ---------- | --------------- | --------------------------------------------------------------------- |
-| `Png`      | `PngCodec`      | `89 50 4E 47 0D 0A 1A 0A`                                             |
-| `Jpeg`     | `JpegCodec`     | `FF D8 FF`                                                            |
-| `Gif`      | `GifCodec`      | `GIF87a` or `GIF89a`                                                  |
-| `Bmp`      | `BmpCodec`      | `BM`, zero reserved fields, and a bitmap-header size from the list    |
-| `Tiff`     | `TiffCodec`     | `II*\0` or `MM\0*`                                                    |
-| `Jpeg2000` | `Jpeg2000Codec` | the 12-byte JP2 signature box, or a raw codestream (`FF 4F FF 51`)    |
+| Value | Codec | Signature recognized by `ImageFormats.Detect` |
+| --- | --- | --- |
+| `Png` | `PngCodec` | `89 50 4E 47 0D 0A 1A 0A` |
+| `Jpeg` | `JpegCodec` | `FF D8 FF` |
+| `Gif` | `GifCodec` | `GIF87a` or `GIF89a` |
+| `Bmp` | `BmpCodec` | `BM`, zero reserved fields, and a bitmap-header size from the list |
+| `Tiff` | `TiffCodec` | `II*\0` or `MM\0*` |
+| `Jpeg2000` | `Jpeg2000Codec` | the 12-byte JP2 signature box, or a raw codestream (`FF 4F FF 51`) |
 
 The accepted bitmap-header sizes are 12, 40, 52, 56, 64, 108, and 124.
 

@@ -20,7 +20,7 @@ rules, and the arc conversion are a closed body of logic that tests can assert a
 The unit's behavior is specified by the `CanvasNetVegaLite-Scenegraph-SymbolPathParser-*` requirements in
 `docs/reqstream/canvas-net-vega-lite/scenegraph/symbol-path-parser.yaml`: `-Parse`, `-RenderCanvasRules`, `-Bounds`,
 `-Cache`, and `-Scaling`. The code follows vega-scenegraph, re-implemented from its public description (see
-_CanvasNetVegaLite System Design_, Third-Party Provenance and Attribution).
+*CanvasNetVegaLite System Design*, Third-Party Provenance and Attribution).
 
 #### Data Model
 
@@ -45,11 +45,11 @@ parsed paths are shared through a cache that is guarded by a lock too.
 
 **Render** (`Render(size, out SceneBounds)`, vega-scenegraph `src/path/symbols.js`, `render.js`, `arc.js`). The path is
 drawn the way `customSymbol` draws it: the coordinates are **scaled by the symbol radius**, `sqrt(size) / 2`, on both
-axes, so a coordinate of 1 in the path is one radius from the center of the symbol (a scale of exactly 1 is not scaled at
-all, as in vega). The scale applies to the
-numbers of a command as `render.js` applies it: the radii and the end point of an arc (not its rotation or flags), the
-one number of `h` and `v`, and every other number. The drawing keeps the current point, the start of the sub-path, and
-the persisted control points, and follows `render.js` including its **quirks**:
+axes, so a coordinate of 1 in the path is one radius from the center of the symbol (a scale of exactly 1 is not scaled
+at all, as in vega). The scale applies to the numbers of a command as `render.js` applies it: the radii and the end
+point of an arc (not its rotation or flags), the one number of `h` and `v`, and every other number. The drawing keeps
+the current point, the start of the sub-path, and the persisted control points, and follows `render.js` including its
+**quirks**:
 
 - `s` and `S` reflect the persisted control point whatever the previous command was (the SVG rule would use the current
   point after a command that is not a curve).
@@ -62,10 +62,10 @@ the persisted control points, and follows `render.js` including its **quirks**:
   its own point, a command after a close starts a new sub-path at the start of the closed one, and **an operation that
   has a number that is not finite is skipped** (the bounds still see it, as in vega).
 
-**Bounds** (vega-scenegraph `src/bound/boundContext.js`). The same calls feed a bounds context: every end point is added,
-and the **extrema of a quadratic or cubic curve** (the parameter values where a derivative is zero) are added too, so the
-bounds are those of the drawn curve and not of its control polygon. `Render` returns them in the coordinates of the
-symbol's center; they are empty when the path draws no point. The legend uses them for the space of the symbol.
+**Bounds** (vega-scenegraph `src/bound/boundContext.js`). The same calls feed a bounds context: every end point is
+added, and the **extrema of a quadratic or cubic curve** (the parameter values where a derivative is zero) are added
+too, so the bounds are those of the drawn curve and not of its control polygon. `Render` returns them in the coordinates
+of the symbol's center; they are empty when the path draws no point. The legend uses them for the space of the symbol.
 
 **Cache.** `TryGet` keeps parsed paths by their exact text (ordinal comparison) in a process-wide cache that is guarded
 by a lock and bounded three ways: at most 256 entries, at most 262,144 characters of path text in total, and no text
@@ -97,7 +97,7 @@ the core `Path` does.
 The unit does not throw for a text that is not a path: `TryParse` returns null with a message, and a null text is a
 programming error that throws `ArgumentNullException`. **Deviation from Vega**: vega throws for a path that does not
 parse (and the chart is not rendered); the renderer instead reports the warning `vl-shape-path-invalid` (see
-_FeatureCatalog_), and the painter draws a circle for the shape (`ScenePainter.SymbolPath`). A path with no command is
+*FeatureCatalog*), and the painter draws a circle for the shape (`ScenePainter.SymbolPath`). A path with no command is
 valid and draws nothing; the catalog reports it too.
 
 #### Dependencies

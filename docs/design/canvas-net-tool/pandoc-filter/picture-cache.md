@@ -35,8 +35,8 @@ file-access key (`FileAccessArguments.Key`), the sorted options joined with `;`,
 `DependencyHasher`, streamed with the separator between them (not after the last). It returns the lowercase hexadecimal
 digest, the same as the Lua filter's `pandoc.sha1` of the fields and parts joined with `\n\0\n`.
 
-**StemOf(source)**: the source's file name without its last extension (`FilterPaths.Stem`), without a further `.vl`, with
-every UTF-8 byte that is not an ASCII letter, digit, `_`, or `-` made a `-` (a character of several bytes becomes
+**StemOf(source)**: the source's file name without its last extension (`FilterPaths.Stem`), without a further `.vl`,
+with every UTF-8 byte that is not an ASCII letter, digit, `_`, or `-` made a `-` (a character of several bytes becomes
 several dashes).
 
 **Names**: `PictureFile` is `<stem>-<key>.png`, `FlattenedFile` is `<stem>-<key>.svg`, `UnsupportedMarker` is

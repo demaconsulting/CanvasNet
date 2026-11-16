@@ -15,7 +15,7 @@ source files in the `DemaConsulting.CanvasNet.Scad.Language` namespace, all `int
 `ScadLexer` converts the complete source text into a list of `ScadToken` values, always ending with
 exactly one end-of-file token, or throws a `ScadSyntaxException` at the first lexical error. It exists
 as a separate stage so that the parser can look ahead over a plain token list, and so that every
-lexical error is reported before any grammatical analysis begins (see _ScadLanguage_,
+lexical error is reported before any grammatical analysis begins (see *ScadLanguage*,
 `scad-language.md`). The lexer is an original implementation written from general language-design
 knowledge, with no OpenSCAD source, grammar, manual text, or test material consulted.
 
@@ -37,18 +37,15 @@ character of the input (after any trailing whitespace, line breaks, and comments
 
 **`ScadTokenKind`** has one member per kind so that the parser can dispatch on `Kind` alone:
 
-<!-- markdownlint-disable MD013 -->
-
-| Group | Kinds |
-| ----- | ----- |
-| Structural | `EndOfFile` |
-| Literals and names | `Number`, `String`, `Identifier` |
-| Directives | `Include`, `Use` (the whole `include <path>` / `use <path>` is one token) |
-| Keywords | `Module`, `Function`, `If`, `Else`, `For`, `IntersectionFor`, `Let`, `Each`, `Assert`, `Echo`, `True`, `False`, `Undef` |
-| Punctuation | `LeftParen`, `RightParen`, `LeftBrace`, `RightBrace`, `LeftBracket`, `RightBracket`, `Semicolon`, `Comma`, `Dot`, `Colon`, `Question` |
-| Operators | `Assign`, `EqualEqual`, `NotEqual`, `Less`, `LessEqual`, `Greater`, `GreaterEqual`, `AndAnd`, `OrOr`, `Plus`, `Minus`, `Star`, `Slash`, `Percent`, `Caret`, `Bang`, `Hash` |
-
-<!-- markdownlint-enable MD013 -->
+- **Structural**: `EndOfFile`.
+- **Literals and names**: `Number`, `String`, `Identifier`.
+- **Directives**: `Include`, `Use` (the whole `include <path>` / `use <path>` is one token).
+- **Keywords**: `Module`, `Function`, `If`, `Else`, `For`, `IntersectionFor`, `Let`, `Each`, `Assert`, `Echo`, `True`,
+  `False`, `Undef`.
+- **Punctuation**: `LeftParen`, `RightParen`, `LeftBrace`, `RightBrace`, `LeftBracket`, `RightBracket`, `Semicolon`,
+  `Comma`, `Dot`, `Colon`, `Question`.
+- **Operators**: `Assign`, `EqualEqual`, `NotEqual`, `Less`, `LessEqual`, `Greater`, `GreaterEqual`, `AndAnd`, `OrOr`,
+  `Plus`, `Minus`, `Star`, `Slash`, `Percent`, `Caret`, `Bang`, `Hash`.
 
 The characters `*`, `!`, `#`, and `%` double as statement modifiers; the lexer always emits them as
 `Star`, `Bang`, `Hash`, and `Percent` and the parser decides from context whether they are modifiers
@@ -132,23 +129,21 @@ The lexer is fail-fast: the first lexical error throws a `ScadSyntaxException` w
 `{file}:{line}:{column}: {description}` (the prefix is shortened when the file name is null). No
 recovery is attempted. The complete message catalog follows; `c` stands for the offending character.
 
-<!-- markdownlint-disable MD013 -->
-
-| Condition | Message | Location |
-| --------- | ------- | -------- |
-| Block comment not closed | `Unterminated block comment` | the opening `/*` |
-| String not closed (also when the input ends right after a backslash) | `Unterminated string literal` | the opening quote |
-| Unknown escape letter | `Invalid escape sequence '\c'` | the backslash |
-| Missing or non-hexadecimal digits | `Invalid escape sequence '\x': expected 2 hexadecimal digits` (`\u` expects 4, `\U` expects 6) | the backslash |
-| Surrogate or above U+10FFFF | `Invalid escape sequence '\u': not a valid Unicode scalar value` | the backslash |
-| `$` without a name | `Expected a name after '$'` | the `$` |
-| Directive without `<` | `Expected '<' after 'include'` (or `'use'`) | the directive keyword |
-| Directive path not closed on its line | `Unterminated include/use path` | the directive keyword |
-| Directive path empty | `Empty include/use path` | the directive keyword |
-| Character that cannot start a token | `Unexpected character 'c'` | the character |
-| Lone `&` or `\|` | `Unexpected character '&'; did you mean '&&'?` (or `'\|'` / `'\|\|'`) | the character |
-
-<!-- markdownlint-enable MD013 -->
+- **Block comment not closed**: Message: `Unterminated block comment`. Location: the opening `/*`.
+- **String not closed (also when the input ends right after a backslash)**: Message: `Unterminated string literal`.
+  Location: the opening quote.
+- **Unknown escape letter**: Message: `Invalid escape sequence '\c'`. Location: the backslash.
+- **Missing or non-hexadecimal digits**: Message: `Invalid escape sequence '\x': expected 2 hexadecimal digits` (`\u`
+  expects 4, `\U` expects 6). Location: the backslash.
+- **Surrogate or above U+10FFFF**: Message: `Invalid escape sequence '\u': not a valid Unicode scalar value`. Location:
+  the backslash.
+- **`$` without a name**: Message: `Expected a name after '$'`. Location: the `$`.
+- **Directive without `<`**: Message: `Expected '<' after 'include'` (or `'use'`). Location: the directive keyword.
+- **Directive path not closed on its line**: Message: `Unterminated include/use path`. Location: the directive keyword.
+- **Directive path empty**: Message: `Empty include/use path`. Location: the directive keyword.
+- **Character that cannot start a token**: Message: `Unexpected character 'c'`. Location: the character.
+- **Lone `&` or `|`**: Message: `Unexpected character '&'; did you mean '&&'?` (or `'|'` / `'||'`). Location: the
+  character.
 
 A null `source` is a programming error and throws `ArgumentNullException`, which is not converted.
 Source length is not checked here: `ScadParser.Parse(string, string?)` and `ScadDocument` enforce the
@@ -157,7 +152,7 @@ Source length is not checked here: `ScadParser.Parse(string, string?)` and `Scad
 #### Dependencies
 
 - **`ScadSourceLocation`** and **`ScadSyntaxException`** — the public location and error types of the
-  `ScadDocument` unit (see _ScadDocument Unit Design_, `scad-document.md`).
+  `ScadDocument` unit (see *ScadDocument Unit Design*, `scad-document.md`).
 - **.NET base class library** — `System.Globalization` (`double.Parse` and `int.Parse` with the
   invariant culture), `System.Text.StringBuilder` for string values, and `char.ConvertFromUtf32`.
 

@@ -122,13 +122,13 @@ smallest subnormal is itself, and NaN, 8.5, and negative infinity are refused wi
 that `log(1)` is exactly 0 without a further precision step, the logarithms of the smallest subnormal and the largest
 double are -744.4400719213812 and 709.782712893384, and 0, -1, infinity, and NaN are refused; that the power follows
 V8's and ECMAScript's special cases (a NaN exponent, -1 to an infinite power, `(-3)^2` as 9, `9^0.5` as 3, `-∞^0.5` as
-+∞, `(-0)^0.5` as +0, `NaN^0` as 1, `NaN^3` as NaN, `1^1234.5` as 1), gives the exact powers 1024, 8, and 0.1,
-overflows to +∞ and underflows to 0 and the smallest subnormal as IEEE 754 does, and refuses a negative or zero base
-and an infinite exponent; that rounding to the nearest double breaks ties to even (2^53 + 1 to 2^53 and 2^53 + 3 to
-2^53 + 4), gives subnormal results, keeps the sign of a zero, and overflows to infinity; that a value just above a
-rounding midpoint (1 + 2^-53 + 2^-300) is decided at the second precision, one step, as 1.0000000000000002, while a value
-exactly on a midpoint cannot be rounded; and that the sine and cosine of all 23,480 angles, the logarithm of all 5,002
-values, and the power of all 850 cooling pairs equal Chrome's results bit for bit.
++∞, `(-0)^0.5` as +0, `NaN^0` as 1, `NaN^3` as NaN, `1^1234.5` as 1), gives the exact powers 1024, 8, and 0.1, overflows
+to +∞ and underflows to 0 and the smallest subnormal as IEEE 754 does, and refuses a negative or zero base and an
+infinite exponent; that rounding to the nearest double breaks ties to even (2^53 + 1 to 2^53 and 2^53 + 3 to 2^53 + 4),
+gives subnormal results, keeps the sign of a zero, and overflows to infinity; that a value just above a rounding
+midpoint (1 + 2^-53 + 2^-300) is decided at the second precision, one step, as 1.0000000000000002, while a value exactly
+on a midpoint cannot be rounded; and that the sine and cosine of all 23,480 angles, the logarithm of all 5,002 values,
+and the power of all 850 cooling pairs equal Chrome's results bit for bit.
 
 ##### CanvasNetMermaid-Cose-CoseLayout-Work: Pinned Work And The Limit
 

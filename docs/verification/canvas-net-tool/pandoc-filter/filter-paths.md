@@ -53,6 +53,6 @@ upper-cased folder name is under it on Windows only.
 **FilterPaths_LocateSource_ResourcePath_FindsAsWrittenOrDecoded**: with the resource folders `a` and `b`, the name
 `my%20flow.mmd` finds `b/my flow.mmd` through its decoded form, and `none.mmd` finds nothing.
 
-**FilterPaths_PathFunctions_FollowPandocPath**: the folder of `name.svg` is `.` and of `a/b.svg` is `a`, the file name of
-`a/b.svg` is `b.svg`, the stem of `chart.vl.json` is `chart.vl`, `%C3%A9` decodes to `é`, and `100%` stays; the search
-path `a;;"b c"` gives `a` and `b c` on Windows, and `a::"b c"` gives `a`, `.`, and `"b c"` elsewhere.
+**FilterPaths_PathFunctions_FollowPandocPath**: the folder of `name.svg` is `.` and of `a/b.svg` is `a`, the file name
+of `a/b.svg` is `b.svg`, the stem of `chart.vl.json` is `chart.vl`, `%C3%A9` decodes to `é`, and `100%` stays; the
+search path `a;;"b c"` gives `a` and `b c` on Windows, and `a::"b c"` gives `a`, `.`, and `"b c"` elsewhere.

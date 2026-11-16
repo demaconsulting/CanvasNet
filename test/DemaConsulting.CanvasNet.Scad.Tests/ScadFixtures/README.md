@@ -38,12 +38,12 @@ OpenSCAD's source code, test corpus, manual text, manual examples, or rendering 
 `#` modifiers in CanvasNet (a ghost that is not part of the model, a highlight that still takes part in the booleans)
 are written down in `docs/design/canvas-net-scad.md` as CanvasNet's own decisions.
 
-`render-projection-views.scad` (the `projection()` feature) is an original work of the same kind: the flanged bushing, its
-four views and the sheet were designed for these tests, and every expected shape is computed by the test from the
-dimensions in the file. `render-projection-sheet.scad` and `render-viewport-hud.scad` are the two sample models that
-the requester of the feature supplied; they are the requester's own text, used as given, and no OpenSCAD source or manual
-example was consulted for them or for the expectations of their tests, which are computed from the documented meaning
-of the viewport variables of CanvasNet (see `docs/design/canvas-net-scad.md`) and from plain rotation matrices.
+`render-projection-views.scad` (the `projection()` feature) is an original work of the same kind: the flanged bushing,
+its four views and the sheet were designed for these tests, and every expected shape is computed by the test from the
+dimensions in the file. `render-projection-sheet.scad` and `render-viewport-hud.scad` are the two sample models that the
+requester of the feature supplied; they are the requester's own text, used as given, and no OpenSCAD source or manual
+example was consulted for them or for the expectations of their tests, which are computed from the documented meaning of
+the viewport variables of CanvasNet (see `docs/design/canvas-net-scad.md`) and from plain rotation matrices.
 
 `.scad` files are not spell-checked by the repository lint, and the repository normalizes text files to LF line
 endings on checkout. Tests that depend on other line-ending conventions build their input in code instead.
@@ -59,59 +59,88 @@ named after the topic, not after any other implementation's behavior.
 
 ## Fixtures
 
-<!-- markdownlint-disable MD013 -->
-
-| File | Purpose |
-| ---- | ------- |
-| `basic-shapes.scad` | Variables, special variables, primitive calls with positional and named arguments, transform chains and blocks |
-| `modules-and-functions.scad` | Module and function definitions with default parameters, nested definitions, `children()`, recursion |
-| `control-flow.scad` | `if`/`else if`/`else`, `for` with several iterators, `intersection_for`, `let`, `echo` and `assert` |
-| `list-comprehensions.scad` | `for`, nested `for`, `if`/`else`, `let`, `each`, C-style `for` and mixed elements |
-| `expressions-and-operators.scad` | Every operator, precedence-sensitive expressions, ternary chains, indexing, members and ranges |
-| `function-literals.scad` | Function literals, immediate calls, passing and returning functions, calls on arbitrary expressions |
-| `modifiers.scad` | The `*`, `!`, `#` and `%` modifiers, combined and on calls, loops, conditionals and blocks |
-| `include-and-use.scad` | `include <...>` and `use <...>` directives; the paths intentionally do not exist and are never resolved |
-| `lexical-forms.scad` | Comments, string escapes, number forms and special variables |
-| `parametric-bracket.scad` | A realistic shelf bracket using most features; its module and function names are asserted by a system test |
-| `invalid-unterminated-block-comment.scad` | A block comment that is never closed |
-| `invalid-missing-semicolon.scad` | A statement without its terminating semicolon |
-| `invalid-unbalanced-brace.scad` | A module body whose closing brace is missing |
-| `eval-scoping.scad` | Last assignment wins, hoisted definitions, lazy and circular variables, block, module, `let` and loop scopes |
-| `eval-special-variables.scad` | Defaults, dynamic scoping of `$` variables through modules, functions and `children()`, `$`-named arguments |
-| `eval-modules-and-children.scad` | Module defaults, named arguments, `children()` with index and range, `$children`, recursion, user modules shadowing built-ins |
-| `eval-functions-and-recursion.scad` | Recursion, tail recursion 100 000 levels deep, mutual recursion, named arguments, `echo`/`let`/`assert` expressions |
-| `eval-closures.scad` | Function literals, captured variables, composition, immediate calls, type tests |
-| `eval-control-flow.scad` | Ranges (including descending and fractional), several iterators, `if`/`else`, `let`, `intersection_for` |
-| `eval-comprehensions.scad` | Every list-comprehension form including `each`, nested and C-style generators |
-| `eval-operators-and-vectors.scad` | Operators, comparison, truthiness, vector and matrix arithmetic, indexing, members, precedence |
-| `eval-builtin-math.scad` | Numeric built-in functions, rounding, trigonometry in degrees, `norm`, `cross`, wrong-type warnings |
-| `eval-builtin-lists-and-strings.scad` | `len`, `concat`, `str`, `chr`, `ord`, `lookup`, `search`, seeded `rands`, `version` |
-| `eval-number-formatting.scad` | How numbers, strings, lists, ranges and functions print in `echo` and `str` |
-| `eval-overrides.scad` | Variable overrides: run as written and with `width`, `tag`, `$fn` and `extra` supplied |
-| `eval-include-main.scad` | `include` and `use` of `libs/defs.scad`, `libs/nested/inner.scad` and `libs/shapes.scad`, from disk and through a resolver |
-| `eval-instance-tree.scad` | The instantiation tree of a parametric bracket with modifiers, loops and fragment settings |
-| `eval-diagnostics.scad` | Every kind of survivable problem and its warning text and location |
-| `eval-unsupported.scad` | Recognized but unsupported functions, reported once per location |
-| `render-primitives.scad` | A colored cube, sphere and cylinder side by side: exact colors, footprints and heights |
-| `render-bracket-csg.scad` | A plate with a round through hole and a rectangular slot (`difference`) |
-| `render-intersection.scad` | A block trimmed by a round cutter (`intersection`): corners lost, sides kept |
-| `render-transforms.scad` | `translate`, `rotate`, `mirror`, `scale`, `resize` and `multmatrix` on separately colored parts with known extents |
-| `render-extrusions.scad` | `linear_extrude` (star with a hole, `scale`, `twist` with `center`) and `rotate_extrude` (vase and ring) |
-| `render-2d-csg.scad` | 2D `difference` and `intersection` of circles and squares distributed into extrusions |
-| `render-polyhedron.scad` | A pyramid, an octahedron and an L-shaped prism with a concave face, faces listed clockwise from outside |
-| `render-modules-scene.scad` | A recursive staircase, a ring of posts made with a loop and `children()`, and a painting module |
-| `render-modifiers.scad` | The `*`, `#` and `%` modifiers: disabled (nothing drawn), highlighted (drawn, with a translucent copy in front) and background (only a translucent ghost) |
-| `render-root-modifier.scad` | The `!` modifier: only the marked subtree is drawn (a highlight inside it included) |
-| `render-parametric.scad` | A peg board whose size comes from variables that the tests override (the `-D` equivalent) |
-| `render-unsupported.scad` | One recognized but unsupported construct per line (modules, a hull of mixed dimensions, a Minkowski sum with a boolean operand, a `%` on a 2D shape that is not extruded) next to supported geometry |
-| `render-text.scad` | `text()` with the default bundled font, all extruded: centered text with holes, an extruded line with a descender, an extruded 2D difference of text, a 2D hull of text and a `rotate_extrude` of a glyph |
-| `render-transparency.scad` | Color alpha (vector, hex, `alpha=`), a translucent cube alone and over an opaque plate, a translucent difference with a blind cavity, a `%` ghost that passes through a solid without cutting it, a `#` on a subtracted cylinder, and a `%` of an extruded circle |
-| `render-hull.scad` | `hull` of two cubes (a hexagonal prism), of 2D squares (extruded), of two spheres (a capsule), and as a cutter in a difference |
-| `render-minkowski.scad` | `minkowski` of a block and a ball (a rounded box), of a union of blocks (distributed), and of a hull and a cube |
-| `render-projection-sheet.scad` | A drawing sheet of 2D shapes only: two `projection()` views of a cube, a border and two lines of text; drawn flat from the top |
-| `render-projection-views.scad` | A flanged bushing drawn as top, front and side `projection()` shadows and a `projection(cut = true)` section on one sheet |
-| `render-viewport-hud.scad` | A cube and a line of text placed with `$vpt`, `$vpr` and `$vpd` (a head-up display written with negated single-axis rotations) |
-| `libs/defs.scad`, `libs/nested/inner.scad`, `libs/shapes.scad` | Files included or used by `eval-include-main.scad`; they are not enumerated by the parse tests |
+- **`basic-shapes.scad`**: Variables, special variables, primitive calls with positional and named arguments, transform
+  chains and blocks.
+- **`modules-and-functions.scad`**: Module and function definitions with default parameters, nested definitions,
+  `children()`, recursion.
+- **`control-flow.scad`**: `if`/`else if`/`else`, `for` with several iterators, `intersection_for`, `let`, `echo` and
+  `assert`.
+- **`list-comprehensions.scad`**: `for`, nested `for`, `if`/`else`, `let`, `each`, C-style `for` and mixed elements.
+- **`expressions-and-operators.scad`**: Every operator, precedence-sensitive expressions, ternary chains, indexing,
+  members and ranges.
+- **`function-literals.scad`**: Function literals, immediate calls, passing and returning functions, calls on arbitrary
+  expressions.
+- **`modifiers.scad`**: The `*`, `!`, `#` and `%` modifiers, combined and on calls, loops, conditionals and blocks.
+- **`include-and-use.scad`**: `include <...>` and `use <...>` directives; the paths intentionally do not exist and are
+  never resolved.
+- **`lexical-forms.scad`**: Comments, string escapes, number forms and special variables.
+- **`parametric-bracket.scad`**: A realistic shelf bracket using most features; its module and function names are
+  asserted by a system test.
+- **`invalid-unterminated-block-comment.scad`**: A block comment that is never closed.
+- **`invalid-missing-semicolon.scad`**: A statement without its terminating semicolon.
+- **`invalid-unbalanced-brace.scad`**: A module body whose closing brace is missing.
+- **`eval-scoping.scad`**: Last assignment wins, hoisted definitions, lazy and circular variables, block, module, `let`
+  and loop scopes.
+- **`eval-special-variables.scad`**: Defaults, dynamic scoping of `$` variables through modules, functions and
+  `children()`, `$`-named arguments.
+- **`eval-modules-and-children.scad`**: Module defaults, named arguments, `children()` with index and range,
+  `$children`, recursion, user modules shadowing built-ins.
+- **`eval-functions-and-recursion.scad`**: Recursion, tail recursion 100 000 levels deep, mutual recursion, named
+  arguments, `echo`/`let`/`assert` expressions.
+- **`eval-closures.scad`**: Function literals, captured variables, composition, immediate calls, type tests.
+- **`eval-control-flow.scad`**: Ranges (including descending and fractional), several iterators, `if`/`else`, `let`,
+  `intersection_for`.
+- **`eval-comprehensions.scad`**: Every list-comprehension form including `each`, nested and C-style generators.
+- **`eval-operators-and-vectors.scad`**: Operators, comparison, truthiness, vector and matrix arithmetic, indexing,
+  members, precedence.
+- **`eval-builtin-math.scad`**: Numeric built-in functions, rounding, trigonometry in degrees, `norm`, `cross`,
+  wrong-type warnings.
+- **`eval-builtin-lists-and-strings.scad`**: `len`, `concat`, `str`, `chr`, `ord`, `lookup`, `search`, seeded `rands`,
+  `version`.
+- **`eval-number-formatting.scad`**: How numbers, strings, lists, ranges and functions print in `echo` and `str`.
+- **`eval-overrides.scad`**: Variable overrides: run as written and with `width`, `tag`, `$fn` and `extra` supplied.
+- **`eval-include-main.scad`**: `include` and `use` of `libs/defs.scad`, `libs/nested/inner.scad` and
+  `libs/shapes.scad`, from disk and through a resolver.
+- **`eval-instance-tree.scad`**: The instantiation tree of a parametric bracket with modifiers, loops and fragment
+  settings.
+- **`eval-diagnostics.scad`**: Every kind of survivable problem and its warning text and location.
+- **`eval-unsupported.scad`**: Recognized but unsupported functions, reported once per location.
+- **`render-primitives.scad`**: A colored cube, sphere and cylinder side by side: exact colors, footprints and heights.
+- **`render-bracket-csg.scad`**: A plate with a round through hole and a rectangular slot (`difference`).
+- **`render-intersection.scad`**: A block trimmed by a round cutter (`intersection`): corners lost, sides kept.
+- **`render-transforms.scad`**: `translate`, `rotate`, `mirror`, `scale`, `resize` and `multmatrix` on separately
+  colored parts with known extents.
+- **`render-extrusions.scad`**: `linear_extrude` (star with a hole, `scale`, `twist` with `center`) and `rotate_extrude`
+  (vase and ring).
+- **`render-2d-csg.scad`**: 2D `difference` and `intersection` of circles and squares distributed into extrusions.
+- **`render-polyhedron.scad`**: A pyramid, an octahedron and an L-shaped prism with a concave face, faces listed
+  clockwise from outside.
+- **`render-modules-scene.scad`**: A recursive staircase, a ring of posts made with a loop and `children()`, and a
+  painting module.
+- **`render-modifiers.scad`**: The `*`, `#` and `%` modifiers: disabled (nothing drawn), highlighted (drawn, with a
+  translucent copy in front) and background (only a translucent ghost).
+- **`render-root-modifier.scad`**: The `!` modifier: only the marked subtree is drawn (a highlight inside it included).
+- **`render-parametric.scad`**: A peg board whose size comes from variables that the tests override (the `-D`
+  equivalent).
+- **`render-unsupported.scad`**: One recognized but unsupported construct per line (modules, a hull of mixed dimensions,
+  a Minkowski sum with a boolean operand, a `%` on a 2D shape that is not extruded) next to supported geometry.
+- **`render-text.scad`**: `text()` with the default bundled font, all extruded: centered text with holes, an extruded
+  line with a descender, an extruded 2D difference of text, a 2D hull of text and a `rotate_extrude` of a glyph.
+- **`render-transparency.scad`**: Color alpha (vector, hex, `alpha=`), a translucent cube alone and over an opaque
+  plate, a translucent difference with a blind cavity, a `%` ghost that passes through a solid without cutting it, a `#`
+  on a subtracted cylinder, and a `%` of an extruded circle.
+- **`render-hull.scad`**: `hull` of two cubes (a hexagonal prism), of 2D squares (extruded), of two spheres (a capsule),
+  and as a cutter in a difference.
+- **`render-minkowski.scad`**: `minkowski` of a block and a ball (a rounded box), of a union of blocks (distributed),
+  and of a hull and a cube.
+- **`render-projection-sheet.scad`**: A drawing sheet of 2D shapes only: two `projection()` views of a cube, a border
+  and two lines of text; drawn flat from the top.
+- **`render-projection-views.scad`**: A flanged bushing drawn as top, front and side `projection()` shadows and a
+  `projection(cut = true)` section on one sheet.
+- **`render-viewport-hud.scad`**: A cube and a line of text placed with `$vpt`, `$vpr` and `$vpd` (a head-up display
+  written with negated single-axis rotations).
+- **`libs/defs.scad`, `libs/nested/inner.scad`, `libs/shapes.scad`**: Files included or used by
+  `eval-include-main.scad`; they are not enumerated by the parse tests.
 
 ## Expected Outputs
 
@@ -119,24 +148,26 @@ Each `eval-<topic>.scad` is evaluated through the public `ScadDocument.Evaluate`
 Line endings are normalized before comparison and the comparison is culture-invariant. A line that starts with `#`
 (a hash and a space) in an expected-output file is a comment (it carries spelling directives) and is ignored.
 
-| File | Content | When absent |
-| ---- | ------- | ----------- |
-| `eval-<topic>.expected.txt` | The `echo` lines, one per line, including the `ECHO:` prefix | Required |
-| `eval-<topic>.diagnostics.txt` | The warnings as `line:column: message` | No warnings are expected |
-| `eval-<topic>.unsupported.txt` | The unsupported features as `line:column: feature: message` | None are expected |
-| `eval-<topic>.tree.txt` | The instantiation tree, one instance per line, children indented two spaces | The tree is not compared |
-| `eval-overrides.overridden.expected.txt` | The echo lines when the caller supplies `width = 6`, `tag = "custom"`, `$fn = 48`, `extra = [1, 2]` | - |
+The files beside a model, and what an absent file means:
+
+- **`eval-<topic>.expected.txt`** (required): The `echo` lines, one per line, including the `ECHO:` prefix.
+- **`eval-<topic>.diagnostics.txt`**: The warnings as `line:column: message`; when it is absent, no warnings are
+  expected.
+- **`eval-<topic>.unsupported.txt`**: The unsupported features as `line:column: feature: message`; when it is absent,
+  none are expected.
+- **`eval-<topic>.tree.txt`**: The instantiation tree, one instance per line, children indented two spaces; when it is
+  absent, the tree is not compared.
+- **`eval-overrides.overridden.expected.txt`**: The echo lines when the caller supplies `width = 6`, `tag = "custom"`,
+  `$fn = 48`, `extra = [1, 2]`.
 
 The tree is internal, so it is read through the test helper `ScadInstanceDumper`; its first column shows a modifier
-(`!`, `#`, `%`), `group<name>` for the groups the evaluator creates, and `name(arguments)` for built-in modules, followed
-by any fragment setting that differs from the default.
-
-<!-- markdownlint-enable MD013 -->
+(`!`, `#`, `%`), `group<name>` for the groups the evaluator creates, and `name(arguments)` for built-in modules,
+followed by any fragment setting that differs from the default.
 
 ## Expected Errors
 
 | File | Line | Column | Description |
-| ---- | ---- | ------ | ----------- |
+| --- | --- | --- | --- |
 | `invalid-unterminated-block-comment.scad` | 4 | 1 | The opening `/*` of the unterminated comment |
 | `invalid-missing-semicolon.scad` | 4 | 1 | The token after the unterminated assignment (`height`) |
 | `invalid-unbalanced-brace.scad` | 5 | 1 | End of input, where the closing `}` was expected |

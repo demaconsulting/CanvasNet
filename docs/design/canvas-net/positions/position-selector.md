@@ -52,8 +52,8 @@ matches the number 3 (and 3.0) and `x="3"` matches the text `3`. A bare channel 
 
 **`PositionSelector`** fields: `Text` (as given), `Kind` (the lowercase kind, or `null` for `all`, so `IsAll` is
 `Kind is null`), and the private `_idPattern` (a glob), `_exactId` (a quoted id), and `_predicates` (an array of the
-private `Predicate(Name, Value)` record: an `@` name in lowercase or a channel or field name as written, and a `PositionValue`).
-At most one of the id pattern, the exact id, and the predicates is set.
+private `Predicate(Name, Value)` record: an `@` name in lowercase or a channel or field name as written, and a
+`PositionValue`). At most one of the id pattern, the exact id, and the predicates is set.
 
 **`PositionSelection`** fields: `Selectors` (the parsed selectors in their first order, identical texts kept once) and
 the static `All` (the selection of the single selector `all`).
@@ -90,8 +90,8 @@ and thread-safe.
   skipping trailing stars. It takes at most (pattern length) x (id length) steps and never recurses.
 - **`PositionSelector.IsKindWord(text)`** (internal) - an ASCII letter followed by ASCII letters, digits, and `-`; also
   used by `ImagePosition` for its `Kind`.
-- **`PositionSelection.Parse(texts)`** - counts every text and refuses the 33rd before parsing more, parses each distinct
-  text once (ordinal comparison, first order kept), and refuses an empty list.
+- **`PositionSelection.Parse(texts)`** - counts every text and refuses the 33rd before parsing more, parses each
+  distinct text once (ordinal comparison, first order kept), and refuses an empty list.
 - **`PositionSelection.IncludesKind(kind)`** - `true` when a selector is `all` or names the kind, so that a renderer can
   skip the kinds nobody asked for; **`PositionSelection.Matches(position)`** - `true` when any selector matches.
 

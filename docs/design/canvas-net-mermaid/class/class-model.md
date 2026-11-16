@@ -152,7 +152,7 @@ gives Mermaid's display text (visibility, name, parameters, and return type with
     classes of a class (joined with spaces), its styles, and the styles of a style class (joined with semicolons) are
     checked as they grow (`CheckLabelLength`), located at the `cssClass`, `classDef`, `style`, class, or click
     statement that makes them too long, because a name listed again repeats them as in Mermaid. Every other text the
-    model keeps was checked by the parser (see _ClassParser Unit Design_);
+    model keeps was checked by the parser (see *ClassParser Unit Design*);
   - a namespace whose qualified id has more parts than `MaxNestingDepth` (`mermaid-limit-exceeded`, located at the
     namespace name, with the parser's message `namespaces are nested deeper than N levels`, checked by `CheckDepth`):
     the parts of nested `namespace` keywords and of the dots in a name count together, because with
@@ -213,4 +213,4 @@ gives Mermaid's display text (visibility, name, parameters, and return type with
   the first text span) is not ported; the shared rendering decodes the entities, so a one-line text gives the same
   characters.
 - **Reports.** A look other than `classic` and a layout other than `dagre` are reported as unsupported and drawn in the
-  classic look with dagre (see _CanvasNetMermaid System Design_, Fidelity and Known Differences).
+  classic look with dagre (see *CanvasNetMermaid System Design*, Fidelity and Known Differences).

@@ -4,28 +4,28 @@
 
 ### Overview
 
-The `Pie` subsystem (namespace `DemaConsulting.CanvasNet.Mermaid.Pie`, folder `src/DemaConsulting.CanvasNet.Mermaid/Pie/`)
-reads the text of a pie chart (the `pie` keyword, Mermaid's diagram id `pie`) into the state of Mermaid's pie database
-and draws the chart as Mermaid's pie renderer draws it. Unlike the flowchart, class, state, and entity relationship
-diagrams, a pie chart is not a graph: it is not laid out by the shared layered layout or drawn by the shared unified
-renderer, but placed by the fixed geometry of Mermaid's pie renderer, so this subsystem draws its scene itself, with the
-text metrics of the shared `Rendering` subsystem and the pie style sheet of the `Configuration` subsystem. It is
-**internal**: its types are visible only to the other subsystems of the system and, through `InternalsVisibleTo`, to the
-test assembly. It contains two units:
+The `Pie` subsystem (namespace `DemaConsulting.CanvasNet.Mermaid.Pie`, folder
+`src/DemaConsulting.CanvasNet.Mermaid/Pie/`) reads the text of a pie chart (the `pie` keyword, Mermaid's diagram id
+`pie`) into the state of Mermaid's pie database and draws the chart as Mermaid's pie renderer draws it. Unlike the
+flowchart, class, state, and entity relationship diagrams, a pie chart is not a graph: it is not laid out by the shared
+layered layout or drawn by the shared unified renderer, but placed by the fixed geometry of Mermaid's pie renderer, so
+this subsystem draws its scene itself, with the text metrics of the shared `Rendering` subsystem and the pie style sheet
+of the `Configuration` subsystem. It is **internal**: its types are visible only to the other subsystems of the system
+and, through `InternalsVisibleTo`, to the test assembly. It contains two units:
 
 - **PieParser** - the internal sealed `PieParser` (a partial class in `PieParser.cs` and `PieParser.Lexer.cs`), the
   token `PieToken` (in `PieParser.Lexer.cs`), and the section `PieSection` and the diagram `PieDiagram` (in
   `PieParser.cs`): the lexer and the grammar of Mermaid's pie language, the value converters, the pie database with its
   title and accessibility texts, the metadata of the diagram, the located errors with Mermaid's expected tokens, and the
-  node and label limits; see _PieParser Unit Design_ (`pie/pie-parser.md`)
+  node and label limits; see *PieParser Unit Design* (`pie/pie-parser.md`)
 - **PieRenderer** - the internal sealed `PieRenderer` (a partial class in `PieRenderer.cs` and `PieRenderer.Arcs.cs`)
   and the arc `PieArc` (in `PieRenderer.Arcs.cs`): the drawing of Mermaid's pie renderer (the outer circle, the slices,
   the percentage labels, the title, the legend in its position, the donut hole, the highlighted slice, and the view box)
-  with the ports of the d3 functions it uses; see _PieRenderer Unit Design_ (`pie/pie-renderer.md`)
+  with the ports of the d3 functions it uses; see *PieRenderer Unit Design* (`pie/pie-renderer.md`)
 
 The subsystem's namespace documentation is in `Pie/NamespaceDoc.cs`. Its behavior is specified by the
 `CanvasNetMermaid-Pie-*` requirements in `docs/reqstream/canvas-net-mermaid/pie.yaml`. The SysML2 model names the
-subsystem `MermaidPie` (see _CanvasNetMermaid System Design_).
+subsystem `MermaidPie` (see *CanvasNetMermaid System Design*).
 
 **Attribution.** The subsystem is a port of the pie chart of the pinned Mermaid release (MIT; see
 `third-party/README.md`): the parser ports the Langium grammar of `@mermaid-js/parser` (`src/language/pie/pie.langium`
@@ -122,7 +122,7 @@ backtrack and the grammar is read in loops, so reading a text is linear in its l
 is bounded by the sections and texts that the limits allow, and the layout work meter of the render
 (`MaxLayoutWork`) is charged for each section and for the length of each measured text and checks cancellation.
 
-**Known differences from Mermaid** are listed in each unit design and in _CanvasNetMermaid System Design_: errors and
+**Known differences from Mermaid** are listed in each unit design and in *CanvasNetMermaid System Design*: errors and
 limits are located CanvasNet exceptions with hints, and only the first error is reported; the accessibility texts are
 metadata only; the opacity of a slice is folded into its colors, and the scale of the highlighted slice is applied to
 its geometry; a slice highlighted on hover is never drawn highlighted; and the texts of a pie chart give no report of a

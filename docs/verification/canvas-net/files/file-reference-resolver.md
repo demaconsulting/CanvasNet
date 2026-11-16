@@ -81,24 +81,24 @@ segments give the same instance; a drive path is absolute on Windows and invalid
 A theory over empty and white-space text, NUL, a line feed, DEL, a C1 control, an alternate data stream, a
 drive-relative path, UNC paths in both slash styles, and `\\?\` and `\\.\` device paths asserts the matching kind in
 file-system and callback mode, a printable reference, a message that says the path is not allowed, and that nothing was
-opened or requested. A null reference is an `ArgumentNullException`. On Windows a theory over reserved device names
-in a component - `NUL`, `x/NUL`, a trailing space, `nul.txt`, `Nul .txt`, `AUX.tar.gz`, `PRN.`, `CON`, `COM1`, `lpt9`,
+opened or requested. A null reference is an `ArgumentNullException`. On Windows a theory over reserved device names in a
+component - `NUL`, `x/NUL`, a trailing space, `nul.txt`, `Nul .txt`, `AUX.tar.gz`, `PRN.`, `CON`, `COM1`, `lpt9`,
 `COM¹`, `LPT³.txt`, `CONIN$`, `conout$`, and `NUL` as a folder (`NUL/a.txt`) - asserts `InvalidPath` with the reason
 "the path names a device" and, through the `BeforeOpen` seam, that nothing at all was opened, whether or not the running
 Windows version rewrites the path to `\\.\`. A theory over single components (on every system, the check is pure text)
 asserts the reserved spellings - every letter case, an extension, trailing spaces or dots, a stream suffix, `COM0` to
-`COM9`, the superscript digits, the console names - and that similar names (`NULL`, `CONSOLE`, `COM10`, `a.NUL`, a leading
-space) are not reserved. With an extended-length base directory (`\\?\` in front of the temporary
-directory), a theory over the absolute references `C:/x/NUL` and `C:/x/nul` (trailing space), which the system maps
-to `\\.\NUL`, asserts `InvalidPath` with the reason "the path names a device", that a file under the base directory
-is still read, and that a reserved name under the extended-length base directory (`NUL.txt`) is an ordinary (missing)
-file, because `\\?\` paths map no device names; only `\\?\` paths are opened. With a base directory in any other device
-namespace (`\\?\GLOBALROOT\Device\HarddiskVolume1\docs`, `\\?\UNC\server\share\docs`, `\\?\pipe\docs`, `\\.\C:\docs`),
-a relative reference and one climbing with `..` are `InvalidPath` ("the path names a device") and nothing is opened.
-With a base directory spelled with the volume GUID of the temporary folder's drive (from `mountvol`), a file is read.
-A theory over spellings (pure text, every system) asserts that only `\\?\` followed by a drive or a 36-character volume
-GUID is an ordinary extended-length path, and that `\\?\`, `\\.\`, `\??\` and `//?/` paths are in a device namespace
-while drive, UNC and Unix paths are not.
+`COM9`, the superscript digits, the console names - and that similar names (`NULL`, `CONSOLE`, `COM10`, `a.NUL`, a
+leading space) are not reserved. With an extended-length base directory (`\\?\` in front of the temporary directory), a
+theory over the absolute references `C:/x/NUL` and `C:/x/nul` (trailing space), which the system maps to `\\.\NUL`,
+asserts `InvalidPath` with the reason "the path names a device", that a file under the base directory is still read, and
+that a reserved name under the extended-length base directory (`NUL.txt`) is an ordinary (missing) file, because `\\?\`
+paths map no device names; only `\\?\` paths are opened. With a base directory in any other device namespace
+(`\\?\GLOBALROOT\Device\HarddiskVolume1\docs`, `\\?\UNC\server\share\docs`, `\\?\pipe\docs`, `\\.\C:\docs`), a relative
+reference and one climbing with `..` are `InvalidPath` ("the path names a device") and nothing is opened. With a base
+directory spelled with the volume GUID of the temporary folder's drive (from `mountvol`), a file is read. A theory over
+spellings (pure text, every system) asserts that only `\\?\` followed by a drive or a 36-character volume GUID is an
+ordinary extended-length path, and that `\\?\`, `\\.\`, `\??\` and `//?/` paths are in a device namespace while drive,
+UNC and Unix paths are not.
 
 ##### CanvasNet-Files-FileReferenceResolver-MissingFiles: Not Found Is Not a Failure
 

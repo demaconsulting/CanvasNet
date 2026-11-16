@@ -23,12 +23,9 @@ cards below it that have examples); the documents of the other commands are unch
 
 **Document layout**. Every document is a single JSON object on a single line:
 
-<!-- markdownlint-disable MD013 -->
-| Document | Keys, in order |
-| -------- | -------------- |
-| success | `schemaVersion` (number), `ok` (`true`), `command` (string), then the command's own fields |
-| failure | `schemaVersion`, `ok` (`false`), `command` (string, or `null` when no command was selected), `error` (object: `code`, `message`, and `hint` only when there is one) |
-<!-- markdownlint-enable MD013 -->
+- **success**: `schemaVersion` (number), `ok` (`true`), `command` (string), then the command's own fields.
+- **failure**: `schemaVersion`, `ok` (`false`), `command` (string, or `null` when no command was selected), `error`
+  (object: `code`, `message`, and `hint` only when there is one).
 
 A failure document has no exit-code field: every failure exits with code 1.
 

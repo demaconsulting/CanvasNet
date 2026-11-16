@@ -125,11 +125,12 @@ Asserts that the blocks `0-10`, `11-90`, `91-95`, and `96` give, at 32 bits per 
 count 20), `32-63` (31), `64-90` (26) and `91-95`, and `96`, the parts of `11-90` keeping its label and its statement's
 location (Mermaid's bit counts of a cut part are one less than its bits); that at 1 bit per row each bit is a row, at 0
 bits per row the split gives Mermaid's 10,000 rows of the part `0` to `-1`, at a negative size it gives no row, and the
-range `0-99999999` stops at 10,000 rows, the last from 319,968 to 319,999; that at 1.5 bits per row the blocks `0`,
-`1`, and `2-3` fail with `mermaid-render-failed` at line 3 and Mermaid's message `Block start 1.5 is greater than block
-end 1.`; that with a `MaxNodes` of 10 the range `1-99999999` fails with `mermaid-limit-exceeded` at line 3, naming
-`MaxNodes`; that the split of `0-40` and `41` charges 5 units (one for each of the two blocks and each of the three
-parts) and fails with `mermaid-limit-exceeded` on a meter of 4; and that the rows of every upstream vector are Mermaid's.
+range `0-99999999` stops at 10,000 rows, the last from 319,968 to 319,999; that at 1.5 bits per row the blocks `0`, `1`,
+and `2-3` fail with `mermaid-render-failed` at line 3 and Mermaid's message
+`Block start 1.5 is greater than block end 1.`; that with a `MaxNodes` of 10 the range `1-99999999` fails with
+`mermaid-limit-exceeded` at line 3, naming `MaxNodes`; that the split of `0-40` and `41` charges 5 units (one for each
+of the two blocks and each of the three parts) and fails with `mermaid-limit-exceeded` on a meter of 4; and that the
+rows of every upstream vector are Mermaid's.
 
 ##### CanvasNetMermaid-Packet-PacketParser-Metadata: Counts And Titles
 

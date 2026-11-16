@@ -15,31 +15,31 @@ other subsystems of the system and, through `InternalsVisibleTo`, to the test as
   point `Run` and the stages and helpers of dagre's `layout.js` and `util.js`, with the grouped helper types of the
   input graph (`DagreGraph`, `DagreNode`, `DagreEdge`, `DagrePoint` in `DagreGraph.cs`), of the internal layout graph
   (`LayoutGraphLabel`, `LayoutNode`, `LayoutEdge`, `SelfEdge` in `LayoutModel.cs`), and the JavaScript and lodash
-  collection semantics (`Lodash` in `Lodash.cs`); see _DagreLayout Unit Design_ (`dagre/dagre-layout.md`)
+  collection semantics (`Lodash` in `Lodash.cs`); see *DagreLayout Unit Design* (`dagre/dagre-layout.md`)
 - **DagreAcyclic** - the internal static `DagreAcyclic`: the cycle breaking of `acyclic.js`, `greedy-fas.js`, and
-  `data/list.js`; see _DagreAcyclic Unit Design_ (`dagre/dagre-acyclic.md`)
+  `data/list.js`; see *DagreAcyclic Unit Design* (`dagre/dagre-acyclic.md`)
 - **DagreRanker** - the internal static partial `DagreRanker` (`DagreRanker.cs`, `DagreRanker.FeasibleTree.cs`,
   `DagreRanker.NetworkSimplex.cs`): the ranking of `rank/index.js`, `rank/util.js`, `rank/feasible-tree.js`, and
-  `rank/network-simplex.js`; see _DagreRanker Unit Design_ (`dagre/dagre-ranker.md`)
+  `rank/network-simplex.js`; see *DagreRanker Unit Design* (`dagre/dagre-ranker.md`)
 - **DagreNesting** - the internal static `DagreNesting`: the cluster handling of `nesting-graph.js`,
-  `parent-dummy-chains.js`, and `add-border-segments.js`; see _DagreNesting Unit Design_ (`dagre/dagre-nesting.md`)
+  `parent-dummy-chains.js`, and `add-border-segments.js`; see *DagreNesting Unit Design* (`dagre/dagre-nesting.md`)
 - **DagreNormalizer** - the internal static `DagreNormalizer`: the long-edge chains of `normalize.js`; see
-  _DagreNormalizer Unit Design_ (`dagre/dagre-normalizer.md`)
+  *DagreNormalizer Unit Design* (`dagre/dagre-normalizer.md`)
 - **DagreOrdering** - the internal static partial `DagreOrdering` (`DagreOrdering.cs`, `DagreOrdering.Sort.cs`,
   `DagreOrdering.CrossCount.cs`, `DagreOrdering.Constraints.cs`): the crossing reduction of the `order/` folder; see
-  _DagreOrdering Unit Design_ (`dagre/dagre-ordering.md`)
+  *DagreOrdering Unit Design* (`dagre/dagre-ordering.md`)
 - **DagrePositioning** - the internal static partial `DagrePositioning` (`DagrePositioning.cs`,
   `DagrePositioning.BrandesKoepf.cs`): the coordinate assignment of `position/index.js` and `position/bk.js`; see
-  _DagrePositioning Unit Design_ (`dagre/dagre-positioning.md`)
+  *DagrePositioning Unit Design* (`dagre/dagre-positioning.md`)
 - **DagreCoordinateSystem** - the internal static `DagreCoordinateSystem`: the rank-direction changes of
-  `coordinate-system.js`; see _DagreCoordinateSystem Unit Design_ (`dagre/dagre-coordinate-system.md`)
+  `coordinate-system.js`; see *DagreCoordinateSystem Unit Design* (`dagre/dagre-coordinate-system.md`)
 - **LayoutWorkMeter** - the internal sealed `LayoutWorkMeter`: the work budget and cancellation check of the layout of
-  one diagram, its two failures, and the counter of lodash's `_.uniqueId`; see _LayoutWorkMeter Unit Design_
+  one diagram, its two failures, and the counter of lodash's `_.uniqueId`; see *LayoutWorkMeter Unit Design*
   (`dagre/layout-work-meter.md`)
 
 The subsystem's namespace documentation is in `Dagre/NamespaceDoc.cs`. Its behavior is specified by the
 `CanvasNetMermaid-Dagre-*` requirements in `docs/reqstream/canvas-net-mermaid/dagre.yaml`. The SysML2 model names the
-subsystem `MermaidDagre` (see _CanvasNetMermaid System Design_).
+subsystem `MermaidDagre` (see *CanvasNetMermaid System Design*).
 
 **Attribution.** Every unit except `LayoutWorkMeter` is a port of dagre-d3-es (MIT; derived from dagre and graphlib by
 Chris Pettitt), read from the package that the repository's lock file pins for the pinned Mermaid release; `Lodash`
@@ -136,14 +136,14 @@ The layout matches dagre-d3-es on every golden. The port differs from it only wh
 where Mermaid cannot reach:
 
 - V8 merges long sorted runs with galloping; the port merges them plainly and stably, which differs only for an
-  inconsistent comparator (a NaN barycenter) on 64 or more entries of one cluster (see _DagreLayout Unit Design_).
+  inconsistent comparator (a NaN barycenter) on 64 or more entries of one cluster (see *DagreLayout Unit Design*).
 - Node names that are properties of JavaScript's object prototype (such as `constructor` or `__proto__`) are ordinary
   names here (see the `Graphlib` subsystem).
-- A broken cluster path, on which dagre would loop forever, fails with `mermaid-render-failed` (see _DagreNesting Unit
-  Design_).
+- A broken cluster path, on which dagre would loop forever, fails with `mermaid-render-failed` (see *DagreNesting Unit
+  Design*).
 - Negative and fractional edge weights, for which dagre's greedy cycle breaker indexes its bucket array with a
-  non-integer, are not supported; Mermaid always uses whole positive weights (see _DagreAcyclic Unit Design_).
+  non-integer, are not supported; Mermaid always uses whole positive weights (see *DagreAcyclic Unit Design*).
 - graphlib's `json` serialization and the graph algorithms that dagre and Mermaid's wrapper do not use are not ported
   (see the `Graphlib` subsystem).
 - The counter of `_.uniqueId` is per diagram rather than per page, and the work budget, its failures, and the mapping
-  of a short stack are additions (see _LayoutWorkMeter Unit Design_).
+  of a short stack are additions (see *LayoutWorkMeter Unit Design*).

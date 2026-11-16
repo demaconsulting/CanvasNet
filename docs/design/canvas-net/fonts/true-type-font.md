@@ -67,13 +67,13 @@ classic Type 1 convention), and `IsBold`/`IsItalic`/`IsFixedPitch` are all `fals
 
 ##### SFNT Offset Table (12 bytes, big-endian)
 
-| Offset | Size | Field           | Use                                        |
-| ------ | ---- | --------------- | ------------------------------------------ |
-| 0      | 4    | `sfntVersion`   | Accept `0x00010000`, `'true'`, or `'OTTO'` |
-| 4      | 2    | `numTables`     | Number of directory entries                |
-| 6      | 2    | `searchRange`   | Read but not otherwise interpreted         |
-| 8      | 2    | `entrySelector` | Read but not otherwise interpreted         |
-| 10     | 2    | `rangeShift`    | Read but not otherwise interpreted         |
+| Offset | Size | Field | Use |
+| --- | --- | --- | --- |
+| 0 | 4 | `sfntVersion` | Accept `0x00010000`, `'true'`, or `'OTTO'` |
+| 4 | 2 | `numTables` | Number of directory entries |
+| 6 | 2 | `searchRange` | Read but not otherwise interpreted |
+| 8 | 2 | `entrySelector` | Read but not otherwise interpreted |
+| 10 | 2 | `rangeShift` | Read but not otherwise interpreted |
 
 `'OTTO'` is accepted only as a *candidate* flavor at this layer: `TrueTypeFont` still requires an
 `OTTO`-tagged font to contain a `CFF` table (see Required vs. Optional Tables below), and any
@@ -82,12 +82,12 @@ as before.
 
 ##### `ttcf` TrueType Collection Header (12 + 4 × `numFonts` bytes, big-endian)
 
-| Offset | Size           | Field         | Use                                                           |
-| ------ | -------------- | ------------- | ------------------------------------------------------------- |
-| 0      | 4              | `ttcTag`      | Must be `'ttcf'` for `TryReadTtcHeader` to recognize the file |
-| 4      | 4              | `version`     | Read but not otherwise interpreted                            |
-| 8      | 4              | `numFonts`    | Number of faces; zero is rejected                             |
-| 12     | `4 * numFonts` | `offsetTable` | Each face's own SFNT offset table start, absolute from byte 0 |
+| Offset | Size | Field | Use |
+| --- | --- | --- | --- |
+| 0 | 4 | `ttcTag` | Must be `'ttcf'` for `TryReadTtcHeader` to recognize the file |
+| 4 | 4 | `version` | Read but not otherwise interpreted |
+| 8 | 4 | `numFonts` | Number of faces; zero is rejected |
+| 12 | `4 * numFonts` | `offsetTable` | Each face's own SFNT offset table start, absolute from byte 0 |
 
 `SfntContainer.TryReadTtcHeader` returns `false` (not an exception) for any file whose first 4
 bytes are not `'ttcf'`, letting `TrueTypeFont` treat that case as "ordinary single-face SFNT"
@@ -97,44 +97,44 @@ invalid and throw `InvalidDataException` rather than returning `false`.
 
 ##### SFNT Table Directory Entry (16 bytes, big-endian)
 
-| Offset | Size | Field      | Use                                                                            |
-| ------ | ---- | ---------- | ------------------------------------------------------------------------------ |
-| 0      | 4    | `tag`      | Names `head`, `maxp`, `hhea`, `hmtx`, `loca`, `glyf`, `cmap`, `kern`, or `CFF` |
-| 4      | 4    | `checksum` | Recorded but never enforced                                                    |
-| 8      | 4    | `offset`   | Bounds-checked in `long` arithmetic                                            |
-| 12     | 4    | `length`   | Bounds-checked in `long` arithmetic                                            |
+| Offset | Size | Field | Use |
+| --- | --- | --- | --- |
+| 0 | 4 | `tag` | Names `head`, `maxp`, `hhea`, `hmtx`, `loca`, `glyf`, `cmap`, `kern`, or `CFF` |
+| 4 | 4 | `checksum` | Recorded but never enforced |
+| 8 | 4 | `offset` | Bounds-checked in `long` arithmetic |
+| 12 | 4 | `length` | Bounds-checked in `long` arithmetic |
 
 ##### `head` Table Fields Used (54-byte minimum)
 
-| Offset | Size | Field              | Use                                                                         |
-| ------ | ---- | ------------------ | --------------------------------------------------------------------------- |
-| 0      | 4    | `version`          | Present in the table prefix                                                 |
-| 18     | 2    | `unitsPerEm`       | Exposed as `UnitsPerEm`; zero is rejected                                   |
-| 44     | 2    | `macStyle`         | Bits 0/1 (bold/italic) always OR'd into `IsBold`/`IsItalic` by `StyleTable` |
-| 50     | 2    | `indexToLocFormat` | Selects short (`0`) or long (`1`) `loca` parsing (glyf-flavored fonts only) |
+| Offset | Size | Field | Use |
+| --- | --- | --- | --- |
+| 0 | 4 | `version` | Present in the table prefix |
+| 18 | 2 | `unitsPerEm` | Exposed as `UnitsPerEm`; zero is rejected |
+| 44 | 2 | `macStyle` | Bits 0/1 (bold/italic) always OR'd into `IsBold`/`IsItalic` by `StyleTable` |
+| 50 | 2 | `indexToLocFormat` | Selects short (`0`) or long (`1`) `loca` parsing (glyf-flavored fonts only) |
 
 ##### `maxp` Table Fields Used (6-byte prefix)
 
-| Offset | Size | Field       | Use in This Unit                                                           |
-| ------ | ---- | ----------- | -------------------------------------------------------------------------- |
-| 0      | 4    | `version`   | Must be `0x00010000` (glyf-flavored) or `0x00005000` (CFF-flavored)        |
-| 4      | 2    | `numGlyphs` | Exposed as `GlyphCount`; for CFF fonts must equal `CffTable`'s glyph count |
+| Offset | Size | Field | Use in This Unit |
+| --- | --- | --- | --- |
+| 0 | 4 | `version` | Must be `0x00010000` (glyf-flavored) or `0x00005000` (CFF-flavored) |
+| 4 | 2 | `numGlyphs` | Exposed as `GlyphCount`; for CFF fonts must equal `CffTable`'s glyph count |
 
 ##### `hhea` Table Fields Used (36 bytes)
 
-| Offset | Size | Field                 | Use in This Unit                               |
-| ------ | ---- | --------------------- | ---------------------------------------------- |
-| 4      | 2    | `ascender`            | Exposed as `Ascender`                          |
-| 6      | 2    | `descender`           | Exposed as `Descender`                         |
-| 8      | 2    | `lineGap`             | Exposed as `LineGap`                           |
-| 34     | 2    | `numOfLongHorMetrics` | Sizes the explicit `hmtx` advance-width prefix |
+| Offset | Size | Field | Use in This Unit |
+| --- | --- | --- | --- |
+| 4 | 2 | `ascender` | Exposed as `Ascender` |
+| 6 | 2 | `descender` | Exposed as `Descender` |
+| 8 | 2 | `lineGap` | Exposed as `LineGap` |
+| 34 | 2 | `numOfLongHorMetrics` | Sizes the explicit `hmtx` advance-width prefix |
 
 ##### `hmtx` Table Layout
 
-| Region                              | Element Size | Meaning                                              |
-| ----------------------------------- | ------------ | ---------------------------------------------------- |
-| First `numOfLongHorMetrics` entries | 4 bytes each | `advanceWidth` + `leftSideBearing`                   |
-| Remaining tail entries              | 2 bytes each | `leftSideBearing` only; reuse the last advance width |
+| Region | Element Size | Meaning |
+| --- | --- | --- |
+| First `numOfLongHorMetrics` entries | 4 bytes each | `advanceWidth` + `leftSideBearing` |
+| Remaining tail entries | 2 bytes each | `leftSideBearing` only; reuse the last advance width |
 
 `HmtxHheaReader` stores only the explicit advance-width array because `TrueTypeFont` exposes
 advance widths, not left-side bearings. The trailing tail region is therefore optional: because
@@ -144,46 +144,44 @@ the explicit `numOfLongHorMetrics` entries are required to be present.
 
 ##### `loca` Table Layout
 
-| Format                          | Entry Size | Stored Value | Resolved Glyph Offset |
-| ------------------------------- | ---------- | ------------ | --------------------- |
-| Short (`indexToLocFormat == 0`) | 2 bytes    | `Offset16`   | `Offset16 * 2`        |
-| Long (`indexToLocFormat == 1`)  | 4 bytes    | `Offset32`   | `Offset32`            |
+| Format | Entry Size | Stored Value | Resolved Glyph Offset |
+| --- | --- | --- | --- |
+| Short (`indexToLocFormat == 0`) | 2 bytes | `Offset16` | `Offset16 * 2` |
+| Long (`indexToLocFormat == 1`) | 4 bytes | `Offset32` | `Offset32` |
 
 `GlyfLocaReader` parses `numGlyphs + 1` entries eagerly, validates they are monotonically
 non-decreasing, and rejects any entry that exceeds the `glyf` table length.
 
 ##### `glyf` Glyph Header (10 bytes)
 
-| Offset | Size | Field              | Use                                                   |
-| ------ | ---- | ------------------ | ----------------------------------------------------- |
-| 0      | 2    | `numberOfContours` | `>= 0` means simple glyph; `-1` means composite glyph |
-| 2      | 2    | `xMin`             | Present in the header                                 |
-| 4      | 2    | `yMin`             | Present in the header                                 |
-| 6      | 2    | `xMax`             | Present in the header                                 |
-| 8      | 2    | `yMax`             | Present in the header                                 |
+| Offset | Size | Field | Use |
+| --- | --- | --- | --- |
+| 0 | 2 | `numberOfContours` | `>= 0` means simple glyph; `-1` means composite glyph |
+| 2 | 2 | `xMin` | Present in the header |
+| 4 | 2 | `yMin` | Present in the header |
+| 6 | 2 | `xMax` | Present in the header |
+| 8 | 2 | `yMax` | Present in the header |
 
 ##### Simple Glyph Body Layout
 
-| Region                             | Layout                      | Use                                           |
-| ---------------------------------- | --------------------------- | --------------------------------------------- |
-| `endPtsOfContours`                 | `numberOfContours` x uint16 | Inclusive final point index for each contour  |
-| `instructionLength` + instructions | uint16 + byte array         | Skipped; hint execution is out of scope       |
-| Flags                              | run-length encoded bytes    | On-curve bits plus short/vector encoding bits |
-| X coordinates                      | delta-encoded bytes/shorts  | Reconstructed to absolute X coordinates       |
-| Y coordinates                      | delta-encoded bytes/shorts  | Reconstructed to absolute Y coordinates       |
+| Region | Layout | Use |
+| --- | --- | --- |
+| `endPtsOfContours` | `numberOfContours` x uint16 | Inclusive final point index for each contour |
+| `instructionLength` + instructions | uint16 + byte array | Skipped; hint execution is out of scope |
+| Flags | run-length encoded bytes | On-curve bits plus short/vector encoding bits |
+| X coordinates | delta-encoded bytes/shorts | Reconstructed to absolute X coordinates |
+| Y coordinates | delta-encoded bytes/shorts | Reconstructed to absolute Y coordinates |
 
 The decoded point stream is converted directly to `PathBuilder` commands. Consecutive off-curve
 points synthesize the implied on-curve midpoint required by the TrueType contour convention.
 
 ##### Composite Glyph Component Layout
 
-<!-- markdownlint-disable MD013 -->
-| Region             | Layout                                   | Use in This Unit                                              |
-| ------------------ | ---------------------------------------- | ------------------------------------------------------------- |
-| Component header   | `flags` (uint16) + `glyphIndex` (uint16) | Identifies the referenced glyph and transform encoding        |
-| Arguments          | 2 or 4 bytes                             | Must be XY offsets; point-matched components are rejected     |
-| Optional transform | 2, 4, or 8 bytes                         | Supports one scale, separate X/Y scales, or a full 2x2 matrix |
-<!-- markdownlint-enable MD013 -->
+| Region | Layout | Use in This Unit |
+| --- | --- | --- |
+| Component header | `flags` (uint16) + `glyphIndex` (uint16) | Identifies the referenced glyph and transform encoding |
+| Arguments | 2 or 4 bytes | Must be XY offsets; point-matched components are rejected |
+| Optional transform | 2, 4, or 8 bytes | Supports one scale, separate X/Y scales, or a full 2x2 matrix |
 
 Supported component transforms are translation, uniform scale, independent X/Y scale, and full
 2x2 matrix transforms using F2Dot14 fixed-point values. When a component's `flags` set
@@ -194,28 +192,45 @@ and the default (neither flag set) is unscaled.
 
 ##### `CFF` Table Structure
 
-<!-- markdownlint-disable MD013 -->
-| Region            | Layout                                                                                                                     | Use in This Unit                                                                                                                            |
-| ----------------- | -------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| Header            | major/minor version, `hdrSize`, `offSize`                                                                                  | `hdrSize` locates the Name INDEX; unsupported major versions are rejected                                                                   |
-| Name INDEX        | CFF INDEX (see below)                                                                                                      | Read past but not otherwise interpreted                                                                                                     |
-| Top DICT INDEX    | CFF INDEX of one DICT                                                                                                      | Supplies `CharStrings` (op `17`), `Private` (op `18`), `ROS` (op `12 30`), and `charset` (op `15`) operator values                          |
-| String INDEX      | CFF INDEX                                                                                                                  | Captured for glyph-name resolution of SIDs `391` and above (see Charset Resolution below)                                                   |
-| Global Subr INDEX | CFF INDEX                                                                                                                  | Global subroutines, addressed by `callgsubr` with bias `32768`/`1131`/`107` by count                                                        |
-| Private DICT      | DICT at the Top DICT's `Private` offset/size                                                                               | Optional; supplies `Subrs` (op `19`), `defaultWidthX` (op `20`), `nominalWidthX` (op `21`), a Private-DICT-relative Local Subr INDEX offset |
-| Local Subr INDEX  | CFF INDEX at `Private DICT start + Subrs`                                                                                  | Local subroutines, addressed by `callsubr` with the same bias scheme                                                                        |
-| CharStrings INDEX | CFF INDEX of Type 2 charstring byte arrays                                                                                 | One entry per glyph; `CffTable.GlyphCount` is this INDEX's own count                                                                        |
-| Charset table     | Format byte plus per-glyph/per-range SID data, at the Top DICT's `charset` byte offset (when present and greater than `2`) | Builds the glyph-name-to-glyph-index map (see Charset Resolution below)                                                                     |
-<!-- markdownlint-enable MD013 -->
+- **Header**
+  - Layout: major/minor version, `hdrSize`, `offSize`.
+  - Use in This Unit: `hdrSize` locates the Name INDEX; unsupported major versions are rejected.
+- **Name INDEX**
+  - Layout: CFF INDEX (see below).
+  - Use in This Unit: Read past but not otherwise interpreted.
+- **Top DICT INDEX**
+  - Layout: CFF INDEX of one DICT.
+  - Use in This Unit: Supplies `CharStrings` (op `17`), `Private` (op `18`), `ROS` (op `12 30`), and `charset` (op `15`)
+    operator values.
+- **String INDEX**
+  - Layout: CFF INDEX.
+  - Use in This Unit: Captured for glyph-name resolution of SIDs `391` and above (see Charset Resolution below).
+- **Global Subr INDEX**
+  - Layout: CFF INDEX.
+  - Use in This Unit: Global subroutines, addressed by `callgsubr` with bias `32768`/`1131`/`107` by count.
+- **Private DICT**
+  - Layout: DICT at the Top DICT's `Private` offset/size.
+  - Use in This Unit: Optional; supplies `Subrs` (op `19`), `defaultWidthX` (op `20`), `nominalWidthX` (op `21`), a
+    Private-DICT-relative Local Subr INDEX offset.
+- **Local Subr INDEX**
+  - Layout: CFF INDEX at `Private DICT start + Subrs`.
+  - Use in This Unit: Local subroutines, addressed by `callsubr` with the same bias scheme.
+- **CharStrings INDEX**
+  - Layout: CFF INDEX of Type 2 charstring byte arrays.
+  - Use in This Unit: One entry per glyph; `CffTable.GlyphCount` is this INDEX's own count.
+- **Charset table**
+  - Layout: Format byte plus per-glyph/per-range SID data, at the Top DICT's `charset` byte offset (when present and
+    greater than `2`).
+  - Use in This Unit: Builds the glyph-name-to-glyph-index map (see Charset Resolution below).
 
 ###### CFF INDEX Structure (used for every INDEX above)
 
-| Region     | Layout                                 | Use                                                  |
-| ---------- | -------------------------------------- | ---------------------------------------------------- |
-| `count`    | uint16                                 | Zero means an empty INDEX (no offset array)          |
-| `offSize`  | uint8 (present only if `count > 0`)    | Byte width (1-4) of each offset                      |
+| Region | Layout | Use |
+| --- | --- | --- |
+| `count` | uint16 | Zero means an empty INDEX (no offset array) |
+| `offSize` | uint8 (present only if `count > 0`) | Byte width (1-4) of each offset |
 | `offset[]` | `count + 1` entries of `offSize` bytes | 1-based, relative to the byte after the offset array |
-| `data`     | `offset[count] - 1` bytes              | Concatenated variable-length entries                 |
+| `data` | `offset[count] - 1` bytes | Concatenated variable-length entries |
 
 ###### DICT Encoding (Top DICT and Private DICT)
 
@@ -237,21 +252,25 @@ A PDF simple font resolves a character code to a *glyph name* (for example `"A"`
 index directly; `CffTable.TryGetGlyphIndex(string, out int)` resolves that name using the Top
 DICT's `charset` operator (`15`):
 
-<!-- markdownlint-disable MD013 -->
-| `charset` operator value           | Meaning                                                                                                                                                                                                                                                             |
-| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Absent, or explicit `0` (ISOAdobe) | Glyph `i`'s SID equals `i` itself, for every glyph `i` from `1` to `GlyphCount - 1`                                                                                                                                                                                 |
-| `1` (Expert), `2` (ExpertSubset)   | Recognized but not resolved to glyph names: every non-`.notdef` glyph is assigned sentinel SID `-1`, so `TryGetGlyphIndex` returns `false` for every name (never throws) - a deliberate scope boundary, since no caller currently needs Expert-encoding glyph names |
-| Greater than `2`                   | A byte offset (within the CFF table) to a custom charset table, in format `0`, `1`, or `2` below; any other format byte throws `InvalidDataException`                                                                                                               |
-<!-- markdownlint-enable MD013 -->
+- **Absent, or explicit `0` (ISOAdobe)**: Glyph `i`'s SID equals `i` itself, for every glyph `i` from `1` to
+  `GlyphCount - 1`.
+- **`1` (Expert), `2` (ExpertSubset)**: Recognized but not resolved to glyph names: every non-`.notdef` glyph is
+  assigned sentinel SID `-1`, so `TryGetGlyphIndex` returns `false` for every name (never throws) - a deliberate scope
+  boundary, since no caller currently needs Expert-encoding glyph names.
+- **Greater than `2`**: A byte offset (within the CFF table) to a custom charset table, in format `0`, `1`, or `2`
+  below; any other format byte throws `InvalidDataException`.
 
-<!-- markdownlint-disable MD013 -->
-| Custom charset format | Layout | Decoding |
-| ---------------------- | ------------------------------------------------------------------ | -------------------------------------------------------------------------------- |
-| `0` | Format byte, then `GlyphCount - 1` 2-byte SIDs | Glyph `i`'s SID is the `(i - 1)`th entry |
-| `1` | Format byte, then ranges of (2-byte first SID, 1-byte `nLeft`) | Each range covers `nLeft + 1` consecutive glyphs/SIDs starting at `first SID` |
-| `2` | Format byte, then ranges of (2-byte first SID, 2-byte `nLeft`) | Same as format `1`, with a wider `nLeft` for large charsets |
-<!-- markdownlint-enable MD013 -->
+The custom charset formats, with their layout and decoding:
+
+- **`0`**
+  - Layout: Format byte, then `GlyphCount - 1` 2-byte SIDs.
+  - Decoding: Glyph `i`'s SID is the `(i - 1)`th entry.
+- **`1`**
+  - Layout: Format byte, then ranges of (2-byte first SID, 1-byte `nLeft`).
+  - Decoding: Each range covers `nLeft + 1` consecutive glyphs/SIDs starting at `first SID`.
+- **`2`**
+  - Layout: Format byte, then ranges of (2-byte first SID, 2-byte `nLeft`).
+  - Decoding: Same as format `1`, with a wider `nLeft` for large charsets.
 
 Once every glyph's SID is known, its name is resolved via the 391-entry CFF Standard Strings table
 (Adobe Technical Note #5176 Appendix A, transcribed verbatim as `CffTable.StandardStrings`) for SID
@@ -263,27 +282,26 @@ building the combined name-to-glyph-index map `TryGetGlyphIndex` queries.
 Each CharStrings INDEX entry is itself a sequence of operands (integers or 16.16 fixed-point
 numbers, both stack-based) and single- or two-byte operator codes, executed against the same
 running-point/current-subpath state a `glyf` glyph decoder would maintain, but limited to exactly
-the operator subset in the table below:
+the operator subset in the list below:
 
-<!-- markdownlint-disable MD013 -->
-| Operator(s)                            | Code(s)      | Behavior                                                                  |
-| -------------------------------------- | ------------ | ------------------------------------------------------------------------- |
-| `hstem`, `vstem`, `hstemhm`, `vstemhm` | 1, 3, 18, 23 | Accumulate stem-hint count (operand pairs, plus any already on the stack) |
-| `vmoveto`, `rlineto`, `hlineto`        | 4, 5, 6      | (`vmoveto` also below) `rlineto`/`hlineto` append line segments           |
-| `vlineto`                              | 7            | Appends line segments, alternating axis with `hlineto`                    |
-| `rrcurveto`, `hhcurveto`, `vvcurveto`  | 8, 27, 26    | Append cubic Bezier segments per operator-specific operand packing        |
-| `callsubr`, `return`                   | 10, 11       | Invoke/resume a local subroutine, biased and depth/step bounded           |
-| `endchar`                              | 14           | Finishes the outline; 4-operand seac-style composes a base/accent pair    |
-| `hmoveto`                              | 22           | Starts a new subpath, horizontal-only offset                              |
-| `vmoveto`                              | 4            | Starts a new subpath, vertical-only offset                                |
-| `rmoveto`                              | 21           | Starts a new subpath, general XY offset                                   |
-| `hintmask`, `cntrmask`                 | 19, 20       | Skip `ceil(stemCount / 8)` mask bytes                                     |
-| `hvcurveto`, `vhcurveto`               | 31, 30       | Append cubic Bezier segments, alternating start/end tangent axis          |
-| `callgsubr`                            | 29           | Invoke a global subroutine, biased and depth/step bounded                 |
-| `rcurveline`, `rlinecurve`             | 24, 25       | Curve(s) then a trailing line, or line(s) then a trailing curve           |
-| `hflex`, `flex`, `hflex1`, `flex1`     | 12 34-37     | Flex shortcuts: two cubic Bezier segments, forcing final point onto axis  |
-| `dotsection`                           | 12 0         | Deprecated no-op; clears the operand stack only                           |
-<!-- markdownlint-enable MD013 -->
+- **`hstem`, `vstem`, `hstemhm`, `vstemhm`** (1, 3, 18, 23): Accumulate stem-hint count (operand pairs, plus any already
+  on the stack).
+- **`vmoveto`, `rlineto`, `hlineto`** (4, 5, 6): (`vmoveto` also below) `rlineto`/`hlineto` append line segments.
+- **`vlineto`** (7): Appends line segments, alternating axis with `hlineto`.
+- **`rrcurveto`, `hhcurveto`, `vvcurveto`** (8, 27, 26): Append cubic Bezier segments per operator-specific operand
+  packing.
+- **`callsubr`, `return`** (10, 11): Invoke/resume a local subroutine, biased and depth/step bounded.
+- **`endchar`** (14): Finishes the outline; 4-operand seac-style composes a base/accent pair.
+- **`hmoveto`** (22): Starts a new subpath, horizontal-only offset.
+- **`vmoveto`** (4): Starts a new subpath, vertical-only offset.
+- **`rmoveto`** (21): Starts a new subpath, general XY offset.
+- **`hintmask`, `cntrmask`** (19, 20): Skip `ceil(stemCount / 8)` mask bytes.
+- **`hvcurveto`, `vhcurveto`** (31, 30): Append cubic Bezier segments, alternating start/end tangent axis.
+- **`callgsubr`** (29): Invoke a global subroutine, biased and depth/step bounded.
+- **`rcurveline`, `rlinecurve`** (24, 25): Curve(s) then a trailing line, or line(s) then a trailing curve.
+- **`hflex`, `flex`, `hflex1`, `flex1`** (12 34-37): Flex shortcuts: two cubic Bezier segments, forcing final point onto
+  axis.
+- **`dotsection`** (12 0): Deprecated no-op; clears the operand stack only.
 
 Any operator outside this set - including the remaining two-byte escape operators (arithmetic/
 logical and other Type 1 heritage operators) - is rejected with `InvalidDataException`,
@@ -339,21 +357,21 @@ integer) and single- or two-byte operator codes, interpreted against the same ru
 current-subpath state model as `CffCharstringInterpreter`, but over a different, Type-1-specific
 operator set and with no `callsubr`/`callgsubr` bias (Type 1 subroutine indices are used directly):
 
-<!-- markdownlint-disable MD013 -->
-| Operator(s) | Code(s) | Behavior |
-| --------------------------------------------------- | --------------- | ---------------------------------------------------------------------------------- |
-| `hstem`, `vstem`, `hstem3`, `vstem3`, `dotsection` | 1, 3, 12 2, 12 1, 12 0 | Consumed and discarded; this unit performs no hint execution |
-| `hsbw` | 13 | Captures the glyph's left side bearing and advance width, sets the initial point |
-| `sbw` | 12 7 | As `hsbw`, but with independent X and Y side bearing/advance components |
-| `rmoveto`, `hmoveto`, `vmoveto` | 21, 22, 4 | Starts a new subpath at a general/horizontal-only/vertical-only offset |
-| `rlineto`, `hlineto`, `vlineto` | 5, 6, 7 | Appends a line segment; `hlineto`/`vlineto` are axis-only |
-| `rrcurveto`, `hvcurveto`, `vhcurveto` | 8, 31, 30 | Appends a cubic Bezier segment, `hvcurveto`/`vhcurveto` alternating start/end axis |
-| `closepath` | 9 | Closes the current subpath |
-| `callsubr`, `return` | 10, 11 | Invoke/resume a local subroutine by direct (unbiased) index, depth/step bounded |
-| `div` | 12 12 | Pops the top two stack values regardless of stack depth, pushes their quotient |
-| `callothersubr`, `pop`, `setcurrentpoint` | 12 16, 12 17, 12 33 | Implement real flex geometry (othersubr 1/2/0) and hint replacement (othersubr 3), detailed below |
-| `endchar` | 14 | Finishes the outline |
-<!-- markdownlint-enable MD013 -->
+- **`hstem`, `vstem`, `hstem3`, `vstem3`, `dotsection`** (1, 3, 12 2, 12 1, 12 0): Consumed and discarded; this unit
+  performs no hint execution.
+- **`hsbw`** (13): Captures the glyph's left side bearing and advance width, sets the initial point.
+- **`sbw`** (12 7): As `hsbw`, but with independent X and Y side bearing/advance components.
+- **`rmoveto`, `hmoveto`, `vmoveto`** (21, 22, 4): Starts a new subpath at a general/horizontal-only/vertical-only
+  offset.
+- **`rlineto`, `hlineto`, `vlineto`** (5, 6, 7): Appends a line segment; `hlineto`/`vlineto` are axis-only.
+- **`rrcurveto`, `hvcurveto`, `vhcurveto`** (8, 31, 30): Appends a cubic Bezier segment, `hvcurveto`/`vhcurveto`
+  alternating start/end axis.
+- **`closepath`** (9): Closes the current subpath.
+- **`callsubr`, `return`** (10, 11): Invoke/resume a local subroutine by direct (unbiased) index, depth/step bounded.
+- **`div`** (12 12): Pops the top two stack values regardless of stack depth, pushes their quotient.
+- **`callothersubr`, `pop`, `setcurrentpoint`** (12 16, 12 17, 12 33): Implement real flex geometry (othersubr 1/2/0)
+  and hint replacement (othersubr 3), detailed below.
+- **`endchar`** (14): Finishes the outline.
 
 `seac` (escape operator `12 6`, the legacy accented-composite-glyph operator) is explicitly
 rejected with `InvalidDataException` wherever encountered; any other operator outside this set is
@@ -410,26 +428,26 @@ zero-padding.
 
 ###### Format 4 (segment mapping to delta values)
 
-| Offset | Size | Field             | Use in This Unit                              |
-| ------ | ---- | ----------------- | --------------------------------------------- |
-| 0      | 2    | `format`          | Must be `4`                                   |
-| 2      | 2    | `length`          | Used only for bounds-truncated parsing        |
-| 6      | 2    | `segCountX2`      | Sizes the segment arrays                      |
-| 14     | var  | `endCode[]`       | Segment upper bounds                          |
-| ...    | 2    | `reservedPad`     | Skipped                                       |
-| ...    | var  | `startCode[]`     | Segment lower bounds                          |
-| ...    | var  | `idDelta[]`       | Applied directly when `idRangeOffset` is zero |
-| ...    | var  | `idRangeOffset[]` | Indirect lookup into `glyphIdArray`           |
-| ...    | var  | `glyphIdArray[]`  | Optional per-codepoint glyph IDs              |
+| Offset | Size | Field | Use in This Unit |
+| --- | --- | --- | --- |
+| 0 | 2 | `format` | Must be `4` |
+| 2 | 2 | `length` | Used only for bounds-truncated parsing |
+| 6 | 2 | `segCountX2` | Sizes the segment arrays |
+| 14 | var | `endCode[]` | Segment upper bounds |
+| ... | 2 | `reservedPad` | Skipped |
+| ... | var | `startCode[]` | Segment lower bounds |
+| ... | var | `idDelta[]` | Applied directly when `idRangeOffset` is zero |
+| ... | var | `idRangeOffset[]` | Indirect lookup into `glyphIdArray` |
+| ... | var | `glyphIdArray[]` | Optional per-codepoint glyph IDs |
 
 ###### Format 12 (segmented coverage)
 
-| Offset | Size             | Field       | Use in This Unit                                          |
-| ------ | ---------------- | ----------- | --------------------------------------------------------- |
-| 0      | 2                | `format`    | Must be `12`                                              |
-| 4      | 4                | `length`    | Used only for bounds-truncated parsing                    |
-| 12     | 4                | `numGroups` | Sizes the group array                                     |
-| 16     | `12 * numGroups` | `groups`    | Stores `startCharCode`, `endCharCode`, and `startGlyphId` |
+| Offset | Size | Field | Use in This Unit |
+| --- | --- | --- | --- |
+| 0 | 2 | `format` | Must be `12` |
+| 4 | 4 | `length` | Used only for bounds-truncated parsing |
+| 12 | 4 | `numGroups` | Sizes the group array |
+| 16 | `12 * numGroups` | `groups` | Stores `startCharCode`, `endCharCode`, and `startGlyphId` |
 
 `CmapTable` chooses exactly one supported subtable using this priority order: `(3,10)`
 format 12, `(0,4)`/`(0,6)` format 12, `(3,1)` format 4, `(0,3)` format 4, then any remaining
@@ -441,43 +459,43 @@ slot symbol fonts (Wingdings, Webdings, Symbol) really use.
 
 ###### Version-0 `kern` Table Header
 
-| Offset | Size | Field     | Use in This Unit                                |
-| ------ | ---- | --------- | ----------------------------------------------- |
-| 0      | 2    | `version` | Must be `0`; any other header layout is skipped |
-| 2      | 2    | `nTables` | Number of subtables to inspect                  |
+| Offset | Size | Field | Use in This Unit |
+| --- | --- | --- | --- |
+| 0 | 2 | `version` | Must be `0`; any other header layout is skipped |
+| 2 | 2 | `nTables` | Number of subtables to inspect |
 
 ###### Format-0 Subtable Header and Body
 
-| Offset | Size         | Field           | Use in This Unit                                     |
-| ------ | ------------ | --------------- | ---------------------------------------------------- |
-| 0      | 2            | `version`       | Present; not otherwise interpreted                   |
-| 2      | 2            | `length`        | Bounds-checks the subtable                           |
-| 4      | 2            | `coverage`      | Must indicate format 0, horizontal, non-cross-stream |
-| 6      | 2            | `nPairs`        | Sizes the pair array                                 |
-| 8      | 2            | `searchRange`   | Present; not otherwise interpreted                   |
-| 10     | 2            | `entrySelector` | Present; not otherwise interpreted                   |
-| 12     | 2            | `rangeShift`    | Present; not otherwise interpreted                   |
-| 14     | `6 * nPairs` | `pairs`         | Sorted `(left, right, value)` entries for search     |
+| Offset | Size | Field | Use in This Unit |
+| --- | --- | --- | --- |
+| 0 | 2 | `version` | Present; not otherwise interpreted |
+| 2 | 2 | `length` | Bounds-checks the subtable |
+| 4 | 2 | `coverage` | Must indicate format 0, horizontal, non-cross-stream |
+| 6 | 2 | `nPairs` | Sizes the pair array |
+| 8 | 2 | `searchRange` | Present; not otherwise interpreted |
+| 10 | 2 | `entrySelector` | Present; not otherwise interpreted |
+| 12 | 2 | `rangeShift` | Present; not otherwise interpreted |
+| 14 | `6 * nPairs` | `pairs` | Sorted `(left, right, value)` entries for search |
 
 ##### `name` Table Layout Used
 
-| Offset | Size         | Field          | Use in This Unit                                              |
-| ------ | ------------ | -------------- | ------------------------------------------------------------- |
-| 0      | 2            | `format`       | Read but not otherwise interpreted (0 and 1 both accepted)    |
-| 2      | 2            | `count`        | Number of name records; sizes the record array                |
-| 4      | 2            | `stringOffset` | Start of the string storage area, relative to table start     |
-| 6      | `12 * count` | `nameRecords`  | Each record's platform/encoding/language/nameID/length/offset |
+| Offset | Size | Field | Use in This Unit |
+| --- | --- | --- | --- |
+| 0 | 2 | `format` | Read but not otherwise interpreted (0 and 1 both accepted) |
+| 2 | 2 | `count` | Number of name records; sizes the record array |
+| 4 | 2 | `stringOffset` | Start of the string storage area, relative to table start |
+| 6 | `12 * count` | `nameRecords` | Each record's platform/encoding/language/nameID/length/offset |
 
 ###### Name Record (12 bytes, big-endian)
 
-| Offset | Size | Field        | Use in This Unit                                                         |
-| ------ | ---- | ------------ | ------------------------------------------------------------------------ |
-| 0      | 2    | `platformID` | `3` (Windows) or `1` (Macintosh) are decoded; all others are ignored     |
-| 2      | 2    | `encodingID` | Windows: `1`/`10` (Unicode BMP/full); Macintosh: `0` (Roman)             |
-| 4      | 2    | `languageID` | Preferred: Windows `0x0409` (en-US), Macintosh `0` (English)             |
-| 6      | 2    | `nameID`     | Only `1`, `2`, `4`, `6`, `16`, `17` are consumed; all others are skipped |
-| 8      | 2    | `length`     | String byte length; an out-of-bounds record is skipped, not the table    |
-| 10     | 2    | `offset`     | String byte offset, relative to `stringOffset`                           |
+| Offset | Size | Field | Use in This Unit |
+| --- | --- | --- | --- |
+| 0 | 2 | `platformID` | `3` (Windows) or `1` (Macintosh) are decoded; all others are ignored |
+| 2 | 2 | `encodingID` | Windows: `1`/`10` (Unicode BMP/full); Macintosh: `0` (Roman) |
+| 4 | 2 | `languageID` | Preferred: Windows `0x0409` (en-US), Macintosh `0` (English) |
+| 6 | 2 | `nameID` | Only `1`, `2`, `4`, `6`, `16`, `17` are consumed; all others are skipped |
+| 8 | 2 | `length` | String byte length; an out-of-bounds record is skipped, not the table |
+| 10 | 2 | `offset` | String byte offset, relative to `stringOffset` |
 
 `NameTable` resolves each of `FamilyName`/`SubfamilyName`/`FullName`/`PostScriptName` from
 whichever qualifying record best matches, in order: a Windows-platform record in the preferred
@@ -490,10 +508,10 @@ resolved strings are all `null` (surfaced as an all-`null` `FontNameInfo`) rathe
 
 ##### `OS/2` Table Fields Used (partial; version-0 layout)
 
-| Offset | Size | Field           | Use in This Unit                                                            |
-| ------ | ---- | --------------- | --------------------------------------------------------------------------- |
-| 4      | 2    | `usWeightClass` | `IsBold` is also `true` when this is `>= 600`, even if `fsSelection` is not |
-| 62     | 2    | `fsSelection`   | Bit 0 (italic) and bit 5 (bold) are OR'd into `IsItalic`/`IsBold`           |
+| Offset | Size | Field | Use in This Unit |
+| --- | --- | --- | --- |
+| 4 | 2 | `usWeightClass` | `IsBold` is also `true` when this is `>= 600`, even if `fsSelection` is not |
+| 62 | 2 | `fsSelection` | Bit 0 (italic) and bit 5 (bold) are OR'd into `IsItalic`/`IsBold` |
 
 `OS/2` is entirely optional. `StyleTable` gates each field independently on the table being long
 enough to contain it (`usWeightClass` needs at least 6 bytes; `fsSelection` needs at least 64), so
@@ -503,10 +521,10 @@ independently indicate.
 
 ##### `post` Table Fields Used (partial; version 1.0/2.0/3.0 header)
 
-| Offset | Size | Field          | Use in This Unit                                                  |
-| ------ | ---- | -------------- | ----------------------------------------------------------------- |
-| 4      | 4    | `italicAngle`  | `IsItalic` is also `true` when this fixed-point value is non-zero |
-| 12     | 4    | `isFixedPitch` | `IsFixedPitch` is `true` when this is non-zero                    |
+| Offset | Size | Field | Use in This Unit |
+| --- | --- | --- | --- |
+| 4 | 4 | `italicAngle` | `IsItalic` is also `true` when this fixed-point value is non-zero |
+| 12 | 4 | `isFixedPitch` | `IsFixedPitch` is `true` when this is non-zero |
 
 `post` is entirely optional; `IsFixedPitch` defaults to `false` and is set only when `post` is
 present and at least 16 bytes long. `italicAngle` needs at least 8 bytes to be read; a shorter
@@ -744,38 +762,39 @@ per the derivation rules described under the `OS/2` and `post` table-layout subs
 
 ##### Public Exception Contract
 
-<!-- markdownlint-disable MD013 -->
-| Member                 | Exception                                   | Condition                                                                                                        |
-| ---------------------- | ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `Load(Stream)`         | `ArgumentNullException`                     | `stream` is null                                                                                                 |
-| `Load(Stream)`         | `InvalidDataException`                      | Bad SFNT version, missing required table, truncation, invalid CFF data, or malformed Type 1 data                 |
-| `Load(string)`         | `ArgumentNullException`                     | `path` is null                                                                                                   |
-| `Load(string)`         | `ArgumentException`                         | `path` is empty                                                                                                  |
-| `Load(string)`         | `InvalidDataException`                      | Same font-structure failures as `Load(Stream)`                                                                   |
-| `Load(Stream, int)`    | `ArgumentNullException`                     | `stream` is null                                                                                                 |
-| `Load(Stream, int)`    | `ArgumentOutOfRangeException`               | `faceIndex` is negative or not less than the file's own face count (always `1` for standalone Type 1)            |
-| `Load(Stream, int)`    | `InvalidDataException`                      | As `Load(Stream)`, plus a malformed `ttcf` header                                                                |
-| `Load(string, int)`    | `ArgumentNullException`/`ArgumentException` | Null/empty `path`, as `Load(string)`                                                                             |
-| `Load(string, int)`    | `ArgumentOutOfRangeException`               | As `Load(Stream, int)`                                                                                           |
-| `Load(string, int)`    | `InvalidDataException`                      | As `Load(Stream, int)`                                                                                           |
-| `LoadType1(...)`       | `ArgumentNullException`                     | `stream` or `codepointToGlyphName` is null                                                                       |
-| `LoadType1(...)`       | `InvalidDataException`                      | `length1`/`length2` negative or exceed stream length, or Type 1 data (including `seac`) is malformed             |
-| `LoadType1C(...)`      | `ArgumentNullException`                     | `stream` or `codepointToGlyphName` is null                                                                       |
-| `LoadType1C(...)`      | `InvalidDataException`                      | Malformed CFF table data, including a CID-keyed (`ROS`-declaring) CFF program                                    |
-| `GetFaceCount(Stream)` | `ArgumentNullException`                     | `stream` is null                                                                                                 |
-| `GetFaceCount(Stream)` | `InvalidDataException`                      | Stream too short for a tag, or a malformed `ttcf` header                                                         |
-| `GetFaceCount(string)` | `ArgumentNullException`/`ArgumentException` | Null/empty `path`                                                                                                |
-| `GetFaceCount(string)` | `InvalidDataException`                      | As `GetFaceCount(Stream)`                                                                                        |
-| `GetGlyphIndex(int)`   | none                                        | Unmapped codepoints and unusable `cmap` data return `0`                                                          |
-| `GetGlyphOutline(int)` | `ArgumentOutOfRangeException`               | `glyphIndex` is outside `[0, GlyphCount)`                                                                        |
-| `GetGlyphOutline(int)` | `InvalidDataException`                      | Malformed/truncated glyph or charstring data, or a rejected composite-glyph/CFF-operator feature                 |
-| `GetAdvanceWidth(int)` | `ArgumentOutOfRangeException`               | `glyphIndex` is outside `[0, GlyphCount)`                                                                        |
-| `GetKerning(int, int)` | none                                        | Missing pair/table or bad kerning data returns `0`                                                               |
-| `GetNameInfo()`        | none                                        | Unresolvable name members (including every member, absent `name` table) are `null`                               |
-| `IsBold`               | none                                        | Degrades to `false` when `OS/2`/`head.macStyle` cannot indicate boldness                                         |
-| `IsItalic`             | none                                        | Degrades to `false` when `OS/2`/`head.macStyle`/`post` cannot indicate italics                                   |
-| `IsFixedPitch`         | none                                        | Degrades to `false` when `post` is absent or too short                                                           |
-<!-- markdownlint-enable MD013 -->
+- **`Load(Stream)`** (`ArgumentNullException`): `stream` is null.
+- **`Load(Stream)`** (`InvalidDataException`): Bad SFNT version, missing required table, truncation, invalid CFF data,
+  or malformed Type 1 data.
+- **`Load(string)`** (`ArgumentNullException`): `path` is null.
+- **`Load(string)`** (`ArgumentException`): `path` is empty.
+- **`Load(string)`** (`InvalidDataException`): Same font-structure failures as `Load(Stream)`.
+- **`Load(Stream, int)`** (`ArgumentNullException`): `stream` is null.
+- **`Load(Stream, int)`** (`ArgumentOutOfRangeException`): `faceIndex` is negative or not less than the file's own face
+  count (always `1` for standalone Type 1).
+- **`Load(Stream, int)`** (`InvalidDataException`): As `Load(Stream)`, plus a malformed `ttcf` header.
+- **`Load(string, int)`** (`ArgumentNullException`/`ArgumentException`): Null/empty `path`, as `Load(string)`.
+- **`Load(string, int)`** (`ArgumentOutOfRangeException`): As `Load(Stream, int)`.
+- **`Load(string, int)`** (`InvalidDataException`): As `Load(Stream, int)`.
+- **`LoadType1(...)`** (`ArgumentNullException`): `stream` or `codepointToGlyphName` is null.
+- **`LoadType1(...)`** (`InvalidDataException`): `length1`/`length2` negative or exceed stream length, or Type 1 data
+  (including `seac`) is malformed.
+- **`LoadType1C(...)`** (`ArgumentNullException`): `stream` or `codepointToGlyphName` is null.
+- **`LoadType1C(...)`** (`InvalidDataException`): Malformed CFF table data, including a CID-keyed (`ROS`-declaring) CFF
+  program.
+- **`GetFaceCount(Stream)`** (`ArgumentNullException`): `stream` is null.
+- **`GetFaceCount(Stream)`** (`InvalidDataException`): Stream too short for a tag, or a malformed `ttcf` header.
+- **`GetFaceCount(string)`** (`ArgumentNullException`/`ArgumentException`): Null/empty `path`.
+- **`GetFaceCount(string)`** (`InvalidDataException`): As `GetFaceCount(Stream)`.
+- **`GetGlyphIndex(int)`** (none): Unmapped codepoints and unusable `cmap` data return `0`.
+- **`GetGlyphOutline(int)`** (`ArgumentOutOfRangeException`): `glyphIndex` is outside `[0, GlyphCount)`.
+- **`GetGlyphOutline(int)`** (`InvalidDataException`): Malformed/truncated glyph or charstring data, or a rejected
+  composite-glyph/CFF-operator feature.
+- **`GetAdvanceWidth(int)`** (`ArgumentOutOfRangeException`): `glyphIndex` is outside `[0, GlyphCount)`.
+- **`GetKerning(int, int)`** (none): Missing pair/table or bad kerning data returns `0`.
+- **`GetNameInfo()`** (none): Unresolvable name members (including every member, absent `name` table) are `null`.
+- **`IsBold`** (none): Degrades to `false` when `OS/2`/`head.macStyle` cannot indicate boldness.
+- **`IsItalic`** (none): Degrades to `false` when `OS/2`/`head.macStyle`/`post` cannot indicate italics.
+- **`IsFixedPitch`** (none): Degrades to `false` when `post` is absent or too short.
 
 ##### Required vs. Optional Tables
 

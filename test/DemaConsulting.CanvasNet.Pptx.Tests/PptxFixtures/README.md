@@ -43,7 +43,7 @@ Three independent sources are represented:
 ## Included Files
 
 | File | Exercises |
-| ------ | ----------- |
+| --- | --- |
 | `samplelib-sample-blank.pptx` | A single blank slide from an independent, non-`python-pptx` authoring tool. |
 | `samplelib-sample-presentation.pptx` | Eight slides: text/autoshapes, a table (slide 3), a chart (slide 4, renders). |
 | `pythonpptx-sld-blank.pptx` | A single blank slide (`python-pptx`'s own `sld-blank.pptx`). |
@@ -73,23 +73,36 @@ Each `pythonpptx-*.pptx` file here is byte-for-byte the upstream file at the cor
 below (verified by exact file size against the upstream GitHub API directory listing before
 inclusion):
 
-| This folder's file | Upstream source URL |
-| ------ | ----------- |
-| `pythonpptx-sld-blank.pptx` | <https://github.com/scanny/python-pptx/blob/master/features/steps/test_files/sld-blank.pptx> |
-| `pythonpptx-shp-shapes.pptx` | <https://github.com/scanny/python-pptx/blob/master/features/steps/test_files/shp-shapes.pptx> |
-| `pythonpptx-shp-groupshape.pptx` | <https://github.com/scanny/python-pptx/blob/master/features/steps/test_files/shp-groupshape.pptx> |
-| `pythonpptx-shp-picture.pptx` | <https://github.com/scanny/python-pptx/blob/master/features/steps/test_files/shp-picture.pptx> |
-| `pythonpptx-shp-autoshape-props.pptx` | <https://github.com/scanny/python-pptx/blob/master/features/steps/test_files/shp-autoshape-props.pptx> |
-| `pythonpptx-tbl-cell.pptx` | <https://github.com/scanny/python-pptx/blob/master/features/steps/test_files/tbl-cell.pptx> |
-| `pythonpptx-txt-font-props.pptx` | <https://github.com/scanny/python-pptx/blob/master/features/steps/test_files/txt-font-props.pptx> |
-| `pythonpptx-txt-text-frame.pptx` | <https://github.com/scanny/python-pptx/blob/master/features/steps/test_files/txt-text-frame.pptx> |
-| `pythonpptx-sld-background.pptx` | <https://github.com/scanny/python-pptx/blob/master/features/steps/test_files/sld-background.pptx> |
-| `pythonpptx-ph-inherit-props.pptx` | <https://github.com/scanny/python-pptx/blob/master/features/steps/test_files/ph-inherit-props.pptx> |
-| `pythonpptx-ph-unpopulated-placeholders.pptx` | <https://github.com/scanny/python-pptx/blob/master/features/steps/test_files/ph-unpopulated-placeholders.pptx> |
-| `pythonpptx-txt-fit-text.pptx` | <https://github.com/scanny/python-pptx/blob/master/features/steps/test_files/txt-fit-text.pptx> |
-| `pythonpptx-shp-connector-props.pptx` | <https://github.com/scanny/python-pptx/blob/master/features/steps/test_files/shp-connector-props.pptx> |
-| `pythonpptx-dml-fill.pptx` | <https://github.com/scanny/python-pptx/blob/master/features/steps/test_files/dml-fill.pptx> |
-| `pythonpptx-dml-line.pptx` | <https://github.com/scanny/python-pptx/blob/master/features/steps/test_files/dml-line.pptx> |
+- **`pythonpptx-sld-blank.pptx`**:
+  <https://github.com/scanny/python-pptx/blob/master/features/steps/test_files/sld-blank.pptx>
+- **`pythonpptx-shp-shapes.pptx`**:
+  <https://github.com/scanny/python-pptx/blob/master/features/steps/test_files/shp-shapes.pptx>
+- **`pythonpptx-shp-groupshape.pptx`**:
+  <https://github.com/scanny/python-pptx/blob/master/features/steps/test_files/shp-groupshape.pptx>
+- **`pythonpptx-shp-picture.pptx`**:
+  <https://github.com/scanny/python-pptx/blob/master/features/steps/test_files/shp-picture.pptx>
+- **`pythonpptx-shp-autoshape-props.pptx`**:
+  <https://github.com/scanny/python-pptx/blob/master/features/steps/test_files/shp-autoshape-props.pptx>
+- **`pythonpptx-tbl-cell.pptx`**:
+  <https://github.com/scanny/python-pptx/blob/master/features/steps/test_files/tbl-cell.pptx>
+- **`pythonpptx-txt-font-props.pptx`**:
+  <https://github.com/scanny/python-pptx/blob/master/features/steps/test_files/txt-font-props.pptx>
+- **`pythonpptx-txt-text-frame.pptx`**:
+  <https://github.com/scanny/python-pptx/blob/master/features/steps/test_files/txt-text-frame.pptx>
+- **`pythonpptx-sld-background.pptx`**:
+  <https://github.com/scanny/python-pptx/blob/master/features/steps/test_files/sld-background.pptx>
+- **`pythonpptx-ph-inherit-props.pptx`**:
+  <https://github.com/scanny/python-pptx/blob/master/features/steps/test_files/ph-inherit-props.pptx>
+- **`pythonpptx-ph-unpopulated-placeholders.pptx`**:
+  <https://github.com/scanny/python-pptx/blob/master/features/steps/test_files/ph-unpopulated-placeholders.pptx>
+- **`pythonpptx-txt-fit-text.pptx`**:
+  <https://github.com/scanny/python-pptx/blob/master/features/steps/test_files/txt-fit-text.pptx>
+- **`pythonpptx-shp-connector-props.pptx`**:
+  <https://github.com/scanny/python-pptx/blob/master/features/steps/test_files/shp-connector-props.pptx>
+- **`pythonpptx-dml-fill.pptx`**:
+  <https://github.com/scanny/python-pptx/blob/master/features/steps/test_files/dml-fill.pptx>
+- **`pythonpptx-dml-line.pptx`**:
+  <https://github.com/scanny/python-pptx/blob/master/features/steps/test_files/dml-line.pptx>
 
 The two excluded candidates (see the next section) were also taken from the same upstream
 directory: `pythonpptx-minimal.pptx` from
@@ -102,11 +115,12 @@ directory: `pythonpptx-minimal.pptx` from
 Each `aiden0z-*.pptx` file here is byte-for-byte the upstream file at the corresponding URL below
 (verified by exact file size against the upstream GitHub API directory listing before inclusion):
 
-| This folder's file | Upstream source URL |
-| ------ | ----------- |
-| `aiden0z-1-chart-and-complex.pptx` | <https://github.com/aiden0z/pptx-renderer/blob/main/docs/example/1-chart-and-complex/source.pptx> |
-| `aiden0z-image-crop-css-reset.pptx` | <https://github.com/aiden0z/pptx-renderer/blob/main/docs/example/image-crop-css-reset/source.pptx> |
-| `aiden0z-table-stale-frame.pptx` | <https://github.com/aiden0z/pptx-renderer/blob/main/docs/example/table-stale-frame/source.pptx> |
+- **`aiden0z-1-chart-and-complex.pptx`**:
+  <https://github.com/aiden0z/pptx-renderer/blob/main/docs/example/1-chart-and-complex/source.pptx>
+- **`aiden0z-image-crop-css-reset.pptx`**:
+  <https://github.com/aiden0z/pptx-renderer/blob/main/docs/example/image-crop-css-reset/source.pptx>
+- **`aiden0z-table-stale-frame.pptx`**:
+  <https://github.com/aiden0z/pptx-renderer/blob/main/docs/example/table-stale-frame/source.pptx>
 
 ## Excluded Staged Candidates
 

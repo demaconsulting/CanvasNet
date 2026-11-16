@@ -26,7 +26,7 @@ the function behaves. Built-ins never throw for bad arguments: a wrong argument 
 unknown named argument produces a warning and `undef`. The only exceptions are the resource-limit errors
 raised through the host. The set of functions, every edge-case result, and the random generator are original
 decisions of the CanvasNetScad dialect, pinned by tests; no OpenSCAD source, manual, or test material was
-consulted (see _CanvasNetScad System Design_, Clean-Room Provenance).
+consulted (see *CanvasNetScad System Design*, Clean-Room Provenance).
 
 The unit's behavior is specified by the `CanvasNetScad-ScadEvaluation-ScadBuiltinFunctions-*` requirements
 (`Math`, `Trigonometry`, `Aggregates`, `Vectors`, `Lookup`, `Search`, `Strings`, `TypeTests`, `Random`,
@@ -75,20 +75,63 @@ that the sequences are identical on every platform; golden sequences are pinned 
 
 ##### The functions
 
-<!-- markdownlint-disable MD013 -->
-| Group | Functions | Behavior |
-| ----- | --------- | -------- |
-| Mathematics | `abs`, `sign`, `sqrt`, `exp`, `ln`, `log`, `floor`, `ceil`, `round`, `pow` | `log` is **base ten** and `ln` natural; `round` is half away from zero; `sqrt` of a negative number is `NaN`; non-numbers give `undef` and a warning |
-| Trigonometry | `sin`, `cos`, `tan`, `asin`, `acos`, `atan`, `atan2` | Angles in **degrees**; exact `0`, `1`, and `-1` at every multiple of 90 degrees (the angle is reduced with `%` first) and an infinity for the tangent at odd multiples of 90; otherwise `System.Math` on radians; the inverse functions return degrees; `atan2` covers all four quadrants |
-| Aggregates | `min`, `max` | Several number arguments, or one vector of numbers; empty or other operands give `undef` with a warning; `NaN` propagates |
-| Lists | `len`, `concat`, `norm`, `cross` | `len` is the element count of a vector or the scalar count of a string (otherwise `undef` with a warning, also for a range); `concat` flattens **one** level of vector arguments and appends other values, and can never deepen a value; `norm` is the Euclidean length (`norm([])` is 0); `cross` of two 3-vectors is a vector and of two 2-vectors a scalar |
-| Lookup | `lookup(key, table)` | Linear interpolation between the nearest keys below and above, with **no** assumption that the table is sorted; clamped to the value of the extreme key outside the table; rows that are not a number pair are skipped; the first of equal keys wins; numeric values only |
-| Search | `search(match, source, count, column)` | A match string (per Unicode scalar), number, or vector (per element) against a string, a vector of scalars, or a vector of rows (the column selects the element). `count = 1` gives one index (or an empty list) per match element; `0` gives all indices as a list; `n > 1` gives up to `n`. **Every other form** reports the unsupported feature `scad-search-form` and yields `undef`. The work and the result size are checked against the limits before they are done. **Cost model:** `Charge(1 + match size + source size)` first (a string counts its UTF-16 length, a vector its element count, a number one), computed in constant time before any pass over the arguments; then the exact match and source counts (the scalar count of a string uses the non-allocating `ScadText.ScalarCount`); then `CheckListLength(match count)` before the result array is allocated; then `Charge(max(1, match count × source count))` before the first comparison. The scan itself counts its candidate comparisons (across all match elements) and calls `host.Poll()` every `SearchPollInterval = 65,536` of them, counted and not timed, so a long scan that fits the step budget can still be canceled. The source is read in place: a string is walked by scalar and compared with ordinal string comparison against the match element (a number never equals a string scalar), a vector is read by element or row column, so no list of per-scalar strings exists and a search over 100,000 ASCII characters allocates nothing per scalar. For `0` and `n > 1` the list-length limit is checked for each index as it is collected (the total over all match elements), so a result over the limit stops at once; the default form builds no per-element list |
-| Strings | `str`, `chr`, `ord` | `str` concatenates the string forms of its arguments (invariant culture); `chr` converts code points (a number, or a vector of numbers) to a string and warns and skips invalid ones; `ord` gives the first code point of a string (`undef` for an empty or non-string argument). All operate on Unicode scalar values, so `chr` and `ord` round-trip and a surrogate pair is one character |
-| Type tests | `is_undef`, `is_num`, `is_bool`, `is_string`, `is_list`, `is_function` | Kind tests (`is_num(nan)` is true) |
-| Version | `version`, `version_num` | The emulated language level: `[2021, 1, 0]` and `20210100` |
-| Random | `rands(min, max, count, seed_value)` | See below |
-<!-- markdownlint-enable MD013 -->
+- **Mathematics**
+  - Functions: `abs`, `sign`, `sqrt`, `exp`, `ln`, `log`, `floor`, `ceil`, `round`, `pow`.
+  - Behavior: `log` is **base ten** and `ln` natural; `round` is half away from zero; `sqrt` of a negative number is
+    `NaN`; non-numbers give `undef` and a warning.
+- **Trigonometry**
+  - Functions: `sin`, `cos`, `tan`, `asin`, `acos`, `atan`, `atan2`.
+  - Behavior: Angles in **degrees**; exact `0`, `1`, and `-1` at every multiple of 90 degrees (the angle is reduced with
+    `%` first) and an infinity for the tangent at odd multiples of 90; otherwise `System.Math` on radians; the inverse
+    functions return degrees; `atan2` covers all four quadrants.
+- **Aggregates**
+  - Functions: `min`, `max`.
+  - Behavior: Several number arguments, or one vector of numbers; empty or other operands give `undef` with a warning;
+    `NaN` propagates.
+- **Lists**
+  - Functions: `len`, `concat`, `norm`, `cross`.
+  - Behavior: `len` is the element count of a vector or the scalar count of a string (otherwise `undef` with a warning,
+    also for a range); `concat` flattens **one** level of vector arguments and appends other values, and can never
+    deepen a value; `norm` is the Euclidean length (`norm([])` is 0); `cross` of two 3-vectors is a vector and of two
+    2-vectors a scalar.
+- **Lookup**
+  - Functions: `lookup(key, table)`.
+  - Behavior: Linear interpolation between the nearest keys below and above, with **no** assumption that the table is
+    sorted; clamped to the value of the extreme key outside the table; rows that are not a number pair are skipped; the
+    first of equal keys wins; numeric values only.
+- **Search**
+  - Functions: `search(match, source, count, column)`.
+  - Behavior: A match string (per Unicode scalar), number, or vector (per element) against a string, a vector of
+    scalars, or a vector of rows (the column selects the element). `count = 1` gives one index (or an empty list) per
+    match element; `0` gives all indices as a list; `n > 1` gives up to `n`. **Every other form** reports the
+    unsupported feature `scad-search-form` and yields `undef`. The work and the result size are checked against the
+    limits before they are done. **Cost model:** `Charge(1 + match size + source size)` first (a string counts its
+    UTF-16 length, a vector its element count, a number one), computed in constant time before any pass over the
+    arguments; then the exact match and source counts (the scalar count of a string uses the non-allocating
+    `ScadText.ScalarCount`); then `CheckListLength(match count)` before the result array is allocated; then
+    `Charge(max(1, match count × source count))` before the first comparison. The scan itself counts its candidate
+    comparisons (across all match elements) and calls `host.Poll()` every `SearchPollInterval = 65,536` of them, counted
+    and not timed, so a long scan that fits the step budget can still be canceled. The source is read in place: a string
+    is walked by scalar and compared with ordinal string comparison against the match element (a number never equals a
+    string scalar), a vector is read by element or row column, so no list of per-scalar strings exists and a search over
+    100,000 ASCII characters allocates nothing per scalar. For `0` and `n > 1` the list-length limit is checked for each
+    index as it is collected (the total over all match elements), so a result over the limit stops at once; the default
+    form builds no per-element list.
+- **Strings**
+  - Functions: `str`, `chr`, `ord`.
+  - Behavior: `str` concatenates the string forms of its arguments (invariant culture); `chr` converts code points (a
+    number, or a vector of numbers) to a string and warns and skips invalid ones; `ord` gives the first code point of a
+    string (`undef` for an empty or non-string argument). All operate on Unicode scalar values, so `chr` and `ord`
+    round-trip and a surrogate pair is one character.
+- **Type tests**
+  - Functions: `is_undef`, `is_num`, `is_bool`, `is_string`, `is_list`, `is_function`.
+  - Behavior: Kind tests (`is_num(nan)` is true).
+- **Version**
+  - Functions: `version`, `version_num`.
+  - Behavior: The emulated language level: `[2021, 1, 0]` and `20210100`.
+- **Random**
+  - Functions: `rands(min, max, count, seed_value)`.
+  - Behavior: See below.
 
 **`rands`.** Returns `count` numbers `min + (max - min) * u`, with `u` from the generator, so each lies in the
 half-open range. The count is truncated to a whole number; a negative or NaN count, non-numeric arguments, or a
@@ -108,7 +151,7 @@ angles; no fused multiply-add is used.
 
 #### Error Handling
 
-- Bad arguments are **warnings** with a result of `undef` (see _Argument binding_); the warning text names
+- Bad arguments are **warnings** with a result of `undef` (see *Argument binding*); the warning text names
   the function and the kinds involved.
 - Recognized but unimplemented functions and unimplemented `search` forms are **unsupported features**
   (`scad-function-parent_module`, `scad-function-textmetrics`, `scad-function-fontmetrics`,
@@ -118,7 +161,7 @@ angles; no fused multiply-add is used.
   proportional to its input charges `max(1, n)` evaluation steps through `Charge`, so a hostile call cannot
   allocate or compute beyond the limits. The evaluator additionally charges the call expression itself. `str`
   passes the host to the formatter as a meter, so its formatting work is charged per element **while** it formats
-  (see _ScadValue_, Text forms) and a step limit or cancellation stops a huge value midway.
+  (see *ScadValue*, Text forms) and a step limit or cancellation stops a huge value midway.
 
 #### Dependencies
 

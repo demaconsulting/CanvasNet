@@ -41,7 +41,7 @@ Unit tests reside in `ExpressionEvaluatorTests.cs` within the `DemaConsulting.Ca
 its function context (the fourth constructor argument, a `TimeCalendar`, UTC when omitted) is verified by the
 calendar-forwarding tests of `DataLoaderCalendarTests.cs` (in the `Data` folder) and by the date and time scenarios of
 `ExpressionFunctionsTimeTests.cs`, which evaluate through an `ExpressionEvaluator` built with a test calendar (see
-_ExpressionFunctions Unit Verification Design_); the zones are built in the tests by `TimeTestSupport` (a fixed offset
+*ExpressionFunctions Unit Verification Design*); the zones are built in the tests by `TimeTestSupport` (a fixed offset
 and a zone with a daylight-saving rule), so no scenario reads the host's zone.
 
 #### Test Environment
@@ -49,13 +49,12 @@ and a zone with a daylight-saving rule), so no scenario reads the host's zone.
 - **Framework**: xUnit v3 running under the .NET SDK
 - **Execution**: `dotnet test` invoked by `build.ps1` and the CI pipeline
 - **Mocking**: None required
-- **Isolation**: Each test compiles and evaluates its own texts with its own evaluator (an evaluator is one call and
-  one thread). The culture scenario runs its body on a dedicated worker thread whose own culture (and UI culture) is set
-  to each of eight cultures (invariant, `en-US`, `de-DE`, `fr-FR`, `tr-TR`, `ar-SA`, `ja-JP`, and `sv-SE`), so the culture
+- **Isolation**: Each test compiles and evaluates its own texts with its own evaluator (an evaluator is one call and one
+  thread). The culture scenario runs its body on a dedicated worker thread whose own culture (and UI culture) is set to
+  each of eight cultures (invariant, `en-US`, `de-DE`, `fr-FR`, `tr-TR`, `ar-SA`, `ja-JP`, and `sv-SE`), so the culture
   of the test thread and the process defaults are never changed (an exception of the body is rethrown on the test thread
-  with its original stack, and a dedicated scenario asserts the isolation); the
-  concurrency scenario runs eight parallel iterations, each with its own evaluator and datum, over one shared compiled
-  expression
+  with its original stack, and a dedicated scenario asserts the isolation); the concurrency scenario runs eight parallel
+  iterations, each with its own evaluator and datum, over one shared compiled expression
 
 #### Acceptance Criteria
 
@@ -169,9 +168,9 @@ so a hostile expression cannot do unbounded work with few instructions.
 **Tests**: `ExpressionEvaluatorTests.ExpressionEvaluator_Evaluate_OperatorsOnLongStrings_ChargeProportionalSteps`
 
 Asserts, as a theory of thirteen expressions (unary `+` and `-`, `-`, `*`, `/`, `%`, `<`, `>=`, `==`, `!=`, a string
-compared with itself, and an array holding the string under `+` and `==`), that an operator which reads a 12,800-character
-string charges at least 200 steps beyond the instructions, and that a budget of 50 steps fails with the located
-`MaxEvaluationSteps` error.
+compared with itself, and an array holding the string under `+` and `==`), that an operator which reads a
+12,800-character string charges at least 200 steps beyond the instructions, and that a budget of 50 steps fails with the
+located `MaxEvaluationSteps` error.
 
 ##### Strict Equality Charges The Size Of The Texts It Compares
 
@@ -182,21 +181,22 @@ string charges at least 200 steps beyond the instructions, and that a budget of 
 
 Asserts, as a theory of `===` and `!==` over two 12,800-character texts (and one text with itself), that the comparison
 charges at least 200 steps beyond the instructions and that a budget of 50 fails with the located `MaxEvaluationSteps`
-error; and that `StrictEquals` with a context charges the shorter length per 64 characters — two characters against 12,800
-are free, 6,400 against 12,800 are 100 steps — charges nothing for values of different kinds or for numbers, and charges
-nothing without a context. As a theory of `indexof`, `lastindexof`, and `includes` over an array of two 12,800-character
-texts that share all but the last character with the target, the search charges at least 400 steps beyond the instructions
-(200 per element) and fails under a budget of 150, while small searches (`['ab', 'cd']`) pass under 150; 2,000 elements
-of 63 characters, each alone below one step, are charged together (at least 1,968 steps) and fail under a budget of
-1,000.
+error; and that `StrictEquals` with a context charges the shorter length per 64 characters — two characters against
+12,800 are free, 6,400 against 12,800 are 100 steps — charges nothing for values of different kinds or for numbers, and
+charges nothing without a context. As a theory of `indexof`, `lastindexof`, and `includes` over an array of two
+12,800-character texts that share all but the last character with the target, the search charges at least 400 steps
+beyond the instructions (200 per element) and fails under a budget of 150, while small searches (`['ab', 'cd']`) pass
+under 150; 2,000 elements of 63 characters, each alone below one step, are charged together (at least 1,968 steps) and
+fail under a budget of 1,000.
 
 ##### Shared Arrays Are Checked Once Per Node And Their Text Is Bounded
 
-**Tests**: `ExpressionEvaluatorTests.ExpressionEvaluator_Evaluate_SharedArrays_AreCheckedOncePerNodeAndTheirTextIsBounded`
+**Tests**:
+`ExpressionEvaluatorTests.ExpressionEvaluator_Evaluate_SharedArrays_AreCheckedOncePerNodeAndTheirTextIsBounded`
 
 Asserts, on a datum holding a chain of 40 `[x, x]` arrays (2^40 paths), that `[datum.a, datum.a]` is evaluated at once
-(the result check visits every node once), and that `'' + datum.a`, `toString(datum.a)`, and `datum.a == 1` fail with the
-located `MaxStringLength` error instead of building the repeated text.
+(the result check visits every node once), and that `'' + datum.a`, `toString(datum.a)`, and `datum.a == 1` fail with
+the located `MaxStringLength` error instead of building the repeated text.
 
 ##### String Limit
 
@@ -205,9 +205,9 @@ located `MaxStringLength` error instead of building the repeated text.
 
 Asserts, with a `MaxStringLength` of 10, that `'abcde' + '12345'` (exactly the limit) is `abcde12345` and
 `'abcde' + '123456'` is a `VegaLiteRenderException` at the location of the expression that names `MaxStringLength`; and
-that a text of 12 characters that comes from outside the evaluation (a parameter or a field of a table row) is refused with
-the same located failure (naming `VegaLiteLimits.MaxStringLength`) when it is the result as it is or is converted by
-`toString`, while `length` of it, which does not keep the text, is 12.
+that a text of 12 characters that comes from outside the evaluation (a parameter or a field of a table row) is refused
+with the same located failure (naming `VegaLiteLimits.MaxStringLength`) when it is the result as it is or is converted
+by `toString`, while `length` of it, which does not keep the text, is 12.
 
 ##### Cancellation
 

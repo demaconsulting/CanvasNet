@@ -4,24 +4,24 @@
 
 ### Overview
 
-The `Cose` subsystem (namespace `DemaConsulting.CanvasNet.Mermaid.Cose`, folder `src/DemaConsulting.CanvasNet.Mermaid/Cose/`)
-is the force-directed layout that Mermaid draws its mindmaps with: a port of the cose-bilkent layout
-(cytoscape-cose-bilkent over cose-base and layout-base) as Mermaid runs it, with the edge points that Mermaid reads back
-from cytoscape. Given the sizes of the nodes of one tree and its edges, it gives the center of every node and the
-start, middle, and end point of every edge. It knows nothing about Mermaid text, shapes, or paint. It is **internal**:
-its types are visible only to the other subsystems of the system and, through `InternalsVisibleTo`, to the test
-assembly. It contains one unit:
+The `Cose` subsystem (namespace `DemaConsulting.CanvasNet.Mermaid.Cose`, folder
+`src/DemaConsulting.CanvasNet.Mermaid/Cose/`) is the force-directed layout that Mermaid draws its mindmaps with: a port
+of the cose-bilkent layout (cytoscape-cose-bilkent over cose-base and layout-base) as Mermaid runs it, with the edge
+points that Mermaid reads back from cytoscape. Given the sizes of the nodes of one tree and its edges, it gives the
+center of every node and the start, middle, and end point of every edge. It knows nothing about Mermaid text, shapes, or
+paint. It is **internal**: its types are visible only to the other subsystems of the system and, through
+`InternalsVisibleTo`, to the test assembly. It contains one unit:
 
 - **CoseLayout** - the internal sealed `CoseLayout` (a partial class in `CoseLayout.cs`, `CoseLayout.Graph.cs`,
   `CoseLayout.Radial.cs`, `CoseLayout.Forces.cs`, `CoseLayout.Edges.cs`, and `CoseLayout.Math.cs`) with the records
   `CoseSize`, `CoseLink`, `CosePoint`, `CoseEdgePoints`, and `CoseResult` (in `CoseLayout.cs`): the root graph, the
   radial start, the spring embedder with its repulsion grid and cooling schedule, the move to the origin, cytoscape's
-  straight-edge points, the correctly rounded sine, cosine, logarithm, and power, and the work charges; see _CoseLayout
-  Unit Design_ (`cose/cose-layout.md`)
+  straight-edge points, the correctly rounded sine, cosine, logarithm, and power, and the work charges; see *CoseLayout
+  Unit Design* (`cose/cose-layout.md`)
 
 The subsystem's namespace documentation is in `Cose/NamespaceDoc.cs`. Its behavior is specified by the
 `CanvasNetMermaid-Cose-*` requirements in `docs/reqstream/canvas-net-mermaid/cose.yaml`. The SysML2 model names the
-subsystem `MermaidCose` (see _CanvasNetMermaid System Design_).
+subsystem `MermaidCose` (see *CanvasNetMermaid System Design*).
 
 **Attribution.** The subsystem ports the parts of layout-base and cose-base (MIT, iVis@Bilkent) and of
 cytoscape-cose-bilkent and cytoscape (MIT, The Cytoscape Consortium) that a mindmap reaches, as the pinned Mermaid

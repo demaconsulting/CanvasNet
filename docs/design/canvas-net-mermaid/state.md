@@ -18,17 +18,17 @@ Mermaid's renderer. It is **internal**: its types are visible only to the other 
 - **StateParser** - the internal sealed `StateParser` (a partial class in `StateParser.cs` and `StateParser.Lexer.cs`)
   and the token names of `StateTokens` (in `StateParser.Lexer.cs`): the lexer and the grammar of Mermaid's state
   language, the statement tree its actions build, the located errors with Mermaid's expected tokens, and the nesting and
-  label limits; see _StateParser Unit Design_ (`state/state-parser.md`)
+  label limits; see *StateParser Unit Design* (`state/state-parser.md`)
 - **StateModel** - the internal sealed `StateModel` (a partial class in `StateModel.cs` and `StateModel.LayoutData.cs`)
   and its element types (`StateStatement`, `StateNote`, `StateRecord`, `StateRelation`, `StateStyleClass`, and
   `StateLink` in `StateModel.cs`; `StateNode`, `StateNodeKind`, and `StateEdge` in `StateModel.LayoutData.cs`):
   Mermaid's state database and data fetcher, the database error, the node, edge, nesting, and joined label limits, the
   diagram metadata, the mapping to the layout input of a render, the reports of what is not drawn, and the frame of the
-  drawing; see _StateModel Unit Design_ (`state/state-model.md`)
+  drawing; see *StateModel Unit Design* (`state/state-model.md`)
 
 The subsystem's namespace documentation is in `State/NamespaceDoc.cs`. Its behavior is specified by the
 `CanvasNetMermaid-State-*` requirements in `docs/reqstream/canvas-net-mermaid/state.yaml`. The SysML2 model names the
-subsystem `MermaidState` (see _CanvasNetMermaid System Design_).
+subsystem `MermaidState` (see *CanvasNetMermaid System Design*).
 
 **Attribution.** The subsystem is a port of the state diagram of the pinned Mermaid release (MIT; see
 `third-party/README.md`): the parser ports the generated lexer and the grammar of
@@ -100,7 +100,7 @@ the node images, and the layout work meter of the render, and with the frontmatt
 state section and the view box padding of 8 of Mermaid's state renderer. The state shapes (`stateStart`, `stateEnd`,
 `forkJoin`, `choice`, `rectWithTitle`, and `note`), the clusters of composite states, regions, and notes
 (`roundedWithTitle`, `divider`, and `noteGroup`), and the `barb` marker are parts of the shared `Rendering` subsystem
-(see _Rendering Subsystem Design_). A parent cycle (`state A { B }` and `state B { A }`, which Mermaid's database
+(see *Rendering Subsystem Design*). A parent cycle (`state A { B }` and `state B { A }`, which Mermaid's database
 accepts) fails in the cluster layout, located, with `mermaid-render-failed`, as graphlib's `setParent` fails Mermaid's
 render.
 
@@ -136,7 +136,7 @@ per line, and the parser reads statements in loops, so the cost of reading a tex
 nested composite states recurse; the model is bounded by the limits above, and the drawing by the layout work meter and
 the image limits of the shared rendering.
 
-**Known differences from Mermaid** are listed in each unit design and in _CanvasNetMermaid System Design_: errors and
+**Known differences from Mermaid** are listed in each unit design and in *CanvasNetMermaid System Design*: errors and
 limits are located CanvasNet exceptions with hints; the region ids are `id-random-N`; the click statements are kept
 only as data, never drawn or bound, their URLs only as the shared link check gives them (Mermaid keeps them as
 written); texts are always sanitized as Mermaid sanitizes them at its strict security level,

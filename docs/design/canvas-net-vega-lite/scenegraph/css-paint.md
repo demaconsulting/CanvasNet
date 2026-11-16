@@ -2,8 +2,9 @@
 
 ![Scenegraph Structure](VegaLiteScenegraphView.svg)
 
-The `CssPaint` unit is the third software unit in the `Scenegraph` subsystem. It is one source file, `CssPaint.cs`, in the
-`DemaConsulting.CanvasNet.VegaLite.Scenegraph` namespace, and defines one `internal` type, the static class `CssPaint`.
+The `CssPaint` unit is the third software unit in the `Scenegraph` subsystem. It is one source file, `CssPaint.cs`, in
+the `DemaConsulting.CanvasNet.VegaLite.Scenegraph` namespace, and defines one `internal` type, the static class
+`CssPaint`.
 
 #### Purpose
 

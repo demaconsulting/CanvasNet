@@ -15,7 +15,7 @@ data source is simply absent from its result. It reads the parsed tree only (no 
 
 The unit's behavior is specified by the `CanvasNetVegaLite-SpecModel-FeatureCatalog-*` requirements in
 `docs/reqstream/canvas-net-vega-lite/spec-model/feature-catalog.yaml`. The complete identifier table is in the XML
-documentation of `FeatureCatalog` and in _Supported And Deferred Features_ in _CanvasNetVegaLite System Design_.
+documentation of `FeatureCatalog` and in *Supported And Deferred Features* in *CanvasNetVegaLite System Design*.
 
 #### Data Model
 
@@ -101,13 +101,13 @@ views of a concatenation, a facet or a repeat),
 `vl-scale-time` and `vl-scale-utc` (`time` and `utc` join the supported scale types). The identifiers that the phase
 adds are:
 
-- `vl-timeunit-binned` and `vl-timeunit-maxbins` (**retired in Phase 14**, never produced again and never reused): a `binned`
-  time unit (a name that starts with `binned`, or `binned: true`) in an encoding, a condition, a predicate, or the
-  `timeUnit` transform was reported and ignored, and so was the `{"maxbins": n}` form of a unit that names no unit in a
-  predicate. They are applied now (see _EncodingPlan_, _TimeUnitTransform_ and the predicate rules of _SpecParser_): the
-  field of a binned unit is read as it is and its end computed where a channel spans the unit, a predicate compares
-  `time(field)`, and a predicate with the `maxbins` form compares the field as it is (Vega-Lite's `fieldFilterExpression`
-  has no unit to build a part with).
+- `vl-timeunit-binned` and `vl-timeunit-maxbins` (**retired in Phase 14**, never produced again and never reused): a
+  `binned` time unit (a name that starts with `binned`, or `binned: true`) in an encoding, a condition, a predicate, or
+  the `timeUnit` transform was reported and ignored, and so was the `{"maxbins": n}` form of a unit that names no unit
+  in a predicate. They are applied now (see *EncodingPlan*, *TimeUnitTransform* and the predicate rules of
+  *SpecParser*): the field of a binned unit is read as it is and its end computed where a channel spans the unit, a
+  predicate compares `time(field)`, and a predicate with the `maxbins` form compares the field as it is (Vega-Lite's
+  `fieldFilterExpression` has no unit to build a part with).
 - `vl-predicate-timeunit-part` (warning) - the `timeUnit` of a predicate (a filter or a condition test) whose unit has a
   `week` or `dayofyear` part, which a predicate does not apply (as in Vega-Lite); the other parts are compared.
 - `vl-encoding-bandposition-rect` - a `bandPosition` or `timeUnitBandPosition` other than 0.5 on a bar or rect whose
@@ -119,9 +119,9 @@ adds are:
 - `vl-encoding-datum-datetime` - a date-time object as the `datum` of a channel (the channel is ignored).
 - `vl-shape-path-invalid` (warning, Phase 13) - a `shape` (of a mark, the `value` of a `shape` channel, an entry of its
   `scale.range`, or the `symbolType` of a legend) that is neither a symbol name nor SVG path data that
-  `SymbolPathParser.TryParse` accepts: Vega throws for such a path, and the renderer draws a circle; path data without
-  a command parses and draws nothing, and is reported with a message that says so. The retired `vl-shape-path` (Phase 7
-  to 12, a custom path was not drawn) is never produced again. Tests: `FeatureCatalog_Visit_InvalidPathShapesAreReported`.
+  `SymbolPathParser.TryParse` accepts: Vega throws for such a path, and the renderer draws a circle; path data without a
+  command parses and draws nothing, and is reported with a message that says so. The retired `vl-shape-path` (Phase 7 to
+  12, a custom path was not drawn) is never produced again. Tests: `FeatureCatalog_Visit_InvalidPathShapesAreReported`.
 - `vl-scale-nice-interval` and `vl-guide-axis-tickcount-interval` (warnings) - a time interval (a text or an
   `{interval, step}` object) as `scale.nice` or as the `tickCount` of an axis or legend on a channel that has no time
   scale;
@@ -184,7 +184,7 @@ sentinel unsupported channel), where `arc` and `theta` were before. The identifi
 - `vl-format-type-custom` is also reported for a `formatType` of a `text` channel that is not `number`, `time`, or `utc`
   (the default format is used and the `format` is ignored).
 - `vl-mark-invalid-show` is retired in Phase 13: the `invalid` property of a mark that is `show` or null is drawn (the
-  invalid row is placed at the scale output of zero or of the first value of the domain, see _MarkBuilder_), and nothing
+  invalid row is placed at the scale output of zero or of the first value of the domain, see *MarkBuilder*), and nothing
   is reported.
 - `vl-mark-invalid-domains` (warning) - an `invalid` of `filter` or `break-paths-filter-domains`: those modes leave the
   invalid rows out of the scale domains, and the domains of this renderer always include them.
@@ -221,7 +221,7 @@ are:
   wording was **retired in Phase 11** (it was only produced for a view inside a facet, which is drawn now; the catalog's
   own `IsDrawnView` and `FindUndrawnComposition` rules are deleted): every transform of every view is applied. The
   transforms of a later phase (`regression`, `loess`, `density`, `quantile`, `extent`) kept "is not supported yet" until
-  phase 13, which computes them: their identifiers are **retired** (see _Phase 13 identifiers_). A top-level
+  phase 13, which computes them: their identifiers are **retired** (see *Phase 13 identifiers*). A top-level
   `transform` of a layered view, and the transforms of its layers, are **not
   reported**: they are computed (this was the false report that a layered chart with a top-level `calculate` produced).
 - `vl-layer-property-ignored` (warning) - a `width`, `height`, `autosize`, `padding`, `background`, `config`,
@@ -233,7 +233,7 @@ are:
 - `vl-composite-grouping` (**retired in Phase 14**, never produced again and never reused): a channel of a `boxplot`,
   `errorbar`, or `errorband` that groups the rows (every channel but the measure axis, the second ends and error
   channels, and the tooltip) with an enabled `bin`, an `aggregate`, or a binned or `maxbins` `timeUnit` was reported
-  and grouped by the raw field. The expansion transforms them now (see _SpecNormalizer_), so the catalog visits only the
+  and grouped by the raw field. The expansion transforms them now (see *SpecNormalizer*), so the catalog visits only the
   definitions as any other channel.
 - `vl-channel-xerror`, `vl-channel-xerror2`, `vl-channel-yerror`, and `vl-channel-yerror2` - an error channel on a mark
   other than `errorbar` and `errorband`, which use them; the channel is ignored. The `x2` and `y2` channels are accepted
@@ -264,13 +264,13 @@ layered view whose encoding holds the channel, the `spec` of a facet). The ident
   object with `row` and `column`).
 - `vl-facet-field-transform` (**retired in Phase 14**, never produced again and never reused): a `bin` or `aggregate`
   of a facet field, or a binned or `maxbins` `timeUnit` of one, was reported at that property and the raw value of the
-  field was the cell. They are applied now as Vega-Lite's facet model applies them (see _EncodingPlan_), and a facet
+  field was the cell. They are applied now as Vega-Lite's facet model applies them (see *EncodingPlan*), and a facet
   `sort` by `{field, op}` orders the cells by that aggregate; `vl-facet-sort` is retired. `vl-header-orient` - a
   `header.labelOrient` or `header.titleOrient` on
   a side that the header does not draw on (`HeaderSettings.IsHonoredOrient`: a row honors `left` and `right`, a column
   `top` and `bottom`, the label of a wrapped facet any side and its title `top` and `bottom`); the default side is used.
   `header.labelExpr` is evaluated and, like every label expression, reports only the constructs its expression cannot
-  do (see _Label expression identifiers_ below), a custom `header.formatType` the existing
+  do (see *Label expression identifiers* below), a custom `header.formatType` the existing
   `vl-format-type-custom`, and an `{"expr": ...}` in a facet property `vl-expr-ref` (`facet` joins the expression
   scopes).
 - `vl-composition-property-ignored` (warning) - a `width`, `height`, or `autosize` other than `pad` of a concatenation,
@@ -340,13 +340,13 @@ the specification's own configuration (the root `config`; the entries of `VegaLi
 a documented deviation) and reports **`vl-scale-invalid-value`** (unsupported feature, area `scale`) once for each entry
 that the renderer cannot read, at the entry: the entries that Vega-Lite 6.5.0's `invalid.ts` allows are `"zero-or-min"`
 and `{"value": ...}`, which `MarkBuilder` draws (a number or a text `value`), and the unreadable ones are `null`, a
-boolean, or a list as the `value`, and an entry of another shape (an expression reference as the `value` is skipped here:
-the generic `vl-expr-ref` check of the configuration reports it at the value, so it is not reported twice). The message
-names the entry and
-says that it is ignored and that the invalid values of that channel are handled by the `invalid` mode of the mark.
+boolean, or a list as the `value`, and an entry of another shape (an expression reference as the `value` is skipped
+here: the generic `vl-expr-ref` check of the configuration reports it at the value, so it is not reported twice). The
+message names the entry and says that it is ignored and that the invalid values of that channel are handled by the
+`invalid` mode of the mark.
 
 **Phase 13 (statistical transforms) identifiers.** The transforms `regression`, `loess`, `density`, `quantile`, and
-`extent` are computed (see _StatTransforms_), so **`vl-transform-regression`**, **`vl-transform-loess`**,
+`extent` are computed (see *StatTransforms*), so **`vl-transform-regression`**, **`vl-transform-loess`**,
 **`vl-transform-density`**, **`vl-transform-quantile`**, and **`vl-transform-extent`** are retired, and so is
 **`vl-transform-pivot-op`** (a pivot computes every aggregate operation); none is produced any more, and none is reused.
 The `vl-transform-<name>` family now has only `vl-transform-lookup-param`. One identifier is new:
@@ -485,25 +485,20 @@ The `vl-transform-<name>` family now has only `vl-transform-lookup-param`. One i
   `strokeOpacity`, and `angle`, but a `shape`, `angle`, or `strokeDash` channel is reported (`vl-channel-<name>`) and
   ignored for a mark that does not draw it (`ScaleResolver.ChannelIsDrawn`). `SupportedScaleTypes` also holds
   `sequential`, `quantile`, `quantize`, `threshold`, and `bin-ordinal` (the `vl-scale-bin-ordinal` identifier is
-  retired),
-  and `SupportedScaleProperties` also `domainMid`, `domainMin`,
-  `domainMax`, `domainRaw` (phase 12), `rangeMin`, `rangeMax`, and `interpolate`; `scheme` is never reported (an
-  unknown name is a specification
-  error of the scale resolver), so the retired identifier `vl-scale-color-ramp` is no longer produced. `VisitScale`
-  no longer reports the cubehelix interpolation types (`vl-scale-interpolate-cubehelix` is retired in Phase 13), and
-  `VisitShapeName` warns `vl-shape-path-invalid` for a shape that is neither a symbol name (`ScenePainter.IsSymbolShape`)
-  nor SVG path data that `SymbolPathParser.TryParse` accepts, and for path data without a command (nothing is drawn); the
-  retired identifier `vl-shape-path` is never produced (the `shape` of a mark, the `value` of a
-  `shape` channel, and the entries of its `scale.range`, and the `symbolType` of a legend are visited). `VisitScaleType`
-  warns `vl-scale-type-ignored` when a
-  supported `scale.type` is not accepted for the channel and the field type (`ScaleResolver.AcceptsScaleType`, which
-  also takes whether the encoding bins the field: `bin-ordinal` is accepted for a binned quantitative color only; the
-  rule
-  the resolver replaces it by the default type with) and for a quantitative field on a `shape` or `strokeDash` channel
-  that names no scale type; a type that is not drawn is reported only as `vl-scale-<type>`. Legends are drawn, so the
-  identifier `vl-guide-legend` is retired: `VisitLegend` visits the `legend` object of a field-driven channel and
-  reports
-  only what the legend builder does not draw.
+  retired), and `SupportedScaleProperties` also `domainMid`, `domainMin`, `domainMax`, `domainRaw` (phase 12),
+  `rangeMin`, `rangeMax`, and `interpolate`; `scheme` is never reported (an unknown name is a specification error of the
+  scale resolver), so the retired identifier `vl-scale-color-ramp` is no longer produced. `VisitScale` no longer reports
+  the cubehelix interpolation types (`vl-scale-interpolate-cubehelix` is retired in Phase 13), and `VisitShapeName`
+  warns `vl-shape-path-invalid` for a shape that is neither a symbol name (`ScenePainter.IsSymbolShape`) nor SVG path
+  data that `SymbolPathParser.TryParse` accepts, and for path data without a command (nothing is drawn); the retired
+  identifier `vl-shape-path` is never produced (the `shape` of a mark, the `value` of a `shape` channel, and the entries
+  of its `scale.range`, and the `symbolType` of a legend are visited). `VisitScaleType` warns `vl-scale-type-ignored`
+  when a supported `scale.type` is not accepted for the channel and the field type (`ScaleResolver.AcceptsScaleType`,
+  which also takes whether the encoding bins the field: `bin-ordinal` is accepted for a binned quantitative color only;
+  the rule the resolver replaces it by the default type with) and for a quantitative field on a `shape` or `strokeDash`
+  channel that names no scale type; a type that is not drawn is reported only as `vl-scale-<type>`. Legends are drawn,
+  so the identifier `vl-guide-legend` is retired: `VisitLegend` visits the `legend` object of a field-driven channel and
+  reports only what the legend builder does not draw.
 - The phase 8 rules: `SupportedScaleTypes` also holds `time` and `utc` (so `vl-scale-time` and `vl-scale-utc` are
   retired). `VisitChannelDefinition` no longer reports a temporal type or a time unit (the `VisitTimeUnit` that
   reported a binned unit and
@@ -523,9 +518,9 @@ The `vl-transform-<name>` family now has only `vl-transform-lookup-param`. One i
   format types that are evaluated (`number`, `time`, `utc`); the axis and legend `formatType` rules use it.
 - `VisitTransforms(transforms, drawn, view)` reports the entries as `vl-transform-<name>` for nothing any more: every
   transform of Vega-Lite is computed (the transforms of the later phases - `regression`, `loess`, `density`, `quantile`,
-  and `extent` - since phase 13, see _Phase 13 identifiers_) and every transform of a view that is not drawn is gone
+  and `extent` - since phase 13, see *Phase 13 identifiers*) and every transform of a view that is not drawn is gone
   (none since phase 11: every composition is drawn, so the "not applied" message
-  is retired, see _Phase 10 identifiers_). For the computed transforms of a drawn view (the single view, a layered view
+  is retired, see *Phase 10 identifiers*). For the computed transforms of a drawn view (the single view, a layered view
   and its layers, and the views of a `concat`, `hconcat`, `vconcat`, `facet`, or `repeat`: `calculate`, `filter`,
   `fold`, `flatten`, `sample`, `pivot`, `lookup`, `aggregate`, `joinaggregate`, `window`, `bin`, `stack`, `impute`,
   `timeUnit`, `regression`, `loess`, `density`, `quantile`, `extent`) it reports only their unsupported parts:
@@ -624,7 +619,7 @@ applied here: the document records the reports in a sink, which throws at the fi
 - **`SpecNormalizer`** - the view tree (`Layers`, with a bounded view limit) whose merged unit views the catalog
   visits for
   each layer that is not inside a facet, and
-  `TryOrientation` that decides which channel of a composite mark groups the rows (see _SpecNormalizer Unit Design_)
+  `TryOrientation` that decides which channel of a composite mark groups the rows (see *SpecNormalizer Unit Design*)
 - **`CompiledExpression`** and **`ExpressionConstruct`** - the constructs that the parser collected, from the
   `ExpressionParser` unit of the `Expressions` subsystem
 - **`SpecParser.IsSupportedSort`** - the rule for a supported encoding `sort` (in the `SpecParser` unit, over the shared
@@ -636,7 +631,7 @@ applied here: the document records the reports in a sink, which throws at the fi
   stack-impute warning and the band position of a stacked polar text channel, shared with the encoding plan so
   that the report and the pipeline decide alike; **`ScaleResolver.ChannelIsDrawn`** - the support table of the channels
   per mark, shared with the scale resolver
-- **`TimeUnitSpec`** - the time unit reader of the `Data` subsystem (see _Time Calendar Design_), so that the report and
+- **`TimeUnitSpec`** - the time unit reader of the `Data` subsystem (see *Time Calendar Design*), so that the report and
   the unit that is applied agree on what a binned or `maxbins` unit is, and **`EncodingPlan`** helpers (`IsBinning`,
   `AggregateFieldPath`, `DescribeAggregate`, `DefaultFieldTitle`)
 - **`ScaleResolver.AcceptsScaleType`**, **`ScaleResolver.DecideOffset`**, and **`ScaleResolver.HasNestedOffset`** - the

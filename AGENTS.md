@@ -8,7 +8,8 @@
   with packages that render SVG, PDF, PowerPoint (with charts), Visio, OpenSCAD 3D models, Vega-Lite charts, and
   Mermaid diagrams onto it, a viewer that loads any of them, and the `canvasnet` tool that drives them all.
 - **languages**: `C#`
-- **technologies**: `.NET` (libraries: net8.0, net9.0, net10.0, net11.0; tool: net10.0, net11.0), System.Numerics.Tensors
+- **technologies**: `.NET` (libraries: net8.0, net9.0, net10.0, net11.0; tool: net10.0, net11.0),
+  System.Numerics.Tensors
 
 # Project Structure
 
@@ -72,15 +73,14 @@ yet cover something.
 - **`.editorconfig`** - Code formatting rules
 - **`.clang-format`** - C/C++ formatting (if applicable)
 - **`.textlint.yaml`** - Spell-check configuration and technical term dictionary (TextLint)
-- **`.markdownlint-cli2.yaml`** - Markdown formatting rules
+- **`.lintmark.yaml`** - Markdown formatting rules (LintMark)
 - **`.yamllint.yaml`** - YAML formatting configuration
 - **`.reviewmark.yaml`** - File review definitions and tracking
 - **`nuget.config`** - NuGet package sources (if .NET)
-- **`package.json`** - Node.js dependencies for formatting tools
 - **`requirements.yaml`** - Root requirements file with includes
 - **`pip-requirements.txt`** - Python dependencies for yamllint and yamlfix
 - **`docs/sysml2/`** - SysML2 architecture model; authoritative source for software structure
-- **`fix.ps1`** - Applies all auto-fixers silently (dotnet format, markdown, YAML). Always exits 0.
+- **`fix.ps1`** - Applies all auto-fixers silently (dotnet format, LintMark, YAML). Always exits 0.
 - **`build.ps1`** - Builds the solution and runs all tests (see *Scoped Validation* for development use).
 
 # Standards Application (ALL Agents Must Follow)
@@ -90,8 +90,10 @@ from `.github/standards/`. Use this matrix to determine which to load:
 
 - **Any code**: `coding-principles.md`
 - **C# code**: `coding-principles.md`, `csharp-language.md`
+- **C++ code**: `coding-principles.md`, `cpp-language.md`
 - **Any tests**: `testing-principles.md`
 - **C# tests**: `testing-principles.md`, `csharp-testing.md`
+- **C++ tests**: `testing-principles.md`, `cpp-testing.md`
 - **Requirements**: `requirements-principles.md`, `software-items.md`, `reqstream-usage.md`
 - **Design docs**: `software-items.md`, `design-documentation.md`, `technical-documentation.md`
 - **Verification docs**: `software-items.md`, `verification-documentation.md`, `technical-documentation.md`
@@ -181,13 +183,13 @@ silently and **always exits 0** - agents do not need to respond to its output.
 pwsh ./fix.ps1
 ```
 
-This automatically handles: `dotnet format`, markdown formatting, and YAML
+This automatically handles: `dotnet format`, Markdown formatting (LintMark), and YAML
 formatting. Full lint compliance is a **pre-PR responsibility**, not an agent
 responsibility - invoke the lint-fix agent once before submitting a pull request.
 
 ## CI Quality Tools
 
-CI runs `lint.ps1` which checks: markdownlint-cli2, textlint, yamllint, dotnet format,
+CI runs `lint.ps1` which checks: lintmark, textlint, yamllint, dotnet format,
 reqstream, versionmark, reviewmark, and sysml2tools.
 
 # Scoped Validation (ALL Agents Must Follow)
@@ -262,7 +264,7 @@ in header comments. Agents MUST NOT modify them unless the task explicitly
 requires it and the modification preserves the documented design intent:
 
 - `.reviewmark.yaml`, `.textlint.yaml`, `.editorconfig`
-- `.markdownlint-cli2.yaml`, `.yamllint.yaml`
+- `.lintmark.yaml`, `.yamllint.yaml`
 - `requirements.yaml`, `fix.ps1`, `lint.ps1`
 
 # Continuous Compliance Overview

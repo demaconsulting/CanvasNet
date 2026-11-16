@@ -16,8 +16,8 @@ CurveBuilder`, the types that its methods take, and the private curve classes:
 - `CurveBuilder.Generators.cs` - the two generators `Line` and `Area`, which drive a curve through a list of points
 
 Every file carries the attribution header comment for the d3-shape, d3-path, Vega, and Vega-Lite behavior that the unit
-ports (see _CanvasNetVegaLite System Design_, Third-Party Provenance and Attribution, and the file `third-party/README.md`
-of the package).
+ports (see *CanvasNetVegaLite System Design*, Third-Party Provenance and Attribution, and the file
+`third-party/README.md` of the package).
 
 #### Purpose
 
@@ -76,8 +76,8 @@ case-sensitive equality:
 Any other text, a null name, and the Vega-only names `catmull-rom-open` and `catmull-rom-closed` are not accepted.
 
 **The path context.** `SegmentSink` appends `ScenePathSegment` values (absolute `Move`, `Line`, `Cubic`, and `Close`
-segments) to the output list in the order d3-path would write the commands. It adds the d3-path rules that matter for the
-output and two guards of its own:
+segments) to the output list in the order d3-path would write the commands. It adds the d3-path rules that matter for
+the output and two guards of its own:
 
 - a close segment is written only after a move has been written (d3-path writes a close only when a subpath is open);
 - a move or a line to a point that cannot be drawn (not finite, or beyond `ScenePainter.MaxMagnitude`, the one bound of
@@ -99,37 +99,37 @@ curve is two closed polygons; `BundleCurve` throws `NotSupportedException` from 
 
 **The curves.**
 
-- _Linear_: a move to the first point and a line to each next point; at the end of a line the subpath is closed when
-  the pass says so (a lone point is then a move and a close). _Linear closed_ writes the same polyline and always
+- *Linear*: a move to the first point and a line to each next point; at the end of a line the subpath is closed when
+  the pass says so (a lone point is then a move and a close). *Linear closed* writes the same polyline and always
   closes it.
-- _Step family_: in each interval the curve runs at the old value to the change position (the first point for
+- *Step family*: in each interval the curve runs at the old value to the change position (the first point for
   `step-before`, the middle for `step`, the second point for `step-after`), changes to the new value there, and runs on
   to the new point; a centered step finishes its last interval with a line to the final point. The step curves
   therefore write up to two lines per interval. On the baseline pass of an area the change position is flipped, because
   the baseline runs backward.
-- _Basis family_ (uniform cubic B-spline): the first interval is a line to the point one sixth of the way to the second
+- *Basis family* (uniform cubic B-spline): the first interval is a line to the point one sixth of the way to the second
   point followed by cubic segments whose control points are thirds of weighted sums of the three last points; the end
-  adds the cubic that reaches the last point and a line to it. _Basis open_ starts at the first knot (one sixth of the
-  weighted sum of the first three points) and ends at the last knot. _Basis closed_ replays its first three points at
+  adds the cubic that reaches the last point and a line to it. *Basis open* starts at the first knot (one sixth of the
+  weighted sum of the first three points) and ends at the last knot. *Basis closed* replays its first three points at
   the end so that the loop closes.
-- _Bundle_: the points of a line are buffered; at the end the points are blended with the straight line between the
+- *Bundle*: the points of a line are buffered; at the end the points are blended with the straight line between the
   first and the last point (the point is `beta` times itself plus `1 - beta` times its place on the line) and given to
   a basis curve. A beta of exactly 1 is the basis curve itself. A line with fewer than two points draws nothing.
-- _Cardinal family_: cubic segments whose control points move from the ends of the interval by `k` times the chord of
+- *Cardinal family*: cubic segments whose control points move from the ends of the interval by `k` times the chord of
   the neighbors, with `k = (1 - tension) / 6`; the first and the last point are doubled so that the curve reaches
-  them. _Cardinal open_ starts at the second point and ends at the second to last; _cardinal closed_ replays its first
+  them. *Cardinal open* starts at the second point and ends at the second to last; *cardinal closed* replays its first
   three points like the closed basis curve.
-- _Catmull-Rom_: the cardinal construction with the control points corrected by the chord lengths raised to the power
+- *Catmull-Rom*: the cardinal construction with the control points corrected by the chord lengths raised to the power
   `alpha` (0.5 is the centripetal form, 1 the chordal form), where a chord shorter than `Epsilon` (1e-12) skips its
   correction. An alpha of 0 is the cardinal curve with a tension of 0.
-- _Monotone_ (X): a cubic Hermite spline whose tangent at each point is the monotone slope (the sign agreement of the
+- *Monotone* (X): a cubic Hermite spline whose tangent at each point is the monotone slope (the sign agreement of the
   two neighbor secants: twice the least of the two secant magnitudes and half the weighted mean magnitude, and 0 when
   the secants differ in sign), the end tangents being the one-sided slope; points that coincide with the previous point
   are ignored; the division by a zero interval width
   follows the JavaScript rules that d3-shape relies on (the sign of a zero width follows the other width, and a slope
-  that is not a number counts as 0). _MonotoneY_ feeds the curve the points with their coordinates swapped and swaps the
+  that is not a number counts as 0). *MonotoneY* feeds the curve the points with their coordinates swapped and swaps the
   coordinates of every written segment back.
-- _Natural_: the points of a line are buffered, and at the end the two control points of each interval are found by
+- *Natural*: the points of a line are buffered, and at the end the two control points of each interval are found by
   solving the tri-diagonal system of the natural cubic spline separately for x and for y (zero second derivative at both
   ends); with two points the curve is a line, with one a lone point.
 
@@ -157,12 +157,12 @@ point is drawn as d3-shape draws it: a move and a close for the curves that togg
 
 **Limits** (every loop or allocation of the unit):
 
-- _Points_: the unit allocates nothing in proportion to the points except the output segments and, for `Bundle` and
+- *Points*: the unit allocates nothing in proportion to the points except the output segments and, for `Bundle` and
   `Natural`, the buffered coordinates of one run (two lists of doubles, and for `Natural` the arrays of its tri-diagonal
   solve, each as long as the run); the caller bounds the points (they come from the data rows, already bounded by the
   loader) and charges the
   segments.
-- _Segments_: `MaxSegments(kind, definedPoints, runs, area)` is the upper bound of the number of segments that `Line` or
+- *Segments*: `MaxSegments(kind, definedPoints, runs, area)` is the upper bound of the number of segments that `Line` or
   `Area` writes: `factor * definedPoints * (area ? 2 : 1)` plus the extra segments of the runs, with `factor` 2 for the
   three step curves (two lines per interval) and 1 for every other curve, and 0 when there are no defined points. The
   extra part covers the moves, the closes, and the end pieces of the curves and depends on the curve and on whether an
@@ -172,19 +172,19 @@ point is drawn as d3-shape draws it: a move and a close for the curves that togg
   close); the open curves and the step-before and step-after curves write fewer segments than their points and count
   as 0. The bound keeps two numbers for each curve and mode, `small` for runs of one or two points and `big` for any
   run, and counts at most `(D - R) / 2` runs as long (a run of three or more points has two points more than the one
-  that every run has), `big` for those and `small` for the other runs, so a line of isolated points (`D = R`) is
-  charged one point and `small` (at most one) segment per run, not the worst case of a long run: 500,000 isolated
-  points cost at most 1,000,000 segments for every curve. A bundle has the numbers of the basis curve (a beta of 1 is
-  the basis curve). The proof in
-  the remarks of `MaxSegments` rests on three facts: the runs are independent, the segment count of a d3-shape curve does
-  not depend on the coordinates (the path context can only drop a segment), and the curves are state machines with at
-  most four states, so `e(n)` is constant from three points on. A run that has points counts as at least one run, and
-  there are never more runs than points. The caller must count the points that are drawable by the same rule as the
-  generators (finite and within the painter's bound), because a point that the generators treat as undefined would
-  split a run. The result saturates at the largest `long` instead of overflowing (an input above one sixteenth of it
-  gives the largest `long`). A test checks that the real count never exceeds the bound, for every kind, for lines and
-  areas, for the tensions that change the class of a curve, and for every pattern of defined points up to a length.
-- _Cancellation_: the generators poll the token when the loop index is 0 and then every 1,024 points (the loop index
+  that every run has), `big` for those and `small` for the other runs, so a line of isolated points (`D = R`) is charged
+  one point and `small` (at most one) segment per run, not the worst case of a long run: 500,000 isolated points cost at
+  most 1,000,000 segments for every curve. A bundle has the numbers of the basis curve (a beta of 1 is the basis curve).
+  The proof in the remarks of `MaxSegments` rests on three facts: the runs are independent, the segment count of a
+  d3-shape curve does not depend on the coordinates (the path context can only drop a segment), and the curves are state
+  machines with at most four states, so `e(n)` is constant from three points on. A run that has points counts as at
+  least one run, and there are never more runs than points. The caller must count the points that are drawable by the
+  same rule as the generators (finite and within the painter's bound), because a point that the generators treat as
+  undefined would split a run. The result saturates at the largest `long` instead of overflowing (an input above one
+  sixteenth of it gives the largest `long`). A test checks that the real count never exceeds the bound, for every kind,
+  for lines and areas, for the tensions that change the class of a curve, and for every pattern of defined points up to
+  a length.
+- *Cancellation*: the generators poll the token when the loop index is 0 and then every 1,024 points (the loop index
   includes the one step past the end), so a canceled token stops even a line of one point, and a path of a million
   points can be abandoned.
 
@@ -205,7 +205,8 @@ every call and thread.
    segments and write no close segment, as their state machines do; a closed outline is therefore not marked closed
    for those curves.
 5. **A `tension` that is not finite** counts as absent; **any finite tension** is accepted (no range check, as in d3 and
-   Vega-Lite) and cannot produce a drawing of unbounded cost, because control points beyond the painter's bound become lines.
+   Vega-Lite) and cannot produce a drawing of unbounded cost, because control points beyond the painter's bound become
+   lines.
 6. **A point with a coordinate that is not finite, or beyond `ScenePainter.MaxMagnitude`**, is undefined, and no such
    coordinate is written (a cubic with such a control point becomes a line).
 7. **`TryParse`** takes a nullable name; null is not a name.
@@ -219,8 +220,8 @@ every call and thread.
 - `CurveBuilder.MaxSegments(CurveKind, long, long, bool)` - the upper bound of the segments of a line or an area, as
   described under Limits.
 - `CurveBuilder.Line(CurveKind, double?, ReadOnlySpan<CurvePoint>, List<ScenePathSegment>, CancellationToken)` - creates
-  the curve (with the tension where it applies), walks the points with the defined predicate, and appends the segments of
-  the line to the output list.
+  the curve (with the tension where it applies), walks the points with the defined predicate, and appends the segments
+  of the line to the output list.
 - `CurveBuilder.Area(CurveKind, double?, bool, ReadOnlySpan<AreaPoint>, List<ScenePathSegment>, CancellationToken)` -
   the same for an area: per run of defined points the top line forward and the baseline backward, horizontal or
   vertical.
@@ -238,12 +239,12 @@ skipped or turned into a line, as described above; no warning is produced. `Area
 `NotSupportedException`, a programming error that `MarkBuilder` avoids by asking `SupportsArea` first. A canceled token
 is an `OperationCanceledException`, never wrapped. A null output list is an `ArgumentNullException`. The unit raises no
 `VegaLiteRenderException`: it does not know the budgets, and it is the caller that charges the scene items and the
-evaluation steps with `MaxSegments` before it calls a generator (see _MarkBuilder_). The unit performs no I/O.
+evaluation steps with `MaxSegments` before it calls a generator (see *MarkBuilder*). The unit performs no I/O.
 
 #### Dependencies
 
 - **`ScenePathSegment`** - the segment value (`Move`, `Line`, `Cubic`, and `Close`, absolute coordinates) of the
-  `Scenegraph` subsystem (see _SceneModel_)
+  `Scenegraph` subsystem (see *SceneModel*)
 - **.NET base class library** - `System.Collections.Generic` (`List<T>`), `System.Threading` (`CancellationToken`), and
   `System.Math`
 

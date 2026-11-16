@@ -140,7 +140,7 @@ safe for concurrent renders):
     semicolons, checked as each style is added and located at the `style` or `classDef` statement. Repeated `class`,
     `style`, and `classDef` statements, ids listed again, and wide `classDef` lists can make these grow faster than the
     text, so they are checked where they are made. Every other text the model keeps was checked by the parser (see
-    _ErParser Unit Design_).
+    *ErParser Unit Design*).
 - `ReportUnsupported` throws `MermaidUnsupportedFeatureException` through the sink at the first unsupported feature in
   strict mode.
 - `GetData` throws a `MermaidRenderException` with code `mermaid-limit-exceeded` when subgraphs nest deeper than
@@ -193,5 +193,5 @@ safe for concurrent renders):
   `redux-color` themes paint by is not modeled, nor are the background of the hand-drawn look and the markers of the
   `neo` look.
 - **Reports.** A look other than `classic` (such as the hand-drawn look) and a layout other than `dagre` (such as
-  `elk`) are reported as unsupported and drawn in the classic look with dagre (see _CanvasNetMermaid System Design_,
+  `elk`) are reported as unsupported and drawn in the classic look with dagre (see *CanvasNetMermaid System Design*,
   Fidelity and Known Differences).

@@ -155,9 +155,10 @@ from the origin, or an exception. The same input always gives the same result, b
 
 - **Dagre subsystem** - `LayoutWorkMeter` (`Charge`, `Failure`, `LimitExceeded`, and cancellation).
 - **System** - `MermaidRenderException` and `MermaidDiagnosticCodes`.
-- **.NET base class library** - `System.Numerics.BigInteger`, collections, `System.Runtime.CompilerServices.RuntimeHelpers`
-  (`EnsureSufficientExecutionStack`), and the exactly rounded operations of `System.Math` (`Abs`, `Floor`, `Ceiling`,
-  `Max`, and `Sqrt`); no transcendental function of `System.Math` is used.
+- **.NET base class library** - `System.Numerics.BigInteger`, collections,
+  `System.Runtime.CompilerServices.RuntimeHelpers` (`EnsureSufficientExecutionStack`), and the exactly rounded
+  operations of `System.Math` (`Abs`, `Floor`, `Ceiling`, `Max`, and `Sqrt`); no transcendental function of
+  `System.Math` is used.
 
 #### Callers
 
@@ -169,7 +170,7 @@ from the origin, or an exception. The same input always gives the same result, b
 #### Known Differences From Mermaid
 
 - **Randomness.** None: no random number is drawn, because a tree never reaches the random code of cose-base (see
-  _Cose Design_). No generator is ported, and there is no tie case in which the layout could differ from Mermaid's.
+  *Cose Design*). No generator is ported, and there is no tie case in which the layout could differ from Mermaid's.
 - **Pow beyond 1,016 nodes.** Chrome's `Math.pow` is correctly rounded on every cooling pair the layout reaches up to
   1,016 nodes; from 1,017 nodes, for some node counts, it is not, and the cooling, and so the whole layout, may differ.
   A mindmap that large can reach the default `MaxLayoutWork` first.

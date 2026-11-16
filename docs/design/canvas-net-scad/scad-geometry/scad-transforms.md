@@ -25,7 +25,7 @@ conventions (Euler order, column versus row vectors), and the degradation rules 
 modules.
 
 The color table was copied from the named-color table of the repository's own SVG codec (`SvgCodec.Paint.cs`)
-and is a public W3C table (see _CanvasNetScad System Design_, Clean-Room Provenance); no OpenSCAD source or
+and is a public W3C table (see *CanvasNetScad System Design*, Clean-Room Provenance); no OpenSCAD source or
 manual text was consulted for any behavior of this unit.
 
 The unit's behavior is specified by the `CanvasNetScad-ScadGeometry-ScadTransforms-*` requirements (`Translate`,
@@ -38,7 +38,7 @@ The unit's behavior is specified by the `CanvasNetScad-ScadGeometry-ScadTransfor
 
 **Module signature.** Every module method has the shape of the builder's container delegate:
 `ScadGeo Method(ScadInstance? node, List<ScadGeo> results, ScadGeometryContext context)`. `results` holds one
-`ScadGeo` per child in order (empty ones included). `ScadGeo` (see _ScadGeometry Subsystem Design_) is a
+`ScadGeo` per child in order (empty ones included). `ScadGeo` (see *ScadGeometry Subsystem Design*) is a
 union of Empty, Solid (a scene node), and Flat (a `ScadShape2D` tree), with a bounding box and two flags:
 `IsTight` (the box is exactly the extent of the vertices) and `IsApproximate` (a difference or intersection is
 inside, so the box is an upper bound only).
@@ -149,7 +149,7 @@ the requested size:
    includeOverlays: false)` for a solid (a `%` ghost is not part of the geometry whose size is requested),
    `ScadShape2D.ComputeVertexBounds()` for a 2D shape — so a rotated child ends up with exactly the
    requested size. A ghost also contributes no propagated bounds, so the tight-box path ignores it too (see
-    _ScadGeometryBuilder Unit Design_); it remains part of the scene bounds that fit the default camera.
+    *ScadGeometryBuilder Unit Design*); it remains part of the scene bounds that fit the default camera.
 4. **Factors** (`ComputeFactors`). Per axis (three for a solid, only X and Y for a 2D shape), a positive
    `newsize` component gives `newsize / size`; the first such factor is the reference. An axis with a positive
    `newsize` but no extent warns `resize: the children have no extent along X; they are not resized along it`
@@ -228,8 +228,8 @@ All other problems are warnings.
   first report of a feature at a location (repeats at the same location are silent); the unit does not catch
   it.
 - **`ScadEvaluationException`** — never thrown by this unit. A transform whose world product later
-  underflows is reported by the render stage (`scad-csg-singular-transform`, see _ScadGeometryBuilder Unit
-  Design_), not here.
+  underflows is reported by the render stage (`scad-csg-singular-transform`, see *ScadGeometryBuilder Unit
+  Design*), not here.
 - **Cancellation** is polled by the builder's walk, not by this unit; no module method loops over the scene.
 
 #### Dependencies

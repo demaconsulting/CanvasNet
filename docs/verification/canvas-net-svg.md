@@ -43,7 +43,7 @@ distinct, fully opaque color via a plain `fill` presentation attribute) into a n
 through the public API. Asserts the rasterized pixel at the rectangle's center exactly matches
 the source color, confirming the system's public SVG load API integrates correctly with the
 `CanvasNet` system's `Surface`/`Geometry`/`Drawing` units it depends on. Unlike the BMP/PNG/TIFF/
-JPEG system-integration scenarios in _CanvasNet System Verification_ (`canvas-net.md`), there is
+JPEG system-integration scenarios in *CanvasNet System Verification* (`canvas-net.md`), there is
 no "Save" half to this round-trip: `SvgCodec` is decode/rasterize-only.
 
 ### Integration: Svg Load With Css Style Element Returns Expected Pixel

@@ -25,10 +25,10 @@ that each rule is visible:
   flag leaves room for the sign, `(` wraps negatives in parentheses, `$` is a prefix placed after the sign.
 - Width, fill, and alignment: `08.2f` of -3.14159 is `−0003.14`; `>10.2f`, `<10.2f`, and `^10.2f` pad to ten
   characters; `=+8.1f` puts the padding between the sign and the digits; `010,d` of 1234567 is `01,234,567`.
-- SI prefixes: `.3s` of 1500 is `1.50k`, of 0.5 is `500m`, of 0.00015 is `150µ`, of 1e-25 is `0.10y`, of 1e27 is `1000Y`;
-  `~s` trims to `1.5k`; `.1s` of 1500 is `2k`.
-- Exponent, significant, and rounded digits: `e` of 12345.678 is `1.234568e+4`; `.3g` of 1234.5678 is `1.23e+3`; `.3g` of
-  0.0001234 is `0.000123`; `.5g` of 5e-324 is `4.9407e-324`; `.2r` of 1234.5678 is `1200`; `n` is `,g`.
+- SI prefixes: `.3s` of 1500 is `1.50k`, of 0.5 is `500m`, of 0.00015 is `150µ`, of 1e-25 is `0.10y`, of 1e27 is
+  `1000Y`; `~s` trims to `1.5k`; `.1s` of 1500 is `2k`.
+- Exponent, significant, and rounded digits: `e` of 12345.678 is `1.234568e+4`; `.3g` of 1234.5678 is `1.23e+3`; `.3g`
+  of 0.0001234 is `0.000123`; `.5g` of 5e-324 is `4.9407e-324`; `.2r` of 1234.5678 is `1200`; `n` is `,g`.
 - The empty type and unknown types behave as `.12~g`: 0.1 + 0.2 is `0.3`, 1e21 is `1e+21`, and negative zero is `0`.
 - Integers and radixes: `d` rounds to an integer (`−2.5` gives `−3`); `x`, `X`, `#x`, `b`, `#b`, `o`, and `c` follow
   the radix rules (`c` prints a number as plain text, and a text with `FormatText`); special values keep their sign,
@@ -49,8 +49,8 @@ access.
 Unit tests reside in `NumberFormatTests.cs` within the `DemaConsulting.CanvasNet.VegaLite.Tests` project, in the
 `Scales` folder. The expression function `format(value, specifier)` is a second consumer of `NumberFormat.Create` and
 `Format`; its scenarios (the d3 vectors through an expression, the value coercion, the invalid specifier, and the
-formatter cache) are in `ExpressionFunctionsNumberTests.cs` and are described in the _ExpressionFunctions Unit
-Verification Design_.
+formatter cache) are in `ExpressionFunctionsNumberTests.cs` and are described in the *ExpressionFunctions Unit
+Verification Design*.
 
 #### Test Environment
 
@@ -135,12 +135,10 @@ throws `FormatException`.
 
 **Tests**: `NumberFormatTests.NumberFormat_FormatFloat_TrimsZeroesWithoutAPrecision`
 
-Asserts the hand-derived texts of Vega's `formatFloat` (from `toPrecision(12)` and the trimming of the zeros): 1000 is `1,000`,
-0.001 is `0.001`, 1234.5 is `1,234.5`, 1e-7 is `1e-7`, 2.5e-7 is `2.5e-7`, 1e21 is `1e+21`, `s` gives `1k` and `1.5k`,
-`%` gives
-`25.6%` (precision 10), `e` gives `1.2345e+4` (precision 11), a specifier with a precision keeps its zeros
-(`.3f` gives `2.000`),
-and an invalid specifier throws `FormatException`.
+Asserts the hand-derived texts of Vega's `formatFloat` (from `toPrecision(12)` and the trimming of the zeros): 1000 is
+`1,000`, 0.001 is `0.001`, 1234.5 is `1,234.5`, 1e-7 is `1e-7`, 2.5e-7 is `2.5e-7`, 1e21 is `1e+21`, `s` gives `1k` and
+`1.5k`, `%` gives `25.6%` (precision 10), `e` gives `1.2345e+4` (precision 11), a specifier with a precision keeps its
+zeros (`.3f` gives `2.000`), and an invalid specifier throws `FormatException`.
 
 ##### Zero-Span Tick Format
 

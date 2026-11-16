@@ -75,7 +75,6 @@ public class PngSuiteTests
     /// </summary>
     public static readonly TheoryData<string> SupportedFiles =
     [
-        // cspell:disable
         "basn0g01.png",
         "basn0g02.png",
         "basn0g04.png",
@@ -202,7 +201,6 @@ public class PngSuiteTests
         "z03n2c08.png",
         "z06n2c08.png",
         "z09n2c08.png"
-        // cspell:enable
     ];
 
     /// <summary>
@@ -213,7 +211,6 @@ public class PngSuiteTests
     /// </summary>
     public static readonly TheoryData<string> UnsupportedFiles =
     [
-        // cspell:disable
         "basi0g01.png",
         "basi0g02.png",
         "basi0g04.png",
@@ -249,7 +246,6 @@ public class PngSuiteTests
         "s38i3p04.png",
         "s39i3p04.png",
         "s40i3p04.png"
-        // cspell:enable
     ];
 
     /// <summary>
@@ -264,7 +260,6 @@ public class PngSuiteTests
     /// </summary>
     public static readonly TheoryData<string> CorruptFiles =
     [
-        // cspell:disable
         "xc1n0g08.png",
         "xc9n2c08.png",
         "xcrn0g04.png",
@@ -277,7 +272,6 @@ public class PngSuiteTests
         "xs2n0g01.png",
         "xs4n0g01.png",
         "xs7n0g01.png"
-        // cspell:enable
     ];
 
     /// <summary>
@@ -293,10 +287,8 @@ public class PngSuiteTests
     /// </summary>
     public static readonly TheoryData<string> CorruptAfterIhdrFiles =
     [
-        // cspell:disable
         "xcsn0g01.png",
         "xdtn0g01.png"
-        // cspell:enable
     ];
 
     /// <summary>

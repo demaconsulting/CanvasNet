@@ -442,11 +442,10 @@ folder (none without a folder), the size, an unknown extension, and a stream lar
 `FolderImageResolver_Constructor_InvalidArguments_Throw`,
 `FolderImageResolver_Constructor_MaxDecodedPixels_DefaultNegativeAndZero`
 
-Asserts the sorted union of extensions and schemes, that the `Extensions`, `Schemes`, `Diagnostics`, `Echo`,
-`Embedded`, and `Requested` lists are read-only (not an array or `List<T>`; `Add` through `IList<T>` throws `NotSupportedException`),
-and the rejection of a null sequence, negative limits, an empty or white-space
-folder (a null folder stays allowed), an
-invalid claim, and a null link.
+Asserts the sorted union of extensions and schemes, that the `Extensions`, `Schemes`, `Diagnostics`, `Echo`, `Embedded`,
+and `Requested` lists are read-only (not an array or `List<T>`; `Add` through `IList<T>` throws
+`NotSupportedException`), and the rejection of a null sequence, negative limits, an empty or white-space folder (a null
+folder stays allowed), an invalid claim, and a null link.
 
 ##### CanvasNet-ImageSources-FolderImageResolver-Positions: Resolving With Positions
 
@@ -454,8 +453,8 @@ invalid claim, and a null link.
 `FolderImageResolver_ResolveWithPositions_SourceWithoutPositions_GivesNull`,
 `FolderImageResolver_ResolveWithPositions_DeniedFile_GivesNullWithAccessDenied`,
 `FolderImageResolver_ResolveWithPositions_OverTheImageCount_GivesNullWithUnresolved`,
-`FolderImageResolver_ScopedResolver_ResolvesWithPositions`, `FolderImageResolver_ResolveWithPositions_NullSelection_Throws`
-(`FolderImageResolverPositionTests.cs`)
+`FolderImageResolver_ScopedResolver_ResolvesWithPositions`,
+`FolderImageResolver_ResolveWithPositions_NullSelection_Throws` (`FolderImageResolverPositionTests.cs`)
 
 A stub source that reports one position when asked receives the very selection, and the resolution returns its surface
 with that position and the truncation flag; a plain `Resolve` sends no selection, and a source that ignores the

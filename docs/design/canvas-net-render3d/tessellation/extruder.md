@@ -66,12 +66,12 @@ outward normals for outer walls and for hole walls (which then face into the hol
   line (degenerate triangles) and a negative scale passes through zero mid-extrusion, so the solid
   would self-intersect. Interpolation is linear per ring from 1 at the bottom to the requested scale
   at the top.
-- *Apex*: with scale `(0, 0)` the last ring is the single apex vertex `(0, 0, z_top)` shared by every
-  contour. Because every contour would then meet at that one vertex, the apex is accepted only for a region
-  with a **single contour**: a hole or a second island would leave a pinched (non-manifold) vertex, so
-  such a region is rejected with `ArgumentException` (the scale case with exactly one zero component is
-  rejected for every region). A wall triangle with a repeated corner is skipped, leaving one wall triangle per edge in the
-  last slice, and **no top cap** is emitted. The volume of a prism-to-apex extrusion is `A h / 3`.
+- *Apex*: with scale `(0, 0)` the last ring is the single apex vertex `(0, 0, z_top)` shared by every contour. Because
+  every contour would then meet at that one vertex, the apex is accepted only for a region with a **single contour**: a
+  hole or a second island would leave a pinched (non-manifold) vertex, so such a region is rejected with
+  `ArgumentException` (the scale case with exactly one zero component is rejected for every region). A wall triangle
+  with a repeated corner is skipped, leaving one wall triangle per edge in the last slice, and **no top cap** is
+  emitted. The volume of a prism-to-apex extrusion is `A h / 3`.
 - *Walls and caps*: for every contour edge `i -> i+1` and slice `k -> k+1`, the triangles
   `(b_i, b_i+1, t_i+1)` and `(b_i, t_i+1, t_i)` are emitted (`b` = ring `k`, `t` = ring `k+1`). The
   top cap is the triangulation mapped to the last ring, the bottom cap the same triangles reversed

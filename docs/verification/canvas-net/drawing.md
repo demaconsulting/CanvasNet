@@ -12,10 +12,10 @@ types and the internal `GradientEvaluator` helper; and the `TilePaint` unit, cov
 ### Verification Approach
 
 The `Drawing` subsystem is verified primarily through its constituent units' own tests:
-_PathFiller Unit Verification Design_ (`drawing/path-filler.md`),
-_PathStroker Unit Verification Design_ (`drawing/path-stroker.md`),
-_GradientPaint Unit Verification Design_ (`drawing/gradient-paint.md`), and
-_TilePaint Unit Verification Design_ (`drawing/tile-paint.md`). Those tests exercise both
+*PathFiller Unit Verification Design* (`drawing/path-filler.md`),
+*PathStroker Unit Verification Design* (`drawing/path-stroker.md`),
+*GradientPaint Unit Verification Design* (`drawing/gradient-paint.md`), and
+*TilePaint Unit Verification Design* (`drawing/tile-paint.md`). Those tests exercise both
 public APIs directly, and the internal helper types (`EdgeFlattener`/`ScanlineRasterizer`,
 `StrokePathFlattener`/`DashSplitter`/`StrokeOutliner`, `GradientEvaluator`, and
 `TilePaintEvaluator`, respectively) in
@@ -42,10 +42,10 @@ subsystems together end to end (see the system verification design, `../canvas-n
 ### Acceptance Criteria
 
 The `Drawing` subsystem's verification passes when every unit test scenario described in
-_PathFiller Unit Verification Design_ (`drawing/path-filler.md`),
-_PathStroker Unit Verification Design_ (`drawing/path-stroker.md`),
-_GradientPaint Unit Verification Design_ (`drawing/gradient-paint.md`), and
-_TilePaint Unit Verification Design_ (`drawing/tile-paint.md`) passes without error or
+*PathFiller Unit Verification Design* (`drawing/path-filler.md`),
+*PathStroker Unit Verification Design* (`drawing/path-stroker.md`),
+*GradientPaint Unit Verification Design* (`drawing/gradient-paint.md`), and
+*TilePaint Unit Verification Design* (`drawing/tile-paint.md`) passes without error or
 unexpected exception, and both system-level integration tests described above pass.
 <!-- cspell:ignore Outliner -->
 

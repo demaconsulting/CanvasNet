@@ -41,9 +41,9 @@ the document is written back unchanged.
 pair of strings are both `corrupt-input`, the second with the message `The document has a malformed Image element.`
 
 **PandocAst_Builders_FigureParaSpanAndWarnings_HaveTheExactJson**: a figure with a caption placeholder and an image of a
-class and an attribute, a paragraph with an image of an identifier, and two warnings in the metadata have the exact JSON:
-the placeholder is a `Span` of class `canvasnet-markdown` with the attribute `markdown`, the figure has a null short
-caption, and `canvasnet-warnings` is a `MetaList` of `MetaString` in order.
+class and an attribute, a paragraph with an image of an identifier, and two warnings in the metadata have the exact
+JSON: the placeholder is a `Span` of class `canvasnet-markdown` with the attribute `markdown`, the figure has a null
+short caption, and `canvasnet-warnings` is a `MetaList` of `MetaString` in order.
 
 **PandocAst_RewriteImage_ChangesOnlySourceAndAttributes**: rewriting an image with an identifier, a class, two
 attributes, a non-ASCII description, and a title to `gen/a.png` with one kept attribute changes only the source and the

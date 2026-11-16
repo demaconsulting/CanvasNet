@@ -27,7 +27,7 @@ namespace, all `internal`:
 operator and built-in function relies on: truthiness, equality, ordering, arithmetic, indexing, text forms,
 and number formatting. The rules are the CanvasNetScad dialect's own decisions, specified by general
 language-design reasoning and pinned by tests; no OpenSCAD source, manual, or test material was consulted
-(see _CanvasNetScad System Design_, Clean-Room Provenance). The unit does not know about scopes, calls, or
+(see *CanvasNetScad System Design*, Clean-Room Provenance). The unit does not know about scopes, calls, or
 limits: it never charges evaluation steps (the evaluator does) and it never enforces the list and string
 limits (the constructs that build values do). The one exception is the matrix product, which, when given an
 evaluation host, checks its result size and charges its work itself because only the product knows its dimensions.
@@ -55,7 +55,7 @@ modify it afterwards); `FromVector(IReadOnlyCollection<ScadValue>)` copies. Beca
 vectors can be shared freely, which the lazy variable cells and closures of the evaluator rely on.
 
 **`ScadRange`** holds `Start`, `Step`, and `End` as written. It is **lazy**: it is never materialized except
-by iteration. `Count` is `floor((end - start) / step) + 1`, corrected as described under _Range count_ below, for a step
+by iteration. `Count` is `floor((end - start) / step) + 1`, corrected as described under *Range count* below, for a step
 in the right direction and 0 otherwise, and saturates at `long.MaxValue - 1` for enormous ranges so that
 `[0 : 1e300]` can be measured without overflow; `ElementAt(i)` returns `start + i * step` (never an
 accumulated sum, so rounding does not
@@ -135,7 +135,7 @@ polled. With a host, `MatrixProduct` does, in this fixed order, so one input alw
    `PollIntervalMultiplyAdds = 65,536` multiply-adds, counted across the whole product and inside long dot
    products. The interval is counted, not timed, so the poll points are deterministic.
 
-_Calibration._ On the development machine (.NET 10, x64) a contiguous multiply-add costs about 1 ns (300 × 300
+*Calibration.* On the development machine (.NET 10, x64) a contiguous multiply-add costs about 1 ns (300 × 300
 by 300 × 300 takes about 20–30 ms) and an evaluation step about 30–50 ns, so 16 multiply-adds per step charges
 about two to three times the measured cost, leaving margin for slower hosts. The worst case is therefore a
 default budget of 50,000,000 steps spent entirely on products, about 800 million multiply-adds, about one
@@ -171,7 +171,7 @@ costs work proportional to its position, so, when the evaluator passes itself as
 steps before doing that work: `position / 512` for the vectorized scan of the prefix for surrogates (every string
 index), and `position / 16` more for the one-by-one walk over the scalars when that prefix contains a surrogate
 (`ScadText.ScanUnitsPerStep` and `WalkScalarsPerStep`). The charge depends only on the string and the index, never
-on timing, and a position below 512 costs nothing beyond the ordinary expression steps. _Calibration:_ on the
+on timing, and a position below 512 costs nothing beyond the ordinary expression steps. *Calibration:* on the
 development machine the scan of a 1,000,000-unit prefix took about 50–150 µs and the walk 0.7–4.7 ms (about 1–5 ns
 per scalar), against an evaluation step of about 30–50 ns, so the constants charge at or above the measured cost
 (about 2,000 and 62,500 steps for a position near the end of a 1 MiB string); a loop that indexes such a string
@@ -194,7 +194,7 @@ are elements 0, 1, and 2; any other member is `undef`.
   elements included) is charged `FormatStepsPerElement = 8` steps, plus one step per 16 characters for a string
   element, **before** it is written, so a step limit stops formatting midway and `Charge`'s cancellation poll
   (every 1,024 steps, so every 128 elements) fires inside it. The final charge of `str` (`1 + length / 16`) and the
-  deep-count charge of `echo` stay. _Calibration:_ formatting a number takes roughly 60–400 ns, one to eight
+  deep-count charge of `echo` stay. *Calibration:* formatting a number takes roughly 60–400 ns, one to eight
   evaluation steps' worth, so eight steps per element is the pessimistic end; `[for (k = [0 : 100000])
   len(str(v))]` with a vector of 100,000 numbers, which ran 49.5 s before the step limit tripped, now stops at the
   default step limit after about 1.4–3 s. The constant is pinned by
@@ -243,7 +243,7 @@ instead of running forever.
 Every recursive operation (equality, hashing, ordering, formatting, arithmetic, depth computation) calls
 `RuntimeHelpers.EnsureSufficientExecutionStack` once per level. At depth 256 the operations need little
 stack, but on a very small stack the guard throws `InsufficientExecutionStackException`; this is **the
-trigger for the evaluator's restart** on a large-stack thread (see _ScadEvaluator Unit Design_). Measured:
+trigger for the evaluator's restart** on a large-stack thread (see *ScadEvaluator Unit Design*). Measured:
 in an unoptimized build, equality, hashing, comparison, and formatting of a depth-256 vector pass on a
 256 KiB stack, while arithmetic on depth-256 vectors needs more (the tests pin 1 MiB for it). Arithmetic
 never deepens a vector.
@@ -254,7 +254,7 @@ Operators never throw for wrong operand kinds: they return `undef` and set `type
 the `Try…` text methods report failure through their `bool` result. The payload accessors throw
 `InvalidOperationException` for a programming error (reading the wrong kind). The only exception that
 escapes an operation by design is `InsufficientExecutionStackException`, which the evaluator handles
-(see _Stack guard_). Nothing in the unit throws a `ScadEvaluationException`: limits are enforced by the
+(see *Stack guard*). Nothing in the unit throws a `ScadEvaluationException`: limits are enforced by the
 callers.
 
 #### Dependencies

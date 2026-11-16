@@ -43,9 +43,9 @@ public partial class HelpTopicsTests
         new(@"(?<=^|[\s(,])\.[a-z0-9]+(?:\.json)?(?=$|[\s),;.])", RegexOptions.CultureInvariant, TimeSpan.FromSeconds(5));
 
     /// <summary>
-    ///     Splits a markdown table row at the cell bars that are not escaped (<c>\|</c> is a bar inside a cell).
+    ///     Matches a definition item of a guide: a bullet that starts with a bold term, and the rest of its first line.
     /// </summary>
-    private static readonly Regex TableCellSplit = new(@"(?<!\\)\|", RegexOptions.CultureInvariant, TimeSpan.FromSeconds(5));
+    private static readonly Regex DefinitionItem = new(@"^- \*\*(?<term>.+?)\*\*(?<rest>.*)$", RegexOptions.CultureInvariant, TimeSpan.FromSeconds(5));
 
     /// <summary>
     ///     The names of the global options, which every command accepts.
@@ -436,12 +436,13 @@ public partial class HelpTopicsTests
     }
 
     /// <summary>
-    ///     Test that the Mermaid diagram cards say what the tables of the Mermaid user guide say, row for row and in
-    ///     order: the <c>## Syntax</c>, <c>## Relations</c>, and <c>## Tags</c> bullets of <c>mermaid &lt;type&gt;</c> and the
-    ///     <c>## Settings</c> bullets of <c>mermaid &lt;type&gt; settings</c> are the rows of the guide's syntax, relation,
-    ///     tag, and settings tables, and every row of the guide's code table is a bullet of <c>mermaid unsupported</c> or
-    ///     <c>mermaid diagnostics</c>. Backticks are compared, <c>\|</c> is read as <c>|</c>, a final period is added to a
-    ///     row, and the first letter of each part before a <c>: </c> is compared ignoring case.
+    ///     Test that the Mermaid diagram cards say what the definition lists of the Mermaid user guide say, item for item
+    ///     and in order: the <c>## Syntax</c>, <c>## Relations</c>, and <c>## Tags</c> bullets of <c>mermaid &lt;type&gt;</c>
+    ///     are the guide's syntax, relation, and tag items, the <c>## Settings</c> bullets of
+    ///     <c>mermaid &lt;type&gt; settings</c> are the guide's setting items (<c>**key** (default value): meaning</c>), and
+    ///     every item of the guide's code list (<c>**code**: kind: reported when</c>) is a bullet of
+    ///     <c>mermaid unsupported</c> or <c>mermaid diagnostics</c>. Backticks are compared, and the first letter of each
+    ///     part before a <c>: </c> is compared ignoring case.
     /// </summary>
     [Fact]
     public void HelpTopics_MermaidTopic_DiagramSyntaxItems_MatchUserGuide()
@@ -460,43 +461,44 @@ public partial class HelpTopicsTests
             ("gitgraph", "### Supported Git Graph Syntax", 21),
         ];
 
-        // Act: the bullets that the rows of the guide's tables promise, compared with the cards
+        // Act: the bullets that the items of the guide's lists promise, compared with the cards
         var differences = new List<string>();
         foreach (var (card, heading, minimumRows) in diagrams)
         {
-            var rows = GuideTableRows(guide, heading).ToList();
-            Assert.True(rows.Count >= minimumRows, $"Only {rows.Count} rows were found in the {card} tables of the guide.");
-            var expected = rows.GroupBy(r => DiagramHeading(r.Header)).ToDictionary(g => g.Key, g => g.Select(ExpectedDiagramBullet).ToList());
-            foreach (var (section, bullets) in expected)
-            {
-                var id = section == "Settings" ? $"mermaid/{card}/settings" : $"mermaid/{card}";
-                CompareInOrder($"{id} ## {section}", bullets, HelpCardText.Bullets(id, section), differences);
-            }
+            var items = GuideItems(guide, heading).ToList();
+            Assert.True(items.Count >= minimumRows, $"Only {items.Count} items were found in the {card} lists of the guide.");
+            var id = $"mermaid/{card}";
+            var sections = HelpCardText.Headings(HelpTopics.Get(id).Body).Where(h => h is "Syntax" or "Relations" or "Tags").ToList();
+            var syntax = items.Where(i => !IsSettingItem(i)).Select(i => i.Term + i.Tail).ToList();
+            var settings = items.Where(IsSettingItem).Select(i => i.Term + i.Tail).ToList();
+            CompareInOrder($"{id} ## {string.Join(", ", sections)}", syntax, sections.SelectMany(s => HelpCardText.Bullets(id, s)).ToList(), differences);
+            CompareInOrder($"{id}/settings ## Settings", settings, HelpCardText.Bullets($"{id}/settings", "Settings"), differences);
         }
 
-        var codeRows = GuideTableRows(guide, "### Mermaid Unsupported Features and Strict Mode").ToList();
+        var codeItems = GuideItems(guide, "### Mermaid Unsupported Features and Strict Mode").ToList();
         var unsupported = HelpCardText.Bullets("mermaid/unsupported").Select(CanonicalBullet).ToList();
         var diagnostics = HelpCardText.Bullets("mermaid/diagnostics").Select(CanonicalBullet).ToList();
-        foreach (var (header, cells) in codeRows)
+        foreach (var (term, tail) in codeItems)
         {
-            Assert.Equal(["Code", "Kind", "Reported when"], header);
-            var (bullets, expected) = cells[1] == "Unsupported"
-                ? (unsupported, $"{cells[0]}: {cells[2]}.")
-                : (diagnostics, $"{cells[0]}: {cells[1]}: {cells[2]}.");
+            var parts = tail.Split(": ", 3);
+            Assert.True(parts.Length == 3 && parts[0].Length == 0, $"The code item '{term}' is not written as '**code**: kind: reported when'.");
+            var (bullets, expected) = parts[1] == "Unsupported"
+                ? (unsupported, $"{term}: {parts[2]}")
+                : (diagnostics, $"{term}: {parts[1]}: {parts[2]}");
             if (!bullets.Contains(CanonicalBullet(expected)))
             {
                 differences.Add($"bullet missing:{Environment.NewLine}  guide: {expected}");
             }
         }
 
-        // Assert: the code table has its rows, and nothing differs
-        Assert.True(codeRows.Count >= 18, $"Only {codeRows.Count} rows were found in the code table of the guide.");
+        // Assert: the code list has its items, and nothing differs
+        Assert.True(codeItems.Count >= 18, $"Only {codeItems.Count} items were found in the code list of the guide.");
         Assert.True(differences.Count == 0, string.Join(Environment.NewLine, differences));
     }
 
     /// <summary>
     ///     Test that the <c>## Reference</c> bullets of the <c>svg flatten</c> card are, word for word and in order, the
-    ///     rows of the flatten reference table of the tool's user guide.
+    ///     items of the flatten reference list of the tool's user guide.
     /// </summary>
     [Fact]
     public void HelpTopics_SvgTopic_FlattenItems_MatchUserGuide()
@@ -505,18 +507,17 @@ public partial class HelpTopicsTests
         var guide = File.ReadAllLines(Path.Combine(FindRepositoryRoot(), "docs", "user_guide", "canvas-net-tool.md"));
         var bullets = HelpCardText.Bullets("svg/flatten", "Reference");
 
-        // Act: the bullets the rows of the guide's table promise
-        var rows = GuideTableRows(guide, "#### Flatten Reference").ToList();
+        // Act: the bullets the items of the guide's list promise
+        var items = GuideItems(guide, "#### Flatten Reference").ToList();
 
-        // Assert: the table has the documented header and the same bullets in the same order
-        Assert.All(rows, row => Assert.Equal(["Term", "Meaning"], row.Header));
-        Assert.True(rows.Count >= 7, $"Only {rows.Count} rows were found in the flatten reference table of the guide.");
-        Assert.Equal(rows.Select(row => $"{row.Cells[0]}: {row.Cells[1]}"), bullets);
+        // Assert: the list has its items, and they are the same bullets in the same order
+        Assert.True(items.Count >= 7, $"Only {items.Count} items were found in the flatten reference list of the guide.");
+        Assert.Equal(items.Select(item => item.Term + item.Tail), bullets);
     }
 
     /// <summary>
-    ///     Test that the bullets of the <c>files</c> card are, word for word and in order, the rows of the file access
-    ///     reference table of the tool's user guide, and that each has a term.
+    ///     Test that the bullets of the <c>files</c> card are, word for word and in order, the items of the file access
+    ///     reference list of the tool's user guide, and that each has a term.
     /// </summary>
     [Fact]
     public void HelpTopics_FilesTopic_Items_MatchUserGuide()
@@ -525,14 +526,13 @@ public partial class HelpTopicsTests
         var guide = File.ReadAllLines(Path.Combine(FindRepositoryRoot(), "docs", "user_guide", "canvas-net-tool.md"));
         var bullets = HelpCardText.Bullets("files");
 
-        // Act: the rows of the reference table
-        var rows = GuideTableRows(guide, "#### File Access Reference").ToList();
+        // Act: the items of the reference list
+        var items = GuideItems(guide, "#### File Access Reference").ToList();
 
-        // Assert: every bullet has a term, the table has the documented header, and the bullets are the rows, in order
+        // Assert: every bullet has a term, the list has its items, and the bullets are the items, in order
         Assert.Equal(bullets.Count, HelpCardText.Items("files").Count);
-        Assert.All(rows, row => Assert.Equal(["Term", "Meaning"], row.Header));
-        Assert.True(rows.Count >= 16, $"Only {rows.Count} rows were found in the file access reference table of the guide.");
-        Assert.Equal(rows.Select(row => $"{row.Cells[0]}: {row.Cells[1]}"), bullets);
+        Assert.True(items.Count >= 16, $"Only {items.Count} items were found in the file access reference list of the guide.");
+        Assert.Equal(items.Select(item => item.Term + item.Tail), bullets);
     }
 
     /// <summary>
@@ -1077,74 +1077,73 @@ public partial class HelpTopicsTests
     }
 
     /// <summary>
-    ///     Gets the rows of every markdown table in one section of a guide, from its heading to the next heading of the
-    ///     same or a higher level, each with the header of its table. Cells keep their backticks and read <c>\|</c> as
-    ///     <c>|</c>.
+    ///     Gets the definition items of one section of a guide, from its heading to the next heading of the same or a
+    ///     higher level (headings inside code blocks do not count): every bullet that starts with a bold term
+    ///     (<c>- **term**</c>), with its indented continuation lines joined by single spaces.
     /// </summary>
     /// <param name="lines">The lines of the guide.</param>
     /// <param name="heading">The heading line of the section.</param>
-    /// <returns>The header and the cells of each body row, in order.</returns>
-    private static IEnumerable<(string[] Header, string[] Cells)> GuideTableRows(string[] lines, string heading)
+    /// <returns>The term (without its bold markers) and the tail of each item (what follows the term), in order.</returns>
+    private static IEnumerable<(string Term, string Tail)> GuideItems(string[] lines, string heading)
     {
         var start = Array.IndexOf(lines, heading);
         Assert.True(start >= 0, $"The guide has no heading '{heading}'.");
-        string[]? header = null;
-        var separator = false;
-        for (var i = start + 1; i < lines.Length && !lines[i].StartsWith("## ", StringComparison.Ordinal)
-                                && !lines[i].StartsWith("### ", StringComparison.Ordinal); i++)
+        var level = heading.TakeWhile(c => c == '#').Count();
+        var items = new List<(string Term, string Tail)>();
+        StringBuilder? item = null;
+        string? term = null;
+        var fenced = false;
+        for (var i = start + 1; i < lines.Length; i++)
         {
-            if (!lines[i].StartsWith('|'))
+            var line = lines[i];
+            if (line.TrimStart().StartsWith("```", StringComparison.Ordinal))
             {
-                header = null;
+                fenced = !fenced;
+            }
+
+            var headingLevel = line.TakeWhile(c => c == '#').Count();
+            if (!fenced && headingLevel > 0 && headingLevel <= level && line.Length > headingLevel && line[headingLevel] == ' ')
+            {
+                break;
+            }
+
+            if (item != null && line.StartsWith("  ", StringComparison.Ordinal) && line.Trim().Length > 0)
+            {
+                item.Append(' ').Append(line.Trim());
                 continue;
             }
 
-            var cells = TableCellSplit.Split(lines[i].Trim().Trim('|'))
-                .Select(c => c.Replace("\\|", "|", StringComparison.Ordinal).Trim())
-                .ToArray();
-            if (header == null)
+            if (item != null)
             {
-                (header, separator) = (cells, true);
+                items.Add((term!, item.ToString()));
+                item = null;
             }
-            else if (separator)
+
+            var match = fenced ? Match.Empty : DefinitionItem.Match(line);
+            if (match.Success)
             {
-                separator = false;
-            }
-            else
-            {
-                yield return (header.Select(h => h.Replace("`", string.Empty, StringComparison.Ordinal)).ToArray(), cells);
+                term = match.Groups["term"].Value;
+                item = new StringBuilder(match.Groups["rest"].Value);
             }
         }
-    }
 
-    /// <summary>
-    ///     Gets the card heading that holds the rows of a diagram table of the guide.
-    /// </summary>
-    /// <param name="header">The header of the table.</param>
-    /// <returns><c>Syntax</c>, <c>Relations</c>, <c>Tags</c>, or <c>Settings</c>.</returns>
-    private static string DiagramHeading(string[] header)
-    {
-        return string.Join("|", header) switch
+        if (item != null)
         {
-            "Area|Supported" => "Syntax",
-            "Relation|Drawn as" => "Relations",
-            "Tag|Drawn as" => "Tags",
-            "Key|Default|Meaning" => "Settings",
-            _ => throw new InvalidOperationException($"The guide has a diagram table with the unknown header '{string.Join(" | ", header)}'."),
-        };
+            items.Add((term!, item.ToString()));
+        }
+
+        return items;
     }
 
     /// <summary>
-    ///     Gets the bullet that a row of a diagram table of the guide promises.
+    ///     Gets whether a definition item of a guide is a setting, written <c>**key** (default value): meaning</c>.
     /// </summary>
-    /// <param name="row">The header and the cells of the row.</param>
-    /// <returns>The bullet, without the leading <c>- </c>.</returns>
-    private static string ExpectedDiagramBullet((string[] Header, string[] Cells) row)
+    /// <param name="item">The term and the tail of the item.</param>
+    /// <returns><c>true</c> for a setting.</returns>
+    private static bool IsSettingItem((string Term, string Tail) item)
     {
-        var cells = row.Cells;
-        return cells.Length == 3 ? $"{cells[0]} (default {cells[1]}): {cells[2]}." : $"{cells[0]}: {cells[1]}.";
+        return item.Tail.StartsWith(" (default ", StringComparison.Ordinal);
     }
-
     /// <summary>
     ///     Compares the bullets of a card with the bullets the guide promises, in order, and records each difference.
     /// </summary>

@@ -142,9 +142,9 @@ and a message text `#333` over its attribute while an unknown class keeps the at
 themes (a theory) the participant, lifeline, note, and activation paint and the box shadow come from the theme's
 variables; that a `themeCSS` rule for `.actor` and `.actor-line` overrides the participant fill and the lifeline width
 while the flowchart selector `.node rect` is reported once as `mermaid-theme-css-unsupported`; and that `none` and one
-`drop-shadow()` (with a color first or last, two or three lengths, a negative offset) are read, while four lengths,
-one length, non-zero numbers without units, a negative blur, a color between the lengths, a second filter function, a `url()`,
-and `blur()` are not (a theory of 14 cases).
+`drop-shadow()` (with a color first or last, two or three lengths, a negative offset) are read, while four lengths, one
+length, non-zero numbers without units, a negative blur, a color between the lengths, a second filter function, a
+`url()`, and `blur()` are not (a theory of 14 cases).
 
 ##### CanvasNetMermaid-Configuration-ThemeResolver-ClassStyleSheet: Mermaid's Class Diagram Paint
 
@@ -279,14 +279,14 @@ dark theme `#e0dfdf` on `#333333`, and the forest theme `#321b67` on `#cde498`, 
 sizes 12 (label), 14 (title), and 10 (bit numbers) in the theme's font family; that a `themeVariables.packet` of the
 dark theme with a red label color, a title font size of `20px`, a label font size of the bare number 20, and a block
 stroke width of 3 replaces the theme's object: the label is red at the root's 16 pixels (the bare number is dropped, as
-Chrome drops it), the title is black at 20 pixels, the bit numbers are black, and the block is `#efefef` stroked black at
-3; that the options are the 10 defaults (`byteFontSize` `10px`, `blockFillColor` `#efefef`, `blockStrokeWidth` `1`), that
-an object's values are written as JavaScript's `String` writes them (`12.5`, `null`, `true`, `[object Object]`, and an array
-as `a,,2`) over the defaults, and that a theme variable that is not an object changes nothing; that the `themeCSS` rules
-`.packetBlock { fill: #ffe0b2; stroke: #e65100; stroke-width: 2px }` and `.packetByte.end { fill: blue }` give the block
-that paint and the last bit numbers blue, the first staying black, without a report; and that a block fill and stroke
-that are not colors leave the block filled with the root rule's fill (the theme's text color `#333`) and without a
-stroke.
+Chrome drops it), the title is black at 20 pixels, the bit numbers are black, and the block is `#efefef` stroked black
+at 3; that the options are the 10 defaults (`byteFontSize` `10px`, `blockFillColor` `#efefef`, `blockStrokeWidth` `1`),
+that an object's values are written as JavaScript's `String` writes them (`12.5`, `null`, `true`, `[object Object]`, and
+an array as `a,,2`) over the defaults, and that a theme variable that is not an object changes nothing; that the
+`themeCSS` rules `.packetBlock { fill: #ffe0b2; stroke: #e65100; stroke-width: 2px }` and
+`.packetByte.end { fill: blue }` give the block that paint and the last bit numbers blue, the first staying black,
+without a report; and that a block fill and stroke that are not colors leave the block filled with the root rule's fill
+(the theme's text color `#333`) and without a stroke.
 
 ##### CanvasNetMermaid-Configuration-ThemeResolver-GitGraphStyleSheet: Mermaid's Git Graph Paint
 

@@ -82,5 +82,5 @@ crossing count its two ranks and entries.
 #### Known Differences From Mermaid
 
 The sort of a cluster with 64 or more entries whose barycenters include NaN may differ from V8's, because `Lodash.Sort`
-merges long runs without galloping (see _DagreLayout Unit Design_). Shorter lists, and any list whose barycenters are
+merges long runs without galloping (see *DagreLayout Unit Design*). Shorter lists, and any list whose barycenters are
 all numbers, are sorted exactly as V8 sorts them.

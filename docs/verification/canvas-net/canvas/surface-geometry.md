@@ -13,13 +13,13 @@ mapping is checked with a single marker pixel in a small image, rotated with nea
 destination is known; the interpolation is checked on solid images (the interior keeps the source color), on a linear
 gradient (bilinear sampling reproduces a linear function exactly, so rotating by 3 degrees and back differs only by
 rounding), on a hard edge (intermediate grays appear), and on fills of every kind (opaque, transparent,
-semi-transparent), where the expected edge pixels are recomputed from their own alpha with the premultiplied formula. The
-fast paths are checked by rendering the same random, partly translucent image at eight angles and three fills with and
-without them (through the internal `RotateArbitraryCore`, reached by `InternalsVisibleTo`) and requiring identical
+semi-transparent), where the expected edge pixels are recomputed from their own alpha with the premultiplied formula.
+The fast paths are checked by rendering the same random, partly translucent image at eight angles and three fills with
+and without them (through the internal `RotateArbitraryCore`, reached by `InternalsVisibleTo`) and requiring identical
 pixels. The skew estimation is checked on generated pictures of ruled lines at known tilts (drawn with plain arithmetic,
-not with the rotation code under test, by the `ImageFixtures.SketchPhoto` helper of the test project), with a bright
-and dark ground, on a large picture that is analyzed on a reduced plane, and on blank and noise pictures that must not
-give a confident answer; the tie-break is checked directly on its internal helper, and the thresholds and the sign of
+not with the rotation code under test, by the `ImageFixtures.SketchPhoto` helper of the test project), with a bright and
+dark ground, on a large picture that is analyzed on a reduced plane, and on blank and noise pictures that must not give
+a confident answer; the tie-break is checked directly on its internal helper, and the thresholds and the sign of
 `SkewEstimate` on constructed values and on a picture that is leveled with its own correction. The unit needs no files
 and no mocking.
 
@@ -43,7 +43,8 @@ and no mocking.
 - Invalid arguments and a disposed surface are rejected.
 - The skew of ruled lines is estimated to within 0.15 degrees for tilts from -12 to 14.5 degrees, with the correct sign,
   on a large image, and under uneven lighting; a blank image is not estimated; random noise has a confidence below
-  `SkewEstimate.MinConfidence`; the same pixels give the same estimate; rotating by `CorrectionDegrees` levels a picture.
+  `SkewEstimate.MinConfidence`; the same pixels give the same estimate; rotating by `CorrectionDegrees` levels a
+  picture.
 
 #### Test Scenarios
 
@@ -114,9 +115,9 @@ picture really has its line higher at the left edge than at the right, lines til
 4.5 and lines tilted by -5 degrees one below -4.5. 3000 by 2000 thick lines tilted by 4 degrees (analyzed on a 1000 by
 667 plane) are estimated within 0.15 degrees. Lines tilted by -6 degrees on paper that brightens by 80 levels from left
 to right, the ink 70 levels darker than the paper at every place, are estimated within 0.15 degrees. A 340 by 20 picture
-of identical rows with a period of 17 columns (one pixel of 100, ten of 111, and six of 110, so that every window mean is
-exactly 110) has 380 marks that are exactly 10 levels below their window mean and is estimated; the same picture with a
-mark of 101 (9 levels below) has none and is not estimated.
+of identical rows with a period of 17 columns (one pixel of 100, ten of 111, and six of 110, so that every window mean
+is exactly 110) has 380 marks that are exactly 10 levels below their window mean and is estimated; the same picture with
+a mark of 101 (9 levels below) has none and is not estimated.
 
 ##### CanvasNet-Canvas-SurfaceGeometry-SkewNoStructure: No Structure and Correction
 
@@ -127,8 +128,8 @@ mark of 101 (9 levels below) has none and is not estimated.
 Uniform paper, paper with 30 dark pixels (fewer than the 100 needed), and a transparent surface give 0 degrees,
 confidence 0, and not estimated. Noise of 400 by 300, 800 by 800, 1000 by 250, and 300 by 900 pixels is estimated but
 with a confidence below `MinConfidence` and is not correctable; this pins the constant together with the line tests
-above. `IsCorrectable` needs an estimate, at least 0.05 degrees, and a confidence of at least 0.4; `CorrectionDegrees` is
-`360 - skew` for a positive skew and `-skew` otherwise; a picture tilted by 5 degrees rotated by its own
+above. `IsCorrectable` needs an estimate, at least 0.05 degrees, and a confidence of at least 0.4; `CorrectionDegrees`
+is `360 - skew` for a positive skew and `-skew` otherwise; a picture tilted by 5 degrees rotated by its own
 `CorrectionDegrees` has a skew within 0.3 degrees of 0.
 
 ##### CanvasNet-Canvas-SurfaceGeometry-SkewDeterministic: Determinism

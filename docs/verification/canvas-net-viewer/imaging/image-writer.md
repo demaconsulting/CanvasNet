@@ -79,12 +79,13 @@ folder is accepted; the tests skip themselves only where the operating system re
 below a file are `output-write-failed` (the last names the file that is in the way); a folder that does not exist is
 accepted.
 
-**ImageWriter_CheckTargets_OutputIsAnyInput_ThrowsSameInputOutput**, **ImageWriter_CheckTargets_TwoOutputsSameFile_ThrowsUsageError**,
-**ImageWriter_CheckTargets_DistinctPaths_Passes**, and **ImageWriter_CheckTargets_NoClobberAndExistingOutput_ThrowsOutputExists**:
-an output that is the first, middle, or last of three inputs (spelled with a dot segment) is `same-input-output`;
-two outputs that are one file (a dot segment, and another case where the file system ignores case) are a
-`usage-error`; distinct outputs, an existing output that may be overwritten, and an empty output list pass; with
-no-clobber an existing output is `output-exists` (and is untouched), and a directory is `output-write-failed`.
+**ImageWriter_CheckTargets_OutputIsAnyInput_ThrowsSameInputOutput**,
+**ImageWriter_CheckTargets_TwoOutputsSameFile_ThrowsUsageError**, **ImageWriter_CheckTargets_DistinctPaths_Passes**, and
+**ImageWriter_CheckTargets_NoClobberAndExistingOutput_ThrowsOutputExists**: an output that is the first, middle, or last
+of three inputs (spelled with a dot segment) is `same-input-output`; two outputs that are one file (a dot segment, and
+another case where the file system ignores case) are a `usage-error`; distinct outputs, an existing output that may be
+overwritten, and an empty output list pass; with no-clobber an existing output is `output-exists` (and is untouched),
+and a directory is `output-write-failed`.
 
 **ImageWriter_Write_LongFileName_IsWritten**: a file name of 244 characters is written and the folder holds only the
 output, because the temporary file does not take its name from the target.

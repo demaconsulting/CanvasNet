@@ -12,7 +12,7 @@ dedicated unit tests for the internal `EdgeFlattener`, `ScanlineRasterizer`, and
 isolation.
 Expected antialiased coverage values throughout are **hand-computed analytically** from the
 geometry under test - the exact fraction of each pixel's unit cell (`[x, x+1) x [y, y+1)`, per
-the coordinate convention documented in _PathFiller Unit Design_, `../../../design/canvas-net/
+the coordinate convention documented in *PathFiller Unit Design*, `../../../design/canvas-net/
 drawing/path-filler.md`) lying inside the filled region - independently of the implementation
 under test, not by re-deriving the same rasterization formula. Byte-level expected alpha values
 account for `Surface`'s `MidpointRounding.AwayFromZero` blend-pipeline convention where relevant
@@ -285,7 +285,8 @@ own `TopY`/`BottomY`, not the surface's full height.
 
 ##### CanvasNet-Drawing-PathFiller-ScanlineDegenerateInputNoOp: Degenerate Input Is a No-Op
 
-**Tests**: `ScanlineRasterizer_Fill_NoPolygons_NoOp`, `ScanlineRasterizer_Fill_DegeneratePolygon_ContributesZeroCoverage`
+**Tests**: `ScanlineRasterizer_Fill_NoPolygons_NoOp`,
+`ScanlineRasterizer_Fill_DegeneratePolygon_ContributesZeroCoverage`
 
 Calls `ScanlineRasterizer.Fill` with an empty polygon list, and separately with a single polygon
 reduced to two points (fewer than the edges needed to enclose any area), and asserts the surface
@@ -329,8 +330,8 @@ color), including at the internal `ScanlineRasterizer` level using a sub-pixel-c
 proving per-pixel coverage computation is genuinely shared - not merely coincidentally equal at
 fully-opaque pixels - between the solid-color and gradient overloads. Separately, repeats the
 `FillRule` divergence and empty-path no-op scenarios already covered for the solid-color overload
-(see _CanvasNet-Drawing-PathFiller-FillRule_ and
-_CanvasNet-Drawing-PathFiller-EmptyOrOutOfBoundsNoOp_ above) against the gradient overload,
+(see *CanvasNet-Drawing-PathFiller-FillRule* and
+*CanvasNet-Drawing-PathFiller-EmptyOrOutOfBoundsNoOp* above) against the gradient overload,
 confirming that shared behavior is genuinely shared rather than coincidentally similar.
 
 ##### CanvasNet-Drawing-PathFiller-GradientFillValidation: Gradient Fill Validates Its Arguments
@@ -360,7 +361,7 @@ single constant color. Separately, at the internal `ScanlineRasterizer` level, a
 fully-covered row repeats the tile pattern across its width exactly as many times as the row is
 wide divided by the tile's pattern-space pitch, and that a polygon list with no polygons is a
 no-op. Separately, repeats the empty-path no-op scenario already covered for the solid-color
-overload (see _CanvasNet-Drawing-PathFiller-EmptyOrOutOfBoundsNoOp_ above) against the tile
+overload (see *CanvasNet-Drawing-PathFiller-EmptyOrOutOfBoundsNoOp* above) against the tile
 overload, confirming that shared behavior is genuinely shared rather than coincidentally similar.
 
 ##### CanvasNet-Drawing-PathFiller-TileFillValidation: Tile Fill Validates Its Arguments
@@ -433,30 +434,26 @@ behavior.
 `ScanlineRasterizer_AccumulateCoverageMask_EvenOddCoincidentMidRowEdges_ConservesArea`,
 `ScanlineRasterizer_Fill_CoincidentRectangleClip_EqualsUnclippedFill`
 
-The analytic-rectangle tests assert structural properties (rectangle versus dense representation,
-buffer sharing, bounds) and per-pixel equivalence (within `1e-4`) against a dense reference built
-via `ClipMask.FromPathDense`. The rectangle-versus-dense fill test asserts that, away from the clip's
-own edge pixels, the rectangle clip and the equivalent dense clip produce the same pixels (within
-one level per channel) for both fill rules, including single-column and single-row clips. On edge
-pixels the two are _no longer expected to be equal_: the rectangle clip is now applied geometrically
-(exact intersection area) while the dense reference multiplies coverages, so the test instead
-asserts the exact value never exceeds the unclipped fill's coverage and nothing paints outside the
-clip's pixel bounds. Its shape was also changed from a triangle plus a crossing diamond to a
-triangle plus a nested rectangle, because EvenOdd edges crossing inside one pixel are a known
-independent rasterizer approximation (both results differ from the true value there) that this
-comparison must not depend on. The clipped gradient and tile `Fill` overloads are covered by tests
-that fill a full-surface rectangle through a whole-pixel rectangle clip (so the sweep starts at a
-non-zero column) and assert pixel equality with the unclipped fill inside the clip, an empty
-result outside, and equality with the dense-clip result; a fractional-edge gradient test asserts
-half coverage on a half-pixel clip edge; and coincident fill/clip rectangle tests for both paints
-assert that total coverage equals the unclipped fill's. The new tests assert exactness: area conservation of the rasterizer
-within `1e-3` over sub-pixel offsets and sizes for both fill rules, Sutherland-Hodgman clip area
-against the analytic intersection (inside, outside, crossing one/two/four sides, concave,
-hole with both fill rules, degenerate), coincident-edge clips equal to the unclipped fill, a
-rectangle-plus-dense clip applying the rectangle factor once, rectangle-union clips (even-odd rings,
-overlapping non-zero rectangles, pairwise union intersections) giving exact fill areas with the
-dense fallback for non-rectangle operands, and EvenOdd area conservation for
-coincident mid-row edges. None of these tests asserts wall-clock time.
+The analytic-rectangle tests assert structural properties (rectangle versus dense representation, buffer sharing,
+bounds) and per-pixel equivalence (within `1e-4`) against a dense reference built via `ClipMask.FromPathDense`. The
+rectangle-versus-dense fill test asserts that, away from the clip's own edge pixels, the rectangle clip and the
+equivalent dense clip produce the same pixels (within one level per channel) for both fill rules, including
+single-column and single-row clips. On edge pixels the two are *no longer expected to be equal*: the rectangle clip is
+now applied geometrically (exact intersection area) while the dense reference multiplies coverages, so the test instead
+asserts the exact value never exceeds the unclipped fill's coverage and nothing paints outside the clip's pixel bounds.
+Its shape was also changed from a triangle plus a crossing diamond to a triangle plus a nested rectangle, because
+EvenOdd edges crossing inside one pixel are a known independent rasterizer approximation (both results differ from the
+true value there) that this comparison must not depend on. The clipped gradient and tile `Fill` overloads are covered by
+tests that fill a full-surface rectangle through a whole-pixel rectangle clip (so the sweep starts at a non-zero column)
+and assert pixel equality with the unclipped fill inside the clip, an empty result outside, and equality with the
+dense-clip result; a fractional-edge gradient test asserts half coverage on a half-pixel clip edge; and coincident
+fill/clip rectangle tests for both paints assert that total coverage equals the unclipped fill's. The new tests assert
+exactness: area conservation of the rasterizer within `1e-3` over sub-pixel offsets and sizes for both fill rules,
+Sutherland-Hodgman clip area against the analytic intersection (inside, outside, crossing one/two/four sides, concave,
+hole with both fill rules, degenerate), coincident-edge clips equal to the unclipped fill, a rectangle-plus-dense clip
+applying the rectangle factor once, rectangle-union clips (even-odd rings, overlapping non-zero rectangles, pairwise
+union intersections) giving exact fill areas with the dense fallback for non-rectangle operands, and EvenOdd area
+conservation for coincident mid-row edges. None of these tests asserts wall-clock time.
 
 Per `testing-principles.md`'s "tests MAY exist without a requirement", these tests exist as
 regression/defensive coverage for `ClipMask` and the internal clip-aware `PathFiller.Fill`/
@@ -481,8 +478,8 @@ same exception types `PathFiller.Fill`'s own validation uses.
 `PathFiller_Fill_SolidColorWithClip_RestrictsFillToClipCoverage` fills a full-surface rectangle
 through an internal clip-aware `Fill` overload call with a narrower `ClipMask` supplied, asserting
 the fill paints only where the clip mask itself has non-zero coverage - exercising the
-rectangle geometric clip and dense multiply described in _PathFiller Unit
-Design_'s `ClipMask` subsection. `PathFiller_Fill_SolidColorWithNullClip_BehavesLikePublicOverload`
+rectangle geometric clip and dense multiply described in *PathFiller Unit
+Design*'s `ClipMask` subsection. `PathFiller_Fill_SolidColorWithNullClip_BehavesLikePublicOverload`
 calls the same internal overload with an explicit `null` clip and asserts the result is pixel-for-
 pixel identical to calling the public, clip-less `Fill` overload - proving `clip: null` is a
 behavior-preserving default, not merely a compiling one.
@@ -496,7 +493,7 @@ floating-point error observable at the byte level - so the corresponding asserti
 `PathFillerTests`, `EdgeFlattenerTests`, and `ScanlineRasterizerTests` use exact equality
 (`Assert.Equal` on `byte`/`Rgba32`/`Vector2` values), not an epsilon-based comparison. The one
 exception is `PathFiller_Fill_QuadraticCurveShape_TotalCoverageMatchesAnalyticBezierBulgeArea`
-(see _CanvasNet-Drawing-PathFiller-Antialiasing_ above), which sums fractional coverage across an
+(see *CanvasNet-Drawing-PathFiller-Antialiasing* above), which sums fractional coverage across an
 entire flattened curved region rather than comparing a single pixel's exact byte value - its
 expected total (`16/3`) is compared using xUnit's `Assert.Equal(double, double, int precision)`
 overload (the established convention for tolerance-bearing floating-point comparisons elsewhere in

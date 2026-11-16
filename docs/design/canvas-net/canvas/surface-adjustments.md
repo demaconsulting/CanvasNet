@@ -8,12 +8,12 @@ subsystem. It is a partial class file, `Surface.Adjustments.cs`, so the adjustme
 
 #### Purpose
 
-`SurfaceAdjustments` changes the tone and color of the pixels of a surface: the luma of a pixel, grayscale, invert, fixed
-and automatic (Otsu) thresholds, levels, brightness, and contrast, and the auto-levels stretch. Its single
-responsibility is the arithmetic of those adjustments; it knows nothing of files, command-line options, or how a
-surface was loaded, so a caller decides which adjustment runs where. The adjustments were originally the
-command-line tool's `ImageAdjustments` unit; they live in the core library so that every CanvasNet package, and any
-library user, can use them, and the tool's image pipeline is a thin adapter over them.
+`SurfaceAdjustments` changes the tone and color of the pixels of a surface: the luma of a pixel, grayscale, invert,
+fixed and automatic (Otsu) thresholds, levels, brightness, and contrast, and the auto-levels stretch. Its single
+responsibility is the arithmetic of those adjustments; it knows nothing of files, command-line options, or how a surface
+was loaded, so a caller decides which adjustment runs where. The adjustments were originally the command-line tool's
+`ImageAdjustments` unit; they live in the core library so that every CanvasNet package, and any library user, can use
+them, and the tool's image pipeline is a thin adapter over them.
 
 #### Data Model
 
@@ -23,8 +23,9 @@ The unit adds no state to `Surface`. Its public surface is:
 - In-place instance methods `Grayscale()`, `Invert()`, `Threshold(int level)`,
   `Levels(int black, int white, double gamma = 1)`, `Brightness(int amount)`, and `Contrast(double contrast)`, all
   returning `void`.
-- `long[] LumaHistogram()` (a new array; the surface is not modified), `static int OtsuThreshold(ReadOnlySpan<long> histogram)`,
-  and `(int Black, int White)? AutoLevels(double clipPercent = 1)` (in place; returns the points applied).
+- `long[] LumaHistogram()` (a new array; the surface is not modified),
+  `static int OtsuThreshold(ReadOnlySpan<long> histogram)`, and
+  `(int Black, int White)? AutoLevels(double clipPercent = 1)` (in place; returns the points applied).
 - The public constants `MinGamma` (0.1), `MaxGamma` (10), `DefaultAutoLevelsClipPercent` (1), and
   `MaxAutoLevelsClipPercent` (20), which callers use to validate user input against the same limits.
 

@@ -51,29 +51,29 @@ constituent software items, specifically:
   `PositionCollector` units and their supporting types
 - **CanvasNetSvg (System)** — A separate, independently-distributed software system providing
   SVG (Scalable Vector Graphics) rasterization, containing a single unit, `SvgCodec` — see
-  _CanvasNetSvg System Verification_ (`canvas-net-svg.md`)
+  *CanvasNetSvg System Verification* (`canvas-net-svg.md`)
 - **CanvasNetPdf (System)** — A separate, independently-distributed software system providing
   PDF page-rendering support, containing a single unit, `PdfDocument` — see
-  _CanvasNetPdf System Verification_ (`canvas-net-pdf.md`)
+  *CanvasNetPdf System Verification* (`canvas-net-pdf.md`)
 - **CanvasNetCharts (System)** — A separate, independently-distributed software system providing
   chart support, being delivered incrementally. The current release ships two subsystems:
   `ChartModel`, containing the `ChartDocument` and `ChartRenderer` units, and `OpenXmlChart`,
-  containing the `OpenXmlChartParser` unit — see _CanvasNetCharts System Verification_
+  containing the `OpenXmlChartParser` unit — see *CanvasNetCharts System Verification*
   (`canvas-net-charts.md`)
 - **CanvasNetPptx (System)** — A separate, independently-distributed software system providing
   PowerPoint (`.pptx`) presentation-rendering support, containing a single unit,
-  `PptxDocument` — see _CanvasNetPptx System Verification_ (`canvas-net-pptx.md`)
+  `PptxDocument` — see *CanvasNetPptx System Verification* (`canvas-net-pptx.md`)
 - **CanvasNetVsdx (System)** — A separate, independently-distributed software system providing
   Microsoft Visio (`.vsdx`) diagram-rendering support, containing a single unit,
-  `VsdxDocument` — see _CanvasNetVsdx System Verification_ (`canvas-net-vsdx.md`)
+  `VsdxDocument` — see *CanvasNetVsdx System Verification* (`canvas-net-vsdx.md`)
 - **CanvasNetRender3D (System)** — A separate, independently-distributed, format-agnostic software
   system providing a pure-managed 3D mesh/scene rasterizer, containing three subsystems:
   `SceneModel` (units `DoublePrecisionMath`, `Mesh`, and `SceneGraph`), `Tessellation` (units
   `PrimitiveTessellator`, `PolygonTriangulator`, `Extruder`, `ConvexHull`, and `MinkowskiSum`), and
   `SceneRendering` (units `Camera`, `Lighting`, `TriangleRasterizer`,
   `FragmentBuffer`, `CsgResolver`, and `SceneRenderer`), including constructive solid geometry
-  (union, difference, intersection) through per-pixel fragment lists and polygon extrusion — see _CanvasNetRender3D
-  System Verification_ (`canvas-net-render3d.md`)
+  (union, difference, intersection) through per-pixel fragment lists and polygon extrusion — see *CanvasNetRender3D
+  System Verification* (`canvas-net-render3d.md`)
 - **CanvasNetScad (System)** — A separate software system providing a clean-room front end for the
   OpenSCAD language that parses, evaluates, builds the geometry of, and renders models, containing a single
   direct unit, `ScadDocument` (the public parse, evaluate, build, and render API, options, limits, locations, and
@@ -81,7 +81,7 @@ constituent software items, specifically:
   `ScadEvaluation` subsystem with the units `ScadValue`, `ScadEvaluator`, `ScadBuiltinFunctions`, and
   `ScadFileResolver`, and an internal `ScadGeometry` subsystem with the units `ScadGeometryBuilder`,
   `ScadPrimitives`, `ScadTransforms`, `ScadExtrusions`, and `ScadTextGeometry` —
-  see _CanvasNetScad System Verification_ (`canvas-net-scad.md`)
+  see *CanvasNetScad System Verification* (`canvas-net-scad.md`)
 - **CanvasNetVegaLite (System)** — A separate software system providing a Vega-Lite chart renderer that parses a
   Vega-Lite JSON specification and measures and renders the supported chart subset to a `Surface`, containing a single
   direct unit, `VegaLiteDocument` (the public parse, open, measure, and render API, options, limits, locations, and
@@ -101,7 +101,7 @@ constituent software items, specifically:
   text, and arc marks, and `CurveBuilder`, the d3-shape curves), and `Scenegraph` (units `SceneModel`, `ScenePainter`,
   `ArcGeometry`, the d3-shape arc, `CssPaint`, `SymbolPathParser`, the custom symbol paths, and `ScenePositions`, the
   feature positions) — see
-  _CanvasNetVegaLite System Verification_
+  *CanvasNetVegaLite System Verification*
   (`canvas-net-vega-lite.md`)
 - **CanvasNetMermaid (System)** — A separate software system providing a Mermaid diagram renderer that parses Mermaid
   text, describes, measures, and renders flowcharts, sequence diagrams, class diagrams, state diagrams, entity
@@ -122,14 +122,14 @@ constituent software items, specifically:
   (units `PieParser` and `PieRenderer`), `Gantt` (units `GanttParser`, `GanttModel`, `GanttRenderer`, and
   `TimeAxis`), `Mindmap` (units `MindmapParser` and `MindmapRenderer`), `Cose` (unit `CoseLayout`), `Packet` (units
   `PacketParser` and `PacketRenderer`), and `GitGraph` (units `GitGraphParser` and `GitGraphRenderer`) — see
-  _CanvasNetMermaid System Verification_ (`canvas-net-mermaid.md`)
+  *CanvasNetMermaid System Verification* (`canvas-net-mermaid.md`)
 - **CanvasNetViewer (System)** — A separate software system, distributed as the `DemaConsulting.CanvasNet.Viewer`
   package, that lists the image sources of every format, creates the image resolver that lets an SVG document embed
   them, renders any file as a picture, and is the library form of the `canvasnet` tool, containing two direct units,
   `CanvasNetViewer` (with `ViewerRenderOptions` and `ViewerImage`) and `ViewerException` (with `ErrorCodes`), and an
   `Imaging` subsystem with the `SourceLoader`, `ImagePipeline`, `ImageWriter`, `ImageComparison`, `ContactSheet`,
   `GridOverlay`, `ImageRenderer`, `ImageInspector`, `ImageComparer`, `MontageBuilder`, and `SvgFlattener` units — see
-  _CanvasNetViewer System Verification_ (`canvas-net-viewer.md`)
+  *CanvasNetViewer System Verification* (`canvas-net-viewer.md`)
 - **CanvasNetTool (System)** — A separate software system shipped as the `DemaConsulting.CanvasNet.Tool` dotnet
   tool package (command `canvasnet`), containing six direct units, `Program`, `Context`, `ArgumentReader`,
   `ResultWriter`, `Validation`, and `PathHelpers`, and a `Commands` subsystem with the `CommandRegistry`, `HelpTopics`,
@@ -137,8 +137,8 @@ constituent software items, specifically:
   `PandocFilterCommand` units, and a `PandocFilter` subsystem (the Pandoc filter) with the `PandocAst`, `FilterPaths`,
   `PictureAttributes`, `DependencyHasher`, `FilterSettings`, `PictureCache`, `PandocFilterEngine`, and
   `PandocFilterShim` units; the tool is a
-  thin shell over the `Imaging` subsystem of the Viewer — see _CanvasNetTool System
-  Verification_ (`canvas-net-tool.md`)
+  thin shell over the `Imaging` subsystem of the Viewer — see *CanvasNetTool System
+  Verification* (`canvas-net-tool.md`)
 
 The following OTS items are also covered:
 

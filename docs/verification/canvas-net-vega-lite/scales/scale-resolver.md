@@ -70,19 +70,17 @@ The expected values are derived by hand from the Vega-Lite rules and arithmetic,
   over the domain 0 to 12, and `v` maps to `20 + 80 x sqrt(v / 12)`: 0 to 20, 3 (a quarter of the maximum, whose square
   root is one half) to 20 + 80 x 0.5 = 60, and 12 to 100.
 - Discrete polar scales spread their categories over the same ranges without padding: the three categories a, b, and c
-  of an arc are bands of 2 pi / 3 starting at 0, 2 pi / 3, and 4 pi / 3, the same categories on a text mark are points at
-  0, pi, and 2 pi, and the radius bands over 90 pixels are 30 wide so that c starts at 60.
+  of an arc are bands of 2 pi / 3 starting at 0, 2 pi / 3, and 4 pi / 3, the same categories on a text mark are points
+  at 0, pi, and 2 pi, and the radius bands over 90 pixels are 30 wide so that c starts at 60.
 
 Unit tests reside in `ScaleResolverTests.cs` (the scale kinds, domains, ranges, paddings, colors, and sizes),
 `ScaleResolverPlanTests.cs` (the plan-driven fields, domains, titles, and sorts), `ScaleResolverTimeTests.cs` (the
 scales of temporal fields and of fields with a time unit), `ScaleResolverPolarTests.cs` (the polar scales and the
-orientation of the line, area, trail, and arc marks), `ScaleResolverLayerTests.cs` (the scales of the layers of a layered
-view, Phase 10), `ScaleResolverCompositionTests.cs` (the scales across the children of a concatenation and
-the cells of a facet,
-and the size of one chart, Phase 11), and `MarkChannelGatingTests.cs` (the table of the marks that draw
-each channel) within the
-`DemaConsulting.CanvasNet.VegaLite.Tests` project, in the `Scales` folder; the sorts over rows made by a calculate
-transform are in `RowTransformsTests.cs`, in the `Transforms` folder.
+orientation of the line, area, trail, and arc marks), `ScaleResolverLayerTests.cs` (the scales of the layers of a
+layered view, Phase 10), `ScaleResolverCompositionTests.cs` (the scales across the children of a concatenation and the
+cells of a facet, and the size of one chart, Phase 11), and `MarkChannelGatingTests.cs` (the table of the marks that
+draw each channel) within the `DemaConsulting.CanvasNet.VegaLite.Tests` project, in the `Scales` folder; the sorts over
+rows made by a calculate transform are in `RowTransformsTests.cs`, in the `Transforms` folder.
 
 The temporal scenarios resolve through the same pipeline the render uses (the `Resolve` helper of
 `ScaleResolverTimeTests` prepares the data stage in the calendar of a chosen zone, applies the explicit transforms and
@@ -187,22 +185,21 @@ a tick over categories, horizontal for the time `y`).
 Asserts, for the pie data above, that `theta` is a linear scale that is polar and not a position, located at
 `/encoding/theta`, whose model for any extent (12,345 passed here) is the domain 0 to 4 over the range 0 to 2 pi, with
 the values 0, 1, 2, and 4 at 0, pi / 2, pi, and 2 pi; that `reverse` gives the range 2 pi to 0, `rangeMin` 1 and
-`rangeMax` 3
-give 1 to 3, an explicit range `[0, 3]` replaces the default, and the keyword `"width"` stands for the extent that the
-caller passes (0 to 40). For the radius it asserts the range 0 to the extent (0 to 100, so 6 maps to 50), the square-root
-radial scale above (a linear scale with a power transform, 20 at zero, 60 at 3, and 100 at 12), the extent that follows
-the data rectangle (30 for the value 6 over a half side of 60), and that a text mark has a radius scale too. It asserts
-the defaults of a polar scale (linear, the domain 0 to 12 because zero is included, no `nice`, no padding, no step, no
-natural extent, no stack for `stack: false`), that `zero: false` keeps 3 to 12, that an explicit domain `[2, 9.5]` keeps
-its ends, that `config.scale.zero: false` turns the zero rule off for a radius, and the discrete forms (the bands and
-points above). It asserts that the domain of a stacked channel spans the start and the end of the stack (0 to 4, with
-different start and end fields), that a normalized stack is 0 to 1, that a stacked radius with `theta` as its dimension
-stacks the layers a and b of the categories x and y to 3 and 1 (domain 0 to 3, where the unstacked extent would be 0 to
-2) while the `theta` of that chart is a band without a stack, that an unaggregated field with no layers is the one stack
-0 to 27, and that a text mark with `stack: true` stacks its `theta` the same way (0 to 4). Last, it asserts that `theta`
-and `radius` are resolved only for the arc and text marks: ten other marks (point, bar, line, area, rect, tick, rule,
-trail, circle, and square) give no scale for either, and an arc with a radius value, a quantitative `theta`, a color, and
-an `x` datum has the scales `x`, `theta`, and `color` in that order.
+`rangeMax` 3 give 1 to 3, an explicit range `[0, 3]` replaces the default, and the keyword `"width"` stands for the
+extent that the caller passes (0 to 40). For the radius it asserts the range 0 to the extent (0 to 100, so 6 maps to
+50), the square-root radial scale above (a linear scale with a power transform, 20 at zero, 60 at 3, and 100 at 12), the
+extent that follows the data rectangle (30 for the value 6 over a half side of 60), and that a text mark has a radius
+scale too. It asserts the defaults of a polar scale (linear, the domain 0 to 12 because zero is included, no `nice`, no
+padding, no step, no natural extent, no stack for `stack: false`), that `zero: false` keeps 3 to 12, that an explicit
+domain `[2, 9.5]` keeps its ends, that `config.scale.zero: false` turns the zero rule off for a radius, and the discrete
+forms (the bands and points above). It asserts that the domain of a stacked channel spans the start and the end of the
+stack (0 to 4, with different start and end fields), that a normalized stack is 0 to 1, that a stacked radius with
+`theta` as its dimension stacks the layers a and b of the categories x and y to 3 and 1 (domain 0 to 3, where the
+unstacked extent would be 0 to 2) while the `theta` of that chart is a band without a stack, that an unaggregated field
+with no layers is the one stack 0 to 27, and that a text mark with `stack: true` stacks its `theta` the same way (0 to
+4). Last, it asserts that `theta` and `radius` are resolved only for the arc and text marks: ten other marks (point,
+bar, line, area, rect, tick, rule, trail, circle, and square) give no scale for either, and an arc with a radius value,
+a quantitative `theta`, a color, and an `x` datum has the scales `x`, `theta`, and `color` in that order.
 
 ##### Channels Are Resolved Only For The Marks That Draw Them
 
@@ -213,16 +210,16 @@ an `x` datum has the scales `x`, `theta`, and `color` in that order.
 Asserts, for each of the 13 marks (point, circle, square, rect, bar, tick, rule, line, area, trail, text, arc, and
 image), the exact set of marks that draw a channel: `theta` and `radius` by text and arc, `theta2` and `radius2` by arc,
 `text` by text, `size` by every mark but rect, area, arc, and image, `strokeDash` by every mark but rect, area, trail,
-text, and arc, `angle` by point, circle, square, and text, `shape` by point, and the position and paint channels by
-all; and, resolving a one-channel encoding of a small table, that a size on an area or an arc, a stroke dash on an area,
-a trail, a text, or an arc, an angle on a line, and a shape on an arc have no scale while a size on a line, a trail, or
-a text, a stroke dash on a line, and an angle on a text do. With a point overlay (`point` true, an object, or
+text, and arc, `angle` by point, circle, square, and text, `shape` by point, and the position and paint channels by all;
+and, resolving a one-channel encoding of a small table, that a size on an area or an arc, a stroke dash on an area, a
+trail, a text, or an arc, an angle on a line, and a shape on an arc have no scale while a size on a line, a trail, or a
+text, a stroke dash on a line, and an angle on a text do. With a point overlay (`point` true, an object, or
 `"transparent"`, an `area` with only a `line` overlay and a `shape`, or a `shape` alone on a `line` or `trail`) a shape
 on a line, trail, or area, an angle on a line, a size on an area, and a stroke dash on a trail or area have a scale,
-while with `point: false` or null, on an arc, or for a `text` channel they do not. With a line overlay of an area (`line`
-true or an object, or `config.area.line`) a size and a stroke dash have a scale (a shape and an angle do not, with the
-points off), and the size range is that of the stroke widths: the largest size of the field is mapped to 4; with
-`line: false` or null, or on a trail, they do not.
+while with `point: false` or null, on an arc, or for a `text` channel they do not. With a line overlay of an area
+(`line` true or an object, or `config.area.line`) a size and a stroke dash have a scale (a shape and an angle do not,
+with the points off), and the size range is that of the stroke widths: the largest size of the field is mapped to 4;
+with `line: false` or null, or on a trail, they do not.
 
 ##### Zero, Nice, Domain, Range, And Padding
 
@@ -511,25 +508,19 @@ throws `OperationCanceledException`.
 `ScaleResolverTests.ScaleResolver_Resolve_TransformTypesNeedAChannelAndFieldThatAcceptThem`,
 `ScaleResolverColorTests.ScaleResolverColor_AcceptsScaleType_AppliesChannelAndFieldRules`
 
-Assert, for the data 3, 7, 12, and 5, that a log x scale has the base 10, no zero (3 to 12), a nice domain of 1 to 100 (150
-pixels per decade over 300), base 2 rounds out to 2 to 16, a pow scale with the exponent 2 has the domain 0 to 12 and
-puts 6 at 75
-of 300, a sqrt scale ignores an `exponent` and puts 3 at half of 300, a symlog scale with the constant 10 over 0 to 90
-puts 9 at
-ln(1.9) / ln(10), size and color scales take the transform (the geometric mean of 3 and 12 is the middle color), and the
-properties of another type are ignored; that `zero: true` does not pull a log domain to zero, an explicit domain
-disables nice
-and clamp carries over, a bar on a log axis spans 1 to 100, a domain below zero is reflected, the pixel padding
-is applied in
-the logarithm (the domain becomes 6 / 2^(15/14) to 6 * 2^(15/14) for 10 pixels on 300), and data without a valid
-value gets the
-decade 1 to 10; that data with a zero or with both signs, an explicit domain containing zero (also a later entry), and a
-`domainMin` of zero are located errors (the render error at `/encoding/y` for the data and `domainMin`, the specification
-error at `/encoding/x/scale/domain` for an explicit domain) while symlog and pow take the same data; and that a
-measure with a
-log scale is not stacked (the stack is null and the domain is that of the values), a nominal field and a `shape`
-channel keep
-their default scale types, and the color, size, and position channels accept the transform types.
+Assert, for the data 3, 7, 12, and 5, that a log x scale has the base 10, no zero (3 to 12), a nice domain of 1 to 100
+(150 pixels per decade over 300), base 2 rounds out to 2 to 16, a pow scale with the exponent 2 has the domain 0 to 12
+and puts 6 at 75 of 300, a sqrt scale ignores an `exponent` and puts 3 at half of 300, a symlog scale with the constant
+10 over 0 to 90 puts 9 at ln(1.9) / ln(10), size and color scales take the transform (the geometric mean of 3 and 12 is
+the middle color), and the properties of another type are ignored; that `zero: true` does not pull a log domain to zero,
+an explicit domain disables nice and clamp carries over, a bar on a log axis spans 1 to 100, a domain below zero is
+reflected, the pixel padding is applied in the logarithm (the domain becomes 6 / 2^(15/14) to 6 * 2^(15/14) for 10
+pixels on 300), and data without a valid value gets the decade 1 to 10; that data with a zero or with both signs, an
+explicit domain containing zero (also a later entry), and a `domainMin` of zero are located errors (the render error at
+`/encoding/y` for the data and `domainMin`, the specification error at `/encoding/x/scale/domain` for an explicit
+domain) while symlog and pow take the same data; and that a measure with a log scale is not stacked (the stack is null
+and the domain is that of the values), a nominal field and a `shape` channel keep their default scale types, and the
+color, size, and position channels accept the transform types.
 
 ##### Bin-Ordinal Scales And Binned Channels
 
@@ -565,9 +556,9 @@ for a binned quantitative color, fill, and stroke only.
 `LegendPlanConditionTests.LegendPlan_Create_ValueConditionsCreateNoScaleAndNoLegend`
 
 Assert, over the sample data (the numbers 3, 5, 7, and 12 and the categories a, b, and c), that a color whose condition
-holds the quantitative field `q` is a sequential scale over 3 to 12 read from `q`, that a shape whose condition holds the
-nominal field `k` has the ordinal scale of `a`, `b`, and `c`, and that a size and an opacity whose conditions hold only
-values have no scale (and no legend is planned for a color, an opacity, and a size with value conditions).
+holds the quantitative field `q` is a sequential scale over 3 to 12 read from `q`, that a shape whose condition holds
+the nominal field `k` has the ordinal scale of `a`, `b`, and `c`, and that a size and an opacity whose conditions hold
+only values have no scale (and no legend is planned for a color, an opacity, and a size with value conditions).
 
 ##### Temporal Fields Get A Time Scale
 
@@ -624,12 +615,11 @@ of the padded domain derived above.
 `ScaleResolverTimeTests.ScaleResolver_Datum_Temporal`
 
 Assert that a domain of date texts, date-time objects, and timestamps resolves to instants (UTC, and in a +05:30 zone
-the object is local midnight, a date alone and a `utc` object are UTC, and a time of day without an offset is local), that
-three entries make a piecewise scale that keeps its order, that an entry that is not a date, a boolean, or a domain
-with one entry fails with a located `VegaLiteSpecException` at `/encoding/x/scale/domain/1`, `.../0`, and
-`.../domain`; that for a
-single month unit the number 2 and the text "Mar" name the months of 2012 while a timestamp and a date text are what
-they say; that `domainMin` and `domainMax` (an object and a timestamp) replace the ends of the data domain
+the object is local midnight, a date alone and a `utc` object are UTC, and a time of day without an offset is local),
+that three entries make a piecewise scale that keeps its order, that an entry that is not a date, a boolean, or a domain
+with one entry fails with a located `VegaLiteSpecException` at `/encoding/x/scale/domain/1`, `.../0`, and `.../domain`;
+that for a single month unit the number 2 and the text "Mar" name the months of 2012 while a timestamp and a date text
+are what they say; that `domainMin` and `domainMax` (an object and a timestamp) replace the ends of the data domain
 (January 3 to February 1, or January 1 to March 1 for a `domainMax` of `{year: 2024, month: 3}`); and that a datum of a
 temporal channel (a date text or a timestamp) is a domain of that one instant.
 
@@ -682,9 +672,9 @@ ordinal scale of three dates.
 
 **Tests**: `ScaleResolverTimeTests.ScaleResolver_TimeScale_RangeReverseClampRound`
 
-Asserts that an explicit range of 50 to 250 and the limits `rangeMin` 20 and `rangeMax` 380 map the ends of the domain to
-them, that `reverse` and a descending sort flip the range of the continuous domain (January 1 at 400), and that `clamp`
-and `round` reach the model: February 1 is clamped to 100 and 3.5 days of ten over 100 pixels is 35.
+Asserts that an explicit range of 50 to 250 and the limits `rangeMin` 20 and `rangeMax` 380 map the ends of the domain
+to them, that `reverse` and a descending sort flip the range of the continuous domain (January 1 at 400), and that
+`clamp` and `round` reach the model: February 1 is clamped to 100 and 3.5 days of ten over 100 pixels is 35.
 
 ##### Time Scales Respect The Limits, And Are Deterministic
 
@@ -722,19 +712,15 @@ layers, and a layer without a unit view are refused.
 `ScaleResolverLayerTests.ScaleResolver_ResolveLayers_DiscretizingScaleIsTheFirstLayersOwn`
 
 With the sample data (`q` 3, 7, 12, 5 and `r` 10, 20, 35, 15), asserts that two layers whose `q` spans 3 to 12 and `r`
-spans 10 to
-35 without the zero rule share one scale for the view over the union 3 to 35, titled `q, r`, that both layers map with that
-domain but read their own field and keep their own title, that the zero rule of a layer applies before the union (a bar
-whose
-domain is 0 to 12 and a rule whose domain is 10 to 35 give 0 to 35), that the explicit domain of one layer decides the
-shared domain, that an explicit domain wins over the implicit ones wherever the layer is, that explicit domains that
-differ
-are merged into a union (0 to 100 and 50 to 200 give 0 to 200 for all three layers, the implicit layer between them
-included; a
-reversed 100 to 0 with 20 to 250 gives 0 to 250), that equal explicit domains count once (a piecewise 0, 50, 100 that two
-layers give stays piecewise), and that a discretizing scale is not combined (the first layer's domain and intervals are
-used
-by all the layers that share it, though the second layer's own data reaches 100).
+spans 10 to 35 without the zero rule share one scale for the view over the union 3 to 35, titled `q, r`, that both
+layers map with that domain but read their own field and keep their own title, that the zero rule of a layer applies
+before the union (a bar whose domain is 0 to 12 and a rule whose domain is 10 to 35 give 0 to 35), that the explicit
+domain of one layer decides the shared domain, that an explicit domain wins over the implicit ones wherever the layer
+is, that explicit domains that differ are merged into a union (0 to 100 and 50 to 200 give 0 to 200 for all three
+layers, the implicit layer between them included; a reversed 100 to 0 with 20 to 250 gives 0 to 250), that equal
+explicit domains count once (a piecewise 0, 50, 100 that two layers give stays piecewise), and that a discretizing scale
+is not combined (the first layer's domain and intervals are used by all the layers that share it, though the second
+layer's own data reaches 100).
 
 ##### Layered Scales: The Shared Discrete Domain And The Scale Kind
 
@@ -747,19 +733,14 @@ by all the layers that share it, though the second layer's own data reaches 100)
 `ScaleResolverLayerTests.ScaleResolver_ResolveLayers_CombinedCategoriesAreLimited`
 
 Asserts that the categories are combined without repeats and sorted when every layer sorts ascending (a new category in
-the
-second layer's own data joins, every layer sees the combined categories, and an ordinal color scale is built for the combined
-domain); that the order is descending when every layer sorts descending and the first appearance (b, a, c, then the new
-category) when the layers disagree; that an explicit discrete domain decides the shared domain (the implicit categories
-of the other layers are ignored), that
-the explicit domains of several layers are merged in order of first appearance (`c, b, z` and `b, a, c, y` give
-`c, b, z, a, y`, a layer without one being ignored); that
-a band
-scale of a bar beats the point scale of a line whichever comes first, so both layers share the band scale with the bar's
-padding, and the default step of 20 pixels sizes the view for all four categories; that an explicit step sizes the union
-of
-the categories; and that the limit on the categories of a scale applies to the combined categories (three in each layer,
-six
+the second layer's own data joins, every layer sees the combined categories, and an ordinal color scale is built for the
+combined domain); that the order is descending when every layer sorts descending and the first appearance (b, a, c, then
+the new category) when the layers disagree; that an explicit discrete domain decides the shared domain (the implicit
+categories of the other layers are ignored), that the explicit domains of several layers are merged in order of first
+appearance (`c, b, z` and `b, a, c, y` give `c, b, z, a, y`, a layer without one being ignored); that a band scale of a
+bar beats the point scale of a line whichever comes first, so both layers share the band scale with the bar's padding,
+and the default step of 20 pixels sizes the view for all four categories; that an explicit step sizes the union of the
+categories; and that the limit on the categories of a scale applies to the combined categories (three in each layer, six
 together, a limit of five, fail with `MaxScaleDomainSize`).
 
 ##### Layered Scales: Independent Scales And Conflicts
@@ -770,16 +751,12 @@ together, a limit of five, fail with `MaxScaleDomainSize`).
 `ScaleResolverCompositionTests.ScaleResolver_ResolveLayers_ConflictMessageNamesTheView`
 
 Asserts that `resolve.scale` independent keeps one scale for each layer, with no merged scale and no merged domain,
-while the
-other channels stay shared; that an independent scale in a nested layered view separates only the layers below it, and
-that an
-independent scale above a shared nested view still lets the layers of the nested view share (the groups of layers that share
-a scale are reported); and that layers whose scales cannot be merged (a linear and a logarithmic scale, a continuous and
-a
-discrete one) keep their own scale and give the warning `vl-layer-scale-conflict`, located at the channel of the layer
-that was
-left out; and that the message of the warning names the view ("this view", "another view"; it never says "layer"), which
-may be a child of a concatenation.
+while the other channels stay shared; that an independent scale in a nested layered view separates only the layers below
+it, and that an independent scale above a shared nested view still lets the layers of the nested view share (the groups
+of layers that share a scale are reported); and that layers whose scales cannot be merged (a linear and a logarithmic
+scale, a continuous and a discrete one) keep their own scale and give the warning `vl-layer-scale-conflict`, located at
+the channel of the layer that was left out; and that the message of the warning names the view ("this view", "another
+view"; it never says "layer"), which may be a child of a concatenation.
 
 ##### Composition Scales: Concatenated Children And Faceted Cells
 
@@ -796,14 +773,13 @@ concatenated bars of `q` and `r` keep independent `x` and `y` scales (every chil
 the whole view, the `y` domains are 0 to 12 and 0 to 35); that the `color` of two children is one ordinal scale over the
 union of their categories (`a`, `b`, `c` and the `d` of the second child's own data) while `x` stays apart; that
 `resolve.scale.y: "shared"` on the concatenation merges the `y` domains into 0 to 35 titled `q, r` and keeps `x` apart;
-and
-that the explicit domains of three children are combined as those of layers are (`[0, 100]` and `[50, 200]` give 0 to 200
-for all three children, the one without a domain included; the categories `c, b, z` and `b, a, y` of the explicit
-domains give `c, b, z, a, y`, the implicit categories of the middle child ignored).
-With a facet by `g` whose cell p has the rows
-(`a`, 2) and (`b`, 4) and cell q the row (`c`, 10), asserts that both cells share the `x` scale over `a`, `b`, `c` and the
-`y` domain 0 to 10; that `resolve.scale.y: "independent"` gives cell p the domain 0 to 4 and cell q 0 to 10 while `x`
-stays shared; and that the `theta` scale of an arc is independent in a facet (one group per cell) while `color` is shared.
+and that the explicit domains of three children are combined as those of layers are (`[0, 100]` and `[50, 200]` give 0
+to 200 for all three children, the one without a domain included; the categories `c, b, z` and `b, a, y` of the explicit
+domains give `c, b, z, a, y`, the implicit categories of the middle child ignored). With a facet by `g` whose cell p has
+the rows (`a`, 2) and (`b`, 4) and cell q the row (`c`, 10), asserts that both cells share the `x` scale over `a`, `b`,
+`c` and the `y` domain 0 to 10; that `resolve.scale.y: "independent"` gives cell p the domain 0 to 4 and cell q 0 to 10
+while `x` stays shared; and that the `theta` scale of an arc is independent in a facet (one group per cell) while
+`color` is shared.
 
 ##### Composition Scales: The Size Of One Chart
 
@@ -813,27 +789,28 @@ stays shared; and that the `theta` scale of an arc is independent in a facet (on
 
 Asserts, with the default step of 20 pixels and the bar's paddings (inner 0.1, outer 0.05, so `bandspace(n)` is
 `n - 0.1 + 0.1 = n` steps), that the first of two concatenated charts, which reads `a`, `b`, `c`, has the discrete width
-60 and the second, whose own data has `d`, `a`, has 40, that neither has a discrete height (its `y` is quantitative), that
-the two charts together (two scales of `x`), no chart, and a chart that has no scale of the channel have none and that no
-container size is given; that the two cells of a facet that share a step scale are both 60 wide (the union `a`, `b`, `c`),
-and that with independent `x` scales cell p is 40 wide (`a`, `b`) and cell q 20 wide (`c`); and that an index that is
-not a layer, or a null list, is refused.
+60 and the second, whose own data has `d`, `a`, has 40, that neither has a discrete height (its `y` is quantitative),
+that the two charts together (two scales of `x`), no chart, and a chart that has no scale of the channel have none and
+that no container size is given; that the two cells of a facet that share a step scale are both 60 wide (the union `a`,
+`b`, `c`), and that with independent `x` scales cell p is 40 wide (`a`, `b`) and cell q 20 wide (`c`); and that an index
+that is not a layer, or a null list, is refused.
 
 ##### Offset Channels Nest Inside The Band Of Their Position
 
-**Tests**: `ScaleResolverOffsetTests.ScaleResolver_Resolve_NominalXOffsetOfABarIsBandWithoutPaddingAndXHasNestedPaddings`,
+**Tests**:
+`ScaleResolverOffsetTests.ScaleResolver_Resolve_NominalXOffsetOfABarIsBandWithoutPaddingAndXHasNestedPaddings`,
 `ScaleResolverOffsetTests.ScaleResolver_Resolve_DefaultStepIsScaledByTheOffsetCount`,
 `ScaleResolverOffsetTests.ScaleResolver_Resolve_FixedWidthLetsTheOffsetFillTheBandwidth`,
 `ScaleResolverOffsetTests.ScaleResolver_Resolve_StepForPositionKeepsTheStep`,
 `ScaleResolverOffsetTests.ScaleResolver_Resolve_StepForOffsetAppliesToTheHeightOfAHorizontalChart`,
 `ScaleResolverOffsetTests.ScaleResolver_Resolve_YOffsetNestsInTheBandOfY`
 
-Asserts that the `xOffset` of a bar is a band scale with no paddings, flagged `IsOffset` and with no step of its own, and
-that `x` is a band scale with the paddings 0.2 and 0.2; that the default step of `x` is 50, its natural extent 160, its
-bandwidth 40 and the bandwidth of the offset 20; that a width of 200 gives the step 62.5, the bandwidth 50, and 25 for the
-offset; that `for: "position"` keeps the step of 30 on the position and an explicit `for: "offset"` gives the same
-as the default (a height step of 25 gives 25 and the default 50 for a horizontal chart); and that `yOffset` nests in
-the band of `y` with the first group at 0 and the second at 20.
+Asserts that the `xOffset` of a bar is a band scale with no paddings, flagged `IsOffset` and with no step of its own,
+and that `x` is a band scale with the paddings 0.2 and 0.2; that the default step of `x` is 50, its natural extent 160,
+its bandwidth 40 and the bandwidth of the offset 20; that a width of 200 gives the step 62.5, the bandwidth 50, and 25
+for the offset; that `for: "position"` keeps the step of 30 on the position and an explicit `for: "offset"` gives the
+same as the default (a height step of 25 gives 25 and the default 50 for a horizontal chart); and that `yOffset` nests
+in the band of `y` with the first group at 0 and the second at 20.
 
 ##### Offset Scale Kinds, Paddings, Domains, And Ranges
 
@@ -845,38 +822,36 @@ the band of `y` with the first group at 0 and the second at 20.
 `ScaleResolverOffsetTests.ScaleResolver_Resolve_QuantitativeOffsetIsLinearWithoutZeroOrNice`,
 `ScaleResolverOffsetTests.ScaleResolver_Resolve_OffsetScaleTakesRangeReverseAndRound`
 
-Asserts that a point mark has a band position and a point offset with an outer padding of 0.5 and the same step of 50; that
-an explicit `point` type on a position with an offset is not accepted (the band is used, and `AcceptsScaleType` says
-so for the nested flag only); that `scale.padding` drops the nested defaults (0.1 and 0.1), a `paddingInner` of 0.25 on
-the offset is kept, and the configuration (`bandWithNestedOffsetPaddingInner` and `...Outer` 0.3 and 0.1,
-`offsetBandPaddingInner` and `...Outer` 0.05 and 0.02) sets the paddings of the two scales; that an inner padding of 0.25
-on the offset gives the step 20 x (2 - 0.25) / 0.8 = 43.75; that the domain of the offset is the sorted values of the whole
-field and follows `sort` (ascending, descending, and an array); that a quantitative offset is a linear scale with no zero
-and no nice (the domain 1 to 5 maps to 0 and 40 on x and runs upward on y); and that an explicit range, `reverse`, and
-`round` apply to the offset scale.
+Asserts that a point mark has a band position and a point offset with an outer padding of 0.5 and the same step of 50;
+that an explicit `point` type on a position with an offset is not accepted (the band is used, and `AcceptsScaleType`
+says so for the nested flag only); that `scale.padding` drops the nested defaults (0.1 and 0.1), a `paddingInner` of
+0.25 on the offset is kept, and the configuration (`bandWithNestedOffsetPaddingInner` and `...Outer` 0.3 and 0.1,
+`offsetBandPaddingInner` and `...Outer` 0.05 and 0.02) sets the paddings of the two scales; that an inner padding of
+0.25 on the offset gives the step 20 x (2 - 0.25) / 0.8 = 43.75; that the domain of the offset is the sorted values of
+the whole field and follows `sort` (ascending, descending, and an array); that a quantitative offset is a linear scale
+with no zero and no nice (the domain 1 to 5 maps to 0 and 40 on x and runs upward on y); and that an explicit range,
+`reverse`, and `round` apply to the offset scale.
 
 ##### Offsets Without A Discrete Position Or A Time Unit Are Not Resolved
 
 **Tests**: `ScaleResolverOffsetTests.ScaleResolver_Resolve_OffsetWithoutADiscreteParentHasNoScale`,
 `ScaleResolverOffsetTests.ScaleResolver_DecideOffset_FollowsTheRules`
 
-Asserts that an offset whose position is quantitative, missing, or a temporal field with the unit `day` has no scale (the
-quantitative position stays linear), and that `DecideOffset` returns `Supported`,
-`NoDiscreteParent`, `Ranged`, `TimeUnitParent`, or `UnsupportedContinuous` for every combination of position type,
-time unit, offset type, secondary channel, `bin`, and mark and rejects a null channel: a temporal position with the unit
-`year`, `month`, `yearmonthdate`, `hours`, or
-`{unit: month, step: 2}` is `TimeUnitParent` for a nominal offset (`bar`, `point`, or `tick`), and for a quantitative
-offset of a `point`; an unbinned quantitative offset of a `bar` or `area` over a nominal position without a secondary
-channel is `Ranged` (Vega-Lite 6.5.0's `isRangedOffset`; also with an `aggregate` on the offset and over a nominal
-position with a `month` unit), while a quantitative offset of a `bar` over a temporal position with a `month` unit, a
-temporal offset, a `bin: true` offset, and an offset of a position with an `x2` channel are `UnsupportedContinuous`
-(`vl-offset-ranged`); a temporal
-position with the unit `day`, with `maxbins`, with `binnedyearmonth`, without a time unit, or a `yearmonthdate` unit on
-a `rect`, and a quantitative position with the unit `month`, is `NoDiscreteParent`; and a nominal or ordinal position
-with a time unit is an ordinary discrete parent: `Supported` with the unit `month` (`bar`), `year` on a `rect`, `day`,
-or `maxbins`, `Ranged` for a quantitative offset of a `bar` and `Supported` for one of a `point`. The zero of the
-offset scale of a ranged offset is checked through the bars of `MarkBuilderRangedOffsetTests` (the baseline inside the
-band) rather than at the scale.
+Asserts that an offset whose position is quantitative, missing, or a temporal field with the unit `day` has no scale
+(the quantitative position stays linear), and that `DecideOffset` returns `Supported`, `NoDiscreteParent`, `Ranged`,
+`TimeUnitParent`, or `UnsupportedContinuous` for every combination of position type, time unit, offset type, secondary
+channel, `bin`, and mark and rejects a null channel: a temporal position with the unit `year`, `month`, `yearmonthdate`,
+`hours`, or `{unit: month, step: 2}` is `TimeUnitParent` for a nominal offset (`bar`, `point`, or `tick`), and for a
+quantitative offset of a `point`; an unbinned quantitative offset of a `bar` or `area` over a nominal position without a
+secondary channel is `Ranged` (Vega-Lite 6.5.0's `isRangedOffset`; also with an `aggregate` on the offset and over a
+nominal position with a `month` unit), while a quantitative offset of a `bar` over a temporal position with a `month`
+unit, a temporal offset, a `bin: true` offset, and an offset of a position with an `x2` channel are
+`UnsupportedContinuous` (`vl-offset-ranged`); a temporal position with the unit `day`, with `maxbins`, with
+`binnedyearmonth`, without a time unit, or a `yearmonthdate` unit on a `rect`, and a quantitative position with the unit
+`month`, is `NoDiscreteParent`; and a nominal or ordinal position with a time unit is an ordinary discrete parent:
+`Supported` with the unit `month` (`bar`), `year` on a `rect`, `day`, or `maxbins`, `Ranged` for a quantitative offset
+of a `bar` and `Supported` for one of a `point`. The zero of the offset scale of a ranged offset is checked through the
+bars of `MarkBuilderRangedOffsetTests` (the baseline inside the band) rather than at the scale.
 
 ##### Offsets Of A Discrete Position With A Time Unit Are Nested In Its Band
 
@@ -924,18 +899,19 @@ The scenarios resolve a view of three rows (x of 1, 4, and 7) with the parameter
 pipeline does. Asserts that the value `[2, 6.5]` of a variable parameter named by `scale.domain` is the domain as it is
 whatever the scale asks for (`zero`, `nice`, pixel `padding`, `domainMin`, and `domainMax` do not change it), that the
 scale reports `HasRawDomain` and `ClipMarks`, that three numbers are a piecewise domain like an explicit one, that a
-parameter with no value and a selection parameter keep the domain of the data while `ClipMarks` is
-still true (a scale without a parameter domain has `ClipMarks` false), that the `domainRaw` of the specification wins over
-the domain a parameter gives and does not clip by itself, that the raw domain of a band scale lists the categories in
-order, each once, with an entry that no row has still a category (`c`, `z`, `a`, and `c` again give `c`, `z`, `a`,
-with `DomainOrder.Custom`), that a log scale refuses a raw domain that crosses zero with a located render error at the
+parameter with no value and a selection parameter keep the domain of the data while `ClipMarks` is still true (a scale
+without a parameter domain has `ClipMarks` false), that the `domainRaw` of the specification wins over the domain a
+parameter gives and does not clip by itself, that the raw domain of a band scale lists the categories in order, each
+once, with an entry that no row has still a category (`c`, `z`, `a`, and `c` again give `c`, `z`, `a`, with
+`DomainOrder.Custom`), that a log scale refuses a raw domain that crosses zero with a located render error at the
 channel, and that a quantize color scale keeps its own domain whatever the raw domain says while `ClipMarks` is true.
 The warning of an unusable value and the shared scale of layers are verified through the public API (see
-_CanvasNetVegaLite System Verification Design_).
+*CanvasNetVegaLite System Verification Design*).
 
 ##### Selections And Bins Give A Scale Its Extent
 
-**Tests**: `VegaLiteSelectionExtentIntegrationTests.CanvasNetVegaLite_SystemIntegration_BindScales_TheInitialRangeIsTheDomain`,
+**Tests**:
+`VegaLiteSelectionExtentIntegrationTests.CanvasNetVegaLite_SystemIntegration_BindScales_TheInitialRangeIsTheDomain`,
 `...BindScales_AreIgnoredInAConcatenation`, `...BindScales_ApplyToTheLayersOfTheWholeView`,
 `...BindScales_WarnWhenTheScaleIsNotContinuous`, `...Domain_ASelectionGivesTheRangeOfAField`,
 `...Domain_TheFirstFieldIsUsedWithAWarning`, `...Domain_AnEmptySelectionKeepsTheDomainOfTheData`,

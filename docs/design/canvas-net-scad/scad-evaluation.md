@@ -16,16 +16,16 @@ unsupported-feature reports. It never interprets geometry: a `cube` is a tree no
 and turning nodes into solids is the job of the `ScadGeometry` subsystem. The subsystem is **internal**: its types
 are visible only to the `ScadDocument` unit and, through `InternalsVisibleTo`, to the test assembly, so the
 value model and the instantiation tree can evolve while geometry generation is added. The public entry point
-is `ScadDocument.Evaluate` (see _ScadDocument Unit Design_, `scad-document.md`). The subsystem contains four
+is `ScadDocument.Evaluate` (see *ScadDocument Unit Design*, `scad-document.md`). The subsystem contains four
 units:
 
 - **ScadValue** — the value model: the `ScadValue` struct, `ScadVector`, `ScadRange`, the number formatter,
-  and the Unicode-scalar text helpers; see _ScadValue Unit Design_ (`scad-evaluation/scad-value.md`)
+  and the Unicode-scalar text helpers; see *ScadValue Unit Design* (`scad-evaluation/scad-value.md`)
 - **ScadEvaluator** — the evaluator, its scopes, the instantiation tree, and the buffering
-  `ScadEvaluationSink`; see _ScadEvaluator Unit Design_ (`scad-evaluation/scad-evaluator.md`)
+  `ScadEvaluationSink`; see *ScadEvaluator Unit Design* (`scad-evaluation/scad-evaluator.md`)
 - **ScadBuiltinFunctions** — the library of built-in functions and the deterministic random-number
-  generator; see _ScadBuiltinFunctions Unit Design_ (`scad-evaluation/scad-builtin-functions.md`)
-- **ScadFileResolver** — the `include`/`use` resolver under the file-access policy; see _ScadFileResolver Unit Design_
+  generator; see *ScadBuiltinFunctions Unit Design* (`scad-evaluation/scad-builtin-functions.md`)
+- **ScadFileResolver** — the `include`/`use` resolver under the file-access policy; see *ScadFileResolver Unit Design*
   (`scad-evaluation/scad-file-resolver.md`)
 
 The subsystem's namespace documentation is in `Evaluation/NamespaceDoc.cs`. Its behavior is specified by the
@@ -38,7 +38,7 @@ The subsystem's namespace documentation is in `Evaluation/NamespaceDoc.cs`. Its 
 - `ScadEvaluator.Evaluate(ScadDocument, ScadEvaluationSettings, ScadEvaluationSink)` — resolves files (phase
   A, on the calling thread) and then evaluates (phase B); the overload `Evaluate(ScadSourceUnit,
   ScadEvaluationSettings, ScadEvaluationSink)` evaluates an already resolved unit (used by the unit tests).
-  It returns a `ScadEvaluationOutput` and throws the exceptions listed under _Event Classification_.
+  It returns a `ScadEvaluationOutput` and throws the exceptions listed under *Event Classification*.
 - `ScadEvaluationSettings` — init-only: `Limits`, `Time`, `Overrides` (the converted `-D`-style variables, in
   ordinal key order), `Viewport` (the defaults of the viewport variables `$vpt`, `$vpr`, `$vpd`, and `$vpf`; the
   documented defaults of a fresh viewer when not set), `ThrowOnUnsupportedFeature`, and `Cancellation`.
@@ -49,7 +49,7 @@ The subsystem's namespace documentation is in `Evaluation/NamespaceDoc.cs`. Its 
   that the main file or an override defined (`ScadDocumentViewport`: `$vpt`, `$vpr`, `$vpd`, and `$vpf`, each
   `null` when it was not defined or was unusable). The viewport variables are defined in the defaults scope and
   read back from the scope of the main file after its assignments were forced; the renderer, not the evaluator,
-  gives them their meaning (see _ScadEvaluator Unit Design_ and _ScadDocument Unit Design_).
+  gives them their meaning (see *ScadEvaluator Unit Design* and *ScadDocument Unit Design*).
 - The instantiation tree: `ScadInstance`, `ScadInstanceKind`, `ScadInstanceArgument`,
   `ScadFragmentSettings`, and the recognized built-in module names `ScadBuiltinModules`.
 
@@ -85,32 +85,59 @@ the whole file graph can be resolved **before** anything is evaluated.
 
 Consequences: a missing-file warning appears before any echo output; the user's callback never runs on a
 fallback thread; and, because phase B has no observable side effect until the sink is delivered, a pass can be
-discarded and re-run on a larger stack without the caller noticing (see _Stack Safety_).
+discarded and re-run on a larger stack without the caller noticing (see *Stack Safety*).
 
 #### Event Classification
 
 Every problem a program can cause falls into exactly one class. The class decides whether evaluation
 continues, which type carries the information, and where the caller sees it.
 
-<!-- markdownlint-disable MD013 -->
-| Class | Mechanism | Examples | Continues? |
-| ----- | --------- | -------- | ---------- |
-| **Warning** | `ScadDiagnostic` in `Result.Diagnostics` and the `WarningHandler`; de-duplicated by (message, location); capped at `MaxDiagnostics` (the cap is reported once as `Further diagnostics suppressed (limit N)`) | unknown variable, function, or module (value `undef`, nothing emitted); a variable assigned twice in one scope (reported at the **earlier** assignment); circular variable reference; invalid operand types for an operator or built-in (result `undef`); calling a non-function; wrong, extra, or unknown arguments; `children()` outside a module or with an invalid index; a range with a zero step or non-finite bound; a `for` over `undef`; a missing `include` or `use` file | Yes |
-| **Unsupported feature** | `ScadUnsupportedFeature` (feature identifier, message, location) in `Result.UnsupportedFeatures` and the `UnsupportedFeatureHandler`; de-duplicated by (feature, location); with `ThrowOnUnsupportedFeature`, a `ScadUnsupportedFeatureException` at the first one | Evaluation reports only language-level items: the recognized but unimplemented functions `parent_module`, `textmetrics`, and `fontmetrics` (`scad-function-<name>`) and unimplemented argument forms of `search` (`scad-search-form`) | Yes, with `undef`, unless the caller asked to throw |
-| **Error** | `ScadEvaluationException` with the location of the offending construct | a failed `assert`; every limit of `ScadLimits` exceeded; an include cycle; a file-access denial or another refused include file; an `include` or `use` when the document has no base directory, library path, or resolver | No |
-| **Syntax error in a referenced file** | `ScadSyntaxException` whose location carries the included file's name, propagated unchanged | a parse failure of any file loaded in phase A | No |
-| **Cancellation** | `OperationCanceledException`, never wrapped | the token is canceled before or during evaluation or loading | No |
-| **I/O failure** | the natural `IOException`, and `InvalidDataException` for a file over 4,194,304 characters | an included file that cannot be read | No |
-| **Argument error** | `ArgumentException` family, thrown by the public option types when a value is set | an invalid limit, variable name or value, or a non-finite time | n/a |
-<!-- markdownlint-enable MD013 -->
+- **Warning**
+  - Mechanism: `ScadDiagnostic` in `Result.Diagnostics` and the `WarningHandler`; de-duplicated by (message, location);
+    capped at `MaxDiagnostics` (the cap is reported once as `Further diagnostics suppressed (limit N)`).
+  - Examples: unknown variable, function, or module (value `undef`, nothing emitted); a variable assigned twice in one
+    scope (reported at the **earlier** assignment); circular variable reference; invalid operand types for an operator
+    or built-in (result `undef`); calling a non-function; wrong, extra, or unknown arguments; `children()` outside a
+    module or with an invalid index; a range with a zero step or non-finite bound; a `for` over `undef`; a missing
+    `include` or `use` file.
+  - Continues: Yes.
+- **Unsupported feature**
+  - Mechanism: `ScadUnsupportedFeature` (feature identifier, message, location) in `Result.UnsupportedFeatures` and the
+    `UnsupportedFeatureHandler`; de-duplicated by (feature, location); with `ThrowOnUnsupportedFeature`, a
+    `ScadUnsupportedFeatureException` at the first one.
+  - Examples: Evaluation reports only language-level items: the recognized but unimplemented functions `parent_module`,
+    `textmetrics`, and `fontmetrics` (`scad-function-<name>`) and unimplemented argument forms of `search`
+    (`scad-search-form`).
+  - Continues: Yes, with `undef`, unless the caller asked to throw.
+- **Error**
+  - Mechanism: `ScadEvaluationException` with the location of the offending construct.
+  - Examples: a failed `assert`; every limit of `ScadLimits` exceeded; an include cycle; a file-access denial or another
+    refused include file; an `include` or `use` when the document has no base directory, library path, or resolver.
+  - Continues: No.
+- **Syntax error in a referenced file**
+  - Mechanism: `ScadSyntaxException` whose location carries the included file's name, propagated unchanged.
+  - Examples: a parse failure of any file loaded in phase A.
+  - Continues: No.
+- **Cancellation**
+  - Mechanism: `OperationCanceledException`, never wrapped.
+  - Examples: the token is canceled before or during evaluation or loading.
+  - Continues: No.
+- **I/O failure**
+  - Mechanism: the natural `IOException`, and `InvalidDataException` for a file over 4,194,304 characters.
+  - Examples: an included file that cannot be read.
+  - Continues: No.
+- **Argument error**
+  - Mechanism: `ArgumentException` family, thrown by the public option types when a value is set.
+  - Examples: an invalid limit, variable name or value, or a non-finite time.
+  - Continues: not applicable.
 
-The rule of thumb is: a _mistake in the model_ that still allows a meaningful result is a warning; something
-this implementation _does not provide_ is an unsupported feature; a problem that makes the result
-_meaningless or dangerous_ is an error. Geometry-level unsupported features (`surface`, `offset`, `import`, and
+The rule of thumb is: a *mistake in the model* that still allows a meaningful result is a warning; something
+this implementation *does not provide* is an unsupported feature; a problem that makes the result
+*meaningless or dangerous* is an error. Geometry-level unsupported features (`surface`, `offset`, `import`, and
 similar) are not detected here: the evaluator emits them as ordinary instances and the `ScadGeometry`
-subsystem reports them through the same sink (see _ScadGeometry Subsystem Design_). A viewport variable
+subsystem reports them through the same sink (see *ScadGeometry Subsystem Design*). A viewport variable
 (`$vpt`, `$vpr`, `$vpd`, `$vpf`) that the main file assigns an unusable value is a warning of this subsystem and the
-value is ignored (see _ScadEvaluator Unit Design_).
+value is ignored (see *ScadEvaluator Unit Design*).
 
 #### The Instantiation Tree (The Evaluation / Geometry Boundary)
 
@@ -119,17 +146,20 @@ anything else from evaluation, and walks the tree iteratively because its depth 
 `ScadLimits.MaxRecursionDepth`. `ScadEvaluationOutput.Roots` is the list of top-level instances (their implicit
 union).
 
-<!-- markdownlint-disable MD013 -->
-| Member of `ScadInstance` | Meaning |
-| ------------------------ | ------- |
-| `Kind` | `BuiltinModule`; `Group` (the implicit union of its children); or `Anchor` (a declared anchor, a leaf that is never geometry) |
-| `Name` | The built-in module name; for a group, `for`, `intersection_for`, `group`, or the user module's name; for an anchor, the anchor name |
-| `Arguments` | The **evaluated** arguments in call order, each with an optional name; empty for a group; for an anchor, the single `[x, y, z]` vector |
-| `Children` | The child instances in order |
-| `Modifiers` | Only `ShowOnly`, `Highlight`, and `Background` can be set; a disabled statement is never evaluated and never appears |
-| `Fragments` | The effective `$fn`, `$fa`, and `$fs` for the instance: the dynamically scoped values, overridden by a named argument of the same name on the instance |
-| `Location` | The identifying token of the statement (the module name or keyword) |
-<!-- markdownlint-enable MD013 -->
+The members of `ScadInstance`:
+
+- **`Kind`**: `BuiltinModule`; `Group` (the implicit union of its children); or `Anchor` (a declared anchor, a leaf that
+  is never geometry).
+- **`Name`**: The built-in module name; for a group, `for`, `intersection_for`, `group`, or the user module's name; for
+  an anchor, the anchor name.
+- **`Arguments`**: The **evaluated** arguments in call order, each with an optional name; empty for a group; for an
+  anchor, the single `[x, y, z]` vector.
+- **`Children`**: The child instances in order.
+- **`Modifiers`**: Only `ShowOnly`, `Highlight`, and `Background` can be set; a disabled statement is never evaluated
+  and never appears.
+- **`Fragments`**: The effective `$fn`, `$fa`, and `$fs` for the instance: the dynamically scoped values, overridden by
+  a named argument of the same name on the instance.
+- **`Location`**: The identifying token of the statement (the module name or keyword).
 
 Shape rules (each is pinned by a test):
 
@@ -150,7 +180,7 @@ Shape rules (each is pinned by a test):
 - **Splicing constructs** — `if`, a braced block, `let`, `echo`, `assert`, and `children()` — place their result
   instances directly into the parent's child list and have no node of their own. The one exception is a valid
   statement-form `echo("anchor", "name", [x, y, z])`, which also leaves an `Anchor` leaf at its position (the
-  geometry phase applies the enclosing transforms to it; see _ScadEvaluator Unit Design_, _Anchor Declarations_).
+  geometry phase applies the enclosing transforms to it; see *ScadEvaluator Unit Design*, *Anchor Declarations*).
 - **Modifiers**: `*` skips the statement entirely (no evaluation, no side effects, no budget use); `!`, `#`,
   and `%` are OR-ed onto the single instance the statement produced, or onto a `Group("group")` that wraps
   several. The evaluator does not interpret `!`.
@@ -163,7 +193,7 @@ of the syntax tree: recursion of user modules nests groups, and the depth can re
 `MaxRecursionDepth` (thousands of levels at the default, more than five thousand at the ceiling). Any code
 that walks the tree — the geometry builder, a dumper, equality, printing — must therefore traverse it
 **iteratively** (with an explicit stack) or guard each recursive step with
-`RuntimeHelpers.EnsureSufficientExecutionStack` and a bounded restart as described under _Stack Safety_. The
+`RuntimeHelpers.EnsureSufficientExecutionStack` and a bounded restart as described under *Stack Safety*. The
 test helper that dumps trees is iterative for exactly this reason: a recursive dumper overflowed a 256 KiB
 test thread on a 5,000-level tree.
 
@@ -171,7 +201,7 @@ test thread on a 5,000-level tree.
 
 The evaluator recurses over the syntax tree and over user-defined function and module calls, so a hostile
 program could overflow the call stack, which cannot be caught and terminates the host process. The design
-mirrors the `ScadParser` mechanism (see _ScadParser Unit Design_), and an outcome that depends on the stack of
+mirrors the `ScadParser` mechanism (see *ScadParser Unit Design*), and an outcome that depends on the stack of
 the calling thread is not acceptable:
 
 1. A **frame counter** defines the nominal limit. It is incremented on entry to every evaluation frame and
@@ -190,8 +220,8 @@ the calling thread is not acceptable:
    the warnings recorded during phase A are re-recorded after the reset, the caller's resolver callback is not
    called again, and the unseeded random stream starts from the same fixed state in every pass.
 
-The stack size was derived by measurement and is documented in _ScadEvaluator Unit Design_ (_Measured Stack
-Figures_); the worst case at the ceiling of 16,384 frames needs about 37 MiB in an unoptimized build, so the
+The stack size was derived by measurement and is documented in *ScadEvaluator Unit Design* (*Measured Stack
+Figures*); the worst case at the ceiling of 16,384 frames needs about 37 MiB in an unoptimized build, so the
 384 MiB reservation (address space committed only as touched) has a margin of about ten times, and the
 per-frame cost stays far below the 8 KiB at which the ceiling would have to be lowered. The reservation is
 at most `max(2, ProcessorCount)` threads times 384 MiB (768 MiB on one or two cores, 24 GiB on 64 cores) of address
@@ -199,27 +229,41 @@ space; measured, a fallback thread commits about 0.1 MiB for an ordinary program
 legal recursion. It is meant for 64-bit hosts and is not supported in a 32-bit process or under strict overcommit
 or a tight virtual-memory limit; where the thread cannot be created or started (`OutOfMemoryException` or
 `ThreadStartException`) the failure is converted to a `ScadEvaluationException` and the slot is released (see
-_ScadEvaluator Unit Design_, _Memory reservation and cost_).
+*ScadEvaluator Unit Design*, *Memory reservation and cost*).
 
 #### Resource Limits
 
-<!-- markdownlint-disable MD013 -->
-| Limit (`ScadLimits`) | Default | Enforced where | Failure |
-| -------------------- | ------- | -------------- | ------- |
-| `MaxRecursionDepth` | 5,000 (16 to 16,384) | every evaluation frame | `Recursion too deep (limit N)` |
-| `MaxEvaluationSteps` | 50,000,000 | every expression, statement, loop turn, and tail-call turn; vector work, matrix-product work (result elements plus multiply-adds / 16), `str`/`echo` formatting (8 per element, while formatting), string indexing (by position), and long scope walks charge more | `Evaluation step limit exceeded (limit N)` |
-| `MaxLoopIterations` | 10,000,000 | every loop turn, plus an up-front check of a range's count (total across the whole evaluation) | `Loop iteration limit exceeded (limit N)` |
-| `MaxListLength` | 1,000,000 | every vector append, `concat`, `rands`, comprehension; also the result elements of a matrix product (checked before it is computed) | `List too long (limit N)` |
-| `MaxStringLength` | 1,048,576 | `str`, `chr`, echo formatting | `String too long (limit N)` |
-| value nesting (constant) | 256 | vector literal, comprehension, and `concat` construction | `List nesting too deep (limit 256)` |
-| operand aggregate cap (internal constant, not a `ScadLimits` member) | 67,108,864 (2^26) logical elements | the operand of an operator on vectors, counted with nested and shared elements, only when the remaining step budget is above it | `Operand too large (limit 67108864 nested elements)` |
-| `MaxIncludeDepth` | 16 (1 to 64) | the resolver | `Include nesting too deep (limit N)` |
-| `MaxIncludedFiles` | 1,000 | the resolver (every expansion and each distinct library) | `Included file limit exceeded (limit N)` |
-| `MaxInstances` | 1,000,000 | every instance created; also the number of statements include expansion may produce (phase A, before any step accounting exists) | `Instance limit exceeded (limit N)`, or `Included statement limit exceeded (limit N)` during expansion |
-| `MaxOutputLength` | 4,194,304 | the echo sink (cumulative characters after the prefix) | `Echo output limit exceeded (limit N)` |
-| `MaxDiagnostics` | 1,000 | the warning sink | not an error: collapsed into one notice |
-| cancellation | — | every 1,024 steps (so inside `str`/`echo` formatting), every 65,536 multiply-adds of a matrix product, every 65,536 candidate comparisons of a `search`, every loop turn, every file load, entry | `OperationCanceledException` |
-<!-- markdownlint-enable MD013 -->
+- **`MaxRecursionDepth`** (default 5,000 (16 to 16,384)): Enforced where: every evaluation frame. Failure:
+  `Recursion too deep (limit N)`.
+- **`MaxEvaluationSteps`** (default 50,000,000): Enforced where: every expression, statement, loop turn, and tail-call
+  turn; vector work, matrix-product work (result elements plus multiply-adds / 16), `str`/`echo` formatting (8 per
+  element, while formatting), string indexing (by position), and long scope walks charge more. Failure:
+  `Evaluation step limit exceeded (limit N)`.
+- **`MaxLoopIterations`** (default 10,000,000): Enforced where: every loop turn, plus an up-front check of a range's
+  count (total across the whole evaluation). Failure: `Loop iteration limit exceeded (limit N)`.
+- **`MaxListLength`** (default 1,000,000): Enforced where: every vector append, `concat`, `rands`, comprehension; also
+  the result elements of a matrix product (checked before it is computed). Failure: `List too long (limit N)`.
+- **`MaxStringLength`** (default 1,048,576): Enforced where: `str`, `chr`, echo formatting. Failure:
+  `String too long (limit N)`.
+- **value nesting (constant)** (default 256): Enforced where: vector literal, comprehension, and `concat` construction.
+  Failure: `List nesting too deep (limit 256)`.
+- **operand aggregate cap (internal constant, not a `ScadLimits` member)** (default 67,108,864 (2^26) logical elements):
+  Enforced where: the operand of an operator on vectors, counted with nested and shared elements, only when the
+  remaining step budget is above it. Failure: `Operand too large (limit 67108864 nested elements)`.
+- **`MaxIncludeDepth`** (default 16 (1 to 64)): Enforced where: the resolver. Failure:
+  `Include nesting too deep (limit N)`.
+- **`MaxIncludedFiles`** (default 1,000): Enforced where: the resolver (every expansion and each distinct library).
+  Failure: `Included file limit exceeded (limit N)`.
+- **`MaxInstances`** (default 1,000,000): Enforced where: every instance created; also the number of statements include
+  expansion may produce (phase A, before any step accounting exists). Failure: `Instance limit exceeded (limit N)`, or
+  `Included statement limit exceeded (limit N)` during expansion.
+- **`MaxOutputLength`** (default 4,194,304): Enforced where: the echo sink (cumulative characters after the prefix).
+  Failure: `Echo output limit exceeded (limit N)`.
+- **`MaxDiagnostics`** (default 1,000): Enforced where: the warning sink. Failure: not an error: collapsed into one
+  notice.
+- **cancellation** (default —): Enforced where: every 1,024 steps (so inside `str`/`echo` formatting), every 65,536
+  multiply-adds of a matrix product, every 65,536 candidate comparisons of a `search`, every loop turn, every file load,
+  entry. Failure: `OperationCanceledException`.
 
 #### Determinism
 
@@ -250,4 +294,4 @@ special-variable rules, the `children()` rules, include and use, overrides, and 
 tests. The golden fixtures (`ScadFixtures/eval-*.scad` and their `.txt` expectation files) were authored fresh
 for this repository, and their `README.md` records their provenance. Exact parity with any other
 implementation is an explicit non-goal. The review sets of the system check this statement (see
-_CanvasNetScad System Design_, `../canvas-net-scad.md`, Clean-Room Provenance).
+*CanvasNetScad System Design*, `../canvas-net-scad.md`, Clean-Room Provenance).

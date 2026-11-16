@@ -4,14 +4,13 @@ This document describes the unit-level verification strategy for the `EncodingPl
 `DemaConsulting.CanvasNet.VegaLite.Transforms` namespace: the internal `EncodingPlan` class (`Create`, a pure analysis
 of the view's encoding and mark that decides which fields the channels read, the implicit bin, aggregate, impute, and
 stack (cartesian or polar), the fields that group the rows of a path mark and the fields of the `order` channel, the
-orientation, the titles, and whether a scale needs the rows from before the aggregate) with its `ChannelPlan`, `BinPlan`,
-`BinKind`, and stack, aggregate, and impute descriptions, the `TimeUnitPlan` of a field with a time unit, and the
-internal static `EncodingTransforms` class (`Apply` and
-`ApplyStandalone`, which run the plan over the table that the explicit transforms produced and return the Raw table, the
-Main table, the bins, the time units, and the evaluation). The unit reuses the engines of `AggregateTransforms` (the bin
-algorithm, the aggregate, the impute, and the stack), the rules of `StackRules`, and the time unit stage of
-`TimeUnitTransform` (see _Time Unit Transform Verification Design_); the scales, marks, and axes consume what it
-produces.
+orientation, the titles, and whether a scale needs the rows from before the aggregate) with its `ChannelPlan`,
+`BinPlan`, `BinKind`, and stack, aggregate, and impute descriptions, the `TimeUnitPlan` of a field with a time unit, and
+the internal static `EncodingTransforms` class (`Apply` and `ApplyStandalone`, which run the plan over the table that
+the explicit transforms produced and return the Raw table, the Main table, the bins, the time units, and the
+evaluation). The unit reuses the engines of `AggregateTransforms` (the bin algorithm, the aggregate, the impute, and the
+stack), the rules of `StackRules`, and the time unit stage of `TimeUnitTransform` (see *Time Unit Transform Verification
+Design*); the scales, marks, and axes consume what it produces.
 
 #### Verification Approach
 
@@ -29,14 +28,14 @@ derivation in the test comments:
 
 - Field names and titles follow Vega-Lite: `sum` of `x` is `sum_x` with the title `Sum of x`, `average` keeps its
   spelling (`average_x`, `Average of x`), `q1` is `Q1 of x`, a count (with or without a field) is `__count` with the
-  title `Count of Records`, an `argmax` of `y` over `x` is `argmax_y.x` with the title `x for max y`, and the `fieldTitle`
-  modes give `Sum of x` and `x (binned)` (verbal, the default), `x` and `x` (plain), and `SUM(x)` and `BIN(x)`
-  (functional), while a count keeps the configured `countTitle` in every mode.
+  title `Count of Records`, an `argmax` of `y` over `x` is `argmax_y.x` with the title `x for max y`, and the
+  `fieldTitle` modes give `Sum of x` and `x (binned)` (verbal, the default), `x` and `x` (plain), and `SUM(x)` and
+  `BIN(x)` (functional), while a count keeps the configured `countTitle` in every mode.
 - A bin is named `bin_`, then each parameter as `name_value` in the order written, with `maxbins_10` added last when
   neither `maxbins` nor `step` is given, then the field: `true` and `{}` give `bin_maxbins_10_x`, `{"step": 0.5}` gives
   `bin_step_0_5_x`, `{"nice": false}` gives `bin_nice_false_maxbins_10_x`, `{"extent": [0, 100]}` gives
-  `bin_extent_0_100_maxbins_10_x`, and `{"anchor": -1.5, "maxbins": 8}` gives `bin_anchor__1_5_maxbins_8_x`; the end field
-  adds `_end`, a discrete channel reads the range text `_range`, and the title is `x (binned)`.
+  `bin_extent_0_100_maxbins_10_x`, and `{"anchor": -1.5, "maxbins": 8}` gives `bin_anchor__1_5_maxbins_8_x`; the end
+  field adds `_end`, a discrete channel reads the range text `_range`, and the title is `x (binned)`.
 - The stack follows Vega-Lite: a bar with a quantitative `y` and a nominal `x` stacks `y` with the offset `zero` even
   with one row per category, a horizontal bar stacks `x`, `stack: "normalize"` and `"center"` choose the offset,
   `stack: null` and `false` turn it off, an aggregate without a layer to split does not stack, a point mark stacks only
@@ -48,16 +47,16 @@ derivation in the test comments:
   give the bins 0 to 100 by 10 with 0 in `[0, 10)` and 100 in `[90, 100]`; a step of 25 over the values 0, 24, 25, 99,
   and 100 gives the counts 2, 1, 2 for the bins starting at 0, 25, and 75.
 - A stack of the layers `x = 1` and `y = 2` of category `a` and `x = 3` of category `b` is, with the layer order
-  descending by the layer field because the stacked channel is `y`, `y` (0, 2) and `x` (2, 3) for `a`, and `x` (0, 3) for
-  `b`; a horizontal stack orders ascending (`x` (0, 1), `y` (1, 3)); negative values stack down separately (layers
+  descending by the layer field because the stacked channel is `y`, `y` (0, 2) and `x` (2, 3) for `a`, and `x` (0, 3)
+  for `b`; a horizontal stack orders ascending (`x` (0, 1), `y` (1, 3)); negative values stack down separately (layers
   `z` 1, `y` -2, `x` 3 give `x` (1, 4), `y` (0, -2), `z` (0, 1)); `normalize` of `y` 3 and `x` 1 gives (0, 0.75) and
   (0.75, 1) with the domain `[0, 1]`; and `center` of totals 4 and 2 starts the narrower group at (4 - 2) / 2 = 1.
 - The row budget counts the groups: the three input rows of an aggregate stay counted while its two groups are added
   (five), so `MaxDataRows` 5 passes and 4 fails located at the aggregated channel; a stack next to a kept Raw table
   counts its three rows too (3 + 3 = 6 passes, 5 fails), while a stack that replaces its input counts nothing.
 - A polar stack follows the cartesian one with `theta` and `radius` in the places of `y` and `x`: a pie chart (`arc`
-  with the sum of `v` on `theta` and the nominal `g` on `color`) stacks `theta` into `sum_v_start` and `sum_v_end`,
-  the layers ascend by `g` (the stacked channel is not `y`, so the order is not reversed), there is no dimension to group
+  with the sum of `v` on `theta` and the nominal `g` on `color`) stacks `theta` into `sum_v_start` and `sum_v_end`, the
+  layers ascend by `g` (the stacked channel is not `y`, so the order is not reversed), there is no dimension to group
   by, the channel reads `sum_v_end` and has `sum_v_start` as its second field, and the aggregate groups by `g`. With a
   nominal `radius` the groups of the stack are the fields of `radius` (and the groups of a `radius` stack the fields of
   `theta`); the `order` channel sorts the layers in its own directions (`o` ascending then `p` descending); a field that
@@ -73,8 +72,8 @@ derivation in the test comments:
   per point); and `order` groups an area, after the other fields. So a line of `color` `g`, `detail` `d1` and `d2`, and
   an `order` `o` is grouped by `g, d1, d2`, the same encoding as an area by `g, d1, d2, o`, and a trail with a size, an
   order, and a key by `k` alone; a binned or time unit field is read through its derived name (`bin_maxbins_6_c`, its
-  range text `bin_maxbins_6_c_range` for a nominal channel, and `year_d`), and the nested path `a.b` and the escaped name
-  `a\.b` are two fields.
+  range text `bin_maxbins_6_c_range` for a nominal channel, and `year_d`), and the nested path `a.b` and the escaped
+  name `a\.b` are two fields.
 - The impute of an encoding runs after the aggregate and before the stack. Series `a` has the keys 1, 2, and 3 with the
   values 1, 2, and 3, and series `b` the keys 1 and 3 with the values 4 and 5. With `impute: {"value": 5}` on `y` of
   an area the row `b` at key 2 is added with 5 after the five input rows, and the stack (descending by the color, `b`
@@ -96,18 +95,18 @@ derivation in the test comments:
   for a time unit) as the field, and it is skipped for `impute: null`, a stack without stack-by fields, a mark that is
   not a path mark, and a binned dimension (which the catalog reports as a warning).
 - The impute is bounded before it is built, by the combinations of the series and the keys. For the series of 3 keys
-  above the five input rows plus the six combinations are 11 rows, so `MaxDataRows` 11 passes and 10 fails located at the
-  stacked channel; when a scale sorts by a field and the Raw table keeps the five input rows beside the six imputed rows
-  and the stacked copy, 5 + 6 + 6 = 17 passes and 16 fails; a thousand `keyvals` fail under a budget of 500 located at the
-  impute object; and 100 series that each have a key of their own need 100 x 100 = 10,000 rows, which the default limit
-  accepts and a limit of 5,000 refuses at the stacked channel before anything is allocated.
+  above the five input rows plus the six combinations are 11 rows, so `MaxDataRows` 11 passes and 10 fails located at
+  the stacked channel; when a scale sorts by a field and the Raw table keeps the five input rows beside the six imputed
+  rows and the stacked copy, 5 + 6 + 6 = 17 passes and 16 fails; a thousand `keyvals` fail under a budget of 500 located
+  at the impute object; and 100 series that each have a key of their own need 100 x 100 = 10,000 rows, which the default
+  limit accepts and a limit of 5,000 refuses at the stacked channel before anything is allocated.
 - A time unit field is named by the unit and the field, with the end adding `_end`: the unit `yearmonth` of the field
   `date` is `yearmonth_date` and `yearmonth_date_end`, the object form with a step is `month_step_2_date`, a UTC unit
   keeps its prefix (`utcmonth_date`), and the `maxbins` form that names no unit is `timeunit_maxbins_10_date`. The
   default titles follow Vega-Lite: verbal `date (year-month)` (the parts of the unit joined with a hyphen, so
-  `yearweekday` is `date (year-week-day)` and the step form `{"unit": "month", "step": 2}` is `date (month)`), functional
-  `YEARMONTH(date)` (`UTCYEARMONTH(date)` for a UTC unit, `TIMEUNIT(date)` for the `maxbins` form), plain `date`, and the
-  `maxbins` form is the bare field in the verbal mode because it has no parts.
+  `yearweekday` is `date (year-week-day)` and the step form `{"unit": "month", "step": 2}` is `date (month)`),
+  functional `YEARMONTH(date)` (`UTCYEARMONTH(date)` for a UTC unit, `TIMEUNIT(date)` for the `maxbins` form), plain
+  `date`, and the `maxbins` form is the bare field in the verbal mode because it has no parts.
 - A channel spans its unit (reads the end as its second field) when it is a position channel of a temporal field with no
   secondary channel and a band position is defined: the bar, rect, and tick have 0.5 by default, a point has none unless
   the definition's `bandPosition`, the mark's `timeUnitBandPosition`, or the configuration of the mark sets one, and an
@@ -121,19 +120,19 @@ derivation in the test comments:
   bin are stacked descending on `y`: February is the bottom layer (0, 1) and January the upper (1, 2). In the stack by
   month, the layers of the category `a` (two January rows and one February row) are February (0, 1) at the bottom and
   January (1, 3) above it, and `b` has February (0, 1).
-- A zone changes the day: in a US-like zone (daylight time from 07:00Z on 2024-03-10) the instant 2024-03-10T12:00Z is on
-  the local day that starts at 00:00 local = 05:00Z (at -5 h) and ends at 00:00 on March 11 = 04:00Z (at -4 h), a day of
-  23 hours; in UTC the day is the one that starts at 2024-03-10T00:00Z.
+- A zone changes the day: in a US-like zone (daylight time from 07:00Z on 2024-03-10) the instant 2024-03-10T12:00Z is
+  on the local day that starts at 00:00 local = 05:00Z (at -5 h) and ends at 00:00 on March 11 = 04:00Z (at -4 h), a day
+  of 23 hours; in UTC the day is the one that starts at 2024-03-10T00:00Z.
 
-Unit tests reside in `EncodingPlanTests.cs` (the plan), `EncodingTransformsTests.cs` (the execution), `EncodingPlanPolarTests.cs`
-(the polar stack and the secondary polar channels), `EncodingPlanPathTests.cs` (the path grouping fields, the order fields,
-and the plan of the encoding impute and of the stack impute), `EncodingTransformsImputeTests.cs` (the imputes of the
-execution and their limits), `EncodingTransformsFacetTests.cs` (the cells of a facet, Phase 11), `StackRulesOffsetTests.cs`
-(the offset channels in the group-by of the stack and the aggregate) and, for the time
-units, `EncodingPlanTimeTests.cs` (the plan) and `EncodingTransformsTimeTests.cs` (the execution; its helpers are in
-`TimeTestPipeline.cs`) within the
-`DemaConsulting.CanvasNet.VegaLite.Tests` project, in the `Transforms` folder; the parser rules of the `impute` object
-are in `SpecParserImputeTests.cs` in the `SpecModel` folder.
+Unit tests reside in `EncodingPlanTests.cs` (the plan), `EncodingTransformsTests.cs` (the execution),
+`EncodingPlanPolarTests.cs` (the polar stack and the secondary polar channels), `EncodingPlanPathTests.cs` (the path
+grouping fields, the order fields, and the plan of the encoding impute and of the stack impute),
+`EncodingTransformsImputeTests.cs` (the imputes of the execution and their limits), `EncodingTransformsFacetTests.cs`
+(the cells of a facet, Phase 11), `StackRulesOffsetTests.cs` (the offset channels in the group-by of the stack and the
+aggregate) and, for the time units, `EncodingPlanTimeTests.cs` (the plan) and `EncodingTransformsTimeTests.cs` (the
+execution; its helpers are in `TimeTestPipeline.cs`) within the `DemaConsulting.CanvasNet.VegaLite.Tests` project, in
+the `Transforms` folder; the parser rules of the `impute` object are in `SpecParserImputeTests.cs` in the `SpecModel`
+folder.
 
 #### Test Environment
 
@@ -182,8 +181,8 @@ datum or a value reads no field and has no title.
 `EncodingPlanTests.EncodingPlan_Create_IdentityPlansAskForNothing`
 
 Asserts that two channels that bin the same field with the same parameters share one bin (one pass over the field) while
-different parameters make two, and that an encoding without aggregates, bins, or a stack is an identity plan while a view
-without a mark or an encoding has no channels.
+different parameters make two, and that an encoding without aggregates, bins, or a stack is an identity plan while a
+view without a mark or an encoding has no channels.
 
 ##### Implicit Aggregate Groups By The Other Channels
 
@@ -191,9 +190,9 @@ without a mark or an encoding has no channels.
 `EncodingPlanTests.EncodingPlan_Create_AggregateGroupsByTheBoundariesOfABin`,
 `EncodingPlanTests.EncodingPlan_Create_ArgMaxReadsTheFieldOfTheReturnedRow`
 
-Asserts that the measures are those of the aggregating definitions (one per output name, even when two channels use
-it), that the dimensions are every other field definition of every channel, including the detail and tooltip channels and
-the elements of an array channel, and that a binned dimension contributes its start, its end, and for a discrete bin its
+Asserts that the measures are those of the aggregating definitions (one per output name, even when two channels use it),
+that the dimensions are every other field definition of every channel, including the detail and tooltip channels and the
+elements of an array channel, and that a binned dimension contributes its start, its end, and for a discrete bin its
 text, while a pre-binned field contributes its own field and that of its secondary channel; and that an `argmax`
 definition becomes an `argmax` measure over the compared field with an argument field that reads the channel's field of
 the returned row, while an operation without a field is not a measure.
@@ -211,21 +210,20 @@ Asserts, as a theory of fourteen mark and encoding combinations, the stacked cha
 writes `<field>_start` and `<field>_end` of the derived measure, the stacked channel reads the upper end with the lower
 end as its second field, and a stack splits by the fields of the other position channel; that the layers are ordered
 bottom first by the stack-by fields, descending when the stacked channel is `y` and ascending when it is `x`, or by the
-`order` channel in its own direction; that a stack-by field that is also the group-by is not a layer (the dimension's own
-field is excluded) and a stack-by field that is aggregated is sorted by its derived name; that the plan carries the
+`order` channel in its own direction; that a stack-by field that is also the group-by is not a layer (the dimension's
+own field is excluded) and a stack-by field that is aggregated is sorted by its derived name; that the plan carries the
 inferred orientation, which decides the stack of a bar with two measures; and that an `area` with the signed values 3,
 -2, and 1 gets the decision, the layer order, and the rows of a bar in both orientations (vertical: z (0, 1), y (0, -2),
-x (1, 4); horizontal: x (0, 3), y (0, -2), z (3, 4)), so that the area mark, which is drawn since Phase 9, stacks as a bar
-does.
+x (1, 4); horizontal: x (0, 3), y (0, -2), z (3, 4)), so that the area mark, which is drawn since Phase 9, stacks as a
+bar does.
 
 ##### The Offset Field Groups The Stack And The Aggregate
 
 **Test**: `StackRulesOffsetTests.EncodingPlan_Create_StackAndAggregateGroupByTheOffsetField`
 
 Asserts that for a grouped bar chart with a position `c`, an offset `g`, and a measure `v`, the stack plan groups by `c`
-and
-`g` and the aggregate plan of the same encoding, whose group-by is every other field of every channel, also groups by `c`
-and `g`; and that an aggregated chart whose color is the offset field has the aggregate and no stack.
+and `g` and the aggregate plan of the same encoding, whose group-by is every other field of every channel, also groups
+by `c` and `g`; and that an aggregated chart whose color is the offset field has the aggregate and no stack.
 
 ##### Raw Table Is Flagged
 
@@ -286,17 +284,17 @@ categories, ordered by where the bin starts (the values 0, 10, and so on to 100 
 `EncodingTransformsTests.EncodingTransforms_Apply_NonPositionBinsUseTheirDefaultMaxBinsAndTheRangeTextOfDiscreteFields`,
 `EncodingTransformsTests.EncodingTransforms_Apply_NonPositionBinsAreChargedAndCancelable`
 
-Asserts, as a theory over the channels, that a binned `color`, `fill`, `stroke`, `size`, the opacities, `strokeWidth`, and
-`shape` get the field `bin_maxbins_6_v`, a `strokeDash` `bin_maxbins_4_v`, an `angle` `bin_maxbins_10_v`, that an explicit
-`maxbins`, `step`, or `nice` is named in the order written, that the second field is the end of the bin, and that the
-title is `v (binned)`; that a nominal or ordinal color reads `bin_maxbins_6_v_range` with no second field and the
-`legend.format` is the format of the text, while `bin: "binned"` and a bin of an aggregate plan no bin; that a bin of
-`x` and a bin of `color` with the same `maxbins` of 5 are one bin whose start and end the aggregate groups by (the
-values 3, 12, 27, 41, 58, 66, 83, and 97 have the step 20 over 0 to 100 and the counts 2, 1, 2, 1, and 2), that a
-color alone keeps the rows and adds `0|20`, `0|20`, `20|40`, `40|60`, `40|60`, `60|80`, `80|100`, and `80|100`; that
-four bins ask for the step 50, and the ordinal color has the texts `0 – 20` to `80 – 100`; and that a limit of 100
-evaluation steps stops the bins of a color of 5000 rows with a located error naming `MaxEvaluationSteps` and a canceled
-token stops the stage.
+Asserts, as a theory over the channels, that a binned `color`, `fill`, `stroke`, `size`, the opacities, `strokeWidth`,
+and `shape` get the field `bin_maxbins_6_v`, a `strokeDash` `bin_maxbins_4_v`, an `angle` `bin_maxbins_10_v`, that an
+explicit `maxbins`, `step`, or `nice` is named in the order written, that the second field is the end of the bin, and
+that the title is `v (binned)`; that a nominal or ordinal color reads `bin_maxbins_6_v_range` with no second field and
+the `legend.format` is the format of the text, while `bin: "binned"` and a bin of an aggregate plan no bin; that a bin
+of `x` and a bin of `color` with the same `maxbins` of 5 are one bin whose start and end the aggregate groups by (the
+values 3, 12, 27, 41, 58, 66, 83, and 97 have the step 20 over 0 to 100 and the counts 2, 1, 2, 1, and 2), that a color
+alone keeps the rows and adds `0|20`, `0|20`, `20|40`, `40|60`, `40|60`, `60|80`, `80|100`, and `80|100`; that four bins
+ask for the step 50, and the ordinal color has the texts `0 – 20` to `80 – 100`; and that a limit of 100 evaluation
+steps stops the bins of a color of 5000 rows with a located error naming `MaxEvaluationSteps` and a canceled token stops
+the stage.
 
 ##### Row Budget, Limits, And Cancellation
 
@@ -306,8 +304,9 @@ token stops the stage.
 `EncodingTransformsTests.EncodingTransforms_Apply_PollsTheCancellationToken`
 
 Asserts the exact row budgets above, with the failure located at the aggregated channel; that more bins than
-`VegaLiteLimits.MaxScaleDomainSize` fail located at the `bin` and that the rows are charged to the step budget (a located
-failure that names `MaxEvaluationSteps`); and that the standalone entry polls a canceled token while it reads the rows.
+`VegaLiteLimits.MaxScaleDomainSize` fail located at the `bin` and that the rows are charged to the step budget (a
+located failure that names `MaxEvaluationSteps`); and that the standalone entry polls a canceled token while it reads
+the rows.
 
 ##### Identity, Arguments, And Determinism
 
@@ -342,21 +341,20 @@ fields), that a `radius` alone or with a nominal `theta` stacks the other way ro
 `radius` beside a quantitative `theta` chooses `radius`, that `normalize` is the offset of an explicit one, that an
 aggregated `theta` and a `text` mark with `stack: true` (two stack-by fields, the text and the color) and a `point` with
 an explicit stack are stacked, that `x` is decided first, and that the `orient` of a bar does not apply to a polar
-channel;
-and, as a theory over sixteen mark and encoding combinations, that two quantitative polar channels without an explicit
-stack, a secondary `theta2` of a `theta` or `radius2` of a `radius` that is a field (a ranged mark; also for an aggregated
-one and for a datum), a
-binned or nominal measure, `stack: false`, a `sqrt` scale type, a single aggregate without layers, a `rect`, and a `line`
-are not stacked, while a `theta2` that is a value, a `theta` with a `radius2` field, and a `bar` with `theta` are. It
-asserts for the plan that the pie chart stacks `theta` into `sum_v_start` and `sum_v_end` with the layers ascending by `g`
-and no group, that `theta` reads `sum_v_end` and `sum_v_start`, that the aggregate groups by `g` and the plan is not the
-identity; that the group of a `theta` stack is the field of `radius` and the sort the `order` channel (`o` ascending, `p`
-descending), that the group of a `radius` stack is the field of `theta` and the layers sort by the detail `g`; that
-`theta2` and `radius2` give the second fields `b` and `d` and the titles `a, b` and `c, d` when nothing is stacked, and
-`a_start` when `theta` is stacked; that a bar with `x`, `y`, and `theta` keeps the stack of `y` grouped by `k` and
-sorted descending by `g` with `theta` unstacked; and that the radial chart that reads `theta` and `radius` from `v` has
-no group while a radius of another field is the group `r`. A small test asserts that the dimension channel pairs `x`
-with `y` and `theta` with `radius`, refuses another channel, and refuses a null.
+channel; and, as a theory over sixteen mark and encoding combinations, that two quantitative polar channels without an
+explicit stack, a secondary `theta2` of a `theta` or `radius2` of a `radius` that is a field (a ranged mark; also for an
+aggregated one and for a datum), a binned or nominal measure, `stack: false`, a `sqrt` scale type, a single aggregate
+without layers, a `rect`, and a `line` are not stacked, while a `theta2` that is a value, a `theta` with a `radius2`
+field, and a `bar` with `theta` are. It asserts for the plan that the pie chart stacks `theta` into `sum_v_start` and
+`sum_v_end` with the layers ascending by `g` and no group, that `theta` reads `sum_v_end` and `sum_v_start`, that the
+aggregate groups by `g` and the plan is not the identity; that the group of a `theta` stack is the field of `radius` and
+the sort the `order` channel (`o` ascending, `p` descending), that the group of a `radius` stack is the field of `theta`
+and the layers sort by the detail `g`; that `theta2` and `radius2` give the second fields `b` and `d` and the titles
+`a, b` and `c, d` when nothing is stacked, and `a_start` when `theta` is stacked; that a bar with `x`, `y`, and `theta`
+keeps the stack of `y` grouped by `k` and sorted descending by `g` with `theta` unstacked; and that the radial chart
+that reads `theta` and `radius` from `v` has no group while a radius of another field is the group `r`. A small test
+asserts that the dimension channel pairs `x` with `y` and `theta` with `radius`, refuses another channel, and refuses a
+null.
 
 ##### Path Grouping And Order Fields
 
@@ -364,14 +362,14 @@ with `y` and `theta` with `radius`, refuses another channel, and refuses a null.
 `EncodingPlanPathTests.EncodingPlan_OrderFields_ListTheOrderChannelWithDirections`
 
 Asserts, as a theory of seventeen mark and encoding combinations, the grouping fields above (none for a line of two
-positions, `g` for a color, `g,d1,d2` for a line with a detail pair and an `order`, `g,d1,d2,o` for the same area, `k` for
-a trail, `s,k` for a line with a size and a key, `g` once when the color and the detail share it, `a,b,c,d,e,f,h` for the
-stroke, fill, opacity, fill opacity, stroke opacity, stroke dash, and stroke width, none for the secondary, polar, text,
-shape, angle, tooltip, href, description, and url channels and for the value definitions, `d` when the measure and the
-color aggregate, the derived names of a bin and a time unit, and `g` for an area with an aggregated `order`); and that the
-order fields are one entry for every definition that reads a field, in order and with its direction (`o` ascending; `a`
-ascending, `b` descending, `c` ascending; none for an `order` that is a value; `max_o` descending for an aggregated one;
-none without an `order` and for an empty encoding).
+positions, `g` for a color, `g,d1,d2` for a line with a detail pair and an `order`, `g,d1,d2,o` for the same area, `k`
+for a trail, `s,k` for a line with a size and a key, `g` once when the color and the detail share it, `a,b,c,d,e,f,h`
+for the stroke, fill, opacity, fill opacity, stroke opacity, stroke dash, and stroke width, none for the secondary,
+polar, text, shape, angle, tooltip, href, description, and url channels and for the value definitions, `d` when the
+measure and the color aggregate, the derived names of a bin and a time unit, and `g` for an area with an aggregated
+`order`); and that the order fields are one entry for every definition that reads a field, in order and with its
+direction (`o` ascending; `a` ascending, `b` descending, `c` ascending; none for an `order` that is a value; `max_o`
+descending for an aggregated one; none without an `order` and for an empty encoding).
 
 ##### Encoding Impute And Stack Impute Are Planned
 
@@ -380,12 +378,12 @@ none without an `order` and for an empty encoding).
 
 Asserts that the impute of `y` of a line with a color and an `order` imputes the field `v` over the key `t`, grouped by
 the colors (the `order` does not group a line), carries the definition of the channel, and makes the plan something
-other than the identity; that the impute of `x` has `t` as its field and `v` as its key, and that `x` is the one that
-is planned when both channels impute; and that there is none for `impute: null`, a missing key channel, a key channel
-that is a value, an impute on a channel other than `x` and `y` (the plan stays the identity), while an aggregated measure
-is imputed through its derived name `sum_v` and a count through `__count`. For the stack impute it asserts that an
-area stacked over an ordinal `t` has the field `v`, the key `t`, and the series `g` and carries the definition of the
-stack, that a stacked line has the series `g,d` (its detail too), that there is none for `impute: null` (the stack stays),
+other than the identity; that the impute of `x` has `t` as its field and `v` as its key, and that `x` is the one that is
+planned when both channels impute; and that there is none for `impute: null`, a missing key channel, a key channel that
+is a value, an impute on a channel other than `x` and `y` (the plan stays the identity), while an aggregated measure is
+imputed through its derived name `sum_v` and a count through `__count`. For the stack impute it asserts that an area
+stacked over an ordinal `t` has the field `v`, the key `t`, and the series `g` and carries the definition of the stack,
+that a stacked line has the series `g,d` (its detail too), that there is none for `impute: null` (the stack stays),
 without a color, for a bar (the stack stays), and for a binned dimension (the stack stays), that a horizontal area
 stacks `x` over the key `y`, that an aggregate is imputed as `sum_v` and a time unit through the key `year_t`, and that
 an impute object on the stacked channel does not switch the stack impute off while it plans the encoding impute too.
@@ -400,13 +398,13 @@ an impute object on the stacked channel does not switch the stack impute off whi
 `EncodingTransformsImputeTests.EncodingTransforms_Apply_ImputeNullDisablesTheStackImpute`
 
 Asserts the rows above: with the value 5 the six rows are `a|1|4|5`, `a|2|5|7`, `a|3|5|8`, `b|1|0|4`, `b|3|0|5`, and
-`b|2|0|5` (group, key, start, end), the Raw table is the Main table, and the stacked scale reads `v_end`; the `mean` rows
-`a|2|20`, `b|1|5`, and `b|3|5` follow the three input rows, the `keyvals` rows are `a|2`, `a|4`, `b|1`, `b|3`, and `b|4`
-all with -1 and the `max` rows 30, 5, and 5; the impute of `x` adds `b|2|0`; a stacked area and a stacked line are both
-`a|1|4|5`, `a|2|0|2`, `a|3|5|8`, `b|1|0|4`, `b|3|0|5`, `b|2|0|0` while the bar keeps its five rows, and the scale
+`b|2|0|5` (group, key, start, end), the Raw table is the Main table, and the stacked scale reads `v_end`; the `mean`
+rows `a|2|20`, `b|1|5`, and `b|3|5` follow the three input rows, the `keyvals` rows are `a|2`, `a|4`, `b|1`, `b|3`, and
+`b|4` all with -1 and the `max` rows 30, 5, and 5; the impute of `x` adds `b|2|0`; a stacked area and a stacked line are
+both `a|1|4|5`, `a|2|0|2`, `a|3|5|8`, `b|1|0|4`, `b|3|0|5`, `b|2|0|0` while the bar keeps its five rows, and the scale
 domain of the area ends at the largest top, 8; with `impute: null` the area keeps five rows and the series `b` has only
-`b|1|0|4` and `b|3|0|5`; and the sums of the aggregate give `a|1|4|7`, `a|2|0|2`, `b|1|0|4`, and `b|2|0|0` (compared
-in sorted order).
+`b|1|0|4` and `b|3|0|5`; and the sums of the aggregate give `a|1|4|7`, `a|2|0|2`, `b|1|0|4`, and `b|2|0|0` (compared in
+sorted order).
 
 ##### Impute Limits, Budget, And Cancellation
 
@@ -431,16 +429,16 @@ token that is already canceled.
 Asserts, with `MaxScaleDomainSize` 2, that 24 wrong objects are `VegaLiteSpecException` errors located at the offending
 value with the file, a positive line and column, and a message that starts with the file name: a text, a boolean, or an
 array as the object (`/encoding/y/impute`), a method that is not one of the five (`mode`, a number, `MEAN`:
-`/encoding/y/impute/method`), `keyvals` that are a number or a text (`/keyvals`) or hold an array or an object (`/keyvals/0`
-and `/keyvals/1`), a sequence without a `stop` (`/keyvals`), with a `stop` or a `start` that is a text, or with a step
-of 0
-(`/keyvals/stop`, `/keyvals/start`, `/keyvals/step`), key lists and sequences of more than two values (an array of three,
-`0` to `3`, `10` down to `0` by -3, and `1e300` by `1e-300`, which is refused by arithmetic before any key is
-generated), a `value` that is an object or an array, and a `frame` that is a number, has one entry, a fraction, or a text
-(`/frame`, `/frame/0`, `/frame/1`); that 16 valid forms give no warning (`null`, the empty object, each method with a
-constant, frames with nulls, the scalar kinds of the value, key arrays with mixed kinds, and sequences with a positive
-and a negative step); and that the members `groupby` and `key`, which Vega-Lite does not define for the encoding, are two
-`vl-unknown-property` warnings located at their keys with the text "an impute definition".
+`/encoding/y/impute/method`), `keyvals` that are a number or a text (`/keyvals`) or hold an array or an object
+(`/keyvals/0` and `/keyvals/1`), a sequence without a `stop` (`/keyvals`), with a `stop` or a `start` that is a text, or
+with a step of 0 (`/keyvals/stop`, `/keyvals/start`, `/keyvals/step`), key lists and sequences of more than two values
+(an array of three, `0` to `3`, `10` down to `0` by -3, and `1e300` by `1e-300`, which is refused by arithmetic before
+any key is generated), a `value` that is an object or an array, and a `frame` that is a number, has one entry, a
+fraction, or a text (`/frame`, `/frame/0`, `/frame/1`); that 16 valid forms give no warning (`null`, the empty object,
+each method with a constant, frames with nulls, the scalar kinds of the value, key arrays with mixed kinds, and
+sequences with a positive and a negative step); and that the members `groupby` and `key`, which Vega-Lite does not
+define for the encoding, are two `vl-unknown-property` warnings located at their keys with the text "an impute
+definition".
 
 ##### Time Unit Field Names, Titles, And Band End
 
@@ -453,20 +451,20 @@ and a negative step); and that the members `groupby` and `key`, which Vega-Lite 
 `EncodingPlanTimeTests.EncodingPlan_Create_TitlesVerbalFunctionalPlain`
 
 Asserts that the unit `yearmonth` on the temporal field `date` of a bar chart makes the channel read `yearmonth_date`
-(the value field, the field path, and the Raw field), with `yearmonth_date_end` as its second field, `date` as its source
-field, a band end, and exactly one unit in the plan (`StartName`, `EndName`, and `SourceField` as above, the same
+(the value field, the field path, and the Raw field), with `yearmonth_date_end` as its second field, `date` as its
+source field, a band end, and exactly one unit in the plan (`StartName`, `EndName`, and `SourceField` as above, the same
 object that the channel carries), and that the plan is no longer an identity; that, as a theory of six spellings, the
-object forms and the `maxbins` form are named as above (`month_step_2_date`, `utcmonth_date` for `{"unit": "month",
-"utc": true}`, `timeunit_maxbins_10_date`, and `yearmonthdate_step_7_date`), each with the end name adding `_end`; that,
-as a theory over six marks, a `bar`, `rect`, and `tick` span their unit (the second field is the end) and a `point`,
-`circle`, and `rule` do not; that a point gets the band end when the definition has a `bandPosition` of 0.5, the mark has
-a `timeUnitBandPosition` of 0.25, or the configuration of `point` has 0.5; that an ordinal or nominal field with a unit
-has the start only (the unit is the category); that a field with a unit and no type is temporal and spans, that a color
-channel reads the start only, and that a position channel with a secondary channel (`x2` with its own unit
-`month_until`) keeps that channel as its second end and does not span, with both units in the plan; and that the three
-title modes give `date (year-month)`, `YEARMONTH(date)`, and `date` for `yearmonth`, `date (year-week-day)` for
-`yearweekday`, `date (month)` and `MONTH(date)` for the step form, `date` and `TIMEUNIT(date)` for `maxbins`, and
-`date (year-month)` and `UTCYEARMONTH(date)` for a UTC unit.
+object forms and the `maxbins` form are named as above (`month_step_2_date`, `utcmonth_date` for
+`{"unit": "month", "utc": true}`, `timeunit_maxbins_10_date`, and `yearmonthdate_step_7_date`), each with the end name
+adding `_end`; that, as a theory over six marks, a `bar`, `rect`, and `tick` span their unit (the second field is the
+end) and a `point`, `circle`, and `rule` do not; that a point gets the band end when the definition has a `bandPosition`
+of 0.5, the mark has a `timeUnitBandPosition` of 0.25, or the configuration of `point` has 0.5; that an ordinal or
+nominal field with a unit has the start only (the unit is the category); that a field with a unit and no type is
+temporal and spans, that a color channel reads the start only, and that a position channel with a secondary channel
+(`x2` with its own unit `month_until`) keeps that channel as its second end and does not span, with both units in the
+plan; and that the three title modes give `date (year-month)`, `YEARMONTH(date)`, and `date` for `yearmonth`,
+`date (year-week-day)` for `yearweekday`, `date (month)` and `MONTH(date)` for the step form, `date` and
+`TIMEUNIT(date)` for `maxbins`, and `date (year-month)` and `UTCYEARMONTH(date)` for a UTC unit.
 
 ##### Time Unit Dimensions, Sharing, And Precedence
 
@@ -482,17 +480,16 @@ Asserts that an implicit count grouped by the unit of a bar groups by the start 
 `yearmonth_date_end`: the end follows from the start, so it adds no groups, but it keeps the end field alive after the
 aggregate), that the same encoding on a point groups by the start only, that an ordinal `month` unit groups by
 `month_date` only, and that the measure of the bar is `__count`; that a bin wins over a unit on the same definition (no
-unit in the plan, the
-field `bin_maxbins_10_a`), that an aggregate of the field replaces the unit (`max_a`), and that a binned unit (Phase 14,
-Vega-Lite's `TimeUnitNode.makeFromEncoding` and `vgField`) reads the field itself: for a bar the channel has the value
-field, path, and raw field `date`, the end `date_end`, the title `date` alone, the band end, and one unit whose start
-and end names are `date` and `date_end` with the binned spec, a `{unit: month, binned: true}` object gives the same,
-while a point has no unit (the plan an identity, no end, the title `date`) unless it has a `bandPosition`, when it has the
-end `date_end`; that the aggregate of a binned bar groups by `date` and `date_end` (a nested field `a.b` groups by
-`a.b` and `a\.b_end`); that two channels with the same field and unit share one
-unit (which spans because the position channel does, while the color channel does not) and that another unit of the same
-field is another one (`month_date` and `year_date`); that a stack whose layers are a time unit orders them by the unit
-start descending on `y` (`month_date`) and that a time unit on the position channel is a group of the stack with its end
+unit in the plan, the field `bin_maxbins_10_a`), that an aggregate of the field replaces the unit (`max_a`), and that a
+binned unit (Phase 14, Vega-Lite's `TimeUnitNode.makeFromEncoding` and `vgField`) reads the field itself: for a bar the
+channel has the value field, path, and raw field `date`, the end `date_end`, the title `date` alone, the band end, and
+one unit whose start and end names are `date` and `date_end` with the binned spec, a `{unit: month, binned: true}`
+object gives the same, while a point has no unit (the plan an identity, no end, the title `date`) unless it has a
+`bandPosition`, when it has the end `date_end`; that the aggregate of a binned bar groups by `date` and `date_end` (a
+nested field `a.b` groups by `a.b` and `a\.b_end`); that two channels with the same field and unit share one unit (which
+spans because the position channel does, while the color channel does not) and that another unit of the same field is
+another one (`month_date` and `year_date`); that a stack whose layers are a time unit orders them by the unit start
+descending on `y` (`month_date`) and that a time unit on the position channel is a group of the stack with its end
 (`month_date` and `month_date_end`); and that a view without an encoding has no units and is an identity.
 
 ##### Time Unit Stage Order And Aggregation
@@ -505,14 +502,14 @@ start descending on `y` (`month_date`) and that a time unit on the position chan
 `EncodingTransformsTimeTests.EncodingTransforms_WithoutTimeUnits_HasNoUnits`
 
 Asserts, over the six dates above, that the units are computed before the aggregate: the Main table has the fields
-`__count`, `yearmonth_d`, and `yearmonth_d_end`, the counts are 2, 3, and 1 in first-seen order, the starts are the first
-of January, February, and March 2024 and the ends the first of February, March, and April (an end is the start of the
-next month), and the unit is handed on in `EncodingData.TimeUnits` with the parts `year` and `month`; that a point
+`__count`, `yearmonth_d`, and `yearmonth_d_end`, the counts are 2, 3, and 1 in first-seen order, the starts are the
+first of January, February, and March 2024 and the ends the first of February, March, and April (an end is the start of
+the next month), and the unit is handed on in `EncodingData.TimeUnits` with the parts `year` and `month`; that a point
 aggregates by the start only (the Main fields are `__count` and `yearmonth_d`, the counts again 2, 3, and 1); that the
 bin, the unit, the aggregate, and the stack apply in this order (the values 5, 15, 15 with the dates of January 10,
 January 20, and February 10: the Main fields are the count, its stack start and end, the bin start and end, and
-`month_d`, the rows are bin 0 with January (0, 1), bin 10 with January (1, 2), and bin 10 with February (0, 1)), with the
-bin and the unit both handed on; that the stack by a unit orders the layers of the category `a` February (0, 1) then
+`month_d`, the rows are bin 0 with January (0, 1), bin 10 with January (1, 2), and bin 10 with February (0, 1)), with
+the bin and the unit both handed on; that the stack by a unit orders the layers of the category `a` February (0, 1) then
 January (1, 3) and puts `b` in February (0, 1); that, when a scale sorts by an aggregate, the Raw table keeps the six
 rows with `month_d` and `month_d_end` while Main has the three groups and is another instance; and that an encoding
 without a time unit hands on none.
@@ -523,14 +520,14 @@ without a time unit hands on none.
 `EncodingTransformsTimeTests.EncodingTransforms_TimeUnit_FollowsTheCalendarOfTheChart`,
 `EncodingTransformsTimeTests.EncodingTransforms_TimeUnit_FailureIsLocatedAtTheChannelUnit`
 
-Asserts that the `maxbins` form is resolved against the data and the resolved unit is handed on under the literal name of
-the form: the dates March 1, March 3 at 12:00, and March 6 with `{"maxbins": 5}` make the one-day unit (the parts `year`,
-`month`, and `date`, the field `timeunit_maxbins_5_d`), so the three days are three groups starting at March 1, 3, and
-6; that the units follow the calendar of the chart (the local day of 2024-03-10T12:00Z starts at 2024-03-10T00:00Z in
-UTC, at 05:00Z in the US-like zone, and ends at 04:00Z on March 11 there, as derived above); and that a unit stage over
-10,000 rows under a budget of 100 evaluation steps fails with a located `VegaLiteRenderException` at
-`/encoding/x/timeUnit` that names `MaxEvaluationSteps`. The unit stage itself is verified in _Time Unit Transform
-Verification Design_.
+Asserts that the `maxbins` form is resolved against the data and the resolved unit is handed on under the literal name
+of the form: the dates March 1, March 3 at 12:00, and March 6 with `{"maxbins": 5}` make the one-day unit (the parts
+`year`, `month`, and `date`, the field `timeunit_maxbins_5_d`), so the three days are three groups starting at March 1,
+3, and 6; that the units follow the calendar of the chart (the local day of 2024-03-10T12:00Z starts at
+2024-03-10T00:00Z in UTC, at 05:00Z in the US-like zone, and ends at 04:00Z on March 11 there, as derived above); and
+that a unit stage over 10,000 rows under a budget of 100 evaluation steps fails with a located `VegaLiteRenderException`
+at `/encoding/x/timeUnit` that names `MaxEvaluationSteps`. The unit stage itself is verified in *Time Unit Transform
+Verification Design*.
 
 ##### Facet Cells: Domain, Order, Grid, And Partition
 
@@ -552,65 +549,55 @@ Verification Design_.
 `EncodingTransformsFacetTests.EncodingTransforms_Facet_PartitionKeepsRowOrderAndFields`,
 `EncodingTransformsFacetTests.EncodingTransforms_Facet_EmptyTableHasNoCells`
 
-The rows are `c` = b, a, null, z, a, d with `r` = y, x, y, x, y, x and `v` = 1 to 6
-(so `c` has the five distinct values b,
-a,
-null, z, d in order of first appearance and a repeats). The expected values were observed once on Vega-Lite 6 / Vega 6
-(the order of the cells of a facet) and are written as literals; the code is never compared with a pasted output.
-Asserts that the distinct values are ascending with the null first (`null, a, b, d, z`) and that the numbers
-10, 9, 100, 9
-are 9, 10, 100 (by value, not the text order 10, 100, 9); that `sort: "descending"` gives `z, d, b, a, null`, that
-**`sort: null` is still ascending** (not the data order), and that the array `["z", "a", "q"]` puts z and a first as listed
-and then the unlisted values b, null, and d in the order they appear in the data, none dropped (`q`, which no row has, adds
-nothing); that a sort by an aggregate (`{field, op, order}`, Phase 13) orders the cells by the operation over the rows of
-each value, derived by hand from the rows above: the mean of `v` by `c` is b 1, a 3.5 (the rows 2 and 5), null 3, z 4,
-and d 6, so the descending order is `d, z, a, null, b`; the sum is b 1, a 7, null 3, z 4, d 6, so the ascending order is
-`b, null, z, d, a`; the default operation is `min` (b 1, a 2, null 3, z 4, d 6, which is the order of first appearance);
-`{"op": "count", "order": "descending"}` has the counts a 2 and the others 1, so `a` is first and the ties stay in the
-order of first appearance (`b, null, z, d`, a stable sort); and in the partition the maximum of `v` (b 1, a 5, null 3, z
-4, d 6) with the descending order gives the cells `d, a, z, null, b` with the rows [6], [2, 5], [4], [3], [1], while a
-sort object that has neither a `field` nor the operation `count` is not an aggregate and the ascending order applies
-(`EncodingTransforms_Facet_SortByAggregateOrdersTheCellsOfThePartition`); that a `timeUnit` of `yearmonth` on a temporal
-facet field makes the start of the unit the cell: the rows of 2024-01-15, 2024-02-20, and 2024-01-30 (the millisecond
-values 1705276800000, 1708387200000, and 1706572800000) give the two cells 2024-01-01 (1704067200000) with the rows
-v = 1 and 3 and 2024-02-01 (1706745600000) with v = 2, as dates in ascending order, and the cell tables hold the derived
-field `yearmonth_t` (`EncodingTransforms_Facet_TimeUnitOfTheFieldIsTheCell`); that a binned `month` unit leaves the raw
-value as the cell, so the two distinct raw values 1705276800000 and 1708387200000 are the cells and the table gets no
-field
-(`EncodingTransforms_Facet_BinnedTimeUnitIsTheRawValue`, Vega-Lite's `makeFromEncoding` adds nothing for a binned
-unit); that a `maxbins` unit of 3 over the same
-dates resolves against the data to Vega's `timeBin` unit `yearweek` (derived with vega-time: the weeks starting Sunday
-2024-01-14, 1705190400000, and
-2024-02-18, 1708214400000), the cells are those two starts with the rows v = 1 and 3, and v = 2, and the field
-`timeunit_maxbins_3_t` is derived (`EncodingTransforms_Facet_MaxBinsTimeUnitIsResolvedAgainstTheData`); that the `bin`
-of a facet field (Phase 14, `bin: {maxbins: 3}` over the values 25, 2, 12, "x", 3, and a missing value) makes the start
-of the bin the cell with the range as text, ascending with the null cell first: `null`, `0 – 10`, `10 – 20`, `20 – 30`
-with the rows v = 4 and 6, 2 and 5, 3, and 1, and the fields `bin_maxbins_3_c` and `bin_maxbins_3_c_end`
+The rows are `c` = b, a, null, z, a, d with `r` = y, x, y, x, y, x and `v` = 1 to 6 (so `c` has the five distinct values
+b, a, null, z, d in order of first appearance and a repeats). The expected values were observed once on Vega-Lite 6 /
+Vega 6 (the order of the cells of a facet) and are written as literals; the code is never compared with a pasted output.
+Asserts that the distinct values are ascending with the null first (`null, a, b, d, z`) and that the numbers 10, 9, 100,
+9 are 9, 10, 100 (by value, not the text order 10, 100, 9); that `sort: "descending"` gives `z, d, b, a, null`, that
+**`sort: null` is still ascending** (not the data order), and that the array `["z", "a", "q"]` puts z and a first as
+listed and then the unlisted values b, null, and d in the order they appear in the data, none dropped (`q`, which no row
+has, adds nothing); that a sort by an aggregate (`{field, op, order}`, Phase 13) orders the cells by the operation over
+the rows of each value, derived by hand from the rows above: the mean of `v` by `c` is b 1, a 3.5 (the rows 2 and 5),
+null 3, z 4, and d 6, so the descending order is `d, z, a, null, b`; the sum is b 1, a 7, null 3, z 4, d 6, so the
+ascending order is `b, null, z, d, a`; the default operation is `min` (b 1, a 2, null 3, z 4, d 6, which is the order of
+first appearance); `{"op": "count", "order": "descending"}` has the counts a 2 and the others 1, so `a` is first and the
+ties stay in the order of first appearance (`b, null, z, d`, a stable sort); and in the partition the maximum of `v` (b
+1, a 5, null 3, z 4, d 6) with the descending order gives the cells `d, a, z, null, b` with the rows [6], [2, 5], [4],
+[3], [1], while a sort object that has neither a `field` nor the operation `count` is not an aggregate and the ascending
+order applies (`EncodingTransforms_Facet_SortByAggregateOrdersTheCellsOfThePartition`); that a `timeUnit` of `yearmonth`
+on a temporal facet field makes the start of the unit the cell: the rows of 2024-01-15, 2024-02-20, and 2024-01-30 (the
+millisecond values 1705276800000, 1708387200000, and 1706572800000) give the two cells 2024-01-01 (1704067200000) with
+the rows v = 1 and 3 and 2024-02-01 (1706745600000) with v = 2, as dates in ascending order, and the cell tables hold
+the derived field `yearmonth_t` (`EncodingTransforms_Facet_TimeUnitOfTheFieldIsTheCell`); that a binned `month` unit
+leaves the raw value as the cell, so the two distinct raw values 1705276800000 and 1708387200000 are the cells and the
+table gets no field (`EncodingTransforms_Facet_BinnedTimeUnitIsTheRawValue`, Vega-Lite's `makeFromEncoding` adds nothing
+for a binned unit); that a `maxbins` unit of 3 over the same dates resolves against the data to Vega's `timeBin` unit
+`yearweek` (derived with vega-time: the weeks starting Sunday 2024-01-14, 1705190400000, and 2024-02-18, 1708214400000),
+the cells are those two starts with the rows v = 1 and 3, and v = 2, and the field `timeunit_maxbins_3_t` is derived
+(`EncodingTransforms_Facet_MaxBinsTimeUnitIsResolvedAgainstTheData`); that the `bin` of a facet field (Phase 14,
+`bin: {maxbins: 3}` over the values 25, 2, 12, "x", 3, and a missing value) makes the start of the bin the cell with the
+range as text, ascending with the null cell first: `null`, `0 – 10`, `10 – 20`, `20 – 30` with the rows v = 4 and 6, 2
+and 5, 3, and 1, and the fields `bin_maxbins_3_c` and `bin_maxbins_3_c_end`
 (`EncodingTransforms_Facet_BinOfTheFieldIsTheCellWithItsRangeAsText`); that the default number of bins is that of
 `autoMaxBins` (`bin: true` over 0 to 20 gives four bins of 5 for a column: `0 – 5` to `15 – 20`, named
-`bin_maxbins_6_c`, and ten bins of 2 for a
-wrapped facet: `2 – 4` is the second and `10 – 12` the sixth, named `bin_maxbins_10_c`), in numeric order and with the
-maximum in the last bin
+`bin_maxbins_6_c`, and ten bins of 2 for a wrapped facet: `2 – 4` is the second and `10 – 12` the sixth, named
+`bin_maxbins_10_c`), in numeric order and with the maximum in the last bin
 (`EncodingTransforms_Facet_BinNamesFollowAutoMaxBinsAndOrderIsNumeric`); and that the `aggregate` of a facet field is
-not computed
-(Vega-Lite's `AggregateNode.makeFromEncoding` takes a unit model only) and the cell reads the field of the name that
-`vgField` gives:
-`sum_v` (10 and 20), `__count` for a count (1 and 2), and the one null cell when the table has no such field (`max_c`)
-(`EncodingTransforms_Facet_AggregateOfTheFieldReadsTheFieldOfItsName`); that a missing value and a null are one null cell,
-first, holding the rows with v = 2 and 3,
-and that a field no row has is one cell of nulls with all six rows; that the sort array of a temporal field (rows of
-2022, 2020, 2021, and 2019) that lists the date-time objects 2021 (UTC) and 2022 gives the cells 2021, 2022, 2020,
-2019.
-For the facet by `r` and `c` asserts the 2 x 5 grid in
-row-major order (indexes 0 to 9, row indexes 0 x 5 then 1 x 5, column indexes 0 to 4 twice), the row counts of the cells
-`0, 1, 0, 1, 1, 1, 1, 1, 0, 0` (the combinations the data has no row for are cells with no rows: (x, null), (x, b),
-(y, d), (y, z)) with the v of each non-empty cell by hand ((x, a) = 2, (x, d) = 6, (x, z) = 4, (y, null) = 3, (y, a) = 5,
-(y, b) = 1), and the values of the cell (y, b); that a facet by `r` only has two rows and one column (x with v 2, 4, 6 and
-y with 1, 3, 5, in the order of the rows) and one by `c` only five columns in one row; that a wrapped facet has the five
-values as cells with no row or column index (-1) and the row counts 1, 2, 1, 1, 1; that every cell table has the fields
-`c`, `r`, `v` and the rows in their original order (the cell `a` of the wrapped facet is `a|x|2`, `a|y|5`), that the cells
-together hold the six rows once and that the four cells without rows are one shared table; and that a table without rows
-has no cell and no error.
+not computed (Vega-Lite's `AggregateNode.makeFromEncoding` takes a unit model only) and the cell reads the field of the
+name that `vgField` gives: `sum_v` (10 and 20), `__count` for a count (1 and 2), and the one null cell when the table
+has no such field (`max_c`) (`EncodingTransforms_Facet_AggregateOfTheFieldReadsTheFieldOfItsName`); that a missing value
+and a null are one null cell, first, holding the rows with v = 2 and 3, and that a field no row has is one cell of nulls
+with all six rows; that the sort array of a temporal field (rows of 2022, 2020, 2021, and 2019) that lists the date-time
+objects 2021 (UTC) and 2022 gives the cells 2021, 2022, 2020, 2019. For the facet by `r` and `c` asserts the 2 x 5 grid
+in row-major order (indexes 0 to 9, row indexes 0 x 5 then 1 x 5, column indexes 0 to 4 twice), the row counts of the
+cells `0, 1, 0, 1, 1, 1, 1, 1, 0, 0` (the combinations the data has no row for are cells with no rows: (x, null), (x,
+b), (y, d), (y, z)) with the v of each non-empty cell by hand ((x, a) = 2, (x, d) = 6, (x, z) = 4, (y, null) = 3,
+(y, a) = 5, (y, b) = 1), and the values of the cell (y, b); that a facet by `r` only has two rows and one column (x with
+v 2, 4, 6 and y with 1, 3, 5, in the order of the rows) and one by `c` only five columns in one row; that a wrapped
+facet has the five values as cells with no row or column index (-1) and the row counts 1, 2, 1, 1, 1; that every cell
+table has the fields `c`, `r`, `v` and the rows in their original order (the cell `a` of the wrapped facet is `a|x|2`,
+`a|y|5`), that the cells together hold the six rows once and that the four cells without rows are one shared table; and
+that a table without rows has no cell and no error.
 
 ##### Facet Cells: Limits, Budget, And Cancellation
 
@@ -623,16 +610,14 @@ has no cell and no error.
 `EncodingTransformsFacetTests.EncodingTransforms_Facet_CancellationIsHonored`,
 `EncodingTransformsFacetTests.EncodingTransforms_Facet_ChecksItsArguments`
 
-Asserts that 1,000 rows with 1,000 different row values and 1,000 different column values make 1,000,000 cells, which fail
-with a `VegaLiteRenderException` that names `1000000 cells` and `MaxViews`, located at `/facet/row`, **before any row
-is counted** (the loader's row count is the same as before the call); that the boundary is exact
-(2 rows x 3 columns = 6 cells
-of 2 views each and 1 view outside are 13 views: a limit of 13 passes, 12 fails);
-that a cell count of `long.MaxValue / 2`
-with `int.MaxValue` views per cell fails instead of overflowing (and so do 2 cells of 2^62 views, whose product wraps to
-a negative number), that 1,000 cells with 1 view and none outside pass the
-limit of 1,000 and that one more outside view does not; that the six rows of a 2 x 5 facet are counted in the row budget
-**once** (6 loaded, 12 after the ten cells, not 6 for each cell) and that six loaded rows and six more fail with a
-located `MaxDataRows` error under a limit of 10; that a sort array of three values under a `MaxScaleDomainSize` of 2
-fails located at `/facet/column/sort`; that a canceled token raises an `OperationCanceledException` from both entry points;
+Asserts that 1,000 rows with 1,000 different row values and 1,000 different column values make 1,000,000 cells, which
+fail with a `VegaLiteRenderException` that names `1000000 cells` and `MaxViews`, located at `/facet/row`, **before any
+row is counted** (the loader's row count is the same as before the call); that the boundary is exact (2 rows x 3
+columns = 6 cells of 2 views each and 1 view outside are 13 views: a limit of 13 passes, 12 fails); that a cell count of
+`long.MaxValue / 2` with `int.MaxValue` views per cell fails instead of overflowing (and so do 2 cells of 2^62 views,
+whose product wraps to a negative number), that 1,000 cells with 1 view and none outside pass the limit of 1,000 and
+that one more outside view does not; that the six rows of a 2 x 5 facet are counted in the row budget **once** (6
+loaded, 12 after the ten cells, not 6 for each cell) and that six loaded rows and six more fail with a located
+`MaxDataRows` error under a limit of 10; that a sort array of three values under a `MaxScaleDomainSize` of 2 fails
+located at `/facet/column/sort`; that a canceled token raises an `OperationCanceledException` from both entry points;
 and that a null argument and a facet without any field are refused.

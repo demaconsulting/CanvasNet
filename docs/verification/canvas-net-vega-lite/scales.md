@@ -11,8 +11,8 @@ and `ColorInterpolator` (the color interpolation).
 The time scales are verified in the same way. The resolver, the scale model, the tick algorithm, and the axis builder
 run for real over original specifications in `ScaleResolverTimeTests`, `ScaleModelTimeTests`, `TicksTimeTests`, and (in
 the `Guides` folder) `AxisBuilderTimeTests`, with the instants computed by the base class library and not by the
-calendar under test (the calendar is the `TimeCalendar` unit of the `Data` subsystem, see the _TimeCalendar Unit
-Verification Design_), and the zones built in the tests. The expected values are derived by hand from the days of 2024
+calendar under test (the calendar is the `TimeCalendar` unit of the `Data` subsystem, see the *TimeCalendar Unit
+Verification Design*), and the zones built in the tests. The expected values are derived by hand from the days of 2024
 and from the d3 interval table.
 
 ### Verification Approach
@@ -58,8 +58,8 @@ the five unit verification documents passes without error or unexpected exceptio
   `ScaleResolverTests.ScaleResolver_Resolve_AppliesZeroNiceDomainRangeAndPadding`,
   `ScaleResolverTests.ScaleResolver_Resolve_DiscreteSizesComeFromTheStep` — resolves scales for bar and scatter
   specifications from inline data and asserts the domains (zero and nice applied), the band steps and bandwidths of
-  the created models, and the mapped positions in a data rectangle, using the model arithmetic of the _ScaleModel Unit
-  Verification Design_.
+  the created models, and the mapped positions in a data rectangle, using the model arithmetic of the *ScaleModel Unit
+  Verification Design*.
 - **Axis Ticks And Labels Come From The Scale Domain**:
   `AxisBuilderTests.AxisBuilder_Build_LinearAxisUsesExpectedTickValuesAndLabels`,
   `AxisBuilderTests.AxisBuilder_Build_ValuesCountFormatAndFlushAreHonored` — the tick values come from `Ticks` for the
@@ -92,10 +92,10 @@ the five unit verification documents passes without error or unexpected exceptio
   `ScaleResolverPlanTests.ScaleResolver_Resolve_UnaggregatedDomainReadsTheRawRows`,
   `AxisBuilderTests.AxisBuilder_Build_BinnedAxisAsksForATickPerTenPixels` — the resolver reads the fields, bins, and
   stacks that the plan derived (the Raw and the Main table) and the axis stage takes its ticks from the resulting
-  domain: categories are sorted by the sum, count, or other aggregate of another channel over the Raw rows, a
-  pre-binned field has the union of its start and end as its domain with no zero and no nice, an `unaggregated` domain
-  reads the rows before the aggregate (1 to 12 rather than the means 2 to 8), and a binned axis asks for one tick per ten
-  pixels (the ticks 0, 2, ..., 34 for the bins 0 to 35).
+  domain: categories are sorted by the sum, count, or other aggregate of another channel over the Raw rows, a pre-binned
+  field has the union of its start and end as its domain with no zero and no nice, an `unaggregated` domain reads the
+  rows before the aggregate (1 to 12 rather than the means 2 to 8), and a binned axis asks for one tick per ten pixels
+  (the ticks 0, 2, ..., 34 for the bins 0 to 35).
 - **Polar Channels Resolve To Angles And Radii For The Marks That Draw Them**:
   `ScaleResolverPolarTests.ScaleResolver_Resolve_ThetaHasTheFullCircleRange`,
   `ScaleResolverPolarTests.ScaleResolver_Resolve_StackedThetaDomainSpansTheStack`,
@@ -103,9 +103,9 @@ the five unit verification documents passes without error or unexpected exceptio
   plan derived for a pie chart (the slices 1, 1, and 2 stack to (0, 1), (1, 2), and (2, 4)) and gives the `theta`
   channel the domain 0 to 4 over the range 0 to 2 pi (a quarter turn for 1, a half turn for 2, and the whole turn for
   4), the `radius` channel the range from 0 to half of the smaller side of the data rectangle that the builder passes
-  (100 for a chart of 200 by 200 pixels), and a channel that the mark does not draw (a size on an area or an arc, a stroke
-  dash on a trail, a text, or an area, a theta on a line) no scale at all, so that the feature catalog and the builders
-  agree on what is ignored.
+  (100 for a chart of 200 by 200 pixels), and a channel that the mark does not draw (a size on an area or an arc, a
+  stroke dash on a trail, a text, or an area, a theta on a line) no scale at all, so that the feature catalog and the
+  builders agree on what is ignored.
 - **Orientation Follows The Mark**:
   `ScaleResolverTests.ScaleResolver_InferOrient_FollowsVegaLite`,
   `ScaleResolverPolarTests.ScaleResolver_InferOrient_AreaRangeAndTemporalRulesFollowVegaLite` — the resolver infers
@@ -165,7 +165,7 @@ the five unit verification documents passes without error or unexpected exceptio
   `ScaleResolverLayerTests.ScaleResolver_ResolveLayers_IncompatibleScalesKeepTheirOwnAndAreReported` — resolves layered
   specifications through the real normalizer, plan, and data stage and asserts that one layer is the single-view result,
   that a continuous channel shared by two layers has the union of their domains (each after its own zero rule), that the
-  categories are combined (the band scale preferred to the point scale, the step applied to the combined categories), that
-  `resolve` keeps the scales of a channel apart, and that scales that cannot be merged keep their own and give
-  the warning; the scale models of the layers built from the shared scale place a value at the same pixel (the
-  numbers are derived by hand from the sample data in the unit verification).
+  categories are combined (the band scale preferred to the point scale, the step applied to the combined categories),
+  that `resolve` keeps the scales of a channel apart, and that scales that cannot be merged keep their own and give the
+  warning; the scale models of the layers built from the shared scale place a value at the same pixel (the numbers are
+  derived by hand from the sample data in the unit verification).

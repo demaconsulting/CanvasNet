@@ -16,29 +16,29 @@ objects, and the date formatting and parsing (a deviation from the master plan, 
 `Transforms`, needs them too). It contains six units:
 
 - **DataTable** - the internal `DataTable`, `DataValue`, `DataValueKind`, `DataObject`, `DataArray`, `JsNumber`, and
-  `FieldPath` types: the immutable typed value and table model (with the array, object, and regular expression values that
-  expressions and transforms produce) and the deterministic comparison and JavaScript-style formatting that the
-  scales and axes need; see _DataTable Unit Design_ (`data/data-table.md`)
-- **DataLoader** - the internal `DataLoader`: chooses the source of a view and builds its table under the data limits; it
-  also keeps the row budget of the call for the derived tables of the row transforms and loads the sources of a `lookup`;
-  see _DataLoader Unit Design_ (`data/data-loader.md`)
+  `FieldPath` types: the immutable typed value and table model (with the array, object, and regular expression values
+  that expressions and transforms produce) and the deterministic comparison and JavaScript-style formatting that the
+  scales and axes need; see *DataTable Unit Design* (`data/data-table.md`)
+- **DataLoader** - the internal `DataLoader`: chooses the source of a view and builds its table under the data limits;
+  it also keeps the row budget of the call for the derived tables of the row transforms and loads the sources of a
+  `lookup`; see *DataLoader Unit Design* (`data/data-loader.md`)
 - **DataFileResolver** - the internal `DataFileResolver` and `DataFile` types: finds and reads local data files
   through the core `FileReferenceResolver` (under the file-access policy, or through the caller's callback), and adds
   the search
   order, strict UTF-8 decoding, the file limit and the Vega-Lite wording of every refusal; see
-  _DataFileResolver Unit Design_ (`data/data-file-resolver.md`)
+  *DataFileResolver Unit Design* (`data/data-file-resolver.md`)
 - **DelimitedTextParser** - the internal `DelimitedTextParser`, `ParseDirectives`, `ParseFailures`, and the option and
   result records: CSV, TSV, and DSV text into rows, the `format.parse` conversions, and the per-column inference; see
-  _DelimitedTextParser Unit Design_ (`data/delimited-text-parser.md`)
+  *DelimitedTextParser Unit Design* (`data/delimited-text-parser.md`)
 - **TimeCalendar** - the internal `TimeCalendar`, `DateParts`, `TimeInterval`, `TimeIntervalKind`,
   `TimeRangeLimitException`, `TimeUnitSpec`, and `DateTimeObject` types: ECMAScript time arithmetic over the years 1 to
   9999 (anything else is NaN), the caller's time zone (UTC by default, never the host zone) with the ECMAScript gap
-  and overlap rule, the d3-time intervals, the Vega-Lite time units, and the `DateTime` object; see _TimeCalendar Unit
-  Design_ (`data/time-calendar.md`)
+  and overlap rule, the d3-time intervals, the Vega-Lite time units, and the `DateTime` object; see *TimeCalendar Unit
+  Design* (`data/time-calendar.md`)
 - **TimeFormat** - the internal `TimeFormat`, `TimeFormatter`, `TimeFormatTooLongException`, and `JsDateParser` types:
   d3-time-format formatting and parsing with the English locale, Vega's multi-format, and JavaScript's `Date.parse`
-  (the ISO format and a documented legacy subset), bounded and independent of the culture; see _TimeFormat Unit
-  Design_ (`data/time-format.md`)
+  (the ISO format and a documented legacy subset), bounded and independent of the culture; see *TimeFormat Unit
+  Design* (`data/time-format.md`)
 
 The subsystem's namespace documentation is in `Data/NamespaceDoc.cs`. Its behavior is specified by the
 `CanvasNetVegaLite-Data-*` requirements in `docs/reqstream/canvas-net-vega-lite/data.yaml`.
@@ -74,15 +74,14 @@ unit. The .NET base class library supplies `System.IO` (files and streams), `Sys
 a supported mark and reads its `Warnings`, and creates the `TimeCalendar` of the call from the `TimeZone` option), the
 `Transforms` subsystem (`RowTransforms`, `AggregateTransforms`, and `EncodingTransforms` reserve and release rows in the
 loader's budget, `RowTransforms` loads the source of a `lookup` through the same loader, and all of them build derived
-tables; `ParameterEnvironment`
-converts caller values with `DataLoader.FromObject`; `TimeUnitTransform` and `EncodingPlan` use `TimeUnitSpec` and the
-calendar), the `Expressions` subsystem (which reads and produces `DataValue`
+tables; `ParameterEnvironment` converts caller values with `DataLoader.FromObject`; `TimeUnitTransform` and
+`EncodingPlan` use `TimeUnitSpec` and the calendar), the `Expressions` subsystem (which reads and produces `DataValue`
 and `DataObject`, and whose date and time functions use the calendar, `TimeFormat`, and `JsDateParser`), `SpecParser`
-and `FeatureCatalog` (which use `DelimitedTextParser.IsValidDelimiter`
-and `ParseDirectives.TryClassify` so that validation, reports, and loading agree, and `TimeUnitSpec` and `DateTimeObject`
-to validate time units and date-time objects), the `Scales` subsystem (`ScaleResolver`, `ScaleModel`, and `Ticks` read
-`DataValue`, `DataTable`, and the calendar and its intervals), the `Guides` subsystem (`AxisBuilder`, `LegendBuilder`,
-and `TimeLabels` read `DataValue` and format dates with `TimeFormat`), and the `Marks` subsystem (`MarkBuilder`).
+and `FeatureCatalog` (which use `DelimitedTextParser.IsValidDelimiter` and `ParseDirectives.TryClassify` so that
+validation, reports, and loading agree, and `TimeUnitSpec` and `DateTimeObject` to validate time units and date-time
+objects), the `Scales` subsystem (`ScaleResolver`, `ScaleModel`, and `Ticks` read `DataValue`, `DataTable`, and the
+calendar and its intervals), the `Guides` subsystem (`AxisBuilder`, `LegendBuilder`, and `TimeLabels` read `DataValue`
+and format dates with `TimeFormat`), and the `Marks` subsystem (`MarkBuilder`).
 
 ### Design
 
@@ -117,47 +116,45 @@ callback; to let `VegaLiteOpenOptions.FileAccess` (`FileAccessPolicy.AllowAll` b
 path of the opened file; and to read at most `MaxDataBytes` bytes and `MaxDataFiles` distinct files, whatever the
 policy; the resolver itself decodes strict UTF-8 and words each refusal, keeping the core exception as the inner
 exception. A chart drawn as a linked picture gets the policy of the render, anchored at the origin of its chain; see
-_DataFileResolver Unit
-Design_. With a callback, nothing touches the file system, and a callback that throws or returns a failing stream is the
+*DataFileResolver Unit
+Design*. With a callback, nothing touches the file system, and a callback that throws or returns a failing stream is the
 same located read failure.
 
 **No implicit type inference, as in Vega.** `DelimitedTextParser` reads the cells as text and its `ParseDirectives`
 convert them only when the specification asks: delimited text (and JSON) is not inferred by default, so a leading zero
 or an ISO-looking date stays text; `parse: "auto"` is the explicit opt-in to per-column inference (boolean, then number,
 then date by the JavaScript `Date.parse` rules of `JsDateParser`, only when every non-empty text of the column fits); a
-`parse` object converts only the named
-fields; and an
-explicit conversion never invents a value (a text that cannot be converted is null and counted into one
-`vl-data-parse-failed` warning per field). A custom `date:'%fmt'` format is applied with `TimeFormat.TryParse` in the
-calendar of the chart (`utc:'%fmt'` in UTC), and a plain `date` with `JsDateParser`. The one implicit exception is the
-**temporal fields of the view** (`TemporalFields`, see _TimeUnitTransform_): the main data of a view parses them as dates
-unless an explicit `parse` entry says otherwise (`parse: null` suppresses it), as Vega-Lite does, and a lookup source is
-never implicitly parsed. Quantitative
-encodings still coerce numeric text when they are drawn (`DataValue.TryGetQuantitative`), which is why an unparsed
-CSV column still scales as numbers.
+`parse` object converts only the named fields; and an explicit conversion never invents a value (a text that cannot be
+converted is null and counted into one `vl-data-parse-failed` warning per field). A custom `date:'%fmt'` format is
+applied with `TimeFormat.TryParse` in the calendar of the chart (`utc:'%fmt'` in UTC), and a plain `date` with
+`JsDateParser`. The one implicit exception is the **temporal fields of the view** (`TemporalFields`, see
+*TimeUnitTransform*): the main data of a view parses them as dates unless an explicit `parse` entry says otherwise
+(`parse: null` suppresses it), as Vega-Lite does, and a lookup source is never implicitly parsed. Quantitative encodings
+still coerce numeric text when they are drawn (`DataValue.TryGetQuantitative`), which is why an unparsed CSV column
+still scales as numbers.
 
 **One calendar, owned by the Data subsystem.** The time model is in this subsystem (plan decision P8-D1, a deviation
-from the master plan) so that the parse directives, the expression functions, the transforms, the scales, and the
-guides all read dates the same way. An instant is a number of milliseconds since the Unix epoch (a `DataValue` date), the
-valid range is the years 1 to 9999, and anything else is NaN at the calendar level and null as a value. The zone is the
+from the master plan) so that the parse directives, the expression functions, the transforms, the scales, and the guides
+all read dates the same way. An instant is a number of milliseconds since the Unix epoch (a `DataValue` date), the valid
+range is the years 1 to 9999, and anything else is NaN at the calendar level and null as a value. The zone is the
 `TimeZone` render option only (UTC when it is null): the host's zone, clock, and culture are never read, a wall time
 that the zone repeats or skips is resolved like ECMAScript, and the names and digits of every formatted date are the
-English d3 locale and invariant ASCII; see _TimeCalendar Unit Design_ and _TimeFormat Unit Design_. The date text
+English d3 locale and invariant ASCII; see *TimeCalendar Unit Design* and *TimeFormat Unit Design*. The date text
 parsers are bounded before any scan (128 characters for `Date.parse`, 256 for a format), so a 1 MiB cell costs no more
 than a short one, and the parse directives poll the cancellation token every 4,096 rows.
 
 **A small typed value model.** `DataValue` is a `null`, boolean, number, date, or string, or (as the result of an
 expression or a transform, never of a data loader) an **array**, an **object**, or a **regular expression**, with value
 equality (JavaScript's SameValueZero for the scalars and identity for the composites, so it can still be a dictionary
-key), a total order (null, boolean, number, date, string, with the composites after them) used for
-discrete domains, a quantitative reading (`TryGetQuantitative`: numbers, dates as milliseconds, booleans as 1 and 0, and
-numeric strings), and a JavaScript-style text form (`ToText`) so that category labels and axis labels read as they do in
-Vega. The composite payloads are immutable (`DataArray`, `DataObject` with ordered string keys, and an opaque regular
-expression payload), and the struct stays 24 bytes. A date is an instant in UTC held as milliseconds since the epoch,
-within the years 1 to 9999: ISO text beyond that
-range is not a date (text under inference, null with a warning under an explicit conversion), and a caller's
-`DateTime.MaxValue` or `DateTimeOffset.MaxValue` is clamped to the last supported millisecond. `JsNumber` reproduces JavaScript's
-number-to-string conversion (the shortest round-trip digits) and the other number helpers that d3 relies on.
+key), a total order (null, boolean, number, date, string, with the composites after them) used for discrete domains, a
+quantitative reading (`TryGetQuantitative`: numbers, dates as milliseconds, booleans as 1 and 0, and numeric strings),
+and a JavaScript-style text form (`ToText`) so that category labels and axis labels read as they do in Vega. The
+composite payloads are immutable (`DataArray`, `DataObject` with ordered string keys, and an opaque regular expression
+payload), and the struct stays 24 bytes. A date is an instant in UTC held as milliseconds since the epoch, within the
+years 1 to 9999: ISO text beyond that range is not a date (text under inference, null with a warning under an explicit
+conversion), and a caller's `DateTime.MaxValue` or `DateTimeOffset.MaxValue` is clamped to the last supported
+millisecond. `JsNumber` reproduces JavaScript's number-to-string conversion (the shortest round-trip digits) and the
+other number helpers that d3 relies on.
 
 **Rows are columnar and flat.** A table has an ordered list of canonical field names and typed rows; nested objects and
 arrays are flattened to leaf fields named by their canonical path (`p.q`, `p.r.0`, a literal dot in a key escaped as

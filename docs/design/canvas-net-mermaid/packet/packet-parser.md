@@ -47,8 +47,8 @@ hand-written matcher in place of its regular expression; the first that matches 
   no token matches); `STRING` (a double- or single-quoted text, which may span lines, in which a backslash escapes any
   character but a line terminator); and `NEWLINE` (`\r?\n`). The terminals `BOOLEAN`, `FLOAT`, `NUMBER`, and `ID` of
   `common.langium` are not reached by the grammar and are not in the lexer.
-- **The hidden terminals**, which the parser never sees: white space (tabs and spaces), a `---` YAML block, a `%%{...}%%`
-  directive, and a `%%` comment up to the end of its line.
+- **The hidden terminals**, which the parser never sees: white space (tabs and spaces), a `---` YAML block, a
+  `%%{...}%%` directive, and a `%%` comment up to the end of its line.
 
 **A parser instance** parses one text on one thread and holds the parser text of the source (a `MappedText`, whose
 characters stay mapped to the original text), the `MermaidLimits` of the open call, the list of tokens, and the index of
@@ -116,7 +116,7 @@ Mermaid's cap of 10,000 rows.
   accessible title or null, `Direction` null, `NodeCount` the number of block statements, and `EdgeCount` and
   `SubgraphCount` 0.
 - **`PacketDiagram.Layout(DiagramRenderContext)`** creates a `PacketRenderer` for the render and returns the scene it
-  draws (see _PacketRenderer Unit Design_).
+  draws (see *PacketRenderer Unit Design*).
 - **`Is`**, **`Expect`**, **`Fail`**, **`TextOf`**, **`Checked`**, **`CheckDerived`**, and **`Locate`**: `Is` tests the
   lookahead, `Expect` consumes a token of a kind or fails, `Fail` builds the located exception for the lookahead with
   the token names chevrotain lists and a hint, `TextOf` gives the text of a token that is kept and checks it,

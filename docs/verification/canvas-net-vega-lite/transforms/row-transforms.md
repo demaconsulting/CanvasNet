@@ -11,8 +11,8 @@ a JSON value to a `DataValue`), and `TransformContext` and `RowExpressions` (the
 the loader, the evaluator, the parameter values, the limits, the token, and the warnings). The executor also dispatches
 the grouped transforms (`aggregate`, `joinaggregate`, `window`, `bin`, `stack`, and `impute`) to the
 `AggregateTransforms` unit, which has its own verification design, and the `timeUnit` transform to the
-`TimeUnitTransform` unit (see _Time Unit Transform Verification Design_) and the five statistical transforms to the
-`StatTransforms` unit (see _StatTransforms Unit Verification Design_). The predicates of `filter` that have a time unit
+`TimeUnitTransform` unit (see *Time Unit Transform Verification Design*) and the five statistical transforms to the
+`StatTransforms` unit (see *StatTransforms Unit Verification Design*). The predicates of `filter` that have a time unit
 or compare with a date-time object are evaluated through the expressions that `SpecParser` compiled for them, in the
 calendar of the chart.
 
@@ -68,14 +68,14 @@ the dependency order is computed once for the whole list.
 
 The time scenarios derive the kept ids from the dates by hand, with the zone arithmetic written out in the test
 comments. The month number of a unit predicate counts from 1 in the specification (`3` and `"Mar"` are March), the
-predicate text writes it as the index 2 (see _SpecParser Unit Verification Design_), and a number below 10,000 compared
+predicate text writes it as the index 2 (see *SpecParser Unit Verification Design*), and a number below 10,000 compared
 with a single local unit is that unit's part, so `equal: 3` on the unit `month` keeps the dates of March. A date-time
 object without a unit is compared as an instant: `{"year": 2024, "month": 3, "date": 1}` is 2024-03-01T00:00 in the zone
 of the chart. The zone arithmetic: at +05:30 the dates 2024-03-05T23:00Z, 2024-03-06T01:00Z, and 2024-03-07T00:00Z are
 the local times 2024-03-06 04:30, 2024-03-06 06:30, and 2024-03-07 05:30, so their local dates are 6, 6, and 7, while in
 UTC they are 5, 6, and 7; the local midnight of 2024-03-05 at +05:30 is 2024-03-04T18:30Z. The instant 1,709,596,800,000
-ms is 2024-03-05T00:00Z (19,787 days x 86,400,000 ms, the arithmetic of the _ExpressionFunctions Unit Verification
-Design_). For the `timeUnit` transform the six dates of the encoding scenario are counted per month as 2, 3, and 1; and
+ms is 2024-03-05T00:00Z (19,787 days x 86,400,000 ms, the arithmetic of the *ExpressionFunctions Unit Verification
+Design*). For the `timeUnit` transform the six dates of the encoding scenario are counted per month as 2, 3, and 1; and
 the local month of 2024-03-01T02:00Z in a US-like zone (at -5 h before the change of 2024-03-10) is February
 (2024-02-29T21:00 local), so the month starts at 2024-02-01T00:00 local = 05:00Z and ends at 2024-03-01T00:00 local =
 05:00Z.
@@ -141,7 +141,7 @@ rows, and a date-time object `{"year": 2020}` as the value to compare with match
 filter on a variable parameter keeps every row or none depending on its truthiness (`true` keeps 3 rows, an override of
 `false` or `0` keeps none) while a filter on an empty selection parameter, by `param` or by the legacy `selection`,
 keeps every row (the default `empty` rule; the rows that a selection with tuples selects are asserted in the system
-scenarios _Selections_).
+scenarios *Selections*).
 
 ##### Filter Predicates Are Charged To The Step Budget
 
@@ -331,8 +331,8 @@ both directions (`z, m, a` ascending and descending, so the data order and not t
 that `IsSupportedFieldSort` accepts an object with an orderable operation and refuses an invalid order and the shorthand
 text form; and, in the third test, that for `mean`, `average`, `median`, `min`, and `max` a category without a valid
 value (`m`) has a null aggregate that sorts first in both directions (`m, z, a` ascending, `m, a, z` descending). The
-sort by another channel's aggregate and the other forms over the aggregated rows are verified in the _ScaleResolver Unit
-Verification Design_.
+sort by another channel's aggregate and the other forms over the aggregated rows are verified in the *ScaleResolver Unit
+Verification Design*.
 
 ##### Time Predicates Are Evaluated In The Calendar Of The Chart
 
@@ -385,4 +385,4 @@ counts 2, 3, and 1 for the six dates of January 5 and 20, February 10, 11, and 2
 starting at the first of January, February, and March in UTC; and that in the US-like zone the dates of the transform
 are in the zone of the chart: the local month of 2024-03-01T02:00Z is February, so `m` is 2024-02-01T05:00Z and `m_end`
 is 2024-03-01T05:00Z (the local first of each month at -5 h). The computation of the unit itself is verified in the
-_Time Unit Transform Verification Design_.
+*Time Unit Transform Verification Design*.

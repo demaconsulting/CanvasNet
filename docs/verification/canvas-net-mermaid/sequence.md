@@ -53,7 +53,8 @@ actor, activations, a note, and an implicit participant gives the participants o
 
 #### CanvasNetMermaid-Sequence-Metadata: Metadata Without Rendering
 
-**Tests**: `SequenceTests.Sequence_Parse_WholeText_GivesMetadata`, `SequenceTests.Sequence_Document_IsSupportedWithMetadata`
+**Tests**: `SequenceTests.Sequence_Parse_WholeText_GivesMetadata`,
+`SequenceTests.Sequence_Document_IsSupportedWithMetadata`
 
 The whole text above gives the title `Checkout`, the accessible title `Paying for an order`, and three participants,
 three messages, and one box; a document with a box, a note, and two messages has the type `sequence`, the supported

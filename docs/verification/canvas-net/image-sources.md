@@ -5,9 +5,9 @@ This document describes the subsystem-level verification strategy for the `Image
 
 ### Verification Approach
 
-The `ImageSources` subsystem is verified through its three units' tests (see _ImageSourceContract Unit Verification
-Design_,
-_FolderImageResolver Unit Verification Design_, and _RasterImageSource Unit Verification Design_, in the `image-sources`
+The `ImageSources` subsystem is verified through its three units' tests (see *ImageSourceContract Unit Verification
+Design*,
+*FolderImageResolver Unit Verification Design*, and *RasterImageSource Unit Verification Design*, in the `image-sources`
 folder): every public constructor, property, and method is exercised in isolation with stub sources that stand in for
 the
 formats, so no format package is needed in the core test project. The subsystem-level requirements reuse those unit
@@ -43,11 +43,8 @@ designs passes without error or unexpected exception.
 ### Test Scenarios
 
 The subsystem's test scenarios are those named in the unit verification designs: the validation of claims and the
-precedence rule, the request and the sizing rule, the file-access policy (the default that follows every local link,
-the explicit roots and no-symlinks policies, and the policy a request carries to its source), file URIs, dispatch,
-schemes, nested scopes, limits,
-cancellation, notes and failures, no caching, direct rendering, the resolution with positions
-(`CanvasNet-ImageSources-Positions`, verified by the `-Positions` scenarios of the contract and the folder resolver), and
-the raster formats. No subsystem-level test exists
-beyond
-the units' own coverage.
+precedence rule, the request and the sizing rule, the file-access policy (the default that follows every local link, the
+explicit roots and no-symlinks policies, and the policy a request carries to its source), file URIs, dispatch, schemes,
+nested scopes, limits, cancellation, notes and failures, no caching, direct rendering, the resolution with positions
+(`CanvasNet-ImageSources-Positions`, verified by the `-Positions` scenarios of the contract and the folder resolver),
+and the raster formats. No subsystem-level test exists beyond the units' own coverage.

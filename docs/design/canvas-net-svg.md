@@ -23,7 +23,7 @@ system consists of a single implemented unit:
   system's own raster codecs (`BmpCodec`, `PngCodec`, `TiffCodec`, `JpegCodec`), `SvgCodec` has no
   `Save` method: an SVG document is XML markup, not pixel data, so there is no meaningful inverse
   operation that would turn an arbitrary `Surface` back into equivalent vector markup. See
-  _SvgCodec Unit Design_ (`canvas-net-svg/svg-codec.md`).
+  *SvgCodec Unit Design* (`canvas-net-svg/svg-codec.md`).
 
 `CanvasNetSvg` is modeled as its own top-level software system (rather than as a further unit of
 the `CanvasNet` system's `Codecs` subsystem, as it was in an earlier revision of this design)
@@ -77,22 +77,22 @@ class:
   picture an `image` of the same document draws. When the resolver is an `IImagePositionResolver`, the codec loads
   each bound image once before painting, writes the mapped numbers into the element, and paints the same surface; a
   binding it cannot resolve keeps the written numbers and is reported with a stable `svg-binding-*` code. The handler
-  receives every binding in document order (see _SvgCodec Design_, _Position Bindings_).
+  receives every binding in document order (see *SvgCodec Design*, *Position Bindings*).
 - **SvgImageSource** (`IImageSource`, claims `.svg`): The Svg package's image source, so that an SVG file can
   be embedded in another document through the shared `FolderImageResolver`: it draws the file at the size of its
   placement over a transparent background and resolves the file's own `image` elements through the resolver
-  scoped to the request (see _SvgCodec Design_, _Image Source_).
+  scoped to the request (see *SvgCodec Design*, *Image Source*).
 - **Text font resolution**: A `text` element is rendered even when the caller registers no font:
   caller-registered fonts first, then (per family in the `font-family` list) generic keywords
   mapped to the bundled Liberation fonts and installed fonts matched by exact family name, then
-  bundled Liberation Sans - see _SvgCodec Unit Design_.
+  bundled Liberation Sans - see *SvgCodec Unit Design*.
 - **Length units and font-size**: Every SVG length accepts CSS units (`px`, `pt`, `pc`, `in`, `cm`,
   `mm`, `Q`, `em`, `ex`, `ch`, `rem`, `lh`, `rlh`, `vw`, `vh`, `vmin`, `vmax`), percentages and
   `calc()`/`min()`/`max()`/`clamp()`, converted to user units at 1in = 96px; `font-size` is read from
   an attribute, a style, a stylesheet rule or the `font` shorthand, with keywords and CSS-wide
   keywords; a malformed length follows a documented three-class policy (strict for geometry, tolerant
-  for root size and paint servers, ignored for font properties) - see _SvgCodec Unit Design_, _Length
-  Units and font-size_.
+  for root size and paint servers, ignored for font properties) - see *SvgCodec Unit Design*, *Length
+  Units and font-size*.
 - **SvgCodec.GetInfo(Stream stream)** / **SvgCodec.GetInfo(string path)**: Reports an SVG
   document's resolved intrinsic width, height, channel count (always 4), and alpha presence
   (always true) via the shared `Codecs.ImageInfo` record struct, given a stream or a file path,
@@ -101,15 +101,15 @@ class:
   `ArgumentException` for an empty/whitespace `path`, and `InvalidDataException` for malformed
   SVG data.
 
-<!-- markdownlint-disable MD013 -->
-| Interface | Direction | Format | Constraints |
-| -------------------------------------- | ---------------- | ------------------------------ | ------------------------------- |
-| `SvgCodec.Load(...)` | Inbound/Outbound | Method call / `Surface` return | Valid SVG stream or path; `0 < width, height <= 8192` |
-| `SvgCodec.LoadWithFontFaces(...)` | Inbound/Outbound | Method call / `Surface` return | Valid SVG stream or path; `0 < width, height <= 8192` |
-| `SvgCodec.GetInfo(...)` | Inbound/Outbound | Method call / `ImageInfo` return | Valid SVG stream or path |
-<!-- markdownlint-enable MD013 -->
+Each interface, with its direction and format, and its constraints:
 
-See _SvgCodec Unit Design_ (`canvas-net-svg/svg-codec.md`) for the complete in-scope SVG feature
+- **`SvgCodec.Load(...)`** (Inbound/Outbound; Method call / `Surface` return): Valid SVG stream or path;
+  `0 < width, height <= 8192`.
+- **`SvgCodec.LoadWithFontFaces(...)`** (Inbound/Outbound; Method call / `Surface` return): Valid SVG stream or path;
+  `0 < width, height <= 8192`.
+- **`SvgCodec.GetInfo(...)`** (Inbound/Outbound; Method call / `ImageInfo` return): Valid SVG stream or path.
+
+See *SvgCodec Unit Design* (`canvas-net-svg/svg-codec.md`) for the complete in-scope SVG feature
 subset (shapes, path data, transforms, gradients, patterns, filters, clip-path/mask, markers,
 image, text, and CSS styling) and every method's full parameter and exception detail.
 
@@ -131,9 +131,9 @@ image, text, and CSS styling) and every method's full parameter and exception de
   `FindBestMatch`, and the bundled Liberation Sans/Serif/Mono fonts via `LoadBundledFallback`,
   used to resolve a `text` element's font when the caller registers none)
 - The `Codecs` subsystem's shared `ImageInfo` record struct (the return type of `GetInfo`) — see
-  _Codecs Subsystem Design_ (`docs/design/canvas-net/codecs.md`)
+  *Codecs Subsystem Design* (`docs/design/canvas-net/codecs.md`)
 - The `Packaging` subsystem's `SafeXml` (the hardened, bounded XML reader behind both document
-  parses) — see _Packaging Subsystem Design_ (`docs/design/canvas-net/packaging.md`)
+  parses) — see *Packaging Subsystem Design* (`docs/design/canvas-net/packaging.md`)
 
 **`CanvasNetSvg` must never reference `DemaConsulting.CanvasNet.Pptx`, `DemaConsulting.CanvasNet.Pdf`,
 `DemaConsulting.CanvasNet.Charts`, or a future `DemaConsulting.CanvasNet.Vsdx`.** This is a hard
@@ -147,17 +147,17 @@ see `docs/design/canvas-net-pptx.md`'s own Dependencies section for that integra
 This is an ordinary, same-repository, system-to-system dependency: both `CanvasNet` and
 `CanvasNetSvg` are produced by this repository, so it is neither an OTS Software Item (not a
 third-party/external-program dependency) nor a Shared Package (that category is scoped to a
-package produced by a _different_ repository within the same program). Beyond `CanvasNet`,
+package produced by a *different* repository within the same program). Beyond `CanvasNet`,
 `SvgCodec` uses only the .NET base class library's `System.Xml.Linq` (`XDocument`/`XElement`) and
 `System.Numerics` (`Matrix3x2`/`Vector2`) namespaces, available on every one of CanvasNetSvg's
 target frameworks with no new runtime NuGet dependency. `CanvasNetSvg` introduces no new OTS
 Software Item beyond those already used to build and verify the `CanvasNet` system (BuildMark,
 FileAssert, Pandoc, ReqStream, ReviewMark, SarifMark, SonarMark, VersionMark, WeasyPrint, xUnit)
-— see _OTS Integration Design_ (`docs/design/ots.md`).
+— see *OTS Integration Design* (`docs/design/ots.md`).
 
 **Image sources.** The package takes the core `ImageSources` subsystem's `IImageResolver` in
-`SvgLoadOptions.ImageResolver` and ships `SvgImageSource`, an `IImageSource` for `.svg` files (see _ImageSources
-Subsystem Design_, `canvas-net/image-sources.md`). It uses only the public contract types of the core package, so the
+`SvgLoadOptions.ImageResolver` and ships `SvgImageSource`, an `IImageSource` for `.svg` files (see *ImageSources
+Subsystem Design*, `canvas-net/image-sources.md`). It uses only the public contract types of the core package, so the
 package still references no other format package: a nested SVG file recurses through the resolver of the request, which
 the core `FolderImageResolver` bounds, and models, charts, documents, and rasters are drawn by the sources of their own
 packages. The separate `CanvasNetViewer` system references this package one-way, and nothing in this package refers to
@@ -187,8 +187,8 @@ own consistently-applied behavior:
 Beyond these two categories, explicit DTD/external-entity hardening (rejecting any document
 containing a DOCTYPE declaration) and bounded element-nesting depth, total-element,
 geometry-work, and number-list-length budgets likewise reject the offending document with a
-thrown `InvalidDataException` once exceeded, rather than tolerating it — see _SvgCodec Unit
-Design_ (`canvas-net-svg/svg-codec.md`) for the complete set of budgets and fallback behaviors.
+thrown `InvalidDataException` once exceeded, rather than tolerating it — see *SvgCodec Unit
+Design* (`canvas-net-svg/svg-codec.md`) for the complete set of budgets and fallback behaviors.
 No other segregation is required at the system level: `CanvasNetSvg` contains exactly one unit,
 so this risk control is inherently contained within it (IEC 62304 §5.3.3).
 
@@ -240,12 +240,12 @@ so this risk control is inherently contained within it (IEC 62304 §5.3.3).
 The library targets the following frameworks, identical to the `CanvasNet` system it depends on,
 enabling compatibility across modern .NET runtimes:
 
-| Target Framework | Runtime / Environment                                   |
-| ---------------- | ------------------------------------------------------- |
-| `net8.0`         | .NET 8 LTS (end of support; kept for library consumers) |
-| `net9.0`         | .NET 9 STS (end of support; kept for library consumers) |
-| `net10.0`        | .NET 10 LTS                                             |
-| `net11.0`        | .NET 11                                                 |
+| Target Framework | Runtime / Environment |
+| --- | --- |
+| `net8.0` | .NET 8 LTS (end of support; kept for library consumers) |
+| `net9.0` | .NET 9 STS (end of support; kept for library consumers) |
+| `net10.0` | .NET 10 LTS |
+| `net11.0` | .NET 11 |
 
 The library is supported on the following operating systems:
 

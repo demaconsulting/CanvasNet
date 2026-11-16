@@ -157,7 +157,7 @@ be what its author meant, and well-formed constructs that the renderer does not 
   is listed as a `StaticReference` (the reference object, its string node, the compiled expression, and the
   `StaticSiteKind`) in document order in `SpecExpressions.StaticReferences`. A reference that an earlier rule already
   compiled (the row-bound sites above) is not compiled again and is not listed. The `ExpressionReferenceFolder` unit
-  evaluates the list once per call (see _ExpressionReferenceFolder Unit Design_). The `gridAlign` of a legend accepts an
+  evaluates the list once per call (see *ExpressionReferenceFolder Unit Design*). The `gridAlign` of a legend accepts an
   expression reference like the other legend properties of the same kind.
 - **References.** An identifier of a compiled expression that is not a function or a constant
   is a parameter reference, and
@@ -289,7 +289,7 @@ value:
   values is bounded here**, by `MaxScaleDomainSize`: the length of the `keyvals` array, or the length of the sequence
   (`max(0, ceil((stop - start) / step))`, so a huge sequence is refused before anything is built), is a located
   error at the `keyvals` when it is above the limit. The bound applies to the encoding object only; the `impute`
-  transform keeps its render-time bound of `MaxDataRows` (see _AggregateTransforms_).
+  transform keeps its render-time bound of `MaxDataRows` (see *AggregateTransforms*).
 
 **Path, text, and arc mark rules (phase 9, `SpecParser.Validation.cs`).** The same fail-fast rule applies to the
 properties of the line, area, trail, text, and arc marks. The rule table of a mark definition gains these properties,
@@ -310,7 +310,7 @@ E expression reference), and a wrong kind is a `VegaLiteSpecException` at the va
 - **Overlay objects.** The `point` and `line` objects are mark definitions without a type: they are validated with the
   rules of the mark definition (a wrong value is an error at its pointer, for example `/mark/point/color`), a property
   that no mark has is a `vl-unknown-property` warning at its key (worded "a mark overlay"), and an expression reference
-  inside an overlay object is a static site (see _Static references_ above) that is compiled and folded like the one of
+  inside an overlay object is a static site (see *Static references* above) that is compiled and folded like the one of
   the mark itself. The check is made for
   every mark type.
 - **Arc and polar properties.** `padAngle`, `innerRadius`, `outerRadius`, `radius`, `radius2`, `theta`, and `theta2` are
@@ -325,7 +325,7 @@ E expression reference), and a wrong kind is a `VegaLiteSpecException` at the va
 The `{"expr": ...}` value of a mark `size` or of the constant `size` of a channel is compiled for the symbol marks and
 also for the line, trail, and text marks. The conditions of a `size` channel are evaluated (`IsConditionSite`) for the
 symbol marks, the bar, rect, tick, and rule, and the line, trail, and text marks; an area and an arc have no size, so
-their conditions are not evaluated (the catalog reports the channel itself, see _FeatureCatalog_).
+their conditions are not evaluated (the catalog reports the channel itself, see *FeatureCatalog*).
 
 **Time rules (phase 8, `SpecParser.Time.cs`).** The same fail-fast rule applies to the time constructs: a value whose
 shape
@@ -540,47 +540,40 @@ an error; a duplicate key keeps the last value at the position of the first occu
   the budget of the parser (`ExpressionParser.GeneratedBudget`, 8 times `MaxSourceLength`) is what stops it, before the
   text exists. The pieces that are built once per field predicate (the path text and the instant of a time unit, at most
   about 14 times the field name) are not counted before they are written; they are linear in the document. The
-  predicates are written with the
-  meaning that `isValid`, strict equality, and the comparison operators give: `equal` as `===`, `lt`, `lte`, `gt`, and
-  `gte` as the comparisons, `range` as an inclusive pair (the endpoints in ascending order when both are numbers, a null
-  endpoint leaving that side open), `oneOf` as an `or` of strict equalities, `valid` as `isValid` (negated for false),
-  `and`, `or`, and `not` as the logical operators (an empty `and` is true, an empty `or` is false), and a variable
-  parameter as its name. A predicate on a **selection** is written as the text Vega-Lite compiles
-  (`!length(data("s_store")) || vlSelectionTest("s_store", datum)`, `length(...) && ...` for `empty: false`): the
-  function is `vlSelectionIdTest` when the effective projection (`SelectionDeclarations.UsesRowIdentity`: the presence
-  of `fields` or `encodings`, an empty list included; else the keys of the `value`; else the `config.selection` defaults
-  of the specification) has the field `_vgsid_`; a projection that the host's `Config` or `Parameters` changes is
-  applied
-  by the model, and the identity test of a store of fields tests the fields. The legacy `{"selection": ...}` takes its
-  emptiness from the declaration (`empty: "none"` is `empty: false`) and ignores an `empty` on the predicate, as
-  Vega-Lite's `selectioncompat` does. A field path is written as one bracket per segment (`datum["a"]["b"]`) and a text
-  as a
-  double-quoted literal with the JavaScript escapes, so no part of the specification is ever pasted into the source
-  unquoted.
-  **Time predicates** (`IsTimeAware`, `ReadUnit`, `AppendTime`) follow Vega-Lite's `fieldFilterExpression`: a field
-  predicate that has a `timeUnit` keeping at least one part, or that compares with a date-time object, is written
-  with the instant of the field on the left, `time(datetime(<parts of datum["f"]>))`, where the parts are the
-  unit's (`year(datum["d"])`, `month(...)`, ...; a part the unit lacks defaults as a date-time object does: the year
-  2012,
-  January, the first, zero for the times; a quarter is written as the month `3 * (quarter - 1)`), and the instant of
-  the value on the right, `time(datetime(...))`, so that both sides are numbers. A **binned** unit (Phase 14) builds no
-  part: the field is already the start of its unit, so the left side is `time(datum["f"])` and the values are read for
-  the unit as for any other (a number below 10,000 is the one part of a single unit, as `isLocalSingleTimeUnit` tells for
-  the normalized unit, whose `utc` flag the normalization removes). The **`maxbins`** form names no unit, so its predicate
-  is written as one without a unit: the field is compared as it is (`ReadUnit` is null for it). Without a unit but with
-  a date-time
-  value the left side is `time(datum["f"])`. For a UTC unit the `utc...` getters and `utc(...)` are written (Vega-Lite
-  ignores the UTC flag here, marking it a TODO; this renderer honors it). The `week` and `dayofyear` parts are not
-  written, as in Vega-Lite (and the catalog reports `vl-predicate-timeunit-part`, not for a binned unit). A date-time
-  object value is its
-  `DateTimeObject.ToExpression()`; a number compared with a single local unit is that unit's part when it is below
-  10,000 and milliseconds since the epoch otherwise, and a text that is not a date is a unit part name (a month or
-  weekday name) while one that is a date is read as a date; `{"expr": ...}`
-  values are written as `(expr)`, or `time(expr)` with a unit; a text that is neither a date nor a part is `time(null)`
-  (it never matches). A `range` is written as `(L >= min(a, b) && L <= max(a, b))`, which also accepts reversed ends
-  (the function table has no range test), and a `oneOf` as `(indexof([...], L) !== -1)`, so that the left side is
-  evaluated
-  once. The `valid` test and comparisons with plain values stay native. `IsUnsupported` says when `TryBuild` would fail.
+  predicates are written with the meaning that `isValid`, strict equality, and the comparison operators give: `equal` as
+  `===`, `lt`, `lte`, `gt`, and `gte` as the comparisons, `range` as an inclusive pair (the endpoints in ascending order
+  when both are numbers, a null endpoint leaving that side open), `oneOf` as an `or` of strict equalities, `valid` as
+  `isValid` (negated for false), `and`, `or`, and `not` as the logical operators (an empty `and` is true, an empty `or`
+  is false), and a variable parameter as its name. A predicate on a **selection** is written as the text Vega-Lite
+  compiles (`!length(data("s_store")) || vlSelectionTest("s_store", datum)`, `length(...) && ...` for `empty: false`):
+  the function is `vlSelectionIdTest` when the effective projection (`SelectionDeclarations.UsesRowIdentity`: the
+  presence of `fields` or `encodings`, an empty list included; else the keys of the `value`; else the `config.selection`
+  defaults of the specification) has the field `_vgsid_`; a projection that the host's `Config` or `Parameters` changes
+  is applied by the model, and the identity test of a store of fields tests the fields. The legacy `{"selection": ...}`
+  takes its emptiness from the declaration (`empty: "none"` is `empty: false`) and ignores an `empty` on the predicate,
+  as Vega-Lite's `selectioncompat` does. A field path is written as one bracket per segment (`datum["a"]["b"]`) and a
+  text as a double-quoted literal with the JavaScript escapes, so no part of the specification is ever pasted into the
+  source unquoted. **Time predicates** (`IsTimeAware`, `ReadUnit`, `AppendTime`) follow Vega-Lite's
+  `fieldFilterExpression`: a field predicate that has a `timeUnit` keeping at least one part, or that compares with a
+  date-time object, is written with the instant of the field on the left, `time(datetime(<parts of datum["f"]>))`, where
+  the parts are the unit's (`year(datum["d"])`, `month(...)`, ...; a part the unit lacks defaults as a date-time object
+  does: the year 2012, January, the first, zero for the times; a quarter is written as the month `3 * (quarter - 1)`),
+  and the instant of the value on the right, `time(datetime(...))`, so that both sides are numbers. A **binned** unit
+  (Phase 14) builds no part: the field is already the start of its unit, so the left side is `time(datum["f"])` and the
+  values are read for the unit as for any other (a number below 10,000 is the one part of a single unit, as
+  `isLocalSingleTimeUnit` tells for the normalized unit, whose `utc` flag the normalization removes). The **`maxbins`**
+  form names no unit, so its predicate is written as one without a unit: the field is compared as it is (`ReadUnit` is
+  null for it). Without a unit but with a date-time value the left side is `time(datum["f"])`. For a UTC unit the
+  `utc...` getters and `utc(...)` are written (Vega-Lite ignores the UTC flag here, marking it a TODO; this renderer
+  honors it). The `week` and `dayofyear` parts are not written, as in Vega-Lite (and the catalog reports
+  `vl-predicate-timeunit-part`, not for a binned unit). A date-time object value is its `DateTimeObject.ToExpression()`;
+  a number compared with a single local unit is that unit's part when it is below 10,000 and milliseconds since the
+  epoch otherwise, and a text that is not a date is a unit part name (a month or weekday name) while one that is a date
+  is read as a date; `{"expr": ...}` values are written as `(expr)`, or `time(expr)` with a unit; a text that is neither
+  a date nor a part is `time(null)` (it never matches). A `range` is written as `(L >= min(a, b) && L <= max(a, b))`,
+  which also accepts reversed ends (the function table has no range test), and a `oneOf` as
+  `(indexof([...], L) !== -1)`, so that the left side is evaluated once. The `valid` test and comparisons with plain
+  values stay native. `IsUnsupported` says when `TryBuild` would fail.
 - `ParameterGraph.Sort(dependencies)` - orders parameters so that each follows the parameters its expression reads (the
   earliest-declared ready parameter first), and reports the lowest index that could not be
   ordered (a cycle), or -1; the same
@@ -634,8 +627,8 @@ throws `ArgumentNullException`, which is not converted. Unknown and duplicate ke
 - **`DelimitedTextParser.IsValidDelimiter`** and **`ParseDirectives.TryClassify`** - the delimiter and `parse` entry
   rules of the `DelimitedTextParser` unit of the `Data` subsystem, used by the data format validation
 - **`TimeUnitSpec`**, **`DateTimeObject`**, and **`JsDateParser`** - the time unit grammar, the date-time object reader
-  and its expression form, and the date text reader of the `Data` subsystem (see _Time Calendar Design_ and
-  _Time Format Design_), used by the time rules and by `PredicateSource`
+  and its expression form, and the date text reader of the `Data` subsystem (see *Time Calendar Design* and
+  *Time Format Design*), used by the time rules and by `PredicateSource`
 - **`ExpressionParser`**, **`CompiledExpression`**, and **`ExpressionConstruct`** - the compilation of the text of an
   expression and the constructs it collects (the `Expressions` subsystem), and **`FieldPath`** of the `Data` subsystem
   (the validation of field names)

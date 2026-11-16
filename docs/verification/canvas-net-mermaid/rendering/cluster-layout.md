@@ -5,7 +5,7 @@ This document describes the unit-level verification strategy for the `ClusterLay
 in `ClusterLayout.cs`, `ClusterLayout.Extractor.cs`, and `ClusterLayout.SelfLoops.cs`, and the framing of a whole
 diagram in `ClusterLayout.Diagram.cs`) and the layout data records `LayoutData`, `LayoutNode`, and `LayoutEdge` that it
 reads (the class box, state, and entity box inputs of `LayoutNode` are verified with the shapes that read them, in the
-_ShapeLibrary Unit Verification Design_).
+*ShapeLibrary Unit Verification Design*).
 
 #### Verification Approach
 

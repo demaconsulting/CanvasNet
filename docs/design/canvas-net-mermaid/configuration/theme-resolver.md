@@ -177,13 +177,13 @@ The unit's behavior is specified by the `CanvasNetMermaid-Configuration-ThemeRes
   `blockStrokeWidth` 1, and `blockFillColor` `#efefef`) with the theme variable `packet` merged over them when it is an
   object, each value written as JavaScript's `String` writes it (a number as JavaScript writes it, `null` as `null`, an
   object as `[object Object]`, an array joined with commas). The dark and forest themes set `packet`; a user's
-  `themeVariables.packet` replaces the theme's object (Mermaid's `calculate` applies the overrides again after the theme's
-  `updateColors`), so the keys it leaves out take the defaults. A font size that is a bare number other than zero is
-  dropped, as a browser drops it in an SVG document, so the text inherits the root rule's size. `Block` is the paint
-  of `.packetBlock`, inheriting the root rule's fill, stroke, and stroke width where its own declaration is dropped, as
-  SVG paint is inherited; `Label` and `Title` are the fonts and colors of `.packetLabel` and `.packetTitle`, and
-  `ByteStart` and `ByteEnd` those of `.packetByte` cascaded with `.packetByte.start` or `.packetByte.end`. An instance is
-  immutable.
+  `themeVariables.packet` replaces the theme's object (Mermaid's `calculate` applies the overrides again after the
+  theme's `updateColors`), so the keys it leaves out take the defaults. A font size that is a bare number other than
+  zero is dropped, as a browser drops it in an SVG document, so the text inherits the root rule's size. `Block` is the
+  paint of `.packetBlock`, inheriting the root rule's fill, stroke, and stroke width where its own declaration is
+  dropped, as SVG paint is inherited; `Label` and `Title` are the fonts and colors of `.packetLabel` and `.packetTitle`,
+  and `ByteStart` and `ByteEnd` those of `.packetByte` cascaded with `.packetByte.start` or `.packetByte.end`. An
+  instance is immutable.
 - **`GitGraphStyles`** - the rules of the git graph's style sheet (`git/styles.js` for the built-in themes) after the
   global rules, with its own `KnownSelectors`, and a small CSS cascade over them. The rules are those of `styles.js` in
   their order: `.commit-id`, `.commit-msg`, and `.branch-label` (light gray; their font family is a `var()` that no page
@@ -216,28 +216,27 @@ The unit's behavior is specified by the `CanvasNetMermaid-Configuration-ThemeRes
   declarations that change pixels and the values of the classic look: `.edge` with a stroke width of 3; then, for each
   of the `THEME_COLOR_LIMIT` section colors `i` (12 in every theme, capped by `MaxColorLimit`), with `k = i - 1`, the
   fill `cScale<i>` of the `rect`, `path`, `circle`, and `polygon` elements under `.section-k`, the label color
-  `cScaleLabel<i>` of its `text` (fill) and `span` (color), the stroke `cScale<i>` of `.section-edge-k`, the stroke width
-  `17 - 3i` of `.edge-depth-k`, and the stroke `cScaleInv<i>` 3 pixels wide of the `line` under `.section-k`; then the
-  root's fill `git0` and label color `gitBranchLabel0` under `.section-root`, and `.edge`'s fill of none. A negative
+  `cScaleLabel<i>` of its `text` (fill) and `span` (color), the stroke `cScale<i>` of `.section-edge-k`, the stroke
+  width `17 - 3i` of `.edge-depth-k`, and the stroke `cScaleInv<i>` 3 pixels wide of the `line` under `.section-k`; then
+  the root's fill `git0` and label color `gitBranchLabel0` under `.section-root`, and `.edge`'s fill of none. A negative
   stroke width (`.edge-depth-5` onward) is not valid CSS, so it is left out as a browser drops it, and such an edge
   keeps `.edge`'s 3. No rule strokes a node's shape. **The gradient rule:** when the theme variables `useGradient` and
   `mainBkg` are both truthy (the `base`, `dark`, `forest`, and `neutral` themes; `default` sets `useGradient` false),
-  Mermaid's `genGradient` rules come last, and of them only `.section-k line { stroke-width: 0 }` applies to the
-  classic look, so those themes draw the line under a default node 0 pixels wide; a theme variable
-  `useGradient: false` keeps the 3 pixels. The rules of the `neo` look, the values of the `redux` themes, and the
-  `disabled` rules are left out (the look is drawn classic, those themes are not built in, and no node is disabled).
-  `NodePaintFor` and `NodeLabelFor` cascade, in sheet order, the `.class element` rules whose class is one of the
-  node's classes (`mindmap-node`, `section-k` or `section-root section--1`, and the node's own class): the root's
-  `.section-root` rules come after `.section--1`'s, so the root takes `git0`, and a node class that names a later
-  section takes that section's color. A node's own class can be styled only by `themeCSS`, so `Create` also accepts a
-  `themeCSS` rule `.class element` for each class of the diagram's nodes that is a plain CSS identifier and each
-  element a node draws (`rect`, `path`, `circle`, `polygon`, `line`, `text`, and `span`): `.urgent rect` paints a
-  `:::urgent` node's rectangle in its place in the sheet, as Mermaid does, while a class no node has, or one that CSS
-  would read as another selector (`a.b`), stays reported. The label is the root font with the `span` rules (an HTML
-  label's color) or the
-  `text` rules (SVG text's fill); `NodeLabel` is the root font and fill, the title selector is the root (a mindmap has
-  no title), and `CentersNodeSvgText` is false. An edge's paint comes from the single-class rules of its classes,
-  which the edge builder cascades. An instance is immutable.
+  Mermaid's `genGradient` rules come last, and of them only `.section-k line { stroke-width: 0 }` applies to the classic
+  look, so those themes draw the line under a default node 0 pixels wide; a theme variable `useGradient: false` keeps
+  the 3 pixels. The rules of the `neo` look, the values of the `redux` themes, and the `disabled` rules are left out
+  (the look is drawn classic, those themes are not built in, and no node is disabled). `NodePaintFor` and `NodeLabelFor`
+  cascade, in sheet order, the `.class element` rules whose class is one of the node's classes (`mindmap-node`,
+  `section-k` or `section-root section--1`, and the node's own class): the root's `.section-root` rules come after
+  `.section--1`'s, so the root takes `git0`, and a node class that names a later section takes that section's color. A
+  node's own class can be styled only by `themeCSS`, so `Create` also accepts a `themeCSS` rule `.class element` for
+  each class of the diagram's nodes that is a plain CSS identifier and each element a node draws (`rect`, `path`,
+  `circle`, `polygon`, `line`, `text`, and `span`): `.urgent rect` paints a `:::urgent` node's rectangle in its place in
+  the sheet, as Mermaid does, while a class no node has, or one that CSS would read as another selector (`a.b`), stays
+  reported. The label is the root font with the `span` rules (an HTML label's color) or the `text` rules (SVG text's
+  fill); `NodeLabel` is the root font and fill, the title selector is the root (a mindmap has no title), and
+  `CentersNodeSvgText` is false. An edge's paint comes from the single-class rules of its classes, which the edge
+  builder cascades. An instance is immutable.
 
 #### Key Methods
 

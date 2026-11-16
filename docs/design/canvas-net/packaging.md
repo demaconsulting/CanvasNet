@@ -22,10 +22,10 @@ user who needs to read some other OPC-based format can reuse them.
 
 - **OpcPackage** - a read-only, size-bounded view of an OPC ZIP package: bounded open from a
   stream, content-type resolution, relationship resolution, and part reads as XML or bytes. The
-  unit includes the `OpcFormatException` it throws for a malformed package; see _OpcPackage Unit
-  Design_ (`packaging/opc-package.md`).
+  unit includes the `OpcFormatException` it throws for a malformed package; see *OpcPackage Unit
+  Design* (`packaging/opc-package.md`).
 - **SafeXml** - a stateless static class that loads XML with no DTD processing, no external
-  resolution, and a character bound; see _SafeXml Unit Design_ (`packaging/safe-xml.md`).
+  resolution, and a character bound; see *SafeXml Unit Design* (`packaging/safe-xml.md`).
 
 ### Dependencies
 

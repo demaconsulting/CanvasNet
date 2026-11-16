@@ -404,7 +404,8 @@ each at its own alpha), and that the far wall seen from outside keeps the overla
 
 ##### CanvasNetRender3D-SceneRendering-SceneRenderer-OpaqueUnchanged: Opaque Scenes Render As Before
 
-**Tests**: `SceneRendererTransparencyTests.SceneRenderer_Render_OpaqueUnionScene_StillUsesZBufferAndIsByteIdenticalToFragmentPath`,
+**Tests**:
+`SceneRendererTransparencyTests.SceneRenderer_Render_OpaqueUnionScene_StillUsesZBufferAndIsByteIdenticalToFragmentPath`,
 `SceneRendererTransparencyTests.SceneRenderer_Render_OpaqueCsgScene_IsUnchangedByTransparencySupport`,
 `SceneRendererTransparencyTests.SceneRenderer_Render_OpaqueOpenMeshUnion_IsStillNotValidated`
 
@@ -415,7 +416,8 @@ an opaque union with an open quad is rendered without any report even in strict 
 
 ##### CanvasNetRender3D-SceneRendering-SceneRenderer-TransparencyBudget: Translucent And Overlay Fragments Use The Budget
 
-**Tests**: `SceneRendererTransparencyTests.SceneRenderer_Render_TranslucentScene_ExceedingFragmentBudget_ThrowsRenderBudgetExceeded`,
+**Tests**:
+`SceneRendererTransparencyTests.SceneRenderer_Render_TranslucentScene_ExceedingFragmentBudget_ThrowsRenderBudgetExceeded`,
 `SceneRendererTransparencyTests.SceneRenderer_Render_OverlayFragments_CountTowardTheBudget`
 
 Asserts that a translucent union-only scene with a budget of 10 throws `RenderBudgetExceededException`

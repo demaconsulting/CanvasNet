@@ -31,14 +31,14 @@ platform's date formatting or `DateTime.Parse`.
 
 The unit's behavior is specified by the `CanvasNetVegaLite-Data-TimeFormat-*` requirements in
 `docs/reqstream/canvas-net-vega-lite/data/time-format.yaml`. The rules are those of d3-time-format, Vega, and the
-JavaScript language, re-implemented from their public description (see _CanvasNetVegaLite System Design_,
+JavaScript language, re-implemented from their public description (see *CanvasNetVegaLite System Design*,
 Third-Party Provenance and Attribution).
 
 #### Data Model
 
 **Pure functions, no state.** `TimeFormat` has no static cache and no mutable state: `Compile` returns an immutable
 `TimeFormatter` that the caller keeps (so concurrent use needs no synchronization), and the only calendar used is the
-`TimeCalendar` that is passed in (see _TimeCalendar_). The names are the English d3 locale (the `en-US` locale of
+`TimeCalendar` that is passed in (see *TimeCalendar*). The names are the English d3 locale (the `en-US` locale of
 d3-time-format with its default period names `AM` and `PM`), the digits are invariant ASCII digits, names match ASCII
 case-insensitively without a culture, and the host's culture, zone, and clock are never read. Locales other than
 `en-US` are out of scope.
@@ -48,20 +48,19 @@ values: literal text, or a directive letter with its fill character) or a **mult
 chooses a plain formatter for an instant, bound to the calendar given to `Multi`, which makes the `calendar` argument
 of its `Format` ignored).
 
-**Directives** (`Compile`). The specifier is literal text and the directives `%a %A %b %B %c %d %e %f %g %G %H %I %j
-%L %m %M %p %q %Q %s %S %u %U %V %w %W %x %X %y %Y %Z %%`, each optionally with a padding flag between the percent sign
-and the letter: `-` for no padding, `_` for a space, `0` for a zero (`%e` pads with a space by default). The numeric
-widths are 2 for `%d %e %g %H %I %m %M %S %U %V %W %y`, 3 for `%j %L`, 4 for `%Y %G`, and 1 for `%q %u %w %Q %s`, which
-never pad; `%f` is the milliseconds with three zeros appended (microseconds). `%Y` and `%G` are the year modulo 10,000,
-`%I` is
-the 12-hour clock (0 is 12), `%q` is the quarter, `%p` is `AM` or `PM`, `%Q` is the epoch milliseconds and `%s` the epoch
-seconds (neither depends on the zone), and `%Z` is the offset of the instant as `+hhmm` (whole minutes; the seconds of
-historic offsets are truncated). The week numbers are `%U` (Sunday-based), `%W` (Monday-based), and the ISO 8601 `%V`,
-`%G`, and `%g`, computed with civil arithmetic that equals d3's interval counts. The locale directives expand when
-compiled: `%c` is `%x, %X`, `%x` is `%-m/%-d/%Y`, and `%X` is `%-I:%M:%S %p`. **Unknown directives are not an error**:
-as in d3 the percent sign is dropped and the letter is copied (`%k` gives `k`), and a percent sign at the end of the
-specifier gives nothing. `pad` writes a negative number with a minus sign (the digits are padded, the sign is not
-counted).
+**Directives** (`Compile`). The specifier is literal text and the directives
+`%a %A %b %B %c %d %e %f %g %G %H %I %j %L %m %M %p %q %Q %s %S %u %U %V %w %W %x %X %y %Y %Z %%`, each optionally with
+a padding flag between the percent sign and the letter: `-` for no padding, `_` for a space, `0` for a zero (`%e` pads
+with a space by default). The numeric widths are 2 for `%d %e %g %H %I %m %M %S %U %V %W %y`, 3 for `%j %L`, 4 for
+`%Y %G`, and 1 for `%q %u %w %Q %s`, which never pad; `%f` is the milliseconds with three zeros appended (microseconds).
+`%Y` and `%G` are the year modulo 10,000, `%I` is the 12-hour clock (0 is 12), `%q` is the quarter, `%p` is `AM` or
+`PM`, `%Q` is the epoch milliseconds and `%s` the epoch seconds (neither depends on the zone), and `%Z` is the offset of
+the instant as `+hhmm` (whole minutes; the seconds of historic offsets are truncated). The week numbers are `%U`
+(Sunday-based), `%W` (Monday-based), and the ISO 8601 `%V`, `%G`, and `%g`, computed with civil arithmetic that equals
+d3's interval counts. The locale directives expand when compiled: `%c` is `%x, %X`, `%x` is `%-m/%-d/%Y`, and `%X` is
+`%-I:%M:%S %p`. **Unknown directives are not an error**: as in d3 the percent sign is dropped and the letter is copied
+(`%k` gives `k`), and a percent sign at the end of the specifier gives nothing. `pad` writes a negative number with a
+minus sign (the digits are padded, the sign is not counted).
 
 **Formatting limits and the invalid date.** `Format(ms, calendar, maxLength)` writes at most `maxLength` characters and
 throws `TimeFormatTooLongException` (an `InvalidOperationException`) as soon as the text would be longer, before
@@ -95,11 +94,11 @@ expressions:
 
 **Vega multi-format** (`TimeFormat.Multi(calendar, overrides)`). The formatter labels an instant by the **coarsest
 calendar boundary it sits on**: the test is Vega's, a level applies when the floor of the interval at the next finer
-level is below the instant. The defaults are `.%L` (not on a whole second), `:%S` (a second that is not a whole
-minute), `%I:%M` (a minute), `%I %p` (an hour), `%a %d` (a day that is not a week start), `%b %d` (a week start that is
-not a month start), `%B` (a month or a quarter start that is not a year start), and `%Y` (a year start). The overrides
-are keyed by `milliseconds`, `seconds`, `minutes`, `hours`, `date` (or `day`), `week`, `month`, `quarter`, and `year`;
-the first non-empty override under the keys wins (JavaScript's `spec[date] || spec[day]`), and an empty override keeps the
+level is below the instant. The defaults are `.%L` (not on a whole second), `:%S` (a second that is not a whole minute),
+`%I:%M` (a minute), `%I %p` (an hour), `%a %d` (a day that is not a week start), `%b %d` (a week start that is not a
+month start), `%B` (a month or a quarter start that is not a year start), and `%Y` (a year start). The overrides are
+keyed by `milliseconds`, `seconds`, `minutes`, `hours`, `date` (or `day`), `week`, `month`, `quarter`, and `year`; the
+first non-empty override under the keys wins (JavaScript's `spec[date] || spec[day]`), and an empty override keeps the
 default. An invalid instant gets `Invalid Date`.
 
 **`JsDateParser`** (`TryParse(text, calendar, out ms)`) is JavaScript's `Date.parse` as Vega uses it for
@@ -124,19 +123,19 @@ default. An invalid instant gets `Invalid Date`.
 
 **Limits** (every loop or allocation of the unit; the caller charges steps):
 
-- _`Compile`_: a specifier of at most 1,024 characters (`MaxSpecifierLength`; the longest real one is about 30), and at
+- *`Compile`*: a specifier of at most 1,024 characters (`MaxSpecifierLength`; the longest real one is about 30), and at
   most 4,096 tokens after the locale directives are expanded (`MaxTokenCount`; one `%c` is 13 tokens, so 316 of them
   exceed it), otherwise `TimeFormatSpecifierException`, checked before the scan and at every token; linear in the
   specifier length, producing a list of tokens; the caller charges the specifier length and keeps the
   `TimeFormatter`.
-- _`Format`_: output of at most `maxLength` characters, then `TimeFormatTooLongException`; the caller charges the
+- *`Format`*: output of at most `maxLength` characters, then `TimeFormatTooLongException`; the caller charges the
   output length (the expression functions through `ChargeSize`, and the axis and legend labels, which also keep a
-  running total per guide, see _TimeLabels_).
-- _`Multi`_: linear in the total length of the specifiers (nine compiles, each within the limits of `Compile`); the
+  running total per guide, see *TimeLabels*).
+- *`Multi`*: linear in the total length of the specifiers (nine compiles, each within the limits of `Compile`); the
   caller charges it.
-- _`TryParse`_: text of at most 256 characters (`MaxParseTextLength`), longer text fails at once; linear in the text
+- *`TryParse`*: text of at most 256 characters (`MaxParseTextLength`), longer text fails at once; linear in the text
   and the specifier, so one call is O(256).
-- _`JsDateParser.TryParse`_: text of at most 128 characters (`MaxLength`), rejected before any scan, and the tokenizer
+- *`JsDateParser.TryParse`*: text of at most 128 characters (`MaxLength`), rejected before any scan, and the tokenizer
   stops at an unknown character, so a 1 MiB cell costs no more than 128 characters.
 
 **Culture independence and determinism.** No call reads `CultureInfo`, `DateTime.Parse`, `ToLower`, `ToUpper`, or a
@@ -154,7 +153,7 @@ regular expression (a grep gate over the unit's sources is empty); the tests run
   calendar selects the flavor); false and NaN on any failure.
 - `JsDateParser.TryParse(text, calendar, out ms)` - `Date.parse` with the ISO format and the documented legacy
   subset; its `Func<string, double>` form is the delegate that `DateTimeObject.FromScalar` plugs in (see
-  _TimeCalendar_).
+  *TimeCalendar*).
 
 **Preconditions and postconditions**: a specifier and a text are non-null strings; every method is deterministic, never
 depends on the current culture, and holds no state.
@@ -193,11 +192,11 @@ text within the limits. A null argument is an `ArgumentNullException`. The unit 
 
 #### Callers
 
-`ParseDirectives` (see _DelimitedTextParser_) calls `JsDateParser.TryParse` for `parse: "date"`, for auto inference, and
+`ParseDirectives` (see *DelimitedTextParser*) calls `JsDateParser.TryParse` for `parse: "date"`, for auto inference, and
 for the implicit date fields, and `TimeFormat.TryParse` for `date:'%fmt'` and `utc:'%fmt'`. `ExpressionFunctions` (the
 date and time group) call `Compile`, `Format`, `TryParse`, and `Multi`. `TimeLabels`, `AxisBuilder`, and `LegendBuilder`
-(see _TimeLabels_) format the tick and legend labels with the multi-format, the format of the guide, or the specifier of
-a time unit (`TimeUnitSpec.Specifier`, see _TimeCalendar_). `DateTimeObject.FromScalar` and `ScaleResolver` read date
+(see *TimeLabels*) format the tick and legend labels with the multi-format, the format of the guide, or the specifier of
+a time unit (`TimeUnitSpec.Specifier`, see *TimeCalendar*). `DateTimeObject.FromScalar` and `ScaleResolver` read date
 text with `JsDateParser`. The tests in `test/DemaConsulting.CanvasNet.VegaLite.Tests/Data/` (`TimeFormatTests.cs`,
 `TimeFormatParseTests.cs`, `TimeFormatMultiTests.cs`, and `JsDateParserTests.cs`) call the types directly through
 `InternalsVisibleTo`.

@@ -10,7 +10,7 @@ monotone-y curve), with the line and area generators that break a path at an und
 bound of the segments that it writes so that the caller can charge the scene items before the path exists. It reads no
 data and calls no other unit of the library apart from the scene path segment type; the placement of the points (the
 scales, the grouping, the sort, the invalid data modes) belongs to `MarkBuilder` and is verified there (see the
-_MarkBuilder Unit Verification Design_).
+*MarkBuilder Unit Verification Design*).
 
 #### Verification Approach
 
@@ -34,10 +34,10 @@ evaluated for the x and the y coordinate separately:
   `M0,0 L0,10 L10,10 L10,5 L20,5`.
 - **Basis.** For (0,0), (30,30), and (60,0) the path starts at the first point and goes by a line to a sixth of the way,
   `(5 P0 + P1) / 6 = (5,5)`; the first segment has the controls `(2 P0 + P1) / 3 = (10,10)` and
-  `(P0 + 2 P1) / 3 = (20,20)` and ends at the knot `(P0 + 4 P1 + P2) / 6 = (30,20)`; the last segment is the same formula
-  with the last point repeated, the controls (40,20) and (50,10) and the knot `(P1 + 4 P2 + P2) / 6 = (55,5)`, and a
-  line to the last point ends the path: `M0,0 L5,5 C10,10 20,20 30,20 C40,20 50,10 55,5 L60,0`. For the open curve of
-  (0,0), (30,30), (60,0), and (90,30) the path starts at the first knot `(P0 + 4 P1 + P2) / 6 = (30,20)` and has one
+  `(P0 + 2 P1) / 3 = (20,20)` and ends at the knot `(P0 + 4 P1 + P2) / 6 = (30,20)`; the last segment is the same
+  formula with the last point repeated, the controls (40,20) and (50,10) and the knot `(P1 + 4 P2 + P2) / 6 = (55,5)`,
+  and a line to the last point ends the path: `M0,0 L5,5 C10,10 20,20 30,20 C40,20 50,10 55,5 L60,0`. For the open curve
+  of (0,0), (30,30), (60,0), and (90,30) the path starts at the first knot `(P0 + 4 P1 + P2) / 6 = (30,20)` and has one
   segment with the controls (40,20) and (50,10) and the knot `(P1 + 4 P2 + P3) / 6 = (60,10)`,
   `M30,20 C40,20 50,10 60,10`. For the closed curve of (0,0), (30,30), and (60,0) the knots are (30,20), (45,5) =
   `(P1 + 4 P2 + P0) / 6`, and (15,5) = `(P2 + 4 P0 + P1) / 6`, each reached with the controls `(2 A + B) / 3` and
@@ -56,11 +56,11 @@ evaluated for the x and the y coordinate separately:
   `P1 + (P2 - P0) / 6 = (13.3333,10)` and `P2 + (P1 - P3) / 6 = (16.6667,0)`; the last are
   `P2 + (P3 - P1) / 6 = (23.3333,0)` and P3. The path is
   `M0,0 C0,0 6.6667,10 10,10 C13.3333,10 16.6667,0 20,0 C23.3333,0 30,10 30,10`. With a tension of 0.5, `k = 1/12`, and
-  the offsets halve (8.3333, 11.6667, 18.3333, and 21.6667 for the x of the four controls that move); with a tension
-  of 1, `k = 0`, and every control is an end point (`M0,0 C0,0 10,10 10,10 C10,10 20,0 20,0 C20,0 30,10 30,10`). The
-  open curve starts at P1 and ends at P2, `M10,10 C13.3333,10 16.6667,0 20,0`. The closed curve of (0,0), (10,10), and
-  (20,0) starts at P1, and the points wrap around: the segment to P2 has the controls `P1 + (P2 - P0) / 6 = (13.3333,10)`
-  and `P2 + (P1 - P0) / 6 = (21.6667,1.6667)`, the segment to P0 has `P2 + (P0 - P1) / 6 = (18.3333,-1.6667)` and
+  the offsets halve (8.3333, 11.6667, 18.3333, and 21.6667 for the x of the four controls that move); with a tension of
+  1, `k = 0`, and every control is an end point (`M0,0 C0,0 10,10 10,10 C10,10 20,0 20,0 C20,0 30,10 30,10`). The open
+  curve starts at P1 and ends at P2, `M10,10 C13.3333,10 16.6667,0 20,0`. The closed curve of (0,0), (10,10), and (20,0)
+  starts at P1, and the points wrap around: the segment to P2 has the controls `P1 + (P2 - P0) / 6 = (13.3333,10)` and
+  `P2 + (P1 - P0) / 6 = (21.6667,1.6667)`, the segment to P0 has `P2 + (P0 - P1) / 6 = (18.3333,-1.6667)` and
   `P0 + (P2 - P1) / 6 = (1.6667,-1.6667)`, and the last to P1 has `P0 + (P1 - P2) / 6 = (-1.6667,1.6667)` and
   `P1 + (P0 - P2) / 6 = (6.6667,10)`.
 - **Catmull-Rom.** An alpha of 0 makes all the chord lengths 1 and gives the cardinal curve of tension 0, also for the
@@ -81,12 +81,13 @@ evaluated for the x and the y coordinate separately:
   `dx = 10 / 3` the first controls are `P0 + (dx, dx t0) = (3.3333,5)` and `P1 - (dx, dx t1) = (6.6667,10)` and the
   second are `P1 + (dx, 0) = (13.3333,10)` and `P2 - (dx, dx x -1.5) = (16.6667,5)`, so the path is
   `M0,0 C3.3333,5 6.6667,10 10,10 C13.3333,10 16.6667,5 20,0`. For the monotone data (0,0), (1,1), (2,4), (3,9), (4,10),
-  (5,10), (6,12), and (8,20) every cubic has its controls within the end points and in order in both coordinates, and the
-  plateau from (4,10) to (5,10) has zero tangents at both ends (the neighbor slope of 0 limits the slope), so its controls
-  have y = 10 exactly. Coincident points are ignored: (0,0), (0,0), (10,10) is the line `M0,0 L10,10` and (4,4), (4,4)
-  alone is the point `M4,4 Z`. The monotone-y curve of (0,0), (10,10), and (0,20) is the monotone-x curve of the swapped
-  points (0,0), (10,10), and (20,0) with every pair of the output swapped back: `M0,0 C5,3.3333 10,6.6667 10,10
-  C10,13.3333 5,16.6667 0,20`; the test also proves the equality on eight bumpy points with coincident ones.
+  (5,10), (6,12), and (8,20) every cubic has its controls within the end points and in order in both coordinates, and
+  the plateau from (4,10) to (5,10) has zero tangents at both ends (the neighbor slope of 0 limits the slope), so its
+  controls have y = 10 exactly. Coincident points are ignored: (0,0), (0,0), (10,10) is the line `M0,0 L10,10` and
+  (4,4), (4,4) alone is the point `M4,4 Z`. The monotone-y curve of (0,0), (10,10), and (0,20) is the monotone-x curve
+  of the swapped points (0,0), (10,10), and (20,0) with every pair of the output swapped back:
+  `M0,0 C5,3.3333 10,6.6667 10,10 C10,13.3333 5,16.6667 0,20`; the test also proves the equality on eight bumpy points
+  with coincident ones.
 - **Natural.** For the x values 0, 10, and 20 (two intervals) the control points solve a tri-diagonal system whose
   eliminated form is `a1 = 80 / 6 = 13.3333` and `a0 = (20 - a1) / 2 = 3.3333`; the first interval has the controls
   3.3333 and `2 x 10 - a1 = 6.6667` and the second has 13.3333 and `(20 + a1) / 2 = 16.6667`. For the y values 0, 10,
@@ -95,40 +96,38 @@ evaluated for the x and the y coordinate separately:
   the data). Four
   collinear evenly spaced points give the straight line with the controls at the thirds (3.3333, 6.6667, 13.3333,
   16.6667, 23.3333, and 26.6667 for the x); two points are a line `M1,2 L3,4` and one point is `M1,2 Z`.
-- **Gaps and degenerate counts.** An undefined point (or a point with a coordinate that is not finite) ends the
-  subpath and the next defined point starts a new one: (0,0), (10,10), a gap, (30,0), (40,10) is
-  `M0,0 L10,10 M30,0 L40,10`; leading and trailing gaps do nothing and a run of one point is a move and a close,
-  `M0,0 Z M5,5 L6,6`; the step curve flushes each run on its own,
-  `M0,0 L5,0 L5,10 L10,10 M20,0 L25,0 L25,5 L30,5`. With no point every curve gives the empty path. With one point at
-  (3,4) every curve that draws its first point at once gives `M3,4 Z` and the open curves (basis-open, cardinal-open) and
-  the bundle give nothing, because they need three or four points (or two, for the bundle) before they draw. With the
-  two points (0,0) and (10,10) most curves give the line `M0,0 L10,10`; the closed linear curve adds `Z`; the step curves
-  give `M0,0 L5,0 L5,10 L10,10` (step), `M0,0 L10,0 L10,10` (step-after), and `M0,0 L0,10 L10,10` (step-before); the open
-  curves give nothing; basis-closed has the points a third of the way, `M6.6667,6.6667 L3.3333,3.3333 Z`
-  (`(P0 + 2 P1) / 3` and `(P1 + 2 P0) / 3`); and cardinal-closed is the loop `M10,10 L0,0 Z`. Three points of the open
-  curves draw only the move to the first knot and close it: `M30,20 Z` for basis-open of (0,0), (30,30), (60,0) and
-  `M10,10 Z` for cardinal-open of (0,0), (10,10), (20,0).
+- **Gaps and degenerate counts.** An undefined point (or a point with a coordinate that is not finite) ends the subpath
+  and the next defined point starts a new one: (0,0), (10,10), a gap, (30,0), (40,10) is `M0,0 L10,10 M30,0 L40,10`;
+  leading and trailing gaps do nothing and a run of one point is a move and a close, `M0,0 Z M5,5 L6,6`; the step curve
+  flushes each run on its own, `M0,0 L5,0 L5,10 L10,10 M20,0 L25,0 L25,5 L30,5`. With no point every curve gives the
+  empty path. With one point at (3,4) every curve that draws its first point at once gives `M3,4 Z` and the open curves
+  (basis-open, cardinal-open) and the bundle give nothing, because they need three or four points (or two, for the
+  bundle) before they draw. With the two points (0,0) and (10,10) most curves give the line `M0,0 L10,10`; the closed
+  linear curve adds `Z`; the step curves give `M0,0 L5,0 L5,10 L10,10` (step), `M0,0 L10,0 L10,10` (step-after), and
+  `M0,0 L0,10 L10,10` (step-before); the open curves give nothing; basis-closed has the points a third of the way,
+  `M6.6667,6.6667 L3.3333,3.3333 Z` (`(P0 + 2 P1) / 3` and `(P1 + 2 P0) / 3`); and cardinal-closed is the loop
+  `M10,10 L0,0 Z`. Three points of the open curves draw only the move to the first knot and close it: `M30,20 Z` for
+  basis-open of (0,0), (30,30), (60,0) and `M10,10 Z` for cardinal-open of (0,0), (10,10), (20,0).
 - **Area.** The top line is drawn forward and the baseline backward as a continuation of the same path (a line, not a
-  move, because the second pass has already started), and the polygon is closed. The line chart of 300 by 200 pixels
-  (x 0, 150, 300; y 200, 0, 100 with the baseline y = 200) gives
-  `M0,200 L150,0 L300,100 L300,200 L150,200 L0,200 Z`. The horizontal area has the axis along y: the top runs along
-  x1 = 5, 15, 10 at y = 0, 10, 20 and the baseline along x0 = 0, `M5,0 L15,10 L10,20 L0,20 L0,10 L0,0 Z`. Each run of
-  defined points is its own polygon and a run of one point is a line to the baseline and back,
-  `M0,5 L10,15 L10,0 L0,0 Z M30,7 L30,0 Z`; the closed linear curve has no area passes, so the top and the baseline are
-  two closed polygons, `M0,200 L150,0 L300,100 Z M300,200 L150,200 L0,200 Z`; a vertex with a coordinate that is not
-  finite ends the run, `M0,5 L0,0 Z M20,5 L20,0 Z`. The step area over the baseline 0 and the top (0,10), (10,20),
-  (20,15) is the centered step of the line ending with its final line to (20,15); the line end turns `t` into
-  `1 - t = 0.5`, the baseline pass continues from (20,15) with a line to its first point (20,0), then repeats the step
-  backward through (10,0) and (0,0) with its own final line, and closes:
-  `M0,10 L5,10 L5,20 L15,20 L15,15 L20,15 L20,0 L15,0 L15,0 L5,0 L5,0 L0,0 Z`. The step-after area with the baselines
-  0, 2, and 4 flips `t` to 0 so that the baseline, read from right to left, changes at the old x: 4 at x = 20, 2 on
-  [10, 20), and 0 on [0, 10), `M0,10 L10,10 L10,20 L20,20 L20,15 L20,4 L20,2 L10,2 L10,0 L0,0 Z`. The monotone area of the
+  move, because the second pass has already started), and the polygon is closed. The line chart of 300 by 200 pixels (x
+  0, 150, 300; y 200, 0, 100 with the baseline y = 200) gives `M0,200 L150,0 L300,100 L300,200 L150,200 L0,200 Z`. The
+  horizontal area has the axis along y: the top runs along x1 = 5, 15, 10 at y = 0, 10, 20 and the baseline along x0 =
+  0, `M5,0 L15,10 L10,20 L0,20 L0,10 L0,0 Z`. Each run of defined points is its own polygon and a run of one point is a
+  line to the baseline and back, `M0,5 L10,15 L10,0 L0,0 Z M30,7 L30,0 Z`; the closed linear curve has no area passes,
+  so the top and the baseline are two closed polygons, `M0,200 L150,0 L300,100 Z M300,200 L150,200 L0,200 Z`; a vertex
+  with a coordinate that is not finite ends the run, `M0,5 L0,0 Z M20,5 L20,0 Z`. The step area over the baseline 0 and
+  the top (0,10), (10,20), (20,15) is the centered step of the line ending with its final line to (20,15); the line end
+  turns `t` into `1 - t = 0.5`, the baseline pass continues from (20,15) with a line to its first point (20,0), then
+  repeats the step backward through (10,0) and (0,0) with its own final line, and closes:
+  `M0,10 L5,10 L5,20 L15,20 L15,15 L20,15 L20,0 L15,0 L15,0 L5,0 L5,0 L0,0 Z`. The step-after area with the baselines 0,
+  2, and 4 flips `t` to 0 so that the baseline, read from right to left, changes at the old x: 4 at x = 20, 2 on [10,
+  20), and 0 on [0, 10), `M0,10 L10,10 L10,20 L20,20 L20,15 L20,4 L20,2 L10,2 L10,0 L0,0 Z`. The monotone area of the
   symmetric peak over the baseline y = -10 has the controls of the peak above and, because the flat baseline has zero
   tangents, the thirds of the interval below (`C16.6667,-10 13.3333,-10 10,-10 C6.6667,-10 3.3333,-10 0,-10`), then
   closes; a second run of two points draws lines, `M40,5 L50,15 L50,-10 L40,-10 Z`. The horizontal monotone area is the
   same data with x and y exchanged (the monotone-y curve), so every pair of the vertical result is swapped. The bundle
-  curve has no area in d3-shape: `SupportsArea` is false for it and true for the other fifteen curves, and `Area`
-  throws `NotSupportedException` and writes nothing.
+  curve has no area in d3-shape: `SupportsArea` is false for it and true for the other fifteen curves, and `Area` throws
+  `NotSupportedException` and writes nothing.
 - **Names.** The fifteen names of Vega-Lite (`linear`, `linear-closed`, `step`, `step-before`, `step-after`, `basis`,
   `basis-open`, `basis-closed`, `bundle`, `cardinal`, `cardinal-open`, `cardinal-closed`, `catmull-rom`, `monotone`, and
   `natural`) map to their curves, `monotone` to `MonotoneX`; the empty text, other cases (`Linear`, `LINEAR`), trailing
@@ -171,10 +170,10 @@ evaluated for the x and the y coordinate separately:
   and the tension, no coordinate is beyond the bound.
 
 Unit tests reside in `CurveBuilderTests.cs`, `CurveBuilderSplineTests.cs`, and `CurveBuilderAreaTests.cs` within the
-`DemaConsulting.CanvasNet.VegaLite.Tests` project, in the `Marks` folder; the spline and area tests share the
-`P`, `Gap`, `Run`, `Segments`, and `Text` helpers of `CurveBuilderTests.cs`. The curves in the whole drawing path (the
-placement of the points by `MarkBuilder` and the pixels that the painter draws) are verified in `MarkBuilderPathTests.cs`
-and the system tests that the _Marks Subsystem Verification Design_ lists.
+`DemaConsulting.CanvasNet.VegaLite.Tests` project, in the `Marks` folder; the spline and area tests share the `P`,
+`Gap`, `Run`, `Segments`, and `Text` helpers of `CurveBuilderTests.cs`. The curves in the whole drawing path (the
+placement of the points by `MarkBuilder` and the pixels that the painter draws) are verified in
+`MarkBuilderPathTests.cs` and the system tests that the *Marks Subsystem Verification Design* lists.
 
 #### Test Environment
 
@@ -222,9 +221,9 @@ number (the default) give the derived paths.
 `CurveBuilderSplineTests.CurveBuilder_Line_CatmullRomWithAlphaZeroEqualsCardinal`
 
 Asserts the cardinal paths for the tensions 0, 0.5, and 1 and the open and closed forms derived above; that the
-catmull-rom curve with an alpha of 0 equals the cardinal curve (also for the repeated points); and the chordal path of A,
-B, C with its controls (7.5,-0.8333) and (17.5,2.5) and the centripetal path of four collinear points, whose controls are
-the cardinal ones (6.6667 and 16.6667).
+catmull-rom curve with an alpha of 0 equals the cardinal curve (also for the repeated points); and the chordal path of
+A, B, C with its controls (7.5,-0.8333) and (17.5,2.5) and the centripetal path of four collinear points, whose controls
+are the cardinal ones (6.6667 and 16.6667).
 
 ##### Monotone And Natural Splines Match The Derivations
 
@@ -244,9 +243,9 @@ and the natural paths of three points, four collinear points, two points (a line
 
 Asserts the two runs separated by a gap, the leading and trailing gaps, the lone point `M0,0 Z`, a not-a-number or
 infinite coordinate acting as a gap (for the linear, natural, and step curves), and the per-run flush of the step curve;
-and, for all sixteen curves, the empty path for no point, the table of the one-point paths (`M3,4 Z` for thirteen curves,
-nothing for basis-open, cardinal-open, and bundle), the table of the two-point paths, and the three-point paths of the
-two open curves.
+and, for all sixteen curves, the empty path for no point, the table of the one-point paths (`M3,4 Z` for thirteen
+curves, nothing for basis-open, cardinal-open, and bundle), the table of the two-point paths, and the three-point paths
+of the two open curves.
 
 ##### Names Resolve Exactly
 
@@ -263,8 +262,8 @@ orientation.
 `CurveBuilderAreaTests.CurveBuilder_Area_CurvedTopAndBaselineClosePerDefinedRun`,
 `CurveBuilderAreaTests.CurveBuilder_Area_BundleIsReportedAsUnsupported`
 
-Asserts the vertical and horizontal polygons, the polygons of two runs and of a run of one point, the two polygons of the
-closed linear curve, the run that a non-finite vertex ends, and the empty area of no points; the step, step-after,
+Asserts the vertical and horizontal polygons, the polygons of two runs and of a run of one point, the two polygons of
+the closed linear curve, the run that a non-finite vertex ends, and the empty area of no points; the step, step-after,
 monotone, and horizontal monotone polygons derived above, including the second run of the monotone area; and that
 `SupportsArea` is false only for the bundle, that `Area` of the bundle throws `NotSupportedException` and leaves the
 output empty, and that the line generator draws the bundle.
