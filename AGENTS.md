@@ -8,7 +8,8 @@
   with packages that render SVG, PDF, PowerPoint (with charts), Visio, OpenSCAD 3D models, Vega-Lite charts, and
   Mermaid diagrams onto it, a viewer that loads any of them, and the `canvasnet` tool that drives them all.
 - **languages**: `C#`
-- **technologies**: `.NET` (libraries: net8.0, net9.0, net10.0, net11.0; tool: net10.0, net11.0), System.Numerics.Tensors
+- **technologies**: `.NET` (libraries: net8.0, net9.0, net10.0, net11.0; tool: net10.0, net11.0),
+  System.Numerics.Tensors
 
 # Project Structure
 
