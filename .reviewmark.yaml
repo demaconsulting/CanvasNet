@@ -10,6 +10,8 @@ needs-review:
   - "requirements.yaml"           # Root requirements file
   - "**/*.cs"                     # All C# source and test files
   - "**/*.csproj"                 # All project files (licensing/provenance, embedded resources)
+  - "src/**/*.lua"                # Lua shim of the Pandoc filter (embedded resource)
+  - "docs/filters/*.lua"          # Lua shim of the Pandoc filter (repository copy)
   - "**/README.md"                # All nested README files (licensing/provenance, fixtures)
   - "docs/reqstream/**/*.yaml"    # Requirements files
   - "docs/design/**/*.md"         # Design documentation files
@@ -5512,6 +5514,168 @@ reviews:
       - "docs/sysml2/model/canvas-net-tool/commands/flatten-command.sysml"  # unit SysML2 model
       - "src/DemaConsulting.CanvasNet.Tool/Commands/FlattenCommand.cs"  # unit source
       - "test/DemaConsulting.CanvasNet.Tool.Tests/Commands/FlattenCommandTests.cs"  # unit tests
+
+  # CanvasNetTool-Commands-PandocFilterCommand Review (one per unit)
+  - id: CanvasNetTool-Commands-PandocFilterCommand
+    title: Review that CanvasNetTool Commands PandocFilterCommand Implementation is Correct
+    context:
+      - "docs/design/canvas-net-tool.md"
+      - "docs/reqstream/canvas-net-tool.yaml"
+      - "docs/design/canvas-net-tool/commands.md"
+      - "docs/reqstream/canvas-net-tool/commands.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-tool/commands/pandoc-filter-command.yaml"  # unit requirements
+      - "docs/design/canvas-net-tool/commands/pandoc-filter-command.md"  # unit design
+      - "docs/verification/canvas-net-tool/commands/pandoc-filter-command.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-tool/commands/pandoc-filter-command.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Tool/Commands/PandocFilterCommand.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.Tool.Tests/Commands/PandocFilterCommandTests.cs"  # unit tests
+
+  # CanvasNetTool-PandocFilter Review (one per subsystem)
+  - id: CanvasNetTool-PandocFilter
+    title: Review that CanvasNetTool PandocFilter Subsystem Implementation is Correct
+    context:
+      - "docs/design/canvas-net-tool.md"
+      - "docs/reqstream/canvas-net-tool.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-tool/pandoc-filter.yaml"           # subsystem requirements
+      - "docs/design/canvas-net-tool/pandoc-filter.md"                # subsystem design
+      - "docs/verification/canvas-net-tool/pandoc-filter.md"          # subsystem verification
+      - "docs/sysml2/model/canvas-net-tool/pandoc-filter.sysml"       # subsystem SysML2 model
+      - "src/DemaConsulting.CanvasNet.Tool/PandocFilter/NamespaceDoc.cs"  # namespace documentation
+      - "test/DemaConsulting.CanvasNet.Tool.Tests/PandocFilter/PandocFilterSubsystemTests.cs"  # subsystem tests
+      - "test/DemaConsulting.CanvasNet.Tool.Tests/PandocFilter/FilterTestSupport.cs"  # test support
+
+  # CanvasNetTool-PandocFilter-PandocAst Review (one per unit)
+  - id: CanvasNetTool-PandocFilter-PandocAst
+    title: Review that CanvasNetTool PandocFilter PandocAst Implementation is Correct
+    context:
+      - "docs/design/canvas-net-tool.md"
+      - "docs/reqstream/canvas-net-tool.yaml"
+      - "docs/design/canvas-net-tool/pandoc-filter.md"
+      - "docs/reqstream/canvas-net-tool/pandoc-filter.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-tool/pandoc-filter/pandoc-ast.yaml"  # unit requirements
+      - "docs/design/canvas-net-tool/pandoc-filter/pandoc-ast.md"  # unit design
+      - "docs/verification/canvas-net-tool/pandoc-filter/pandoc-ast.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-tool/pandoc-filter/pandoc-ast.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Tool/PandocFilter/PandocAst.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.Tool.Tests/PandocFilter/PandocAstTests.cs"  # unit tests
+
+  # CanvasNetTool-PandocFilter-FilterPaths Review (one per unit)
+  - id: CanvasNetTool-PandocFilter-FilterPaths
+    title: Review that CanvasNetTool PandocFilter FilterPaths Implementation is Correct
+    context:
+      - "docs/design/canvas-net-tool.md"
+      - "docs/reqstream/canvas-net-tool.yaml"
+      - "docs/design/canvas-net-tool/pandoc-filter.md"
+      - "docs/reqstream/canvas-net-tool/pandoc-filter.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-tool/pandoc-filter/filter-paths.yaml"  # unit requirements
+      - "docs/design/canvas-net-tool/pandoc-filter/filter-paths.md"  # unit design
+      - "docs/verification/canvas-net-tool/pandoc-filter/filter-paths.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-tool/pandoc-filter/filter-paths.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Tool/PandocFilter/FilterPaths.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.Tool.Tests/PandocFilter/FilterPathsTests.cs"  # unit tests
+
+  # CanvasNetTool-PandocFilter-PictureAttributes Review (one per unit)
+  - id: CanvasNetTool-PandocFilter-PictureAttributes
+    title: Review that CanvasNetTool PandocFilter PictureAttributes Implementation is Correct
+    context:
+      - "docs/design/canvas-net-tool.md"
+      - "docs/reqstream/canvas-net-tool.yaml"
+      - "docs/design/canvas-net-tool/pandoc-filter.md"
+      - "docs/reqstream/canvas-net-tool/pandoc-filter.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-tool/pandoc-filter/picture-attributes.yaml"  # unit requirements
+      - "docs/design/canvas-net-tool/pandoc-filter/picture-attributes.md"  # unit design
+      - "docs/verification/canvas-net-tool/pandoc-filter/picture-attributes.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-tool/pandoc-filter/picture-attributes.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Tool/PandocFilter/PictureAttributes.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.Tool.Tests/PandocFilter/PictureAttributesTests.cs"  # unit tests
+
+  # CanvasNetTool-PandocFilter-DependencyHasher Review (one per unit)
+  - id: CanvasNetTool-PandocFilter-DependencyHasher
+    title: Review that CanvasNetTool PandocFilter DependencyHasher Implementation is Correct
+    context:
+      - "docs/design/canvas-net-tool.md"
+      - "docs/reqstream/canvas-net-tool.yaml"
+      - "docs/design/canvas-net-tool/pandoc-filter.md"
+      - "docs/reqstream/canvas-net-tool/pandoc-filter.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-tool/pandoc-filter/dependency-hasher.yaml"  # unit requirements
+      - "docs/design/canvas-net-tool/pandoc-filter/dependency-hasher.md"  # unit design
+      - "docs/verification/canvas-net-tool/pandoc-filter/dependency-hasher.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-tool/pandoc-filter/dependency-hasher.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Tool/PandocFilter/DependencyHasher*.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.Tool.Tests/PandocFilter/DependencyHasherTests.cs"  # unit tests
+
+  # CanvasNetTool-PandocFilter-FilterSettings Review (one per unit)
+  - id: CanvasNetTool-PandocFilter-FilterSettings
+    title: Review that CanvasNetTool PandocFilter FilterSettings Implementation is Correct
+    context:
+      - "docs/design/canvas-net-tool.md"
+      - "docs/reqstream/canvas-net-tool.yaml"
+      - "docs/design/canvas-net-tool/pandoc-filter.md"
+      - "docs/reqstream/canvas-net-tool/pandoc-filter.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-tool/pandoc-filter/filter-settings.yaml"  # unit requirements
+      - "docs/design/canvas-net-tool/pandoc-filter/filter-settings.md"  # unit design
+      - "docs/verification/canvas-net-tool/pandoc-filter/filter-settings.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-tool/pandoc-filter/filter-settings.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Tool/PandocFilter/FilterSettings.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.Tool.Tests/PandocFilter/FilterSettingsTests.cs"  # unit tests
+
+  # CanvasNetTool-PandocFilter-PictureCache Review (one per unit)
+  - id: CanvasNetTool-PandocFilter-PictureCache
+    title: Review that CanvasNetTool PandocFilter PictureCache Implementation is Correct
+    context:
+      - "docs/design/canvas-net-tool.md"
+      - "docs/reqstream/canvas-net-tool.yaml"
+      - "docs/design/canvas-net-tool/pandoc-filter.md"
+      - "docs/reqstream/canvas-net-tool/pandoc-filter.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-tool/pandoc-filter/picture-cache.yaml"  # unit requirements
+      - "docs/design/canvas-net-tool/pandoc-filter/picture-cache.md"  # unit design
+      - "docs/verification/canvas-net-tool/pandoc-filter/picture-cache.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-tool/pandoc-filter/picture-cache.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Tool/PandocFilter/PictureCache.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.Tool.Tests/PandocFilter/PictureCacheTests.cs"  # unit tests
+
+  # CanvasNetTool-PandocFilter-PandocFilterEngine Review (one per unit)
+  - id: CanvasNetTool-PandocFilter-PandocFilterEngine
+    title: Review that CanvasNetTool PandocFilter PandocFilterEngine Implementation is Correct
+    context:
+      - "docs/design/canvas-net-tool.md"
+      - "docs/reqstream/canvas-net-tool.yaml"
+      - "docs/design/canvas-net-tool/pandoc-filter.md"
+      - "docs/reqstream/canvas-net-tool/pandoc-filter.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-tool/pandoc-filter/pandoc-filter-engine.yaml"  # unit requirements
+      - "docs/design/canvas-net-tool/pandoc-filter/pandoc-filter-engine.md"  # unit design
+      - "docs/verification/canvas-net-tool/pandoc-filter/pandoc-filter-engine.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-tool/pandoc-filter/pandoc-filter-engine.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Tool/PandocFilter/PandocFilterEngine*.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.Tool.Tests/PandocFilter/PandocFilterEngineTests.cs"  # unit tests
+
+  # CanvasNetTool-PandocFilter-PandocFilterShim Review (one per unit)
+  - id: CanvasNetTool-PandocFilter-PandocFilterShim
+    title: Review that CanvasNetTool PandocFilter PandocFilterShim Implementation is Correct
+    context:
+      - "docs/design/canvas-net-tool.md"
+      - "docs/reqstream/canvas-net-tool.yaml"
+      - "docs/design/canvas-net-tool/pandoc-filter.md"
+      - "docs/reqstream/canvas-net-tool/pandoc-filter.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-tool/pandoc-filter/pandoc-filter-shim.yaml"  # unit requirements
+      - "docs/design/canvas-net-tool/pandoc-filter/pandoc-filter-shim.md"  # unit design
+      - "docs/verification/canvas-net-tool/pandoc-filter/pandoc-filter-shim.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-tool/pandoc-filter/pandoc-filter-shim.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Tool/PandocFilter/PandocFilterShim.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Tool/PandocFilter/canvasnet.lua"  # unit source (the embedded Lua shim)
+      - "docs/filters/canvasnet.lua"  # the repository copy of the shim
+      - "docs/filters/test-canvasnet.ps1"  # end-to-end test with Pandoc
+      - "test/DemaConsulting.CanvasNet.Tool.Tests/PandocFilter/PandocFilterShimTests.cs"  # unit tests
 
   # OTS-BuildMark Review (one per OTS item)
   - id: OTS-BuildMark

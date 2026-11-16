@@ -65,8 +65,40 @@ internal sealed class FlattenCommand : ICommand
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(args);
 
+        // The work is shared with the pandoc-filter command; everything below only formats what it returns
+        var (info, result, scale, output) = Execute(args);
+
+        if (context.Json)
+        {
+            context.WriteLine(ResultWriter.Success(Name, writer => WriteJsonFields(writer, result, scale, output)));
+            return;
+        }
+
+        context.WriteLine(RenderText(result, output));
+        context.WriteDiagnostics(result.Diagnostics.Select(d => ((string?)info.Path, d)), result.Echo);
+    }
+
+    /// <summary>
+    ///     Parses the arguments of <c>flatten</c>, probes the input, and flattens: the whole work of the command without any
+    ///     output.
+    /// </summary>
+    /// <param name="args">The command arguments: everything after the command name except the global options.</param>
+    /// <returns>The facts about the input, what the operation returned, the scale, and the output path as given.</returns>
+    /// <exception cref="ToolException">
+    ///     Thrown with code <c>usage-error</c> for a malformed command line, a missing output, or a scale out of range.
+    /// </exception>
+    /// <exception cref="ViewerException">Thrown with the library's code when the drawing cannot be read, drawn, or written.</exception>
+    /// <remarks>
+    ///     <see cref="Run"/> formats what this returns; the <c>pandoc-filter</c> command calls it directly with the argument
+    ///     list the Pandoc filter used to pass to <c>canvasnet flatten ... --json</c>. Stateless and safe to call from
+    ///     several threads at once: every input is a parameter.
+    /// </remarks>
+    internal static (SourceInfo Info, FlattenResult Result, double Scale, string Output) Execute(IReadOnlyList<string> args)
+    {
+        ArgumentNullException.ThrowIfNull(args);
+
         // Read the options; the operation checks the input, the scale, and the output before anything is drawn
-        var reader = ArgumentReader.Parse(Name, args, Options);
+        var reader = ArgumentReader.Parse("flatten", args, OptionTable);
         reader.RequirePositionals(1, 1, "one SVG file");
         var output = reader.Get("--output")
                      ?? throw new ToolException(
@@ -85,15 +117,7 @@ internal sealed class FlattenCommand : ICommand
                 NoClobber = reader.Has("--no-clobber"),
                 FileAccess = fileAccess
             });
-
-        if (context.Json)
-        {
-            context.WriteLine(ResultWriter.Success(Name, writer => WriteJsonFields(writer, result, scale, output)));
-            return;
-        }
-
-        context.WriteLine(RenderText(result, output));
-        context.WriteDiagnostics(result.Diagnostics.Select(d => ((string?)info.Path, d)), result.Echo);
+        return (info, result, scale, output);
     }
 
     /// <summary>

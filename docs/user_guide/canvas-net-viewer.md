@@ -1044,7 +1044,8 @@ is a defect and is not caught. The codes are `usage-error`, `operation-failed`, 
 `unsupported-format`, `corrupt-input`, `unsupported-feature`, `page-out-of-range`, `size-limit`, `same-input-output`,
 `output-exists`, `output-write-failed`, `scad-error`, `vega-lite-error`, `mermaid-error`, `budget-exceeded`,
 `file-access-denied` (a referenced file the file-access policy denied), `size-mismatch`, `threshold-failed`, and
-`positions-unmatched` (a position selector that matched nothing, in strict mode).
+`positions-unmatched` (a position selector that matched nothing, in strict mode), and `pandoc-filter-error` (used only by
+the `pandoc-filter` command of the tool).
 `ViewerException` is in `DemaConsulting.CanvasNet.Viewer` and the operations
 are in `DemaConsulting.CanvasNet.Viewer.Imaging`, so a program that catches it lists both:
 

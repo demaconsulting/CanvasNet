@@ -1,0 +1,101 @@
+---
+# Software Unit Requirements for the FilterPaths Class
+#
+# The FilterPaths class holds the path rules of the Pandoc filter: a literal port of the path helpers of the Lua filter
+# (version 16) and of the pandoc.path functions it used (Haskell's System.FilePath for the platform), so that a
+# picture's source is found, and the files of its dependencies are named in the cache key, exactly as the Lua filter
+# did. It also holds the tool's own rules for file: URIs and remote URLs, so the filter hashes what the tool reads.
+
+sections:
+  - title: FilterPaths Unit Requirements
+    requirements:
+      - id: CanvasNetTool-PandocFilter-FilterPaths-Collapse
+        title: >-
+          The FilterPaths unit shall collapse a path by removing its . segments and repeated separators and applying
+          each .. to the segment before it, keeping a rooted path at its root, keeping a leading .. of a relative path,
+          writing the separators of the platform, and upper-casing a Windows drive letter.
+        justification: |
+          The cache key and the containment checks compare paths as text, so two spellings of one file must give the
+          same text, and that text must be the one the Lua filter produced so the cache names do not change.
+        tests:
+          - FilterPaths_Collapse_DotSegments_AreResolvedLikeTheLuaFilter
+          - FilterPaths_Collapse_WindowsDrives_FollowSystemFilePath
+
+      - id: CanvasNetTool-PandocFilter-FilterPaths-PandocPath
+        title: >-
+          The FilterPaths unit shall split, join, and take apart paths as the pandoc.path functions do on the platform
+          the tool runs on, including the folder of a bare name as ., the file name, the stem without the last
+          extension, the entries of a search path, the Windows rule that only a drive with a separator or a share is
+          absolute, and the decoding of percent escapes on the UTF-8 bytes.
+        justification: |
+          The Lua filter used pandoc.path; giving the same answers keeps the resource path, the names of the cache
+          files, and the dependency labels of version 16.
+        tests:
+          - FilterPaths_PathFunctions_FollowPandocPath
+          - FilterPaths_Collapse_WindowsDrives_FollowSystemFilePath
+
+      - id: CanvasNetTool-PandocFilter-FilterPaths-RelativePath
+        title: >-
+          The FilterPaths unit shall give the path of a target seen from a folder with forward slashes, give no
+          relative path for a target on another drive, and label a dependency by its path from the source's folder or,
+          when there is none, by its full path.
+        justification: |
+          A dependency hashed under its relative path keeps the cache key independent of where the repository is
+          checked out.
+        tests:
+          - FilterPaths_RelativePath_SharedRoot_ClimbsWithForwardSlashes
+          - FilterPaths_Collapse_WindowsDrives_FollowSystemFilePath
+
+      - id: CanvasNetTool-PandocFilter-FilterPaths-FileUri
+        title: >-
+          The FilterPaths unit shall read a file: URI without a host (any letter case of the scheme) as its
+          percent-decoded local path, with a drive after a leading slash as a drive path, and shall give no path for a
+          URI with a host, a decoded path that starts with two separators, or another scheme.
+        justification: |
+          The rule is the tool's own, so the filter hashes exactly the file the tool will read for the same link.
+        tests:
+          - FilterPaths_FileUriPath_HostlessUris_ArePaths
+
+      - id: CanvasNetTool-PandocFilter-FilterPaths-RemoteUrl
+        title: >-
+          The FilterPaths unit shall treat a URL as remote when, after leading white space, it starts with two slashes
+          or backslashes, has a scheme of two or more characters other than file, or is a file: URI with a host, and
+          shall treat every local path, a drive path included, as not remote.
+        justification: |
+          The tool never reads a remote URL, so the filter must not try to hash one, and a drive letter must not be
+          mistaken for a scheme.
+        tests:
+          - FilterPaths_IsRemoteUrl_FollowsTheToolsRule
+
+      - id: CanvasNetTool-PandocFilter-FilterPaths-LocalFile
+        title: >-
+          The FilterPaths unit shall resolve a data URL or picture link to an absolute, collapsed file relative to the
+          folder of the file that holds it, reading a backslash as a slash, a file: URI without a host as its path, and
+          keeping percent signs, shall cut the fragment and query from a picture link only, and shall give no file for a
+          blank or remote URL.
+        justification: |
+          The files a picture reads must be found the way the tool finds them, so that a change to one of them changes
+          the cache key and draws the picture again.
+        tests:
+          - FilterPaths_LocalDataFile_RelativeAbsoluteAndRemote_ResolveLikeTheTool
+
+      - id: CanvasNetTool-PandocFilter-FilterPaths-Containment
+        title: >-
+          The FilterPaths unit shall decide whether a path is a folder or inside it by whole segments, ignoring a
+          trailing separator, and ignoring the letter case on Windows only.
+        justification: |
+          A folder whose name only starts with the name of another folder is not inside it, and Windows file names are
+          not case-sensitive.
+        tests:
+          - FilterPaths_IsSameOrUnder_ComparesWholeSegments
+
+      - id: CanvasNetTool-PandocFilter-FilterPaths-LocateSource
+        title: >-
+          The FilterPaths unit shall find a picture's source as Pandoc finds a picture: the name as written and then
+          its percent-decoded form, an absolute name as it is and a relative name in each folder of the resource path
+          in order, giving the first file that opens or none.
+        justification: |
+          The filter must draw the same file Pandoc would have embedded, including names written with percent
+          escapes.
+        tests:
+          - FilterPaths_LocateSource_ResourcePath_FindsAsWrittenOrDecoded

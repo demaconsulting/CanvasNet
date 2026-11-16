@@ -8,15 +8,16 @@ The `Commands` subsystem (namespace `DemaConsulting.CanvasNet.Tool.Commands`, fo
 `src/DemaConsulting.CanvasNet.Tool/Commands/`) turns the command named on the command line into running code.
 It defines what a command is (the `ICommand` contract and the `OptionSpec` option description) and holds the
 table of commands (`CommandRegistry`). It is a subsystem rather than a single unit because each family of
-commands is its own unit behind the same contract and registry. It contains seven units:
+commands is its own unit behind the same contract and registry. It contains nine units:
 `CommandRegistry`, which also documents the supporting types `ICommand` and
 `OptionSpec`; `HelpTopics`, the tree of help cards (the formats, style and composition, the JSON documents, the errors,
 the limits, and file access) with their tiny examples, which the built-in `help` command of the registry prints;
 `DiscoveryCommands`, which provides the `formats` and `info` commands; `RenderCommand`, which
 provides `render` and its alias `convert`, and the verb commands `crop`, `resize`, `rotate`, `flip`, and `pad`
 (the same class, constructed with a verb); `CompareCommand`, which provides `compare`; `MontageCommand`, which
-provides `montage`; `InspectCommand`, which provides `inspect` with the subcommands `colors` and `pixel`; and
-`FlattenCommand`, which provides `flatten`.
+provides `montage`; `InspectCommand`, which provides `inspect` with the subcommands `colors` and `pixel`;
+`FlattenCommand`, which provides `flatten`; and `PandocFilterCommand`, which provides `pandoc-filter`, the command the
+Lua shim of the Pandoc filter runs.
 
 ### Interfaces
 
@@ -41,7 +42,7 @@ and JSON. The content is embedded in the tool assembly as Markdown cards with YA
 **CommandRegistry.CreateDefault()** (provided to `Program`): creates the registry with every command the tool
 ships with (`formats`, `info`, `render` with its alias `convert`, the verbs `crop`,
 `resize`, `rotate`, `flip`, and `pad`, each registered as its own `RenderCommand` instance, then `compare`,
-`montage`, and `inspect`).
+`montage`, `inspect`, `flatten`, and `pandoc-filter`).
 
 **ArgumentReader** (consumed): each command parses its arguments with `ArgumentReader`, driven by the command's
 `OptionSpec` table, and writes JSON results through `ResultWriter` when `Context.Json` is set.
@@ -54,6 +55,12 @@ and the operations `ImageRenderer`, `ImageComparer`, `MontageBuilder`, `ImageIns
 `ImageComparison`, `ContactSheet`, and `ImageWriter` behind them) and the core `Surface` (comparison and analysis); a
 command never calls a codec directly. A command passes the library plain request records and prints the plain result
 records; the library knows nothing of the command line.
+
+**PandocFilter** (consumed, a sibling subsystem of the tool): `PandocFilterCommand` reads the document and runs
+`PandocFilterEngine` with the `FilterSettings` of the run and a `ToolPictureDrawer`, and writes the shim with
+`PandocFilterShim`. In the other direction, `ToolPictureDrawer` calls `RenderCommand.Execute` and
+`FlattenCommand.Execute`, the parts of `Run` without the formatting, so a picture of a Pandoc document is drawn exactly
+as `render` and `flatten` draw it.
 
 **Shared option declarations**: `CompareCommand`, `MontageCommand`, and `FlattenCommand` take the declarations of the
 options they share

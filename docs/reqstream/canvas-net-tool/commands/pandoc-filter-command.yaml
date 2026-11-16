@@ -1,0 +1,72 @@
+---
+# Software Unit Requirements for the PandocFilterCommand Class
+#
+# The PandocFilterCommand class is the pandoc-filter command: the Lua shim docs/filters/canvasnet.lua sends it the whole
+# Pandoc document once, with what only Pandoc knows as options, and applies the document it writes back. The command is
+# a thin front end: it checks the protocol of the shim, reads the input bytes, runs the PandocFilterEngine of the
+# PandocFilter subsystem, and writes the output bytes; --write-shim writes the embedded shim.
+
+sections:
+  - title: PandocFilterCommand Unit Requirements
+    requirements:
+      - id: CanvasNetTool-Commands-PandocFilterCommand-Options
+        title: >-
+          The pandoc-filter command shall take no positional argument and declare its options (protocol, filter-path,
+          format, pandoc-version, resource-path, pandoc-output, embed-resources, jobs, input, output, and write-shim) in
+          one table that also drives the help, which points to the help card of the Pandoc filter, and shall be
+          registered under the name pandoc-filter.
+        justification: |
+          Declaring the options once keeps the help from drifting from what the command accepts, and the help card
+          explains the filter to the person who wrote the document.
+        tests:
+          - PandocFilterCommand_Help_ListsOptionsAndTheCard
+          - PandocFilterCommand_Run_BadOptions_AreUsageErrors
+
+      - id: CanvasNetTool-Commands-PandocFilterCommand-WriteShim
+        title: >-
+          With the write-shim option, the pandoc-filter command shall write the Lua shim embedded in the tool to the
+          file named, creating its folder, and report it as one text line that names the file and the protocol, or with
+          the JSON option as one JSON document with the tool, the protocol, and the output, and shall do nothing else.
+        justification: |
+          A repository gets or updates its shim with one command, without copying a file from another repository.
+        tests:
+          - PandocFilterCommand_Run_WriteShim_WritesTheShimAsTextOrJson
+
+      - id: CanvasNetTool-Commands-PandocFilterCommand-Protocol
+        title: >-
+          The pandoc-filter command shall check the protocol of the shim before it reads the document, and shall report
+          a missing or malformed protocol, a protocol the tool does not speak, and a missing filter path as usage errors
+          whose hint says how to fix them.
+        justification: |
+          A shim that is too old or too new for the tool must fail at once with the command that fixes it, before a
+          large document is read.
+        tests:
+          - PandocFilterCommand_Run_ProtocolMismatch_IsUsageErrorNamingTheFix
+          - PandocFilterCommand_Run_BadOptions_AreUsageErrors
+
+      - id: CanvasNetTool-Commands-PandocFilterCommand-Transform
+        title: >-
+          The pandoc-filter command shall read the Pandoc JSON document as raw bytes from standard input, or from the
+          file of the input option, run the filter with the format, the output file, the resource path (the current
+          folder when none is given), the embed flag, the path of the shim, and the number of jobs given, and write the
+          transformed document as UTF-8 bytes without a byte order mark to standard output, or to the file of the output
+          option, only when the run succeeded.
+        justification: |
+          Pandoc pipes the document through the command, so non-ASCII text must pass unchanged whatever the code page
+          of the console, and a failed run must not leave a partial document.
+        tests:
+          - PandocFilterCommand_Run_InputAndOutputFiles_TransformTheDocument
+          - PandocFilterCommand_Run_MissingSource_IsTheFilterErrorAndWritesNothing
+
+      - id: CanvasNetTool-Commands-PandocFilterCommand-Errors
+        title: >-
+          The pandoc-filter command shall report a failure of the filter as an expected error with the code and the
+          message of the filter (pandoc-filter-error for a mistake in a picture, corrupt-input for a document that is
+          not Pandoc's JSON), as the JSON failure document on standard output with the JSON option, and shall write the
+          warnings of the pictures before the failure to standard error as [WARNING] canvasnet.lua lines first.
+        justification: |
+          The shim turns the failure document into the error of the build, and the warnings found before the failure
+          must not be lost, as the Lua filter printed them before its error.
+        tests:
+          - PandocFilterCommand_Run_MissingSource_IsTheFilterErrorAndWritesNothing
+          - PandocFilterCommand_Run_FailureAfterAWarning_WritesTheWarningToStandardError

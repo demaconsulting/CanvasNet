@@ -139,11 +139,59 @@ internal sealed partial class RenderCommand : ICommand
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(args);
 
-        var reader = ArgumentReader.Parse(Name, args, Options);
-        var settings = ReadSettings(reader, _verb);
+        // The work is shared with the pandoc-filter command; everything below only formats what it returns
+        var (settings, info, result) = Execute(args, _verb, context.Json);
+        var outputs = result.Pages;
+
+        if (context.Json)
+        {
+            context.WriteLine(ResultWriter.Success(Name, writer => WriteJsonFields(writer, info, settings, outputs)));
+        }
+        else
+        {
+            foreach (var output in outputs)
+            {
+                context.WriteLine(RenderText(output));
+                foreach (var warning in RenderWarnings(output))
+                {
+                    context.WriteWarning(warning);
+                }
+            }
+
+            // What the loader left out of the picture is not silent: it goes to standard error after the result line
+            context.WriteDiagnostics(
+                outputs.SelectMany(o => o.Diagnostics).Select(d => ((string?)settings.Input, d)),
+                outputs.SelectMany(o => o.Echo));
+        }
+    }
+
+    /// <summary>
+    ///     Parses the arguments of <c>render</c> (or of a verb), checks them against the input, and renders: the whole work
+    ///     of the command without any output.
+    /// </summary>
+    /// <param name="args">The command arguments: everything after the command name except the global options.</param>
+    /// <param name="verb">The verb being run (<c>crop</c>, <c>resize</c>, ...), or <see langword="null"/> for <c>render</c>.</param>
+    /// <param name="json">Whether <c>--json</c> was given; <c>--positions</c> needs it, since the positions are a field of the JSON result.</param>
+    /// <returns>The settings that were read, the facts about the input, and what was rendered.</returns>
+    /// <exception cref="ToolException">
+    ///     Thrown with code <c>usage-error</c> for a malformed command line or an option that does not apply to the input,
+    ///     and with the codes of <see cref="ReadSettings"/>.
+    /// </exception>
+    /// <exception cref="ViewerException">Thrown with the library's code when the input cannot be loaded, drawn, or written.</exception>
+    /// <remarks>
+    ///     <see cref="Run"/> formats what this returns; the <c>pandoc-filter</c> command calls it directly with the argument
+    ///     list the Pandoc filter used to pass to <c>canvasnet render ... --json</c>, so a picture is drawn exactly as that
+    ///     command draws it. Stateless and safe to call from several threads at once: every input is a parameter.
+    /// </remarks>
+    internal static (Settings Settings, SourceInfo Info, RenderResult Result) Execute(IReadOnlyList<string> args, string? verb = null, bool json = true)
+    {
+        ArgumentNullException.ThrowIfNull(args);
+
+        var reader = ArgumentReader.Parse(verb ?? "render", args, OptionTable);
+        var settings = ReadSettings(reader, verb);
 
         // The positions are a field of the JSON result: without it there is nowhere to report them
-        if (settings.Source.Positions != null && !context.Json)
+        if (settings.Source.Positions != null && !json)
         {
             throw new ToolException(
                 ErrorCodes.UsageError,
@@ -187,7 +235,7 @@ internal sealed partial class RenderCommand : ICommand
         }
 
         // The operation reports the mistakes about the pages and the outputs before any pixels are decoded, then
-        // loads, transforms, and writes every page; everything below only formats what it returns
+        // loads, transforms, and writes every page
         var result = ImageRenderer.Execute(
             info,
             new RenderRequest(settings.Output)
@@ -197,28 +245,7 @@ internal sealed partial class RenderCommand : ICommand
                 Write = settings.Write,
                 Operations = settings.Operations
             });
-        var outputs = result.Pages;
-
-        if (context.Json)
-        {
-            context.WriteLine(ResultWriter.Success(Name, writer => WriteJsonFields(writer, info, settings, outputs)));
-        }
-        else
-        {
-            foreach (var output in outputs)
-            {
-                context.WriteLine(RenderText(output));
-                foreach (var warning in RenderWarnings(output))
-                {
-                    context.WriteWarning(warning);
-                }
-            }
-
-            // What the loader left out of the picture is not silent: it goes to standard error after the result line
-            context.WriteDiagnostics(
-                outputs.SelectMany(o => o.Diagnostics).Select(d => ((string?)settings.Input, d)),
-                outputs.SelectMany(o => o.Echo));
-        }
+        return (settings, info, result);
     }
 
     /// <summary>

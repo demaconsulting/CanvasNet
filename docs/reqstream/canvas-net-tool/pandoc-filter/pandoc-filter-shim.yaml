@@ -1,0 +1,64 @@
+---
+# Software Unit Requirements for the PandocFilterShim Class and the Lua Shim
+#
+# The PandocFilterShim unit is the Lua shim of the Pandoc filter (canvasnet.lua), embedded in the tool and kept in the
+# repository as docs/filters/canvasnet.lua, and the protocol it speaks with the pandoc-filter command. The shim starts
+# "canvasnet pandoc-filter" once per document, only when the document has a picture or code block the tool may draw,
+# and applies what comes back. The class holds the embedded bytes, checks the protocol a shim passes, and writes the
+# shim to a file. The behavior of the Lua shim inside Pandoc is verified by the end-to-end script
+# docs/filters/test-canvasnet.ps1; the requirements below are verified by the unit tests of the class.
+
+sections:
+  - title: PandocFilterShim Unit Requirements
+    requirements:
+      - id: CanvasNetTool-PandocFilter-PandocFilterShim-EmbeddedShim
+        title: >-
+          The PandocFilterShim unit shall provide the Lua shim embedded in the tool exactly as its source file,
+          declaring the protocol it speaks and the oldest version of DemaConsulting.CanvasNet.Tool it needs.
+        justification: |
+          A repository gets its shim from the tool it pins, so the shim the tool writes must be the reviewed source,
+          and an author who reads the shim must see which tool version it needs.
+        tests:
+          - PandocFilterShim_Bytes_AreTheSourceFileAndSpeakTheProtocol
+
+      - id: CanvasNetTool-PandocFilter-PandocFilterShim-RepositoryShim
+        title: >-
+          The repository's Pandoc filter docs/filters/canvasnet.lua shall be the shim embedded in the tool.
+        justification: |
+          The documents of this repository are built with the same shim the tool writes for other repositories, so
+          the documentation build exercises what users get.
+        tests:
+          - PandocFilterShim_Bytes_AreTheRepositoryFilter
+
+      - id: CanvasNetTool-PandocFilter-PandocFilterShim-Protocol
+        title: >-
+          The PandocFilterShim unit shall accept a shim of protocol 1, and the embedded shim shall speak a protocol the
+          tool accepts.
+        justification: |
+          The protocol changes only when the arguments or the output contract change, so a shim written by any tool of
+          the same protocol keeps working when the tool is updated, and the tool always accepts its own shim.
+        tests:
+          - PandocFilterShim_Bytes_AreTheSourceFileAndSpeakTheProtocol
+          - PandocFilterShim_CheckProtocol_OutsideTheRange_NamesTheFix
+
+      - id: CanvasNetTool-PandocFilter-PandocFilterShim-ProtocolErrors
+        title: >-
+          The PandocFilterShim unit shall refuse a shim whose protocol is older than the tool accepts as the error
+          usage-error whose hint is the --write-shim command for the shim's path (docs/filters/canvasnet.lua when the
+          path is unknown), and a shim whose protocol is newer as the error usage-error whose hint says to update
+          DemaConsulting.CanvasNet.Tool.
+        justification: |
+          A mismatch between the shim and the tool must stop the build with the one command that fixes it, instead of
+          a misread document.
+        tests:
+          - PandocFilterShim_CheckProtocol_OutsideTheRange_NamesTheFix
+
+      - id: CanvasNetTool-PandocFilter-PandocFilterShim-WriteShim
+        title: >-
+          The PandocFilterShim unit shall write the embedded shim to a file byte for byte, creating its folder and
+          replacing an existing file without leaving a partial file, and shall return the number of bytes written.
+        justification: |
+          Updating the shim is one command; writing under a temporary name and moving it into place means a Pandoc
+          run that starts meanwhile reads either the old shim or the new one, never half of it.
+        tests:
+          - PandocFilterShim_Write_NewFolderAndExistingFile_WritesTheShim

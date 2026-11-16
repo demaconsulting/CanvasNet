@@ -1,27 +1,34 @@
 <#
 .SYNOPSIS
-    A cheap standalone test of the canvasnet.lua Pandoc filter.
+    A cheap standalone test of the canvasnet.lua Pandoc filter and the "canvasnet pandoc-filter" command behind it.
 
 .DESCRIPTION
     Builds a small document tree in a temporary folder, runs "dotnet pandoc" with docs/filters/canvasnet.lua
-    over it, and checks what the filter promises: pictures are drawn once and found again (cache), a change to
-    the source, an included file, a chart's data file, or an attribute draws a new picture, other pictures are
-    left alone without starting the tool, wrong attributes and a missing file are clear errors, a path that
+    over it, and checks what the filter promises. The filter is a thin Lua shim: it starts "canvasnet pandoc-filter"
+    once per Pandoc run, only when the document has a code block with a class or a local picture that is not a PNG,
+    JPEG, GIF, or WebP file, and the tool does all the work. The shim speaks a protocol: a copy of an older protocol
+    is an error that names "--write-shim", and "canvasnet pandoc-filter --write-shim" writes the repository's shim.
+    The tool starts exactly once for a document with several pictures, and CANVASNET_JOBS=1 and CANVASNET_JOBS=4
+    give the same HTML and the same cache files.
+
+    The checks: pictures are drawn once and found again (cache), a change to
+    the source, an included file, a chart's data file, or an attribute draws a new picture, PNG, JPEG, and remote
+    pictures are left alone without starting the tool, wrong attributes and a missing file are clear errors, a path that
     leaves the document's folder renders (the filter has no containment rule), a dependency outside the folder is
     read under the tool's default file-access policy and refused under CANVASNET_FILE_ACCESS=roots (CANVASNET_ROOTS is a
     PATH-like list whose relative folders are taken from the working directory, both are hashed, roots without
     CANVASNET_ROOTS is hashed with the working directory so a build from another folder is denied, a denied picture
-    stops the build, and a bad value is an error), an absolute or
+    stops the build, a nested drawing outside the roots stops the build through the flatten, and a bad value is an error), an absolute or
     file: data url and an absolute SVG link are hashed, and a model the tool cannot draw stops the build with the tool's message.
     Mermaid diagrams are drawn from code blocks and from .mmd/.mermaid pictures (the pictures of their nodes are
     hashed), sequence, class, state, ER, pie, gantt, mindmap, packet, and git graph diagrams are drawn by the filter itself, a diagram
     type the tool does not draw is left as written (shown as code) with a warning, and the defaults-file filters run
-    before a later command-line filter, which sees only the blocks left as written. An SVG picture that links no file only the tool draws is left alone without
-    starting the tool; one that links a diagram (directly or through a nested SVG file) points at a flattened copy whose
+    before a later command-line filter, which sees only the blocks left as written. An SVG picture that links no file only the tool draws is left
+    unchanged (the tool decides); one that links a diagram (directly or through a nested SVG file) points at a flattened copy whose
     diagram is a PNG picture, cached like the other pictures (the same drawing in another folder gets its own copy),
     and WeasyPrint ("dotnet weasyprint") is run over both to check that the flattened diagram reaches the PDF. The scan
     of an SVG drawing ignores image tags in comments, CDATA sections and processing instructions, reads past a ">" in a
-    quoted attribute, takes a prefixed href only in the XLink namespace (under any prefix bound to it), and starts the tool for a link to a missing diagram (directly or in a nested SVG file), whose
+    quoted attribute, takes a prefixed href only in the XLink namespace (under any prefix bound to it), and reports a link to a missing diagram (directly or in a nested SVG file), whose
     warning is shown on every build until creating the file flattens the drawing.
 
     The tool is the one the filter would use: "dotnet canvasnet" from the tool manifest (copied into the
@@ -70,6 +77,14 @@ if ($ToolCommand) {
     $env:CANVASNET_TOOL = $parts -join ' '
 }
 
+# The tool's command as a program and its arguments, for running it directly (WeasyPrint check, --write-shim)
+$toolParts = if ($env:CANVASNET_TOOL) {
+    @([regex]::Matches($env:CANVASNET_TOOL, '"[^"]*"|\S+') | ForEach-Object { $_.Value.Trim('"') })
+}
+else {
+    @('dotnet', 'canvasnet')
+}
+
 function Write-Result([bool]$Passed, [string]$Name, [string]$Detail = '') {
     if ($Passed) {
         Write-Host "PASS  $Name"
@@ -84,13 +99,13 @@ function Write-Result([bool]$Passed, [string]$Name, [string]$Detail = '') {
 }
 
 # Runs Pandoc on a Markdown text in the temporary tree, writing docs/guide/generated/<name>.html.
-function Invoke-Filter([string]$Name, [string]$Markdown, [string]$Format = 'html5') {
+function Invoke-Filter([string]$Name, [string]$Markdown, [string]$Format = 'html5', [string]$Filter = 'docs/filters/canvasnet.lua') {
     Set-Content -LiteralPath (Join-Path $guide "$Name.md") -Value $Markdown -Encoding utf8
     $output = "docs/guide/generated/$Name.html"
     Push-Location $tree
     try {
         $log = & dotnet pandoc --from markdown --to $Format --resource-path docs/guide `
-            --lua-filter docs/filters/canvasnet.lua --output $output "docs/guide/$Name.md" 2>&1 | Out-String
+            --lua-filter $Filter --output $output "docs/guide/$Name.md" 2>&1 | Out-String
         $code = $LASTEXITCODE
     }
     finally {
@@ -629,7 +644,7 @@ journey
 
     $plainSvg = Invoke-Filter 'svg-plain' '![p](svg/plain.svg){width=50%}'
     Write-Result ($plainSvg.ExitCode -eq 0 -and $plainSvg.Html -match 'src="svg/plain\.svg"' -and @(Get-Copies).Count -eq 0) `
-        'a plain SVG picture is left alone' "$($plainSvg.Log)`n$($plainSvg.Html)"
+        'a plain SVG picture is left unchanged (the tool decides)' "$($plainSvg.Log)`n$($plainSvg.Html)"
 
     $compDoc = '![c](svg/comp.svg){width=80%}'
     $comp = Invoke-Filter 'svg-comp' $compDoc
@@ -709,13 +724,13 @@ journey
     Write-Result ($goneMade.ExitCode -eq 0 -and $goneMade.Html -match 'generated/canvasnet/gone-[0-9a-f]+\.svg') `
         'creating the missing diagram flattens the drawing (the cache noted it as missing)' "$($goneMade.Log)`n$($goneMade.Html)"
 
-    # Image tags in a comment or a CDATA section are not markup: this drawing is plain (checked below, without the tool)
+    # Image tags in a comment or a CDATA section are not markup: this drawing is plain (checked below)
     Set-Content (Join-Path $svgDir 'commented.svg') -Value (
         '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100">' +
         '<!-- <image href="flow.mmd" width="50" height="50"/> -->' +
         '<style><![CDATA[ /* <image href="flow.mmd"/> */ rect { fill: #cccccc; } ]]></style>' +
         '<?note <image href="flow.mmd"/> ?><rect width="200" height="100"/><image href="logo.png" width="50" height="50"/></svg>')
-    # A prefixed href outside the XLink namespace is not a link (checked below, without the tool), but any prefix bound to
+    # A prefixed href outside the XLink namespace is not a link (checked below), but any prefix bound to
     # the XLink namespace is
     Set-Content (Join-Path $svgDir 'foreign-href.svg') -Value (
         '<svg xmlns="http://www.w3.org/2000/svg" xmlns:foo="urn:example:foo" width="200" height="100">' +
@@ -736,17 +751,23 @@ journey
     Write-Result ($otherPrefix.ExitCode -eq 0 -and $otherPrefix.Html -match 'generated/canvasnet/other-prefix-[0-9a-f]+\.svg') `
         'an href under another prefix bound to the XLink namespace is found and flattened' "$($otherPrefix.Log)`n$($otherPrefix.Html)"
 
+    # The tool decides that these drawings are plain, so they are left unchanged and no copy is made
+    $commented = Invoke-Filter 'svg-commented' '![c](svg/commented.svg)'
+    Write-Result ($commented.ExitCode -eq 0 -and $commented.Html -match 'src="svg/commented\.svg"' -and
+        @(Get-ChildItem -LiteralPath $cache -Filter 'commented-*.svg').Count -eq 0) `
+        'an SVG whose diagram links are only in a comment, CDATA, or a processing instruction is left unchanged' `
+        "$($commented.Log)`n$($commented.Html)"
+    $foreign = Invoke-Filter 'svg-foreign-href' '![f](svg/foreign-href.svg)'
+    Write-Result ($foreign.ExitCode -eq 0 -and $foreign.Html -match 'src="svg/foreign-href\.svg"' -and
+        @(Get-ChildItem -LiteralPath $cache -Filter 'foreign-href-*.svg').Count -eq 0) `
+        'an SVG whose only prefixed hrefs are outside the XLink namespace is left unchanged' `
+        "$($foreign.Log)`n$($foreign.Html)"
+
     # WeasyPrint, which draws the HTML into the PDF, shows the flattened copy: its page is darker than the page of a
     # control document that shows the original drawing (whose diagram WeasyPrint cannot draw), and the control page
     # still shows the frame and the text that both have.
     $controlHtml = Join-Path $guide 'generated/svg-control.html'
     Set-Content -LiteralPath $controlHtml -Value '<p><img src="../svg/comp.svg" style="width: 80%" alt="c"></p>'
-    $toolParts = if ($env:CANVASNET_TOOL) {
-        @([regex]::Matches($env:CANVASNET_TOOL, '"[^"]*"|\S+') | ForEach-Object { $_.Value.Trim('"') })
-    }
-    else {
-        @('dotnet', 'canvasnet')
-    }
     $means = @{}
     Push-Location $tree
     try {
@@ -765,20 +786,13 @@ journey
     Write-Result ($null -ne $means.flat -and $null -ne $means.control -and $means.flat -lt $means.control - 1 -and $means.control -lt 255) `
         'WeasyPrint draws the flattened diagram in the PDF, and the frame of the original' "flat $($means.flat), control $($means.control)"
 
-    # --- Pictures the filter ignores never start the tool -----------------------------------------------
+    # --- PNG, JPEG, and remote pictures never start the tool ---------------------------------------------
+    # The shim starts the tool only for a code block with a class or a local picture that is not a common raster.
     $saved = $env:CANVASNET_TOOL
     $env:CANVASNET_TOOL = 'no-such-program-canvasnet'
     try {
-        $plain = Invoke-Filter 'plain' "![plain](x.png)`n`n![web](https://example.com/a.scad)`n`n![drawing](svg/plain.svg)"
-        Write-Result ($plain.ExitCode -eq 0) 'PNG, plain SVG, and remote pictures never start the tool' $plain.Log
-        $commented = Invoke-Filter 'svg-commented' '![c](svg/commented.svg)'
-        Write-Result ($commented.ExitCode -eq 0 -and $commented.Html -match 'src="svg/commented\.svg"') `
-            'an SVG whose diagram links are only in a comment, CDATA, or a processing instruction never starts the tool' `
-            "$($commented.Log)`n$($commented.Html)"
-        $foreign = Invoke-Filter 'svg-foreign-href' '![f](svg/foreign-href.svg)'
-        Write-Result ($foreign.ExitCode -eq 0 -and $foreign.Html -match 'src="svg/foreign-href\.svg"') `
-            'an SVG whose only prefixed hrefs are outside the XLink namespace never starts the tool' `
-            "$($foreign.Log)`n$($foreign.Html)"
+        $plain = Invoke-Filter 'plain' "![plain](x.png)`n`n![photo](photo.jpg)`n`n![web](https://example.com/a.scad)"
+        Write-Result ($plain.ExitCode -eq 0) 'PNG, JPEG, and remote pictures never start the tool' $plain.Log
         $missing = Invoke-Filter 'missing-tool' '![model](bad.scad)'
         Write-Result ($missing.ExitCode -ne 0 -and $missing.Log -match 'cannot run the canvasnet tool') `
             'a tool that cannot start is a clear error' $missing.Log
@@ -786,6 +800,102 @@ journey
     finally {
         $env:CANVASNET_TOOL = $saved
     }
+
+    # --- The shim and the command: protocol, --write-shim, one tool start, jobs ---------------------------
+    # A copy of the shim of an older protocol is an error that names the command that writes it again.
+    $shimText = [System.IO.File]::ReadAllText((Join-Path $tree 'docs/filters/canvasnet.lua'))
+    $oldShim = $shimText -replace 'local PROTOCOL = "\d+"', 'local PROTOCOL = "0"'
+    [System.IO.File]::WriteAllText((Join-Path $tree 'docs/filters/old-shim.lua'), $oldShim)
+    $outdated = Invoke-Filter 'old-shim' '![model](t.scad)' -Filter 'docs/filters/old-shim.lua'
+    Write-Result ($oldShim -ne $shimText -and $outdated.ExitCode -ne 0 -and $outdated.Log -match 'speaks protocol 0' -and
+        $outdated.Log -match '--write-shim docs/filters/old-shim\.lua') `
+        'an outdated shim (protocol 0) stops the build with the --write-shim command that fixes it' $outdated.Log
+
+    # --write-shim writes the shim of this repository.
+    $written = Join-Path $root 'written/canvasnet.lua'
+    Push-Location $tree
+    try {
+        $writeLog = & $toolParts[0] @($toolParts | Select-Object -Skip 1) pandoc-filter --write-shim $written 2>&1 | Out-String
+    }
+    finally {
+        Pop-Location
+    }
+    $writtenShim = if (Test-Path -LiteralPath $written) { [System.IO.File]::ReadAllText($written) -replace "`r`n", "`n" } else { '' }
+    Write-Result ($writtenShim -ne '' -and $writtenShim -ceq ($shimText -replace "`r`n", "`n")) `
+        '--write-shim writes the repository''s shim' $writeLog
+
+    # The tool starts once per Pandoc run, however many pictures the document has: CANVASNET_TOOL runs a wrapper that
+    # notes each start in a file and passes the bytes of standard input and output through unchanged. With
+    # CANVASNET_JOBS=1 and =4 the same pictures (deleted in between, so both runs draw them) give the same HTML,
+    # warnings, and cache files.
+    $counter = Join-Path $root 'count.ps1'
+    $starts = Join-Path $root 'starts.txt'
+    Set-Content -LiteralPath $counter -Value @'
+Add-Content -LiteralPath $args[0] -Value 'start'
+$start = [System.Diagnostics.ProcessStartInfo]::new($args[1])
+foreach ($arg in @($args | Select-Object -Skip 2)) { $start.ArgumentList.Add($arg) }
+$start.UseShellExecute = $false
+$start.RedirectStandardInput = $true
+$start.RedirectStandardOutput = $true
+$process = [System.Diagnostics.Process]::Start($start)
+[Console]::OpenStandardInput().CopyTo($process.StandardInput.BaseStream)
+$process.StandardInput.Close()
+$stdout = [Console]::OpenStandardOutput()
+$process.StandardOutput.BaseStream.CopyTo($stdout)
+$stdout.Flush()
+$process.WaitForExit()
+exit $process.ExitCode
+'@
+    $wrapper = @((Get-Process -Id $PID).Path, '-NoProfile', '-File', $counter, $starts) + $toolParts
+    $caption = "Gr$([char]0xFC)$([char]0xDF)e"
+    $five = @"
+![m](t.scad){define-h=11 view=front}
+
+![c](t.vl.json){scale=3}
+
+![e](echo.scad){view=top}
+
+``````{.mermaid caption="$caption"}
+flowchart LR
+    Once1 --> Once2
+``````
+
+``````mermaid
+flowchart TD
+    Once3 --> Once4
+``````
+"@
+    $runs = @{}
+    $saved = $env:CANVASNET_TOOL
+    try {
+        $env:CANVASNET_TOOL = ($wrapper | ForEach-Object { '"' + $_ + '"' }) -join ' '
+        foreach ($jobs in '1', '4') {
+            Remove-Item -LiteralPath $starts -ErrorAction SilentlyContinue
+            $before = @(Get-ChildItem -LiteralPath $cache -File | ForEach-Object Name)
+            $env:CANVASNET_JOBS = $jobs
+            $run = Invoke-Filter 'five' $five
+            $new = @(Get-ChildItem -LiteralPath $cache -File | Where-Object { $before -notcontains $_.Name })
+            $runs[$jobs] = [pscustomobject]@{
+                Run    = $run
+                Starts = $(if (Test-Path -LiteralPath $starts) { @(Get-Content -LiteralPath $starts).Count } else { 0 })
+                Names  = (@($new | ForEach-Object Name | Sort-Object) -join "`n")
+                Drawn  = @($new | Where-Object { $_.Name -match '\.png$' }).Count
+            }
+            $new | Remove-Item -Force
+        }
+    }
+    finally {
+        $env:CANVASNET_TOOL = $saved
+        Remove-Item -Path env:CANVASNET_JOBS -ErrorAction SilentlyContinue
+    }
+    $one = $runs['1']
+    $four = $runs['4']
+    Write-Result ($one.Run.ExitCode -eq 0 -and $one.Starts -eq 1 -and $one.Drawn -eq 5 -and $one.Run.Html.Contains($caption)) `
+        'a document with five pictures starts the tool exactly once' "starts $($one.Starts), drawn $($one.Drawn)`n$($one.Run.Log)"
+    Write-Result ($four.Run.ExitCode -eq 0 -and $four.Starts -eq 1 -and $four.Run.Html -ceq $one.Run.Html -and
+        $four.Run.Log -ceq $one.Run.Log -and $four.Names -ceq $one.Names -and $one.Names -ne '') `
+        'CANVASNET_JOBS=1 and CANVASNET_JOBS=4 give the same HTML, warnings, and cache files' `
+        "starts $($four.Starts)`njobs 1:`n$($one.Names)`njobs 4:`n$($four.Names)`n$($four.Run.Log)"
 
     # --- Diagnostics and failures -----------------------------------------------------------------------
     $echo = Invoke-Filter 'echo' '![model](echo.scad)'
@@ -849,6 +959,19 @@ journey
         Write-Result ($run.ExitCode -ne 0 -and $run.Log -match 'denied') `
             "CANVASNET_FILE_ACCESS=roots refuses a dependency outside the roots ($dep)" $run.Log
     }
+
+    # A drawing whose only link is a nested drawing outside the roots is not left to Pandoc: the flatten reports the
+    # denied drawing and the build stops, while by default the drawing links nothing the tool draws and is left alone
+    Set-Content (Join-Path $guide 'outer-inner.svg') -Value (
+        '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20"><rect width="20" height="20" fill="red"/></svg>')
+    Set-Content (Join-Path $sub 'n.svg') -Value (
+        '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20"><image href="../outer-inner.svg" width="20" height="20"/></svg>')
+    $nestOpen = Invoke-Filter 'esc-nested-svg' '![n](esc/n.svg)'
+    Write-Result ($nestOpen.ExitCode -eq 0 -and $nestOpen.Html -match 'src="esc/n\.svg"') `
+        'a drawing that links only a plain nested drawing is left to Pandoc by default' $nestOpen.Log
+    $nestDenied = Invoke-FilterWith @{ CANVASNET_FILE_ACCESS = 'roots'; CANVASNET_ROOTS = $sub } 'esc-nested-svg-roots' '![n](esc/n.svg)'
+    Write-Result ($nestDenied.ExitCode -ne 0 -and $nestDenied.Log -match 'denied') `
+        'CANVASNET_FILE_ACCESS=roots stops the build on a nested drawing outside the roots' $nestDenied.Log
 
     # CANVASNET_ROOTS is a list separated like PATH; the include is in the second folder
     $rootList = $sub + [System.IO.Path]::PathSeparator + $guide

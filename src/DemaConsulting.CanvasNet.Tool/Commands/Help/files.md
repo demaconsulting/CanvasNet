@@ -7,6 +7,7 @@ aliases:
 see-also:
   - svg/embedding
   - errors
+  - pandoc
 examples:
   - name: confine
     kind: command
@@ -88,7 +89,7 @@ options, the diagnostics of a denial, and the Pandoc filter.
 
 ## The Pandoc filter
 
-- `default`: docs/filters/canvasnet.lua passes no mode, so a document reads its
+- `default`: The pandoc-filter command passes no mode, so a document reads its
   pictures, includes, and data as Pandoc reads its images.
 - `CANVASNET_FILE_ACCESS`: Set it to roots, no-symlinks, or roots,no-symlinks to
   pass --file-access to every render and flatten of the filter; a picture the
@@ -99,3 +100,7 @@ options, the diagnostics of a denial, and the Pandoc filter.
   the working directory and the folder of the picture as --allow-root. These
   arguments are part of the cache name of every picture, so a picture drawn
   without them, or from another working directory, is not reused.
+- `hashing`: The filter reads the files a picture references to name it in
+  the cache, and in a restrictive mode it judges them as the tool does, by
+  the real path of the opened file: a file outside the folders, a link that
+  leads outside them, and under no-symlinks any link are never read.

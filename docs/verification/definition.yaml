@@ -268,6 +268,16 @@ input-files:
   - docs/verification/canvas-net-tool/commands/montage-command.md
   - docs/verification/canvas-net-tool/commands/inspect-command.md
   - docs/verification/canvas-net-tool/commands/flatten-command.md
+  - docs/verification/canvas-net-tool/commands/pandoc-filter-command.md
+  - docs/verification/canvas-net-tool/pandoc-filter.md
+  - docs/verification/canvas-net-tool/pandoc-filter/pandoc-ast.md
+  - docs/verification/canvas-net-tool/pandoc-filter/filter-paths.md
+  - docs/verification/canvas-net-tool/pandoc-filter/picture-attributes.md
+  - docs/verification/canvas-net-tool/pandoc-filter/dependency-hasher.md
+  - docs/verification/canvas-net-tool/pandoc-filter/filter-settings.md
+  - docs/verification/canvas-net-tool/pandoc-filter/picture-cache.md
+  - docs/verification/canvas-net-tool/pandoc-filter/pandoc-filter-engine.md
+  - docs/verification/canvas-net-tool/pandoc-filter/pandoc-filter-shim.md
   - docs/verification/ots.md
   - docs/verification/ots/buildmark.md
   - docs/verification/ots/fileassert.md

@@ -221,6 +221,7 @@ parse standard output alone in both cases; the text report on standard error is 
 | `montage` | Compose images and document pages into one contact sheet |
 | `inspect` | Report the dominant colors and luma statistics (`colors`), or the value of a pixel (`pixel`) |
 | `flatten` | Copy an SVG drawing, with the pictures only CanvasNet can draw as PNG pictures, for any SVG reader |
+| `pandoc-filter` | Draw the pictures of a Pandoc document for the Lua shim of the Pandoc filter, or write the shim |
 
 `crop`, `resize`, `rotate`, `flip`, and `pad` are `render` with one transformation placed first, so each of them
 takes every option of `render` and works on every input that `render` reads (an SVG, a PDF page, an OpenSCAD model, a
@@ -1715,6 +1716,23 @@ This table is also the *Reference* section of `canvasnet help svg flatten`; a te
 
 <!-- markdownlint-enable MD013 -->
 
+### pandoc-filter
+
+`pandoc-filter` is the command that the Lua shim `docs/filters/canvasnet.lua` runs once per Pandoc run (see *Using the
+Tool in Pandoc Documents*). It reads a Pandoc JSON document from standard input, draws its pictures, and writes the
+transformed document to standard output; `--write-shim <file>` writes the shim. `--input` and `--output` read and
+write files instead, which helps to try the filter on a document written by `pandoc -t json`:
+
+```bash
+canvasnet pandoc-filter --write-shim docs/filters/canvasnet.lua
+pandoc guide.md -t json -o doc.json
+canvasnet pandoc-filter --protocol 1 --filter-path docs/filters/canvasnet.lua --format html5 --input doc.json -o out.json
+```
+
+The shim passes `--protocol`, `--filter-path`, `--format`, `--pandoc-version`, `--resource-path` (repeatable; `.` when
+none is given), `--pandoc-output`, and `--embed-resources`; `--jobs` (1 to 64) sets how many pictures are drawn at
+once, instead of `CANVASNET_JOBS`. `canvasnet help pandoc` is the reference.
+
 ### Values: Sizes, Geometry, and Colors
 
 <!-- markdownlint-disable MD013 -->
@@ -1803,16 +1821,17 @@ This table is also the `canvasnet help files` card, bullet by bullet; a test kee
 | `file-access-denied` | Error: an OpenSCAD include or use file or a Vega-Lite data file that the mode denies, or a denied picture with --strict; the message names the file as written and where it is referenced. No output is written. |
 | `real path unavailable` | A mode other than any needs the real path of every opened file. Where the system cannot tell it (Linux without /proc, for example), the file is denied, never read unchecked. |
 | `detail` | In the JSON result, the detail of an image-access-denied note holds the reference, the requested and real paths, and the mode. These are host paths: a service that shows notes to untrusted authors should remove them. |
-| `default` | docs/filters/canvasnet.lua passes no mode, so a document reads its pictures, includes, and data as Pandoc reads its images. |
+| `default` | The pandoc-filter command passes no mode, so a document reads its pictures, includes, and data as Pandoc reads its images. |
 | `CANVASNET_FILE_ACCESS` | Set it to roots, no-symlinks, or roots,no-symlinks to pass --file-access to every render and flatten of the filter; a picture the mode denies then stops the build. |
 | `CANVASNET_ROOTS` | Folders separated like PATH (; on Windows, : elsewhere), passed as one --allow-root each as an absolute path (a relative folder is taken from the working directory); it implies roots. Without it, roots gets the working directory and the folder of the picture as --allow-root. These arguments are part of the cache name of every picture, so a picture drawn without them, or from another working directory, is not reused. |
+| `hashing` | The filter reads the files a picture references to name it in the cache, and in a restrictive mode it judges them as the tool does, by the real path of the opened file: a file outside the folders, a link that leads outside them, and under no-symlinks any link are never read. |
 
 <!-- markdownlint-enable MD013 -->
 
 ## Help Topics
 
 `canvasnet help <subject>` explains the tool from the tool itself, offline and for the installed version. The subject
-is a command (see *Commands*) or one of fifteen help topics, which cover the input formats, how to make pictures look
+is a command (see *Commands*) or one of sixteen help topics, which cover the input formats, how to make pictures look
 good and compose them, and the subjects that apply to every command. A subject is matched in any letter case, and a
 topic may be named by an alias.
 
@@ -1833,6 +1852,7 @@ topic may be named by an alias.
 | `errors` | | Failures, the stable error codes, exit codes, and what `--strict` changes |
 | `limits` | | The largest sizes and budgets accepted, and the error each one produces |
 | `files` | `file-access`, `links` | Which files a document may reference, `--file-access`, and the Pandoc filter |
+| `pandoc` | `filter` | The Pandoc filter: the Lua shim, the picture attributes, the cache, and the variables |
 
 ### Help Cards
 
@@ -2095,6 +2115,7 @@ and hint may be improved at any time.
 | `budget-exceeded` | A model exceeds a rendering limit, such as `--max-triangles`, or a chart or diagram exceeds a limit of its library while it is laid out or drawn (data rows, data files, data bytes, ticks, scene items; nodes, edges, nesting, layout work, pictures, painted pixels) | Raise the limit (a model) or simplify the model or chart |
 | `size-mismatch` | `compare` was given two inputs of different pixel sizes and no `--resize-to` | Add `--resize-to a`, `b`, or `WxH` |
 | `threshold-failed` | `compare` measured a value on the wrong side of a `--threshold` limit (the result and the pictures were still written) | Look at the pictures and the grid, fix the image or relax the limit |
+| `pandoc-filter-error` | The `pandoc-filter` command cannot draw a picture of a Pandoc document: an attribute that is not valid, a source that is not in the resource path, too many files or levels, a `CANVASNET_*` variable that is not valid, or a cache file that cannot be written | The message names the picture; see *Using the Tool in Pandoc Documents* |
 | `positions-unmatched` | With `--strict`, a `--positions` selector matched no feature of the diagram or chart; nothing was written (without `--strict` it is a warning with the same code) | List the ids with the selector `all`, and check the case of ids and values; see `canvasnet help positions selectors` |
 
 ## Defaults
@@ -2147,14 +2168,16 @@ crops the 800-pixel drawing, not the natural-size one.
 
 ## Using the Tool in Pandoc Documents
 
-The repository's `docs/filters/canvasnet.lua` is a self-contained Pandoc Lua filter that draws models, charts,
-diagrams, and document pages with the tool when a document is built, so a Markdown file can refer to the source of a
-picture instead of a rendered copy. Copy the file into a documentation repository (it needs Pandoc 3 and no other
-library), pin the tool, and add the filter to the Pandoc defaults file of each document:
+The Pandoc filter draws models, charts, diagrams, and document pages with the tool when a document is built, so a
+Markdown file can refer to the source of a picture instead of a rendered copy. It has two parts: a short Lua shim,
+`docs/filters/canvasnet.lua`, which each documentation repository keeps, and the `pandoc-filter` command of the tool,
+which does all the work. Pin the tool, let it write the shim, and add the shim to the Pandoc defaults file of each
+document (it needs Pandoc 3 and no other library):
 
 ```bash
 dotnet new tool-manifest
 dotnet tool install DemaConsulting.CanvasNet.Tool
+dotnet canvasnet pandoc-filter --write-shim docs/filters/canvasnet.lua
 ```
 
 ```yaml
@@ -2162,10 +2185,16 @@ filters:
   - docs/filters/canvasnet.lua
 ```
 
+For each Pandoc run, the shim sends the whole document to `dotnet canvasnet pandoc-filter` once, on standard input,
+and Pandoc continues with the document the tool writes back, so a document of many pictures starts the tool once. The
+tool is not started at all for a document without a code block that has a class and without a local picture other than
+a PNG, JPEG, GIF, or WebP raster. A fix of the filter ships with the tool: the shim is written again only when the
+tool says so (see *Shim protocol* below).
+
 A picture whose file name ends in `.scad`, `.vl.json`, `.vl`, `.mmd`, `.mermaid`, `.vsdx`, `.pptx`, or `.pdf` is then
 drawn as a PNG, and the attributes written after it choose how. An SVG picture whose `<image>` elements link one of
 those files (directly or through a nested `.svg` file) is flattened, see below. Any other picture (a PNG, a JPEG, an SVG
-that links none of those files, an address on the internet) is left alone, and the tool is not started for it.
+that links none of those files, an address on the internet) is left alone.
 
 ```markdown
 ![Pump mount](pump-mount.scad){view=top define-hole_radius=4 width=60%}
@@ -2214,17 +2243,17 @@ model, a chart, or a page of a document) inside an SVG picture. For an `.svg` pi
 the `.svg` files it links the way the tool does (the `href` of each `image` element, or its `xlink:href` when it has no
 `href`, under any prefix bound to the XLink namespace; comments, CDATA sections, processing instructions, and a
 DOCTYPE hold no links, and a `>` inside a quoted attribute value does not end a tag); when none of them links such a
-file the picture is left alone and the tool is not started, so a plain SVG stays a vector picture. A link to such a file
+file the picture is left alone, so a plain SVG stays a vector picture. A link to such a file
 that does not exist counts too: the tool reports it (`svg-image-unresolved`) as a warning instead of the link being
-left silently broken. Otherwise the filter runs
-`canvasnet flatten ... --json` and the picture points at the flattened copy in `docs/generated/canvasnet/`, in which
+left silently broken. Otherwise the filter flattens the drawing as `canvasnet flatten` does, and the picture points
+at the flattened copy in `docs/generated/canvasnet/`, in which
 each such link is a PNG picture of its placement size (`scale=2` for sharper pictures in print; every other attribute
 stays on the picture) and the relative links that are left are rewritten to find their files from there. The copy is
 cached like the PNG pictures, by a hash of the drawing, of its folder (which the rewritten links lead to), of every
 file it links, and of each such file that is missing (so creating it flattens the drawing). A drawing that the tool
 finds nothing to flatten in (a diagram the drawing never shows, or a missing file, reported as a warning) is left alone,
-with a marker in the cache so that the tool is not started again for it; the marker keeps the warnings, which every
-later build shows again.
+with a marker in the cache so that it is not flattened again; the marker keeps the warnings, which every later build
+shows again.
 
 Every value is checked: an attribute that belongs to another input type, a malformed number, or a source that cannot be
 found stops the build with a message that names the picture. All other attributes
@@ -2244,11 +2273,15 @@ from the working directory); it implies `roots`. With `roots` and no `CANVASNET_
 the tool would take by default as `--allow-root`: the working directory, and the picture's folder when it is outside
 it. Without `--allow-root`, `roots` allows everything under the working directory, so for documents you do not trust,
 set `CANVASNET_ROOTS` to their folders. An unknown mode, or
-`CANVASNET_ROOTS` with `CANVASNET_FILE_ACCESS` set to `any` or `no-symlinks`, stops the build before the tool runs. In a
+`CANVASNET_ROOTS` with `CANVASNET_FILE_ACCESS` set to `any` or `no-symlinks`, stops the build at the first picture. In a
 restrictive mode a picture the mode denies stops the build too (it is a warning of the tool, but a document should not
-be published with a picture silently missing), and so does a denied include or data file. The file-access arguments
-are part of the hash of every picture, so a picture drawn without them, or from another working directory, is not
-reused with them. A CI build can confine every picture to the documentation folders:
+be published with a picture silently missing), and so does a denied include or data file. The filter reads the files a
+picture references to name it in the cache, and in a restrictive mode it reads them under the same policy as the tool,
+judged by the real path of the opened file: a file outside the folders, a link inside them that leads outside, and
+under `no-symlinks` any link are never read, not even to be hashed. An SVG drawing that links such a file (a nested
+drawing, say) is sent through `flatten` rather than left to Pandoc, so the denial stops the build. The file-access
+arguments are part of the hash of every picture, so a picture drawn without them, or from another working directory, is
+not reused with them. A CI build can confine every picture to the documentation folders:
 
 ```bash
 CANVASNET_FILE_ACCESS=roots CANVASNET_ROOTS="$PWD/docs:$PWD/assets" \
@@ -2267,14 +2300,20 @@ name (a
 fragment such as `#def.width=20` of such a link is part of the specification, so changing it draws the chart again), the
 pictures the nodes of a diagram name (`img:` and `<img src>`), the
 attributes, the tool's version, the file-access arguments (with the folders the filter passes for `roots`), and the
-filter's own version. A picture is written under a temporary name and then
-renamed, so builds that run at the same time are safe. The `src` of the picture is written relative to the output
-HTML file, so a PDF made from that HTML by WeasyPrint finds it. The tool's failures stop the build with the tool's own
-message, and what the tool leaves out of a picture, and a model's `echo()` lines, are shown as Pandoc warnings.
+version of the cache key. A picture used more than once in a document is drawn once. A picture is written under a
+temporary name and then renamed, so builds that run at the same time are safe. The `src` of the picture is written
+relative to the output HTML file, so a PDF made from that HTML by WeasyPrint finds it. The tool's failures stop the
+build with the tool's own message, and what the tool leaves out of a picture, and a model's `echo()` lines, are shown
+as Pandoc warnings.
 A Markdown viewer that does not run Pandoc, such as GitHub, shows these pictures as broken images, so keep the images
 of a README as committed PNG files (see `docs/images/render-images.ps1` in this repository).
 
-The filter runs `dotnet canvasnet`, the tool a repository pins in its `.config/dotnet-tools.json`. The environment
+**Pictures drawn at once.** The pictures that are not in the cache are drawn up to four at once (the number of
+processors, if smaller). `CANVASNET_JOBS` sets the number, from 1 to 64, and `CANVASNET_JOBS=1` draws one picture at a
+time. The document, the warnings, and the cache are the same whatever the number; when several pictures fail, the
+build reports the first.
+
+The shim runs `dotnet canvasnet`, the tool a repository pins in its `.config/dotnet-tools.json`. The environment
 variable `CANVASNET_TOOL` replaces that command, for local development only, for example to try a build of the tool
 that is not installed: its value is a program and optional leading arguments, separated by spaces, with double
 quotes around a part that contains spaces and no backslash escapes.
@@ -2284,10 +2323,37 @@ CANVASNET_TOOL="dotnet src/DemaConsulting.CanvasNet.Tool/bin/Release/net10.0/Dem
   dotnet pandoc --defaults docs/user_guide/definition.yaml --output docs/user_guide/generated/user_guide.html
 ```
 
+**Shim protocol.** The shim passes `--protocol 1` with every run, with what only Pandoc knows: the path of the shim
+(the cache folder `generated/canvasnet` is beside its folder), the output format and file, the resource path, and
+whether the pictures are embedded. The tool writes the document back with its warnings in the metadata key
+`canvasnet-warnings`, which the shim removes and shows as Pandoc warnings, and a caption of a Mermaid block as a span of
+class `canvasnet-markdown`, which the shim reads as Markdown; a document must not use these two names. A shim that
+speaks a protocol the tool does not stops the build with a message such as `docs/filters/canvasnet.lua speaks protocol
+0; this tool needs protocol 1` and the command that fixes it, `dotnet canvasnet pandoc-filter --write-shim
+docs/filters/canvasnet.lua`; a shim newer than the tool asks to update the tool. A failure stops the build with the
+tool's message (the code `pandoc-filter-error` for a mistake in a picture), after the warnings of the pictures before it.
+
 The CanvasNet repository does not pin the tool in its manifest. Its build installs the package it has just built as a
-local tool before the documents are built, and uses `CANVASNET_TOOL` only on a developer's machine. The header of
-`canvasnet.lua` is the full reference, and the examples in the chapters on the Scad, Vega-Lite, Mermaid, VSDX, PPTX,
-and PDF packages are drawn this way.
+local tool before the documents are built, and uses `CANVASNET_TOOL` only on a developer's machine. `canvasnet help
+pandoc` is the full reference, and the examples in the chapters on the Scad, Vega-Lite, Mermaid, VSDX, PPTX, and PDF
+packages are drawn this way.
+
+### Migrating from the Full Lua Filter (Filter Version 16 and Earlier)
+
+Before the `pandoc-filter` command, `docs/filters/canvasnet.lua` was the whole filter (about 1,840 lines, with a
+`FILTER_VERSION` of 16 or earlier) and started the tool once per picture. That filter is deprecated: it still works
+with a newer tool, because `render` and `flatten` are unchanged, but it gets no more fixes. To move a documentation
+repository to the shim:
+
+1. Update `demaconsulting.canvasnet.tool` in `.config/dotnet-tools.json` to a release that has the `pandoc-filter`
+   command (0.2.0-beta.11 or later).
+2. Run `dotnet tool restore`, then `dotnet canvasnet pandoc-filter --write-shim docs/filters/canvasnet.lua`, which
+   replaces the old filter with the shim.
+3. Optionally delete `docs/generated/canvasnet/`: the pictures are named by a new key version, so the old files are
+   never reused (they are build output that Git ignores).
+
+Nothing else changes: the `filters:` entry of the defaults files, the attributes, the `CANVASNET_*` variables, and the
+cache folder stay the same.
 
 ## Using the Tool from an AI Agent
 
@@ -2594,6 +2660,7 @@ Copyright (c) DEMA Consulting
 ✓ CanvasNetTool_RenderScad - Passed
 ✓ CanvasNetTool_RenderVegaLite - Passed
 ✓ CanvasNetTool_RenderMermaid - Passed
+✓ CanvasNetTool_PandocFilter - Passed
 ✓ CanvasNetTool_CropResize - Passed
 ✓ CanvasNetTool_RotateFlipPad - Passed
 ✓ CanvasNetTool_Compare - Passed
@@ -2601,8 +2668,8 @@ Copyright (c) DEMA Consulting
 ✓ CanvasNetTool_Adjustments - Passed
 ✓ CanvasNetTool_HelpExamples - Passed
 
-Total Tests: 17
-Passed: 17
+Total Tests: 18
+Passed: 18
 Failed: 0
 ```
 
@@ -2619,6 +2686,7 @@ Failed: 0
 | `CanvasNetTool_RenderScad` | An OpenSCAD model is drawn, and `-D` changes the picture |
 | `CanvasNetTool_RenderVegaLite` | A Vega-Lite chart is described by `info` and drawn with its bars correctly placed |
 | `CanvasNetTool_RenderMermaid` | A Mermaid flowchart is described by `info` and drawn at that size, nodes in place |
+| `CanvasNetTool_PandocFilter` | `pandoc-filter` draws a Mermaid block of a Pandoc document as a figure |
 | `CanvasNetTool_CropResize` | `crop` and `resize` produce the expected pixels |
 | `CanvasNetTool_RotateFlipPad` | `rotate`, `flip`, and `pad` produce the expected pixels |
 | `CanvasNetTool_Compare` | `compare` measures identical and different images exactly and exits 1 on a miss |

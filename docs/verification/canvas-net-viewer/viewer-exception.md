@@ -51,3 +51,7 @@ chart (`axis:z`) and from `CanvasNetViewer.Render` with `ThrowOnUnsupportedFeatu
 `svg-binding-failed` is the code of the `ViewerException` thrown under the strict option for an SVG position binding
 that was not resolved, by a load and by a flatten that then writes nothing;
 `ErrorCodes_Constants_AreTheDocumentedStableStrings` asserts the string.
+
+**CanvasNetViewer-ViewerException-PandocFilterError**: verified by
+`ErrorCodes_Constants_AreTheDocumentedStableStrings`, which asserts that `ErrorCodes.PandocFilterError` is
+`pandoc-filter-error`; the tool's tests of the `pandoc-filter` command show where the code is used.

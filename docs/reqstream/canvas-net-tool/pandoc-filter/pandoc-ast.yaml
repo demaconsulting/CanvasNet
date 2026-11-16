@@ -1,0 +1,93 @@
+---
+# Software Unit Requirements for the PandocAst Class
+#
+# The PandocAst class reads, walks, and writes a Pandoc document in its JSON form for the Pandoc filter of the tool. It
+# touches only the elements the filter handles: it reads Image and CodeBlock elements, finds them in the order Pandoc's
+# Lua filter visits them, rewrites an image, builds the Image, Para, Plain, Figure, and placeholder Span elements of a
+# picture, and returns the warnings of a run in the metadata. Every other element is written back as it was read.
+
+sections:
+  - title: PandocAst Unit Requirements
+    requirements:
+      - id: CanvasNetTool-PandocFilter-PandocAst-ApiVersion
+        title: >-
+          The PandocAst unit shall read a Pandoc JSON document of API version 1.23 (Pandoc 3) or a later 1.x version,
+          and shall refuse an older API version or another major version as the error corrupt-input whose message
+          names the Pandoc version when it is known and whose hint says that the filter needs Pandoc 3 or later.
+        justification: |
+          The filter relies on the Figure element that API 1.23 added; a document of an older Pandoc must stop the
+          build with a message that tells the author which Pandoc to install, and a newer minor version stays usable
+          because the shapes of the touched elements are checked one by one.
+        tests:
+          - PandocAst_Parse_ApiVersion_AcceptsPandoc3Only
+
+      - id: CanvasNetTool-PandocFilter-PandocAst-MalformedInput
+        title: >-
+          The PandocAst unit shall report input that is not a Pandoc JSON document, and an Image or CodeBlock element
+          of an unexpected shape, as the error corrupt-input, naming the type of a malformed element.
+        justification: |
+          A corrupt document must stop the run with a stable error code instead of a crash or a silently wrong
+          picture, and naming the element points the author at the part of the document to look at.
+        tests:
+          - PandocAst_ReadAndParse_MalformedInput_ThrowsCorruptInput
+
+      - id: CanvasNetTool-PandocFilter-PandocAst-VisitOrder
+        title: >-
+          The PandocAst unit shall find the elements of a type in the order Pandoc's Lua filter visits them: the
+          metadata first, then the blocks, each in document order, with the children of an element before the element.
+        justification: |
+          The pictures are named, cached, and reported in the order the Lua filter of version 16 used, so a document
+          is drawn and its warnings are listed exactly as before the port.
+        tests:
+          - PandocAst_FindAll_RealDocument_MetadataFirstAndChildrenBeforeParents
+
+      - id: CanvasNetTool-PandocFilter-PandocAst-RoundTrip
+        title: >-
+          The PandocAst unit shall write a document it did not change back byte for byte as Pandoc wrote it, as UTF-8
+          without a byte order mark, keeping unknown elements, the text of numbers, and non-ASCII text unescaped.
+        justification: |
+          The filter must not alter the parts of a document it does not handle; a rewritten table width or an escaped
+          character would change the output of the Pandoc build.
+        tests:
+          - PandocAst_Write_UnchangedRealDocument_IsByteIdentical
+          - PandocAst_Parse_NestingDeeperThan64_RoundTrips
+
+      - id: CanvasNetTool-PandocFilter-PandocAst-DeepNesting
+        title: >-
+          The PandocAst unit shall read, walk, and write a document nested deeper than 64 levels, up to 4096 levels.
+        justification: |
+          A real document with about ten levels of nested lists, quotes, or tables already exceeds the default JSON
+          depth of 64, and must not fail or overflow the call stack.
+        tests:
+          - PandocAst_Parse_NestingDeeperThan64_RoundTrips
+
+      - id: CanvasNetTool-PandocFilter-PandocAst-Elements
+        title: >-
+          The PandocAst unit shall build the Image, Para, Plain, and Figure elements of a picture and the placeholder
+          Span of a caption (class canvasnet-markdown, the caption in the attribute markdown) in the JSON shapes Pandoc
+          reads, a figure having no short caption.
+        justification: |
+          The replacement of a picture must be a valid Pandoc element, and the placeholder lets the shim parse the
+          caption with Pandoc's own Markdown reader, so emphasis, math, and links in a caption keep working.
+        tests:
+          - PandocAst_Builders_FigureParaSpanAndWarnings_HaveTheExactJson
+
+      - id: CanvasNetTool-PandocFilter-PandocAst-Warnings
+        title: >-
+          The PandocAst unit shall return the warnings of a run in the metadata key canvasnet-warnings as a MetaList of
+          MetaString, in the order they were reported.
+        justification: |
+          The shim reads the warnings from the returned document and shows them through Pandoc's log, so the author
+          sees every warning of the run in a stable order.
+        tests:
+          - PandocAst_Builders_FigureParaSpanAndWarnings_HaveTheExactJson
+
+      - id: CanvasNetTool-PandocFilter-PandocAst-RewriteImage
+        title: >-
+          The PandocAst unit shall point an existing Image element at a picture by changing only its source and its
+          key-value attributes, keeping its identifier, classes, description, and title.
+        justification: |
+          An author's identifier, classes, alternative text, and title must survive the replacement of the source by
+          the drawn picture.
+        tests:
+          - PandocAst_RewriteImage_ChangesOnlySourceAndAttributes

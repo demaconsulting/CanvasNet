@@ -107,7 +107,9 @@ alone implies `roots`, and with the mode `any` or `no-symlinks` it is a `usage-e
 `roots` it returns `FileAccessPolicy.AllowAll` or `FileAccessPolicy.NoSymlinks`; with it, `FileAccessPolicy.UnderRoots`
 of the `--allow-root` folders (each taken from the working directory and required to be an existing folder, else
 `usage-error`), or of `DefaultRoots` when none is given, combined with `NoSymlinks` for `roots,no-symlinks` (the name
-`roots+no-symlinks`). Every check is made while the options are read, before any input is opened.
+`roots+no-symlinks`). Every check is made while the options are read, before any input is opened. An overload
+**ReadFileAccess(arguments, inputs, workingDirectory)** parses a list holding only these two options (`SpecsFor`) and
+builds the same policy, so the Pandoc filter judges a picture's files exactly as the render and flatten it runs will.
 
 **ParseFileAccessMode(text)**: splits the value at commas, trims and lower-cases each token, and accepts `any` alone,
 or `roots` and `no-symlinks` in any order and combination; anything else is the `usage-error` "'{text}' is not a value
@@ -194,6 +196,13 @@ to standard error after the result lines by `context.WriteDiagnostics`, each not
 document, the page, so a feature that was left out is not silent
 (the exit code stays 0, and `--silent` suppresses them). A `ViewerException` of the library escapes the command and is
 wrapped by the registry in a `ToolException` that names the command.
+
+**Execute(args, verb, json)** (`internal static`): everything `Run` does except the formatting: it parses the
+arguments, reads the settings, probes the input, makes the kind checks, and calls `ImageRenderer.Execute`, and returns
+the settings, the `SourceInfo`, and the `RenderResult`; `Run` calls it and only writes the result. It has no state of
+its own, so it is safe to call from several threads at once. The `ToolPictureDrawer` of the `PandocFilter` subsystem
+calls it with the argument list that the Pandoc filter used to pass to `canvasnet render ... --json`, so a picture of a
+Pandoc document is drawn exactly as that command draws it.
 
 **ImagePipelineParser** (`ImagePipelineParser.cs`, an `internal static` class of this unit): reads the transformation
 operations of the command line into the operation records of the Viewer's `ImagePipeline`. It names the options
@@ -353,3 +362,4 @@ every `ToolException`.
 - **FlattenCommand** - the option declarations (`SpecsFor`) and `ReadFileAccess`.
 - **InspectCommand** - the option table (`OptionTable` without the output options), `ReadSourceOptions`, and
   `WriteField`.
+- **ToolPictureDrawer** (`PandocFilter` subsystem) - `Execute`, to draw a picture of a Pandoc document in-process.

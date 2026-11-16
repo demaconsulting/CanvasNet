@@ -33,6 +33,8 @@ public partial class FilesTests
         ["DemaConsulting.CanvasNet.Pptx/PptxDocument.cs"] = "Open of the top-level document the caller names.",
         ["DemaConsulting.CanvasNet.Scad/ScadDocument.cs"] = "Open of the top-level document the caller names.",
         ["DemaConsulting.CanvasNet.Svg/SvgCodec.cs"] = "Load and Save of a file the caller names.",
+        ["DemaConsulting.CanvasNet.Tool/Commands/PandocFilterCommand.cs"] = "The --input document the caller names.",
+        ["DemaConsulting.CanvasNet.Tool/PandocFilter/FilterPaths.cs"] = "The picture source a document names (never judged, as the tool never judges its input), the filter's own cache files, and the tool's own files; referenced files go through the subsystem.",
         ["DemaConsulting.CanvasNet.Tool/Validation.cs"] = "The tool's own self-validation files.",
         ["DemaConsulting.CanvasNet.VegaLite/VegaLiteDocument.cs"] = "Open of the top-level document the caller names.",
         ["DemaConsulting.CanvasNet.Viewer/Imaging/ImageWriter.cs"] = "Output files the caller names.",

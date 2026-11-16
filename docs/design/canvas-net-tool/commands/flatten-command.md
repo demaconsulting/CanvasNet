@@ -34,6 +34,11 @@ written), `diagnostics` (the shape of `render`: `source`, `severity`, `code`, `m
 to a page of a linked document, then `ResultWriter.WriteDiagnosticExtras`), and `echo`. Nothing to flatten is a success
 (exit code 0).
 
+**Execute(args)** (`internal static`): everything `Run` does except the formatting: it parses the arguments, reads the
+output and the scale, builds the file-access policy, probes the input, and calls `SvgFlattener.Execute`, and returns
+the `SourceInfo`, the `FlattenResult`, the scale, and the output; `Run` calls it and only writes the result. It has no
+state of its own, so it is safe to call from several threads at once.
+
 **RenderText(result, output)**: the text line above, in the invariant culture.
 
 #### Position Bindings
@@ -60,6 +65,6 @@ denied link is the warning `image-access-denied`), which the registry reports as
 #### Callers
 
 - **CommandRegistry** - registers it in `CreateDefault` after `inspect`.
-- **canvasnet.lua** (the Pandoc filter of the repository) - runs `flatten --json` for an SVG picture that links a file
-  only CanvasNet draws, with `--file-access` and `--allow-root` when `CANVASNET_FILE_ACCESS` or `CANVASNET_ROOTS` is
-  set.
+- **ToolPictureDrawer** (`PandocFilter` subsystem) - calls `Execute` in-process for an SVG picture of a Pandoc document
+  that links a file only CanvasNet draws, with the argument list the Pandoc filter used to pass to `canvasnet flatten
+  ... --json` (with `--file-access` and `--allow-root` when `CANVASNET_FILE_ACCESS` or `CANVASNET_ROOTS` is set).

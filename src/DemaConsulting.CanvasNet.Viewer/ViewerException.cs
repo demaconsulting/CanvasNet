@@ -87,6 +87,13 @@ public static class ErrorCodes
     ///     the numbers written in the file are kept.
     /// </summary>
     public const string SvgBindingFailed = "svg-binding-failed";
+
+    /// <summary>
+    ///     The <c>pandoc-filter</c> command of the tool cannot draw the pictures of a Pandoc document: a picture
+    ///     attribute is not valid, a source is not found, a dependency limit is exceeded, an environment variable of the
+    ///     filter is not valid, or a file of the picture cache cannot be written. The message names the picture.
+    /// </summary>
+    public const string PandocFilterError = "pandoc-filter-error";
 }
 
 /// <summary>

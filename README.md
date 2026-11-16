@@ -117,7 +117,8 @@ at any size, and `flatten` bakes the numbers in (`canvasnet help svg bindings`).
 - 🔍 **Header-Only Probing** - `GetInfo` reads headers without decoding pixels (GIF excepted)
 - 🖥️ **Command-Line Tool** - The script- and agent-friendly `canvasnet` dotnet tool, with photo clean-up
 - 📝 **Pandoc Filter** - Draw models, charts, diagrams, and pages in Pandoc documents, including `mermaid` code blocks
-  and SVG drawings that link them, which are flattened so WeasyPrint shows them (see User Guide)
+  and SVG drawings that link them, which are flattened so WeasyPrint shows them: a thin Lua shim written by
+  `canvasnet pandoc-filter --write-shim` sends each document to the tool once (see User Guide)
 - 🖌️ **Path Filling** - Antialiased nonzero/even-odd fill of vector paths
 - 🖊️ **Stroke-to-Fill** - Convert stroked paths into fillable outlines
 - 🌅 **Gradient Paint** - Linear or radial gradient fills with spread
@@ -221,6 +222,7 @@ unhandled-exception output, and should be reported. Use `canvasnet --version` to
 | `montage`                  | Compose images and document pages into one labeled contact sheet                 |
 | `inspect`                  | Report the dominant colors and luma statistics, or the value of a pixel          |
 | `flatten`                  | Copy an SVG drawing with its linked models, charts, and diagrams as PNG pictures |
+| `pandoc-filter`            | Draw the pictures of a Pandoc document for the Lua shim, in one process          |
 
 | File-access option      | Purpose                                                                           |
 |-------------------------|-----------------------------------------------------------------------------------|

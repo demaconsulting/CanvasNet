@@ -507,6 +507,42 @@ public class CommandsSubsystemTests
     }
 
     /// <summary>
+    ///     Test that the default registry runs the pandoc-filter command through the entry point and lists it, and the
+    ///     help card of the Pandoc filter, in the help.
+    /// </summary>
+    [Fact]
+    public void CommandsSubsystem_PandocFilter_DefaultRegistry_RunsPandocFilterAndListsItInHelp()
+    {
+        // Arrange: a document file with a Mermaid code block
+        using var directory = new TempDirectory();
+        var input = directory.Combine("doc.json");
+        var output = directory.Combine("out.json");
+        File.WriteAllBytes(input, PandocFilter.PandocDoc.Document(PandocFilter.PandocDoc.CodeBlock("", ["mermaid"], "flowchart LR\n  A --> B")));
+
+        // Act: the command, a failing one, the help, the command's help, and the card
+        var run = ToolHost.Invoke(
+            "pandoc-filter", "--protocol", "1", "--filter-path", directory.Combine("filters", "canvasnet.lua"), "--resource-path", directory.Path,
+            "--input", input, "--output", output);
+        var failing = ToolHost.Invoke("pandoc-filter", "--filter-path", "canvasnet.lua");
+        var top = ToolHost.Invoke("--help");
+        var byName = ToolHost.Invoke("help", "pandoc-filter");
+        var card = ToolHost.Invoke("help", "pandoc");
+
+        // Assert: success with nothing on standard error and the picture in the output; the failing one is an expected error
+        Assert.Equal(0, run.ExitCode);
+        Assert.Equal(string.Empty, run.StdErr);
+        Assert.Single(PandocFilter.PandocDoc.ImageSources(File.ReadAllBytes(output)));
+        Assert.Equal(1, failing.ExitCode);
+        Assert.Contains("Error: usage-error: No --protocol was given.", failing.StdErr, StringComparison.Ordinal);
+
+        // Assert: listed with its summary and its usage, and the card is shown
+        Assert.Contains("Draw the pictures of a Pandoc document", top.StdOut, StringComparison.Ordinal);
+        Assert.Contains("canvasnet pandoc-filter --write-shim <file>", byName.StdOut, StringComparison.Ordinal);
+        Assert.Equal(0, card.ExitCode);
+        Assert.Contains("The Pandoc filter (pandoc-filter)", card.StdOut, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     ///     Test that every command that reads an input (render, a verb, inspect, compare, montage, and flatten) accepts
     ///     <c>--file-access</c> and applies it: a picture outside the folder of the drawing is denied with a warning.
     /// </summary>

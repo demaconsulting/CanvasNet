@@ -35,7 +35,7 @@ run records the other self-tests (`CanvasNetTool_Formats`, `CanvasNetTool_Render
 `CanvasNetTool_Adjustments`,
 `CanvasNetTool_RenderVegaLite`, `CanvasNetTool_RenderMermaid`, and `CanvasNetTool_HelpExamples`), which
 generate their own inputs and are evidence for the validation requirements. The self-validation suite is deliberately
-kept small (seventeen tests, in a documented order); the compare, montage, and adjustments self-tests are smoke tests
+kept small (eighteen tests, in a documented order); the compare, montage, and adjustments self-tests are smoke tests
 (the last runs every photo operation once on a generated sketch), the Vega-Lite self-test is a smoke test of one chart,
 the Mermaid self-test a smoke test of one three-node flowchart, the help self-test renders
 every source example of the help cards with `--strict`, and the detailed
@@ -112,6 +112,12 @@ hint, and `--theme` on another kind of input is a `usage-error`;
 - A figure whose arrow is bound with `cn:x2y2` to a node of an embedded diagram is rendered with a `bind` operation and
   flattened with the binding baked, and a strict render of a binding that matches nothing fails with
   `svg-binding-failed` and writes nothing. They are verified as a real process in `CanvasNetToolTests.Bindings.cs`.
+- `pandoc-filter`, run as a real process with a Pandoc JSON document on standard input, writes the document with its
+  pictures drawn into `generated/canvasnet` to standard output as UTF-8, reuses the cache on a second run, writes the
+  Lua shim with `--write-shim`, and reports an outdated shim (`usage-error`, with a hint that names `--write-shim`) and
+  a mistake in a picture (`pandoc-filter-error`) as expected errors. They are verified in
+  `CanvasNetToolTests.PandocFilter.cs`; the shim running inside real Pandoc is verified by `docs/filters/test-canvasnet.ps1`
+  (see _PandocFilterShim_).
 
 ## Test Scenarios
 
@@ -360,6 +366,18 @@ code 0, the text starts with `nothing to flatten`, and no file is written.
 **CanvasNetTool_Flatten_Errors_AreReportedAsExpectedErrors**: a drawing that links a missing model, flattened with
 `--strict --json`, and the same drawing without an output, each exit with code 1 and the failure document carries
 `unsupported-feature` and `usage-error`.
+
+**CanvasNetTool_PandocFilter_DocumentOnStandardInput_DrawsThePicturesInOneRun**: a Pandoc JSON document with a Mermaid
+picture, a PNG picture, the text `Grüße`, and a captioned Mermaid code block is piped as raw bytes to `pandoc-filter
+--json --protocol 1` run as a real process; exit code 0, nothing on standard error, the text is unchanged, the two
+diagrams point at PNG files that exist and the PNG picture is unchanged, and the block is a `Figure`; a second run
+writes the same bytes and the cache still holds two pictures.
+
+**CanvasNetTool_PandocFilter_ShimProtocolAndMistakes_AreReportedAsExpectedErrors**: `pandoc-filter --write-shim` writes
+the shim with `local PROTOCOL = "1"` and the line `wrote <file> (protocol 1)`; `--protocol 0` exits with code 1, the
+failure document has `usage-error` and the hint `Write the shim again: dotnet canvasnet pandoc-filter --write-shim
+<file>`, and standard error has the error; a model with `size=0x10` exits with code 1 and the failure document has
+`pandoc-filter-error` and a message that starts with `'part.scad' has size=0x10`.
 
 **CanvasNetTool_FileAccess_AllowRootAsProcess_ConfinesEveryReadingCommand**: a drawing in `site` that links a Mermaid
 diagram in `site/parts` and one in `other` is given to `render`, `inspect colors`, `compare`, `montage`, and `flatten`

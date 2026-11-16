@@ -125,7 +125,8 @@ public partial class HelpTopicsTests
             ["jp2"] = "raster",
             ["file-access"] = "files",
             ["links"] = "files",
-            ["position"] = "positions"
+            ["position"] = "positions",
+            ["filter"] = "pandoc"
         };
 
         // Act / Assert: each alias, in lower and upper case, and each canonical name resolves to its card
@@ -536,16 +537,17 @@ public partial class HelpTopicsTests
 
     /// <summary>
     ///     Test that the <c>files</c> card documents the modes, the two options, what holds in every mode, the two
-    ///     diagnostics with their live codes, and the variables of the Pandoc filter (which the filter reads), and that the
-    ///     <c>svg</c> and <c>errors</c> cards point to it.
+    ///     diagnostics with their live codes, and the variables of the Pandoc filter (which the filter settings read and the
+    ///     <c>pandoc</c> card documents), and that the <c>svg</c> and <c>errors</c> cards point to it.
     /// </summary>
     [Fact]
     public void HelpTopics_FilesTopic_DocumentsModesOptionsDiagnosticsAndPandoc()
     {
-        // Arrange: the card, its terms, the filter, and the cards that point to it
+        // Arrange: the card, its terms, the source of the filter settings, the pandoc card, and the cards that point to it
         var card = HelpTopics.Get("files");
         var terms = HelpCardText.Items("files").Select(i => i.Term).ToList();
-        var filter = File.ReadAllText(Path.Combine(FindRepositoryRoot(), "docs", "filters", "canvasnet.lua"));
+        var settings = File.ReadAllText(Path.Combine(FindRepositoryRoot(), "src", "DemaConsulting.CanvasNet.Tool", "PandocFilter", "FilterSettings.cs"));
+        var pandocTerms = HelpCardText.Items("pandoc").Select(i => i.Term).ToList();
 
         // Assert: the headings and the terms
         Assert.Equal(["Modes", "Options", "In every mode", "Diagnostics", "The Pandoc filter"], HelpCardText.Headings(card.Body));
@@ -557,11 +559,12 @@ public partial class HelpTopicsTests
         Assert.Contains(FolderImageResolver.AccessDeniedCode, terms);
         Assert.Contains(ErrorCodes.FileAccessDenied, terms);
 
-        // Assert: the variables of the filter are terms and are read by the filter
+        // Assert: the variables of the filter are terms of both cards and are read by the filter settings
         foreach (var variable in new[] { "CANVASNET_FILE_ACCESS", "CANVASNET_ROOTS" })
         {
             Assert.Contains(variable, terms);
-            Assert.Contains(variable, filter, StringComparison.Ordinal);
+            Assert.Contains(variable, pandocTerms);
+            Assert.Contains($"\"{variable}\"", settings, StringComparison.Ordinal);
         }
 
         // Assert: the cards that describe a denial point here

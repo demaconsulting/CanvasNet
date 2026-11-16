@@ -199,6 +199,7 @@ sections:
         children:
           - CanvasNetViewer-ViewerException-Contract
           - CanvasNetViewer-ViewerException-ErrorCodes
+          - CanvasNetViewer-ViewerException-PandocFilterError
         tests:
           - CanvasNetViewer_SystemIntegration_FailedOperation_IsViewerExceptionWithStableCode
 

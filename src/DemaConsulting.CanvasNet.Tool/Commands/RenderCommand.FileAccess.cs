@@ -120,6 +120,25 @@ internal sealed partial class RenderCommand
     }
 
     /// <summary>
+    ///     Builds the policy that the file-access options in a list of arguments give a command, for a caller that passes
+    ///     those arguments to <c>render</c> or <c>flatten</c> and must judge files exactly as the command will.
+    /// </summary>
+    /// <param name="arguments">Only <c>--file-access</c> and <c>--allow-root</c> options with their values.</param>
+    /// <param name="inputs">The inputs the command will be given (a <c>#</c> fragment is allowed).</param>
+    /// <param name="workingDirectory">The folder a relative input or <c>--allow-root</c> folder is taken from.</param>
+    /// <returns>The policy: <see cref="FileAccessPolicy.AllowAll"/> when neither option is given.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when an argument is <see langword="null"/>.</exception>
+    /// <exception cref="ToolException">
+    ///     Thrown with code <c>usage-error</c> for any other argument, and in the cases of
+    ///     <see cref="ReadFileAccess(ArgumentReader, IReadOnlyList{string}, string)"/>.
+    /// </exception>
+    internal static FileAccessPolicy ReadFileAccess(IReadOnlyList<string> arguments, IReadOnlyList<string> inputs, string workingDirectory)
+    {
+        var reader = ArgumentReader.Parse("render", arguments, SpecsFor(FileAccessOptionNames));
+        return ReadFileAccess(reader, inputs, workingDirectory);
+    }
+
+    /// <summary>
     ///     Parses the value of <c>--file-access</c>.
     /// </summary>
     /// <param name="text">

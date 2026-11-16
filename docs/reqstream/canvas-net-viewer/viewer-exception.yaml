@@ -56,3 +56,14 @@ sections:
             tests:
               - SourceLoader_Load_SvgBindingUnmatched_WarnsOrFailsStrictly
               - SvgFlattener_Execute_StrictUnresolvedBinding_WritesNothing
+
+          - id: CanvasNetViewer-ViewerException-PandocFilterError
+            title: >-
+              The ErrorCodes class shall define the stable code pandoc-filter-error for a picture of a Pandoc document
+              that the pandoc-filter command of the tool cannot draw because of the document, its files, the variables
+              of the filter, or the picture cache.
+            justification: |
+              A stable code lets the Pandoc filter, a script, or an agent tell a mistake in a document from a failure
+              of the drawing itself, which keeps the code of the library.
+            tests:
+              - ErrorCodes_Constants_AreTheDocumentedStableStrings

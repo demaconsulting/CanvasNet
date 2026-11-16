@@ -283,6 +283,16 @@ includes:
   - docs/reqstream/canvas-net-tool/commands/montage-command.yaml
   - docs/reqstream/canvas-net-tool/commands/flatten-command.yaml
   - docs/reqstream/canvas-net-tool/commands/inspect-command.yaml
+  - docs/reqstream/canvas-net-tool/commands/pandoc-filter-command.yaml
+  - docs/reqstream/canvas-net-tool/pandoc-filter.yaml
+  - docs/reqstream/canvas-net-tool/pandoc-filter/pandoc-ast.yaml
+  - docs/reqstream/canvas-net-tool/pandoc-filter/filter-paths.yaml
+  - docs/reqstream/canvas-net-tool/pandoc-filter/picture-attributes.yaml
+  - docs/reqstream/canvas-net-tool/pandoc-filter/dependency-hasher.yaml
+  - docs/reqstream/canvas-net-tool/pandoc-filter/filter-settings.yaml
+  - docs/reqstream/canvas-net-tool/pandoc-filter/picture-cache.yaml
+  - docs/reqstream/canvas-net-tool/pandoc-filter/pandoc-filter-engine.yaml
+  - docs/reqstream/canvas-net-tool/pandoc-filter/pandoc-filter-shim.yaml
   - docs/reqstream/ots/xunit.yaml
   - docs/reqstream/ots/reqstream.yaml
   - docs/reqstream/ots/buildmark.yaml

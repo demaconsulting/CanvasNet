@@ -117,6 +117,11 @@
     <EmbeddedResource Include="Commands\Help\Examples\*" WithCulture="false" LogicalName="DemaConsulting.CanvasNet.Tool.Help.Examples.%(Filename)%(Extension)" />
   </ItemGroup>
 
+  <!-- The Lua shim of the Pandoc filter, which the write-shim option of the pandoc-filter command writes byte for byte -->
+  <ItemGroup>
+    <EmbeddedResource Include="PandocFilter\canvasnet.lua" WithCulture="false" LogicalName="DemaConsulting.CanvasNet.Tool.PandocFilter.canvasnet.lua" />
+  </ItemGroup>
+
   <!-- Third-party license notices of the bundled Vega-Lite library: BSD-3-Clause (Vega, Vega-Lite), ISC (d3), and
        Apache-2.0 (ColorBrewer, Turbo) and the notice of cividis require the notices to be reproduced in binary
        distributions, so they ship as plain files in the package's licenses\ folder (the library package does the same). The notice file keeps a distinct name here so it cannot

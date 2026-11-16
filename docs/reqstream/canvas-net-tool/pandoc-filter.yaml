@@ -1,0 +1,156 @@
+---
+# PandocFilter Subsystem Requirements
+#
+# PURPOSE:
+# - Define requirements for the CanvasNetTool PandocFilter subsystem
+# - The PandocFilter subsystem draws the pictures of a Pandoc document in one process for the Lua shim
+#   docs/filters/canvasnet.lua: it reads and writes Pandoc's JSON document (PandocAst), reads the attributes of a
+#   picture (PictureAttributes), finds its source and the files it reads (FilterPaths and DependencyHasher), keeps the
+#   picture cache (PictureCache), reads the inputs of the run and the CANVASNET_* variables (FilterSettings), runs the
+#   filter (PandocFilterEngine), and ships the shim and its protocol (PandocFilterShim)
+# - Subsystem requirements describe the externally visible behavior of the filter for one document
+
+sections:
+  - title: PandocFilter Subsystem Requirements
+    requirements:
+      - id: CanvasNetTool-PandocFilter-Pictures
+        title: >-
+          The PandocFilter subsystem shall return a Pandoc JSON document in which every picture of an OpenSCAD model, a
+          Vega-Lite chart, a Mermaid diagram, or a page of a PDF, PPTX, or VSDX document is a PNG picture drawn into the
+          cache folder with the options its attributes ask for, every SVG drawing that links one is its flattened copy,
+          and every Mermaid code block is a figure (with a caption) or a paragraph that shows its picture, while every
+          other element, attribute, and text of the document is unchanged.
+        justification: |
+          A documentation build must show models, charts, diagrams, and document pages in any output format, written
+          as ordinary pictures and code blocks of the document, without changing anything else.
+        children:
+          - CanvasNetTool-PandocFilter-PandocAst-ApiVersion
+          - CanvasNetTool-PandocFilter-PandocAst-VisitOrder
+          - CanvasNetTool-PandocFilter-PandocAst-RoundTrip
+          - CanvasNetTool-PandocFilter-PandocAst-DeepNesting
+          - CanvasNetTool-PandocFilter-PandocAst-Elements
+          - CanvasNetTool-PandocFilter-PandocAst-RewriteImage
+          - CanvasNetTool-PandocFilter-PandocAst-Warnings
+          - CanvasNetTool-PandocFilter-PictureAttributes-Kinds
+          - CanvasNetTool-PandocFilter-PictureAttributes-Defaults
+          - CanvasNetTool-PandocFilter-PictureAttributes-Options
+          - CanvasNetTool-PandocFilter-PictureAttributes-Keep
+          - CanvasNetTool-PandocFilter-PictureAttributes-Svg
+          - CanvasNetTool-PandocFilter-PictureAttributes-MermaidBlocks
+          - CanvasNetTool-PandocFilter-FilterPaths-Collapse
+          - CanvasNetTool-PandocFilter-FilterPaths-PandocPath
+          - CanvasNetTool-PandocFilter-FilterPaths-LocateSource
+          - CanvasNetTool-PandocFilter-FilterSettings-CacheFolder
+          - CanvasNetTool-PandocFilter-FilterSettings-PictureSrc
+          - CanvasNetTool-PandocFilter-PandocFilterEngine-SvgDrawings
+          - CanvasNetTool-PandocFilter-PandocFilterEngine-MermaidBlocks
+          - CanvasNetTool-PandocFilter-PandocFilterEngine-UnsupportedDiagram
+          - CanvasNetTool-PandocFilter-PandocFilterEngine-Warnings
+          - CanvasNetTool-PandocFilter-PandocFilterEngine-OtherPictures
+        tests:
+          - PandocFilter_Run_RealPictures_DrawnTheSameWithOneOrFourJobs
+          - PandocFilter_Run_PictureMistakes_StopTheRunNamingThePicture
+
+      - id: CanvasNetTool-PandocFilter-Cache
+        title: >-
+          The PandocFilter subsystem shall name each picture by a hash of its source, every file the source reads, its
+          options, the tool, and the file-access arguments, shall draw a picture again only when one of them changed,
+          shall draw a picture used more than once in a document once, and shall write the cache so that two builds
+          sharing it never read a partly written file.
+        justification: |
+          A large guide must not draw an unchanged picture twice, and a changed include, data file, or linked picture
+          must never leave a stale picture in the output.
+        children:
+          - CanvasNetTool-PandocFilter-DependencyHasher-PartFormat
+          - CanvasNetTool-PandocFilter-DependencyHasher-ModelWalk
+          - CanvasNetTool-PandocFilter-DependencyHasher-ChartWalk
+          - CanvasNetTool-PandocFilter-DependencyHasher-DiagramWalk
+          - CanvasNetTool-PandocFilter-DependencyHasher-SvgWalk
+          - CanvasNetTool-PandocFilter-DependencyHasher-Composite
+          - CanvasNetTool-PandocFilter-DependencyHasher-Document
+          - CanvasNetTool-PandocFilter-FilterPaths-RelativePath
+          - CanvasNetTool-PandocFilter-FilterPaths-FileUri
+          - CanvasNetTool-PandocFilter-FilterPaths-RemoteUrl
+          - CanvasNetTool-PandocFilter-FilterPaths-LocalFile
+          - CanvasNetTool-PandocFilter-FilterSettings-ToolIdentity
+          - CanvasNetTool-PandocFilter-PictureCache-Key
+          - CanvasNetTool-PandocFilter-PictureCache-Names
+          - CanvasNetTool-PandocFilter-PictureCache-PartialFiles
+          - CanvasNetTool-PandocFilter-PictureCache-AtomicWrite
+          - CanvasNetTool-PandocFilter-PictureCache-Commit
+          - CanvasNetTool-PandocFilter-PandocFilterEngine-Cache
+          - CanvasNetTool-PandocFilter-PandocFilterEngine-DuplicateKeys
+        tests:
+          - PandocFilter_Run_UnchangedAndChangedSources_DrawOnlyWhatChanged
+
+      - id: CanvasNetTool-PandocFilter-Jobs
+        title: >-
+          The PandocFilter subsystem shall draw the pictures that are not in the cache up to a number of jobs at once
+          (the --jobs option, else CANVASNET_JOBS, else the number of processors up to 4) and shall give the same
+          document, the same warnings, the same cache files, and the same reported failure for one job or several.
+        justification: |
+          Drawing pictures at once shortens a cold build, and a build must not depend on how the drawings were
+          scheduled.
+        children:
+          - CanvasNetTool-PandocFilter-FilterSettings-Jobs
+          - CanvasNetTool-PandocFilter-PandocFilterEngine-Determinism
+        tests:
+          - PandocFilter_Run_RealPictures_DrawnTheSameWithOneOrFourJobs
+
+      - id: CanvasNetTool-PandocFilter-Errors
+        title: >-
+          The PandocFilter subsystem shall stop at a mistake in a picture (an attribute that is not valid, a source that
+          is not in the resource path, more than 64 levels or 512 files, a variable of the filter that is not valid, or
+          a cache file that cannot be written) with the code pandoc-filter-error and a message that names the picture,
+          shall report a drawing that fails with the code of the tool, shall report the failure of the first picture in
+          the document when several fail, and shall keep the warnings of the pictures before it.
+        justification: |
+          A build must stop at a mistake with a message that says which picture to fix, the same message whatever the
+          scheduling, and must not lose the warnings it had already found.
+        children:
+          - CanvasNetTool-PandocFilter-PandocAst-MalformedInput
+          - CanvasNetTool-PandocFilter-PictureAttributes-Checks
+          - CanvasNetTool-PandocFilter-PictureAttributes-ApplicableKinds
+          - CanvasNetTool-PandocFilter-DependencyHasher-Limits
+          - CanvasNetTool-PandocFilter-PandocFilterEngine-Failures
+          - CanvasNetTool-PandocFilter-PandocFilterEngine-LowestPositionWins
+          - CanvasNetTool-PandocFilter-PandocFilterEngine-WarningsBeforeFailure
+        tests:
+          - PandocFilter_Run_PictureMistakes_StopTheRunNamingThePicture
+
+      - id: CanvasNetTool-PandocFilter-FileAccess
+        title: >-
+          The PandocFilter subsystem shall draw every picture under the file-access mode of CANVASNET_FILE_ACCESS and
+          CANVASNET_ROOTS (any by default), shall never open a file outside the allowed folders nor read a file the mode
+          denies while it hashes a picture, and shall stop the build with file-access-denied when a restrictive mode
+          denies a picture.
+        justification: |
+          A documentation build of a document that is not trusted must be able to confine what its pictures read, and a
+          denied picture in such a build must not be silently left out.
+        children:
+          - CanvasNetTool-PandocFilter-FilterSettings-DefaultFileAccess
+          - CanvasNetTool-PandocFilter-FilterSettings-FileAccessMode
+          - CanvasNetTool-PandocFilter-FilterSettings-Roots
+          - CanvasNetTool-PandocFilter-FilterSettings-FileAccessErrors
+          - CanvasNetTool-PandocFilter-FilterSettings-Policy
+          - CanvasNetTool-PandocFilter-FilterPaths-Containment
+          - CanvasNetTool-PandocFilter-DependencyHasher-Roots
+        tests:
+          - PandocFilter_Run_FileAccessVariables_ConfineWhatAPictureReads
+
+      - id: CanvasNetTool-PandocFilter-Shim
+        title: >-
+          The PandocFilter subsystem shall ship the Lua shim of the filter inside the tool, write it byte for byte on
+          request, and accept exactly the protocols the tool speaks, refusing an older shim with a hint that names the
+          command that writes it again at its own path and a newer one with a hint to update the tool.
+        justification: |
+          Each repository keeps only the shim, so a fix of the filter ships with the tool; a shim and a tool that do not
+          match must say how to fix it instead of failing in an obscure way.
+        children:
+          - CanvasNetTool-PandocFilter-PandocFilterShim-EmbeddedShim
+          - CanvasNetTool-PandocFilter-PandocFilterShim-RepositoryShim
+          - CanvasNetTool-PandocFilter-PandocFilterShim-Protocol
+          - CanvasNetTool-PandocFilter-PandocFilterShim-ProtocolErrors
+          - CanvasNetTool-PandocFilter-PandocFilterShim-WriteShim
+        tests:
+          - PandocFilter_Shim_WrittenShimSpeaksTheProtocolTheToolAccepts

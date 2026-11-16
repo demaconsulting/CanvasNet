@@ -24,11 +24,13 @@ the fields of a result, and reports the code, the message, and the hint of every
 `SameInputOutput`,
 `OutputExists`, `OutputWriteFailed`, `ScadError`, `VegaLiteError`, `MermaidError`, `BudgetExceeded`, `FileAccessDenied`,
 `SizeMismatch`, `ThresholdFailed`,
-`PositionsUnmatched`, and `SvgBindingFailed`, with the strings `usage-error`, `operation-failed`, `input-not-found`, `input-unreadable`,
+`PositionsUnmatched`, `SvgBindingFailed`, and `PandocFilterError`, with the strings `usage-error`, `operation-failed`,
+`input-not-found`, `input-unreadable`,
 `unsupported-format`, `corrupt-input`, `unsupported-feature`, `page-out-of-range`, `image-fragment-invalid`,
 `size-limit`, `same-input-output`,
 `output-exists`, `output-write-failed`, `scad-error`, `vega-lite-error`, `mermaid-error`, `budget-exceeded`,
-`file-access-denied`, `size-mismatch`, `threshold-failed`, `positions-unmatched`, and `svg-binding-failed`. The
+`file-access-denied`, `size-mismatch`, `threshold-failed`, `positions-unmatched`, `svg-binding-failed`, and
+`pandoc-filter-error`. The
 strings are the contract: they
 are not changed
 between releases, and the
@@ -39,6 +41,9 @@ the file in the file-access policy, or reference a file it allows." `positions-u
 selector that matched no feature of a diagram or chart when the strict option was given (without it, the same code is
 a warning). `svg-binding-failed` names an SVG position binding that was not resolved when the strict option was
 given; its message names the warning code (`svg-binding-unmatched`, ...), the element, and the value.
+`pandoc-filter-error` is used only by the `pandoc-filter` command of the tool: a picture of a Pandoc document with an
+attribute that is not valid, a source that is not in the resource path, too many files or levels, a variable of the
+filter that is not valid, or a cache file that cannot be written; its message names the picture.
 
 ### Key Methods
 

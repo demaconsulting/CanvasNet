@@ -5,10 +5,11 @@
 #### Purpose
 
 `HelpTopics` is the tree of help cards that `canvasnet help <topic> [<card> ...]` prints. A card is a short Markdown
-text about one subject. The fifteen root cards (the help topics) are one per format the tool reads (`scad`,
+text about one subject. The sixteen root cards (the help topics) are one per format the tool reads (`scad`,
 `vega-lite`, `mermaid`, `svg`, `pdf`, `pptx`, `vsdx`, and `raster`), the two guidance hubs (`style` and `composition`),
 the feature-positions topic (`positions`: the `--positions` selectors and where the features of a diagram or a chart
-land), and the cross-cutting subjects (`json`, `errors`, `limits`, and `files`). A large topic is split into cards
+land), the cross-cutting subjects (`json`, `errors`, `limits`, and `files`), and the Pandoc filter (`pandoc`, alias `filter`:
+the `pandoc-filter` command and the Lua shim). A large topic is split into cards
 below its
 root, for example `mermaid gantt` and `mermaid gantt settings`, so an agent reads only the part it needs. The cards say
 what a format supports, what it does not, which options apply, which diagnostics can appear (and what `--strict` does

@@ -1,0 +1,131 @@
+---
+# Software Unit Requirements for the DependencyHasher Class
+#
+# The DependencyHasher class collects every file a picture of the Pandoc filter is drawn from as the parts of its cache
+# key, so that a change to any of them draws the picture again. It walks the includes and uses of an OpenSCAD model, the
+# data files, image links, and nested charts of a Vega-Lite chart, the picture links of a Mermaid diagram, and the image
+# links of an SVG drawing (and tells whether the drawing links a file only the tool draws), takes a document page as its
+# file, and stops the build at 64 levels or 512 files rather than leaving a file out of the key.
+
+sections:
+  - title: DependencyHasher Unit Requirements
+    requirements:
+      - id: CanvasNetTool-PandocFilter-DependencyHasher-PartFormat
+        title: >-
+          The DependencyHasher unit shall return the parts of a picture's key in the order the files are met, each part
+          being the file's path from the picture's folder with forward slashes, a line feed, and the file's bytes, and a
+          missing file an SVG drawing links being the part "missing" followed by its path.
+        justification: |
+          The key must change when a file's content or name changes, but not when the repository is checked out in
+          another folder, so a part names a file by its path from the picture and holds its exact bytes; a missing file
+          cannot be hashed, so noting it makes the key change when the file is created.
+        tests:
+          - DependencyHasher_ForPicture_ModelIncludes_AreHashedOnceInOrder
+          - DependencyHasher_ForSvg_Scanner_FindsOnlyRealImageLinks
+
+      - id: CanvasNetTool-PandocFilter-DependencyHasher-ModelWalk
+        title: >-
+          The DependencyHasher unit shall add an OpenSCAD model and every existing file named by an include or use
+          statement, followed relative to the including file's folder, comments included, each file once, so that an
+          include cycle ends.
+        justification: |
+          A model is drawn from every file it includes or uses; a changed library must draw the picture again, and a
+          library that uses the model back must not loop. Following statements in comments can only add a file to the
+          key, never leave one out.
+        tests:
+          - DependencyHasher_ForPicture_ModelIncludes_AreHashedOnceInOrder
+
+      - id: CanvasNetTool-PandocFilter-DependencyHasher-ChartWalk
+        title: >-
+          The DependencyHasher unit shall add a Vega-Lite chart (a leading byte order mark ignored), the existing local
+          data files its data objects name (sorted, remote URLs skipped), and the existing local pictures its image
+          marks, url channels, and inline rows name (each link taken as written and percent-decoded, sorted), a nested
+          chart with its own files labeled from its own folder, each file once.
+        justification: |
+          A chart is drawn from its specification, its data files, and the pictures of its image marks, wherever they
+          are written; the tool's image resolver percent-decodes a local picture link before it opens it, so the decoded
+          file must be in the key too; sorting keeps the order of a JSON object from changing the picture's name, and
+          taking each file once ends a chart that links back to itself.
+        tests:
+          - DependencyHasher_ForPicture_Chart_HashesDataPicturesAndNestedCharts
+          - DependencyHasher_ForPicture_ChartPercentEncodedPicture_ChangesTheKey
+
+      - id: CanvasNetTool-PandocFilter-DependencyHasher-DiagramWalk
+        title: >-
+          The DependencyHasher unit shall add a Mermaid diagram and the existing local pictures its nodes name, as the
+          img of a shape's data (double-quoted, single-quoted, or unquoted) or the src of an img tag in any letter case,
+          each taken as written and percent-decoded without its fragment or query, sorted.
+        justification: |
+          A diagram is drawn with the pictures of its nodes; every form the diagram language accepts must be hashed so
+          that a changed picture draws the diagram again.
+        tests:
+          - DependencyHasher_ForPicture_Diagram_HashesEveryPictureForm
+
+      - id: CanvasNetTool-PandocFilter-DependencyHasher-SvgWalk
+        title: >-
+          The DependencyHasher unit shall add an SVG drawing and the local files its image elements link (the unprefixed
+          href, else an href whose prefix is bound to the XLink namespace, entities decoded and white space trimmed),
+          ignoring comments, character data, processing instructions, and a DOCTYPE, and not ending a tag at a quoted
+          greater-than sign.
+        justification: |
+          The key must hold exactly the files the tool draws into the drawing; a decoy link in a comment or another
+          namespace would add a missing entry and draw the picture again for no reason, and a link the tool reads must
+          not be missed.
+        tests:
+          - DependencyHasher_ForSvg_Scanner_FindsOnlyRealImageLinks
+
+      - id: CanvasNetTool-PandocFilter-DependencyHasher-Composite
+        title: >-
+          The DependencyHasher unit shall report an SVG drawing as composite when it links, directly or through a nested
+          SVG drawing, a model, chart, diagram, or document page, present or missing, or, in a restrictive mode, any
+          file the mode denies (decided without reading it), and as plain otherwise; a missing nested drawing does not
+          make it composite.
+        justification: |
+          Only a drawing that links a file only the tool draws needs to be flattened; a plain drawing is left to Pandoc
+          so that it stays a vector picture. A denied link is reported only by the flatten, which stops a restrictive
+          build, so a drawing with a denied link must not be left to Pandoc.
+        tests:
+          - DependencyHasher_ForSvg_NestedDrawings_CompositeOnlyThroughADiagram
+          - DependencyHasher_ForSvg_Scanner_FindsOnlyRealImageLinks
+          - DependencyHasher_ForSvg_DeniedNestedDrawing_MakesTheDrawingComposite
+          - DependencyHasher_ForSvg_NoSymlinksLinkedNestedDrawing_MakesTheDrawingComposite
+
+      - id: CanvasNetTool-PandocFilter-DependencyHasher-Limits
+        title: >-
+          The DependencyHasher unit shall stop the build with the error code pandoc-filter-error when includes, nested
+          charts, diagrams, or drawings, or the JSON of a chart are more than 64 levels deep, or a picture is drawn from
+          more than 512 files.
+        justification: |
+          A file left out of the key could change without the picture being drawn again, so an exceeded limit is an
+          error, never a silent cut-off; the limits bound the time and memory of a hostile or broken input.
+        tests:
+          - DependencyHasher_ForPicture_ModelLimits_StopTheBuild
+          - DependencyHasher_ForPicture_ChartLimits_StopTheBuild
+
+      - id: CanvasNetTool-PandocFilter-DependencyHasher-Roots
+        title: >-
+          In a restrictive mode of the file-access policy, the DependencyHasher unit shall read every file a picture
+          references through the policy the tool draws the picture under, judged by the real path of the opened file,
+          so that it never opens a file whose path is outside the allowed folders and never reads or hashes a file the
+          mode denies (a link that leads outside the folders, or any link under no-symlinks), while hashing an allowed
+          file exactly as in the default mode.
+        justification: |
+          A confined build must not read files outside its folders, not even to hash them, and a link inside the
+          folders must not let the hashing read what the tool would refuse; the tool refuses such a file when it draws,
+          so it does not belong in the key. An allowed file keeps its part, so the cache keys do not change.
+        tests:
+          - DependencyHasher_ForPicture_Roots_SkipFilesOutside
+          - DependencyHasher_ForPicture_RootsLinkLeadingOutside_IsNotHashed
+          - DependencyHasher_ForSvg_NoSymlinksLinkedFile_IsNotHashed
+          - DependencyHasher_ForPicture_RestrictiveMode_HashesAllowedFilesIdentically
+          - DependencyHasher_ForPicture_DenyAll_ReadsOnlyTheSource
+
+      - id: CanvasNetTool-PandocFilter-DependencyHasher-Document
+        title: >-
+          The DependencyHasher unit shall hash a PDF, PPTX, or VSDX document picture as its one file, labeled with its
+          file name, and stop the build with the message "cannot read" and the picture's name when it cannot be read.
+        justification: |
+          A document page is drawn from its document only; a document that cannot be read cannot be hashed, so the
+          build stops instead of naming the picture from nothing.
+        tests:
+          - DependencyHasher_ForPicture_MissingDocument_ThrowsCannotRead

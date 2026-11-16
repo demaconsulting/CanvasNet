@@ -53,6 +53,7 @@ internal static class Validation
         RunRenderScadTest(context, testResults);
         RunRenderVegaLiteTest(context, testResults);
         RunRenderMermaidTest(context, testResults);
+        RunPandocFilterTest(context, testResults);
         RunCropResizeTest(context, testResults);
         RunRotateFlipPadTest(context, testResults);
         RunCompareTest(context, testResults);
@@ -612,6 +613,46 @@ internal static class Validation
             var nodeFill = new Rgba32(0xEC, 0xEC, 0xFF, 255);
             var correct = rendered[0, 0] == white && rendered[14, height / 2] == nodeFill;
             return correct ? null : "The rendered diagram has the wrong pixels";
+        });
+    }
+
+    /// <summary>
+    ///     Runs a test that passes a Pandoc document with a captioned Mermaid code block through the <c>pandoc-filter</c>
+    ///     command, and checks that the block became a figure whose picture is a PNG in the cache folder.
+    /// </summary>
+    /// <param name="context">The context for output.</param>
+    /// <param name="testResults">The test results collection.</param>
+    private static void RunPandocFilterTest(Context context, DemaConsulting.TestResults.TestResults testResults)
+    {
+        RunSelfTest(context, testResults, "CanvasNetTool_PandocFilter", directory =>
+        {
+            // The document as 'pandoc -t json' writes it; the shim is named in a filters folder, so the cache folder is
+            // generated/canvasnet in the test directory
+            var input = PathHelpers.SafePathCombine(directory, "doc.json");
+            var output = PathHelpers.SafePathCombine(directory, "out.json");
+            var filterPath = Path.Combine(directory, "filters", "canvasnet.lua");
+            File.WriteAllText(
+                input,
+                """{"pandoc-api-version":[1,23,1,2],"meta":{},"blocks":[{"t":"CodeBlock","c":[["",["mermaid"],[["caption","Flow"]]],"flowchart LR\n    A[One] --> B[Two]"]}]}""");
+            RunCommand(directory, "pandoc-filter", "--protocol", "1", "--filter-path", filterPath, "--format", "html5", "--input", input, "--output", output);
+
+            // The block is a figure, and its picture is the one PNG drawn into the cache folder
+            using var document = JsonDocument.Parse(File.ReadAllText(output));
+            var figure = document.RootElement.GetProperty("blocks")[0];
+            if (figure.GetProperty("t").GetString() != "Figure")
+            {
+                return "The Mermaid block did not become a figure";
+            }
+
+            var src = figure.GetProperty("c")[2][0].GetProperty("c")[0].GetProperty("c")[2][0].GetString() ?? string.Empty;
+            var pictures = Directory.GetFiles(Path.Combine(directory, "generated", "canvasnet"), "mermaid-*.png");
+            if (pictures.Length != 1 || !src.EndsWith("/generated/canvasnet/" + Path.GetFileName(pictures[0]), StringComparison.Ordinal))
+            {
+                return "The figure does not show the picture drawn into the cache folder";
+            }
+
+            using var picture = PngCodec.Load(pictures[0]);
+            return picture.Width > picture.Height ? null : "The drawn picture has the wrong size";
         });
     }
 

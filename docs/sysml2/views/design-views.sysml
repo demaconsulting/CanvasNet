@@ -197,6 +197,10 @@ package CanvasNet {
         expose Commands::**;
     }
 
+    view PandocFilterView : InterconnectionView {
+        expose PandocFilter::**;
+    }
+
     view ImagingView : InterconnectionView {
         expose Imaging::**;
     }

@@ -87,6 +87,7 @@ sections:
           - CanvasNetTool-Validation-AdjustmentsSelfTest
           - CanvasNetTool-Validation-VegaLiteSelfTest
           - CanvasNetTool-Validation-MermaidSelfTest
+          - CanvasNetTool-Validation-PandocFilterSelfTest
           - CanvasNetTool-Validation-HelpExamplesSelfTest
         tests:
           - CanvasNetTool_ValidateFlag_Provided_RunsValidation
@@ -880,6 +881,33 @@ sections:
           - CanvasNetTool_Flatten_CompositeSvg_WritesFlattenedCopy
           - CanvasNetTool_Flatten_PlainSvg_ExitsZeroWithoutOutput
           - CanvasNetTool_Flatten_Errors_AreReportedAsExpectedErrors
+
+      - id: CanvasNetTool-System-PandocFilter
+        title: >-
+          The tool shall draw, with the pandoc-filter command run once per Pandoc run by the Lua shim
+          docs/filters/canvasnet.lua, every picture of a Pandoc JSON document read from standard input that is an
+          OpenSCAD model, a Vega-Lite chart, a Mermaid diagram (also a Mermaid code block), a page of a PDF, PPTX, or
+          VSDX document, or an SVG drawing that links one, into a cache folder beside the folder of the shim that is
+          reused while the source and every file it reads are unchanged, shall write the transformed document to
+          standard output as UTF-8, shall write the shim with --write-shim, shall refuse a shim of a protocol it does
+          not speak with a hint that names the command that fixes it, and shall report a mistake in a picture as the
+          expected error pandoc-filter-error.
+        tags: [system]
+        justification: |
+          A documentation build must show models, charts, diagrams, and document pages in any output format; drawing
+          every picture of a document in one process is much faster than starting the tool for each picture, and a
+          thin shim that the tool writes and checks lets every repository get the fixes of the filter with the tool.
+        children:
+          - CanvasNetTool-Commands-PandocFilter
+          - CanvasNetTool-PandocFilter-Pictures
+          - CanvasNetTool-PandocFilter-Cache
+          - CanvasNetTool-PandocFilter-Jobs
+          - CanvasNetTool-PandocFilter-Errors
+          - CanvasNetTool-PandocFilter-FileAccess
+          - CanvasNetTool-PandocFilter-Shim
+        tests:
+          - CanvasNetTool_PandocFilter_DocumentOnStandardInput_DrawsThePicturesInOneRun
+          - CanvasNetTool_PandocFilter_ShimProtocolAndMistakes_AreReportedAsExpectedErrors
 
       - id: CanvasNetTool-System-FileAccess
         title: >-

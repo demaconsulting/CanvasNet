@@ -392,14 +392,17 @@ software items, specifically:
   `ViewerException` of the Viewer), `Context`
   (command line, command capture, output channels), `ArgumentReader` (command-line grammar and value parsers),
   `ResultWriter` (the JSON result documents), `Validation` (the `--validate` self-test and results
-  output), and `PathHelpers` (safe path combination) - and one subsystem, `Commands` (the command contract, the
+  output), and `PathHelpers` (safe path combination) - and two subsystems, `Commands` (the command contract, the
   `CommandRegistry` unit, the `HelpTopics` unit with the tree of help cards and their examples, the
   `DiscoveryCommands` unit with the `formats` and `info` commands, and the
   `RenderCommand` unit with the `render` command, its alias `convert`, and the verb commands `crop`, `resize`,
   `rotate`, `flip`, and `pad` (and the `ImagePipelineParser` that reads the pipeline operations from the command line),
   the `CompareCommand` unit with the `compare` command, the `MontageCommand` unit
   with the `montage` command, the `InspectCommand` unit with the `inspect colors` and `inspect pixel` commands, and
-  the `FlattenCommand` unit with the `flatten` command).
+  the `FlattenCommand` unit with the `flatten` command, and the `PandocFilterCommand` unit with the `pandoc-filter`
+  command) and `PandocFilter` (the Pandoc filter that the Lua shim `docs/filters/canvasnet.lua` runs once per Pandoc
+  run: the `PandocAst`, `FilterPaths`, `PictureAttributes`, `DependencyHasher`, `FilterSettings`, `PictureCache`,
+  `PandocFilterEngine`, and `PandocFilterShim` units).
   It uses
   the other systems of this repository through private project references, so that their assemblies are bundled
   into the tool package — see _CanvasNetTool System Design_ (`canvas-net-tool.md`)
@@ -688,12 +691,13 @@ direct units `Program`, `Context`, `ArgumentReader`, `ResultWriter`, `Validation
 `DemaConsulting.CanvasNet.Tool`) are the entry point, the command line and output channels, the command-line
 grammar, the JSON result documents, the self-validation, and the safe path helper, and its `Commands` subsystem
 (namespace `DemaConsulting.CanvasNet.Tool.Commands`) holds the `CommandRegistry`, `HelpTopics`, `DiscoveryCommands`, and
-`RenderCommand`, `CompareCommand`, `MontageCommand`, `InspectCommand`, and `FlattenCommand` units (the `formats`,
-`info`, `render`,
-`convert`, `crop`,
-`resize`, `rotate`, `flip`, `pad`, `compare`, `montage`, `inspect`, and `flatten`
-commands). It is a thin shell: the commands call the operations of the `Imaging` subsystem of the `CanvasNetViewer`
-system with request records built from the command line, and print the results. It uses the `CanvasNet`, `CanvasNetSvg`,
+`RenderCommand`, `CompareCommand`, `MontageCommand`, `InspectCommand`, `FlattenCommand`, and `PandocFilterCommand`
+units (the `formats`, `info`, `render`, `convert`, `crop`, `resize`, `rotate`, `flip`, `pad`, `compare`, `montage`,
+`inspect`, `flatten`, and `pandoc-filter` commands). Its `PandocFilter` subsystem (namespace
+`DemaConsulting.CanvasNet.Tool.PandocFilter`) is the Pandoc filter: it draws the pictures of a Pandoc document in one
+process for the Lua shim `docs/filters/canvasnet.lua`. It is a thin shell: the commands call the operations of the
+`Imaging` subsystem of the `CanvasNetViewer` system with request records built from the command line, and print the
+results. It uses the `CanvasNet`, `CanvasNetSvg`,
 `CanvasNetPdf`, `CanvasNetPptx`, `CanvasNetVsdx`, `CanvasNetRender3D`, `CanvasNetScad`, `CanvasNetVegaLite`,
 `CanvasNetMermaid`, and `CanvasNetViewer` systems
 through their public API and bundles their assemblies in its package. No library system references the tool. See the
@@ -1759,7 +1763,8 @@ the tool.
 
 The `CanvasNetTool` system lives in the `src/DemaConsulting.CanvasNet.Tool/` project folder (the separate
 `DemaConsulting.CanvasNet.Tool` dotnet tool package). The six direct units occupy the project root, and the
-`Commands` subsystem occupies the `Commands/` sub-folder, whose name equals its sub-namespace
+`Commands` and `PandocFilter` subsystems occupy the `Commands/` and `PandocFilter/` sub-folders, whose names equal their
+sub-namespaces
 (see _CanvasNetTool System Design_, `canvas-net-tool.md`):
 
 ```text
@@ -1773,31 +1778,47 @@ src/DemaConsulting.CanvasNet.Tool/
 ├── ResultWriter.cs                — ResultWriter: deterministic JSON success and failure documents
 ├── Validation.cs                  — Validation: --validate self-test and results output
 ├── PathHelpers.cs                 — PathHelpers: safe path combination
-└── Commands/                      — Commands subsystem
-    ├── ICommand.cs                — CommandRegistry: ICommand contract and OptionSpec
-    ├── CommandRegistry.cs         — CommandRegistry: command table, dispatch, and the unknown-command report
-    ├── CommandRegistry.Help.cs    — CommandRegistry: the help command, its subjects, examples, and JSON documents
-    ├── HelpTopics.cs              — HelpTopics: the card model, the embedded tree, its validation, tokens, and lookup
-    ├── HelpTopics.FrontMatter.cs  — HelpTopics: the strict parser of the YAML front matter of a card
-    ├── HelpTopics.Render.cs       — HelpTopics: the text and JSON renderings and the wrapping
-    ├── Help/                      — HelpTopics: the embedded help cards, one Markdown file each, in folders that
-    │   │                            mirror the tree (scad.md, mermaid.md, mermaid/gantt.md, style.md, ...)
-    │   ├── positions.md, positions/ — HelpTopics: the positions topic and its cards (selectors.md, mermaid.md,
-    │   │                            vega-lite.md, geometry.md)
-    │   └── Examples/              — HelpTopics: the embedded example sources (SCAD, Vega-Lite, Mermaid, and SVG)
-    ├── DiscoveryCommands.cs       — DiscoveryCommands: the formats and info commands and the format tables
-    ├── RenderCommand.cs           — RenderCommand: the render command (alias convert), run and result
-    ├── RenderCommand.Options.cs   — RenderCommand: the option table and the reading of the settings
-    ├── RenderCommand.FileAccess.cs — RenderCommand: the --file-access and --allow-root options of every reading command
-    ├── RenderCommand.Verbs.cs     — RenderCommand: the verb commands crop, resize, rotate, flip, and pad
-    ├── ImagePipelineParser.cs     — RenderCommand: the reading of the pipeline operations from the command line
-    ├── CompareCommand.cs          — CompareCommand: the compare command, run, thresholds, and result
-    ├── CompareCommand.Options.cs  — CompareCommand: the option table and the reading of the settings
-    ├── MontageCommand.cs          — MontageCommand: the montage command, run and result
-    ├── MontageCommand.Options.cs  — MontageCommand: the option table and the reading of the settings
-    ├── InspectCommand.cs          — InspectCommand: the inspect colors and inspect pixel commands, run and result
-    ├── InspectCommand.Options.cs  — InspectCommand: the option table and the reading of the settings and the point
-    └── FlattenCommand.cs          — FlattenCommand: the flatten command, options, run, and result
+├── Commands/                      — Commands subsystem
+│   ├── ICommand.cs                — CommandRegistry: ICommand contract and OptionSpec
+│   ├── CommandRegistry.cs         — CommandRegistry: command table, dispatch, and the unknown-command report
+│   ├── CommandRegistry.Help.cs    — CommandRegistry: the help command, its subjects, examples, and JSON documents
+│   ├── HelpTopics.cs              — HelpTopics: the card model, the embedded tree, its validation, tokens, and lookup
+│   ├── HelpTopics.FrontMatter.cs  — HelpTopics: the strict parser of the YAML front matter of a card
+│   ├── HelpTopics.Render.cs       — HelpTopics: the text and JSON renderings and the wrapping
+│   ├── Help/                      — HelpTopics: the embedded help cards, one Markdown file each, in folders that
+│   │   │                            mirror the tree (scad.md, mermaid.md, mermaid/gantt.md, style.md, ...)
+│   │   ├── positions.md, positions/ — HelpTopics: the positions topic and its cards (selectors.md, mermaid.md,
+│   │   │                            vega-lite.md, geometry.md)
+│   │   └── Examples/              — HelpTopics: the embedded example sources (SCAD, Vega-Lite, Mermaid, and SVG)
+│   ├── DiscoveryCommands.cs       — DiscoveryCommands: the formats and info commands and the format tables
+│   ├── RenderCommand.cs           — RenderCommand: the render command (alias convert), run and result
+│   ├── RenderCommand.Options.cs   — RenderCommand: the option table and the reading of the settings
+│   ├── RenderCommand.FileAccess.cs — RenderCommand: the --file-access and --allow-root options of every reading command
+│   ├── RenderCommand.Verbs.cs     — RenderCommand: the verb commands crop, resize, rotate, flip, and pad
+│   ├── ImagePipelineParser.cs     — RenderCommand: the reading of the pipeline operations from the command line
+│   ├── CompareCommand.cs          — CompareCommand: the compare command, run, thresholds, and result
+│   ├── CompareCommand.Options.cs  — CompareCommand: the option table and the reading of the settings
+│   ├── MontageCommand.cs          — MontageCommand: the montage command, run and result
+│   ├── MontageCommand.Options.cs  — MontageCommand: the option table and the reading of the settings
+│   ├── InspectCommand.cs          — InspectCommand: the inspect colors and inspect pixel commands, run and result
+│   ├── InspectCommand.Options.cs  — InspectCommand: the option table and the reading of the settings and the point
+│   ├── FlattenCommand.cs          — FlattenCommand: the flatten command, options, run, and result
+│   └── PandocFilterCommand.cs     — PandocFilterCommand: the pandoc-filter command, --write-shim, bytes in and out
+└── PandocFilter/                  — PandocFilter subsystem
+    ├── NamespaceDoc.cs            — the documentation of the namespace
+    ├── PandocAst.cs               — PandocAst: the JSON document, the visit order, and the element builders
+    ├── FilterPaths.cs             — FilterPaths: the path rules of the Lua filter and of pandoc.path
+    ├── PictureAttributes.cs       — PictureAttributes: the kinds, the attribute checks, and the tool options
+    ├── DependencyHasher.cs        — DependencyHasher: the parts, the limits, and the OpenSCAD and picture walks
+    ├── DependencyHasher.Chart.cs  — DependencyHasher: the Vega-Lite walk
+    ├── DependencyHasher.Mermaid.cs — DependencyHasher: the Mermaid walk
+    ├── DependencyHasher.Svg.cs    — DependencyHasher: the SVG scanner and walk
+    ├── FilterSettings.cs          — FilterSettings: the inputs of the run and the CANVASNET_* variables
+    ├── PictureCache.cs            — PictureCache: the key, the names, and the atomic writes
+    ├── PandocFilterEngine.cs      — PandocFilterEngine: plan, draw, and apply
+    ├── PandocFilterEngine.Drawing.cs — PandocFilterEngine: the drawer seam and ToolPictureDrawer
+    ├── PandocFilterShim.cs        — PandocFilterShim: the embedded shim, the protocol, and writing it
+    └── canvasnet.lua              — PandocFilterShim: the Lua shim (an embedded resource)
 ```
 
 The top-level `tools/` folder is a separate tree of support tools that are not software items: unlike

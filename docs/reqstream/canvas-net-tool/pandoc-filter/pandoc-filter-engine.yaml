@@ -1,0 +1,140 @@
+---
+# Software Unit Requirements for the PandocFilterEngine Class
+#
+# The PandocFilterEngine class runs the logic of the former Lua filter (version 16) once for a whole Pandoc document:
+# it plans every picture in the order Pandoc's Lua filter visited the elements (every Image, then every CodeBlock),
+# looks each one up in the picture cache, draws the pictures that miss the cache (up to a number of jobs at once)
+# through the IPictureDrawer seam (ToolPictureDrawer runs the render and flatten commands in-process), rewrites the
+# elements in document order, and returns the warnings in the document metadata. A failure is the one of the lowest
+# position, whatever the number of jobs.
+
+sections:
+  - title: PandocFilterEngine Unit Requirements
+    requirements:
+      - id: CanvasNetTool-PandocFilter-PandocFilterEngine-Cache
+        title: >-
+          The PandocFilterEngine unit shall draw a picture that is not in the cache folder, use a picture already in
+          the cache folder without drawing it again, and point the element at the cached picture with a src relative
+          to the output while keeping the attributes that are not tool options.
+        justification: |
+          A documentation build redraws only the pictures whose inputs changed, and the same document produces the same
+          output on every build; the attributes Pandoc understands (such as width) must reach the output.
+        tests:
+          - PandocFilterEngine_Run_CacheHit_DrawsNothing
+          - PandocFilterEngine_Run_SvgDrawings_PlainMarkerAndFlattenedCopy
+
+      - id: CanvasNetTool-PandocFilter-PandocFilterEngine-DuplicateKeys
+        title: >-
+          The PandocFilterEngine unit shall draw two or more pictures with the same cache key once, point all of them
+          at the same file, and report the tool's notes only for the first of them.
+        justification: |
+          A picture used twice in a document must not be drawn twice, nor written by two jobs at the same time, and its
+          notes must not be repeated.
+        tests:
+          - PandocFilterEngine_Run_DuplicateKey_DrawsOnce
+
+      - id: CanvasNetTool-PandocFilter-PandocFilterEngine-UnsupportedDiagram
+        title: >-
+          The PandocFilterEngine unit shall leave a Mermaid diagram whose own type the tool does not draw as written,
+          warn that it is left as written and not drawn, record it in the cache so that a later build gives the same
+          warning without drawing, and treat the same report about a picture embedded in a diagram as an ordinary
+          warning.
+        justification: |
+          A diagram type CanvasNet does not draw must not break the build; the document keeps the code, and the author
+          is told on every build, without the cost of starting the drawing again.
+        tests:
+          - PandocFilterEngine_Run_UnsupportedDiagram_LeftAsWrittenWithMarker
+
+      - id: CanvasNetTool-PandocFilter-PandocFilterEngine-SvgDrawings
+        title: >-
+          The PandocFilterEngine unit shall point an SVG drawing that links a file only CanvasNet draws at its
+          flattened copy, and leave a drawing the tool finds nothing to flatten in as written, with the tool's
+          warnings on one line each recorded in the cache and reported again by a later build without drawing.
+        justification: |
+          An SVG drawing that links a diagram or model shows it in every reader only once flattened; a drawing with
+          nothing to flatten stays a vector picture, and a broken link in it is reported on every build.
+        tests:
+          - PandocFilterEngine_Run_SvgDrawings_PlainMarkerAndFlattenedCopy
+
+      - id: CanvasNetTool-PandocFilter-PandocFilterEngine-MermaidBlocks
+        title: >-
+          The PandocFilterEngine unit shall replace a code block of class mermaid with its drawn picture: a figure that
+          carries the block's identifier and a Markdown placeholder for its caption attribute, or, without a caption, a
+          paragraph whose picture carries the identifier; the other classes and the kept attributes stay on the picture.
+        justification: |
+          A diagram written inline in the document is published as a picture with its caption, its cross-reference
+          identifier, and its layout attributes, as the Lua filter published it.
+        tests:
+          - PandocFilterEngine_Run_MermaidBlocks_BecomeFigureOrParagraph
+
+      - id: CanvasNetTool-PandocFilter-PandocFilterEngine-Warnings
+        title: >-
+          The PandocFilterEngine unit shall return the warnings of a run, each the picture's name and a message, in the
+          order the Lua filter visited the pictures (every image, then every code block), in the metadata key
+          canvasnet-warnings.
+        justification: |
+          The Lua shim prints the warnings as Pandoc warnings; a fixed order lets the author compare builds.
+        tests:
+          - PandocFilterEngine_Run_DuplicateKey_DrawsOnce
+          - PandocFilterEngine_Run_UnsupportedDiagram_LeftAsWrittenWithMarker
+          - PandocFilterEngine_Run_SvgDrawings_PlainMarkerAndFlattenedCopy
+          - PandocFilterEngine_Run_OneAndFourJobs_AreIdentical
+
+      - id: CanvasNetTool-PandocFilter-PandocFilterEngine-Failures
+        title: >-
+          The PandocFilterEngine unit shall stop the run on a picture that cannot be drawn with a message that starts
+          with drawing (or flattening) and the picture's name and ends with the tool's message and hint, with the
+          tool's error code; on a picture a restrictive file-access mode denied with the code file-access-denied; and
+          on an attribute error with the code pandoc-filter-error.
+        justification: |
+          A document must not be published with a picture silently missing or wrong; the message names the picture and
+          the code tells a script what went wrong.
+        tests:
+          - PandocFilterEngine_Run_RestrictiveDenial_StopsTheBuild
+          - PandocFilterEngine_Run_TwoFailures_ReportsTheLowestPosition
+          - PandocFilterEngine_Run_PlanningAndDrawingFailures_LowestPositionWins
+
+      - id: CanvasNetTool-PandocFilter-PandocFilterEngine-LowestPositionWins
+        title: >-
+          When several pictures fail, the PandocFilterEngine unit shall report the failure of the lowest position,
+          whether it is a planning or a drawing failure and whatever the number of jobs.
+        justification: |
+          The Lua filter stopped at the first failure; drawing in parallel must not change which error the author sees.
+        tests:
+          - PandocFilterEngine_Run_TwoFailures_ReportsTheLowestPosition
+          - PandocFilterEngine_Run_PlanningAndDrawingFailures_LowestPositionWins
+
+      - id: CanvasNetTool-PandocFilter-PandocFilterEngine-WarningsBeforeFailure
+        title: >-
+          When a run fails, the PandocFilterEngine unit shall expose the warnings of the pictures before the failure, in
+          document order and without those of later pictures, and shall expose none after a run that succeeds.
+        justification: |
+          The Lua filter printed the warnings of the earlier pictures before its error; the command prints them so the
+          author sees the same output.
+        tests:
+          - PandocFilterEngine_Run_FailureAfterWarnings_KeepsTheEarlierWarnings
+
+      - id: CanvasNetTool-PandocFilter-PandocFilterEngine-Determinism
+        title: >-
+          The PandocFilterEngine unit shall produce the same document, warnings, cache files, and reported failure for
+          one job as for several jobs, committing pictures and markers into the cache strictly in document order and
+          only below the first failure, and removing the temporary files of the jobs after it.
+        justification: |
+          Drawing in parallel is an optimization; a build must not depend on the number of processors, and a failed
+          build must not leave pictures in the cache that a build with one job would not have drawn.
+        tests:
+          - PandocFilterEngine_Run_OneAndFourJobs_AreIdentical
+          - PandocFilterEngine_Run_FailureWithOneAndFourJobs_LeavesTheSameCache
+          - PandocFilterEngine_Run_TwoFailures_ReportsTheLowestPosition
+          - PandocFilterEngine_Run_FailureAfterWarnings_KeepsTheEarlierWarnings
+
+      - id: CanvasNetTool-PandocFilter-PandocFilterEngine-OtherPictures
+        title: >-
+          The PandocFilterEngine unit shall stop the run with an error that names the source for a missing picture of a
+          kind it draws (not an SVG drawing), leave a missing SVG drawing, other pictures, remote pictures, and
+          code blocks of other classes to Pandoc unchanged, and pass the rest of the document through unchanged.
+        justification: |
+          A missing diagram or model is an author's mistake to report; a missing SVG drawing is reported by Pandoc
+          itself, and everything the filter does not handle must reach Pandoc exactly as it was.
+        tests:
+          - PandocFilterEngine_Run_MissingSourcesAndOtherPictures_FollowTheLuaFilter
