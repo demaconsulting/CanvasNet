@@ -87,28 +87,42 @@ The system exposes the following public API:
   `SceneRenderUnsupportedFeatureException`; and the static `SceneRenderer` with `Render` and
   `RenderFitted`.
 
-<!-- markdownlint-disable MD013 -->
+Each interface, with its direction and format, and its constraints:
 
-| Interface | Direction | Format | Constraints |
-| --- | --- | --- | --- |
-| `Mesh` constructor | Inbound | Vertex and triangle-index sequences | Index count a multiple of three; indices in range; vertices finite; inputs copied |
-| `GroupNode` constructor | Inbound | Child node sequence | Sequence and each child non-null; sequence copied |
-| `OverlayNode` constructor | Inbound | `Rgba32` color (alpha honored), child node sequence | Sequence and each child non-null; sequence copied |
-| `SceneNode.Transform` | Inbound | `Matrix4x4D` | Every element finite |
-| `PrimitiveTessellator.*` | Inbound/Outbound | Dimensions / `Mesh` or `PolygonRegion` return | Positive finite dimensions, at least three segments, valid face indices and path indices |
-| `PolygonRegion` constructor | Inbound | Contours of `Vector2D` points | Finite points; at least three distinct vertices and a normal, non-zero area per contour; no self-intersecting or touching contours (`ArgumentException`) |
-| `Extruder.Linear` / `Extruder.Rotate` | Inbound/Outbound | `PolygonRegion`, numeric parameters / `Mesh` return | Positive finite height, at least one slice, scale zero in both axes (single-contour region only) or positive in both, angle in (0, 360], profile not crossing the axis or touching it at an isolated vertex |
-| `ConvexHull.Hull3D` / `ConvexHull.Hull2D` | Inbound/Outbound | Point sequence, `CancellationToken` / `Mesh` or polygon return | Non-null, finite points; `Hull3D` needs a point set with volume (`ArgumentException` otherwise); exact, order-independent, cancelable |
-| `MinkowskiSum.ConvexSum` | Inbound/Outbound | Two `Mesh` operands, `CancellationToken` / `Mesh` return | Non-null operands with triangles and volume; vertex-count product at most `MaxPairwiseSums` (`ArgumentException`); closed convex solids only (`NotSupportedException` otherwise) |
-| `Camera` properties | Inbound | `Vector3D`, `double`, enumeration | Each value validated at initialization; cross-property rules at render time |
-| `SceneRenderOptions` properties | Inbound | Colors, lights, numeric options | Each value validated at initialization; instance therefore always valid |
-| `SceneRenderOptions.UnsupportedFeatureHandler` | Outbound | `SceneRenderUnsupportedFeature` report (token, message, node) | Called on the calling thread before tile work, only for fragment-path scenes (CSG, translucent, overlay) with an unsuitable operand |
-| `RenderBudgetExceededException` | Outbound | Exception carrying `MaxFragmentsPerTile` | Thrown, never wrapped, when a fragment-path tile needs more fragments than the budget |
-| `SceneRenderer.Render(...)` | Inbound/Outbound | `Scene`, `Camera`, size / `Surface` | Non-null scene and camera; each dimension 1 to `Surface.MaxDimension` |
-| `SceneRenderer.RenderFitted(...)` | Inbound/Outbound | `Scene`, size / `Surface` | Non-null scene; each dimension 1 to `Surface.MaxDimension` |
-| `CancellationToken` argument | Inbound | Cooperative cancellation token | Cancellation yields `OperationCanceledException` |
-
-<!-- markdownlint-enable MD013 -->
+- **`Mesh` constructor** (Inbound; Vertex and triangle-index sequences): Index count a multiple of three; indices in
+  range; vertices finite; inputs copied.
+- **`GroupNode` constructor** (Inbound; Child node sequence): Sequence and each child non-null; sequence copied.
+- **`OverlayNode` constructor** (Inbound; `Rgba32` color (alpha honored), child node sequence): Sequence and each child
+  non-null; sequence copied.
+- **`SceneNode.Transform`** (Inbound; `Matrix4x4D`): Every element finite.
+- **`PrimitiveTessellator.*`** (Inbound/Outbound; Dimensions / `Mesh` or `PolygonRegion` return): Positive finite
+  dimensions, at least three segments, valid face indices and path indices.
+- **`PolygonRegion` constructor** (Inbound; Contours of `Vector2D` points): Finite points; at least three distinct
+  vertices and a normal, non-zero area per contour; no self-intersecting or touching contours (`ArgumentException`).
+- **`Extruder.Linear` / `Extruder.Rotate`** (Inbound/Outbound; `PolygonRegion`, numeric parameters / `Mesh` return):
+  Positive finite height, at least one slice, scale zero in both axes (single-contour region only) or positive in both,
+  angle in (0, 360], profile not crossing the axis or touching it at an isolated vertex.
+- **`ConvexHull.Hull3D` / `ConvexHull.Hull2D`** (Inbound/Outbound; Point sequence, `CancellationToken` / `Mesh` or
+  polygon return): Non-null, finite points; `Hull3D` needs a point set with volume (`ArgumentException` otherwise);
+  exact, order-independent, cancelable.
+- **`MinkowskiSum.ConvexSum`** (Inbound/Outbound; Two `Mesh` operands, `CancellationToken` / `Mesh` return): Non-null
+  operands with triangles and volume; vertex-count product at most `MaxPairwiseSums` (`ArgumentException`); closed
+  convex solids only (`NotSupportedException` otherwise).
+- **`Camera` properties** (Inbound; `Vector3D`, `double`, enumeration): Each value validated at initialization;
+  cross-property rules at render time.
+- **`SceneRenderOptions` properties** (Inbound; Colors, lights, numeric options): Each value validated at
+  initialization; instance therefore always valid.
+- **`SceneRenderOptions.UnsupportedFeatureHandler`** (Outbound; `SceneRenderUnsupportedFeature` report (token, message,
+  node)): Called on the calling thread before tile work, only for fragment-path scenes (CSG, translucent, overlay) with
+  an unsuitable operand.
+- **`RenderBudgetExceededException`** (Outbound; Exception carrying `MaxFragmentsPerTile`): Thrown, never wrapped, when
+  a fragment-path tile needs more fragments than the budget.
+- **`SceneRenderer.Render(...)`** (Inbound/Outbound; `Scene`, `Camera`, size / `Surface`): Non-null scene and camera;
+  each dimension 1 to `Surface.MaxDimension`.
+- **`SceneRenderer.RenderFitted(...)`** (Inbound/Outbound; `Scene`, size / `Surface`): Non-null scene; each dimension 1
+  to `Surface.MaxDimension`.
+- **`CancellationToken` argument** (Inbound; Cooperative cancellation token): Cancellation yields
+  `OperationCanceledException`.
 
 The returned `Surface` is owned by the caller, who disposes it. See the subsystem and unit design
 documents (*SceneModel Subsystem Design*, *Tessellation Subsystem Design*, and *SceneRendering
@@ -461,14 +475,26 @@ ray, from the depth-sorted list of the ray's surface crossings (fragments):
    color = `Shade(viewer-facing normal, X)`, with `X` the leaf color when the visible event enters
    the result and `BackFaceColor` when it leaves it (the viewer is inside material):
 
-   <!-- markdownlint-disable MD013 -->
-   | Shade | Facing | Event | Color | Meaning |
-   | --- | --- | --- | --- | --- |
-   | `FrontEnter` | Front | Enters the result | `Shade(n, leaf color)` | The outer surface of the result |
-   | `FrontExit` | Front | Leaves the result | `Shade(n, BackFaceColor)` | Viewer inside material, seen at a front face |
-   | `BackEnter` | Back | Enters the result | `Shade(-n, leaf color)` | A cut surface exposed by a subtrahend: its own color, lit from the flipped normal |
-   | `BackExit` | Back | Leaves the result | `ShadeBackFace(n)` = `Shade(-n, BackFaceColor)` | Viewer inside material, seen at a back face |
-   <!-- markdownlint-enable MD013 -->
+   - **`FrontEnter`**
+     - Facing: Front.
+     - Event: Enters the result.
+     - Color: `Shade(n, leaf color)`.
+     - Meaning: The outer surface of the result.
+   - **`FrontExit`**
+     - Facing: Front.
+     - Event: Leaves the result.
+     - Color: `Shade(n, BackFaceColor)`.
+     - Meaning: Viewer inside material, seen at a front face.
+   - **`BackEnter`**
+     - Facing: Back.
+     - Event: Enters the result.
+     - Color: `Shade(-n, leaf color)`.
+     - Meaning: A cut surface exposed by a subtrahend: its own color, lit from the flipped normal.
+   - **`BackExit`**
+     - Facing: Back.
+     - Event: Leaves the result.
+     - Color: `ShadeBackFace(n)` = `Shade(-n, BackFaceColor)`.
+     - Meaning: Viewer inside material, seen at a back face.
 
    The cut surface of a difference is therefore never painted with the back-face color.
 
@@ -601,7 +627,7 @@ internal forced-fragment-path test seam), when `UnsupportedFeatureHandler` is se
   operands of a difference or
   intersection: all leaves use the signed counter, and an open mesh in a top-level union branch
   would vanish from the result.
-- For each node the tokens are reported in the fixed order of the table below.
+- For each node the tokens are reported in the fixed order of the list below.
 - In strict mode (`ThrowOnUnsupportedFeature`) the first problem throws
   `SceneRenderUnsupportedFeatureException(feature, message, node)` and the handler is not called.
   Otherwise the handler receives `SceneRenderUnsupportedFeature(feature, message, node)` for each
@@ -614,18 +640,19 @@ internal forced-fragment-path test seam), when `UnsupportedFeatureHandler` is se
   renderer reverses the winding of a mirrored instance, which restores the orientation the mesh data
   describes, so an outward mesh stays outward and an inward mesh stays inward under a mirror.
 
-<!-- markdownlint-disable MD013 -->
+Each feature token, the condition that reports it, and the node it is reported at:
 
-| Feature token | Condition | Node |
-| --- | --- | --- |
-| `render3d-csg-open-mesh` | The mesh has a boundary edge | The mesh node |
-| `render3d-csg-non-manifold-edge` | An edge is shared by three or more triangles | The mesh node |
-| `render3d-csg-inconsistent-winding` | Neighboring triangles are wound in conflicting directions | The mesh node |
-| `render3d-csg-degenerate-triangle` | The mesh has zero-area triangles (a repeated index, or distinct vertices that are coincident or collinear) | The mesh node |
-| `render3d-csg-inverted-mesh` | A defect-free closed (welded) mesh has a connected shell whose signed volume (beyond its rounding error bound) disagrees with its nesting depth parity: an outermost shell or one nested at even depth must be positive, a cavity wall at odd depth negative (`Mesh.IsInverted`) | The mesh node |
-| `render3d-csg-singular-transform` | The instance's composed world transform has a zero or non-finite determinant (for example a zero scale), so the whole mesh collapses (reported per instance) | The mesh node of that instance |
-
-<!-- markdownlint-enable MD013 -->
+- **`render3d-csg-open-mesh`**: The mesh has a boundary edge. Node: The mesh node.
+- **`render3d-csg-non-manifold-edge`**: An edge is shared by three or more triangles. Node: The mesh node.
+- **`render3d-csg-inconsistent-winding`**: Neighboring triangles are wound in conflicting directions. Node: The mesh
+  node.
+- **`render3d-csg-degenerate-triangle`**: The mesh has zero-area triangles (a repeated index, or distinct vertices that
+  are coincident or collinear). Node: The mesh node.
+- **`render3d-csg-inverted-mesh`**: A defect-free closed (welded) mesh has a connected shell whose signed volume (beyond
+  its rounding error bound) disagrees with its nesting depth parity: an outermost shell or one nested at even depth must
+  be positive, a cavity wall at odd depth negative (`Mesh.IsInverted`). Node: The mesh node.
+- **`render3d-csg-singular-transform`**: The instance's composed world transform has a zero or non-finite determinant
+  (for example a zero scale), so the whole mesh collapses (reported per instance). Node: The mesh node of that instance.
 
 The camera's near plane is not validated: a camera inside an operand is supported (see *Known Limits*).
 

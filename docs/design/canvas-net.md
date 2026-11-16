@@ -463,8 +463,6 @@ The system exposes the following public API to external consumers:
   **GetUnmatchedSelectors()**: Keep the matches of one render in delivery order up to the cap (`Truncated` when a
   match was left out) and name the selectors that matched no candidate. Not thread-safe.
 
-<!-- markdownlint-disable MD013 -->
-
 | Interface | Direction | Format | Constraints |
 | --- | --- | --- | --- |
 | `Surface(int, int)` | Inbound | Constructor call | `width`, `height` in 1-8192 |
@@ -472,8 +470,8 @@ The system exposes the following public API to external consumers:
 | `Surface.GetRowSpanBytes(int)` | Outbound | `Span<byte>` return | `y` within bounds |
 | `Surface.GetRowSpan(int)` | Outbound | `Span<Rgba32>` return | `y` within bounds |
 | `Surface.Crop(int,int,int,int)` | Inbound/Outbound | Method call / `Surface` return | Region within source bounds |
-| `Surface.Resize(int,int,ResamplingMode)` | Inbound/Outbound | Method call / `Surface` return | 1..MaxDimension, defined mode |
-| `Surface.ResizeToFit(int,int,ResamplingMode)` | Inbound/Outbound | Method call / `Surface` return | 1..MaxDimension, defined mode |
+| `Surface.Resize(int,int,ResamplingMode)` | Inbound/Outbound | Method / `Surface` | 1..MaxDimension, valid mode |
+| `Surface.ResizeToFit(int,int,ResamplingMode)` | Inbound/Outbound | Method / `Surface` | 1..MaxDimension, valid mode |
 | `ResamplingMode` | Inbound | Enum argument | Six defined values |
 | `Surface.PremultiplyAlpha()` | Inbound | Method call | None |
 | `Surface.UnpremultiplyAlpha()` | Inbound | Method call | None |
@@ -530,8 +528,6 @@ The system exposes the following public API to external consumers:
 | `PositionSelector.Parse(...)` | Inbound/Outbound | Method / `PositionSelector` | 256 chars, 16 predicates max |
 | `PositionSelection.Parse(...)` | Inbound/Outbound | Method / `PositionSelection` | 1 to 32 selectors |
 | `PositionCollector.Offer(...)` | Inbound/Outbound | Method / `bool` | Non-null position; one render |
-
-<!-- markdownlint-enable MD013 -->
 
 ## Dependencies
 

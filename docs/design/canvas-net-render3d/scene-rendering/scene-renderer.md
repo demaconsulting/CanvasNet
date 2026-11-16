@@ -36,21 +36,21 @@ and a deterministic per-tile fragment budget.
 - **`SceneRenderOptions`** (every property init-only and validated **when initialized**, so an
   instance is always valid and `Render` need not re-check it):
 
-  <!-- markdownlint-disable MD013 -->
-  | Property | Default | Validation |
-  | --- | --- | --- |
-  | `BackgroundColor` | opaque white | none; alpha honored |
-  | `DefaultColor` | `(180, 180, 180)` | none; alpha ignored (also for translucency) |
-  | `BackFaceColor` | `(200, 70, 70)` | none; alpha ignored (also for translucency) |
-  | `Lights` | `null` | list copied; a null element throws `ArgumentException`; `null` selects `Light.DefaultRig`; an empty list is valid (unlit black) |
-  | `SpecularStrength` | 0.10 | finite, 0 to 1 |
-  | `SpecularPower` | 32 | finite, greater than 0 |
-  | `Supersampling` | 3 | 1 to 4 |
-  | `MaxDegreeOfParallelism` | -1 | -1 (scheduler chooses) or at least 1; 1 means sequential; 0 and below -1 rejected |
-  | `MaxFragmentsPerTile` | 4 Mi (4194304) | `long`, 1 to `Array.MaxLength`; the per-tile fragment budget of per-pixel fragment resolution |
-  | `UnsupportedFeatureHandler` | `null` | none; receives `SceneRenderUnsupportedFeature` reports |
-  | `ThrowOnUnsupportedFeature` | `false` | none; when `true` the first report is thrown instead |
-  <!-- markdownlint-enable MD013 -->
+  - **`BackgroundColor`** (default opaque white): Validation: none; alpha honored.
+  - **`DefaultColor`** (default `(180, 180, 180)`): Validation: none; alpha ignored (also for translucency).
+  - **`BackFaceColor`** (default `(200, 70, 70)`): Validation: none; alpha ignored (also for translucency).
+  - **`Lights`** (default `null`): Validation: list copied; a null element throws `ArgumentException`; `null` selects
+    `Light.DefaultRig`; an empty list is valid (unlit black).
+  - **`SpecularStrength`** (default 0.10): Validation: finite, 0 to 1.
+  - **`SpecularPower`** (default 32): Validation: finite, greater than 0.
+  - **`Supersampling`** (default 3): Validation: 1 to 4.
+  - **`MaxDegreeOfParallelism`** (default -1): Validation: -1 (scheduler chooses) or at least 1; 1 means sequential; 0
+    and below -1 rejected.
+  - **`MaxFragmentsPerTile`** (default 4 Mi (4194304)): Validation: `long`, 1 to `Array.MaxLength`; the per-tile
+    fragment budget of per-pixel fragment resolution.
+  - **`UnsupportedFeatureHandler`** (default `null`): Validation: none; receives `SceneRenderUnsupportedFeature`
+    reports.
+  - **`ThrowOnUnsupportedFeature`** (default `false`): Validation: none; when `true` the first report is thrown instead.
 
   Violations of a numeric range throw `ArgumentOutOfRangeException`. `SceneRenderOptions.Default`
   is a shared instance of the defaults.

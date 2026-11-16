@@ -370,17 +370,14 @@ is entered for: each expression node, each statement, each comprehension element
 each `children()` expansion, and each user-module body. A user **function call adds no frame of its own** (its
 body is an expression, which does), and **tail calls and built-in calls add none**.
 
-<!-- markdownlint-disable MD013 -->
-
 | Shape | Cost |
 | --- | --- |
-| `f(n) = n == 0 ? 0 : 1 + f(n - 1)` (non-tail) | 2 frames per level plus 4 at the bottom, so a limit of 104 admits depth 50 and rejects 51; the default 5,000 admits 2,498 levels |
+| `f(n) = n == 0 ? 0 : 1 + f(n - 1)` (non-tail) | 2 frames per level plus 4 at the bottom (see below) |
 | user module recursion | 3 frames per level plus 5 |
 | `children()` chains and nested blocks | 5 frames per level |
 | tail recursion of a user function | constant |
 
-<!-- markdownlint-enable MD013 -->
-
+For the non-tail function, a limit of 104 admits depth 50 and rejects 51, and the default 5,000 admits 2,498 levels.
 These formulas are pinned by tests in `ScadEvaluatorStackTests`, `ScadEvaluatorTailCallTests`, and
 `ScadEvaluatorLimitTests`.
 
@@ -439,17 +436,15 @@ thread. The parser's gate has no token (the parser has no cancellation), so its 
 bisection (a hop is detected through `LastRunThreadId`). The figures include the 64 to 128 KiB the guard
 reserves:
 
-<!-- markdownlint-disable MD013 -->
-
 | Shape at 16,384 frames | Debug minimum | Debug per frame | Release minimum | Release per frame |
 | --- | --- | --- | --- | --- |
-| function, closure, and mutual recursion; `let`, `echo`, and `assert` chains; ternary chains | about 37.4 MiB | about 2,390 bytes | about 17.1 MiB | about 1,090 bytes |
+| recursion and chains (1) | about 37.4 MiB | about 2,390 bytes | about 17.1 MiB | about 1,090 bytes |
 | nested expressions inside recursion (100 binary operators per level) | 28.8 MiB | 1,840 bytes | 14.6 MiB | 930 bytes |
 | vector literals inside recursion | 25.8 MiB | 1,650 bytes | 11.5 MiB | 730 bytes |
-| module recursion, blocks, `children()` chains | 11.4 to 12.7 MiB | 730 to 810 bytes | 6.2 to 6.9 MiB | 390 to 440 bytes |
+| module recursion, blocks, `children()` chains | 11.4-12.7 MiB | 730-810 bytes | 6.2-6.9 MiB | 390-440 bytes |
 | comprehensions (value nesting bounds them at 255 levels) | 1.7 MiB | — | 0.9 MiB | — |
 
-<!-- markdownlint-enable MD013 -->
+1. Function, closure, and mutual recursion; `let`, `echo`, and `assert` chains; and ternary chains.
 
 The default of 5,000 frames needs about 12.6 MiB (Debug) for function recursion. A split of expression
 evaluation into a small dispatcher and per-node methods reduced the worst case by 9 percent (from about

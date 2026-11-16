@@ -84,16 +84,14 @@ The system exposes the following public API, all on the `VsdxDocument` class:
   overload that converts the page's declared size to pixel dimensions at the requested resolution
   before delegating to the pixel-dimension overload above.
 
-<!-- markdownlint-disable MD013 -->
+Each interface, with its direction and format, and its constraints:
 
-| Interface | Direction | Format | Constraints |
-| --- | --- | --- | --- |
-| `VsdxDocument.Open(...)` | Inbound | Method call / `VsdxDocument` return | Valid `.vsdx` stream or path |
-| `PageCount` / `GetPageSize(...)` | Outbound | Property / method call | `0 <= pageIndex < PageCount` |
-| `Render(pageIndex, width, height, ...)` | Inbound/Outbound | Method call / `Surface` return | `0 < width, height <= 8192` |
-| `Render(pageIndex, dpi, ...)` | Inbound/Outbound | Method call / `Surface` return | `0 < dpi`; resolved pixel size `<= 8192` |
-
-<!-- markdownlint-enable MD013 -->
+- **`VsdxDocument.Open(...)`** (Inbound; Method call / `VsdxDocument` return): Valid `.vsdx` stream or path.
+- **`PageCount` / `GetPageSize(...)`** (Outbound; Property / method call): `0 <= pageIndex < PageCount`.
+- **`Render(pageIndex, width, height, ...)`** (Inbound/Outbound; Method call / `Surface` return):
+  `0 < width, height <= 8192`.
+- **`Render(pageIndex, dpi, ...)`** (Inbound/Outbound; Method call / `Surface` return): `0 < dpi`; resolved pixel size
+  `<= 8192`.
 
 See *VsdxDocument Unit Design* (`canvas-net-vsdx/vsdx-document.md`) for the complete in-scope
 VisioML feature subset (package/relationship resolution, geometry row vocabulary, master/stencil

@@ -92,19 +92,44 @@ discarded and re-run on a larger stack without the caller noticing (see *Stack S
 Every problem a program can cause falls into exactly one class. The class decides whether evaluation
 continues, which type carries the information, and where the caller sees it.
 
-<!-- markdownlint-disable MD013 -->
-
-| Class | Mechanism | Examples | Continues? |
-| --- | --- | --- | --- |
-| **Warning** | `ScadDiagnostic` in `Result.Diagnostics` and the `WarningHandler`; de-duplicated by (message, location); capped at `MaxDiagnostics` (the cap is reported once as `Further diagnostics suppressed (limit N)`) | unknown variable, function, or module (value `undef`, nothing emitted); a variable assigned twice in one scope (reported at the **earlier** assignment); circular variable reference; invalid operand types for an operator or built-in (result `undef`); calling a non-function; wrong, extra, or unknown arguments; `children()` outside a module or with an invalid index; a range with a zero step or non-finite bound; a `for` over `undef`; a missing `include` or `use` file | Yes |
-| **Unsupported feature** | `ScadUnsupportedFeature` (feature identifier, message, location) in `Result.UnsupportedFeatures` and the `UnsupportedFeatureHandler`; de-duplicated by (feature, location); with `ThrowOnUnsupportedFeature`, a `ScadUnsupportedFeatureException` at the first one | Evaluation reports only language-level items: the recognized but unimplemented functions `parent_module`, `textmetrics`, and `fontmetrics` (`scad-function-<name>`) and unimplemented argument forms of `search` (`scad-search-form`) | Yes, with `undef`, unless the caller asked to throw |
-| **Error** | `ScadEvaluationException` with the location of the offending construct | a failed `assert`; every limit of `ScadLimits` exceeded; an include cycle; a file-access denial or another refused include file; an `include` or `use` when the document has no base directory, library path, or resolver | No |
-| **Syntax error in a referenced file** | `ScadSyntaxException` whose location carries the included file's name, propagated unchanged | a parse failure of any file loaded in phase A | No |
-| **Cancellation** | `OperationCanceledException`, never wrapped | the token is canceled before or during evaluation or loading | No |
-| **I/O failure** | the natural `IOException`, and `InvalidDataException` for a file over 4,194,304 characters | an included file that cannot be read | No |
-| **Argument error** | `ArgumentException` family, thrown by the public option types when a value is set | an invalid limit, variable name or value, or a non-finite time | n/a |
-
-<!-- markdownlint-enable MD013 -->
+- **Warning**
+  - Mechanism: `ScadDiagnostic` in `Result.Diagnostics` and the `WarningHandler`; de-duplicated by (message, location);
+    capped at `MaxDiagnostics` (the cap is reported once as `Further diagnostics suppressed (limit N)`).
+  - Examples: unknown variable, function, or module (value `undef`, nothing emitted); a variable assigned twice in one
+    scope (reported at the **earlier** assignment); circular variable reference; invalid operand types for an operator
+    or built-in (result `undef`); calling a non-function; wrong, extra, or unknown arguments; `children()` outside a
+    module or with an invalid index; a range with a zero step or non-finite bound; a `for` over `undef`; a missing
+    `include` or `use` file.
+  - Continues: Yes.
+- **Unsupported feature**
+  - Mechanism: `ScadUnsupportedFeature` (feature identifier, message, location) in `Result.UnsupportedFeatures` and the
+    `UnsupportedFeatureHandler`; de-duplicated by (feature, location); with `ThrowOnUnsupportedFeature`, a
+    `ScadUnsupportedFeatureException` at the first one.
+  - Examples: Evaluation reports only language-level items: the recognized but unimplemented functions `parent_module`,
+    `textmetrics`, and `fontmetrics` (`scad-function-<name>`) and unimplemented argument forms of `search`
+    (`scad-search-form`).
+  - Continues: Yes, with `undef`, unless the caller asked to throw.
+- **Error**
+  - Mechanism: `ScadEvaluationException` with the location of the offending construct.
+  - Examples: a failed `assert`; every limit of `ScadLimits` exceeded; an include cycle; a file-access denial or another
+    refused include file; an `include` or `use` when the document has no base directory, library path, or resolver.
+  - Continues: No.
+- **Syntax error in a referenced file**
+  - Mechanism: `ScadSyntaxException` whose location carries the included file's name, propagated unchanged.
+  - Examples: a parse failure of any file loaded in phase A.
+  - Continues: No.
+- **Cancellation**
+  - Mechanism: `OperationCanceledException`, never wrapped.
+  - Examples: the token is canceled before or during evaluation or loading.
+  - Continues: No.
+- **I/O failure**
+  - Mechanism: the natural `IOException`, and `InvalidDataException` for a file over 4,194,304 characters.
+  - Examples: an included file that cannot be read.
+  - Continues: No.
+- **Argument error**
+  - Mechanism: `ArgumentException` family, thrown by the public option types when a value is set.
+  - Examples: an invalid limit, variable name or value, or a non-finite time.
+  - Continues: not applicable.
 
 The rule of thumb is: a *mistake in the model* that still allows a meaningful result is a warning; something
 this implementation *does not provide* is an unsupported feature; a problem that makes the result
@@ -121,19 +146,20 @@ anything else from evaluation, and walks the tree iteratively because its depth 
 `ScadLimits.MaxRecursionDepth`. `ScadEvaluationOutput.Roots` is the list of top-level instances (their implicit
 union).
 
-<!-- markdownlint-disable MD013 -->
+The members of `ScadInstance`:
 
-| Member of `ScadInstance` | Meaning |
-| --- | --- |
-| `Kind` | `BuiltinModule`; `Group` (the implicit union of its children); or `Anchor` (a declared anchor, a leaf that is never geometry) |
-| `Name` | The built-in module name; for a group, `for`, `intersection_for`, `group`, or the user module's name; for an anchor, the anchor name |
-| `Arguments` | The **evaluated** arguments in call order, each with an optional name; empty for a group; for an anchor, the single `[x, y, z]` vector |
-| `Children` | The child instances in order |
-| `Modifiers` | Only `ShowOnly`, `Highlight`, and `Background` can be set; a disabled statement is never evaluated and never appears |
-| `Fragments` | The effective `$fn`, `$fa`, and `$fs` for the instance: the dynamically scoped values, overridden by a named argument of the same name on the instance |
-| `Location` | The identifying token of the statement (the module name or keyword) |
-
-<!-- markdownlint-enable MD013 -->
+- **`Kind`**: `BuiltinModule`; `Group` (the implicit union of its children); or `Anchor` (a declared anchor, a leaf that
+  is never geometry).
+- **`Name`**: The built-in module name; for a group, `for`, `intersection_for`, `group`, or the user module's name; for
+  an anchor, the anchor name.
+- **`Arguments`**: The **evaluated** arguments in call order, each with an optional name; empty for a group; for an
+  anchor, the single `[x, y, z]` vector.
+- **`Children`**: The child instances in order.
+- **`Modifiers`**: Only `ShowOnly`, `Highlight`, and `Background` can be set; a disabled statement is never evaluated
+  and never appears.
+- **`Fragments`**: The effective `$fn`, `$fa`, and `$fs` for the instance: the dynamically scoped values, overridden by
+  a named argument of the same name on the instance.
+- **`Location`**: The identifying token of the statement (the module name or keyword).
 
 Shape rules (each is pinned by a test):
 
@@ -207,25 +233,37 @@ or a tight virtual-memory limit; where the thread cannot be created or started (
 
 #### Resource Limits
 
-<!-- markdownlint-disable MD013 -->
-
-| Limit (`ScadLimits`) | Default | Enforced where | Failure |
-| --- | --- | --- | --- |
-| `MaxRecursionDepth` | 5,000 (16 to 16,384) | every evaluation frame | `Recursion too deep (limit N)` |
-| `MaxEvaluationSteps` | 50,000,000 | every expression, statement, loop turn, and tail-call turn; vector work, matrix-product work (result elements plus multiply-adds / 16), `str`/`echo` formatting (8 per element, while formatting), string indexing (by position), and long scope walks charge more | `Evaluation step limit exceeded (limit N)` |
-| `MaxLoopIterations` | 10,000,000 | every loop turn, plus an up-front check of a range's count (total across the whole evaluation) | `Loop iteration limit exceeded (limit N)` |
-| `MaxListLength` | 1,000,000 | every vector append, `concat`, `rands`, comprehension; also the result elements of a matrix product (checked before it is computed) | `List too long (limit N)` |
-| `MaxStringLength` | 1,048,576 | `str`, `chr`, echo formatting | `String too long (limit N)` |
-| value nesting (constant) | 256 | vector literal, comprehension, and `concat` construction | `List nesting too deep (limit 256)` |
-| operand aggregate cap (internal constant, not a `ScadLimits` member) | 67,108,864 (2^26) logical elements | the operand of an operator on vectors, counted with nested and shared elements, only when the remaining step budget is above it | `Operand too large (limit 67108864 nested elements)` |
-| `MaxIncludeDepth` | 16 (1 to 64) | the resolver | `Include nesting too deep (limit N)` |
-| `MaxIncludedFiles` | 1,000 | the resolver (every expansion and each distinct library) | `Included file limit exceeded (limit N)` |
-| `MaxInstances` | 1,000,000 | every instance created; also the number of statements include expansion may produce (phase A, before any step accounting exists) | `Instance limit exceeded (limit N)`, or `Included statement limit exceeded (limit N)` during expansion |
-| `MaxOutputLength` | 4,194,304 | the echo sink (cumulative characters after the prefix) | `Echo output limit exceeded (limit N)` |
-| `MaxDiagnostics` | 1,000 | the warning sink | not an error: collapsed into one notice |
-| cancellation | — | every 1,024 steps (so inside `str`/`echo` formatting), every 65,536 multiply-adds of a matrix product, every 65,536 candidate comparisons of a `search`, every loop turn, every file load, entry | `OperationCanceledException` |
-
-<!-- markdownlint-enable MD013 -->
+- **`MaxRecursionDepth`** (default 5,000 (16 to 16,384)): Enforced where: every evaluation frame. Failure:
+  `Recursion too deep (limit N)`.
+- **`MaxEvaluationSteps`** (default 50,000,000): Enforced where: every expression, statement, loop turn, and tail-call
+  turn; vector work, matrix-product work (result elements plus multiply-adds / 16), `str`/`echo` formatting (8 per
+  element, while formatting), string indexing (by position), and long scope walks charge more. Failure:
+  `Evaluation step limit exceeded (limit N)`.
+- **`MaxLoopIterations`** (default 10,000,000): Enforced where: every loop turn, plus an up-front check of a range's
+  count (total across the whole evaluation). Failure: `Loop iteration limit exceeded (limit N)`.
+- **`MaxListLength`** (default 1,000,000): Enforced where: every vector append, `concat`, `rands`, comprehension; also
+  the result elements of a matrix product (checked before it is computed). Failure: `List too long (limit N)`.
+- **`MaxStringLength`** (default 1,048,576): Enforced where: `str`, `chr`, echo formatting. Failure:
+  `String too long (limit N)`.
+- **value nesting (constant)** (default 256): Enforced where: vector literal, comprehension, and `concat` construction.
+  Failure: `List nesting too deep (limit 256)`.
+- **operand aggregate cap (internal constant, not a `ScadLimits` member)** (default 67,108,864 (2^26) logical elements):
+  Enforced where: the operand of an operator on vectors, counted with nested and shared elements, only when the
+  remaining step budget is above it. Failure: `Operand too large (limit 67108864 nested elements)`.
+- **`MaxIncludeDepth`** (default 16 (1 to 64)): Enforced where: the resolver. Failure:
+  `Include nesting too deep (limit N)`.
+- **`MaxIncludedFiles`** (default 1,000): Enforced where: the resolver (every expansion and each distinct library).
+  Failure: `Included file limit exceeded (limit N)`.
+- **`MaxInstances`** (default 1,000,000): Enforced where: every instance created; also the number of statements include
+  expansion may produce (phase A, before any step accounting exists). Failure: `Instance limit exceeded (limit N)`, or
+  `Included statement limit exceeded (limit N)` during expansion.
+- **`MaxOutputLength`** (default 4,194,304): Enforced where: the echo sink (cumulative characters after the prefix).
+  Failure: `Echo output limit exceeded (limit N)`.
+- **`MaxDiagnostics`** (default 1,000): Enforced where: the warning sink. Failure: not an error: collapsed into one
+  notice.
+- **cancellation** (default —): Enforced where: every 1,024 steps (so inside `str`/`echo` formatting), every 65,536
+  multiply-adds of a matrix product, every 65,536 candidate comparisons of a `search`, every loop turn, every file load,
+  entry. Failure: `OperationCanceledException`.
 
 #### Determinism
 

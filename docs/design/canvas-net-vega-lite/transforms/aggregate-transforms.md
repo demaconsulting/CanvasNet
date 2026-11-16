@@ -238,18 +238,40 @@ clock, the environment, a random source, or the current culture.
 `WorkMeter`; every limit message contains `the limit of`, `the limit (Max...)`, or `VegaLiteLimits.` (or names
 `MaxDataRows`) so that the tool classifies it as a budget failure.
 
-<!-- markdownlint-disable MD013 -->
-
-| Transform | Row budget (`MaxDataRows`) | Cells (2^25) and field limits | Work charged to the step budget |
-| --- | --- | --- | --- |
-| `aggregate` | One row reserved per group as the group appears; the whole input is released when the output is complete (peak: input plus groups) | Each new group checks `groups * (output width + 4 * measures)`; `rows * value-keeping operations` checked up front; `TableLayout` | 1 + group fields per row, the text length of each text group value per row (hashing it), measures per row, 1 per stored value, n log n per sort, 1,000 n per bootstrap, text length per `distinct` key and per text-to-number conversion |
-| `joinaggregate` | Unchanged (groups are not rows) | Per group `measures * (4 + 1) + group fields`; same value-state check; `TableLayout` | As `aggregate`, plus measures + 1 per output row |
-| `window` | Unchanged; the `values` arrays are bounded by `MaxDataRows` in total | Partition keys 2 + group fields per group; sort keys `rows * sort fields`; value-state check; `TableLayout` | operations + 1 per row; n log n per sort; **4 per row of every recomputed frame per aggregate** (cumulative frames are not recomputed); `values` length |
-| `bin` | Unchanged | `TableLayout`; bin count at most `MaxScaleDomainSize` (also for an explicit `step`) | 1 per row for the extent, 1 per row for the assignment |
-| `stack` | Unchanged | 2 + group fields per group; sort keys; `TableLayout` | 1 per row for the copy and 1 for the number, the group size per group, n log n per sort |
-| `impute` | `groups * keys` reserved, then the exact remainder; the input is released at the end unless the caller keeps it (peak: input plus output) | `keyvals` count against `MaxDataRows` and `TableLayout.MaxCells`; one bit per combination; `MaxFieldCount`; output cells | 1 or 2 per row, 1 + group fields per imputed row, the window engine for the other methods |
-
-<!-- markdownlint-enable MD013 -->
+- **`aggregate`**
+  - Row budget (`MaxDataRows`): One row reserved per group as the group appears; the whole input is released when the
+    output is complete (peak: input plus groups).
+  - Cells (2^25) and field limits: Each new group checks `groups * (output width + 4 * measures)`;
+    `rows * value-keeping operations` checked up front; `TableLayout`.
+  - Work charged to the step budget: 1 + group fields per row, the text length of each text group value per row (hashing
+    it), measures per row, 1 per stored value, n log n per sort, 1,000 n per bootstrap, text length per `distinct` key
+    and per text-to-number conversion.
+- **`joinaggregate`**
+  - Row budget (`MaxDataRows`): Unchanged (groups are not rows).
+  - Cells (2^25) and field limits: Per group `measures * (4 + 1) + group fields`; same value-state check; `TableLayout`.
+  - Work charged to the step budget: As `aggregate`, plus measures + 1 per output row.
+- **`window`**
+  - Row budget (`MaxDataRows`): Unchanged; the `values` arrays are bounded by `MaxDataRows` in total.
+  - Cells (2^25) and field limits: Partition keys 2 + group fields per group; sort keys `rows * sort fields`;
+    value-state check; `TableLayout`.
+  - Work charged to the step budget: operations + 1 per row; n log n per sort; **4 per row of every recomputed frame per
+    aggregate** (cumulative frames are not recomputed); `values` length.
+- **`bin`**
+  - Row budget (`MaxDataRows`): Unchanged.
+  - Cells (2^25) and field limits: `TableLayout`; bin count at most `MaxScaleDomainSize` (also for an explicit `step`).
+  - Work charged to the step budget: 1 per row for the extent, 1 per row for the assignment.
+- **`stack`**
+  - Row budget (`MaxDataRows`): Unchanged.
+  - Cells (2^25) and field limits: 2 + group fields per group; sort keys; `TableLayout`.
+  - Work charged to the step budget: 1 per row for the copy and 1 for the number, the group size per group, n log n per
+    sort.
+- **`impute`**
+  - Row budget (`MaxDataRows`): `groups * keys` reserved, then the exact remainder; the input is released at the end
+    unless the caller keeps it (peak: input plus output).
+  - Cells (2^25) and field limits: `keyvals` count against `MaxDataRows` and `TableLayout.MaxCells`; one bit per
+    combination; `MaxFieldCount`; output cells.
+  - Work charged to the step budget: 1 or 2 per row, 1 + group fields per imputed row, the window engine for the other
+    methods.
 
 **Preconditions and postconditions**: `SpecParser` validated the transform shapes (operation names, parameters,
 frames, bin parameters, key values) and the texts of the specification fit the limits it was parsed with; on

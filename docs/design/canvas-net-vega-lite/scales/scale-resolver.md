@@ -28,10 +28,9 @@ enumeration:
   `Supported`, `NoDiscreteParent`, `Ranged`, `TimeUnitParent`, `UnsupportedContinuous`), `DecideOffset`,
   `HasNestedOffset`, `HasRangedOffset`, `HasTimeUnitOffset`, `StepForOf`, and the `ApplyNestedOffsets` post-pass that
   sizes the step of a position scale from its offset scale
-- `ScaleResolver.Raw.cs` - the raw domain of a scale (phase 12): `RawDomain`, `ScaleExtent`, `FindExtent`, `ReadRawDomain`,
-  `Usable`, `HasParameterDomain`, `BinExtentOf`, and `HasSelectionExtent`
-The files carry the provenance header comment for the Vega-Lite and Vega rules and the d3-scale and d3-time
-behavior they port.
+- `ScaleResolver.Raw.cs` - the raw domain of a scale (phase 12): `RawDomain`, `ScaleExtent`, `FindExtent`,
+  `ReadRawDomain`, `Usable`, `HasParameterDomain`, `BinExtentOf`, and `HasSelectionExtent` The files carry the
+  provenance header comment for the Vega-Lite and Vega rules and the d3-scale and d3-time behavior they port.
 
 #### Purpose
 
@@ -151,48 +150,40 @@ answer for a tree that is one chart. The container sizes are not known to the re
   nominal. A secondary channel (`x2`, `y2`, `theta2`, `radius2`) takes the type of its main channel; a datum takes the
   type of its value.
 - **Type.** `ChooseKind` is Vega-Lite's `defaultType` with its `channelSupportScaleType` and `scaleTypeSupportDataType`
-  checks.
-  Quantitative position channels are linear; discrete position channels are band scales for `rect`, `bar`,
+  checks. Quantitative position channels are linear; discrete position channels are band scales for `rect`, `bar`,
   `image`, `rule`, and `tick` marks and point scales for the others; **the polar channels `theta` and `radius`** (the
   channel group `ChannelGroup.Polar`) take the same scale types as a position channel (linear, pow, sqrt, symlog, log,
   band, point, time, and UTC) and default to linear for a quantitative field, to a **band** scale for a nominal or
   ordinal field of an `arc` (a slice or ring is a rectangle in polar coordinates) and to a **point** scale for one of a
-  `text` mark; a quantitative `color`, `fill`, or `stroke` is a **sequential**
-  scale (a **diverging** one with three domain entries); a nominal or ordinal one is ordinal, as are `shape` and
-  `strokeDash` (also for a quantitative field, which Vega-Lite warns about); `size`, `opacity`, `strokeWidth`,
-  `fillOpacity`, `strokeOpacity`, and `angle` are
-  linear for a quantitative field and point scales otherwise; a quantitative `color`, `fill`, or `stroke` field that the
-  encoding **bins** is a **bin-ordinal** scale instead (Vega-Lite's `defaultType`), whose domain is the edges of the bins
-  (one more than the bins) and whose range is one color per bin (`ColorSchemes` with `SchemeUse.BinOrdinal`: the ramp
-  sampled once per bin), while the other channels keep their scale over the start of the bin. A **temporal** field
+  `text` mark; a quantitative `color`, `fill`, or `stroke` is a **sequential** scale (a **diverging** one with three
+  domain entries); a nominal or ordinal one is ordinal, as are `shape` and `strokeDash` (also for a quantitative field,
+  which Vega-Lite warns about); `size`, `opacity`, `strokeWidth`, `fillOpacity`, `strokeOpacity`, and `angle` are linear
+  for a quantitative field and point scales otherwise; a quantitative `color`, `fill`, or `stroke` field that the
+  encoding **bins** is a **bin-ordinal** scale instead (Vega-Lite's `defaultType`), whose domain is the edges of the
+  bins (one more than the bins) and whose range is one color per bin (`ColorSchemes` with `SchemeUse.BinOrdinal`: the
+  ramp sampled once per bin), while the other channels keep their scale over the start of the bin. A **temporal** field
   (also the derived start of a time unit) gets Vega-Lite's default type: a **time** scale on the position, `size`,
   `opacity`, `strokeWidth`, `fillOpacity`, `strokeOpacity`, and `angle` channels (a **utc** scale when its time unit is
   a `utc` unit), a **sequential** scale over the milliseconds on `color`, `fill`, and `stroke` (Vega-Lite's default
-  there is
-  a `time` scale with a color range, which is drawn as the sequential scale: the same colors, with ticks and labels of
-  dates), and an ordinal scale on `shape` and `strokeDash`. A nominal or ordinal field with a time unit keeps the band,
-  point, and ordinal scales, over the **date values** of the unit. An explicit `scale.type` of
-  linear, log, pow, sqrt, symlog, time, utc, sequential (colors), quantile, quantize, threshold, bin-ordinal (a binned
-  quantitative
+  there is a `time` scale with a color range, which is drawn as the sequential scale: the same colors, with ticks and
+  labels of dates), and an ordinal scale on `shape` and `strokeDash`. A nominal or ordinal field with a time unit keeps
+  the band, point, and ordinal scales, over the **date values** of the unit. An explicit `scale.type` of linear, log,
+  pow, sqrt, symlog, time, utc, sequential (colors), quantile, quantize, threshold, bin-ordinal (a binned quantitative
   color only: Vega-Lite refuses it for every other field type, and it is what the default is there), band, point, or
-  ordinal is used when
-  both the channel and the field type accept it (the table below); otherwise the default applies (the feature catalog
-  reports a replaced type as `vl-scale-type-ignored`).
-  The log, pow, sqrt, and symlog types are the continuous-to-continuous scales with a transform
-  (`ResolvedScale.Transform`, a `ScaleTransform`): a **log** scale with its `base` (default 10), a **pow** scale with its
-  `exponent` (default 1), a **sqrt** scale as the power 0.5 whatever `exponent` says, and a **symlog** scale with its
-  `constant` (default 1); the properties of another type are ignored. They are accepted on position, size, opacity,
-  stroke width, angle, and color channels (a color scale becomes the sequential or diverging scale of the
-transform) for a
-  quantitative field, not on `shape` or `strokeDash`, and a nominal field falls back to the discrete default; a measure
-  that carries one of them is never stacked (`StackRules` refuses the stack, as Vega-Lite does). `ChannelIsDrawn`
-  gives a channel a scale
-  only for the marks Vega-Lite's `supportMark` allows (the table below), `AcceptsScaleType` answers the type question
-  for the feature catalog, and
-  `IsKnownShape` tells it whether a shape is drawn as itself: a symbol name, or SVG path data that the `SymbolPathParser`
-  parses (`ScenePainter.IsDrawableShape`; anything else is drawn as a circle and reported by `vl-shape-path-invalid`).
+  ordinal is used when both the channel and the field type accept it (the table below); otherwise the default applies
+  (the feature catalog reports a replaced type as `vl-scale-type-ignored`). The log, pow, sqrt, and symlog types are the
+  continuous-to-continuous scales with a transform (`ResolvedScale.Transform`, a `ScaleTransform`): a **log** scale with
+  its `base` (default 10), a **pow** scale with its `exponent` (default 1), a **sqrt** scale as the power 0.5 whatever
+  `exponent` says, and a **symlog** scale with its `constant` (default 1); the properties of another type are ignored.
+  They are accepted on position, size, opacity, stroke width, angle, and color channels (a color scale becomes the
+  sequential or diverging scale of the transform) for a quantitative field, not on `shape` or `strokeDash`, and a
+  nominal field falls back to the discrete default; a measure that carries one of them is never stacked (`StackRules`
+  refuses the stack, as Vega-Lite does). `ChannelIsDrawn` gives a channel a scale only for the marks Vega-Lite's
+  `supportMark` allows (the table below), `AcceptsScaleType` answers the type question for the feature catalog, and
+  `IsKnownShape` tells it whether a shape is drawn as itself: a symbol name, or SVG path data that the
+  `SymbolPathParser` parses (`ScenePainter.IsDrawableShape`; anything else is drawn as a circle and reported by
+  `vl-shape-path-invalid`).
 
-  <!-- markdownlint-disable MD013 -->
   | Channel | Drawn for |
   | --- | --- |
   | `theta`, `radius` | `arc`, `text` |
@@ -203,7 +194,6 @@ transform) for a
   | `strokeDash` | every mark but `rect`, `area`, `trail`, `text`, `arc` |
   | `size` | every mark but `rect`, `area`, `arc`, `image` |
   | every other channel | every mark |
-  <!-- markdownlint-enable MD013 -->
 
   A channel that a mark does not draw has no scale: `ResolveChannel` returns none for it, and the feature catalog
   reports it (see *FeatureCatalog*). The exception is a `line`, `area`, `trail`, or `rule` with an **overlay**
@@ -262,13 +252,11 @@ transform) for a
   (`channelSupportScaleType` and `scaleTypeSupportDataType` of Vega-Lite, pinned by a test) takes an explicit type when
   the channel and the field type both accept it:
 
-  <!-- markdownlint-disable MD013 -->
-  | Field type | Accepted explicit `scale.type` |
-  | --- | --- |
-  | `temporal` | `time`, `utc` only (any other type, including `sequential`, `quantile`, `quantize`, and `threshold`, is replaced by the default) |
-  | `quantitative` | linear, log, pow, sqrt, symlog, sequential, the discretizing types, bin-ordinal (binned colors); never `time` or `utc` |
-  | `nominal`, `ordinal` | band, point, ordinal; never `time` or `utc` |
-  <!-- markdownlint-enable MD013 -->
+  - **`temporal`**: `time`, `utc` only (any other type, including `sequential`, `quantile`, `quantize`, and `threshold`,
+    is replaced by the default).
+  - **`quantitative`**: linear, log, pow, sqrt, symlog, sequential, the discretizing types, bin-ordinal (binned colors);
+    never `time` or `utc`.
+  - **`nominal`, `ordinal`**: band, point, ordinal; never `time` or `utc`.
 
   A position, `size`, `opacity`, `strokeWidth`, or `angle` channel accepts the time and UTC kinds; a color channel maps
   `time` and `utc` to the sequential scale (as `linear` is for numbers); `shape` and `strokeDash` do not accept them.
@@ -509,26 +497,24 @@ of a mark are still not drawn.
 **The `ScaleKind.Linear` audit.** `ScaleKind.Time` and `ScaleKind.Utc` are new enum members, so each of the 31 source
 sites that tested for `ScaleKind.Linear` was reviewed and decided deliberately:
 
-<!-- markdownlint-disable MD013 -->
-
-| Site | Decision |
-| --- | --- |
-| `ScaleModel` `Map`, `Invert`, and `Map(DataValue)` | accept `IsLinearLike` (`Linear`, `Time`, `Utc`) |
-| `CreateModel` | a new `Time`/`Utc` case: `ScaleModel.CreateTime` with the calendar |
-| `ResolveRange` (a y position runs upward) | `Linear`, `Time`, `Utc` |
-| `ChooseKind` and `TryParseKind` | a temporal branch; `time` and `utc` added; log, pow, symlog unchanged |
-| the three `Accepts` conditions | position and numeric channels accept `Time`/`Utc`; the type check is per field type |
-| `continuousToContinuous`, `supportsRangeLimits`, `Round` | include `Time`/`Utc` |
-| `NiceRule` | the time kinds have their own rule (`TimeNiceRequest`); a temporal sequential or diverging ignores `nice` |
-| `ScaleResolver.Range.cs` (`NumericOutputs`, `ReverseOf`) | `Time`/`Utc` added |
-| `MarkBuilder` stack and zero-or-min sites | unchanged: a time axis is not stacked or the measure axis |
-| `MarkBuilder` bin-end site | generalized to band ends (a bin or a time unit; see _MarkBuilder Unit Design_) |
-| `MarkBuilder` continuous-domain, range, and bar-thickness sites | `Time`/`Utc` added |
-| `AxisBuilder` tick path and default-grid sites | changed to route time scales to time ticks (see _AxisBuilder Unit Design_) |
-| `LegendBuilder` symbol and gradient sites | changed for temporal legends (see _LegendBuilder Unit Design_) |
-| 23 existing test sites | re-read: each asserts the scale of a quantitative field, so all stay; temporal parallels are in the new tests |
-
-<!-- markdownlint-enable MD013 -->
+- **`ScaleModel` `Map`, `Invert`, and `Map(DataValue)`**: accept `IsLinearLike` (`Linear`, `Time`, `Utc`).
+- **`CreateModel`**: a new `Time`/`Utc` case: `ScaleModel.CreateTime` with the calendar.
+- **`ResolveRange` (a y position runs upward)**: `Linear`, `Time`, `Utc`.
+- **`ChooseKind` and `TryParseKind`**: a temporal branch; `time` and `utc` added; log, pow, symlog unchanged.
+- **the three `Accepts` conditions**: position and numeric channels accept `Time`/`Utc`; the type check is per field
+  type.
+- **`continuousToContinuous`, `supportsRangeLimits`, `Round`**: include `Time`/`Utc`.
+- **`NiceRule`**: the time kinds have their own rule (`TimeNiceRequest`); a temporal sequential or diverging ignores
+  `nice`.
+- **`ScaleResolver.Range.cs` (`NumericOutputs`, `ReverseOf`)**: `Time`/`Utc` added.
+- **`MarkBuilder` stack and zero-or-min sites**: unchanged: a time axis is not stacked or the measure axis.
+- **`MarkBuilder` bin-end site**: generalized to band ends (a bin or a time unit; see *MarkBuilder Unit Design*).
+- **`MarkBuilder` continuous-domain, range, and bar-thickness sites**: `Time`/`Utc` added.
+- **`AxisBuilder` tick path and default-grid sites**: changed to route time scales to time ticks (see *AxisBuilder Unit
+  Design*).
+- **`LegendBuilder` symbol and gradient sites**: changed for temporal legends (see *LegendBuilder Unit Design*).
+- **23 existing test sites**: re-read: each asserts the scale of a quantitative field, so all stay; temporal parallels
+  are in the new tests.
 
 A conditional channel resolves its scale from the **field definition** that the plan names (`ChannelPlan.FieldDef`): its
 own definition when that holds a field, else the first condition on a test that does. The type, the scale options, the

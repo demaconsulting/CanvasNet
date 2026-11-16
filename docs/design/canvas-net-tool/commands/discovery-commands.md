@@ -61,18 +61,17 @@ the `HelpTopic` of its `InputFormat` row: `raster` for the six raster formats, o
 **JSON document**: written through `ResultWriter.Success("formats", ...)` with these fields after the envelope, in
 this order:
 
-<!-- markdownlint-disable MD013 -->
-
 | Key | Value |
 | --- | --- |
 | `tool` | object: `name` (`canvasnet`), `version` |
 | `library` | object: `name` (`DemaConsulting.CanvasNet`), `version` |
-| `inputs` | array of objects: `format`, `kind`, `extensions` (array), `multiPage` (bool), `vector` (bool), `helpTopic` (the name of the help topic that describes the format) |
+| `inputs` | array of objects (see below) |
 | `outputs` | array of objects: `format`, `extensions` (array), `alpha` (bool), `lossy` (bool) |
 | `quality` | object: `min`, `max`, `default` |
 | `maxDimension` | number |
 
-<!-- markdownlint-enable MD013 -->
+Each object of `inputs` has `format`, `kind`, `extensions` (array), `multiPage` (bool), `vector` (bool), and
+`helpTopic`, the name of the help topic that describes the format.
 
 **Info.Run(context, args)**: reads the arguments with `ArgumentReader` (against the two page options) and requires
 exactly one positional argument, the input, and rejects `--page` together with `--all-pages` (`usage-error`). Calls
@@ -102,18 +101,29 @@ a title of several lines is joined with spaces).
 
 **Info JSON document**: `ResultWriter.Success("info", ...)` with these fields after the envelope, in this order:
 
-<!-- markdownlint-disable MD013 -->
-
-| Key | Value |
-| --- | --- |
-| `input` | object: `path`, `format`, `bytes` |
-| `image` | for an image: object: `width`, `height`, `channels`, `hasAlpha`, `canDecode`, `frameCount`, and `exifOrientation` only when the file has one |
-| `document` | for a PDF, PPTX, or VSDX document, instead of `image`: object: `pageCount` and `pages`, an array with one object for each page described: `page`, `width`, `height` (pixels at 96 dpi), `widthPt`, `heightPt`, `rotation` (PDF only), and `name` (VSDX only) |
-| `chart` | for a Vega-Lite chart, after `image` (which gives the laid-out `width` and `height`, 4 `channels`, `hasAlpha` true, `canDecode` true, and `frameCount` 1): object: `title` and `schemaMajorVersion` only when the specification has them, `marks` (an array of the mark types as written, in document order, including those of layers and concatenations), `dataReferences` (an array of objects in document order: `kind` (`inline`, `url`, `name`, or `sequence`), `url` as written for a `url` source, `rows` when the text gives the row count, and `line` of the `data` object), and `parameters` (an array of the declared parameter names) |
-| `diagram` | for a Mermaid diagram, after `image` (which gives the laid-out `width` and `height`, 4 `channels`, `hasAlpha` true, `canDecode` true, and `frameCount` 1), written by `WriteDiagram`: object: `type` (for example `flowchart`, `sequence`, or `mindmap`), `supported` (false for a type that is recognized but not drawn, such as a user journey, which `render` draws as an empty picture with the diagnostic `mermaid-diagram-unsupported`), `direction`, `title`, and `accTitle` only when the diagram has them, and `nodes`, `edges`, and `subgraphs` (for a mindmap its nodes, one edge fewer than its nodes, and 0 subgraphs; for a packet diagram its blocks as written, 0 edges, and 0 subgraphs; for a git graph its commits, the links to their parents as edges, and 0 subgraphs; 0 for a type that is not drawn) |
-| `model` | for an OpenSCAD model, instead of `image`: object: `modules` and `functions` (arrays of the names defined at file scope, in source order, a repeated name kept) and `directives` (an array of objects: `kind` (`include` or `use`), `path` as written, and `line`) |
-
-<!-- markdownlint-enable MD013 -->
+- **`input`**: object: `path`, `format`, `bytes`.
+- **`image`**: for an image: object: `width`, `height`, `channels`, `hasAlpha`, `canDecode`, `frameCount`, and
+  `exifOrientation` only when the file has one.
+- **`document`**: for a PDF, PPTX, or VSDX document, instead of `image`: object: `pageCount` and `pages`, an array with
+  one object for each page described: `page`, `width`, `height` (pixels at 96 dpi), `widthPt`, `heightPt`, `rotation`
+  (PDF only), and `name` (VSDX only).
+- **`chart`**: for a Vega-Lite chart, after `image` (which gives the laid-out `width` and `height`, 4 `channels`,
+  `hasAlpha` true, `canDecode` true, and `frameCount` 1): object: `title` and `schemaMajorVersion` only when the
+  specification has them, `marks` (an array of the mark types as written, in document order, including those of layers
+  and concatenations), `dataReferences` (an array of objects in document order: `kind` (`inline`, `url`, `name`, or
+  `sequence`), `url` as written for a `url` source, `rows` when the text gives the row count, and `line` of the `data`
+  object), and `parameters` (an array of the declared parameter names).
+- **`diagram`**: for a Mermaid diagram, after `image` (which gives the laid-out `width` and `height`, 4 `channels`,
+  `hasAlpha` true, `canDecode` true, and `frameCount` 1), written by `WriteDiagram`: object: `type` (for example
+  `flowchart`, `sequence`, or `mindmap`), `supported` (false for a type that is recognized but not drawn, such as a user
+  journey, which `render` draws as an empty picture with the diagnostic `mermaid-diagram-unsupported`), `direction`,
+  `title`, and `accTitle` only when the diagram has them, and `nodes`, `edges`, and `subgraphs` (for a mindmap its
+  nodes, one edge fewer than its nodes, and 0 subgraphs; for a packet diagram its blocks as written, 0 edges, and 0
+  subgraphs; for a git graph its commits, the links to their parents as edges, and 0 subgraphs; 0 for a type that is not
+  drawn).
+- **`model`**: for an OpenSCAD model, instead of `image`: object: `modules` and `functions` (arrays of the names defined
+  at file scope, in source order, a repeated name kept) and `directives` (an array of objects: `kind` (`include` or
+  `use`), `path` as written, and `line`).
 
 The model is parsed, not evaluated, so `info` neither runs its code nor reads the files it includes (their
 existence is not checked, and a syntax error in an included file is found only when the model is rendered).

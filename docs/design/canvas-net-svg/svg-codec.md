@@ -351,11 +351,9 @@ with `isRoot` so its own font size is the `rem` basis for the rest of its proper
 | Class | Call sites | Malformed value |
 | --- | --- | --- |
 
-<!-- markdownlint-disable MD013 -->
 | S, strict | rect/ellipse/circle/line/image/use/symbol/marker geometry (`x`, `y`, `width`, `height`, `rx`, `ry`, `cx`, `cy`, `r`, `x1`..`y2`, `refX`, `refY`, `markerWidth`, `markerHeight`), text `x`/`y`, `stroke-width`, `stroke-dashoffset`, each `stroke-dasharray` entry | `InvalidDataException` naming the attribute (never a raw `FormatException`) |
 | T, tolerant | root `width`/`height`, gradient, pattern and mask-region coordinates | treated as absent; the default or fallback applies |
 | F, font | `font-size`, `line-height`, `font-family`, `font-weight`, `font-style`, the `font` shorthand; text `dx`/`dy` | the declaration is dropped: the next lower source applies (inline style, then stylesheet, then the presentation attribute, then the `font` attribute), and the value is inherited only when none is valid (no offset for `dx`/`dy`) |
-<!-- markdownlint-enable MD013 -->
 
 Not lengths, and unchanged: `viewBox`, `transform` arguments, path data, `points`,
 `stroke-miterlimit`, filter primitive parameters, `stdDeviation`, and the filter region and

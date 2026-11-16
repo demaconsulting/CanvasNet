@@ -101,15 +101,13 @@ class:
   `ArgumentException` for an empty/whitespace `path`, and `InvalidDataException` for malformed
   SVG data.
 
-<!-- markdownlint-disable MD013 -->
+Each interface, with its direction and format, and its constraints:
 
-| Interface | Direction | Format | Constraints |
-| --- | --- | --- | --- |
-| `SvgCodec.Load(...)` | Inbound/Outbound | Method call / `Surface` return | Valid SVG stream or path; `0 < width, height <= 8192` |
-| `SvgCodec.LoadWithFontFaces(...)` | Inbound/Outbound | Method call / `Surface` return | Valid SVG stream or path; `0 < width, height <= 8192` |
-| `SvgCodec.GetInfo(...)` | Inbound/Outbound | Method call / `ImageInfo` return | Valid SVG stream or path |
-
-<!-- markdownlint-enable MD013 -->
+- **`SvgCodec.Load(...)`** (Inbound/Outbound; Method call / `Surface` return): Valid SVG stream or path;
+  `0 < width, height <= 8192`.
+- **`SvgCodec.LoadWithFontFaces(...)`** (Inbound/Outbound; Method call / `Surface` return): Valid SVG stream or path;
+  `0 < width, height <= 8192`.
+- **`SvgCodec.GetInfo(...)`** (Inbound/Outbound; Method call / `ImageInfo` return): Valid SVG stream or path.
 
 See *SvgCodec Unit Design* (`canvas-net-svg/svg-codec.md`) for the complete in-scope SVG feature
 subset (shapes, path data, transforms, gradients, patterns, filters, clip-path/mask, markers,

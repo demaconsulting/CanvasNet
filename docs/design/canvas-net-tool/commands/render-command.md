@@ -273,21 +273,59 @@ appended for a document, for example `wrote out.png (816x1056 png, 41208 bytes) 
 **JSON result**: `ResultWriter.Success(Name, ...)` (the command is `render`, or the verb that was run) with these
 fields after the envelope, in this order:
 
-<!-- markdownlint-disable MD013 -->
-
-| Key | Value |
-| --- | --- |
-| `tool` | object: `name` (`canvasnet`), `version` |
-| `input` | object: `path`, `format`, for a PDF, PPTX, or VSDX also `page` (omitted with `--all-pages`) and `pageCount`, and `natural` (object: `width`, `height`; the stored or intrinsic size, or the size of the first page rendered at the resolution) |
-| `operations` | array of objects in order, for every page: `op` and the operation's parameters. `render` (`width`, `height`) for an SVG, `render` (`page`, `dpi`, `width`, `height`, `background`) for a document page, `render` (`view`, `azimuth`, `elevation`, `projection`, `width`, `height`, `background`, and when given `defines` as a list of `name=value`, `time`, `maxTriangles`, `defaultColor`) for a model (the `view`, `azimuth`, and `elevation` are those asked for when a view was chosen explicitly, otherwise those the library used: `iso`, 45, 35.264... for a 3D model, `top`, 0, 90 for a model that is entirely 2D, and `custom` with the angles for a view the model set with its viewport variables), `render` (`width`, `height`, `timeZone` (`UTC`), `background` when one was given, and `params` - a list of `name=value` in name order, the value as JSON - when `--param` was given) for a Vega-Lite chart, `render` (`width` and `height` as drawn, `background`, and `theme` when one is set) for a Mermaid diagram, followed by one `embed` (`href`, `format`, `width`, `height`) for each picture of a node that was drawn, `fit` (`width`, `height`) when a page was fitted inside a box, `auto-orient` (`orientation`), `resize` (`width`, `height`, and `filter` when `--filter` was given), `flatten` (`background`) when transparency was flattened by the loader or for JPEG output; then the operations of the image pipeline in the order written: `crop` (`x`, `y`, `width`, `height`, `clamped`), `resize` (`width`, `height`, `filter`), `fit` (`width`, `height`, `boxWidth`, `boxHeight`, `filter`, `allowUpscale`, `scaled`), `rotate` (`degrees`, `width`, `height`; for an angle that is not a multiple of 90 also `fill` and `filter`), `flip` (`axis`, `width`, `height`), `pad` (`left`, `top`, `right`, `bottom`, `color`, `width`, `height`), and the photo operations `grayscale` and `invert` (`width`, `height`), `threshold` (`auto`, `level`, `width`, `height`), `levels` (`black`, `white`, `gamma`, `width`, `height`), `brightness` and `contrast` (`amount`, `width`, `height`), `auto-levels` (`clip`, `black`, `white`, `applied`, `width`, `height`), `deskew` (`skewDegrees`, `rotateDegrees`, `confidence`, `applied`, `fill`, `filter`, `width`, `height`), `trim` (`tolerance`, `x`, `y`, `width`, `height`, `trimmed`, `empty`), and `grid` (`spacing`, `color`, `verticalLines`, `horizontalLines`, `labels`, `width`, `height`); a JPEG's `flatten` comes last; with `--all-pages` of a document every operation also has `page` |
-| `outputs` | array with one object per page written: `path`, `format`, `width`, `height`, `bytes`, and for a document `page` |
-| `diagnostics` | array of objects: `source` (`pptx`, `vsdx`, `scad`, `vega-lite`, `mermaid`, or `svg`), `severity` (`unsupported`, or `warning` for a model, a chart, a diagram, or a fragment warning), `code` (the feature token such as `mermaid-diagram-unsupported`, `scad-warning`, `vega-lite-warning`, `mermaid-warning`, or an image-link code such as `svg-image-unresolved`, `image-fragment-invalid`, or `image-page-out-of-range`), `message`, `page` (documents only), and then, only when present, `detail`, `location` (`file`, `line`, `column`, `pointer`; unknown members omitted), and `origin` (list of files), written by `ResultWriter.WriteDiagnosticExtras` |
-| `echo` | array of strings: the `echo` output of a model as the SCAD library prints it, with its `ECHO:` prefix (empty for every other source) |
-| `anchors` | **only for a model** (no member for any other input), after `echo`: an array of objects in echo order, duplicates included, `name`, `point` (the world `[x, y, z]`), `pixel` (`[x, y]` in the written image, continuous with the origin at the top-left corner, rounded to three decimals, or `null` when the position is unknown: a point behind a perspective eye or after a deskew that corrected the image) and `inside` (the pixel lies in `0 <= x < width`, `0 <= y < height` of the written image; `false` for a `null` pixel); `[]` when the model declares none (`WriteAnchors`) |
-| `positions` | **only with `--positions`** (no member otherwise, so a document without the option is unchanged), after `echo` and `anchors`: an array of the matched features in the order the library delivered them, each with `kind` and `id`, then only the facts it has - `text`, `line`, `view` (always for a chart, `""` for a single view), `name` (the view's name), `mark`, `from`, `to`, `index`, `values` (an object of channel values with their JSON types, numbers not rounded), and `data` (an object of the data fields of the source row of a chart mark, typed the same way) - then `box` (`x`, `y`, `width`, `height`, rounded to three decimals) or `null`, `pixel` (`[x, y]`, rounded to three decimals) or `null` when a pipeline step lost them, and `inside` (the pixel lies in `0 <= x < width`, `0 <= y < height` of the written image; `false` for a `null` pixel; not whether the feature is visible) (`WritePositions`, `WriteGeometry`, `WriteValues`, `WriteValue`) |
-| `positionsTruncated` | **only with `--positions`**, after `positions`: `true` when matching positions were left out because of the cap of 1,000 |
-
-<!-- markdownlint-enable MD013 -->
+- **`tool`**: object: `name` (`canvasnet`), `version`.
+- **`input`**: object: `path`, `format`, for a PDF, PPTX, or VSDX also `page` (omitted with `--all-pages`) and
+  `pageCount`, and `natural` (object: `width`, `height`; the stored or intrinsic size, or the size of the first page
+  rendered at the resolution).
+- **`operations`**: array of objects in order, for every page: `op` and the operation's parameters. `render` (`width`,
+  `height`) for an SVG, `render` (`page`, `dpi`, `width`, `height`, `background`) for a document page, `render` (`view`,
+  `azimuth`, `elevation`, `projection`, `width`, `height`, `background`, and when given `defines` as a list of
+  `name=value`, `time`, `maxTriangles`, `defaultColor`) for a model (the `view`, `azimuth`, and `elevation` are those
+  asked for when a view was chosen explicitly, otherwise those the library used: `iso`, 45, 35.264... for a 3D model,
+  `top`, 0, 90 for a model that is entirely 2D, and `custom` with the angles for a view the model set with its viewport
+  variables), `render` (`width`, `height`, `timeZone` (`UTC`), `background` when one was given, and `params` - a list of
+  `name=value` in name order, the value as JSON - when `--param` was given) for a Vega-Lite chart, `render` (`width` and
+  `height` as drawn, `background`, and `theme` when one is set) for a Mermaid diagram, followed by one `embed` (`href`,
+  `format`, `width`, `height`) for each picture of a node that was drawn, `fit` (`width`, `height`) when a page was
+  fitted inside a box, `auto-orient` (`orientation`), `resize` (`width`, `height`, and `filter` when `--filter` was
+  given), `flatten` (`background`) when transparency was flattened by the loader or for JPEG output; then the operations
+  of the image pipeline in the order written: `crop` (`x`, `y`, `width`, `height`, `clamped`), `resize` (`width`,
+  `height`, `filter`), `fit` (`width`, `height`, `boxWidth`, `boxHeight`, `filter`, `allowUpscale`, `scaled`), `rotate`
+  (`degrees`, `width`, `height`; for an angle that is not a multiple of 90 also `fill` and `filter`), `flip` (`axis`,
+  `width`, `height`), `pad` (`left`, `top`, `right`, `bottom`, `color`, `width`, `height`), and the photo operations
+  `grayscale` and `invert` (`width`, `height`), `threshold` (`auto`, `level`, `width`, `height`), `levels` (`black`,
+  `white`, `gamma`, `width`, `height`), `brightness` and `contrast` (`amount`, `width`, `height`), `auto-levels`
+  (`clip`, `black`, `white`, `applied`, `width`, `height`), `deskew` (`skewDegrees`, `rotateDegrees`, `confidence`,
+  `applied`, `fill`, `filter`, `width`, `height`), `trim` (`tolerance`, `x`, `y`, `width`, `height`, `trimmed`,
+  `empty`), and `grid` (`spacing`, `color`, `verticalLines`, `horizontalLines`, `labels`, `width`, `height`); a JPEG's
+  `flatten` comes last; with `--all-pages` of a document every operation also has `page`.
+- **`outputs`**: array with one object per page written: `path`, `format`, `width`, `height`, `bytes`, and for a
+  document `page`.
+- **`diagnostics`**: array of objects: `source` (`pptx`, `vsdx`, `scad`, `vega-lite`, `mermaid`, or `svg`), `severity`
+  (`unsupported`, or `warning` for a model, a chart, a diagram, or a fragment warning), `code` (the feature token such
+  as `mermaid-diagram-unsupported`, `scad-warning`, `vega-lite-warning`, `mermaid-warning`, or an image-link code such
+  as `svg-image-unresolved`, `image-fragment-invalid`, or `image-page-out-of-range`), `message`, `page` (documents
+  only), and then, only when present, `detail`, `location` (`file`, `line`, `column`, `pointer`; unknown members
+  omitted), and `origin` (list of files), written by `ResultWriter.WriteDiagnosticExtras`.
+- **`echo`**: array of strings: the `echo` output of a model as the SCAD library prints it, with its `ECHO:` prefix
+  (empty for every other source).
+- **`anchors`**: **only for a model** (no member for any other input), after `echo`: an array of objects in echo order,
+  duplicates included, `name`, `point` (the world `[x, y, z]`), `pixel` (`[x, y]` in the written image, continuous with
+  the origin at the top-left corner, rounded to three decimals, or `null` when the position is unknown: a point behind a
+  perspective eye or after a deskew that corrected the image) and `inside` (the pixel lies in `0 <= x < width`,
+  `0 <= y < height` of the written image; `false` for a `null` pixel); `[]` when the model declares none
+  (`WriteAnchors`).
+- **`positions`**: **only with `--positions`** (no member otherwise, so a document without the option is unchanged),
+  after `echo` and `anchors`: an array of the matched features in the order the library delivered them, each with `kind`
+  and `id`, then only the facts it has - `text`, `line`, `view` (always for a chart, `""` for a single view), `name`
+  (the view's name), `mark`, `from`, `to`, `index`, `values` (an object of channel values with their JSON types, numbers
+  not rounded), and `data` (an object of the data fields of the source row of a chart mark, typed the same way) - then
+  `box` (`x`, `y`, `width`, `height`, rounded to three decimals) or `null`, `pixel` (`[x, y]`, rounded to three
+  decimals) or `null` when a pipeline step lost them, and `inside` (the pixel lies in `0 <= x < width`,
+  `0 <= y < height` of the written image; `false` for a `null` pixel; not whether the feature is visible)
+  (`WritePositions`, `WriteGeometry`, `WriteValues`, `WriteValue`).
+- **`positionsTruncated`**: **only with `--positions`**, after `positions`: `true` when matching positions were left out
+  because of the cap of 1,000.
 
 The text result does not change for a model with anchors: the one `wrote` line is on standard output and the `ECHO:`
 lines of the declarations (and the `scad-anchor-invalid` warnings) are on standard error like any other echo and

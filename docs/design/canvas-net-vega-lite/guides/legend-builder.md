@@ -226,24 +226,22 @@ Scene roles: `legend` (group) containing `legend-entry` (group) and `legend-titl
   charged to the evaluation of the build.
 - Gradient legends - the bar is `gradientThickness` (16) by the gradient length, which is `gradientLength`, else for a
   continuous scale the view height limited to 64 to 200 (vertical) or the view width limited to 100 to 200 for top and
-  bottom (100 for other horizontal legends), else 200. Its `FillGradient` has the stops of Vega's `scaleGradient`: the ends
-  of the domain and the ticks for a count of 15, each at its position **along the transformed domain**
-  (`ScaleModel.Fraction`; the log ticks for a log scale) with the color of the scale (a domain
-  without span is replaced by 0 to 1 with the interpolator). The labels are the ticks for a count of `tickCount` or
-  `max(2, 2 * floor(length / 100))` (the two ends when there are fewer than three), formatted by the d3 tick format
-(for a
-  log scale only the ticks that d3's log rule labels, with the variable-precision format and the same rule applied to the
-  end points), at their fraction along the transformed domain,
-  placed outside the bar at `gradientLabelOffset` (2) or `labelOffset`, aligned by position, and thinned by
-  `LabelOverlap` (the method of `labelOverlap`, greedy for quantile and threshold scales, else parity). A discrete
-  gradient has one band per class (the colors of the scale at minus infinity and the thresholds, positioned by the linear
-  fraction of the domain, a threshold domain widened by one class at each end) and a label for each boundary. The
-  gradient legend of a **temporal** color (`ResolvedScale.IsTemporalField` on a sequential or diverging scale) takes
-  the time ticks of its millisecond domain instead of the numeric ticks, both for the labels (the tick count of the
-  legend, or the interval of `tickCount`, limited by `tickMinStep`; labels as above) and for the stops: the ramp is
-  sampled at the time ticks for a count of 15 (Vega samples a time scale at its ticks): over a domain of ten days the
-  target is 16 hours, which is nearer to the 12-hour entry of the table than to the 1-day entry, so the ramp has 21
-  stops.
+  bottom (100 for other horizontal legends), else 200. Its `FillGradient` has the stops of Vega's `scaleGradient`: the
+  ends of the domain and the ticks for a count of 15, each at its position **along the transformed domain**
+  (`ScaleModel.Fraction`; the log ticks for a log scale) with the color of the scale (a domain without span is replaced
+  by 0 to 1 with the interpolator). The labels are the ticks for a count of `tickCount` or
+  `max(2, 2 * floor(length / 100))` (the two ends when there are fewer than three), formatted by the d3 tick format (for
+  a log scale only the ticks that d3's log rule labels, with the variable-precision format and the same rule applied to
+  the end points), at their fraction along the transformed domain, placed outside the bar at `gradientLabelOffset` (2)
+  or `labelOffset`, aligned by position, and thinned by `LabelOverlap` (the method of `labelOverlap`, greedy for
+  quantile and threshold scales, else parity). A discrete gradient has one band per class (the colors of the scale at
+  minus infinity and the thresholds, positioned by the linear fraction of the domain, a threshold domain widened by one
+  class at each end) and a label for each boundary. The gradient legend of a **temporal** color
+  (`ResolvedScale.IsTemporalField` on a sequential or diverging scale) takes the time ticks of its millisecond domain
+  instead of the numeric ticks, both for the labels (the tick count of the legend, or the interval of `tickCount`,
+  limited by `tickMinStep`; labels as above) and for the stops: the ramp is sampled at the time ticks for a count of 15
+  (Vega samples a time scale at its ticks): over a domain of ten days the target is 16 hours, which is nearer to the
+  12-hour entry of the table than to the 1-day entry, so the ramp has 21 stops.
 
 **Preconditions and postconditions**: the spec comes from `LegendPlan.Create`; the result's children are positioned
 relative to the legend group and the entry group; the budget has been charged for exactly the items created.

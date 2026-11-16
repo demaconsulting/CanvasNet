@@ -86,16 +86,16 @@ namespace:
   `IOException`-derived exception, carrying a short, stable `Feature` token, thrown by
   `OpenXmlChartParser` for a recognized-but-unimplemented chart kind or data shape.
 
-<!-- markdownlint-disable MD013 -->
+Each interface, with its direction and format, and its constraints:
 
-| Interface | Direction | Format | Constraints |
-| --- | --- | --- | --- |
-| `Chart` constructor | Inbound | Method call / `Chart` instance | At least one non-null series; see _ChartModel Subsystem Design_ |
-| `ChartBuilder.Build()` | Inbound/Outbound | Method call / `Chart` return | A chart type and at least one series must be configured first |
-| `ChartRenderer.Render(...)` | Inbound/Outbound | Method call / `Surface` return | `chart` must not be null; pixel/physical dimensions must be positive and within `Surface`'s supported range |
-| `OpenXmlChartParser.Parse(...)` | Inbound/Outbound | Method call / `Chart` return | `chartDocument`/`chartSpaceOrChartElement` must not be null; must resolve to a `c:chart` with a `c:plotArea` |
-
-<!-- markdownlint-enable MD013 -->
+- **`Chart` constructor** (Inbound; Method call / `Chart` instance): At least one non-null series; see *ChartModel
+  Subsystem Design*.
+- **`ChartBuilder.Build()`** (Inbound/Outbound; Method call / `Chart` return): A chart type and at least one series must
+  be configured first.
+- **`ChartRenderer.Render(...)`** (Inbound/Outbound; Method call / `Surface` return): `chart` must not be null;
+  pixel/physical dimensions must be positive and within `Surface`'s supported range.
+- **`OpenXmlChartParser.Parse(...)`** (Inbound/Outbound; Method call / `Chart` return):
+  `chartDocument`/`chartSpaceOrChartElement` must not be null; must resolve to a `c:chart` with a `c:plotArea`.
 
 See *ChartModel Subsystem Design* (`canvas-net-charts/chart-model.md`), *ChartDocument Unit
 Design* (`canvas-net-charts/chart-model/chart-document.md`), *ChartRenderer Unit Design*

@@ -88,17 +88,17 @@ The system exposes the following public API:
   request values and returns plain result values; see *Imaging Subsystem Design* for the signatures.
 - **`ViewerException`** / **`ErrorCodes`**: the failure of an expected kind, with a stable code, a message, and a hint.
 
-<!-- markdownlint-disable MD013 -->
+Each interface, with its direction and format, and its constraints:
 
-| Interface | Direction | Format | Constraints |
-| --- | --- | --- | --- |
-| `ImageSources` / `Extensions` | Outbound | Property / read-only lists | Fixed; cannot be changed |
-| `CreateImageResolver(folder, ...)` | Outbound | Method call / `FolderImageResolver` | One resolver per render; folder not empty |
-| `Render(path, ...)` | Inbound/Outbound | Method call / `ViewerImage` return | Extension claimed by a source; the file itself is not judged by the file-access policy |
-| `Render(stream, fileName, ...)` | Inbound/Outbound | Method call / `ViewerImage` return | At most 16 MiB; extension claimed by a source |
-| `ImageRenderer.Execute` and the other operations | Inbound/Outbound | Method call / request and result records | Files read and written by path; failures are `ViewerException` |
-
-<!-- markdownlint-enable MD013 -->
+- **`ImageSources` / `Extensions`** (Outbound; Property / read-only lists): Fixed; cannot be changed.
+- **`CreateImageResolver(folder, ...)`** (Outbound; Method call / `FolderImageResolver`): One resolver per render;
+  folder not empty.
+- **`Render(path, ...)`** (Inbound/Outbound; Method call / `ViewerImage` return): Extension claimed by a source; the
+  file itself is not judged by the file-access policy.
+- **`Render(stream, fileName, ...)`** (Inbound/Outbound; Method call / `ViewerImage` return): At most 16 MiB; extension
+  claimed by a source.
+- **`ImageRenderer.Execute` and the other operations** (Inbound/Outbound; Method call / request and result records):
+  Files read and written by path; failures are `ViewerException`.
 
 See *CanvasNetViewer Unit Design* (`canvas-net-viewer/canvas-net-viewer.md`) for the complete parameter, return, and
 exception detail of the render path, and *Imaging Subsystem Design* for the operations.

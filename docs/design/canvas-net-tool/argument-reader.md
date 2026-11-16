@@ -41,19 +41,16 @@ of positional arguments. It is immutable once `Parse` has returned.
 
 Tokens are classified as follows, in this order:
 
-<!-- markdownlint-disable MD013 -->
-
-| Token | Meaning |
-| --- | --- |
-| any token after a bare `--` | positional |
-| `--` | ends option parsing |
-| a token not starting with a dash, a lone `-`, or a dash followed by a digit (or `.` and a digit), such as `-90` | positional |
-| `--name=value` | the long option `--name` with an inline value (the first `=` splits; the value may contain `=`) |
-| `--name` or `-a` (exact name or alias) | the option; a value option takes the next token as its value, whatever it looks like |
-| `-aValue`, `-a=Value` (a single-letter alias that takes a value, with the value attached) | the option with the value `Value` |
-| anything else | unknown option: a `usage-error` |
-
-<!-- markdownlint-enable MD013 -->
+- **any token after a bare `--`**: positional.
+- **`--`**: ends option parsing.
+- **a token not starting with a dash, a lone `-`, or a dash followed by a digit (or `.` and a digit), such as `-90`**:
+  positional.
+- **`--name=value`**: the long option `--name` with an inline value (the first `=` splits; the value may contain `=`).
+- **`--name` or `-a` (exact name or alias)**: the option; a value option takes the next token as its value, whatever it
+  looks like.
+- **`-aValue`, `-a=Value` (a single-letter alias that takes a value, with the value attached)**: the option with the
+  value `Value`.
+- **anything else**: unknown option: a `usage-error`.
 
 A flag that is given an inline value, and a value option that is the last token, are `usage-error`s. An unknown
 option is a `usage-error` whose hint suggests the closest declared name or alias: the one within an edit distance of
@@ -73,24 +70,30 @@ outside the range; when `max` is 0 the message says the command takes no argumen
 **Value grammars** (`static`, in `ArgumentReader.Values.cs`). Each takes the text and the option or operand name
 used in the message. Numbers always use the invariant culture.
 
-<!-- markdownlint-disable MD013 -->
-
-| Method | Accepts | Result |
-| --- | --- | --- |
-| `ParseInt(text, option, min, max)` | optional sign and digits within the range | `int` |
-| `ParseNumber(text, option, min, max)` | a finite decimal number within the range | `double` |
-| `ParsePage(text, option)` | a whole number of at least 1 (1-based page) | `int` |
-| `ParseDpi(text, option)` | a number above 0 and at most 2400 | `float` |
-| `ParseSize(text, option)` | `WxH` (or `WXH`) in whole pixels, each at least 1 | `(int Width, int Height)` |
-| `ParseGeometry(text, option)` | `x,y,w,h` or `WxH+X+Y` (`WxH` alone is origin 0,0); each value whole pixels (optionally `px`) or a percent with `%` (fraction allowed, at most 100); the width and height are above 0 | `GeometrySpec` |
-| `ParseColor(text, option)` | `#RGB`, `#RGBA`, `#RRGGBB`, `#RRGGBBAA` (CSS order, alpha last; `#` optional), a CSS color name (any case), or `transparent` | `Rgba32` (straight alpha) |
-| `ParseDegrees(text, option)` | a finite number, optionally followed by `deg` | `double` normalized to at least 0 and below 360 |
-| `ParseFlip(text, option)` | `h`/`horizontal`, `v`/`vertical`, `both` (any case) | `FlipAxis` |
-| `ParsePad(text, option)` | `N` or `l,t,r,b` in whole pixels | `PadSpec` |
-| `ParseDefines(defs)` | `name=value` entries: a finite number is a `double`, `true`/`false` a `bool`, anything else a `string` (one pair of quotes removed); the value grammar is `ImageParameterValues.TryParseVariable` of the core package, shared with the `def.` fragment of an SVG link | `IReadOnlyDictionary<string, object?>` |
-| `ParseParams(parameters)` | `name=value` entries of `--param`: any non-empty name before the first `=`; the value is read by `ImageParameterValues.TryParseParameter` (`true`, `false`, `null`, a finite number, a JSON string, array or object, otherwise text with one pair of single quotes removed), shared with the `param.` fragment of an SVG link; a missing `=`, an empty name or a value that starts like JSON and is not valid JSON is a `usage-error` with the reason and an example | `IReadOnlyDictionary<string, object?>` (null, `bool`, `double`, `string`, `List<object?>`, `Dictionary<string, object?>`) |
-
-<!-- markdownlint-enable MD013 -->
+- **`ParseInt(text, option, min, max)`**: Accepts: optional sign and digits within the range. Result: `int`.
+- **`ParseNumber(text, option, min, max)`**: Accepts: a finite decimal number within the range. Result: `double`.
+- **`ParsePage(text, option)`**: Accepts: a whole number of at least 1 (1-based page). Result: `int`.
+- **`ParseDpi(text, option)`**: Accepts: a number above 0 and at most 2400. Result: `float`.
+- **`ParseSize(text, option)`**: Accepts: `WxH` (or `WXH`) in whole pixels, each at least 1. Result:
+  `(int Width, int Height)`.
+- **`ParseGeometry(text, option)`**: Accepts: `x,y,w,h` or `WxH+X+Y` (`WxH` alone is origin 0,0); each value whole
+  pixels (optionally `px`) or a percent with `%` (fraction allowed, at most 100); the width and height are above 0.
+  Result: `GeometrySpec`.
+- **`ParseColor(text, option)`**: Accepts: `#RGB`, `#RGBA`, `#RRGGBB`, `#RRGGBBAA` (CSS order, alpha last; `#`
+  optional), a CSS color name (any case), or `transparent`. Result: `Rgba32` (straight alpha).
+- **`ParseDegrees(text, option)`**: Accepts: a finite number, optionally followed by `deg`. Result: `double` normalized
+  to at least 0 and below 360.
+- **`ParseFlip(text, option)`**: Accepts: `h`/`horizontal`, `v`/`vertical`, `both` (any case). Result: `FlipAxis`.
+- **`ParsePad(text, option)`**: Accepts: `N` or `l,t,r,b` in whole pixels. Result: `PadSpec`.
+- **`ParseDefines(defs)`**: Accepts: `name=value` entries: a finite number is a `double`, `true`/`false` a `bool`,
+  anything else a `string` (one pair of quotes removed); the value grammar is `ImageParameterValues.TryParseVariable` of
+  the core package, shared with the `def.` fragment of an SVG link. Result: `IReadOnlyDictionary<string, object?>`.
+- **`ParseParams(parameters)`**: Accepts: `name=value` entries of `--param`: any non-empty name before the first `=`;
+  the value is read by `ImageParameterValues.TryParseParameter` (`true`, `false`, `null`, a finite number, a JSON
+  string, array or object, otherwise text with one pair of single quotes removed), shared with the `param.` fragment of
+  an SVG link; a missing `=`, an empty name or a value that starts like JSON and is not valid JSON is a `usage-error`
+  with the reason and an example. Result: `IReadOnlyDictionary<string, object?>` (null, `bool`, `double`, `string`,
+  `List<object?>`, `Dictionary<string, object?>`).
 
 `ParseColor` delegates the names and the hexadecimal digits to the core `CssColor` (`TryGetNamedColor`, which knows all
 148 CSS color names and `transparent`, and `TryParseHex`); it adds only the optional leading `#`. The `rgb()` and

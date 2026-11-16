@@ -121,39 +121,106 @@ Limits are enforced during header validation, before the memory they protect is 
    `UnsupportedImageFeatureException`; no other exception type is thrown. The rules, with each
    deliberate leniency, are:
 
-   <!-- markdownlint-disable MD013 -->
+   - **SOC**
+     - Validation rule: First marker; a second SOC in the main header is rejected.
+     - Deliberate leniency: None.
+   - **SIZ**
+     - Validation rule: Directly after SOC, at most once, in the main header only; exactly 38 + 3 x Csiz bytes; Csiz 1
+       to 16384 (more than 16 is unsupported); Xsiz, Ysiz, XTsiz, YTsiz non-zero; XRsiz, YRsiz non-zero; XOsiz < Xsiz
+       and YOsiz < Ysiz; XTOsiz and YTOsiz at most the image offset and tile origin + size beyond it; Ssiz depth above
+       16 is unsupported; Rsiz Part 2 and HTJ2K bits are unsupported.
+     - Deliberate leniency: Other Rsiz profile values are not checked.
+   - **COD / COC**
+     - Validation rule: Fixed part plus one precinct byte per resolution when precincts are declared, no trailing bytes;
+       levels at most 32; code-block exponents 2 to 10 with xcb + ycb at most 12; precinct exponent 0 only at resolution
+       0; progression order at most 4; layers at least 1; style bits 6-7 and transform above 1 are unsupported; MCT
+       above 1 is unsupported; MCT needs three equal components.
+     - Deliberate leniency: Scod reserved bits 3-7 are ignored; a repeated COD replaces the earlier one (as OpenJPEG).
+   - **QCD / QCC**
+     - Validation rule: Style 0 exactly 3 x levels + 1 entries (checked once the effective levels are known); style 1
+       exactly one 16-bit entry; style 2 a non-zero even number of bytes; style above 2 and an empty segment are
+       rejected; derived exponents must stay in the bit-plane range.
+     - Deliberate leniency: Style 2 extra entries are ignored; guard-bit count is not range-checked beyond the bit-plane
+       limits.
+   - **RGN**
+     - Validation rule: Exactly 3 bytes; component index below Csiz; style must be 0 (else unsupported); shift at
+       most 37.
+     - Deliberate leniency: None.
+   - **POC**
+     - Validation rule: A non-zero multiple of 7 bytes; RSpoc < REpoc, CSpoc < CEpoc, LYEpoc at least 1, progression at
+       most 4; the progressions must cover every packet; at most the entry cap.
+     - Deliberate leniency: A later entry may name a larger layer end (already-sent packets are skipped).
+   - **SOT**
+     - Validation rule: Tile-part header only; Lsot exactly 10; Isot below the tile count; Psot 0 (last tile-part) or at
+       least 14 and within the data; TPsot equals the tile-parts already seen.
+     - Deliberate leniency: TNsot is advisory; Psot 1 to 13 is rejected, where OpenJPEG warns on 12.
+   - **SOD**
+     - Validation rule: Must end every tile-part header; a tile-part without SOD fails.
+     - Deliberate leniency: None.
+   - **EOC**
+     - Validation rule: Ends the codestream.
+     - Deliberate leniency: A missing EOC, one trailing byte, and bytes after EOC are ignored.
+   - **PPM / PPT**
+     - Validation rule: At least the one-byte index; PPM chunks must tile the payload exactly; PPM in the main header
+       only, PPT in tile-part headers only; a repeated Zppm or Zppt index is rejected.
+     - Deliberate leniency: A gap in the index sequence is tolerated, as in OpenJPEG; PPM and PPT may be mixed.
+   - **TLM / PLM / CRG**
+     - Validation rule: Main header only (rejected in a tile-part header).
+     - Deliberate leniency: Skipped by their length field, content not interpreted.
+   - **PLT**
+     - Validation rule: Tile-part header only (rejected in the main header).
+     - Deliberate leniency: Skipped by length.
+   - **COM, unknown markers**
+     - Validation rule: Skipped by their length field.
+     - Deliberate leniency: Content not interpreted.
+   - **SOP**
+     - Validation rule: In packet data only; a SOP marker in either header is rejected; when present Lsop exactly 4.
+     - Deliberate leniency: Presence is not required even when the Scod SOP bit is set, and Nsop is not checked (see
+       below).
+   - **Marker order**
+     - Validation rule: SIZ first; COD and QCD required in the main header; SOT before SOD; COD/COC/QCD/QCC/RGN only in
+       the first tile-part of a tile.
+     - Deliberate leniency: Marker order inside a header is otherwise free.
+   - **JP2 signature, jP**
+     - Validation rule: Must be the first box with content `0D 0A 87 0A`.
+     - Deliberate leniency: None.
+   - **JP2 ftyp**
+     - Validation rule: Must be the second box; content a multiple of 4 and at least 8 bytes.
+     - Deliberate leniency: Brand and compatibility list are not interpreted.
+   - **JP2 jp2h**
+     - Validation rule: Must precede jp2c and contain an ihdr; its child boxes are read in order.
+     - Deliberate leniency: Several jp2h boxes: the first of each child wins; boxes after jp2c are not examined.
+   - **JP2 ihdr**
+     - Validation rule: Exactly 14 bytes; height and width must equal the SIZ image height and width.
+     - Deliberate leniency: NC, BPC, C, UnkC and IPR are not compared with SIZ (OpenJPEG only warns); a second ihdr is
+       ignored; ihdr need not be the first child.
+   - **JP2 bpcc**
+     - Validation rule: Not interpreted, depths come from SIZ.
+     - Deliberate leniency: Always.
+   - **JP2 colr**
+     - Validation rule: At least 3 bytes; METH 1 is exactly 7 bytes except EnumCS 14 and 19, which carry extra
+       parameters.
+     - Deliberate leniency: METH 2 takes the rest of the box as an ICC profile; other METH values are ignored; a missing
+       colr falls back to the heuristic below.
+   - **JP2 pclr**
+     - Validation rule: Exactly the header, depth bytes and entries x columns values; signed columns are unsupported.
+     - Deliberate leniency: Out-of-range palette indexes are clamped.
+   - **JP2 cmap**
+     - Validation rule: A multiple of 4 bytes.
+     - Deliberate leniency: Ignored without a pclr.
+   - **JP2 cdef**
+     - Validation rule: Exactly 2 + 6 x N bytes.
+     - Deliberate leniency: A repeated channel association: the last wins.
+   - **JP2 res and unknown boxes**
+     - Validation rule: Skipped by their box length.
+     - Deliberate leniency: Not interpreted.
+   - **JP2 box length**
+     - Validation rule: Truncated or oversized boxes are rejected.
+     - Deliberate leniency: A length of 0 (to end of data) or 1 (extended 64-bit length) is accepted.
+   - **jp2c**
+     - Validation rule: Required, with a valid codestream.
+     - Deliberate leniency: A raw codestream (no signature box) is accepted without any JP2 box.
 
-   | Structure | Validation rule | Deliberate leniency |
-   | --- | --- | --- |
-   | SOC | First marker; a second SOC in the main header is rejected | None |
-   | SIZ | Directly after SOC, at most once, in the main header only; exactly 38 + 3 x Csiz bytes; Csiz 1 to 16384 (more than 16 is unsupported); Xsiz, Ysiz, XTsiz, YTsiz non-zero; XRsiz, YRsiz non-zero; XOsiz < Xsiz and YOsiz < Ysiz; XTOsiz and YTOsiz at most the image offset and tile origin + size beyond it; Ssiz depth above 16 is unsupported; Rsiz Part 2 and HTJ2K bits are unsupported | Other Rsiz profile values are not checked |
-   | COD / COC | Fixed part plus one precinct byte per resolution when precincts are declared, no trailing bytes; levels at most 32; code-block exponents 2 to 10 with xcb + ycb at most 12; precinct exponent 0 only at resolution 0; progression order at most 4; layers at least 1; style bits 6-7 and transform above 1 are unsupported; MCT above 1 is unsupported; MCT needs three equal components | Scod reserved bits 3-7 are ignored; a repeated COD replaces the earlier one (as OpenJPEG) |
-   | QCD / QCC | Style 0 exactly 3 x levels + 1 entries (checked once the effective levels are known); style 1 exactly one 16-bit entry; style 2 a non-zero even number of bytes; style above 2 and an empty segment are rejected; derived exponents must stay in the bit-plane range | Style 2 extra entries are ignored; guard-bit count is not range-checked beyond the bit-plane limits |
-   | RGN | Exactly 3 bytes; component index below Csiz; style must be 0 (else unsupported); shift at most 37 | None |
-   | POC | A non-zero multiple of 7 bytes; RSpoc < REpoc, CSpoc < CEpoc, LYEpoc at least 1, progression at most 4; the progressions must cover every packet; at most the entry cap | A later entry may name a larger layer end (already-sent packets are skipped) |
-   | SOT | Tile-part header only; Lsot exactly 10; Isot below the tile count; Psot 0 (last tile-part) or at least 14 and within the data; TPsot equals the tile-parts already seen | TNsot is advisory; Psot 1 to 13 is rejected, where OpenJPEG warns on 12 |
-   | SOD | Must end every tile-part header; a tile-part without SOD fails | None |
-   | EOC | Ends the codestream | A missing EOC, one trailing byte, and bytes after EOC are ignored |
-   | PPM / PPT | At least the one-byte index; PPM chunks must tile the payload exactly; PPM in the main header only, PPT in tile-part headers only; a repeated Zppm or Zppt index is rejected | A gap in the index sequence is tolerated, as in OpenJPEG; PPM and PPT may be mixed |
-   | TLM / PLM / CRG | Main header only (rejected in a tile-part header) | Skipped by their length field, content not interpreted |
-   | PLT | Tile-part header only (rejected in the main header) | Skipped by length |
-   | COM, unknown markers | Skipped by their length field | Content not interpreted |
-   | SOP | In packet data only; a SOP marker in either header is rejected; when present Lsop exactly 4 | Presence is not required even when the Scod SOP bit is set, and Nsop is not checked (see below) |
-   | Marker order | SIZ first; COD and QCD required in the main header; SOT before SOD; COD/COC/QCD/QCC/RGN only in the first tile-part of a tile | Marker order inside a header is otherwise free |
-   | JP2 signature, jP | Must be the first box with content `0D 0A 87 0A` | None |
-   | JP2 ftyp | Must be the second box; content a multiple of 4 and at least 8 bytes | Brand and compatibility list are not interpreted |
-   | JP2 jp2h | Must precede jp2c and contain an ihdr; its child boxes are read in order | Several jp2h boxes: the first of each child wins; boxes after jp2c are not examined |
-   | JP2 ihdr | Exactly 14 bytes; height and width must equal the SIZ image height and width | NC, BPC, C, UnkC and IPR are not compared with SIZ (OpenJPEG only warns); a second ihdr is ignored; ihdr need not be the first child |
-   | JP2 bpcc | Not interpreted, depths come from SIZ | Always |
-   | JP2 colr | At least 3 bytes; METH 1 is exactly 7 bytes except EnumCS 14 and 19, which carry extra parameters | METH 2 takes the rest of the box as an ICC profile; other METH values are ignored; a missing colr falls back to the heuristic below |
-   | JP2 pclr | Exactly the header, depth bytes and entries x columns values; signed columns are unsupported | Out-of-range palette indexes are clamped |
-   | JP2 cmap | A multiple of 4 bytes | Ignored without a pclr |
-   | JP2 cdef | Exactly 2 + 6 x N bytes | A repeated channel association: the last wins |
-   | JP2 res and unknown boxes | Skipped by their box length | Not interpreted |
-   | JP2 box length | Truncated or oversized boxes are rejected | A length of 0 (to end of data) or 1 (extended 64-bit length) is accepted |
-   | jp2c | Required, with a valid codestream | A raw codestream (no signature box) is accepted without any JP2 box |
-
-   <!-- markdownlint-enable MD013 -->
 
    The required JP2 boxes (signature, `ftyp`, `jp2h` with an `ihdr`, `jp2c`) are the ones OpenJPEG
    also insists on; `colr` is not required because OpenJPEG decodes a file without one. The same

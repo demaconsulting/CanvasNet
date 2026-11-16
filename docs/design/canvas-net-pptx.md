@@ -110,16 +110,14 @@ The system exposes the following public API to external consumers, all on the se
   `ObjectDisposedException` (enforced, as of Phase 1b, by `SlideCount`/`SlideSize`/
   `GetSlideSizeInPixels`).
 
-<!-- markdownlint-disable MD013 -->
+Each interface, with its direction and format, and its constraints:
 
-| Interface | Direction | Format | Constraints |
-| --- | --- | --- | --- |
-| `PptxDocument.Open(...)` | Inbound/Outbound | Method call / `PptxDocument` return | Valid `.pptx`/OPC presentation stream or path |
-| `PptxDocument.SlideCount` / `SlideSize` | Outbound | Property access | Document must not be disposed |
-| `PptxDocument.GetSlideSizeInPixels(...)` | Inbound/Outbound | Method call / `(int, int)` return | Positive, finite `dpi`; document must not be disposed |
-| `PptxDocument.Dispose()` | Inbound | Method call | Safe to call more than once |
-
-<!-- markdownlint-enable MD013 -->
+- **`PptxDocument.Open(...)`** (Inbound/Outbound; Method call / `PptxDocument` return): Valid `.pptx`/OPC presentation
+  stream or path.
+- **`PptxDocument.SlideCount` / `SlideSize`** (Outbound; Property access): Document must not be disposed.
+- **`PptxDocument.GetSlideSizeInPixels(...)`** (Inbound/Outbound; Method call / `(int, int)` return): Positive, finite
+  `dpi`; document must not be disposed.
+- **`PptxDocument.Dispose()`** (Inbound; Method call): Safe to call more than once.
 
 The package layer's `ResolvePart`/`ResolveRelationship` methods, and every Phase 1b
 presentation/theme/master/layout/slide/inheritance member, are `internal` (not part of the

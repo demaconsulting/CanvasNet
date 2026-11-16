@@ -31,16 +31,14 @@ is of the size at that step of the pipeline, and a region past the right or bott
 **IImageOperation** (interface): a step of the pipeline, with its `Name` (the `op` of the result). The records that
 implement it are plain descriptions of what to do:
 
-<!-- markdownlint-disable MD013 -->
-
 | Record | Name | Parameters |
 | --- | --- | --- |
 | `CropOperation` | `crop` | `Region` (a `GeometrySpec`: origin and size, each in pixels or percent) |
 | `ResizeOperation` | `resize` | `Width`, `Height`, `Filter` (default auto) |
 | `FitOperation` | `fit` | `Width`, `Height` (the box), `AllowUpscale` (default off), `Filter` (default auto) |
-| `RotateOperation` | `rotate` | `Degrees` (a `double` from 0 up to 360, clockwise), `Fill` (`Rgba32?`; `null` for the default rule), `Filter` |
+| `RotateOperation` | `rotate` | `Degrees` (a `double`, see below), `Fill` (`Rgba32?`, see below), `Filter` |
 | `FlipOperation` | `flip` | `Axis` (`FlipAxis`: horizontal, vertical, or both) |
-| `PadOperation` | `pad` | `Border` (a `PadSpec`: left, top, right, bottom) and `Color` (`Rgba32?`; `null` for the caller's default) |
+| `PadOperation` | `pad` | `Border` (a `PadSpec`: left, top, right, bottom) and `Color` (`Rgba32?`, see below) |
 | `GrayscaleOperation` | `grayscale` | none |
 | `InvertOperation` | `invert` | none |
 | `ThresholdOperation` | `threshold` | `Level` (`int?`: 0 to 255, or `null` for automatic) |
@@ -52,7 +50,8 @@ implement it are plain descriptions of what to do:
 | `TrimOperation` | `trim` | `Tolerance` (0 to 255) |
 | `GridOperation` | `grid` | `Spacing` (8 to 4096), `Color` (`Rgba32?`; `null` for `GridOverlay.DefaultColor`) |
 
-<!-- markdownlint-enable MD013 -->
+The `Degrees` of a `RotateOperation` run from 0 up to 360, clockwise, and its `Fill` is `null` for the default rule;
+the `Color` of a `PadOperation` is `null` for the caller's default.
 
 **Command-line options of the tool.** The tool reads `--crop`, `--resize`, `--fit`,
 `--rotate`, `--flip`, `--pad`, `--grayscale`, `--invert`, `--threshold`, `--levels`, `--brightness`, `--contrast`,
@@ -101,27 +100,24 @@ surface it changed. Every other step makes a new surface. After each step the pr
 the input or the step returned it, and also when a step fails, so a failure leaves nothing behind but the input and at
 most two full-size surfaces ever exist.
 
-<!-- markdownlint-disable MD013 -->
-
-| Operation | Fields (in order) |
-| --- | --- |
-| `crop` | `x`, `y`, `width`, `height` (the rectangle actually cut out), `clamped` |
-| `resize` | `width`, `height`, `filter` |
-| `fit` | `width`, `height` (the result), `boxWidth`, `boxHeight`, `filter`, `allowUpscale`, `scaled` |
-| `rotate` by a multiple of 90 | `degrees` (a whole number: 0, 90, 180, or 270), `width`, `height` |
-| `rotate` by another angle | `degrees` (the normalized angle), `fill` (`#RRGGBB` or `#RRGGBBAA`), `filter` (`nearest` or `bilinear`), `width`, `height` |
-| `flip` | `axis` (`horizontal`, `vertical`, or `both`), `width`, `height` |
-| `pad` | `left`, `top`, `right`, `bottom`, `color` (`#RRGGBB`, or `#RRGGBBAA` when not opaque), `width`, `height` |
-| `grayscale`, `invert` | `width`, `height` |
-| `threshold` | `auto`, `level` (the level used), `width`, `height` |
-| `levels` | `black`, `white`, `gamma`, `width`, `height` |
-| `brightness`, `contrast` | `amount`, `width`, `height` |
-| `auto-levels` | `clip`, then `black`, `white` and `applied: true`, or only `applied: false` for a flat image, then `width`, `height` |
-| `deskew` | `skewDegrees`, `rotateDegrees`, `confidence`, `applied`, then `reason` when a size limit skips the correction, then (only when applied) `fill`, `filter`, then `width`, `height` |
-| `trim` | `tolerance`, `x`, `y`, `width`, `height` (the box kept), `trimmed`, `empty` |
-| `grid` | `spacing`, `color`, `verticalLines`, `horizontalLines`, `labels`, `width`, `height` |
-
-<!-- markdownlint-enable MD013 -->
+- **`crop`**: `x`, `y`, `width`, `height` (the rectangle actually cut out), `clamped`.
+- **`resize`**: `width`, `height`, `filter`.
+- **`fit`**: `width`, `height` (the result), `boxWidth`, `boxHeight`, `filter`, `allowUpscale`, `scaled`.
+- **`rotate` by a multiple of 90**: `degrees` (a whole number: 0, 90, 180, or 270), `width`, `height`.
+- **`rotate` by another angle**: `degrees` (the normalized angle), `fill` (`#RRGGBB` or `#RRGGBBAA`), `filter`
+  (`nearest` or `bilinear`), `width`, `height`.
+- **`flip`**: `axis` (`horizontal`, `vertical`, or `both`), `width`, `height`.
+- **`pad`**: `left`, `top`, `right`, `bottom`, `color` (`#RRGGBB`, or `#RRGGBBAA` when not opaque), `width`, `height`.
+- **`grayscale`, `invert`**: `width`, `height`.
+- **`threshold`**: `auto`, `level` (the level used), `width`, `height`.
+- **`levels`**: `black`, `white`, `gamma`, `width`, `height`.
+- **`brightness`, `contrast`**: `amount`, `width`, `height`.
+- **`auto-levels`**: `clip`, then `black`, `white` and `applied: true`, or only `applied: false` for a flat image, then
+  `width`, `height`.
+- **`deskew`**: `skewDegrees`, `rotateDegrees`, `confidence`, `applied`, then `reason` when a size limit skips the
+  correction, then (only when applied) `fill`, `filter`, then `width`, `height`.
+- **`trim`**: `tolerance`, `x`, `y`, `width`, `height` (the box kept), `trimmed`, `empty`.
+- **`grid`**: `spacing`, `color`, `verticalLines`, `horizontalLines`, `labels`, `width`, `height`.
 
 **Crop**: a percentage is of the size of the image at that point of the pipeline. The four edges (`x`, `y`, `x + w`,
 `y + h`) are each rounded to the nearest pixel, half away from zero, so two percentage halves tile the image. A
@@ -181,19 +177,18 @@ pixel positions of the anchors of a model through the operations that were appli
 anchor with a position, step by step, the current width and height are those the step reported, and the position
 (continuous, pixel `i` spanning `[i, i + 1)`) changes as follows:
 
-<!-- markdownlint-disable MD013 -->
-
-| Step | New position |
-| --- | --- |
-| `crop`, `trim` | `(x - x0, y - y0)` with the reported `x` and `y` of the box |
-| `resize`, `fit` | `(x * newWidth / width, y * newHeight / height)` |
-| `pad` | `(x + left, y + top)` |
-| `flip` | `horizontal`: `(width - x, y)`; `vertical`: `(x, height - y)`; `both`: `(width - x, height - y)` |
-| `rotate` | clockwise by the reported `degrees`: `u = x - width / 2`, `v = y - height / 2`, then `(u cos a - v sin a + newWidth / 2, u sin a + v cos a + newHeight / 2)`, the inverse of the sampling of `Surface.RotateArbitrary`; a right angle uses the exact sine and cosine, so 90 gives `(height - y, x)` with no rounding noise |
-| `grayscale`, `invert`, `threshold`, `levels`, `brightness`, `contrast`, `auto-levels`, `grid`, a `deskew` that did not correct | unchanged (the size does not change) |
-| a `deskew` that corrected (`applied: true`), and any other step whose reported size differs from the current size | the position is lost: `null` |
-
-<!-- markdownlint-enable MD013 -->
+- **`crop`, `trim`**: `(x - x0, y - y0)` with the reported `x` and `y` of the box.
+- **`resize`, `fit`**: `(x * newWidth / width, y * newHeight / height)`.
+- **`pad`**: `(x + left, y + top)`.
+- **`flip`**: `horizontal`: `(width - x, y)`; `vertical`: `(x, height - y)`; `both`: `(width - x, height - y)`.
+- **`rotate`**: clockwise by the reported `degrees`: `u = x - width / 2`, `v = y - height / 2`, then
+  `(u cos a - v sin a + newWidth / 2, u sin a + v cos a + newHeight / 2)`, the inverse of the sampling of
+  `Surface.RotateArbitrary`; a right angle uses the exact sine and cosine, so 90 gives `(height - y, x)` with no
+  rounding noise.
+- **`grayscale`, `invert`, `threshold`, `levels`, `brightness`, `contrast`, `auto-levels`, `grid`, a `deskew` that did
+  not correct**: unchanged (the size does not change).
+- **a `deskew` that corrected (`applied: true`), and any other step whose reported size differs from the current size**:
+  the position is lost: `null`.
 
 A lost position stays lost, so a step the mapping does not know (a future geometry step) gives no position rather
 than a wrong one. `inside` is not computed here: it depends on the size of the written image, so

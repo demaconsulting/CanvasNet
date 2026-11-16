@@ -58,7 +58,7 @@ The subsystem's namespace documentation is in `Geometry/NamespaceDoc.cs`. Its be
   substituted unsupported-feature handler (and, for a flat drawing whose caller set no lights, ambient light of
   intensity 1 only, so that a shape shows exactly its own color), and the mapping of a Render3D report identifier
   to a `scad-` identifier.
-- `ScadFeatureIds` — the stable unsupported-feature identifiers (see the table in *Design*).
+- `ScadFeatureIds` — the stable unsupported-feature identifiers (see the list in *Design*).
 
 **Consumed**: from the `ScadEvaluation` subsystem, the instantiation tree (`ScadInstance`, `ScadInstanceKind`,
 `ScadModifiers`, `ScadFragmentSettings`), the `ScadValue` of the evaluated arguments, and the `ScadEvaluationSink` that
@@ -112,16 +112,30 @@ its first non-empty operand and warns about the others; a 3D child under an extr
 The classes are those of the evaluation subsystem (see *ScadEvaluation Subsystem Design*, *Event
 Classification*), applied to geometry:
 
-<!-- markdownlint-disable MD013 -->
-
-| Class | Mechanism | Examples | Continues? |
-| --- | --- | --- | --- |
-| **Warning** | `ScadDiagnostic` through the shared sink, at the instance's location | an invalid or non-finite argument (a non-positive size, a wrong type), an unknown, surplus, or repeated argument, a child object under a primitive, a singular transform, a zero `rotate` axis or `mirror` normal, an invalid `color`, a mixed 2D and 3D combination, a 3D child under an extrusion, a polyhedron wound the wrong way round | Yes; an invalid instance is empty (a zero `rotate` axis or `mirror` normal, an invalid `color` value, and an invalid `alpha` warn and keep their children untransformed or uncolored) |
-| **Unsupported feature** | `ScadUnsupportedFeature` through the shared sink; in strict mode a `ScadUnsupportedFeatureException` at the first one | a recognized module that is not built, a `hull` or `minkowski` whose operands have no hull or sum, a `#` or `%` on a 2D shape that is not extruded, an extrusion the Render3D extruders cannot build, a renderer operand defect (see the identifier table) | Yes (the instance or subtree is omitted, or degraded), unless strict |
-| **Error** | `ScadEvaluationException` with the location of the module | the triangle budget would be exceeded (`MaxTriangles`), including for hostile sizes whose estimate would overflow | No |
-| **Cancellation** | `OperationCanceledException`, never wrapped | the token is canceled before or during the build | No |
-
-<!-- markdownlint-enable MD013 -->
+- **Warning**
+  - Mechanism: `ScadDiagnostic` through the shared sink, at the instance's location.
+  - Examples: an invalid or non-finite argument (a non-positive size, a wrong type), an unknown, surplus, or repeated
+    argument, a child object under a primitive, a singular transform, a zero `rotate` axis or `mirror` normal, an
+    invalid `color`, a mixed 2D and 3D combination, a 3D child under an extrusion, a polyhedron wound the wrong way
+    round.
+  - Continues: Yes; an invalid instance is empty (a zero `rotate` axis or `mirror` normal, an invalid `color` value,
+    and an invalid `alpha` warn and keep their children untransformed or uncolored).
+- **Unsupported feature**
+  - Mechanism: `ScadUnsupportedFeature` through the shared sink; in strict mode a `ScadUnsupportedFeatureException` at
+    the first one.
+  - Examples: a recognized module that is not built, a `hull` or `minkowski` whose operands have no hull or sum, a `#`
+    or `%` on a 2D shape that is not extruded, an extrusion the Render3D extruders cannot build, a renderer operand
+    defect (see the identifier table).
+  - Continues: Yes (the instance or subtree is omitted, or degraded), unless strict.
+- **Error**
+  - Mechanism: `ScadEvaluationException` with the location of the module.
+  - Examples: the triangle budget would be exceeded (`MaxTriangles`), including for hostile sizes whose estimate would
+    overflow.
+  - Continues: No.
+- **Cancellation**
+  - Mechanism: `OperationCanceledException`, never wrapped.
+  - Examples: the token is canceled before or during the build.
+  - Continues: No.
 
 The rule is the evaluator's: invalid *arguments* (what the author wrote is wrong) are warnings, things the
 language allows but this implementation *cannot build* are unsupported features, and things that would
@@ -155,36 +169,59 @@ start of the message of an ordinary warning, not an unsupported feature). The pa
 Every identifier below is lower-case and stable; callers can match on `ScadUnsupportedFeature.Feature`. The
 identifiers of the evaluation subsystem (`scad-function-<name>`, `scad-search-form`) are unchanged.
 
-<!-- markdownlint-disable MD013 -->
-
-| Identifier | Trigger | Effect |
-| --- | --- | --- |
-| `scad-module-offset`, `scad-module-surface`, `scad-module-import`, `scad-module-roof` | The module is recognized but not implemented | The module and its children are omitted |
-| `scad-projection-too-complex` | A `projection` has children with more than 2^23 triangle visits (their triangles plus their vertices), or any pass of its silhouette, classification, or cut (the grouping and footprints of the faces, every slice) would take the total over 2^23 (counted before each pass runs) | The projection is omitted, never approximated |
-| `scad-projection-open-mesh` | The cross-section of a mesh below a `projection` that has to be sliced (a `cut = true`, or a mesh below a difference or an intersection) does not close, so the mesh is not a closed solid | The projection is omitted |
-| `scad-text-invalid-outline` | A glyph outline of a `text` is damaged, a mapped glyph has only subpaths without an area (unlike an empty glyph such as a space), or a contour of a glyph crosses or touches itself or is degenerate | The whole `text` is omitted |
-| `scad-text-overlapping-contours` | The contours of one glyph of a `text` overlap or touch each other, other than as a hole, an island, or the overlapping solids of a composite glyph | The whole `text` is omitted |
-| `scad-hull-csg-operand` | A `hull` has a difference or an intersection among its children (3D, or 2D, at any depth below it) | The hull is omitted |
-| `scad-hull-degenerate` | The points of a `hull` span no volume (3D) or no area (2D) | The hull is omitted |
-| `scad-hull-mixed-dimensions` | A `hull` has both 2D and 3D children | The hull is omitted |
-| `scad-minkowski-nonconvex` | A `minkowski` has a child that is a boolean or a mesh that is not convex (within the Render3D tolerance), also a lone child | The module is omitted; the message names the child by its position and source location |
-| `scad-minkowski-2d` | A `minkowski` of 2D children (deferred) | The module is omitted |
-| `scad-minkowski-mixed-dimensions` | A `minkowski` has both 2D and 3D children | The module is omitted |
-| `scad-minkowski-too-complex` | A child has more than 4,096 convex parts, a fold step needs more than 4,096 convex sums, two meshes have more than `MinkowskiSum.MaxPairwiseSums` pairwise vertex sums, or the module needs more than that many in total | The module is omitted |
-| `scad-modifier-highlight` | The `#` modifier on a 2D shape that is not extruded (a `#` on a solid is rendered and not reported) | The shape is built normally, without highlighting |
-| `scad-modifier-background` | The `%` modifier on a 2D shape that is not extruded (a `%` on a solid is rendered as a ghost and not reported) | The shape is omitted |
-| `scad-resize-approximate` | `resize` over children that contain a difference or an intersection | The estimated bounds are used |
-| `scad-multmatrix-projective` | `multmatrix` with a bottom row other than `[0, 0, 0, 1]` | The module and its children are omitted |
-| `scad-polygon-invalid` | A `polygon`, or any 2D leaf after transformation under an extrusion or slab, that is self-crossing or zero-area | That leaf is omitted |
-| `scad-polyhedron-face-invalid` | A polyhedron face that cannot be triangulated | The polyhedron is omitted |
-| `scad-linear-extrude-scale` | A negative `scale` component, or exactly one zero component | The extrusion is omitted |
-| `scad-linear-extrude-apex-multiple-contours` | `scale = 0` over a profile with holes or islands in one leaf | The extrusion is omitted |
-| `scad-rotate-extrude-axis-crossing` | The profile lies on both sides of the axis (also a union or a boolean operand that does) | The extrusion is omitted |
-| `scad-rotate-extrude-axis-contact` | The profile touches the axis at an isolated vertex | The extrusion is omitted |
-| `scad-geometry-rejected` | Any other `ArgumentException` of a Render3D tessellator or extruder (including a cross-section of a `projection` that the polygon validator rejects, which omits the projection), or an instance whose coordinates are not finite or exceed 1e100 in magnitude (including hidden difference operands) | The affected instance is omitted; the message is kept |
-| `scad-csg-open-mesh`, `scad-csg-non-manifold-edge`, `scad-csg-inconsistent-winding`, `scad-csg-degenerate-triangle`, `scad-csg-inverted-mesh`, `scad-csg-singular-transform` | The renderer's operand check of a difference or an intersection (only `Render`, only when a handler or strict mode is set), mapped from `render3d-csg-*` | Reported at the producing module; the image is still drawn |
-
-<!-- markdownlint-enable MD013 -->
+- **`scad-module-offset`, `scad-module-surface`, `scad-module-import`, `scad-module-roof`**: The module is recognized
+  but not implemented. Effect: The module and its children are omitted.
+- **`scad-projection-too-complex`**: A `projection` has children with more than 2^23 triangle visits (their triangles
+  plus their vertices), or any pass of its silhouette, classification, or cut (the grouping and footprints of the faces,
+  every slice) would take the total over 2^23 (counted before each pass runs). Effect: The projection is omitted, never
+  approximated.
+- **`scad-projection-open-mesh`**: The cross-section of a mesh below a `projection` that has to be sliced (a
+  `cut = true`, or a mesh below a difference or an intersection) does not close, so the mesh is not a closed solid.
+  Effect: The projection is omitted.
+- **`scad-text-invalid-outline`**: A glyph outline of a `text` is damaged, a mapped glyph has only subpaths without an
+  area (unlike an empty glyph such as a space), or a contour of a glyph crosses or touches itself or is degenerate.
+  Effect: The whole `text` is omitted.
+- **`scad-text-overlapping-contours`**: The contours of one glyph of a `text` overlap or touch each other, other than as
+  a hole, an island, or the overlapping solids of a composite glyph. Effect: The whole `text` is omitted.
+- **`scad-hull-csg-operand`**: A `hull` has a difference or an intersection among its children (3D, or 2D, at any depth
+  below it). Effect: The hull is omitted.
+- **`scad-hull-degenerate`**: The points of a `hull` span no volume (3D) or no area (2D). Effect: The hull is omitted.
+- **`scad-hull-mixed-dimensions`**: A `hull` has both 2D and 3D children. Effect: The hull is omitted.
+- **`scad-minkowski-nonconvex`**: A `minkowski` has a child that is a boolean or a mesh that is not convex (within the
+  Render3D tolerance), also a lone child. Effect: The module is omitted; the message names the child by its position and
+  source location.
+- **`scad-minkowski-2d`**: A `minkowski` of 2D children (deferred). Effect: The module is omitted.
+- **`scad-minkowski-mixed-dimensions`**: A `minkowski` has both 2D and 3D children. Effect: The module is omitted.
+- **`scad-minkowski-too-complex`**: A child has more than 4,096 convex parts, a fold step needs more than 4,096 convex
+  sums, two meshes have more than `MinkowskiSum.MaxPairwiseSums` pairwise vertex sums, or the module needs more than
+  that many in total. Effect: The module is omitted.
+- **`scad-modifier-highlight`**: The `#` modifier on a 2D shape that is not extruded (a `#` on a solid is rendered and
+  not reported). Effect: The shape is built normally, without highlighting.
+- **`scad-modifier-background`**: The `%` modifier on a 2D shape that is not extruded (a `%` on a solid is rendered as a
+  ghost and not reported). Effect: The shape is omitted.
+- **`scad-resize-approximate`**: `resize` over children that contain a difference or an intersection. Effect: The
+  estimated bounds are used.
+- **`scad-multmatrix-projective`**: `multmatrix` with a bottom row other than `[0, 0, 0, 1]`. Effect: The module and its
+  children are omitted.
+- **`scad-polygon-invalid`**: A `polygon`, or any 2D leaf after transformation under an extrusion or slab, that is
+  self-crossing or zero-area. Effect: That leaf is omitted.
+- **`scad-polyhedron-face-invalid`**: A polyhedron face that cannot be triangulated. Effect: The polyhedron is omitted.
+- **`scad-linear-extrude-scale`**: A negative `scale` component, or exactly one zero component. Effect: The extrusion is
+  omitted.
+- **`scad-linear-extrude-apex-multiple-contours`**: `scale = 0` over a profile with holes or islands in one leaf.
+  Effect: The extrusion is omitted.
+- **`scad-rotate-extrude-axis-crossing`**: The profile lies on both sides of the axis (also a union or a boolean operand
+  that does). Effect: The extrusion is omitted.
+- **`scad-rotate-extrude-axis-contact`**: The profile touches the axis at an isolated vertex. Effect: The extrusion is
+  omitted.
+- **`scad-geometry-rejected`**: Any other `ArgumentException` of a Render3D tessellator or extruder (including a
+  cross-section of a `projection` that the polygon validator rejects, which omits the projection), or an instance whose
+  coordinates are not finite or exceed 1e100 in magnitude (including hidden difference operands). Effect: The affected
+  instance is omitted; the message is kept.
+- **`scad-csg-open-mesh`, `scad-csg-non-manifold-edge`, `scad-csg-inconsistent-winding`, `scad-csg-degenerate-triangle`,
+  `scad-csg-inverted-mesh`, `scad-csg-singular-transform`**: The renderer's operand check of a difference or an
+  intersection (only `Render`, only when a handler or strict mode is set), mapped from `render3d-csg-*`. Effect:
+  Reported at the producing module; the image is still drawn.
 
 #### Dialect Decisions Of The Geometry Phase
 

@@ -253,12 +253,10 @@ Notes on the statement grammar:
 
 From highest to lowest binding. Left-associative levels group `a op b op c` as `(a op b) op c`.
 
-<!-- markdownlint-disable MD013 -->
-
 | Level | Operators and forms | Associativity | AST node |
 | --- | --- | --- | --- |
-| 1 | Primary: literals, identifiers, `( e )`, `[ … ]`, `function`/`let`/`echo`/`assert` forms | — | the literal, identifier, vector, range, or prefix-form node (parentheses add no node) |
-| 2 | Postfix: call `e(args)`, index `e[i]`, member `e.name` | left, applied in source order | `ScadCallExpression`, `ScadIndexExpression`, `ScadMemberExpression` |
+| 1 | Primary: literals, identifiers, `( e )`, `[ … ]`, `function`/`let`/`echo`/`assert` forms | — | see below |
+| 2 | Postfix: call `e(args)`, index `e[i]`, member `e.name` | left, applied in source order | see below |
 | 3 | `^` | right | `ScadBinaryExpression(Power)` |
 | 4 | Prefix `+` `-` `!` | prefix (right) | `ScadUnaryExpression(Plus / Negate / Not)` |
 | 5 | `*` `/` `%` | left | `ScadBinaryExpression(Multiply / Divide / Modulo)` |
@@ -269,7 +267,8 @@ From highest to lowest binding. Left-associative levels group `a op b op c` as `
 | 10 | `\|\|` | left | `ScadBinaryExpression(Or)` |
 | 11 | `c ? a : b` | right | `ScadConditionalExpression` |
 
-<!-- markdownlint-enable MD013 -->
+Level 1 gives the literal, identifier, vector, range, or prefix-form node (parentheses add no node), and level 2 gives
+`ScadCallExpression`, `ScadIndexExpression`, and `ScadMemberExpression`.
 
 The expression grammar, in the same notation:
 
@@ -356,27 +355,34 @@ the file (see *ScadLanguage*, `scad-language.md`). Error construction goes throu
 
 Message catalog (the location is the offending token unless stated otherwise):
 
-<!-- markdownlint-disable MD013 -->
-
-| Message | Raised when |
-| --- | --- |
-| `Unexpected token 'x'` | a token that cannot start a statement, such as `}`, `)`, `else`, or a literal |
-| `Expected ';' but found 'b'` | a statement or definition is not terminated (for example `a = 1 b`) |
-| `Unexpected end of input; expected '}'` | the input ends inside a block (also `')'`, `']'`, `';'`) |
-| `Expected an expression but found ';'` | an expression is required and the token cannot start one (`for` and `if` outside a vector are not expressions); `Unexpected end of input; expected an expression` at the end of the file |
-| `Expected an identifier but found ')'` | a name is required (a parameter, an iterator, a module name, a member name) |
-| `Expected '=' or '(' after 'foo' but found ';'` | an identifier at statement start is followed by neither; located at the token **after** the name; `Unexpected end of input; expected '=' or '(' after 'foo'` at the end of the file |
-| `Expected ';', '{' or a module instantiation but found '}'` | an unbraced child is missing or is not an instantiation, keyword statement, or modified statement; at the end of the file the message is `Unexpected end of input; expected ';'` |
-| `Expected '(' after 'b'` | an unbraced child starts with an identifier that is followed by neither `(` nor `=`; located at the identifier |
-| `Use braces around a declaration` | a `module` or `function` definition, or an assignment (`x = 1;`), is used as an unbraced child; located at the keyword or the identifier |
-| `include/use is only allowed at file scope` | a directive token appears inside a block or module body (as an unbraced child it gives the `Expected ';', '{' or a module instantiation` message) |
-| `A modifier must be followed by a module instantiation or block` | modifiers precede anything else, such as an assignment or a definition; located at the token after the modifiers, including the end of the file |
-| `A C-style 'for' loop is only allowed inside a list comprehension` | a statement-level `for` or `intersection_for` header contains `;`; located at the `;` |
-| `Expected a function name after 'function' but found '('` | `function` at statement start is not followed by a name (a function literal is not a statement); `Unexpected end of input; expected a function name after 'function'` at the end of the file |
-| `Expected ',' or ']' but found ':'` | a comprehension element is followed by `:` in a vector (it cannot be a range start); located at the `:` |
-| `Nesting too deep (limit 256)` | the depth limit is exceeded; see _Depth and limit mechanics_ |
-
-<!-- markdownlint-enable MD013 -->
+- **`Unexpected token 'x'`**: a token that cannot start a statement, such as `}`, `)`, `else`, or a literal.
+- **`Expected ';' but found 'b'`**: a statement or definition is not terminated (for example `a = 1 b`).
+- **`Unexpected end of input; expected '}'`**: the input ends inside a block (also `')'`, `']'`, `';'`).
+- **`Expected an expression but found ';'`**: an expression is required and the token cannot start one (`for` and `if`
+  outside a vector are not expressions); `Unexpected end of input; expected an expression` at the end of the file.
+- **`Expected an identifier but found ')'`**: a name is required (a parameter, an iterator, a module name, a member
+  name).
+- **`Expected '=' or '(' after 'foo' but found ';'`**: an identifier at statement start is followed by neither; located
+  at the token **after** the name; `Unexpected end of input; expected '=' or '(' after 'foo'` at the end of the file.
+- **`Expected ';', '{' or a module instantiation but found '}'`**: an unbraced child is missing or is not an
+  instantiation, keyword statement, or modified statement; at the end of the file the message is
+  `Unexpected end of input; expected ';'`.
+- **`Expected '(' after 'b'`**: an unbraced child starts with an identifier that is followed by neither `(` nor `=`;
+  located at the identifier.
+- **`Use braces around a declaration`**: a `module` or `function` definition, or an assignment (`x = 1;`), is used as an
+  unbraced child; located at the keyword or the identifier.
+- **`include/use is only allowed at file scope`**: a directive token appears inside a block or module body (as an
+  unbraced child it gives the `Expected ';', '{' or a module instantiation` message).
+- **`A modifier must be followed by a module instantiation or block`**: modifiers precede anything else, such as an
+  assignment or a definition; located at the token after the modifiers, including the end of the file.
+- **`A C-style 'for' loop is only allowed inside a list comprehension`**: a statement-level `for` or `intersection_for`
+  header contains `;`; located at the `;`.
+- **`Expected a function name after 'function' but found '('`**: `function` at statement start is not followed by a name
+  (a function literal is not a statement); `Unexpected end of input; expected a function name after 'function'` at the
+  end of the file.
+- **`Expected ',' or ']' but found ':'`**: a comprehension element is followed by `:` in a vector (it cannot be a range
+  start); located at the `:`.
+- **`Nesting too deep (limit 256)`**: the depth limit is exceeded; see *Depth and limit mechanics*.
 
 Other malformed ranges and vectors use the generic forms: a range with a comma reports
 `Expected ']' but found ','`, a range with four parts reports `Expected ']' but found ':'`, and an empty

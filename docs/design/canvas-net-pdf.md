@@ -167,17 +167,17 @@ The system exposes the following public API to external consumers, all on the se
 - **PdfDocument.Dispose()**: Idempotent; releases the buffered/parsed document state. No other
   public member may be called afterward without throwing `ObjectDisposedException`.
 
-<!-- markdownlint-disable MD013 -->
+Each interface, with its direction and format, and its constraints:
 
-| Interface | Direction | Format | Constraints |
-| --- | --- | --- | --- |
-| `PdfDocument.Open(...)` | Inbound/Outbound | Method call / `PdfDocument` return | Valid PDF stream or path; optional `password` for an encrypted document |
-| `PdfDocument.PageCount` | Outbound | Property read / `int` return | Not disposed |
-| `PdfDocument.GetPageInfo(...)` | Inbound/Outbound | Method call / `PdfPageInfo` return | `0 <= pageIndex < PageCount`; not disposed |
-| `PdfDocument.Render(...)` | Inbound/Outbound | Method call / `Surface` return | `0 <= pageIndex < PageCount`; `0 < width, height <= 8192`; not disposed |
-| `PdfDocument.Render(int, float)` | Inbound/Outbound | Method call / `Surface` return | `0 <= pageIndex < PageCount`; `dpi` positive and finite; not disposed |
-
-<!-- markdownlint-enable MD013 -->
+- **`PdfDocument.Open(...)`** (Inbound/Outbound; Method call / `PdfDocument` return): Valid PDF stream or path; optional
+  `password` for an encrypted document.
+- **`PdfDocument.PageCount`** (Outbound; Property read / `int` return): Not disposed.
+- **`PdfDocument.GetPageInfo(...)`** (Inbound/Outbound; Method call / `PdfPageInfo` return):
+  `0 <= pageIndex < PageCount`; not disposed.
+- **`PdfDocument.Render(...)`** (Inbound/Outbound; Method call / `Surface` return): `0 <= pageIndex < PageCount`;
+  `0 < width, height <= 8192`; not disposed.
+- **`PdfDocument.Render(int, float)`** (Inbound/Outbound; Method call / `Surface` return): `0 <= pageIndex < PageCount`;
+  `dpi` positive and finite; not disposed.
 
 See *PdfDocument Unit Design* (`canvas-net-pdf/pdf-document.md`) for the complete parsing
 internals (tokenizer, object model, all three cross-reference forms, the linear-scan fallback,

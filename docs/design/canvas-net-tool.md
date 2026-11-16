@@ -131,19 +131,41 @@ The template's `Program` runs one demo action. CanvasNetTool differs in these re
 
 ## External Interfaces
 
-<!-- markdownlint-disable MD013 -->
+Each interface, with its direction and format, and its constraints:
 
-| Interface | Direction | Format | Constraints |
-| --- | --- | --- | --- |
-| Command line | Inbound | `canvasnet [global options] <command> [command arguments]` | Global options are `-v`/`--version`, `-?`/`-h`/`--help`, `--silent`, `--validate`, `--json`, `--results <file>` (alias `--result`), `--depth <1-6>`, and `--log <file>`, valid in any position; the first token that is not an option or an option value is the command name; unknown options before the command name are an error. A command's own options are written `--name value`, `--name=value`, or `-a value`, and may be repeated; see _ArgumentReader Unit Design_ |
-| Exit code | Outbound | Integer | 0 for success; 1 for any failure; an unexpected exception terminates the process through the runtime's unhandled-exception path |
-| Standard output | Outbound | UTF-8 text, or one single-line JSON document | The version, banner, help, self-validation report, or the selected command's own output; suppressed by `--silent`; clean of decoration when a command runs. With `--json` a command writes one JSON document: `{"schemaVersion":2,"ok":true,"command":"...", ...}`, and so does `help` (a `kind` of `index`, `command`, `topics`, `card`, `examples`, or `example`, without the banner; `help <topic> [<card> ...] --example <name>` writes the raw example text only); an expected failure is written as `{"schemaVersion":2,"ok":false,"command":"...","error":{"code":"...","message":"...","hint":"..."}}` (`command` is null when no command was selected; `hint` only when there is one; no exit-code field; the failure of an unmet `compare` threshold appends the result fields of the command after `error`); the document is ASCII-only and deterministic; see _ResultWriter Unit Design_ |
-| Standard error | Outbound | UTF-8 text | `Error: {code}: {message}` and optional `Hint: {hint}` lines for expected failures; `Error: {message}` for argument and operation failures; `Unexpected error: {message}` before an unexpected exception is re-thrown; no stack trace for expected failures; red only when standard error is an interactive console; suppressed by `--silent` (the runtime's own report of an unexpected exception is not) except when no context could be created (a malformed global option, or a log file that cannot be opened), when the report is always written |
-| Log file | Outbound | Text file | Written when `--log <file>` is given, with every line written to standard output or standard error whether or not `--silent` is set, including the report of an expected or unexpected failure; truncated at open; failure to open is an expected failure |
-| Results file | Outbound | TRX (`.trx`) or JUnit XML (`.xml`) | Written by `--validate --results <file>`; any other extension is an error and no file is written |
-| Pandoc filter | Inbound and outbound | Pandoc JSON document (UTF-8) on standard input and standard output | `pandoc-filter` is run by the Lua shim `docs/filters/canvasnet.lua` (protocol 1) with `--protocol`, `--filter-path`, `--format`, `--pandoc-version`, `--resource-path`, `--pandoc-output`, and `--embed-resources`; the document is read and written as raw UTF-8 bytes (not ASCII-only), written only on success, with the warnings in the metadata key `canvasnet-warnings`; a failure is the JSON failure document; the pictures are written to `generated/canvasnet` beside the folder of the shim; the variables `CANVASNET_TOOL`, `CANVASNET_FILE_ACCESS`, `CANVASNET_ROOTS`, and `CANVASNET_JOBS` apply; see _PandocFilter Subsystem Design_ |
-
-<!-- markdownlint-enable MD013 -->
+- **Command line** (Inbound; `canvasnet [global options] <command> [command arguments]`): Global options are
+  `-v`/`--version`, `-?`/`-h`/`--help`, `--silent`, `--validate`, `--json`, `--results <file>` (alias `--result`),
+  `--depth <1-6>`, and `--log <file>`, valid in any position; the first token that is not an option or an option value
+  is the command name; unknown options before the command name are an error. A command's own options are written
+  `--name value`, `--name=value`, or `-a value`, and may be repeated; see *ArgumentReader Unit Design*.
+- **Exit code** (Outbound; Integer): 0 for success; 1 for any failure; an unexpected exception terminates the process
+  through the runtime's unhandled-exception path.
+- **Standard output** (Outbound; UTF-8 text, or one single-line JSON document): The version, banner, help,
+  self-validation report, or the selected command's own output; suppressed by `--silent`; clean of decoration when a
+  command runs. With `--json` a command writes one JSON document: `{"schemaVersion":2,"ok":true,"command":"...", ...}`,
+  and so does `help` (a `kind` of `index`, `command`, `topics`, `card`, `examples`, or `example`, without the banner;
+  `help <topic> [<card> ...] --example <name>` writes the raw example text only); an expected failure is written as
+  `{"schemaVersion":2,"ok":false,"command":"...","error":{"code":"...","message":"...","hint":"..."}}` (`command` is
+  null when no command was selected; `hint` only when there is one; no exit-code field; the failure of an unmet
+  `compare` threshold appends the result fields of the command after `error`); the document is ASCII-only and
+  deterministic; see *ResultWriter Unit Design*.
+- **Standard error** (Outbound; UTF-8 text): `Error: {code}: {message}` and optional `Hint: {hint}` lines for expected
+  failures; `Error: {message}` for argument and operation failures; `Unexpected error: {message}` before an unexpected
+  exception is re-thrown; no stack trace for expected failures; red only when standard error is an interactive console;
+  suppressed by `--silent` (the runtime's own report of an unexpected exception is not) except when no context could be
+  created (a malformed global option, or a log file that cannot be opened), when the report is always written.
+- **Log file** (Outbound; Text file): Written when `--log <file>` is given, with every line written to standard output
+  or standard error whether or not `--silent` is set, including the report of an expected or unexpected failure;
+  truncated at open; failure to open is an expected failure.
+- **Results file** (Outbound; TRX (`.trx`) or JUnit XML (`.xml`)): Written by `--validate --results <file>`; any other
+  extension is an error and no file is written.
+- **Pandoc filter** (Inbound and outbound; Pandoc JSON document (UTF-8) on standard input and standard output):
+  `pandoc-filter` is run by the Lua shim `docs/filters/canvasnet.lua` (protocol 1) with `--protocol`, `--filter-path`,
+  `--format`, `--pandoc-version`, `--resource-path`, `--pandoc-output`, and `--embed-resources`; the document is read
+  and written as raw UTF-8 bytes (not ASCII-only), written only on success, with the warnings in the metadata key
+  `canvasnet-warnings`; a failure is the JSON failure document; the pictures are written to `generated/canvasnet` beside
+  the folder of the shim; the variables `CANVASNET_TOOL`, `CANVASNET_FILE_ACCESS`, `CANVASNET_ROOTS`, and
+  `CANVASNET_JOBS` apply; see *PandocFilter Subsystem Design*.
 
 The stable error codes are `usage-error`, `operation-failed`, `input-not-found`, `input-unreadable`,
 `unsupported-format`, `corrupt-input`, `unsupported-feature`, `page-out-of-range`, `image-fragment-invalid`,
