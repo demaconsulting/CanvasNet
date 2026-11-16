@@ -98,21 +98,20 @@ and repeated here:
   12 04:00Z is the three local midnights 05:00Z, 05:00Z (March 10), and 04:00Z (March 11).
 - **Time units.** The 11 single and 29 multiple names of Vega-Lite (40 in all, and each with its `utc` form, giving 80),
   each with the parts in the order year, quarter, month, week, day, day of year, date, hours, minutes, seconds,
-  milliseconds. The floor reads the parts of the instant, replaces the missing larger parts by the reference values
-  (the leap year **2012**, which starts on a Sunday, and January), and builds the instant: for 2024-03-17T10:20:45.678
-  `year` is 2024-01-01, `month` is 2012-03-01, `date` is 2012-01-17, `hours` is 2012-01-01T10:00, `minutes` is
+  milliseconds. The floor reads the parts of the instant, replaces the missing larger parts by the reference values (the
+  leap year **2012**, which starts on a Sunday, and January), and builds the instant: for 2024-03-17T10:20:45.678 `year`
+  is 2024-01-01, `month` is 2012-03-01, `date` is 2012-01-17, `hours` is 2012-01-01T10:00, `minutes` is
   2012-01-01T00:20, `monthdate` is 2012-03-17, `hoursminutes` is 2012-01-01T10:20, and `yearmonthdatehours` is
-  2024-03-17T10:00. `seconds` and `milliseconds` keep :45 and .678 on 2012-01-01. `day` is the weekday of January
-  2012, which is a Sunday: Tuesday 2024-03-05 gives 2012-01-03 (**1,325,548,800,000**), Sunday gives 2012-01-01, and
-  Saturday gives 2012-01-07. The week is the Sunday-based week number (the Sundays since January 1): 2024-03-05 is
-  week 9
+  2024-03-17T10:00. `seconds` and `milliseconds` keep :45 and .678 on 2012-01-01. `day` is the weekday of January 2012,
+  which is a Sunday: Tuesday 2024-03-05 gives 2012-01-03 (**1,325,548,800,000**), Sunday gives 2012-01-01, and Saturday
+  gives 2012-01-07. The week is the Sunday-based week number (the Sundays since January 1): 2024-03-05 is week 9
   (Sundays January 7, 14, 21, 28, February 4, 11, 18, 25, and March 3), and in 2012 the week 9 starts on January 57 =
   February 26, so `week` is 2012-02-26, `weekday` is Tuesday of that week, February 28, and `yearweekday` is March 5 of
   2024 (week 9 of 2024 starts on March 3, January 63). The week numbers at the start of the year: 2012-01-01 (Sunday) is
-  week 1, 2012-01-07 is week 1, 2012-01-08 is week 2, 2013-01-01 (Tuesday) is week 0, and 2013-01-06 (Sunday) is week
-  1; the `yearweek` floor of 2013-01-02 is **2012-12-30**, because the Sunday of week 0 is `0 - (2 + 6) % 7 = -1`, that
-  is the date -1 of January 2013.   A quarter is three months, so May 20, 2024 (quarter 2) floors to April 1 (of 2012 for
-    `quarter`, of 2024 for `yearquarter`), and day 60 of the year (March 1, 2023, is 31 + 28 + 1) is February 29 in 2012
+  week 1, 2012-01-07 is week 1, 2012-01-08 is week 2, 2013-01-01 (Tuesday) is week 0, and 2013-01-06 (Sunday) is week 1;
+  the `yearweek` floor of 2013-01-02 is **2012-12-30**, because the Sunday of week 0 is `0 - (2 + 6) % 7 = -1`, that is
+  the date -1 of January 2013. A quarter is three months, so May 20, 2024 (quarter 2) floors to April 1 (of 2012 for
+  `quarter`, of 2024 for `yearquarter`), and day 60 of the year (March 1, 2023, is 31 + 28 + 1) is February 29 in 2012
   (31 + 29 = 60) and March 1, 2023 for `yeardayofyear`. A step applies to the last part only and counts from its first
   value (from 1 for the date): `{unit: month, step: 3}` floors March to January and keeps April; `yearmonth` with step 3
   floors May 2024 to April 2024; `monthdate` with step 7 floors March 20 (date - 1 = 19, floored to 14) to March 15 and

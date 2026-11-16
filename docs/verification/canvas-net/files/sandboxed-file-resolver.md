@@ -28,9 +28,9 @@ core assembly's `InternalsVisibleTo` grant: a **link probe** (`Func<string, bool
 a lock, and every scenario behaves identically on Windows, Linux, and macOS:
 
 - The **cited** link scenarios (`SandboxedFileResolverLinkTests`) inject a fake probe that reports chosen paths of real
-  temporary files and directories as links, so the walk logic (top-down order, existing components only, the final component
-  always probed, caching, trusted root, fail-closed probe, resolver mode never probing,   dot-dot normalization) is
-    proven on every platform without creating a link, and these tests never skip.
+  temporary files and directories as links, so the walk logic (top-down order, existing components only, the final
+  component always probed, caching, trusted root, fail-closed probe, resolver mode never probing, dot-dot normalization)
+  is proven on every platform without creating a link, and these tests never skip.
 - The **open** scenarios make the open of an existing file fail with an access or I/O error, or report "not found",
   through the injected opener, and delegate to the file system where the real open is wanted.
 - Two scenarios create **real links** (a symbolic link through the framework and, on Windows, a junction through
