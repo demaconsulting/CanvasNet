@@ -204,15 +204,12 @@ mixed-type `calc()` such as `calc(1 + 1px)`, a number-typed `calc()` in a CSS-de
 a non-finite or too large result) is handled by the kind of
 value it is:
 
-<!-- markdownlint-disable MD013 -->
-
-| Where | Result |
-| --- | --- |
-| Shape, text, `use`, `image` and `marker` geometry; `stroke-width`, `stroke-dashoffset`, `stroke-dasharray` | `InvalidDataException`, naming the attribute |
-| Root `width`/`height`; gradient, pattern and mask coordinates | treated as absent: the default is used (a percentage or viewport unit on the root `width`/`height` has no basis and is absent too) |
-| `font-size`, `line-height`, `font-family`, `font-weight`, `font-style`, the `font` shorthand; text `dx`/`dy` | dropped, as in CSS: the next lower source applies, else the inherited value stays |
-
-<!-- markdownlint-enable MD013 -->
+- **Shape, text, `use`, `image` and `marker` geometry; `stroke-width`, `stroke-dashoffset`, `stroke-dasharray`**:
+  `InvalidDataException`, naming the attribute.
+- **Root `width`/`height`; gradient, pattern and mask coordinates**: treated as absent: the default is used (a
+  percentage or viewport unit on the root `width`/`height` has no basis and is absent too).
+- **`font-size`, `line-height`, `font-family`, `font-weight`, `font-style`, the `font` shorthand; text `dx`/`dy`**:
+  dropped, as in CSS: the next lower source applies, else the inherited value stays.
 
 Before units were supported, a `font-size="10px"` was rejected as corrupt; it now renders. A root
 `width="1in"` used to report 1 pixel and now reports 96, so `GetInfo` and `Load` return the size

@@ -106,24 +106,42 @@ occurred, on the calling thread, before the method returns or throws.
 `ScadRenderOptions` is an immutable class; every property is init-only and validated when set, so one instance can
 be shared between threads and calls.
 
-<!-- markdownlint-disable MD013 -->
-
-| Property | Default | Meaning |
-| --- | --- | --- |
-| `Evaluation` | `null` (default `ScadEvaluationOptions`) | The options of the evaluation: `-D`-style `Variables`, `Time` (`$t`), `Limits`, the `EchoHandler`, `WarningHandler`, and `UnsupportedFeatureHandler`, and `ThrowOnUnsupportedFeature`. It is the single place that decides how problems are reported, for evaluation, geometry building, and rendering alike |
-| `Camera` | `null` | A Render3D `Camera`; `null` fits the view to the model. An invalid camera is rejected by `Render` before evaluation. `BuildScene` never throws for it: it is ignored and defines no viewport variable (the model sees the view angles or the defaults). An explicit valid camera also defines all four viewport variables for the model (see *Viewport Variables*) |
-| `ViewAzimuthDegrees` | 45 | Azimuth of the fitted view (rotation about +Z); finite. Used only without a `Camera`. **Setting it, even to the default value, makes the view explicit** (see *Choosing the View*) |
-| `ViewElevationDegrees` | about 35.26 | Elevation of the fitted view; finite. Used only without a `Camera`. Setting it, even to the default value, makes the view explicit |
-| `Projection` | `Perspective`; `Orthographic` for a flat model | Projection of the fitted view (`CameraProjection.Perspective` or `Orthographic`). Used only without a `Camera`. Setting it changes only the projection: it does not make the view angles explicit |
-| `ResolvedViewHandler` | `null` | An `Action<ScadResolvedView>` that `Render` calls once, on the calling thread, after the model was built and before it draws, to report the view that was used (see *Choosing the View*). `BuildScene` never calls it; an exception thrown by the handler propagates to the caller |
-| `AnchorHandler` | `null` | An `Action<ScadAnchor>` that `Render` calls once per anchor the model declares with `echo("anchor", "name", [x, y, z])`, in echo order, on the calling thread, after `ResolvedViewHandler` and before it draws (see *Anchors*). `BuildScene` never calls it; an exception thrown by the handler propagates to the caller |
-| `SceneOptions` | `null` (Render3D defaults) | The `SceneRenderOptions` of the renderer: background color (white by default), default surface color (neutral gray), lights, supersampling, parallelism, and fragment budget. Its `UnsupportedFeatureHandler` and `ThrowOnUnsupportedFeature` are **ignored**; reporting always goes through `Evaluation` |
-| `FlatShapeThickness` | 0.1 | Thickness in model units of the slab that represents a 2D shape (`square`, `circle`, `polygon`) rendered without an extrusion; finite and greater than zero |
-| `HighlightColor` | `(255, 64, 128, 110)`, a translucent pink | The color of the translucent copy that the `#` modifier draws over a highlighted solid (see *Transparency, Ghosts, and Highlights*). Any alpha is accepted: 255 draws an opaque copy and 0 an invisible one |
-| `GhostColor` | `(128, 128, 128, 80)`, a translucent gray | The color of the translucent ghost that the `%` modifier draws instead of a solid. Any alpha is accepted |
-| `FontResolution` | `null` (a default `ScadFontResolutionOptions`) | Where `text()` finds a font that the model names with `font = ...` (see *Text*): `UseSystemFonts` (default `true`) and `AdditionalDirectories` (default empty; copied and validated when set, a null, empty, or white-space directory is an `ArgumentException`). Text without a `font` argument always uses the bundled font and ignores these options |
-
-<!-- markdownlint-enable MD013 -->
+- **`Evaluation`** (default `null`, which is a default `ScadEvaluationOptions`): The options of the evaluation:
+  `-D`-style `Variables`, `Time` (`$t`), `Limits`, the `EchoHandler`, `WarningHandler`, and `UnsupportedFeatureHandler`,
+  and `ThrowOnUnsupportedFeature`. It is the single place that decides how problems are reported, for evaluation,
+  geometry building, and rendering alike.
+- **`Camera`** (default `null`): A Render3D `Camera`; `null` fits the view to the model. An invalid camera is rejected
+  by `Render` before evaluation. `BuildScene` never throws for it: it is ignored and defines no viewport variable (the
+  model sees the view angles or the defaults). An explicit valid camera also defines all four viewport variables for the
+  model (see *Viewport Variables*).
+- **`ViewAzimuthDegrees`** (default 45): Azimuth of the fitted view (rotation about +Z); finite. Used only without a
+  `Camera`. **Setting it, even to the default value, makes the view explicit** (see *Choosing the View*).
+- **`ViewElevationDegrees`** (default about 35.26): Elevation of the fitted view; finite. Used only without a `Camera`.
+  Setting it, even to the default value, makes the view explicit.
+- **`Projection`** (default `Perspective`; `Orthographic` for a flat model): Projection of the fitted view
+  (`CameraProjection.Perspective` or `Orthographic`). Used only without a `Camera`. Setting it changes only the
+  projection: it does not make the view angles explicit.
+- **`ResolvedViewHandler`** (default `null`): An `Action<ScadResolvedView>` that `Render` calls once, on the calling
+  thread, after the model was built and before it draws, to report the view that was used (see *Choosing the View*).
+  `BuildScene` never calls it; an exception thrown by the handler propagates to the caller.
+- **`AnchorHandler`** (default `null`): An `Action<ScadAnchor>` that `Render` calls once per anchor the model declares
+  with `echo("anchor", "name", [x, y, z])`, in echo order, on the calling thread, after `ResolvedViewHandler` and before
+  it draws (see *Anchors*). `BuildScene` never calls it; an exception thrown by the handler propagates to the caller.
+- **`SceneOptions`** (default `null` (Render3D defaults)): The `SceneRenderOptions` of the renderer: background color
+  (white by default), default surface color (neutral gray), lights, supersampling, parallelism, and fragment budget. Its
+  `UnsupportedFeatureHandler` and `ThrowOnUnsupportedFeature` are **ignored**; reporting always goes through
+  `Evaluation`.
+- **`FlatShapeThickness`** (default 0.1): Thickness in model units of the slab that represents a 2D shape (`square`,
+  `circle`, `polygon`) rendered without an extrusion; finite and greater than zero.
+- **`HighlightColor`** (default `(255, 64, 128, 110)`, a translucent pink): The color of the translucent copy that the
+  `#` modifier draws over a highlighted solid (see *Transparency, Ghosts, and Highlights*). Any alpha is accepted: 255
+  draws an opaque copy and 0 an invisible one.
+- **`GhostColor`** (default `(128, 128, 128, 80)`, a translucent gray): The color of the translucent ghost that the `%`
+  modifier draws instead of a solid. Any alpha is accepted.
+- **`FontResolution`** (default `null` (a default `ScadFontResolutionOptions`)): Where `text()` finds a font that the
+  model names with `font = ...` (see *Text*): `UseSystemFonts` (default `true`) and `AdditionalDirectories` (default
+  empty; copied and validated when set, a null, empty, or white-space directory is an `ArgumentException`). Text without
+  a `font` argument always uses the bundled font and ignores these options.
 
 A `color()` in the model overrides `SceneOptions.DefaultColor` (and the alpha of a `color()` is rendered; the alpha of
 `DefaultColor` is ignored). `ScadLimits` (in `Evaluation.Limits`) bounds every
@@ -195,33 +213,78 @@ Everything below is built to a Render3D scene by `BuildScene` and `Render`. Argu
 forms (positional or named); an unknown, surplus, or repeated argument is a warning, and `$fn`, `$fa`, `$fs`
 (see *Curve Resolution*) apply to the curved primitives. `convexity` arguments are accepted and ignored.
 
-<!-- markdownlint-disable MD013 -->
-
-| Module | Forms | Notes |
-| --- | --- | --- |
-| `cube` | `cube(size, center)`; `size` is a number or `[x, y, z]` | Origin corner unless `center` |
-| `sphere` | `sphere(r)` or `sphere(d = ...)` | `d` overrides `r`; the number of fragments follows `$fn`, `$fa`, and `$fs`, except that a radius of 1e-8 or less always gives 3 fragments, even with `$fn` set |
-| `cylinder` | `cylinder(h, r, r1, r2, d, d1, d2, center)` | Cones and frusta with `r1`/`r2` (per-end values override `r`/`d`); `d1`/`d2` are strongest |
-| `polyhedron` | `polyhedron(points, faces, convexity)`, or the legacy `triangles` when `faces` is absent | Faces list their points **clockwise seen from outside**; a solid supplied counter-clockwise is reversed with a warning. Concave planar faces are triangulated; an open shape is kept |
-| `square`, `circle`, `polygon` | `square(size, center)`, `circle(r)` or `circle(d = ...)`, `polygon(points, paths)` | 2D shapes; `paths` gives holes and islands (nesting parity), in either winding. A 2D shape that is not extruded is drawn as a thin slab (`FlatShapeThickness`); a model that is entirely 2D is drawn flat from above (see *Drawing Sheets with projection()*) |
-| `text` | `text(text, size, font, halign, valign, spacing, direction, language, script)` | A 2D shape of glyph outlines; see *Text* below for the size, font, alignment, and direction rules and the limits of the dialect |
-| `translate`, `scale`, `mirror` | `translate(v)`, `scale(v)` with a number or vector, `mirror(v)` (reflection through the plane with normal `v`) | Work on solids and 2D shapes |
-| `rotate` | `rotate([x, y, z])` (degrees; X first, then Y, then Z), `rotate(a)` (about Z), `rotate(a, v)` (about an axis) | |
-| `multmatrix` | `multmatrix(m)` with a 4 x 4 (or 3 x 4) column-vector matrix | A bottom row other than `[0, 0, 0, 1]` is `scad-multmatrix-projective` |
-| `resize` | `resize(newsize, auto)` | Scales about the origin so the children reach `newsize`; `auto` keeps proportions |
-| `color` | `color(c, alpha)`; `c` is a CSS color name (case-insensitive, including `"transparent"`), `"#RGB"`, `"#RGBA"`, `"#RRGGBB"`, `"#RRGGBBAA"`, or `[r, g, b]`/`[r, g, b, a]` with components 0 to 1 | The innermost color wins, alpha included. An alpha below 1 (from `alpha`, which overrides the alpha inside `c`, from the fourth component, from the hex form, or from `transparent`) makes the surface **translucent** (see *Transparency, Ghosts, and Highlights*); an `alpha` without a `c` is a warning |
-| `union`, `render`, `difference`, `intersection`, `intersection_for` | Booleans of solids and of 2D shapes | `difference` subtracts every later child from the first; an empty first child gives an empty result; mixed 2D and 3D children keep the dimension of the first operand and warn about the others |
-| `linear_extrude` | `linear_extrude(height, center, convexity, twist, slices, scale)` | `height` defaults to 100; a positive `twist` turns **clockwise seen from +Z**; `scale` is a number or `[sx, sy]` (both zero makes an apex) |
-| `hull` | `hull() { ... }` of 3D children or of 2D children | The convex hull of every vertex of the children, in their transformed positions (a union of children, whether groups, loops, or user modules, is one point set). 3D children give one closed convex solid that is a valid operand of later booleans; 2D children give a convex shape that `linear_extrude`, `rotate_extrude`, and the top-level slab consume. Colors inside are dropped with a warning (the hull takes the enclosing `color`). A `difference` or `intersection` among the children is `scad-hull-csg-operand`, mixed 2D and 3D children are `scad-hull-mixed-dimensions`, and points that span no volume (or area) are `scad-hull-degenerate`; the hull is omitted in each case, never approximated |
-| `minkowski` | `minkowski(convexity) { ... }` of convex 3D children | The Minkowski sum of the children, folded from the left: `minkowski() { cube([10, 6, 4]); sphere(1); }` is the block with rounded edges and corners. A union among the children distributes over the sum. Every child must be **convex**: a block, a sphere, a cylinder, a `hull`, a convex `polyhedron`, or a union of those; a `difference`, an `intersection`, or a hollow, notched, or otherwise non-convex mesh is `scad-minkowski-nonconvex` (also for a single child), and the module is omitted. A sum of 2D children is deferred (`scad-minkowski-2d`), mixed 2D and 3D children are `scad-minkowski-mixed-dimensions`, and more than 4,096 convex parts or sums, or more than 2,097,152 pairwise vertex sums for two parts or in total for the whole module, is `scad-minkowski-too-complex`. `convexity` is ignored; colors inside are dropped with a warning (also for a lone child, so an enclosing `color` applies) |
-| `rotate_extrude` | `rotate_extrude(angle, convexity)` | Profile X is the radius; the sweep starts at +X and runs counter-clockwise; `angle` defaults to 360, larger values are clamped, negative values sweep clockwise; a profile on the negative side of the axis is swept where it lies (a point at `(-4, 0)` with `angle = 90` sweeps from 180 to 270 degrees); a profile with vertices on both sides of the axis is `scad-rotate-extrude-axis-crossing` |
-| `projection` | `projection(cut)` over 3D children; `cut` is `false` (default) or `true` | A flat 2D shape that every 2D module, extrusion, and 2D boolean accepts. `cut = false` is the **shadow** of the children on the XY plane (an exact silhouette of the tessellated meshes: a through hole stays a hole, a blind pocket leaves none, a tube gives an annulus); `cut = true` is their **cross-section at z = 0** (a face that lies exactly in that plane belongs to the section). A `cut` that is not a boolean is a warning and counts as `false`; `convexity` is ignored; 2D children are ignored with a warning, `%` children are skipped, and colors inside are not kept (a warning). A projection that needs more than 2^23 triangle visits (counting the triangles and the vertices of the children and each pass over them; for example a very fine curved solid, or a model with a huge number of points) is `scad-projection-too-complex`, and a mesh whose cross-section does not close (not a closed solid) is `scad-projection-open-mesh`; the projection is omitted in both cases. The footprints are checked against `MaxTriangles` before any is built. See *Drawing Sheets with projection()* |
-| `!` (show only) | `!cube(5);` | The marked subtree becomes the new root of the design, **without** the transforms and colors of its ancestors: `translate([10, 0, 0]) { !cube(1); }` renders the cube at the origin |
-| `*` (disable) | `*cube(5);` | The subtree is ignored |
-| `#` (highlight) | `#cube(5);` | The subtree is rendered normally **and** as a translucent copy in `HighlightColor`; it still takes part in the booleans around it. On a 2D shape that is not extruded it is reported as `scad-modifier-highlight` (see the next section) |
-| `%` (background) | `%cube(5);` | The subtree is drawn only as a translucent ghost in `GhostColor` that is not part of the model. On a 2D shape that is not extruded it is omitted and reported as `scad-modifier-background` (see the next section) |
-
-<!-- markdownlint-enable MD013 -->
+- **`cube`**: `cube(size, center)`; `size` is a number or `[x, y, z]`. Notes: Origin corner unless `center`.
+- **`sphere`**: `sphere(r)` or `sphere(d = ...)`. Notes: `d` overrides `r`; the number of fragments follows `$fn`,
+  `$fa`, and `$fs`, except that a radius of 1e-8 or less always gives 3 fragments, even with `$fn` set.
+- **`cylinder`**: `cylinder(h, r, r1, r2, d, d1, d2, center)`. Notes: Cones and frusta with `r1`/`r2` (per-end values
+  override `r`/`d`); `d1`/`d2` are strongest.
+- **`polyhedron`**: `polyhedron(points, faces, convexity)`, or the legacy `triangles` when `faces` is absent. Notes:
+  Faces list their points **clockwise seen from outside**; a solid supplied counter-clockwise is reversed with a
+  warning. Concave planar faces are triangulated; an open shape is kept.
+- **`square`, `circle`, `polygon`**: `square(size, center)`, `circle(r)` or `circle(d = ...)`, `polygon(points, paths)`.
+  Notes: 2D shapes; `paths` gives holes and islands (nesting parity), in either winding. A 2D shape that is not extruded
+  is drawn as a thin slab (`FlatShapeThickness`); a model that is entirely 2D is drawn flat from above (see *Drawing
+  Sheets with projection()*).
+- **`text`**: `text(text, size, font, halign, valign, spacing, direction, language, script)`. Notes: A 2D shape of glyph
+  outlines; see *Text* below for the size, font, alignment, and direction rules and the limits of the dialect.
+- **`translate`, `scale`, `mirror`**: `translate(v)`, `scale(v)` with a number or vector, `mirror(v)` (reflection
+  through the plane with normal `v`). Notes: Work on solids and 2D shapes.
+- **`rotate`**: `rotate([x, y, z])` (degrees; X first, then Y, then Z), `rotate(a)` (about Z), `rotate(a, v)` (about an
+  axis).
+- **`multmatrix`**: `multmatrix(m)` with a 4 x 4 (or 3 x 4) column-vector matrix. Notes: A bottom row other than
+  `[0, 0, 0, 1]` is `scad-multmatrix-projective`.
+- **`resize`**: `resize(newsize, auto)`. Notes: Scales about the origin so the children reach `newsize`; `auto` keeps
+  proportions.
+- **`color`**: `color(c, alpha)`; `c` is a CSS color name (case-insensitive, including `"transparent"`), `"#RGB"`,
+  `"#RGBA"`, `"#RRGGBB"`, `"#RRGGBBAA"`, or `[r, g, b]`/`[r, g, b, a]` with components 0 to 1. Notes: The innermost
+  color wins, alpha included. An alpha below 1 (from `alpha`, which overrides the alpha inside `c`, from the fourth
+  component, from the hex form, or from `transparent`) makes the surface **translucent** (see *Transparency, Ghosts, and
+  Highlights*); an `alpha` without a `c` is a warning.
+- **`union`, `render`, `difference`, `intersection`, `intersection_for`**: Booleans of solids and of 2D shapes. Notes:
+  `difference` subtracts every later child from the first; an empty first child gives an empty result; mixed 2D and 3D
+  children keep the dimension of the first operand and warn about the others.
+- **`linear_extrude`**: `linear_extrude(height, center, convexity, twist, slices, scale)`. Notes: `height` defaults to
+  100; a positive `twist` turns **clockwise seen from +Z**; `scale` is a number or `[sx, sy]` (both zero makes an apex).
+- **`hull`**: `hull() { ... }` of 3D children or of 2D children. Notes: The convex hull of every vertex of the children,
+  in their transformed positions (a union of children, whether groups, loops, or user modules, is one point set). 3D
+  children give one closed convex solid that is a valid operand of later booleans; 2D children give a convex shape that
+  `linear_extrude`, `rotate_extrude`, and the top-level slab consume. Colors inside are dropped with a warning (the hull
+  takes the enclosing `color`). A `difference` or `intersection` among the children is `scad-hull-csg-operand`, mixed 2D
+  and 3D children are `scad-hull-mixed-dimensions`, and points that span no volume (or area) are `scad-hull-degenerate`;
+  the hull is omitted in each case, never approximated.
+- **`minkowski`**: `minkowski(convexity) { ... }` of convex 3D children. Notes: The Minkowski sum of the children,
+  folded from the left: `minkowski() { cube([10, 6, 4]); sphere(1); }` is the block with rounded edges and corners. A
+  union among the children distributes over the sum. Every child must be **convex**: a block, a sphere, a cylinder, a
+  `hull`, a convex `polyhedron`, or a union of those; a `difference`, an `intersection`, or a hollow, notched, or
+  otherwise non-convex mesh is `scad-minkowski-nonconvex` (also for a single child), and the module is omitted. A sum of
+  2D children is deferred (`scad-minkowski-2d`), mixed 2D and 3D children are `scad-minkowski-mixed-dimensions`, and
+  more than 4,096 convex parts or sums, or more than 2,097,152 pairwise vertex sums for two parts or in total for the
+  whole module, is `scad-minkowski-too-complex`. `convexity` is ignored; colors inside are dropped with a warning (also
+  for a lone child, so an enclosing `color` applies).
+- **`rotate_extrude`**: `rotate_extrude(angle, convexity)`. Notes: Profile X is the radius; the sweep starts at +X and
+  runs counter-clockwise; `angle` defaults to 360, larger values are clamped, negative values sweep clockwise; a profile
+  on the negative side of the axis is swept where it lies (a point at `(-4, 0)` with `angle = 90` sweeps from 180 to 270
+  degrees); a profile with vertices on both sides of the axis is `scad-rotate-extrude-axis-crossing`.
+- **`projection`**: `projection(cut)` over 3D children; `cut` is `false` (default) or `true`. Notes: A flat 2D shape
+  that every 2D module, extrusion, and 2D boolean accepts. `cut = false` is the **shadow** of the children on the XY
+  plane (an exact silhouette of the tessellated meshes: a through hole stays a hole, a blind pocket leaves none, a tube
+  gives an annulus); `cut = true` is their **cross-section at z = 0** (a face that lies exactly in that plane belongs to
+  the section). A `cut` that is not a boolean is a warning and counts as `false`; `convexity` is ignored; 2D children
+  are ignored with a warning, `%` children are skipped, and colors inside are not kept (a warning). A projection that
+  needs more than 2^23 triangle visits (counting the triangles and the vertices of the children and each pass over them;
+  for example a very fine curved solid, or a model with a huge number of points) is `scad-projection-too-complex`, and a
+  mesh whose cross-section does not close (not a closed solid) is `scad-projection-open-mesh`; the projection is omitted
+  in both cases. The footprints are checked against `MaxTriangles` before any is built. See *Drawing Sheets with
+  projection()*.
+- **`!` (show only)**: `!cube(5);`. Notes: The marked subtree becomes the new root of the design, **without** the
+  transforms and colors of its ancestors: `translate([10, 0, 0]) { !cube(1); }` renders the cube at the origin.
+- **`*` (disable)**: `*cube(5);`. Notes: The subtree is ignored.
+- **`#` (highlight)**: `#cube(5);`. Notes: The subtree is rendered normally **and** as a translucent copy in
+  `HighlightColor`; it still takes part in the booleans around it. On a 2D shape that is not extruded it is reported as
+  `scad-modifier-highlight` (see the next section).
+- **`%` (background)**: `%cube(5);`. Notes: The subtree is drawn only as a translucent ghost in `GhostColor` that is not
+  part of the model. On a 2D shape that is not extruded it is omitted and reported as `scad-modifier-background` (see
+  the next section).
 
 Language features (variables, functions, modules with `children()`, `for`, `if`, `let`, comprehensions, `echo`,
 `assert`, `include` and `use`, and the built-in functions) are evaluated by the evaluator described in
@@ -275,20 +338,21 @@ counter of an `O` are kept), so it works wherever a `square` does: extrude it wi
 `rotate_extrude`, subtract it with a 2D `difference`, move it with `translate` and `rotate`, take its `hull`, or color
 it. A text that is not extruded is drawn as a thin slab like any 2D shape. The arguments, in positional order:
 
-<!-- markdownlint-disable MD013 -->
-
-| Argument | Default | Meaning |
-| --- | --- | --- |
-| `text` | required | The string. A number or another value is converted like `str()`. An empty string builds nothing and is not reported |
-| `size` | 10 | The height in model units of the glyph `H` of the selected font, so a capital `H` is exactly `size` tall and stands on the baseline (`Y = 0`). A finite number greater than zero |
-| `font` | the bundled Liberation Sans Regular | A family, `"Family"`, or a family with a style, `"Family:style=Bold Italic"` (the words `Bold` and `Italic`, or `Oblique`, in any case). See *Fonts* below |
-| `halign` | `"left"` | `"left"`, `"center"`, or `"right"`: which point of the **ink** (the drawn outline, not the advance box) is at `X = 0`: the left edge, the middle, or the right edge |
-| `valign` | `"baseline"` | `"baseline"` (the baseline is `Y = 0`), `"top"`, `"center"`, or `"bottom"`: the top edge, the middle, or the bottom edge of the ink at `Y = 0` |
-| `spacing` | 1 | A finite number that is not negative that multiplies the advance of every glyph (not the kerning); `spacing = 0` overlaps the glyphs |
-| `direction` | `"ltr"` | `"ltr"`; `"rtl"` (the characters in reverse order, laid out left to right); `"ttb"` and `"btt"` (upright characters stacked downwards or upwards by their advance, without kerning) |
-| `language`, `script` | none | Accepted with any value and **ignored** |
-
-<!-- markdownlint-enable MD013 -->
+- **`text`** (required): The string. A number or another value is converted like `str()`. An empty string builds
+  nothing and is not reported.
+- **`size`** (default 10): The height in model units of the glyph `H` of the selected font, so a capital `H` is exactly
+  `size` tall and stands on the baseline (`Y = 0`). A finite number greater than zero.
+- **`font`** (default the bundled Liberation Sans Regular): A family, `"Family"`, or a family with a style,
+  `"Family:style=Bold Italic"` (the words `Bold` and `Italic`, or `Oblique`, in any case). See *Fonts* below.
+- **`halign`** (default `"left"`): `"left"`, `"center"`, or `"right"`: which point of the **ink** (the drawn outline,
+  not the advance box) is at `X = 0`: the left edge, the middle, or the right edge.
+- **`valign`** (default `"baseline"`): `"baseline"` (the baseline is `Y = 0`), `"top"`, `"center"`, or `"bottom"`: the
+  top edge, the middle, or the bottom edge of the ink at `Y = 0`.
+- **`spacing`** (default 1): A finite number that is not negative that multiplies the advance of every glyph (not the
+  kerning); `spacing = 0` overlaps the glyphs.
+- **`direction`** (default `"ltr"`): `"ltr"`; `"rtl"` (the characters in reverse order, laid out left to right); `"ttb"`
+  and `"btt"` (upright characters stacked downwards or upwards by their advance, without kerning).
+- **`language`, `script`** (default none): Accepted with any value and **ignored**.
 
 The curve resolution follows `$fn`, `$fa`, and `$fs` like a circle of radius `size / 2` does (see *Curve Resolution*):
 the outlines are flattened so that they stay within the sagitta of such a circle. An invalid argument (for example a
@@ -428,16 +492,11 @@ PngCodec.Save(sheet, "sheet.png");
 
 The model sees the camera of its own picture in four special variables, so it can place geometry relative to it:
 
-<!-- markdownlint-disable MD013 -->
-
-| Variable | Meaning | Default |
-| --- | --- | --- |
-| `$vpt` | The target: the point the camera looks at | `[0, 0, 0]` |
-| `$vpr` | The rotation of the camera in degrees, as `[x, y, z]` angles composed like `rotate($vpr)` | From the requested view: about `[54.7356, 0, 45]` for the default isometric view |
-| `$vpd` | The distance from the eye to the target | `140` |
-| `$vpf` | The vertical field of view in degrees | `22.5` |
-
-<!-- markdownlint-enable MD013 -->
+- **`$vpt`** (default `[0, 0, 0]`): The target: the point the camera looks at.
+- **`$vpr`** (default From the requested view: about `[54.7356, 0, 45]` for the default isometric view): The rotation of
+  the camera in degrees, as `[x, y, z]` angles composed like `rotate($vpr)`.
+- **`$vpd`** (default `140`): The distance from the eye to the target.
+- **`$vpf`** (default `22.5`): The vertical field of view in degrees.
 
 A `ScadDocument.Evaluate()` call without render options has no picture, so it shows the literal defaults of a fresh
 viewer instead, with `$vpr = [55, 0, 25]`.
@@ -448,16 +507,13 @@ viewer instead, with `$vpr = [55, 0, 25]`.
 
 **Precedence.** Each variable takes the first value that exists, highest first:
 
-<!-- markdownlint-disable MD013 -->
-
-| Source | Applies to |
-| --- | --- |
-| An explicit render option | An explicit `Camera` supplies all four variables; explicit `ViewAzimuthDegrees` or `ViewElevationDegrees` sets `$vpr` only |
-| A variable override (`-D`, `def.` in a fragment, `ScadEvaluationOptions.Variables`) | Any of the four; a vector is a sequence in `Variables` and a JSON array in `-D` and `def.` (`-D '$vpt=[0,0,20]'`, `-D '$vpd=200'`) |
-| An assignment at the top level of the model file and its `include`s | Any of the four; not a `use`d library and not a nested scope |
-| The default | See the table above |
-
-<!-- markdownlint-enable MD013 -->
+- **An explicit render option**: An explicit `Camera` supplies all four variables; explicit `ViewAzimuthDegrees` or
+  `ViewElevationDegrees` sets `$vpr` only.
+- **A variable override (`-D`, `def.` in a fragment, `ScadEvaluationOptions.Variables`)**: Any of the four; a vector is
+  a sequence in `Variables` and a JSON array in `-D` and `def.` (`-D '$vpt=[0,0,20]'`, `-D '$vpd=200'`).
+- **An assignment at the top level of the model file and its `include`s**: Any of the four; not a `use`d library and not
+  a nested scope.
+- **The default**: See the list above.
 
 **What the variables do to the picture.** Assigning only `$vpr` sets the orientation of the view, while the framing
 stays automatic (the view is still fitted to the model). Assigning any of `$vpt`, `$vpd`, or `$vpf` selects a
@@ -506,17 +562,14 @@ A model can name points of interest with the statement `echo("anchor", "name", [
 a callout or a leader line on the picture. The statement is an ordinary `echo` for every other OpenSCAD tool (the
 line is still printed), and `Render` reports each declaration to `ScadRenderOptions.AnchorHandler` as a `ScadAnchor`:
 
-<!-- markdownlint-disable MD013 -->
-
-| Member | Meaning |
-| --- | --- |
-| `Name` | The non-empty name, the second argument |
-| `Point` | The **world point**: the `[x, y, z]` after every enclosing `translate`, `rotate`, `scale`, `mirror`, and `multmatrix` is applied (innermost first) |
-| `Pixel` | The continuous position in the rendered image, `Vector2D?`: origin at the top-left corner, pixel `i` spans `[i, i + 1)` (the center of the first pixel is `0.5`), x to the right, y down. `null` when the point cannot be projected (behind a perspective camera) |
-| `IsInsideImage` | `Pixel` is not `null` and lies within `0 <= x < width`, `0 <= y < height` |
-| `Location` | The line and column of the declaring `echo` |
-
-<!-- markdownlint-enable MD013 -->
+- **`Name`**: The non-empty name, the second argument.
+- **`Point`**: The **world point**: the `[x, y, z]` after every enclosing `translate`, `rotate`, `scale`, `mirror`, and
+  `multmatrix` is applied (innermost first).
+- **`Pixel`**: The continuous position in the rendered image, `Vector2D?`: origin at the top-left corner, pixel `i`
+  spans `[i, i + 1)` (the center of the first pixel is `0.5`), x to the right, y down. `null` when the point cannot be
+  projected (behind a perspective camera).
+- **`IsInsideImage`**: `Pixel` is not `null` and lies within `0 <= x < width`, `0 <= y < height`.
+- **`Location`**: The line and column of the declaring `echo`.
 
 The pixel is computed with exactly the camera that drew the image (`Camera.TryProject` of the Render3D package, with the
 fit margin, the flat default view, an explicit `Camera`, or the model's own `$vpt`, `$vpr`, and `$vpd` all included), so
@@ -647,37 +700,56 @@ lower-case `Feature` identifier, a message, and the `ScadSourceLocation` of the 
 included and used files), and the rest of the model is still built. Reports are de-duplicated per location, so a
 module in a loop is reported once. The identifiers are part of the documented behavior of the package:
 
-<!-- markdownlint-disable MD013 -->
-
-| Identifier | Trigger | Effect |
-| --- | --- | --- |
-| `scad-module-offset`, `scad-module-surface`, `scad-module-import`, `scad-module-roof` | The module is recognized but not implemented | The module and its children are omitted |
-| `scad-projection-too-complex` | A `projection` needs more work than the ceiling of 2^23 triangle visits (counting the vertices of the children and each pass over them), for example a very fine curved solid, or a model with a huge number of points | The projection is omitted; simplify the solid, lower `$fn`, or project the parts separately |
-| `scad-projection-open-mesh` | A `projection` meets a mesh whose cross-section does not close, that is, a mesh that is not a closed solid (for example an open `polyhedron`) | The projection is omitted; close the polyhedron |
-| `scad-text-invalid-outline` | A glyph outline of a `text()` is damaged, or a contour of a glyph crosses itself or has no area | The whole text is omitted |
-| `scad-text-overlapping-contours` | The contours of one glyph of a `text()` overlap or touch each other, other than as a hole, an island, or the overlapping solids of a composite glyph | The whole text is omitted |
-| `scad-hull-csg-operand` | A `hull` has a `difference` or an `intersection` among its children (3D or 2D, at any depth) | The hull is omitted |
-| `scad-hull-degenerate` | The points of a `hull` span no volume (3D: fewer than four, collinear, or coplanar points) or no area (2D) | The hull is omitted |
-| `scad-hull-mixed-dimensions` | A `hull` has both 2D and 3D children | The hull is omitted |
-| `scad-minkowski-nonconvex` | A `minkowski` has a child that is a boolean or a mesh that is not convex (also a lone child); the message names the child by its position and source location | The module is omitted |
-| `scad-minkowski-2d` | A `minkowski` of 2D children (deferred) | The module is omitted |
-| `scad-minkowski-mixed-dimensions` | A `minkowski` has both 2D and 3D children | The module is omitted |
-| `scad-minkowski-too-complex` | A `minkowski` has a child of more than 4,096 convex parts, a step of more than 4,096 sums, or more than 2,097,152 pairwise vertex sums for two parts or in total for the module | The module is omitted |
-| `scad-modifier-highlight` | The `#` modifier on a 2D shape that is not extruded (on a solid, `#` is rendered and not reported) | The shape is rendered normally, without highlighting |
-| `scad-modifier-background` | The `%` modifier on a 2D shape that is not extruded (on a solid, `%` is rendered as a ghost and not reported) | The shape is omitted |
-| `scad-resize-approximate` | `resize` over children that contain a difference or an intersection | Estimated bounds are used |
-| `scad-multmatrix-projective` | `multmatrix` with a bottom row other than `[0, 0, 0, 1]` | The module and its children are omitted |
-| `scad-polygon-invalid` | A `polygon` (or a 2D shape after transformation under an extrusion) that crosses itself or has no area | That shape is omitted |
-| `scad-polyhedron-face-invalid` | A polyhedron face that cannot be triangulated | The polyhedron is omitted |
-| `scad-linear-extrude-scale` | A negative `scale` component, or exactly one zero component | The extrusion is omitted |
-| `scad-linear-extrude-apex-multiple-contours` | `scale = 0` over a profile with holes or islands | The extrusion is omitted |
-| `scad-rotate-extrude-axis-crossing` | The profile lies on both sides of the axis | The extrusion is omitted |
-| `scad-rotate-extrude-axis-contact` | The profile touches the axis at an isolated vertex | The extrusion is omitted |
-| `scad-geometry-rejected` | Any other geometry the Render3D tessellators and extruders reject, or an instance whose coordinates are not finite or exceed 1e100 in magnitude (for example `translate([1.7e308, 0, 0])`) | The affected geometry is omitted; the message says why |
-| `scad-csg-open-mesh`, `scad-csg-non-manifold-edge`, `scad-csg-inconsistent-winding`, `scad-csg-degenerate-triangle`, `scad-csg-inverted-mesh`, `scad-csg-singular-transform` | `Render` found a defect in an operand of a `difference` or `intersection` (reported only when a handler or strict mode is set) | Reported at the module that produced the mesh; the image is still drawn |
-| `scad-function-<name>`, `scad-search-form` | An unimplemented built-in function (`parent_module`, `textmetrics`, `fontmetrics`) or `search` argument form | The call evaluates to `undef` |
-
-<!-- markdownlint-enable MD013 -->
+- **`scad-module-offset`, `scad-module-surface`, `scad-module-import`, `scad-module-roof`**: The module is recognized
+  but not implemented. Effect: The module and its children are omitted.
+- **`scad-projection-too-complex`**: A `projection` needs more work than the ceiling of 2^23 triangle visits (counting
+  the vertices of the children and each pass over them), for example a very fine curved solid, or a model with a huge
+  number of points. Effect: The projection is omitted; simplify the solid, lower `$fn`, or project the parts separately.
+- **`scad-projection-open-mesh`**: A `projection` meets a mesh whose cross-section does not close, that is, a mesh that
+  is not a closed solid (for example an open `polyhedron`). Effect: The projection is omitted; close the polyhedron.
+- **`scad-text-invalid-outline`**: A glyph outline of a `text()` is damaged, or a contour of a glyph crosses itself or
+  has no area. Effect: The whole text is omitted.
+- **`scad-text-overlapping-contours`**: The contours of one glyph of a `text()` overlap or touch each other, other than
+  as a hole, an island, or the overlapping solids of a composite glyph. Effect: The whole text is omitted.
+- **`scad-hull-csg-operand`**: A `hull` has a `difference` or an `intersection` among its children (3D or 2D, at any
+  depth). Effect: The hull is omitted.
+- **`scad-hull-degenerate`**: The points of a `hull` span no volume (3D: fewer than four, collinear, or coplanar points)
+  or no area (2D). Effect: The hull is omitted.
+- **`scad-hull-mixed-dimensions`**: A `hull` has both 2D and 3D children. Effect: The hull is omitted.
+- **`scad-minkowski-nonconvex`**: A `minkowski` has a child that is a boolean or a mesh that is not convex (also a lone
+  child); the message names the child by its position and source location. Effect: The module is omitted.
+- **`scad-minkowski-2d`**: A `minkowski` of 2D children (deferred). Effect: The module is omitted.
+- **`scad-minkowski-mixed-dimensions`**: A `minkowski` has both 2D and 3D children. Effect: The module is omitted.
+- **`scad-minkowski-too-complex`**: A `minkowski` has a child of more than 4,096 convex parts, a step of more than 4,096
+  sums, or more than 2,097,152 pairwise vertex sums for two parts or in total for the module. Effect: The module is
+  omitted.
+- **`scad-modifier-highlight`**: The `#` modifier on a 2D shape that is not extruded (on a solid, `#` is rendered and
+  not reported). Effect: The shape is rendered normally, without highlighting.
+- **`scad-modifier-background`**: The `%` modifier on a 2D shape that is not extruded (on a solid, `%` is rendered as a
+  ghost and not reported). Effect: The shape is omitted.
+- **`scad-resize-approximate`**: `resize` over children that contain a difference or an intersection. Effect: Estimated
+  bounds are used.
+- **`scad-multmatrix-projective`**: `multmatrix` with a bottom row other than `[0, 0, 0, 1]`. Effect: The module and its
+  children are omitted.
+- **`scad-polygon-invalid`**: A `polygon` (or a 2D shape after transformation under an extrusion) that crosses itself or
+  has no area. Effect: That shape is omitted.
+- **`scad-polyhedron-face-invalid`**: A polyhedron face that cannot be triangulated. Effect: The polyhedron is omitted.
+- **`scad-linear-extrude-scale`**: A negative `scale` component, or exactly one zero component. Effect: The extrusion is
+  omitted.
+- **`scad-linear-extrude-apex-multiple-contours`**: `scale = 0` over a profile with holes or islands. Effect: The
+  extrusion is omitted.
+- **`scad-rotate-extrude-axis-crossing`**: The profile lies on both sides of the axis. Effect: The extrusion is omitted.
+- **`scad-rotate-extrude-axis-contact`**: The profile touches the axis at an isolated vertex. Effect: The extrusion is
+  omitted.
+- **`scad-geometry-rejected`**: Any other geometry the Render3D tessellators and extruders reject, or an instance whose
+  coordinates are not finite or exceed 1e100 in magnitude (for example `translate([1.7e308, 0, 0])`). Effect: The
+  affected geometry is omitted; the message says why.
+- **`scad-csg-open-mesh`, `scad-csg-non-manifold-edge`, `scad-csg-inconsistent-winding`, `scad-csg-degenerate-triangle`,
+  `scad-csg-inverted-mesh`, `scad-csg-singular-transform`**: `Render` found a defect in an operand of a `difference` or
+  `intersection` (reported only when a handler or strict mode is set). Effect: Reported at the module that produced the
+  mesh; the image is still drawn.
+- **`scad-function-<name>`, `scad-search-form`**: An unimplemented built-in function (`parent_module`, `textmetrics`,
+  `fontmetrics`) or `search` argument form. Effect: The call evaluates to `undef`.
 
 Pass a handler to receive the reports (and the warnings) as they are delivered, or set
 `ThrowOnUnsupportedFeature` to refuse a partial result: the first unsupported feature of any stage, after the

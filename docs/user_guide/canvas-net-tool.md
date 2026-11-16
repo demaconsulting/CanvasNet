@@ -198,13 +198,9 @@ $ echo $?
 With `--json` (and without `--silent`) the same failure is also written to standard output, so that a program can
 parse standard output alone in both cases; the text report on standard error is unchanged:
 
-<!-- markdownlint-disable MD013 -->
-
 ```json
 {"schemaVersion":2,"ok":false,"command":"render","error":{"code":"input-not-found","message":"'missing.png' does not exist.","hint":"Check the path."}}
 ```
-
-<!-- markdownlint-enable MD013 -->
 
 ## Commands
 
@@ -279,8 +275,6 @@ scalable, and the help topic that describes each), the output formats, the limit
 of the library. Use it to discover what the installed version supports; the last line points to the help topics
 (`canvasnet help <topic>`), which say what each format supports, with examples and known differences.
 
-<!-- markdownlint-disable MD013 -->
-
 ```text
 $ canvasnet formats
 Input formats:
@@ -307,8 +301,6 @@ Versions:
 
 Run 'canvasnet help <topic>' for supported features, examples, and known differences (for example 'canvasnet help vega-lite'). An SVG drawing can embed files of these formats with <image href>, and #page=N chooses a page of a document; see 'canvasnet help svg'. 'canvasnet flatten' writes a copy of such a drawing that any SVG reader can show.
 ```
-
-<!-- markdownlint-enable MD013 -->
 
 The `--help` of every command (for example `canvasnet render --help` and `canvasnet formats --help`) ends with a
 *See also* line that names `canvasnet help <topic>`, the topics, and `canvasnet help topics`.
@@ -350,8 +342,6 @@ result has a `fragment` member (see *Fragments on Input Paths*).
   git graph as nodes and the links to their parents as edges). The diagram is laid out without the pictures of its
   nodes, so no other file is read (see *Mermaid Diagrams* below).
 
-<!-- markdownlint-disable MD013 -->
-
 ```text
 $ canvasnet info shapes.svg
 shapes.svg: svg, 100x80 px (intrinsic size), 4 channels with alpha, 303 bytes
@@ -381,8 +371,6 @@ $ canvasnet info plan.mmd
 plan.mmd: mermaid, 784x220 px (laid out), gantt, 5 nodes, 0 edges, 2 subgraphs, title "Release plan", 365 bytes
 ```
 
-<!-- markdownlint-enable MD013 -->
-
 ### render and convert
 
 ```text
@@ -406,7 +394,7 @@ on Input Paths*. The processing order is always:
    repeated.
 3. **Write** the output atomically (through a temporary file in the same folder).
 
-The options of `render` are listed in the following tables.
+The options of `render` are listed below.
 
 | Source option | Meaning |
 | --- | --- |
@@ -454,24 +442,24 @@ with `size-limit`.
 
 The photo operations have options of their own:
 
-<!-- markdownlint-disable MD013 -->
-
-| Photo option | Meaning |
-| --- | --- |
-| `--grayscale` | Turn every pixel gray (its luma); transparency is kept |
-| `--invert` | Invert the colors; transparency is kept |
-| `--threshold <0-255\|auto>` | Turn the image black and white: a pixel whose luma is above the level becomes white, the others black; `auto` chooses the level with Otsu's method |
-| `--levels <black,white[,gamma]>` | Map the levels `black`..`white` to 0..255, with an optional gamma (0.1 to 10; above 1 brightens the midtones), for example `20,230` or `20,230,1.2` |
-| `--brightness <-255..255>` | Add an amount to every color level |
-| `--contrast <-100..100>` | Change the contrast around mid-gray by a percentage |
-| `--auto-levels` | Stretch the levels so that the darkest and lightest pixels become black and white (ignoring 1% of the pixels at each end) |
-| `--auto-levels-clip <percent>` | The percentage of the pixels `--auto-levels` ignores at each end, 0 to 20 (default 1); needs `--auto-levels` |
-| `--deskew` | Find the tilt of the near-horizontal lines (within 15 degrees) and rotate the image level |
-| `--trim` | Crop away the uniform border around the content |
-| `--trim-tolerance <0-255>` | How far a pixel may differ from the border color and still count as border (default 8); needs `--trim` |
-| `--grid <N[,color]>` | Draw a labeled coordinate grid with a line every N pixels (8 to 4096) in a color (default `#FF00FFA0`) |
-
-<!-- markdownlint-enable MD013 -->
+- **`--grayscale`**: Turn every pixel gray (its luma); transparency is kept.
+- **`--invert`**: Invert the colors; transparency is kept.
+- **`--threshold <0-255|auto>`**: Turn the image black and white: a pixel whose luma is above the level becomes white,
+  the others black; `auto` chooses the level with Otsu's method.
+- **`--levels <black,white[,gamma]>`**: Map the levels `black`..`white` to 0..255, with an optional gamma (0.1 to 10;
+  above 1 brightens the midtones), for example `20,230` or `20,230,1.2`.
+- **`--brightness <-255..255>`**: Add an amount to every color level.
+- **`--contrast <-100..100>`**: Change the contrast around mid-gray by a percentage.
+- **`--auto-levels`**: Stretch the levels so that the darkest and lightest pixels become black and white (ignoring 1% of
+  the pixels at each end).
+- **`--auto-levels-clip <percent>`**: The percentage of the pixels `--auto-levels` ignores at each end, 0 to 20 (default
+  1); needs `--auto-levels`.
+- **`--deskew`**: Find the tilt of the near-horizontal lines (within 15 degrees) and rotate the image level.
+- **`--trim`**: Crop away the uniform border around the content.
+- **`--trim-tolerance <0-255>`**: How far a pixel may differ from the border color and still count as border (default
+  8); needs `--trim`.
+- **`--grid <N[,color]>`**: Draw a labeled coordinate grid with a line every N pixels (8 to 4096) in a color (default
+  `#FF00FFA0`).
 
 These options are explained in *Photos and Sketches*. `--threshold` and `--grid` of `render` are unrelated to the
 `--threshold` and `--grid` of `compare` (a metric limit and a number of cells): each command has its own.
@@ -1366,8 +1354,6 @@ the envelope of `render` (`tool`, `input`, `operations`, `image`, `diagnostics`,
 
 ### compare
 
-<!-- markdownlint-disable MD013 -->
-
 ```text
 canvasnet compare <a> <b> [options]
 ```
@@ -1411,24 +1397,28 @@ box with its fit-to-model camera). A **raster** input is loaded at its natural s
 
 | `--fit` | Raster input that is not the target size |
 | --- | --- |
-| `contain` (default) | Scaled, keeping its aspect ratio, so that it fits inside the size (enlarging or shrinking), and centered over the background |
+| `contain` (default) | Scaled to fit inside the size, keeping its aspect ratio, and centered over the background |
 | `stretch` | Resampled to exactly the size, whatever its aspect ratio |
 
-Note that `--fit contain|stretch` of `compare` is not the `--fit WxH` of `render`. The resampling filter is
-`--filter` (default `auto`). The JSON result reports what was done to each input in its `operations`.
+`contain` enlarges a smaller input as well as shrinking a larger one. Note that `--fit contain|stretch` of `compare` is
+not the `--fit WxH` of `render`. The resampling filter is `--filter` (default `auto`). The JSON result reports what was
+done to each input in its `operations`.
 
 #### Options
 
 Options that are shared by both inputs, with the grammar of the same options of `render`:
 
-| Option | Meaning |
-| --- | --- |
-| `--page <N>`, `--dpi <D>` | The page and the resolution of a document input (defaults 1 and 96) |
-| `--view`, `--azimuth`, `--elevation`, `--projection`, `-D`/`--define`, `--time`, `--default-color`, `--max-triangles` | The view and variables of an OpenSCAD model input (see *OpenSCAD Models*); given when no input is a model they are a `usage-error` |
-| `--background <color>` | The **opaque** color that transparency is flattened over (default white); `transparent` or a color with alpha below 255 is a `usage-error` |
-| `--no-auto-orient`, `--strict`, `--filter` | As for `render` |
-| `--file-access <mode>`, `--allow-root <folder>` | As for `render`, for both inputs; without `--allow-root`, `roots` allows the current folder and the folders of both inputs (see *File Access*) |
-| `--quality <1-100>`, `--no-clobber` | For the pictures that are written (a JPEG picture is flattened over the background) |
+- **`--page <N>`, `--dpi <D>`**: The page and the resolution of a document input (defaults 1 and 96).
+- **`--view`, `--azimuth`, `--elevation`, `--projection`, `-D`/`--define`, `--time`, `--default-color`,
+  `--max-triangles`**: The view and variables of an OpenSCAD model input (see *OpenSCAD Models*); given when no input is
+  a model they are a `usage-error`.
+- **`--background <color>`**: The **opaque** color that transparency is flattened over (default white); `transparent` or
+  a color with alpha below 255 is a `usage-error`.
+- **`--no-auto-orient`, `--strict`, `--filter`**: As for `render`.
+- **`--file-access <mode>`, `--allow-root <folder>`**: As for `render`, for both inputs; without `--allow-root`, `roots`
+  allows the current folder and the folders of both inputs (see *File Access*).
+- **`--quality <1-100>`, `--no-clobber`**: For the pictures that are written (a JPEG picture is flattened over the
+  background).
 
 A shared option that does not concern an input is skipped silently for that input (`--page` is ignored for a PNG).
 Per-side options override the shared ones for one input, and are a `usage-error` when that input is of the wrong kind
@@ -1439,31 +1429,35 @@ Per-side options override the shared ones for one input, and are a `usage-error`
 | `--a-page`, `--b-page` | The page of input `a` or `b` (a document) |
 | `--a-dpi`, `--b-dpi` | The resolution of input `a` or `b` (a document) |
 | `--a-view`, `--b-view` | The named view of input `a` or `b` (a model) |
-| `--a-define`, `--b-define` | A variable (`name=value`, repeatable) of input `a` or `b` (a model); a per-side definition replaces a shared one of the same name |
+| `--a-define`, `--b-define` | A variable (`name=value`, repeatable) of input `a` or `b` (a model) |
 
-`--all-pages`, `--scale`, `--width`, `--height`, and `--size` are not options of `compare` (`--resize-to` sets the
+A per-side definition replaces a shared one of the same name. `--all-pages`, `--scale`, `--width`, `--height`, and
+`--size` are not options of `compare` (`--resize-to` sets the
 size).
 
-| Measure option | Meaning |
-| --- | --- |
-| `--tolerance <0-255>` | A pixel counts as differing when its largest channel difference is **above** this (default 8; 0 counts any change) |
-| `--grid <CxR>` | The grid of cells for the per-cell errors: columns by rows, each 1 to 64 and not more than the pixels of the image (default `4x4`) |
-| `--threshold <metric>=<value>` | A limit to check; repeatable (see *Thresholds*) |
+The measure options:
+
+- **`--tolerance <0-255>`**: A pixel counts as differing when its largest channel difference is **above** this (default
+  8; 0 counts any change).
+- **`--grid <CxR>`**: The grid of cells for the per-cell errors: columns by rows, each 1 to 64 and not more than the
+  pixels of the image (default `4x4`).
+- **`--threshold <metric>=<value>`**: A limit to check; repeatable (see *Thresholds*).
 
 | Picture option | Meaning |
 | --- | --- |
 | `--diff <file>` | Write the difference picture |
-| `--diff-style <heat\|abs>` | `heat` (default): a color ramp of the largest channel difference; `abs`: the difference of each channel |
-| `--gain <factor>` | Amplification of the differences in `--diff` and in the third panel of `--side-by-side` (0.1 to 255, default 4) |
+| `--diff-style <heat\|abs>` | `heat` (default): a color ramp of the largest channel difference; `abs`: see below |
+| `--gain <factor>` | The amplification of the differences (0.1 to 255, default 4); see below |
 | `--side-by-side <file>` | Write the two images and the `heat` picture of the differences side by side |
 | `--overlay <file>` | Write a blend of the two images |
 | `--overlay-weight <0-1>` | The weight of `b` in the blend (default 0.5) |
 
-The format of each picture comes from its extension (PNG, JPEG, BMP, TIFF). A picture may not be one of the inputs
-(`same-input-output`), two pictures may not be the same file (`usage-error`), an existing picture is replaced unless
-`--no-clobber` is given, and every picture is created and encoded before any is moved into place: if any picture
-cannot be created or encoded, none is written, and the pictures are published all or nothing (if one cannot be
-moved into place, the others are rolled back and every previous picture is restored).
+The `abs` style draws the difference of each channel, and `--gain` amplifies the differences in `--diff` and in the
+third panel of `--side-by-side`. The format of each picture comes from its extension (PNG, JPEG, BMP, TIFF). A picture
+may not be one of the inputs (`same-input-output`), two pictures may not be the same file (`usage-error`), an existing
+picture is replaced unless `--no-clobber` is given, and every picture is created and encoded before any is moved into
+place: if any picture cannot be created or encoded, none is written, and the pictures are published all or nothing (if
+one cannot be moved into place, the others are rolled back and every previous picture is restored).
 
 #### The Measures
 
@@ -1475,9 +1469,10 @@ root, and a logarithm at the end, so the same inputs give the same numbers on ev
 | --- | --- |
 | `mae` | Mean absolute error: `sum(d) / (3N)` (0 to 255) |
 | `rmse` | Root mean square error: `sqrt( sum(d^2) / (3N) )` (0 to 255); `rmseNormalized = rmse / 255` |
-| `psnrDb` | Peak signal-to-noise ratio: `20 * log10(255 / rmse)`; `null` when `rmse` is 0 (the text form prints `inf`) |
+| `psnrDb` | Peak signal-to-noise ratio: `20 * log10(255 / rmse)`; `null` (`inf` in the text form) when `rmse` is 0 |
 | `maxChannelDiff` | The largest `d` over all pixels and channels (0 to 255) |
-| `diffPixels`, `diffPixelRatio` | The number of pixels whose largest channel difference is above `--tolerance`, and that number divided by `N` |
+| `diffPixels` | The number of pixels whose largest channel difference is above `--tolerance` |
+| `diffPixelRatio` | `diffPixels` divided by `N` |
 | `identical` | `maxChannelDiff == 0` (it does not depend on the tolerance) |
 | `ssim` | The structural similarity, defined below (-1 to 1; 1 for identical images) |
 
@@ -1589,19 +1584,22 @@ canvasnet montage a.png b.svg c.jpg -o sheet.png --labels
 canvasnet montage deck.pptx --all-pages --columns 4 --cell 320x180 --labels -o deck-overview.png
 ```
 
-| Option | Meaning |
-| --- | --- |
-| `-o`, `--output <file>` | The output (required); its extension selects the format (`--quality` applies to a JPEG) |
-| `--columns <N>` | The number of columns, 1 to 64 (default: the square root of the number of cells, rounded up) |
-| `--cell <WxH>` | The image area of each cell (default `256x256`; each side at least 16) |
-| `--fit <contain\|stretch>` | How an image is fitted into its cell (default `contain`: scaled to fill the limiting side, keeping the aspect ratio, centered; `stretch`: resampled to the exact cell) |
-| `--spacing <N>` | Pixels between cells (default 8) |
-| `--padding <N>` | Pixels around the sheet (default 8) |
-| `--background <color>` | The opaque color of the sheet (default white) |
-| `--labels` | Draw the name of each input under its cell |
-| `--page <N>`, `--all-pages` | The page of each document, or every page (together they are a `usage-error`) |
-| `--dpi`, the model options, `--no-auto-orient`, `--strict`, `--filter`, `--quality`, `--no-clobber` | As for `render`; options that do not concern an input are skipped for it |
-| `--file-access <mode>`, `--allow-root <folder>` | As for `render`, for every input; without `--allow-root`, `roots` allows the current folder and the folder of every input (see *File Access*) |
+The options of `montage`:
+
+- **`-o`, `--output <file>`**: The output (required); its extension selects the format (`--quality` applies to a JPEG).
+- **`--columns <N>`**: The number of columns, 1 to 64 (default: the square root of the number of cells, rounded up).
+- **`--cell <WxH>`**: The image area of each cell (default `256x256`; each side at least 16).
+- **`--fit <contain|stretch>`**: How an image is fitted into its cell (default `contain`: scaled to fill the limiting
+  side, keeping the aspect ratio, centered; `stretch`: resampled to the exact cell).
+- **`--spacing <N>`**: Pixels between cells (default 8).
+- **`--padding <N>`**: Pixels around the sheet (default 8).
+- **`--background <color>`**: The opaque color of the sheet (default white).
+- **`--labels`**: Draw the name of each input under its cell.
+- **`--page <N>`, `--all-pages`**: The page of each document, or every page (together they are a `usage-error`).
+- **`--dpi`, the model options, `--no-auto-orient`, `--strict`, `--filter`, `--quality`, `--no-clobber`**: As for
+  `render`; options that do not concern an input are skipped for it.
+- **`--file-access <mode>`, `--allow-root <folder>`**: As for `render`, for every input; without `--allow-root`, `roots`
+  allows the current folder and the folder of every input (see *File Access*).
 
 A vector input (SVG, document page, model) is drawn directly at the cell size, so it is sharp; a raster is fitted with
 `--fit`. A cell is always scaled to fill the limiting side, because a contact sheet is a preview (there is no
@@ -1624,8 +1622,8 @@ Cell `i` is in column `i % columns` and row `i / columns`, and its image area st
 pixels on a side is refused with `size-limit` (hint: a smaller `--cell` or more `--columns`) before any input is loaded
 (with `--all-pages`, after the page counts were read from the file headers).
 
-**Labels.** The label is the file name of the input (`report.pdf`), then `#` and the fragment when the input path has one
-(`assembly.scad#def.explode=0.5`), then `p<N>` for a page of a document that the fragment does not name
+**Labels.** The label is the file name of the input (`report.pdf`), then `#` and the fragment when the input path has
+one (`assembly.scad#def.explode=0.5`), then `p<N>` for a page of a document that the fragment does not name
 (`report.pdf p2`), centered in the 22-pixel strip under the cell, 14 pixels high, in the bundled font (never an
 installed font, so a sheet is the same on every machine). The text is black on a light background and white on a dark
 one, and a name wider than the cell is cut with `...`.
@@ -1643,8 +1641,6 @@ The text result is `wrote sheet.png (1048x552 png, 52000 bytes): 6 images in 3 c
 
 `x` and `y` are the top-left corner of the image area of the cell (the label strip is below it); `page` and
 `pageCount` are present only for a document, and `label` only with `--labels`.
-
-<!-- markdownlint-enable MD013 -->
 
 ### flatten
 
@@ -1684,8 +1680,6 @@ The text result is `wrote dashboard-flat.svg (61234 bytes): 2 pictures replaced 
 400x400 scad)`, or `nothing to flatten: dashboard.svg links no picture that only CanvasNet draws; dashboard-flat.svg
 was not written`; the notes are written to standard error as for `render`. With `--json`:
 
-<!-- markdownlint-disable MD013 -->
-
 ```json
 {"schemaVersion":2,"ok":true,"command":"flatten","tool":{"name":"canvasnet","version":"<version>"},
  "input":{"path":"dashboard.svg","format":"svg","natural":{"width":800,"height":600}},"scale":2,"flattened":true,
@@ -1706,20 +1700,33 @@ declaration when nothing uses it any more; a binding that fails keeps its attrib
 
 #### Flatten Reference
 
-This table is also the *Reference* section of `canvasnet help svg flatten`; a test keeps the two the same.
+This list is also the *Reference* section of `canvasnet help svg flatten`; a test keeps the two the same.
 
-| Term | Meaning |
-| --- | --- |
-| replaced | An `image` whose link names a file only CanvasNet draws: a Mermaid diagram, an OpenSCAD model, a Vega-Lite chart, or a page of a PDF, PPTX, or VSDX document, with or without a fragment (`#page=2`, `#def.width=20`, `#param.t=5`, `#theme=dark`), and an SVG file that links such a file directly or through further SVG files. Its `href` (or its `xlink:href` when it has no `href`) becomes a `data:image/png;base64` URI of the picture. |
-| kept | Everything else, byte for byte: comments, formatting, line endings, a byte order mark, raster pictures, SVG files that link only rasters and SVG files, `data:` URIs (never followed), same-document `#` links, and network links. |
-| size | Each picture is drawn at the size of its placement in the drawing at its natural size (through the `viewBox` and every transform, as render draws it), times `--scale`; the SVG reader still fits it with `preserveAspectRatio`. A link used twice is drawn once, at the larger placement. |
-| other folder | When the copy is written to another folder, the relative links that are left are rewritten so they find their files from there; a drive letter or UNC path (`C:\x.png`, `\\server\share\x.png`) is left as written on every system. Links of other elements (an external `use`, a CSS `url()`) are not rewritten. |
-| bindings | A position binding (cn:x2y2 and the others, see `canvasnet help svg bindings`) is baked with the numbers of the PNG picture that replaces the link; its `cn:` attribute is removed, and the namespace declaration too when nothing uses it. The JSON document counts bindings.resolved and bindings.unresolved; a binding that fails keeps its attribute and numbers. |
-| nothing to flatten | When the drawing links no such picture, or shows none, nothing is written and the exit code is 0: the text says nothing to flatten and `flattened` is false in the JSON document. |
-| limits | The links are drawn by the resolver of render, with its link rule, file-access mode, and limits (at most 64 pictures, nested ones included, 4 levels, and the pixel budget). The copy is at most 64 MiB (`size-limit`), and the drawing must be UTF-8 (`unsupported-feature` for another declared encoding unless the file is plain ASCII). |
-| `--strict` | A link that is not drawn (`svg-image-unresolved`, `svg-image-too-large`, `image-fragment-invalid`, or `image-page-out-of-range`) is an `unsupported-feature` error, as for render; a link the file-access mode denies (`image-access-denied`) is the error `file-access-denied`; a position binding that fails is the error `svg-binding-failed`; `svg-flatten-image-not-drawn` stays a warning. |
-
-<!-- markdownlint-enable MD013 -->
+- **replaced**: An `image` whose link names a file only CanvasNet draws: a Mermaid diagram, an OpenSCAD model, a
+  Vega-Lite chart, or a page of a PDF, PPTX, or VSDX document, with or without a fragment (`#page=2`, `#def.width=20`,
+  `#param.t=5`, `#theme=dark`), and an SVG file that links such a file directly or through further SVG files. Its `href`
+  (or its `xlink:href` when it has no `href`) becomes a `data:image/png;base64` URI of the picture.
+- **kept**: Everything else, byte for byte: comments, formatting, line endings, a byte order mark, raster pictures, SVG
+  files that link only rasters and SVG files, `data:` URIs (never followed), same-document `#` links, and network links.
+- **size**: Each picture is drawn at the size of its placement in the drawing at its natural size (through the `viewBox`
+  and every transform, as render draws it), times `--scale`; the SVG reader still fits it with `preserveAspectRatio`. A
+  link used twice is drawn once, at the larger placement.
+- **other folder**: When the copy is written to another folder, the relative links that are left are rewritten so they
+  find their files from there; a drive letter or UNC path (`C:\x.png`, `\\server\share\x.png`) is left as written on
+  every system. Links of other elements (an external `use`, a CSS `url()`) are not rewritten.
+- **bindings**: A position binding (cn:x2y2 and the others, see `canvasnet help svg bindings`) is baked with the numbers
+  of the PNG picture that replaces the link; its `cn:` attribute is removed, and the namespace declaration too when
+  nothing uses it. The JSON document counts bindings.resolved and bindings.unresolved; a binding that fails keeps its
+  attribute and numbers.
+- **nothing to flatten**: When the drawing links no such picture, or shows none, nothing is written and the exit code is
+  0: the text says nothing to flatten and `flattened` is false in the JSON document.
+- **limits**: The links are drawn by the resolver of render, with its link rule, file-access mode, and limits (at most
+  64 pictures, nested ones included, 4 levels, and the pixel budget). The copy is at most 64 MiB (`size-limit`), and the
+  drawing must be UTF-8 (`unsupported-feature` for another declared encoding unless the file is plain ASCII).
+- **`--strict`**: A link that is not drawn (`svg-image-unresolved`, `svg-image-too-large`, `image-fragment-invalid`, or
+  `image-page-out-of-range`) is an `unsupported-feature` error, as for render; a link the file-access mode denies
+  (`image-access-denied`) is the error `file-access-denied`; a position binding that fails is the error
+  `svg-binding-failed`; `svg-flatten-image-not-drawn` stays a warning.
 
 ### pandoc-filter
 
@@ -1740,17 +1747,15 @@ once, instead of `CANVASNET_JOBS`. `canvasnet help pandoc` is the reference.
 
 ### Values: Sizes, Geometry, and Colors
 
-<!-- markdownlint-disable MD013 -->
+Each kind of value, its grammar, and examples:
 
-| Value | Grammar | Examples |
-| --- | --- | --- |
-| Size | `WxH`, both whole pixels, 1 to 8192 | `800x600` |
-| Geometry | `x,y,w,h` or `WxH+X+Y`; each value in pixels (`10`, `10px`) or percent (`10%`); `WxH` alone is at 0,0 | `10,10,200,100`, `200x100+10+10`, `10%,10%,80%,80%` |
-| Color | `#RGB`, `#RGBA`, `#RRGGBB`, `#RRGGBBAA` (alpha **last**), the same without `#`, a CSS color name, or `transparent` | `#336699`, `#33669980`, `white`, `steelblue`, `transparent` |
-| Border | One number for every side, or `l,t,r,b` | `8`, `0,0,32,32` |
-| Degrees | A number, clockwise; negative turns counterclockwise | `90`, `-90`, `3.5` |
-
-<!-- markdownlint-enable MD013 -->
+- **Size**: `WxH`, both whole pixels, 1 to 8192. Examples: `800x600`.
+- **Geometry**: `x,y,w,h` or `WxH+X+Y`; each value in pixels (`10`, `10px`) or percent (`10%`); `WxH` alone is at 0,0.
+  Examples: `10,10,200,100`, `200x100+10+10`, `10%,10%,80%,80%`.
+- **Color**: `#RGB`, `#RGBA`, `#RRGGBB`, `#RRGGBBAA` (alpha **last**), the same without `#`, a CSS color name, or
+  `transparent`. Examples: `#336699`, `#33669980`, `white`, `steelblue`, `transparent`.
+- **Border**: One number for every side, or `l,t,r,b`. Examples: `8`, `0,0,32,32`.
+- **Degrees**: A number, clockwise; negative turns counterclockwise. Examples: `90`, `-90`, `3.5`.
 
 Any of the 148 CSS color names is accepted in any letter case (for example `black`, `white`, `gray` or `grey`, `red`,
 `orange`, `steelblue`, `rebeccapurple`). The `rgb()` and `hsl()` function forms are not accepted. In a shell,
@@ -1807,31 +1812,51 @@ canvasnet flatten diagram.svg -o flat.svg --file-access roots --strict --json
 
 #### File Access Reference
 
-This table is also the `canvasnet help files` card, bullet by bullet; a test keeps the two the same.
+This list is also the `canvasnet help files` card, bullet by bullet; a test keeps the two the same.
 
-<!-- markdownlint-disable MD013 -->
-
-| Term | Meaning |
-| --- | --- |
-| `any` | The default. A document may reference every regular local file, as Pandoc reads them: a path relative to the file that holds the link, a path with .., an absolute or drive path, a local file: URI, and a symbolic link or junction. |
-| `roots` | Only a file inside a folder named by --allow-root, or, without --allow-root, inside the current folder or the folder of an input. Both the path as written and the real path of the opened file must be inside, so a link that leads out is denied, and so is a path outside that links back in. |
-| `no-symlinks` | A reference may not pass through a symbolic link or junction below the folder of the input it starts from; that folder and the folders above it are trusted. A hard link cannot be detected. |
-| `roots,no-symlinks` | Both rules. Exactly the confinement that earlier versions applied by default is --file-access roots,no-symlinks --allow-root <folder of the input>; without --allow-root, roots also allows every file under the current folder. For a document you do not trust, name its folder with --allow-root. |
-| `--file-access <mode>` | Chooses the mode for render and its verbs, inspect, compare, montage, and flatten: any, roots, no-symlinks, or roots,no-symlinks, in any letter case. Anything else is a usage-error that lists the modes. info always measures under any. |
-| `--allow-root <folder>` | A folder that referenced files may be in; repeatable. It implies --file-access roots and replaces the default folders. A relative folder is taken from the current folder, and a folder that does not exist is a usage-error. With --file-access any or no-symlinks it is a usage-error that names the conflict. |
-| `inputs` | The files named on the command line are never judged by the mode, only the files they reference: images, pictures, data files, includes, and linked pages, at every level. |
-| `never read` | A network URL (http:, https:, and other schemes), a UNC or network path, a file: URI with a host, a device path, an alternate data stream, and anything that is not a regular file are never read. |
-| `limits` | Every size and count limit holds in every mode; a mode decides which files may be read, never how much. See 'canvasnet help limits'. |
-| `image-access-denied` | Warning: a picture (an SVG image, a Mermaid picture, a Vega-Lite image mark, or a linked page) that the mode denies is not drawn, and the rest is; the message names the link, the mode, and why. With --strict it is the error file-access-denied. |
-| `file-access-denied` | Error: an OpenSCAD include or use file or a Vega-Lite data file that the mode denies, or a denied picture with --strict; the message names the file as written and where it is referenced. No output is written. |
-| `real path unavailable` | A mode other than any needs the real path of every opened file. Where the system cannot tell it (Linux without /proc, for example), the file is denied, never read unchecked. |
-| `detail` | In the JSON result, the detail of an image-access-denied note holds the reference, the requested and real paths, and the mode. These are host paths: a service that shows notes to untrusted authors should remove them. |
-| `default` | The pandoc-filter command passes no mode, so a document reads its pictures, includes, and data as Pandoc reads its images. |
-| `CANVASNET_FILE_ACCESS` | Set it to roots, no-symlinks, or roots,no-symlinks to pass --file-access to every render and flatten of the filter; a picture the mode denies then stops the build. |
-| `CANVASNET_ROOTS` | Folders separated like PATH (; on Windows, : elsewhere), passed as one --allow-root each as an absolute path (a relative folder is taken from the working directory); it implies roots. Without it, roots gets the working directory and the folder of the picture as --allow-root. These arguments are part of the cache name of every picture, so a picture drawn without them, or from another working directory, is not reused. |
-| `hashing` | The filter reads the files a picture references to name it in the cache, and in a restrictive mode it judges them as the tool does, by the real path of the opened file: a file outside the folders, a link that leads outside them, and under no-symlinks any link are never read. |
-
-<!-- markdownlint-enable MD013 -->
+- **`any`**: The default. A document may reference every regular local file, as Pandoc reads them: a path relative to
+  the file that holds the link, a path with .., an absolute or drive path, a local file: URI, and a symbolic link or
+  junction.
+- **`roots`**: Only a file inside a folder named by --allow-root, or, without --allow-root, inside the current folder or
+  the folder of an input. Both the path as written and the real path of the opened file must be inside, so a link that
+  leads out is denied, and so is a path outside that links back in.
+- **`no-symlinks`**: A reference may not pass through a symbolic link or junction below the folder of the input it
+  starts from; that folder and the folders above it are trusted. A hard link cannot be detected.
+- **`roots,no-symlinks`**: Both rules. Exactly the confinement that earlier versions applied by default is --file-access
+  roots,no-symlinks --allow-root <folder of the input>; without --allow-root, roots also allows every file under the
+  current folder. For a document you do not trust, name its folder with --allow-root.
+- **`--file-access <mode>`**: Chooses the mode for render and its verbs, inspect, compare, montage, and flatten: any,
+  roots, no-symlinks, or roots,no-symlinks, in any letter case. Anything else is a usage-error that lists the modes.
+  info always measures under any.
+- **`--allow-root <folder>`**: A folder that referenced files may be in; repeatable. It implies --file-access roots and
+  replaces the default folders. A relative folder is taken from the current folder, and a folder that does not exist is
+  a usage-error. With --file-access any or no-symlinks it is a usage-error that names the conflict.
+- **`inputs`**: The files named on the command line are never judged by the mode, only the files they reference: images,
+  pictures, data files, includes, and linked pages, at every level.
+- **`never read`**: A network URL (http:, https:, and other schemes), a UNC or network path, a file: URI with a host, a
+  device path, an alternate data stream, and anything that is not a regular file are never read.
+- **`limits`**: Every size and count limit holds in every mode; a mode decides which files may be read, never how much.
+  See 'canvasnet help limits'.
+- **`image-access-denied`**: Warning: a picture (an SVG image, a Mermaid picture, a Vega-Lite image mark, or a linked
+  page) that the mode denies is not drawn, and the rest is; the message names the link, the mode, and why. With --strict
+  it is the error file-access-denied.
+- **`file-access-denied`**: Error: an OpenSCAD include or use file or a Vega-Lite data file that the mode denies, or a
+  denied picture with --strict; the message names the file as written and where it is referenced. No output is written.
+- **`real path unavailable`**: A mode other than any needs the real path of every opened file. Where the system cannot
+  tell it (Linux without /proc, for example), the file is denied, never read unchecked.
+- **`detail`**: In the JSON result, the detail of an image-access-denied note holds the reference, the requested and
+  real paths, and the mode. These are host paths: a service that shows notes to untrusted authors should remove them.
+- **`default`**: The pandoc-filter command passes no mode, so a document reads its pictures, includes, and data as
+  Pandoc reads its images.
+- **`CANVASNET_FILE_ACCESS`**: Set it to roots, no-symlinks, or roots,no-symlinks to pass --file-access to every render
+  and flatten of the filter; a picture the mode denies then stops the build.
+- **`CANVASNET_ROOTS`**: Folders separated like PATH (; on Windows, : elsewhere), passed as one --allow-root each as an
+  absolute path (a relative folder is taken from the working directory); it implies roots. Without it, roots gets the
+  working directory and the folder of the picture as --allow-root. These arguments are part of the cache name of every
+  picture, so a picture drawn without them, or from another working directory, is not reused.
+- **`hashing`**: The filter reads the files a picture references to name it in the cache, and in a restrictive mode it
+  judges them as the tool does, by the real path of the opened file: a file outside the folders, a link that leads
+  outside them, and under no-symlinks any link are never read.
 
 ## Help Topics
 
@@ -1942,8 +1967,6 @@ starts with the same envelope.
 describes the format), `outputs` (`{"format","extensions","alpha","lossy"}`), `quality`
 (`{"min","max","default"}`), and `maxDimension`.
 
-<!-- markdownlint-disable MD013 -->
-
 `info --json` adds `input` (`{"path","format","bytes"}`, and `fragment` when the input path had one, see *Fragments on
 Input Paths*; the same `fragment` member is in the `input` object of `render`, the verbs, and `inspect`, in the `a` and
 `b` objects of `compare`, and in each cell of `montage`, where `path` or `input` is always the file) and one of these
@@ -1992,22 +2015,22 @@ objects:
 - `tool`: the name and version of the tool.
 - `input`: `path`, `format`, and `natural` (the size of what was loaded: the size of the file, or of the first page
   drawn). For a document, `pageCount`, and `page` (the page drawn; omitted with `--all-pages`).
-- `operations`: every step that was applied, in order (see the following table).
+- `operations`: every step that was applied, in order (see the following list).
 - `outputs`: one entry per file written: `path` (as given), `format`, `width`, `height`, `bytes`, and `page` for a
   document.
-- `diagnostics`: the features that were skipped, each `{"source","severity","code","message"}`, `page` for a
-  document, and, only when there is something to say, `detail`, `location`, and `origin` after them (`source` is `scad`,
-  `pptx`, `vsdx`, `vega-lite`, `mermaid`, or `svg`; `code` is the library's stable feature token, such as
-  `scad-module-surface`, `vl-mark-geoshape`, or `mermaid-icon-unsupported`, `vega-lite-warning` for a warning of the
-  chart library, `mermaid-warning` for a warning of the diagram library, or
-  `svg-image-unresolved`, `svg-image-too-large`, `image-fragment-invalid`, `image-page-out-of-range`,
-  `image-fragment-unknown-parameter`, or `image-fragment-duplicate-parameter` for an SVG `image` link). `detail` is the
-  finer identifier when `code` is a generic one (`scad-anchor-invalid` for a `scad-warning`, `vl-unknown-property` for a
-  `vega-lite-warning`, `mermaid-config-unknown-key` for a `mermaid-warning`); `location` is `{"file","line","column"}` (a chart adds `"pointer"`, and a member that is
-  not known is left out) where the file gave a position; `origin` lists the files, outermost first, that lead to an
-  embedded file's note (a link of the SVG file you named has none). The `code`s and the other members are unchanged; a
-  note without the extras has exactly the shape it always had. The same members are in the `diagnostics` of `inspect`,
-  `compare`, and `montage`.
+- `diagnostics`: the features that were skipped, each `{"source","severity","code","message"}`, `page` for a document,
+  and, only when there is something to say, `detail`, `location`, and `origin` after them (`source` is `scad`, `pptx`,
+  `vsdx`, `vega-lite`, `mermaid`, or `svg`; `code` is the library's stable feature token, such as `scad-module-surface`,
+  `vl-mark-geoshape`, or `mermaid-icon-unsupported`, `vega-lite-warning` for a warning of the chart library,
+  `mermaid-warning` for a warning of the diagram library, or `svg-image-unresolved`, `svg-image-too-large`,
+  `image-fragment-invalid`, `image-page-out-of-range`, `image-fragment-unknown-parameter`, or
+  `image-fragment-duplicate-parameter` for an SVG `image` link). `detail` is the finer identifier when `code` is a
+  generic one (`scad-anchor-invalid` for a `scad-warning`, `vl-unknown-property` for a `vega-lite-warning`,
+  `mermaid-config-unknown-key` for a `mermaid-warning`); `location` is `{"file","line","column"}` (a chart adds
+  `"pointer"`, and a member that is not known is left out) where the file gave a position; `origin` lists the files,
+  outermost first, that lead to an embedded file's note (a link of the SVG file you named has none). The `code`s and the
+  other members are unchanged; a note without the extras has exactly the shape it always had. The same members are in
+  the `diagnostics` of `inspect`, `compare`, and `montage`.
 - `echo`: the text a SCAD model printed with `echo`.
 - `anchors`: only for a SCAD model, after `echo`: the points it declared with `echo("anchor", "name", [x, y, z])`, in
   echo order, each `{"name","point":[x,y,z],"pixel":[x,y] or null,"inside"}` (see *Anchors* under *OpenSCAD Models*).
@@ -2017,26 +2040,37 @@ objects:
   `"pixel":[x,y] or null`, and `"inside"` (see *Feature Positions*).
 - `positionsTruncated`: only with `--positions`: true when more features matched than `positions` holds (1000).
 
-| `op` | Fields besides `op` |
-| --- | --- |
-| `auto-orient` | `orientation` (the EXIF orientation, 2-8, that was applied) |
-| `render` | `width`, `height`; a document adds `page`, `dpi`, `background`; a model adds `view`, `azimuth`, `elevation`, `projection`, `width`, `height`, `background`, and when given `defines`, `time`, `maxTriangles`, `defaultColor`; a chart adds `width`, `height`, `timeZone` (always `UTC`), and `background` when one was given; a diagram adds `width`, `height`, `background`, and `theme` when one was chosen. For a model, `view`, `azimuth`, `elevation`, and `projection` report the view that was **used**: `view` is `iso`, `top`, another named view whose angles match, or `custom` (for example a view set by the model's `$vpr`) |
-| `resize` | `width`, `height`, and `filter` when one was chosen (a raster sized by `--scale`, `--width`, `--height`, or `--size`, or `--resize`) |
-| `embed` | A file an SVG embedded and drew: `href` (as written), `format`, `width`, `height` (the size it was loaded at); listed after the `render` and `flatten` of the SVG |
-| `fit` | The loader's fit of a drawing into a `--width` by `--height` box has `width`, `height` (the box); the `--fit` operation has `width`, `height` (the result), `boxWidth`, `boxHeight`, `filter`, `allowUpscale`, `scaled` |
-| `flatten` | `background` (transparency flattened over a color: a drawing over its background, or the JPEG encoder) |
-| `crop` | `x`, `y`, `width`, `height`, `clamped` |
-| `rotate` | `degrees`, `width`, `height` (the size after rotating); an angle that is not a multiple of 90 also has `fill` (the corner color) and `filter` (`nearest` or `bilinear`), and `degrees` is then the angle normalized to 0 up to 360 |
-| `flip` | `axis` (`horizontal`, `vertical`, or `both`), `width`, `height` |
-| `pad` | `left`, `top`, `right`, `bottom`, `color`, `width`, `height` |
-| `grayscale`, `invert` | `width`, `height` |
-| `threshold` | `auto` (whether the level was chosen by Otsu's method), `level`, `width`, `height` |
-| `levels` | `black`, `white`, `gamma`, `width`, `height` |
-| `brightness`, `contrast` | `amount`, `width`, `height` |
-| `auto-levels` | `clip`, `applied`, and when applied `black` and `white`; `width`, `height` |
-| `deskew` | `skewDegrees` (the tilt that was found; positive when lines descend to the right), `rotateDegrees` (the correction, 0 when none), `confidence` (0 to 1), `applied`, and when applied `fill` and `filter`; `width`, `height` |
-| `trim` | `tolerance`, `x`, `y`, `width`, `height` (the box that was kept), `trimmed`, `empty` |
-| `grid` | `spacing`, `color`, `verticalLines`, `horizontalLines`, `labels`, `width`, `height` |
+The operations, by `op`, and their fields besides `op`:
+
+- **`auto-orient`**: `orientation` (the EXIF orientation, 2-8, that was applied).
+- **`render`**: `width`, `height`; a document adds `page`, `dpi`, `background`; a model adds `view`, `azimuth`,
+  `elevation`, `projection`, `width`, `height`, `background`, and when given `defines`, `time`, `maxTriangles`,
+  `defaultColor`; a chart adds `width`, `height`, `timeZone` (always `UTC`), and `background` when one was given; a
+  diagram adds `width`, `height`, `background`, and `theme` when one was chosen. For a model, `view`, `azimuth`,
+  `elevation`, and `projection` report the view that was **used**: `view` is `iso`, `top`, another named view whose
+  angles match, or `custom` (for example a view set by the model's `$vpr`).
+- **`resize`**: `width`, `height`, and `filter` when one was chosen (a raster sized by `--scale`, `--width`, `--height`,
+  or `--size`, or `--resize`).
+- **`embed`**: A file an SVG embedded and drew: `href` (as written), `format`, `width`, `height` (the size it was loaded
+  at); listed after the `render` and `flatten` of the SVG.
+- **`fit`**: The loader's fit of a drawing into a `--width` by `--height` box has `width`, `height` (the box); the
+  `--fit` operation has `width`, `height` (the result), `boxWidth`, `boxHeight`, `filter`, `allowUpscale`, `scaled`.
+- **`flatten`**: `background` (transparency flattened over a color: a drawing over its background, or the JPEG encoder).
+- **`crop`**: `x`, `y`, `width`, `height`, `clamped`.
+- **`rotate`**: `degrees`, `width`, `height` (the size after rotating); an angle that is not a multiple of 90 also has
+  `fill` (the corner color) and `filter` (`nearest` or `bilinear`), and `degrees` is then the angle normalized to 0 up
+  to 360.
+- **`flip`**: `axis` (`horizontal`, `vertical`, or `both`), `width`, `height`.
+- **`pad`**: `left`, `top`, `right`, `bottom`, `color`, `width`, `height`.
+- **`grayscale`, `invert`**: `width`, `height`.
+- **`threshold`**: `auto` (whether the level was chosen by Otsu's method), `level`, `width`, `height`.
+- **`levels`**: `black`, `white`, `gamma`, `width`, `height`.
+- **`brightness`, `contrast`**: `amount`, `width`, `height`.
+- **`auto-levels`**: `clip`, `applied`, and when applied `black` and `white`; `width`, `height`.
+- **`deskew`**: `skewDegrees` (the tilt that was found; positive when lines descend to the right), `rotateDegrees` (the
+  correction, 0 when none), `confidence` (0 to 1), `applied`, and when applied `fill` and `filter`; `width`, `height`.
+- **`trim`**: `tolerance`, `x`, `y`, `width`, `height` (the box that was kept), `trimmed`, `empty`.
+- **`grid`**: `spacing`, `color`, `verticalLines`, `horizontalLines`, `labels`, `width`, `height`.
 
 The order of `operations` is: the steps of loading and sizing, the pipeline steps in the order written, and finally
 the `flatten` of a JPEG output. With `--all-pages` every operation also carries its `page`. The set of operations may
@@ -2054,14 +2088,15 @@ grow in later versions of the tool; a program should ignore an `op` or a key it 
 `<command> --help --json`), and `help <topic> [<card> ...] --json` write the help as one document in the same envelope,
 with no banner and no color codes, and a `kind` that tells which document it is:
 
-| `kind` | Written for | Fields after `kind` |
-| --- | --- | --- |
-| `index` | The tool | `usage`, `commands`, `topics` (each `{"name","aliases","summary"}`), `globalOptions` |
-| `command` | A command | `topic` (the command), `aliases`, `summary`, `usage`, `options`, `globalOptions` |
-| `topics` | `help topics` | `cards` (each `{"id","aliases","summary","command"}`, every card, depth first) |
-| `card` | A help card | `id`, `aliases`, `title`, `summary`, `body`, `children`, `seeAlso`, `examples` |
-| `examples` | `help <topic> [<card> ...] --examples` | `id`, `examples` (the card's own, each `{"name","kind","language","fileName","description","content"}`), `cards` (each `{"id","summary","command","examples"}`, the cards below it that have examples) |
-| `example` | `help <topic> [<card> ...] --example <name>` | `id`, `example` (the same fields, plus the `card` it belongs to) |
+- **`index`** (for the tool): `usage`, `commands`, `topics` (each `{"name","aliases","summary"}`), `globalOptions`.
+- **`command`** (for a command): `topic` (the command), `aliases`, `summary`, `usage`, `options`, `globalOptions`.
+- **`topics`** (for `help topics`): `cards` (each `{"id","aliases","summary","command"}`, every card, depth first).
+- **`card`** (for a help card): `id`, `aliases`, `title`, `summary`, `body`, `children`, `seeAlso`, `examples`.
+- **`examples`** (for `help <topic> [<card> ...] --examples`): `id`, `examples` (the card's own, each
+  `{"name","kind","language","fileName","description","content"}`), `cards` (each
+  `{"id","summary","command","examples"}`, the cards below it that have examples).
+- **`example`** (for `help <topic> [<card> ...] --example <name>`): `id`, `example` (the same fields, plus the `card` it
+  belongs to).
 
 The `body` of a card is its Markdown text. Each entry of `children` and `seeAlso` is `{"id","summary","command"}`, where
 `command` is the exact command that prints that card. Each option is `{"name","aliases","takesValue","valueName",
@@ -2098,74 +2133,120 @@ A program that reads `ok`, `error.code`, and `metrics` handles both outcomes of 
 The codes are stable: a code is never renamed once released, so a program may branch on them. The text of a message
 and hint may be improved at any time.
 
-| Code | Cause | What to do |
-| --- | --- | --- |
-| `usage-error` | The command line is wrong: unknown command or option, missing or malformed value, conflicting options, a mistake in the page, geometry, color, angle, or view, or a missing output | Read the hint and `canvasnet <command> --help` |
-| `operation-failed` | A command could not complete for a reason that is not one of the others | Read the message |
-| `input-not-found` | The input file or folder does not exist | Check the path |
-| `input-unreadable` | The input exists but cannot be read (permissions, a folder, a locked file) | Check the permissions |
-| `unsupported-format` | The input is not a format the tool reads (for example a DOCX or an unknown extension) | See `canvasnet formats` |
-| `corrupt-input` | The content is damaged or is not what its extension says (a truncated or garbage file), or a model, chart, or diagram file is longer than the library reads | Repair or replace the file |
-| `unsupported-feature` | The file is valid but uses a feature the library cannot draw or decode (an interlaced PNG, a PPTX shape the library lacks, or any skipped feature with `--strict`) | Remove the feature, or drop `--strict` if it is only a skipped picture |
-| `page-out-of-range` | `--page`, or a `page=` or `slide=` fragment of the input, is beyond the last page of the document | Pages are counted from 1; use `info` for the count |
-| `image-fragment-invalid` | The fragment of an input path (`part.scad#def.width=20`) cannot be used: a value that is not valid, a name that is not an identifier, an unknown view, a page that is not a whole number, or a fragment over its limits | Fix the value, and quote the input in a shell; see *Fragments on Input Paths* |
-| `size-limit` | A requested, declared, or resulting size exceeds 8192 pixels on a side (for a chart, only its laid-out size) | Use a smaller size, dpi, or border |
-| `same-input-output` | The output file is the input file (also reached through a symbolic link) | Name a different output |
-| `output-exists` | The output exists and `--no-clobber` was given | Remove `--no-clobber` or choose another output |
-| `output-write-failed` | The output could not be written (an invalid path, a file where a folder should be, permissions, a full disk) | Check the output path |
-| `file-access-denied` | A file the document references (an OpenSCAD include, a Vega-Lite data file, or with `--strict` a linked picture) is denied by the file-access mode (`--file-access`, `--allow-root`) | Allow its folder with `--allow-root`, or reference a file the mode allows; see *File Access* |
-| `scad-error` | A model has a syntax error, an evaluation error, or an include that cannot be read | The message has the file, line, and column |
-| `vega-lite-error` | A Vega-Lite chart has an invalid specification (malformed JSON, a property of the wrong type, nesting or a string beyond the parser limits, plain Vega) or cannot be laid out or drawn, including a local data file that is missing or not valid | The message has the file, line, column, and JSON pointer |
-| `mermaid-error` | A Mermaid diagram is not valid (no diagram keyword, a grammar error, an unknown shape, invalid frontmatter or shape data) or cannot be laid out | The message has the file, line, column, and `mermaid-*` code; the hint suggests the fix |
-| `budget-exceeded` | A model exceeds a rendering limit, such as `--max-triangles`, or a chart or diagram exceeds a limit of its library while it is laid out or drawn (data rows, data files, data bytes, ticks, scene items; nodes, edges, nesting, layout work, pictures, painted pixels) | Raise the limit (a model) or simplify the model or chart |
-| `size-mismatch` | `compare` was given two inputs of different pixel sizes and no `--resize-to` | Add `--resize-to a`, `b`, or `WxH` |
-| `threshold-failed` | `compare` measured a value on the wrong side of a `--threshold` limit (the result and the pictures were still written) | Look at the pictures and the grid, fix the image or relax the limit |
-| `pandoc-filter-error` | The `pandoc-filter` command cannot draw a picture of a Pandoc document: an attribute that is not valid, a source that is not in the resource path, too many files or levels, a `CANVASNET_*` variable that is not valid, or a cache file that cannot be written | The message names the picture; see *Using the Tool in Pandoc Documents* |
-| `positions-unmatched` | With `--strict`, a `--positions` selector matched no feature of the diagram or chart; nothing was written (without `--strict` it is a warning with the same code) | List the ids with the selector `all`, and check the case of ids and values; see `canvasnet help positions selectors` |
+Each code, its cause, and what to do:
+
+- **`usage-error`**: The command line is wrong: unknown command or option, missing or malformed value, conflicting
+  options, a mistake in the page, geometry, color, angle, or view, or a missing output. What to do: Read the hint and
+  `canvasnet <command> --help`.
+- **`operation-failed`**: A command could not complete for a reason that is not one of the others. What to do: Read the
+  message.
+- **`input-not-found`**: The input file or folder does not exist. What to do: Check the path.
+- **`input-unreadable`**: The input exists but cannot be read (permissions, a folder, a locked file). What to do: Check
+  the permissions.
+- **`unsupported-format`**: The input is not a format the tool reads (for example a DOCX or an unknown extension). What
+  to do: See `canvasnet formats`.
+- **`corrupt-input`**: The content is damaged or is not what its extension says (a truncated or garbage file), or a
+  model, chart, or diagram file is longer than the library reads. What to do: Repair or replace the file.
+- **`unsupported-feature`**: The file is valid but uses a feature the library cannot draw or decode (an interlaced PNG,
+  a PPTX shape the library lacks, or any skipped feature with `--strict`). What to do: Remove the feature, or drop
+  `--strict` if it is only a skipped picture.
+- **`page-out-of-range`**: `--page`, or a `page=` or `slide=` fragment of the input, is beyond the last page of the
+  document. What to do: Pages are counted from 1; use `info` for the count.
+- **`image-fragment-invalid`**: The fragment of an input path (`part.scad#def.width=20`) cannot be used: a value that is
+  not valid, a name that is not an identifier, an unknown view, a page that is not a whole number, or a fragment over
+  its limits. What to do: Fix the value, and quote the input in a shell; see *Fragments on Input Paths*.
+- **`size-limit`**: A requested, declared, or resulting size exceeds 8192 pixels on a side (for a chart, only its
+  laid-out size). What to do: Use a smaller size, dpi, or border.
+- **`same-input-output`**: The output file is the input file (also reached through a symbolic link). What to do: Name a
+  different output.
+- **`output-exists`**: The output exists and `--no-clobber` was given. What to do: Remove `--no-clobber` or choose
+  another output.
+- **`output-write-failed`**: The output could not be written (an invalid path, a file where a folder should be,
+  permissions, a full disk). What to do: Check the output path.
+- **`file-access-denied`**: A file the document references (an OpenSCAD include, a Vega-Lite data file, or with
+  `--strict` a linked picture) is denied by the file-access mode (`--file-access`, `--allow-root`). What to do: Allow
+  its folder with `--allow-root`, or reference a file the mode allows; see *File Access*.
+- **`scad-error`**: A model has a syntax error, an evaluation error, or an include that cannot be read. What to do: The
+  message has the file, line, and column.
+- **`vega-lite-error`**: A Vega-Lite chart has an invalid specification (malformed JSON, a property of the wrong type,
+  nesting or a string beyond the parser limits, plain Vega) or cannot be laid out or drawn, including a local data file
+  that is missing or not valid. What to do: The message has the file, line, column, and JSON pointer.
+- **`mermaid-error`**: A Mermaid diagram is not valid (no diagram keyword, a grammar error, an unknown shape, invalid
+  frontmatter or shape data) or cannot be laid out. What to do: The message has the file, line, column, and `mermaid-*`
+  code; the hint suggests the fix.
+- **`budget-exceeded`**: A model exceeds a rendering limit, such as `--max-triangles`, or a chart or diagram exceeds a
+  limit of its library while it is laid out or drawn (data rows, data files, data bytes, ticks, scene items; nodes,
+  edges, nesting, layout work, pictures, painted pixels). What to do: Raise the limit (a model) or simplify the model or
+  chart.
+- **`size-mismatch`**: `compare` was given two inputs of different pixel sizes and no `--resize-to`. What to do: Add
+  `--resize-to a`, `b`, or `WxH`.
+- **`threshold-failed`**: `compare` measured a value on the wrong side of a `--threshold` limit (the result and the
+  pictures were still written). What to do: Look at the pictures and the grid, fix the image or relax the limit.
+- **`pandoc-filter-error`**: The `pandoc-filter` command cannot draw a picture of a Pandoc document: an attribute that
+  is not valid, a source that is not in the resource path, too many files or levels, a `CANVASNET_*` variable that is
+  not valid, or a cache file that cannot be written. What to do: The message names the picture; see *Using the Tool in
+  Pandoc Documents*.
+- **`positions-unmatched`**: With `--strict`, a `--positions` selector matched no feature of the diagram or chart;
+  nothing was written (without `--strict` it is a warning with the same code). What to do: List the ids with the
+  selector `all`, and check the case of ids and values; see `canvasnet help positions selectors`.
 
 ## Defaults
 
-| Topic | Default | How to change it |
-| --- | --- | --- |
-| Existing output file | Replaced | `--no-clobber` makes it an error |
-| Output the same as the input | Refused (`same-input-output`) | Choose another output |
-| Output format | From the output extension | `--format` |
-| JPEG quality | 90 | `--quality` |
-| Transparency in a vector source (SVG, document page, model, chart, diagram) | Flattened over white (a chart over its own background) | `--background <color>`; `--background transparent` keeps it |
-| Transparency in a raster source | Kept (PNG, BMP, TIFF); a JPEG output flattens over `--background` or white | `--background <color>` flattens a raster too |
-| JPEG orientation | Turned upright by its EXIF orientation; `info` reports the raw value | `--no-auto-orient` |
-| Resolution of a document page | 96 dpi | `--dpi` (at most 2400) |
-| Size of a drawing | Its natural size | `--scale`, `--width`, `--height`, `--size`, `--dpi` |
-| Size of an OpenSCAD model | 800 by 800 pixels | The size options |
-| Size of a Vega-Lite chart | The size its specification lays out | The size options |
-| Size of a Mermaid diagram | The size of Mermaid's SVG for it | The size options |
-| Theme of a Mermaid diagram | `default`, unless the diagram sets one | `--theme`, or `#theme=` on the input |
-| Fonts of a diagram | The bundled fonts only | Not adjustable |
-| Time zone and fonts of a chart | UTC, the bundled fonts only | Not adjustable |
-| Referenced files (pictures, includes, data files) | Every regular local file, relative to the file that names it; never the network | `--file-access`, `--allow-root` |
-| SCAD view and projection | The library chooses: `iso` for a 3D model, a flat `top` view for a model that is entirely 2D (or the model's own `$vpr`); orthographic | `--view`, `--azimuth`, `--elevation` (any of them makes the view explicit), `--projection perspective` |
-| SCAD default surface color | Gray | `--default-color` |
-| Maximum triangles of a model | 5,000,000 | `--max-triangles` |
-| Resampling filter | `auto` | `--filter` |
-| `--fit` | Shrinks only | `--allow-upscale` |
-| Pad color | `--pad-color`, else `--background`, else white for a drawing or document page and transparent for a raster | `--pad-color` |
-| Rotation fill (`--rotate`, `--deskew`) | `--rotate-fill`, else `--background`, else opaque white when every pixel is opaque, else transparent | `--rotate-fill` |
-| Rotation sampling | Bilinear | `--filter nearest` |
-| Photo options: `--trim-tolerance`, `--auto-levels-clip`, `--levels` gamma, `--grid` color | 8, 1 percent, 1, `#FF00FFA0` | The options |
-| Deskew | Searches -15 to +15 degrees; corrects a tilt of at least 0.05 degrees found with a confidence of at least 0.4 | Not adjustable |
-| Largest result of a rotation | 8192 pixels on a side (`size-limit`) | Shrink first with `--fit` |
-| Inspect: number of colors, radius | 8, 0 | `--count`, `--radius` |
-| Page of a document | 1 | `--page`, `--all-pages` |
-| Compare: tolerance, grid, gain, overlay weight | 8, `4x4`, 4, 0.5 | `--tolerance`, `--grid`, `--gain`, `--overlay-weight` |
-| Compare: inputs of different sizes | Refused (`size-mismatch`) | `--resize-to a\|b\|WxH`, with `--fit contain\|stretch` |
-| Compare and montage: background | Opaque white | `--background <opaque color>` |
-| Montage: cell, spacing, padding, fit, labels | `256x256`, 8, 8, `contain`, none | `--cell`, `--spacing`, `--padding`, `--fit`, `--labels` |
-| Montage: columns | The square root of the number of cells, rounded up | `--columns` |
-| Flatten: size of a replaced picture | The size of its placement in the drawing at its natural size | `--scale` |
-| Largest side of an image | 8192 pixels | Not adjustable |
-| Banner | Only for `--help` (not with `--json`), `--validate`, and an empty command line | Not adjustable |
+Each default, and how to change it:
 
-<!-- markdownlint-enable MD013 -->
+- **Existing output file**: Replaced. To change it: `--no-clobber` makes it an error.
+- **Output the same as the input**: Refused (`same-input-output`). To change it: Choose another output.
+- **Output format**: From the output extension. To change it: `--format`.
+- **JPEG quality**: 90. To change it: `--quality`.
+- **Transparency in a vector source (SVG, document page, model, chart, diagram)**: Flattened over white (a chart over
+  its own background). To change it: `--background <color>`; `--background transparent` keeps it.
+- **Transparency in a raster source**: Kept (PNG, BMP, TIFF); a JPEG output flattens over `--background` or white. To
+  change it: `--background <color>` flattens a raster too.
+- **JPEG orientation**: Turned upright by its EXIF orientation; `info` reports the raw value. To change it:
+  `--no-auto-orient`.
+- **Resolution of a document page**: 96 dpi. To change it: `--dpi` (at most 2400).
+- **Size of a drawing**: Its natural size. To change it: `--scale`, `--width`, `--height`, `--size`, `--dpi`.
+- **Size of an OpenSCAD model**: 800 by 800 pixels. To change it: The size options.
+- **Size of a Vega-Lite chart**: The size its specification lays out. To change it: The size options.
+- **Size of a Mermaid diagram**: The size of Mermaid's SVG for it. To change it: The size options.
+- **Theme of a Mermaid diagram**: `default`, unless the diagram sets one. To change it: `--theme`, or `#theme=` on the
+  input.
+- **Fonts of a diagram**: The bundled fonts only. To change it: Not adjustable.
+- **Time zone and fonts of a chart**: UTC, the bundled fonts only. To change it: Not adjustable.
+- **Referenced files (pictures, includes, data files)**: Every regular local file, relative to the file that names it;
+  never the network. To change it: `--file-access`, `--allow-root`.
+- **SCAD view and projection**: The library chooses: `iso` for a 3D model, a flat `top` view for a model that is
+  entirely 2D (or the model's own `$vpr`); orthographic. To change it: `--view`, `--azimuth`, `--elevation` (any of them
+  makes the view explicit), `--projection perspective`.
+- **SCAD default surface color**: Gray. To change it: `--default-color`.
+- **Maximum triangles of a model**: 5,000,000. To change it: `--max-triangles`.
+- **Resampling filter**: `auto`. To change it: `--filter`.
+- **`--fit`**: Shrinks only. To change it: `--allow-upscale`.
+- **Pad color**: `--pad-color`, else `--background`, else white for a drawing or document page and transparent for a
+  raster. To change it: `--pad-color`.
+- **Rotation fill (`--rotate`, `--deskew`)**: `--rotate-fill`, else `--background`, else opaque white when every pixel
+  is opaque, else transparent. To change it: `--rotate-fill`.
+- **Rotation sampling**: Bilinear. To change it: `--filter nearest`.
+- **Photo options: `--trim-tolerance`, `--auto-levels-clip`, `--levels` gamma, `--grid` color**: 8, 1 percent, 1,
+  `#FF00FFA0`. To change it: The options.
+- **Deskew**: Searches -15 to +15 degrees; corrects a tilt of at least 0.05 degrees found with a confidence of at least
+  0.4. To change it: Not adjustable.
+- **Largest result of a rotation**: 8192 pixels on a side (`size-limit`). To change it: Shrink first with `--fit`.
+- **Inspect: number of colors, radius**: 8, 0. To change it: `--count`, `--radius`.
+- **Page of a document**: 1. To change it: `--page`, `--all-pages`.
+- **Compare: tolerance, grid, gain, overlay weight**: 8, `4x4`, 4, 0.5. To change it: `--tolerance`, `--grid`, `--gain`,
+  `--overlay-weight`.
+- **Compare: inputs of different sizes**: Refused (`size-mismatch`). To change it: `--resize-to a|b|WxH`, with
+  `--fit contain|stretch`.
+- **Compare and montage: background**: Opaque white. To change it: `--background <opaque color>`.
+- **Montage: cell, spacing, padding, fit, labels**: `256x256`, 8, 8, `contain`, none. To change it: `--cell`,
+  `--spacing`, `--padding`, `--fit`, `--labels`.
+- **Montage: columns**: The square root of the number of cells, rounded up. To change it: `--columns`.
+- **Flatten: size of a replaced picture**: The size of its placement in the drawing at its natural size. To change it:
+  `--scale`.
+- **Largest side of an image**: 8192 pixels. To change it: Not adjustable.
+- **Banner**: Only for `--help` (not with `--json`), `--validate`, and an empty command line. To change it: Not
+  adjustable.
 
 The size and EXIF steps always run before the first pipeline operation: for example `canvasnet render photo.jpg
 --rotate 90 -o out.png` rotates the already upright photo, and `render drawing.svg --width 800 --crop 0,0,50%,100%`
