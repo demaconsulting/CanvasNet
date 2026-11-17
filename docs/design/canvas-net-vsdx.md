@@ -200,8 +200,8 @@ so this risk control is inherently contained within it (IEC 62304 §5.3.3).
 **Page render path:**
 
 1. **Input**: A page index, requested pixel dimensions (or DPI), and optional render options
-2. **Validation**: Rejects a `pageIndex` outside `[0, PageCount)` and a non-positive/over-
-   `Surface.MaxDimension` `width`/`height` (or resolved DPI-derived size) with
+2. **Validation**: Rejects a `pageIndex` outside `[0, PageCount)` and a non-positive/over-`Surface.MaxDimension`
+   `width`/`height` (or resolved DPI-derived size) with
    `ArgumentOutOfRangeException`
 3. **Processing**: Parses the requested `pageN.xml` (and any `<Connects>` section) into a shape
    tree; resolves each shape's effective cell set via the Master/MasterShape merge algorithm,
@@ -419,8 +419,8 @@ so this risk control is inherently contained within it (IEC 62304 §5.3.3).
   - **Geometry-row cell-merge discarding an instance's own, correctly-sized coordinate in favor of
     a differently-scaled Master cached value (fixed)** — `VsdxDocument.CellMerge.cs`'s
     `MergeGeometryRow` previously applied the generic "instance's own literal cell wins, else the
-    Master's own cell" rule even to geometry-row coordinate cells, which are themselves formula-
-    derived from a shape's own `Width`/`Height` and so are typically cached as `F="Inh"`, never
+    Master's own cell" rule even to geometry-row coordinate cells, which are themselves formula-derived
+    from a shape's own `Width`/`Height` and so are typically cached as `F="Inh"`, never
     literal. Confirmed against `60489.vsdx`'s Shape `ID='114'` (an ellipse glued to its Master via
     a distinct instance `Width`/`Height`, every one of its own geometry-row cells cached as `Inh`):
     the pre-fix rule substituted the Master's own smaller, unrelated cached radius for every row,
@@ -466,8 +466,8 @@ so this risk control is inherently contained within it (IEC 62304 §5.3.3).
     compartment's own top border that, depending on the specific shape's resolved text-block
     margins, the glyphs' own ascenders can visually crowd or touch the border rather than sitting
     centered within the compartment's own vertical space the way Visio's own reference render
-    shows. This milestone's own corpus-wide visual sweep observed the symptom but did not root-
-    cause it: it was not traced to any specific cell, and no fix was attempted, since this
+    shows. This milestone's own corpus-wide visual sweep observed the symptom but did not root-cause
+    it: it was not traced to any specific cell, and no fix was attempted, since this
     milestone's scope was narrowly the group-child transform-cell-merge gap (Finding #3) only, and
     introducing a speculative fix for a different, unverified root cause risks a regression
     elsewhere. A follow-up milestone should investigate the UML class-name compartment shape's own
@@ -526,8 +526,8 @@ already correct.
    contract. Scope: `PageCount`/`GetPageSize` resolve correctly; no shape content parsed yet.
 3. **Shape/geometry model + master/stencil inheritance + style resolution.** Parse a page's
    `<Shapes>`/`<Shape>` tree into a generic per-shape cell/section model; implement the geometry
-   row vocabulary and the shape-local-to-page affine transform (including the 1-D begin/end-
-   derived transform special case); implement the Master/MasterShape cell-and-geometry-row merge
+   row vocabulary and the shape-local-to-page affine transform (including the 1-D begin/end-derived
+   transform special case); implement the Master/MasterShape cell-and-geometry-row merge
    algorithm and the StyleSheet chain resolution (including direct per-shape overrides and the
    built-in color palette). Scope: an ungrouped, unmastered-or-mastered shape's
    outline, fill, and stroke resolve and paint correctly.

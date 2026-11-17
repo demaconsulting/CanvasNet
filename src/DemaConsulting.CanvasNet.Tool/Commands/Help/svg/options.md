@@ -39,4 +39,5 @@ examples:
   error file-access-denied, and an unsupported feature of an embedded model,
   chart, or diagram is an unsupported-feature error too. The warnings
   image-fragment-unknown-parameter, image-fragment-duplicate-parameter, and
-  vl-param-unknown stay warnings: the picture was drawn.
+  vl-param-unknown stay warnings: the picture was drawn. So does
+  svg-arrowhead-shape, a hint about how an arrowhead is drawn.

@@ -148,8 +148,8 @@ software items, specifically:
   shape geometry (position/rotation/flip transform resolution, group child-coordinate-space
   composition, preset and custom geometry resolution) and paint resolution (solid/gradient fills,
   line styles). Phase 1d added DrawingML text layout and rendering — structural text parsing, an
-  attribute-level run/paragraph property-inheritance resolver, word-wrap/alignment/vertical-
-  anchor/autofit layout, and glyph-ink text rendering. Phase 1e added `<p:pic>` picture-shape
+  attribute-level run/paragraph property-inheritance resolver, word-wrap/alignment/vertical-anchor/autofit
+  layout, and glyph-ink text rendering. Phase 1e added `<p:pic>` picture-shape
   decoding/cropping/compositing, `<a:tbl>` table structure/cell-rect/paint resolution, and
   recursive, full `<p:spTree>` shape-tree parsing (including nested `<p:grpSp>` enumeration).
   Phase 1f (the current release) added the public, slide-level `Render` API — a document-order

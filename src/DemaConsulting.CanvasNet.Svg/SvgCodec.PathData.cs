@@ -87,6 +87,15 @@ public static partial class SvgCodec
         /// <summary><see langword="true"/> once the first command has been read.</summary>
         private bool _started;
 
+        /// <summary>
+        ///     <see langword="true"/> after a <c>Z</c>/<c>z</c> command until the next
+        ///     <c>M</c>/<c>m</c>. Per SVG "Path data", a drawing command that follows closepath
+        ///     without a moveto starts a new subpath at the closed subpath's start point, so
+        ///     <see cref="ExecuteCommand"/> issues that implicit moveto to the builder while this
+        ///     flag is set, and a repeated closepath is a no-op.
+        /// </summary>
+        private bool _closedWithoutMoveTo;
+
         /// <summary>Initializes a new parser over <paramref name="text"/>.</summary>
         /// <param name="text">The <c>d</c> attribute's full raw text.</param>
         /// <param name="workBudget">The shared geometry-parsing work budget to charge as commands are parsed.</param>
@@ -166,7 +175,17 @@ public static partial class SvgCodec
         /// <exception cref="InvalidDataException">Thrown when <paramref name="command"/> is not recognized.</exception>
         private void ExecuteCommand(char command)
         {
-            switch (char.ToUpperInvariant(command))
+            var upper = char.ToUpperInvariant(command);
+            if (_closedWithoutMoveTo && upper != 'M' && upper != 'Z')
+            {
+                // Implicit moveto: drawing after closepath starts a new subpath at the closed
+                // subpath's start (_current already equals _subpathStart, so relative
+                // coordinates measure from it)
+                _builder.MoveTo(_subpathStart);
+                _closedWithoutMoveTo = false;
+            }
+
+            switch (upper)
             {
                 case 'M':
                     ExecuteMoveTo(command);
@@ -211,6 +230,7 @@ public static partial class SvgCodec
             _current = ReadPoint(isRelative, _current);
             _subpathStart = _current;
             _builder.MoveTo(_current);
+            _closedWithoutMoveTo = false;
             ClearReflectionState();
             _workBudget.Charge(1);
 
@@ -354,10 +374,19 @@ public static partial class SvgCodec
             } while (TryPeekNumber());
         }
 
-        /// <summary>Executes a <c>Z</c>/<c>z</c> (close path) command. Takes no arguments and is never repeated.</summary>
+        /// <summary>
+        ///     Executes a <c>Z</c>/<c>z</c> (close path) command. Takes no arguments and is never
+        ///     repeated. A closepath that directly follows another closepath (no drawing command
+        ///     between them) is a no-op apart from its work-budget charge.
+        /// </summary>
         private void ExecuteClose()
         {
-            _builder.Close();
+            if (!_closedWithoutMoveTo)
+            {
+                _builder.Close();
+                _closedWithoutMoveTo = true;
+            }
+
             _current = _subpathStart;
             ClearReflectionState();
             _workBudget.Charge(1);

@@ -1249,6 +1249,7 @@ reviews:
       - "test/DemaConsulting.CanvasNet.Svg.Tests/SvgImageResolverTests.cs"  # image resolver unit tests
       - "test/DemaConsulting.CanvasNet.Svg.Tests/SvgImageSourceTests.cs"  # image source (SvgImageSource) unit tests
       - "test/DemaConsulting.CanvasNet.Svg.Tests/SvgPositionBindingTests.cs"  # position binding unit tests
+      - "test/DemaConsulting.CanvasNet.Svg.Tests/SvgArrowTests.cs"  # marker vertex and arrowhead hint unit tests
       - "test/DemaConsulting.CanvasNet.Svg.Tests/SvgPatternTileSmoothingTests.cs"  # pattern tile sampling unit tests
       - "test/DemaConsulting.CanvasNet.Svg.Tests/SvgDefaultFontTests.cs"  # default font resolution unit tests
       - "test/DemaConsulting.CanvasNet.Svg.Tests/SvgFixtureTests.cs"  # fixture conformance tests

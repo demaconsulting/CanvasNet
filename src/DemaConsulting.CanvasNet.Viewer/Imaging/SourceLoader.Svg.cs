@@ -45,6 +45,8 @@ public static partial class SourceLoader
     ///     (<c>cn:x2y2="#image selector"</c>, see <c>SourceLoader.SvgBindings.cs</c>) are resolved by the library from the
     ///     pictures it draws; each resolved one is a <c>bind</c> operation, each other one a warning, and with
     ///     <see cref="SourceOptions.Strict"/> the error <c>svg-binding-failed</c> after the pictures that were not drawn.
+    ///     The authoring hints of the file (see <see cref="HintNotes"/>) are warnings that never fail, even with
+    ///     <see cref="SourceOptions.Strict"/>.
     /// </remarks>
     private static LoadedSource LoadSvg(SourceInfo info, SourceOptions options, SourceInput input, LoadContext context)
     {
@@ -60,7 +62,8 @@ public static partial class SourceLoader
 
         var images = new SvgImages(info.Path, options);
         var bindings = new List<SvgPositionBinding>();
-        var loadOptions = new SvgLoadOptions { ImageResolver = images.Resolver, BindingHandler = bindings.Add };
+        var hints = new List<SvgHint>();
+        var loadOptions = new SvgLoadOptions { ImageResolver = images.Resolver, BindingHandler = bindings.Add, HintHandler = hints.Add };
         Surface surface;
         try
         {
@@ -91,7 +94,7 @@ public static partial class SourceLoader
 
             operations.AddRange(images.Operations());
             operations.AddRange(BindOperations(bindings));
-            return new LoadedSource(surface, info, 1, true, [.. notes, .. bindingNotes], [.. images.Resolver.Echo], operations);
+            return new LoadedSource(surface, info, 1, true, [.. notes, .. bindingNotes, .. HintNotes(hints)], [.. images.Resolver.Echo], operations);
         }
         catch
         {
@@ -113,7 +116,8 @@ public static partial class SourceLoader
     /// <returns>
     ///     The loaded source. Its only notes are the position bindings of the file that were not resolved (warnings) and
     ///     its <c>bind</c> operations; the notes of the nested pictures, and the <c>--strict</c> check of both, belong to
-    ///     the resolver that owns <paramref name="resolver"/>.
+    ///     the resolver that owns <paramref name="resolver"/>. A nested file reports no authoring hints: only the file
+    ///     being rendered does.
     /// </returns>
     private static LoadedSource LoadScopedSvg(
         SourceInfo info,
@@ -146,6 +150,21 @@ public static partial class SourceLoader
             surface.Dispose();
             throw;
         }
+    }
+
+    /// <summary>
+    ///     Turns the authoring hints the SVG library reported into warnings; a hand-drawn arrowhead points at the help
+    ///     card that explains the fix.
+    /// </summary>
+    /// <param name="hints">The hints, at most one per code.</param>
+    /// <returns>
+    ///     One <c>svg</c> warning per hint, with the hint code (for example <c>svg-arrowhead-shape</c>). A hint never
+    ///     fails a render, not even with <c>--strict</c>: it points at a likely authoring mistake, not at something
+    ///     that could not be drawn.
+    /// </returns>
+    internal static List<ImageDiagnostic> HintNotes(IEnumerable<SvgHint> hints)
+    {
+        return [.. hints.Select(h => new ImageDiagnostic("svg", "warning", h.Code, h.Code == SvgHint.ArrowheadShapeCode ? h.Message + " (see 'canvasnet help svg arrows')" : h.Message))];
     }
 
     /// <summary>

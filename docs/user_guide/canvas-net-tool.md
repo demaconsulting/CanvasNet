@@ -955,7 +955,9 @@ Quote a selector that has `*`, `?`, `"`, a space, or `&`:
 
 `canvasnet help positions` explains the selectors (`help positions selectors`), the kinds, ids, and attach points of
 each format (`help positions mermaid`, `help positions vega-lite`), and the geometry (`help positions geometry`); the
-`svg framed-figure` card shows how to draw callouts on a diagram with them.
+`svg framed-figure` card shows how to draw callouts on a diagram with them, and the `svg arrows` card shows how to
+draw arrowheads with a `marker` that follows the connector, with a tip-anchored `refX="10"` that lands the tip on the
+end of the path.
 
 #### SVG Position Bindings
 
@@ -1095,21 +1097,22 @@ draws the model and the chart into their rectangles. The result lists each embed
   `param.`
   on anything but a chart is `image-fragment-unknown-parameter`. An embedded file never takes `-D` or `--param` of the
   command.
-- **A reference that is not drawn** (the file is missing, of an unknown format, a network URL, or over a limit) is
-  the warning **`svg-image-unresolved`** in `diagnostics` (and on standard error); the rest of the diagram is drawn.
-  With `--strict` it is an `unsupported-feature` failure instead. A link the file-access mode denies is the warning
+- **A reference that is not drawn** (the file is missing, of an unknown format, a network URL, or over a limit) is the
+  warning **`svg-image-unresolved`** in `diagnostics` (and on standard error); the rest of the diagram is drawn. With
+  `--strict` it is an `unsupported-feature` failure instead. A link the file-access mode denies is the warning
   **`image-access-denied`** in the same way, and with `--strict` the failure `file-access-denied`. A picture that would
-  take
-  more pixels than the render may use (**`svg-image-too-large`**: the pictures of one render may use 64 million pixels
-  in
-  all, counted before anything is decoded, so a huge raster in a small rectangle is refused and not decoded) is a
-  warning in the same way, and with `--strict` the same failure. The same holds for a link whose fragment has a value
-  that is not allowed (**`image-fragment-invalid`**, for example `#page=0`, or a fragment over its limits) and for a
-  page or slide that does not exist (**`image-page-out-of-range`**, `#page=9` of a 2-page PDF): a warning-level
+  take more pixels than the render may use (**`svg-image-too-large`**: the pictures of one render may use 64 million
+  pixels in all, counted before anything is decoded, so a huge raster in a small rectangle is refused and not decoded)
+  is a warning in the same way, and with `--strict` the same failure. The same holds for a link whose fragment has a
+  value that is not allowed (**`image-fragment-invalid`**, for example `#page=0`, or a fragment over its limits) and for
+  a page or slide that does not exist (**`image-page-out-of-range`**, `#page=9` of a 2-page PDF): a warning-level
   `unsupported` report and nothing drawn, and with `--strict` the failure. The warnings
   **`image-fragment-unknown-parameter`** and **`image-fragment-duplicate-parameter`** (the last value wins) do not fail
-  `--strict`, because the picture was drawn (and so does **`vl-param-unknown`**). The notes of an embedded
-  model or chart, and the lines a model prints with `echo`, are reported too, with the file in front of each message.
+  `--strict`, because the picture was drawn (and so does **`vl-param-unknown`**). Neither does
+  **`svg-arrowhead-shape`**, a warning about the file itself: a filled triangle drawn by hand on the end of a line or
+  path that has no marker there, which does not follow the connector (see `canvasnet help svg arrows`). The notes of an
+  embedded model or chart, and the lines a model prints with `echo`, are reported too, with the file in front of each
+  message.
 - **A file that is found but broken** (a corrupt picture, a model with a syntax error, a chart with an invalid
   specification) fails the render with its own error code (`corrupt-input`, `scad-error`, `vega-lite-error`, ...), and
   the message names both the embedding file (the SVG file you named, or the embedded SVG file that contains the link)
@@ -1140,7 +1143,8 @@ reports only
 its `image` references that were not drawn (`svg-image-unresolved`, `svg-image-too-large` for a picture over the pixel
 budget, `image-fragment-invalid` for a fragment that cannot be used, or `image-page-out-of-range` for a page that does
 not exist, which `--strict` fails on; the fragment warnings do not; and `image-access-denied` for a link the file-access
-mode denies, which `--strict` turns into the error `file-access-denied`) and the notes of the files it embeds; what the
+mode denies, which `--strict` turns into the error `file-access-denied`), a hand-drawn arrowhead
+(`svg-arrowhead-shape`, a warning `--strict` never fails on), and the notes of the files it embeds; what the
 SVG
 library cannot draw in the file itself (animation, an unknown filter primitive) is simply not drawn.
 
@@ -1915,7 +1919,8 @@ The cards ship tiny examples. The source examples of `scad`, `vega-lite`, `merma
 with `--strict` without a diagnostic, including a styled Mermaid flowchart (`help mermaid style --example styled`), a
 styled Vega-Lite chart (`help vega-lite style --example styled`), an SVG figure that embeds both
 (`help svg composition --example report`), and a framed figure of a model with a title band and callout arrows that end
-on its anchors (`help svg framed-figure --example framed`); the other examples are command lines:
+on its anchors (`help svg framed-figure --example framed`), and two connectors whose arrowheads land on the edges of
+their target boxes (`help svg arrows --example arrows`); the other examples are command lines:
 
 ```bash
 # Read a card, print its examples in full, and print one alone: the output is only the source, so it can be saved
@@ -2021,7 +2026,8 @@ objects:
   `vl-mark-geoshape`, or `mermaid-icon-unsupported`, `vega-lite-warning` for a warning of the chart library,
   `mermaid-warning` for a warning of the diagram library, or `svg-image-unresolved`, `svg-image-too-large`,
   `image-fragment-invalid`, `image-page-out-of-range`, `image-fragment-unknown-parameter`, or
-  `image-fragment-duplicate-parameter` for an SVG `image` link). `detail` is the finer identifier when `code` is a
+  `image-fragment-duplicate-parameter` for an SVG `image` link, or `svg-arrowhead-shape` for an arrowhead drawn by hand
+  instead of with a marker). `detail` is the finer identifier when `code` is a
   generic one (`scad-anchor-invalid` for a `scad-warning`, `vl-unknown-property` for a `vega-lite-warning`,
   `mermaid-config-unknown-key` for a `mermaid-warning`); `location` is `{"file","line","column"}` (a chart adds
   `"pointer"`, and a member that is not known is left out) where the file gave a position; `origin` lists the files,

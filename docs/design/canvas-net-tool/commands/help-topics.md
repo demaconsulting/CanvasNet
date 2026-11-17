@@ -136,7 +136,10 @@ double braces cannot be written.
   `settings` card below it. It also has `style`, `composition`, `options`, `diagnostics`, `unsupported`, and
   `differences`.
 - `svg` has `supported`, `embedding`, `fragments`, `units`, `flatten`, `style`, `composition`, `framed-figure`,
-  `options`, and `diagnostics`.
+  `arrows`, `options`, and `diagnostics`. The `svg arrows` card (aliases `markers` and `arrowheads`) teaches
+  arrowheads drawn with a `marker` that follows the connector, the final tangent of a curve, and a tip-anchored
+  `refX="10"`, with the source example `arrows` (the embedded `Examples/svg-arrows.svg`), whose rendered tips land
+  on the edges of their target boxes.
 - `vega-lite` has `data`, `marks`, `encodings`, `transforms`, `params`, `layout`, `style`, `composition`, `options`,
   `unsupported`, `diagnostics`, `warnings`, and `differences`.
 - `scad` has `language`, `views`, `anchors`, `style`, `composition`, `options`, `diagnostics`, and `differences`.

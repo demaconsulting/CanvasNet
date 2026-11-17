@@ -70,6 +70,7 @@ sections:
           - CanvasNetTool-Commands-HelpTopics-FormatContent
           - CanvasNetTool-Commands-HelpTopics-StyleGuidance
           - CanvasNetTool-Commands-HelpTopics-CompositionGuidance
+          - CanvasNetTool-Commands-HelpTopics-SvgArrows
           - CanvasNetTool-Commands-HelpTopics-Examples
           - CanvasNetTool-Commands-HelpTopics-Rendering
           - CanvasNetTool-Commands-HelpTopics-Consistency

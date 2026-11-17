@@ -15,8 +15,8 @@ different concern:
 - `SystemFontCatalogRealDiscoveryIntegrationTests.cs` runs the real, un-mocked `Fonts` property
   and `FindBestMatch` public entry point against the actual host filesystem, proving the
   production directory-scan roots and the production `GenericSansFamilies` bucket list actually
-  work together end to end on a real operating system - written as weak, always-true-or-gracefully-
-  empty assertions (never skipped) so they remain deterministic across this repository's full
+  work together end to end on a real operating system - written as weak, always-true-or-gracefully-empty
+  assertions (never skipped) so they remain deterministic across this repository's full
   Windows/Linux/macOS CI matrix, per this repository's own testing-principles guidance to
   conditionally strengthen an assertion rather than skip a test.
 - `BundledLiberationFontsTests.cs` exercises every one of the 12 real bundled Liberation `.ttf`

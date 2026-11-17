@@ -202,8 +202,8 @@ PPTX shape's native EMU-space ellipse geometry, or an equivalent plain-coordinat
 same magnitude/tessellation density) must still produce a valid, two-ring thin outline rather than
 false-positively collapsing to a solid fill (`...ProducesValidThinRing`), while a genuine
 thick-stroke-exceeds-inradius case at the same large coordinate magnitude and tessellation density
-must still correctly collapse to a solid fill (`...CollapsesToSolid`) - proving the fix is scale-
-relative, not merely a loosened absolute threshold. The last of these covers a second, related
+must still correctly collapse to a solid fill (`...CollapsesToSolid`) - proving the fix is scale-relative,
+not merely a loosened absolute threshold. The last of these covers a second, related
 regression fix: the collapse detector's tolerance must be derived from each edge's own local
 flattened source-segment length, not from the whole contour's bounding-box span, because the raw
 backwards-offset-edge signal it is compared against shrinks proportionally to tessellation density

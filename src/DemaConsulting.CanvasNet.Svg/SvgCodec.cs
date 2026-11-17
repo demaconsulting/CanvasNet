@@ -621,7 +621,8 @@ public static partial class SvgCodec
             {
                 UseSystemFonts = options?.UseSystemFonts ?? true,
                 ImageResolver = options?.ImageResolver,
-                BindingHandler = options?.BindingHandler
+                BindingHandler = options?.BindingHandler,
+                ArrowheadHints = options?.HintHandler is { } hintHandler ? new ArrowheadHintCollector(hintHandler) : null
             };
             RenderDocument(root, fitTransform, size, context, diagnostics);
         }

@@ -2,6 +2,8 @@ using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Xml.Linq;
+using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Codecs;
 using DemaConsulting.CanvasNet.Tool.Commands;
 
 namespace DemaConsulting.CanvasNet.Tool.Tests.Commands;
@@ -236,6 +238,79 @@ public partial class HelpTopicsTests
         Assert.True(hit.Distinct(StringComparer.Ordinal).Count() >= 2, "The callouts hit fewer than two anchors.");
     }
 
+    /// <summary>
+    ///     Test that the <c>svg arrows</c> card is a child of <c>svg</c>, resolves by its aliases, is linked both ways
+    ///     with the <c>svg style</c>, <c>svg framed-figure</c>, and <c>composition</c> cards, and teaches the marker that
+    ///     follows the connector: <c>orient="auto"</c>, <c>auto-start-reverse</c> for a start head, and a tip-anchored
+    ///     <c>refX="10"</c>.
+    /// </summary>
+    [Fact]
+    public void HelpTopics_ArrowsCard_IsLinkedBothWaysAndTeachesMarkers()
+    {
+        // Arrange: the card and the cards it is linked with
+        var card = HelpTopics.Get("svg/arrows");
+        string[] linked = ["svg/style", "svg/framed-figure", "composition"];
+        var text = HelpCardText.Flatten(card.Body);
+
+        // Assert: listed under svg, found by its aliases, and linked both ways
+        Assert.Contains(card.Id, HelpTopics.Get("svg").ChildIds);
+        Assert.Equal(card.Id, HelpTopics.Resolve(["svg", "markers"])?.Id);
+        Assert.Equal(card.Id, HelpTopics.Resolve(["svg", "arrowheads"])?.Id);
+        Assert.All(linked, id => Assert.Contains(id, card.SeeAlso));
+        Assert.All(linked, id => Assert.Contains(card.Id, HelpTopics.Get(id).SeeAlso));
+
+        // Assert: the advice the card gives
+        Assert.Contains("orient=\"auto\"", text, StringComparison.Ordinal);
+        Assert.Contains("auto-start-reverse", text, StringComparison.Ordinal);
+        Assert.Contains("refX=\"10\" refY=\"5\"", text, StringComparison.Ordinal);
+        Assert.Contains("M x0,y0 C xm,y0 xm,y1 x1,y1", text, StringComparison.Ordinal);
+        Assert.Contains("M x0,y0 C x0,ym x1,ym x1,y1", text, StringComparison.Ordinal);
+        Assert.Contains("svg-arrowhead-shape", text, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Test that every connector of the <c>arrows</c> example ends with its last control point in line with its end
+    ///     and a tip-anchored <c>orient="auto"</c> marker, and that the rendered head lands on the edge of the target: the
+    ///     head color just before the end, beside the stroke, and the white of the target box just past it.
+    /// </summary>
+    [Fact]
+    public void HelpTopics_ArrowsExample_TipsLandOnTheTargetEdges()
+    {
+        // Arrange: the example, its marker, and its connectors
+        var source = HelpTopics.RenderExample(HelpTopics.Get("svg"), "arrows");
+        var figure = XDocument.Parse(source);
+        var marker = Assert.Single(figure.Descendants(), e => e.Name.LocalName == "marker");
+        Assert.Equal("10", (string?)marker.Attribute("refX"));
+        Assert.Equal("auto", (string?)marker.Attribute("orient"));
+        var connectors = figure.Descendants()
+            .Where(e => e.Name.LocalName == "path" && (string?)e.Attribute("class") == "connector")
+            .Select(e => ((string)e.Attribute("d")!).Split([' ', ',', 'M', 'C'], StringSplitOptions.RemoveEmptyEntries)
+                .Select(v => float.Parse(v, CultureInfo.InvariantCulture)).ToArray())
+            .ToList();
+        Assert.Equal(2, connectors.Count);
+
+        // Act: render the example at twice its size
+        using var directory = new TempDirectory();
+        File.WriteAllText(directory.Combine("arrows.svg"), source);
+        var output = directory.Combine("arrows.png");
+        var (exitCode, stdOut, stdErr) = ToolHost.Invoke("render", directory.Combine("arrows.svg"), "--width", "1200", "--strict", "-o", output);
+        Assert.True(exitCode == 0, stdErr + stdOut);
+        using var picture = PngCodec.Load(output);
+
+        // Assert: for each connector, the final tangent is level or vertical, the head is just before the end, and
+        // the target box is just past it
+        foreach (var d in connectors)
+        {
+            var (controlX, controlY, endX, endY) = (d[4], d[5], d[6], d[7]);
+            Assert.True(MathF.Abs(controlX - endX) < 1e-3f || MathF.Abs(controlY - endY) < 1e-3f, "The last control point is not in line with the end.");
+            var length = MathF.Sqrt(((endX - controlX) * (endX - controlX)) + ((endY - controlY) * (endY - controlY)));
+            var (tx, ty) = ((endX - controlX) / length, (endY - controlY) / length);
+            var head = picture[(int)((endX - (6 * tx) - (2 * ty)) * 2), (int)((endY - (6 * ty) + (2 * tx)) * 2)];
+            var target = picture[(int)((endX + (3 * tx)) * 2), (int)((endY + (3 * ty)) * 2)];
+            Assert.Equal(new Rgba32(0xea, 0x58, 0x0c, 255), head);
+            Assert.Equal(new Rgba32(255, 255, 255, 255), target);
+        }
+    }
     /// <summary>
     ///     Test the advice of the <c>svg framed-figure</c> card for finding a feature: a diagram, a chart, and a model
     ///     rendered alone with <c>--size</c> equal to the box of an image are the picture an SVG figure embeds in that

@@ -154,6 +154,11 @@ file. `SourceLoader`, `ImageRenderer`, and `CanvasNetViewer.Render` report a res
 and any other as a warning with its `svg-binding-*` code, and with the strict option fail with `svg-binding-failed`
 after the pictures that were not drawn (a denied picture is still `file-access-denied`).
 
+`SourceLoader` also passes `SvgLoadOptions.HintHandler` for the SVG file it renders and reports each authoring hint as
+an `svg` warning: `svg-arrowhead-shape` (a filled triangle drawn by hand on the end of a connector instead of a
+`marker`), whose message ends with `(see 'canvasnet help svg arrows')`. A hint never fails a load, not even with the
+strict option; a nested SVG file reports none.
+
 #### Choosing a page, slide, or view with a fragment
 
 The fragment of a link (the text after the first `#`) is a list of `name=value` parameters separated by `&`, in the

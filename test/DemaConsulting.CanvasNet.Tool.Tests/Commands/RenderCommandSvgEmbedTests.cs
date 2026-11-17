@@ -484,4 +484,33 @@ public class RenderCommandSvgEmbedTests
             document.RootElement.GetProperty("operations").EnumerateArray(),
             o => o.GetProperty("op").GetString() == "embed");
     }
+
+    /// <summary>
+    ///     Test that a hand-drawn arrowhead is a <c>svg-arrowhead-shape</c> warning that points at the help card and does
+    ///     not fail the render, also with <c>--strict</c>.
+    /// </summary>
+    [Fact]
+    public void RenderCommand_Run_SvgHandDrawnArrowheadStrict_WarnsAndSucceeds()
+    {
+        // Arrange: a line with a filled triangle drawn on its end instead of a marker
+        using var directory = new TempDirectory();
+        var input = WriteDiagram(
+            directory.Path,
+            "<line x1='10' y1='40' x2='100' y2='40' stroke='#000000' stroke-width='2'/>"
+            + "<polygon points='100,40 90,35 90,45' fill='#000000'/>");
+        var output = directory.Combine("out.png");
+
+        // Act
+        var (exitCode, stdOut, stdErr) = ToolHost.Invoke("render", input, "--strict", "-o", output, "--json");
+
+        // Assert: success, the picture is written, and one warning with the code and the help pointer
+        Assert.True(exitCode == 0, stdErr + stdOut);
+        Assert.True(File.Exists(output));
+        using var document = JsonDocument.Parse(stdOut);
+        Assert.True(document.RootElement.GetProperty("ok").GetBoolean());
+        var diagnostic = Assert.Single(document.RootElement.GetProperty("diagnostics").EnumerateArray());
+        Assert.Equal("svg-arrowhead-shape", diagnostic.GetProperty("code").GetString());
+        Assert.Equal("warning", diagnostic.GetProperty("severity").GetString());
+        Assert.Contains("canvasnet help svg arrows", diagnostic.GetProperty("message").GetString(), StringComparison.Ordinal);
+    }
 }

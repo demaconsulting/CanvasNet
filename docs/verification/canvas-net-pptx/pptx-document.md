@@ -802,8 +802,8 @@ plain `<a:r>` run parses with a `null` `FieldType`. Proves `SubstituteSlideNumbe
 `"slidenum"` field's run text with the supplied slide number formatted as a plain decimal string,
 matches the `"slidenum"` type case-insensitively (an uppercase `"SLIDENUM"` field substitutes
 identically), leaves a `"datetime1"` field's cached text completely unchanged, leaves a plain run's
-text completely unchanged, and - guarding against the `with`-vs-primary-constructor stale-backing-
-field pitfall documented in the design doc - proves the rebuilt `PptxParagraph.Runs` convenience
+text completely unchanged, and - guarding against the `with`-vs-primary-constructor stale-backing-field
+pitfall documented in the design doc - proves the rebuilt `PptxParagraph.Runs` convenience
 accessor (not just `Items`) reflects the substituted text when a paragraph mixes a plain run, a
 line break, and a `"slidenum"` field. Proves, end-to-end through the public `Render` API, that a
 single-slide deck's `"slidenum"` field renders pixel-identical to an otherwise-identical plain-run
@@ -971,8 +971,8 @@ font); the two system-integration tests additionally prove `PaintTextLayout` pai
 non-background pixel end-to-end, from a full in-memory package opened via `PptxDocument.Open`
 through `ResolveTextLayout` to a test `Surface`.
 
-The three `ResolveTextLayout_PlusMinus...` tests reproduce the real-world "tofu box" (missing-
-glyph) defect report - a degree sign (U+00B0) immediately following a plus-minus sign (U+00B1)
+The three `ResolveTextLayout_PlusMinus...` tests reproduce the real-world "tofu box" (missing-glyph)
+defect report - a degree sign (U+00B0) immediately following a plus-minus sign (U+00B1)
 rendering as a missing-glyph box - and prove the fix is genuine per-character glyph-coverage
 fallback, not any form of cross-character state leakage. Each injects two synthetic fonts via
 `ResolveTextLayout`'s `fallbackFontResolver` test seam: a **primary** font built with a known,
@@ -1004,8 +1004,8 @@ outline so a resolved glyph index can be asserted exactly, not merely "non-zero 
   **not** U+00B1; asserts U+00B1 resolves via the fallback font while the immediately following
   U+00B0 stays on the **primary** font (its own correct, non-`.notdef` glyph index), proving the
   preceding character's fallback substitution does not "stick" onto, or otherwise corrupt, the
-  next character's own independent resolution - directly refuting the "sticky fallback"/state-
-  corruption hypothesis the original bug report raised, in favor of the actual, confirmed root
+  next character's own independent resolution - directly refuting the "sticky fallback"/state-corruption
+  hypothesis the original bug report raised, in favor of the actual, confirmed root
   cause (no per-character coverage fallback existed at all prior to this change). This test also
   includes a baseline check: with no `fallbackFontResolver` configured at all (the historical,
   pre-feature default), U+00B0 alone still resolves via the primary font exactly the same way,
@@ -1359,8 +1359,8 @@ this phase's planning anticipated documenting a `containUnsupportedGraphicFrames
 specifically for a master/layout-owned *chart* with an unsupported feature. Since charts are now
 a supported graphic-frame kind in general (not a deferred one), that scenario no longer applies as
 originally envisioned; the pre-existing `Render_MasterGraphicFrameWithUnsupportedKind_
-SkipsThatShapeAndStillRendersSlideContent` test (in `PptxRenderTests.cs`), which proves a master-
-owned graphic frame of *any* unsupported kind is gracefully skipped (not propagated) while the
+SkipsThatShapeAndStillRendersSlideContent` test (in `PptxRenderTests.cs`), which proves a master-owned
+graphic frame of *any* unsupported kind is gracefully skipped (not propagated) while the
 rest of the slide still renders, was adapted this phase to use a diagram-kind (SmartArt) stand-in
 graphic frame in place of its original chart-kind one, since a `.../chart`-suffixed URI now
 dispatches to the real `ParseChart` rather than remaining a generic "any unsupported kind"
@@ -1467,8 +1467,8 @@ rather than being silently skipped.
 
 The remaining twenty `PptxDocument_Render_*Fixture_*` tests are the real-world corpus-conformance
 tier added in the Phase 2 hardening pass (see `pptx-document.md`'s own Phase 2 design section and
-`PptxFixtures/README.md` for full provenance): each opens one of twenty genuine, independently-
-sourced `.pptx` files across three independent sources and renders every one of its slides,
+`PptxFixtures/README.md` for full provenance): each opens one of twenty genuine, independently-sourced
+`.pptx` files across three independent sources and renders every one of its slides,
 proving real-file conformance - not merely synthetic-package conformance - for the shape-tree walk
 and per-node-kind dispatch this requirement specifies. These tests additionally prove, against
 real files rather than merely hand-authored packages, that a chart/SmartArt-bearing
@@ -1636,8 +1636,8 @@ above - a dedicated before/after regression, since this exact shape previously f
 "caught and skipped" path for a different reason (an unsupported feature, not a malformed one).
 Proves, against a real-world fixture
 (`aiden0z-1-chart-and-complex.pptx`, whose own `slideLayout1.xml` declares a real, non-placeholder,
-`userDrawn="1"` `<a:custGeom>` freeform shape named "Freeform 5"), that the custGeom-freeform-on-
-layout dispatch path executes without throwing and resolves its own documented `bg1`-scheme fill
+`userDrawn="1"` `<a:custGeom>` freeform shape named "Freeform 5"), that the custGeom-freeform-on-layout
+dispatch path executes without throwing and resolves its own documented `bg1`-scheme fill
 to a near-white pixel within its own bounding box (a tolerance, not an exact pixel match, because
 the real custGeom path is a thin decorative flourish rather than a solid-filled rectangle, so most
 of its own bounding box is unfilled background with anti-aliased edges) - this fixture cannot show
@@ -2172,62 +2172,54 @@ COMPLETE, correctly-closed outline: `Render_PictureEllipseGeometry_WithRedLnStro
 reproduces the original bug report's own exact `<a:xfrm>`/`<a:prstGeom prst="ellipse">`/red
 `<a:ln>` geometry and 16:9 slide size, and samples all four of the ellipse's own perimeter
 midpoints (top/bottom/left/right-center, not just the corners the sibling clip test samples) for
-the stroke's own red-dominant color - a defect covering 0% of the perimeter (the confirmed, now-
-fixed pre-fix state) would fail at all four simultaneously.
+the stroke's own red-dominant color - a defect covering 0% of the perimeter (the confirmed, now-fixed
+pre-fix state) would fail at all four simultaneously.
 `Render_PictureNoPrstGeom_WithLnStroke_StrokesRectangleOutline` proves the new
 `ResolvePictureGeometryPath` "neither `<a:prstGeom>` nor `<a:custGeom>`" fallback is actually used
 for stroking: a geometry-less picture with a present `<a:ln>` now strokes a complete rectangle
 around its own bounding box, sampling both its top and left edges, rather than silently dropping
 the stroke as it did before this fix (when `RenderPicture` never read `<a:ln>` at all, regardless
-of geometry). A before/after visual repro (the bug report's own exact geometry, rendered end-to-
-end and visually inspected) confirmed the fix directly: before, a plain pale ellipse with
+of geometry). A before/after visual repro (the bug report's own exact geometry, rendered end-to-end
+and visually inspected) confirmed the fix directly: before, a plain pale ellipse with
 absolutely no red anywhere on its perimeter; after, a complete, correctly-closed red ellipse
 outline fully framing the same pale ellipse - matching real-world PowerPoint's own expected visual
 stacking (image content painted first, stroke framing it on top).
 
 ## Acceptance Criteria
 
-A unit-level test run passes when all scenarios above pass without error or exception beyond
-those explicitly asserted. Any unexpected exception, wrong exception type, or wrong return value
-constitutes a failure. Collectively, these scenarios cover the complete current `PptxDocument`
-package layer (Phase 1a: ZIP opening, content-type resolution, relationship resolution including
-relative-target traversal and its root-escape guard, and the public API's argument validation and
-disposal contract); the presentation/theme/master/layout/slide model and placeholder
-property-inheritance resolver (Phase 1b: slide size/count, EMU-to-pixel conversion, theme
-color/font scheme resolution, master/layout/slide structural placeholder parsing, and the
-verified ECMA-376 placeholder-matching and per-category property-resolution algorithm); DrawingML
-shape geometry and paint resolution (Phase 1c: `<a:xfrm>` position/rotation/flip transform
-resolution, `<p:grpSp>` child-coordinate-space transform composition, 24 supported `<a:prstGeom>`
-preset shapes plus `<a:custGeom>` custom path-command parsing, `<a:solidFill>`/`<a:gradFill>`/
-`<a:noFill>` resolution including scheme-color lookup through the resolved theme and the
-`lumMod`/`lumOff`/`shade`/`tint`/`alpha` color-transform pipeline, and `<a:ln>` stroke
-width/dash/fill resolution realized as a stroked outline path via the core `PathStroker`); and
-DrawingML text body parsing, attribute-level property inheritance (including a slide master's own
-`<p:txStyles>` buckets), word-wrap/alignment/vertical-anchor/autofit text layout, and glyph-ink
-rendering onto a core `Surface` (Phase 1d: see the *Text Layout and Rendering (Phase 1d) Test
-Scenarios* section above); and dedicated `<p:pic>` picture-shape decoding/cropping/painting,
-`<a:tbl>` table structure parsing (reusing the Phase 1c/1d fill/border/text-body resolvers
-verbatim), merge-aware table cell-rect resolution, table cell fill/border/text painting, and
-recursive, full shape-tree parsing/dispatch across `<p:sp>`/`<p:pic>`/`<p:graphicFrame>`/
-`<p:grpSp>` with lazy, invoke-on-demand theme resolution (Phase 1e: see the *Picture Decoding,
-Linking, and Crop-Rectangle Resolution*, *Picture Compositing Without PDF's Y-Flip*, *Table
-Structure, Cell Attributes, and Verbatim Fill/Border/Text Reuse*, *Merge-Aware Cell-Rect
-Computation*, *Cell Fill, Border, and Text Painting*, and *Recursive Shape-Tree Parsing and
-Deferred Theme Resolution* Test Scenarios sections above); and the public, slide-level rendering
-API that walks a slide's full shape tree in document order and paints every supported node kind
-onto a destination `Surface`, with full public-API argument validation and a DPI convenience
-overload (Phase 1f: see the *Full Slide Rendering (Phase 1f) Test Scenarios* section above). With
-Phase 1f, the planned PPTX 1.0 feature set is complete. A slide's own `<p:bg>` background fill is
-covered by *CanvasNetPptx-PptxDocument-SlideBackgroundFill* above instead, and master/layout
-decorative shape rendering is covered by *CanvasNetPptx-PptxDocument-MasterLayoutShapeRendering*
-above instead. Not yet covered: picture effects/shadows, nested tables, table auto-sizing to
-fit overflowing cell content (each row's resolved height is taken verbatim from its declared
-`<a:tr h="...">` value, with no growth to accommodate overflowing cell content), table
-style/banding (`<a:tableStyleId>`), group-level style cascading
-beyond transform composition, radial/path gradients, `<a:avLst>` preset adjustment-value parsing,
-full text justification, `<a:spAutoFit>` shape-resize autofit, kerning, and text
-clipping on overflow. (Bullets/numbering are now covered by *CanvasNetPptx-PptxDocument-
-BulletProperties*/*CanvasNetPptx-PptxDocument-BulletRendering* above instead, and `<p:cxnSp>`
-connector shapes are now covered by *CanvasNetPptx-PptxDocument-ConnectorRendering* below
-instead.) None of these is a currently planned phase; any of them remaining important is a
-candidate for a future, corpus-driven hardening pass (`pptx-phase-2`), not a scheduled increment.
+A unit-level test run passes when all scenarios above pass without error or exception beyond those explicitly asserted.
+Any unexpected exception, wrong exception type, or wrong return value constitutes a failure. Collectively, these
+scenarios cover the complete current `PptxDocument` package layer (Phase 1a: ZIP opening, content-type resolution,
+relationship resolution including relative-target traversal and its root-escape guard, and the public API's argument
+validation and disposal contract); the presentation/theme/master/layout/slide model and placeholder property-inheritance
+resolver (Phase 1b: slide size/count, EMU-to-pixel conversion, theme color/font scheme resolution, master/layout/slide
+structural placeholder parsing, and the verified ECMA-376 placeholder-matching and per-category property-resolution
+algorithm); DrawingML shape geometry and paint resolution (Phase 1c: `<a:xfrm>` position/rotation/flip transform
+resolution, `<p:grpSp>` child-coordinate-space transform composition, 24 supported `<a:prstGeom>` preset shapes plus
+`<a:custGeom>` custom path-command parsing, `<a:solidFill>`/`<a:gradFill>`/ `<a:noFill>` resolution including
+scheme-color lookup through the resolved theme and the `lumMod`/`lumOff`/`shade`/`tint`/`alpha` color-transform
+pipeline, and `<a:ln>` stroke width/dash/fill resolution realized as a stroked outline path via the core `PathStroker`);
+and DrawingML text body parsing, attribute-level property inheritance (including a slide master's own `<p:txStyles>`
+buckets), word-wrap/alignment/vertical-anchor/autofit text layout, and glyph-ink rendering onto a core `Surface` (Phase
+1d: see the *Text Layout and Rendering (Phase 1d) Test Scenarios* section above); and dedicated `<p:pic>` picture-shape
+decoding/cropping/painting, `<a:tbl>` table structure parsing (reusing the Phase 1c/1d fill/border/text-body resolvers
+verbatim), merge-aware table cell-rect resolution, table cell fill/border/text painting, and recursive, full shape-tree
+parsing/dispatch across `<p:sp>`/`<p:pic>`/`<p:graphicFrame>`/ `<p:grpSp>` with lazy, invoke-on-demand theme resolution
+(Phase 1e: see the *Picture Decoding, Linking, and Crop-Rectangle Resolution*, *Picture Compositing Without PDF's
+Y-Flip*, *Table Structure, Cell Attributes, and Verbatim Fill/Border/Text Reuse*, *Merge-Aware Cell-Rect Computation*,
+*Cell Fill, Border, and Text Painting*, and *Recursive Shape-Tree Parsing and Deferred Theme Resolution* Test Scenarios
+sections above); and the public, slide-level rendering API that walks a slide's full shape tree in document order and
+paints every supported node kind onto a destination `Surface`, with full public-API argument validation and a DPI
+convenience overload (Phase 1f: see the *Full Slide Rendering (Phase 1f) Test Scenarios* section above). With Phase 1f,
+the planned PPTX 1.0 feature set is complete. A slide's own `<p:bg>` background fill is covered by
+*CanvasNetPptx-PptxDocument-SlideBackgroundFill* above instead, and master/layout decorative shape rendering is covered
+by *CanvasNetPptx-PptxDocument-MasterLayoutShapeRendering* above instead. Not yet covered: picture effects/shadows,
+nested tables, table auto-sizing to fit overflowing cell content (each row's resolved height is taken verbatim from its
+declared `<a:tr h="...">` value, with no growth to accommodate overflowing cell content), table style/banding
+(`<a:tableStyleId>`), group-level style cascading beyond transform composition, radial/path gradients, `<a:avLst>`
+preset adjustment-value parsing, full text justification, `<a:spAutoFit>` shape-resize autofit, kerning, and text
+clipping on overflow. (Bullets/numbering are now covered by
+*CanvasNetPptx-PptxDocument-BulletProperties*/*CanvasNetPptx-PptxDocument-BulletRendering* above instead, and
+`<p:cxnSp>` connector shapes are now covered by *CanvasNetPptx-PptxDocument-ConnectorRendering* below instead.) None of
+these is a currently planned phase; any of them remaining important is a candidate for a future, corpus-driven hardening
+pass (`pptx-phase-2`), not a scheduled increment.

@@ -13,8 +13,8 @@ both the `Canvas` subsystem's `Surface` unit and the `Geometry` subsystem's vect
 The `Drawing` subsystem groups the software units responsible for turning vector geometry into
 rendered pixels on a `Canvas.Surface`. It currently contains four sibling units:
 `PathFiller`, which fills a closed `Geometry.Path` with a single solid color, a linear or
-radial gradient paint, or a repeating tile paint, using an antialiased signed-area/coverage-
-accumulation scanline algorithm supporting both nonzero and even-odd fill rules; `PathStroker`,
+radial gradient paint, or a repeating tile paint, using an antialiased signed-area/coverage-accumulation
+scanline algorithm supporting both nonzero and even-odd fill rules; `PathStroker`,
 which converts a path stroke (configured by width, cap, join, miter limit, and optional dashing)
 into closed outline geometry that `PathFiller` can render unchanged; `GradientPaint`, the public
 `Gradient`/`LinearGradient`/`RadialGradient`/`GradientStop`/`GradientSpread` types and internal

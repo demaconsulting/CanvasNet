@@ -537,6 +537,30 @@ public class SvgCodecTests
     }
 
     /// <summary>
+    ///     Proves that a drawing command after <c>Z</c> without a moveto starts a new subpath at the
+    ///     closed subpath's start point, for both an absolute <c>L</c> and a relative <c>l</c>
+    ///     (measured from that start point).
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_PathDrawAfterCloseWithoutMoveTo_StartsNewSubpathAtCloseStart()
+    {
+        // Arrange: the same line from (10,10) to (150,90) after a closed triangle, absolute and relative
+        const string absolute = "<svg viewBox='0 0 200 100'><path d='M10,10 L80,10 L80,60 Z L150,90' fill='none' stroke='black' stroke-width='4'/></svg>";
+        const string relative = "<svg viewBox='0 0 200 100'><path d='M10,10 L80,10 L80,60 z l140,80' fill='none' stroke='black' stroke-width='4'/></svg>";
+
+        // Act
+        using var absoluteStream = ToStream(absolute);
+        var absoluteSurface = SvgCodec.Load(absoluteStream, 200, 100);
+        using var relativeStream = ToStream(relative);
+        var relativeSurface = SvgCodec.Load(relativeStream, 200, 100);
+
+        // Assert: both draw the line through (115,70); a relative line measured from (80,60) would not pass there
+        Assert.Equal(255, absoluteSurface[115, 70].A);
+        Assert.Equal(255, relativeSurface[115, 70].A);
+        Assert.Equal(255, relativeSurface[45, 30].A);
+    }
+
+    /// <summary>
     ///     Proves that relative <c>m</c>/<c>l</c>/<c>z</c> path commands render the exact same
     ///     shape as their absolute equivalents.
     /// </summary>
@@ -2314,24 +2338,23 @@ public class SvgCodecTests
     }
 
     /// <summary>
-    ///     Proves that a closed <c>&lt;polygon&gt;</c>'s implicit closing segment (back to its
-    ///     first vertex) contributes to the <c>orient="auto"</c> tangent computed for the last
-    ///     vertex's <c>marker-end</c>, rather than only the incoming open-path edge.
+    ///     Proves that a closed <c>&lt;polygon&gt;</c>'s <c>marker-end</c> is drawn at its closing
+    ///     vertex (back at the first point), as in SVG 2, oriented by bisecting the implicit closing
+    ///     segment and the first segment - not at the last explicit point.
     /// </summary>
     [Fact]
-    public void SvgCodec_Load_MarkerEndOnClosedPolygon_OrientsUsingClosingEdgeTangent()
+    public void SvgCodec_Load_MarkerEndOnClosedPolygon_PlacesEndAtClosingVertex()
     {
-        // Arrange: a right-triangle polygon (10,10)-(90,10)-(90,90) whose final vertex (90,90) is
-        // reached via a straight-down incoming edge (direction (0,1)) but whose implicit closing
-        // edge back to (10,10) travels up-and-left (direction (-1,-1) normalized) - averaging
-        // both tangents orients the marker along ~157.5 degrees, landing its content near
-        // (87,91); ignoring the closing edge (the pre-fix behavior) would orient it purely along
-        // the incoming edge's 90 degrees (straight down), landing its content near (90,93) instead
+        // Arrange: a right-triangle polygon (10,10)-(90,10)-(90,90). The closing segment runs from
+        // (90,90) back to (10,10) (direction (-1,-1) normalized) and the first segment leaves (10,10)
+        // along (1,0); their bisector points at -67.5 degrees, so the bar (3 units from the vertex)
+        // is centered near (11.3,6.8). The old placement at the last explicit point (90,90) would
+        // have landed it near (87,91) instead
         const string svg = """
             <svg viewBox='0 0 100 100'>
               <defs>
-                <marker id='bar' markerWidth='6' markerHeight='2' refX='0' refY='0' orient='auto' markerUnits='userSpaceOnUse'>
-                  <rect x='2' y='-0.5' width='2' height='1' fill='red'/>
+                <marker id='bar' markerWidth='6' markerHeight='2' refX='0' refY='1' orient='auto' markerUnits='userSpaceOnUse'>
+                  <rect x='2' y='0' width='3' height='2' fill='red'/>
                 </marker>
               </defs>
               <polygon points='10,10 90,10 90,90' fill='none' stroke='none' marker-end='url(#bar)'/>
@@ -2342,18 +2365,14 @@ public class SvgCodecTests
         using var stream = ToStream(svg);
         var surface = SvgCodec.Load(stream, 100, 100);
 
-        // Assert: the marker is oriented along the averaged incoming/closing tangent (landing
-        // near (87,91)), not purely along the incoming edge as if the closing edge were ignored
-        // (which would land it near (90,93) instead) - a lower alpha threshold (rather than full
-        // opacity) tolerates this rasterizer's edge anti-aliasing on a thin, diagonally rotated
-        // shape, per this file's other diagonal-marker tests
-        var actual = surface[87, 91];
+        // Assert: the bar is at the closing vertex along the bisector, and nothing is at the last explicit point
+        var actual = surface[11, 6];
         Assert.True(
             actual.R == 255 && actual.G == 0 && actual.B == 0 && actual.A > 100,
-            $"Expected a strongly red-tinted pixel at (87,91), got R={actual.R} G={actual.G} B={actual.B} A={actual.A}.");
+            $"Expected a strongly red-tinted pixel at (11,6), got R={actual.R} G={actual.G} B={actual.B} A={actual.A}.");
+        Assert.Equal(0, surface[87, 91].A);
         Assert.Equal(0, surface[90, 93].A);
     }
-
     /// <summary>
     ///     Proves that <c>markerUnits="userSpaceOnUse"</c> keeps a marker's size independent of
     ///     the referencing shape's effective stroke width, while the default
