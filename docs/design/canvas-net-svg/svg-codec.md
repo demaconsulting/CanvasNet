@@ -920,29 +920,30 @@ does not record whether a moveto was implicit, so this is decided by position (a
 exactly equals the previous closed subpath's start), and an explicit `Z M` back to exactly that point is treated the
 same way - a documented simplification (Edge draws one `marker-mid` there for the implicit case, as this codec does, but
 two for the explicit moveto). At both ends of a closed subpath the `orient="auto"` angle bisects the closing segment and
-the first segment (a zero-length closing segment takes the direction of the segment before it). A vertex's
-`orient="auto"` rotation angle is the average of its incoming and outgoing segment tangents (falling back to whichever
-one is present at an open subpath's own start/end), except that `orient="auto-start-reverse"` adds a further 180 degrees
-at the shape's very first vertex only. Per the SVG specification, an absent/blank `orient` attribute uses the fixed
-0-degree default (no rotation) rather than following the vertex tangent - only the explicit `auto`/`auto-start-reverse`
-keywords opt into tangent-following behavior; an unparseable explicit value also tolerantly falls back to this same
-0-degree default. Each marker instance is scaled by `markerWidth`/`markerHeight` (further fitted by the marker's own
-optional `viewBox` - see *ViewBox Fitting Policy*'s "marker's own explicit `preserveAspectRatio`" bullet above for the
-two distinct code paths this fitting takes depending on whether the marker declares an explicit `preserveAspectRatio`
-attribute), then by the referencing shape's own effective stroke width when `markerUnits` is `strokeWidth` (the default)
-or left at 1:1 for `userSpaceOnUse`, then rotated and translated to the vertex position, and finally composed with the
-shape's own accumulated transform - so a marker is transformed through exactly the same pipeline as the shape it
-decorates. A marker's content renders through a fresh `RenderState` cascade seeded from the marker element's own
-presentation attributes (or the SVG/CSS initial defaults if it sets none), never inheriting the referencing shape's own
-fill/ stroke - per the SVG specification's independent marker-content model. Marker content renders through the same
-`RenderElement` recursion used for every other element (including `use`), so the existing element-tree-depth and
-total-rendered-element bounds described below apply to it automatically; because a `marker` can reference another
-`marker` (directly, or through a chain, via a child shape's own `marker-start`/`marker-mid`/`marker-end`), rendering
-additionally tracks its own independent `marker`-reference recursion depth, mirroring `use`'s cycle guard exactly (same
-fixed-depth-cap pattern, same `InvalidDataException` on exceeding it) but counted separately, since a marker chain and a
-`use` chain are independent nesting concerns. `rect`/ `circle`/`ellipse` never receive markers (these shapes have no
-natural vertices to orient one along), and a `marker-start`/`marker-mid`/`marker-end` referencing a nonexistent id, or
-an id that does not resolve to a `marker` element, is tolerated as a silent no-op for that one vertex.
+the first segment (a zero-length closing segment takes the direction of the first segment, as browsers draw it). A
+vertex's `orient="auto"` rotation angle is the average of its incoming and outgoing segment tangents (falling back to
+whichever one is present at an open subpath's own start/end), except that `orient="auto-start-reverse"` adds a further
+180 degrees at the shape's very first vertex only. Per the SVG specification, an absent/blank `orient` attribute uses
+the fixed 0-degree default (no rotation) rather than following the vertex tangent - only the explicit
+`auto`/`auto-start-reverse` keywords opt into tangent-following behavior; an unparseable explicit value also tolerantly
+falls back to this same 0-degree default. Each marker instance is scaled by `markerWidth`/`markerHeight` (further fitted
+by the marker's own optional `viewBox` - see *ViewBox Fitting Policy*'s "marker's own explicit `preserveAspectRatio`"
+bullet above for the two distinct code paths this fitting takes depending on whether the marker declares an explicit
+`preserveAspectRatio` attribute), then by the referencing shape's own effective stroke width when `markerUnits` is
+`strokeWidth` (the default) or left at 1:1 for `userSpaceOnUse`, then rotated and translated to the vertex position, and
+finally composed with the shape's own accumulated transform - so a marker is transformed through exactly the same
+pipeline as the shape it decorates. A marker's content renders through a fresh `RenderState` cascade seeded from the
+marker element's own presentation attributes (or the SVG/CSS initial defaults if it sets none), never inheriting the
+referencing shape's own fill/ stroke - per the SVG specification's independent marker-content model. Marker content
+renders through the same `RenderElement` recursion used for every other element (including `use`), so the existing
+element-tree-depth and total-rendered-element bounds described below apply to it automatically; because a `marker` can
+reference another `marker` (directly, or through a chain, via a child shape's own
+`marker-start`/`marker-mid`/`marker-end`), rendering additionally tracks its own independent `marker`-reference
+recursion depth, mirroring `use`'s cycle guard exactly (same fixed-depth-cap pattern, same `InvalidDataException` on
+exceeding it) but counted separately, since a marker chain and a `use` chain are independent nesting concerns. `rect`/
+`circle`/`ellipse` never receive markers (these shapes have no natural vertices to orient one along), and a
+`marker-start`/`marker-mid`/`marker-end` referencing a nonexistent id, or an id that does not resolve to a `marker`
+element, is tolerated as a silent no-op for that one vertex.
 
 **Filters.** A directly renderable shape or `text` element's own `filter` presentation attribute
 (`url(#id)`, resolved through the same id index and dangling-reference tolerance as a gradient

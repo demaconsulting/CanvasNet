@@ -267,7 +267,7 @@ rejected with `InvalidDataException` once the bounded recursion guard is exceede
 `SvgCodec_Load_MarkerEndOnClosedPolygon_PlacesEndAtClosingVertex`,
 `SvgArrow_BuildMarkerVertices_OpenPath_EndsAtLastPoint`,
 `SvgArrow_BuildMarkerVertices_ClosedTriangle_EndsAtClosingVertex`,
-`SvgArrow_BuildMarkerVertices_ZeroLengthClose_UsesThePreviousSegment`,
+`SvgArrow_BuildMarkerVertices_ZeroLengthClose_UsesTheFirstSegment`,
 `SvgArrow_BuildMarkerVertices_TwoClosedSubpaths_CloseEachSubpath`,
 `SvgArrow_Load_ClosedTriangleMarkers_MatchTheBrowserPlacement`,
 `SvgArrow_BuildMarkerVertices_DrawAfterCloseWithoutMoveTo_SharesTheClosingVertex`,
@@ -299,21 +299,21 @@ bisecting the closing and the first segment, and nothing at its last explicit po
 tests call `BuildMarkerVertices` and `ComputeVertexAngleDegrees` directly: an open path has no closing vertex; the
 closed triangle `M30,420 L190,420 L110,520 Z` (case 9 of the arrow reference drawing, checked against a browser
 rendering) has four vertices with the end at (30,420) at -64.33 degrees, mids at 64.33 and 180 degrees, and
-`auto-start-reverse` at 115.67 degrees; a zero-length closing segment takes the previous segment's direction; and each
-closed subpath of a two-subpath path gets its own closing vertex, the first one a mid vertex. A render test of case 9
-checks the end head, the reversed start head, and the absence of a head at the old place. A line drawn after `Z` without
-a moveto shares the closing vertex (five vertices, the shared one arriving along the closing segment and leaving along
-the new segment), and its render strokes the new segment from the closed subpath's start with the `marker-end` dot at
-the last point. Asserts a default
-`markerUnits="strokeWidth"` marker on a document with a non-identity root `viewBox` fit (a uniform 2x scale from local
-units to pixels) scales by exactly `stroke-width * root-scale` once, not twice (a regression test for a defect where the
-already-pixel-scaled effective stroke width was passed into the marker's own `strokeWidth`-units sizing, and then the
-root scale was re-applied a second time via the shared `shapeTransform`, making the marker four times too large instead
-of two times). Asserts a shape inside a `marker` element's own content with a `filter="url(#id)"` attribute referencing
-a real (`feFlood`) filter renders exactly as if that `filter` attribute were absent - the marker's own fill color, not
-the flood's - a regression test for a defect where marker-content rendering re-entered the same shape/text dispatch used
-everywhere else, which unconditionally resolved and evaluated a shape's own `filter` attribute, contradicting this
-codec's documented "filters on marker content have no effect" scope decision.
+`auto-start-reverse` at 115.67 degrees; a zero-length closing segment takes the first segment's direction, as Edge draws
+it; and each closed subpath of a two-subpath path gets its own closing vertex, the first one a mid vertex. A render test
+of case 9 checks the end head, the reversed start head, and the absence of a head at the old place. A line drawn after
+`Z` without a moveto shares the closing vertex (five vertices, the shared one arriving along the closing segment and
+leaving along the new segment), and its render strokes the new segment from the closed subpath's start with the
+`marker-end` dot at the last point. Asserts a default `markerUnits="strokeWidth"` marker on a document with a
+non-identity root `viewBox` fit (a uniform 2x scale from local units to pixels) scales by exactly
+`stroke-width * root-scale` once, not twice (a regression test for a defect where the already-pixel-scaled effective
+stroke width was passed into the marker's own `strokeWidth`-units sizing, and then the root scale was re-applied a
+second time via the shared `shapeTransform`, making the marker four times too large instead of two times). Asserts a
+shape inside a `marker` element's own content with a `filter="url(#id)"` attribute referencing a real (`feFlood`) filter
+renders exactly as if that `filter` attribute were absent - the marker's own fill color, not the flood's - a regression
+test for a defect where marker-content rendering re-entered the same shape/text dispatch used everywhere else, which
+unconditionally resolved and evaluated a shape's own `filter` attribute, contradicting this codec's documented "filters
+on marker content have no effect" scope decision.
 
 #### CanvasNetSvg-SvgCodec-MarkerPreserveAspectRatio: Marker Explicit preserveAspectRatio Fitting
 
