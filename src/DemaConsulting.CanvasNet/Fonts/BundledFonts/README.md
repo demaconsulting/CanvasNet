@@ -32,7 +32,7 @@ be sold on its own, and this repository does not do so. No modification is made 
 themselves, so the "a modified version may not use the original font's Reserved Font Name"
 restriction does not apply either.
 
-`BundledLiberationFontsTests.cs` (in `test/DemaConsulting.CanvasNet.Tests/Fonts/`) dogfoods every
+`BundledLiberationFontsTests.cs` (in `test/DemaConsulting.CanvasNet.Tests/Fonts/`) exercises every
 one of these 12 files through `Fonts.TrueTypeFont.Load`, verifying each is a genuine, parseable
 TrueType font exposing the expected family name and style flags - this is both a one-time sanity
 check performed before committing these files and a permanent, repeatable CI gate against any
@@ -93,7 +93,7 @@ by this 3-font union (only U+2329/U+232A are not); of ZapfDingbats' 202 distinct
 codepoints, 158 are covered (the circled-digit Dingbats U+2460-U+2469/U+2776-U+2793 and
 U+271D/U+271E/U+271F/U+2721 are not).
 
-`BundledNotoFontsTests.cs` (in `test/DemaConsulting.CanvasNet.Tests/Fonts/`) dogfoods all 3 of
+`BundledNotoFontsTests.cs` (in `test/DemaConsulting.CanvasNet.Tests/Fonts/`) exercises all 3 of
 these files through `Fonts.TrueTypeFont.Load`, exactly like `BundledLiberationFontsTests.cs` does
 for the 12 Liberation files above.
 

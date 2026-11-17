@@ -20,7 +20,7 @@ and the thin slabs of 2D shapes that stand alone at the top of a model. The pack
 (see *ScadGeometry Subsystem Design*), so a 2D result is a `ScadShape2D` tree and the extrusion is
 **distributed over the tree**: the extrusion of `difference() { A; B; }` is the 3D difference of the extrusion
 of `A` and the extrusion of `B`. That is exact because an extrusion maps a point of the profile domain to a
-point of the solid bijectively, so set operations commute with it, and the renderer's constructive solid
+point of the solid as a bijection, so set operations commute with it, and the renderer's constructive solid
 geometry then resolves the result per pixel. The dialect decisions of the unit (the extrusion defaults, the twist
 sign, the sweep direction, and the segment rules) are original decisions of the CanvasNetScad dialect (see
 *CanvasNetScad System Design*, Clean-Room Provenance); no OpenSCAD source or manual text was consulted.

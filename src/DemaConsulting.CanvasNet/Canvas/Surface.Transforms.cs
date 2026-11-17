@@ -325,7 +325,7 @@ public sealed partial class Surface
     /// <summary>
     ///     Creates the upright image that an EXIF orientation describes.
     /// </summary>
-    /// <param name="orientation">The EXIF orientation, 1 to 8 (as read by <c>JpegCodec.ReadExifOrientation</c>): <c>1</c> upright, <c>2</c> mirrored left to right, <c>3</c> rotated 180 degrees, <c>4</c> mirrored top to bottom, <c>5</c> transposed (mirrored about the main diagonal), <c>6</c> to be rotated 90 degrees clockwise, <c>7</c> transversed (mirrored about the anti-diagonal), and <c>8</c> to be rotated 90 degrees counter-clockwise.</param>
+    /// <param name="orientation">The EXIF orientation, 1 to 8 (as read by <c>JpegCodec.ReadExifOrientation</c>): <c>1</c> upright, <c>2</c> mirrored left to right, <c>3</c> rotated 180 degrees, <c>4</c> mirrored top to bottom, <c>5</c> transposed (mirrored about the main diagonal), <c>6</c> to be rotated 90 degrees clockwise, <c>7</c> transverse (mirrored about the anti-diagonal), and <c>8</c> to be rotated 90 degrees counter-clockwise.</param>
     /// <returns>
     ///     A new surface whose pixels are exact copies of this surface's pixels moved to where the orientation puts them;
     ///     for the orientations 5 to 8 its width and height are swapped. Orientation <c>1</c> returns an independent copy.

@@ -76,7 +76,7 @@ sections:
                 title: >-
                   The ScadTransforms unit shall build mirror as a reflection through the plane through the
                   origin whose normal is v (any length, one to three components), keeping the children closed
-                  and outward oriented; a zero normal shall warn and leave the children unmirrored, and mirror
+                  and outward oriented; a zero normal shall warn and leave the children as they are, and mirror
                   without v shall change nothing.
                 justification: |
                   A reflection flips the winding of a mesh; the unit must deliver a correctly oriented solid

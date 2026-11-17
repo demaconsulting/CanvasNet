@@ -438,7 +438,7 @@ internal sealed class CmapTable
     ///     subtable-position arithmetic. The addition is computed in <see langword="long"/>
     ///     arithmetic specifically because <paramref name="offset"/> combined with a maximal
     ///     <paramref name="segCountX2"/> (up to 65534) can overflow 32-bit <see langword="int"/>
-    ///     addition and wrap into a value that would incorrectly pass an unwidened bounds guard.
+    ///     addition and wrap into a value that would incorrectly pass a bounds guard computed without widening.
     /// </remarks>
     /// <param name="offset">The subtable's start position within the font data.</param>
     /// <param name="segCountX2">The subtable's declared <c>segCountX2</c> field.</param>
@@ -480,7 +480,7 @@ internal sealed class CmapTable
     ///     <paramref name="idRangeOffsetOffset"/> combined with a maximal
     ///     <paramref name="idRangeOffset"/> (0xFFFF) and codepoint delta can overflow 32-bit
     ///     <see langword="int"/> addition and wrap to a negative value, which would incorrectly
-    ///     pass an unwidened bounds guard and then be used directly as a negative array index.
+    ///     pass a bounds guard computed without widening and then be used directly as a negative array index.
     /// </remarks>
     /// <param name="idRangeOffsetOffset">The position of the subtable's <c>idRangeOffset</c> array.</param>
     /// <param name="segmentIndex">The index of the segment being resolved.</param>

@@ -93,7 +93,7 @@ public class ScadGeometryBuilderTransformDepthTests
     }
 
     /// <summary>
-    ///     Validates that 10,000 nested non-uniform scalings compose to the closed-form product on small stacks.
+    ///     Validates that 10,000 nested non-uniform scales compose to the closed-form product on small stacks.
     /// </summary>
     /// <param name="stackSize">The caller's stack size.</param>
     [Theory]

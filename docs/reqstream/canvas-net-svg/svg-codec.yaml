@@ -245,8 +245,8 @@ sections:
               the call stack overflows.
             justification: |
               A document containing many levels of nested groups, whether malformed or
-              maliciously crafted, would otherwise drive the rendering recursion to an
-              uncatchable StackOverflowException that terminates the process outright;
+              maliciously crafted, would otherwise drive the rendering recursion to a
+              StackOverflowException, which cannot be caught and terminates the process outright;
               callers need a bounded, predictable InvalidDataException instead so this
               codec's documented error-handling policy still applies.
             tests:

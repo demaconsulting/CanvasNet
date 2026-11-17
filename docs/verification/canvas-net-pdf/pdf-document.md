@@ -2068,12 +2068,12 @@ test proves the full production round-trip by loading the exact same embedded re
 valid glyph index via `Fonts.TrueTypeFont.GetGlyphIndex` - proving the bundled substitute font
 genuinely carries a real Greek alpha glyph, not merely that the pipeline declines to throw.
 Finally, `BundledFonts_AllThreeNotoVariants_LoadSuccessfullyAndExposeExpectedName`
-(`BundledNotoFontsTests`, in `DemaConsulting.CanvasNet.Tests`) dogfoods all 3 new bundled Noto
+(`BundledNotoFontsTests`, in `DemaConsulting.CanvasNet.Tests`) exercises all 3 new bundled Noto
 embedded-resource font files through `Fonts.TrueTypeFont.Load`
 (via `Fonts.SystemFontCatalog.LoadBundledFallbackCore`, the same embedded-resource-loading path
 production code uses), proving each is a genuine, well-formed, loadable TrueType font exposing a
 sane, expected family name - mirroring `BundledLiberationFontsTests`'s own theory-per-file
-dogfooding shape for the 12 pre-existing Liberation files.
+test shape for the 12 pre-existing Liberation files.
 
 #### CanvasNetPdf-PdfDocument-FontEncoding: Base Encodings and Differences Overrides Resolve Correctly
 
@@ -2509,7 +2509,7 @@ active clip at all, falls back to bounding the painted region to the shading's o
 page/surface: a pixel outside the declared `/BBox` remains background while a pixel inside it
 shows the gradient. A `[Theory]` asserts `/ShadingType 1`/`4` reached through `sh` both throw
 `Codecs.UnsupportedImageFeatureException` (feature `pdf-shading-type-{n}`) - the exact same
-exception (not a reimplementation) the `scn`/`SCN` + `/Pattern` path already throws for the
+exception (not a second implementation) the `scn`/`SCN` + `/Pattern` path already throws for the
 identical condition, directly proving the bug report's "no exception thrown for an unsupported
 case, silent solid-color fallback" complaint is fixed for this category. A further defensive test
 asserts an undeclared shading name throws `Codecs.UnsupportedImageFeatureException` (feature

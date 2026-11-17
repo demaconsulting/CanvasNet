@@ -175,7 +175,7 @@ sections:
           configurable background color whose transparency is preserved in the output.
         tags: [system]
         justification: |
-          A neutral default makes untextured geometry readable, per-node colors let a caller
+          A neutral default makes geometry without textures readable, per-node colors let a caller
           distinguish parts, a distinct back-face color exposes inside-out or open meshes, and a
           preserved transparent background allows compositing the render onto other content.
         children:
@@ -190,7 +190,7 @@ sections:
           The library shall resolve hidden surfaces so that the surface nearest the camera is
           visible regardless of submission order, shall resolve coincident faces deterministically
           by scene traversal order, shall render a mirrored (negative-determinant) instance
-          identically to its unmirrored equivalent, and shall clip geometry that crosses the
+          identically to the same instance without the mirror, and shall clip geometry that crosses the
           camera's near plane so that a camera inside or beside geometry renders correctly.
         tags: [system]
         justification: |

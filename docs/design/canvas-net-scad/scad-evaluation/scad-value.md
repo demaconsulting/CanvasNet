@@ -80,14 +80,14 @@ branch's value.
 
 Equality requires **the same kind**: a number is never equal to a boolean. Numbers compare by IEEE rules (so
 `NaN` is not equal to `NaN`, and `-0` equals `0`; the comparison is `ScadNumbers.AreEqual`, a named helper because
-direct `==` between doubles is forbidden by the project's static analysis); strings compare ordinally; vectors
+direct `==` between doubles is forbidden by the project's static analysis); strings use ordinal comparison; vectors
 compare element by element with equal length (deep); `undef` equals `undef`; ranges compare by start, step,
 and end; functions compare by reference. Equal values have equal hash codes (the hash of `-0` equals that
 of `0`, and `NaN` values hash alike even though they are not equal).
 
 ##### Ordering (`TryCompare` and the relational operators)
 
-Two numbers order numerically; two strings ordinally (UTF-16 code units); two booleans with `false` before
+Two numbers order numerically; two strings by ordinal comparison (UTF-16 code units); two booleans with `false` before
 `true`; two vectors lexicographically, with a shorter prefix smaller. **Every other pairing is unordered**
 — including `NaN`, mixed kinds, and `undef` — and then all four relational operators (`<`, `<=`, `>`, `>=`)
 are `false` without any diagnostic.

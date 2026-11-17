@@ -3241,11 +3241,11 @@ public class SvgCodecTests
     /// <summary>
     ///     Proves <c>feBlend mode="overlay"</c> evaluates the spec's exact
     ///     <c>Overlay(Cb, Cs) = HardLight(Cs, Cb)</c> swapped-argument definition, not merely
-    ///     <c>hard-light</c>'s own <c>(Cb, Cs)</c> formula called unswapped (which would branch on
+    ///     <c>hard-light</c>'s own <c>(Cb, Cs)</c> formula called without the swap (which would branch on
     ///     the wrong channel and silently produce a different, incorrect result): backdrop
     ///     <c>Cb=0.6</c> (byte 153), source <c>Cs=0.2</c> (byte 51). Overlay branches on
     ///     <c>Cb&gt;0.5</c>, giving <c>1-2*(1-Cb)*(1-Cs) = 1-2*0.4*0.8 = 0.36</c> -&gt; byte
-    ///     <c>92</c>; calling <c>hard-light</c>'s own formula directly (unswapped) would instead
+    ///     <c>92</c>; calling <c>hard-light</c>'s own formula directly (without the swap) would instead
     ///     branch on <c>Cs&lt;=0.5</c>, giving <c>multiply(Cb, 2*Cs) = 0.6*0.4 = 0.24</c> -&gt; byte
     ///     <c>61</c> - a different value, proving the swap is load-bearing, not a no-op.
     /// </summary>
@@ -3270,7 +3270,7 @@ public class SvgCodecTests
         using var stream = ToStream(svg);
         var surface = SvgCodec.Load(stream, 10, 10);
 
-        // Assert: 92 (the correct swapped-argument result), not 61 (the wrong unswapped result)
+        // Assert: 92 (the correct swapped-argument result), not 61 (the wrong result without the swap)
         Assert.Equal(new Rgba32(92, 92, 92, 255), surface[5, 5]);
     }
 
@@ -8237,7 +8237,7 @@ public class SvgCodecTests
     [Fact]
     public void SvgCodec_Load_RgbaAlphaInfinity_TreatsColorAsUnrecognizedNoPaint()
     {
-        // Arrange: a white background rect, overpainted by a second rect whose rgba() alpha is
+        // Arrange: a white background rect, painted over by a second rect whose rgba() alpha is
         // a literal "Infinity" - if treated as unrecognized, the white background remains visible
         const string svg = """
             <svg viewBox='0 0 10 10'>
@@ -12065,7 +12065,7 @@ public class SvgCodecTests
         using var stream = ToStream(svg);
         var surface = SvgCodec.Load(stream, 10, 10);
 
-        // Assert: the sizeless image painted nothing at all - the background rect remains
+        // Assert: the image with no size painted nothing at all - the background rect remains
         // visible - and no exception was thrown
         Assert.Equal(new Rgba32(255, 0, 0, 255), surface[5, 5]);
     }

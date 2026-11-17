@@ -324,7 +324,7 @@ public class CmapTableTests
         // segCountX2 (5), which the format-4 spec requires to always be even (segCount * 2). A
         // decoder that only truncates `segCount = segCountX2 / 2` (yielding 2) while still using
         // the untruncated odd segCountX2 to compute the startCode/idDelta/idRangeOffset array
-        // base offsets misaligns those parallel arrays by one byte, and can still produce a
+        // base offsets shifts those parallel arrays out of alignment by one byte, and can still produce a
         // "successful" (but bogus) lookup rather than failing safely.
         var buf = new List<byte>
         {
@@ -686,11 +686,11 @@ public class CmapTableTests
     public void CmapTable_Format4_GlyphIndexAddressArithmeticOverflow_ReturnsZero()
     {
         // Arrange: choose an `idRangeOffsetOffset`/`idRangeOffset` pair whose sum, computed with
-        // unwidened 32-bit `int` arithmetic, wraps past `int.MaxValue` to a large negative value
+        // plain (not widened) 32-bit `int` arithmetic, wraps past `int.MaxValue` to a large negative value
         // close to `int.MinValue`. Pairing that wrap with a `glyphIdArrayOffset` of `int.MinValue`
         // and a `tableEnd` of `int.MaxValue` means the wrapped negative address is numerically
         // *greater than* `glyphIdArrayOffset` and its `+2` is numerically *less than* `tableEnd` -
-        // so an unwidened implementation would incorrectly treat both bounds guards as satisfied
+        // so an implementation that does not widen would incorrectly treat both bounds guards as satisfied
         // and return the wrapped negative address for direct use as an array index, rather than
         // rejecting it as the correctly-widened `long` computation does (the true sum exceeds
         // `int.MaxValue` and therefore also exceeds `tableEnd`).
@@ -751,7 +751,7 @@ public class CmapTableTests
         {
             var start = (uint)(i * 2);
             groups[i] = (start, start, (uint)(i + 1)); // non-zero startGlyphId so an accepted
-                                                       // (unrejected) subtable would resolve
+                                                       // (not rejected) subtable would resolve
                                                        // codepoint 0 to a non-zero glyph index
         }
 
@@ -832,7 +832,7 @@ public class CmapTableTests
     {
         // Arrange: choose a subtable position (`offset`) so large, combined with the maximal even
         // `segCountX2` (65534), that computing
-        // `glyphIdArrayOffset = offset + 16 + 4 * segCountX2` with unwidened 32-bit `int`
+        // `glyphIdArrayOffset = offset + 16 + 4 * segCountX2` with plain (not widened) 32-bit `int`
         // arithmetic overflows past `int.MaxValue` and wraps to a negative value. A helper that
         // only widens *some* of this offset chain (or none of it) would then incorrectly pass a
         // `glyphIdArrayOffset > tableEnd` bounds guard (a negative value is never greater than a

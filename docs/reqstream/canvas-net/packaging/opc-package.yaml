@@ -56,7 +56,7 @@ sections:
 
               - id: CanvasNet-Packaging-OpcPackage-PartNames
                 title: >-
-                  The OpcPackage type shall compare part names ordinally (case-sensitively), so parts
+                  The OpcPackage type shall compare part names with an ordinal (case-sensitive) comparison, so parts
                   whose names differ only by case are distinct and an incorrectly cased reserved
                   part name is not accepted, shall reject a package with two entries of an identical
                   name with OpcFormatException, and shall accept a part path with or without a single

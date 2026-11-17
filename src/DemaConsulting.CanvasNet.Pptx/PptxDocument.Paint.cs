@@ -837,7 +837,7 @@ public sealed partial class PptxDocument
         }
 
         // A line's fill carries no shape width/height of its own to position a gradient against -
-        // gradient-filled lines are not meaningfully positionable this phase, so 1x1 is used as a
+        // gradient-filled lines cannot be meaningfully positioned this phase, so 1x1 is used as a
         // neutral placeholder extent (only reachable if a document declares <a:ln><a:gradFill>).
         var paint = ResolveFill(lnElement, theme, 1f, 1f, phClrOverride, colorMap, resolveBlipImage);
         if (paint is PptxNoFill)

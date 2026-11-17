@@ -161,7 +161,7 @@ root element is not the OPC `Relationships` element is rejected rather than sile
 no relationships found, and that a `<Relationship>` element missing one of its required attributes
 (`Id`, `Type`, or `Target`) is rejected rather than silently skipped.
 
-#### CanvasNetPptx-PptxDocument-CaseSensitivePartNames: OPC Part Names Compare Ordinally (Case-Sensitively)
+#### CanvasNetPptx-PptxDocument-CaseSensitivePartNames: OPC Part Names Use Ordinal (Case-Sensitive) Comparison
 
 **Tests**: `OpcPackage_ResolvePart_NamesDifferingOnlyByCase_AreDistinctParts`,
 `OpcPackage_Open_WrongCaseContentTypesPartName_ThrowsOpcFormatException`,

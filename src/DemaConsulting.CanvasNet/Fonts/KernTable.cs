@@ -113,7 +113,7 @@ internal sealed class KernTable
     ///     specifically because <paramref name="pos"/> combined with a maximal
     ///     <paramref name="subtableLength"/> (<c>0xFFFF</c>, the largest ushort) can overflow
     ///     32-bit <see langword="int"/> addition and wrap to a value that would incorrectly pass
-    ///     an unwidened bounds guard, letting the walking loop advance <c>pos</c> to a corrupted,
+    ///     a bounds guard computed without widening, letting the walking loop advance <c>pos</c> to a corrupted,
     ///     out-of-bounds position for the next subtable.
     /// </remarks>
     /// <param name="pos">The subtable's start position within <c>data</c>.</param>

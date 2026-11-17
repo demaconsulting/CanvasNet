@@ -3,7 +3,7 @@ using DemaConsulting.CanvasNet.Fonts;
 namespace DemaConsulting.CanvasNet.Tests.Fonts;
 
 /// <summary>
-///     Dogfoods all 12 bundled Liberation Sans/Serif/Mono embedded-resource fonts (see
+///     Exercises all 12 bundled Liberation Sans/Serif/Mono embedded-resource fonts (see
 ///     <c>Fonts\BundledFonts\README.md</c> for sourcing/licensing provenance) through
 ///     <see cref="TrueTypeFont"/>, proving every one is a genuine, well-formed, loadable TrueType
 ///     font exposing the expected family name and style metadata - both a one-time sanity check

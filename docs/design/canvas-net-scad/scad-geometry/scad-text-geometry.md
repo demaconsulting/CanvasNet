@@ -163,7 +163,7 @@ cedilla) as overlapping solids, which the nonzero fill rule reads as their union
 3. Otherwise the glyph is split into components: the largest contour is an outer boundary and its winding is the
    winding of solids; the contours with that winding are solids, the others are holes, every hole goes to the
    smallest solid that contains one of its points, and each solid with its holes is one region. The regions are
-   unioned by the caller. Holes that fall in no solid make the split fail.
+   combined in a union by the caller. Holes that fall in no solid make the split fail.
 4. If a component is still rejected, the contours overlap in a way that is neither a hole, an island, nor
    overlapping solids: `scad-text-overlapping-contours`.
 

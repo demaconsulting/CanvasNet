@@ -3626,7 +3626,7 @@ leading slash, and `ContainsPart` reports whether a part exists.
   throws for an unknown identifier, for an external target (`TargetMode="External"`, never resolved), and
   for a target that would leave the package. `GetRelationshipType` returns a relationship's `Type`.
 - `ResolveRelationshipByType(sourcePartPath, typeSuffix)` finds a relationship whose `Type` ends with the
-  suffix (case-sensitive), for navigations that have no identifier; when several relationships match,
+  suffix (case-sensitive), for lookups that have no identifier; when several relationships match,
   which one is returned is unspecified. `TryResolveRelationshipByType` and `TryResolveRelationshipById`
   return `null` instead of throwing when there is no match. External relationships are skipped.
 - `LoadPartXmlRoot(partPath)` parses an XML part with `SafeXml` (no DTD, at most

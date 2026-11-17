@@ -50,7 +50,7 @@ Unit tests reside in `ScadTransformsTests.cs`, `ScadResizeTests.cs`, and `ScadCo
 #### Acceptance Criteria
 
 A unit-level test run passes when every scenario below passes without error or exception beyond those explicitly
-asserted. A wrong bound, a wrong volume or orientation, a missing, extra, or mislocated warning or report, a
+asserted. A wrong bound, a wrong volume or orientation, a missing, extra, or misplaced warning or report, a
 wrong color byte, or an exception from a module for any input of the scenarios constitutes a failure.
 
 #### Unit-Level Test Scenarios

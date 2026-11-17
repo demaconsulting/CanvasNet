@@ -97,7 +97,7 @@ The package has no 2D boolean kernel (a clipping library is out of scope). A 2D 
 tree (`ScadShape2D`: a leaf `PolygonRegion`, a planar transform, a color, or a boolean of operands), and
 extrusion is **distributed over the tree**: `linear_extrude() difference() { A; B; }` is built as
 `difference() { extrude(A); extrude(B); }`, with the planar matrices applied to the points of every leaf first and
-the colors kept on the extruded parts. An extrusion is a pointwise map of the profile domain, so the result
+the colors kept on the extruded parts. An extrusion maps the profile domain point by point, so the result
 equals the extrusion of the true 2D difference, and flush caps are resolved by the renderer's coincident-face
 handling. A 2D shape that is not extruded and sits at the top of the model becomes a thin slab of
 `ScadRenderOptions.FlatShapeThickness` so that it is visible. Mixing dimensions never fails silently: a union

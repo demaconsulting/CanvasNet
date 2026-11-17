@@ -41,8 +41,8 @@ unchanged, from the unit tests of the command-line tool's former `ImageAdjustmen
 
 **Test**: `Surface_Luma_OpaqueAndTranslucentPixels_UsesFixedPointWeightsOverWhite`
 
-Black, white, pure red, green, and blue have the lumas 0, 255, 77, 149, and 29; black at alpha 128 has 127, red at
-alpha 128 has 166, and a fully transparent pixel has 255 whatever its color.
+Black, white, pure red, green, and blue have the luma values 0, 255, 77, 149, and 29; black at alpha 128 has 127, red
+at alpha 128 has 166, and a fully transparent pixel has 255 whatever its color.
 
 ##### CanvasNet-Canvas-SurfaceAdjustments-Grayscale: Grayscale
 

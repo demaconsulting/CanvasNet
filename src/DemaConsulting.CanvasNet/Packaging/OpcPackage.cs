@@ -27,7 +27,7 @@ namespace DemaConsulting.CanvasNet.Packaging;
 ///         <see cref="SafeXml"/> (no DTD, no external resolution) and rejected once it exceeds
 ///         <see cref="MaxXmlPartCharacters"/> characters; two ZIP entries with an identical name are
 ///         rejected; and a relationship target that would climb above the package root is rejected.
-///         Part names are compared ordinally, so parts whose names differ only by case are distinct.
+///         Part names use ordinal comparison, so parts whose names differ only by case are distinct.
 ///         Nothing is ever extracted to the file system.
 ///     </para>
 ///     <para>
@@ -340,10 +340,10 @@ public sealed class OpcPackage : IDisposable
     /// <summary>
     ///     Resolves the target part path of a non-external relationship of
     ///     <paramref name="sourcePartPath"/> whose <c>Type</c> ends with
-    ///     <paramref name="relationshipTypeSuffix"/>, for navigations that carry no explicit
+    ///     <paramref name="relationshipTypeSuffix"/>, for lookups that carry no explicit
     ///     relationship identifier (for example the package root's relationship to its main
     ///     document). When several relationships match, which one is returned is unspecified, so
-    ///     use it for navigations that are unique by type.
+    ///     use it for lookups that are unique by type.
     /// </summary>
     /// <param name="sourcePartPath">The source part's path, or the empty string for the package root.</param>
     /// <param name="relationshipTypeSuffix">
@@ -366,7 +366,7 @@ public sealed class OpcPackage : IDisposable
 
     /// <summary>
     ///     Non-throwing sibling of <see cref="ResolveRelationshipByType"/>: returns
-    ///     <see langword="null"/> instead of throwing when no relationship matches, for navigations to
+    ///     <see langword="null"/> instead of throwing when no relationship matches, for lookups of
     ///     an optional part.
     /// </summary>
     /// <param name="sourcePartPath">The source part's path, or the empty string for the package root.</param>
@@ -594,7 +594,7 @@ public sealed class OpcPackage : IDisposable
 
     /// <summary>
     ///     Builds a case-sensitive lookup of every entry by its full name. OPC compares part names
-    ///     ordinally here, so entries that differ only by case are distinct parts, and an
+    ///     with an ordinal comparison here, so entries that differ only by case are distinct parts, and an
     ///     incorrectly-cased reserved name (for example <c>[content_types].xml</c>) is never accepted
     ///     as <c>[Content_Types].xml</c>.
     /// </summary>

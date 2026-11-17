@@ -105,7 +105,7 @@ entry points, called directly by
 consumers of the CanvasNet package. Within this repository, the subsystem is exercised by
 dedicated `Fonts` unit tests, by real-font integration tests in
 `TrueTypeFontRealFontIntegrationTests.cs` (covering real `.ttf`, `.otf`, and locally-assembled
-`.ttc` fixtures), by `BundledLiberationFontsTests.cs` (dogfooding all 12 bundled Liberation
+`.ttc` fixtures), by `BundledLiberationFontsTests.cs` (exercising all 12 bundled Liberation
 files through `TrueTypeFont.Load` itself), by `SystemFontCatalogRealDiscoveryIntegrationTests.cs`
 (gated real-filesystem discovery), and by the two system-integration tests in `CanvasNetTests.cs`
 that load a synthetic font, query metrics, obtain an outline, and render that outline through

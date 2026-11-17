@@ -89,7 +89,7 @@ decides what a point or a segment means).
   structure, so `p` cannot be a convex combination of the others and is a strict extreme point.
 - *A seed face exists around `q`.* The tangent cone of the current hull at its vertex `q` consists only of
   directions `x - q` that are lexicographically non-positive (every hull point is at most `q`), while `p - q` is
-  lexicographically positive. If no face at `q` were strictly visible, `p` would lie in all closed halfspaces of
+  lexicographically positive. If no face at `q` were strictly visible, `p` would lie in all closed half-spaces of
   the faces at `q`, which intersect in `q +` the tangent cone, a contradiction. The fan of `q` is therefore
   scanned until a strictly visible face is found; its length is amortized by the number of faces created by the
   previous insertion (the fan of the last inserted vertex is exactly its cone).

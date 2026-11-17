@@ -12,7 +12,7 @@ The `Fonts` subsystem is verified through the `TrueTypeFont` unit tests under
 `TrueTypeFontRealFontIntegrationTests.cs`, through the two system-integration tests in
 `CanvasNetTests.cs`, and, added this phase, through the `SystemFontCatalog` unit tests
 (`SystemFontCatalogTests.cs`), the gated real-filesystem discovery tests
-(`SystemFontCatalogRealDiscoveryIntegrationTests.cs`), and the bundled-Liberation-font dogfooding
+(`SystemFontCatalogRealDiscoveryIntegrationTests.cs`), and the bundled-Liberation-font loading
 tests (`BundledLiberationFontsTests.cs`). No dedicated subsystem test file exists. Instead,
 subsystem-level requirements reuse the unit tests for parser/decoding/discovery/matching
 behavior, reuse the real-font integration tests for end-to-end behavior against genuine

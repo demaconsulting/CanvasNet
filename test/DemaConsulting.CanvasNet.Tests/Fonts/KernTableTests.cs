@@ -166,10 +166,10 @@ public class KernTableTests
     [Fact]
     public void KernTable_SubtableLengthOverflowsPosition_IsTolerant_ReturnsZero()
     {
-        // Arrange: choose a huge `pos` such that, computed with unwidened 32-bit `int`
+        // Arrange: choose a huge `pos` such that, computed with plain (not widened) 32-bit `int`
         // arithmetic, `pos + subtableLength` (subtableLength = 0xFFFF, the maximum ushort) wraps
         // past int.MaxValue to a large negative value. That wrapped value would incorrectly pass
-        // an unwidened `subtableEnd > tableEnd` bounds guard, letting the subtable-walking loop
+        // a `subtableEnd > tableEnd` bounds guard computed without widening, letting the subtable-walking loop
         // advance to a corrupted, deeply out-of-bounds position for a subsequent subtable.
         const int subtableLength = 0xFFFF;
         const long overflowSum = (long)int.MaxValue + 1; // wraps to int.MinValue in 32-bit arithmetic
@@ -205,9 +205,9 @@ public class KernTableTests
     [Fact]
     public void KernTable_Format0_BodyOffsetArithmeticOverflow_IsRejected()
     {
-        // Arrange: a bodyOffset chosen so that `bodyOffset + 8`, computed with unwidened 32-bit
+        // Arrange: a bodyOffset chosen so that `bodyOffset + 8`, computed with plain (not widened) 32-bit
         // `int` arithmetic, wraps past int.MaxValue to a negative value - which would incorrectly
-        // pass an unwidened `bodyOffset + 8 > subtableEnd` bounds guard - paired with a small,
+        // pass a `bodyOffset + 8 > subtableEnd` bounds guard computed without widening - paired with a small,
         // deliberately undersized backing array (so that, pre-fix, the wrongly-accepted bodyOffset
         // drives an out-of-bounds read that throws, rather than being safely rejected).
         const int bodyOffset = int.MaxValue - 3;

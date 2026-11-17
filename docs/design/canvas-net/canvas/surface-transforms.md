@@ -48,7 +48,7 @@ mirror about both axes.
 to be turned to be viewed upright; the JPEG decoder ignores the tag). For every pixel `(x, y)` of the result the source
 pixel is, with `W` and `H` the size of the source: 1 `(x, y)`, 2 `(W - 1 - x, y)` (mirrored left to right), 3
 `(W - 1 - x, H - 1 - y)` (turned 180 degrees), 4 `(x, H - 1 - y)` (mirrored top to bottom), 5 `(y, x)` (transposed), 6
-`(y, H - 1 - x)` (to be turned 90 degrees clockwise), 7 `(W - 1 - y, H - 1 - x)` (transversed), and 8 `(W - 1 - y, x)`
+`(y, H - 1 - x)` (to be turned 90 degrees clockwise), 7 `(W - 1 - y, H - 1 - x)` (transverse), and 8 `(W - 1 - y, x)`
 (to be turned 90 degrees counter-clockwise). For 5 to 8 the result is `H` wide and `W` high. The pixels, alpha included,
 are copied exactly; orientation 1 is an independent copy. An orientation outside 1 to 8 throws before anything is
 allocated.

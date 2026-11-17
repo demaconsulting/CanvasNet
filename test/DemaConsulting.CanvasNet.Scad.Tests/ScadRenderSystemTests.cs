@@ -1498,7 +1498,7 @@ public class ScadRenderSystemTests
     }
 
     /// <summary>
-    ///     Validates that supersampling antialiases the edges: without it every pixel is a pure color, with it the
+    ///     Validates that supersampling smooths the edges: without it every pixel is a pure color, with it the
     ///     edge pixels blend and their summed coverage tracks the exact polygon area better.
     /// </summary>
     [Fact]
@@ -1782,7 +1782,7 @@ public class ScadRenderSystemTests
             Assert.Equal(Orange, At(view, surface, (i * pitch) + 0.25, 0.25));
         }
 
-        // The pegs are 32-gons of radius 3 on the base, which is length x 10 below them
+        // The pegs are 32-sided polygons of radius 3 on the base, which is length x 10 below them
         var expectedOrange = pegs * RegularPolygonArea(3, 32) * 4;
         var expectedBase = ((length * 10) - (pegs * RegularPolygonArea(3, 32))) * 4;
         Assert.InRange(Count(surface, p => p == Orange), expectedOrange * 0.96, expectedOrange * 1.04);

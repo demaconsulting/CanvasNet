@@ -979,11 +979,11 @@ public static partial class SvgCodec
     ///     into "content" with a copy of <paramref name="state"/> whose
     ///     <see cref="RenderState.Opacity"/> is forced to <c>1.0</c>, identical in shape to
     ///     <see cref="RenderShapeEffectsPipeline"/>'s own opacity handling. Because
-    ///     <see cref="ApplyPresentationAttributes"/> already multiplicatively folds an element's
+    ///     <see cref="ApplyPresentationAttributes"/> already multiplies an element's
     ///     own <c>opacity</c> attribute into <paramref name="state"/>'s <see cref="RenderState.Opacity"/>
     ///     before <see cref="RenderElement"/> ever dispatches into the <c>"g"</c>/<c>"use"</c> case,
     ///     this reproduces "group opacity applies once, after clip/mask/filter" with no further
-    ///     special-casing - each child's own <c>opacity</c> attribute still folds multiplicatively
+    ///     special-casing - each child's own <c>opacity</c> attribute still multiplies in
     ///     underneath, per pixel, exactly as it does today.
     ///     </para>
     ///     <para>
@@ -1989,7 +1989,7 @@ public static partial class SvgCodec
     ///     the local-space <c>stdDeviation</c> into an effective pixel-space value.
     /// </param>
     /// <returns>
-    ///     A new, independent, blurred buffer - or an independent unblurred copy of
+    ///     A new, independent, blurred buffer - or an independent copy, not blurred, of
     ///     <paramref name="input"/> if the effective <c>stdDeviation</c> clamps to zero or below
     ///     (an absent/zero/invalid value, or a non-finite scaled result).
     /// </returns>

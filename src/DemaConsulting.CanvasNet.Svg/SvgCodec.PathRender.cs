@@ -55,7 +55,7 @@ public static partial class SvgCodec
         // mirroring BuildRectPath/BuildEllipsePath's existing tolerant-skip convention for an
         // overflowing arc conversion, rather than the parse-time check's hard reject: unlike a
         // malformed literal (a document-authoring mistake), a huge final magnitude can arise from
-        // perfectly valid, independently-in-bound inputs composing multiplicatively, so aborting
+        // perfectly valid, independently-in-bound inputs multiplied together, so aborting
         // only this shape - not the whole document - is the more tolerant, consistent choice.
         if (!IsWithinCoordinateMagnitudeBudget(pixelPath))
         {

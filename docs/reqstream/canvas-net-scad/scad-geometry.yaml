@@ -304,8 +304,8 @@ sections:
               recursion, and shall stop promptly when the caller's cancellation token is canceled.
             justification: |
               Callers invoke the builder from threads of any stack size and a recursive module can nest
-              as deep as the recursion limit allows; an uncatchable stack overflow would terminate the
-              host process, and a long build must be abandonable.
+              as deep as the recursion limit allows; a stack overflow, which cannot be caught, would
+              terminate the host process, and a long build must be possible to abandon.
             children:
               - CanvasNetScad-ScadGeometry-ScadGeometryBuilder-NoRecursion
               - CanvasNetScad-ScadGeometry-ScadGeometryBuilder-Cancellation

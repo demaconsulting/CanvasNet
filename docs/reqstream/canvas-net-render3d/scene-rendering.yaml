@@ -81,7 +81,7 @@ sections:
             title: >-
               The SceneRendering subsystem shall render a scene onto a new Surface by binning
               triangles into fixed-size tiles, depth-testing each tile, resolving ordered-grid
-              supersamples with correct alpha, running tiles in parallel with output identical to
+              supersampling with correct alpha, running tiles in parallel with output identical to
               sequential rendering, honoring cooperative cancellation, and validating its
               arguments and options, with no visible seams at tile boundaries.
             justification: |

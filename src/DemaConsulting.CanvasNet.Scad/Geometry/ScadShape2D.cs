@@ -31,7 +31,7 @@ internal enum ScadShape2DKind
 ///         (<c>linear_extrude</c>, <c>rotate_extrude</c>, or the slab of a top-level 2D shape) is <i>distributed
 ///         over the tree</i>: the extrusion of <c>difference() { A; B; }</c> is the 3D difference of the extrusion of
 ///         <c>A</c> and the extrusion of <c>B</c>. That is exact because both extrusions map a point of the profile
-///         domain to a point of the solid bijectively, so set operations commute with them; the renderer's
+///         domain to a point of the solid as a bijection, so set operations commute with them; the renderer's
 ///         constructive solid geometry then resolves the result per pixel.
 ///     </para>
 ///     <para>

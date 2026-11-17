@@ -143,8 +143,8 @@ public sealed partial class PdfDocument
     ///     The maximum depth <see cref="ParseValue(PdfTokenizer, PdfToken, int)"/> allows nested
     ///     arrays/dictionaries to descend before failing closed with
     ///     <see cref="InvalidDataException"/>. A PDF is untrusted input, so an unbounded recursive
-    ///     descent parser risks exhausting the native call stack - which raises an uncatchable
-    ///     <see cref="StackOverflowException"/> - on a deeply/adversarially nested array or
+    ///     descent parser risks exhausting the native call stack - which raises a
+    ///     <see cref="StackOverflowException"/> that cannot be caught - on a deeply/adversarially nested array or
     ///     dictionary. 64 comfortably exceeds any realistic legitimate document structure while
     ///     remaining far below a stack-exhausting depth.
     /// </summary>

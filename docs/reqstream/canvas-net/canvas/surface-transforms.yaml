@@ -94,7 +94,7 @@ sections:
                 title: >-
                   The Surface class shall create the upright image that an EXIF orientation from 1 to 8 describes
                   (upright, mirrored, rotated by 180 degrees, mirrored top to bottom, transposed, rotated 90 degrees
-                  clockwise, transversed, rotated 90 degrees counter-clockwise), moving every pixel exactly and
+                  clockwise, transverse, rotated 90 degrees counter-clockwise), moving every pixel exactly and
                   swapping the width and height for the orientations 5 to 8, returning an independent copy for
                   orientation 1, and rejecting an orientation outside 1 to 8.
                 justification: |

@@ -111,7 +111,7 @@ public sealed partial class PptxDocument
     ///         A shape (placeholder or freeform), picture, or graphic-frame whose fully-resolved
     ///         geometry element declares no <c>&lt;a:xfrm&gt;</c> anywhere in its own ancestry is
     ///         <strong>skipped silently</strong>, not treated as an error - a position-less shape
-    ///         is a genuinely unrenderable (not malformed) construct this tolerates, mirroring
+    ///         genuinely cannot be rendered (yet is not malformed), a construct this tolerates, mirroring
     ///         the shape-tree walk's own established "tolerant tree walk" precedent.
     ///     </para>
     ///     <para>

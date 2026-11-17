@@ -209,7 +209,7 @@ public static partial class SvgCodec
         }
 
         // Neither a viewBox nor a valid width/height pair is present - fall back to the CSS/UA
-        // default replaced-element intrinsic size for a fully sizeless SVG document
+        // default replaced-element intrinsic size for an SVG document with no size at all
         return (Vector2.Zero, new Vector2(300f, 150f));
     }
 

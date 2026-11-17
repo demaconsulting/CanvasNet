@@ -58,7 +58,7 @@ and a non-finite or zero `XStep`/`YStep`, while accepting a negative step value 
 tiling-pattern value meaning the tile repeats in the negative pattern-space axis direction); that
 valid values round-trip exactly through the public properties; and that `WithTransform` returns a
 new instance whose `Transform` is the original transform composed with the supplied transform,
-leaving `Surface`/`XStep`/`YStep` unchanged and the original instance unmutated.
+leaving `Surface`/`XStep`/`YStep` unchanged and the original instance unmodified.
 
 ##### TilePaintEvaluator: Sampling and Wraparound
 

@@ -317,7 +317,7 @@ These conventions are part of the public contract and are pinned by tests:
   rounding error.
 - **Mirroring**: a transform with a negative determinant reverses winding. `Mesh.Transform` and
   the renderer both swap two indices of every triangle of such an instance, so a mirrored mesh
-  keeps outward-CCW winding and shades identically to the unmirrored equivalent. The facing of every
+  keeps outward-CCW winding and shades identically to the same mesh without the mirror. The facing of every
   screen triangle is classified after that swap, so on the constructive-solid-geometry path a
   mirrored operand also contributes the corrected front (+1) and back (-1) crossings.
 - **Orbit convention** of `Camera.FitToBounds`: azimuth 0 and elevation 0 place the eye on the

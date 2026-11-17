@@ -140,8 +140,8 @@ sections:
                   The ScadTextGeometry unit shall flatten quadratic and cubic outline curves iteratively with a
                   tolerance derived from the fragment rule of the instance (size over two as the radius), build
                   one region per glyph with holes and islands normalized whatever winding the font used, split
-                  a glyph whose solids overlap (a composite glyph) into regions that are unioned, and report a
-                  damaged outline or contours that cross in any other way as the unsupported feature
+                  a glyph whose solids overlap (a composite glyph) into regions that are combined in a union, and
+                  report a damaged outline or contours that cross in any other way as the unsupported feature
                   scad-text-invalid-outline or scad-text-overlapping-contours at the instance, omitting the
                   whole text; a mapped glyph whose subpaths all lack an area is a damaged outline (unlike a
                   genuinely empty outline such as a space, which advances without drawing).
@@ -205,7 +205,7 @@ sections:
                   promptly.
                 justification: |
                   Font loading and flattening are the longest steps of a text and a long build must be
-                  abandonable, including the measurement that precedes the first glyph.
+                  possible to abandon, including the measurement that precedes the first glyph.
                 tests:
                   - ScadTextGeometry_Build_Cancellation_IsPolledBeforeFlattening
                   - ScadTextGeometry_Build_Cancellation_IsPolledDuringReferenceHeightFlattening

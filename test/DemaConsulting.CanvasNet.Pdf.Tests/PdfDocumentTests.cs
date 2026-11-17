@@ -1460,7 +1460,7 @@ public class PdfDocumentTests
     /// <summary>
     ///     Proves that an array nested within itself well beyond the <c>MaxObjectNestingDepth</c>
     ///     guard throws <see cref="InvalidDataException"/> instead of exhausting the native call
-    ///     stack with an uncatchable <see cref="StackOverflowException"/> (a deeply/adversarially
+    ///     stack with a <see cref="StackOverflowException"/>, which cannot be caught (a deeply/adversarially
     ///     nested array or dictionary is otherwise unbounded recursive-descent input).
     /// </summary>
     [Fact]
@@ -1730,7 +1730,7 @@ public class PdfDocumentTests
     ///     Proves that a crafted cross-reference table marking an object stream's own container
     ///     object as itself compressed (a reference cycle entirely through the
     ///     compressed-object-resolution path) throws <see cref="InvalidDataException"/> instead
-    ///     of recursing indefinitely into an uncatchable <see cref="StackOverflowException"/>.
+    ///     of recursing indefinitely into a <see cref="StackOverflowException"/>, which cannot be caught.
     /// </summary>
     [Fact]
     public void PdfDocument_Open_CompressedObjectStreamSelfCycle_ThrowsInvalidDataException()
@@ -1881,8 +1881,8 @@ public class PdfDocumentTests
     ///     Proves that a crafted object-stream container whose own <c>/Length</c> indirectly
     ///     references a compressed object living inside itself (a resolution cycle reachable via
     ///     the general-purpose, not compressed-object-specific, <c>GetObject</c> guard) throws
-    ///     <see cref="InvalidDataException"/> instead of recursing indefinitely into an
-    ///     uncatchable <see cref="StackOverflowException"/>.
+    ///     <see cref="InvalidDataException"/> instead of recursing indefinitely into a
+    ///     <see cref="StackOverflowException"/>, which cannot be caught.
     /// </summary>
     [Fact]
     public void PdfDocument_Open_ContainerLengthReferencesOwnCompressedObjectCycle_ThrowsInvalidDataException()
@@ -11854,7 +11854,7 @@ public class PdfDocumentTests
     /// <summary>
     ///     Proves that <c>sh</c> naming a shading dictionary with an unsupported
     ///     <c>/ShadingType</c> throws <see cref="UnsupportedImageFeatureException"/> with feature
-    ///     <c>pdf-shading-type-{n}</c> - the exact same exception (not a reimplementation) the
+    ///     <c>pdf-shading-type-{n}</c> - the exact same exception (not a second implementation) the
     ///     <c>scn</c>/<c>SCN</c> + <c>/Pattern</c> path already throws, directly proving the bug
     ///     report's "no exception thrown for an unsupported case" complaint is fixed for this
     ///     category.
@@ -12234,7 +12234,7 @@ public class PdfDocumentTests
         Assert.Equal("pdf-functiontype-5", exception.Feature);
     }
 
-    /// <summary>Proves that a <c>/FunctionType 3</c> stitching function whose own <c>/Functions</c> array references itself triggers the new <c>MaxFunctionRecursionDepth</c> guard with <see cref="InvalidDataException"/>, rather than exhausting the process' call stack with an uncatchable <see cref="StackOverflowException"/>.</summary>
+    /// <summary>Proves that a <c>/FunctionType 3</c> stitching function whose own <c>/Functions</c> array references itself triggers the new <c>MaxFunctionRecursionDepth</c> guard with <see cref="InvalidDataException"/>, rather than exhausting the process' call stack with a <see cref="StackOverflowException"/>, which cannot be caught.</summary>
     [Fact]
     public void PdfDocument_Functions_Type3_Stitching_NestingDepthExceeded_ThrowsInvalidDataException()
     {

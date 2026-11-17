@@ -1558,7 +1558,7 @@ its own distinguishable `Feature` token.
   (function-based shadings)
   remain unsupported/unchanged, reachable through two paths — `scn`/`SCN` + `/Pattern` and
   `sh` — both throwing the identical `Codecs.UnsupportedImageFeatureException` (shared code, not
-  a reimplementation); a `/Pattern` color space nested inside another `/Pattern`'s own `PatternBase` is out of scope
+  duplicated); a `/Pattern` color space nested inside another `/Pattern`'s own `PatternBase` is out of scope
   (the
   `ComponentCount` arm for `Family.Pattern` throws `InvalidOperationException` as a fail-closed
   backstop, since no caller is expected to reach it); deep nested-tiling-pattern recursion is

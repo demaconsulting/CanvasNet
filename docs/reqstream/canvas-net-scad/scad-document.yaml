@@ -371,8 +371,8 @@ sections:
               a small stack, a program over the limit shall fail with the same error on any stack
               size, and a program shall give identical results on a small and on a normal stack.
             justification: |
-              Callers invoke Evaluate from threads of any stack size; an uncatchable stack overflow
-              would terminate their process.
+              Callers invoke Evaluate from threads of any stack size; a stack overflow, which cannot
+              be caught, would terminate their process.
             tests:
               - ScadDocument_Evaluate_DeepRecursionOnSmallStack_AtLimitSucceedsAndOverLimitFailsIdentically
               - ScadDocument_Evaluate_MaximumRecursionLimitOnSmallStack_Succeeds
@@ -736,8 +736,8 @@ sections:
               call stack when a deeply nested model is built and drawn on a thread with a small stack.
             justification: |
               Reproducible pixels make image comparison, caching, and cross-machine use possible, and
-              callers invoke Render from threads of any stack size; an uncatchable stack overflow
-              would terminate their process.
+              callers invoke Render from threads of any stack size; a stack overflow, which cannot
+              be caught, would terminate their process.
             tests:
               - ScadDocument_Render_IsDeterministicForEveryParallelism
               - ScadDocument_Render_ConcurrentRenders_AreIdentical
