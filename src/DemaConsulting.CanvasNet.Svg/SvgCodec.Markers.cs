@@ -270,6 +270,16 @@ public static partial class SvgCodec
     ///     subpath's first segment is the closing vertex's outgoing tangent. An <c>orient="auto"</c>
     ///     marker at either end of a closed subpath therefore bisects the closing and the first
     ///     segment (SVG 2 "Painting", the direction at the start and end of a closed subpath).
+    ///     A drawing command after closepath with no moveto starts a new subpath at the closed
+    ///     subpath's start (see the path-data parser), and that new subpath shares the closing
+    ///     vertex rather than adding a second vertex at the same point: one <c>marker-mid</c> is
+    ///     placed there, arriving along the closing segment and leaving along the new subpath's
+    ///     first segment. <see cref="Path"/> does not record whether a moveto was implicit, so
+    ///     this is detected by position: a subpath with at least one command whose
+    ///     <see cref="Subpath.Start"/> exactly equals the previous closed subpath's start shares
+    ///     its closing vertex. An explicit <c>Z M</c> back to exactly that point is therefore
+    ///     treated the same way - a documented simplification: a browser (Edge) draws a second
+    ///     <c>marker-mid</c> there for the explicit moveto, and one for the implicit case.
     /// </returns>
     /// <remarks>
     ///     Internal (with <see cref="MarkerVertex"/> and <see cref="ComputeVertexAngleDegrees"/>)
@@ -278,10 +288,28 @@ public static partial class SvgCodec
     internal static List<MarkerVertex> BuildMarkerVertices(Path localPath)
     {
         var vertices = new List<MarkerVertex>();
+
+        // The start point of the previous subpath when it was closed and added a closing vertex
+        // (the last entry in vertices); null otherwise
+        Vector2? previousClosedStart = null;
         foreach (var subpath in localPath.Subpaths)
         {
-            var subpathStartIndex = vertices.Count;
-            vertices.Add(new MarkerVertex(subpath.Start, incomingTangent: null, outgoingTangent: null));
+            // A subpath that starts exactly where the previous closed subpath started (a drawing
+            // command after closepath without a moveto) shares that subpath's closing vertex:
+            // the first command below folds its outgoing tangent into it
+            var startMerged = previousClosedStart == subpath.Start && subpath.Commands.Count > 0;
+            previousClosedStart = null;
+            int subpathStartIndex;
+            if (startMerged)
+            {
+                subpathStartIndex = vertices.Count - 1;
+            }
+            else
+            {
+                subpathStartIndex = vertices.Count;
+                vertices.Add(new MarkerVertex(subpath.Start, incomingTangent: null, outgoingTangent: null));
+            }
+
             var current = subpath.Start;
             var closed = false;
 
@@ -331,12 +359,19 @@ public static partial class SvgCodec
                 // takes the direction of the segment before it, per the SVG zero-length rule
                 var closingDirection = closingIncoming ?? vertices[lastIndex].IncomingTangent;
                 vertices[lastIndex] = vertices[lastIndex].WithOutgoingTangent(closingOutgoing);
-                vertices[subpathStartIndex] = vertices[subpathStartIndex].WithIncomingTangent(closingDirection);
+
+                // A shared start vertex keeps the earlier subpath's closing direction as its
+                // incoming tangent, because the pen arrives there along that closing segment
+                if (!startMerged)
+                {
+                    vertices[subpathStartIndex] = vertices[subpathStartIndex].WithIncomingTangent(closingDirection);
+                }
 
                 // The closing vertex: arrives along the closing segment and leaves along the
                 // subpath's first segment, so an orient="auto" marker there bisects the two (SVG 2
                 // "Painting", the direction at the start and end of a closed subpath)
                 vertices.Add(new MarkerVertex(subpath.Start, closingDirection, vertices[subpathStartIndex].OutgoingTangent));
+                previousClosedStart = subpath.Start;
             }
         }
 

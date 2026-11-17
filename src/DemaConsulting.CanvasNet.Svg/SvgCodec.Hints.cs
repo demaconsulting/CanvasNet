@@ -20,7 +20,8 @@ namespace DemaConsulting.CanvasNet.Svg;
 //   - a head is a polygon/path with a visible fill made of one subpath of straight segments with 3 distinct points
 //     (a triangle, not a sliver) or 4 points with exactly one reflex corner (a notched head);
 //   - a head matches when its longest edge L is between 1.5 and 12 times the connector's stroke width and its centroid
-//     is within L of the connector end (both in device pixels).
+//     is more than a fifth of L and at most L from the connector end (both in device pixels), so a symbol centered on
+//     the end (a chart's data point) is not taken for a head.
 //
 // Collection is capped so a hostile document cannot make the analysis expensive; one SvgHint is reported per document
 // with the number of matched heads and the first one in document order.
@@ -40,6 +41,12 @@ public static partial class SvgCodec
 
     /// <summary>The smallest triangle area, as a fraction of its longest edge squared, that is not a sliver.</summary>
     private const float MinHeadAreaRatio = 0.05f;
+
+    /// <summary>
+    ///     The head-centroid distance from a connector end, as a fraction of the head's longest edge, at or below which the
+    ///     shape is centered on the end - a data-point symbol such as a chart marker, not an arrowhead.
+    /// </summary>
+    private const float CenteredHeadRatio = 0.2f;
 
     /// <summary>
     ///     The containers whose content never reports a hint: templates and paint/clip content that is not part of the
@@ -319,10 +326,19 @@ public static partial class SvgCodec
         /// <param name="head">The head candidate.</param>
         /// <param name="end">The connector end.</param>
         /// <returns><see langword="true"/> for a match.</returns>
-        private static bool SitsOnEnd(HintHead head, HintConnectorEnd end) =>
-            !ReferenceEquals(head.Element, end.Element) &&
-            head.LongestEdge >= MinHeadToStrokeRatio * end.StrokeWidth &&
-            head.LongestEdge <= MaxHeadToStrokeRatio * end.StrokeWidth &&
-            Vector2.Distance(head.Centroid, end.Point) <= head.LongestEdge;
+        private static bool SitsOnEnd(HintHead head, HintConnectorEnd end)
+        {
+            if (ReferenceEquals(head.Element, end.Element) ||
+                head.LongestEdge < MinHeadToStrokeRatio * end.StrokeWidth ||
+                head.LongestEdge > MaxHeadToStrokeRatio * end.StrokeWidth)
+            {
+                return false;
+            }
+
+            // A head's centroid lies back along the connector from its tip; a centroid on the end itself marks a
+            // centered data-point symbol
+            var distance = Vector2.Distance(head.Centroid, end.Point);
+            return distance > CenteredHeadRatio * head.LongestEdge && distance <= head.LongestEdge;
+        }
     }
 }

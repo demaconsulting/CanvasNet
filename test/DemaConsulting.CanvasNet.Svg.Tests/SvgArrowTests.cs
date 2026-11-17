@@ -52,6 +52,16 @@ public class SvgArrowTests
         Assert.True(MathF.Abs(expectedDegrees - actual) <= AngleTolerance, $"Expected {expectedDegrees} degrees, got {actual}.");
     }
 
+    /// <summary>Asserts that a tangent is present and points in a direction.</summary>
+    /// <param name="expected">The expected unit direction.</param>
+    /// <param name="actual">The tangent.</param>
+    private static void AssertDirection(Vector2 expected, Vector2? actual)
+    {
+        Assert.True(actual.HasValue, "Expected a tangent.");
+        Assert.Equal(expected.X, actual.Value.X, 3);
+        Assert.Equal(expected.Y, actual.Value.Y, 3);
+    }
+
     /// <summary>
     ///     Test that an open path has one vertex per point and no closing vertex, so its end marker stays at its last
     ///     point along its last segment.
@@ -149,6 +159,68 @@ public class SvgArrowTests
         AssertAt(new Vector2(20, 0), vertices[4]);
         AssertAt(new Vector2(20, 0), vertices[7]);
         AssertAngle(-67.5f, vertices[7]);
+    }
+
+    /// <summary>
+    ///     Test that a drawing command after closepath without a moveto (a new subpath starting at the closed subpath's
+    ///     start) shares the closing vertex: one vertex there, arriving along the closing segment and leaving along the
+    ///     new segment.
+    /// </summary>
+    [Fact]
+    public void SvgArrow_BuildMarkerVertices_DrawAfterCloseWithoutMoveTo_SharesTheClosingVertex()
+    {
+        // Arrange: M10,10 L80,10 L80,60 Z L150,90 - the parser issues the implicit MoveTo(10,10) after Z
+        var path = new PathBuilder()
+            .MoveTo(new Vector2(10, 10)).LineTo(new Vector2(80, 10)).LineTo(new Vector2(80, 60)).Close()
+            .MoveTo(new Vector2(10, 10)).LineTo(new Vector2(150, 90))
+            .Build();
+
+        // Act
+        var vertices = SvgCodec.BuildMarkerVertices(path);
+
+        // Assert: five vertices - no second vertex at (10,10) for the new subpath's start
+        Assert.Equal(5, vertices.Count);
+        AssertAt(new Vector2(10, 10), vertices[0]);
+        AssertAt(new Vector2(80, 10), vertices[1]);
+        AssertAt(new Vector2(80, 60), vertices[2]);
+        AssertAt(new Vector2(10, 10), vertices[3]);
+        AssertAt(new Vector2(150, 90), vertices[4]);
+
+        // Assert: the shared vertex arrives along the closing segment and leaves along the new segment, and the end
+        // arrives along the new segment
+        var closing = Vector2.Normalize(new Vector2(10, 10) - new Vector2(80, 60));
+        var drawn = Vector2.Normalize(new Vector2(150, 90) - new Vector2(10, 10));
+        AssertDirection(closing, vertices[3].IncomingTangent);
+        AssertDirection(drawn, vertices[3].OutgoingTangent);
+        AssertDirection(drawn, vertices[4].IncomingTangent);
+    }
+
+    /// <summary>
+    ///     Test that a path drawing after closepath without a moveto renders its new segment from the closed subpath's
+    ///     start and puts its end marker at the last point.
+    /// </summary>
+    [Fact]
+    public void SvgArrow_Load_DrawAfterCloseWithoutMoveTo_PlacesMarkerEndAtTheLastPoint()
+    {
+        // Arrange: a stroked triangle closed with Z, then a line drawn without a moveto, with a red end dot
+        const string svg = """
+            <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 100' width='200' height='100'>
+              <defs>
+                <marker id='dot' viewBox='0 0 10 10' refX='5' refY='5' markerWidth='4' markerHeight='4'>
+                  <circle cx='5' cy='5' r='5' fill='#ff0000'/>
+                </marker>
+              </defs>
+              <path d='M10,10 L80,10 L80,60 Z L150,90' fill='none' stroke='#0000ff' stroke-width='2' marker-end='url(#dot)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        using var surface = SvgCodec.Load(stream, 200, 100);
+
+        // Assert: the new segment from (10,10) to (150,90) is stroked at (115,70), and the end dot is at (150,90)
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[115, 70]);
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[150, 90]);
     }
 
     /// <summary>
@@ -303,6 +375,26 @@ public class SvgArrowTests
               <polygon points='30,55 40,55 40,65 30,65' fill='#ea580c'/>
               <line x1='10' y1='120' x2='60' y2='120' stroke='#000000' stroke-width='1'/>
               <polygon points='60,100 120,120 60,140' fill='#cbd5e1'/>
+            </svg>
+            """;
+
+        // Act / Assert
+        Assert.Empty(RenderHints(svg));
+    }
+
+    /// <summary>
+    ///     Test that chart symbols centered on the ends of a data line (a triangle whose centroid is the data point)
+    ///     report nothing: an arrowhead's centroid lies back along the connector from its end.
+    /// </summary>
+    [Fact]
+    public void SvgArrow_HintHandler_ChartSymbolsCenteredOnLineEnds_ReportNothing()
+    {
+        // Arrange: a data polyline with triangle symbols centered on its first and last points
+        const string svg = """
+            <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200'>
+              <polyline points='20,80 60,40 100,60' fill='none' stroke='#000000' stroke-width='2'/>
+              <polygon points='20,74 25.2,83 14.8,83' fill='#000000'/>
+              <polygon points='100,54 105.2,63 94.8,63' fill='#000000'/>
             </svg>
             """;
 

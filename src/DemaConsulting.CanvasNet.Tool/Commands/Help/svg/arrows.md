@@ -55,7 +55,9 @@ with `canvasnet help svg arrows --example arrows`.
 - The head follows the direction of the path at its very end, not the line
   from the start to the target. For a cubic `C` that is the direction from the
   last control point to the end; for a quadratic `Q`, from its control point;
-  for an arc `A`, the tangent of the arc at its end.
+  for an arc `A`, the tangent of the arc at its end. When the last control
+  point equals the end, the direction comes from the previous distinct control
+  point.
 - To enter a box from the left, put the last control point left of the end at
   the same y; to enter from the top, above it at the same x.
 - A horizontal S-curve from (x0,y0) to (x1,y1), with xm halfway:
@@ -72,7 +74,8 @@ with `canvasnet help svg arrows --example arrows`.
   length short of the edge and use `refX="0"`.
 - `markerUnits="strokeWidth"` (the default) scales the head with
   `stroke-width`: `markerWidth="6"` on a stroke of 2 is 12 units long.
-  `markerUnits="userSpaceOnUse"` keeps it a fixed size in `viewBox` units.
+  `markerUnits="userSpaceOnUse"` keeps it a fixed size in the drawing's user
+  units.
 
 ## Check
 

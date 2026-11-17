@@ -537,6 +537,30 @@ public class SvgCodecTests
     }
 
     /// <summary>
+    ///     Proves that a drawing command after <c>Z</c> without a moveto starts a new subpath at the
+    ///     closed subpath's start point, for both an absolute <c>L</c> and a relative <c>l</c>
+    ///     (measured from that start point).
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_PathDrawAfterCloseWithoutMoveTo_StartsNewSubpathAtCloseStart()
+    {
+        // Arrange: the same line from (10,10) to (150,90) after a closed triangle, absolute and relative
+        const string absolute = "<svg viewBox='0 0 200 100'><path d='M10,10 L80,10 L80,60 Z L150,90' fill='none' stroke='black' stroke-width='4'/></svg>";
+        const string relative = "<svg viewBox='0 0 200 100'><path d='M10,10 L80,10 L80,60 z l140,80' fill='none' stroke='black' stroke-width='4'/></svg>";
+
+        // Act
+        using var absoluteStream = ToStream(absolute);
+        var absoluteSurface = SvgCodec.Load(absoluteStream, 200, 100);
+        using var relativeStream = ToStream(relative);
+        var relativeSurface = SvgCodec.Load(relativeStream, 200, 100);
+
+        // Assert: both draw the line through (115,70); a relative line measured from (80,60) would not pass there
+        Assert.Equal(255, absoluteSurface[115, 70].A);
+        Assert.Equal(255, relativeSurface[115, 70].A);
+        Assert.Equal(255, relativeSurface[45, 30].A);
+    }
+
+    /// <summary>
     ///     Proves that relative <c>m</c>/<c>l</c>/<c>z</c> path commands render the exact same
     ///     shape as their absolute equivalents.
     /// </summary>

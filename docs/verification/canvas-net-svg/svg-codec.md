@@ -110,13 +110,16 @@ file under `SvgFixtures/`; `SvgCodec_Load_FromFilePath_ReturnsExpectedPixels` ex
 `SvgCodec_Load_PathWithSmoothCubicBezier_RendersFilledShape`,
 `SvgCodec_Load_PathWithQuadraticBezier_RendersFilledShape`,
 `SvgCodec_Load_PathWithSmoothQuadraticBezier_RendersFilledShape`,
-`SvgCodec_Load_PathWithArc_RendersFilledHalfDisc`
+`SvgCodec_Load_PathWithArc_RendersFilledHalfDisc`,
+`SvgCodec_Load_PathDrawAfterCloseWithoutMoveTo_StartsNewSubpathAtCloseStart`
 
 Exercises `M`/`m`, `L`/`l`, `H`/`h`, `V`/`v`, `C`/`c`, `S`/`s`, `Q`/`q`, `T`/`t`, `A`/`a`, and
 `Z`/`z`, in both absolute and relative forms, asserting the resulting filled region matches the
 hand-derived geometry (including that the relative-command variant renders the identical shape
 as its absolute-command equivalent, and that an elliptical arc command renders a recognizable
-half-disc via `Geometry.SvgArcConverter`).
+half-disc via `Geometry.SvgArcConverter`). Also asserts that a line drawn after `Z` without a
+moveto (`M10,10 L80,10 L80,60 Z L150,90`, and the relative `z l140,80`) renders from the closed
+subpath's start point (10,10) instead of failing, with the relative form measured from that point.
 
 #### CanvasNetSvg-SvgCodec-GroupTransformInheritance: Group Attribute/Transform Inheritance
 
@@ -267,6 +270,8 @@ rejected with `InvalidDataException` once the bounded recursion guard is exceede
 `SvgArrow_BuildMarkerVertices_ZeroLengthClose_UsesThePreviousSegment`,
 `SvgArrow_BuildMarkerVertices_TwoClosedSubpaths_CloseEachSubpath`,
 `SvgArrow_Load_ClosedTriangleMarkers_MatchTheBrowserPlacement`,
+`SvgArrow_BuildMarkerVertices_DrawAfterCloseWithoutMoveTo_SharesTheClosingVertex`,
+`SvgArrow_Load_DrawAfterCloseWithoutMoveTo_PlacesMarkerEndAtTheLastPoint`,
 `SvgCodec_Load_MarkerStrokeWidthUnitsOnScaledDocument_ScalesOnceNotTwice`,
 `SvgCodec_Load_MarkerContentWithFilterAttribute_FilterHasNoEffect`
 
@@ -296,7 +301,10 @@ closed triangle `M30,420 L190,420 L110,520 Z` (case 9 of the arrow reference dra
 rendering) has four vertices with the end at (30,420) at -64.33 degrees, mids at 64.33 and 180 degrees, and
 `auto-start-reverse` at 115.67 degrees; a zero-length closing segment takes the previous segment's direction; and each
 closed subpath of a two-subpath path gets its own closing vertex, the first one a mid vertex. A render test of case 9
-checks the end head, the reversed start head, and the absence of a head at the old place. Asserts a default
+checks the end head, the reversed start head, and the absence of a head at the old place. A line drawn after `Z` without
+a moveto shares the closing vertex (five vertices, the shared one arriving along the closing segment and leaving along
+the new segment), and its render strokes the new segment from the closed subpath's start with the `marker-end` dot at
+the last point. Asserts a default
 `markerUnits="strokeWidth"` marker on a document with a non-identity root `viewBox` fit (a uniform 2x scale from local
 units to pixels) scales by exactly `stroke-width * root-scale` once, not twice (a regression test for a defect where the
 already-pixel-scaled effective stroke width was passed into the marker's own `strokeWidth`-units sizing, and then the
@@ -2654,6 +2662,7 @@ asserting the second call for the same gradient element returns the identical ca
 - `SvgArrow_HintHandler_SeveralStyledHeads_ReportsOneHintWithTheCount`
 - `SvgArrow_HintHandler_MarkerArrows_ReportNothing`
 - `SvgArrow_HintHandler_TrianglesAwayFromConnectorEnds_ReportNothing`
+- `SvgArrow_HintHandler_ChartSymbolsCenteredOnLineEnds_ReportNothing`
 - `SvgArrow_HintHandler_TemplatesAndPatternContent_ReportNothing`
 - `SvgArrow_HintHandler_DoesNotChangeThePixels`
 
@@ -2661,7 +2670,8 @@ Asserts that a filled triangle on the end of a cubic curve and a notched four-po
 reported once with the code `svg-arrowhead-shape`, naming the shape; that two heads styled by a CSS class inside a
 transformed group are one hint with a count of 2 and the first head's device-pixel position; that marker arrows,
 triangles away from a connector end, a square legend swatch on a sample line, a triangle too large for the stroke, and
-arrows inside `defs` drawn through `use`, a `symbol`, or a `pattern` report nothing; and that rendering with a hint
+arrows inside `defs` drawn through `use`, a `symbol`, or a `pattern` report nothing; that triangle symbols centered on
+the ends of a chart's data line (centroid on the end) report nothing; and that rendering with a hint
 handler produces the same pixels as rendering without one.
 
 ### Acceptance Criteria
