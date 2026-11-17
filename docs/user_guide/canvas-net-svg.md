@@ -448,8 +448,9 @@ changes the pixels and never fails the load, and no analysis runs when no handle
 
 The one code today is `svg-arrowhead-shape` (`SvgHint.ArrowheadShapeCode`): a filled triangle (or a notched four-point
 arrow shape) drawn by hand on the end of a stroked, unfilled `line`, `polyline`, or `path` that has no marker at that
-end. Such a head does not turn or move with the connector; draw it with a `marker` with `orient="auto"` on
-`marker-end` instead. To keep false alarms rare, a head counts only when its longest edge is 1.5 to 12 times the
+end. Such a head does not turn or move with the connector; draw it with a `marker` instead: on `marker-end` with
+`orient="auto"` at the end of the connector, or on `marker-start` with `orient="auto-start-reverse"` at its start. To
+keep false alarms rare, a head counts only when its longest edge is 1.5 to 12 times the
 connector's stroke width and its center is within that length of the connector end, and content inside `defs`,
 `marker`, `symbol`, `pattern`, `mask`, and `clipPath`, content drawn through `use`, and nested SVG files report
 nothing.

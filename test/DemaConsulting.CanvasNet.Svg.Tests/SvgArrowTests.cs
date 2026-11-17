@@ -279,6 +279,8 @@ public class SvgArrowTests
         Assert.Equal(1, hint.Count);
         Assert.Contains("<polygon id=\"head\">", hint.Message, StringComparison.Ordinal);
         Assert.Contains("marker", hint.Message, StringComparison.Ordinal);
+        Assert.Contains("marker-end with orient=\"auto\"", hint.Message, StringComparison.Ordinal);
+        Assert.Contains("marker-start with orient=\"auto-start-reverse\"", hint.Message, StringComparison.Ordinal);
     }
 
     /// <summary>

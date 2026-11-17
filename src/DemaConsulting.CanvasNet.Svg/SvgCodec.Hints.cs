@@ -317,8 +317,9 @@ public static partial class SvgCodec
             {
                 Code = SvgHint.ArrowheadShapeCode,
                 Count = count,
-                Message = $"{shapes} like a hand-drawn arrowhead at the end of a connector (first: {name} at pixel {x},{y}); " +
-                          "draw arrowheads with a <marker> with orient=\"auto\" on marker-end so they follow the connector."
+                Message = $"{shapes} like a hand-drawn arrowhead at an end of a connector (first: {name} at pixel {x},{y}); " +
+                          "draw arrowheads with a <marker> so they follow the connector: on marker-end with orient=\"auto\" " +
+                          "for the end, or on marker-start with orient=\"auto-start-reverse\" for the start."
             });
         }
 
