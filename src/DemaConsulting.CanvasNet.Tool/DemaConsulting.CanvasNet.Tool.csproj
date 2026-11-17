@@ -117,7 +117,7 @@
     <EmbeddedResource Include="Commands\Help\Examples\*" WithCulture="false" LogicalName="DemaConsulting.CanvasNet.Tool.Help.Examples.%(Filename)%(Extension)" />
   </ItemGroup>
 
-  <!-- The Lua shim of the Pandoc filter, which the write-shim option of the pandoc-filter command writes byte for byte -->
+  <!-- The template of the Lua shim of the Pandoc filter, which the write-shim option of the pandoc-filter command fills with the filter's tables and writes -->
   <ItemGroup>
     <EmbeddedResource Include="PandocFilter\canvasnet.lua" WithCulture="false" LogicalName="DemaConsulting.CanvasNet.Tool.PandocFilter.canvasnet.lua" />
   </ItemGroup>

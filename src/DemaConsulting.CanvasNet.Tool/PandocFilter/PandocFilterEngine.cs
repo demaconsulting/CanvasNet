@@ -202,7 +202,7 @@ internal sealed partial class PandocFilterEngine
     private PlannedPicture? PlanBlock(int index, JsonObject node, Dictionary<string, DrawJob> jobs)
     {
         var block = PandocAst.ReadCodeBlock(node);
-        if (!block.Attr.Classes.Contains(PictureAttributes.Mermaid))
+        if (PictureAttributes.BlockKindOf(block.Attr.Classes) is not { } kind)
         {
             return null;
         }
@@ -213,7 +213,7 @@ internal sealed partial class PandocFilterEngine
         var source = PictureCache.BlockSourceFile(CreateCacheFolder(), text);
         PictureCache.WriteTextAtomically(source, text);
         var item = new PlannedPicture(index, name, node, block, caption);
-        return PlanDraw(item, source, PictureAttributes.Mermaid, attributes, PictureAttributes.Mermaid, jobs);
+        return PlanDraw(item, source, kind, attributes, kind, jobs);
     }
 
     /// <summary>
@@ -253,7 +253,7 @@ internal sealed partial class PandocFilterEngine
             return item;
         }
 
-        Attach(item, jobs, new DrawJob(item.Index, item.Name, false, kind, source, options.Options, access, cache, key, file, marker));
+        Attach(item, jobs, new DrawJob(item.Index, item.Name, false, kind, source, options.Options, access, cache, key, file, marker, item.Block != null));
         return item;
     }
 
@@ -307,7 +307,7 @@ internal sealed partial class PandocFilterEngine
             return item;
         }
 
-        Attach(item, jobs, new DrawJob(index, image.Src, true, "svg", source, options.Options, access, cache, key, file, marker));
+        Attach(item, jobs, new DrawJob(index, image.Src, true, "svg", source, options.Options, access, cache, key, file, marker, false));
         return item;
     }
 

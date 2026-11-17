@@ -28,8 +28,15 @@ Lua shim docs/filters/canvasnet.lua, which sends the whole document to
 
 - `shim`: Pin DemaConsulting.CanvasNet.Tool in .config/dotnet-tools.json, run
   'dotnet canvasnet pandoc-filter --write-shim docs/filters/canvasnet.lua', and
-  list the file under filters in the Pandoc defaults file. Write it again only
-  when the tool says that the protocol of the shim changed.
+  list the file under filters in the Pandoc defaults file. Write it again after
+  each update of the tool: the shim lists what that tool draws (see fast path),
+  so an old shim keeps working but may start the tool when it is not needed or
+  miss a new format. The tool also says when the protocol of the shim changed.
+- `fast path`: The shim starts the tool only for a code block of class mermaid
+  (exact), or a local picture whose name ends in .svg, .vl.json, .vl, .scad,
+  .vsdx, .pptx, .pdf, .mmd, or .mermaid in any letter case (a name with a
+  #fragment or ?query does not). Any other document is left as it is without
+  starting the tool, so code-only documents build without it.
 - `pictures`: A picture of a .scad model, a .vl.json or .vl chart, a .vsdx,
   .pptx, or .pdf page, or a .mmd or .mermaid diagram is drawn as a PNG picture,
   for example ![Part](part.scad){view=iso}. An .svg drawing that links one is
@@ -93,6 +100,10 @@ Lua shim docs/filters/canvasnet.lua, which sends the whole document to
   again with --write-shim, or update the tool.
 - `drawing failed`: A picture the tool cannot draw stops the build with the
   code and the message of the tool.
+- `size-limit`: A picture larger than 8192 pixels on a side stops the build
+  with its laid-out size, the limit, and the scale that fits, for example
+  "a scale of 0.56 or less fits. (Set the block's scale attribute to 0.56 or
+  less, for example {.mermaid scale=0.56}.)".
 
 ## Reserved names
 

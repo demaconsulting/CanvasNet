@@ -39,6 +39,13 @@ namespace DemaConsulting.CanvasNet.Viewer.Imaging;
 public static partial class SourceLoader
 {
     /// <summary>
+    ///     The key of <see cref="Exception.Data"/> under which a <c>size-limit</c> error of a size that follows the natural
+    ///     size holds the scale that fits (the text <see cref="FitScale"/> writes), so a caller with options of its own (the
+    ///     Pandoc filter's <c>scale</c> attribute) can name it in its own words.
+    /// </summary>
+    internal const string FitScaleDataKey = "DemaConsulting.CanvasNet.Viewer.FitScale";
+
+    /// <summary>
     ///     Reads the facts about a file without rendering it, under <see cref="FileAccessPolicy.AllowAll"/>.
     /// </summary>
     /// <remarks>
@@ -576,19 +583,49 @@ public static partial class SourceLoader
         height = Math.Max(1, Math.Round(height, MidpointRounding.AwayFromZero));
         if (width > Surface.MaxDimension || height > Surface.MaxDimension)
         {
-            var sized = options.Scale != null || options.Width != null || options.Height != null;
             var size = string.Create(CultureInfo.InvariantCulture, $"{width:0.#}x{height:0.#}");
-            throw new ViewerException(
+            if (options.Width != null || options.Height != null)
+            {
+                throw new ViewerException(
+                    ErrorCodes.SizeLimit,
+                    $"The requested size of {size} pixels is larger than the maximum of {Surface.MaxDimension} pixels per side.",
+                    "Use a smaller --scale, --width, or --height.");
+            }
+
+            // The size follows the natural size, so the scale that fits is suggested
+            var fit = FitScale(naturalWidth, naturalHeight);
+            var exception = new ViewerException(
                 ErrorCodes.SizeLimit,
-                sized
-                    ? $"The requested size of {size} pixels is larger than the maximum of {Surface.MaxDimension} pixels per side."
-                    : $"'{path}' is {size} pixels, which is larger than the maximum of {Surface.MaxDimension} pixels per side.",
-                sized
-                    ? "Use a smaller --scale, --width, or --height."
-                    : "Use --width, --height, or --scale to choose a smaller size.");
+                options.Scale != null
+                    ? $"The requested size of {size} pixels is larger than the maximum of {Surface.MaxDimension} pixels per side; a scale of {fit} or less fits."
+                    : $"'{path}' is {size} pixels, which is larger than the maximum of {Surface.MaxDimension} pixels per side; a scale of {fit} or less fits.",
+                $"Use --scale {fit} (or less), --width, or --height to choose a smaller size.");
+            exception.Data[FitScaleDataKey] = fit;
+            throw exception;
         }
 
         return ((int)width, (int)height);
+    }
+
+
+    /// <summary>
+    ///     Computes the scale that fits a natural size into the maximum image size, for the message of a <c>size-limit</c> error.
+    /// </summary>
+    /// <param name="naturalWidth">The natural width in pixels, at least 1.</param>
+    /// <param name="naturalHeight">The natural height in pixels, at least 1.</param>
+    /// <returns>
+    ///     <see cref="Surface.MaxDimension"/> divided by the larger side, rounded down to two significant digits (14374 pixels
+    ///     gives <c>0.56</c>, 20000 pixels <c>0.4</c>), so the scaled size is never larger than the maximum; written with
+    ///     invariant digits and without trailing zeros.
+    /// </returns>
+    internal static string FitScale(int naturalWidth, int naturalHeight)
+    {
+        var exact = (double)Surface.MaxDimension / Math.Max(1, Math.Max(naturalWidth, naturalHeight));
+        var decimals = Math.Max(0, 1 - (int)Math.Floor(Math.Log10(exact)));
+        var step = Math.Pow(10, -decimals);
+        var fit = Math.Floor(exact / step) * step;
+        var text = fit.ToString("F" + decimals.ToString(CultureInfo.InvariantCulture), CultureInfo.InvariantCulture);
+        return decimals > 0 ? text.TrimEnd('0').TrimEnd('.') : text;
     }
 
     /// <summary>

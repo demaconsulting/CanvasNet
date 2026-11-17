@@ -94,6 +94,18 @@ sections:
           - PandocFilterEngine_Run_TwoFailures_ReportsTheLowestPosition
           - PandocFilterEngine_Run_PlanningAndDrawingFailures_LowestPositionWins
 
+      - id: CanvasNetTool-PandocFilter-PandocFilterEngine-OversizedPicture
+        title: >-
+          When a picture lays out larger than the maximum image size and the tool names the scale that fits, the
+          PandocFilterEngine unit shall stop the run with the code size-limit, the tool's message (the laid-out size,
+          the limit, and that scale), and a hint that names the scale attribute of the code block or the picture
+          instead of the command-line options.
+        justification: |
+          An author fixes an oversized diagram in the document, not on a command line, so the error must say which
+          attribute to set and to what, for example {.mermaid scale=0.56}.
+        tests:
+          - PandocFilterEngine_Run_OversizedPicture_HintNamesTheScaleAttribute
+
       - id: CanvasNetTool-PandocFilter-PandocFilterEngine-LowestPositionWins
         title: >-
           When several pictures fail, the PandocFilterEngine unit shall report the failure of the lowest position,
@@ -138,3 +150,4 @@ sections:
           itself, and everything the filter does not handle must reach Pandoc exactly as it was.
         tests:
           - PandocFilterEngine_Run_MissingSourcesAndOtherPictures_FollowTheLuaFilter
+          - PandocFilterEngine_Run_PicturesItDoesNotDraw_PassThroughUntouched

@@ -623,10 +623,44 @@ public class SourceLoaderTests
         // Assert: size-limit errors that say what to do, and exactly 8192 is fine
         Assert.All(new[] { exact, scaled, derived, natural }, e => Assert.Equal(ErrorCodes.SizeLimit, e.Code));
         Assert.Contains("requested size", exact.Message);
-        Assert.Contains("--scale", scaled.Hint);
-        Assert.Contains("'in.svg' is 20000x100 pixels", natural.Message);
-        Assert.Contains("--width", natural.Hint);
+        Assert.Equal("Use a smaller --scale, --width, or --height.", exact.Hint);
+        Assert.Null(exact.Data[SourceLoader.FitScaleDataKey]);
+        Assert.Equal(
+            "The requested size of 12800x9600 pixels is larger than the maximum of 8192 pixels per side; a scale of 12 or less fits.",
+            scaled.Message);
+        Assert.Equal("Use --scale 12 (or less), --width, or --height to choose a smaller size.", scaled.Hint);
+        Assert.Equal("12", scaled.Data[SourceLoader.FitScaleDataKey]);
+        Assert.Equal(
+            "'in.svg' is 20000x100 pixels, which is larger than the maximum of 8192 pixels per side; a scale of 0.4 or less fits.",
+            natural.Message);
+        Assert.Equal("Use --scale 0.4 (or less), --width, or --height to choose a smaller size.", natural.Hint);
+        Assert.Equal("0.4", natural.Data[SourceLoader.FitScaleDataKey]);
         Assert.Equal((8192, 8192), edge);
+    }
+
+    /// <summary>
+    ///     Test the scale that fits a natural size into the maximum: rounded down to two significant digits, so the scaled
+    ///     size always fits, without trailing zeros.
+    /// </summary>
+    /// <param name="width">The natural width.</param>
+    /// <param name="height">The natural height.</param>
+    /// <param name="expected">The expected scale.</param>
+    [Theory]
+    [InlineData(14374, 1797, "0.56")]
+    [InlineData(1797, 14374, "0.56")]
+    [InlineData(20000, 100, "0.4")]
+    [InlineData(8193, 10, "0.99")]
+    [InlineData(1000000, 10, "0.0081")]
+    [InlineData(640, 480, "12")]
+    public void SourceLoader_FitScale_NaturalSize_RoundsDownToTwoDigits(int width, int height, string expected)
+    {
+        // Act
+        var fit = SourceLoader.FitScale(width, height);
+
+        // Assert: the documented text, and the size at that scale fits
+        Assert.Equal(expected, fit);
+        var scale = double.Parse(fit, System.Globalization.CultureInfo.InvariantCulture);
+        Assert.InRange(Math.Round(Math.Max(width, height) * scale, MidpointRounding.AwayFromZero), 1, 8192);
     }
 
     /// <summary>

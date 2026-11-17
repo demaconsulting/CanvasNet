@@ -869,7 +869,9 @@ A["a [b] c"]
 A diagram that exceeds a limit of the library (nodes, edges, nesting, label length, layout work, pictures, painted
 pixels; see `canvasnet help limits`) fails with `budget-exceeded`, a text longer than 50,000 characters is
 `corrupt-input`, and a diagram that lays out larger than 8192 pixels on a side is `size-limit` unless a size option
-makes it fit.
+makes it fit. The message gives the laid-out size, the limit, and the scale that fits, for example
+`'flow.mmd' is 14374x1797 pixels, which is larger than the maximum of 8192 pixels per side; a scale of 0.56 or less
+fits.`, with the hint `Use --scale 0.56 (or less), --width, or --height to choose a smaller size.`
 
 ```bash
 canvasnet info flow.mmd --json
@@ -2153,7 +2155,8 @@ Each code, its cause, and what to do:
   not valid, a name that is not an identifier, an unknown view, a page that is not a whole number, or a fragment over
   its limits. What to do: Fix the value, and quote the input in a shell; see *Fragments on Input Paths*.
 - **`size-limit`**: A requested, declared, or resulting size exceeds 8192 pixels on a side (for a chart, only its
-  laid-out size). What to do: Use a smaller size, dpi, or border.
+  laid-out size). When the size follows the input's natural size (no size option, or only `--scale`), the message
+  names the scale that fits (`a scale of 0.56 or less fits`). What to do: Use a smaller size, scale, dpi, or border.
 - **`same-input-output`**: The output file is the input file (also reached through a symbolic link). What to do: Name a
   different output.
 - **`output-exists`**: The output exists and `--no-clobber` was given. What to do: Remove `--no-clobber` or choose
@@ -2270,9 +2273,15 @@ filters:
 
 For each Pandoc run, the shim sends the whole document to `dotnet canvasnet pandoc-filter` once, on standard input,
 and Pandoc continues with the document the tool writes back, so a document of many pictures starts the tool once. The
-tool is not started at all for a document without a code block that has a class and without a local picture other than
-a PNG, JPEG, GIF, or WebP raster. A fix of the filter ships with the tool: the shim is written again only when the
-tool says so (see *Shim protocol* below).
+tool is not started at all for a document without a code block of class `mermaid` and without a local picture whose
+name ends in `.svg`, `.vl.json`, `.vl`, `.scad`, `.vsdx`, `.pptx`, `.pdf`, `.mmd`, or `.mermaid` (in any letter case;
+a name followed by a `#` fragment or a `?` query does not count, as the filter leaves such a picture alone). Code
+blocks of other languages (`bash`, `yaml`, `csharp`, and so on), raster pictures (PNG, JPEG, BMP, TIFF, ICO, AVIF, and
+so on), and remote pictures therefore never need the tool, and a code-only document builds without it. A fix of the
+filter ships with the tool, but the shim lists the classes and file name ends that its tool draws (`--write-shim`
+writes them from the tool's own tables), so write the shim again after each update of the tool: an older shim keeps
+working, but it may start the tool for a document that does not need it, or miss a format the newer tool draws. The
+tool also says when the protocol of the shim changes (see *Shim protocol* below).
 
 A picture whose file name ends in `.scad`, `.vl.json`, `.vl`, `.mmd`, `.mermaid`, `.vsdx`, `.pptx`, or `.pdf` is then
 drawn as a PNG, and the attributes written after it choose how. An SVG picture whose `<image>` elements link one of
@@ -2415,7 +2424,11 @@ protocol the tool does not stops the build with a message such as
 `docs/filters/canvasnet.lua speaks protocol 0; this tool needs protocol 1` and the command that fixes it,
 `dotnet canvasnet pandoc-filter --write-shim docs/filters/canvasnet.lua`; a shim newer than the tool asks to update the
 tool. A failure stops the build with the tool's message (the code `pandoc-filter-error` for a mistake in a picture),
-after the warnings of the pictures before it.
+after the warnings of the pictures before it. A picture larger than 8192 pixels on a side, such as a wide Mermaid
+flowchart, stops the build with its laid-out size, the limit, and the `scale` attribute that fits, for example
+`drawing 'mermaid block (flowchart TD)' failed: '...' is 14374x1797 pixels, which is larger than the maximum of 8192
+pixels per side; a scale of 0.56 or less fits. (Set the block's scale attribute to 0.56 or less, for example
+{.mermaid scale=0.56}.)`
 
 The CanvasNet repository does not pin the tool in its manifest. Its build installs the package it has just built as a
 local tool before the documents are built, and uses `CANVASNET_TOOL` only on a developer's machine. `canvasnet help

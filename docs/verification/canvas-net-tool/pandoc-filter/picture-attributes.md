@@ -27,6 +27,11 @@ while `https://example.com/part.scad` and `photo.png` give none.
 
 **PictureAttributes_IsSvg_LocalSvgOnly**: `a/Drawing.SVG` is a drawing; a URL ending in `.svg` and `a.svgz` are not.
 
+**PictureAttributes_PictureSuffixesAndBlockClasses_AreWhatTheEngineDraws**: `PictureSuffixes` is `.svg`, `.vl.json`,
+`.vl`, `.scad`, `.vsdx`, `.pptx`, `.pdf`, `.mmd`, `.mermaid` and `BlockClasses` is `mermaid`; every suffix, in lower
+and upper case, is a drawing (`IsSvg`) or has a kind (`KindOf`); `BlockKindOf` gives `mermaid` for `mermaid` alone or
+after another class, and nothing for `Mermaid`, `bash`, or no class.
+
 **PictureAttributes_Build_InvalidAttribute_ThrowsTheLuaMessage**: each invalid value (`size` 0x10 and 8193x10, `scale`
 0 and `1e3`, `background` `#12`, `page` 0, `dpi` 1.5 for `.vsdx` and 0 for `.pdf`, an unknown `view`, `azimuth`
 360001, `elevation` -90.5, an unknown `projection` and `theme`), each attribute on the wrong kind (`view` on a PDF,

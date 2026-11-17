@@ -382,4 +382,83 @@ public class PandocFilterEngineTests
         Assert.Equal(untouched, output);
         Assert.Empty(drawer.Calls);
     }
+
+    /// <summary>
+    ///     Test that every picture and code block the engine does not draw is passed through untouched without a draw: the
+    ///     rasters and extension-less paths outside <see cref="PictureAttributes.PictureSuffixes"/>, a supported name
+    ///     followed by a fragment or a query (the name must end in the suffix), remote pictures, and code blocks without
+    ///     one of <see cref="PictureAttributes.BlockClasses"/> (the class is exact, so <c>Mermaid</c> is not one).
+    /// </summary>
+    [Fact]
+    public void PandocFilterEngine_Run_PicturesItDoesNotDraw_PassThroughUntouched()
+    {
+        // Arrange: none of the sources exist, so a picture the engine tried to draw would fail the run
+        using var tree = new FilterTree();
+        var drawer = new StubDrawer();
+        var images = new[]
+        {
+            "a.bmp", "scan.tif", "favicon.ico", "photo.avif", "photo.webp", "photo.JPG", "diagram", "docs/README",
+            "report.pdf#page=2", "chart.vl.json?x", "https://example.com/flow.mmd", "data:,drawing.svg"
+        }.Select(src => PandocDoc.Image(src)).ToArray();
+        var untouched = PandocDoc.Document(
+            PandocDoc.Para(images),
+            PandocDoc.CodeBlock("", ["bash"], "echo hi"),
+            PandocDoc.CodeBlock("", ["yaml"], "a: 1"),
+            PandocDoc.CodeBlock("", ["csharp"], "var x = 1;"),
+            PandocDoc.CodeBlock("", ["text"], "plain"),
+            PandocDoc.CodeBlock("", ["Mermaid"], "flowchart LR"),
+            PandocDoc.CodeBlock("", [], "no class"));
+
+        // Act
+        var output = tree.Run(drawer, untouched);
+
+        // Assert
+        Assert.Equal(untouched, output);
+        Assert.Empty(drawer.Calls);
+        Assert.Empty(tree.CacheFiles());
+    }
+
+    /// <summary>
+    ///     Test that a picture larger than the maximum image size whose error carries the scale that fits gets a hint that
+    ///     names the <c>scale</c> attribute (of the block, or of the picture) instead of the command-line options, and that a
+    ///     size-limit error without that scale keeps the tool's hint.
+    /// </summary>
+    [Fact]
+    public void PandocFilterEngine_Run_OversizedPicture_HintNamesTheScaleAttribute()
+    {
+        // Arrange: a size-limit error with the scale that fits, as the viewer raises it, and one without
+        using var tree = new FilterTree();
+        tree.Write("wide.mmd", "flowchart LR\n  A");
+        tree.Write("tall.mmd", "flowchart TD\n  B");
+        var drawer = new StubDrawer
+        {
+            Failure = name =>
+            {
+                var error = new ViewerException(ErrorCodes.SizeLimit, $"'{name}' is too large; a scale of 0.56 or less fits.", "Use --scale 0.56 (or less).");
+                if (name != "tall.mmd")
+                {
+                    error.Data["DemaConsulting.CanvasNet.Viewer.FitScale"] = "0.56";
+                }
+
+                return error;
+            }
+        };
+
+        // Act
+        var block = Assert.Throws<ToolException>(() => tree.Run(drawer, PandocDoc.Document(PandocDoc.CodeBlock("", ["mermaid"], "flowchart TD\n  C"))));
+        var image = Assert.Throws<ToolException>(() => tree.Run(drawer, PandocDoc.Document(PandocDoc.Para(PandocDoc.Image("wide.mmd")))));
+        var plain = Assert.Throws<ToolException>(() => tree.Run(drawer, PandocDoc.Document(PandocDoc.Para(PandocDoc.Image("tall.mmd")))));
+
+        // Assert
+        Assert.Equal(ErrorCodes.SizeLimit, block.Code);
+        Assert.EndsWith(
+            "is too large; a scale of 0.56 or less fits. (Set the block's scale attribute to 0.56 or less, for example {.mermaid scale=0.56}.)",
+            block.Message,
+            StringComparison.Ordinal);
+        Assert.StartsWith("drawing 'mermaid block (flowchart TD)' failed: ", block.Message, StringComparison.Ordinal);
+        Assert.Equal(
+            "drawing 'wide.mmd' failed: 'wide.mmd' is too large; a scale of 0.56 or less fits. (Set the picture's scale attribute to 0.56 or less, for example {scale=0.56}.)",
+            image.Message);
+        Assert.Equal("drawing 'tall.mmd' failed: 'tall.mmd' is too large; a scale of 0.56 or less fits. (Use --scale 0.56 (or less).)", plain.Message);
+    }
 }

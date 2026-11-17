@@ -659,12 +659,15 @@ sections:
         title: >-
           The SourceLoader class shall refuse, with the error code size-limit, an image or a requested
           size with a side larger than 8192 pixels, before decoding or rendering wherever the file
-          header gives the size.
+          header gives the size, and, when the size follows the natural size, shall name the size, the
+          limit, and the scale that fits (rounded down to two significant digits).
         justification: |
           An image of that size can exhaust memory; refusing it early with an actionable message is
-          cheaper and clearer than failing during the decode.
+          cheaper and clearer than failing during the decode, and a wide diagram is fixed fastest by
+          the scale that brings it within the limit.
         tests:
           - SourceLoader_ComputeTargetSize_BeyondMaximum_ThrowsSizeLimit
+          - SourceLoader_FitScale_NaturalSize_RoundsDownToTwoDigits
           - SourceLoader_Load_PngLargerThanMaximum_ThrowsSizeLimitBeforeDecoding
           - SourceLoader_Load_SvgWithHugeNaturalSize_NeedsSizeOption
           - SourceLoader_Load_SizeBeyondMaximum_ThrowsSizeLimit

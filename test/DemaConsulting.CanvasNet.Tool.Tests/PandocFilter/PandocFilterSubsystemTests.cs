@@ -169,6 +169,31 @@ public class PandocFilterSubsystemTests
     }
 
     /// <summary>
+    ///     Test that a Mermaid block that lays out larger than the maximum image size stops the run with size-limit, the
+    ///     laid-out size, the limit, and the <c>scale</c> attribute that fits, and that the block draws with that scale.
+    /// </summary>
+    [Fact]
+    public void PandocFilter_Run_OversizedMermaidBlock_SuggestsTheScaleAttribute()
+    {
+        // Arrange: a flowchart of a long chain, far wider than 8192 pixels
+        using var tree = new FilterTree();
+        var text = "flowchart LR\n" + string.Join("\n", Enumerable.Range(0, 150).Select(i => $"  N{i} --> N{i + 1}"));
+        var drawer = new ToolPictureDrawer();
+
+        // Act
+        var error = Assert.Throws<ToolException>(() => tree.Run(drawer, PandocDoc.Document(PandocDoc.CodeBlock("", ["mermaid"], text))));
+        var fit = Regex.Match(error.Message, @"\{\.mermaid scale=([0-9.]+)\}", RegexOptions.None, TimeSpan.FromSeconds(5)).Groups[1].Value;
+        var drawn = tree.Run(drawer, PandocDoc.Document(PandocDoc.CodeBlock("", ["mermaid"], text, ("scale", fit))));
+
+        // Assert
+        Assert.Equal("size-limit", error.Code);
+        Assert.StartsWith("drawing 'mermaid block (flowchart LR)' failed: ", error.Message, StringComparison.Ordinal);
+        Assert.Contains($" pixels, which is larger than the maximum of 8192 pixels per side; a scale of {fit} or less fits. ", error.Message, StringComparison.Ordinal);
+        Assert.Contains($"(Set the block's scale attribute to {fit} or less, for example {{.mermaid scale={fit}}}.)", error.Message, StringComparison.Ordinal);
+        Assert.Single(PandocDoc.ImageSources(drawn));
+    }
+
+    /// <summary>
     ///     A drawer that draws with the tool and counts the pictures it drew.
     /// </summary>
     private sealed class CountingDrawer : IPictureDrawer

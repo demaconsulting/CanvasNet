@@ -32,6 +32,7 @@ sections:
           - CanvasNetTool-PandocFilter-PandocAst-RewriteImage
           - CanvasNetTool-PandocFilter-PandocAst-Warnings
           - CanvasNetTool-PandocFilter-PictureAttributes-Kinds
+          - CanvasNetTool-PandocFilter-PictureAttributes-Registry
           - CanvasNetTool-PandocFilter-PictureAttributes-Defaults
           - CanvasNetTool-PandocFilter-PictureAttributes-Options
           - CanvasNetTool-PandocFilter-PictureAttributes-Keep
@@ -102,8 +103,10 @@ sections:
           The PandocFilter subsystem shall stop at a mistake in a picture (an attribute that is not valid, a source that
           is not in the resource path, more than 64 levels or 512 files, a variable of the filter that is not valid, or
           a cache file that cannot be written) with the code pandoc-filter-error and a message that names the picture,
-          shall report a drawing that fails with the code of the tool, shall report the failure of the first picture in
-          the document when several fail, and shall keep the warnings of the pictures before it.
+          shall report a drawing that fails with the code of the tool, shall report a picture that lays out larger
+          than the maximum image size with its size, the limit, and the scale attribute that fits, shall report the
+          failure of the first picture in the document when several fail, and shall keep the warnings of the pictures
+          before it.
         justification: |
           A build must stop at a mistake with a message that says which picture to fix, the same message whatever the
           scheduling, and must not lose the warnings it had already found.
@@ -113,10 +116,12 @@ sections:
           - CanvasNetTool-PandocFilter-PictureAttributes-ApplicableKinds
           - CanvasNetTool-PandocFilter-DependencyHasher-Limits
           - CanvasNetTool-PandocFilter-PandocFilterEngine-Failures
+          - CanvasNetTool-PandocFilter-PandocFilterEngine-OversizedPicture
           - CanvasNetTool-PandocFilter-PandocFilterEngine-LowestPositionWins
           - CanvasNetTool-PandocFilter-PandocFilterEngine-WarningsBeforeFailure
         tests:
           - PandocFilter_Run_PictureMistakes_StopTheRunNamingThePicture
+          - PandocFilter_Run_OversizedMermaidBlock_SuggestsTheScaleAttribute
 
       - id: CanvasNetTool-PandocFilter-FileAccess
         title: >-
@@ -141,13 +146,15 @@ sections:
       - id: CanvasNetTool-PandocFilter-Shim
         title: >-
           The PandocFilter subsystem shall ship the Lua shim of the filter inside the tool, write it byte for byte on
-          request, and accept exactly the protocols the tool speaks, refusing an older shim with a hint that names the
-          command that writes it again at its own path and a newer one with a hint to update the tool.
+          request with a fast path that starts the tool only for the code blocks and pictures the tool draws, and
+          accept exactly the protocols the tool speaks, refusing an older shim with a hint that names the command that
+          writes it again at its own path and a newer one with a hint to update the tool.
         justification: |
           Each repository keeps only the shim, so a fix of the filter ships with the tool; a shim and a tool that do not
           match must say how to fix it instead of failing in an obscure way.
         children:
           - CanvasNetTool-PandocFilter-PandocFilterShim-EmbeddedShim
+          - CanvasNetTool-PandocFilter-PandocFilterShim-FastPath
           - CanvasNetTool-PandocFilter-PandocFilterShim-RepositoryShim
           - CanvasNetTool-PandocFilter-PandocFilterShim-Protocol
           - CanvasNetTool-PandocFilter-PandocFilterShim-ProtocolErrors

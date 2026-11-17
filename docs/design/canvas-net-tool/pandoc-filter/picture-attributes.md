@@ -20,7 +20,15 @@ order).
 **Kinds** (constants): `vegalite`, `scad`, `vsdx`, `pptx`, `pdf`, and `mermaid`.
 
 **Suffixes**: the name ends checked in order: `.vl.json` and `.vl` (`vegalite`), `.scad`, `.vsdx`, `.pptx`, `.pdf`,
-`.mmd` and `.mermaid` (`mermaid`).
+`.mmd` and `.mermaid` (`mermaid`). `SvgSuffix` = `.svg` is the name end of a drawing (`IsSvg`).
+
+**BlockClassKinds** (private): the classes of the code blocks the filter draws, each with its kind: `mermaid`
+(`mermaid`).
+
+**PictureSuffixes**: `SvgSuffix` followed by the `Suffixes`, in order, the lowercase name ends of every local picture
+the filter may change. **BlockClasses**: the classes of `BlockClassKinds`. These two lists are the filter's own
+registry of what it handles: `PandocFilterShim.Generate` writes them into the shim's fast path, so the shim starts
+the tool for exactly the pictures and code blocks the engine does not leave alone.
 
 **Limits and defaults**: `ScadDefaultSize` = `1600x1200`, `DefaultBackground` = `white` (models only),
 `MaxTriangles` = `2000000`, and `MaxPixels` = 8192.
@@ -36,7 +44,10 @@ order).
 `C:` is not one), otherwise the kind of the first suffix the ASCII-lowercased name ends with, or `null`.
 
 **IsSvg(src)**: `true` when `src` has no URL scheme and ends in `.svg` in any letter case; the engine checks it before
-`KindOf`.
+`KindOf`. Neither method cuts a fragment or query off `src`, so `report.pdf#page=2` is left alone.
+
+**BlockKindOf(classes)**: the kind of the first entry of `BlockClassKinds` whose class the block has (an exact,
+case-sensitive comparison, so `Mermaid` is not `mermaid`), or `null` when it has none and is left alone.
 
 **Build(name, kind, attributes)**: walks the attributes in order. Every key that starts with `param-` or `define-` is
 checked, a bare `param-` or `define-` included, so none stays on the picture. `param-NAME` (Vega-Lite only, `NAME` not
@@ -94,6 +105,7 @@ message of the Lua filter, for example:
 
 #### Callers
 
-- **PandocFilterEngine** - `IsSvg`, `KindOf`, `Build`, `BuildSvg`, `BlockName`, and `SplitCaption` while it plans the
-  pictures of a document.
+- **PandocFilterShim** - `BlockClasses` and `PictureSuffixes`, written into the shim's fast path.
+- **PandocFilterEngine** - `IsSvg`, `KindOf`, `BlockKindOf`, `Build`, `BuildSvg`, `BlockName`, and `SplitCaption` while
+  it plans the pictures of a document.
 - **DependencyHasher** - the kind constants and `KindOf` to find the composite links of an SVG drawing.

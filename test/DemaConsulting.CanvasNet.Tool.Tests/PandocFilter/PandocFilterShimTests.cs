@@ -9,23 +9,63 @@ namespace DemaConsulting.CanvasNet.Tool.Tests.PandocFilter;
 public class PandocFilterShimTests
 {
     /// <summary>
-    ///     Test that the embedded shim is the source file byte for byte (line endings aside), speaks the current protocol,
-    ///     and names the tool version that has the command.
+    ///     Test that the shim is the source template with the filter's tables filled in (line endings aside), speaks the
+    ///     current protocol, and names the tool version that has the command.
     /// </summary>
     [Fact]
     public void PandocFilterShim_Bytes_AreTheSourceFileAndSpeakTheProtocol()
     {
-        // Arrange: the source file of the shim
+        // Arrange: the source template of the shim
         var source = File.ReadAllText(Path.Combine(RepositoryRoot(), "src", "DemaConsulting.CanvasNet.Tool", "PandocFilter", "canvasnet.lua"));
 
         // Act
         var text = Encoding.UTF8.GetString(PandocFilterShim.Bytes);
 
         // Assert
-        Assert.Equal(source.Replace("\r\n", "\n", StringComparison.Ordinal), text.Replace("\r\n", "\n", StringComparison.Ordinal));
+        Assert.Contains(PandocFilterShim.ClassesPlaceholder, source, StringComparison.Ordinal);
+        Assert.Contains(PandocFilterShim.SuffixesPlaceholder, source, StringComparison.Ordinal);
+        Assert.Equal(PandocFilterShim.Generate(source).Replace("\r\n", "\n", StringComparison.Ordinal), text.Replace("\r\n", "\n", StringComparison.Ordinal));
         Assert.Contains($"local PROTOCOL = \"{PandocFilterShim.Protocol}\"", text, StringComparison.Ordinal);
         Assert.Contains("DemaConsulting.CanvasNet.Tool 0.2.0-beta.11 or later", text, StringComparison.Ordinal);
         Assert.InRange(PandocFilterShim.Protocol, PandocFilterShim.MinProtocol, PandocFilterShim.MaxProtocol);
+    }
+
+    /// <summary>
+    ///     Test that the shim's fast path lists exactly the code-block classes and picture suffixes the engine draws, written
+    ///     from the engine's own tables, and that no placeholder is left.
+    /// </summary>
+    [Fact]
+    public void PandocFilterShim_Bytes_ListWhatTheEngineDraws()
+    {
+        // Act
+        var text = Encoding.UTF8.GetString(PandocFilterShim.Bytes);
+
+        // Assert
+        Assert.Contains("local CLASSES = { \"mermaid\" }\n", text, StringComparison.Ordinal);
+        Assert.Contains(
+            "local SUFFIXES = { \".svg\", \".vl.json\", \".vl\", \".scad\", \".vsdx\", \".pptx\", \".pdf\", \".mmd\", \".mermaid\" }\n",
+            text,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(PandocFilterShim.ClassesPlaceholder, text, StringComparison.Ordinal);
+        Assert.DoesNotContain(PandocFilterShim.SuffixesPlaceholder, text, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Test that generating the shim fills each placeholder with a Lua list of strings, and refuses a template whose
+    ///     placeholder is missing or repeated (a defect of the build).
+    /// </summary>
+    [Fact]
+    public void PandocFilterShim_Generate_PlaceholdersExactlyOnce_FillsOrRefuses()
+    {
+        // Act
+        var filled = PandocFilterShim.Generate("c = @CLASSES@\ns = @SUFFIXES@\n");
+        var missing = Assert.Throws<InvalidOperationException>(() => PandocFilterShim.Generate("c = @CLASSES@\n"));
+        var twice = Assert.Throws<InvalidOperationException>(() => PandocFilterShim.Generate("@CLASSES@ @CLASSES@ @SUFFIXES@"));
+
+        // Assert
+        Assert.StartsWith("c = { \"mermaid\" }\ns = { \".svg\", ", filled, StringComparison.Ordinal);
+        Assert.Contains("@SUFFIXES@", missing.Message, StringComparison.Ordinal);
+        Assert.Contains("@CLASSES@", twice.Message, StringComparison.Ordinal);
     }
 
     /// <summary>

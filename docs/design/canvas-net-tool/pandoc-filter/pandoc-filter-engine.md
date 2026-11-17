@@ -64,10 +64,12 @@ Private nested types:
 not know is left alone; otherwise the source is located with `FilterPaths.LocateSource` in
 `FilterSettings.GetResourceDirectories()` and planned with `PlanDraw`.
 
-**PlanBlock**: a code block without the class `mermaid` is left alone. Otherwise the caption attribute is split off
-(`PictureAttributes.SplitCaption`), the block's text and a line feed are written atomically to the cache folder
-(`PictureCache.BlockSourceFile`, a `.mmd` named by the SHA-1 of the text), and the file is planned with `PlanDraw` as
-kind `mermaid` with the stem `mermaid`.
+**PlanBlock**: a code block for which `PictureAttributes.BlockKindOf` finds no kind (it has no class `mermaid`) is left
+alone. Otherwise the caption attribute is split off (`PictureAttributes.SplitCaption`), the block's text and a line
+feed are written atomically to the cache folder (`PictureCache.BlockSourceFile`, a `.mmd` named by the SHA-1 of the
+text), and the file is planned with `PlanDraw` as that kind (`mermaid`) with the kind as the stem. Every picture and
+code block that `PlanImage` and `PlanBlock` leave alone passes through the run untouched, which is what the shim's
+fast path relies on.
 
 **PlanDraw**: builds the options and kept attributes (`PictureAttributes.Build`), the file access
 (`FilterSettings.FileAccessOf`), the dependency hashes (`DependencyHasher.ForPicture`, reading through
@@ -128,7 +130,11 @@ All errors are `ToolException` (a `ViewerException`), with the Lua filter's mess
 - `drawing '<name>' failed: <message>` or `flattening '<name>' failed: <message>`, followed by the hint in parentheses
   when the tool gave one, for an `ArgumentException` or `InvalidOperationException` of the drawer; the code is the
   `ViewerException`'s code, `usage-error` for an `ArgumentException`, or `operation-failed` otherwise. The partial
-  file is deleted.
+  file is deleted. A `size-limit` error that carries the scale that fits (`Exception.Data` under the key
+  `DemaConsulting.CanvasNet.Viewer.FitScale`, set by `SourceLoader.ComputeTargetSize` for a size that follows the
+  natural size) gets a hint that names the attribute instead of the command-line options: `Set the block's scale
+  attribute to <fit> or less, for example {.mermaid scale=<fit>}.` for a code block (the `Block` flag of the job), and
+  `Set the picture's scale attribute to <fit> or less, for example {scale=<fit>}.` for an image.
 - In a restrictive file-access mode, a diagnostic `image-access-denied` or `file-access-denied` stops the run with
   `drawing '<name>' failed: <message> (denied by CANVASNET_FILE_ACCESS/CANVASNET_ROOTS)` (`file-access-denied`), for a
   render and a flatten alike, before a marker or a picture is written.

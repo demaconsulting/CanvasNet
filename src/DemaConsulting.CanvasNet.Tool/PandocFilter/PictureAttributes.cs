@@ -57,6 +57,9 @@ internal static class PictureAttributes
     /// <summary>The largest width or height of <c>size</c>, in pixels.</summary>
     internal const int MaxPixels = 8192;
 
+    /// <summary>The file name end of an SVG drawing, which the filter flattens when it links a picture only the tool draws.</summary>
+    internal const string SvgSuffix = ".svg";
+
     /// <summary>
     ///     The file name ends of the inputs the filter draws, checked in this order.
     /// </summary>
@@ -65,6 +68,27 @@ internal static class PictureAttributes
         (".vl.json", VegaLite), (".vl", VegaLite), (".scad", Scad), (".vsdx", Vsdx), (".pptx", Pptx), (".pdf", Pdf),
         (".mmd", Mermaid), (".mermaid", Mermaid)
     ];
+
+    /// <summary>
+    ///     The classes of the code blocks the filter draws, each with the kind it draws them as.
+    /// </summary>
+    private static readonly (string Class, string Kind)[] BlockClassKinds = [(Mermaid, Mermaid)];
+
+    /// <summary>
+    ///     Gets the lowercase file name ends of every local picture the filter may change: <see cref="SvgSuffix"/> and the
+    ///     ends of the inputs it draws, in the order they are checked.
+    /// </summary>
+    /// <remarks>
+    ///     A picture whose <c>src</c> has no URL scheme and ends in none of these (in any letter case) is left alone, so
+    ///     the shim writes this list into its fast path (<see cref="PandocFilterShim"/>).
+    /// </remarks>
+    internal static IReadOnlyList<string> PictureSuffixes { get; } = [SvgSuffix, .. Suffixes.Select(s => s.Suffix)];
+
+    /// <summary>
+    ///     Gets the classes of the code blocks the filter draws (exact, case-sensitive); any other code block is left alone,
+    ///     so the shim writes this list into its fast path (<see cref="PandocFilterShim"/>).
+    /// </summary>
+    internal static IReadOnlyList<string> BlockClasses { get; } = [.. BlockClassKinds.Select(b => b.Class)];
 
     /// <summary>The views of a model.</summary>
     private static readonly HashSet<string> Views = new(StringComparer.Ordinal) { "iso", "front", "back", "left", "right", "top", "bottom" };
@@ -118,7 +142,25 @@ internal static class PictureAttributes
     /// <returns><see langword="true"/> when the name has no URL scheme and ends in <c>.svg</c> in any letter case.</returns>
     internal static bool IsSvg(string src)
     {
-        return !HasUrlScheme(src) && FilterPaths.AsciiLower(src).EndsWith(".svg", StringComparison.Ordinal);
+        return !HasUrlScheme(src) && FilterPaths.AsciiLower(src).EndsWith(SvgSuffix, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Gets the kind a code block is drawn as, from its classes.
+    /// </summary>
+    /// <param name="classes">The block's classes.</param>
+    /// <returns>The kind of the first of <see cref="BlockClasses"/> the block has, or <see langword="null"/> when it has none (it is left alone).</returns>
+    internal static string? BlockKindOf(IReadOnlyList<string> classes)
+    {
+        foreach (var (blockClass, kind) in BlockClassKinds)
+        {
+            if (classes.Contains(blockClass, StringComparer.Ordinal))
+            {
+                return kind;
+            }
+        }
+
+        return null;
     }
 
     /// <summary>
