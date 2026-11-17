@@ -621,9 +621,10 @@ public static partial class SourceLoader
     internal static string FitScale(int naturalWidth, int naturalHeight)
     {
         var exact = (double)Surface.MaxDimension / Math.Max(1, Math.Max(naturalWidth, naturalHeight));
-        var decimals = Math.Max(0, 1 - (int)Math.Floor(Math.Log10(exact)));
-        var step = Math.Pow(10, -decimals);
+        var exponent = (int)Math.Floor(Math.Log10(exact));
+        var step = Math.Pow(10, exponent - 1);
         var fit = Math.Floor(exact / step) * step;
+        var decimals = Math.Max(0, 1 - exponent);
         var text = fit.ToString("F" + decimals.ToString(CultureInfo.InvariantCulture), CultureInfo.InvariantCulture);
         return decimals > 0 ? text.TrimEnd('0').TrimEnd('.') : text;
     }

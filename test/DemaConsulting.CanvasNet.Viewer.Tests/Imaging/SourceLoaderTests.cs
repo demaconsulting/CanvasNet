@@ -652,6 +652,8 @@ public class SourceLoaderTests
     [InlineData(8193, 10, "0.99")]
     [InlineData(1000000, 10, "0.0081")]
     [InlineData(640, 480, "12")]
+    [InlineData(10, 8, "810")]
+    [InlineData(1, 1, "8100")]
     public void SourceLoader_FitScale_NaturalSize_RoundsDownToTwoDigits(int width, int height, string expected)
     {
         // Act

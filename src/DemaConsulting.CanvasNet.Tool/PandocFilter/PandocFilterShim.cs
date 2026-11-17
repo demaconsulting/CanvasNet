@@ -21,7 +21,7 @@ namespace DemaConsulting.CanvasNet.Tool.PandocFilter;
 ///         The embedded file is a template: its fast path, which decides whether a document needs the tool at all, holds
 ///         the placeholders <see cref="ClassesPlaceholder"/> and <see cref="SuffixesPlaceholder"/>, which
 ///         <see cref="Generate"/> replaces with Lua lists of the code-block classes and picture suffixes the filter draws
-///         (<see cref="PictureAttributes.BlockClasses"/>, <see cref="PictureAttributes.PictureSuffixes"/>). The shim a
+///         (<see cref="PictureAttributes.BlockClasses"/>, <see cref="PictureAttributes.PictureSuffixes"/>). The shim that a
 ///         repository keeps therefore starts the tool for exactly what this tool draws, and is written again after the
 ///         tool is updated.
 ///     </para>

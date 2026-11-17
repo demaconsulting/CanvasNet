@@ -182,7 +182,7 @@ public class PandocFilterSubsystemTests
 
         // Act
         var error = Assert.Throws<ToolException>(() => tree.Run(drawer, PandocDoc.Document(PandocDoc.CodeBlock("", ["mermaid"], text))));
-        var fit = Regex.Match(error.Message, @"\{\.mermaid scale=([0-9.]+)\}", RegexOptions.None, TimeSpan.FromSeconds(5)).Groups[1].Value;
+        var fit = Regex.Match(error.Message, @"\{\.mermaid scale=([0-9.]+)\}").Groups[1].Value;
         var drawn = tree.Run(drawer, PandocDoc.Document(PandocDoc.CodeBlock("", ["mermaid"], text, ("scale", fit))));
 
         // Assert
