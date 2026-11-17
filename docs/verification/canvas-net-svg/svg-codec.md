@@ -261,49 +261,51 @@ rejected with `InvalidDataException` once the bounded recursion guard is exceede
 `SvgCodec_Load_MarkerOnRectCircleEllipse_NeverRendersMarker`,
 `SvgCodec_Load_MarkerContent_DoesNotInheritReferencingShapeFillOrStroke`,
 `SvgCodec_Load_ArrowMarkersFixture_RendersArrowheadPastLineEnd`,
-`SvgCodec_Load_MarkerEndOnClosedPolygon_OrientsUsingClosingEdgeTangent`,
+`SvgCodec_Load_MarkerEndOnClosedPolygon_PlacesEndAtClosingVertex`,
+`SvgArrow_BuildMarkerVertices_OpenPath_EndsAtLastPoint`,
+`SvgArrow_BuildMarkerVertices_ClosedTriangle_EndsAtClosingVertex`,
+`SvgArrow_BuildMarkerVertices_ZeroLengthClose_UsesThePreviousSegment`,
+`SvgArrow_BuildMarkerVertices_TwoClosedSubpaths_CloseEachSubpath`,
+`SvgArrow_Load_ClosedTriangleMarkers_MatchTheBrowserPlacement`,
 `SvgCodec_Load_MarkerStrokeWidthUnitsOnScaledDocument_ScalesOnceNotTwice`,
 `SvgCodec_Load_MarkerContentWithFilterAttribute_FilterHasNoEffect`
 
-Asserts a `marker-end` reference renders its `marker` element's content past a `line`'s own end
-point, sized in user-space units; asserts `marker-start`/`marker-mid`/`marker-end` each
-independently resolve and render their own distinct marker at the correct vertex of a
-multi-vertex `polyline`, with each marker's own reference point (`refX`/`refY`) landing exactly on
-its vertex regardless of rotation; asserts `orient="auto"` orients a marker along a horizontal,
-vertical, and 45-degree diagonal segment's own direction of travel (the diagonal case uses an
-alpha threshold rather than exact full opacity, tolerating this rasterizer's edge anti-aliasing on
-a thin, diagonally rotated shape); asserts an omitted `orient` attribute uses the fixed 0-degree
-default rather than following the vertex tangent like an explicit `orient="auto"` (a regression
-test for a defect where an absent/blank `orient` was incorrectly routed into the same tangent-
-following branch as an explicit `auto`); asserts a plain `orient="auto"` `marker-start` points into the
-line's own body while `orient="auto-start-reverse"` reverses it by 180 degrees to point away from
-the line instead; asserts `markerUnits="userSpaceOnUse"` keeps a marker's size independent of the
-referencing shape's effective stroke width while the default `markerUnits="strokeWidth"` scales it
-proportionally; asserts a marker's own `viewBox` is fitted ("meet" scale-down) into
-`markerWidth`/`markerHeight` rather than rendering at its raw, unfitted size; asserts a
-multi-subpath `path`'s `marker-start`/`marker-end` apply only to the very first/last vertex of the
-whole path, not to each subpath's own start/end, with the interior subpath-boundary vertices
-correctly classified as "mid" instead; asserts `rect`/`circle`/`ellipse` never render a marker
-even when a `marker-end` attribute is present, since these shapes have no natural vertices to
-orient one along; and asserts a marker's own content renders with a fresh presentation-attribute
-cascade from the SVG/CSS initial defaults, not inheriting the referencing shape's own
-`fill`/`stroke`. A real fixture file (`SvgFixtures/arrow-markers.svg`) exercises the common
-`marker-end` arrowhead scenario end-to-end. Asserts a closed `polygon`'s implicit closing segment
-(back to its first vertex) contributes to the `orient="auto"` tangent computed for the last
-vertex's `marker-end` - averaged with the incoming open-path edge's own tangent - rather than the
-closing edge being silently ignored (a regression test for a defect where a closed shape's final
-vertex was oriented using only its incoming edge). Asserts a default `markerUnits="strokeWidth"`
-marker on a document with a non-identity root `viewBox` fit (a uniform 2x scale from local units
-to pixels) scales by exactly `stroke-width * root-scale` once, not twice (a regression test for a
-defect where the already-pixel-scaled effective stroke width was passed into the marker's own
-`strokeWidth`-units sizing, and then the root scale was re-applied a second time via the shared
-`shapeTransform`, making the marker four times too large instead of two times). Asserts a shape
-inside a `marker` element's own content with a `filter="url(#id)"` attribute referencing a real
-(`feFlood`) filter renders exactly as if that `filter` attribute were absent - the marker's own
-fill color, not the flood's - a regression test for a defect where marker-content rendering
-re-entered the same shape/text dispatch used everywhere else, which unconditionally resolved and
-evaluated a shape's own `filter` attribute, contradicting this codec's documented "filters on
-marker content have no effect" scope decision.
+Asserts a `marker-end` reference renders its `marker` element's content past a `line`'s own end point, sized in
+user-space units; asserts `marker-start`/`marker-mid`/`marker-end` each independently resolve and render their own
+distinct marker at the correct vertex of a multi-vertex `polyline`, with each marker's own reference point
+(`refX`/`refY`) landing exactly on its vertex regardless of rotation; asserts `orient="auto"` orients a marker along a
+horizontal, vertical, and 45-degree diagonal segment's own direction of travel (the diagonal case uses an alpha
+threshold rather than exact full opacity, tolerating this rasterizer's edge anti-aliasing on a thin, diagonally rotated
+shape); asserts an omitted `orient` attribute uses the fixed 0-degree default rather than following the vertex tangent
+like an explicit `orient="auto"` (a regression test for a defect where an absent/blank `orient` was incorrectly routed
+into the same tangent- following branch as an explicit `auto`); asserts a plain `orient="auto"` `marker-start` points
+into the line's own body while `orient="auto-start-reverse"` reverses it by 180 degrees to point away from the line
+instead; asserts `markerUnits="userSpaceOnUse"` keeps a marker's size independent of the referencing shape's effective
+stroke width while the default `markerUnits="strokeWidth"` scales it proportionally; asserts a marker's own `viewBox` is
+fitted ("meet" scale-down) into `markerWidth`/`markerHeight` rather than rendering at its raw, unfitted size; asserts a
+multi-subpath `path`'s `marker-start`/`marker-end` apply only to the very first/last vertex of the whole path, not to
+each subpath's own start/end, with the interior subpath-boundary vertices correctly classified as "mid" instead; asserts
+`rect`/`circle`/`ellipse` never render a marker even when a `marker-end` attribute is present, since these shapes have
+no natural vertices to orient one along; and asserts a marker's own content renders with a fresh presentation-attribute
+cascade from the SVG/CSS initial defaults, not inheriting the referencing shape's own `fill`/`stroke`. A real fixture
+file (`SvgFixtures/arrow-markers.svg`) exercises the common `marker-end` arrowhead scenario end-to-end. Asserts a closed
+`polygon`'s `marker-end` is drawn at its closing vertex (back at its first point, as in SVG 2 and browsers), oriented by
+bisecting the closing and the first segment, and nothing at its last explicit point. The `SvgArrowTests.cs` geometry
+tests call `BuildMarkerVertices` and `ComputeVertexAngleDegrees` directly: an open path has no closing vertex; the
+closed triangle `M30,420 L190,420 L110,520 Z` (case 9 of the arrow reference drawing, checked against a browser
+rendering) has four vertices with the end at (30,420) at -64.33 degrees, mids at 64.33 and 180 degrees, and
+`auto-start-reverse` at 115.67 degrees; a zero-length closing segment takes the previous segment's direction; and each
+closed subpath of a two-subpath path gets its own closing vertex, the first one a mid vertex. A render test of case 9
+checks the end head, the reversed start head, and the absence of a head at the old place. Asserts a default
+`markerUnits="strokeWidth"` marker on a document with a non-identity root `viewBox` fit (a uniform 2x scale from local
+units to pixels) scales by exactly `stroke-width * root-scale` once, not twice (a regression test for a defect where the
+already-pixel-scaled effective stroke width was passed into the marker's own `strokeWidth`-units sizing, and then the
+root scale was re-applied a second time via the shared `shapeTransform`, making the marker four times too large instead
+of two times). Asserts a shape inside a `marker` element's own content with a `filter="url(#id)"` attribute referencing
+a real (`feFlood`) filter renders exactly as if that `filter` attribute were absent - the marker's own fill color, not
+the flood's - a regression test for a defect where marker-content rendering re-entered the same shape/text dispatch used
+everywhere else, which unconditionally resolved and evaluated a shape's own `filter` attribute, contradicting this
+codec's documented "filters on marker content have no effect" scope decision.
 
 #### CanvasNetSvg-SvgCodec-MarkerPreserveAspectRatio: Marker Explicit preserveAspectRatio Fitting
 
@@ -2643,8 +2645,27 @@ already used by e.g. `CmapTable_Format4_GlyphIndexAddressArithmeticOverflow_Retu
 asserting the second call for the same gradient element returns the identical cached
 `List<GradientStop>` instance rather than a freshly re-parsed one.
 
+#### CanvasNetSvg-SvgCodec-ArrowheadShapeHint: Hand-Drawn Arrowhead Hint
+
+**Tests** (`SvgArrowTests.cs`):
+
+- `SvgArrow_HintHandler_TriangleAtCurveEnd_ReportsArrowheadShape`
+- `SvgArrow_HintHandler_NotchedHeadAtLineEnd_ReportsArrowheadShape`
+- `SvgArrow_HintHandler_SeveralStyledHeads_ReportsOneHintWithTheCount`
+- `SvgArrow_HintHandler_MarkerArrows_ReportNothing`
+- `SvgArrow_HintHandler_TrianglesAwayFromConnectorEnds_ReportNothing`
+- `SvgArrow_HintHandler_TemplatesAndPatternContent_ReportNothing`
+- `SvgArrow_HintHandler_DoesNotChangeThePixels`
+
+Asserts that a filled triangle on the end of a cubic curve and a notched four-point head on the end of a line are each
+reported once with the code `svg-arrowhead-shape`, naming the shape; that two heads styled by a CSS class inside a
+transformed group are one hint with a count of 2 and the first head's device-pixel position; that marker arrows,
+triangles away from a connector end, a square legend swatch on a sample line, a triangle too large for the stroke, and
+arrows inside `defs` drawn through `use`, a `symbol`, or a `pattern` report nothing; and that rendering with a hint
+handler produces the same pixels as rendering without one.
+
 ### Acceptance Criteria
 
-A unit test run passes when every test method listed above, across both `SvgCodecTests.cs` and
-`SvgFixtureTests.cs`, passes without error or unexpected exception; any unexpected exception type
-or wrong pixel/return value constitutes a failure.
+A unit test run passes when every test method listed above, across `SvgCodecTests.cs`, `SvgFixtureTests.cs`, and
+`SvgArrowTests.cs`, passes without error or unexpected exception; any unexpected exception type or wrong pixel/return
+value constitutes a failure.

@@ -105,4 +105,25 @@ public sealed record SvgLoadOptions
     ///     </para>
     /// </remarks>
     public Action<SvgPositionBinding>? BindingHandler { get; init; }
+
+    /// <summary>
+    ///     Gets an optional callback that receives the authoring hints of the document (see <see cref="SvgHint"/>), or
+    ///     <see langword="null"/> (the default) for none.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         A hint points at something that draws but is likely not what the author meant, such as a filled triangle
+    ///         drawn by hand at the end of a connector (<see cref="SvgHint.ArrowheadShapeCode"/>) instead of a
+    ///         <c>marker</c> that follows the connector's direction. Hints never change the pixels and never fail the
+    ///         render; failing is the host's choice.
+    ///     </para>
+    ///     <para>
+    ///         The callback is called on the rendering thread, after the document is painted, at most once per hint code.
+    ///         An exception it throws propagates to the caller of <c>Load</c>. Only the rendered document is analyzed:
+    ///         content inside <c>defs</c>, <c>marker</c>, <c>symbol</c>, <c>pattern</c>, <c>mask</c> and
+    ///         <c>clipPath</c>, content drawn through <c>use</c>, and nested SVG files drawn through
+    ///         <see cref="ImageResolver"/> report nothing. When no handler is set the analysis is skipped.
+    ///     </para>
+    /// </remarks>
+    public Action<SvgHint>? HintHandler { get; init; }
 }

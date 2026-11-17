@@ -66,6 +66,7 @@ sections:
           - CanvasNetSvg-SvgCodec-MarkerPreserveAspectRatio
         tests:
           - CanvasNetSvg_SystemIntegration_SvgMarkerRendering_RendersMarkerAtLineEnd
+          - CanvasNetSvg_SystemIntegration_SvgMarkerRendering_ClosedPathEndsAtClosingVertex
           - SvgCodec_Load_MarkerEndOnLine_RendersArrowheadPastLineEnd
           - SvgCodec_Load_MarkerStartMidEndOnPolyline_RendersDistinctMarkersAtEachVertex
           - SvgCodec_Load_ArrowMarkersFixture_RendersArrowheadPastLineEnd
@@ -562,3 +563,18 @@ sections:
         tests:
           - SvgCodec_Binding_LineEndpoint_LandsOnThePosition
           - SvgCodec_Binding_BoundImage_IsLoadedOnceAndPainted
+
+      - id: CanvasNetSvg-Lib-AuthoringHints
+        title: >-
+          The library shall report authoring hints - drawable constructs that are likely mistakes, such as an
+          arrowhead drawn by hand as a filled triangle on a connector end instead of with a marker - through
+          SvgLoadOptions.HintHandler, at most once per hint code per document, without changing the pixels or failing
+          the render.
+        tags: [system]
+        justification: |
+          A hint lets a host tell an author how to make a figure robust (an arrowhead that follows its connector) while
+          the picture is still drawn exactly as written; failing on a hint is the host's choice.
+        children:
+          - CanvasNetSvg-SvgCodec-ArrowheadShapeHint
+        tests:
+          - CanvasNetSvg_SystemIntegration_HintHandler_ReportsHandDrawnArrowhead

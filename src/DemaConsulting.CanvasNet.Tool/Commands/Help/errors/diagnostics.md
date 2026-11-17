@@ -21,13 +21,16 @@ see-also:
   diagnostics[] and echo[] carry the same notes).
 - Only SCAD models, Vega-Lite charts, Mermaid diagrams, PPTX documents (skipped
   EMF and WMF pictures), VSDX documents, and SVG files (an image that was not
-  drawn, and the notes of the files it embeds) report diagnostics. PDF and
+  drawn, a hand-drawn arrowhead, and the notes of the files it embeds) report
+  diagnostics. PDF and
   raster images do not.
 - The warning codes are scad-warning for a model, vega-lite-warning for a chart,
   mermaid-warning for a diagram (the mermaid-* code is in detail),
   svg-image-unresolved for an SVG image that was not drawn, svg-image-too-large
-  for an SVG image whose picture is over the pixel budget, and
-  image-access-denied for an image the file-access mode denies.
+  for an SVG image whose picture is over the pixel budget,
+  image-access-denied for an image the file-access mode denies, and
+  svg-arrowhead-shape for an arrowhead drawn by hand instead of with a marker
+  (it never fails a command, not even with --strict).
 - The fragment of an input path (part.scad#def.width=20) adds three warning
   codes, the same as for an SVG link: image-fragment-unknown-parameter,
   image-fragment-duplicate-parameter, and vl-param-unknown (a chart). They never

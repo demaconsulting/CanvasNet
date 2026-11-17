@@ -342,6 +342,16 @@ block of `svg framed-figure` are run on the flowchart example: the render with `
 picture rendered alone at the same size, and `inspect pixel` on the source at that size reads the same color as on the
 picture rendered alone, `#CCFFCC`, the fill of the node the card names. The card points at `canvasnet render --help`.
 
+**HelpTopics_ArrowsCard_IsLinkedBothWaysAndTeachesMarkers**: `svg arrows` is a child of `svg`, resolves by the
+aliases `markers` and `arrowheads`, lists `svg/style`, `svg/framed-figure`, and `composition` in its see-also, and each
+of them lists it; its text teaches `orient="auto"`, `auto-start-reverse`, `refX="10" refY="5"`, the horizontal and
+vertical S-curve recipes, and the `svg-arrowhead-shape` warning.
+
+**HelpTopics_ArrowsExample_TipsLandOnTheTargetEdges**: the `arrows` example has one marker with `refX="10"` and
+`orient="auto"` and two connectors whose last control point is in line with the end; rendered with `--strict` at
+twice its size, the pixel 6 units before each end and 2 units beside the stroke is the head color `#EA580C`, and the
+pixel 3 units past each end is the white fill of the target box.
+
 **HelpTopics_ScadViewsAdvice_VprFragment_EqualsAzimuthAndElevation**: `scad views` states that
 `'part.scad#def.$vpr=[70,0,45]'` is `--azimuth 45 --elevation 20` and `svg fragments` that `def.$vpr=[70,0,45]` is
 azimuth 45, elevation 20; the plate example rendered with that fragment under `--strict` reports azimuth 45 and

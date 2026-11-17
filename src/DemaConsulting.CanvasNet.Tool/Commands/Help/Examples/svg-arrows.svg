@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="600" height="400" viewBox="0 0 600 400">
+  <!-- Each connector is drawn from its source to its target, ends exactly on the edge of the target box, and has
+       its last control point in line with the end, so the head points straight into the box -->
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#ea580c"/>
+    </marker>
+  </defs>
+  <style>
+    .box { fill: #ffffff; stroke: #334155; stroke-width: 2; }
+    .name { font: bold 18px sans-serif; fill: #0f172a; text-anchor: middle; }
+    .connector { fill: none; stroke: #ea580c; stroke-width: 2; marker-end: url(#arrow); }
+  </style>
+  <rect width="600" height="400" fill="#f1f5f9"/>
+  <rect class="box" x="40" y="40" width="160" height="70" rx="8"/>
+  <text class="name" x="120" y="81">Source</text>
+  <rect class="box" x="400" y="150" width="160" height="70" rx="8"/>
+  <text class="name" x="480" y="191">Target</text>
+  <rect class="box" x="240" y="300" width="160" height="60" rx="8"/>
+  <text class="name" x="320" y="336">Next</text>
+  <!-- horizontal S-curve: M x0,y0 C xm,y0 xm,y1 x1,y1 enters the left edge of Target level -->
+  <path class="connector" d="M200,75 C300,75 300,185 400,185"/>
+  <!-- vertical S-curve: M x0,y0 C x0,ym x1,ym x1,y1 enters the top edge of Next straight down -->
+  <path class="connector" d="M480,220 C480,260 320,260 320,300"/>
+</svg>

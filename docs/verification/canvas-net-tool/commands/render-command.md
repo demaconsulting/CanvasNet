@@ -677,6 +677,10 @@ exit with code 1 and the error `file-access-denied` (the message of the model na
 folder above it, rendered with `--file-access roots --strict`, exits with code 1 and the error `file-access-denied`, and
 writes no output.
 
+**RenderCommand_Run_SvgHandDrawnArrowheadStrict_WarnsAndSucceeds**: a diagram with a filled triangle drawn by hand on
+the end of a line, rendered with `--strict --json`, exits with code 0, writes the picture, reports `ok` true, and has
+one `warning` diagnostic with the code `svg-arrowhead-shape` whose message points at `canvasnet help svg arrows`.
+
 **RenderCommand_Verb_FileAccessOption_AppliesToTheVerbs**: `resize` of that diagram with `--file-access roots` exits
 with code 0, reports one `image-access-denied` warning, and leaves the picture undrawn.
 

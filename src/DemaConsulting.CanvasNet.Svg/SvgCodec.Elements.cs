@@ -274,6 +274,13 @@ public static partial class SvgCodec
         public Action<SvgPositionBinding>? BindingHandler { get; init; }
 
         /// <summary>
+        ///     The collector of the hand-drawn-arrowhead hint (see <see cref="SvgLoadOptions.HintHandler"/>), or
+        ///     <see langword="null"/> when no hint handler is set, which skips the analysis. Set once by <c>RenderRoot</c>
+        ///     and shared by every <c>with</c> copy of the context.
+        /// </summary>
+        public ArrowheadHintCollector? ArrowheadHints { get; init; }
+
+        /// <summary>
         ///     The pictures the position-binding pre-pass already loaded, keyed by their <c>image</c> element's
         ///     reference identity (see <c>ResolvePositionBindings</c>). <c>RenderImageWithEffects</c> draws the stored
         ///     surface instead of asking the resolver again, so the positions and the drawn pixels come from the same
@@ -444,6 +451,9 @@ public static partial class SvgCodec
             {
                 RenderElement(child, rootState, fitTransform, context, rootScope, ref totalElements);
             }
+
+            // Authoring hints are reported once the whole document is painted
+            context.ArrowheadHints?.Report();
         }
         finally
         {
@@ -694,6 +704,10 @@ public static partial class SvgCodec
     {
         RenderShapeWithEffects(element, path, state, transform, context, scope, ref totalElements);
         RenderMarkers(path, state, transform, context, scope, ref totalElements);
+        if (context.ArrowheadHints is { } hints && scope.UseDepth == 0 && scope.MarkerDepth == 0)
+        {
+            CollectArrowheadHintShape(hints, element, path, state, transform, context);
+        }
     }
 
     /// <summary>

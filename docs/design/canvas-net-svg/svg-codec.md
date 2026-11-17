@@ -900,44 +900,41 @@ if it is exceeded rather than recursing indefinitely - see **Element/Group Nesti
 Total-Element Bounds** below for why this depth cap, on its own, does not bound every form of
 unbounded rendering work.
 
-**Markers.** A `line`/`polyline`/`polygon`/`path` element's own `marker-start`/`marker-mid`/
-`marker-end` presentation attributes (each `url(#id)`, resolved through the same id index and
-dangling-reference tolerance as a gradient `fill`/`stroke` reference above) each identify a
-`marker` element rendered once per eligible vertex of that shape's already-built local-space
-outline (never re-parsed from the shape's own raw attribute text): the first vertex uses
-`marker-start`, the last uses `marker-end`, and every vertex between uses `marker-mid` - a
-2-vertex shape therefore has a start and an end but no mid. For a multi-subpath `path`, this
-whole-shape first/last classification is a deliberate, documented simplification: `marker-start`/
-`marker-end` apply only to the very first/last vertex of the *whole* path, not to each subpath's
-own start/end (matches at least one common browser's behavior, rather than a spec clause verified
-directly). A vertex's `orient="auto"` rotation angle is the average of its incoming and outgoing
-segment tangents (falling back to whichever one is present at an open subpath's own start/end),
-except that `orient="auto-start-reverse"` adds a further 180 degrees at the shape's very first
-vertex only. Per the SVG specification, an absent/blank `orient` attribute uses the fixed
-0-degree default (no rotation) rather than following the vertex tangent - only the explicit
-`auto`/`auto-start-reverse` keywords opt into tangent-following behavior; an unparseable explicit
-value also tolerantly falls back to this same 0-degree default. Each marker instance is scaled by
-`markerWidth`/`markerHeight` (further fitted by the marker's own optional `viewBox` - see
-*ViewBox Fitting Policy*'s "marker's own explicit `preserveAspectRatio`" bullet above for the two
-distinct code paths this fitting takes depending on whether the marker declares an explicit
-`preserveAspectRatio` attribute), then
-by the referencing shape's own effective stroke width when `markerUnits` is `strokeWidth` (the
-default) or left at 1:1 for `userSpaceOnUse`, then rotated and translated to the vertex position,
-and finally composed with the shape's own accumulated transform - so a marker is transformed
-through exactly the same pipeline as the shape it decorates. A marker's content renders through a
-fresh `RenderState` cascade seeded from the marker element's own presentation attributes (or the
-SVG/CSS initial defaults if it sets none), never inheriting the referencing shape's own fill/
-stroke - per the SVG specification's independent marker-content model. Marker content renders
-through the same `RenderElement` recursion used for every other element (including `use`), so the
-existing element-tree-depth and total-rendered-element bounds described below apply to it
-automatically; because a `marker` can reference another `marker` (directly, or through a chain,
-via a child shape's own `marker-start`/`marker-mid`/`marker-end`), rendering additionally tracks
-its own independent `marker`-reference recursion depth, mirroring `use`'s cycle guard exactly
-(same fixed-depth-cap pattern, same `InvalidDataException` on exceeding it) but counted
-separately, since a marker chain and a `use` chain are independent nesting concerns. `rect`/
-`circle`/`ellipse` never receive markers (these shapes have no natural vertices to orient one
-along), and a `marker-start`/`marker-mid`/`marker-end` referencing a nonexistent id, or an id that
-does not resolve to a `marker` element, is tolerated as a silent no-op for that one vertex.
+**Markers.** A `line`/`polyline`/`polygon`/`path` element's own `marker-start`/`marker-mid`/ `marker-end` presentation
+attributes (each `url(#id)`, resolved through the same id index and dangling-reference tolerance as a gradient
+`fill`/`stroke` reference above) each identify a `marker` element rendered once per eligible vertex of that shape's
+already-built local-space outline (never re-parsed from the shape's own raw attribute text): the first vertex uses
+`marker-start`, the last uses `marker-end`, and every vertex between uses `marker-mid` - a 2-vertex shape therefore has
+a start and an end but no mid. For a multi-subpath `path`, this whole-shape first/last classification is a deliberate,
+documented simplification: `marker-start`/ `marker-end` apply only to the very first/last vertex of the *whole* path,
+not to each subpath's own start/end (matches at least one common browser's behavior, rather than a spec clause verified
+directly). A closepath is a real segment, as in SVG 2: a closed subpath with at least one segment gets a closing vertex
+back at its first point, so the `marker-end` of a closed path or a `polygon` is drawn at its first point (as browsers
+draw it), not at its last explicit point; the closing vertex of an earlier subpath is a mid vertex. At both ends of a
+closed subpath the `orient="auto"` angle bisects the closing segment and the first segment (a zero-length closing
+segment takes the direction of the segment before it). A vertex's `orient="auto"` rotation angle is the average of its
+incoming and outgoing segment tangents (falling back to whichever one is present at an open subpath's own start/end),
+except that `orient="auto-start-reverse"` adds a further 180 degrees at the shape's very first vertex only. Per the SVG
+specification, an absent/blank `orient` attribute uses the fixed 0-degree default (no rotation) rather than following
+the vertex tangent - only the explicit `auto`/`auto-start-reverse` keywords opt into tangent-following behavior; an
+unparseable explicit value also tolerantly falls back to this same 0-degree default. Each marker instance is scaled by
+`markerWidth`/`markerHeight` (further fitted by the marker's own optional `viewBox` - see *ViewBox Fitting Policy*'s
+"marker's own explicit `preserveAspectRatio`" bullet above for the two distinct code paths this fitting takes depending
+on whether the marker declares an explicit `preserveAspectRatio` attribute), then by the referencing shape's own
+effective stroke width when `markerUnits` is `strokeWidth` (the default) or left at 1:1 for `userSpaceOnUse`, then
+rotated and translated to the vertex position, and finally composed with the shape's own accumulated transform - so a
+marker is transformed through exactly the same pipeline as the shape it decorates. A marker's content renders through a
+fresh `RenderState` cascade seeded from the marker element's own presentation attributes (or the SVG/CSS initial
+defaults if it sets none), never inheriting the referencing shape's own fill/ stroke - per the SVG specification's
+independent marker-content model. Marker content renders through the same `RenderElement` recursion used for every other
+element (including `use`), so the existing element-tree-depth and total-rendered-element bounds described below apply to
+it automatically; because a `marker` can reference another `marker` (directly, or through a chain, via a child shape's
+own `marker-start`/`marker-mid`/`marker-end`), rendering additionally tracks its own independent `marker`-reference
+recursion depth, mirroring `use`'s cycle guard exactly (same fixed-depth-cap pattern, same `InvalidDataException` on
+exceeding it) but counted separately, since a marker chain and a `use` chain are independent nesting concerns. `rect`/
+`circle`/`ellipse` never receive markers (these shapes have no natural vertices to orient one along), and a
+`marker-start`/`marker-mid`/`marker-end` referencing a nonexistent id, or an id that does not resolve to a `marker`
+element, is tolerated as a silent no-op for that one vertex.
 
 **Filters.** A directly renderable shape or `text` element's own `filter` presentation attribute
 (`url(#id)`, resolved through the same id index and dangling-reference tolerance as a gradient
@@ -2004,3 +2001,33 @@ inside `use`, pattern, marker, mask, or clip-path content; and a text with lists
 Requirements: `CanvasNetSvg-SvgCodec-PositionBindingSyntax`, `CanvasNetSvg-SvgCodec-PositionBindingResolution`, and
 `CanvasNetSvg-SvgCodec-PositionBindingFailures`, verified by `SvgPositionBindingTests.cs` and
 `SvgImageSourceTests.cs`.
+
+### Authoring Hints
+
+`SvgLoadOptions.HintHandler` receives `SvgHint` records: drawable constructs that are likely authoring mistakes.
+`SvgCodec.Hints.cs` implements the one hint, `svg-arrowhead-shape` (`SvgHint.ArrowheadShapeCode`): a filled triangle
+drawn by hand on the end of a connector instead of a `marker`, which does not follow the connector when it changes.
+
+**Collection.** `RenderRoot` creates an `ArrowheadHintCollector` on the `RenderContext` only when a handler is set, so
+a render without a handler does no analysis. `RenderShapeWithMarkers` (every `line`, `polyline`, `polygon`, and
+`path`) records the shape after painting it, when it is painted directly (`UseDepth` and `MarkerDepth` are 0) and has
+no `defs`, `marker`, `symbol`, `pattern`, `mask`, or `clipPath` ancestor; an element painted twice (a filter fallback)
+is recorded once. All measures are in device pixels, through the shape's composed transform:
+
+- a **connector end** is the first point of the first subpath or the last point of the last subpath of a
+  `line`/`polyline`/`path` with a visible stroke and no fill (a `line` never fills), when that subpath is open and no
+  marker is drawn at that end; its stroke width is the local width times the square root of the transform's
+  determinant;
+- a **head** is a `polygon` or `path` with a visible fill made of one subpath of straight segments with 3 distinct
+  points whose area is at least 5% of its longest edge squared (not a sliver), or 4 points with exactly one reflex
+  corner (a notched head); its centroid and longest edge `L` are recorded.
+
+At most 1024 connector ends and 1024 heads are recorded, which bounds the analysis of a hostile document.
+
+**Reporting.** After the document is painted, `RenderDocument` calls `Report`: a head matches when `L` is 1.5 to 12
+times the stroke width of a connector end of another element and its centroid is within `L` of that end. When at least
+one head matches, the handler is called once with the number of matched heads and a message that names the first in
+document order (element, `id`, pixel position) and says to use a `marker` with `orient="auto"`. Hints never change the
+pixels and never fail the render; nested SVG files drawn through the image resolver report none.
+
+Requirement: `CanvasNetSvg-SvgCodec-ArrowheadShapeHint`, verified by `SvgArrowTests.cs`.

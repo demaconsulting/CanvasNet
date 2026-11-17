@@ -5,6 +5,7 @@ see-also:
   - style
   - svg/composition
   - svg/framed-figure
+  - svg/arrows
   - svg/supported
   - svg/units
 examples:
@@ -58,7 +59,8 @@ below.
   short bar beside each callout label; chevrons are white `<polyline>` strokes
   with `stroke-linecap: round` at rising opacity.
 - Arrows: a `<marker>` with `orient="auto"` on `marker-end`, in one strong
-  color (`#ea580c`) with a `stroke-width` of 2 to 3.
+  color (`#ea580c`) with a `stroke-width` of 2 to 3; `canvasnet help svg
+  arrows` places the tip and curves the connector.
 - `canvasnet help svg framed-figure --example framed` uses every rule here.
 
 ## Spacing and size

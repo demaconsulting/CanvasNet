@@ -14,7 +14,9 @@ It supports basic shapes (`rect`, `circle`, `ellipse`, `line`, `polyline`, `poly
 grouping (`g`) with cascading presentation attributes, `transform` functions, linear/radial
 gradients (including `xlink:href`/`href` template inheritance), `use` references, `marker`
 elements (referenced via `marker-start`/`marker-mid`/`marker-end`, with `markerWidth`/
-`markerHeight`, `refX`/`refY`, `markerUnits`, `orient`, and an optional `viewBox`), `filter`
+`markerHeight`, `refX`/`refY`, `markerUnits`, `orient`, and an optional `viewBox`; as in SVG 2 and browsers, the
+`marker-end` of a closed path or a `polygon` is drawn at its first point, oriented by bisecting the closing and
+the first segment), `filter`
 elements (referenced via the `filter` presentation attribute on any directly renderable shape or
 `text` element, or on a `g`/`symbol` reference/`use` element - applied to the whole referenced
 subtree as a single unit - with `x`/`y`/`width`/`height` filter-region attributes and `feBlend`/
@@ -436,6 +438,30 @@ var failed = bindings.Where(b => !b.IsResolved).ToList();   // fail the build he
 
 Not supported yet: the points of `path`, `polyline`, and `polygon`, `data-cn-*` attributes for SVG inside HTML, and
 bindings inside the content of a `use`.
+
+##### Authoring Hints: SvgLoadOptions.HintHandler
+
+Set `SvgLoadOptions.HintHandler` to learn about constructs that draw but are likely mistakes. After the document is
+painted, the codec calls the handler at most once per hint code with an `SvgHint` (`Code`, `Message`, and `Count`, the
+number of occurrences); the message names the first occurrence (its element, `id`, and pixel position). A hint never
+changes the pixels and never fails the load, and no analysis runs when no handler is set.
+
+The one code today is `svg-arrowhead-shape` (`SvgHint.ArrowheadShapeCode`): a filled triangle (or a notched four-point
+arrow shape) drawn by hand on the end of a stroked, unfilled `line`, `polyline`, or `path` that has no marker at that
+end. Such a head does not turn or move with the connector; draw it with a `marker` with `orient="auto"` on
+`marker-end` instead. To keep false alarms rare, a head counts only when its longest edge is 1.5 to 12 times the
+connector's stroke width and its center is within that length of the connector end, and content inside `defs`,
+`marker`, `symbol`, `pattern`, `mask`, and `clipPath`, content drawn through `use`, and nested SVG files report
+nothing.
+
+```csharp
+var hints = new List<SvgHint>();
+using var surface = SvgCodec.LoadWithFontFaces("figure.svg", 1200, 800, null, new SvgLoadOptions { HintHandler = hints.Add });
+foreach (var hint in hints)
+{
+    Console.WriteLine($"{hint.Code}: {hint.Message}");
+}
+```
 
 ##### SvgImageSource
 

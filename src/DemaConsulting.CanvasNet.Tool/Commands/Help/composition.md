@@ -5,6 +5,7 @@ see-also:
   - svg/bindings
   - svg/composition
   - svg/framed-figure
+  - svg/arrows
   - positions
   - mermaid/composition
   - vega-lite/composition
