@@ -1,7 +1,5 @@
 namespace DemaConsulting.CanvasNet.Vsdx;
 
-// cspell:ignore vsdx stencil stencils glueable Visio NURBS
-
 /// <summary>
 ///     The <see cref="DemaConsulting.CanvasNet.Vsdx"/> namespace provides read access to
 ///     Microsoft Visio (<c>.vsdx</c>) diagram documents via <see cref="VsdxDocument"/>: the OPC

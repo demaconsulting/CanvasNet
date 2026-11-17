@@ -1,7 +1,5 @@
 ### ScadGeometryBuilder Unit Verification Design
 
-<!-- cspell:ignore minuend subtrahend subtrahends minkowski multmatrix coplanar octahedron tetrahedron -->
-
 This document describes the unit-level verification strategy for the `ScadGeometryBuilder` unit: the internal
 iterative engine and its supporting types (`ScadGeometryBuilder`, `ScadGeo`, `ScadGeometryContext`, `ScadSceneMap`,
 `ScadReporter`, `ScadSceneOptions`, `ScadFeatureIds`, `ScadBooleans`, `ScadHulls`, and `ScadProjections`) in the

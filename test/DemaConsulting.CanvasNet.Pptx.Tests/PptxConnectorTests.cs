@@ -6,8 +6,6 @@ using Path = DemaConsulting.CanvasNet.Geometry.Path;
 
 namespace DemaConsulting.CanvasNet.Pptx.Tests;
 
-// cspell:ignore xfrm flipH flipV prstGeom pptx prst lnref prstdash headend tailend cxnsp stealth sysdash sysdot pythonpptx
-
 /// <summary>
 ///     Unit-level tests for the Phase 2 Follow-Up connector-shape-rendering building blocks:
 ///     <see cref="PptxPresetGeometry"/>'s connector-only preset builders (<c>line</c>/

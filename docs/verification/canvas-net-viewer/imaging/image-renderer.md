@@ -1,7 +1,5 @@
 ### ImageRenderer
 
-<!-- cspell:ignore canvasnet -->
-
 #### Verification Approach
 
 `ImageRenderer` is verified with unit tests in `ImageRendererTests.cs` in the Viewer test project. The tests write real

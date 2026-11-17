@@ -1,7 +1,5 @@
 # CanvasNet Viewer Package
 
-<!-- cspell:ignore vsdx pptx scad href hrefs ssim rmse -->
-
 ## API Reference
 
 ### CanvasNetViewer

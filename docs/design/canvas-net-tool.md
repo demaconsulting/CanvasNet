@@ -1,7 +1,5 @@
 # System Design
 
-<!-- cspell:ignore canvasnet Visio scad openscad psnr rmse ssim deskew otsu luma grayscale gamma -->
-
 This document provides the system-level design for CanvasNetTool.
 
 ![CanvasNetTool Structure](CanvasNetToolView.svg)

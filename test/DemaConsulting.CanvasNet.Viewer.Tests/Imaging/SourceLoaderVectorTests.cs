@@ -1,4 +1,3 @@
-// cspell:ignore canvasnet pdf pptx vsdx Visio dpi emf FutureRowKind docx
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Viewer.Imaging;
 

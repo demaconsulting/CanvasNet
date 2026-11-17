@@ -1,4 +1,3 @@
-// cspell:ignore canvasnet luma otsu colours pixle frobnicate deskew
 using System.Text.Json;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;

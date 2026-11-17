@@ -3,8 +3,6 @@ using DemaConsulting.CanvasNet.Scad.Language;
 
 namespace DemaConsulting.CanvasNet.Scad.Evaluation;
 
-// cspell:ignore fmod
-
 /// <summary>
 ///     Operators, indexing and member access of <see cref="ScadValue"/>.
 /// </summary>

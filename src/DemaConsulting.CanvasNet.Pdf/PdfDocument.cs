@@ -1,4 +1,3 @@
-// cspell:ignore CCITT Zapf Nonsymbolic Noto uncatchable
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;
 

@@ -1,8 +1,5 @@
 ### ConvexHull
 
-<!-- cspell:ignore coplanar collinear lexicographic lexicographically canonicalized polytope polytopes facet facets -->
-<!-- cspell:ignore Shewchuk cyclic simplex tetrahedron incremental monotone collinearity halfspaces coplanarity -->
-
 The `ConvexHull` unit computes exact convex hulls of point sets. It is the public static class `ConvexHull`
 (`ConvexHull.cs`: `Hull3D`, `Hull2D`) in the `DemaConsulting.CanvasNet.Render3D.Tessellation` namespace,
 together with two internal helpers that belong to the same unit: `HullBuilder3D` (`HullBuilder3D.cs`, the

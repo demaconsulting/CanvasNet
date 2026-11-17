@@ -1,8 +1,5 @@
 ## Fonts Subsystem Verification Design
 
-<!-- cspell:ignore codepoint codepoints renderable -->
-
-<!-- cspell:ignore Codepoints codepoint renderable charstring charstrings ttcf dogfooding -->
 This document describes the subsystem-level verification strategy for the `Fonts` subsystem (the
 `TrueTypeFont` unit, including its CFF/OpenType outline decoding and TrueType Collection support,
 and, added this phase, the `SystemFontCatalog` unit's OS font discovery, best-effort matching,

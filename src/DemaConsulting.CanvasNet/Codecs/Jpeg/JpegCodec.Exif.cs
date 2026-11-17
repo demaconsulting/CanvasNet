@@ -1,4 +1,3 @@
-// cspell:ignore exif transversed transverse
 using System.Buffers.Binary;
 
 namespace DemaConsulting.CanvasNet.Codecs;

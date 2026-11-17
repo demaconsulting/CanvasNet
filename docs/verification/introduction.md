@@ -1,10 +1,5 @@
 # Introduction
 
-<!-- cspell:ignore glyf sfnt -->
-<!-- cspell:ignore Visio -->
-<!-- cspell:ignore rasterizer tessellator -->
-<!-- cspell:ignore canvasnet -->
-
 This document provides the verification design for CanvasNet, a .NET library
 providing a canvas-based drawing and rendering API.
 

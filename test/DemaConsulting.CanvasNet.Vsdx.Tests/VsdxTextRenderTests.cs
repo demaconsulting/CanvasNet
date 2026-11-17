@@ -5,8 +5,6 @@ using DemaConsulting.CanvasNet.Tests.TestSupport;
 
 namespace DemaConsulting.CanvasNet.Vsdx.Tests;
 
-// cspell:ignore vsdx Visio unitsperem unmirrored
-
 /// <summary>
 ///     Unit-level tests for <c>VsdxDocument.TextRender.cs</c>'s glyph-painting primitive
 ///     (<see cref="VsdxDocument.PaintTextLayout"/>): proves ink paints at the expected,

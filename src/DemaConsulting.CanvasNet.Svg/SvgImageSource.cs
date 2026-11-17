@@ -1,4 +1,3 @@
-// cspell:ignore href
 using System.Collections.ObjectModel;
 using DemaConsulting.CanvasNet.Codecs;
 using DemaConsulting.CanvasNet.ImageSources;

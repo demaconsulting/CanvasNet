@@ -1,4 +1,3 @@
-// cspell:ignore ftyp ihdr colr jp2h jp2c ppm ppt tlm plm plt crg poc rgn coc qcc qcd sot sod eoc siz csiz xrsiz yrsiz xtsiz ytsiz xosiz xtosiz bpcc unkc ipr zppm zppt tpsot lsot isot psot
 using System.Text;
 using DemaConsulting.CanvasNet.Codecs;
 

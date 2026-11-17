@@ -1,4 +1,3 @@
-// cspell:ignore scad openscad
 namespace DemaConsulting.CanvasNet.TestSupport;
 
 /// <summary>

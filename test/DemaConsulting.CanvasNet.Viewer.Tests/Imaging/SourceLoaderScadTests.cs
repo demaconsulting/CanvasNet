@@ -1,4 +1,3 @@
-// cspell:ignore canvasnet scad openscad Minkowski minkowski polyhedron multmatrix rands Fcube
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Files;
 using DemaConsulting.CanvasNet.Render3D.SceneRendering;

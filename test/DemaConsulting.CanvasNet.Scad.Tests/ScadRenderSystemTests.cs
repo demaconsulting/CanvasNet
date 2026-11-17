@@ -1,4 +1,3 @@
-// cspell:ignore steelblue minkowski antialiases gons Liberation kerning ttb btt rtl ltr halign
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Fonts;
 using DemaConsulting.CanvasNet.Geometry;

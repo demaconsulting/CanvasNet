@@ -1,6 +1,3 @@
-// cspell:ignore charstring charstrings subr subrs hsbw rmoveto hmoveto vmoveto rlineto hlineto
-// cspell:ignore vlineto rrcurveto vhcurveto hvcurveto callsubr callothersubr dotsection vstem
-// cspell:ignore hstem endchar seac setcurrentpoint othersubr othersubrs
 using System.Globalization;
 using System.Numerics;
 using DemaConsulting.CanvasNet.Geometry;

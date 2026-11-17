@@ -1,9 +1,5 @@
 ## ScadEvaluation
 
-<!-- cspell:ignore evaluator evaluators lexer lexical undef tessellator iteratively reentrant -->
-<!-- cspell:ignore backtrace memoized textmetrics fontmetrics multmatrix minkowski -->
-<!-- cspell:ignore polyhedron -->
-
 ![ScadEvaluation Structure](ScadEvaluationView.svg)
 
 ### Overview

@@ -1,7 +1,5 @@
 ### TriangleRasterizer
 
-<!-- cspell:ignore rasterizer rasterization rasterized Sutherland Hodgman binner -->
-
 The `TriangleRasterizer` unit is the third software unit in the `SceneRendering` subsystem. All of
 its types are internal to the assembly (visible to the test assembly through `InternalsVisibleTo`):
 

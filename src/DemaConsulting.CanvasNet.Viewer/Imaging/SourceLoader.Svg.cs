@@ -1,4 +1,3 @@
-// cspell:ignore svg
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.ImageSources;
 using DemaConsulting.CanvasNet.Svg;

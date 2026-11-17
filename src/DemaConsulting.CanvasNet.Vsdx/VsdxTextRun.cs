@@ -2,8 +2,6 @@ using DemaConsulting.CanvasNet.Canvas;
 
 namespace DemaConsulting.CanvasNet.Vsdx;
 
-// cspell:ignore vsdx Visio Rgba davehoward IX Themed
-
 /// <summary>
 ///     A single, as-parsed (not yet style-resolved) marker-delimited segment of a shape's
 ///     <c>&lt;Text&gt;</c> element: the literal text between one <c>&lt;cp&gt;</c>/<c>&lt;pp&gt;</c>

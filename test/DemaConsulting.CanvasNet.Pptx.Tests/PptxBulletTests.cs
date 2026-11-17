@@ -5,10 +5,6 @@ using DemaConsulting.CanvasNet.Tests.TestSupport;
 
 namespace DemaConsulting.CanvasNet.Pptx.Tests;
 
-// cspell:ignore pptx buchar buautonum bunone buclrtx buclr bufonttx bufont busztx buszpct buszpts
-// cspell:ignore arabicparenr arabicplain alphalc alphauc alphalcparenr alphaucparenr romanlc romanuc
-// cspell:ignore romanlcparenr romanucparenr unitsperem marl
-
 /// <summary>
 ///     Unit-level tests for bullet/numbering rendering (Phase 2 Follow-Up: Bullets and
 ///     Numbering): raw parsing (<c>PptxDocument.Text.cs</c>'s <c>ParseBulletProperties</c>),

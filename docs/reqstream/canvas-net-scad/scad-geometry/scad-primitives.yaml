@@ -1,5 +1,4 @@
 ---
-# cspell:ignore tessellators
 # Software Unit Requirements for ScadPrimitives
 #
 # These requirements describe the design-level behavior of the ScadPrimitives unit: the internal builders

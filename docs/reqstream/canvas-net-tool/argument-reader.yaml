@@ -1,5 +1,4 @@
 ---
-# cspell:ignore rrggbbaa
 # Software Unit Requirements for the ArgumentReader Class
 #
 # The ArgumentReader class reads the options and positional arguments of one command's argument

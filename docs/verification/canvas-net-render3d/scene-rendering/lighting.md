@@ -1,7 +1,5 @@
 ### Lighting Unit Verification Design
 
-<!-- cspell:ignore Lambert Blinn Phong unlit Overbright -->
-
 This document describes the unit-level verification strategy for the `Light`, `AmbientLight`, and
 `DirectionalLight` types and the internal `LightingModel`.
 

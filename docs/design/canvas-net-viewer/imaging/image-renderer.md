@@ -1,7 +1,5 @@
 ### ImageRenderer
 
-<!-- cspell:ignore canvasnet jpeg tiff -->
-
 ![Imaging Structure](ImagingView.svg)
 
 #### Purpose

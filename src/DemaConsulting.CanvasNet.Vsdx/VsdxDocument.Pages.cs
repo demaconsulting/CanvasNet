@@ -3,8 +3,6 @@ using System.Xml.Linq;
 
 namespace DemaConsulting.CanvasNet.Vsdx;
 
-// cspell:ignore vsdx Visio PageSheet NameU
-
 /// <summary>
 ///     Implements the <see cref="VsdxDocument"/> page-index parser: locating
 ///     <c>visio/document.xml</c> and <c>visio/pages/pages.xml</c> through the package's

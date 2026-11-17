@@ -1,7 +1,5 @@
 ### ImageWriter
 
-<!-- cspell:ignore canvasnet jpeg tiff tif jpg -->
-
 ![Imaging Structure](ImagingView.svg)
 
 #### Purpose

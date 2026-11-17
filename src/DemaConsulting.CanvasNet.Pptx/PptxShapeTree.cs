@@ -4,8 +4,6 @@ using DemaConsulting.CanvasNet.Charts;
 
 namespace DemaConsulting.CanvasNet.Pptx;
 
-// cspell:ignore grpsp pptx sppr
-
 /// <summary>
 ///     A single node of a slide's full shape tree (Phase 1e, extended by the Phase 2 Follow-Up
 ///     connector-rendering work), produced by <see cref="PptxDocument.ParseShapeTree"/>: a closed

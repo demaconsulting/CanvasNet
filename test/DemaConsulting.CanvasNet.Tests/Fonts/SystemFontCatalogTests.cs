@@ -1,4 +1,3 @@
-// cspell:ignore Nimbus Dejavu Consolas canvasnet
 using DemaConsulting.CanvasNet.Fonts;
 using DemaConsulting.CanvasNet.Tests.TestSupport;
 

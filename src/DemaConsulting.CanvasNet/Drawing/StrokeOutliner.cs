@@ -1,8 +1,6 @@
 using System.Linq;
 using System.Numerics;
 
-// cspell:ignore Outliner outliner underflows underflowed inradius
-
 namespace DemaConsulting.CanvasNet.Drawing;
 
 /// <summary>

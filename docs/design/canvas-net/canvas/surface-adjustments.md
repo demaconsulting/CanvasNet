@@ -1,7 +1,5 @@
 ### SurfaceAdjustments Unit Design
 
-<!-- cspell:ignore luma otsu grayscale gamma percentile percentiles midtones -->
-
 The `SurfaceAdjustments` unit is the tone and color adjustments of the public `Surface` class of the `Canvas`
 subsystem. It is a partial class file, `Surface.Adjustments.cs`, so the adjustments read as instance methods
 (`surface.Grayscale()`) while the pixel storage stays in `Surface.cs`.

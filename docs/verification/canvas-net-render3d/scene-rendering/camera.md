@@ -1,7 +1,5 @@
 ### Camera Unit Verification Design
 
-<!-- cspell:ignore azimuth -->
-
 This document describes the unit-level verification strategy for the `Camera` class,
 `CameraProjection` enumeration, and the internal `ViewTransform` struct.
 

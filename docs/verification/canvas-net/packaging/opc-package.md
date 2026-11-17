@@ -1,7 +1,5 @@
 ### OpcPackage Unit Verification Design
 
-<!-- cspell:ignore ECMA ordinally -->
-
 This document describes the unit-level verification strategy for the `OpcPackage` class and its
 `OpcFormatException`.
 

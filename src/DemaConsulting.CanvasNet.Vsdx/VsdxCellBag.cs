@@ -2,8 +2,6 @@ using System.Xml.Linq;
 
 namespace DemaConsulting.CanvasNet.Vsdx;
 
-// cspell:ignore vsdx Visio
-
 /// <summary>
 ///     An immutable, ordinal-name-keyed lookup of <see cref="VsdxCell"/> entries parsed from the
 ///     direct <c>&lt;Cell&gt;</c> children of a single VisioML element (a <c>&lt;Shape&gt;</c>,

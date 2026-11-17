@@ -1,4 +1,3 @@
-// cspell:ignore href hrefs
 using System.Globalization;
 using DemaConsulting.CanvasNet.Files;
 

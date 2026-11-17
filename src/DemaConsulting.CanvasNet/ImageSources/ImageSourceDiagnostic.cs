@@ -1,4 +1,3 @@
-// cspell:ignore href scad
 namespace DemaConsulting.CanvasNet.ImageSources;
 
 /// <summary>

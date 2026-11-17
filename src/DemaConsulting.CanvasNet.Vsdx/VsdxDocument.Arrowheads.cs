@@ -2,8 +2,6 @@ using System.Globalization;
 
 namespace DemaConsulting.CanvasNet.Vsdx;
 
-// cspell:ignore vsdx Visio
-
 /// <summary>
 ///     Implements the <see cref="VsdxDocument"/> arrowhead resolver: resolves a connector's
 ///     <c>BeginArrow</c>/<c>EndArrow</c> style index and <c>BeginArrowSize</c>/<c>EndArrowSize</c>

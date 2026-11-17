@@ -2,7 +2,6 @@
 # Software Unit Requirements for SystemFontCatalog
 #
 # These requirements describe the design-level behavior of the SystemFontCatalog unit.
-# cspell:ignore Dejavu Nimbus Consolas ttcf
 
 sections:
   - title: CanvasNet Requirements

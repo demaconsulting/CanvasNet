@@ -2,12 +2,6 @@
 # Software Unit Requirements for TrueTypeFont
 #
 # These requirements describe the design-level behavior of the TrueTypeFont unit.
-# cspell:ignore glyf sfnt cmap loca hmtx hhea maxp notdef
-# cspell:ignore codepoint codepoints subtable subtables subsetted renderable
-# cspell:ignore charsets ISOAdobe isoadobe
-# cspell:ignore bchar achar Agrave
-# cspell:ignore hflex flex1 hflex1
-# cspell:ignore misparse
 
 sections:
   - title: CanvasNet Requirements

@@ -1,8 +1,5 @@
 ## SvgCodec Unit Verification Design
 
-<!-- cspell:ignore unstroked Letterboxing uncatchable Glyf Loca unparseable Cmap -->
-<!-- cspell:ignore unitless Pillarboxes letterboxed renderable -->
-
 This document describes the unit-level verification strategy for the `SvgCodec` class.
 
 `SvgCodec` is distributed as the separate `DemaConsulting.CanvasNet.Svg` NuGet package (namespace

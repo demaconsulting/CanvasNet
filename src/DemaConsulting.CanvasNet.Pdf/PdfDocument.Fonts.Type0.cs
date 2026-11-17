@@ -1,4 +1,3 @@
-// cspell:ignore cidfonttype fontfile
 using DemaConsulting.CanvasNet.Codecs;
 using DemaConsulting.CanvasNet.Fonts;
 

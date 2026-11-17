@@ -1,7 +1,5 @@
 # System Verification Design
 
-<!-- cspell:ignore vsdx pptx scad href slnx -->
-
 This document describes the system-level verification strategy for CanvasNetViewer.
 
 ## Verification Approach

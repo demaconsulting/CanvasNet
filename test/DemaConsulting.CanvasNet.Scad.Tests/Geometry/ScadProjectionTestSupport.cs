@@ -1,4 +1,3 @@
-// cspell:ignore circumradius
 using DemaConsulting.CanvasNet.Canvas;
 using static DemaConsulting.CanvasNet.Scad.Tests.ScadRenderTestHelpers;
 

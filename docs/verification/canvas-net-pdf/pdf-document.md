@@ -1,12 +1,5 @@
 ## PdfDocument Unit Verification Design
 
-<!-- cspell:ignore xref startxref endobj endstream ObjStm MediaBox Zapf Nonsymbolic -->
-<!-- cspell:ignore bfchar bfrange beginbfchar endbfchar beginbfrange endbfrange codepoints -->
-<!-- cspell:ignore usecmap cidrange cidchar cidfonttype -->
-<!-- cspell:ignore functiontype multiinput hival reimplementation -->
-<!-- cspell:ignore Noto registerserif radicalex dogfoods dogfooding -->
-<!-- cspell:ignore fontfile quoteright Quoteright quotesingle EOFB -->
-
 This document describes the unit-level verification strategy for the `PdfDocument` class.
 
 `PdfDocument` is distributed as the separate `DemaConsulting.CanvasNet.Pdf` NuGet package

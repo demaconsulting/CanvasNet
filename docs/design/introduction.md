@@ -1,8 +1,5 @@
 # Introduction
 
-<!-- cspell:ignore glyf sfnt cmap loca hmtx hhea codepoint Zapf Noto Visio visio rasterizer tessellator -->
-<!-- cspell:ignore multmatrix Minkowski canvasnet deskew deskews Deskew Otsu -->
-
 This document provides the detailed design for CanvasNet, a .NET library
 providing a canvas-based drawing and rendering API.
 
@@ -1996,5 +1993,3 @@ unit of the `Scenegraph` subsystem of each renderer has `scenegraph/scene-positi
 - CanvasNet User Guide — the compiled User Guide document for this repository.
 - CanvasNet Repository — the CanvasNet source repository hosted on
   GitHub.
-
-<!-- cspell:ignore Outliner -->

@@ -1,5 +1,4 @@
 ---
-# cspell:ignore canvasnet
 # Software Unit Requirements for the ImageRenderer Class
 #
 # The ImageRenderer class is the render operation of the library: given the facts about a file (a probed source) and

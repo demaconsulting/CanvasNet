@@ -1,4 +1,3 @@
-// cspell:ignore canvasnet
 namespace DemaConsulting.CanvasNet.Tool.Tests;
 
 /// <summary>

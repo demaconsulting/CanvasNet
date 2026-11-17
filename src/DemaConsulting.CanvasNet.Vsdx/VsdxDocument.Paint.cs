@@ -1,11 +1,7 @@
 using System.Globalization;
 using DemaConsulting.CanvasNet.Canvas;
 
-// cspell:ignore THEMEVAL
-
 namespace DemaConsulting.CanvasNet.Vsdx;
-
-// cspell:ignore vsdx Visio Rgba Themed Foregnd
 
 /// <summary>
 ///     Implements the <see cref="VsdxDocument"/> paint resolver: for each paint-related cell name

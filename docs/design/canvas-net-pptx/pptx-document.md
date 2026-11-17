@@ -2,19 +2,6 @@
 
 ![CanvasNetPptx Structure](CanvasNetPptxView.svg)
 
-<!-- cspell:ignore ordinally rethrowing -->
-
-<!-- cspell:ignore ooxml pptx navigations hlink srgb xfrm prst cust fmla scrgb patt misrender -->
-<!-- cspell:ignore bodyPr pPr rPr txBody txStyles lstStyle defRPr ctrTitle lIns tIns rIns bIns -->
-<!-- cspell:ignore algn marL lnSpc spcBef spcAft justLow lnSpcReduction fontScale noAutofit -->
-<!-- cspell:ignore normAutofit spAutoFit spcPct spcPts -->
-<!-- cspell:ignore srcRect blipFill grpSp grpSpPr nvGrpSpPr cxnSp tblGrid gridCol tblPr tcPr -->
-<!-- cspell:ignore lnL lnR lnT lnB pattFill hMerge vMerge gridSpan rowSpan tableStyleId -->
-<!-- cspell:ignore graphicFrame graphicData contentPart unrenderable -->
-<!-- cspell:ignore autoshape pythonpptx groupshape paintable aiden0z aiden unnamespaced reparenting FAFAF -->
-<!-- cspell:ignore bgRef bgFillStyleLst phClr fmtScheme asvg -->
-<!-- cspell:ignore tblStyle tblStyleLst wholeTbl tcStyle tcBdr insideH insideV bandRow firstRow -->
-<!-- cspell:ignore band1H band2H gridlines -->
 `PptxDocument` is distributed as the separate `DemaConsulting.CanvasNet.Pptx` NuGet package
 (namespace `DemaConsulting.CanvasNet.Pptx`), which references the core `DemaConsulting.CanvasNet`
 package.

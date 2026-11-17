@@ -2,8 +2,6 @@ using System.Xml.Linq;
 
 namespace DemaConsulting.CanvasNet.Pptx;
 
-// cspell:ignore xfrm prst cust
-
 /// <summary>
 ///     The effective, resolved property fragments for a single slide placeholder, produced by
 ///     <see cref="PptxDocument.ResolvePlaceholderProperties"/>.

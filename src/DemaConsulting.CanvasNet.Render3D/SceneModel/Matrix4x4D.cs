@@ -1,5 +1,3 @@
-// cspell:ignore Rodrigues
-
 using System.Globalization;
 
 namespace DemaConsulting.CanvasNet.Render3D.SceneModel;

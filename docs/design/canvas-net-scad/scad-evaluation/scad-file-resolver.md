@@ -1,7 +1,5 @@
 ### ScadFileResolver
 
-<!-- cspell:ignore evaluator undef OPENSCADPATH symlink symlinks sandboxed sandboxing junction junctions -->
-
 The `ScadFileResolver` unit is the fourth software unit in the `ScadEvaluation` subsystem. It comprises three
 source files in the `DemaConsulting.CanvasNet.Scad.Evaluation` namespace, all `internal`:
 

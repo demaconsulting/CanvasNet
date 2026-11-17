@@ -1,7 +1,5 @@
 ### Camera
 
-<!-- cspell:ignore azimuth -->
-
 The `Camera` unit is the first software unit in the `SceneRendering` subsystem. It comprises two
 public types in the `DemaConsulting.CanvasNet.Render3D.SceneRendering` namespace plus one internal
 type:

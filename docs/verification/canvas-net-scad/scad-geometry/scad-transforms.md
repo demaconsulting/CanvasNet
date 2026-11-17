@@ -1,7 +1,5 @@
 ### ScadTransforms Unit Verification Design
 
-<!-- cspell:ignore multmatrix newsize mislocated RRGGBBAA -->
-
 This document describes the unit-level verification strategy for the `ScadTransforms` unit: the internal
 `ScadTransforms` (`translate`, `rotate`, `scale`, `mirror`, `multmatrix`, `resize`) and `ScadColors` (`color` and
 color parsing on top of the core `CssColor` table), in the `DemaConsulting.CanvasNet.Scad.Geometry`

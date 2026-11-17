@@ -3,8 +3,6 @@ using System.Numerics;
 using DemaConsulting.CanvasNet.Geometry;
 using Path = DemaConsulting.CanvasNet.Geometry.Path;
 
-// cspell:ignore Outliner
-
 namespace DemaConsulting.CanvasNet.Drawing;
 
 /// <summary>

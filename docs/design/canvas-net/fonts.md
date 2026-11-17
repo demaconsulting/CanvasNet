@@ -1,11 +1,6 @@
 ## Fonts
 
-<!-- cspell:ignore glyf sfnt cmap loca hmtx hhea codepoint codepoints subtables -->
 ![Fonts Structure](FontsView.svg)
-
-<!-- cspell:ignore glyf SFNT Sfnt Cmap Glyf Loca Hmtx Hhea codepoints subtables -->
-<!-- cspell:ignore charstring charstrings ttcf OTTO dogfooding Dejavu Nimbus Consolas -->
-<!-- cspell:ignore Segoe LOCALAPPDATA -->
 
 The `Fonts` subsystem is the fifth software subsystem in CanvasNet. It groups the `TrueTypeFont`
 unit that loads glyph-based TrueType SFNT fonts as well as CFF/OpenType (`OTTO`-flavored) fonts

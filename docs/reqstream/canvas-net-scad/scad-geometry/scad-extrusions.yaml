@@ -1,5 +1,4 @@
 ---
-# cspell:ignore tessellators bijectively
 # Software Unit Requirements for ScadExtrusions
 #
 # These requirements describe the design-level behavior of the ScadExtrusions unit: the internal static class

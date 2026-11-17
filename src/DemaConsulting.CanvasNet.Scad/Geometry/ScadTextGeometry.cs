@@ -1,4 +1,3 @@
-// cspell:ignore notdef halign unioned
 using System.Globalization;
 using System.Text;
 using DemaConsulting.CanvasNet.Fonts;

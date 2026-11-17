@@ -1,4 +1,3 @@
-// cspell:ignore feblend colordodge colorburn hardlight softlight unswapped
 using System.Xml.Linq;
 using DemaConsulting.CanvasNet.Canvas;
 

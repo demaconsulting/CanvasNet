@@ -2,8 +2,6 @@ using System.Xml.Linq;
 
 namespace DemaConsulting.CanvasNet.Pptx;
 
-// cspell:ignore sldsz sldidlst sldid pptx mistargeted
-
 /// <summary>
 ///     Implements the <see cref="PptxDocument"/> presentation-root parser (Phase 1b):
 ///     <c>ppt/presentation.xml</c>'s declared slide size (<c>&lt;p:sldSz&gt;</c>) and ordered

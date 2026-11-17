@@ -1,4 +1,3 @@
-// cspell:ignore canvasnet luma otsu deskew
 using System.Globalization;
 using System.Text.Json;
 using DemaConsulting.CanvasNet.Canvas;

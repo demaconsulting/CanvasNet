@@ -1,7 +1,5 @@
 ### CompareCommand
 
-<!-- cspell:ignore canvasnet jpeg jpg tiff tif pptx scad psnr rmse ssim -->
-
 #### Verification Approach
 
 `CompareCommand` is verified with unit tests in `CompareCommandTests.cs` (the metrics, the grid, the thresholds, the

@@ -1,5 +1,4 @@
 ---
-# cspell:ignore otsu bilinear ssim
 # Software Subsystem Requirements for Canvas
 #
 # These requirements decompose the CanvasNet system's pixel-buffer responsibilities into the

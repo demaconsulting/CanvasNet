@@ -1,5 +1,3 @@
-// cspell:ignore vsdx Visio Foregnd
-
 using System.Numerics;
 using DemaConsulting.CanvasNet.Canvas;
 

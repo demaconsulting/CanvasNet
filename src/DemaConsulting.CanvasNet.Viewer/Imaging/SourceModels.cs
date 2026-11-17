@@ -1,4 +1,3 @@
-// cspell:ignore jpeg tiff pptx vsdx scad jpeg2000 Visio
 using System.Collections.ObjectModel;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Files;

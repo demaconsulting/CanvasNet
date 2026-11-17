@@ -1,4 +1,3 @@
-// cspell:ignore CCITT Makeup ccittfax EOFB
 using DemaConsulting.CanvasNet.Codecs;
 
 namespace DemaConsulting.CanvasNet.Pdf;

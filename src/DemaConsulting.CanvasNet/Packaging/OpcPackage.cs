@@ -4,8 +4,6 @@ using System.Xml.Linq;
 
 namespace DemaConsulting.CanvasNet.Packaging;
 
-// cspell:ignore ordinally navigations
-
 /// <summary>
 ///     A read-only, size-bounded view of an Open Packaging Conventions (OPC, ECMA-376 Part 2) package,
 ///     the ZIP-based container used by <c>.pptx</c>, <c>.vsdx</c>, and other Office Open XML formats.

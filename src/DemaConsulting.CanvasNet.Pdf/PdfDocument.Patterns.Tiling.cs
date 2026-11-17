@@ -4,7 +4,6 @@ using DemaConsulting.CanvasNet.Codecs;
 using DemaConsulting.CanvasNet.Drawing;
 using DemaConsulting.CanvasNet.Geometry;
 
-// cspell:ignore bbox unflipped
 namespace DemaConsulting.CanvasNet.Pdf;
 
 public sealed partial class PdfDocument

@@ -1,7 +1,5 @@
 namespace DemaConsulting.CanvasNet.Scad;
 
-// cspell:ignore lexer lexing
-
 /// <summary>
 ///     The <see cref="DemaConsulting.CanvasNet.Scad"/> namespace is the front end for the OpenSCAD language: it reads
 ///     OpenSCAD-language source from a string, a stream or a file and produces a validated document

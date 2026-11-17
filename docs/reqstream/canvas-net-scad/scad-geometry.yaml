@@ -1,5 +1,4 @@
 ---
-# cspell:ignore openscad polyhedron extrusions extrude mirrored multmatrix uncatchable abandonable
 # Software Subsystem Requirements for ScadGeometry
 #
 # These requirements decompose the CanvasNetScad system's geometry responsibility into the ScadGeometry

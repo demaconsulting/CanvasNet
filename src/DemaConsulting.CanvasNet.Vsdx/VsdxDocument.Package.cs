@@ -4,8 +4,6 @@ using DemaConsulting.CanvasNet.Packaging;
 
 namespace DemaConsulting.CanvasNet.Vsdx;
 
-// cspell:ignore vsdx ooxml visio navigations
-
 /// <summary>
 ///     Implements the <see cref="VsdxDocument"/> OPC (Open Packaging Conventions) package layer as a
 ///     thin adapter over the core <see cref="OpcPackage"/>: the ZIP/OPC/content-types/relationships

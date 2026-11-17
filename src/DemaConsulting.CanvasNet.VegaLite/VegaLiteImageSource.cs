@@ -1,4 +1,3 @@
-// cspell:ignore vega
 using System.Collections.ObjectModel;
 using DemaConsulting.CanvasNet.ImageSources;
 

@@ -1,4 +1,3 @@
-// cspell:ignore luma otsu grayscale gamma midtone midtones
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Tests.TestSupport;
 

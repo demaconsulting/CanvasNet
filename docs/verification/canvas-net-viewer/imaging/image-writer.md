@@ -1,7 +1,5 @@
 ### ImageWriter
 
-<!-- cspell:ignore canvasnet jpeg tiff tif jpg overwritable -->
-
 #### Verification Approach
 
 `ImageWriter` is verified with unit tests in `ImageWriterTests.cs`. Surfaces are generated in memory (an opaque

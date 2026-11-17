@@ -1,4 +1,3 @@
-// cspell:ignore idiv bitshift cvi cvr ifelse exch
 using System.Globalization;
 
 namespace DemaConsulting.CanvasNet.Pdf;

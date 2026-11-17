@@ -1,4 +1,3 @@
-// cspell:ignore functiontype bitspersample multiinput
 using DemaConsulting.CanvasNet.Codecs;
 
 namespace DemaConsulting.CanvasNet.Pdf;

@@ -1,7 +1,5 @@
 ### SafeXml Unit Verification Design
 
-<!-- cspell:ignore XXE -->
-
 This document describes the unit-level verification strategy for the `SafeXml` static class.
 
 #### Verification Approach

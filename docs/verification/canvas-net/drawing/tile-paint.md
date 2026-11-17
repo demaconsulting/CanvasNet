@@ -1,5 +1,3 @@
-<!-- cspell:ignore Rgba lerp precomputation precomputes unmutated -->
-
 ### TilePaint Unit Verification Design
 
 This document describes the unit-level verification strategy for the `TilePaint` unit: the public

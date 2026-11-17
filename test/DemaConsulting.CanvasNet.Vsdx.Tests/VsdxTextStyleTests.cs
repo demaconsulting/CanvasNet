@@ -1,5 +1,3 @@
-// cspell:ignore vsdx Visio davehoward Foregnd Tahoma
-
 namespace DemaConsulting.CanvasNet.Vsdx.Tests;
 
 /// <summary>

@@ -3,7 +3,6 @@
 #
 # These requirements describe the design-level behavior of the OpcPackage unit (including its
 # OpcFormatException).
-# cspell:ignore ECMA ordinally
 
 sections:
   - title: CanvasNet Requirements

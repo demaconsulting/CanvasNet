@@ -1,4 +1,3 @@
-// cspell:ignore scad openscad
 using System.Collections.ObjectModel;
 using System.Globalization;
 using DemaConsulting.CanvasNet.Canvas;

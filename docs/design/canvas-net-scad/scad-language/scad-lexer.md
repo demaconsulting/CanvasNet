@@ -1,6 +1,5 @@
 ### ScadLexer
 
-<!-- cspell:ignore lexer lexical lexeme lexemes tokenize tokenized tokenizes tokenizer hexadecimal UHHHHHH -->
 The `ScadLexer` unit is the first software unit in the `ScadLanguage` subsystem. It comprises four
 source files in the `DemaConsulting.CanvasNet.Scad.Language` namespace, all `internal`:
 

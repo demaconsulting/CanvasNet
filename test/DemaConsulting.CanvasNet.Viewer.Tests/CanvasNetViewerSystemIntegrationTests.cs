@@ -1,4 +1,3 @@
-// cspell:ignore href scad pdf slnx
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.ImageSources;
 using DemaConsulting.CanvasNet.Viewer.Imaging;

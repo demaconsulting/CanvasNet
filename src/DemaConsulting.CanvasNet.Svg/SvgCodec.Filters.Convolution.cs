@@ -1,4 +1,3 @@
-// cspell:ignore convolvematrix preservealpha edgemode kernelmatrix
 using System.Globalization;
 using System.Xml.Linq;
 using DemaConsulting.CanvasNet.Canvas;

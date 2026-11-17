@@ -1,7 +1,5 @@
 ### ScadFileResolver Unit Verification Design
 
-<!-- cspell:ignore undef symlink symlinks sandboxed junction mklink -->
-
 This document describes the unit-level verification strategy for the `ScadFileResolver` unit: the internal
 `ScadFileResolver` (expansion, library loading, path normalization, and the file-access policy of includes) and the
 `ScadSourceUnit` it produces, in the `DemaConsulting.CanvasNet.Scad.Evaluation` namespace.

@@ -1,7 +1,5 @@
 namespace DemaConsulting.CanvasNet.Vsdx;
 
-// cspell:ignore vsdx Visio
-
 /// <summary>
 ///     Describes one recognized-but-unsupported (or only approximated) Visio construct that
 ///     <see cref="VsdxDocument"/> encountered while resolving and rendering a page - a

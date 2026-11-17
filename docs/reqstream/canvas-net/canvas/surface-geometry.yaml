@@ -1,5 +1,4 @@
 ---
-# cspell:ignore bilinear premultiplied deskew downscales
 # Software Unit Requirements for SurfaceGeometry
 #
 # These requirements describe the design-level behavior of the SurfaceGeometry unit of the Canvas subsystem: the

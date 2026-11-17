@@ -1,8 +1,6 @@
 using DemaConsulting.CanvasNet.Codecs;
 using DemaConsulting.CanvasNet.Fonts;
 
-// cspell:ignore xobject devicergb fontfile
-
 namespace DemaConsulting.CanvasNet.Pdf.Tests;
 
 /// <summary>

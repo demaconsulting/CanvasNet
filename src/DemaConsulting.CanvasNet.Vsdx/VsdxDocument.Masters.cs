@@ -2,8 +2,6 @@ using System.Xml.Linq;
 
 namespace DemaConsulting.CanvasNet.Vsdx;
 
-// cspell:ignore vsdx Visio davehoward
-
 /// <summary>
 ///     Implements the <see cref="VsdxDocument"/> Master/Stencil resolver: parsing
 ///     <c>visio/masters/masters.xml</c>'s <c>&lt;Master ID="N"&gt;</c> index, resolving each

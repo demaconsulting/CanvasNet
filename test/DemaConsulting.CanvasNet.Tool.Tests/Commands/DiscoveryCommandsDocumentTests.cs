@@ -1,4 +1,3 @@
-// cspell:ignore canvasnet pdf pptx vsdx dpi
 using System.Text.Json;
 using DemaConsulting.CanvasNet.Tool.Commands;
 

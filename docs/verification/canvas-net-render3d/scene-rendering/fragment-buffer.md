@@ -1,7 +1,5 @@
 ### FragmentBuffer Unit Verification Design
 
-<!-- cspell:ignore rasterizer rasterization -->
-
 This document describes the unit-level verification strategy for the internal `FragmentBuffer`
 type and its `Fragment` record struct and count/fill visitors.
 

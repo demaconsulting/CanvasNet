@@ -2,8 +2,6 @@ using System.Numerics;
 
 namespace DemaConsulting.CanvasNet.Pptx;
 
-// cspell:ignore pptx unrotated unflipped
-
 /// <summary>
 ///     The resolved placement of a single shape: the transform mapping that shape's own local,
 ///     unrotated/unflipped geometry coordinate space (<c>(0,0)</c> to

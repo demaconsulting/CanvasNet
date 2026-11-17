@@ -2,8 +2,6 @@ using System.Numerics;
 using System.Reflection;
 using DemaConsulting.CanvasNet.Drawing;
 
-// cspell:ignore Lerp
-
 namespace DemaConsulting.CanvasNet.Tests.Drawing;
 
 /// <summary>

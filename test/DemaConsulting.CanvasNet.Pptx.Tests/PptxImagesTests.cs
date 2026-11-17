@@ -8,8 +8,6 @@ using Path = DemaConsulting.CanvasNet.Geometry.Path;
 
 namespace DemaConsulting.CanvasNet.Pptx.Tests;
 
-// cspell:ignore pptx blipfill srcrect embed sppr nvpicpr nvpr cnvpr cnvpicpr srgb hlink folhlink calibri asvg prst cust
-
 /// <summary>
 ///     Unit-level tests for the Phase 1e picture-shape resolvers and painting primitive
 ///     (<see cref="PptxDocument.ResolvePictureSurface"/>, <see cref="PptxDocument.ResolveSrcRect"/>,

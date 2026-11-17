@@ -3,8 +3,6 @@ using DemaConsulting.CanvasNet.Fonts;
 
 namespace DemaConsulting.CanvasNet.Vsdx;
 
-// cspell:ignore vsdx Visio Rgba
-
 /// <summary>
 ///     The fully-resolved, laid-out glyph stream for a single shape's <c>&lt;Text&gt;</c>
 ///     element, produced by <c>VsdxDocument.TextLayout.cs</c>'s <c>ResolveTextLayout</c> and

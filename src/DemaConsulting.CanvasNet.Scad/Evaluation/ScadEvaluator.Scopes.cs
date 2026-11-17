@@ -4,8 +4,6 @@ using DemaConsulting.CanvasNet.Scad.Language;
 
 namespace DemaConsulting.CanvasNet.Scad.Evaluation;
 
-// cspell:ignore PI
-
 /// <summary>
 ///     Scope construction, lazy cells and name lookup.
 /// </summary>

@@ -1,4 +1,3 @@
-// cspell:ignore xobject devicergb Zapf Nonsymbolic OTTO cidfonttype Noto
 using System.Security.Cryptography;
 using DemaConsulting.CanvasNet.Codecs;
 using DemaConsulting.CanvasNet.Fonts;

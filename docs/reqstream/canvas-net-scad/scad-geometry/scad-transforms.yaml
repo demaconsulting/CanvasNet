@@ -1,5 +1,4 @@
 ---
-# cspell:ignore multmatrix Multmatrix newsize unmirrored rrggbbaa
 # Software Unit Requirements for ScadTransforms
 #
 # These requirements describe the design-level behavior of the ScadTransforms unit: the internal static class

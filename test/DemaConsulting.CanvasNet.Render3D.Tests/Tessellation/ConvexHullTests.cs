@@ -1,5 +1,3 @@
-// cspell:ignore coplanar collinear lexicographically canonicalized ulp ulps Caratheodory simplices simplex tetrahedra tetrahedron
-
 using DemaConsulting.CanvasNet.Render3D.SceneModel;
 using DemaConsulting.CanvasNet.Render3D.Tessellation;
 

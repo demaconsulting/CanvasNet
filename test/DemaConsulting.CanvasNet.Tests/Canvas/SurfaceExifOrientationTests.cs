@@ -1,4 +1,3 @@
-// cspell:ignore exif transversed
 using DemaConsulting.CanvasNet.Canvas;
 
 namespace DemaConsulting.CanvasNet.Tests.Canvas;

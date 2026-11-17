@@ -1,4 +1,3 @@
-// cspell:ignore cidrange cidchar usecmap findresource defineresource currentdict endcmap bfrange bfchar endbfrange endbfchar begincmap begincodespacerange endcodespacerange tounicode codepoints codespacerange beginbfchar beginbfrange
 using DemaConsulting.CanvasNet.Codecs;
 
 namespace DemaConsulting.CanvasNet.Pdf;

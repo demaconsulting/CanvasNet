@@ -2,8 +2,6 @@ using System.Collections.Frozen;
 
 namespace DemaConsulting.CanvasNet.Scad.Evaluation;
 
-// cspell:ignore multmatrix polyhedron minkowski
-
 /// <summary>
 ///     The names the evaluator recognizes as built-in modules.
 /// </summary>

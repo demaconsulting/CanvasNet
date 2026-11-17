@@ -1,4 +1,3 @@
-// cspell:ignore uncatchable
 using System.IO.Compression;
 using DemaConsulting.CanvasNet.Codecs;
 

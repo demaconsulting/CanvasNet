@@ -1,4 +1,3 @@
-// cspell:ignore Gouraud Coons bicubic Bezier Bernstein bbox lerp
 using System.Numerics;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;

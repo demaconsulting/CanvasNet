@@ -1,7 +1,5 @@
 namespace DemaConsulting.CanvasNet.Vsdx;
 
-// cspell:ignore vsdx Visio
-
 /// <summary>
 ///     The conservative, documented subset of <c>BeginArrow</c>/<c>EndArrow</c> index values this
 ///     unit recognizes and renders (see <c>VsdxDocument.Arrowheads.cs</c>'s

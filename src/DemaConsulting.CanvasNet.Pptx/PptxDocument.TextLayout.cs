@@ -5,8 +5,6 @@ using DemaConsulting.CanvasNet.Rendering;
 
 namespace DemaConsulting.CanvasNet.Pptx;
 
-// cspell:ignore fontscale lnspcreduction pptx
-
 /// <summary>
 ///     Implements the <see cref="PptxDocument"/> text layout engine (Phase 1d): word-wrap,
 ///     horizontal alignment, vertical anchor, and the three-tier autofit policy - see the design

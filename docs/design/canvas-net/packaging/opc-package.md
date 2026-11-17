@@ -2,8 +2,6 @@
 
 ![Packaging Structure](PackagingView.svg)
 
-<!-- cspell:ignore ECMA ordinally reparse navigations -->
-
 `OpcPackage` is the first public software unit in the `Packaging` subsystem. It is a read-only,
 size-bounded view of an Open Packaging Conventions (OPC, ECMA-376 Part 2) ZIP package, such as a
 `.pptx` or `.vsdx` file. The unit includes the public `OpcFormatException` that it throws for a

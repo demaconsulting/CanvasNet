@@ -1,4 +1,3 @@
-// cspell:ignore FEFF
 using DemaConsulting.CanvasNet.Scad.Language;
 
 namespace DemaConsulting.CanvasNet.Scad.Tests.Language;

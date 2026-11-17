@@ -1,4 +1,3 @@
-// cspell:ignore Neue Segoe Xyzzy
 using DemaConsulting.CanvasNet.Fonts;
 
 namespace DemaConsulting.CanvasNet.Tests.Fonts;

@@ -1,8 +1,5 @@
 ### ConvexHull Unit Verification Design
 
-<!-- cspell:ignore coplanar collinear lexicographic lexicographically canonicalized polytope facet facets -->
-<!-- cspell:ignore simplex simplices tetrahedra tetrahedron Caratheodory ulp ulps subnormal subnormals -->
-
 This document describes the unit-level verification strategy for the `ConvexHull` unit: `Hull3D` and
 `Hull2D`, the internal incremental engine `HullBuilder3D`, and the exact predicate `SolidPredicates`.
 

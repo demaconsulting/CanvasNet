@@ -3,8 +3,6 @@ using DemaConsulting.CanvasNet.Canvas;
 
 namespace DemaConsulting.CanvasNet.Pptx;
 
-// cspell:ignore clrscheme fontscheme srgbclr sysclr hlink folhlink pptx
-
 /// <summary>
 ///     Implements the <see cref="PptxDocument"/> theme parser (Phase 1b): parses
 ///     <c>ppt/theme/themeN.xml</c> (located via a slide master's <c>/theme</c> relationship) into

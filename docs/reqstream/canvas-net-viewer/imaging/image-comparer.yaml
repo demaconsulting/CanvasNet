@@ -1,5 +1,4 @@
 ---
-# cspell:ignore canvasnet
 # Software Unit Requirements for the ImageComparer Class
 #
 # The ImageComparer class is the compare operation of the library: given two inputs (each a probed source, a page,

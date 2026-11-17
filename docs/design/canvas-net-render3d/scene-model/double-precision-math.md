@@ -1,7 +1,5 @@
 ### DoublePrecisionMath
 
-<!-- cspell:ignore Rodrigues -->
-
 The `DoublePrecisionMath` unit is the first software unit in the `SceneModel` subsystem. It comprises
 four public types in the `DemaConsulting.CanvasNet.Render3D.SceneModel` namespace, all immutable
 value types holding 64-bit floating-point components:

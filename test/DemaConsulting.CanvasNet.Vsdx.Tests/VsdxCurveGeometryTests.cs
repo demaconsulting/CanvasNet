@@ -1,5 +1,3 @@
-// cspell:ignore vsdx Visio NURBS NURBSTo PolylineTo SplineStart SplineKnot
-
 using DemaConsulting.CanvasNet.Geometry;
 
 namespace DemaConsulting.CanvasNet.Vsdx.Tests;

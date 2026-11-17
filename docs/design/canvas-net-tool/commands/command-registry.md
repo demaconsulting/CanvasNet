@@ -1,7 +1,5 @@
 ### CommandRegistry
 
-<!-- cspell:ignore canvasnet -->
-
 ![Commands Structure](CommandsView.svg)
 
 #### Purpose

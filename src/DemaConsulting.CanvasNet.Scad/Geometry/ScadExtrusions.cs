@@ -1,4 +1,3 @@
-// cspell:ignore tessellators
 using DemaConsulting.CanvasNet.Render3D.SceneModel;
 using DemaConsulting.CanvasNet.Render3D.Tessellation;
 using DemaConsulting.CanvasNet.Scad.Evaluation;

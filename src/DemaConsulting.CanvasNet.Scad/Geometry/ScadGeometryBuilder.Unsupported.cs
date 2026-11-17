@@ -1,4 +1,3 @@
-// cspell:ignore multmatrix minkowski
 using System.Collections.Frozen;
 using DemaConsulting.CanvasNet.Scad.Evaluation;
 

@@ -1,5 +1,3 @@
-// cspell:ignore Minkowski convexity coplanar chord octahedron pentagram welded ulp
-
 using DemaConsulting.CanvasNet.Render3D.SceneModel;
 using DemaConsulting.CanvasNet.Render3D.Tessellation;
 

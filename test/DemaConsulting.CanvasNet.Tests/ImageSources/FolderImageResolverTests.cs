@@ -1,4 +1,3 @@
-// cspell:ignore href hrefs fsecret embedder
 using System.Text;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Files;

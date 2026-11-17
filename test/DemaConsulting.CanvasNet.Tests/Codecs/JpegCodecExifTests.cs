@@ -1,4 +1,3 @@
-// cspell:ignore exif jpeg jfif
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;
 using DemaConsulting.CanvasNet.Tests.TestSupport;

@@ -1,7 +1,5 @@
 ### ScadLexer Unit Verification Design
 
-<!-- cspell:ignore xmodule -->
-
 This document describes the unit-level verification strategy for the `ScadLexer` unit: the internal static
 `ScadLexer` class (`Tokenize`), the `ScadToken` record struct, and the `ScadTokenKind` enumeration in the
 `DemaConsulting.CanvasNet.Scad.Language` namespace.

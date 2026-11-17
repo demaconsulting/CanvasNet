@@ -1,5 +1,3 @@
-// cspell:ignore vsdx Visio davehoward jgreywolfvsdxjs Jgreywolf Foregnd basicshapes NURBSTo NURBS
-
 using DemaConsulting.CanvasNet.Canvas;
 
 namespace DemaConsulting.CanvasNet.Vsdx.Tests;

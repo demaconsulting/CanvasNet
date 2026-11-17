@@ -4,8 +4,6 @@ using DemaConsulting.CanvasNet.Packaging;
 
 namespace DemaConsulting.CanvasNet.Pptx;
 
-// cspell:ignore pptx ooxml navigations
-
 /// <summary>
 ///     Implements the <see cref="PptxDocument"/> OOXML (Office Open XML) package layer as a thin
 ///     adapter over the core <see cref="OpcPackage"/>: the ZIP/OPC/content-types/relationships

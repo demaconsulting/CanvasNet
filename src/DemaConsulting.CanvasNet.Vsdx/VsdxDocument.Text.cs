@@ -2,8 +2,6 @@ using System.Xml.Linq;
 
 namespace DemaConsulting.CanvasNet.Vsdx;
 
-// cspell:ignore vsdx Visio davehoward
-
 /// <summary>
 ///     Implements the <see cref="VsdxDocument"/> <c>&lt;Text&gt;</c> element parser: reads a
 ///     shape's direct <c>&lt;Text&gt;</c> child's mixed content (literal text interleaved with

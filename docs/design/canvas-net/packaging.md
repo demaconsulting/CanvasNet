@@ -2,8 +2,6 @@
 
 ![Packaging Structure](PackagingView.svg)
 
-<!-- cspell:ignore ECMA -->
-
 The `Packaging` subsystem is the eighth software subsystem in CanvasNet. It groups the hardened
 building blocks for reading untrusted Open Packaging Conventions (OPC, ECMA-376 Part 2) packages -
 the ZIP-based container behind `.pptx`, `.vsdx` and the other Office Open XML formats - and for

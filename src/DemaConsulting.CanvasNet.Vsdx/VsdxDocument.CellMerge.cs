@@ -1,7 +1,5 @@
 namespace DemaConsulting.CanvasNet.Vsdx;
 
-// cspell:ignore vsdx Visio davehoward
-
 /// <summary>
 ///     Implements the <see cref="VsdxDocument"/> Master/MasterShape cell and geometry-row merge
 ///     algorithm: for each cell name present on either the instance shape or its Master shape, the

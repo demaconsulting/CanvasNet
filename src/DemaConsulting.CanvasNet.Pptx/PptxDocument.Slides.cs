@@ -1,7 +1,5 @@
 namespace DemaConsulting.CanvasNet.Pptx;
 
-// cspell:ignore csld pptx
-
 /// <summary>
 ///     Implements the <see cref="PptxDocument"/> slide parser (Phase 1b): parses
 ///     <c>ppt/slides/slideN.xml</c>, resolving its <c>/slideLayout</c> relationship and enumerating

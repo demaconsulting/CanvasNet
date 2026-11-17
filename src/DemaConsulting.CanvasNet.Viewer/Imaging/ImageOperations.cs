@@ -1,4 +1,3 @@
-// cspell:ignore deskew otsu midtones
 using DemaConsulting.CanvasNet.Canvas;
 
 namespace DemaConsulting.CanvasNet.Viewer.Imaging;

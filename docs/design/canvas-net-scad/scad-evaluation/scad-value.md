@@ -1,8 +1,5 @@
 ### ScadValue
 
-<!-- cspell:ignore evaluator undef lexicographic lexicographically multiplicand infinities scalars unseeded -->
-<!-- cspell:ignore reentrancy hashable ordinally fmod trunc -->
-
 The `ScadValue` unit is the first software unit in the `ScadEvaluation` subsystem: the internal value model of
 the evaluator. It comprises thirteen source files in the `DemaConsulting.CanvasNet.Scad.Evaluation`
 namespace, all `internal`:

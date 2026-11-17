@@ -1,4 +1,3 @@
-// cspell:ignore Liberation Dogfoods
 using DemaConsulting.CanvasNet.Fonts;
 
 namespace DemaConsulting.CanvasNet.Tests.Fonts;

@@ -2,7 +2,6 @@
 # Software Unit Requirements for SafeXml
 #
 # These requirements describe the design-level behavior of the SafeXml unit.
-# cspell:ignore XXE
 
 sections:
   - title: CanvasNet Requirements

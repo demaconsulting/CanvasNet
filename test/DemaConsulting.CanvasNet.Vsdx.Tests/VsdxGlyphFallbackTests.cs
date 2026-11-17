@@ -4,8 +4,6 @@ using DemaConsulting.CanvasNet.Tests.TestSupport;
 
 namespace DemaConsulting.CanvasNet.Vsdx.Tests;
 
-// cspell:ignore vsdx Visio
-
 /// <summary>
 ///     Tests for per-glyph font fallback in <c>VsdxDocument.TextLayout.cs</c>: a code point the
 ///     run's font lacks is drawn (and measured) with a fallback font instead of the missing-glyph

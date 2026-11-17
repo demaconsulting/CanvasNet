@@ -1,4 +1,3 @@
-// cspell:ignore canvasnet
 using System.Reflection;
 using DemaConsulting.CanvasNet.Tool.Commands;
 using DemaConsulting.CanvasNet.Viewer;

@@ -1,5 +1,4 @@
 ---
-# cspell:ignore notdef Liberation kerning ttb btt rtl ltr halign unioned abandonable
 # Software Unit Requirements for ScadTextGeometry
 #
 # These requirements describe the design-level behavior of the ScadTextGeometry unit: the internal static class

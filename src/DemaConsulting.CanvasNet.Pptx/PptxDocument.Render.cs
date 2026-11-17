@@ -6,8 +6,6 @@ using Path = DemaConsulting.CanvasNet.Geometry.Path;
 
 namespace DemaConsulting.CanvasNet.Pptx;
 
-// cspell:ignore xfrm grpsppr sppr pptx prst cust unrenderable patt
-
 /// <summary>
 ///     Implements the <see cref="PptxDocument"/> public, slide-level rendering API: walks a
 ///     slide's full, internally-resolved shape tree in document order, threading an accumulating

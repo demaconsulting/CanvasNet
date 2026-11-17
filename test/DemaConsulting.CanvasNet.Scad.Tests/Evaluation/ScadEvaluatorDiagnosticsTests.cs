@@ -3,8 +3,6 @@ using static DemaConsulting.CanvasNet.Scad.Tests.Evaluation.ScadEvaluatorTestSup
 
 namespace DemaConsulting.CanvasNet.Scad.Tests.Evaluation;
 
-// cspell:ignore textmetrics fontmetrics
-
 /// <summary>
 ///     Tests of warnings and unsupported-feature reports produced by <see cref="ScadEvaluator"/>: their text, location,
 ///     de-duplication, and how evaluation continues.

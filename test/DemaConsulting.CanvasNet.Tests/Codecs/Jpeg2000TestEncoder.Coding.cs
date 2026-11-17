@@ -1,5 +1,4 @@
 #pragma warning disable S3218, S3358, S1172, S107, S3776, S1541, S134, S1244
-// cspell:ignore bypass ebcot lblock lifting
 namespace DemaConsulting.CanvasNet.Tests.Codecs;
 
 /// <summary>

@@ -1,8 +1,5 @@
 ### PolygonTriangulator
 
-<!-- cspell:ignore tessellator triangulator triangulators triangulation triangulated polyhedra collinear -->
-<!-- cspell:ignore dyadic subnormal reflex -->
-
 The `PolygonTriangulator` unit is the 2D polygon facility of the `Tessellation` subsystem. It
 consists of the public immutable `PolygonRegion` type (`PolygonRegion.cs`, with the internal
 `ContourInfo` record in `ContourInfo.cs`), the public static `PolygonTriangulator` class

@@ -1,7 +1,5 @@
 ### SourceLoader
 
-<!-- cspell:ignore canvasnet jpeg tiff jpeg2000 exif gif RRGGBB RRGGBBAA pptx vsdx dpi docx scad openscad Minkowski -->
-
 #### Verification Approach
 
 `SourceLoader` is verified with unit tests in

@@ -1,7 +1,5 @@
 ## ScadDocument Unit Verification Design
 
-<!-- cspell:ignore Underflowing unlit supersampling gimbal -->
-
 This document describes the unit-level verification strategy for the `ScadDocument` unit: the public types in
 the `DemaConsulting.CanvasNet.Scad` namespace — `ScadDocument` (the `Parse` and `Open` entry points, the
 `SourceName`, `Directives`, `ModuleNames`, and `FunctionNames` properties, and the `Evaluate`, `BuildScene`, and

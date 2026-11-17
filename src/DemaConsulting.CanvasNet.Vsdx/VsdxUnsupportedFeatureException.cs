@@ -1,7 +1,5 @@
 namespace DemaConsulting.CanvasNet.Vsdx;
 
-// cspell:ignore vsdx Visio
-
 /// <summary>
 ///     The exception thrown when a <see cref="VsdxDocument"/> shape resolver refuses to resolve
 ///     an otherwise well-formed VisioML construct because it declares a feature not implemented

@@ -3,7 +3,6 @@
 #
 # These requirements describe the design-level behavior of the GlyphFallback unit: the per-character
 # fallback to the bundled Noto fonts for a character that the font a caller chose has no glyph for.
-# cspell:ignore Noto
 
 sections:
   - title: CanvasNet Requirements

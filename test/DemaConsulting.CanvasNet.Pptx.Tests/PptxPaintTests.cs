@@ -6,8 +6,6 @@ using Path = DemaConsulting.CanvasNet.Geometry.Path;
 
 namespace DemaConsulting.CanvasNet.Pptx.Tests;
 
-// cspell:ignore srgbclr schemeclr lummod lumoff pptx gsLst prstDash lgDash sysDash sysDot dashDot hlink folhlink Srgb patt
-
 /// <summary>
 ///     Unit-level tests for the Phase 1c DrawingML paint resolvers (<see cref="PptxDocument.ResolveFill"/>,
 ///     <see cref="PptxDocument.ResolveColor"/>, <see cref="PptxDocument.ResolveGradientFill"/>,

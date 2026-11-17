@@ -1,4 +1,3 @@
-// cspell:ignore componenttransfer tablevalues
 using System.Xml.Linq;
 using DemaConsulting.CanvasNet.Canvas;
 

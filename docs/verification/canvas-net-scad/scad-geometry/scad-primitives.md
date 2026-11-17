@@ -1,7 +1,5 @@
 ### ScadPrimitives Unit Verification Design
 
-<!-- cspell:ignore undef polyhedron polyhedra tessellators Newell frustum truthy unsupplied -->
-
 This document describes the unit-level verification strategy for the `ScadPrimitives` unit: the internal
 `ScadArguments` binder, the `ScadFragmentRule` formula, and the `ScadPrimitives` builders of `cube`, `sphere`,
 `cylinder`, `polyhedron`, `square`, `circle`, and `polygon` in the `DemaConsulting.CanvasNet.Scad.Geometry`

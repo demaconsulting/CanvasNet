@@ -2,8 +2,6 @@
 
 ![Packaging Structure](PackagingView.svg)
 
-<!-- cspell:ignore XXE -->
-
 `SafeXml` is the second public software unit in the `Packaging` subsystem: a stateless static class
 that loads XML from untrusted input with a hardened, bounded reader.
 

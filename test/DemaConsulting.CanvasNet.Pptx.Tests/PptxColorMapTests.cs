@@ -5,8 +5,6 @@ using DemaConsulting.CanvasNet.Canvas;
 
 namespace DemaConsulting.CanvasNet.Pptx.Tests;
 
-// cspell:ignore pptx clrmap clrmapovr sldmaster sldlayout csld sppr nvpr nvsppr
-
 /// <summary>
 ///     Unit-level tests for the <c>&lt;p:clrMap&gt;</c>/<c>&lt;p:clrMapOvr&gt;</c> color-map fix:
 ///     <see cref="PptxDocument.GetMaster"/>'s required <c>&lt;p:clrMap&gt;</c> parsing,

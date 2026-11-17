@@ -1,4 +1,3 @@
-// cspell:ignore luma otsu
 using DemaConsulting.CanvasNet.Canvas;
 
 namespace DemaConsulting.CanvasNet.Tests.Canvas;

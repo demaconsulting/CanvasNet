@@ -1,4 +1,3 @@
-// cspell:ignore lanczos canvasnet zabcz zdefz zabczz zdefzz ccdd fghij eeff deskew deskewing deskewed grayscale otsu luma nocolor
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Tool.Commands;
 

@@ -1,4 +1,3 @@
-// cspell:ignore deskew
 using System.Globalization;
 using DemaConsulting.CanvasNet.Canvas;
 

@@ -1,7 +1,5 @@
 namespace DemaConsulting.CanvasNet.Vsdx;
 
-// cspell:ignore vsdx Visio LocPin
-
 /// <summary>
 ///     A shape's resolved text-box placement, in the same shape-local coordinate box as
 ///     <see cref="VsdxShapeTransform"/> (origin bottom-left, inches) - either the implicit

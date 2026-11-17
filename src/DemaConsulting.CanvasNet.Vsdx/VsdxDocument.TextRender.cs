@@ -7,8 +7,6 @@ using Path = DemaConsulting.CanvasNet.Geometry.Path;
 
 namespace DemaConsulting.CanvasNet.Vsdx;
 
-// cspell:ignore vsdx Visio
-
 /// <summary>
 ///     Implements the <see cref="VsdxDocument"/> text-painting primitive: paints a resolved
 ///     <see cref="VsdxTextLayout"/>'s glyph ink onto a <see cref="Surface"/>, and the

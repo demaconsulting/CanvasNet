@@ -1,7 +1,5 @@
 ### SurfaceTransforms Unit Verification Design
 
-<!-- cspell:ignore premultiplied transposed transversed -->
-
 The whole-surface transformations of the `Surface` class (the `SurfaceTransforms` unit of the `Canvas` subsystem) are
 verified by `test/DemaConsulting.CanvasNet.Tests/Canvas/SurfaceTransformsTests.cs` and, for the EXIF orientation,
 `test/DemaConsulting.CanvasNet.Tests/Canvas/SurfaceExifOrientationTests.cs`.

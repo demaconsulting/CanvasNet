@@ -1,4 +1,3 @@
-// cspell:ignore pptx vsdx
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.ImageSources;
 using DemaConsulting.CanvasNet.Pptx;

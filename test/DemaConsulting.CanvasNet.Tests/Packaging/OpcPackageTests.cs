@@ -5,8 +5,6 @@ using DemaConsulting.CanvasNet.Packaging;
 
 namespace DemaConsulting.CanvasNet.Tests.Packaging;
 
-// cspell:ignore pptx rels
-
 /// <summary>
 ///     Unit tests for <see cref="OpcPackage"/> and <see cref="OpcFormatException"/>: opening an OPC
 ///     ZIP package within its size bounds, content-type resolution, relationship resolution, and

@@ -1,7 +1,5 @@
 ## ScadGeometry Subsystem Verification Design
 
-<!-- cspell:ignore evaluator minkowski multmatrix polyhedron extrusions -->
-
 This document describes the subsystem-level verification strategy for the `ScadGeometry` subsystem (internal
 namespace `DemaConsulting.CanvasNet.Scad.Geometry`), containing five units: `ScadGeometryBuilder`,
 `ScadPrimitives`, `ScadTransforms`, `ScadExtrusions`, and `ScadTextGeometry`.

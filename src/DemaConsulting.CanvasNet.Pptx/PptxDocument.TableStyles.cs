@@ -3,8 +3,6 @@ using DemaConsulting.CanvasNet.Canvas;
 
 namespace DemaConsulting.CanvasNet.Pptx;
 
-// cspell:ignore tbl tblstyle tblstylelst tcstyle tcbdr wholetbl bandrow firstrow insideh insidev pptx tblpr tcpr gridlines
-
 /// <summary>
 ///     Implements the <see cref="PptxDocument"/> table-style resolver (Phase 2 Follow-Up: Table
 ///     Style/Banding Resolution): resolves a <c>&lt;a:tbl&gt;/&lt;a:tblPr&gt;</c>'s

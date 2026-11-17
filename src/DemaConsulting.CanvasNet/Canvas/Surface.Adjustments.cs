@@ -1,4 +1,3 @@
-// cspell:ignore luma otsu grayscale gamma percentile percentiles midtone midtones
 using System.Runtime.CompilerServices;
 
 namespace DemaConsulting.CanvasNet.Canvas;

@@ -1,7 +1,5 @@
 ### GenericFontFamilies
 
-<!-- cspell:ignore Menlo Consolas Segoe -->
-
 `GenericFontFamilies` is a public software unit in the `Fonts` subsystem. It is a small static
 class that holds the one table of CSS generic font families and well-known aliases that maps a
 family name onto one of the three bundled Liberation designs, and the one CSS `font-family` list

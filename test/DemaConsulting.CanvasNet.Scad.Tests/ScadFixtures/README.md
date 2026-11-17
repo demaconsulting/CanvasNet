@@ -1,5 +1,3 @@
-<!-- cspell:ignore openscad scad multmatrix -->
-
 # Scad Test Fixtures
 
 The `.scad` files in this folder are the test fixtures for `DemaConsulting.CanvasNet.Scad`.

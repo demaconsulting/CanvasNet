@@ -1,7 +1,5 @@
 ### ContactSheet
 
-<!-- cspell:ignore canvasnet ellipsis luma -->
-
 #### Verification Approach
 
 `ContactSheet` is verified with unit tests in `ContactSheetTests.cs`. The layout is checked as arithmetic on

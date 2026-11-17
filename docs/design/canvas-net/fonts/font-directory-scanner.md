@@ -1,7 +1,5 @@
 ### FontDirectoryScanner
 
-<!-- cspell:ignore ttcf reparse ARIALN -->
-
 `FontDirectoryScanner` is the third public software unit in the `Fonts` subsystem. It scans
 directory trees for font files and reports the identity, name, and style metadata of every
 well-formed face they hold, reading only each font's headers. It is the one implementation of

@@ -1,8 +1,6 @@
 ---
 # Software Unit Requirements for SvgCodec
 #
-# cspell:ignore moveto lineto closepath dasharray letterboxing renderable xlink SMIL uncatchable
-# cspell:ignore miterlimit dashoffset unitless Pillarboxes
 #
 # These requirements describe the design-level behavior of the SvgCodec unit.
 #

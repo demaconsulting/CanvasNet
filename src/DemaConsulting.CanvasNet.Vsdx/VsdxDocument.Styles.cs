@@ -1,7 +1,5 @@
 namespace DemaConsulting.CanvasNet.Vsdx;
 
-// cspell:ignore vsdx Visio THEMEVAL
-
 /// <summary>
 ///     A single parsed <c>&lt;StyleSheet&gt;</c> element from <c>visio/document.xml</c>'s
 ///     <c>&lt;StyleSheets&gt;</c> index.

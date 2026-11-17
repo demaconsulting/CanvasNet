@@ -1,4 +1,3 @@
-// cspell:ignore STZE
 namespace DemaConsulting.CanvasNet.VegaLite.SpecModel;
 
 /// <content>

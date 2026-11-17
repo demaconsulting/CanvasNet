@@ -1,7 +1,5 @@
 ### ScadExtrusions Unit Verification Design
 
-<!-- cspell:ignore extrude extruder extruders extrusion extrusions apex Pappus frustum faceted subtrahend minuend -->
-
 This document describes the unit-level verification strategy for the `ScadExtrusions` unit: the internal
 `ScadShape2D` tree and the `ScadExtrusions` static class (`linear_extrude`, `rotate_extrude`, and the slabs of
 top-level 2D shapes) in the `DemaConsulting.CanvasNet.Scad.Geometry` namespace.

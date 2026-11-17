@@ -1,7 +1,5 @@
 ### SystemFontCatalog Unit Verification Design
 
-<!-- cspell:ignore Dejavu Nimbus Consolas ttcf dogfoods dogfooding -->
-
 This document describes the unit-level verification strategy for the `SystemFontCatalog` class.
 
 #### Verification Approach

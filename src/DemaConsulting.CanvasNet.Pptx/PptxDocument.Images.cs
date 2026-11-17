@@ -9,8 +9,6 @@ using Path = DemaConsulting.CanvasNet.Geometry.Path;
 
 namespace DemaConsulting.CanvasNet.Pptx;
 
-// cspell:ignore blipfill srcrect pptx embed asvg prst cust reimplementation fillrect
-
 /// <summary>
 ///     Implements the <see cref="PptxDocument"/> picture-shape resolvers and painting primitive
 ///     (Phase 1e): decoding a <c>&lt;p:pic&gt;</c>'s <c>&lt;p:blipFill&gt;</c> into a core

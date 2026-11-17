@@ -2,18 +2,6 @@
 
 ![Fonts Structure](FontsView.svg)
 
-<!-- cspell:ignore glyf sfnt cmap loca hmtx hhea maxp notdef -->
-<!-- cspell:ignore codepoint codepoints subtable subtables -->
-<!-- cspell:ignore charstring charstrings hintmask cntrmask hstemhm vstemhm callsubr callgsubr -->
-<!-- cspell:ignore hhcurveto vvcurveto hvcurveto vhcurveto rlineto hlineto vlineto rmoveto -->
-<!-- cspell:ignore hmoveto vmoveto rrcurveto endchar seac gsubr subrs subr ttcf numFonts faceIndex -->
-<!-- cspell:ignore eexec lenIV hsbw dotsection hstem vstem callothersubr othersubr -->
-<!-- cspell:ignore setcurrentpoint closepath pfb pfa cleartomark -->
-<!-- cspell:ignore charsets ISOAdobe isoadobe -->
-<!-- cspell:ignore bchar achar adx ady Agrave -->
-<!-- cspell:ignore hflex flex1 hflex1 -->
-<!-- cspell:ignore noaccess definefont currentfile closefile -->
-
 The `TrueTypeFont` class is the first of two public software units in the `Fonts` subsystem
 (alongside `SystemFontCatalog`). It provides
 hand-rolled loading and querying of glyph-based TrueType SFNT fonts, CFF/OpenType

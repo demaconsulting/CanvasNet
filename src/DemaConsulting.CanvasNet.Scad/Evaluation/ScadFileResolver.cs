@@ -4,8 +4,6 @@ using DemaConsulting.CanvasNet.Scad.Language;
 
 namespace DemaConsulting.CanvasNet.Scad.Evaluation;
 
-// cspell:ignore OPENSCADPATH
-
 /// <summary>
 ///     Resolves the <c>include</c> and <c>use</c> directives of a program before it is evaluated, under the
 ///     file-access policy of the caller, and produces include-expanded <see cref="ScadSourceUnit"/> values.

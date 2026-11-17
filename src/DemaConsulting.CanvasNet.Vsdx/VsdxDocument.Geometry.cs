@@ -3,8 +3,6 @@ using DemaConsulting.CanvasNet.Geometry;
 
 namespace DemaConsulting.CanvasNet.Vsdx;
 
-// cspell:ignore vsdx Visio RelLineTo RelMoveTo NURBSTo davehoward libvisio circumcenter
-
 /// <summary>
 ///     Implements the <see cref="VsdxDocument"/> geometry-row resolver: converts a shape's merged
 ///     geometry sections (see <c>VsdxDocument.CellMerge.cs</c>) into shape-local-space

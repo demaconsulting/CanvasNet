@@ -2,15 +2,6 @@ using DemaConsulting.CanvasNet.Codecs;
 using DemaConsulting.CanvasNet.Fonts;
 using DemaConsulting.CanvasNet.Tests.TestSupport;
 
-// cspell:ignore agrave Xyzzy Zapf Nonsymbolic cids
-// cspell:ignore beginbfchar endbfchar beginbfrange endbfrange begincodespacerange
-// cspell:ignore endcodespacerange findresource defineresource currentdict begincmap endcmap
-// cspell:ignore bfchar bfrange nendbfchar nendbfrange tounicode usecmap cidrange cidchar codepoints
-// cspell:ignore OTTO rmoveto rlineto endchar notdef charstring charstrings cidfonttype
-// cspell:ignore functiontype multiinput fitz uncatchable reimplementation
-// cspell:ignore Noto
-// cspell:ignore hsbw closepath fontfile lenIV quoteright Quoteright hival
-
 namespace DemaConsulting.CanvasNet.Pdf.Tests;
 
 /// <summary>

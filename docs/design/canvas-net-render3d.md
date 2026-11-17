@@ -1,10 +1,5 @@
 # System Design
 
-<!-- cspell:ignore tessellator tessellators tessellation rasterizer rasterized supersampling supersampled -->
-<!-- cspell:ignore Sutherland Hodgman polyhedra polyhedron unlit Lambertian Phong Blinn -->
-<!-- cspell:ignore extrusions unmirrored Minkowski subtrahend subtrahends minuend speckle -->
-<!-- cspell:ignore tessellated watertight transmittance -->
-
 This document provides the system-level design for CanvasNetRender3D.
 
 ![CanvasNetRender3D Structure](CanvasNetRender3DView.svg)

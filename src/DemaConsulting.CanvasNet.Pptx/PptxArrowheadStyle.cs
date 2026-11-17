@@ -1,7 +1,5 @@
 namespace DemaConsulting.CanvasNet.Pptx;
 
-// cspell:ignore pptx stealth
-
 /// <summary>
 ///     The recognized <c>&lt;a:headEnd&gt;</c>/<c>&lt;a:tailEnd&gt;</c> arrowhead <c>type</c>
 ///     values this phase supports (Phase 2 Follow-Up: Connector Shape Rendering) - see

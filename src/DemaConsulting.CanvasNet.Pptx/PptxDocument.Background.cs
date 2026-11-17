@@ -4,8 +4,6 @@ using DemaConsulting.CanvasNet.Canvas;
 
 namespace DemaConsulting.CanvasNet.Pptx;
 
-// cspell:ignore bgpr bgref pptx phclr patt
-
 /// <summary>
 ///     Implements the <see cref="PptxDocument"/> slide/layout/master background-fill resolver
 ///     (Phase 2 Follow-Up): resolves a slide's own <c>&lt;p:cSld&gt;/&lt;p:bg&gt;</c> background

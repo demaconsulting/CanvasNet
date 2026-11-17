@@ -1,6 +1,4 @@
 #pragma warning disable S3218, S3358, S1172, S107, S3776, S1541, S134, S1244
-// cspell:ignore bypass ebcot lblock precinct precincts subband subbands tlm plt ppm ppt crg sop eph rgn poc cprl rpcl pcrl rlcp lrcp
-// cspell:ignore pclr cmap cdef bpcc colr ihdr ftyp jp2c jp2h tilepart xcb ycb
 using System.Text;
 
 namespace DemaConsulting.CanvasNet.Tests.Codecs;

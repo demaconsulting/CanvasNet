@@ -1,4 +1,3 @@
-// cspell:ignore eexec sniff
 namespace DemaConsulting.CanvasNet.Fonts;
 
 /// <summary>

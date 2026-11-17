@@ -7,8 +7,6 @@ using Path = DemaConsulting.CanvasNet.Geometry.Path;
 
 namespace DemaConsulting.CanvasNet.Pptx;
 
-// cspell:ignore xfrm srgbclr schemeclr lummod lumoff pptx gsLst prstDash lgDash sysDash sysDot dashDot patt hlink scrgb prst positionable
-
 /// <summary>
 ///     Implements the <see cref="PptxDocument"/> DrawingML paint resolvers (Phase 1c): fill
 ///     (<c>&lt;a:noFill&gt;</c>/<c>&lt;a:solidFill&gt;</c>/<c>&lt;a:gradFill&gt;</c>), color

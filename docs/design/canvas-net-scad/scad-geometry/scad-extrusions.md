@@ -1,8 +1,5 @@
 ### ScadExtrusions
 
-<!-- cspell:ignore extrude extruder extruders extrusion extrusions apex pinched Pappus lathe bijection bijectively -->
-<!-- cspell:ignore subtrahend minuend frustum faceting faceted facets -->
-
 The `ScadExtrusions` unit is the fourth software unit in the `ScadGeometry` subsystem. It comprises four source
 files in the `DemaConsulting.CanvasNet.Scad.Geometry` namespace, all `internal`:
 

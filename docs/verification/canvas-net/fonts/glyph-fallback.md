@@ -1,7 +1,5 @@
 ### GlyphFallback Unit Verification Design
 
-<!-- cspell:ignore Liberation Noto -->
-
 This document describes the unit-level verification strategy for the `GlyphFallback` class.
 
 #### Verification Approach

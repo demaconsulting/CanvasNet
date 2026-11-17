@@ -1,4 +1,3 @@
-// cspell:ignore turbulence lattice fractalnoise stitchtiles nostitch basefrequency numoctaves perlin
 using System.Xml.Linq;
 using DemaConsulting.CanvasNet.Canvas;
 

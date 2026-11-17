@@ -1,5 +1,4 @@
 ---
-# cspell:ignore luma otsu grayscale gamma percentile percentiles midtone midtones
 # Software Unit Requirements for SurfaceAdjustments
 #
 # These requirements describe the design-level behavior of the SurfaceAdjustments unit of the Canvas subsystem: the

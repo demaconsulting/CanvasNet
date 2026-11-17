@@ -1,4 +1,3 @@
-// cspell:ignore canvasnet jpeg tif tiff RRGGBB RRGGBBAA deskew otsu midtones
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Mermaid;
 using DemaConsulting.CanvasNet.Positions;

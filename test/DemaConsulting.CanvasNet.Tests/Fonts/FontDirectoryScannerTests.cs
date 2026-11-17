@@ -1,4 +1,3 @@
-// cspell:ignore canvasnet mklink noextension
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using DemaConsulting.CanvasNet.Fonts;

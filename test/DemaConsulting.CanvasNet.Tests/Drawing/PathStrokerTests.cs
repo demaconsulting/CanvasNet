@@ -4,8 +4,6 @@ using DemaConsulting.CanvasNet.Drawing;
 using DemaConsulting.CanvasNet.Geometry;
 using Path = DemaConsulting.CanvasNet.Geometry.Path;
 
-// cspell:ignore Outliner unstroked
-
 namespace DemaConsulting.CanvasNet.Tests.Drawing;
 
 /// <summary>

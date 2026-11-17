@@ -1,5 +1,4 @@
 ---
-# cspell:ignore canvasnet
 # Software Unit Requirements for the MontageBuilder Class
 #
 # The MontageBuilder class is the montage operation of the library: given the facts about several files (probed

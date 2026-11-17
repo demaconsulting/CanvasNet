@@ -1,7 +1,5 @@
 namespace DemaConsulting.CanvasNet.Vsdx;
 
-// cspell:ignore vsdx Visio
-
 /// <summary>
 ///     Reports a Visio page's declared name and size, in its internal unit, EMU (English Metric
 ///     Units; <c>914400</c> EMU per inch - the same constant and internal unit already used by

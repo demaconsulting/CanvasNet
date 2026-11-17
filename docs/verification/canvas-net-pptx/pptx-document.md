@@ -1,13 +1,5 @@
 ## PptxDocument Unit Verification Design
 
-<!-- cspell:ignore ooxml pptx srgb xfrm prst cust patt bodyPr normAutofit noAutofit spAutoFit pPr -->
-<!-- cspell:ignore rPr txBody txStyles lstStyle defRPr lnSpc spcBef spcAft justLow fontScale -->
-<!-- cspell:ignore spcPct spcPts Ordinally -->
-<!-- cspell:ignore srcRect blipFill tblGrid gridCol tcPr hMerge vMerge gridSpan rowSpan grpSp -->
-<!-- cspell:ignore grpSpPr cxnSp graphicFrame tableStyleId spTree contentPart -->
-<!-- cspell:ignore pythonpptx Autoshape groupshape aiden0z Aiden aiden reparents FAFAF -->
-<!-- cspell:ignore bgRef bgFillStyleLst phClr fmtScheme asvg -->
-<!-- cspell:ignore tblStyle wholeTbl tcStyle tcBdr insideH insideV bandRow firstRow band1H band2H -->
 This document describes the unit-level verification strategy for the `PptxDocument` class.
 
 `PptxDocument` is distributed as the separate `DemaConsulting.CanvasNet.Pptx` NuGet package

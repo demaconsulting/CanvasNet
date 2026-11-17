@@ -1,5 +1,3 @@
-// cspell:ignore vsdx davehoward jgreywolfvsdxjs basicshapes Visio visio diagramwithstyles flowchartshapes Jgreywolf
-
 using System.IO.Compression;
 using System.Text;
 

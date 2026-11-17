@@ -1,7 +1,5 @@
 namespace DemaConsulting.CanvasNet.Vsdx;
 
-// cspell:ignore vsdx Visio LocPin
-
 /// <summary>
 ///     Implements the <see cref="VsdxDocument"/> shape transform resolver: builds a
 ///     <see cref="VsdxShapeTransform"/> from a shape's merged flat cell bag's own <c>PinX</c>/

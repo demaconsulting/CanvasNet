@@ -1,7 +1,5 @@
 ### FontResolver
 
-<!-- cspell:ignore Liberation -->
-
 `FontResolver` is a public software unit in the `Fonts` subsystem. It resolves a CSS
 `font-family` list, a bold flag and an italic flag to a loaded font, deterministically and without
 ever failing: the bundled Liberation Sans is the last resort. The unit includes the small

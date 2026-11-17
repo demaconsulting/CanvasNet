@@ -1,4 +1,3 @@
-// cspell:ignore Lzw KwKwK
 using DemaConsulting.CanvasNet.Codecs;
 
 namespace DemaConsulting.CanvasNet.Tests.Codecs;

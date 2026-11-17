@@ -1,7 +1,5 @@
 ## SceneRendering
 
-<!-- cspell:ignore rasterizer rasterization supersampling Lambertian Blinn Phong Binner -->
-
 ![SceneRendering Structure](SceneRenderingView.svg)
 
 ### Overview

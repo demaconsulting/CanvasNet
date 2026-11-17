@@ -5,8 +5,6 @@ using DemaConsulting.CanvasNet.Packaging;
 
 namespace DemaConsulting.CanvasNet.Tests.Packaging;
 
-// cspell:ignore lolz
-
 /// <summary>
 ///     Unit tests for <see cref="SafeXml"/>: loading XML with no DTD processing, no external
 ///     resolution, and a character bound, from a stream, a string, and as a streaming reader.

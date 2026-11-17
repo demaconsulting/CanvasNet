@@ -1,7 +1,5 @@
 using DemaConsulting.CanvasNet.Canvas;
 
-// cspell:ignore vsdx Visio Foregnd Themed THEMEVAL
-
 namespace DemaConsulting.CanvasNet.Vsdx.Tests;
 
 /// <summary>

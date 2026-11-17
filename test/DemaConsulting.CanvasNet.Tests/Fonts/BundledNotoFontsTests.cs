@@ -1,4 +1,3 @@
-// cspell:ignore Noto Dogfoods ZapfDingbats
 using DemaConsulting.CanvasNet.Fonts;
 
 namespace DemaConsulting.CanvasNet.Tests.Fonts;

@@ -1,8 +1,5 @@
 ### Extruder
 
-<!-- cspell:ignore tessellator triangulator triangulated collinear frustum extruder extrusion extrusions extruded -->
-<!-- cspell:ignore sinδ Pappus faceting apex -->
-
 The `Extruder` unit turns a `PolygonRegion` into a solid `Mesh`. It is a public static partial
 class, `Extruder`, in the `DemaConsulting.CanvasNet.Render3D.Tessellation` namespace, split over
 `Extruder.cs` (shared helpers and the uniform-scale overload of `Linear`), `Extruder.Linear.cs`, and

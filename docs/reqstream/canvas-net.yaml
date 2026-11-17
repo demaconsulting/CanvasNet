@@ -3,10 +3,6 @@
 #
 # These requirements describe the externally visible behavior of the library
 # from the perspective of its consumers, without specifying implementation details.
-# cspell:ignore glyf sfnt cmap loca hmtx hhea maxp notdef
-# cspell:ignore codepoint codepoints subtable subtables subsetted renderable formedness
-# cspell:ignore otsu bilinear
-# cspell:ignore rasterizing letterboxing Dasharray xlink Pillarboxes
 
 sections:
   - title: Canvas API

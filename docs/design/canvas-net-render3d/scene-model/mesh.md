@@ -1,7 +1,5 @@
 ### Mesh
 
-<!-- cspell:ignore Orientable orientable -->
-
 The `Mesh` unit is the second software unit in the `SceneModel` subsystem. It comprises two public
 types in the `DemaConsulting.CanvasNet.Render3D.SceneModel` namespace plus one internal helper:
 

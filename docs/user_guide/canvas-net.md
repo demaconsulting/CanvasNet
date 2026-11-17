@@ -1,7 +1,5 @@
 # CanvasNet Core Library
 
-<!-- cspell:ignore otsu midtone midtones ssim navigations -->
-
 ## Basic Usage
 
 ```csharp

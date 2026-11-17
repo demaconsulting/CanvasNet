@@ -1,4 +1,3 @@
-// cspell:ignore pptx emf
 using System.IO.Compression;
 using System.Text;
 using DemaConsulting.CanvasNet.Canvas;

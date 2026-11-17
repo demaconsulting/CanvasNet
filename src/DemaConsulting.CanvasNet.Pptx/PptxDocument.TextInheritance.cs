@@ -4,8 +4,6 @@ using DemaConsulting.CanvasNet.Canvas;
 
 namespace DemaConsulting.CanvasNet.Pptx;
 
-// cspell:ignore defrpr lnspc spcpct spcpts lststyle txstyles sng pptx ufill ufilltx
-
 /// <summary>
 ///     Implements the <see cref="PptxDocument"/> run/paragraph property-inheritance resolver
 ///     (Phase 1d).

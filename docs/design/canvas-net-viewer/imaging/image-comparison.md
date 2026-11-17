@@ -1,7 +1,5 @@
 ### ImageComparison
 
-<!-- cspell:ignore canvasnet psnr rmse ssim -->
-
 ![Imaging Structure](ImagingView.svg)
 
 #### Purpose

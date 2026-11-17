@@ -1,7 +1,5 @@
 ## Validation
 
-<!-- cspell:ignore Postconditions scad openscad rmse ssim deskew -->
-
 ![CanvasNetTool Structure](CanvasNetToolView.svg)
 
 ### Purpose

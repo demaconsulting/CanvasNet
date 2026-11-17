@@ -96,4 +96,3 @@ the resulting pixels. `TilePaint` is constructed and consumed by `PathFiller`'s 
 is exercised end to end by `PathFiller`'s own unit tests. The
 `Drawing` subsystem itself has no dependency on `Codecs`; it depends on `Canvas` and `Geometry`
 as described above.
-<!-- cspell:ignore Outliner -->

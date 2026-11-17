@@ -1,7 +1,5 @@
 ### InspectCommand
 
-<!-- cspell:ignore canvasnet jpeg luma otsu grayscale deskew percentiles -->
-
 ![Commands Structure](CommandsView.svg)
 
 #### Purpose

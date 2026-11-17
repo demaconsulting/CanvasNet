@@ -1,7 +1,5 @@
 namespace DemaConsulting.CanvasNet.Pptx;
 
-// cspell:ignore pptx prst
-
 /// <summary>
 ///     A resolved DrawingML line style (<c>&lt;a:ln&gt;</c>): its stroke width, resolved paint, and
 ///     optional dash pattern - everything <see cref="Drawing.PathStroker.Stroke"/> needs to

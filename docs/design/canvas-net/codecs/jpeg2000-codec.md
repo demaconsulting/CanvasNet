@@ -1,5 +1,3 @@
-<!-- cspell:ignore Spoc Epoc Zppt Zppm Nsop -->
-
 ### Jpeg2000Codec
 
 ![Codecs Structure](CodecsView.svg)

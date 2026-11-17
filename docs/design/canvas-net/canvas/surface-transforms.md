@@ -1,7 +1,5 @@
 ### SurfaceTransforms Unit Design
 
-<!-- cspell:ignore premultiplied transposed transversed -->
-
 The `SurfaceTransforms` unit is the whole-surface transformations of the public `Surface` class of the `Canvas`
 subsystem. It is a partial class file, `Surface.Transforms.cs`, together with the public enum `FitMode` (`FitMode.cs`),
 so the transformations read as instance methods (`surface.FlipHorizontal()`) while the pixel storage stays in

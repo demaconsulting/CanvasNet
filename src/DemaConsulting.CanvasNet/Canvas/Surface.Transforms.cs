@@ -1,4 +1,3 @@
-// cspell:ignore premultiplied transposed transversed
 namespace DemaConsulting.CanvasNet.Canvas;
 
 /// <summary>

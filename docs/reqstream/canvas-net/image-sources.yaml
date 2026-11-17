@@ -1,5 +1,4 @@
 ---
-# cspell:ignore embedder
 # Software Subsystem Requirements for ImageSources
 #
 # These requirements decompose the CanvasNet system's linked-picture support into the ImageSources subsystem's own

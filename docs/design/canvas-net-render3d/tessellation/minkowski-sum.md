@@ -1,7 +1,5 @@
 ### MinkowskiSum
 
-<!-- cspell:ignore Minkowski convexity convex coplanar polytope welded octahedron pentagram chord -->
-
 The `MinkowskiSum` unit computes the Minkowski sum of two convex solids. It is the public static class
 `MinkowskiSum` (`MinkowskiSum.cs`: `ConvexSum`, `MaxPairwiseSums`) in the
 `DemaConsulting.CanvasNet.Render3D.Tessellation` namespace.

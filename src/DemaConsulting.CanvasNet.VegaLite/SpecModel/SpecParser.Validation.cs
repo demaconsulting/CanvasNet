@@ -1,4 +1,3 @@
-// cspell:ignore SNZE BOSZ SAOZ STZE BNSO
 using System.Text;
 using DemaConsulting.CanvasNet.VegaLite.Data;
 

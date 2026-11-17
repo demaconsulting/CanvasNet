@@ -1,13 +1,8 @@
 # System Design
 
-<!-- cspell:ignore renderable -->
-
 This document provides the system-level design for CanvasNetPdf.
 
 ![CanvasNetPdf Structure](CanvasNetPdfView.svg)
-
-<!-- cspell:ignore xref startxref CCITT bitstream Zapf unembedded bitdepth xobject Annots cidfonttype -->
-<!-- cspell:ignore AcroForms ccittfax Noto functiontype multiinput bitspersample fontfile tounicode bfrange -->
 
 ## Architecture
 

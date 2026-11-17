@@ -1,7 +1,5 @@
 ### SurfaceAnalysis Unit Verification Design
 
-<!-- cspell:ignore luma otsu percentile percentiles -->
-
 The analysis of the `Surface` class (the `SurfaceAnalysis` unit of the `Canvas` subsystem) is verified by
 `test/DemaConsulting.CanvasNet.Tests/Canvas/SurfaceAnalysisTests.cs`.
 

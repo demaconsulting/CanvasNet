@@ -2,8 +2,6 @@ using DemaConsulting.CanvasNet.Packaging;
 
 namespace DemaConsulting.CanvasNet.Vsdx;
 
-// cspell:ignore vsdx Visio NURBS Foregnd
-
 /// <summary>
 ///     Provides read-only access to a Microsoft Visio (<c>.vsdx</c>) diagram document.
 /// </summary>

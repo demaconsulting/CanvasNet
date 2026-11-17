@@ -1,5 +1,3 @@
-// cspell:ignore coplanar collinear lexicographic lexicographically canonicalized canonicalization
-
 using DemaConsulting.CanvasNet.Render3D.SceneModel;
 
 namespace DemaConsulting.CanvasNet.Render3D.Tessellation;

@@ -1,7 +1,5 @@
 ### CompareCommand
 
-<!-- cspell:ignore canvasnet jpeg tiff tif jpg pptx vsdx dpi scad openscad psnr rmse ssim -->
-
 ![Commands Structure](CommandsView.svg)
 
 #### Purpose

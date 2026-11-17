@@ -245,7 +245,6 @@ public class VegaLiteDeterminismTests
     public void CanvasNetVegaLite_SystemIntegration_Determinism_CultureOfTheThreadChangesNothing()
     {
         // Arrange: decimals, grouping, month names, percentages and the letters whose case depends on the culture (I and i in Turkish)
-        // cspell:ignore İstanbul illi
         const string spec = """
             { "title": "Impact in İstanbul, 1,234.5 %", "width": 220, "height": 120,
               "data": { "values": [ { "d": "2024-01-15", "v": 1234.5, "k": "Iris" }, { "d": "2024-03-20", "v": 0.25, "k": "illi" }, { "d": "2024-08-02", "v": 98765.4321, "k": "INDIGO" } ] },

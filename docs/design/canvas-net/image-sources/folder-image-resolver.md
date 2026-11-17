@@ -1,5 +1,3 @@
-<!-- cspell:ignore embedder -->
-
 ### FolderImageResolver
 
 ![ImageSources Structure](ImageSourcesView.svg)

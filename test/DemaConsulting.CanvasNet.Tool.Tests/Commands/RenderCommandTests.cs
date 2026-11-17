@@ -1,4 +1,3 @@
-// cspell:ignore canvasnet jpeg jpg tiff tif exif qualty deskew
 using System.Text.Json;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;

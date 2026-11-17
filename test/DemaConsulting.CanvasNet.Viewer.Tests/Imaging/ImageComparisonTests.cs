@@ -1,4 +1,3 @@
-// cspell:ignore psnr rmse ssim
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Viewer.Imaging;
 

@@ -5,8 +5,6 @@ using DemaConsulting.CanvasNet.Fonts;
 
 namespace DemaConsulting.CanvasNet.Pptx.Tests;
 
-// cspell:ignore pptx grpsp nvsppr nvpr nvgrpsppr grpsppr cxnsp xfrm chOff chExt sptree
-
 /// <summary>
 ///     Unit-level tests for the Phase 1e recursive shape-tree walker
 ///     (<c>PptxDocument.ShapeTree.cs</c>'s <see cref="PptxDocument.ParseShapeTree"/>) and its

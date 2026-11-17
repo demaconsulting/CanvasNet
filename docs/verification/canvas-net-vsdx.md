@@ -1,7 +1,5 @@
 # System Verification Design
 
-<!-- cspell:ignore vsdx Visio davehoward jgreywolfvsdxjs Foregnd NURBS -->
-
 This document describes the system-level verification strategy for CanvasNetVsdx.
 
 ## Verification Approach

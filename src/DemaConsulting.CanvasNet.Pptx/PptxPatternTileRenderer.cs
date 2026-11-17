@@ -2,8 +2,6 @@ using DemaConsulting.CanvasNet.Canvas;
 
 namespace DemaConsulting.CanvasNet.Pptx;
 
-// cspell:ignore pptx divot dmnd
-
 /// <summary>
 ///     Procedurally synthesizes a small, repeating one-cell tile <see cref="Surface"/> for a
 ///     covered <see cref="PptxPresetPattern"/>, alternating a caller-supplied foreground/

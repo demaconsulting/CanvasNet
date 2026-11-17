@@ -1,5 +1,4 @@
 ---
-# cspell:ignore uncatchable Underflowing
 # Software Unit Requirements for ScadDocument
 #
 # These requirements describe the design-level behavior of the ScadDocument unit, the sole direct

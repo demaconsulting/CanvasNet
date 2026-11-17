@@ -1,4 +1,3 @@
-// cspell:ignore Nonsymbolic Oblique Dingbats Zapf Noto
 using DemaConsulting.CanvasNet.Codecs;
 using DemaConsulting.CanvasNet.Fonts;
 

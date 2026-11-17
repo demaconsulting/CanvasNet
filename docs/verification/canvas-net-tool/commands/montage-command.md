@@ -1,7 +1,5 @@
 ### MontageCommand
 
-<!-- cspell:ignore canvasnet jpeg jpg tiff tif pptx pdf svg scad -->
-
 #### Verification Approach
 
 `MontageCommand` is verified with unit tests in `MontageCommandTests.cs` (the sheet geometry, the fit, the labels, the

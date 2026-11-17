@@ -1,4 +1,3 @@
-// cspell:ignore href hrefs pptx vsdx scad
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.ImageSources;
 using DemaConsulting.CanvasNet.Viewer.Imaging;

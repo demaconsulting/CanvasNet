@@ -6,7 +6,6 @@
 # view of an OPC ZIP package, with its OpcFormatException) and the SafeXml unit (XML loading with no
 # DTD processing, no external resolution, and a character bound). Each requirement here links down to
 # the unit requirements that implement it.
-# cspell:ignore ECMA
 
 sections:
   - title: CanvasNet Requirements

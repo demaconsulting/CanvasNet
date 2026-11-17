@@ -1,8 +1,3 @@
-// cspell:ignore Sfnt sfnt glyf cmap notdef codepoint
-// cspell:ignore Dasharray hhea Hhea hmtx Hmtx hrefs letterboxed Loca Maxp unstroked
-// cspell:ignore miterlimit
-// cspell:ignore unparseable overpainted bbox moveto lineto rects unrotated unclipped
-// cspell:ignore pillarbox Pillarboxes sizeless basi unswapped
 using System.Reflection;
 using System.Text;
 using System.Xml.Linq;

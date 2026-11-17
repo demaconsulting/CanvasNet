@@ -1,4 +1,3 @@
-// cspell:ignore luma otsu percentiles
 namespace DemaConsulting.CanvasNet.Canvas;
 
 /// <summary>

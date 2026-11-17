@@ -1,5 +1,4 @@
 ---
-# cspell:ignore psnr rmse ssim
 # Software Unit Requirements for the ImageComparison Class
 #
 # The ImageComparison class is the threshold and defaults side of comparing two images. The measures, the grid, and the

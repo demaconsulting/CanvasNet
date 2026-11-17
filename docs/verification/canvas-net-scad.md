@@ -1,7 +1,5 @@
 # System Verification Design
 
-<!-- cspell:ignore multmatrix unlit supersampling -->
-
 This document describes the system-level verification strategy for CanvasNetScad.
 
 ## Verification Approach

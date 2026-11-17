@@ -1,7 +1,5 @@
 ### ScadValue Unit Verification Design
 
-<!-- cspell:ignore undef lexicographic lexicographically scalars infinities -->
-
 This document describes the unit-level verification strategy for the `ScadValue` unit: the internal value model of
 the evaluator in the `DemaConsulting.CanvasNet.Scad.Evaluation` namespace — `ScadValue` (kinds, truthiness,
 equality, ordering, arithmetic, indexing, text forms, and conversion), `ScadVector`, `ScadRange`,

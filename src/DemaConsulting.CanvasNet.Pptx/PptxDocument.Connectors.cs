@@ -6,8 +6,6 @@ using Path = DemaConsulting.CanvasNet.Geometry.Path;
 
 namespace DemaConsulting.CanvasNet.Pptx;
 
-// cspell:ignore cxnsp pptx lnref prstdash headend tailend
-
 /// <summary>
 ///     Implements the <see cref="PptxDocument"/> connector-shape (<c>&lt;p:cxnSp&gt;</c>) resolvers
 ///     (Phase 2 Follow-Up: Connector Shape Rendering): merging a connector's own <c>&lt;a:ln&gt;</c>

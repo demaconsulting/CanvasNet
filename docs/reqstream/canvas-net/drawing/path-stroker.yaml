@@ -1,5 +1,4 @@
 ---
-# cspell:ignore Outliner strokable inradius
 # Software Unit Requirements for PathStroker
 #
 # These requirements describe the design-level behavior of the PathStroker unit within the

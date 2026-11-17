@@ -4,8 +4,6 @@ using Path = DemaConsulting.CanvasNet.Geometry.Path;
 
 namespace DemaConsulting.CanvasNet.Vsdx;
 
-// cspell:ignore vsdx Visio stealth
-
 /// <summary>
 ///     Builds the local-space <see cref="Path"/> geometry for a resolved <see cref="VsdxArrowhead"/>,
 ///     following <c>DemaConsulting.CanvasNet.Pptx.PptxArrowheadGeometry</c>'s own "single, fixed,

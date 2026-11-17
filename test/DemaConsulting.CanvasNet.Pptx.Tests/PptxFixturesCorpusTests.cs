@@ -3,10 +3,6 @@ using DemaConsulting.CanvasNet.Canvas;
 
 namespace DemaConsulting.CanvasNet.Pptx.Tests;
 
-// cspell:ignore pptx pythonpptx samplelib groupshape autoshape autoshapes paintable sppr
-// cspell:ignore aiden0z blipfill pattfill custgeom avlst gridcol tblgrid srcrect cxnsp lummod prstdash cmpd thickthin xfrm Xfrm FAFAF
-// cspell:ignore slidenum
-
 /// <summary>
 ///     Fixture-conformance tests that exercise <see cref="PptxDocument"/>'s full public
 ///     <see cref="PptxDocument.Render(int, float, PptxRenderOptions?)"/> API against the

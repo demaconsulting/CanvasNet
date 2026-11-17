@@ -1,5 +1,3 @@
-<!-- cspell:ignore embedder -->
-
 ### FolderImageResolver Unit Verification Design
 
 This document describes the unit-level verification strategy for the `FolderImageResolver` unit: the resolver and its

@@ -1,7 +1,5 @@
 ### SurfaceAdjustments Unit Verification Design
 
-<!-- cspell:ignore luma lumas otsu grayscale gamma percentile percentiles midtone midtones -->
-
 The tone and color adjustments of the `Surface` class (the `SurfaceAdjustments` unit of the `Canvas` subsystem) are
 verified by `test/DemaConsulting.CanvasNet.Tests/Canvas/SurfaceAdjustmentsTests.cs`.
 

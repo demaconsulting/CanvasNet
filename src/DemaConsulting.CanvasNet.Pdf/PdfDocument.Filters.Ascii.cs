@@ -1,4 +1,3 @@
-// cspell:ignore Ascii
 namespace DemaConsulting.CanvasNet.Pdf;
 
 public sealed partial class PdfDocument

@@ -1,5 +1,3 @@
-// cspell:ignore subnormal subnormals
-
 using System.Numerics;
 using DemaConsulting.CanvasNet.Render3D.SceneModel;
 

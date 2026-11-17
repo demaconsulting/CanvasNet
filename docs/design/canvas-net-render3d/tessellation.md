@@ -1,7 +1,5 @@
 ## Tessellation
 
-<!-- cspell:ignore tessellator tessellation -->
-
 ![Tessellation Structure](TessellationView.svg)
 
 ### Overview

@@ -1,8 +1,5 @@
 ## VsdxDocument Unit Verification Design
 
-<!-- cspell:ignore vsdx Visio VisioML davehoward jgreywolfvsdxjs Jgreywolf Foregnd Themed -->
-<!-- cspell:ignore THEMEVAL unitsperem NURBSTo Nwwww Neeeee -->
-
 `VsdxDocument` is distributed as the separate `DemaConsulting.CanvasNet.Vsdx` NuGet package
 (namespace `DemaConsulting.CanvasNet.Vsdx`), which references the core `DemaConsulting.CanvasNet`
 package; its unit tests live in the sibling `DemaConsulting.CanvasNet.Vsdx.Tests` project.

@@ -1,4 +1,3 @@
-// cspell:ignore canvasnet scad openscad
 using System.Text.Json;
 using DemaConsulting.CanvasNet.Tool.Commands;
 

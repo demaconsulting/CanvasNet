@@ -1,4 +1,3 @@
-// cspell:ignore Zapf ZapfDingbats registerserif copyrightserif trademarkserif radicalex Noto
 using System.Reflection;
 
 namespace DemaConsulting.CanvasNet.Pdf.Tests;

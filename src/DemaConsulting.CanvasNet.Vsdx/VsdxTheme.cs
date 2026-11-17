@@ -1,11 +1,7 @@
 using System.Xml.Linq;
 using DemaConsulting.CanvasNet.Canvas;
 
-// cspell:ignore THEMEVAL
-
 namespace DemaConsulting.CanvasNet.Vsdx;
-
-// cspell:ignore vsdx Visio Rgba srgb hlink folhlink sysclr lastClr
 
 /// <summary>
 ///     A document's parsed theme (<c>visio/theme/theme1.xml</c>): its color scheme

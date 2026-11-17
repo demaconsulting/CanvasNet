@@ -1,11 +1,5 @@
 ### TrueTypeFont Unit Verification Design
 
-<!-- cspell:ignore glyf sfnt cmap loca hmtx hhea maxp notdef -->
-<!-- cspell:ignore codepoint codepoints subtable charstring charstrings ttcf hintmask cntrmask -->
-<!-- cspell:ignore hstemhm vstemhm callsubr callgsubr hhcurveto vvcurveto hvcurveto vhcurveto -->
-<!-- cspell:ignore rlineto hlineto vlineto rmoveto hmoveto vmoveto rrcurveto endchar seac gsubr -->
-<!-- cspell:ignore hflex flex1 hflex1 -->
-<!-- cspell:ignore noaccess definefont currentfile closefile misparse misparsing subsetting -->
 This document describes the unit-level verification strategy for the `TrueTypeFont` class and its
 supporting internal helpers `SfntContainer`, `CmapTable`, `GlyfLocaReader`, `IGlyphOutlineSource`,
 `CffTable`, `CffCharstringInterpreter`, `CffStandardEncoding`, `Type1Table`,

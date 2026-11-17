@@ -1,4 +1,3 @@
-// cspell:ignore bilinear premultiplied
 namespace DemaConsulting.CanvasNet.Canvas;
 
 /// <summary>

@@ -1,4 +1,3 @@
-// cspell:ignore vsdx visio
 using System.Collections.ObjectModel;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.ImageSources;

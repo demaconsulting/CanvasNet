@@ -1,12 +1,6 @@
 ---
 # Software Unit Requirements for PptxDocument
 #
-# cspell:ignore ooxml pptx srgb xfrm prst cust patt bodyPr normAutofit noAutofit spAutoFit pPr
-# cspell:ignore rPr txBody txStyles lstStyle defRPr ctrTitle lIns tIns rIns bIns algn marL lnSpc
-# cspell:ignore spcBef spcAft justLow lnSpcReduction fontScale lvl ordinally mistargeted unrenderable
-# cspell:ignore pythonpptx Autoshape aiden0z Aiden aiden misrendered bgRef bgFillStyleLst phClr
-# cspell:ignore tblStyle wholeTbl tcStyle tcBdr insideH insideV bandRow firstRow band1H band2H
-# cspell:ignore asvg Asvg
 #
 # These requirements describe the design-level behavior of the PptxDocument unit.
 #

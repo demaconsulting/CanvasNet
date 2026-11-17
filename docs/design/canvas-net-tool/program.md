@@ -1,7 +1,5 @@
 ## Program
 
-<!-- cspell:ignore canvasnet Postconditions -->
-
 ![CanvasNetTool Structure](CanvasNetToolView.svg)
 
 ### Purpose

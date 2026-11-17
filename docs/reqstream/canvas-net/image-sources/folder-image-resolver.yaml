@@ -1,5 +1,4 @@
 ---
-# cspell:ignore embedder
 # Software Unit Requirements for FolderImageResolver
 #
 # These requirements describe the design-level behavior of the FolderImageResolver unit of the ImageSources subsystem

@@ -1,7 +1,5 @@
 namespace DemaConsulting.CanvasNet.Scad.Language;
 
-// cspell:ignore lexer lexing
-
 /// <summary>
 ///     The internal <c>Language</c> namespace (the <c>ScadLanguage</c> subsystem) turns source text into an
 ///     immutable syntax tree: <c>ScadLexer</c> converts characters into <c>ScadToken</c> values and

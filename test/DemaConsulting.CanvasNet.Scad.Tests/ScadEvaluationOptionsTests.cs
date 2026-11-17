@@ -1,7 +1,5 @@
 namespace DemaConsulting.CanvasNet.Scad.Tests;
 
-// cspell:ignore enumerables
-
 /// <summary>
 ///     Tests of the public <see cref="ScadEvaluationOptions"/> and <see cref="ScadEvaluationResult"/> types: defaults,
 ///     validation, copying and immutability.

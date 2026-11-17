@@ -1,5 +1,4 @@
 ---
-# cspell:ignore premultiplied transversed
 # Software Unit Requirements for SurfaceTransforms
 #
 # These requirements describe the design-level behavior of the SurfaceTransforms unit of the Canvas subsystem: the

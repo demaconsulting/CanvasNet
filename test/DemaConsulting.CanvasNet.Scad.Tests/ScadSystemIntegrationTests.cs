@@ -6,8 +6,6 @@ using DemaConsulting.CanvasNet.Render3D.SceneRendering;
 
 namespace DemaConsulting.CanvasNet.Scad.Tests;
 
-// cspell:ignore fontmetrics textmetrics
-
 /// <summary>
 ///     System-level integration tests for the <c>DemaConsulting.CanvasNet.Scad</c> package, exercising only its
 ///     public API end to end (one test method per top-level system requirement declared in

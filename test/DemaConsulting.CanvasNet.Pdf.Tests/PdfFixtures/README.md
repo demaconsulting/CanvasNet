@@ -1,11 +1,5 @@
 # PDF Test Fixtures
 
-<!-- cspell:ignore xobject devicergb pdfhost flipperfile qwikpdf -->
-<!-- cspell:ignore bfchar bfrange codepoints -->
-<!-- cspell:ignore cidfonttype OTTO -->
-<!-- cspell:ignore hsbw fontfile -->
-<!-- cspell:ignore XUPVJI Gotham thinspace ligatures fontfile -->
-
 Every PDF file in this folder, with three exceptions (`text-embedded-truetype-font.pdf` and
 `text-composite-truetype-identity-h.pdf`, which embed a real third-party TrueType font, and
 `text-type1c-differences-agl-ligatures.pdf`, a trimmed excerpt of a real-world document - see

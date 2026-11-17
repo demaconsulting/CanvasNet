@@ -1,5 +1,3 @@
-// cspell:ignore vsdx Visio Strikethru
-
 namespace DemaConsulting.CanvasNet.Vsdx.Tests;
 
 /// <summary>

@@ -1,5 +1,3 @@
-// cspell:ignore eexec lenIV charstring charstrings subr subrs notdef hsbw sbw
-// cspell:ignore noaccess definefont currentfile closefile
 using System.Globalization;
 using System.Text;
 using Path = DemaConsulting.CanvasNet.Geometry.Path;

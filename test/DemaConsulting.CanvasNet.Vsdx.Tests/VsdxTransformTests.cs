@@ -1,5 +1,3 @@
-// cspell:ignore vsdx Visio LocPin davehoward
-
 namespace DemaConsulting.CanvasNet.Vsdx.Tests;
 
 /// <summary>

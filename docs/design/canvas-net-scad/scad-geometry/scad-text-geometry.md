@@ -1,8 +1,5 @@
 ### ScadTextGeometry
 
-<!-- cspell:ignore notdef Liberation kerning kerned flattening unioned subpath subpaths Bezier Casteljau ttb btt -->
-<!-- cspell:ignore rtl ltr glyphs glyph unscaled halign textmetrics fontmetrics -->
-
 The `ScadTextGeometry` unit is the fifth software unit in the `ScadGeometry` subsystem. It comprises three source
 files in the `DemaConsulting.CanvasNet.Scad.Geometry` namespace, all `internal`, and uses one public options type
 in the `DemaConsulting.CanvasNet.Scad` namespace:

@@ -1,7 +1,5 @@
 namespace DemaConsulting.CanvasNet.Render3D.SceneRendering;
 
-// cspell:ignore rasterizer rasterizes rasterization supersampling Lambertian Sutherland Hodgman
-
 /// <summary>
 ///     The <see cref="DemaConsulting.CanvasNet.Render3D.SceneRendering"/> namespace renders a
 ///     <see cref="DemaConsulting.CanvasNet.Render3D.SceneModel.Scene"/> into a CanvasNet

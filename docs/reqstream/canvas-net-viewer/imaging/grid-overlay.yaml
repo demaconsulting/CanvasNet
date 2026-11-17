@@ -1,5 +1,4 @@
 ---
-# cspell:ignore luma
 # Software Unit Requirements for the GridOverlay Class
 #
 # The GridOverlay class draws a labeled coordinate grid over the pixels of a surface in place, so that positions and

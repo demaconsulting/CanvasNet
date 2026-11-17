@@ -4,8 +4,6 @@ using Path = DemaConsulting.CanvasNet.Geometry.Path;
 
 namespace DemaConsulting.CanvasNet.Pptx;
 
-// cspell:ignore pptx stealth
-
 /// <summary>
 ///     Builds the local-space <see cref="Path"/> geometry for a single <c>&lt;a:headEnd&gt;</c>/
 ///     <c>&lt;a:tailEnd&gt;</c> arrowhead (Phase 2 Follow-Up: Connector Shape Rendering), following

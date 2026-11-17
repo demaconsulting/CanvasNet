@@ -1,5 +1,3 @@
-// cspell:ignore polyhedron tetrahedron Newell
-
 using DemaConsulting.CanvasNet.Render3D.SceneModel;
 using DemaConsulting.CanvasNet.Scad.Geometry;
 using static DemaConsulting.CanvasNet.Scad.Tests.Geometry.ScadGeometryTestSupport;

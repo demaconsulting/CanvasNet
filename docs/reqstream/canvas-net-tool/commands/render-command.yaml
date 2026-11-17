@@ -1,5 +1,4 @@
 ---
-# cspell:ignore scad openscad grayscale deskew
 # Software Unit Requirements for the RenderCommand Class
 #
 # The RenderCommand class is the render command (alias convert) and the verb commands crop, resize,

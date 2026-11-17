@@ -5,8 +5,6 @@ using Path = DemaConsulting.CanvasNet.Geometry.Path;
 
 namespace DemaConsulting.CanvasNet.Pptx.Tests;
 
-// cspell:ignore xfrm chOff chExt flipH flipV prstGeom custGeom pathLst lnTo cubicBezTo quadBezTo rtTriangle pptx prst cust unrotated
-
 /// <summary>
 ///     Unit-level tests for the Phase 1c DrawingML shape-geometry resolvers
 ///     (<see cref="PptxDocument.ResolveShapeFrame"/>, <see cref="PptxDocument.ResolveGroupChildTransform"/>,

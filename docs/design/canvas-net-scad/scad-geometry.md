@@ -1,8 +1,5 @@
 ## ScadGeometry
 
-<!-- cspell:ignore evaluator evaluators tessellator tessellators tessellation iteratively minkowski multmatrix -->
-<!-- cspell:ignore polyhedron extrude extrusions mirrored slab slabs frusta frustum pointwise underflows -->
-
 ![ScadGeometry Structure](ScadGeometryView.svg)
 
 ### Overview

@@ -2,8 +2,6 @@
 
 ![Codecs Structure](CodecsView.svg)
 
-<!-- cspell:ignore rasterizing unparseable Linq -->
-
 The `Codecs` subsystem is the second software subsystem in CanvasNet. It groups six
 hand-rolled image-format codecs — `BmpCodec`, `PngCodec`, `TiffCodec`, `JpegCodec`, `GifCodec`,
 and `Jpeg2000Codec` — and the `ImageDecoder` facade that recognizes an image's format and

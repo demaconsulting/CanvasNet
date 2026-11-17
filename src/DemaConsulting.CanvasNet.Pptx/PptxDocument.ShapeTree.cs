@@ -3,8 +3,6 @@ using DemaConsulting.CanvasNet.Canvas;
 
 namespace DemaConsulting.CanvasNet.Pptx;
 
-// cspell:ignore grpsp cxnsp sptree pptx xfrm
-
 /// <summary>
 ///     Implements the <see cref="PptxDocument"/> shape-tree walker (Phase 1e, extended by the
 ///     Phase 2 Follow-Up connector-rendering work and Phase 4's chart-graphic-frame dispatch):

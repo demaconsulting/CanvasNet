@@ -1,5 +1,3 @@
-// cspell:ignore ANDNOT
-
 namespace DemaConsulting.CanvasNet.Render3D.SceneRendering;
 
 /// <summary>

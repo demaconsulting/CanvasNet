@@ -3,8 +3,6 @@ using System.Xml.Linq;
 
 namespace DemaConsulting.CanvasNet.Pptx;
 
-// cspell:ignore txbody bodypr lstyle lnspc spcbef spcaft spcpct spcpts marl pptx
-
 /// <summary>
 ///     Implements the <see cref="PptxDocument"/> DrawingML text-body/paragraph/run parser (Phase
 ///     1d): <c>&lt;p:txBody&gt;</c>/<c>&lt;a:bodyPr&gt;</c>/<c>&lt;a:p&gt;</c>/<c>&lt;a:pPr&gt;</c>/

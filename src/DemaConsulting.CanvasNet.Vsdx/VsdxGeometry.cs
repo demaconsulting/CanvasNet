@@ -2,8 +2,6 @@ using System.Xml.Linq;
 
 namespace DemaConsulting.CanvasNet.Vsdx;
 
-// cspell:ignore vsdx Visio NURBSTo RelLineTo RelMoveTo davehoward
-
 /// <summary>
 ///     A single, as-parsed (not yet merged with any Master/MasterShape row) VisioML
 ///     <c>&lt;Row&gt;</c> element from a <c>&lt;Section N="Geometry"&gt;</c> section.

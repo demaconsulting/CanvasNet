@@ -1,7 +1,5 @@
 ### TriangleRasterizer Unit Verification Design
 
-<!-- cspell:ignore rasterizer rasterization -->
-
 This document describes the unit-level verification strategy for the internal `TriangleRasterizer`,
 `TriangleClipper`, `SampleProjection`, `ClipVertex`, `ClipPlane`, `ViewTriangle`, `ScreenTriangle`,
 `TileRect`, `IFragmentVisitor`, and `DepthTestVisitor` types.

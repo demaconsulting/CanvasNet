@@ -1,7 +1,5 @@
 ## CanvasNetViewer Unit Verification Design
 
-<!-- cspell:ignore vsdx pptx scad href -->
-
 `CanvasNetViewer` is distributed as the separate `DemaConsulting.CanvasNet.Viewer` NuGet package (namespace
 `DemaConsulting.CanvasNet.Viewer`); its unit tests live in the sibling `DemaConsulting.CanvasNet.Viewer.Tests` project.
 `CanvasNetViewer` is one of the two units of the CanvasNetViewer system (the other is `ViewerException`; the `Imaging`

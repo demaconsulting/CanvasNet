@@ -1,5 +1,3 @@
-// cspell:ignore canvasnet deskew
-
 namespace DemaConsulting.CanvasNet.Tool.Commands;
 
 /// <summary>

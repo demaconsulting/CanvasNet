@@ -1,7 +1,5 @@
 ## ViewerException Unit Verification Design
 
-<!-- cspell:ignore canvasnet -->
-
 ### Verification Approach
 
 `ViewerException` and `ErrorCodes` are verified with unit tests in `ViewerExceptionTests.cs` in the Viewer test project.

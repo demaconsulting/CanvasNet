@@ -1,4 +1,3 @@
-// cspell:ignore pptx vsdx Visio
 using DemaConsulting.CanvasNet.Canvas;
 
 namespace DemaConsulting.CanvasNet.Viewer.Imaging;

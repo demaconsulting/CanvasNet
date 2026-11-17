@@ -1,5 +1,3 @@
-// cspell:ignore subnormal subnormals coplanar ulps ulp
-
 using DemaConsulting.CanvasNet.Render3D.SceneModel;
 using DemaConsulting.CanvasNet.Render3D.Tessellation;
 

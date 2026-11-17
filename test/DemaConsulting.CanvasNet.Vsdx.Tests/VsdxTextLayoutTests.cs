@@ -4,8 +4,6 @@ using DemaConsulting.CanvasNet.Tests.TestSupport;
 
 namespace DemaConsulting.CanvasNet.Vsdx.Tests;
 
-// cspell:ignore vsdx Visio unitsperem
-
 /// <summary>
 ///     Unit-level tests for <c>VsdxDocument.TextLayout.cs</c>'s word-wrap/line-breaking/alignment
 ///     engine, driven directly through its internal <c>ResolveTextLayout</c> entry point with

@@ -1,10 +1,3 @@
-// cspell:ignore linecap linejoin dasharray dashoffset miterlimit anchor xlink href
-// cspell:ignore Glyf Loca
-// cspell:ignore evenodd nonzero viewbox gradientunits gradienttransform spreadmethod
-// cspell:ignore userspaceonuse objectboundingbox skewx skewy tspan
-// cspell:ignore rasterizing unparseable rrggbb sizeless bbox moveto multiplicatively pillarbox SMIL uncatchable formedness
-// cspell:ignore unblurred premult
-// cspell:ignore unitless letterboxing
 using System.Globalization;
 using System.Numerics;
 using System.Xml;

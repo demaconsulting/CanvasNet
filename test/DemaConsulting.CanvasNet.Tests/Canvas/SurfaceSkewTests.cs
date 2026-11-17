@@ -1,4 +1,3 @@
-// cspell:ignore deskew downscales
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Tests.TestSupport;
 

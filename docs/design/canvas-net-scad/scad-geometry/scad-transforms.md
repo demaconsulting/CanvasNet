@@ -1,7 +1,5 @@
 ### ScadTransforms
 
-<!-- cspell:ignore multmatrix newsize unioned underflows evaluator subtree -->
-
 The `ScadTransforms` unit is the third software unit in the `ScadGeometry` subsystem. It comprises three source
 files in the `DemaConsulting.CanvasNet.Scad.Geometry` namespace, all `internal`:
 

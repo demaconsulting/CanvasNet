@@ -1,7 +1,5 @@
 ### Mesh Unit Verification Design
 
-<!-- cspell:ignore Orientable -->
-
 This document describes the unit-level verification strategy for the `Mesh`, `MeshBuilder`, and
 `MeshTopology` types.
 

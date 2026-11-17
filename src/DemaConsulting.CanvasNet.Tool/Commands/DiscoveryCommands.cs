@@ -1,4 +1,3 @@
-// cspell:ignore canvasnet jpeg jpg tif tiff jp2 j2k j2c vsdx pptx
 using System.Globalization;
 using System.Reflection;
 using System.Text;

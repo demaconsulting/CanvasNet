@@ -1,7 +1,5 @@
 ## Canvas
 
-<!-- cspell:ignore otsu -->
-
 ![Canvas Structure](CanvasView.svg)
 
 The `Canvas` subsystem is the first software subsystem in CanvasNet. It provides the pixel-buffer

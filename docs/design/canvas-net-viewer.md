@@ -1,7 +1,5 @@
 # System Design
 
-<!-- cspell:ignore vsdx pptx scad href -->
-
 This document provides the system-level design for CanvasNetViewer.
 
 ![CanvasNetViewer Structure](CanvasNetViewerView.svg)

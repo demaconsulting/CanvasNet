@@ -1,7 +1,5 @@
 ### SurfaceGeometry Unit Verification Design
 
-<!-- cspell:ignore bilinear premultiplied deskew downscales -->
-
 The rotation and skew estimation of the `Surface` class (the `SurfaceGeometry` unit of the `Canvas` subsystem) are
 verified by `test/DemaConsulting.CanvasNet.Tests/Canvas/SurfaceGeometryTests.cs` (rotation) and
 `test/DemaConsulting.CanvasNet.Tests/Canvas/SurfaceSkewTests.cs` (skew estimation and the `SkewEstimate` record).

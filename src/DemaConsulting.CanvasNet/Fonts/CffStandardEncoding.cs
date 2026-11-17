@@ -1,7 +1,3 @@
-// cspell:ignore seac bchar achar adx ady Agrave quoteleft quoteright exclamdown
-// cspell:ignore endash questiondown caron emdash ordfeminine Lslash Oslash
-// cspell:ignore ordmasculine dotlessi lslash oslash germandbls
-
 namespace DemaConsulting.CanvasNet.Fonts;
 
 /// <summary>

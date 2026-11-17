@@ -1,5 +1,3 @@
-<!-- cspell:ignore embedder -->
-
 ### ImageSourceContract
 
 ![ImageSources Structure](ImageSourcesView.svg)

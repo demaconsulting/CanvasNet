@@ -2,8 +2,6 @@ using DemaConsulting.CanvasNet.Canvas;
 
 namespace DemaConsulting.CanvasNet.Vsdx;
 
-// cspell:ignore vsdx Visio Rgba Themed THEMEVAL davehoward Foregnd
-
 /// <summary>
 ///     Resolves a VisioML color cell's raw <c>V</c> value into an <see cref="Rgba32"/>, handling
 ///     the three literal forms observed across the in-scope fixtures: a hexadecimal color literal

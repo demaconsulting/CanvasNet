@@ -1,7 +1,5 @@
 namespace DemaConsulting.CanvasNet.Pptx;
 
-// cspell:ignore rasterizing rasterize pptx ooxml patt
-
 /// <summary>
 ///     The <see cref="DemaConsulting.CanvasNet.Pptx"/> namespace provides read access to
 ///     PowerPoint (<c>.pptx</c>) presentation documents via <see cref="PptxDocument"/>: the OOXML

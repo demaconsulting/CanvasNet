@@ -1,4 +1,3 @@
-// cspell:ignore scalings
 using DemaConsulting.CanvasNet.Scad.Evaluation;
 using DemaConsulting.CanvasNet.Scad.Geometry;
 using DemaConsulting.CanvasNet.Scad.Language;

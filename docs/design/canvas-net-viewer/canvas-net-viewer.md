@@ -2,8 +2,6 @@
 
 ![CanvasNetViewer Structure](CanvasNetViewerView.svg)
 
-<!-- cspell:ignore vsdx pptx scad href embedder -->
-
 ### Purpose
 
 `CanvasNetViewer` is one of two units of the `CanvasNetViewer` system (the other is `ViewerException`, beside the

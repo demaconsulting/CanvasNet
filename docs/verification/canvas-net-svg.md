@@ -1,7 +1,5 @@
 # System Verification Design
 
-<!-- cspell:ignore rasterizing -->
-
 This document describes the system-level verification strategy for CanvasNetSvg.
 
 ## Verification Approach

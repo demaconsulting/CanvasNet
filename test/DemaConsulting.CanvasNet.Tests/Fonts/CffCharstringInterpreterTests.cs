@@ -1,10 +1,3 @@
-// cspell:ignore SFNT Sfnt sfnt glyf Glyf cmap Cmap loca Loca hmtx Hmtx hhea Hhea
-// cspell:ignore maxp Maxp notdef codepoint codepoints subtable subtables subsetted
-// cspell:ignore subsetting PPEM OTTO CFF charstring charstrings subr subrs
-// cspell:ignore hintmask cntrmask rmoveto hmoveto vmoveto rlineto hlineto vlineto
-// cspell:ignore rrcurveto hhcurveto vvcurveto hvcurveto vhcurveto callsubr callgsubr
-// cspell:ignore endchar seac hstem vstem hstemhm vstemhm rcurveline rlinecurve bchar achar adx ady
-// cspell:ignore hflex flex1 hflex1
 using System.Numerics;
 using DemaConsulting.CanvasNet.Fonts;
 using DemaConsulting.CanvasNet.Geometry;

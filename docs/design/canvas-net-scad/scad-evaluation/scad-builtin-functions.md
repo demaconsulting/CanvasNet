@@ -1,8 +1,5 @@
 ### ScadBuiltinFunctions
 
-<!-- cspell:ignore evaluator undef unseeded SplitMix splitmix libm ULP tangent tangents scalars atan -->
-<!-- cspell:ignore parent_module textmetrics fontmetrics -->
-
 The `ScadBuiltinFunctions` unit is the third software unit in the `ScadEvaluation` subsystem. It comprises
 nine source files in the `DemaConsulting.CanvasNet.Scad.Evaluation` namespace, all `internal`:
 

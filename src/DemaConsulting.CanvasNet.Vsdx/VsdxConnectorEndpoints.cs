@@ -1,7 +1,5 @@
 namespace DemaConsulting.CanvasNet.Vsdx;
 
-// cspell:ignore vsdx Visio WALKGLUE davehoward jgreywolfvsdxjs
-
 /// <summary>
 ///     A 1-D (connector) shape's resolved, page-space begin/end endpoint coordinates, read
 ///     directly from its own already-resolved <c>BeginX</c>/<c>BeginY</c>/<c>EndX</c>/<c>EndY</c>

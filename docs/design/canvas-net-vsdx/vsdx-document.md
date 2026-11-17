@@ -2,11 +2,6 @@
 
 ![CanvasNetVsdx Structure](CanvasNetVsdxView.svg)
 
-<!-- cspell:ignore vsdx Visio VisioML xfrm stencil stencils glueable NURBS nurbs -->
-<!-- cspell:ignore shapesheet ShapeSheet rrggbb PinX PinY LocPinX LocPinY FlipX FlipY BeginX BeginY -->
-<!-- cspell:ignore EndX EndY MasterShape FillForegnd FillBkgnd LineColor LineWeight LinePattern -->
-<!-- cspell:ignore FillPattern ShapeSheet TxtPinX TxtPinY TxtLocPinX TxtLocPinY TxtWidth TxtHeight -->
-
 ### Purpose
 
 `VsdxDocument` is the sole unit of `CanvasNetVsdx`. It is an OPC (Open Packaging Conventions)

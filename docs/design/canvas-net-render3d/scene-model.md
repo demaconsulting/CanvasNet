@@ -1,7 +1,5 @@
 ## SceneModel
 
-<!-- cspell:ignore tessellator -->
-
 ![SceneModel Structure](SceneModelView.svg)
 
 ### Overview

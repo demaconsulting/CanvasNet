@@ -3,9 +3,6 @@ using DemaConsulting.CanvasNet.Canvas;
 
 namespace DemaConsulting.CanvasNet.Pptx.Tests;
 
-// cspell:ignore pptx txbody bodypr lstyle lstStyle lnspc spcpct spcpts defrpr lststyle sng calibri arial
-// cspell:ignore Srgb srgb EEECE BACC hlink Hlink folhlink
-
 /// <summary>
 ///     Unit-level tests for the Phase 1d DrawingML text parser (<c>PptxDocument.Text.cs</c>) and
 ///     the attribute-level run/paragraph property-inheritance resolver

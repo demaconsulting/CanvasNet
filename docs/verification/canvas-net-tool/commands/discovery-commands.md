@@ -1,7 +1,5 @@
 ### DiscoveryCommands
 
-<!-- cspell:ignore canvasnet jpeg pptx vsdx dpi scad openscad -->
-
 #### Verification Approach
 
 `DiscoveryCommands` is verified with unit tests in `DiscoveryCommandsTests.cs` and

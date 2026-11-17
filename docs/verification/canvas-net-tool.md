@@ -1,7 +1,5 @@
 # System Verification Design
 
-<!-- cspell:ignore canvasnet dpi pptx vsdx scad openscad psnr rmse ssim deskew deskewing grayscale luma otsu gamma -->
-
 This document describes the system-level verification strategy for CanvasNetTool.
 
 ## Verification Approach

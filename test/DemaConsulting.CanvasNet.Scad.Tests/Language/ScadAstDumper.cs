@@ -1,4 +1,3 @@
-// cspell:ignore ifor lfor lcfor llet
 using System.Globalization;
 using DemaConsulting.CanvasNet.Scad.Language;
 

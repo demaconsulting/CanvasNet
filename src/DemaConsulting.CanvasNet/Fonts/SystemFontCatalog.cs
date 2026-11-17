@@ -1,4 +1,3 @@
-// cspell:ignore Dejavu Nimbus Consolas ttcf rescanned Segoe LOCALAPPDATA Noto Zapf
 using System.Collections.Concurrent;
 using System.Runtime.InteropServices;
 using System.Security;

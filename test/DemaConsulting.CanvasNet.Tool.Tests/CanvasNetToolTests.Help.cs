@@ -1,4 +1,3 @@
-// cspell:ignore canvasnet
 using System.Text.Json;
 
 namespace DemaConsulting.CanvasNet.Tool.Tests;

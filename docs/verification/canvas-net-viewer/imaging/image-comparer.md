@@ -1,7 +1,5 @@
 ### ImageComparer
 
-<!-- cspell:ignore canvasnet psnr rmse ssim -->
-
 #### Verification Approach
 
 `ImageComparer` is verified with unit tests in `ImageComparerTests.cs` in the Viewer test project. The tests write

@@ -1,8 +1,5 @@
 # Bundled Fallback Fonts
 
-<!-- cspell:ignore dogfoods dogfooding -->
-<!-- cspell:ignore Noto Zapf notofonts -->
-
 The 12 `.ttf` files in this folder are the real, unmodified, production "Liberation Sans",
 "Liberation Serif", and "Liberation Mono" TrueType font families (four styles each - Regular,
 Bold, Italic, BoldItalic), sourced from the official
@@ -42,8 +39,6 @@ check performed before committing these files and a permanent, repeatable CI gat
 future accidental corruption or replacement of these files.
 
 ## Noto Substitute Fonts (Symbol/ZapfDingbats Fallback)
-
-<!-- cspell:ignore varLib instancer wdth wght -->
 
 The 3 additional `.ttf` files in this folder -
 `NotoSans-Regular.ttf`, `NotoSansMath-Regular.ttf`, and `NotoSansSymbols2-Regular.ttf` - are used
