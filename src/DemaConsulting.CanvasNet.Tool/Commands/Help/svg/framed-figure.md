@@ -9,6 +9,7 @@ see-also:
   - composition
   - svg/composition
   - svg/style
+  - svg/arrows
   - scad/anchors
   - positions
   - svg/supported
@@ -76,20 +77,18 @@ Draw the layers in this order; each covers the one before:
 
 ## Arrows
 
-- `<marker>` is drawn on a `line`, `polyline`, or `path` through `marker-end`
-  (and `marker-start`, `marker-mid`), as an attribute or in CSS, with
-  `orient="auto"` or `auto-start-reverse`, `refX`, `refY`, and `viewBox`:
+- Draw each arrow from the label to the feature with a `<marker>` on
+  `marker-end`; `refX="10"` puts the tip on the last point, the feature:
 
 ```xml
-<marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto">
+<marker id="arrow" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="5" markerHeight="5" orient="auto">
   <path d="M0,0 L10,5 L0,10 z" fill="#ea580c"/>
 </marker>
 <polyline points="748,191 712,191 500,279.7" fill="none" stroke="#ea580c" stroke-width="2.5" marker-end="url(#arrow)"/>
 ```
 
-- The last point of the line is the feature; `refX` near the tip of the head
-  puts the point there. The head scales with `stroke-width`.
 - A short level leg before the slanted one keeps the labels in tidy columns.
+  Curves and start arrows: `canvasnet help svg arrows`.
 
 ## Find where a feature is
 

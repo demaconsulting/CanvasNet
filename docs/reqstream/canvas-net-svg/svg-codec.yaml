@@ -42,7 +42,8 @@ sections:
               The SvgCodec class shall rasterize a path element's full "d" mini-language,
               including absolute and relative moveto, lineto, horizontal/vertical lineto,
               cubic and quadratic Bezier (including their smooth variants), elliptical arc,
-              and closepath commands.
+              and closepath commands, and shall start a drawing command that follows
+              closepath without a moveto as a new subpath at the closed subpath's start point.
             justification: |
               The path element's "d" mini-language is the most expressive and widely used
               SVG shape primitive; supporting its full command set is required to render
@@ -56,6 +57,7 @@ sections:
               - SvgCodec_Load_PathWithQuadraticBezier_RendersFilledShape
               - SvgCodec_Load_PathWithSmoothQuadraticBezier_RendersFilledShape
               - SvgCodec_Load_PathWithArc_RendersFilledHalfDisc
+              - SvgCodec_Load_PathDrawAfterCloseWithoutMoveTo_StartsNewSubpathAtCloseStart
 
           - id: CanvasNetSvg-SvgCodec-GroupTransformInheritance
             title: >-
@@ -187,7 +189,12 @@ sections:
               The SvgCodec class shall render a marker element referenced via a line,
               polyline, polygon, or path element's marker-start/marker-mid/marker-end
               presentation attributes at that shape's first/interior/last vertex
-              respectively, honoring markerWidth/markerHeight, refX/refY, markerUnits
+              respectively, treating a closepath as a real segment whose closing vertex
+              (back at the subpath's first point) is the last vertex of a closed subpath,
+              with an orient="auto" angle at both ends of a closed subpath that bisects
+              the closing and the first segment (SVG 2), and with a subpath started
+              implicitly after closepath sharing the closing vertex, honoring
+              markerWidth/markerHeight, refX/refY, markerUnits
               (strokeWidth or userSpaceOnUse), orient (auto, auto-start-reverse, a fixed
               angle in degrees, or the fixed 0-degree default when omitted/blank), and an
               optional viewBox, while never rendering a marker for
@@ -215,7 +222,14 @@ sections:
               - SvgCodec_Load_MarkerOnRectCircleEllipse_NeverRendersMarker
               - SvgCodec_Load_MarkerContent_DoesNotInheritReferencingShapeFillOrStroke
               - SvgCodec_Load_ArrowMarkersFixture_RendersArrowheadPastLineEnd
-              - SvgCodec_Load_MarkerEndOnClosedPolygon_OrientsUsingClosingEdgeTangent
+              - SvgCodec_Load_MarkerEndOnClosedPolygon_PlacesEndAtClosingVertex
+              - SvgArrow_BuildMarkerVertices_OpenPath_EndsAtLastPoint
+              - SvgArrow_BuildMarkerVertices_ClosedTriangle_EndsAtClosingVertex
+              - SvgArrow_BuildMarkerVertices_ZeroLengthClose_UsesTheFirstSegment
+              - SvgArrow_BuildMarkerVertices_TwoClosedSubpaths_CloseEachSubpath
+              - SvgArrow_Load_ClosedTriangleMarkers_MatchTheBrowserPlacement
+              - SvgArrow_BuildMarkerVertices_DrawAfterCloseWithoutMoveTo_SharesTheClosingVertex
+              - SvgArrow_Load_DrawAfterCloseWithoutMoveTo_PlacesMarkerEndAtTheLastPoint
               - SvgCodec_Load_MarkerStrokeWidthUnitsOnScaledDocument_ScalesOnceNotTwice
               - SvgCodec_Load_MarkerContentWithFilterAttribute_FilterHasNoEffect
 
@@ -1965,3 +1979,27 @@ sections:
               - SvgCodec_Binding_MatchFailures_AreReported
               - SvgCodec_Binding_ImageNotPainted_IsUnavailableAndNotLoaded
               - SvgImageSource_Render_UnresolvedBinding_IsAWarningOfTheResult
+
+          - id: CanvasNetSvg-SvgCodec-ArrowheadShapeHint
+            title: >-
+              The SvgCodec class shall report, through SvgLoadOptions.HintHandler after painting and at most once per
+              document with the count and the first occurrence, the hint svg-arrowhead-shape for a filled polygon or
+              path of straight segments with three points (or four with one reflex corner) whose longest edge is 1.5 to
+              12 times the stroke width of an open, stroked, unfilled line, polyline, or path and whose centroid is
+              more than a fifth of and at most that edge length from an end of it that has no marker (a symbol
+              centered on the end is a data point); it shall ignore content inside defs, marker,
+              symbol, pattern, mask, and clipPath, content drawn through use, and connector ends that have a marker,
+              shall skip the analysis when no handler is set, and shall never change the pixels or fail the render.
+            justification: |
+              A hand-drawn triangle on a connector end does not follow the connector when it changes, and authors (and
+              agents) often draw one instead of a marker; a non-failing, conservative hint points at the fix without
+              blocking a render or flagging icons, legends, and templates.
+            tests:
+              - SvgArrow_HintHandler_TriangleAtCurveEnd_ReportsArrowheadShape
+              - SvgArrow_HintHandler_NotchedHeadAtLineEnd_ReportsArrowheadShape
+              - SvgArrow_HintHandler_SeveralStyledHeads_ReportsOneHintWithTheCount
+              - SvgArrow_HintHandler_MarkerArrows_ReportNothing
+              - SvgArrow_HintHandler_TrianglesAwayFromConnectorEnds_ReportNothing
+              - SvgArrow_HintHandler_ChartSymbolsCenteredOnLineEnds_ReportNothing
+              - SvgArrow_HintHandler_TemplatesAndPatternContent_ReportNothing
+              - SvgArrow_HintHandler_DoesNotChangeThePixels

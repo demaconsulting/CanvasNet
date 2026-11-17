@@ -74,6 +74,13 @@ class:
   each bound image once before painting, writes the mapped numbers into the element, and paints the same surface; a
   binding it cannot resolve keeps the written numbers and is reported with a stable `svg-binding-*` code. The handler
   receives every binding in document order (see *SvgCodec Design*, *Position Bindings*).
+- **Authoring hints** (`SvgLoadOptions.HintHandler`, `Action<SvgHint>?`, default `null`): after painting, the codec
+  reports constructs that draw but are likely mistakes, at most once per code per document with a count. The one code
+  is `svg-arrowhead-shape` (`SvgHint.ArrowheadShapeCode`), a filled triangle drawn by hand on an unmarked connector
+  end instead of a `marker`. Hints never change the pixels or fail the render, and no analysis runs without a handler
+  (see *SvgCodec Design*, *Authoring Hints*).
+- **Closed-path markers**: a closepath is a real segment, as in SVG 2, so the `marker-end` of a closed path or a
+  `polygon` is drawn at its first point, oriented by bisecting the closing and the first segment.
 - **SvgImageSource** (`IImageSource`, claims `.svg`): The Svg package's image source, so that an SVG file can
   be embedded in another document through the shared `FolderImageResolver`: it draws the file at the size of its
   placement over a transparent background and resolves the file's own `image` elements through the resolver

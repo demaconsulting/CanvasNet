@@ -45,8 +45,8 @@ This subsystem has no dedicated subsystem-level test scenarios of its own beyond
 scenarios it is composed from; subsystem-level requirements reuse the `Canvas`, `TextRenderer`,
 `Shapes`, and `WordWrap` unit tests directly:
 
-- **Canvas** — transform-stack semantics (Save/Restore/RotateDegrees/Translate), transform-
-  independent `Clear`, byte-identical no-transform output against direct `Drawing.PathFiller`/
+- **Canvas** — transform-stack semantics (Save/Restore/RotateDegrees/Translate), transform-independent
+  `Clear`, byte-identical no-transform output against direct `Drawing.PathFiller`/
   `Drawing.PathStroker` calls, and observable output under a non-identity transform; see
   `rendering/canvas.md` for the complete named-scenario list
 - **TextRenderer** — measurement (advance-plus-kerning summation, ascent/descent from font

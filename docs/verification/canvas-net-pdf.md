@@ -224,8 +224,8 @@ point with a real font file (not a hand-rolled synthetic one).
 
 **Test**: `CanvasNetPdf_SystemIntegration_RenderCidFontType0CompositeFont_PaintsExpectedGlyphInk`
 
-Exercises end-to-end system behavior for the Phase 12 `/CIDFontType0` composite-font text-
-rendering pipeline: calls the public `Render` API against a hand-authored, entirely synthetic
+Exercises end-to-end system behavior for the Phase 12 `/CIDFontType0` composite-font text-rendering
+pipeline: calls the public `Render` API against a hand-authored, entirely synthetic
 fixture whose descendant font's `/FontDescriptor/FontFile3` is a synthetic, non-CID-keyed,
 `/OpenType`-wrapped CFF program (built via `SyntheticFontBuilder.Cff` - no third-party font
 asset), with no `/CIDToGIDMap` declared (identity CID-to-glyph-index is used unconditionally for
@@ -240,8 +240,8 @@ entry point.
 
 **Test**: `CanvasNetPdf_SystemIntegration_RenderEmbeddedType1Font_PaintsExpectedGlyphInk`
 
-Exercises end-to-end system behavior for the Phases B/C/D `/Subtype /Type1` simple-font text-
-rendering pipeline: calls the public `Render` API against a hand-authored, entirely synthetic
+Exercises end-to-end system behavior for the Phases B/C/D `/Subtype /Type1` simple-font text-rendering
+pipeline: calls the public `Render` API against a hand-authored, entirely synthetic
 fixture built via `SyntheticFontBuilder.Type1` (no third-party font asset), whose embedded
 classic PostScript `/FontDescriptor/FontFile` program's `A` glyph is a filled square, drawn at
 font size 20 on a 100x100 `/MediaBox` - deliberately matching the `/CIDFontType0` composite-font

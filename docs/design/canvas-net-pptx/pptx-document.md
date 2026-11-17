@@ -97,8 +97,8 @@ duplicating the same existence-check-then-parse logic.
 - **`Open(string path)`**: validates `path` is non-null (`ArgumentNullException`) and not
   empty/whitespace-only (`ArgumentException`), then opens a `FileStream` and delegates to
   `Open(Stream)`.
-- **`Dispose()`**: idempotent (a `_disposed` flag guards a second call from re-disposing already-
-  released resources); disposes the owned picture surfaces and the underlying `OpcPackage`.
+- **`Dispose()`**: idempotent (a `_disposed` flag guards a second call from re-disposing already-released
+  resources); disposes the owned picture surfaces and the underlying `OpcPackage`.
 
 ### Presentation Parsing (Phase 1b)
 
@@ -315,8 +315,8 @@ coordinates (the caller then applies the shape's resolved `PptxShapeFrame.Transf
 (`rect`/`roundRect`/`ellipse`/`triangle`) PowerPoint itself defaults new shapes to, plus a
 practical cross-section of the arrow, star, and other basic-shape categories real-world
 presentations most commonly use, per the approved plan's "aim for ~24 total" guidance. The four
-curved-arrow presets were added in a later real-world-corpus hardening pass (see *Phase 2: Real-
-World Corpus Hardening*'s "Genuine bug 3" entry below) once `curvedUpArrow` was found to crash
+curved-arrow presets were added in a later real-world-corpus hardening pass (see *Phase 2: Real-World
+Corpus Hardening*'s "Genuine bug 3" entry below) once `curvedUpArrow` was found to crash
 rendering of a real-world deck; the remaining three (`curvedDownArrow`/`curvedLeftArrow`/
 `curvedRightArrow`) were added alongside it because the existing `Mirror`/`RotateQuarter`
 derivation pattern already used for `upArrow`/`downArrow`/`leftArrow` (each derived from
@@ -1436,8 +1436,8 @@ fixtures were updated accordingly in that later phase.
 **What was found**: running the full corpus surfaced three ungraceful results, one of which was
 an already-correct, merely-undocumented behavior and two of which were genuine, in-scope bugs.
 
-- **Chart-exception-graceful-behavior hypothesis: confirmed.** Both of the two chart/SmartArt-
-  bearing slides (`pythonpptx-shp-shapes.pptx` slide index 0 and
+- **Chart-exception-graceful-behavior hypothesis: confirmed.** Both of the two chart/SmartArt-bearing
+  slides (`pythonpptx-shp-shapes.pptx` slide index 0 and
   `samplelib-sample-presentation.pptx` slide index 4) throw `PptxUnsupportedFeatureException`
   (feature token `pptx-graphic-frame-kind`) exactly as the pre-existing `ParseTable` uri-check
   logic (Phase 1e) already implements - no source change was needed for this.
@@ -1617,8 +1617,8 @@ an already-correct, merely-undocumented behavior and two of which were genuine, 
     resolution today produces `PptxNoFill`/no stroke, indistinguishable in effect from the
     already-accepted "fill/line inheritance is not resolved" simplification - there is no
     currently-promised behavior being silently defeated. Recorded here as a candidate follow-up:
-    if `effectiveSpPr`-based fill/line inheritance is ever promoted to a promised, per-tier-
-    inherited feature (mirroring geometry/`<a:lstStyle>`), the identical empty-element fix pattern
+    if `effectiveSpPr`-based fill/line inheritance is ever promoted to a promised, per-tier-inherited
+    feature (mirroring geometry/`<a:lstStyle>`), the identical empty-element fix pattern
     (`GetTxBodyListStyleWithLevelOverride`/`GetSpPrWithGeometry`'s own precedent) would need to be
     applied there too. No code change made for `effectiveSpPr` in this pass.
 
@@ -1652,8 +1652,8 @@ closed it in a still-later pass.
 
 A later follow-up pass grew the fixture corpus from ten files across two sources to **twenty**
 files across **three** independent sources, adding seven further `python-pptx` files (a slide
-background fill, placeholder geometry-inheritance regression coverage, nine unpopulated-
-placeholder types, `wrap="none"` + `<a:spAutoFit/>` text, a lone connector plus a picture, and
+background fill, placeholder geometry-inheritance regression coverage, nine unpopulated-placeholder
+types, `wrap="none"` + `<a:spAutoFit/>` text, a lone connector plus a picture, and
 explicit solid-fill/line-stroke property variety) and three files newly sourced from
 `aiden0z/pptx-renderer` (Apache-2.0 licensed, not MIT - see `PptxFixtures/README.md` and
 `PptxFixtures/Aiden0zPptxRenderer.LICENSE` for the corrected license finding and full provenance):
@@ -1734,16 +1734,16 @@ A `<p:bg>` element declares either `<p:bgPr>` (an explicit fill - resolved by ca
 `<p:spPr>`, no new fill-resolution logic was written) or `<p:bgRef idx="…">` (a theme
 format-scheme style-matrix reference). A `<p:bgRef>`'s `idx` follows ECMA-376's
 `CT_StyleMatrixReference` convention: `idx` 0 or 1000 means "no background fill" (resolved to
-`PptxNoFill`); `idx` 1-999 indexes the theme's `<a:fillStyleLst>` (the rare, not-used-for-
-backgrounds-in-practice half of the style matrix - throws `PptxUnsupportedFeatureException`,
+`PptxNoFill`); `idx` 1-999 indexes the theme's `<a:fillStyleLst>` (the rare, not-used-for-backgrounds-in-practice
+half of the style matrix - throws `PptxUnsupportedFeatureException`,
 feature token `pptx-bg-fill-style-ref`); `idx` 1001 and above indexes the theme's own
 `<a:fmtScheme>/<a:bgFillStyleLst>` (a new `PptxTheme.BgFillStyleList`, parsed by
 `PptxDocument.Theme.cs`'s new `ParseBgFillStyleList`, defaulting to an empty list for the
 overwhelming majority of themes that declare no `<a:fmtScheme>` at all), 0-based from that offset.
 A matched `<a:bgFillStyleLst>` entry is itself parameterized with an `<a:schemeClr val="phClr"/>`
 placeholder-color token; `<p:bgRef>`'s own single color-definition child supplies the concrete
-substitution value, resolved via the existing `ResolveColor`. Reusing `ResolveFill` for a style-
-list entry (which is itself a bare fill-definition element, not a parent containing one) required
+substitution value, resolved via the existing `ResolveColor`. Reusing `ResolveFill` for a style-list
+entry (which is itself a bare fill-definition element, not a parent containing one) required
 wrapping it in a synthetic parent `XElement` with no namespace first - adding an `XElement` that
 already has a parent as content to a new element clones it rather than moving it to the new parent, so the
 theme's own cached, shared tree is never mutated by this (confirmed by a dedicated regression
@@ -1754,15 +1754,15 @@ test, `ResolveSlideBackgroundFill_BgRefResolution_DoesNotMutateThemeBgFillStyleL
 `Rgba32? phClrOverride = null` parameter - when supplied and non-null, a `<a:schemeClr
 val="phClr"/>` resolves to that value instead of the pre-existing `ResolveSchemeColor(val,
 theme.ColorScheme)` lookup (which still resolves `"phClr"` to `Dark1`, unchanged, for every
-pre-existing call site that does not supply an override). This is a purely additive, source-
-compatible change - every pre-existing call site continues to compile and behave unchanged.
+pre-existing call site that does not supply an override). This is a purely additive, source-compatible
+change - every pre-existing call site continues to compile and behave unchanged.
 
 **Fidelity achieved**:
 
 - **Solid-color fills and theme-indexed `<p:bgRef>` fills**: fully supported, including `phClr`
   substitution - the highest-priority, most-common-in-real-decks case this feature targeted.
-- **Linear gradient background fills**: best-effort - inherits Phase 1c's own existing linear-
-  only boundary (`ResolveGradientFill` already throws `PptxUnsupportedFeatureException` for a
+- **Linear gradient background fills**: best-effort - inherits Phase 1c's own existing linear-only
+  boundary (`ResolveGradientFill` already throws `PptxUnsupportedFeatureException` for a
   radial/path gradient; a `<p:bg>`'s own `<a:gradFill>` is resolved via the same `ResolveFill`/
   `ResolveGradientFill` pipeline every shape fill already uses, so this boundary is inherited
   unchanged, not newly introduced).
@@ -1891,8 +1891,8 @@ callback with the exception (this package has no other diagnostics channel). In 
 exception propagates unchanged. A master/layout picture (`skipPlaceholderShapes`) is excluded from
 the reporting clause and falls to the silent-containment clause in both modes, so the callback
 reports only a slide's own or group-nested pictures (never once per slide for an inherited
-picture). `options` is threaded through `RenderNode`'s recursion so group-
-nested pictures behave identically. **Known gap**: EMF/WMF content is never drawn (not even a
+picture). `options` is threaded through `RenderNode`'s recursion so group-nested
+pictures behave identically. **Known gap**: EMF/WMF content is never drawn (not even a
 placeholder); a pasted chart/diagram stored as a metafile therefore leaves its area unpainted.
 
 **Fidelity achieved**:
@@ -2864,33 +2864,29 @@ PptxColorMap?)` reuses `ResolveLineStyle` (the exact resolver `RenderShape`/`Ren
 `<a:ln>` element, returning `(WidthEmu, Color, DashArray)` only when `ResolveLineStyle` resolves a
 stroke whose paint is a plain `PptxSolidFill`.
 
-**Correction - explicit-cancellation tier selection (a post-merge code-review finding)**: the
-original implementation chained `GetRunOutline(rPrLikeElement, ...)` itself across the four tiers
-with `??` (`GetRunOutline(runRPr) ?? GetRunOutline(paragraphDefRPr) ?? ...`), exactly like every
-other run attribute's own chain - but unlike every other attribute, `GetRunOutline`'s own `null`
-result is ambiguous between two completely different situations: "this tier's `rPrLikeElement` has
-no `<a:ln>` child at all" (the ordinary "undeclared here, keep searching a shallower tier" case
-every other attribute's chain correctly handles) and "this tier's `<a:ln>` is present but
-explicitly resolves to no stroke" (for example `<a:ln><a:noFill/></a:ln>`, or an explicit
-non-positive `w`, or a non-solid-fill line paint) - a deliberate cancellation that must stop the
-chain outright, not fall through to a shallower tier's own outline. The original `??`-chain-over-
-`GetRunOutline`'s-own-return-value could not distinguish these two cases, so a run that explicitly
-cancelled its own outline (for example inheriting a near-white fill but an explicit
-`<a:ln><a:noFill/></a:ln>` to suppress a paragraph-level stroke) incorrectly inherited the
-paragraph/placeholder/master tier's own outline instead of painting none at all. The fix splits
-tier selection from tier resolution into two distinct steps: first, a plain `??` chain over each
-tier's own raw `rPrLikeElement?.Element(DrawingNamespace + "ln")` picks the first tier whose
-`<a:ln>` child is present at all, regardless of what it resolves to (mirroring exactly how
-`GetTypeface`/`GetFontSizeEmu`/every other attribute's own tier-selection already behaves, since
-those helpers return the raw parsed value, not a doubly-overloaded "absent-or-cancelled" `null`);
-second, that single, already-selected `<a:ln>` element is resolved exactly once via `GetRunOutline`
-(now taking the `<a:ln>` element directly, not an `rPrLikeElement` to search within). Because tier
-selection happens entirely before resolution, a run's own explicit cancellation is now honored
-correctly - the chain never even looks at the paragraph/placeholder/master tiers once the run's
-own `<a:ln>` is selected, whatever it resolves to. `GetRunOutline`'s own XmlDoc previously
-documented the old, buggy fallthrough as a deliberate, accepted simplification ("a document relying
-on that explicit-cancellation nuance is not expected in practice") - that remark has been removed
-now that the behavior it excused is implemented correctly.
+**Correction - explicit-cancellation tier selection (a post-merge code-review finding)**: the original implementation
+chained `GetRunOutline(rPrLikeElement, ...)` itself across the four tiers with `??`
+(`GetRunOutline(runRPr) ?? GetRunOutline(paragraphDefRPr) ?? ...`), exactly like every other run attribute's own chain -
+but unlike every other attribute, `GetRunOutline`'s own `null` result is ambiguous between two completely different
+situations: "this tier's `rPrLikeElement` has no `<a:ln>` child at all" (the ordinary "undeclared here, keep searching a
+shallower tier" case every other attribute's chain correctly handles) and "this tier's `<a:ln>` is present but
+explicitly resolves to no stroke" (for example `<a:ln><a:noFill/></a:ln>`, or an explicit non-positive `w`, or a
+non-solid-fill line paint) - a deliberate cancellation that must stop the chain outright, not fall through to a
+shallower tier's own outline. The original `??`-chain-over-`GetRunOutline`'s-own-return-value could not distinguish
+these two cases, so a run that explicitly cancelled its own outline (for example inheriting a near-white fill but an
+explicit `<a:ln><a:noFill/></a:ln>` to suppress a paragraph-level stroke) incorrectly inherited the
+paragraph/placeholder/master tier's own outline instead of painting none at all. The fix splits tier selection from tier
+resolution into two distinct steps: first, a plain `??` chain over each tier's own raw
+`rPrLikeElement?.Element(DrawingNamespace + "ln")` picks the first tier whose `<a:ln>` child is present at all,
+regardless of what it resolves to (mirroring exactly how `GetTypeface`/`GetFontSizeEmu`/every other attribute's own
+tier-selection already behaves, since those helpers return the raw parsed value, not a doubly-overloaded
+"absent-or-cancelled" `null`); second, that single, already-selected `<a:ln>` element is resolved exactly once via
+`GetRunOutline` (now taking the `<a:ln>` element directly, not an `rPrLikeElement` to search within). Because tier
+selection happens entirely before resolution, a run's own explicit cancellation is now honored correctly - the chain
+never even looks at the paragraph/placeholder/master tiers once the run's own `<a:ln>` is selected, whatever it resolves
+to. `GetRunOutline`'s own XmlDoc previously documented the old, buggy fallthrough as a deliberate, accepted
+simplification ("a document relying on that explicit-cancellation nuance is not expected in practice") - that remark has
+been removed now that the behavior it excused is implemented correctly.
 
 **Layout plumbing** (`PptxTextLayout.cs`/`PptxDocument.TextLayout.cs`): `LineGlyph` and
 `PptxGlyphPlacement` each gain the same trailing optional `OutlineWidthEmu`/`OutlineColor`/
@@ -3345,8 +3341,8 @@ no-op; it becomes visible for a rotated/scaled/skewed shape (or, for a table, an
 `shapeToSurfaceTransform` the table itself is painted through), where the gradient's own ramp
 stays fixed in the shape's local coordinate space instead of following the shape into surface
 space. **Fix, scoped to table cells only**: `FillPaint` (a single, shared private method also
-called from eight-plus non-table sites in `PptxDocument.Render.cs`) gained a second, four-
-parameter overload - `FillPaint(Surface, Path, PptxPaint, Matrix3x2 shapeToSurfaceTransform)` -
+called from eight-plus non-table sites in `PptxDocument.Render.cs`) gained a second, four-parameter
+overload - `FillPaint(Surface, Path, PptxPaint, Matrix3x2 shapeToSurfaceTransform)` -
 that composes `gradientFill.Gradient.WithTransform(shapeToSurfaceTransform)` before filling; the
 pre-existing three-parameter overload is **unchanged** and now simply delegates to the new one
 with `Matrix3x2.Identity`, preserving every pre-existing (non-table) call site's exact current
@@ -3477,8 +3473,8 @@ dispatch (bar/line/pie/area chart kinds, plus a table-still-dispatches-to-`Parse
 check), the radar-chart deferred-feature wrap-to-`PptxUnsupportedFeatureException` path, two
 malformed-`<c:chart>` cases (no `<c:chart>` child; no `r:id` attribute) via a direct `ParseChart`
 call, and a synthetic, fully in-memory chart-only slide package proving an end-to-end `Render`
-call paints visible, non-transparent pixels. `PptxFixturesCorpusTests.cs` gained two new real-
-world-chart-fixture facts (`pythonpptx-chart-line.pptx` renders successfully;
+call paints visible, non-transparent pixels. `PptxFixturesCorpusTests.cs` gained two new real-world-chart-fixture
+facts (`pythonpptx-chart-line.pptx` renders successfully;
 `pythonpptx-chart-unsupported-radar.pptx` throws `PptxUnsupportedFeatureException` with `Feature`
 `"pptx-chart-charts-openxml-radar-chart"`) and had its three pre-existing chart-fixture assertions
 flipped or corrected: `aiden0z-1-chart-and-complex.pptx` and
@@ -3568,8 +3564,8 @@ decorative-shape containment. `PptxImagesTests.cs` gained
 `ResolvePictureSurface_SvgOnlyBlipExtension_ReturnsDecodedSurfaceFromAsvgSvgBlipEmbed` (a unit-level
 proof that `ResolvePictureSurface` itself now returns a non-null, correctly-sized `Surface` for
 this pattern instead of throwing) and
-`ResolvePictureSurface_SvgBlipExtensionMissingEmbed_ThrowsInvalidDataException` (the malformed-
-extension regression case); the pre-existing
+`ResolvePictureSurface_SvgBlipExtensionMissingEmbed_ThrowsInvalidDataException` (the malformed-extension
+regression case); the pre-existing
 `ResolvePictureSurface_BlipMissingEmbedAndLink_ThrowsInvalidDataException` (no raster fallback and
 no SVG extension at all) continues to pass unchanged, proving that genuinely malformed case is
 unaffected by this fix.
@@ -3664,8 +3660,8 @@ renders pixel-identical to an otherwise-identical plain-run reference shape whos
 `"1"`), `Render_SlideNumberFieldOnSecondSlideOfTwo_SubstitutesDifferentSlideNumber` (the identical
 field shape on a genuine two-slide deck renders `"1"` on slide 0 and a visibly different `"2"` on
 slide 1 - proving true per-slide substitution, not a value hardcoded from slide 1),
-`Render_DateTimeField_KeepsCachedPlaceholderText` (a `type="datetime1"` field renders pixel-
-identical to its own cached text, completely unaffected), and
+`Render_DateTimeField_KeepsCachedPlaceholderText` (a `type="datetime1"` field renders pixel-identical
+to its own cached text, completely unaffected), and
 `Render_PlainRunAlongsideSlideNumberField_PlainRunTextUnaffected` (a plain run sharing a paragraph
 with a `slidenum` field renders pixel-identical to a reference shape, proving only the field's own
 run changes).

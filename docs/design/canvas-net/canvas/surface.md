@@ -90,8 +90,8 @@ Model table above), throwing `ArgumentOutOfRangeException(nameof(width))` or
 `ArgumentOutOfRangeException(nameof(height))` respectively. Allocates a `byte[]` of
 `Height * _strideBytes` bytes, where `_strideBytes` rounds `width` up to the next multiple of 16
 pixels then converts to bytes (see the Row Storage Layout section below). The `MaxDimension`
-upper bound guarantees that this padded-
-stride/buffer-size arithmetic — `paddedWidthPixels <= 8192`, `_strideBytes <= 8192 * 4 = 32768`,
+upper bound guarantees that this padded-stride/buffer-size
+arithmetic — `paddedWidthPixels <= 8192`, `_strideBytes <= 8192 * 4 = 32768`,
 and `height * _strideBytes <= 8192 * 32768 = 268,435,456` — stays within plain `int` range with
 margin to spare below `int.MaxValue` (2,147,483,647), so no `long`/`checked` arithmetic is needed.
 

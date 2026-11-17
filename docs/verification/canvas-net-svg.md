@@ -65,6 +65,21 @@ Exercises end-to-end system behavior for marker rendering: rasterizes a `line` e
 content is visible past the line's end vertex, confirming marker resolution, placement, and
 rendering integrate correctly with the rest of the pipeline.
 
+### Integration: Svg Marker Rendering Closed Path Ends At Closing Vertex
+
+**Test**: `CanvasNetSvg_SystemIntegration_SvgMarkerRendering_ClosedPathEndsAtClosingVertex`
+
+Rasterizes a closed triangle path whose `marker-end` is a square centered on its vertex, through the public API.
+Asserts the marker is drawn at the first point of the path (the closing vertex, as in SVG 2 and browsers) and that
+nothing is drawn at the last explicit point.
+
+### Integration: Hint Handler Reports Hand-Drawn Arrowhead
+
+**Test**: `CanvasNetSvg_SystemIntegration_HintHandler_ReportsHandDrawnArrowhead`
+
+Rasterizes a line with a filled triangle drawn by hand on its end, with `SvgLoadOptions.HintHandler` set. Asserts one
+`SvgHint` with the code `svg-arrowhead-shape` and a count of 1, and that the triangle is still drawn.
+
 ### Integration: Svg Filter Rendering Applies Filter Chain To Shape
 
 **Test**: `CanvasNetSvg_SystemIntegration_SvgFilterRendering_AppliesFilterChainToShape`

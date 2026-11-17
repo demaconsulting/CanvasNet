@@ -110,13 +110,16 @@ file under `SvgFixtures/`; `SvgCodec_Load_FromFilePath_ReturnsExpectedPixels` ex
 `SvgCodec_Load_PathWithSmoothCubicBezier_RendersFilledShape`,
 `SvgCodec_Load_PathWithQuadraticBezier_RendersFilledShape`,
 `SvgCodec_Load_PathWithSmoothQuadraticBezier_RendersFilledShape`,
-`SvgCodec_Load_PathWithArc_RendersFilledHalfDisc`
+`SvgCodec_Load_PathWithArc_RendersFilledHalfDisc`,
+`SvgCodec_Load_PathDrawAfterCloseWithoutMoveTo_StartsNewSubpathAtCloseStart`
 
 Exercises `M`/`m`, `L`/`l`, `H`/`h`, `V`/`v`, `C`/`c`, `S`/`s`, `Q`/`q`, `T`/`t`, `A`/`a`, and
 `Z`/`z`, in both absolute and relative forms, asserting the resulting filled region matches the
 hand-derived geometry (including that the relative-command variant renders the identical shape
 as its absolute-command equivalent, and that an elliptical arc command renders a recognizable
-half-disc via `Geometry.SvgArcConverter`).
+half-disc via `Geometry.SvgArcConverter`). Also asserts that a line drawn after `Z` without a
+moveto (`M10,10 L80,10 L80,60 Z L150,90`, and the relative `z l140,80`) renders from the closed
+subpath's start point (10,10) instead of failing, with the relative form measured from that point.
 
 #### CanvasNetSvg-SvgCodec-GroupTransformInheritance: Group Attribute/Transform Inheritance
 
@@ -261,49 +264,56 @@ rejected with `InvalidDataException` once the bounded recursion guard is exceede
 `SvgCodec_Load_MarkerOnRectCircleEllipse_NeverRendersMarker`,
 `SvgCodec_Load_MarkerContent_DoesNotInheritReferencingShapeFillOrStroke`,
 `SvgCodec_Load_ArrowMarkersFixture_RendersArrowheadPastLineEnd`,
-`SvgCodec_Load_MarkerEndOnClosedPolygon_OrientsUsingClosingEdgeTangent`,
+`SvgCodec_Load_MarkerEndOnClosedPolygon_PlacesEndAtClosingVertex`,
+`SvgArrow_BuildMarkerVertices_OpenPath_EndsAtLastPoint`,
+`SvgArrow_BuildMarkerVertices_ClosedTriangle_EndsAtClosingVertex`,
+`SvgArrow_BuildMarkerVertices_ZeroLengthClose_UsesTheFirstSegment`,
+`SvgArrow_BuildMarkerVertices_TwoClosedSubpaths_CloseEachSubpath`,
+`SvgArrow_Load_ClosedTriangleMarkers_MatchTheBrowserPlacement`,
+`SvgArrow_BuildMarkerVertices_DrawAfterCloseWithoutMoveTo_SharesTheClosingVertex`,
+`SvgArrow_Load_DrawAfterCloseWithoutMoveTo_PlacesMarkerEndAtTheLastPoint`,
 `SvgCodec_Load_MarkerStrokeWidthUnitsOnScaledDocument_ScalesOnceNotTwice`,
 `SvgCodec_Load_MarkerContentWithFilterAttribute_FilterHasNoEffect`
 
-Asserts a `marker-end` reference renders its `marker` element's content past a `line`'s own end
-point, sized in user-space units; asserts `marker-start`/`marker-mid`/`marker-end` each
-independently resolve and render their own distinct marker at the correct vertex of a
-multi-vertex `polyline`, with each marker's own reference point (`refX`/`refY`) landing exactly on
-its vertex regardless of rotation; asserts `orient="auto"` orients a marker along a horizontal,
-vertical, and 45-degree diagonal segment's own direction of travel (the diagonal case uses an
-alpha threshold rather than exact full opacity, tolerating this rasterizer's edge anti-aliasing on
-a thin, diagonally rotated shape); asserts an omitted `orient` attribute uses the fixed 0-degree
-default rather than following the vertex tangent like an explicit `orient="auto"` (a regression
-test for a defect where an absent/blank `orient` was incorrectly routed into the same tangent-
-following branch as an explicit `auto`); asserts a plain `orient="auto"` `marker-start` points into the
-line's own body while `orient="auto-start-reverse"` reverses it by 180 degrees to point away from
-the line instead; asserts `markerUnits="userSpaceOnUse"` keeps a marker's size independent of the
-referencing shape's effective stroke width while the default `markerUnits="strokeWidth"` scales it
-proportionally; asserts a marker's own `viewBox` is fitted ("meet" scale-down) into
-`markerWidth`/`markerHeight` rather than rendering at its raw, unfitted size; asserts a
-multi-subpath `path`'s `marker-start`/`marker-end` apply only to the very first/last vertex of the
-whole path, not to each subpath's own start/end, with the interior subpath-boundary vertices
-correctly classified as "mid" instead; asserts `rect`/`circle`/`ellipse` never render a marker
-even when a `marker-end` attribute is present, since these shapes have no natural vertices to
-orient one along; and asserts a marker's own content renders with a fresh presentation-attribute
-cascade from the SVG/CSS initial defaults, not inheriting the referencing shape's own
-`fill`/`stroke`. A real fixture file (`SvgFixtures/arrow-markers.svg`) exercises the common
-`marker-end` arrowhead scenario end-to-end. Asserts a closed `polygon`'s implicit closing segment
-(back to its first vertex) contributes to the `orient="auto"` tangent computed for the last
-vertex's `marker-end` - averaged with the incoming open-path edge's own tangent - rather than the
-closing edge being silently ignored (a regression test for a defect where a closed shape's final
-vertex was oriented using only its incoming edge). Asserts a default `markerUnits="strokeWidth"`
-marker on a document with a non-identity root `viewBox` fit (a uniform 2x scale from local units
-to pixels) scales by exactly `stroke-width * root-scale` once, not twice (a regression test for a
-defect where the already-pixel-scaled effective stroke width was passed into the marker's own
-`strokeWidth`-units sizing, and then the root scale was re-applied a second time via the shared
-`shapeTransform`, making the marker four times too large instead of two times). Asserts a shape
-inside a `marker` element's own content with a `filter="url(#id)"` attribute referencing a real
-(`feFlood`) filter renders exactly as if that `filter` attribute were absent - the marker's own
-fill color, not the flood's - a regression test for a defect where marker-content rendering
-re-entered the same shape/text dispatch used everywhere else, which unconditionally resolved and
-evaluated a shape's own `filter` attribute, contradicting this codec's documented "filters on
-marker content have no effect" scope decision.
+Asserts a `marker-end` reference renders its `marker` element's content past a `line`'s own end point, sized in
+user-space units; asserts `marker-start`/`marker-mid`/`marker-end` each independently resolve and render their own
+distinct marker at the correct vertex of a multi-vertex `polyline`, with each marker's own reference point
+(`refX`/`refY`) landing exactly on its vertex regardless of rotation; asserts `orient="auto"` orients a marker along a
+horizontal, vertical, and 45-degree diagonal segment's own direction of travel (the diagonal case uses an alpha
+threshold rather than exact full opacity, tolerating this rasterizer's edge anti-aliasing on a thin, diagonally rotated
+shape); asserts an omitted `orient` attribute uses the fixed 0-degree default rather than following the vertex tangent
+like an explicit `orient="auto"` (a regression test for a defect where an absent/blank `orient` was incorrectly routed
+into the same tangent-following branch as an explicit `auto`); asserts a plain `orient="auto"` `marker-start` points
+into the line's own body while `orient="auto-start-reverse"` reverses it by 180 degrees to point away from the line
+instead; asserts `markerUnits="userSpaceOnUse"` keeps a marker's size independent of the referencing shape's effective
+stroke width while the default `markerUnits="strokeWidth"` scales it proportionally; asserts a marker's own `viewBox` is
+fitted ("meet" scale-down) into `markerWidth`/`markerHeight` rather than rendering at its raw, unfitted size; asserts a
+multi-subpath `path`'s `marker-start`/`marker-end` apply only to the very first/last vertex of the whole path, not to
+each subpath's own start/end, with the interior subpath-boundary vertices correctly classified as "mid" instead; asserts
+`rect`/`circle`/`ellipse` never render a marker even when a `marker-end` attribute is present, since these shapes have
+no natural vertices to orient one along; and asserts a marker's own content renders with a fresh presentation-attribute
+cascade from the SVG/CSS initial defaults, not inheriting the referencing shape's own `fill`/`stroke`. A real fixture
+file (`SvgFixtures/arrow-markers.svg`) exercises the common `marker-end` arrowhead scenario end-to-end. Asserts a closed
+`polygon`'s `marker-end` is drawn at its closing vertex (back at its first point, as in SVG 2 and browsers), oriented by
+bisecting the closing and the first segment, and nothing at its last explicit point. The `SvgArrowTests.cs` geometry
+tests call `BuildMarkerVertices` and `ComputeVertexAngleDegrees` directly: an open path has no closing vertex; the
+closed triangle `M30,420 L190,420 L110,520 Z` (case 9 of the arrow reference drawing, checked against a browser
+rendering) has four vertices with the end at (30,420) at -64.33 degrees, mids at 64.33 and 180 degrees, and
+`auto-start-reverse` at 115.67 degrees; a zero-length closing segment takes the first segment's direction, as Edge draws
+it; and each closed subpath of a two-subpath path gets its own closing vertex, the first one a mid vertex. A render test
+of case 9 checks the end head, the reversed start head, and the absence of a head at the old place. A line drawn after
+`Z` without a moveto shares the closing vertex (five vertices, the shared one arriving along the closing segment and
+leaving along the new segment), and its render strokes the new segment from the closed subpath's start with the
+`marker-end` dot at the last point. Asserts a default `markerUnits="strokeWidth"` marker on a document with a
+non-identity root `viewBox` fit (a uniform 2x scale from local units to pixels) scales by exactly
+`stroke-width * root-scale` once, not twice (a regression test for a defect where the already-pixel-scaled effective
+stroke width was passed into the marker's own `strokeWidth`-units sizing, and then the root scale was re-applied a
+second time via the shared `shapeTransform`, making the marker four times too large instead of two times). Asserts a
+shape inside a `marker` element's own content with a `filter="url(#id)"` attribute referencing a real (`feFlood`) filter
+renders exactly as if that `filter` attribute were absent - the marker's own fill color, not the flood's - a regression
+test for a defect where marker-content rendering re-entered the same shape/text dispatch used everywhere else, which
+unconditionally resolved and evaluated a shape's own `filter` attribute, contradicting this codec's documented "filters
+on marker content have no effect" scope decision.
 
 #### CanvasNetSvg-SvgCodec-MarkerPreserveAspectRatio: Marker Explicit preserveAspectRatio Fitting
 
@@ -312,8 +322,8 @@ marker content have no effect" scope decision.
 
 `SvgCodec_Load_MarkerWithViewBox_FitsContentToMarkerWidthHeight` proves a marker with a `viewBox` but no
 explicit `preserveAspectRatio` keeps the unchanged default fit.
-`SvgCodec_Load_MarkerWithExplicitPreserveAspectRatioSlice_UsesLargerUniformScale` is a new-
-capability test proving an explicit `preserveAspectRatio="... slice"` attribute on a marker with
+`SvgCodec_Load_MarkerWithExplicitPreserveAspectRatioSlice_UsesLargerUniformScale` is a new-capability
+test proving an explicit `preserveAspectRatio="... slice"` attribute on a marker with
 its own `viewBox` selects `slice`'s larger uniform scale (`max(...)`) rather than the pre-existing
 default path's `meet`-equivalent (`min(...)`) scale, exercised via a canvas point covered only by
 the wider `slice` fit. It deliberately does not exercise `<align>`/origin variation: because a
@@ -409,8 +419,8 @@ multiple elements) and `TotalGeometryWorkBudget` (this attribute family is not c
 it, so an oversized `stroke-dasharray`/`transform`/`viewBox` would otherwise bypass every existing
 budget entirely).
 `SvgCodec_Load_StrokeDasharrayExceedingNumberListLengthCap_ThrowsWithoutLargeAllocation` proves,
-via `GC.GetAllocatedBytesForCurrentThread()` (matching the `TotalGeometryWorkBudget` allocation-
-bound precedent above), that an oversized `stroke-dasharray` is rejected before the cap's
+via `GC.GetAllocatedBytesForCurrentThread()` (matching the `TotalGeometryWorkBudget` allocation-bound
+precedent above), that an oversized `stroke-dasharray` is rejected before the cap's
 incremental per-number charge lets the backing list grow far beyond the cap, not only after the
 whole (otherwise unbounded) list has already been materialized.
 `SvgCodec_Load_TransformArgumentListExceedingLengthCap_ThrowsInvalidDataException` and
@@ -820,8 +830,8 @@ length per the SVG specification
 a `line`'s `x1`/`y1`/`x2`/`y2` percentages resolve against the viewport
 (`SvgCodec_Load_LineCoordinatePercentage_ResolvesAgainstViewport`), and separately, that a
 `linearGradient`'s own `x1`/`x2` coordinates continue to resolve as basis-1 fractions of the
-gradient's own `objectBoundingBox` coordinate space, unaffected by this phase's new viewport-
-relative percentage resolution
+gradient's own `objectBoundingBox` coordinate space, unaffected by this phase's new viewport-relative
+percentage resolution
 (`SvgCodec_Load_GradientCoordinatePercentage_UnaffectedByViewportPercentageResolution` - uses a
 `rect` fill rather than a `line` stroke, since a horizontal/vertical `line`'s own fill-geometry
 bounding box is degenerate on one axis and always falls back to an identity object-bounding-box
@@ -829,8 +839,8 @@ map regardless of this change). Asserts `stroke-width`'s and each `stroke-dashar
 percentage resolves against the diagonal basis, exactly like `r` above
 (`SvgCodec_Load_StrokeWidthPercentage_ResolvesAgainstDiagonalBasis`,
 `SvgCodec_Load_StrokeDasharrayPercentage_ResolvesAgainstDiagonalBasis`). Asserts `font-size`'s
-percentage resolves against the parent element's own already-cascaded `font-size` (the CSS/SVG-
-defined basis), not any viewport dimension
+percentage resolves against the parent element's own already-cascaded `font-size` (the CSS/SVG-defined
+basis), not any viewport dimension
 (`SvgCodec_Load_FontSizePercentage_ResolvesAgainstParentFontSize`). Percentage resolution happens
 inside the existing `ParseGeometryCoordinate`/`ParseCoordinate` choke point, so the existing
 finite/magnitude guards those methods already apply still run *after* percentage resolution
@@ -1831,8 +1841,8 @@ with tiled content, independent of the shape's own fill; asserts a shape with in
 `fill="url(#a)"` and `stroke="url(#b)"` references renders each pattern into its own respective
 region without either interfering with the other; asserts `fill="url(#nonexistent)"` referencing
 a dangling id renders the shape unfilled (fully transparent, matching this codec's general
-dangling-reference convention, and byte-identical to this codec's pre-existing dangling-gradient-
-reference behavior); asserts a `fill` reference that resolves to a well-formed element which is
+dangling-reference convention, and byte-identical to this codec's pre-existing dangling-gradient-reference
+behavior); asserts a `fill` reference that resolves to a well-formed element which is
 not literally a `pattern` (a plain `rect`) is tolerated as a no-op, rendering unfilled, mirroring
 this codec's existing `clipPath`/`mask`/`filter`/marker wrong-element-type tolerance; asserts a
 `pattern` with a zero `width` or `height` renders the referencing shape unfilled without throwing,
@@ -2270,8 +2280,8 @@ deliberately do not use the `CanvasNetSvg-SvgCodec-{Id}:` heading pattern above.
 `SvgCodec_Load_CssStylesheetRuleSetsStopColorAndOpacity_AppliesToStopWithNoAttributes`
 
 `ApplyPresentationAttributes` was, before this fix, the *only* place this codec routed a
-presentation property through the three-tier `ResolveStyledValue` precedence chain (see *Three-
-Tier Precedence* in the design doc); six properties resolved elsewhere in the codebase - `filter`,
+presentation property through the three-tier `ResolveStyledValue` precedence chain (see *Three-Tier
+Precedence* in the design doc); six properties resolved elsewhere in the codebase - `filter`,
 `clip-path`, and `mask` (each resolved once, directly from a plain `XElement.Attribute(...)` read,
 at the point a shape/`text`/`g`/`symbol`/`use` element's own filter/clip/mask reference is
 resolved), a `clipPath` child's own `clip-rule` (read the same direct way inside the `clipPath`
@@ -2400,8 +2410,8 @@ renders, just without its dash pattern, matching `ParseDashArray`'s own existing
 **Tests**: `SvgCodec_Load_PathArcCommandRadiusOverflowsToNonFinite_SkipsPathWithoutThrowing`,
 `SvgCodec_Load_RectRoundedCornerArcConversionOverflowsToNonFinite_SkipsShapeWithoutThrowing`
 
-Regression tests for the unguarded `SvgArcConverter` output finding: an extreme-but-individually-
-finite arc radius drives `Geometry.SvgArcConverter.ToBeziers`'s internal ellipse-center arithmetic
+Regression tests for the unguarded `SvgArcConverter` output finding: an extreme-but-individually-finite
+arc radius drives `Geometry.SvgArcConverter.ToBeziers`'s internal ellipse-center arithmetic
 (which squares the radii) to overflow one of its emitted control points or endpoints to a
 non-finite value, even though every raw literal token is itself finite. Both tests were originally
 written to exercise this directly - one via an explicit `A` path-data command, proving
@@ -2479,8 +2489,8 @@ convention already used for a non-finite value at each site.
 `SvgCodec_Load_PathDataCoordinateExceedingMaxMagnitude_ThrowsInvalidDataException` and
 `SvgCodec_Load_PointsListCoordinateExceedingMaxMagnitude_ThrowsInvalidDataException` prove a
 coordinate just over the new bound is rejected from each of `TryReadNumber`'s two call sites, and
-`SvgCodec_Load_CoordinateWithinMaxMagnitude_RendersSuccessfully` proves an ordinary, real-world-
-sized coordinate well under the bound is unaffected and still renders correctly.
+`SvgCodec_Load_CoordinateWithinMaxMagnitude_RendersSuccessfully` proves an ordinary, real-world-sized
+coordinate well under the bound is unaffected and still renders correctly.
 
 **Ripple effect on prior rounds' overflow-tolerant-skip tests**: this new, low-magnitude parse-time
 bound necessarily intercepts several inputs that six earlier regression tests (from this round and
@@ -2643,8 +2653,29 @@ already used by e.g. `CmapTable_Format4_GlyphIndexAddressArithmeticOverflow_Retu
 asserting the second call for the same gradient element returns the identical cached
 `List<GradientStop>` instance rather than a freshly re-parsed one.
 
+#### CanvasNetSvg-SvgCodec-ArrowheadShapeHint: Hand-Drawn Arrowhead Hint
+
+**Tests** (`SvgArrowTests.cs`):
+
+- `SvgArrow_HintHandler_TriangleAtCurveEnd_ReportsArrowheadShape`
+- `SvgArrow_HintHandler_NotchedHeadAtLineEnd_ReportsArrowheadShape`
+- `SvgArrow_HintHandler_SeveralStyledHeads_ReportsOneHintWithTheCount`
+- `SvgArrow_HintHandler_MarkerArrows_ReportNothing`
+- `SvgArrow_HintHandler_TrianglesAwayFromConnectorEnds_ReportNothing`
+- `SvgArrow_HintHandler_ChartSymbolsCenteredOnLineEnds_ReportNothing`
+- `SvgArrow_HintHandler_TemplatesAndPatternContent_ReportNothing`
+- `SvgArrow_HintHandler_DoesNotChangeThePixels`
+
+Asserts that a filled triangle on the end of a cubic curve and a notched four-point head on the end of a line are each
+reported once with the code `svg-arrowhead-shape`, naming the shape; that two heads styled by a CSS class inside a
+transformed group are one hint with a count of 2 and the first head's device-pixel position; that marker arrows,
+triangles away from a connector end, a square legend swatch on a sample line, a triangle too large for the stroke, and
+arrows inside `defs` drawn through `use`, a `symbol`, or a `pattern` report nothing; that triangle symbols centered on
+the ends of a chart's data line (centroid on the end) report nothing; and that rendering with a hint
+handler produces the same pixels as rendering without one.
+
 ### Acceptance Criteria
 
-A unit test run passes when every test method listed above, across both `SvgCodecTests.cs` and
-`SvgFixtureTests.cs`, passes without error or unexpected exception; any unexpected exception type
-or wrong pixel/return value constitutes a failure.
+A unit test run passes when every test method listed above, across `SvgCodecTests.cs`, `SvgFixtureTests.cs`, and
+`SvgArrowTests.cs`, passes without error or unexpected exception; any unexpected exception type or wrong pixel/return
+value constitutes a failure.

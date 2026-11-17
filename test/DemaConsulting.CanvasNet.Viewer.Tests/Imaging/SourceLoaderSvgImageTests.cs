@@ -578,4 +578,34 @@ public class SourceLoaderSvgImageTests
         var note = Assert.Single(Unresolved(loaded));
         Assert.Equal(["inner.svg"], note.Origin);
     }
+
+    /// <summary>
+    ///     Test that a hand-drawn arrowhead is one <c>svg-arrowhead-shape</c> warning that points at the help card, and
+    ///     that it does not fail the load with <c>--strict</c>.
+    /// </summary>
+    [Fact]
+    public void SourceLoader_Load_SvgHandDrawnArrowhead_IsAWarningThatNeverFails()
+    {
+        // Arrange: a line with a filled triangle drawn on its end instead of a marker
+        using var directory = new TempDirectory();
+        var path = FixtureFactory.WriteText(
+            directory.Path,
+            "arrow.svg",
+            "<svg xmlns='http://www.w3.org/2000/svg' width='120' height='40' viewBox='0 0 120 40'>"
+            + "<line x1='10' y1='20' x2='100' y2='20' stroke='black' stroke-width='2'/>"
+            + "<polygon points='100,20 90,15 90,25' fill='black'/></svg>");
+
+        // Act
+        using var tolerant = SourceLoader.Load(path, new SourceOptions());
+        using var strict = SourceLoader.Load(path, new SourceOptions { Strict = true });
+
+        // Assert: one warning, with the code and the help pointer, in both modes
+        foreach (var loaded in new[] { tolerant, strict })
+        {
+            var note = Assert.Single(loaded.Diagnostics);
+            Assert.Equal(("svg", "warning", "svg-arrowhead-shape"), (note.Source, note.Severity, note.Code));
+            Assert.Contains("'canvasnet help svg arrows'", note.Message, StringComparison.Ordinal);
+            Assert.DoesNotContain('\n', note.Message);
+        }
+    }
 }

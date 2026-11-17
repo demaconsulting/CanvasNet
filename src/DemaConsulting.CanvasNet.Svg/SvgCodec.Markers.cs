@@ -212,7 +212,7 @@ public static partial class SvgCodec
     ///     degenerates to a zero-length direction (for example a repeated coordinate) - see
     ///     <see cref="PathCommand.ComputeTangents"/>.
     /// </remarks>
-    private readonly struct MarkerVertex(Vector2 position, Vector2? incomingTangent, Vector2? outgoingTangent)
+    internal readonly struct MarkerVertex(Vector2 position, Vector2? incomingTangent, Vector2? outgoingTangent)
     {
         /// <summary>The vertex's position, in the shape's own local (untransformed) space.</summary>
         public Vector2 Position { get; } = position;
@@ -259,21 +259,57 @@ public static partial class SvgCodec
     ///     vertex of the whole path, not per-subpath - a deliberate, documented simplification
     ///     (matches at least one common browser's behavior; the SVG specification's own wording
     ///     on this point is not unambiguous across implementations) rather than a stricter
-    ///     per-subpath interpretation. A <c>Close</c> command contributes no new vertex (it always
-    ///     returns to the subpath's own <see cref="Subpath.Start"/>, already recorded), but its
-    ///     implicit closing segment's tangent - computed identically to an equivalent
-    ///     <see cref="PathCommandType.LineTo"/> back to <see cref="Subpath.Start"/> - is still
-    ///     folded into both the subpath's last vertex's outgoing tangent and its first vertex's
-    ///     incoming tangent, so a closed subpath's <c>orient="auto"</c> orientation at either end
-    ///     reflects the closing edge too, not only the open-path edge that happens to meet it.
+    ///     per-subpath interpretation. A <c>Close</c> command of a subpath with at least one real
+    ///     segment is a real segment, as in SVG 2: it adds a closing vertex back at the subpath's
+    ///     own <see cref="Subpath.Start"/>, so a closed subpath (and a <c>polygon</c>) has its
+    ///     <c>marker-end</c> at its first point, not at its last explicit point. The closing
+    ///     segment's tangent - computed identically to an equivalent
+    ///     <see cref="PathCommandType.LineTo"/> back to <see cref="Subpath.Start"/>, or the first
+    ///     segment's direction when it has zero length (as browsers draw it) - is the closing vertex's incoming tangent,
+    ///     the last explicit vertex's outgoing tangent and the first vertex's incoming tangent; the
+    ///     subpath's first segment is the closing vertex's outgoing tangent. An <c>orient="auto"</c>
+    ///     marker at either end of a closed subpath therefore bisects the closing and the first
+    ///     segment (SVG 2 "Painting", the direction at the start and end of a closed subpath).
+    ///     A drawing command after closepath with no moveto starts a new subpath at the closed
+    ///     subpath's start (see the path-data parser), and that new subpath shares the closing
+    ///     vertex rather than adding a second vertex at the same point: one <c>marker-mid</c> is
+    ///     placed there, arriving along the closing segment and leaving along the new subpath's
+    ///     first segment. <see cref="Path"/> does not record whether a moveto was implicit, so
+    ///     this is detected by position: a subpath with at least one command whose
+    ///     <see cref="Subpath.Start"/> exactly equals the previous closed subpath's start shares
+    ///     its closing vertex. An explicit <c>Z M</c> back to exactly that point is therefore
+    ///     treated the same way - a documented simplification: a browser (Edge) draws a second
+    ///     <c>marker-mid</c> there for the explicit moveto, and one for the implicit case.
     /// </returns>
-    private static List<MarkerVertex> BuildMarkerVertices(Path localPath)
+    /// <remarks>
+    ///     Internal (with <see cref="MarkerVertex"/> and <see cref="ComputeVertexAngleDegrees"/>)
+    ///     so the unit tests can check the vertex geometry without rasterizing.
+    /// </remarks>
+    internal static List<MarkerVertex> BuildMarkerVertices(Path localPath)
     {
         var vertices = new List<MarkerVertex>();
+
+        // The start point of the previous subpath when it was closed and added a closing vertex
+        // (the last entry in vertices); null otherwise
+        Vector2? previousClosedStart = null;
         foreach (var subpath in localPath.Subpaths)
         {
-            var subpathStartIndex = vertices.Count;
-            vertices.Add(new MarkerVertex(subpath.Start, incomingTangent: null, outgoingTangent: null));
+            // A subpath that starts exactly where the previous closed subpath started (a drawing
+            // command after closepath without a moveto) shares that subpath's closing vertex:
+            // the first command below folds its outgoing tangent into it
+            var startMerged = previousClosedStart == subpath.Start && subpath.Commands.Count > 0;
+            previousClosedStart = null;
+            int subpathStartIndex;
+            if (startMerged)
+            {
+                subpathStartIndex = vertices.Count - 1;
+            }
+            else
+            {
+                subpathStartIndex = vertices.Count;
+                vertices.Add(new MarkerVertex(subpath.Start, incomingTangent: null, outgoingTangent: null));
+            }
+
             var current = subpath.Start;
             var closed = false;
 
@@ -302,9 +338,11 @@ public static partial class SvgCodec
             }
 
             // A closed subpath with at least one real segment beyond its own Start has an
-            // implicit closing edge back to Start - fold its tangent into the last vertex's
-            // outgoing tangent and the first vertex's incoming tangent, exactly as any other
-            // segment's tangent is folded into its two endpoints above
+            // implicit closing edge back to Start - a real segment (SVG 2 "Path data", the
+            // closepath command): its tangent is folded into the last explicit vertex's outgoing
+            // tangent and the first vertex's incoming tangent, exactly as any other segment's
+            // tangent is folded into its two endpoints above, and its own end point (back at
+            // Start) is the subpath's closing vertex
             var lastIndex = vertices.Count - 1;
             if (closed && lastIndex != subpathStartIndex)
             {
@@ -316,8 +354,25 @@ public static partial class SvgCodec
                 // reimplementing tangent math independently in this package.
                 var (closingOutgoing, closingIncoming) =
                     PathCommand.LineTo(subpath.Start).ComputeTangents(vertices[lastIndex].Position);
-                vertices[lastIndex] = vertices[lastIndex].WithOutgoingTangent(closingOutgoing);
-                vertices[subpathStartIndex] = vertices[subpathStartIndex].WithIncomingTangent(closingIncoming);
+
+                // A zero-length closing segment (the last explicit point already equals Start)
+                // takes the direction of the subpath's first segment, as browsers draw it
+                var firstDirection = vertices[subpathStartIndex].OutgoingTangent;
+                var closingDirection = closingIncoming ?? firstDirection;
+                vertices[lastIndex] = vertices[lastIndex].WithOutgoingTangent(closingOutgoing ?? firstDirection);
+
+                // A shared start vertex keeps the earlier subpath's closing direction as its
+                // incoming tangent, because the pen arrives there along that closing segment
+                if (!startMerged)
+                {
+                    vertices[subpathStartIndex] = vertices[subpathStartIndex].WithIncomingTangent(closingDirection);
+                }
+
+                // The closing vertex: arrives along the closing segment and leaves along the
+                // subpath's first segment, so an orient="auto" marker there bisects the two (SVG 2
+                // "Painting", the direction at the start and end of a closed subpath)
+                vertices.Add(new MarkerVertex(subpath.Start, closingDirection, vertices[subpathStartIndex].OutgoingTangent));
+                previousClosedStart = subpath.Start;
             }
         }
 
@@ -347,7 +402,7 @@ public static partial class SvgCodec
     /// </summary>
     /// <param name="vertex">The vertex to orient a marker at.</param>
     /// <returns>The computed angle, in degrees, suitable for <see cref="Matrix3x2.CreateRotation(float)"/> via <see cref="DegreesToRadians"/>.</returns>
-    private static float ComputeVertexAngleDegrees(MarkerVertex vertex)
+    internal static float ComputeVertexAngleDegrees(MarkerVertex vertex)
     {
         Vector2? direction;
         if (vertex.IncomingTangent.HasValue && vertex.OutgoingTangent.HasValue)
@@ -879,7 +934,7 @@ public static partial class SvgCodec
     ///     to this class's existing tolerant handling of an invalid
     ///     <c>stroke-miterlimit</c>/<c>stroke-dasharray</c>, not a document-abort concern.
     /// </returns>
-    private static float ParseMarkerOrient(string? raw, float autoAngleDegrees, bool isStartVertex)
+    internal static float ParseMarkerOrient(string? raw, float autoAngleDegrees, bool isStartVertex)
     {
         // An absent/blank orient is NOT the same as an explicit "auto": the SVG spec's fixed
         // 0-degree default only falls through to the parse-failure branch below, which returns 0 -

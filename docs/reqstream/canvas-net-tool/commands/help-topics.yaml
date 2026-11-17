@@ -141,6 +141,22 @@ sections:
           - HelpTopics_FramedFigureAdvice_PictureAloneAtTheBoxSize_IsThePictureTheFigureEmbeds
           - HelpTopics_FramedFigureAdvice_GridAndInspectPixel_ReadThePictureAtTheBoxSize
 
+      - id: CanvasNetTool-Commands-HelpTopics-SvgArrows
+        title: >-
+          The HelpTopics class shall provide the svg arrows card (aliases markers and arrowheads) below the svg card,
+          linked both ways with the svg style, svg framed-figure, and composition cards, that teaches a marker with
+          orient="auto" on marker-end and auto-start-reverse on marker-start instead of a hand-drawn head, drawing a
+          connector from its source to its target, that the head follows the final tangent of the path (with
+          horizontal and vertical S-curve recipes), a tip-anchored refX="10" that lands the tip on the end of the
+          path, and the svg-arrowhead-shape warning; with an example whose connectors end on the edges of their target
+          boxes with the last control point in line with the end, and whose rendered heads land on those edges.
+        justification: |
+          Arrowheads that point the wrong way or stop short are the most common flaw of hand-written figures; one card
+          with a verified example lets an agent draw connectors that land correctly the first time.
+        tests:
+          - HelpTopics_ArrowsCard_IsLinkedBothWaysAndTeachesMarkers
+          - HelpTopics_ArrowsExample_TipsLandOnTheTargetEdges
+
       - id: CanvasNetTool-Commands-HelpTopics-Examples
         title: >-
           The HelpTopics class shall give each example of a card a name unique below its root, a kind (source text, a

@@ -599,6 +599,10 @@ model with a syntax error inside `inner.svg`, which `outer.svg` embeds, names `'
 scale of 3 and an unknown view name do not reach the embedded files (the raster keeps 4 pixels, the model is drawn at
 30 pixels without a `usage-error`); the SVG fixture with strict mode has no notes, no echo, and no `embed` operation.
 
+**SourceLoader_Load_SvgHandDrawnArrowhead_IsAWarningThatNeverFails**: an SVG file with a filled triangle drawn by hand
+on the end of a line loads with and without strict mode, each time with one `svg` `warning` note with the code
+`svg-arrowhead-shape` whose one-line message contains `'canvasnet help svg arrows'`.
+
 **SourceLoader_ComputeTargetSize_SizeOptions_FollowsPolicy** and
 **SourceLoader_Load_RasterWithWidth_ResizesKeepingAspectRatio**: the size policy for none, scale, width, height, and
 both, with rounding and the one-pixel minimum; a raster is resized and the operation recorded.

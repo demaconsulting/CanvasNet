@@ -671,4 +671,60 @@ public class SvgSystemIntegrationTests
         // rejected exactly as Load rejects one
         Assert.Throws<ArgumentNullException>(() => SvgCodec.GetInfo((Stream)null!));
     }
+
+    /// <summary>
+    ///     Proves <c>CanvasNetSvg-Lib-SvgMarkerRendering</c> for a closed path end-to-end: the <c>marker-end</c> of a closed
+    ///     triangle is drawn at its closing vertex (its first point), as browsers draw it, not at its last explicit point.
+    /// </summary>
+    [Fact]
+    public void CanvasNetSvg_SystemIntegration_SvgMarkerRendering_ClosedPathEndsAtClosingVertex()
+    {
+        // Arrange: a closed triangle whose end marker is a red square centered on the vertex
+        const string svg = """
+            <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'>
+              <defs>
+                <marker id='dot' markerWidth='8' markerHeight='8' refX='4' refY='4' markerUnits='userSpaceOnUse'>
+                  <rect width='8' height='8' fill='#ff0000'/>
+                </marker>
+              </defs>
+              <path d='M10,10 L90,10 L50,90 Z' fill='none' stroke='none' marker-end='url(#dot)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        using var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: red at the first point, nothing at the last explicit point
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[10, 10]);
+        Assert.Equal(0, surface[50, 88].A);
+    }
+
+    /// <summary>
+    ///     Proves <c>CanvasNetSvg-Lib-AuthoringHints</c> end-to-end: a filled triangle drawn by hand on the end of a
+    ///     connector is reported once through <see cref="SvgLoadOptions.HintHandler"/> with the code
+    ///     <see cref="SvgHint.ArrowheadShapeCode"/>, and the document still renders.
+    /// </summary>
+    [Fact]
+    public void CanvasNetSvg_SystemIntegration_HintHandler_ReportsHandDrawnArrowhead()
+    {
+        // Arrange: a line with a hand-drawn head
+        const string svg = """
+            <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 40'>
+              <line x1='10' y1='20' x2='100' y2='20' stroke='#000000' stroke-width='2'/>
+              <polygon points='100,20 90,15 90,25' fill='#000000'/>
+            </svg>
+            """;
+        var hints = new List<SvgHint>();
+
+        // Act
+        using var stream = ToStream(svg);
+        using var surface = SvgCodec.LoadWithFontFaces(stream, 120, 40, null, new SvgLoadOptions { HintHandler = hints.Add });
+
+        // Assert: one hint, and the head is drawn
+        var hint = Assert.Single(hints);
+        Assert.Equal(SvgHint.ArrowheadShapeCode, hint.Code);
+        Assert.Equal(1, hint.Count);
+        Assert.Equal(255, surface[93, 20].A);
+    }
 }

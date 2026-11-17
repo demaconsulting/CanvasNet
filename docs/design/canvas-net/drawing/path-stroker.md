@@ -185,8 +185,8 @@ instances directly. Every emitted polygon becomes one closed subpath in the resu
     large coordinate magnitude and finely tessellated segments - for example a PPTX shape's
     native EMU-space geometry (coordinates in the hundreds of thousands to millions), tessellated
     finely enough that each segment subtends only a tiny turn angle, forcing each
-    forced-exact-intersection point to divide by a correspondingly tiny (near-parallel-offset-
-    lines) cross-product denominator and amplifying that noise into a projected edge length that
+    forced-exact-intersection point to divide by a correspondingly tiny (near-parallel-offset-lines)
+    cross-product denominator and amplifying that noise into a projected edge length that
     is measurably, not just infinitesimally, negative - a false positive that collapsed a
     perfectly valid thin ring (for example, a `noFill` ellipse's thin `<a:ln>` outline) into a
     solid fill. A second tolerance, derived once from the whole contour's bounding-box extent

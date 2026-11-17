@@ -16,8 +16,8 @@ third-party test suites - see that folder's own `README.md` for provenance/licen
 the full resolution pipeline (package/part resolution, Master/MasterShape inheritance, StyleSheet
 chain walk, geometry build, transform, paint, text, connectors, groups, and rendering) composes
 correctly against genuine Visio-authored content, not just hand-authored fragments. A minority of
-scenarios (argument validation, a dangling-glue-target tolerance case, and a few Master-
-inheritance/StyleSheet-chain compositions not conveniently reproduced by any single staged fixture)
+scenarios (argument validation, a dangling-glue-target tolerance case, and a few Master-inheritance/StyleSheet-chain
+compositions not conveniently reproduced by any single staged fixture)
 instead use small, hand-authored, in-memory packages built via the shared `VsdxTestPackages`
 helper already established by the unit-level test tier (see *VsdxDocument Unit Verification
 Design*, `canvas-net-vsdx/vsdx-document.md`).
@@ -219,8 +219,8 @@ Milestone 10 capability added after the original system-tier test suite was auth
 public-API path as the dedicated `CanvasNetVsdx_SystemIntegration_*` tests, housed in
 `VsdxStyleResolutionTests` alongside this unit's other StyleSheet-resolution coverage: opens a
 hand-authored package whose shape carries a literal `FillForegndTrans="0.4"` cell. Asserts the
-resolved fill color's alpha channel is reduced to 60% of fully opaque, confirming the real-world-
-corpus-driven transparency fix (`60973.vsdx`'s "Virtual Devices" container) end-to-end.
+resolved fill color's alpha channel is reduced to 60% of fully opaque, confirming the real-world-corpus-driven
+transparency fix (`60973.vsdx`'s "Virtual Devices" container) end-to-end.
 
 ### Integration: Color Fill Resolves Built In Palette Index And Hex Colors
 

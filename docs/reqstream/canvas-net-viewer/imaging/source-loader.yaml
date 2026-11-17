@@ -132,6 +132,17 @@ sections:
           - SourceLoader_Load_SvgWithSizeOptions_RendersAtRequestedSize
           - SourceLoader_Load_SvgWithoutEmbeddedFiles_ReportsNothingExtra
 
+      - id: CanvasNetViewer-Imaging-SourceLoader-SvgArrowheadHint
+        title: >-
+          The SourceLoader class shall report the svg-arrowhead-shape hint of the SVG file it renders as an svg warning
+          with that code whose message points at 'canvasnet help svg arrows', and shall never fail on it, not even with
+          SourceOptions.Strict.
+        justification: |
+          A hand-drawn arrowhead still draws; the warning teaches the robust marker without breaking a render, so a
+          figure that a strict build accepts today keeps rendering.
+        tests:
+          - SourceLoader_Load_SvgHandDrawnArrowhead_IsAWarningThatNeverFails
+
       - id: CanvasNetViewer-Imaging-SourceLoader-SvgEmbedding
         title: >-
           The SourceLoader class shall, when it loads an SVG file, hand the SVG library the image resolver that

@@ -55,8 +55,8 @@ unit's own delivery follows.
   text box's own `TxtPinX`/`TxtPinY`/`TxtLocPinX`/`TxtLocPinY`/`TxtWidth`/`TxtHeight`/`TxtAngle`),
   and (for a `Group`) its child `VsdxShapeNode` list.
 - **`VsdxConnect`** — a resolved `<Connect>` entry: the connector shape's ID and which endpoint
-  (`Begin`/`End`), the target shape's ID, and whether the glue is whole-shape-pin or connection-
-  point-indexed (and if so, which connection-point index).
+  (`Begin`/`End`), the target shape's ID, and whether the glue is whole-shape-pin or connection-point-indexed
+  (and if so, which connection-point index).
 - **`VsdxRenderOptions`** — render-time options: `BackgroundColor` (default opaque white,
   mirroring `PptxRenderOptions`'s own precedent).
 - **Supporting exception type**: `VsdxUnsupportedFeatureException` — defined (mirroring
@@ -430,8 +430,8 @@ programming-error argument (null stream/path, unreadable stream, empty/whitespac
 converted internally. `ArgumentOutOfRangeException` is thrown synchronously from `GetPageSize`/
 `Render` for an out-of-range `pageIndex` or a non-positive/over-`Surface.MaxDimension` pixel size.
 `InvalidDataException` is thrown for malformed package/XML structure that prevents correct
-resolution at all (an unreadable ZIP, a missing required part, a Master/MasterShape or group-
-nesting cycle, or a nesting-depth/shape-count budget exceeded) — these represent input the unit
+resolution at all (an unreadable ZIP, a missing required part, a Master/MasterShape or group-nesting
+cycle, or a nesting-depth/shape-count budget exceeded) — these represent input the unit
 cannot safely process at all, as distinct from `VsdxUnsupportedFeatureException`, which signals a
 recognized-but-unsupported construct. By default such a construct is degraded to a tolerant skip
 at the shape/row level (per the format research's Risk Control Measures) and reported to

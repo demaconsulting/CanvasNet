@@ -632,6 +632,14 @@ note. The error is `svg-binding-failed` with a message that names the warning co
 hint that without `--strict` the numbers in the file are kept. Requirement:
 `CanvasNetViewer-Imaging-SourceLoader-SvgBindings`.
 
+#### SVG Authoring Hints
+
+`LoadSvg` also sets `SvgLoadOptions.HintHandler` and `HintNotes` turns each `SvgHint` the library reports into an
+`svg` warning with the hint code; an `svg-arrowhead-shape` message ends with `(see 'canvasnet help svg arrows')`. A
+hint is never part of a strict check, so it never fails a load, even under `SourceOptions.Strict`: the picture was
+drawn as written. `LoadScopedSvg` (a nested SVG file) sets no hint handler; only the file being rendered reports
+hints. Requirement: `CanvasNetViewer-Imaging-SourceLoader-SvgArrowheadHint`.
+
 #### Error Handling
 
 `Read` maps these library exceptions (an explicit list, not a catch-all) to a `ViewerException` with the file path in

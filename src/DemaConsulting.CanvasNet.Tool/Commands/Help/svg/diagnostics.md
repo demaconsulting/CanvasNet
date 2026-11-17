@@ -4,6 +4,7 @@ summary: The warnings of images that were not drawn, the fragment codes, and the
 see-also:
   - svg/embedding
   - svg/bindings
+  - svg/arrows
   - errors
 ---
 
@@ -23,6 +24,11 @@ see-also:
   resolved and keeps the numbers written in the file; the code says why (see
   'canvasnet help svg bindings'). --strict makes it the error
   svg-binding-failed.
+- `svg-arrowhead-shape`: Warning: a filled triangle (or notched arrow shape)
+  is drawn by hand on the end of a line or path that has no marker there, so it
+  does not follow the connector. One per drawing; the message counts them and
+  names the first. Draw it with a marker (see 'canvasnet help svg arrows').
+  --strict does not fail on it.
 - `image-fragment-unknown-parameter`: Warning: the fragment of an href names a
   parameter the linked file does not use (a typo such as pag=2, or any parameter
   on a raster or an SVG file). The picture is drawn without it. --strict does
