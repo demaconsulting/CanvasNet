@@ -2639,8 +2639,8 @@ segment paints two such rectangles, each half as thick, separated by a gap propo
 never throws regardless of style value.
 
 **Test coverage**: `PptxTextTests.cs` covers the style resolution theory (`sng`/`none`/`dbl`/
-`wavy`/`heavy`) and the underline-color inheritance rules (explicit `<a:uFill>` override, default-
-to-text-color with no fill markup, default-to-text-color with explicit `<a:uFillTx/>`).
+`wavy`/`heavy`) and the underline-color inheritance rules (explicit `<a:uFill>` override, default-to-text-color
+with no fill markup, default-to-text-color with explicit `<a:uFillTx/>`).
 `PptxTextLayoutTests.cs` covers per-run span construction: a single underlined run emits one
 segment spanning its own measured width; a non-underlined run emits none; of two runs on one
 line, only the first underlined, exactly one segment is emitted bounded to that first run; and a
