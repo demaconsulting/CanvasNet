@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Numerics;
 using System.Xml.Linq;
+using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Geometry;
 using Path = DemaConsulting.CanvasNet.Geometry.Path;
 
@@ -80,8 +81,11 @@ public static partial class SvgCodec
         }
 
         var name = element.Name.LocalName;
-        var hasFill = name != "line" && !IsNone(state.Fill) && state.FillOpacity > 0 && state.Opacity > 0;
-        var hasStroke = !IsNone(state.Stroke) && state.StrokeWidth > 0 && state.StrokeOpacity > 0 && state.Opacity > 0;
+
+        // Visibility follows the renderer's own paint resolution, so a dangling or invalid url(#...) or a color that
+        // resolves to full transparency counts as no paint, exactly as it is (not) drawn
+        var hasFill = name != "line" && IsVisiblePaint(ResolvePaint(state.Fill, state.FillOpacity * state.Opacity, path, transform, context, state));
+        var hasStroke = state.StrokeWidth > 0 && IsVisiblePaint(ResolvePaint(state.Stroke, state.StrokeOpacity * state.Opacity, path, transform, context, state));
 
         if (hasStroke && !hasFill && name != "polygon")
         {
@@ -142,6 +146,20 @@ public static partial class SvgCodec
     /// <param name="value">The raw value.</param>
     /// <returns><see langword="true"/> for <c>none</c> in any case, ignoring surrounding white space.</returns>
     private static bool IsNone(string value) => string.Equals(value.Trim(), "none", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    ///     Determines whether a resolved paint draws anything: a gradient, or a color whose alpha (with the opacities
+    ///     already folded in) is not zero. A <see langword="null"/> paint (none, an unrecognized color, or a dangling or
+    ///     invalid <c>url(#...)</c>) draws nothing.
+    /// </summary>
+    /// <param name="paint">The result of <see cref="ResolvePaint"/>.</param>
+    /// <returns><see langword="true"/> when the paint is visible.</returns>
+    private static bool IsVisiblePaint(object? paint) => paint switch
+    {
+        null => false,
+        Rgba32 color => color.A > 0,
+        _ => true,
+    };
 
     /// <summary>
     ///     Measures a filled outline as an arrowhead candidate: one subpath of straight segments with 3 distinct points

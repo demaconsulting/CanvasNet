@@ -284,6 +284,37 @@ public class SvgArrowTests
     }
 
     /// <summary>
+    ///     Test that visibility follows the resolved paint: a connector stroked with a dangling <c>url(#...)</c> is not
+    ///     drawn, so a triangle at its end reports nothing, while a connector whose fill is a dangling <c>url(#...)</c> is
+    ///     unfilled, so a triangle at its end is reported.
+    /// </summary>
+    [Fact]
+    public void SvgArrow_HintHandler_DanglingPaintReferences_FollowTheResolvedPaint()
+    {
+        // Arrange: the same connector and head, once with an invisible stroke and once with an invisible fill
+        const string invisibleStroke = """
+            <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200'>
+              <path d='M20,50 C60,50 60,100 100,100' fill='none' stroke='url(#missing)' stroke-width='2'/>
+              <polygon points='100,100 90,95 90,105' fill='#000000'/>
+            </svg>
+            """;
+        const string invisibleFill = """
+            <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200'>
+              <path d='M20,50 C60,50 60,100 100,100' fill='url(#missing)' stroke='#000000' stroke-width='2'/>
+              <polygon points='100,100 90,95 90,105' fill='#000000'/>
+            </svg>
+            """;
+
+        // Act
+        var strokeHints = RenderHints(invisibleStroke);
+        var fillHints = RenderHints(invisibleFill);
+
+        // Assert
+        Assert.Empty(strokeHints);
+        Assert.Equal(SvgHint.ArrowheadShapeCode, Assert.Single(fillHints).Code);
+    }
+
+    /// <summary>
     ///     Test that a notched four-point head drawn as a path at the end of a straight line is reported.
     /// </summary>
     [Fact]
