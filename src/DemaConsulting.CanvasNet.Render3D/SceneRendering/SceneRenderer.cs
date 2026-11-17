@@ -1,5 +1,3 @@
-// cspell:ignore Binner
-
 using System.Numerics;
 using System.Runtime.ExceptionServices;
 using System.Runtime.InteropServices;

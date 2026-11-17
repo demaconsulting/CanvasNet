@@ -1,4 +1,3 @@
-// cspell:ignore polyhedron
 using DemaConsulting.CanvasNet.Scad.Geometry;
 using static DemaConsulting.CanvasNet.Scad.Tests.Geometry.ScadGeometryTestSupport;
 using static DemaConsulting.CanvasNet.Scad.Tests.Geometry.ScadProjectionTestSupport;

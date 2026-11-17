@@ -1,4 +1,3 @@
-// cspell:ignore canvasnet
 using System.Buffers;
 using System.Text;
 using System.Text.Encodings.Web;

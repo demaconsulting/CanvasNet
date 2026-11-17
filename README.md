@@ -1,7 +1,5 @@
 # CanvasNet
 
-<!-- cspell:ignore SFNT codepoints Noto Zapf Visio canvasnet PSNR RMSE SSIM deskew Otsu luma grayscale halign -->
-<!-- cspell:ignore Liberation -->
 <!-- IMPORTANT: All links in this file must be absolute URLs.
      This file is distributed in packages and relative links will not resolve. -->
 

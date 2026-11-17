@@ -1,5 +1,3 @@
-<!-- cspell:ignore Rgba lerp precomputation -->
-
 ### GradientPaint
 
 ![Drawing Structure](DrawingView.svg)

@@ -1,8 +1,5 @@
 ### ScadTextGeometry
 
-<!-- cspell:ignore notdef Liberation kerning kerned flattening unioned subpath subpaths Bezier Casteljau ttb btt -->
-<!-- cspell:ignore rtl ltr glyphs glyph unscaled halign textmetrics fontmetrics -->
-
 The `ScadTextGeometry` unit is the fifth software unit in the `ScadGeometry` subsystem. It comprises three source
 files in the `DemaConsulting.CanvasNet.Scad.Geometry` namespace, all `internal`, and uses one public options type
 in the `DemaConsulting.CanvasNet.Scad` namespace:
@@ -166,7 +163,7 @@ cedilla) as overlapping solids, which the nonzero fill rule reads as their union
 3. Otherwise the glyph is split into components: the largest contour is an outer boundary and its winding is the
    winding of solids; the contours with that winding are solids, the others are holes, every hole goes to the
    smallest solid that contains one of its points, and each solid with its holes is one region. The regions are
-   unioned by the caller. Holes that fall in no solid make the split fail.
+   combined in a union by the caller. Holes that fall in no solid make the split fail.
 4. If a component is still rejected, the contours overlap in a way that is neither a hole, an island, nor
    overlapping solids: `scad-text-overlapping-contours`.
 

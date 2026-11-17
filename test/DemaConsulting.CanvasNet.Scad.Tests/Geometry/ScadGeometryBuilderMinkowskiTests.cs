@@ -1,4 +1,3 @@
-// cspell:ignore minkowski Minkowski polyhedron
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Render3D.SceneModel;
 using DemaConsulting.CanvasNet.Render3D.Tessellation;

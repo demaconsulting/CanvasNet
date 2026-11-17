@@ -1,4 +1,3 @@
-// cspell:ignore vega
 using DemaConsulting.CanvasNet.Tool;
 
 namespace DemaConsulting.CanvasNet.Tool.Tests;

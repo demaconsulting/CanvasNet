@@ -1,16 +1,6 @@
 ---
 # Software Unit Requirements for PdfDocument
 #
-# cspell:ignore xref startxref endobj endstream ObjStm MediaBox Zapf Nonsymbolic subsetted
-# cspell:ignore beginbfchar endbfchar beginbfrange endbfrange codepoints begincodespacerange
-# cspell:ignore endcodespacerange findresource defineresource currentdict begincmap endcmap
-# cspell:ignore bfchar bfrange usecmap cidrange cidchar
-# cspell:ignore fontfile stdenc quoteright Quoteright quotesingle hival
-# cspell:ignore charsets
-# cspell:ignore SASLprep
-# cspell:ignore Noto
-# cspell:ignore functiontype
-# cspell:ignore PDFium
 #
 # These requirements describe the design-level behavior of the PdfDocument unit.
 #

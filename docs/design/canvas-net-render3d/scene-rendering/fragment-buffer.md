@@ -1,7 +1,5 @@
 ### FragmentBuffer
 
-<!-- cspell:ignore rasterizer rasterization rasterized prefix -->
-
 The `FragmentBuffer` unit is a software unit in the `SceneRendering` subsystem. It is an
 internal, per-worker, reusable store for the fragments of one tile on the fragment-list path (constructive
 solid geometry, translucent surfaces and overlays):

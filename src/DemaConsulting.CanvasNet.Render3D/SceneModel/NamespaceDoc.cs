@@ -1,7 +1,5 @@
 namespace DemaConsulting.CanvasNet.Render3D.SceneModel;
 
-// cspell:ignore polyhedra
-
 /// <summary>
 ///     The <see cref="DemaConsulting.CanvasNet.Render3D.SceneModel"/> namespace provides the
 ///     format-agnostic, double-precision data model that a 3D scene is described with: the

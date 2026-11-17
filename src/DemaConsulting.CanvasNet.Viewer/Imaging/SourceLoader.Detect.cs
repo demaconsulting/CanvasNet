@@ -1,4 +1,3 @@
-// cspell:ignore canvasnet jpeg tiff jpeg2000 pptx vsdx scad jfif Visio
 using System.Collections.ObjectModel;
 using System.IO.Compression;
 using System.Text;

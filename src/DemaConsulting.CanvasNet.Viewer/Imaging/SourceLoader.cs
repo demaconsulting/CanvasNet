@@ -1,4 +1,3 @@
-// cspell:ignore canvasnet jpeg tiff jpeg2000 pptx vsdx scad Visio RRGGBB RRGGBBAA
 using System.Globalization;
 using System.Xml;
 using DemaConsulting.CanvasNet.Canvas;

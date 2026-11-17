@@ -4,8 +4,6 @@ using DemaConsulting.CanvasNet.Charts.OpenXml;
 
 namespace DemaConsulting.CanvasNet.Pptx;
 
-// cspell:ignore graphicframe chartspace
-
 /// <summary>
 ///     Implements the <see cref="PptxDocument"/> chart-graphic-frame resolver (Phase 4):
 ///     locating a <c>&lt;p:graphicFrame&gt;</c>'s <c>&lt;a:graphicData&gt;/&lt;c:chart

@@ -1,4 +1,3 @@
-// cspell:ignore feimage
 using System.Numerics;
 using System.Xml.Linq;
 using DemaConsulting.CanvasNet.Canvas;

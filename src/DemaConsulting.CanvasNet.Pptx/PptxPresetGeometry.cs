@@ -4,8 +4,6 @@ using Path = DemaConsulting.CanvasNet.Geometry.Path;
 
 namespace DemaConsulting.CanvasNet.Pptx;
 
-// cspell:ignore rtTriangle homePlate lnTo cubicBezTo quadBezTo prstGeom custGeom pptx prst fmla
-
 /// <summary>
 ///     Builds the core <see cref="Path"/> geometry for a DrawingML preset shape
 ///     (<c>&lt;a:prstGeom prst="..."/&gt;</c>), for the ~24-name subset of OOXML's full preset

@@ -1,7 +1,5 @@
 namespace DemaConsulting.CanvasNet.Vsdx;
 
-// cspell:ignore vsdx Visio davehoward
-
 /// <summary>
 ///     Implements the <see cref="VsdxDocument"/> recursive group/nested-shape resolver: walks a
 ///     shape's <see cref="VsdxShapeNode.Children"/> tree to arbitrary nesting depth, resolving

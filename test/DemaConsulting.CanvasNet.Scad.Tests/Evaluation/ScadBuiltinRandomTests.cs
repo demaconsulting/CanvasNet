@@ -3,8 +3,6 @@ using static DemaConsulting.CanvasNet.Scad.Tests.Evaluation.ScadEvaluationTestHe
 
 namespace DemaConsulting.CanvasNet.Scad.Tests.Evaluation;
 
-// cspell:ignore addb bbbf dcdaf ededu
-
 /// <summary>
 ///     Unit tests for <see cref="ScadRandom"/> and the <c>rands</c> built-in function.
 /// </summary>

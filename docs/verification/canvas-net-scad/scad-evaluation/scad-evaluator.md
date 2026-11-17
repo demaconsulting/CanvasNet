@@ -1,7 +1,5 @@
 ### ScadEvaluator Unit Verification Design
 
-<!-- cspell:ignore undef unseeded evaluator hoisted lexically memoized readback -->
-
 This document describes the unit-level verification strategy for the `ScadEvaluator` unit: the internal evaluator
 (`ScadEvaluator` and its partial files), its scopes, the instantiation tree (`ScadInstance`), the recognized
 built-in module names, the evaluation settings and output, and the buffering `ScadEvaluationSink`, in the

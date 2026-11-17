@@ -1,5 +1,4 @@
 ---
-# cspell:ignore luma otsu percentiles
 # Software Unit Requirements for SurfaceAnalysis
 #
 # These requirements describe the design-level behavior of the SurfaceAnalysis unit of the Canvas subsystem: what a

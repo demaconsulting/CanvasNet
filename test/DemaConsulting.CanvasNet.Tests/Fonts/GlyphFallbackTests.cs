@@ -1,4 +1,3 @@
-// cspell:ignore Noto
 using DemaConsulting.CanvasNet.Fonts;
 
 namespace DemaConsulting.CanvasNet.Tests.Fonts;

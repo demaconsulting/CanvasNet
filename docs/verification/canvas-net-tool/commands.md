@@ -1,7 +1,5 @@
 ## Commands
 
-<!-- cspell:ignore deskew scadd -->
-
 ### Verification Approach
 
 The `Commands` subsystem is verified at two tiers. The unit tests of `CommandRegistry`, `HelpTopics`,

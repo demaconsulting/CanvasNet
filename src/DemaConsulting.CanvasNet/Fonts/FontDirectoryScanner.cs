@@ -1,4 +1,3 @@
-// cspell:ignore ARIALN
 using System.Security;
 
 namespace DemaConsulting.CanvasNet.Fonts;

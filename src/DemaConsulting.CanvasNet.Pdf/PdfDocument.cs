@@ -1,4 +1,3 @@
-// cspell:ignore CCITT Zapf Nonsymbolic Noto uncatchable
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;
 
@@ -182,8 +181,8 @@ public sealed partial class PdfDocument : IDisposable
     ///     whose container is itself compressed, possibly inside the same stream) or through two
     ///     direct objects whose values reference each other (for example a stream's indirect
     ///     <c>/Length</c> forming a cycle back to the stream itself) - is rejected with an
-    ///     <see cref="InvalidDataException"/> instead of recursing indefinitely into an
-    ///     uncatchable <see cref="StackOverflowException"/>. Mirrors the page-tree cycle guard in
+    ///     <see cref="InvalidDataException"/> instead of recursing indefinitely into a
+    ///     <see cref="StackOverflowException"/>, which cannot be caught. Mirrors the page-tree cycle guard in
     ///     <c>TraversePageTree</c>.
     /// </summary>
     private readonly HashSet<int> _objectResolutionStack = [];

@@ -1,4 +1,3 @@
-// cspell:ignore href hrefs embedder
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Files;
 using DemaConsulting.CanvasNet.Positions;

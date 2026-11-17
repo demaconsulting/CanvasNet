@@ -4,8 +4,6 @@ using DemaConsulting.CanvasNet.Rendering;
 
 namespace DemaConsulting.CanvasNet.Vsdx;
 
-// cspell:ignore vsdx Visio Rgba
-
 /// <summary>
 ///     Implements the <see cref="VsdxDocument"/> text layout engine: a deliberately scaled-down
 ///     mirror of <c>PptxDocument.TextLayout.cs</c>'s own word-wrap/line-breaking/alignment

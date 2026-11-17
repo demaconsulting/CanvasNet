@@ -1,4 +1,3 @@
-// cspell:ignore pdf endobj endstream xref startxref
 using System.Text;
 
 namespace DemaConsulting.CanvasNet.TestSupport;

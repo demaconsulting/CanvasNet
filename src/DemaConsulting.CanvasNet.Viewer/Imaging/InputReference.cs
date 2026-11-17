@@ -1,4 +1,3 @@
-// cspell:ignore canvasnet scad
 namespace DemaConsulting.CanvasNet.Viewer.Imaging;
 
 /// <summary>

@@ -1,7 +1,5 @@
 ### ScadBuiltinFunctions Unit Verification Design
 
-<!-- cspell:ignore undef unseeded SplitMix evaluator -->
-
 This document describes the unit-level verification strategy for the `ScadBuiltinFunctions` unit: the internal
 registry of built-in functions and its implementations (mathematics, trigonometry, list, string, search, type, and
 random functions), the `IScadBuiltinHost` interface through which a function reaches the evaluator's services, and

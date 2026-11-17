@@ -1,7 +1,5 @@
 ### GridOverlay
 
-<!-- cspell:ignore canvasnet luma -->
-
 ![Imaging Structure](ImagingView.svg)
 
 #### Purpose

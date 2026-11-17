@@ -1,7 +1,5 @@
 # System Verification Design
 
-<!-- cspell:ignore rasterizer tessellator supersampling Lambertian unmirrored isometric -->
-
 This document describes the system-level verification strategy for CanvasNetRender3D.
 
 ## Verification Approach

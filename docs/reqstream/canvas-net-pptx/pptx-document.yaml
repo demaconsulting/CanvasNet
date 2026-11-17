@@ -1,12 +1,6 @@
 ---
 # Software Unit Requirements for PptxDocument
 #
-# cspell:ignore ooxml pptx srgb xfrm prst cust patt bodyPr normAutofit noAutofit spAutoFit pPr
-# cspell:ignore rPr txBody txStyles lstStyle defRPr ctrTitle lIns tIns rIns bIns algn marL lnSpc
-# cspell:ignore spcBef spcAft justLow lnSpcReduction fontScale lvl ordinally mistargeted unrenderable
-# cspell:ignore pythonpptx Autoshape aiden0z Aiden aiden misrendered bgRef bgFillStyleLst phClr
-# cspell:ignore tblStyle wholeTbl tcStyle tcBdr insideH insideV bandRow firstRow band1H band2H
-# cspell:ignore asvg Asvg
 #
 # These requirements describe the design-level behavior of the PptxDocument unit.
 #
@@ -125,7 +119,7 @@ sections:
 
           - id: CanvasNetPptx-PptxDocument-CaseSensitivePartNames
             title: >-
-              The PptxDocument class shall compare OPC part names ordinally (case-sensitively),
+              The PptxDocument class shall compare OPC part names with an ordinal (case-sensitive) comparison,
               treating two part names differing only by case as distinct parts, rejecting an
               incorrectly-cased reserved part name (for example "[content_types].xml") as if the
               reserved part were absent, and rejecting a package containing two ZIP entries with
@@ -235,7 +229,7 @@ sections:
               A malformed or non-presentation package must fail closed at Open() time rather than
               later surfacing as a confusing null-reference or structural failure when a caller
               first reads SlideCount/SlideSize, calls GetSlideSizeInPixels, or navigates to a
-              mistargeted "slide" that is actually a theme or other arbitrary part.
+              wrongly targeted "slide" that is actually a theme or other arbitrary part.
             tests:
               - PptxDocument_Open_MissingOfficeDocumentRelationship_ThrowsInvalidDataException
               - PptxDocument_Open_PresentationMissingSldSz_ThrowsInvalidDataException
@@ -623,7 +617,7 @@ sections:
               frame" autoshape) is a common real-world DrawingML construct - the Python-pptx test
               corpus's own pythonpptx-dml-fill.pptx fixture exercises the <a:tile> variant
               specifically - and rejecting it outright (the prior CanvasNetPptx-PptxDocument-
-              FillResolution behavior) left such shapes unrenderable even though the same decoding
+              FillResolution behavior) left such shapes impossible to render even though the same decoding
               machinery already used for <p:pic> picture shapes is directly reusable for it.
               Implementing both <a:stretch> and <a:tile> uniformly through one PptxImageFill/
               TilePaint pair (rather than two bespoke code paths) keeps the painting side identical
@@ -669,7 +663,7 @@ sections:
               dot-density "texture" autoshape) is a common real-world DrawingML construct - the
               Python-pptx test corpus's own pythonpptx-dml-fill.pptx fixture exercises both the
               divot and wave presets specifically - and rejecting every preset outright (the prior
-              CanvasNetPptx-PptxDocument-FillResolution behavior) left such shapes unrenderable
+              CanvasNetPptx-PptxDocument-FillResolution behavior) left such shapes impossible to render
               even though a procedural tile-synthesis rule is straightforward for a large, common
               preset subset. Implementing all 54 named presets pixel-perfectly to PowerPoint's own
               rendering is out of this project's scope; a documented, narrower covered subset (with
@@ -1633,7 +1627,7 @@ sections:
               picture silently, rather than throwing, matches ParseShapeTree's own established
               tolerant-tree-walk precedent (see CanvasNetPptx-PptxDocument-ShapeTree above);
               treating a malformed-but-unused construct as fatal would make an otherwise-renderable
-              slide unrenderable over a single unused, incidental shape.
+              slide impossible to render over a single unused, incidental shape.
             tests:
               - Render_SingleFullSlideShape_PaintsFillColorAcrossSurface
               - Render_EmptyShapeTree_RendersOnlyBackground
@@ -1737,7 +1731,7 @@ sections:
               background fill is explicitly out of scope for this requirement - it is rejected with
               PptxUnsupportedFeatureException, inherited unchanged from ResolveFill's own
               pre-existing Phase 1c boundary (see CanvasNetPptx-PptxDocument-FillResolution above) -
-              rather than silently dropped or misrendered.
+              rather than silently dropped or rendered incorrectly.
             tests:
               - Render_SlideLevelSolidBackground_PaintsAcrossFullSlide
               - Render_SlideLevelBackgroundWithShape_ShapePaintsOnTopOfBackground

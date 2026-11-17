@@ -1,4 +1,3 @@
-// cspell:ignore fetile
 using DemaConsulting.CanvasNet.Canvas;
 
 namespace DemaConsulting.CanvasNet.Svg;

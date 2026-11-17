@@ -1,4 +1,3 @@
-// cspell:ignore psnr rmse ssim luma
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Tests.TestSupport;
 

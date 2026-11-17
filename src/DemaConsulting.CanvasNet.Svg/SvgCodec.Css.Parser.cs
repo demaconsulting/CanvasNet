@@ -1,8 +1,3 @@
-// cspell:ignore linecap linejoin dasharray dashoffset miterlimit anchor xlink href
-// cspell:ignore evenodd nonzero viewbox gradientunits gradienttransform spreadmethod
-// cspell:ignore userspaceonuse objectboundingbox skewx skewy tspan
-// cspell:ignore rasterizing unparseable rrggbb sizeless bbox moveto multiplicatively pillarbox SMIL uncatchable formedness
-
 using System.Text;
 
 namespace DemaConsulting.CanvasNet.Svg;

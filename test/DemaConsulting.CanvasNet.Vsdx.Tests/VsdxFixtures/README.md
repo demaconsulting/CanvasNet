@@ -1,8 +1,5 @@
 # VSDX Test Fixtures
 
-<!-- cspell:ignore vsdx davehoward jgreywolf visio stencil nurbsto themeguard -->
-<!-- cspell:ignore jgreywolfvsdxjs Greywolf Lucidchart basicshapes diagramwithstyles flowchartshapes -->
-
 This folder holds a small, real-world corpus of `.vsdx` files intended to exercise
 `VsdxDocument`'s rendering against real-world Visio documents nobody at this repository
 hand-authored, complementing (not replacing) the synthetic, hand-built `.vsdx` packages any

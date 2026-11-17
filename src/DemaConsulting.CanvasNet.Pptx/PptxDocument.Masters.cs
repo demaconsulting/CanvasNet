@@ -2,8 +2,6 @@ using System.Xml.Linq;
 
 namespace DemaConsulting.CanvasNet.Pptx;
 
-// cspell:ignore sldmaster csld pptx txstyles titlestyle bodystyle otherstyle
-
 /// <summary>
 ///     Implements the <see cref="PptxDocument"/> slide master parser (Phase 1b): parses
 ///     <c>ppt/slideMasters/slideMasterN.xml</c>, resolving its <c>/theme</c> relationship and

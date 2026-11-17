@@ -2,8 +2,6 @@ using DemaConsulting.CanvasNet.Canvas;
 
 namespace DemaConsulting.CanvasNet.Vsdx;
 
-// cspell:ignore vsdx Visio Rgba
-
 /// <summary>
 ///     A shape's resolved stroke/fill paint, after walking the Master/MasterShape cell merge and
 ///     the StyleSheet inheritance chain (see <c>VsdxDocument.Paint.cs</c>).

@@ -7,9 +7,6 @@ using DemaConsulting.CanvasNet.Tests.TestSupport;
 
 namespace DemaConsulting.CanvasNet.Pptx.Tests;
 
-// cspell:ignore pptx tbl tblgrid gridcol hmerge vmerge gridspan rowspan tcpr lnl lnr lnt lnb txbody unitsperem srgb
-// cspell:ignore tblpr tblstyle tblstyleid tcstyle tcbdr wholetbl bandrow firstrow insideh insidev
-
 /// <summary>
 ///     Unit-level tests for the Phase 1e table resolvers and painting primitive
 ///     (<c>PptxDocument.Tables.cs</c>'s <see cref="PptxDocument.ParseTable"/>,

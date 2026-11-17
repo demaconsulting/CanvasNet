@@ -1,10 +1,5 @@
 # System Design
 
-<!-- cspell:ignore lexer lexing tokenization tokenizes tokenized tokenize parsers recursive-descent -->
-<!-- cspell:ignore nupkg unpackable evaluator evaluators polyhedra Minkowski undef reproducibly -->
-<!-- cspell:ignore textmetrics fontmetrics halign -->
-<!-- cspell:ignore multmatrix tessellators -->
-
 This document provides the system-level design for CanvasNetScad.
 
 ![CanvasNetScad Structure](CanvasNetScadView.svg)

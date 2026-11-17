@@ -47,7 +47,6 @@ The `Drawing` subsystem's verification passes when every unit test scenario desc
 *GradientPaint Unit Verification Design* (`drawing/gradient-paint.md`), and
 *TilePaint Unit Verification Design* (`drawing/tile-paint.md`) passes without error or
 unexpected exception, and both system-level integration tests described above pass.
-<!-- cspell:ignore Outliner -->
 
 ### Test Scenarios
 

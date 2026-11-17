@@ -2,8 +2,6 @@ using System.Xml.Linq;
 
 namespace DemaConsulting.CanvasNet.Pptx;
 
-// cspell:ignore sppr txbody lststyle sptree pptx ctrtitle sldnum xfrm prst cust
-
 /// <summary>
 ///     Implements the <see cref="PptxDocument"/> placeholder property-inheritance resolver
 ///     (Phase 1b): the isolated, independently-testable implementation of ECMA-376 (ISO/IEC

@@ -1,4 +1,3 @@
-// cspell:ignore luma
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Fonts;
 using DemaConsulting.CanvasNet.Rendering;

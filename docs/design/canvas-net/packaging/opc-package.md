@@ -2,8 +2,6 @@
 
 ![Packaging Structure](PackagingView.svg)
 
-<!-- cspell:ignore ECMA ordinally reparse navigations -->
-
 `OpcPackage` is the first public software unit in the `Packaging` subsystem. It is a read-only,
 size-bounded view of an Open Packaging Conventions (OPC, ECMA-376 Part 2) ZIP package, such as a
 `.pptx` or `.vsdx` file. The unit includes the public `OpcFormatException` that it throws for a
@@ -61,7 +59,7 @@ exception propagates.
 
 ##### Part names and content types
 
-Part names are compared ordinally, so `doc/Page.xml` and `doc/page.xml` are two distinct parts and
+Part names use ordinal comparison, so `doc/Page.xml` and `doc/page.xml` are two distinct parts and
 `[content_types].xml` is never accepted as `[Content_Types].xml`; `NormalizePartPath` strips a
 single leading `/` and every method taking a part path accepts it with or without that slash.
 `ContainsPart` reports whether an entry of exactly that name exists. `ResolvePart` returns the
@@ -83,7 +81,7 @@ itself. Percent-encoding is not decoded: a target containing `%` escapes is look
 (unsupported). An external relationship is never resolved: `ResolveRelationship` throws for it and the
 by-type and by-id searches skip it. The by-type search returns a non-external relationship whose
 `Type` ends with the suffix (ordinal, case-sensitive); when several match, which one is returned is
-unspecified, so it is meant for navigations that are unique by type.
+unspecified, so it is meant for lookups that are unique by type.
 
 ##### LoadPartXmlRoot(partPath) and GetPartBytes(partPath)
 

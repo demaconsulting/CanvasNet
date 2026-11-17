@@ -2,8 +2,6 @@ using System.Xml.Linq;
 
 namespace DemaConsulting.CanvasNet.Vsdx;
 
-// cspell:ignore vsdx Visio Rttt
-
 /// <summary>
 ///     Implements the <see cref="VsdxDocument"/> page shape-tree parser and resolver: locating a
 ///     page's content part (<c>visio/pages/pageN.xml</c>), parsing its <c>&lt;Shapes&gt;</c> tree

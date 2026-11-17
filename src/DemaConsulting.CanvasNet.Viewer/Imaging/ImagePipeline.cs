@@ -1,4 +1,3 @@
-// cspell:ignore lanczos canvasnet deskew otsu
 using System.Globalization;
 using DemaConsulting.CanvasNet.Canvas;
 

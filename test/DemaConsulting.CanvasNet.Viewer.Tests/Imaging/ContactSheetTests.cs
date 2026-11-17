@@ -1,4 +1,3 @@
-// cspell:ignore ellipsis
 using System.Text;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Fonts;

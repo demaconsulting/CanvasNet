@@ -1,4 +1,3 @@
-// cspell:ignore Dejavu Nimbus Consolas ttcf rescanned Segoe LOCALAPPDATA Noto Zapf
 using System.Collections.Concurrent;
 using System.Runtime.InteropServices;
 using System.Security;
@@ -52,7 +51,7 @@ public readonly record struct SystemFontInfo(
 ///     </para>
 ///     <para>
 ///         <see cref="Fonts"/> is built exactly once per process, the first time it is accessed,
-///         and is never rescanned afterward - installing or removing a font on the host machine
+///         and is never scanned again - installing or removing a font on the host machine
 ///         while the process is running is not detected. Both <see cref="Fonts"/>'s scan itself
 ///         and <see cref="LoadBundledFallback"/> are deliberately tolerant of failure: a missing
 ///         or inaccessible scan directory, an unparseable candidate font file, or a single
@@ -116,7 +115,7 @@ public static class SystemFontCatalog
 
     /// <summary>
     ///     Backs <see cref="Fonts"/> - built once per process, on first access, and never
-    ///     rescanned afterward. Uses <see cref="LazyThreadSafetyMode.ExecutionAndPublication"/>
+    ///     scanned again. Uses <see cref="LazyThreadSafetyMode.ExecutionAndPublication"/>
     ///     so concurrent first-time accessors block on a single winning thread's scan rather than
     ///     each independently (and redundantly) scanning, and so no thread can ever observe a
     ///     partially-built catalog - see the class remarks' "Thread safety" section.

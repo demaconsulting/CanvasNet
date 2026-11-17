@@ -1,5 +1,3 @@
-// cspell:ignore srgb hlink bgfillstylelst patt
-
 using System.Xml.Linq;
 using DemaConsulting.CanvasNet.Canvas;
 

@@ -1,21 +1,3 @@
-// cspell:ignore WinAnsi WinAnsiEncoding MacRoman MacRomanEncoding notdef Zcaron Ycaron
-// cspell:ignore zcaron ycaron dieresis dbase perthousand Lslash lslash guilsingl
-// cspell:ignore periodcentered onesuperior twosuperior threesuperior ordfeminine ordmasculine
-// cspell:ignore adieresis odieresis udieresis ecircumflex icircumflex ocircumflex ucircumflex
-// cspell:ignore ntilde ccedilla eacute egrave igrave ograve ugrave agrave
-// cspell:ignore codepoints Aacute Acircumflex Aring Atilde Edieresis Iacute Idieresis
-// cspell:ignore Oacute Oslash Otilde Scaron Uacute Yacute Ydieresis aacute acircumflex
-// cspell:ignore approxequal aring asciicircum asciitilde atilde braceleft braceright
-// cspell:ignore bracketleft bracketright brokenbar caron daggerdbl dotaccent dotlessi
-// cspell:ignore edieresis emdash endash exclam exclamdown germandbls greaterequal
-// cspell:ignore guillemotleft guillemotright guilsinglleft guilsinglright hungarumlaut
-// cspell:ignore iacute idieresis lessequal logicalnot nbspace notequal numbersign oacute
-// cspell:ignore ogonek onehalf onequarter oslash otilde parenleft parenright partialdiff
-// cspell:ignore plusminus questiondown quotedbl quotedblbase quotedblleft quotedblright
-// cspell:ignore quoteleft quoteright quotesinglbase quotesingle scaron threequarters
-// cspell:ignore uacute yacute ydieresis Zapf Nonsymbolic fontfile stdenc
-// cspell:ignore ZapfDingbats Dingbats registerserif registersans copyrightserif copyrightsans
-// cspell:ignore trademarkserif trademarksans radicalex Noto thinspace
 using System.Globalization;
 using System.Text;
 using DemaConsulting.CanvasNet.Codecs;

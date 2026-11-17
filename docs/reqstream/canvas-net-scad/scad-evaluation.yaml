@@ -1,5 +1,4 @@
 ---
-# cspell:ignore Parameterizing
 # Software Subsystem Requirements for ScadEvaluation
 #
 # These requirements decompose the CanvasNetScad system's evaluation responsibility into the ScadEvaluation
@@ -226,7 +225,7 @@ sections:
               document - including to assignments pulled in by include but not to used libraries -
               replacing every top-level assignment of the name without evaluating it.
             justification: |
-              Parameterizing a model from outside without editing its text is the basis of batch
+              Setting the parameters of a model from outside without editing its text is the basis of batch
               rendering and variant generation.
             children:
               - CanvasNetScad-ScadEvaluation-ScadEvaluator-Overrides

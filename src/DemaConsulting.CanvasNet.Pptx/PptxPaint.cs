@@ -4,8 +4,6 @@ using DemaConsulting.CanvasNet.Drawing;
 
 namespace DemaConsulting.CanvasNet.Pptx;
 
-// cspell:ignore pptx srgb paintable
-
 /// <summary>
 ///     A resolved DrawingML paint - the result of <see cref="PptxDocument.ResolveFill"/> resolving
 ///     a shape's <c>&lt;p:spPr&gt;</c> fill element (or an <c>&lt;a:ln&gt;</c>'s own fill element,

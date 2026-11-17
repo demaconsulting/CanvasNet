@@ -1,7 +1,5 @@
 ### ScadTextGeometry Unit Verification Design
 
-<!-- cspell:ignore notdef Liberation kerning kerned ttb btt rtl ltr unioned subpath halign -->
-
 This document describes the unit-level verification strategy for the `ScadTextGeometry` unit: the internal static
 class that builds the `text` module (`ScadTextGeometry`, `ScadTextGeometry.Flattening`) and the font resolver
 `ScadFontResolver`, in the `DemaConsulting.CanvasNet.Scad.Geometry` namespace, together with the public

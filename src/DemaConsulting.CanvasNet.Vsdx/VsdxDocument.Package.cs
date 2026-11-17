@@ -4,8 +4,6 @@ using DemaConsulting.CanvasNet.Packaging;
 
 namespace DemaConsulting.CanvasNet.Vsdx;
 
-// cspell:ignore vsdx ooxml visio navigations
-
 /// <summary>
 ///     Implements the <see cref="VsdxDocument"/> OPC (Open Packaging Conventions) package layer as a
 ///     thin adapter over the core <see cref="OpcPackage"/>: the ZIP/OPC/content-types/relationships
@@ -26,7 +24,7 @@ public sealed partial class VsdxDocument
     /// <summary>
     ///     Resolves the target part path of the single relationship of
     ///     <paramref name="sourcePartPath"/> whose <c>Type</c> attribute ends with
-    ///     <paramref name="relationshipTypeSuffix"/>, used for navigations that have no explicit
+    ///     <paramref name="relationshipTypeSuffix"/>, used for lookups that have no explicit
     ///     <c>r:id</c> reference in the source part's own XML content (for example the package
     ///     root's relationship to <c>visio/document.xml</c>, or <c>visio/document.xml</c>'s
     ///     relationship to <c>visio/pages/pages.xml</c>).
@@ -62,7 +60,7 @@ public sealed partial class VsdxDocument
     ///     part path of the single relationship of <paramref name="sourcePartPath"/> whose
     ///     <c>Type</c> attribute ends with <paramref name="relationshipTypeSuffix"/>, returning
     ///     <see langword="false"/> instead of throwing when no such relationship exists. Used for
-    ///     navigations to an optional, auxiliary part (for example <c>visio/masters/masters.xml</c>
+    ///     lookups of an optional, auxiliary part (for example <c>visio/masters/masters.xml</c>
     ///     or <c>visio/theme/theme1.xml</c>) whose absence must degrade gracefully rather than
     ///     fail the whole parse closed, unlike <see cref="ResolveRelationshipByType"/>'s own
     ///     fail-closed behavior for a required navigation.

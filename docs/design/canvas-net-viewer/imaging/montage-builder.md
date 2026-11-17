@@ -1,7 +1,5 @@
 ### MontageBuilder
 
-<!-- cspell:ignore canvasnet -->
-
 ![Imaging Structure](ImagingView.svg)
 
 #### Purpose

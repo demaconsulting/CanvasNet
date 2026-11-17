@@ -2,19 +2,6 @@
 
 ![CanvasNetPptx Structure](CanvasNetPptxView.svg)
 
-<!-- cspell:ignore ordinally rethrowing -->
-
-<!-- cspell:ignore ooxml pptx navigations hlink srgb xfrm prst cust fmla scrgb patt misrender -->
-<!-- cspell:ignore bodyPr pPr rPr txBody txStyles lstStyle defRPr ctrTitle lIns tIns rIns bIns -->
-<!-- cspell:ignore algn marL lnSpc spcBef spcAft justLow lnSpcReduction fontScale noAutofit -->
-<!-- cspell:ignore normAutofit spAutoFit spcPct spcPts -->
-<!-- cspell:ignore srcRect blipFill grpSp grpSpPr nvGrpSpPr cxnSp tblGrid gridCol tblPr tcPr -->
-<!-- cspell:ignore lnL lnR lnT lnB pattFill hMerge vMerge gridSpan rowSpan tableStyleId -->
-<!-- cspell:ignore graphicFrame graphicData contentPart unrenderable -->
-<!-- cspell:ignore autoshape pythonpptx groupshape paintable aiden0z aiden unnamespaced reparenting FAFAF -->
-<!-- cspell:ignore bgRef bgFillStyleLst phClr fmtScheme asvg -->
-<!-- cspell:ignore tblStyle tblStyleLst wholeTbl tcStyle tcBdr insideH insideV bandRow firstRow -->
-<!-- cspell:ignore band1H band2H gridlines -->
 `PptxDocument` is distributed as the separate `DemaConsulting.CanvasNet.Pptx` NuGet package
 (namespace `DemaConsulting.CanvasNet.Pptx`), which references the core `DemaConsulting.CanvasNet`
 package.
@@ -55,7 +42,7 @@ what `PptxDocument` relies on:
 - **Opening the ZIP archive**: `OpcPackage.Open` buffers the input stream (bounded to 256 MiB),
   wraps it in a non-writable `MemoryStream`, and opens that as a read-only `ZipArchive`; an
   unreadable or corrupt (non-ZIP) stream, or two entries with an identical name, is rejected.
-  Part names are compared ordinally (case-sensitively).
+  Part names use ordinal (case-sensitive) comparison.
 - **`[Content_Types].xml` resolution**: parsed once, at open time, into a case-insensitive
   `Default` extension-to-content-type map (for example `"xml"` -> `"application/xml"`) and an
   exact-match `Override` part-path-to-content-type map. `ResolvePart(string partPath)` consults the
@@ -85,7 +72,7 @@ concepts. The `_package` field (the opened `OpcPackage`) holds the entirety of t
 parsed state.
 
 **Phase 1b additions**: the package gained the relationship `Type` (captured alongside each
-relationship's `Target`/`TargetMode`). Four OOXML navigations used by Phase 1b (package root ->
+relationship's `Target`/`TargetMode`). Four OOXML relationship lookups used by Phase 1b (package root ->
 `ppt/presentation.xml`, slide -> layout, layout -> master, master -> theme) have no explicit
 `r:id` anywhere in the referencing part's own body XML - each is, by OOXML convention, simply
 "the referencing part's one relationship of a given `Type`". `ResolveRelationshipByType(string
@@ -1389,7 +1376,7 @@ the *Phase 2 Follow-Up: Connector Shape Rendering* section below).
 
 A shape, picture, or graphic-frame whose fully-resolved geometry element declares no `<a:xfrm>`/
 `<p:xfrm>` anywhere in its own ancestry is **skipped silently**, not treated as an error - a
-position-less shape is a genuinely unrenderable (not malformed) construct this phase tolerates,
+position-less shape genuinely cannot be rendered (yet is not malformed), a construct this phase tolerates,
 mirroring `ParseShapeTree`'s own established "tolerant tree walk" precedent (see *Shape Tree*
 above). The same policy applies to a `<p:pic>` missing its own `<p:blipFill>`.
 
@@ -1757,8 +1744,8 @@ A matched `<a:bgFillStyleLst>` entry is itself parameterized with an `<a:schemeC
 placeholder-color token; `<p:bgRef>`'s own single color-definition child supplies the concrete
 substitution value, resolved via the existing `ResolveColor`. Reusing `ResolveFill` for a style-
 list entry (which is itself a bare fill-definition element, not a parent containing one) required
-wrapping it in a synthetic, unnamespaced parent `XElement` first - adding an `XElement` that
-already has a parent as content to a new element clones it rather than reparenting it, so the
+wrapping it in a synthetic parent `XElement` with no namespace first - adding an `XElement` that
+already has a parent as content to a new element clones it rather than moving it to the new parent, so the
 theme's own cached, shared tree is never mutated by this (confirmed by a dedicated regression
 test, `ResolveSlideBackgroundFill_BgRefResolution_DoesNotMutateThemeBgFillStyleList`).
 

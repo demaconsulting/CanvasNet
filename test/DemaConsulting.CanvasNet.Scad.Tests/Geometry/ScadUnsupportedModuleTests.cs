@@ -1,4 +1,3 @@
-// cspell:ignore minkowski
 using DemaConsulting.CanvasNet.Render3D.SceneModel;
 using DemaConsulting.CanvasNet.Scad.Evaluation;
 using DemaConsulting.CanvasNet.Scad.Tests.Evaluation;

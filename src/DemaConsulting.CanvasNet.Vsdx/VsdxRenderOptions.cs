@@ -2,8 +2,6 @@ using DemaConsulting.CanvasNet.Canvas;
 
 namespace DemaConsulting.CanvasNet.Vsdx;
 
-// cspell:ignore vsdx Visio Rgba
-
 /// <summary>
 ///     Groups page-rendering configuration accepted by
 ///     <see cref="VsdxDocument.Render(int, int, int, VsdxRenderOptions?)"/> and

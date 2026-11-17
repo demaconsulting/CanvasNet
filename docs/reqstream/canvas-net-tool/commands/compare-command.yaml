@@ -1,5 +1,4 @@
 ---
-# cspell:ignore scad openscad psnr rmse ssim
 # Software Unit Requirements for the CompareCommand Class
 #
 # The CompareCommand class is the compare command: it loads two inputs like the render command, brings them to one

@@ -1,7 +1,5 @@
 namespace DemaConsulting.CanvasNet.Svg;
 
-// cspell:ignore rasterizing rasterize
-
 /// <summary>
 ///     The <see cref="DemaConsulting.CanvasNet.Svg"/> namespace provides a restricted,
 ///     dependency-free, decode/rasterize-only codec for a common real-world subset of SVG

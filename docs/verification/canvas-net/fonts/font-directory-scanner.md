@@ -1,7 +1,5 @@
 ### FontDirectoryScanner Unit Verification Design
 
-<!-- cspell:ignore ttcf reparse mklink -->
-
 This document describes the unit-level verification strategy for the `FontDirectoryScanner` class and
 its `FontScanLimits` bounds record.
 

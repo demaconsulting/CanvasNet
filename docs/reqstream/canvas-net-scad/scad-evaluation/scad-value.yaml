@@ -1,5 +1,4 @@
 ---
-# cspell:ignore ordinally
 # Software Unit Requirements for ScadValue
 #
 # These requirements describe the design-level behavior of the ScadValue unit: the internal value model
@@ -53,7 +52,7 @@ sections:
                 title: >-
                   The ScadValue type shall compare values for equality only within one kind - numbers
                   by IEEE rules (NaN is never equal to anything, negative zero equals zero), strings
-                  ordinally, vectors element by element with equal lengths, ranges by start, step, and
+                  by ordinal comparison, vectors element by element with equal lengths, ranges by start, step, and
                   end, and functions by reference - shall never consider values of different kinds
                   equal, and shall give equal values equal hash codes.
                 justification: |
@@ -69,7 +68,7 @@ sections:
 
               - id: CanvasNetScad-ScadEvaluation-ScadValue-Ordering
                 title: >-
-                  The ScadValue type shall order two numbers numerically, two strings ordinally, two
+                  The ScadValue type shall order two numbers numerically, two strings by ordinal comparison, two
                   booleans with false before true, and two vectors lexicographically, and shall make
                   every other pairing - including NaN, mixed kinds, and undef - unordered so that all
                   four relational operators are false for it.

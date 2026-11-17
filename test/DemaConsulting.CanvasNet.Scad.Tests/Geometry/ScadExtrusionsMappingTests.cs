@@ -1,4 +1,3 @@
-// cspell:ignore extrude
 using DemaConsulting.CanvasNet.Render3D.SceneModel;
 using static DemaConsulting.CanvasNet.Scad.Tests.Geometry.ScadGeometryTestSupport;
 

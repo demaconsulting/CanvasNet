@@ -2,8 +2,6 @@
 
 ![CanvasNetScad Structure](CanvasNetScadView.svg)
 
-<!-- cspell:ignore lexer lexical evaluator undef textmetrics gimbal -->
-
 ### Purpose
 
 `ScadDocument` is the public entry point of `CanvasNetScad`. It is the front end for

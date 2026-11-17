@@ -1,7 +1,5 @@
 ### PolygonTriangulator Unit Verification Design
 
-<!-- cspell:ignore triangulator triangulation triangulated collinear reflex Ngon -->
-
 This document describes the unit-level verification strategy for the `PolygonTriangulator` unit:
 the `PolygonRegion` type, the internal `PolygonPredicates` class, and the `PolygonTriangulator`
 class.

@@ -1,5 +1,4 @@
 ---
-# cspell:ignore lanczos grayscale deskew
 # Software Unit Requirements for the ImagePipeline Class
 #
 # The ImagePipeline class is the ordered image pipeline: it applies a list of operations (crop, resize, fit, rotate

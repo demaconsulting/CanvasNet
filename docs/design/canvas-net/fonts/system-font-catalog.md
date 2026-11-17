@@ -1,8 +1,5 @@
 ### SystemFontCatalog
 
-<!-- cspell:ignore Dejavu Nimbus Consolas ttcf rescanned Segoe LOCALAPPDATA dogfood dogfooding -->
-<!-- cspell:ignore Zapf Noto -->
-
 `SystemFontCatalog` is the second public software unit in the `Fonts` subsystem, added this
 phase alongside the unchanged `TrueTypeFont`. It provides directory-scan-only discovery of fonts
 installed on the host operating system, best-effort family-name/style matching against that
@@ -32,7 +29,7 @@ reference to a plain family-name hint and a set of style booleans before calling
   no usable `name` table, so every catalog entry always has a non-null, non-empty family name.
 - **`Fonts`** - an `IReadOnlyList<SystemFontInfo>` backed by a `Lazy<IReadOnlyList<SystemFontInfo>>`
   built exactly once per process, on first access, using `LazyThreadSafetyMode.ExecutionAndPublication`.
-  It is never rescanned afterward: installing or removing a font on the host machine while the
+  It is never scanned again: installing or removing a font on the host machine while the
   process is running is not detected.
 - **Well-known generic-family lists** - three hand-maintained, priority-ordered `string[]`
   constants (`GenericSansFamilies`, `GenericSerifFamilies`, `GenericMonospaceFamilies`), each
@@ -139,7 +136,7 @@ even when the host machine has no fonts installed whatsoever.
   the tests.
 - **`LoadBundledFallbackCore(bundledFileName)`** - the embedded-resource load/cache logic above,
   exposed by explicit bundled file name so a test can exercise the missing-resource defensive
-  guard with a deliberately wrong name, and so a test can dogfood every one of the 15 real bundled
+  guard with a deliberately wrong name, and so a test can load every one of the 15 real bundled
   files individually (the 12 Liberation style variants plus the 3 Noto substitute fonts reused
   cross-assembly by `DemaConsulting.CanvasNet.Pdf`).
 - **`BuildCatalogFromRoots(roots)`** - the directory-scan/tolerance logic above, exposed over an

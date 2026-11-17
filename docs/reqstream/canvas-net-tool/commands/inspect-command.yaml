@@ -1,5 +1,4 @@
 ---
-# cspell:ignore luma otsu grayscale deskew
 # Software Unit Requirements for the InspectCommand Class
 #
 # The InspectCommand class is the inspect command with its subcommands colors and pixel: it loads one page of an

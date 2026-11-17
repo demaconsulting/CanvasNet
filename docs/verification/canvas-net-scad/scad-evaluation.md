@@ -1,7 +1,5 @@
 ## ScadEvaluation Subsystem Verification Design
 
-<!-- cspell:ignore evaluator undef unseeded -->
-
 This document describes the subsystem-level verification strategy for the `ScadEvaluation` subsystem (internal
 namespace `DemaConsulting.CanvasNet.Scad.Evaluation`), containing four units: `ScadValue`, `ScadEvaluator`,
 `ScadBuiltinFunctions`, and `ScadFileResolver`.

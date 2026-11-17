@@ -183,6 +183,8 @@ words:
   - ymaps
   - ysiz
   - Zppm
+  - Zppt
+  - Nsop
   - Aabb
   - functiontype
   - Poppler
@@ -1206,6 +1208,34 @@ words:
   - svgz
   - Partitioner
   - Grüße
+  # Image-processing terms of the canvas adjustments, comparisons, and transforms used by the tool and the viewer:
+  # Otsu's threshold, the SSIM metric, midtones, deskewing, thresholded images, and letterboxed/pillarboxed fitting
+  - Otsu
+  - ssim
+  - midtone
+  - midtones
+  - deskewed
+  - deskewing
+  - deskews
+  - thresholded
+  - letterboxed
+  - pillarbox
+  - pillarboxed
+  - pillarboxes
+  - pillarboxing
+  - premult
+  # Geometry terms of the stroker, the tessellators, and the shape builders (Rodrigues' rotation formula)
+  - inradius
+  - circumradius
+  - circumcenter
+  - collinearity
+  - Rodrigues
+  # Computing terms: work done once ahead of a loop, and the floating-point underflow named in tests and comments
+  - precomputation
+  - underflowed
+  - underflowing
+  # The plural of the SVG and HTML 'href' attribute
+  - hrefs
 # Percent-escapes in URL and file-name examples (such as "flow%2Emmd" for "flow.mmd"): the escape and the letters
 # glued to it are not words
 ignoreRegExpList:
@@ -1213,7 +1243,11 @@ ignoreRegExpList:
   # Escaped line feeds and tabs in JSON and C# texts (the escape letter would be read as part of the word)
   - "/\\\\[nt]/g"
   # Hexadecimal literals in C# code (such as 0xDEADBEEFu)
-  - "/\\b0x[0-9A-Fa-f]+[uUlL]*\\b/g"
+  - "/\\b0x[0-9A-Fa-f_]+[uUlL]*\\b/g"
+  # UTF-16 escapes in C# strings (such as \uFEFF): the hexadecimal digits and the letters glued to them are not words
+  - "/\\\\u[0-9A-Fa-f]{4}[A-Za-z]*/g"
+  # Hexadecimal RGB and ARGB color values (such as 4BACC6 or FAFAF9) with at least one digit and one letter
+  - "/\\b(?=[0-9A-F]*[0-9])(?=[0-9A-F]*[A-F])[0-9A-F]{6}(?:[0-9A-F]{2})?\\b/g"
   # The size placeholder of the tool options (WIDTHxHEIGHT) and the attached short option form (-ofile)
   - "/WIDTHxHEIGHT/g"
   - "/-ofile\\b/g"
@@ -1271,9 +1305,11 @@ overrides:
       - '/`[^`\n]*`/g'
   # The PngSuite conformance file names (such as "basn0g01.png"): eight letters and digits that encode the test
   # properties, not words
-  - filename: test/DemaConsulting.CanvasNet.Tests/Codecs/PngSuiteTests.cs
+  - filename:
+      - test/DemaConsulting.CanvasNet.Tests/Codecs/PngSuiteTests.cs
+      - test/DemaConsulting.CanvasNet.Svg.Tests/SvgCodecTests.cs
     ignoreRegExpList:
-      - '/"[a-z0-9]{8}\.png"/g'
+      - '/\b[a-z0-9]{8}\.png\b/g'
   # The Mermaid math vectors: every value is the 16 hexadecimal digits of a double
   - filename: test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/upstream-vectors/js-math.json
     ignoreRegExpList:
@@ -1284,3 +1320,276 @@ overrides:
       - test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/upstream-vectors/mindmap-parser.json
     ignoreRegExpList:
       - "/ﬂ°°?|¶ß/g"
+  # The classic placeholder names that the tests use for things that must not exist
+  - filename:
+      - "test/**"
+      - .textlint.yaml
+    words:
+      - frobnicate
+      - xyzzy
+  # The fonts unit: PostScript and Type 1 operators (callothersubr, closefile, definefont...), the OpenType 'wdth' and
+  # 'wght' axes and the PPEM field, HarfBuzz, the fonttools instancer, the notofonts project, the FreeType file
+  # names cross-checked by CffTable, a Windows font file name (ARIALN.TTF), font subsetting, and a test name
+  - filename:
+      - "src/DemaConsulting.CanvasNet/Fonts/**"
+      - "test/DemaConsulting.CanvasNet.Tests/Fonts/**"
+      - test/DemaConsulting.CanvasNet.Tests/TestSupport/SyntheticFontBuilder.cs
+      - "docs/**/canvas-net/fonts*"
+      - "docs/**/canvas-net/fonts/**"
+      - .textlint.yaml
+    words:
+      - ARIALN
+      - callothersubr
+      - closefile
+      - currentfile
+      - definefont
+      - HarfBuzz
+      - instancer
+      - Misparse
+      - noaccess
+      - notofonts
+      - othersubr
+      - PPEM
+      - psnames
+      - pstables
+      - setcurrentpoint
+      - subsetting
+      - wdth
+      - wght
+  # The Adobe glyph names (Adobe Glyph List and the CFF standard strings) read by the fonts unit and the PDF font
+  # encodings, and the CFF charsets and seac operands (achar, bchar) that resolve them. The patterns cover the
+  # regular families: small capitals, superior and inferior figures, old-style figures, and accented letters.
+  - filename:
+      - "src/DemaConsulting.CanvasNet/Fonts/**"
+      - "test/DemaConsulting.CanvasNet.Tests/Fonts/**"
+      - test/DemaConsulting.CanvasNet.Tests/TestSupport/SyntheticFontBuilder.cs
+      - "docs/**/canvas-net/fonts*"
+      - "docs/**/canvas-net/fonts/**"
+      - "src/DemaConsulting.CanvasNet.Pdf/**"
+      - "test/DemaConsulting.CanvasNet.Pdf.Tests/**"
+      - "docs/**/canvas-net-pdf*"
+      - "docs/**/canvas-net-pdf/**"
+      - .textlint.yaml
+    words:
+      - achar
+      - approxequal
+      - bchar
+      - brokenbar
+      - charsets
+      - colonmonetary
+      - copyrightsans
+      - copyrightserif
+      - daggerdbl
+      - dotaccent
+      - dotlessi
+      - exclamdown
+      - figuredash
+      - fiveeighths
+      - germandbls
+      - guillemotleft
+      - guillemotright
+      - guilsinglleft
+      - guilsinglright
+      - hungarumlaut
+      - lessequal
+      - logicalnot
+      - nbspace
+      - ogonek
+      - onedotenleader
+      - oneeighth
+      - onefitted
+      - onehalf
+      - onequarter
+      - onethird
+      - ordfeminine
+      - ordmasculine
+      - partialdiff
+      - periodcentered
+      - perthousand
+      - questiondown
+      - quotedblbase
+      - quotedblleft
+      - quotedblright
+      - quoteleft
+      - quoteright
+      - quotesinglbase
+      - radicalex
+      - registersans
+      - registerserif
+      - seveneighths
+      - threeeighths
+      - threequarters
+      - threequartersemdash
+      - trademarksans
+      - trademarkserif
+      - twodotenleader
+      - twothirds
+    ignoreRegExpList:
+      - "/\\b[A-Za-z]+(?:small|superior|inferior|oldstyle)\\b/g"
+      - "/\\b[A-Za-z](?:circumflex|dieresis|cedilla|slash)\\b/g"
+  # The PDF codec: the ToUnicode CMap and PostScript resource operators (beginbfchar, usecmap...), the feature tokens
+  # of unsupported constructs (pdf-font-cidfonttype-..., pdf-function-multiinput...), PDF keys and text-state names
+  # (Annots, Trise, EOFB), AcroForms, Gouraud shading, other PDF tools (PDFium, MuPDF's fitz), the fixture names, the
+  # Adobe 'stdenc.txt' table, the web sites named by the fixture provenance, and font subset tags (such as XUPVJI+)
+  - filename:
+      - "src/DemaConsulting.CanvasNet.Pdf/**"
+      - "test/DemaConsulting.CanvasNet.Pdf.Tests/**"
+      - "docs/**/canvas-net-pdf*"
+      - "docs/**/canvas-net-pdf/**"
+      - .textlint.yaml
+    words:
+      - AcroForms
+      - Annots
+      - beginbfchar
+      - beginbfrange
+      - begincmap
+      - begincodespacerange
+      - bfchar
+      - bfrange
+      - bitdepth
+      - bitspersample
+      - ccittfax
+      - cidchar
+      - cidfonttype
+      - cidrange
+      - cids
+      - codespacerange
+      - currentdict
+      - defineresource
+      - devicergb
+      - endbfchar
+      - endbfrange
+      - endcmap
+      - endcodespacerange
+      - EOFB
+      - findresource
+      - fitz
+      - flipperfile
+      - fontfile
+      - Gouraud
+      - multiinput
+      - PDFium
+      - pdfhost
+      - qwikpdf
+      - stdenc
+      - Trise
+      - usecmap
+      - xobject
+    ignoreRegExpList:
+      - "/\\b[A-Z]{6}\\+/g"
+  # The PowerPoint codec: DrawingML element and attribute names (custGeom, fmla, scrgbClr, cmpd) and a fixture name
+  - filename:
+      - "src/DemaConsulting.CanvasNet.Pptx/**"
+      - "test/DemaConsulting.CanvasNet.Pptx.Tests/**"
+      - "docs/**/canvas-net-pptx*"
+      - "docs/**/canvas-net-pptx/**"
+      - .textlint.yaml
+    words:
+      - cmpd
+      - cust
+      - fmla
+      - groupshape
+      - scrgb
+  # The Visio codec: the ShapeSheet, its cell names (FillBkgnd) and formula functions (_WALKGLUE, THEMEGUARD), the
+  # libvisio reference implementation, the jgreywolf/vsdx-js fixture project and its file names, the shape names of
+  # the 60973.vsdx fixture, and a test name
+  - filename:
+      - "src/DemaConsulting.CanvasNet.Vsdx/**"
+      - "test/DemaConsulting.CanvasNet.Vsdx.Tests/**"
+      - "docs/**/canvas-net-vsdx*"
+      - "docs/**/canvas-net-vsdx/**"
+      - .textlint.yaml
+    words:
+      - basicshapes
+      - Bkgnd
+      - diagramwithstyles
+      - flowchartshapes
+      - Greywolf
+      - jgreywolf
+      - jgreywolfvsdxjs
+      - libvisio
+      - Neeeee
+      - Nwwww
+      - shapesheet
+      - THEMEGUARD
+      - Unmirrored
+      - WALKGLUE
+  # The OpenSCAD language: its library path variable, the C 'fmod' remainder, the xorshift generator, and the
+  # notation of the parser tests' syntax-tree dumps (lfor, lcfor, llet, ifor)
+  - filename:
+      - "src/DemaConsulting.CanvasNet.Scad/**"
+      - "test/DemaConsulting.CanvasNet.Scad.Tests/**"
+      - "docs/**/canvas-net-scad*"
+      - "docs/**/canvas-net-scad/**"
+      - .textlint.yaml
+    words:
+      - fmod
+      - ifor
+      - lcfor
+      - lfor
+      - llet
+      - OPENSCADPATH
+      - xorshift
+  # The 3D renderer: the exact geometric predicates (Shewchuk's filter, Caratheodory's theorem, coplanarity, products
+  # such as adxbdy, units in the last place, subnormal numbers), closed orientable meshes, regular polygons, the
+  # ANDNOT operation of the constructive-solid-geometry program, and overbright lighting (Ngon, Overbright)
+  - filename:
+      - "src/DemaConsulting.CanvasNet.Render3D/**"
+      - "test/DemaConsulting.CanvasNet.Render3D.Tests/**"
+      - "docs/**/canvas-net-render3d*"
+      - "docs/**/canvas-net-render3d/**"
+      - .textlint.yaml
+    words:
+      - ANDNOT
+      - Caratheodory
+      - coplanarity
+      - Ngon
+      - orientable
+      - Overbright
+      - Shewchuk
+      - subnormals
+      - ulps
+    ignoreRegExpList:
+      - "/\\b[abc]dx[abc]dy\\b/g"
+  # The Vega-Lite schema checks: each property's allowed kinds are coded as a run of capital letters after its name
+  - filename: src/DemaConsulting.CanvasNet.VegaLite/SpecModel/SpecParser.*.cs
+    ignoreRegExpList:
+      - "/: [A-Z]{2,}\\b/g"
+  # Test inputs that are deliberately not words: mistyped commands, options, and values for the did-you-mean and
+  # invalid-value tests, pixel grids spelled out as letters, names that must not resolve, sample strings, and the
+  # Turkish casing samples. The string literals of these files are test data.
+  - filename:
+      - test/DemaConsulting.CanvasNet.Scad.Tests/Evaluation/ScadBuiltinListTests.cs
+      - test/DemaConsulting.CanvasNet.Scad.Tests/Evaluation/ScadBuiltinRegistryTests.cs
+      - test/DemaConsulting.CanvasNet.Scad.Tests/Evaluation/ScadBuiltinStringTests.cs
+      - test/DemaConsulting.CanvasNet.Scad.Tests/Evaluation/ScadResolverTestSupport.cs
+      - test/DemaConsulting.CanvasNet.Scad.Tests/Geometry/ScadTextGeometryTests.cs
+      - test/DemaConsulting.CanvasNet.Scad.Tests/Language/ScadLexerStringTests.cs
+      - test/DemaConsulting.CanvasNet.Scad.Tests/Language/ScadLexerTests.cs
+      - test/DemaConsulting.CanvasNet.Tests/Fonts/CffTableTests.cs
+      - test/DemaConsulting.CanvasNet.Tests/Fonts/FontDirectoryScannerTests.cs
+      - test/DemaConsulting.CanvasNet.Tests/ImageSources/FolderImageResolverFragmentTests.cs
+      - test/DemaConsulting.CanvasNet.Tests/ImageSources/ImageFragmentTests.cs
+      - test/DemaConsulting.CanvasNet.Tool.Tests/ArgumentReaderTests.cs
+      - test/DemaConsulting.CanvasNet.Tool.Tests/Commands/CommandRegistryTests.cs
+      - test/DemaConsulting.CanvasNet.Tool.Tests/Commands/CommandsSubsystemTests.cs
+      - test/DemaConsulting.CanvasNet.Tool.Tests/Commands/InspectCommandTests.cs
+      - test/DemaConsulting.CanvasNet.Tool.Tests/Commands/RenderCommandPipelineTests.cs
+      - test/DemaConsulting.CanvasNet.Tool.Tests/Commands/RenderCommandScadTests.cs
+      - test/DemaConsulting.CanvasNet.Tool.Tests/Commands/RenderCommandTests.cs
+      - test/DemaConsulting.CanvasNet.Tool.Tests/Imaging/ImagePipelineTests.cs
+      - test/DemaConsulting.CanvasNet.VegaLite.Tests/Hardening/VegaLiteDeterminismTests.cs
+    ignoreRegExpList:
+      - '/"(?:[^"\\\n]|\\.)*"/g'
+  # The same test inputs quoted as code spans in the verification and design text that describes those tests
+  - filename:
+      - docs/design/canvas-net-scad/scad-language/scad-lexer.md
+      - docs/verification/canvas-net-scad/scad-language/scad-lexer.md
+      - docs/verification/canvas-net-tool/argument-reader.md
+      - docs/verification/canvas-net-tool/commands.md
+      - docs/verification/canvas-net-tool/commands/command-registry.md
+      - docs/verification/canvas-net-tool/commands/inspect-command.md
+      - docs/verification/canvas-net-tool/commands/render-command.md
+      - docs/verification/canvas-net-viewer/imaging/image-pipeline.md
+    ignoreRegExpList:
+      - '/`[^`\n]*`/g'

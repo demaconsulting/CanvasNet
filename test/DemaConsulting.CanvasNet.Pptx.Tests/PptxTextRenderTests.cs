@@ -5,8 +5,6 @@ using DemaConsulting.CanvasNet.Tests.TestSupport;
 
 namespace DemaConsulting.CanvasNet.Pptx.Tests;
 
-// cspell:ignore pptx unitsperem
-
 /// <summary>
 ///     Unit-level tests for the Phase 1d glyph-painting primitive (<c>PptxDocument.TextRender.cs</c>'s
 ///     <see cref="PptxDocument.PaintTextLayout"/>): proves ink is painted at the expected,

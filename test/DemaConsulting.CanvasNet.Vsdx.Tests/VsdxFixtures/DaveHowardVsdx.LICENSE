@@ -1,8 +1,6 @@
 dave-howard/vsdx
 ----------------
 
-<!-- cspell:ignore davehoward -->
-
 The nine `davehoward-*.vsdx` files in this folder are real test fixture files taken, unmodified,
 from the [dave-howard/vsdx](https://github.com/dave-howard/vsdx) project's own `tests/` directory
 (see `README.md` in this same folder for the exact source URL of each individual file). This

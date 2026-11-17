@@ -1,7 +1,5 @@
 ### MontageCommand
 
-<!-- cspell:ignore canvasnet jpeg tiff tif jpg pptx vsdx dpi scad openscad -->
-
 ![Commands Structure](CommandsView.svg)
 
 #### Purpose

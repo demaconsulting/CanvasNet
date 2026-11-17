@@ -1,7 +1,5 @@
 namespace DemaConsulting.CanvasNet.Pptx;
 
-// cspell:ignore pptx srcrect
-
 /// <summary>
 ///     A picture shape's resolved <c>&lt;a:srcRect&gt;</c> crop: the fractional border cropped
 ///     away from each edge of the source image before it is sampled into the shape's placement

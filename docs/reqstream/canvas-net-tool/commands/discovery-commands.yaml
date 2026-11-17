@@ -1,5 +1,4 @@
 ---
-# cspell:ignore scad openscad
 # Software Unit Requirements for the DiscoveryCommands Class
 #
 # The DiscoveryCommands class holds the read-only commands that tell a caller what the tool can

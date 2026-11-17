@@ -2,20 +2,6 @@
 
 ![CanvasNetPdf Structure](CanvasNetPdfView.svg)
 
-<!-- cspell:ignore xref startxref endobj endstream ObjStm MediaBox unresolvable Trise -->
-<!-- cspell:ignore CCITT reimplementation diffability bitstream Zapf Nonsymbolic cidfonttype fontfile -->
-<!-- cspell:ignore Noto -->
-<!-- cspell:ignore Segoe Dejavu Nimbus Consolas ttcf dogfooding LOCALAPPDATA -->
-<!-- cspell:ignore beginbfchar endbfchar beginbfrange endbfrange codepoints tounicode bfrange -->
-<!-- cspell:ignore begincodespacerange endcodespacerange findresource defineresource currentdict -->
-<!-- cspell:ignore begincmap endcmap bfchar usecmap cidrange cidchar codespacerange -->
-<!-- cspell:ignore functiontype bitspersample multiinput hival EOFB -->
-<!-- cspell:ignore PDFium -->
-
-<!-- cspell:ignore charsets -->
-<!-- cspell:ignore bchar achar -->
-<!-- cspell:ignore SASLprep -->
-
 `PdfDocument` is distributed as the separate `DemaConsulting.CanvasNet.Pdf` NuGet package
 (namespace `DemaConsulting.CanvasNet.Pdf`), which references the core
 `DemaConsulting.CanvasNet` package.
@@ -1572,7 +1558,7 @@ its own distinguishable `Feature` token.
   (function-based shadings)
   remain unsupported/unchanged, reachable through two paths — `scn`/`SCN` + `/Pattern` and
   `sh` — both throwing the identical `Codecs.UnsupportedImageFeatureException` (shared code, not
-  a reimplementation); a `/Pattern` color space nested inside another `/Pattern`'s own `PatternBase` is out of scope
+  duplicated); a `/Pattern` color space nested inside another `/Pattern`'s own `PatternBase` is out of scope
   (the
   `ComponentCount` arm for `Family.Pattern` throws `InvalidOperationException` as a fail-closed
   backstop, since no caller is expected to reach it); deep nested-tiling-pattern recursion is

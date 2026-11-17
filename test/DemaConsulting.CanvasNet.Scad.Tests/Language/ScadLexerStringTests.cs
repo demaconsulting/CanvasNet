@@ -1,4 +1,3 @@
-// cspell:ignore DBFF DFFF Uzzzzzz UFFFFFF
 using DemaConsulting.CanvasNet.Scad.Language;
 
 namespace DemaConsulting.CanvasNet.Scad.Tests.Language;

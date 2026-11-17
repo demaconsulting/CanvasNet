@@ -1,8 +1,5 @@
 # The canvasnet Command-Line Tool
 
-<!-- cspell:ignore canvasnet Visio RRGGBBAA psnr rmse ssim midtones deskew deskewed deskewing Otsu luma grayscale -->
-<!-- cspell:ignore bilinear percentile percentiles gamma -->
-
 The `DemaConsulting.CanvasNet.Tool` package is a .NET tool whose command, `canvasnet`, exposes the CanvasNet
 libraries on the command line. It inspects, renders, converts, transforms, compares, and composes images, drawings,
 document pages, OpenSCAD models, Vega-Lite charts, and Mermaid diagrams, cleans up photographs of sketches (contrast,

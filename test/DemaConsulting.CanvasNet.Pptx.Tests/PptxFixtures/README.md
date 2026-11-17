@@ -1,8 +1,5 @@
 # PPTX Test Fixtures
 
-<!-- cspell:ignore scanny samplelib pythonpptx groupshape autoshape autoshapes aiden0z -->
-<!-- cspell:ignore pptx srcrect custgeom avlst cxnsp xfrm -->
-
 This folder holds a small, real-world corpus of `.pptx` files used to exercise `PptxDocument`'s
 full public `Render` API (Phase 2 - "Real-World Corpus Hardening") against documents nobody at
 this repository hand-authored, complementing (not replacing) the synthetic, hand-built `.pptx`

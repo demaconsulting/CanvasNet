@@ -1,4 +1,3 @@
-// cspell:ignore canvasnet jpeg tiff tif exif gif jpeg2000 pptx vsdx scad FEFF RRGGBB RRGGBBAA
 using System.Xml;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;

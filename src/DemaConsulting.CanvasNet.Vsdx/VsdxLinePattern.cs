@@ -1,7 +1,5 @@
 namespace DemaConsulting.CanvasNet.Vsdx;
 
-// cspell:ignore vsdx Visio
-
 /// <summary>
 ///     Maps a Visio <c>LinePattern</c> cell value to a dash array expressed in multiples of the
 ///     line weight (alternating dash/gap lengths), so the dash geometry scales with the stroke

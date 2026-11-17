@@ -1,4 +1,3 @@
-// cspell:ignore jpeg tiff jpeg2000
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;
 

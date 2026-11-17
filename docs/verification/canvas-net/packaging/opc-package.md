@@ -1,7 +1,5 @@
 ### OpcPackage Unit Verification Design
 
-<!-- cspell:ignore ECMA ordinally -->
-
 This document describes the unit-level verification strategy for the `OpcPackage` class and its
 `OpcFormatException`.
 
@@ -69,7 +67,7 @@ Opens packages lacking each required part (asserting the message names it), with
 missing `Id`, `Type` or `Target`, and with two relationships sharing an `Id`; each is rejected with
 `OpcFormatException`.
 
-##### CanvasNet-Packaging-OpcPackage-PartNames: Part Names Compare Ordinally
+##### CanvasNet-Packaging-OpcPackage-PartNames: Part Names Use Ordinal Comparison
 
 **Tests**: `OpcPackage_ResolvePart_NamesDifferingOnlyByCase_AreDistinctParts`,
 `OpcPackage_Open_WrongCaseContentTypesPartName_ThrowsOpcFormatException`,

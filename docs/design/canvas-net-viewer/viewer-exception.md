@@ -1,7 +1,5 @@
 ## ViewerException Unit Design
 
-<!-- cspell:ignore canvasnet -->
-
 ![CanvasNetViewer Structure](CanvasNetViewerView.svg)
 
 ### Purpose

@@ -1,4 +1,3 @@
-// cspell:ignore uncatchable
 using System.IO.Compression;
 using DemaConsulting.CanvasNet.Codecs;
 
@@ -131,7 +130,7 @@ public sealed partial class PdfDocument
     ///     <see cref="PdfTokenizer"/>'s <see cref="PdfTokenizer.Position"/>. <c>Position</c> is a
     ///     plain, unchecked property, so a negative value would index the underlying buffer
     ///     negatively on the very next <see cref="PdfTokenizer.NextToken"/> call, leaking an
-    ///     uncatchable-by-callers <see cref="IndexOutOfRangeException"/> instead of the
+    ///     <see cref="IndexOutOfRangeException"/> (which callers cannot reasonably catch) instead of the
     ///     <see cref="InvalidDataException"/> this library otherwise consistently uses to signal
     ///     malformed input.
     /// </summary>
@@ -1689,7 +1688,7 @@ public sealed partial class PdfDocument
         // cycle - whether via compressed-object containment or via two direct objects whose
         // values reference each other (for example a stream's indirect /Length referring back to
         // the stream itself) - before either object can be cached. Without this, GetObject would
-        // recurse indefinitely and crash with an uncatchable StackOverflowException.
+        // recurse indefinitely and crash with a StackOverflowException, which cannot be caught.
         if (!_objectResolutionStack.Add(number))
         {
             throw new InvalidDataException($"Indirect object {number} contains a resolution cycle.");

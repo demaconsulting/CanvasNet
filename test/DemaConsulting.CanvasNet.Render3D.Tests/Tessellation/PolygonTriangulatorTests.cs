@@ -1,5 +1,3 @@
-// cspell:ignore triangulator triangulation Ngon
-
 using DemaConsulting.CanvasNet.Render3D.SceneModel;
 using DemaConsulting.CanvasNet.Render3D.Tessellation;
 

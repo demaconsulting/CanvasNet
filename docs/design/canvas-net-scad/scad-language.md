@@ -1,7 +1,5 @@
 ## ScadLanguage
 
-<!-- cspell:ignore lexer lexical lexing tokenizer -->
-
 ![ScadLanguage Structure](ScadLanguageView.svg)
 
 ### Overview

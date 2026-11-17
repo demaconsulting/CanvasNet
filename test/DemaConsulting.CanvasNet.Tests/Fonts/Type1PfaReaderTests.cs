@@ -1,4 +1,3 @@
-// cspell:ignore eexec sniff
 using DemaConsulting.CanvasNet.Fonts;
 using DemaConsulting.CanvasNet.Tests.TestSupport;
 

@@ -2,8 +2,6 @@
 
 ![Imaging Structure](ImagingView.svg)
 
-<!-- cspell:ignore canvasnet jpeg tiff jpeg2000 exif pptx vsdx scad openscad luma otsu grayscale deskews -->
-
 ### Overview
 
 The `Imaging` subsystem (namespace `DemaConsulting.CanvasNet.Viewer.Imaging`, folder

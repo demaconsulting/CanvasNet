@@ -1,7 +1,5 @@
 ### SourceLoader
 
-<!-- cspell:ignore canvasnet jpeg tiff jpeg2000 exif pptx vsdx scad letterboxed Visio EMU embedder -->
-
 ![Imaging Structure](ImagingView.svg)
 
 #### Purpose

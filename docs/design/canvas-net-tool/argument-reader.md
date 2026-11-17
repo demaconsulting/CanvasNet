@@ -1,7 +1,5 @@
 ## ArgumentReader
 
-<!-- cspell:ignore canvasnet Postconditions rgba dpi rrggbbaa -->
-
 ![CanvasNetTool Structure](CanvasNetToolView.svg)
 
 ### Purpose

@@ -1,4 +1,3 @@
-// cspell:ignore bilinear premultiplied
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Tests.TestSupport;
 

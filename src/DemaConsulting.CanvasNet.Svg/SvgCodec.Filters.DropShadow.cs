@@ -1,4 +1,3 @@
-// cspell:ignore dropshadow
 using System.Xml.Linq;
 using DemaConsulting.CanvasNet.Canvas;
 

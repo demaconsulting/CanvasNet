@@ -1,4 +1,3 @@
-// cspell:ignore charprocs fontmatrix
 using System.Numerics;
 using DemaConsulting.CanvasNet.Codecs;
 using DemaConsulting.CanvasNet.Fonts;

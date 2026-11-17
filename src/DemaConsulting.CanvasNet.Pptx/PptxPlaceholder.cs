@@ -3,8 +3,6 @@ using System.Xml.Linq;
 
 namespace DemaConsulting.CanvasNet.Pptx;
 
-// cspell:ignore nvsppr nvpr sptree pptx
-
 /// <summary>
 ///     A single placeholder shape (a <c>&lt;p:sp&gt;</c> with a <c>&lt;p:ph&gt;</c> descendant)
 ///     parsed structurally from a slide master, slide layout, or slide - identical shape across

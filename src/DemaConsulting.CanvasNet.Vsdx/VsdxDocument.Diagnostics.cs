@@ -1,7 +1,5 @@
 namespace DemaConsulting.CanvasNet.Vsdx;
 
-// cspell:ignore vsdx Visio
-
 /// <summary>
 ///     Implements the <see cref="VsdxDocument"/> unsupported-feature diagnostics channel. Shape-tree
 ///     resolution is synchronous, cached per page, and partly static, so resolvers record each

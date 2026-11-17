@@ -1,5 +1,4 @@
 ---
-# cspell:ignore canvasnet
 # Software Unit Requirements for the ImageInspector Class
 #
 # The ImageInspector class is the inspect operation of the library: given the facts about a file (a probed source)

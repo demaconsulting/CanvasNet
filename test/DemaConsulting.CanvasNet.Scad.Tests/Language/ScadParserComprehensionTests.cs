@@ -1,4 +1,3 @@
-// cspell:ignore lfor lcfor llet
 using DemaConsulting.CanvasNet.Scad.Language;
 
 namespace DemaConsulting.CanvasNet.Scad.Tests.Language;

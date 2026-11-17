@@ -1,6 +1,4 @@
 #pragma warning disable S3218, S3358, S1172, S107, S3776, S1541, S134, S1244
-// cspell:ignore ppm ppt tlm plt crg rgn poc cprl rpcl pcrl rlcp lrcp sop eph xcb ycb
-// cspell:ignore pclr cmap cdef bpcc colr ihdr ftyp jp2c jp2h
 using System.Text;
 
 namespace DemaConsulting.CanvasNet.Tests.Codecs;

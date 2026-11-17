@@ -1,5 +1,3 @@
-<!-- cspell:ignore Outliner inradius Collinearity -->
-
 ### PathStroker
 
 ![Drawing Structure](DrawingView.svg)

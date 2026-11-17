@@ -1,7 +1,5 @@
 namespace DemaConsulting.CanvasNet.Vsdx;
 
-// cspell:ignore vsdx Visio LocPin
-
 /// <summary>
 ///     Implements the <see cref="VsdxDocument"/> text-box transform resolver: a shape's text box
 ///     defaults to filling its own geometry bounding box (format reference §8.3 - "implicit

@@ -1,7 +1,5 @@
 ### SystemFontCatalog Unit Verification Design
 
-<!-- cspell:ignore Dejavu Nimbus Consolas ttcf dogfoods dogfooding -->
-
 This document describes the unit-level verification strategy for the `SystemFontCatalog` class.
 
 #### Verification Approach
@@ -21,7 +19,7 @@ different concern:
   empty assertions (never skipped) so they remain deterministic across this repository's full
   Windows/Linux/macOS CI matrix, per this repository's own testing-principles guidance to
   conditionally strengthen an assertion rather than skip a test.
-- `BundledLiberationFontsTests.cs` dogfoods every one of the 12 real bundled Liberation `.ttf`
+- `BundledLiberationFontsTests.cs` exercises every one of the 12 real bundled Liberation `.ttf`
   files bundled as embedded resources, loading each directly through
   `SystemFontCatalog.LoadBundledFallbackCore` (the same code path `LoadBundledFallback` itself
   uses) and asserting each one's `TrueTypeFont.GetNameInfo()`/`IsBold`/`IsItalic`/`IsFixedPitch`

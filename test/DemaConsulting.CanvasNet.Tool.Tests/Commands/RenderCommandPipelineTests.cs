@@ -1,4 +1,3 @@
-// cspell:ignore canvasnet jpeg jpg tiff tif exif pdf pptx vsdx scad rotat deskew
 using System.Text.Json;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;

@@ -1,7 +1,5 @@
 ### DiscoveryCommands
 
-<!-- cspell:ignore canvasnet jpeg tiff pptx vsdx scad Visio openscad -->
-
 ![Commands Structure](CommandsView.svg)
 
 #### Purpose

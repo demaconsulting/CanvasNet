@@ -1,5 +1,3 @@
-// cspell:ignore coplanar collinear lexicographic lexicographically halfspaces
-
 using DemaConsulting.CanvasNet.Render3D.SceneModel;
 
 namespace DemaConsulting.CanvasNet.Render3D.Tessellation;
@@ -26,7 +24,7 @@ namespace DemaConsulting.CanvasNet.Render3D.Tessellation;
 ///         incident to the previously inserted vertex <c>q</c> is strictly visible from the new point <c>p</c>:
 ///         the tangent cone of the hull at <c>q</c> consists only of lexicographically non-positive directions
 ///         (every hull point is at most <c>q</c>), whereas <c>p - q</c> is lexicographically positive, so
-///         <c>p</c> cannot lie in the closed halfspaces of all faces at <c>q</c>. The fan of <c>q</c> is
+///         <c>p</c> cannot lie in the closed half-spaces of all faces at <c>q</c>. The fan of <c>q</c> is
 ///         therefore searched for a seed, and its length is amortized by the number of faces created by the
 ///         previous insertion. (4) The strictly visible faces are connected (the visible part of a convex
 ///         polytope surface is a topological disc, and coplanar triangles have identical visibility because

@@ -1,4 +1,3 @@
-// cspell:ignore canvasnet lanczos
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Viewer.Imaging;
 

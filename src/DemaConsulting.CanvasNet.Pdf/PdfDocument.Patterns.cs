@@ -1,4 +1,3 @@
-// cspell:ignore scn
 using System.Numerics;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;

@@ -1,4 +1,3 @@
-// cspell:ignore displacementmap channelselector
 using System.Xml.Linq;
 using DemaConsulting.CanvasNet.Canvas;
 

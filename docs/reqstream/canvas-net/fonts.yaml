@@ -8,7 +8,6 @@
 # decoding CFF/OpenType (glyf-free, Type 2 charstring) outline data, and loading an individual face
 # out of a TrueType Collection (ttcf) container. Each requirement here links down to the unit
 # requirements that implement it.
-# cspell:ignore glyf sfnt codepoint codepoints formedness renderable charstring charstrings ttcf
 
 sections:
   - title: CanvasNet Requirements

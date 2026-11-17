@@ -1,5 +1,3 @@
-// cspell:ignore transmittance
-
 using DemaConsulting.CanvasNet.Canvas;
 
 namespace DemaConsulting.CanvasNet.Render3D.SceneRendering;

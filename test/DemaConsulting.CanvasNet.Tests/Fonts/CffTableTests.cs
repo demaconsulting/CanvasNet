@@ -1,8 +1,3 @@
-// cspell:ignore SFNT Sfnt sfnt glyf Glyf cmap Cmap loca Loca hmtx Hmtx hhea Hhea
-// cspell:ignore maxp Maxp notdef codepoint codepoints subtable subtables subsetted
-// cspell:ignore subsetting PPEM OTTO CFF charstring charstrings subr subrs
-// cspell:ignore endchar hstem nosuchglyph charsets isoadobe
-// cspell:ignore seac bchar achar adx ady rmoveto rlineto Agrave
 using DemaConsulting.CanvasNet.Fonts;
 using DemaConsulting.CanvasNet.Tests.TestSupport;
 

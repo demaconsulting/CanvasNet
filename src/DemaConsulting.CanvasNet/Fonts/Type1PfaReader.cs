@@ -1,4 +1,3 @@
-// cspell:ignore eexec sniff cleartomark
 using System.Text;
 
 namespace DemaConsulting.CanvasNet.Fonts;

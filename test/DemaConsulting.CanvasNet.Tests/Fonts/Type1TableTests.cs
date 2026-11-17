@@ -1,5 +1,3 @@
-// cspell:ignore charstring charstrings subr subrs notdef hsbw rlineto closepath endchar
-// cspell:ignore lenIV rmoveto noaccess definefont currentfile closefile misparse nnoaccess
 using DemaConsulting.CanvasNet.Fonts;
 using DemaConsulting.CanvasNet.Tests.TestSupport;
 

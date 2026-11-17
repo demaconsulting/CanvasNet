@@ -1,11 +1,5 @@
 ### TrueTypeFont Unit Verification Design
 
-<!-- cspell:ignore glyf sfnt cmap loca hmtx hhea maxp notdef -->
-<!-- cspell:ignore codepoint codepoints subtable charstring charstrings ttcf hintmask cntrmask -->
-<!-- cspell:ignore hstemhm vstemhm callsubr callgsubr hhcurveto vvcurveto hvcurveto vhcurveto -->
-<!-- cspell:ignore rlineto hlineto vlineto rmoveto hmoveto vmoveto rrcurveto endchar seac gsubr -->
-<!-- cspell:ignore hflex flex1 hflex1 -->
-<!-- cspell:ignore noaccess definefont currentfile closefile misparse misparsing subsetting -->
 This document describes the unit-level verification strategy for the `TrueTypeFont` class and its
 supporting internal helpers `SfntContainer`, `CmapTable`, `GlyfLocaReader`, `IGlyphOutlineSource`,
 `CffTable`, `CffCharstringInterpreter`, `CffStandardEncoding`, `Type1Table`,
@@ -731,7 +725,7 @@ custom-`lenIV` handling, and its fail-closed structural-malformation paths - inc
 end-to-end flex test that checks actual `Path` point data (not merely the absence of an
 exception), a hint-replacement pass-through test, `seac` rejection, and subroutine call-depth
 bounding. Also verifies that the `/CharStrings` scanner correctly stops at that dictionary's own
-matching closing `end` keyword rather than misparsing trailing font-closing PostScript
+matching closing `end` keyword rather than wrongly parsing trailing font-closing PostScript
 boilerplate (`readonly put`/`noaccess put`/`definefont`/`currentfile closefile`) that some
 real-world Type 1 producers emit immediately afterward as further glyph entries.
 

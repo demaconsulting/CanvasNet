@@ -1,7 +1,5 @@
 ### ImagePipeline
 
-<!-- cspell:ignore canvasnet jpeg lanczos zabcz zdefz ccdd eeff grayscale deskew luma otsu deskewing -->
-
 #### Verification Approach
 
 `ImagePipeline` is verified with unit tests in two files. `ImagePipelineApplyTests.cs` (in the Viewer test project,

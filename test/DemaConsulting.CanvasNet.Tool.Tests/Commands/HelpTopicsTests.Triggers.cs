@@ -1,4 +1,3 @@
-// cspell:ignore textmetrics mercator geoshape geojson longitude hconcat minkowski multmatrix polyhedron
 using System.Text.Json;
 
 namespace DemaConsulting.CanvasNet.Tool.Tests.Commands;

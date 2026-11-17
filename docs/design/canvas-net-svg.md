@@ -1,12 +1,8 @@
 # System Design
 
-<!-- cspell:ignore Linq renderable -->
-
 This document provides the system-level design for CanvasNetSvg.
 
 ![CanvasNetSvg Structure](CanvasNetSvgView.svg)
-
-<!-- cspell:ignore rasterizing rrggbb -->
 
 ## Architecture
 

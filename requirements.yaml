@@ -1,5 +1,4 @@
 ---
-# cspell:ignore tessellator
 # Root requirements file - includes all system, unit, platform, and OTS requirements
 # root-tags: any requirement not (transitively) linked as a child of a requirement
 # tagged with one of these tags is reported as an orphan by

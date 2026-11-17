@@ -1,4 +1,3 @@
-// cspell:ignore canvasnet luma otsu deskew
 using DemaConsulting.CanvasNet.Canvas;
 
 namespace DemaConsulting.CanvasNet.Viewer.Imaging;

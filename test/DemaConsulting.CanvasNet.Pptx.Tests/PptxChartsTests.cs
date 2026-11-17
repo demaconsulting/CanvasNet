@@ -7,9 +7,6 @@ using DemaConsulting.CanvasNet.Charts.OpenXml;
 
 namespace DemaConsulting.CanvasNet.Pptx.Tests;
 
-// cspell:ignore pptx graphicframe chartspace numcache strcache sppr nvpr nvgraphicframepr cnvgraphicframepr
-// cspell:ignore barchart linechart piechart areachart radarchart
-
 /// <summary>
 ///     Unit-level tests for Phase 4's chart-graphic-frame integration:
 ///     <see cref="PptxDocument.ParseShapeTree"/>'s table-vs-chart dispatch (bar/line/pie/area),

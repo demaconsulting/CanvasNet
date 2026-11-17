@@ -1,4 +1,3 @@
-// cspell:ignore feblend colordodge colorburn hardlight softlight unswapped
 using System.Xml.Linq;
 using DemaConsulting.CanvasNet.Canvas;
 
@@ -215,7 +214,7 @@ public static partial class SvgCodec
     ///     Substituting <see cref="BlendHardLight"/>'s own <c>(cb, cs)</c> parameters with
     ///     <c>(cs, cb)</c> and simplifying reproduces the spec's direct <c>overlay</c> formula
     ///     exactly: <c>2*Cb*Cs</c> when <c>Cb &lt;= 0.5</c>, else <c>1 - 2*(1-Cb)*(1-Cs)</c>. Calling
-    ///     <see cref="BlendHardLight"/> with the arguments in their original (unswapped) order would
+    ///     <see cref="BlendHardLight"/> with the arguments in their original (not swapped) order would
     ///     silently condition the branch on the wrong channel and produce an incorrect result.
     /// </remarks>
     /// <param name="cb">The straight backdrop channel value, in <c>[0, 1]</c>.</param>

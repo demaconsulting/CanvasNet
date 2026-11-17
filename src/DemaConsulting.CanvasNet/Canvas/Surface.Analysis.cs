@@ -1,4 +1,3 @@
-// cspell:ignore luma otsu percentiles
 using System.Runtime.CompilerServices;
 
 namespace DemaConsulting.CanvasNet.Canvas;

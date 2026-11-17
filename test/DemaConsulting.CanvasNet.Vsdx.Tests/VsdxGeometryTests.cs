@@ -1,5 +1,3 @@
-// cspell:ignore vsdx Visio RelLineTo RelMoveTo NURBSTo
-
 using DemaConsulting.CanvasNet.Geometry;
 
 namespace DemaConsulting.CanvasNet.Vsdx.Tests;

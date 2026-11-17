@@ -1,5 +1,3 @@
-// cspell:ignore vsdx Visio davehoward
-
 namespace DemaConsulting.CanvasNet.Vsdx.Tests;
 
 /// <summary>

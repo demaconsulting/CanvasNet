@@ -1,7 +1,5 @@
 namespace DemaConsulting.CanvasNet.Vsdx;
 
-// cspell:ignore vsdx Visio davehoward
-
 /// <summary>
 ///     A single parsed VisioML <c>&lt;Shape&gt;</c> element (from a page's content part or a
 ///     Master's content part), both in its as-parsed (raw) form and, once

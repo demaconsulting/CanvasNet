@@ -1,5 +1,4 @@
 ---
-# cspell:ignore scad openscad deskew
 # Software Unit Requirements for the Validation Class
 #
 # The Validation class provides the self-validation framework, running tests that demonstrate the

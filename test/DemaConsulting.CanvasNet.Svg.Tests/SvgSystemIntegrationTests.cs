@@ -1,4 +1,3 @@
-// cspell:ignore Sfnt sfnt glyf cmap hhea hmtx letterboxes pillarboxes
 using System.Text;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;

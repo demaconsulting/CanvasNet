@@ -1,7 +1,5 @@
 ### CsgResolver
 
-<!-- cspell:ignore subtrahend subtrahends minuend postfix rasterizer speckle transmittance -->
-
 The `CsgResolver` unit is a software unit in the `SceneRendering` subsystem. It turns the scene's boolean tree into a
 small program and resolves, per sample, which surfaces of the combined solid (and of any overlay bodies) are visible.
 All of its types are internal to the assembly (visible to the test assembly through `InternalsVisibleTo`):

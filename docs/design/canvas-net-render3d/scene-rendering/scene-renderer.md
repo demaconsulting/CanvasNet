@@ -1,8 +1,5 @@
 ### SceneRenderer
 
-<!-- cspell:ignore Binner binner supersampling supersamples rasterizer rasterize subtrahend -->
-<!-- cspell:ignore minuend -->
-
 The `SceneRenderer` unit is the fourth software unit in the `SceneRendering` subsystem (after
 `Camera`, `Lighting`, and `TriangleRasterizer`, and together with `FragmentBuffer` and
 `CsgResolver`, which it drives). It comprises five public types in the

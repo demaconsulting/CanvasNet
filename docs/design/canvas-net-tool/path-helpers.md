@@ -1,7 +1,5 @@
 ## PathHelpers
 
-<!-- cspell:ignore Postconditions -->
-
 ![CanvasNetTool Structure](CanvasNetToolView.svg)
 
 ### Purpose

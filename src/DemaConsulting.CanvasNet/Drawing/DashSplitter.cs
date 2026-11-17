@@ -3,8 +3,6 @@ using System.Numerics;
 
 namespace DemaConsulting.CanvasNet.Drawing;
 
-// cspell:ignore Lerp
-
 /// <summary>
 ///     Splits a flattened polyline into the visible "on" segments of a dash pattern.
 /// </summary>

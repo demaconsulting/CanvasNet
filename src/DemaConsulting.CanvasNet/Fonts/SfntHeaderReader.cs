@@ -1,4 +1,3 @@
-// cspell:ignore macStyle unitsPerEm numTables hmtx hhea maxp loca glyf
 namespace DemaConsulting.CanvasNet.Fonts;
 
 /// <summary>

@@ -1,4 +1,3 @@
-// cspell:ignore canvasnet psnr rmse ssim
 using System.Globalization;
 using System.Text.Json;
 using DemaConsulting.CanvasNet.Canvas;

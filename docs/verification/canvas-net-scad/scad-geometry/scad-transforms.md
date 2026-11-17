@@ -1,7 +1,5 @@
 ### ScadTransforms Unit Verification Design
 
-<!-- cspell:ignore multmatrix newsize mislocated RRGGBBAA -->
-
 This document describes the unit-level verification strategy for the `ScadTransforms` unit: the internal
 `ScadTransforms` (`translate`, `rotate`, `scale`, `mirror`, `multmatrix`, `resize`) and `ScadColors` (`color` and
 color parsing on top of the core `CssColor` table), in the `DemaConsulting.CanvasNet.Scad.Geometry`
@@ -52,7 +50,7 @@ Unit tests reside in `ScadTransformsTests.cs`, `ScadResizeTests.cs`, and `ScadCo
 #### Acceptance Criteria
 
 A unit-level test run passes when every scenario below passes without error or exception beyond those explicitly
-asserted. A wrong bound, a wrong volume or orientation, a missing, extra, or mislocated warning or report, a
+asserted. A wrong bound, a wrong volume or orientation, a missing, extra, or misplaced warning or report, a
 wrong color byte, or an exception from a module for any input of the scenarios constitutes a failure.
 
 #### Unit-Level Test Scenarios

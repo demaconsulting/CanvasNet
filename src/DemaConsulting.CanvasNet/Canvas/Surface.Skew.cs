@@ -1,4 +1,3 @@
-// cspell:ignore deskew luma
 namespace DemaConsulting.CanvasNet.Canvas;
 
 /// <summary>

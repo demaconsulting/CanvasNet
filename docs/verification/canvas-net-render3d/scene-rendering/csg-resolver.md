@@ -1,7 +1,5 @@
 ### CsgResolver Unit Verification Design
 
-<!-- cspell:ignore subtrahend subtrahends minuend postfix speckle rasterizer transmittance -->
-
 This document describes the unit-level verification strategy for the internal `CsgCompiler`,
 `CsgCompilation`, `CsgProgram`, `CsgInstruction`, `CsgOpCode`, `LayerCompositor`, and `CsgResolver`
 types.

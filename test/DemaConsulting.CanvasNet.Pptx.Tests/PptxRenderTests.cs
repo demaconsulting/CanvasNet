@@ -6,11 +6,6 @@ using DemaConsulting.CanvasNet.Codecs;
 
 namespace DemaConsulting.CanvasNet.Pptx.Tests;
 
-// cspell:ignore pptx sppr nvsppr nvpr cnvpr cnvsppr grpsp nvgrpsppr grpsppr cxnsp nvcxnsppr cnvcxnsppr
-// cspell:ignore nvpicpr nvpr cnvpicpr blipfill srcrect embed graphicframe tbl tblgrid gridcol tcpr srgb
-// cspell:ignore calibri txbox xfrm prst Xfrm hlink Hlink cust pythonpptx bbox patt fgclr bgclr
-// cspell:ignore asvg
-
 /// <summary>
 ///     Unit-level tests for the Phase 1f public, slide-level rendering API
 ///     (<c>PptxDocument.Render.cs</c>'s <see cref="PptxDocument.Render(int, int, int, PptxRenderOptions?)"/>/

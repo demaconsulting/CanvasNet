@@ -1,5 +1,3 @@
-// cspell:ignore vsdx Visio THEMEVAL
-
 using System.IO.Compression;
 using System.Text;
 

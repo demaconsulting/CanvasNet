@@ -1,5 +1,4 @@
 ---
-# cspell:ignore openscad sandboxed uncatchable Parameterizing Minkowski multmatrix textmetrics fontmetrics halign
 #
 # Software System Requirements for CanvasNetScad
 #
@@ -290,8 +289,8 @@ sections:
           stack on a thread with a small stack.
         tags: [system]
         justification: |
-          Evaluation runs untrusted programs; unbounded time or memory, or an uncatchable stack
-          overflow, would take down the host process, so every resource must be bounded and every
+          Evaluation runs untrusted programs; unbounded time or memory, or a stack overflow (which cannot
+          be caught), would take down the host process, so every resource must be bounded and every
           violation reported as a typed exception.
         children:
           - CanvasNetScad-ScadDocument-Limits
@@ -324,7 +323,7 @@ sections:
           absent, including special variables.
         tags: [system]
         justification: |
-          Parameterizing a model from the outside is the basis of batch rendering and the
+          Setting the parameters of a model from the outside is the basis of batch rendering and the
           generation of variants.
         children:
           - CanvasNetScad-ScadDocument-VariableOverrides
@@ -725,7 +724,7 @@ sections:
         tags: [system]
         justification: |
           Callers invoke the library from threads of any stack size and a recursive module can nest
-          deeply; an uncatchable stack overflow would terminate their process.
+          deeply; a stack overflow, which cannot be caught, would terminate their process.
         children:
           - CanvasNetScad-ScadGeometry-StackSafety
         tests:

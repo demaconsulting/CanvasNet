@@ -1,7 +1,3 @@
-// cspell:ignore SFNT Sfnt sfnt glyf Glyf cmap Cmap loca Loca hmtx Hmtx hhea Hhea
-// cspell:ignore maxp Maxp notdef codepoint codepoints subtable subtables subsetted
-// cspell:ignore subsetting PPEM OTTO
-// cspell:ignore HarfBuzz
 using System.Numerics;
 using DemaConsulting.CanvasNet.Geometry;
 using Path = DemaConsulting.CanvasNet.Geometry.Path;

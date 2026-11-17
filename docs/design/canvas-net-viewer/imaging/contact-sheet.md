@@ -1,7 +1,5 @@
 ### ContactSheet
 
-<!-- cspell:ignore canvasnet ellipsis luma -->
-
 ![Imaging Structure](ImagingView.svg)
 
 #### Purpose

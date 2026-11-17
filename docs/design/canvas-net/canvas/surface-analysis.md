@@ -1,7 +1,5 @@
 ### SurfaceAnalysis Unit Design
 
-<!-- cspell:ignore canvasnet luma otsu percentile percentiles -->
-
 The `SurfaceAnalysis` unit is the analysis of what a surface contains, as methods of the public `Surface` class of the
 `Canvas` subsystem. It is the partial class file `Surface.Analysis.cs`, together with the public records of
 `SurfaceStatistics.cs` (`DominantColor`, `LumaStatistics`, `SurfaceStatistics`, `PixelWindow`, `PixelSample`).

@@ -4,8 +4,6 @@ This document provides the system-level design for CanvasNetPptx.
 
 ![CanvasNetPptx Structure](CanvasNetPptxView.svg)
 
-<!-- cspell:ignore ooxml pptx srgb xfrm prst cust -->
-
 ## Architecture
 
 CanvasNetPptx is a .NET library providing PowerPoint (`.pptx`) presentation-rendering support,

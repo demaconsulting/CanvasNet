@@ -1,7 +1,5 @@
 ### PrimitiveTessellator
 
-<!-- cspell:ignore tessellator tessellation polyhedra -->
-
 The `PrimitiveTessellator` unit is the primitive-shape unit of the `Tessellation` subsystem. It is a
 single public static partial class, `PrimitiveTessellator`, in the
 `DemaConsulting.CanvasNet.Render3D.Tessellation` namespace, with four 3D factory methods

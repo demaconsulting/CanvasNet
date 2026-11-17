@@ -1,4 +1,3 @@
-// cspell:ignore psnr rmse ssim luma
 namespace DemaConsulting.CanvasNet.Canvas;
 
 /// <summary>

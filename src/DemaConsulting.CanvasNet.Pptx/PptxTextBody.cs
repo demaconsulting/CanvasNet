@@ -3,8 +3,6 @@ using System.Xml.Linq;
 
 namespace DemaConsulting.CanvasNet.Pptx;
 
-// cspell:ignore bodypr lstyle lnspc spcpct spcpts marl
-
 /// <summary>
 ///     A parsed <c>&lt;p:txBody&gt;</c> element (Phase 1d): resolved body properties plus its
 ///     ordered paragraphs, produced by <see cref="PptxDocument.ParseTextBody"/>.

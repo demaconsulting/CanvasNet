@@ -3,8 +3,6 @@ using System.Xml.Linq;
 
 namespace DemaConsulting.CanvasNet.Vsdx;
 
-// cspell:ignore vsdx Visio davehoward jgreywolfvsdxjs
-
 /// <summary>
 ///     Implements the <see cref="VsdxDocument"/> <c>&lt;Connects&gt;</c> parser: a page's
 ///     <c>&lt;Connects&gt;</c> element sits as a sibling of its <c>&lt;Shapes&gt;</c> element

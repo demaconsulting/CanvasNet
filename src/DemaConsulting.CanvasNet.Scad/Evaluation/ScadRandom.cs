@@ -1,7 +1,5 @@
 namespace DemaConsulting.CanvasNet.Scad.Evaluation;
 
-// cspell:ignore CADUL EBUL xorshift
-
 /// <summary>
 ///     A small deterministic pseudo-random generator (SplitMix64) used by the <c>rands</c> built-in function.
 /// </summary>

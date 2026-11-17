@@ -1,7 +1,5 @@
 ### RenderCommand
 
-<!-- cspell:ignore canvasnet jpeg jpg tiff tif exif pptx vsdx dpi scad openscad Dlabel grayscale deskew -->
-
 #### Verification Approach
 
 `RenderCommand` is verified with unit tests in `RenderCommandTests.cs`, `RenderCommandDocumentTests.cs` (pages,

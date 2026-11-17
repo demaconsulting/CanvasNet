@@ -1,7 +1,5 @@
 ### PrimitiveTessellator Unit Verification Design
 
-<!-- cspell:ignore tessellator uncentered -->
-
 This document describes the unit-level verification strategy for the `PrimitiveTessellator` class.
 
 #### Verification Approach

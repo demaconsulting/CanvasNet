@@ -1,5 +1,4 @@
 ---
-# cspell:ignore scad openscad
 # Software Unit Requirements for the MontageCommand Class
 #
 # The MontageCommand class is the montage command: it composes images, and the pages of documents, into one contact

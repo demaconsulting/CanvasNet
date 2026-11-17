@@ -7,8 +7,6 @@ using Path = DemaConsulting.CanvasNet.Geometry.Path;
 
 namespace DemaConsulting.CanvasNet.Pptx;
 
-// cspell:ignore xfrm srgbclr schemeclr lummod lumoff pptx gsLst prstDash lgDash sysDash sysDot dashDot patt hlink scrgb prst positionable
-
 /// <summary>
 ///     Implements the <see cref="PptxDocument"/> DrawingML paint resolvers (Phase 1c): fill
 ///     (<c>&lt;a:noFill&gt;</c>/<c>&lt;a:solidFill&gt;</c>/<c>&lt;a:gradFill&gt;</c>), color
@@ -839,7 +837,7 @@ public sealed partial class PptxDocument
         }
 
         // A line's fill carries no shape width/height of its own to position a gradient against -
-        // gradient-filled lines are not meaningfully positionable this phase, so 1x1 is used as a
+        // gradient-filled lines cannot be meaningfully positioned this phase, so 1x1 is used as a
         // neutral placeholder extent (only reachable if a document declares <a:ln><a:gradFill>).
         var paint = ResolveFill(lnElement, theme, 1f, 1f, phClrOverride, colorMap, resolveBlipImage);
         if (paint is PptxNoFill)

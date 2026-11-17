@@ -1,4 +1,3 @@
-// cspell:ignore canvasnet rmse
 using System.Globalization;
 using System.Text.Json;
 using DemaConsulting.CanvasNet.ImageSources;

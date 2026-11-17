@@ -1,7 +1,5 @@
 namespace DemaConsulting.CanvasNet.Pptx;
 
-// cspell:ignore hmerge vmerge gridspan rowspan pptx
-
 /// <summary>
 ///     A parsed <c>&lt;a:tbl&gt;</c> table (Phase 1e): its column widths and ordered rows,
 ///     produced by <see cref="PptxDocument.ParseTable"/>.

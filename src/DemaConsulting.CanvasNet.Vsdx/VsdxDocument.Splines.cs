@@ -4,8 +4,6 @@ using DemaConsulting.CanvasNet.Geometry;
 
 namespace DemaConsulting.CanvasNet.Vsdx;
 
-// cspell:ignore vsdx Visio NURBS NURBSTo PolylineTo SplineStart SplineKnot knotLast xType yType Cox
-
 /// <summary>
 ///     Implements the <see cref="VsdxDocument"/> curve-row resolvers that <c>VsdxDocument.Geometry.cs</c>
 ///     delegates to: <c>PolylineTo</c> (a <c>POLYLINE(...)</c> formula), <c>NURBSTo</c> (a

@@ -1,4 +1,3 @@
-// cspell:ignore hival
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;
 

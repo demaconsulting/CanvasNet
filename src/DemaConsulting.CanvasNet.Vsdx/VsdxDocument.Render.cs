@@ -5,8 +5,6 @@ using Path = DemaConsulting.CanvasNet.Geometry.Path;
 
 namespace DemaConsulting.CanvasNet.Vsdx;
 
-// cspell:ignore vsdx Visio
-
 /// <summary>
 ///     Implements the <see cref="VsdxDocument"/> public, page-level rendering API: resolves the
 ///     requested page's full shape tree (first call for that page; cached thereafter), walks it

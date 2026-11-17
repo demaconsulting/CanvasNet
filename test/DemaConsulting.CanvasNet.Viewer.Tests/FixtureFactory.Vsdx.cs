@@ -1,4 +1,3 @@
-// cspell:ignore vsdx Visio xmlns FutureRowKind
 using System.Globalization;
 
 namespace DemaConsulting.CanvasNet.TestSupport;

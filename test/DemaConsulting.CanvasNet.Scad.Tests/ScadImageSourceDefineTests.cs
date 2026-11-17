@@ -1,4 +1,3 @@
-// cspell:ignore scad openscad
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.ImageSources;
 

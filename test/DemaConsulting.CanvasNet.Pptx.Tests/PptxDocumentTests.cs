@@ -5,8 +5,6 @@ using DemaConsulting.CanvasNet.Canvas;
 
 namespace DemaConsulting.CanvasNet.Pptx.Tests;
 
-// cspell:ignore pptx ooxml sppr txbody lststyle sldsz sldidlst sldid nvsppr nvpr ctrtitle srgb hlink calibri
-
 /// <summary>
 ///     Unit-level tests for the <see cref="PptxDocument"/> OOXML package layer (Phase 1a: ZIP
 ///     opening, <c>[Content_Types].xml</c> resolution, package/part relationship resolution) and

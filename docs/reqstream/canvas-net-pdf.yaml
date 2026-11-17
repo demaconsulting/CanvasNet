@@ -1,5 +1,4 @@
 ---
-# cspell:ignore Noto
 #
 # Software System Requirements for CanvasNetPdf
 #
@@ -20,7 +19,6 @@
 # RunLengthDecode) - see docs/design/canvas-net-pdf.md for the full current feature set and its
 # documented, still-unsupported-feature boundary.
 #
-# cspell:ignore xref startxref devicergb Zapf subsetted
 
 sections:
   - title: CanvasNetPdf Requirements

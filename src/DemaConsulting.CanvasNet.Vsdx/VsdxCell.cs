@@ -1,7 +1,5 @@
 namespace DemaConsulting.CanvasNet.Vsdx;
 
-// cspell:ignore vsdx Visio
-
 /// <summary>
 ///     A single parsed VisioML <c>&lt;Cell&gt;</c> element: a cell-bag entry keyed by its
 ///     <c>N=</c> (name) attribute, carrying its raw <c>V=</c> (value) attribute and optional

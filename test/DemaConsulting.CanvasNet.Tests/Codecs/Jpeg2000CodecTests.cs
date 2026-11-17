@@ -1,4 +1,3 @@
-// cspell:ignore bypass termall vcausal segsym pterm ppm ppt tlm plt crg poc cprl rpcl pcrl rlcp lrcp sop eph pclr cmap cdef bpcc colr
 using System.Buffers.Binary;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;

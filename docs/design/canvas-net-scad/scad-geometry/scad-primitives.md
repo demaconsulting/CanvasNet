@@ -1,8 +1,5 @@
 ### ScadPrimitives
 
-<!-- cspell:ignore evaluator undef polyhedron polyhedra tessellator tessellators tessellation Newell frustum truthy
-  truthiness -->
-
 The `ScadPrimitives` unit is the second software unit in the `ScadGeometry` subsystem. It comprises five source
 files in the `DemaConsulting.CanvasNet.Scad.Geometry` namespace, all `internal`:
 

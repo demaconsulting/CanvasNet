@@ -1,8 +1,5 @@
 ### SceneRenderer Unit Verification Design
 
-<!-- cspell:ignore Binner binner supersampling supersamples subtrahend subtrahends minuend speckle -->
-<!-- cspell:ignore tessellated transmittance -->
-
 This document describes the unit-level verification strategy for the `SceneRenderer` and
 `SceneRenderOptions` classes, the diagnostic types `RenderBudgetExceededException`,
 `SceneRenderUnsupportedFeature`, and `SceneRenderUnsupportedFeatureException`, and the internal

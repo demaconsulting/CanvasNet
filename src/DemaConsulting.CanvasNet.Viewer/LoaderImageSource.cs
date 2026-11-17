@@ -1,4 +1,3 @@
-// cspell:ignore pptx vsdx scad
 using System.Collections.ObjectModel;
 using System.Runtime.ExceptionServices;
 using DemaConsulting.CanvasNet.Canvas;

@@ -1,5 +1,3 @@
-// cspell:ignore vsdx davehoward jgreywolfvsdxjs basicshapes Visio Foregnd
-
 using DemaConsulting.CanvasNet.Canvas;
 
 namespace DemaConsulting.CanvasNet.Vsdx.Tests;

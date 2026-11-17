@@ -1,4 +1,3 @@
-// cspell:ignore href scad pdf embedder
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Files;
 using DemaConsulting.CanvasNet.ImageSources;

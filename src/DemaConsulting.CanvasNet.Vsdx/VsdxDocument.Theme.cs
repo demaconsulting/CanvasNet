@@ -1,7 +1,5 @@
 namespace DemaConsulting.CanvasNet.Vsdx;
 
-// cspell:ignore vsdx Visio
-
 /// <summary>
 ///     Implements the <see cref="VsdxDocument"/> theme loader: lazily resolves and parses
 ///     <c>visio/theme/theme1.xml</c> (via the already-resolved <c>_themePartPath</c> - see

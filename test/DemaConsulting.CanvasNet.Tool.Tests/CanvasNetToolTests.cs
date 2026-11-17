@@ -1,4 +1,3 @@
-// cspell:ignore canvasnet jpeg jpg tif tiff exif pdf pptx vsdx visio scad
 using System.Text.Json;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;

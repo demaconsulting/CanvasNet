@@ -1,4 +1,3 @@
-// cspell:ignore bitdepth reimplementation diffability
 using DemaConsulting.CanvasNet.Codecs;
 
 namespace DemaConsulting.CanvasNet.Pdf;

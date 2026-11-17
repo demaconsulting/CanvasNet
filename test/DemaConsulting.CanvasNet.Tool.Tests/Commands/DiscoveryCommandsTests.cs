@@ -1,4 +1,3 @@
-// cspell:ignore canvasnet jpeg jpg tif tiff jp2 j2k j2c vsdx pptx
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using DemaConsulting.CanvasNet.Tool.Commands;

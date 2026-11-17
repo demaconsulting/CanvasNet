@@ -1,5 +1,3 @@
-// cspell:ignore Orientable
-
 namespace DemaConsulting.CanvasNet.Render3D.SceneModel;
 
 /// <summary>

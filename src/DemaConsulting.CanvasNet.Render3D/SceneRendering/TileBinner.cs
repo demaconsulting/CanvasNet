@@ -1,5 +1,3 @@
-// cspell:ignore Binner
-
 namespace DemaConsulting.CanvasNet.Render3D.SceneRendering;
 
 /// <summary>

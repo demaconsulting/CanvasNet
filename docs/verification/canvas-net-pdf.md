@@ -1,7 +1,5 @@
 # System Verification Design
 
-<!-- cspell:ignore Zapf Noto -->
-
 This document describes the system-level verification strategy for CanvasNetPdf.
 
 ## Verification Approach

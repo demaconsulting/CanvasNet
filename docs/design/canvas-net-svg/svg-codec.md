@@ -2,9 +2,6 @@
 
 ![CanvasNetSvg Structure](CanvasNetSvgView.svg)
 
-<!-- cspell:ignore rasterizing rrggbb sizeless SMIL unparseable Linq uncatchable Glyf Loca renderable -->
-<!-- cspell:ignore unitless letterboxing -->
-
 `SvgCodec` is distributed as the separate `DemaConsulting.CanvasNet.Svg` NuGet package (namespace
 `DemaConsulting.CanvasNet.Svg`), which references the core `DemaConsulting.CanvasNet` package.
 
@@ -719,7 +716,7 @@ both are present and resolve to positive numbers - each converted from its CSS u
 (see *Length Units and font-size* above; `1in` is 96, and a percentage or viewport unit counts as
 absent); (3) the CSS/UA default replaced-element
 intrinsic size of 300x150, if neither of the above is present. This mirrors how a web browser
-sizes a sizeless, viewBox-less `<img src="...svg">` element, and ensures `GetInfo` always returns
+sizes an `<img src="...svg">` element with no size and no viewBox, and ensures `GetInfo` always returns
 a usable, positive size rather than failing on a document that omits explicit sizing information
 entirely. The resolved floating-point size is clamped to the valid `[1, int.MaxValue]` pixel-
 dimension range **before** it is cast to `int` — using a `double` intermediate for the clamp,
@@ -1553,7 +1550,7 @@ additional check needed at the `image`-element call site.
 The `use`-cycle guard above only bounds recursion that passes back through a `use` element - it
 does nothing to bound a document made entirely of many levels of plain nested `g`/`symbol` groups
 (no `use` involved), which would otherwise recurse the element-tree walk without limit and
-eventually overflow the call stack with an uncatchable `StackOverflowException`, terminating the
+eventually overflow the call stack with a `StackOverflowException` (which cannot be caught), terminating the
 process outright and bypassing this codec's documented `InvalidDataException`-wrapping
 error-handling policy entirely. Rendering therefore also tracks a second, independent
 recursion-depth counter incremented on every element-tree descent - whether through ordinary group

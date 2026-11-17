@@ -1,4 +1,3 @@
-// cspell:ignore precomputation
 using System.Numerics;
 using System.Numerics.Tensors;
 using DemaConsulting.CanvasNet.Canvas;

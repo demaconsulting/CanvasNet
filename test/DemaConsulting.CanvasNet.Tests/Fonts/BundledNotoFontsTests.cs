@@ -1,10 +1,9 @@
-// cspell:ignore Noto Dogfoods ZapfDingbats
 using DemaConsulting.CanvasNet.Fonts;
 
 namespace DemaConsulting.CanvasNet.Tests.Fonts;
 
 /// <summary>
-///     Dogfoods all 3 bundled Noto embedded-resource substitute fonts (see
+///     Exercises all 3 bundled Noto embedded-resource substitute fonts (see
 ///     <c>Fonts\BundledFonts\README.md</c>'s "Noto Substitute Fonts" section for
 ///     sourcing/licensing provenance) through <see cref="TrueTypeFont"/>, proving every one is a
 ///     genuine, well-formed, loadable TrueType font exposing a sane family name - both a

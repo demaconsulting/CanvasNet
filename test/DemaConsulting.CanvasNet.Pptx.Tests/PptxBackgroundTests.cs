@@ -3,8 +3,6 @@ using DemaConsulting.CanvasNet.Canvas;
 
 namespace DemaConsulting.CanvasNet.Pptx.Tests;
 
-// cspell:ignore srgbclr schemeclr pptx bgpr bgref phclr srgb hlink Hlink Calibri reparents
-
 /// <summary>
 ///     Unit-level tests for the Phase 2 Follow-Up slide/layout/master background-fill resolver
 ///     (<c>PptxDocument.Background.cs</c>'s <see cref="PptxDocument.ResolveSlideBackgroundFill"/>)

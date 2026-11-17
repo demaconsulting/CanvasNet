@@ -1,7 +1,5 @@
 ### SurfaceComparison Unit Verification Design
 
-<!-- cspell:ignore psnr rmse ssim luma -->
-
 The comparison of the `Surface` class with another surface (the `SurfaceComparison` unit of the `Canvas` subsystem) is
 verified by `test/DemaConsulting.CanvasNet.Tests/Canvas/SurfaceComparisonTests.cs`.
 

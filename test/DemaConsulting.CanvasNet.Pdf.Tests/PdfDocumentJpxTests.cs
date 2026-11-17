@@ -1,4 +1,3 @@
-// cspell:ignore JPXDecode SMaskInData cdef
 using System.Text;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;

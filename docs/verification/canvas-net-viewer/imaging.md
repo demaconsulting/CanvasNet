@@ -1,7 +1,5 @@
 ## Imaging
 
-<!-- cspell:ignore canvasnet jpeg tiff jpeg2000 pptx vsdx dpi scad deskew deskewed -->
-
 ### Verification Approach
 
 The `Imaging` subsystem is verified at two tiers. The unit tests of `SourceLoader`, `ImagePipeline`, `ImageWriter`,

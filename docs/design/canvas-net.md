@@ -4,9 +4,6 @@ This document provides the system-level design for CanvasNet.
 
 ![CanvasNet Structure](CanvasNetView.svg)
 
-<!-- cspell:ignore glyf sfnt cmap loca hmtx hhea maxp notdef -->
-<!-- cspell:ignore codepoint codepoints subtable subtables -->
-
 ## Architecture
 
 CanvasNet is a .NET library providing a canvas-based drawing and rendering API, following
@@ -900,5 +897,3 @@ is used.
 - **CI/CD Integration**: Automated build, test, and quality validation
 - **Requirements Traceability**: All features linked to passing tests
 - **Review Management**: Systematic file review using ReviewMark patterns
-
-<!-- cspell:ignore Outliner -->

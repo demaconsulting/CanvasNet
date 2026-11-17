@@ -1,7 +1,5 @@
 ### GlyphFallback
 
-<!-- cspell:ignore Liberation Noto -->
-
 `GlyphFallback` is a public static software unit in the `Fonts` subsystem. It gives a character that
 the font a caller chose has no glyph for a real glyph from a fixed chain of bundled fonts, and it
 names the characters that even the chain does not cover.

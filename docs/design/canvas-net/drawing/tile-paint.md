@@ -1,5 +1,3 @@
-<!-- cspell:ignore Rgba lerp precomputation -->
-
 ### TilePaint
 
 ![Drawing Structure](DrawingView.svg)

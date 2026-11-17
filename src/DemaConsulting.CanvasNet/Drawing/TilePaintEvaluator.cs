@@ -1,7 +1,6 @@
 using System.Numerics;
 using DemaConsulting.CanvasNet.Canvas;
 
-// cspell:ignore precomputation
 namespace DemaConsulting.CanvasNet.Drawing;
 
 /// <summary>

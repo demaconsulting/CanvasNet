@@ -1,9 +1,3 @@
-// cspell:ignore linecap linejoin dasharray dashoffset miterlimit anchor xlink href
-// cspell:ignore Glyf Loca
-// cspell:ignore evenodd nonzero viewbox gradientunits gradienttransform spreadmethod
-// cspell:ignore userspaceonuse objectboundingbox skewx skewy tspan
-// cspell:ignore rasterizing unparseable rrggbb sizeless bbox moveto multiplicatively pillarbox SMIL uncatchable formedness
-// cspell:ignore unblurred premult
 using System.Globalization;
 using System.Linq;
 using System.Numerics;
@@ -48,7 +42,7 @@ public static partial class SvgCodec
     ///     <see cref="Opacity"/> is not itself a spec-inherited CSS property (SVG's <c>opacity</c>
     ///     applies only to the element it is set on, compositing that element/group as a single
     ///     unit against its backdrop). This codec has no notion of isolated group compositing, so,
-    ///     as a documented simplification, <see cref="Opacity"/> is instead cascaded multiplicatively
+    ///     as a documented simplification, <see cref="Opacity"/> is instead cascaded by multiplication
     ///     down the tree and folded directly into each descendant shape's fill/stroke alpha -
     ///     visually reasonable for the common case (non-overlapping children) but not equivalent to
     ///     true isolated-group compositing when a group's children overlap each other.
@@ -167,7 +161,7 @@ public static partial class SvgCodec
         /// <remarks>
         ///     <see cref="ViewportWidth"/>/<see cref="ViewportHeight"/> are seeded here with the
         ///     CSS/UA replaced-element default (300x150, matching <c>ResolveViewBoxOrSize</c>'s own
-        ///     sizeless fallback) purely so this record always has a well-defined, finite,
+        ///     no-size fallback) purely so this record always has a well-defined, finite,
         ///     positive percentage basis even before <c>RenderDocument</c> overrides it with the
         ///     document's own resolved viewBox/size - every real render path immediately overrides
         ///     both fields (see <c>RenderDocument</c>'s remarks), so this default value is never
@@ -545,7 +539,7 @@ public static partial class SvgCodec
         ref int totalElements)
     {
         // Fail fast before recursing any further - an unbounded element tree walk would otherwise
-        // eventually drive the call stack into an uncatchable StackOverflowException
+        // eventually drive the call stack into a StackOverflowException, which cannot be caught
         if (scope.ElementDepth >= MaxElementDepth)
         {
             throw new InvalidDataException("SVG element nesting exceeds the supported depth.");

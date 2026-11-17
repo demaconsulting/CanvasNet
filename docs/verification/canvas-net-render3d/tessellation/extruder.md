@@ -1,7 +1,5 @@
 ### Extruder Unit Verification Design
 
-<!-- cspell:ignore triangulator frustum extruder extrusion extrusions extruded collinear faceting Pappus apex -->
-
 This document describes the unit-level verification strategy for the `Extruder` class (linear and
 rotational extrusion of a `PolygonRegion` into a `Mesh`).
 

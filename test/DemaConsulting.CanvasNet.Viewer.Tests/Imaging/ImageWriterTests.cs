@@ -1,4 +1,3 @@
-// cspell:ignore jpeg jpg tiff tif bmp
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;
 using DemaConsulting.CanvasNet.Viewer.Imaging;

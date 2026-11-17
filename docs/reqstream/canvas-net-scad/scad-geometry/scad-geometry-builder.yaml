@@ -1,5 +1,4 @@
 ---
-# cspell:ignore minkowski
 # Software Unit Requirements for ScadGeometryBuilder
 #
 # These requirements describe the design-level behavior of the ScadGeometryBuilder unit: the internal engine

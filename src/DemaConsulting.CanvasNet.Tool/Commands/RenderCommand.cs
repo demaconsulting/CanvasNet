@@ -1,4 +1,3 @@
-// cspell:ignore canvasnet jpeg tif tiff deskew
 using System.Globalization;
 using System.Text.Json;
 using DemaConsulting.CanvasNet.Canvas;

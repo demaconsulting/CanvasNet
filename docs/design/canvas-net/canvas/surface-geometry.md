@@ -1,7 +1,5 @@
 ### SurfaceGeometry Unit Design
 
-<!-- cspell:ignore canvasnet bilinear premultiplied deskew -->
-
 The `SurfaceGeometry` unit is the rotation by any angle and the skew estimation of the public `Surface` class of the
 `Canvas` subsystem. It is the partial class files `Surface.Geometry.cs` (rotation) and `Surface.Skew.cs` (skew
 estimation), together with the public record `SkewEstimate` (`SkewEstimate.cs`), so the operations read as methods of

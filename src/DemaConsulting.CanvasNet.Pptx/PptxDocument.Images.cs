@@ -9,8 +9,6 @@ using Path = DemaConsulting.CanvasNet.Geometry.Path;
 
 namespace DemaConsulting.CanvasNet.Pptx;
 
-// cspell:ignore blipfill srcrect pptx embed asvg prst cust reimplementation fillrect
-
 /// <summary>
 ///     Implements the <see cref="PptxDocument"/> picture-shape resolvers and painting primitive
 ///     (Phase 1e): decoding a <c>&lt;p:pic&gt;</c>'s <c>&lt;p:blipFill&gt;</c> into a core
@@ -519,7 +517,7 @@ public sealed partial class PptxDocument
     ///     heightEmu)</c> coordinate space, reusing the exact same preset/custom-geometry dispatch
     ///     <see cref="ResolveShapeGeometry"/> already uses for an ordinary auto-shape
     ///     (<see cref="PptxPresetGeometry.Build"/>/<see cref="ResolveCustomGeometry"/>) - this is a
-    ///     thin, picture-specific wrapper around that identical dispatch, not a reimplementation.
+    ///     thin, picture-specific wrapper around that identical dispatch, not a second implementation.
     /// </summary>
     /// <param name="spPrElement">The picture's own <c>&lt;p:spPr&gt;</c> element.</param>
     /// <param name="widthEmu">The picture's own declared width, in EMU (<see cref="PptxShapeFrame.WidthEmu"/>).</param>

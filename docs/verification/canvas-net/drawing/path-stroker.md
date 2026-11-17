@@ -222,4 +222,3 @@ Complexity expectations for dash splitting and outline generation are establishe
 analysis and code review only. There are intentionally **no** timing-based tests, elapsed-time
 assertions, or `Stopwatch`-based guards in this unit's automated verification because those are
 not stable compliance evidence on heterogeneous CI hardware.
-<!-- cspell:ignore Outliner inradius collinearity -->

@@ -1,4 +1,3 @@
-// cspell:ignore canvasnet outptu ouput zzzzzzzz rgba dwidth notacolor rrggbbaa
 using System.Globalization;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Tool.Commands;

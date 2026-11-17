@@ -1,4 +1,3 @@
-// cspell:ignore canvasnet rmse
 using DemaConsulting.CanvasNet.Tool.Commands;
 
 namespace DemaConsulting.CanvasNet.Tool.Tests;

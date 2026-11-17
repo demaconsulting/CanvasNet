@@ -1,8 +1,5 @@
 ## SvgCodec Unit Verification Design
 
-<!-- cspell:ignore unstroked Letterboxing uncatchable Glyf Loca unparseable Cmap -->
-<!-- cspell:ignore unitless Pillarboxes letterboxed renderable -->
-
 This document describes the unit-level verification strategy for the `SvgCodec` class.
 
 `SvgCodec` is distributed as the separate `DemaConsulting.CanvasNet.Svg` NuGet package (namespace
@@ -350,8 +347,8 @@ behavior for `use`, applied to `marker`'s own independent recursion-depth counte
 
 Asserts a document consisting of many levels of plain nested `g` elements (no `use` involved)
 that exceeds the codec's fixed maximum element-tree recursion depth is rejected with
-`InvalidDataException`, rather than being allowed to recurse without bound and risk an
-uncatchable `StackOverflowException`. This proves the recursion-depth guard applies to ordinary
+`InvalidDataException`, rather than being allowed to recurse without bound and risk a
+`StackOverflowException`, which cannot be caught. This proves the recursion-depth guard applies to ordinary
 group nesting, not only to `use` reference chains covered by
 `CanvasNetSvg-SvgCodec-UseElement` above.
 

@@ -1,7 +1,5 @@
 ## ArgumentReader
 
-<!-- cspell:ignore rgba dpi rrggbbaa dwidth outptu ouput -->
-
 ### Verification Approach
 
 `ArgumentReader` is verified with unit tests in `ArgumentReaderTests.cs`. It is a pure function of its inputs (the

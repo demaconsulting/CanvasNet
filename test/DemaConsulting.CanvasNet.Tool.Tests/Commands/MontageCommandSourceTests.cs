@@ -1,4 +1,3 @@
-// cspell:ignore canvasnet pptx scad pdf svg
 using System.Text.Json;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;

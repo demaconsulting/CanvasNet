@@ -1,4 +1,3 @@
-// cspell:ignore Trm Trise
 using System.Numerics;
 using DemaConsulting.CanvasNet.Codecs;
 using DemaConsulting.CanvasNet.Drawing;

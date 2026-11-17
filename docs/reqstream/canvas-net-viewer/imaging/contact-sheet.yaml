@@ -1,5 +1,4 @@
 ---
-# cspell:ignore ellipsis
 # Software Unit Requirements for the ContactSheet Class
 #
 # The ContactSheet class composes a contact sheet: a grid of images, each fitted into a cell of the same size, with

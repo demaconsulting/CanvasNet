@@ -1,4 +1,3 @@
-// cspell:ignore canvasnet jpeg tiff tif exif gif ihdr scad
 using System.Buffers.Binary;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;

@@ -1,4 +1,3 @@
-// cspell:ignore extrude polyhedron
 using DemaConsulting.CanvasNet.Scad.Geometry;
 using static DemaConsulting.CanvasNet.Scad.Tests.Geometry.ScadGeometryTestSupport;
 

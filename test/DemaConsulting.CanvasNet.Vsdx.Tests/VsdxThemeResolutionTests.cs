@@ -1,5 +1,3 @@
-// cspell:ignore vsdx Visio Foregnd Themed THEMEVAL davehoward jgreywolfvsdxjs
-
 namespace DemaConsulting.CanvasNet.Vsdx.Tests;
 
 /// <summary>

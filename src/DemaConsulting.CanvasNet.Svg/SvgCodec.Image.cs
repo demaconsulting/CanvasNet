@@ -1,9 +1,3 @@
-// cspell:ignore linecap linejoin dasharray dashoffset miterlimit anchor xlink href
-// cspell:ignore Glyf Loca
-// cspell:ignore evenodd nonzero viewbox gradientunits gradienttransform spreadmethod
-// cspell:ignore userspaceonuse objectboundingbox skewx skewy tspan
-// cspell:ignore rasterizing unparseable rrggbb sizeless bbox moveto multiplicatively pillarbox SMIL uncatchable formedness
-// cspell:ignore unblurred premult mediatype letterboxed pillarboxed
 using System.Numerics;
 using System.Xml.Linq;
 using DemaConsulting.CanvasNet.Canvas;
@@ -62,7 +56,7 @@ public static partial class SvgCodec
     //   - An <image> with no explicit width/height (or an explicit "0") renders nothing: this codec
     //     does not implement SVG2's "auto" intrinsic-size resolution from the decoded raster (i.e.
     //     inferring width/height from the decoded image when the attribute is absent) - a
-    //     documented simplification, mirroring this class's other "sizeless fallback" decisions
+    //     documented simplification, mirroring this class's other "no-size fallback" decisions
     //     elsewhere (see GetFloatAttribute's own default-value parameter).
 
     /// <summary>
@@ -625,7 +619,7 @@ public static partial class SvgCodec
 
     /// <summary>
     ///     Parses <paramref name="href"/> as a base64-encoded <c>data:</c> URI
-    ///     (<c>data:[mediatype];base64,&lt;data&gt;</c>) - the only <c>href</c> form
+    ///     (<c>data:[media-type];base64,&lt;data&gt;</c>) - the only <c>href</c> form
     ///     <see cref="RenderImageWithEffects"/> ever decodes. A hand-rolled parser, matching this
     ///     codec's own "no third-party XML/SVG package" policy (see <c>SvgCodec.cs</c>'s class
     ///     doc), since a data URI has no existing BCL parsing facility this codec already depends

@@ -1,4 +1,3 @@
-// cspell:ignore notdef halign unioned
 using System.Globalization;
 using System.Text;
 using DemaConsulting.CanvasNet.Fonts;
@@ -55,7 +54,7 @@ namespace DemaConsulting.CanvasNet.Scad.Geometry;
 ///         instance lists the (up to eight) code points; a damaged glyph,
 ///         a mapped glyph whose subpaths are all degenerate (no area, so it is not an empty glyph like a space),
 ///         or a glyph whose contours cross or touch each other, other than as a hole or an island or as the overlapping
-///         solids of a composite glyph (which are unioned), is reported as the unsupported feature
+///         solids of a composite glyph (which are combined in a union), is reported as the unsupported feature
 ///         <c>scad-text-invalid-outline</c> or <c>scad-text-overlapping-contours</c> and the whole instance is omitted.
 ///         The triangle budget is checked (with the lower bound of the slab of the vertices so far) after every glyph,
 ///         cancellation is polled at the same points, and nothing recurses.
@@ -529,8 +528,8 @@ internal static partial class ScadTextGeometry
     ///         union; so when the whole is rejected but every contour is valid alone, the glyph is split into
     ///         components: the contours that wind like the largest one are solids, the others are holes, every hole is
     ///         given to the smallest solid that contains it, and each solid with its holes is one region (the regions
-    ///         are unioned by the caller). When a component is still rejected the contours overlap in a way that is
-    ///         neither a hole nor an island.
+    ///         are combined in a union by the caller). When a component is still rejected the contours overlap in
+    ///         a way that is neither a hole nor an island.
     ///     </para>
     ///     <para>
     ///         The split does not tell overlapping solids from solids that merely touch: touching solids are accepted

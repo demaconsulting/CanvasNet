@@ -1,5 +1,3 @@
-<!-- cspell:ignore embedder -->
-
 ### ImageSourceContract Unit Verification Design
 
 This document describes the unit-level verification strategy for the `ImageSourceContract` unit: `IImageSource`,

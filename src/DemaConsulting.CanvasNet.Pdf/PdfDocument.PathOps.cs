@@ -1,5 +1,3 @@
-// cspell:ignore fitz
-// cspell:ignore PDFium
 using System.Numerics;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Drawing;

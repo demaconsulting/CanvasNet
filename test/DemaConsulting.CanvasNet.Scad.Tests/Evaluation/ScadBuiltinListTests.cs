@@ -3,8 +3,6 @@ using static DemaConsulting.CanvasNet.Scad.Tests.Evaluation.ScadEvaluationTestHe
 
 namespace DemaConsulting.CanvasNet.Scad.Tests.Evaluation;
 
-// cspell:ignore xabc
-
 /// <summary>
 ///     Unit tests for the list functions of <see cref="ScadBuiltinFunctions"/>.
 /// </summary>

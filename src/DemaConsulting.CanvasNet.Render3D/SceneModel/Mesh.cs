@@ -1,5 +1,3 @@
-// cspell:ignore Orientable
-
 using System.Collections.ObjectModel;
 
 namespace DemaConsulting.CanvasNet.Render3D.SceneModel;

@@ -1,7 +1,5 @@
 namespace DemaConsulting.CanvasNet.Render3D.Tessellation;
 
-// cspell:ignore tessellator tessellators polyhedra polyhedron triangulator triangulation extrusion extrusions
-
 /// <summary>
 ///     The <see cref="DemaConsulting.CanvasNet.Render3D.Tessellation"/> namespace converts
 ///     analytic primitives and two-dimensional polygon regions into <see cref="DemaConsulting.CanvasNet.Render3D.SceneModel.Mesh"/>

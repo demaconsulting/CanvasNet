@@ -9,9 +9,6 @@ using Path = DemaConsulting.CanvasNet.Geometry.Path;
 
 namespace DemaConsulting.CanvasNet.Pptx;
 
-// cspell:ignore tbl tblgrid gridcol hmerge vmerge gridspan rowspan tcpr lnl lnr lnt lnb pptx graphicframe
-// cspell:ignore tblpr tblstyleid bandrow firstrow
-
 /// <summary>
 ///     Implements the <see cref="PptxDocument"/> table resolvers and painting primitive
 ///     (Phase 1e): parsing a <c>&lt;p:graphicFrame&gt;</c>'s <c>&lt;a:tbl&gt;</c> into a

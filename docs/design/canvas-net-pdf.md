@@ -1,13 +1,8 @@
 # System Design
 
-<!-- cspell:ignore renderable -->
-
 This document provides the system-level design for CanvasNetPdf.
 
 ![CanvasNetPdf Structure](CanvasNetPdfView.svg)
-
-<!-- cspell:ignore xref startxref CCITT bitstream Zapf unembedded bitdepth xobject Annots cidfonttype -->
-<!-- cspell:ignore AcroForms ccittfax Noto functiontype multiinput bitspersample fontfile tounicode bfrange -->
 
 ## Architecture
 
@@ -220,7 +215,7 @@ and page-tree traversal/inheritance) and every method's full parameter and excep
   closest-matching font actually installed on the host operating system (or, when nothing
   matches, loads a bundled Liberation Sans/Serif/Mono fallback, or - for `Symbol`/`ZapfDingbats` -
   a bundled Noto substitute) when a simple font declares no embedded font program, so that
-  documents referencing an unembedded standard font still render recognizable glyph shapes
+  documents referencing a standard font that is not embedded still render recognizable glyph shapes
   rather than failing closed
 - BCL `System.Security.Cryptography.MD5`/`SHA256`/`Aes` (new as of Phase 16, the encryption
   phase) — implement the PDF Standard Security Handler's own mandated password-hashing

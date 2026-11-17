@@ -1,9 +1,3 @@
-// cspell:ignore linecap linejoin dasharray dashoffset miterlimit anchor xlink href
-// cspell:ignore Glyf Loca
-// cspell:ignore evenodd nonzero viewbox gradientunits gradienttransform spreadmethod
-// cspell:ignore userspaceonuse objectboundingbox skewx skewy tspan
-// cspell:ignore rasterizing unparseable rrggbb sizeless bbox moveto multiplicatively pillarbox SMIL uncatchable formedness
-// cspell:ignore unblurred premult
 using System.Globalization;
 using System.Numerics;
 using System.Xml;
@@ -215,7 +209,7 @@ public static partial class SvgCodec
         }
 
         // Neither a viewBox nor a valid width/height pair is present - fall back to the CSS/UA
-        // default replaced-element intrinsic size for a fully sizeless SVG document
+        // default replaced-element intrinsic size for an SVG document with no size at all
         return (Vector2.Zero, new Vector2(300f, 150f));
     }
 

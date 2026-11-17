@@ -1,5 +1,3 @@
-<!-- cspell:ignore Rgba lerp precomputation precomputes -->
-
 ### GradientPaint Unit Verification Design
 
 This document describes the unit-level verification strategy for the `GradientPaint` unit: the

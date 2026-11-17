@@ -1,4 +1,3 @@
-// cspell:ignore Bezier Casteljau
 using System.Numerics;
 using DemaConsulting.CanvasNet.Fonts;
 using DemaConsulting.CanvasNet.Geometry;

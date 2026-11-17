@@ -1,5 +1,3 @@
-// cspell:ignore surfacescale specularconstant diffuseconstant specularexponent azimuth elevation
-// cspell:ignore pointsat limitingconeangle lightingcolor lambertian blinn phong sobel
 using System.Numerics;
 using System.Xml.Linq;
 using DemaConsulting.CanvasNet.Canvas;

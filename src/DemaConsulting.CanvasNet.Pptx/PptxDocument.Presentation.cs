@@ -2,8 +2,6 @@ using System.Xml.Linq;
 
 namespace DemaConsulting.CanvasNet.Pptx;
 
-// cspell:ignore sldsz sldidlst sldid pptx mistargeted
-
 /// <summary>
 ///     Implements the <see cref="PptxDocument"/> presentation-root parser (Phase 1b):
 ///     <c>ppt/presentation.xml</c>'s declared slide size (<c>&lt;p:sldSz&gt;</c>) and ordered
@@ -129,7 +127,7 @@ public sealed partial class PptxDocument
     ///     <c>r:id</c> that does not resolve to a relationship of the presentation part, or a
     ///     resolved relationship's <c>Type</c> is not the OOXML slide-relationship type (a
     ///     malformed package pointing a declared slide ID at a theme, layout, or other
-    ///     mistargeted part must fail here, at <see cref="Open(Stream)"/> time, rather than only
+    ///     wrongly targeted part must fail here, at <see cref="Open(Stream)"/> time, rather than only
     ///     later surfacing as a confusing failure from <see cref="GetSlide(int)"/>).
     /// </exception>
     private List<string> ParseSlideIdList(XElement presentationRoot, string presentationPartPath)

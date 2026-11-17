@@ -1,7 +1,5 @@
 ### RenderCommand
 
-<!-- cspell:ignore canvasnet jpeg tiff tif jpg pptx vsdx dpi scad openscad grayscale deskew -->
-
 ![Commands Structure](CommandsView.svg)
 
 #### Purpose

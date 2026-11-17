@@ -1,4 +1,3 @@
-// cspell:ignore jpeg tiff tif exif gif jpeg2000 scad deskew deskewed
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;
 using DemaConsulting.CanvasNet.Mermaid;

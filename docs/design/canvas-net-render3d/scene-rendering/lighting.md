@@ -1,7 +1,5 @@
 ### Lighting
 
-<!-- cspell:ignore Lambertian Blinn Phong unlit -->
-
 The `Lighting` unit is the second software unit in the `SceneRendering` subsystem. It comprises
 three public types in the `DemaConsulting.CanvasNet.Render3D.SceneRendering` namespace plus one
 internal type:

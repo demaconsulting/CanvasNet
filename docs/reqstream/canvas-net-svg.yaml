@@ -10,7 +10,6 @@
 # pixel buffer, Geometry path/flattening primitives, Drawing rasterization, and Fonts glyph
 # outlines - see docs/design/canvas-net-svg.md's Dependencies section for details.
 #
-# cspell:ignore rasterizing letterboxing renderable Dasharray xlink Pillarboxes SMIL
 
 sections:
   - title: SVG Codec API

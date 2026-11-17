@@ -1,5 +1,3 @@
-<!-- cspell:ignore canvasnet jpeg magick imagemagick openjpeg pptx vsdx emf scad openscad -->
-
 # CanvasNet Tool Test Fixtures
 
 These files are test inputs for the `canvasnet` tool. Every one is an original work of this project (or was

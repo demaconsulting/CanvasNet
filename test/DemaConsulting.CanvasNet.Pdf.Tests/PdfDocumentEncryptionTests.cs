@@ -1,4 +1,3 @@
-// cspell:ignore AESV StdCF sAlT ObjStm pypdf
 using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;

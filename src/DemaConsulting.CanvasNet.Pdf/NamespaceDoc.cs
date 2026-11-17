@@ -1,7 +1,5 @@
 namespace DemaConsulting.CanvasNet.Pdf;
 
-// cspell:ignore rasterizing rasterize
-
 /// <summary>
 ///     The <see cref="DemaConsulting.CanvasNet.Pdf"/> namespace provides a restricted,
 ///     dependency-free, decode/rasterize-only codec for PDF (Portable Document Format)

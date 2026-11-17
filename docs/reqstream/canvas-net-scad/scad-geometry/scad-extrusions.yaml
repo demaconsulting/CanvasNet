@@ -1,5 +1,4 @@
 ---
-# cspell:ignore tessellators bijectively
 # Software Unit Requirements for ScadExtrusions
 #
 # These requirements describe the design-level behavior of the ScadExtrusions unit: the internal static class
@@ -31,7 +30,7 @@ sections:
                   extrusion parameters (and one slice or segment count) shared by every operand.
                 justification: |
                   The package has no 2D boolean kernel. Because an extrusion maps the profile domain to the
-                  solid bijectively, distributing it over the 2D tree is exact, lets the renderer resolve the
+                  solid as a bijection, distributing it over the 2D tree is exact, lets the renderer resolve the
                   booleans per pixel, and requires the operands to be faceted alike.
                 tests:
                   - ScadExtrusionsLinear_SeveralChildren_AreExtrudedTogether

@@ -1,7 +1,5 @@
 # System Verification Design
 
-<!-- cspell:ignore ooxml pptx xfrm prst -->
-
 This document describes the system-level verification strategy for CanvasNetPptx.
 
 ## Verification Approach

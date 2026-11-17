@@ -1,7 +1,5 @@
 ## SceneRendering Subsystem Verification Design
 
-<!-- cspell:ignore Lambert rasterizer -->
-
 This document describes the subsystem-level verification strategy for the `SceneRendering`
 subsystem, containing six units: `Camera`, `Lighting`, `TriangleRasterizer`, `FragmentBuffer`,
 `CsgResolver`, and `SceneRenderer`.

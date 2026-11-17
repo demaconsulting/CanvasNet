@@ -1,7 +1,5 @@
 namespace DemaConsulting.CanvasNet.Vsdx;
 
-// cspell:ignore vsdx Visio davehoward jgreywolfvsdxjs
-
 /// <summary>
 ///     Identifies which end of a 1-D (connector) shape a single <see cref="VsdxConnect"/> entry
 ///     describes - derived from a parsed <c>&lt;Connect&gt;</c> element's <c>FromCell</c>

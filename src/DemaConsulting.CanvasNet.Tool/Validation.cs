@@ -1,4 +1,3 @@
-// cspell:ignore canvasnet pdf endobj endstream xref startxref rmse ssim deskew otsu thresholded
 using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Text.Json;

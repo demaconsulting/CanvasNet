@@ -1,4 +1,3 @@
-// cspell:ignore morphology
 using System.Xml.Linq;
 using DemaConsulting.CanvasNet.Canvas;
 

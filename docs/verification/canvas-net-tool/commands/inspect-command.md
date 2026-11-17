@@ -1,7 +1,5 @@
 ### InspectCommand
 
-<!-- cspell:ignore canvasnet jpeg luma otsu grayscale deskew colours pixle frobnicate -->
-
 #### Verification Approach
 
 `InspectCommand` is verified with unit tests in `InspectCommandTests.cs` (the subcommands, their options, results, and

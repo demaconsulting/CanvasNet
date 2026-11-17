@@ -1,11 +1,6 @@
 ---
 # Software Unit Requirements for VsdxDocument
 #
-# cspell:ignore vsdx Visio VisioML xfrm stencil stencils glueable NURBS nurbs shapesheet ShapeSheet
-# cspell:ignore PinX PinY LocPinX LocPinY FlipX FlipY BeginX BeginY EndX EndY MasterShape
-# cspell:ignore FillForegnd FillBkgnd LineColor LineWeight LinePattern FillPattern Themed
-# cspell:ignore TxtPinX TxtPinY TxtLocPinX TxtLocPinY TxtWidth TxtHeight TxtAngle
-# cspell:ignore davehoward jgreywolfvsdxjs Jgreywolf THEMEVAL
 #
 # These requirements describe the design-level behavior of the VsdxDocument unit.
 #

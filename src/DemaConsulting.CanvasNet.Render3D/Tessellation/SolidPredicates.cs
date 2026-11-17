@@ -1,6 +1,3 @@
-// cspell:ignore subnormal subnormals coplanar coplanarity collinearity underflow underflowed Shewchuk
-// cspell:ignore bdxcdy cdxbdy cdxady adxcdy adxbdy bdxady
-
 using System.Numerics;
 using DemaConsulting.CanvasNet.Render3D.SceneModel;
 

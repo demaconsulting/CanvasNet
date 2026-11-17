@@ -1,5 +1,3 @@
-// cspell:ignore vsdx Visio
-
 using DemaConsulting.CanvasNet.Canvas;
 
 namespace DemaConsulting.CanvasNet.Vsdx.Tests;

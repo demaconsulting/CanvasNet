@@ -1,5 +1,4 @@
 ---
-# cspell:ignore Outliner strokable inradius
 # Software Unit Requirements for PathStroker
 #
 # These requirements describe the design-level behavior of the PathStroker unit within the
@@ -230,7 +229,7 @@ sections:
               - id: CanvasNet-Drawing-PathStroker-EmptyNoOp
                 title: >-
                   The PathStroker class shall return an empty path, without throwing, when the
-                  input path contains no strokable geometry or every visible dash run is omitted.
+                  input path contains no geometry that can be stroked or every visible dash run is omitted.
                 justification: |
                   Callers routinely compose paths incrementally or stroke conditional geometry; an
                   empty result must be a cheap, well-defined no-op rather than a special case.

@@ -3,8 +3,6 @@ using DemaConsulting.CanvasNet.Canvas;
 
 namespace DemaConsulting.CanvasNet.Vsdx;
 
-// cspell:ignore vsdx Visio Rgba Themed IX davehoward Foregnd bitflags
-
 /// <summary>
 ///     Implements the <see cref="VsdxDocument"/> text StyleSheet-chain resolver: the third axis
 ///     alongside Milestone 3's <c>LineStyle</c>/<c>FillStyle</c> resolvers (see

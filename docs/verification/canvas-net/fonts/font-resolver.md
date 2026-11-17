@@ -1,7 +1,5 @@
 ### FontResolver Unit Verification Design
 
-<!-- cspell:ignore Liberation -->
-
 This document describes the unit-level verification strategy for the `FontResolver` class and its
 `FontResolverOptions`, `ResolvedFont` and `FontSource` types.
 

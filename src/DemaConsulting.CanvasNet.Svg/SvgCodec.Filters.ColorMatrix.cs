@@ -1,4 +1,3 @@
-// cspell:ignore huerotate luminancetoalpha rodrigues
 using System.Xml.Linq;
 using DemaConsulting.CanvasNet.Canvas;
 

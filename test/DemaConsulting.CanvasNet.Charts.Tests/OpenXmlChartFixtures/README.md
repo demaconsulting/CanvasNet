@@ -1,8 +1,5 @@
 # OpenXML Chart Test Fixtures
 
-<!-- cspell:ignore aiden0z chartspace barchart linechart piechart doughnutchart areachart ptcount -->
-<!-- cspell:ignore strref numref strcache numcache barchart barDir -->
-
 `OpenXmlChartParserTests.cs` builds every one of its test fixtures as an in-memory
 `System.Xml.Linq.XElement` tree directly in the test file itself (the idiomatic pattern already
 used by this project's own `.Pptx.Tests`/`.Svg.Tests` suites for fine-grained, single-construct

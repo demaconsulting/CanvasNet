@@ -1,8 +1,6 @@
 aiden0z/pptx-renderer
 ----------------------
 
-<!-- cspell:ignore aiden0z aiden -->
-
 The three `aiden0z-*.pptx` files in this folder are real example `.pptx` files taken, unmodified,
 from the `aiden0z/pptx-renderer` project's own `docs/example/` directory (see `README.md` in this
 same folder for the exact source URL of each individual file). `aiden0z/pptx-renderer` is

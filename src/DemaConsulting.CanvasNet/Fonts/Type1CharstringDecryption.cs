@@ -1,4 +1,3 @@
-// cspell:ignore eexec lenIV charstring charstrings
 namespace DemaConsulting.CanvasNet.Fonts;
 
 /// <summary>

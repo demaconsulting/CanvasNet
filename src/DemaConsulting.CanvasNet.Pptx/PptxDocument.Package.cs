@@ -4,8 +4,6 @@ using DemaConsulting.CanvasNet.Packaging;
 
 namespace DemaConsulting.CanvasNet.Pptx;
 
-// cspell:ignore pptx ooxml navigations
-
 /// <summary>
 ///     Implements the <see cref="PptxDocument"/> OOXML (Office Open XML) package layer as a thin
 ///     adapter over the core <see cref="OpcPackage"/>: the ZIP/OPC/content-types/relationships
@@ -132,10 +130,10 @@ public sealed partial class PptxDocument
     /// <summary>
     ///     Resolves the target part path of the single relationship of
     ///     <paramref name="sourcePartPath"/> whose <c>Type</c> attribute ends with
-    ///     <paramref name="relationshipTypeSuffix"/>, used for navigations that have no explicit
+    ///     <paramref name="relationshipTypeSuffix"/>, used for lookups that have no explicit
     ///     <c>r:id</c> reference in the source part's own XML content (for example the package
     ///     root's relationship to <c>ppt/presentation.xml</c>, or a slide's relationship to its
-    ///     layout) - see <see cref="ResolveRelationship"/> for navigations that do carry an
+    ///     layout) - see <see cref="ResolveRelationship"/> for lookups that do carry an
     ///     explicit <c>r:id</c>.
     /// </summary>
     /// <param name="sourcePartPath">The source part's path, or empty string for the package root.</param>
@@ -167,7 +165,7 @@ public sealed partial class PptxDocument
     /// <summary>
     ///     Non-throwing sibling of <see cref="ResolveRelationshipByType"/>: returns
     ///     <see langword="null"/> instead of throwing when no such relationship exists. Used for
-    ///     navigations to an optional, auxiliary part (for example <c>ppt/tableStyles.xml</c>, via
+    ///     lookups of an optional, auxiliary part (for example <c>ppt/tableStyles.xml</c>, via
     ///     <see cref="TryResolveTableStyle"/>) whose absence must degrade gracefully rather than
     ///     fail the whole parse closed, unlike <see cref="ResolveRelationshipByType"/>'s own
     ///     fail-closed behavior for a required navigation.

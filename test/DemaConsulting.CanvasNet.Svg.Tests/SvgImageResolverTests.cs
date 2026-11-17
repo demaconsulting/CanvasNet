@@ -1,4 +1,3 @@
-// cspell:ignore href xlink hrefs
 using System.Text;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;

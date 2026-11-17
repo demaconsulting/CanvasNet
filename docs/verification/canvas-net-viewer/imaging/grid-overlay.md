@@ -1,7 +1,5 @@
 ### GridOverlay
 
-<!-- cspell:ignore canvasnet luma -->
-
 #### Verification Approach
 
 `GridOverlay` is verified with unit tests in `GridOverlayTests.cs`. The lines and the blending are checked on tiny solid

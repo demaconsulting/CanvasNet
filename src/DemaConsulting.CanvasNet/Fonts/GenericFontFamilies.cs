@@ -1,4 +1,3 @@
-// cspell:ignore Menlo Consolas Monaco Verdana Tahoma Trebuchet Segoe Roboto Garamond Palatino Cambria blinkmacsystemfont
 using System.Text;
 
 namespace DemaConsulting.CanvasNet.Fonts;

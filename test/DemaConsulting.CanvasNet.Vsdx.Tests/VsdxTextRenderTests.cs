@@ -5,8 +5,6 @@ using DemaConsulting.CanvasNet.Tests.TestSupport;
 
 namespace DemaConsulting.CanvasNet.Vsdx.Tests;
 
-// cspell:ignore vsdx Visio unitsperem unmirrored
-
 /// <summary>
 ///     Unit-level tests for <c>VsdxDocument.TextRender.cs</c>'s glyph-painting primitive
 ///     (<see cref="VsdxDocument.PaintTextLayout"/>): proves ink paints at the expected,
@@ -138,7 +136,7 @@ public class VsdxTextRenderTests
         // Act
         VsdxDocument.PaintTextLayout(surface, layout, Matrix3x2.Identity);
 
-        // Assert: inside the expected unmirrored ink band.
+        // Assert: inside the expected ink band, which is not mirrored.
         Assert.Equal(color, surface[50, 80]);
         // Assert: below the ink band (would be inside a mirrored band instead - confirms no flip occurred).
         Assert.Equal(default, surface[50, 20]);

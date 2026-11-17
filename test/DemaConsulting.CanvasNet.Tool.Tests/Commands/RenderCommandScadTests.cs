@@ -1,4 +1,3 @@
-// cspell:ignore canvasnet scad openscad jpeg jpg tif tiff Dlabel
 using System.Text.Json;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;

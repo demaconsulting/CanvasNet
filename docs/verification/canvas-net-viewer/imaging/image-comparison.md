@@ -1,7 +1,5 @@
 ### ImageComparison
 
-<!-- cspell:ignore canvasnet psnr rmse ssim -->
-
 #### Verification Approach
 
 `ImageComparison` is verified with unit tests in `ImageComparisonTests.cs`. The thresholds are checked on a result whose

@@ -1,8 +1,5 @@
 ### ScadEvaluator
 
-<!-- cspell:ignore evaluator evaluators undef unseeded lexically memoized hoisted hoisting preorder reentrancy -->
-<!-- cspell:ignore fmod ULP bisect bisection unoptimized tessellation multmatrix polyhedron minkowski -->
-
 The `ScadEvaluator` unit is the second software unit in the `ScadEvaluation` subsystem. It comprises fourteen
 source files in the `DemaConsulting.CanvasNet.Scad.Evaluation` namespace, all `internal`:
 

@@ -3,8 +3,6 @@ using System.Globalization;
 
 namespace DemaConsulting.CanvasNet.Scad.Evaluation;
 
-// cspell:ignore textmetrics fontmetrics
-
 /// <summary>
 ///     The built-in function library of the language: mathematics, lists, strings, type tests, random numbers and
 ///     the language version.

@@ -1,7 +1,5 @@
 ### MontageBuilder
 
-<!-- cspell:ignore canvasnet -->
-
 #### Verification Approach
 
 `MontageBuilder` is verified with unit tests in `MontageBuilderTests.cs` in the Viewer test project. The tests write

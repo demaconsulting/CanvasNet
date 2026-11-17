@@ -1,7 +1,5 @@
 ### ScadParser Unit Verification Design
 
-<!-- cspell:ignore Stmts -->
-
 This document describes the unit-level verification strategy for the `ScadParser` unit: the internal
 `ScadParser` class (the static `Parse` entry points, with recursive descent for statements and precedence
 climbing for expressions), the immutable syntax-tree records (`ScadSyntax`, `ScadStatements`, and

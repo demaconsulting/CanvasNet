@@ -1,5 +1,4 @@
 ---
-# cspell:ignore psnr rmse ssim luma
 # Software Unit Requirements for SurfaceComparison
 #
 # These requirements describe the design-level behavior of the SurfaceComparison unit of the Canvas subsystem: the

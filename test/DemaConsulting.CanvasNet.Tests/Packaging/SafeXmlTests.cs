@@ -5,8 +5,6 @@ using DemaConsulting.CanvasNet.Packaging;
 
 namespace DemaConsulting.CanvasNet.Tests.Packaging;
 
-// cspell:ignore lolz
-
 /// <summary>
 ///     Unit tests for <see cref="SafeXml"/>: loading XML with no DTD processing, no external
 ///     resolution, and a character bound, from a stream, a string, and as a streaming reader.
@@ -23,12 +21,12 @@ public class SafeXmlTests
     private const string ExpansionBombDocument =
         """
         <?xml version="1.0"?>
-        <!DOCTYPE lolz [
+        <!DOCTYPE bomb [
           <!ENTITY lol "lol">
           <!ENTITY lol2 "&lol;&lol;&lol;&lol;&lol;&lol;&lol;&lol;&lol;&lol;">
           <!ENTITY lol3 "&lol2;&lol2;&lol2;&lol2;&lol2;&lol2;&lol2;&lol2;&lol2;&lol2;">
         ]>
-        <lolz>&lol3;</lolz>
+        <bomb>&lol3;</bomb>
         """;
 
     /// <summary>Wraps text in a UTF-8 stream.</summary>

@@ -1,8 +1,6 @@
 jgreywolf/vsdx-js
 -----------------
 
-<!-- cspell:ignore jgreywolf -->
-
 The five `jgreywolfvsdxjs-*.vsdx` files in this folder are real test fixture files taken,
 unmodified, from the [jgreywolf/vsdx-js](https://github.com/jgreywolf/vsdx-js) project's own
 `tests/` directory (see `README.md` in this same folder for the exact source URL of each

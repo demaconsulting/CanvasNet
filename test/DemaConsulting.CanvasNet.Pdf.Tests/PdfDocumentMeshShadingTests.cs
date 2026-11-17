@@ -1,7 +1,5 @@
 using DemaConsulting.CanvasNet.Codecs;
 
-// cspell:ignore Gouraud Coons bicubic Bezier subdivision
-
 namespace DemaConsulting.CanvasNet.Pdf.Tests;
 
 /// <summary>

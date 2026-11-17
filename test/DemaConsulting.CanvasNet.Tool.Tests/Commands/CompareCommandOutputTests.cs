@@ -1,4 +1,3 @@
-// cspell:ignore canvasnet tif jpg jpeg tiff
 using System.Text.Json;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;

@@ -1,7 +1,5 @@
 ### ImageInspector
 
-<!-- cspell:ignore canvasnet luma -->
-
 #### Verification Approach
 
 `ImageInspector` is verified with unit tests in `ImageInspectorTests.cs` in the Viewer test project. The tests write

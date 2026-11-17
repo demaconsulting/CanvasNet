@@ -1,4 +1,3 @@
-// cspell:ignore pdf
 using System.Collections.ObjectModel;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.ImageSources;

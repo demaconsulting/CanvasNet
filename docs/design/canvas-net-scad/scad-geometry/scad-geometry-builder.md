@@ -1,8 +1,5 @@
 ### ScadGeometryBuilder
 
-<!-- cspell:ignore evaluator minuend subtrahend subtrahends minkowski multmatrix tessellation tessellator memoized -->
-<!-- cspell:ignore coplanar -->
-
 The `ScadGeometryBuilder` unit is the first software unit in the `ScadGeometry` subsystem. It comprises seventeen
 source files in the `DemaConsulting.CanvasNet.Scad.Geometry` namespace, all `internal`:
 

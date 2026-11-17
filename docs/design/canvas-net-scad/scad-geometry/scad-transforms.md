@@ -1,7 +1,5 @@
 ### ScadTransforms
 
-<!-- cspell:ignore multmatrix newsize unioned underflows evaluator subtree -->
-
 The `ScadTransforms` unit is the third software unit in the `ScadGeometry` subsystem. It comprises three source
 files in the `DemaConsulting.CanvasNet.Scad.Geometry` namespace, all `internal`:
 
@@ -141,7 +139,7 @@ the requested size:
    `auto` is a flag for all axes (truthiness) or a vector of one to three flags (missing flags false). A bad
    `newsize` or `auto` is an invalid argument. An absent `newsize` is the identity (`Apply` with the identity).
    `convexity` is accepted and ignored without a report.
-2. The children are unioned. An empty union is returned as is (silently).
+2. The children are combined in a union. An empty union is returned as is (silently).
 3. **Bounds.** If the union is approximate (a difference or an intersection is inside), the propagated upper
    bound is used and the unsupported feature `scad-resize-approximate` is reported at the instance; the resize
    is still applied with that extent. Otherwise, if the box is not tight (a rotation that is not a multiple of 90
@@ -177,8 +175,8 @@ the requested size:
 - If the final alpha is below 1 it is carried into the appearance (see below) and nothing is reported (Phase 8;
   the former `scad-color-alpha` report no longer exists). An `alpha` **without** a `c` argument has nothing to
   apply to: it warns `color: alpha needs a color c; it is ignored` and colors nothing.
-- The children are unioned; when the union is empty or no valid `c` was given (`color()`, `color(alpha=…)`, an
-  invalid color) it is returned unchanged. Otherwise a solid is wrapped in a `GroupNode` with
+- The children are combined in a union; when the union is empty or no valid `c` was given (`color()`,
+  `color(alpha=…)`, an invalid color) it is returned unchanged. Otherwise a solid is wrapped in a `GroupNode` with
   `Appearance = new NodeAppearance(new Rgba32(r, g, b, round(alpha * 255)))` (alpha 1 when none was given;
   rounding half away from zero), and a 2D shape in a `ScadShape2D` color node (so an extruded shape and a flat slab
   keep the alpha); the bounds and

@@ -1,4 +1,3 @@
-// cspell:ignore Liberation
 using DemaConsulting.CanvasNet.Fonts;
 
 namespace DemaConsulting.CanvasNet.Scad.Geometry;

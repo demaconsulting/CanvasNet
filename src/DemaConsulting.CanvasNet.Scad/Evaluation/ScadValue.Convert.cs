@@ -2,8 +2,6 @@ using System.Collections;
 
 namespace DemaConsulting.CanvasNet.Scad.Evaluation;
 
-// cspell:ignore enumerables
-
 /// <summary>
 ///     Conversion of host (.NET) objects to <see cref="ScadValue"/>, used for variable overrides supplied by the caller.
 /// </summary>
@@ -24,8 +22,8 @@ internal readonly partial struct ScadValue
     ///     <para>
     ///         The conversion is bounded so a hostile object cannot hang it or overflow the stack: nesting deeper than
     ///         <see cref="MaxNestingDepth"/> and more than <see cref="MaxConvertedElements"/> converted values in total
-    ///         (which also stops endless and self-referential enumerables) are rejected, as is any unsupported
-    ///         object. Enumerables are enumerated exactly once.
+    ///         (which also stops endless and self-referential sequences) are rejected, as is any unsupported
+    ///         object. Each sequence is enumerated exactly once.
     ///     </para>
     /// </remarks>
     /// <param name="value">The host object.</param>

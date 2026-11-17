@@ -1,4 +1,3 @@
-// cspell:ignore pptx xmlns sldSz sldIdLst sldId prst srgbClr fmtScheme clrMap emf notarealshape ooxml
 using System.IO.Compression;
 using System.Text;
 

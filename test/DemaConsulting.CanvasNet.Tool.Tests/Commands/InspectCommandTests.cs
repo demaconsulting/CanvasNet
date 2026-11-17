@@ -1,4 +1,3 @@
-// cspell:ignore canvasnet luma otsu colours pixle frobnicate deskew
 using System.Text.Json;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;
@@ -100,7 +99,7 @@ public class InspectCommandTests
         // Act
         var missing = RunFailing();
         var colours = RunFailing("colours", "x.png");
-        var pixle = RunFailing("pixle", "x.png", "1,1");
+        var misspelled = RunFailing("pixle", "x.png", "1,1");
         var unrelated = RunFailing("frobnicate");
 
         // Assert
@@ -109,7 +108,7 @@ public class InspectCommandTests
         Assert.Equal(ErrorCodes.UsageError, colours.Code);
         Assert.Contains("Unknown inspect subcommand 'colours'", colours.Message);
         Assert.Contains("Did you mean 'colors'?", colours.Hint);
-        Assert.Contains("Did you mean 'pixel'?", pixle.Hint);
+        Assert.Contains("Did you mean 'pixel'?", misspelled.Hint);
         Assert.Equal(ErrorCodes.UsageError, unrelated.Code);
         Assert.DoesNotContain("Did you mean", unrelated.Hint);
         Assert.Contains("colors, pixel", unrelated.Hint);

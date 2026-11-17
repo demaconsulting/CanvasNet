@@ -1,7 +1,5 @@
 ### ScadPrimitives Unit Verification Design
 
-<!-- cspell:ignore undef polyhedron polyhedra tessellators Newell frustum truthy unsupplied -->
-
 This document describes the unit-level verification strategy for the `ScadPrimitives` unit: the internal
 `ScadArguments` binder, the `ScadFragmentRule` formula, and the `ScadPrimitives` builders of `cube`, `sphere`,
 `cylinder`, `polyhedron`, `square`, `circle`, and `polygon` in the `DemaConsulting.CanvasNet.Scad.Geometry`
@@ -65,7 +63,7 @@ or a wrong exception type or message constitutes a failure.
 `ScadArgumentsTests.ScadArguments_TryGet_UndefValue_IsNotSupplied`,
 `ScadPrimitivesSolidTests.ScadPrimitives_Cube_ArgumentForms_GiveExpectedBounds`
 
-Asserts that unnamed arguments fill the parameters in order and leave the rest unsupplied, that named arguments
+Asserts that unnamed arguments fill the parameters in order and leave the rest not supplied, that named arguments
 bind in any order and mix with unnamed ones, that an `undef` argument counts as not supplied, and, through the
 cube's argument forms (default, vector, named, positional, mixed order), that the bound values reach the
 primitive.

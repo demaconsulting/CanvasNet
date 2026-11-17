@@ -1,7 +1,5 @@
 ### SurfaceComparison Unit Design
 
-<!-- cspell:ignore canvasnet psnr rmse ssim luma -->
-
 The `SurfaceComparison` unit is the comparison of the public `Surface` class of the `Canvas` subsystem with another
 surface of the same size. It is the partial class files `Surface.Comparison.cs` (the measures) and
 `Surface.ComparisonImages.cs` (the pictures), together with the public types of `ComparisonResult.cs`

@@ -2,8 +2,6 @@ using System.Numerics;
 
 namespace DemaConsulting.CanvasNet.Vsdx;
 
-// cspell:ignore vsdx Visio LocPin davehoward
-
 /// <summary>
 ///     A shape's resolved 2-D affine transform from its own local coordinate box (origin bottom-
 ///     left, spanning <c>[0, Width] x [0, Height]</c>, in inches) into page-space inches, per the

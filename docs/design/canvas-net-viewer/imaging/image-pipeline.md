@@ -1,7 +1,5 @@
 ### ImagePipeline
 
-<!-- cspell:ignore canvasnet jpeg lanczos RRGGBBAA grayscale deskew luma otsu -->
-
 ![Imaging Structure](ImagingView.svg)
 
 #### Purpose

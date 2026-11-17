@@ -6,10 +6,6 @@ using DemaConsulting.CanvasNet.Codecs;
 
 namespace DemaConsulting.CanvasNet.Pptx.Tests;
 
-// cspell:ignore pptx ooxml sppr nvsppr nvpr grpsp spsrc xfrm chOff chExt prstGeom srgbclr schemeclr hlink Calibri prst
-// cspell:ignore pic blipfill nvpicpr cnvpicpr graphicframe nvgraphicframepr cnvgraphicframepr tbl tblgrid gridcol tcpr
-// cspell:ignore nvgrpsppr grpsppr
-
 /// <summary>
 ///     System-level integration tests for the OOXML package layer via the CanvasNet.Pptx
 ///     package. Each test proves a <c>CanvasNetPptx-*</c> top-level requirement end-to-end

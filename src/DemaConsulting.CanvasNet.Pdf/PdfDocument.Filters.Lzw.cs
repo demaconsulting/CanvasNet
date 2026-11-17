@@ -1,4 +1,3 @@
-// cspell:ignore Lzw
 using DemaConsulting.CanvasNet.Codecs;
 
 namespace DemaConsulting.CanvasNet.Pdf;

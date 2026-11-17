@@ -1,7 +1,5 @@
 ### MinkowskiSum Unit Verification Design
 
-<!-- cspell:ignore Minkowski convexity convex coplanar polytope welded octahedron pentagram chord unwelded -->
-
 This document describes the unit-level verification strategy for the `MinkowskiSum` unit (`ConvexSum`).
 
 #### Verification Approach

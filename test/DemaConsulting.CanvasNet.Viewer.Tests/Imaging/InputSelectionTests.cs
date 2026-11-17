@@ -1,4 +1,3 @@
-// cspell:ignore canvasnet scad vega
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;
 using DemaConsulting.CanvasNet.ImageSources;

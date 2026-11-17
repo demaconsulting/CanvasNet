@@ -7,8 +7,6 @@ using DemaConsulting.CanvasNet.Tests.TestSupport;
 
 namespace DemaConsulting.CanvasNet.Pptx.Tests;
 
-// cspell:ignore pptx txbody bodypr lnspc normautofit noautofit spautofit fontscale lnspcreduction unitsperem
-
 /// <summary>
 ///     Unit-level tests for the Phase 1d text layout engine (<c>PptxDocument.TextLayout.cs</c>):
 ///     word-wrap, horizontal alignment, vertical anchor, and the three-tier autofit policy. Every

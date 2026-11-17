@@ -1,7 +1,5 @@
 ### CommandRegistry
 
-<!-- cspell:ignore scadd -->
-
 #### Verification Approach
 
 `CommandRegistry` is verified with unit tests in `CommandRegistryTests.cs`. The tests build registries holding
