@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Numerics;
 using System.Xml.Linq;
 using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Drawing;
 using DemaConsulting.CanvasNet.Geometry;
 using Path = DemaConsulting.CanvasNet.Geometry.Path;
 
@@ -82,10 +83,11 @@ public static partial class SvgCodec
 
         var name = element.Name.LocalName;
 
-        // Visibility follows the renderer's own paint resolution, so a dangling or invalid url(#...) or a color that
-        // resolves to full transparency counts as no paint, exactly as it is (not) drawn
-        var hasFill = name != "line" && IsVisiblePaint(ResolvePaint(state.Fill, state.FillOpacity * state.Opacity, path, transform, context, state));
-        var hasStroke = state.StrokeWidth > 0 && IsVisiblePaint(ResolvePaint(state.Stroke, state.StrokeOpacity * state.Opacity, path, transform, context, state));
+        // Visibility follows the renderer's own paint path (a pattern first, then ResolvePaint), so a dangling or invalid
+        // url(#...), a color that resolves to full transparency, or a gradient whose stops are all transparent counts as
+        // no paint, exactly as it is (not) drawn
+        var hasFill = name != "line" && HasVisiblePaint(state.Fill, state.FillOpacity * state.Opacity, path, transform, context, state);
+        var hasStroke = state.StrokeWidth > 0 && HasVisiblePaint(state.Stroke, state.StrokeOpacity * state.Opacity, path, transform, context, state);
 
         if (hasStroke && !hasFill && name != "polygon")
         {
@@ -148,18 +150,33 @@ public static partial class SvgCodec
     private static bool IsNone(string value) => string.Equals(value.Trim(), "none", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
-    ///     Determines whether a resolved paint draws anything: a gradient, or a color whose alpha (with the opacities
-    ///     already folded in) is not zero. A <see langword="null"/> paint (none, an unrecognized color, or a dangling or
-    ///     invalid <c>url(#...)</c>) draws nothing.
+    ///     Determines whether a <c>fill</c> or <c>stroke</c> draws anything, following the renderer's own paint path: a
+    ///     pattern (resolved first, as the renderer does) is visible when its combined opacity is not zero; otherwise
+    ///     the paint from <see cref="ResolvePaint"/> is visible when it is a color whose alpha (with the opacities folded
+    ///     in) is not zero, or a gradient with at least one stop whose alpha is not zero. None, an unrecognized color,
+    ///     and a dangling or invalid <c>url(#...)</c> draw nothing.
     /// </summary>
-    /// <param name="paint">The result of <see cref="ResolvePaint"/>.</param>
+    /// <param name="spec">The cascaded <c>fill</c> or <c>stroke</c> value.</param>
+    /// <param name="alpha">The combined opacity multiplier of that paint.</param>
+    /// <param name="path">The element's local-space outline.</param>
+    /// <param name="transform">The element's composed transform to device pixels.</param>
+    /// <param name="context">The fixed per-document render context.</param>
+    /// <param name="state">The element's cascaded render state.</param>
     /// <returns><see langword="true"/> when the paint is visible.</returns>
-    private static bool IsVisiblePaint(object? paint) => paint switch
+    private static bool HasVisiblePaint(string spec, float alpha, Path path, Matrix3x2 transform, RenderContext context, RenderState state)
     {
-        null => false,
-        Rgba32 color => color.A > 0,
-        _ => true,
-    };
+        if (ResolvePatternElement(spec, context) != null)
+        {
+            return alpha > 0;
+        }
+
+        return ResolvePaint(spec, alpha, path, transform, context, state) switch
+        {
+            Rgba32 color => color.A > 0,
+            Gradient gradient => gradient.Stops.Any(stop => stop.Color.A > 0),
+            _ => false,
+        };
+    }
 
     /// <summary>
     ///     Measures a filled outline as an arrowhead candidate: one subpath of straight segments with 3 distinct points

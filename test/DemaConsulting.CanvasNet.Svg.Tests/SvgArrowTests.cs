@@ -315,6 +315,38 @@ public class SvgArrowTests
     }
 
     /// <summary>
+    ///     Test that a connector stroked with a pattern is visible (a hand-drawn head at its end is reported), while a
+    ///     connector stroked with a gradient whose stops are all transparent draws nothing (no hint).
+    /// </summary>
+    [Fact]
+    public void SvgArrow_HintHandler_PatternAndTransparentGradientStrokes_FollowThePaintPath()
+    {
+        // Arrange
+        const string patterned = """
+            <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200'>
+              <defs><pattern id='p' width='4' height='4' patternUnits='userSpaceOnUse'><rect width='2' height='4' fill='#000000'/></pattern></defs>
+              <path d='M20,50 C60,50 60,100 100,100' fill='none' stroke='url(#p)' stroke-width='2'/>
+              <polygon points='100,100 90,95 90,105' fill='#000000'/>
+            </svg>
+            """;
+        const string transparentGradient = """
+            <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200'>
+              <defs><linearGradient id='g'><stop offset='0' stop-color='#000000' stop-opacity='0'/><stop offset='1' stop-color='#000000' stop-opacity='0'/></linearGradient></defs>
+              <path d='M20,50 C60,50 60,100 100,100' fill='none' stroke='url(#g)' stroke-width='2'/>
+              <polygon points='100,100 90,95 90,105' fill='#000000'/>
+            </svg>
+            """;
+
+        // Act
+        var patternHints = RenderHints(patterned);
+        var gradientHints = RenderHints(transparentGradient);
+
+        // Assert
+        Assert.Equal(SvgHint.ArrowheadShapeCode, Assert.Single(patternHints).Code);
+        Assert.Empty(gradientHints);
+    }
+
+    /// <summary>
     ///     Test that a notched four-point head drawn as a path at the end of a straight line is reported.
     /// </summary>
     [Fact]
