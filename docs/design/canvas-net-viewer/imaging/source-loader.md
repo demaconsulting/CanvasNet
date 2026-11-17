@@ -518,8 +518,17 @@ operation.
 **ComputeTargetSize(path, naturalWidth, naturalHeight, options)**: a scale multiplies both sides; a width and a
 height are exact; a width alone derives the height from the aspect ratio, and a height alone derives the width;
 with none, the natural size. The result is rounded to the nearest pixel (half away from zero) and is at least 1.
-A side larger than `Surface.MaxDimension` throws `size-limit`, with a message that says whether the natural size
-or the requested size is too large and a hint on how to choose a smaller one.
+A side larger than `Surface.MaxDimension` throws `size-limit`. With a width or a height option the message names the
+requested size and the hint is `Use a smaller --scale, --width, or --height.` Otherwise the size follows the natural
+size, and the message names that size (`'<path>' is <W>x<H> pixels, which is larger than the maximum of 8192 pixels
+per side; a scale of <fit> or less fits.`, or `The requested size of <W>x<H> pixels ...` with `--scale`) with the hint
+`Use --scale <fit> (or less), --width, or --height to choose a smaller size.`; the exception's `Data` holds `<fit>`
+under `FitScaleDataKey` (`DemaConsulting.CanvasNet.Viewer.FitScale`), so a caller with options of its own, the Pandoc
+filter, can name its own `scale` attribute.
+
+**FitScale(naturalWidth, naturalHeight)**: `Surface.MaxDimension` divided by the larger side, rounded down to two
+significant digits (14374 pixels gives `0.56`, 20000 pixels `0.4`), written with invariant digits and without trailing
+zeros, so the size at that scale always fits.
 
 **Read(path, kind, action)**: runs a read and maps exceptions (see *Error Handling*).
 

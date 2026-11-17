@@ -5,10 +5,11 @@
 #### Purpose
 
 `PandocFilterCommand` is the `pandoc-filter` command: the Lua shim `docs/filters/canvasnet.lua` sends it the whole
-Pandoc document once and applies the document it writes back. Its single responsibility is to turn the command line
-into the inputs of one `PandocFilterEngine` run and to move the bytes in and out; the filter itself is the
-`PandocFilter` subsystem. With `--write-shim` it writes the shim embedded in the tool. The unit is the class
-`PandocFilterCommand` in `PandocFilterCommand.cs`. The command has no alias.
+Pandoc document once and applies the document it writes back. Its single responsibility is to turn the command line into
+the inputs of one `PandocFilterEngine` run and to move the bytes in and out; the filter itself is the `PandocFilter`
+subsystem. With `--write-shim` it writes the shim the tool generates from its embedded template
+(`PandocFilterShim.Bytes`). The unit is the class `PandocFilterCommand` in `PandocFilterCommand.cs`. The command has no
+alias.
 
 #### Data Model
 

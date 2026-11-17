@@ -3,8 +3,9 @@
 #
 # The PandocFilterShim unit is the Lua shim of the Pandoc filter (canvasnet.lua), embedded in the tool and kept in the
 # repository as docs/filters/canvasnet.lua, and the protocol it speaks with the pandoc-filter command. The shim starts
-# "canvasnet pandoc-filter" once per document, only when the document has a picture or code block the tool may draw,
-# and applies what comes back. The class holds the embedded bytes, checks the protocol a shim passes, and writes the
+# "canvasnet pandoc-filter" once per document, only when the document has a picture or code block the tool draws (the
+# lists of its fast path are generated from the engine's tables when the shim is written), and applies what comes
+# back. The class generates the shim from the embedded template, checks the protocol a shim passes, and writes the
 # shim to a file. The behavior of the Lua shim inside Pandoc is verified by the end-to-end script
 # docs/filters/test-canvasnet.ps1; the requirements below are verified by the unit tests of the class.
 
@@ -13,13 +14,29 @@ sections:
     requirements:
       - id: CanvasNetTool-PandocFilter-PandocFilterShim-EmbeddedShim
         title: >-
-          The PandocFilterShim unit shall provide the Lua shim embedded in the tool exactly as its source file,
-          declaring the protocol it speaks and the oldest version of DemaConsulting.CanvasNet.Tool it needs.
+          The PandocFilterShim unit shall provide the Lua shim as the template embedded in the tool with only its
+          fast-path placeholders filled in, declaring the protocol it speaks and the oldest version of
+          DemaConsulting.CanvasNet.Tool it needs.
         justification: |
           A repository gets its shim from the tool it pins, so the shim the tool writes must be the reviewed source,
           and an author who reads the shim must see which tool version it needs.
         tests:
           - PandocFilterShim_Bytes_AreTheSourceFileAndSpeakTheProtocol
+
+      - id: CanvasNetTool-PandocFilter-PandocFilterShim-FastPath
+        title: >-
+          The PandocFilterShim unit shall write into the shim's fast path the code-block classes and picture suffixes
+          the filter engine draws, taken from the engine's own tables, and shall refuse a template whose placeholder
+          is missing or repeated.
+        justification: |
+          Starting the tool costs a process per document and makes a document depend on the tool, so the shim starts
+          it only for what the tool draws: a document of other code blocks (bash, yaml, csharp) and raster pictures
+          builds without it. Generating the lists from the engine keeps the shim from drifting from the tool that
+          writes it.
+        tests:
+          - PandocFilterShim_Bytes_ListWhatTheEngineDraws
+          - PandocFilterShim_Generate_PlaceholdersExactlyOnce_FillsOrRefuses
+          - PictureAttributes_PictureSuffixesAndBlockClasses_AreWhatTheEngineDraws
 
       - id: CanvasNetTool-PandocFilter-PandocFilterShim-RepositoryShim
         title: >-

@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using System.Text;
 using DemaConsulting.CanvasNet.Viewer;
 
 namespace DemaConsulting.CanvasNet.Tool.PandocFilter;
@@ -15,6 +16,14 @@ namespace DemaConsulting.CanvasNet.Tool.PandocFilter;
 ///         <see cref="MinProtocol"/> to <see cref="MaxProtocol"/> and names the command that writes a matching shim when
 ///         the shim is too old or too new (<see cref="CheckProtocol"/>). The protocol changes only when the arguments or
 ///         the output contract change, never for a change of the filter's logic.
+///     </para>
+///     <para>
+///         The embedded file is a template: its fast path, which decides whether a document needs the tool at all, holds
+///         the placeholders <see cref="ClassesPlaceholder"/> and <see cref="SuffixesPlaceholder"/>, which
+///         <see cref="Generate"/> replaces with Lua lists of the code-block classes and picture suffixes the filter draws
+///         (<see cref="PictureAttributes.BlockClasses"/>, <see cref="PictureAttributes.PictureSuffixes"/>). The shim that a
+///         repository keeps therefore starts the tool for exactly what this tool draws, and is written again after the
+///         tool is updated.
 ///     </para>
 ///     <para>Stateless and thread-safe.</para>
 /// </remarks>
@@ -36,7 +45,7 @@ internal static class PandocFilterShim
     internal const int MaxProtocol = 1;
 
     /// <summary>
-    ///     The logical name of the embedded shim.
+    ///     The logical name of the embedded template of the shim.
     /// </summary>
     internal const string ResourceName = "DemaConsulting.CanvasNet.Tool.PandocFilter.canvasnet.lua";
 
@@ -46,14 +55,40 @@ internal static class PandocFilterShim
     internal const string DefaultPath = "docs/filters/canvasnet.lua";
 
     /// <summary>
-    ///     The bytes of the embedded shim, loaded on first use.
+    ///     The placeholder of the template that <see cref="Generate"/> replaces with the code-block classes the filter draws.
     /// </summary>
-    private static readonly Lazy<byte[]> Content = new(Load);
+    internal const string ClassesPlaceholder = "@CLASSES@";
 
     /// <summary>
-    ///     Gets the bytes of the embedded shim, exactly as the build embedded the file.
+    ///     The placeholder of the template that <see cref="Generate"/> replaces with the picture suffixes the filter may change.
+    /// </summary>
+    internal const string SuffixesPlaceholder = "@SUFFIXES@";
+
+    /// <summary>
+    ///     The bytes of the shim, generated from the embedded template on first use.
+    /// </summary>
+    private static readonly Lazy<byte[]> Content = new(() => Encoding.UTF8.GetBytes(Generate(Encoding.UTF8.GetString(Load()))));
+
+    /// <summary>
+    ///     Gets the bytes of the shim: the embedded template with the filter's tables filled in (<see cref="Generate"/>),
+    ///     as UTF-8 without a byte order mark.
     /// </summary>
     internal static byte[] Bytes => Content.Value;
+
+    /// <summary>
+    ///     Fills the tables of the shim's fast path into the template.
+    /// </summary>
+    /// <param name="template">The text of the template.</param>
+    /// <returns>
+    ///     The template with <see cref="ClassesPlaceholder"/> replaced by a Lua list of
+    ///     <see cref="PictureAttributes.BlockClasses"/> and <see cref="SuffixesPlaceholder"/> by a Lua list of
+    ///     <see cref="PictureAttributes.PictureSuffixes"/>, for example <c>{ "mermaid" }</c>.
+    /// </returns>
+    /// <exception cref="InvalidOperationException">Thrown when a placeholder is not in the template exactly once (a defect of the build).</exception>
+    internal static string Generate(string template)
+    {
+        return Fill(Fill(template, ClassesPlaceholder, PictureAttributes.BlockClasses), SuffixesPlaceholder, PictureAttributes.PictureSuffixes);
+    }
 
     /// <summary>
     ///     Checks the protocol a shim speaks.
@@ -86,7 +121,7 @@ internal static class PandocFilterShim
     }
 
     /// <summary>
-    ///     Writes the embedded shim to a file, byte for byte.
+    ///     Writes the shim (<see cref="Bytes"/>) to a file, byte for byte.
     /// </summary>
     /// <param name="path">The file; its folder is created, and an existing file is replaced.</param>
     /// <returns>The number of bytes written.</returns>
@@ -119,7 +154,27 @@ internal static class PandocFilterShim
     }
 
     /// <summary>
-    ///     Loads the embedded shim.
+    ///     Replaces the one placeholder of a template with a Lua list of strings.
+    /// </summary>
+    /// <param name="template">The template.</param>
+    /// <param name="placeholder">The placeholder.</param>
+    /// <param name="items">The strings; a backslash and a double quote are escaped.</param>
+    /// <returns>The template with the placeholder replaced by <c>{ "a", "b" }</c>.</returns>
+    /// <exception cref="InvalidOperationException">Thrown when the placeholder is not in the template exactly once.</exception>
+    private static string Fill(string template, string placeholder, IEnumerable<string> items)
+    {
+        var at = template.IndexOf(placeholder, StringComparison.Ordinal);
+        if (at < 0 || template.IndexOf(placeholder, at + placeholder.Length, StringComparison.Ordinal) >= 0)
+        {
+            throw new InvalidOperationException($"The shim template must hold the placeholder '{placeholder}' exactly once.");
+        }
+
+        var list = "{ " + string.Join(", ", items.Select(item => "\"" + item.Replace("\\", "\\\\", StringComparison.Ordinal).Replace("\"", "\\\"", StringComparison.Ordinal) + "\"")) + " }";
+        return string.Concat(template.AsSpan(0, at), list, template.AsSpan(at + placeholder.Length));
+    }
+
+    /// <summary>
+    ///     Loads the embedded template of the shim.
     /// </summary>
     /// <returns>The bytes.</returns>
     /// <exception cref="InvalidOperationException">Thrown when the shim is not embedded (a defect of the build).</exception>

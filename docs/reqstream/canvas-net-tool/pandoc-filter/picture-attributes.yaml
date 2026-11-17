@@ -23,6 +23,17 @@ sections:
           - PictureAttributes_KindOf_FileNameEnd_GivesTheKind
           - PictureAttributes_IsSvg_LocalSvgOnly
 
+      - id: CanvasNetTool-PandocFilter-PictureAttributes-Registry
+        title: >-
+          The PictureAttributes unit shall list the picture name ends the filter may change (.svg, then the ends of the
+          inputs it draws) and the code-block classes it draws (mermaid, compared exactly), and shall give a code block
+          the kind of the first listed class it has, leaving a block without one alone.
+        justification: |
+          One table decides both what the engine draws and what the shim's fast path starts the tool for, so the two
+          cannot drift apart.
+        tests:
+          - PictureAttributes_PictureSuffixesAndBlockClasses_AreWhatTheEngineDraws
+
       - id: CanvasNetTool-PandocFilter-PictureAttributes-Checks
         title: >-
           The PictureAttributes unit shall check the size, scale, background, page, dpi, view, azimuth, elevation,

@@ -41,6 +41,32 @@ public class PictureAttributesTests
     }
 
     /// <summary>
+    ///     Test the tables the shim's fast path is written from: the picture suffixes are exactly the names the engine
+    ///     draws or flattens (in any letter case), and the code-block classes are exactly the classes it draws (case-sensitive).
+    /// </summary>
+    [Fact]
+    public void PictureAttributes_PictureSuffixesAndBlockClasses_AreWhatTheEngineDraws()
+    {
+        // Assert: the lists
+        Assert.Equal([".svg", ".vl.json", ".vl", ".scad", ".vsdx", ".pptx", ".pdf", ".mmd", ".mermaid"], PictureAttributes.PictureSuffixes);
+        Assert.Equal(["mermaid"], PictureAttributes.BlockClasses);
+
+        // Assert: every suffix is a picture the engine handles, in either letter case
+        Assert.All(PictureAttributes.PictureSuffixes, suffix =>
+        {
+            Assert.True(PictureAttributes.IsSvg("x" + suffix) || PictureAttributes.KindOf("x" + suffix) != null);
+            Assert.True(PictureAttributes.IsSvg("X" + suffix.ToUpperInvariant()) || PictureAttributes.KindOf("X" + suffix.ToUpperInvariant()) != null);
+        });
+
+        // Assert: the classes of a code block
+        Assert.Equal("mermaid", PictureAttributes.BlockKindOf(["mermaid"]));
+        Assert.Equal("mermaid", PictureAttributes.BlockKindOf(["numberLines", "mermaid"]));
+        Assert.Null(PictureAttributes.BlockKindOf(["Mermaid"]));
+        Assert.Null(PictureAttributes.BlockKindOf(["bash"]));
+        Assert.Null(PictureAttributes.BlockKindOf([]));
+    }
+
+    /// <summary>
     ///     Test every attribute check and wrong-kind rule with the Lua filter's exact message.
     /// </summary>
     /// <param name="name">The picture's name.</param>

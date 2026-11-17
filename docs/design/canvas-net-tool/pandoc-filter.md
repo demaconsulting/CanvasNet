@@ -52,8 +52,10 @@ filterPath)`, and the protocol constants (`Protocol`, `MinProtocol`, and `MaxPro
 <PANDOC_SCRIPT_FILE> --format <FORMAT> --pandoc-version <PANDOC_VERSION> [--resource-path <dir>]... [--pandoc-output
 <file>] [--embed-resources]` with `pandoc.pipe` and the document on standard input. Exit code 0 means standard output
 is the document; exit code 1 means standard output is the JSON failure document, whose message and hint the shim
-raises as the error of the build. The shim starts the tool only when the document has a code block with a class or a
-local picture that is not a PNG, JPEG, GIF, or WebP raster.
+raises as the error of the build. The shim starts the tool only when the document has a code block of a class the
+engine draws (`mermaid`) or a local picture whose name ends in a suffix the engine may change (`.svg`, `.vl.json`,
+`.vl`, `.scad`, `.vsdx`, `.pptx`, `.pdf`, `.mmd`, or `.mermaid`, in any letter case); `--write-shim` writes both lists
+from `PictureAttributes`, so the shim is written again after the tool is updated.
 
 **RenderCommand.Execute** and **FlattenCommand.Execute** (consumed, from the `Commands` subsystem): `ToolPictureDrawer`
 draws a picture with the same argument list the Lua filter passed to `canvasnet render ... --json` and `canvasnet

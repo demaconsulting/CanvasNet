@@ -5,15 +5,20 @@
 .DESCRIPTION
     Builds a small document tree in a temporary folder, runs "dotnet pandoc" with docs/filters/canvasnet.lua
     over it, and checks what the filter promises. The filter is a thin Lua shim: it starts "canvasnet pandoc-filter"
-    once per Pandoc run, only when the document has a code block with a class or a local picture that is not a PNG,
-    JPEG, GIF, or WebP file, and the tool does all the work. The shim speaks a protocol: a copy of an older protocol
+    once per Pandoc run, only when the document has a code block of a class the tool draws (mermaid) or a local picture
+    whose name ends in a suffix the tool draws (lists the shim takes from the tool's own tables when it is written),
+    and the tool does all the work. Code blocks of other classes, rasters such as BMP, TIFF, ICO, and AVIF, names
+    without an extension or with a fragment or query, and remote pictures never start it, and every listed suffix
+    does. Whatever pandoc.pipe raises (a string, a table without a numeric error_code, a userdata, a table whose fields
+    raise, or the failure of a tool that ran), the shim reports one "canvasnet.lua:" message ("pandoc lua" runs the
+    shim with a stubbed pandoc.pipe). The shim speaks a protocol: a copy of an older protocol
     is an error that names "--write-shim", and "canvasnet pandoc-filter --write-shim" writes the repository's shim.
     The tool starts exactly once for a document with several pictures, and CANVASNET_JOBS=1 and CANVASNET_JOBS=4
     give the same HTML and the same cache files.
 
     The checks: pictures are drawn once and found again (cache), a change to
-    the source, an included file, a chart's data file, or an attribute draws a new picture, PNG, JPEG, and remote
-    pictures are left alone without starting the tool, wrong attributes and a missing file are clear errors, a path that
+    the source, an included file, a chart's data file, or an attribute draws a new picture, pictures the tool does not draw
+    are left alone without starting the tool, wrong attributes and a missing file are clear errors, a path that
     leaves the document's folder renders (the filter has no containment rule), a dependency outside the folder is
     read under the tool's default file-access policy and refused under CANVASNET_FILE_ACCESS=roots (CANVASNET_ROOTS is a
     PATH-like list whose relative folders are taken from the working directory, both are hashed, roots without
@@ -786,19 +791,111 @@ journey
     Write-Result ($null -ne $means.flat -and $null -ne $means.control -and $means.flat -lt $means.control - 1 -and $means.control -lt 255) `
         'WeasyPrint draws the flattened diagram in the PDF, and the frame of the original' "flat $($means.flat), control $($means.control)"
 
-    # --- PNG, JPEG, and remote pictures never start the tool ---------------------------------------------
-    # The shim starts the tool only for a code block with a class or a local picture that is not a common raster.
+    # --- Only what the tool draws starts it ---------------------------------------------------------------
+    # The shim starts the tool only for a code block with one of the classes the tool draws (mermaid), or a local
+    # picture whose name ends in one of the suffixes it draws; --write-shim writes both lists from the tool's tables.
+    # With a tool that cannot start, a document that does not need it builds, and one that does is a clear error.
+    # (Pandoc lowercases the language of a bare fence, so the class Mermaid is written as an attribute, {.Mermaid}.)
     $saved = $env:CANVASNET_TOOL
     $env:CANVASNET_TOOL = 'no-such-program-canvasnet'
     try {
-        $plain = Invoke-Filter 'plain' "![plain](x.png)`n`n![photo](photo.jpg)`n`n![web](https://example.com/a.scad)"
-        Write-Result ($plain.ExitCode -eq 0) 'PNG, JPEG, and remote pictures never start the tool' $plain.Log
+        $plainMarkdown = @(
+            '![plain](x.png)', '![photo](photo.jpg)', '![bitmap](a.bmp)', '![scan](scan.tif)', '![icon](favicon.ico)',
+            '![new](photo.avif)', '![bare](diagram)', '![page](mesh-shading.pdf#page=2)', '![query](t.vl.json?x)',
+            '![web](https://example.com/a.scad)', "``````bash`necho hi`n``````", "``````yaml`na: 1`n``````",
+            "``````csharp`nvar x = 1;`n``````", "``````text`nonly the text block`n``````", "``````{.Mermaid}`nflowchart LR`n``````") -join "`n`n"
+        $plain = Invoke-Filter 'plain' $plainMarkdown
+        Write-Result ($plain.ExitCode -eq 0 -and $plain.Html.Contains('src="a.bmp"') -and $plain.Html.Contains('only the text block')) `
+            'code blocks of other classes, rasters, extension-less, fragment, and remote pictures never start the tool' $plain.Log
         $missing = Invoke-Filter 'missing-tool' '![model](bad.scad)'
-        Write-Result ($missing.ExitCode -ne 0 -and $missing.Log -match 'cannot run the canvasnet tool') `
+        Write-Result ($missing.ExitCode -ne 0 -and $missing.Log -match 'canvasnet\.lua: cannot run the canvasnet tool') `
             'a tool that cannot start is a clear error' $missing.Log
+        $block = Invoke-Filter 'missing-tool-block' "``````mermaid`nflowchart LR`n  A --> B`n``````"
+        Write-Result ($block.ExitCode -ne 0 -and $block.Log -match 'cannot run the canvasnet tool') `
+            'one mermaid block starts the tool' $block.Log
+
+        # Every suffix the shim lists starts the tool, in any letter case; the list is the one the engine draws
+        $shimSource = [System.IO.File]::ReadAllText((Join-Path $tree 'docs/filters/canvasnet.lua'))
+        $suffixLine = [regex]::Match($shimSource, 'local SUFFIXES = \{([^}]*)\}')
+        $suffixes = @([regex]::Matches($suffixLine.Groups[1].Value, '"([^"]+)"') | ForEach-Object { $_.Groups[1].Value })
+        Write-Result (($suffixes -join ' ') -ceq '.svg .vl.json .vl .scad .vsdx .pptx .pdf .mmd .mermaid') `
+            'the shim lists the picture suffixes the tool draws' ($suffixes -join ' ')
+        $notStarted = @()
+        foreach ($suffix in $suffixes) {
+            foreach ($name in "fast$suffix", "FAST$($suffix.ToUpperInvariant())") {
+                $run = Invoke-Filter 'missing-tool-suffix' "![x]($name)"
+                if ($run.ExitCode -eq 0 -or $run.Log -notmatch 'cannot run the canvasnet tool') {
+                    $notStarted += $name
+                }
+            }
+        }
+        Write-Result ($suffixes.Count -gt 0 -and $notStarted.Count -eq 0) 'every picture suffix the tool draws starts it' `
+            "did not start for: $($notStarted -join ', ')"
     }
     finally {
         $env:CANVASNET_TOOL = $saved
+    }
+
+    # --- Whatever pandoc.pipe raises, the shim reports one clear message --------------------------------------
+    # "pandoc lua" loads the shim with a stubbed pandoc.pipe that raises a string, a table without error_code, a table
+    # whose error_code is not a number, a userdata, a table whose fields and text raise, and the failure tables of a
+    # tool that ran (with and without a JSON error document). Each must be one "canvasnet.lua:" message, never a
+    # secondary error such as "attempt to index".
+    $harness = Join-Path $root 'pipe-errors.lua'
+    Set-Content -LiteralPath $harness -Encoding utf8 -Value @'
+local shim = arg[1]
+FORMAT, PANDOC_SCRIPT_FILE = "html5", shim
+dofile(shim)
+local doc = pandoc.Pandoc({ pandoc.CodeBlock("flowchart LR", pandoc.Attr("", { "mermaid" })) })
+local hostile = setmetatable({}, {
+  __index = function() error("no fields here") end,
+  __tostring = function() error("no text either") end,
+})
+local cases = {
+  { "string", "spawn failed: no such file" },
+  { "table-without-code", { command = "dotnet" } },
+  { "text-code", { error_code = "1", output = "" } },
+  { "userdata", io.stdout },
+  { "hostile-table", hostile },
+  { "exit-json", { command = "dotnet", error_code = 83,
+    output = '{"ok":false,"error":{"code":"size-limit","message":"too big","hint":"use scale"}}' } },
+  { "exit-silent", { command = "dotnet", error_code = 2, output = "not json" } },
+}
+for _, case in ipairs(cases) do
+  pandoc.pipe = function() error(case[2], 0) end
+  local ok, message = pcall(Pandoc, doc)
+  print(case[1] .. "|" .. tostring(ok) .. "|" .. tostring(message):gsub("[\r\n]", " "))
+end
+'@
+    $saved = $env:CANVASNET_TOOL
+    Remove-Item -Path env:CANVASNET_TOOL -ErrorAction SilentlyContinue
+    try {
+        $pipeLog = & dotnet pandoc lua $harness (Join-Path $tree 'docs/filters/canvasnet.lua') 2>&1 | Out-String
+    }
+    finally {
+        $env:CANVASNET_TOOL = $saved
+    }
+    $pipeResults = @{}
+    foreach ($line in ($pipeLog -split "`r?`n")) {
+        $fields = $line -split '\|', 3
+        if ($fields.Count -eq 3) {
+            $pipeResults[$fields[0]] = [pscustomobject]@{ Ok = $fields[1]; Message = $fields[2] }
+        }
+    }
+    $cannotRun = "canvasnet.lua: cannot run the canvasnet tool ('dotnet canvasnet'): "
+    $expected = [ordered]@{
+        'string'             = "${cannotRun}spawn failed: no such file. Pin "
+        'table-without-code' = "${cannotRun}table: "
+        'text-code'          = "${cannotRun}table: "
+        'userdata'           = "${cannotRun}file ("
+        'hostile-table'      = "${cannotRun}an error that cannot be shown. Pin "
+        'exit-json'          = 'canvasnet.lua: too big (use scale)'
+        'exit-silent'        = 'canvasnet.lua: the canvasnet tool exited with code 2 and printed no message'
+    }
+    foreach ($case in $expected.Keys) {
+        $result = $pipeResults[$case]
+        Write-Result ($null -ne $result -and $result.Ok -eq 'false' -and $result.Message.StartsWith($expected[$case], [System.StringComparison]::Ordinal) -and
+            $result.Message -notmatch 'attempt to') "a pandoc.pipe failure ($case) is one clear canvasnet.lua message" $pipeLog
     }
 
     # --- The shim and the command: protocol, --write-shim, one tool start, jobs ---------------------------

@@ -70,10 +70,12 @@ internal sealed class PandocFilterCommand : ICommand
         + "The Pandoc filter docs/filters/canvasnet.lua is a short Lua shim that sends the whole document to this command" + Environment.NewLine
         + "once and applies what comes back: the models, charts, diagrams, drawings, and document pages the document" + Environment.NewLine
         + "names (and its mermaid code blocks) are drawn into the cache folder generated/canvasnet and the pictures point" + Environment.NewLine
-        + "there. Write the shim with --write-shim; it names the protocol it speaks, and a shim this tool does not speak is" + Environment.NewLine
-        + "an error that says how to write it again. The document is Pandoc's JSON on standard input (--input reads a file)," + Environment.NewLine
-        + "and the transformed document goes to standard output (--output writes a file). The environment variables" + Environment.NewLine
-        + "CANVASNET_TOOL, CANVASNET_FILE_ACCESS, CANVASNET_ROOTS, and CANVASNET_JOBS apply. See 'canvasnet help pandoc'." + Environment.NewLine
+        + "there. Write the shim with --write-shim, and again after each update of the tool: it lists the code-block" + Environment.NewLine
+        + "classes and picture name ends this tool draws and starts the tool only for those. It names the protocol it" + Environment.NewLine
+        + "speaks, and a shim this tool does not speak is an error that says how to write it again. The document is" + Environment.NewLine
+        + "Pandoc's JSON on standard input (--input reads a file), and the transformed document goes to standard output" + Environment.NewLine
+        + "(--output writes a file). The environment variables CANVASNET_TOOL, CANVASNET_FILE_ACCESS, CANVASNET_ROOTS, and" + Environment.NewLine
+        + "CANVASNET_JOBS apply. See 'canvasnet help pandoc'." + Environment.NewLine
         + Environment.NewLine
         + "Examples:" + Environment.NewLine
         + "  canvasnet pandoc-filter --write-shim docs/filters/canvasnet.lua" + Environment.NewLine

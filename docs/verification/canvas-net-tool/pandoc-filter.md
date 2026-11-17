@@ -46,6 +46,12 @@ and points at a new picture, leaving two pictures in the cache.
 resource path fails with `cannot find 'gone.mmd' in the document's resource path`; a PNG picture is left unchanged and
 nothing is written to the cache.
 
+**PandocFilter_Run_OversizedMermaidBlock_SuggestsTheScaleAttribute**: with the real drawer, a Mermaid block of a
+151-node chain (`flowchart LR`) fails with `size-limit`, a message that starts with `drawing 'mermaid block (flowchart
+LR)' failed: ` and gives the laid-out size, `larger than the maximum of 8192 pixels per side; a scale of <fit> or less
+fits.`, and the hint `(Set the block's scale attribute to <fit> or less, for example {.mermaid scale=<fit>}.)`; the
+same block with `scale=<fit>` is drawn.
+
 **PandocFilter_Run_FileAccessVariables_ConfineWhatAPictureReads**: a diagram whose node shows a picture in the folder
 above the guide fails with `file-access-denied` and `drawing 'flow.mmd' failed: ...` under `CANVASNET_FILE_ACCESS=roots`
 with `CANVASNET_ROOTS` set to the guide folder, and is drawn without warnings when `CANVASNET_ROOTS` is the folder

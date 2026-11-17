@@ -81,3 +81,15 @@ the same engine then runs a document that succeeds.
 **PandocFilterEngine_Run_MissingSourcesAndOtherPictures_FollowTheLuaFilter**: a missing model fails with `cannot find
 'gone%20model.scad' in the document's resource path`; a document with a missing SVG drawing, a PNG photo, a remote
 model, non-ASCII text, and a `python` code block is returned byte for byte unchanged, and the drawer is never called.
+
+**PandocFilterEngine_Run_PicturesItDoesNotDraw_PassThroughUntouched**: a document of pictures that do not exist and
+that the engine does not draw (`a.bmp`, `scan.tif`, `favicon.ico`, `photo.avif`, `photo.webp`, `photo.JPG`, `diagram`,
+`docs/README`, `report.pdf#page=2`, `chart.vl.json?x`, a remote `.mmd`, and a `data:` URL ending in `.svg`) and of
+`bash`, `yaml`, `csharp`, `text`, `Mermaid`, and class-less code blocks is returned byte for byte unchanged, the drawer
+is never called, and nothing is written to the cache: everything outside the shim's fast-path lists passes through.
+
+**PandocFilterEngine_Run_OversizedPicture_HintNamesTheScaleAttribute**: a stub drawer raises `size-limit` with the
+message `'<name>' is too large; a scale of 0.56 or less fits.` and a command-line hint; with the scale that fits in the
+exception's `Data`, a Mermaid block fails with `drawing 'mermaid block (flowchart TD)' failed: ...` ending in `(Set the
+block's scale attribute to 0.56 or less, for example {.mermaid scale=0.56}.)` and a `.mmd` picture with `(Set the
+picture's scale attribute to 0.56 or less, for example {scale=0.56}.)`; without it the tool's hint is kept.

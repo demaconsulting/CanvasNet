@@ -84,6 +84,22 @@ internal sealed class ToolPictureDrawer : IPictureDrawer
 internal sealed partial class PandocFilterEngine
 {
     /// <summary>
+    ///     The key of <see cref="Exception.Data"/> under which the viewer's <c>size-limit</c> error holds the scale that fits
+    ///     (the value of <c>SourceLoader.FitScaleDataKey</c>, which is internal to the viewer library).
+    /// </summary>
+    private const string FitScaleDataKey = "DemaConsulting.CanvasNet.Viewer.FitScale";
+
+    /// <summary>
+    ///     How a hint names the attributes of a code block.
+    /// </summary>
+    private const string BlockOwner = "the block's";
+
+    /// <summary>
+    ///     How a hint names the attributes of an image.
+    /// </summary>
+    private const string PictureOwner = "the picture's";
+
+    /// <summary>
     ///     Runs the jobs, in order of position, up to <see cref="_jobs"/> at once, each into its temporary file.
     /// </summary>
     /// <param name="jobs">The jobs, sorted by position.</param>
@@ -211,7 +227,7 @@ internal sealed partial class PandocFilterEngine
         catch (Exception ex) when (IsExpected(ex))
         {
             PictureCache.Delete(partial);
-            throw ToolFailure($"drawing '{job.Name}' failed: ", ex);
+            throw ToolFailure($"drawing '{job.Name}' failed: ", ex, job.Block ? BlockOwner : PictureOwner);
         }
 
         FailOnDenial(job, drawing, partial);
@@ -251,7 +267,7 @@ internal sealed partial class PandocFilterEngine
         catch (Exception ex) when (IsExpected(ex))
         {
             PictureCache.Delete(partial);
-            throw ToolFailure($"flattening '{job.Name}' failed: ", ex);
+            throw ToolFailure($"flattening '{job.Name}' failed: ", ex, PictureOwner);
         }
 
         // A denial stops the build before a marker or a copy is written
@@ -301,11 +317,19 @@ internal sealed partial class PandocFilterEngine
     /// </summary>
     /// <param name="prefix">The prefix, for example <c>drawing 'flow.mmd' failed: </c>.</param>
     /// <param name="ex">The tool's failure.</param>
+    /// <param name="owner">Whose attributes a hint names: <c>the block's</c> or <c>the picture's</c>.</param>
     /// <returns>The exception to throw.</returns>
-    private static ToolException ToolFailure(string prefix, Exception ex)
+    /// <remarks>
+    ///     A picture larger than the maximum image size whose size follows its natural size carries the scale that fits
+    ///     (<c>SourceLoader.FitScaleDataKey</c>); its hint, which names the command-line options, is replaced by one that
+    ///     names the <c>scale</c> attribute.
+    /// </remarks>
+    private static ToolException ToolFailure(string prefix, Exception ex, string owner)
     {
         var (code, hint) = ex switch
         {
+            ViewerException { Code: ErrorCodes.SizeLimit } viewer when viewer.Data[FitScaleDataKey] is string fit =>
+                (viewer.Code, $"Set {owner} scale attribute to {fit} or less, for example {{{(owner == BlockOwner ? $".{PictureAttributes.Mermaid} " : string.Empty)}scale={fit}}}."),
             ViewerException viewer => (viewer.Code, viewer.Hint),
             ArgumentException => (ErrorCodes.UsageError, null),
             _ => (ErrorCodes.OperationFailed, (string?)null)
@@ -355,6 +379,7 @@ internal sealed partial class PandocFilterEngine
     /// <param name="Key">The cache key.</param>
     /// <param name="File">The picture or copy the job writes.</param>
     /// <param name="Marker">The marker the job writes when the picture is left alone.</param>
+    /// <param name="Block">Whether the picture that leads the job is a code block rather than an image.</param>
     private sealed record DrawJob(
         int Index,
         string Name,
@@ -366,7 +391,8 @@ internal sealed partial class PandocFilterEngine
         string Cache,
         string Key,
         string File,
-        string Marker)
+        string Marker,
+        bool Block)
     {
         /// <summary>
         ///     Gets or sets what the job produced, once it ran.
