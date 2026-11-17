@@ -117,10 +117,11 @@ public class SvgArrowTests
 
     /// <summary>
     ///     Test that a closed subpath whose last point already equals its first (a zero-length closing segment) takes the
-    ///     direction of the segment before it at the closing vertex.
+    ///     direction of its first segment for the closing segment, as Edge draws it: the start and end markers point
+    ///     along the first segment, and the last explicit vertex bisects the segment before it and the first segment.
     /// </summary>
     [Fact]
-    public void SvgArrow_BuildMarkerVertices_ZeroLengthClose_UsesThePreviousSegment()
+    public void SvgArrow_BuildMarkerVertices_ZeroLengthClose_UsesTheFirstSegment()
     {
         // Arrange: M0,0 L10,0 L0,10 L0,0 Z - the last LineTo already returns to the start
         var path = new PathBuilder()
@@ -129,11 +130,15 @@ public class SvgArrowTests
         // Act
         var vertices = SvgCodec.BuildMarkerVertices(path);
 
-        // Assert: the closing vertex arrives along (0,-1) (the previous segment) and leaves along (1,0): -45 degrees
+        // Assert: the closing vertex and the start point along the first segment (1,0): 0 degrees
         Assert.Equal(5, vertices.Count);
         AssertAt(new Vector2(0, 0), vertices[^1]);
-        AssertAngle(-45, vertices[^1]);
-        AssertAngle(-45, vertices[0]);
+        AssertAngle(0, vertices[^1]);
+        AssertAngle(0, vertices[0]);
+
+        // Assert: the last explicit vertex arrives along (0,-1) and leaves along (1,0): -45 degrees
+        AssertAt(new Vector2(0, 0), vertices[3]);
+        AssertAngle(-45, vertices[3]);
     }
 
     /// <summary>

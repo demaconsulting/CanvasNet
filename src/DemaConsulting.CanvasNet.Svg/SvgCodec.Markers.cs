@@ -264,8 +264,8 @@ public static partial class SvgCodec
     ///     own <see cref="Subpath.Start"/>, so a closed subpath (and a <c>polygon</c>) has its
     ///     <c>marker-end</c> at its first point, not at its last explicit point. The closing
     ///     segment's tangent - computed identically to an equivalent
-    ///     <see cref="PathCommandType.LineTo"/> back to <see cref="Subpath.Start"/>, or the previous
-    ///     segment's direction when it has zero length - is the closing vertex's incoming tangent,
+    ///     <see cref="PathCommandType.LineTo"/> back to <see cref="Subpath.Start"/>, or the first
+    ///     segment's direction when it has zero length (as browsers draw it) - is the closing vertex's incoming tangent,
     ///     the last explicit vertex's outgoing tangent and the first vertex's incoming tangent; the
     ///     subpath's first segment is the closing vertex's outgoing tangent. An <c>orient="auto"</c>
     ///     marker at either end of a closed subpath therefore bisects the closing and the first
@@ -356,9 +356,10 @@ public static partial class SvgCodec
                     PathCommand.LineTo(subpath.Start).ComputeTangents(vertices[lastIndex].Position);
 
                 // A zero-length closing segment (the last explicit point already equals Start)
-                // takes the direction of the segment before it, per the SVG zero-length rule
-                var closingDirection = closingIncoming ?? vertices[lastIndex].IncomingTangent;
-                vertices[lastIndex] = vertices[lastIndex].WithOutgoingTangent(closingOutgoing);
+                // takes the direction of the subpath's first segment, as browsers draw it
+                var firstDirection = vertices[subpathStartIndex].OutgoingTangent;
+                var closingDirection = closingIncoming ?? firstDirection;
+                vertices[lastIndex] = vertices[lastIndex].WithOutgoingTangent(closingOutgoing ?? firstDirection);
 
                 // A shared start vertex keeps the earlier subpath's closing direction as its
                 // incoming tangent, because the pen arrives there along that closing segment

@@ -225,7 +225,7 @@ sections:
               - SvgCodec_Load_MarkerEndOnClosedPolygon_PlacesEndAtClosingVertex
               - SvgArrow_BuildMarkerVertices_OpenPath_EndsAtLastPoint
               - SvgArrow_BuildMarkerVertices_ClosedTriangle_EndsAtClosingVertex
-              - SvgArrow_BuildMarkerVertices_ZeroLengthClose_UsesThePreviousSegment
+              - SvgArrow_BuildMarkerVertices_ZeroLengthClose_UsesTheFirstSegment
               - SvgArrow_BuildMarkerVertices_TwoClosedSubpaths_CloseEachSubpath
               - SvgArrow_Load_ClosedTriangleMarkers_MatchTheBrowserPlacement
               - SvgArrow_BuildMarkerVertices_DrawAfterCloseWithoutMoveTo_SharesTheClosingVertex
