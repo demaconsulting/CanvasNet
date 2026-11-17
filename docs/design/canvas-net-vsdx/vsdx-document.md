@@ -277,8 +277,8 @@ from the leaf up to the page, with no separate `chOff`/`chExt`-style remap step.
   spec-correct, not a regression — no code change was warranted; see
   `VsdxStyleResolutionTests.cs`'s `StyleResolution_LineColorTrans_FullyTransparent_HasNoVisibleStroke`/
   `StyleResolution_FillForegndTrans_FullyTransparent_HasNoVisibleFill` for the locking tests added.
-- **`ResolveTransform(VsdxShapeNode shape, Point2 local)`** (internal): Applies the shape-local-
-  to-parent affine transform — translate by `-LocPinX/-LocPinY`, apply `FlipX`/`FlipY` before
+- **`ResolveTransform(VsdxShapeNode shape, Point2 local)`** (internal): Applies the shape-local-to-parent
+  affine transform — translate by `-LocPinX/-LocPinY`, apply `FlipX`/`FlipY` before
   rotation, rotate by `Angle` (radians, counter-clockwise), translate by `PinX/PinY` — identical
   for a 2-D shape and a 1-D (connector) shape, since a 1-D shape's `PinX/PinY/Width/Height/Angle`
   are themselves pre-derived from its `BeginX/Y`/`EndX/Y` endpoints by Visio at save time.
