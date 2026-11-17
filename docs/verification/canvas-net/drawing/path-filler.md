@@ -480,8 +480,8 @@ through an internal clip-aware `Fill` overload call with a narrower `ClipMask` s
 the fill paints only where the clip mask itself has non-zero coverage - exercising the
 rectangle geometric clip and dense multiply described in *PathFiller Unit
 Design*'s `ClipMask` subsection. `PathFiller_Fill_SolidColorWithNullClip_BehavesLikePublicOverload`
-calls the same internal overload with an explicit `null` clip and asserts the result is pixel-for-
-pixel identical to calling the public, clip-less `Fill` overload - proving `clip: null` is a
+calls the same internal overload with an explicit `null` clip and asserts the result is pixel-for-pixel
+identical to calling the public, clip-less `Fill` overload - proving `clip: null` is a
 behavior-preserving default, not merely a compiling one.
 
 #### Floating-Point Tolerance

@@ -155,8 +155,8 @@ fixture.
 `TiffCodec_Load_PredictorWithDeflate_DecodesUsingIndependentEncoder`
 
 Asserts `Save` writes the `Predictor` tag (value 2) for Lzw/Deflate compression and that an
-independent test-only decoder reproduces the exact original raw pixel bytes; separately, hand-
-builds strips with predictor differencing applied via an independent test-only implementation and
+independent test-only decoder reproduces the exact original raw pixel bytes; separately, hand-builds
+strips with predictor differencing applied via an independent test-only implementation and
 asserts `Load` reverses it correctly.
 
 ##### CanvasNet-Codecs-TiffCodec-LoadFromPath / CanvasNet-Codecs-TiffCodec-SaveToPath: File Path Overloads Round-Trip

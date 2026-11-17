@@ -14,8 +14,8 @@ provide (compare `CanvasNetSvg`, whose single `SvgCodec` unit itself integrates 
 core `CanvasNet` system's subsystems — see *CanvasNetSvg System Verification*,
 `canvas-net-svg.md`). Several of `OpenXmlChartParser`'s own tests additionally feed its parsed
 `Chart` output directly into `ChartRenderer.Render`, providing the one cross-subsystem
-integration this release's two subsystems share, within that same unit-level test suite. System-
-level verification within `CanvasNetCharts` itself is therefore provided entirely by
+integration this release's two subsystems share, within that same unit-level test suite. System-level
+verification within `CanvasNetCharts` itself is therefore provided entirely by
 `ChartDocument`'s, `ChartRenderer`'s, and `OpenXmlChartParser`'s own comprehensive unit-level test
 suites — see
 *ChartDocument Unit Verification* (`canvas-net-charts/chart-model/chart-document.md`),
@@ -48,8 +48,8 @@ public API accepts and returns only in-memory values (`Chart`, `ChartSeries`, `C
 `CanvasNet` system's `Rgba32`/`Surface`). `OpenXmlChartParser` reads a caller-supplied in-memory
 XML element directly - it performs no file-system or network access of its own to obtain it, so
 no real untrusted-input channel is simulated; its tests instead construct the XML fragment
-in-process via `System.Xml.Linq` object construction (or, for one scenario, embed a real-fixture-
-derived excerpt as an inline fragment - see *OpenXmlChartParser Unit Verification*). `ChartRenderer`'s
+in-process via `System.Xml.Linq` object construction (or, for one scenario, embed a real-fixture-derived
+excerpt as an inline fragment - see *OpenXmlChartParser Unit Verification*). `ChartRenderer`'s
 tests verify pixel output by sampling specific `Surface` coordinates (and, where another
 always-present painted feature such as a gridline could contaminate an absolute region scan, by a
 differential pixel-count comparison between the same chart rendered with and without the feature

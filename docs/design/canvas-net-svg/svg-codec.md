@@ -529,8 +529,8 @@ name, then, when a family has more than one registered `SvgFontFace`, by closest
 `font-weight`/`font-style` match (see *Text* under *Gradient, Use, and Text Support and Limits*
 below); a family the caller did not register is resolved to an installed, generic, or bundled
 default font instead (see the same section). This is the richer of the two `fonts`-accepting
-overloads — the legacy single-font-per-
-family overload below delegates to this one.
+overloads — the legacy single-font-per-family
+overload below delegates to this one.
 
 **Throws:**
 
@@ -721,8 +721,8 @@ absent); (3) the CSS/UA default replaced-element
 intrinsic size of 300x150, if neither of the above is present. This mirrors how a web browser
 sizes an `<img src="...svg">` element with no size and no viewBox, and ensures `GetInfo` always returns
 a usable, positive size rather than failing on a document that omits explicit sizing information
-entirely. The resolved floating-point size is clamped to the valid `[1, int.MaxValue]` pixel-
-dimension range **before** it is cast to `int` — using a `double` intermediate for the clamp,
+entirely. The resolved floating-point size is clamped to the valid `[1, int.MaxValue]` pixel-dimension
+range **before** it is cast to `int` — using a `double` intermediate for the clamp,
 since `int.MaxValue` is not exactly representable as a `float` (it rounds up to `2147483648f`,
 undefined behavior to cast to `int`) but **is** exactly representable as a `double`. This bounds a
 `viewBox`/`width`/`height` value large enough to otherwise overflow `Int32` on cast to a
@@ -856,8 +856,8 @@ segment chain is computed with the same recurrence the matcher itself follows, l
 of everything still further left, since a failing match from any one of up to `MaxElementDepth`
 candidate ancestors must redo the entire remaining chain's own worst-case work. This makes the
 weight of a long run of chained descendant combinators grow exponentially in the number of such
-segments (genuinely bounding backtracking's own worst case, not merely the single-descendant-
-segment case an additive formula would already cover), so the weight computation saturates at a
+segments (genuinely bounding backtracking's own worst case, not merely the single-descendant-segment
+case an additive formula would already cover), so the weight computation saturates at a
 fixed `MaxSaturatedSelectorMatchWeight` ceiling using checked-overflow-free saturating
 arithmetic (`AddSaturating`/`MultiplySaturating`) rather than overflowing `long` - a document's
 own combinator-chain-length cap (`MaxCssCombinatorSegmentsPerSelector`) already makes an

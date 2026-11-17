@@ -14,9 +14,9 @@ are limited to `CanvasNet`'s `Canvas` subsystem (`Surface`, `Rgba32`), `Codecs` 
 of Phase 6, `SystemFontCatalog`) — see the Dependencies section of *CanvasNetPdf System Design*
 (`../canvas-net-pdf.md`). It provides
 hand-rolled parsing of a PDF document's structure (cross-references, trailer, page tree), a
-content-stream interpreter (`Render` tokenizes and executes a page's `/Contents` path-
-construction/painting and graphics-state operators), real device color, a generalized stream-
-filter pipeline, image XObjects (Phase 3), and, as of Phase 4, real embedded-TrueType-font text
+content-stream interpreter (`Render` tokenizes and executes a page's `/Contents` path-construction/painting
+and graphics-state operators), real device color, a generalized stream-filter
+pipeline, image XObjects (Phase 3), and, as of Phase 4, real embedded-TrueType-font text
 rendering: `g`/`G`/`rg`/`RG`/`k`/`K`/`cs`/`CS`/`sc`/`SC`/`scn`/`SCN` set the actual fill/stroke
 color a path paints with; a generalized `/Filter`/`/DecodeParms` pipeline (`FlateDecode` plus
 PNG/TIFF predictor reversal) decodes any stream, not only a page's own `/Contents`; `Do` decodes
@@ -38,8 +38,8 @@ Resolution* below, and `Fonts.SystemFontCatalog`'s own unit design,
 `/Subtype /Type0`/`/Encoding /Identity-H` font naming a single `/CIDFontType2` descendant font
 (with its own embedded `/FontDescriptor/FontFile2`) is also resolved and rendered end to end,
 decoding each shown string as 2-byte-per-code (CID) values rather than 1-byte-per-code; as of
-Phase 12 (this phase), a `/CIDFontType0` descendant font (with its own embedded, non-CID-keyed-
-CFF, `/OpenType`-wrapped `/FontDescriptor/FontFile3`) is resolved identically (see *Composite Font
+Phase 12 (this phase), a `/CIDFontType0` descendant font (with its own embedded, non-CID-keyed-CFF,
+`/OpenType`-wrapped `/FontDescriptor/FontFile3`) is resolved identically (see *Composite Font
 Resolution* below). As of Phase B, a `/Subtype /Type1` simple font with an embedded
 `/FontDescriptor/FontFile` (a classic PostScript Type 1 program) is also resolved and rendered,
 exactly like a `/FontFile2`-embedded `/TrueType` font; as of Phase C (this phase), a `/Subtype
@@ -413,8 +413,8 @@ truncation rule.
   being tested).
 - **`RecoverPaddedUserPasswordAlgorithm3(byte[] paddedOwnerPasswordBytes, byte[] oBytes, …)`** (ISO
   32000-1 Algorithm 3, decrypt direction, R2-R4 owner-password path only) — MD5-hashes the padded
-  owner-password guess, re-hashes 50 rounds for revision ≥ 3 via the shared helper, then RC4-
-  decrypts `/O`: a single pass for revision 2, or 20 rounds from round 19 down to round 0 (round 0
+  owner-password guess, re-hashes 50 rounds for revision ≥ 3 via the shared helper, then RC4-decrypts
+  `/O`: a single pass for revision 2, or 20 rounds from round 19 down to round 0 (round 0
   using the unmodified owner key, rounds 1-19 using the key XORed with the round number) for
   revision 3/4 — returning the recovered 32-byte padded user password, which `InitializeRc4OrAesV2Encryption`
   feeds directly (without re-padding) into `ComputeFileKeyAlgorithm2` to derive a candidate file
@@ -884,8 +884,8 @@ its own distinguishable `Feature` token.
   stream's own saved states. A `try`/`finally` around the nested call unconditionally restores the
   invoking stream's own `_resources`/`_gs`/`_gsStack` (success or exception), implementing an
   implicit `q` ... `Q` bracketing around the Form's own CTM/color/font-selection mutations, while
-  deliberately leaving `_pathBuilder`/`_currentPoint`/`_fontCache` (not part of the PDF graphics-
-  state stack) untouched, so path-painting/surface side effects performed by the Form's content
+  deliberately leaving `_pathBuilder`/`_currentPoint`/`_fontCache` (not part of the PDF graphics-state
+  stack) untouched, so path-painting/surface side effects performed by the Form's content
   persist exactly like any other painting operator's. No `/BBox` clipping and no `/Group`
   (transparency group) handling is performed — a documented Phase 13 limitation.
 - **Font resolution (`PdfDocument.Fonts.cs`, added in Phase 4, fallback branch rewritten in
@@ -899,8 +899,8 @@ its own distinguishable `Feature` token.
   Resolution* below); any other `/Subtype` (`/MMType1`) throws
   `Codecs.UnsupportedImageFeatureException` naming the rejected subtype. `IResolvedFont` exposes
   `Font` (the underlying `Fonts.TrueTypeFont`, nullable as of Phase D since a `ResolvedType3Font`
-  has no such outline-glyph font program at all - `ShowGlyph` branches on the concrete resolved-
-  font type before ever consulting this property, so the nullability is invisible to every other
+  has no such outline-glyph font program at all - `ShowGlyph` branches on the concrete resolved-font
+  type before ever consulting this property, so the nullability is invisible to every other
   resolved-font kind's own non-nullable explicit interface implementation), `CodeByteWidth` (`1`
   for a simple font, `2` for a composite `/Identity-H` font - consulted by `ShowText`'s code-decoding loop), and
   `Resolve(int code)` (returning the code's glyph index and text-space advance width in one call
@@ -1166,15 +1166,15 @@ its own distinguishable `Feature` token.
   (the same leniency `ResolveWidths` applies to a missing `/Widths` array), otherwise decodes the
   stream (via the same `GetStreamDecodedBytes` every other stream uses) and tokenizes it with a
   fresh `PdfTokenizer`, reusing `ParseValue`'s string/hex-string/array parsing primitives rather
-  than a second, purpose-built CMap tokenizer. `beginbfchar`/`endbfchar` pairs map a single hex-
-  string source code to a hex-string or literal-text (UTF-16BE) destination's codepoint.
+  than a second, purpose-built CMap tokenizer. `beginbfchar`/`endbfchar` pairs map a single hex-string
+  source code to a hex-string or literal-text (UTF-16BE) destination's codepoint.
   `beginbfrange`/`endbfrange` triples (`srcLo srcHi dst`) support two destination forms: a single
   hex/literal-string destination maps consecutive codes across `[srcLo, srcHi]` to consecutive
   incrementing codepoints starting at that destination's own codepoint, and an array destination
   maps each code individually to its own corresponding array element - a nested array element
   (the CIDSystemInfo-style "array of arrays" destination sub-form) is out of scope and throws
-  `Codecs.UnsupportedImageFeatureException` (feature `pdf-font-tounicode-bfrange-array-
-  destination`). A destination decoding to more than one UTF-16 code unit (e.g. a ligature) keeps
+  `Codecs.UnsupportedImageFeatureException` (feature `pdf-font-tounicode-bfrange-array-destination`).
+  A destination decoding to more than one UTF-16 code unit (e.g. a ligature) keeps
   only its first codepoint - a documented simplification, not a fidelity goal this phase.
   `begincodespacerange`/`endcodespacerange` and the CMap's own PostScript resource-management
   wrapper keywords (`begin`/`end`/`dict`/`def`/`findresource`/`defineresource`/`pop`/
@@ -1266,8 +1266,8 @@ its own distinguishable `Feature` token.
   other font.
 
 - **Text rendering (`PdfDocument.Text.cs`, added in Phase 4)** — `OpBeginText`/`OpEndText`
-  (`BT`/`ET`) reset only `_textMatrix`/`_lineMatrix` to the identity matrix (every other text-
-  state parameter lives on `GraphicsState` and is untouched, per this phase's documented `q`/`Q`-
+  (`BT`/`ET`) reset only `_textMatrix`/`_lineMatrix` to the identity matrix (every other text-state
+  parameter lives on `GraphicsState` and is untouched, per this phase's documented `q`/`Q`-
   interaction design — see `_textMatrix`/`_lineMatrix` above). `OpSetCharSpacing`/
   `OpSetWordSpacing`/`OpSetHorizontalScaling`/`OpSetLeading`/`OpSetTextRise` (`Tc`/`Tw`/`Tz`/`TL`/
   `Ts`) store their one operand verbatim; `OpSetFont` (`Tf`, a name then a number) resolves the
@@ -1280,16 +1280,16 @@ its own distinguishable `Feature` token.
   clip is pending, builds the accumulated path, converts it via `ClipMask.FromPathOrNull` (non-zero
   winding) and combines it into `_gs.Clip` via `ClipMask.Combine`; the clip is therefore not
   applied until `ET`, and is
-  restored by `Q`. Space-only clip text yields an empty region that clips everything (spec-
-  conformant). `OpBeginText`, `ExecuteContentStream`, and the Form XObject/Type 3/tiling re-entrant
+  restored by `Q`. Space-only clip text yields an empty region that clips everything (spec-conformant).
+  `OpBeginText`, `ExecuteContentStream`, and the Form XObject/Type 3/tiling re-entrant
   executors reset or save/restore the accumulator so nested content cannot clobber it. A Type 3
   glyph shown under a clip mode throws `Codecs.UnsupportedImageFeatureException` (feature
   `pdf-text-render-mode-type3-clip`) from `ShowGlyph` since it has no outline; any other numeric
   value throws `InvalidDataException`. Modes `4`/`6` use the same flat fill color as modes `0`/`2`
   (the pre-existing no-Pattern-fill simplification). `OpTextMoveTo`/
   `OpTextMoveToSetLeading`/`OpTextNextLine` (`Td`/`TD`/`T*`) and `OpSetTextMatrix` (`Tm`)
-  manipulate `_textMatrix`/`_lineMatrix` per the specification's own line-matrix-relative-
-  displacement (`Td`/`TD`, `TD` additionally setting `Leading = -ty`) versus direct-replacement
+  manipulate `_textMatrix`/`_lineMatrix` per the specification's own line-matrix-relative-displacement
+  (`Td`/`TD`, `TD` additionally setting `Leading = -ty`) versus direct-replacement
   (`Tm`) semantics; `T*` is exactly `0 -TL Td`. `OpShowText`/`OpShowTextNextLine`/
   `OpShowTextNextLineWithSpacing`/`OpShowTextArray` (`Tj`/`'`/`"`/`TJ`) each ultimately call
   `ShowText`, which throws `InvalidDataException` if no font is currently selected (`Tf` was
@@ -1472,8 +1472,8 @@ its own distinguishable `Feature` token.
   resolves the named shading (`Codecs.UnsupportedImageFeatureException`, feature
   `pdf-shading-not-declared`, when undeclared — mirroring `ResolvePattern`'s own
   `pdf-pattern-not-declared` precedent exactly), calls `ResolveShadingDescriptor` (propagating the
-  exact same `pdf-shading-type-{n}`/`pdf-shading-colorspace-{family}` exceptions the shading-
-  pattern path already throws, since it is the same method), and builds a transient
+  exact same `pdf-shading-type-{n}`/`pdf-shading-colorspace-{family}` exceptions the shading-pattern
+  path already throws, since it is the same method), and builds a transient
   `ResolvedPattern` with `Matrix = Matrix3x2.Identity` — unlike a shading *pattern*'s own
   `/Matrix` (anchored against the page's initial CTM via `PatternToDeviceTransform`), `sh` has no
   pattern wrapper of its own, so `BuildShadingGradient` is instead composed directly against
@@ -1624,8 +1624,8 @@ risks without rejecting any legitimate, real-world PDF document:
   rather than silently treating the truncated remainder of the file as the string's own content.
 
 Each of these limits is an approximate, deliberately generous bound chosen to comfortably exceed
-any legitimate, real-world PDF document's own requirements while still closing the unbounded-
-resource attack surface a malicious or malformed document could otherwise exploit; none of them
+any legitimate, real-world PDF document's own requirements while still closing the unbounded-resource
+attack surface a malicious or malformed document could otherwise exploit; none of them
 change behavior for any document within normal real-world limits.
 
 ### Error Handling
@@ -1791,8 +1791,8 @@ change behavior for any document within normal real-world limits.
   (feature `pdf-font-tounicode-bfrange-array-destination`); a `usecmap`/`cidrange`/`cidchar`
   operator appearing in a `/ToUnicode` CMap stream is likewise
   `Codecs.UnsupportedImageFeatureException` (feature `pdf-font-tounicode-{operator}`). By
-  contrast, `begincodespacerange`/`endcodespacerange` and the CMap's own PostScript resource-
-  management wrapper keywords (`begin`/`end`/`dict`/`def`/`findresource`/`defineresource`/`pop`/
+  contrast, `begincodespacerange`/`endcodespacerange` and the CMap's own PostScript resource-management
+  wrapper keywords (`begin`/`end`/`dict`/`def`/`findresource`/`defineresource`/`pop`/
   `currentdict`/`begincmap`/`endcmap`) are silently ignored, not rejected - they carry no
   bfchar/bfrange mapping semantics of their own. An absent `/ToUnicode` entry resolves to a null
   map, matching `ResolveWidths`'s own "missing optional field" leniency.

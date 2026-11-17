@@ -17,8 +17,8 @@ detailed approach and named test scenarios.
 CanvasNet's OTS items fall into two categories: build-time/quality-pipeline tools and the
 runtime library dependencies shipped in the compiled NuGet packages (`System.Numerics.Tensors` with the core
 package and `DemaConsulting.TestResults` with the tool package);
-verification approach differs slightly for the runtime dependencies since they have no CLI to self-
-validate (see their individual verification documents for detail).
+verification approach differs slightly for the runtime dependencies since they have no CLI to self-validate
+(see their individual verification documents for detail).
 
 ### Build-Time and Quality-Pipeline Tools
 

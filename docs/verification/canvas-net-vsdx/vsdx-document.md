@@ -35,8 +35,8 @@ Tests access a number of `internal` resolver members (`ResolveMasterShape`, geom
 resolution helpers, `VsdxColorPalette.Resolve`, `ResolveTextLayout`, `PaintTextLayout`) through the
 `InternalsVisibleTo` grant to the `DemaConsulting.CanvasNet.Vsdx.Tests` project (see the
 `VsdxDocument` project file), exercising a specific resolution phase directly from a real,
-package-resolved input rather than only through the fully-composed public API - while the public-
-API-only system tier (see *System Verification Design*, `canvas-net-vsdx.md`) separately proves the
+package-resolved input rather than only through the fully-composed public API - while the public-API-only
+system tier (see *System Verification Design*, `canvas-net-vsdx.md`) separately proves the
 whole pipeline composes correctly end-to-end. Because `VsdxDocument`'s dependencies
 (`System.IO.Compression.ZipArchive`, `System.Xml.Linq`, and the core `CanvasNet.Canvas`/`Geometry`/
 `Drawing`/`Fonts` subsystems) are BCL types or already-tested sibling-package types, no mocking or
@@ -186,8 +186,8 @@ scaled by the shape's own resolved `Width`/`Height` before being added to the pa
 
 Proves an arbitrary unrecognized geometry row type is skipped without throwing. **Milestone 8
 correction note**: an earlier revision of this requirement and of `canvas-net-vsdx.md`/
-`canvas-net-vsdx/vsdx-document.md` claimed `EllipticalArcTo`/`NURBSTo` were converted to Bezier-
-curve path segments; direct inspection of `VsdxDocument.Geometry.cs` confirmed this was never
+`canvas-net-vsdx/vsdx-document.md` claimed `EllipticalArcTo`/`NURBSTo` were converted to Bezier-curve
+path segments; direct inspection of `VsdxDocument.Geometry.cs` confirmed this was never
 implemented. The design docs and this requirement's own text have been corrected to match the
 actual, tolerant-skip behavior; this is a documentation-only correction (no production code
 change), discovered while writing this requirement's own test coverage, analogous to the
@@ -396,8 +396,8 @@ either previously-locked scenario. The fix was confirmed against the real-world 
 external smoke-test harness: `Test_Visio-Some_Random_Text.vsdx`'s "View" table shape no longer
 over-wraps "Test View"/"I am a test view" (its own resized, `Inh`-marked `Width` now correctly
 wins over its Master's stale, narrower template default), and `test.vsdx`'s header bar now sits
-flush at the top of its container (previously vertically mispositioned by the same stale-Master-
-wins defect). `44501e.vsdx`'s "-has" connector label also now resolves to its own external,
+flush at the top of its container (previously vertically mispositioned by the same stale-Master-wins
+defect). `44501e.vsdx`'s "-has" connector label also now resolves to its own external,
 correctly-offset position rather than glued inside a sibling box's title compartment.
 `60973.vsdx`'s rack-frame border/"15 U" label was also re-examined post-fix and still does not
 visually render - direct fixture tracing confirmed this is **not** a regression or an incomplete
@@ -412,8 +412,8 @@ this remaining, unrelated non-render.
 **Milestone 11 quality-retry (retry 1) note**: this cycle generalized the transform-cell overlay's
 own helper (renamed `PreferInstanceCells(merged, instanceCells, names)`, taking any cell-name
 array rather than a fixed list) and extended it to a new `ArrowCellNames` array
-(`BeginArrow`/`EndArrow`/`BeginArrowSize`/`EndArrowSize`), applied through the same existing 1-D-
-only gate. `ArrowheadResolution_InstanceInhMarkedArrowCell_PreferredOverMasterValue` proves a 1-D
+(`BeginArrow`/`EndArrow`/`BeginArrowSize`/`EndArrowSize`), applied through the same existing 1-D-only
+gate. `ArrowheadResolution_InstanceInhMarkedArrowCell_PreferredOverMasterValue` proves a 1-D
 connector instance's own `F="Inh"`-marked `EndArrow`/`EndArrowSize` cells still win over the
 Master's own distinct literal values, and `ArrowheadResolution_
 2DShapeInhMarkedArrowCell_DefersToMasterValue` proves a 2-D shape's own `F="Inh"`-marked
@@ -475,8 +475,8 @@ rather than the Master's own intended value.
 GeometryRowAllCellsInhButInstanceSizeDiffers_InstanceCoordinatesWin` proves the deeper regression
 this quality-retry cycle fixed: an instance row whose own cells are all cached as `F="Inh"` (the
 typical case for a formula-derived geometry coordinate, which is never authored as a literal) must
-still have its own, per-instance-correct coordinates win over the Master row's own, differently-
-scaled cached value - the pre-fix cell-by-cell merge above correctly handled a *literal* instance
+still have its own, per-instance-correct coordinates win over the Master row's own, differently-scaled
+cached value - the pre-fix cell-by-cell merge above correctly handled a *literal* instance
 override (proven by the pre-existing partial-override test) but incorrectly treated an
 `Inh`-marked instance cell identically to a genuinely absent one, silently discarding it.
 Confirmed necessary against a real-world regression in `60489.vsdx`'s Shape `ID='114'` (an ellipse
@@ -487,8 +487,8 @@ of the same Master) into a single, wrongly-proportioned blob instead of two inde
 ellipses - confirmed fixed via a before/after visual comparison of the external smoke-test
 harness's rendered `60489.vsdx` page 0 against the Visio-reference PNG (the two ellipses render
 distinct and correctly sized after the fix). The identical root cause was independently confirmed,
-during this cycle's investigation of a related quality finding, to also explain a previously-
-unexplained floating, mispositioned, wrong-colored triangle artifact in `44501e.vsdx` (Shape
+during this cycle's investigation of a related quality finding, to also explain a previously-unexplained
+floating, mispositioned, wrong-colored triangle artifact in `44501e.vsdx` (Shape
 `ID='64'`, `NameU='Directions'`, a vestigial "Data Graphic callout icon" helper shape deliberately
 collapsed to `Width="0"`/`Height="0"` on its own instance, whose own all-`Inh` geometry-row cells
 fell through, pre-fix, to the Master's own non-zero template triangle geometry and its own
@@ -596,8 +596,8 @@ Proves a literal `"Themed"` cell value falls back to a documented neutral defaul
 reference - necessarily a hand-built synthetic package, since no real staged fixture's own
 `THEMEVAL(...)` argument happens to use a canonical DrawingML slot name (see
 `VsdxThemeResolutionTests`'s own remarks). **Milestone 11 confirmation note**: the external
-smoke-test harness confirmed a second, independent real-world instance of the documented neutral-
-fallback limitation (`canvas-net-vsdx.md`'s Design Constraints section): `60973.vsdx`'s
+smoke-test harness confirmed a second, independent real-world instance of the documented neutral-fallback
+limitation (`canvas-net-vsdx.md`'s Design Constraints section): `60973.vsdx`'s
 `Nwwww`/`Neeeee` rack-slot bars resolve a bare `THEMEVAL()` formula through this same
 unresolvable-scheme path, rendering gray rather than Visio's own orange/blue fill. No code change
 was made at the time; recorded purely as confirmed evidence this documented gap is real and already correctly
@@ -657,8 +657,8 @@ attach their own row index to the resulting run, and proves multiple `<cp>` mark
 new run that persists until the next marker or the end of the text, matching the format
 reference's own §8.1 interleaving rule. **Milestone 11** adds `<fld>` (Field reference) element
 coverage: proves a `<Text>` element consisting solely of a bare `<fld IX='0'>42 U</fld>` (mirroring
-`60973.vsdx`'s `master32.xml` Shape ID='9' verbatim) parses the field's own nested, save-time-
-cached text content as a single literal run rather than the text being silently dropped entirely
+`60973.vsdx`'s `master32.xml` Shape ID='9' verbatim) parses the field's own nested, save-time-cached
+text content as a single literal run rather than the text being silently dropped entirely
 (the pre-fix behavior, confirmed against the real fixture before this change), and proves a
 `<fld>` element interleaved between plain text segments merges into the surrounding run exactly
 like a plain `XText` node would, introducing no spurious run boundary merely because the content
@@ -723,14 +723,14 @@ established for `FillPattern`. **Milestone 11** adds coverage for two confirmed-
 found via a full-document scan of the `poi-fixtures` corpus: index `4` resolves to the existing
 solid-filled arrow style (the same geometry as index `5`/`6`'s own family, not previously
 exercised by a dedicated test), and index `254` - confirmed, via the external smoke-test harness
-against `44501e.vsdx`'s connector arrowheads, to have been silently degrading to the unrecognized-
-index plain-line-end fallback before this fix - resolves to a new hollow/unfilled-triangle
+against `44501e.vsdx`'s connector arrowheads, to have been silently degrading to the unrecognized-index
+plain-line-end fallback before this fix - resolves to a new hollow/unfilled-triangle
 `VsdxArrowheadStyle`, matching the Visio-reference PNG's own unfilled triangular arrowhead
 outline. **Accepted limitation (not a regression)**: the arrowhead's own painted size remains
 proportional to the connector's resolved stroke width, a pre-existing, unchanged sizing design
 this milestone did not revisit; at `44501e.vsdx`'s own thin stroke width the painted arrowhead is
-visibly smaller than the Visio-reference PNG's own arrowhead, though now the correct hollow-
-triangle shape rather than absent.
+visibly smaller than the Visio-reference PNG's own arrowhead, though now the correct hollow-triangle
+shape rather than absent.
 
 **Milestone 11 quality-retry (retry 1) investigation note**: a subsequent quality finding reported
 `44501e.vsdx` page 1 rendering an unexpected floating triangle and several flat "dash" marks in
@@ -972,8 +972,8 @@ mapping to a single dedicated requirement each:
 - `VsdxRenderFixtureTests.cs` - renders one representative real-world fixture per shape-family
   category (plain shapes, text, connectors, nested groups) and asserts real, expected content is
   painted.
-- `VsdxGroupResolutionTests.cs` - proves arbitrary-depth nested-group resolution and Master-group-
-  child ID correlation against real fixtures, beyond the single worked example cited under
+- `VsdxGroupResolutionTests.cs` - proves arbitrary-depth nested-group resolution and Master-group-child
+  ID correlation against real fixtures, beyond the single worked example cited under
   `GroupChildTransformComposition` above.
 - `VsdxTextLayoutTests.cs`/`VsdxTextRenderTests.cs` - unit-level word-wrap/line-breaking/alignment
   and glyph-painting coverage using a deterministic synthetic `TrueTypeFont` (via the shared

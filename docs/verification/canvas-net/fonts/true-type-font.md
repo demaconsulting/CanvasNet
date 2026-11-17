@@ -10,8 +10,8 @@ supporting internal helpers `SfntContainer`, `CmapTable`, `GlyfLocaReader`, `IGl
 
 The `TrueTypeFont` unit is verified through focused unit tests that exercise each helper directly
 via `InternalsVisibleTo`, plus end-to-end `TrueTypeFont` tests that load a complete synthetic
-font and drive the public API. Every fixture font used by this synthetic-fixture coverage - glyf-
-flavored, CFF/OTTO-flavored, and `ttcf`-collection - is assembled in memory by the shared
+font and drive the public API. Every fixture font used by this synthetic-fixture coverage - glyf-flavored,
+CFF/OTTO-flavored, and `ttcf`-collection - is assembled in memory by the shared
 `SyntheticFontBuilder` helper under `test/DemaConsulting.CanvasNet.Tests/TestSupport/`; no
 third-party font files are used for this portion of the suite, so it avoids fixture licensing
 concerns while still covering both well-formed and deliberately malformed SFNT/CFF structures.

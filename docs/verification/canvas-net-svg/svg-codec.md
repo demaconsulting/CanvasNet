@@ -283,7 +283,7 @@ horizontal, vertical, and 45-degree diagonal segment's own direction of travel (
 threshold rather than exact full opacity, tolerating this rasterizer's edge anti-aliasing on a thin, diagonally rotated
 shape); asserts an omitted `orient` attribute uses the fixed 0-degree default rather than following the vertex tangent
 like an explicit `orient="auto"` (a regression test for a defect where an absent/blank `orient` was incorrectly routed
-into the same tangent- following branch as an explicit `auto`); asserts a plain `orient="auto"` `marker-start` points
+into the same tangent-following branch as an explicit `auto`); asserts a plain `orient="auto"` `marker-start` points
 into the line's own body while `orient="auto-start-reverse"` reverses it by 180 degrees to point away from the line
 instead; asserts `markerUnits="userSpaceOnUse"` keeps a marker's size independent of the referencing shape's effective
 stroke width while the default `markerUnits="strokeWidth"` scales it proportionally; asserts a marker's own `viewBox` is
@@ -322,8 +322,8 @@ codec's documented "filters on marker content have no effect" scope decision.
 
 `SvgCodec_Load_MarkerWithViewBox_FitsContentToMarkerWidthHeight` proves a marker with a `viewBox` but no
 explicit `preserveAspectRatio` keeps the unchanged default fit.
-`SvgCodec_Load_MarkerWithExplicitPreserveAspectRatioSlice_UsesLargerUniformScale` is a new-
-capability test proving an explicit `preserveAspectRatio="... slice"` attribute on a marker with
+`SvgCodec_Load_MarkerWithExplicitPreserveAspectRatioSlice_UsesLargerUniformScale` is a new-capability
+test proving an explicit `preserveAspectRatio="... slice"` attribute on a marker with
 its own `viewBox` selects `slice`'s larger uniform scale (`max(...)`) rather than the pre-existing
 default path's `meet`-equivalent (`min(...)`) scale, exercised via a canvas point covered only by
 the wider `slice` fit. It deliberately does not exercise `<align>`/origin variation: because a
@@ -419,8 +419,8 @@ multiple elements) and `TotalGeometryWorkBudget` (this attribute family is not c
 it, so an oversized `stroke-dasharray`/`transform`/`viewBox` would otherwise bypass every existing
 budget entirely).
 `SvgCodec_Load_StrokeDasharrayExceedingNumberListLengthCap_ThrowsWithoutLargeAllocation` proves,
-via `GC.GetAllocatedBytesForCurrentThread()` (matching the `TotalGeometryWorkBudget` allocation-
-bound precedent above), that an oversized `stroke-dasharray` is rejected before the cap's
+via `GC.GetAllocatedBytesForCurrentThread()` (matching the `TotalGeometryWorkBudget` allocation-bound
+precedent above), that an oversized `stroke-dasharray` is rejected before the cap's
 incremental per-number charge lets the backing list grow far beyond the cap, not only after the
 whole (otherwise unbounded) list has already been materialized.
 `SvgCodec_Load_TransformArgumentListExceedingLengthCap_ThrowsInvalidDataException` and
@@ -830,8 +830,8 @@ length per the SVG specification
 a `line`'s `x1`/`y1`/`x2`/`y2` percentages resolve against the viewport
 (`SvgCodec_Load_LineCoordinatePercentage_ResolvesAgainstViewport`), and separately, that a
 `linearGradient`'s own `x1`/`x2` coordinates continue to resolve as basis-1 fractions of the
-gradient's own `objectBoundingBox` coordinate space, unaffected by this phase's new viewport-
-relative percentage resolution
+gradient's own `objectBoundingBox` coordinate space, unaffected by this phase's new viewport-relative
+percentage resolution
 (`SvgCodec_Load_GradientCoordinatePercentage_UnaffectedByViewportPercentageResolution` - uses a
 `rect` fill rather than a `line` stroke, since a horizontal/vertical `line`'s own fill-geometry
 bounding box is degenerate on one axis and always falls back to an identity object-bounding-box
@@ -839,8 +839,8 @@ map regardless of this change). Asserts `stroke-width`'s and each `stroke-dashar
 percentage resolves against the diagonal basis, exactly like `r` above
 (`SvgCodec_Load_StrokeWidthPercentage_ResolvesAgainstDiagonalBasis`,
 `SvgCodec_Load_StrokeDasharrayPercentage_ResolvesAgainstDiagonalBasis`). Asserts `font-size`'s
-percentage resolves against the parent element's own already-cascaded `font-size` (the CSS/SVG-
-defined basis), not any viewport dimension
+percentage resolves against the parent element's own already-cascaded `font-size` (the CSS/SVG-defined
+basis), not any viewport dimension
 (`SvgCodec_Load_FontSizePercentage_ResolvesAgainstParentFontSize`). Percentage resolution happens
 inside the existing `ParseGeometryCoordinate`/`ParseCoordinate` choke point, so the existing
 finite/magnitude guards those methods already apply still run *after* percentage resolution
@@ -1841,8 +1841,8 @@ with tiled content, independent of the shape's own fill; asserts a shape with in
 `fill="url(#a)"` and `stroke="url(#b)"` references renders each pattern into its own respective
 region without either interfering with the other; asserts `fill="url(#nonexistent)"` referencing
 a dangling id renders the shape unfilled (fully transparent, matching this codec's general
-dangling-reference convention, and byte-identical to this codec's pre-existing dangling-gradient-
-reference behavior); asserts a `fill` reference that resolves to a well-formed element which is
+dangling-reference convention, and byte-identical to this codec's pre-existing dangling-gradient-reference
+behavior); asserts a `fill` reference that resolves to a well-formed element which is
 not literally a `pattern` (a plain `rect`) is tolerated as a no-op, rendering unfilled, mirroring
 this codec's existing `clipPath`/`mask`/`filter`/marker wrong-element-type tolerance; asserts a
 `pattern` with a zero `width` or `height` renders the referencing shape unfilled without throwing,
@@ -2280,8 +2280,8 @@ deliberately do not use the `CanvasNetSvg-SvgCodec-{Id}:` heading pattern above.
 `SvgCodec_Load_CssStylesheetRuleSetsStopColorAndOpacity_AppliesToStopWithNoAttributes`
 
 `ApplyPresentationAttributes` was, before this fix, the *only* place this codec routed a
-presentation property through the three-tier `ResolveStyledValue` precedence chain (see *Three-
-Tier Precedence* in the design doc); six properties resolved elsewhere in the codebase - `filter`,
+presentation property through the three-tier `ResolveStyledValue` precedence chain (see *Three-Tier
+Precedence* in the design doc); six properties resolved elsewhere in the codebase - `filter`,
 `clip-path`, and `mask` (each resolved once, directly from a plain `XElement.Attribute(...)` read,
 at the point a shape/`text`/`g`/`symbol`/`use` element's own filter/clip/mask reference is
 resolved), a `clipPath` child's own `clip-rule` (read the same direct way inside the `clipPath`
@@ -2410,8 +2410,8 @@ renders, just without its dash pattern, matching `ParseDashArray`'s own existing
 **Tests**: `SvgCodec_Load_PathArcCommandRadiusOverflowsToNonFinite_SkipsPathWithoutThrowing`,
 `SvgCodec_Load_RectRoundedCornerArcConversionOverflowsToNonFinite_SkipsShapeWithoutThrowing`
 
-Regression tests for the unguarded `SvgArcConverter` output finding: an extreme-but-individually-
-finite arc radius drives `Geometry.SvgArcConverter.ToBeziers`'s internal ellipse-center arithmetic
+Regression tests for the unguarded `SvgArcConverter` output finding: an extreme-but-individually-finite
+arc radius drives `Geometry.SvgArcConverter.ToBeziers`'s internal ellipse-center arithmetic
 (which squares the radii) to overflow one of its emitted control points or endpoints to a
 non-finite value, even though every raw literal token is itself finite. Both tests were originally
 written to exercise this directly - one via an explicit `A` path-data command, proving
@@ -2489,8 +2489,8 @@ convention already used for a non-finite value at each site.
 `SvgCodec_Load_PathDataCoordinateExceedingMaxMagnitude_ThrowsInvalidDataException` and
 `SvgCodec_Load_PointsListCoordinateExceedingMaxMagnitude_ThrowsInvalidDataException` prove a
 coordinate just over the new bound is rejected from each of `TryReadNumber`'s two call sites, and
-`SvgCodec_Load_CoordinateWithinMaxMagnitude_RendersSuccessfully` proves an ordinary, real-world-
-sized coordinate well under the bound is unaffected and still renders correctly.
+`SvgCodec_Load_CoordinateWithinMaxMagnitude_RendersSuccessfully` proves an ordinary, real-world-sized
+coordinate well under the bound is unaffected and still renders correctly.
 
 **Ripple effect on prior rounds' overflow-tolerant-skip tests**: this new, low-magnitude parse-time
 bound necessarily intercepts several inputs that six earlier regression tests (from this round and
