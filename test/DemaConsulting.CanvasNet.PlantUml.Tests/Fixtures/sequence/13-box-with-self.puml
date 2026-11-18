@@ -1,0 +1,10 @@
+@startuml
+box Cx
+participant A
+end box
+participant B
+A -> B : m
+activate A
+A -> A : s
+== ==
+@enduml

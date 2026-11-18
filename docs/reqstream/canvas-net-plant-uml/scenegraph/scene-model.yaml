@@ -31,3 +31,14 @@ sections:
                   A layout sizes its picture from the bounds of what it draws.
                 tests:
                   - PlantUmlSceneModel_BoundsOf_CombinesPathsAndText
+
+              - id: CanvasNetPlantUml-Scenegraph-SceneModel-PageTexts
+                title: >-
+                  The SceneModel unit shall place the page texts of a diagram around its body as PlantUML does: the
+                  header and the title above it, the legend, the caption, and the footer below it, with their
+                  alignments, the body centered in the widest of them, and a body without page texts unchanged.
+                justification: |
+                  Every diagram type has the same page texts, so they are placed once for all of them.
+                tests:
+                  - PlantUmlSceneModel_ScenePage_PlacesPageTexts
+                  - PlantUmlSceneModel_ScenePage_NoTextsAndTranslate

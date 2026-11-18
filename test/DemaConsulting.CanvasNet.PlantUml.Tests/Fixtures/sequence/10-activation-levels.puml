@@ -1,0 +1,13 @@
+@startuml
+participant A
+participant B
+participant C
+A -> B ++ : go
+B -> C ++ : go
+C --> B -- : ok
+B -> B ++ : self
+B --> A -- : ok
+activate A
+A -> B : x
+deactivate A
+@enduml

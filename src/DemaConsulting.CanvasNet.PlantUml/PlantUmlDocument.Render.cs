@@ -280,8 +280,9 @@ public sealed partial class PlantUmlDocument
     /// <exception cref="PlantUmlRenderException">Thrown, located, when a limit is exceeded or the layout fails.</exception>
     private Scene BuildScene(DiagramRenderContext context)
     {
-        // The reports of reading come first, in text order (strict mode throws at the first unsupported one)
-        foreach (var report in Source.Reports)
+        // The reports of reading come first: the preprocessor's, then the parser's, each in text order (strict mode
+        // throws at the first unsupported one)
+        foreach (var report in Source.Reports.Concat(Diagram?.Reports ?? []))
         {
             report.Replay(context.Sink);
         }

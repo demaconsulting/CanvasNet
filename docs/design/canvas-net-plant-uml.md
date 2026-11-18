@@ -32,13 +32,18 @@ The system is decomposed into one direct unit and internal subsystems:
   tag or from the statements, in the order PlantUML tries them); see *Syntax Subsystem Design*.
 - **Styling** (subsystem) - the `SkinTheme` unit (PlantUML's default look) and the `SkinParams` unit (the `skinparam`
   statements and PlantUML's colors); see *Styling Subsystem Design*.
-- **Scenegraph** (subsystem) - the `SceneModel` unit (the scene a layout produces), the `TextLayout` unit (text measured
-  as PlantUML measures it, with the bundled fonts and the creole subset), and the `ScenePainter` unit (the pixels); see
-  *Scenegraph Subsystem Design*.
+- **Scenegraph** (subsystem) - the `SceneModel` unit (the scene a layout produces and the page texts around it), the
+  `TextLayout` unit (text measured as PlantUML measures it, with the bundled fonts and the creole subset), and the
+  `ScenePainter` unit (the pixels); see *Scenegraph Subsystem Design*.
+- **Sequence** (subsystem) - the `SequenceParser` unit (the sequence statements), the `SequenceModel` unit (the parsed
+  diagram), the `SequenceLayout` unit (the columns and rows of PlantUML's sequence engine), and the `SequenceRenderer`
+  unit (PlantUML's shapes); see *Sequence Subsystem Design*.
 
 The SysML2 model names the system `CanvasNetPlantUmlSystem` and prefixes the names of its subsystems and units with
 `PlantUml` (`PlantUmlSyntax`, `PlantUmlPreprocessor`, `PlantUmlDiagramDetector`, `PlantUmlStyling`, `PlantUmlSkinTheme`,
-`PlantUmlSkinParams`, `PlantUmlScenegraph`, `PlantUmlSceneModel`, `PlantUmlTextLayout`, `PlantUmlScenePainter`), because
+`PlantUmlSkinParams`, `PlantUmlScenegraph`, `PlantUmlSceneModel`, `PlantUmlTextLayout`, `PlantUmlScenePainter`,
+`PlantUmlSequence`, `PlantUmlSequenceParser`, `PlantUmlSequenceModel`, `PlantUmlSequenceLayout`,
+`PlantUmlSequenceRenderer`), because
 the `CanvasNet` package of the model already holds the units of the Mermaid system with the same short names. The test
 methods of the units use the same prefix (`PlantUmlPreprocessor_...`), so that the requirements trace never mixes the
 evidence of two systems.
@@ -105,10 +110,11 @@ PlantUML text is untrusted input. The design segregates the risk as follows:
 
 The text is read (strict UTF-8 for streams and files), framed and preprocessed into statements that keep the original
 location of every character, and classified into a diagram type. A supported type is parsed into its diagram model by
-the parser registered in `DiagramRegistry`; the reports found while reading (ignored directives, a second diagram) are
-kept by the document as pending reports, in text order, so that every later call can deliver them. A measure or render
-call creates a report sink and a text layout, replays the pending reports, lays the diagram out into a scene (a type
-that is not drawn reports `plantuml-diagram-unsupported` and gets an empty, transparent scene of 20 by 20, twice
+the parser registered in `DiagramRegistry` (a sequence diagram by the Sequence subsystem); the reports found while
+reading (ignored directives, a second diagram, statements and skin parameters that are not drawn) are kept by the
+document and the diagram model as pending reports, in text order, so that every later call can deliver them. A measure
+or render call creates a report sink and a text layout, replays the pending reports, lays the diagram out into a scene
+(a type that is not drawn reports `plantuml-diagram-unsupported` and gets an empty, transparent scene of 20 by 20, twice
 PlantUML's document margin), and paints the scene over the background of the call or of the diagram (white by default).
 The reports are delivered once, on the calling thread, after the work.
 
@@ -130,7 +136,8 @@ of Arial, Java's `SansSerif` on Windows), as PlantUML measures it with Java's lo
 
 CanvasNetPlantUml is derived with attribution, not clean-room. Its framing of a text, the meaning of the supported
 preprocessor directives, the order in which the diagram types are tried, the values of its default look
-(`plantuml.skin`), and the way it measures text follow the MIT-licensed distribution of
+(`plantuml.skin`), the way it measures text, and the geometry of the sequence engine ("teoz": the column constraints,
+row heights, and shapes) follow the MIT-licensed distribution of
 PlantUML (`plantuml-mit`, whose files carry the MIT header "(C) Copyright 2009-2024, Arnaud Roques"). Only the
 MIT-licensed distribution was read; no source text, comment, test, example, or image of PlantUML is copied: the
 ported items are values and rules, reimplemented in C#. The license text and the provenance table (which upstream
@@ -167,6 +174,17 @@ of this repository, so the two diagram languages are bounded alike.
 - **Detection** - statements are recognized by their leading keywords and arrows, so a text that PlantUML reads as a
   diagram of a type that is not drawn can, in rare ambiguous cases, be named differently; the type of such a diagram
   never changes whether it is drawn.
+- **Sequence engine** - PlantUML 1.2026.10 lays every sequence diagram out with its "teoz" engine (the older "puma"
+  engine is gone), so CanvasNet follows teoz and `!pragma teoz` is only reported as ignored. The size, texts,
+  participants, life lines, and message lines of the reference fixtures agree with PlantUML's SVG within 1.5 pixels;
+  PlantUML's PNG export is one pixel narrower and lower than its SVG, and CanvasNet's natural size is the SVG's.
+- **Sequence statements** - `ref over`, `newpage`, `create` and the `**` shorthand (the participant is drawn at the
+  top), `mainframe`, `autoactivate`, messages to or from the border (`[->`, `->]`, `?->`), parallel messages (`&`),
+  stereotypes and links of participants, `hide` and `show` other than the foot box, `scale` forms other than a number
+  or a fraction, and `autonumber` options other than a start, a step, and a format are reported as
+  `plantuml-statement-unsupported` and not drawn. The header color glued to a group keyword (`alt#Gold`), the line
+  style of a color (`#red;line:blue`), and the colors of activation outlines are not drawn; nested boxes are refused.
+  The arrow thickness skin parameter widens the lines but not the heads.
 
 ## Phase Plan
 

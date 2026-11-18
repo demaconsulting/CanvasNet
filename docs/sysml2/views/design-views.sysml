@@ -206,6 +206,10 @@ package CanvasNet {
         expose PlantUmlScenegraph::**;
     }
 
+    view PlantUmlSequenceView : InterconnectionView {
+        expose PlantUmlSequence::**;
+    }
+
     view CanvasNetToolView : InterconnectionView {
         expose CanvasNetToolSystem::**;
     }

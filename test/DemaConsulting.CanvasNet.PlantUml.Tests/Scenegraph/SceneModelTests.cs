@@ -1,4 +1,5 @@
 using DemaConsulting.CanvasNet.PlantUml.Scenegraph;
+using DemaConsulting.CanvasNet.PlantUml.Styling;
 
 namespace DemaConsulting.CanvasNet.PlantUml.Tests.Scenegraph;
 
@@ -72,5 +73,67 @@ public class SceneModelTests
         // Assert
         Assert.Equal((12f, 24f, 6f, 8f), (bounds.X, bounds.Y, bounds.Width, bounds.Height));
         Assert.Equal((0f, 0f, 4f, 4f), (implicitStart.X, implicitStart.Y, implicitStart.Width, implicitStart.Height));
+    }
+
+    /// <summary>
+    ///     Validates the page texts: the header right aligned at the top, the title centered below it, the body moved
+    ///     below them and centered, and the legend, caption and footer below the body, as PlantUML places them.
+    /// </summary>
+    [Fact]
+    public void PlantUmlSceneModel_ScenePage_PlacesPageTexts()
+    {
+        // Arrange
+        var body = new Scene(new SceneRect(0, 0, 78.167, 133.57), [new ScenePath(SceneShapes.Rect(10, 10, 20, 20)) { Role = "body" }]);
+        var page = new PageTexts
+        {
+            Header = new PageText("head", TextAlign.Right, default),
+            Title = new PageText("My Title", TextAlign.Center, default),
+            Legend = new PageText("leg", TextAlign.Center, default),
+            Caption = new PageText("cap", TextAlign.Center, default),
+            Footer = new PageText("foot", TextAlign.Center, default),
+        };
+        var text = new TextLayout(TextLayout.CreateFontResolver());
+
+        // Act
+        var scene = ScenePage.Decorate(body, page, SkinTheme.Default, text, null);
+
+        // Assert
+        SceneText Text(string role) => scene.Items.OfType<SceneText>().Single(t => t.Role == role);
+        Assert.Equal(83.117, scene.ViewBox.Width, 2);
+        Assert.Equal(273, Math.Ceiling(scene.ViewBox.Height));
+        Assert.Equal(54.871, Text("header").X, 2);
+        Assert.Equal(15.381, Text("header").Baseline, 2);
+        Assert.Equal(15, Text("title").X, 2);
+        Assert.Equal(43.111, Text("title").Baseline, 2);
+        Assert.Equal(212.291, Text("legend").Baseline, 2);
+        Assert.Equal(248.9, Text("caption").Baseline, 2);
+        Assert.Equal(264.357, Text("footer").Baseline, 2);
+        var moved = Scene.BoundsOf(scene.Items.Where(i => i.Role == "body"))!.Value;
+        Assert.Equal((12.475, 62.188), (Math.Round(moved.X, 3), Math.Round(moved.Y, 3)));
+    }
+
+    /// <summary>
+    ///     Validates that a body without page texts is returned unchanged, and that translation moves paths and texts
+    ///     and leaves other items alone.
+    /// </summary>
+    [Fact]
+    public void PlantUmlSceneModel_ScenePage_NoTextsAndTranslate()
+    {
+        // Arrange
+        var body = new Scene(new SceneRect(0, 0, 50, 50), []);
+        var font = new SceneFont("SansSerif", 14, false, false);
+        var line = new SceneText(1, 2, [new SceneTextRun("x", font, SkinColors.Black, 8)], new SceneRect(1, -10, 8, 17)) { Role = "t" };
+        var path = new ScenePath(SceneShapes.Line(0, 0, 10, 0)) { Role = "p" };
+
+        // Act
+        var same = ScenePage.Decorate(body, PageTexts.None, SkinTheme.Default, new TextLayout(TextLayout.CreateFontResolver()), null);
+        var movedText = Assert.IsType<SceneText>(ScenePage.Translate(line, 5, 7));
+        var movedPath = Assert.IsType<ScenePath>(ScenePage.Translate(path, 5, 7));
+
+        // Assert
+        Assert.Same(body, same);
+        Assert.Equal((6, 9, 6, -3), (movedText.X, movedText.Baseline, movedText.Box.X, movedText.Box.Y));
+        Assert.Equal(new SceneRect(5, 7, 10, 0), Scene.BoundsOf([movedPath]));
+        Assert.Same(path, ScenePage.Translate(path, 0, 0));
     }
 }

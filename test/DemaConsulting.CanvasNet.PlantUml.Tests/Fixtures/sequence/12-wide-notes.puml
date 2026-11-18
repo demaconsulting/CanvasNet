@@ -1,0 +1,7 @@
+@startuml
+A -> B : m
+note right of A : a fairly long note text
+note over A, B : a much longer note spanning both
+B -> B : self long label here
+A -> B
+@enduml

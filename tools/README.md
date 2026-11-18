@@ -36,7 +36,8 @@ reference layout goldens and `mermaid/gen-*.mjs` the upstream parser, shape, cur
   with its headless Chrome; the repository commits no lockfile), PowerShell 7, the `canvasnet` tool (`dotnet canvasnet`
   or a local build), and Node.js 20 or later for the Mermaid scripts (18 or later is enough for the Vega scripts).
 
-See [its README](visual-diff/README.md).
+`update-plantuml-goldens.ps1` regenerates the PlantUML reference pictures from the MIT-licensed PlantUML jar (Java
+17 or later). See [its README](visual-diff/README.md).
 
 ## Adding a Tool
 

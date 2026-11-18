@@ -1263,6 +1263,9 @@ words:
   - autoactivate
   - autonumber
   - footbox
+  - endbox
+  - sequencediagram
+  - tpng
   - definelong
   - enddefinelong
   - endfunction

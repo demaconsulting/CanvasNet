@@ -148,4 +148,22 @@ public class DiagramDetectorTests
         Assert.Equal(1, DiagramDetector.EditDistance("chat", "chart"));
         Assert.Equal(3, DiagramDetector.EditDistance("abc", string.Empty));
     }
+
+    /// <summary>
+    ///     Validates the block closers of text blocks: a legend closed with <c>end legend</c> or <c>endlegend</c>, an
+    ///     aligned footer alone on its line, and an aligned header with text on one line.
+    /// </summary>
+    [Fact]
+    public void PlantUmlDiagramDetector_BlockClosers_AreRecognized()
+    {
+        // Act and Assert
+        Assert.Equal("endlegend", DiagramDetector.BlockCloser("legend right"));
+        Assert.True(DiagramDetector.IsCloser("end legend", "endlegend"));
+        Assert.True(DiagramDetector.IsCloser("endlegend", "endlegend"));
+        Assert.False(DiagramDetector.IsCloser("end legends", "endlegend"));
+        Assert.Equal("endfooter", DiagramDetector.BlockCloser("left footer"));
+        Assert.Null(DiagramDetector.BlockCloser("right header text"));
+        Assert.Equal(DiagramDetector.StatementFamily.Common, DiagramDetector.Classify("center header text"));
+        Assert.Equal(DiagramDetector.StatementFamily.Sequence, DiagramDetector.Classify("endbox"));
+    }
 }

@@ -62,10 +62,11 @@ editors do. The unit's behavior is specified by the `CanvasNetPlantUml-PlantUmlD
 - `Run` - creates the sink (capped by `MaxDiagnostics`, strict per the options) and the context with a new
   `TextLayout`, builds the scene, finishes the result, and delivers the reports once: after a failure, ignoring handler
   failures; after success, disposing the result if a handler throws.
-- `BuildScene` - replays the pending reports of reading, then calls the diagram's `Layout`, mapping a defect
-  (`IsLayoutDefect`: a null reference, an index, key, cast, argument, arithmetic, or invalid-operation exception that is
-  not a documented failure) to a located `plantuml-render-failed` error with the defect as its inner exception; a type
-  that is not drawn reports `plantuml-diagram-unsupported` with the hint of the detector and gets an empty scene.
+- `BuildScene` - replays the pending reports of reading (the preprocessor's, then the diagram parser's), then calls the
+  diagram's `Layout`, mapping a defect (`IsLayoutDefect`: a null reference, an index, key, cast, argument, arithmetic,
+  or invalid-operation exception that is not a documented failure) to a located `plantuml-render-failed` error with the
+  defect as its inner exception; a type that is not drawn reports `plantuml-diagram-unsupported` with the hint of the
+  detector and gets an empty scene.
 - `PlantUmlReportSink.Warn` / `Unsupported` / `Deliver` / `DeliverIgnoringHandlerFailures` - record the reports of one
   call in order, drop duplicates, keep at most `MaxDiagnostics` (the first overflow becomes one
   `plantuml-diagnostics-suppressed` notice), throw in strict mode after recording the report, and deliver once on the

@@ -39,7 +39,7 @@ internal sealed record DetectedDiagram(string DiagramType, bool IsSupported, str
 internal static class DiagramDetector
 {
     /// <summary>The types this version draws.</summary>
-    internal static readonly IReadOnlySet<string> SupportedTypes = new HashSet<string>(StringComparer.Ordinal);
+    internal static readonly IReadOnlySet<string> SupportedTypes = new HashSet<string>(StringComparer.Ordinal) { "sequence" };
 
     /// <summary>The <c>@start</c> tags PlantUML defines, other than <c>uml</c>, with the type each one starts.</summary>
     internal static readonly IReadOnlyDictionary<string, string> TagTypes = new Dictionary<string, string>(StringComparer.Ordinal)
@@ -83,7 +83,7 @@ internal static class DiagramDetector
     {
         "activate", "deactivate", "destroy", "create", "return", "autonumber", "alt", "opt", "loop", "par", "par2",
         "break", "critical", "group", "box", "ref", "newpage", "mainframe", "autoactivate", "hnote", "rnote",
-        "also", "ignore",
+        "also", "ignore", "endbox",
     };
 
     /// <summary>The keywords that start a statement of an activity diagram of the new syntax only.</summary>
@@ -289,6 +289,10 @@ internal static class DiagramDetector
             case "title" or "header" or "footer" or "caption":
                 // A keyword alone on its line opens a block; with text it is one line
                 return text.Trim().Length == word.Length ? "end" + word : null;
+            case "left" or "right" or "center" when IsAlignedPageText(text, word):
+                // An aligned header or footer alone on its line opens a block too
+                var rest = text[word.Length..].Trim();
+                return rest.Length == FirstWord(rest).Length ? "end" + rest.ToLowerInvariant() : null;
             case "ref":
                 return text.Contains(':', StringComparison.Ordinal) ? null : "end ref";
             case "skinparam":
@@ -311,7 +315,7 @@ internal static class DiagramDetector
         {
             "end note" => compact is "end note" or "endnote" or "end hnote" or "endhnote" or "end rnote" or "endrnote",
             "end ref" => compact is "end ref" or "endref",
-            _ => compact == closer || compact == closer.Replace("end", "end ", StringComparison.Ordinal),
+            _ => compact == closer || (closer.StartsWith("end", StringComparison.Ordinal) && compact == "end " + closer[3..]),
         };
     }
 
@@ -352,7 +356,7 @@ internal static class DiagramDetector
             return StatementFamily.Activity;
         }
 
-        if (CommonKeywords.Contains(word) || text.StartsWith("<style", StringComparison.OrdinalIgnoreCase) ||
+        if (CommonKeywords.Contains(word) || IsAlignedPageText(text, word) || text.StartsWith("<style", StringComparison.OrdinalIgnoreCase) ||
             text.StartsWith("</style", StringComparison.OrdinalIgnoreCase) || text.StartsWith('!'))
         {
             return StatementFamily.Common;
@@ -365,6 +369,24 @@ internal static class DiagramDetector
         }
 
         return StatementFamily.Other;
+    }
+
+    /// <summary>
+    ///     Decides whether a statement is an aligned header or footer (<c>left header</c>, <c>right footer</c>, ...).
+    /// </summary>
+    /// <param name="text">The statement text.</param>
+    /// <param name="word">Its first word.</param>
+    /// <returns>True for an aligned page text.</returns>
+    private static bool IsAlignedPageText(string text, string word)
+    {
+        if (!word.Equals("left", StringComparison.OrdinalIgnoreCase) && !word.Equals("right", StringComparison.OrdinalIgnoreCase) &&
+            !word.Equals("center", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        var next = FirstWord(text[word.Length..].TrimStart());
+        return next.Equals("header", StringComparison.OrdinalIgnoreCase) || next.Equals("footer", StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>

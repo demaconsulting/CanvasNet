@@ -384,8 +384,9 @@ software items, specifically:
   API with `PlantUmlOpenOptions`, `PlantUmlRenderOptions`, `PlantUmlLimits`, `PlantUmlLocation`, `PlantUmlDiagnostic`,
   `PlantUmlUnsupportedFeature`, `PlantUmlSize`, `PlantUmlDiagnosticCodes`, `PlantUmlSyntaxException`,
   `PlantUmlRenderException`, `PlantUmlUnsupportedFeatureException`, and the internal report sink), and the internal
-  subsystems `Syntax` (`Preprocessor` and `DiagramDetector`), `Styling` (`SkinTheme` and `SkinParams`), and `Scenegraph`
-  (`SceneModel`, `TextLayout`, and `ScenePainter`). Every PlantUML diagram type is recognized; the types
+  subsystems `Syntax` (`Preprocessor` and `DiagramDetector`), `Styling` (`SkinTheme` and `SkinParams`), `Scenegraph`
+  (`SceneModel`, `TextLayout`, and `ScenePainter`), and `Sequence` (`SequenceParser`, `SequenceModel`, `SequenceLayout`,
+  and `SequenceRenderer`). Sequence diagrams are drawn; every PlantUML diagram type is recognized; the types
   this version does not draw are reported as unsupported — see *CanvasNetPlantUml System Design*
   (`canvas-net-plant-uml.md`) for the known differences from PlantUML and its Phase Plan. `CanvasNetPlantUml` depends
   on the `CanvasNet` system's `Canvas`, `Geometry`, `Drawing`, `Fonts`, and `Rendering` subsystems through their public
@@ -675,11 +676,15 @@ repository alongside `CanvasNet` and is distributed as its own NuGet package. It
 PlantUML diagram language, derived with attribution from the MIT-licensed distribution of PlantUML (the license ships in
 the package): its direct unit, `PlantUmlDocument` (namespace `DemaConsulting.CanvasNet.PlantUml`), is the public API;
 its internal `Syntax` subsystem holds the `Preprocessor` and `DiagramDetector` units, its internal `Styling` subsystem
-holds the `SkinTheme` and `SkinParams` units, and its internal `Scenegraph` subsystem holds the `SceneModel`,
-`TextLayout`, and `ScenePainter` units (each in the sub-namespace and the sub-folder of its name). In the SysML2 model
+holds the `SkinTheme` and `SkinParams` units, its internal `Scenegraph` subsystem holds the `SceneModel`,
+`TextLayout`, and `ScenePainter` units, and its internal `Sequence` subsystem holds the `SequenceParser`,
+`SequenceModel`, `SequenceLayout`, and `SequenceRenderer` units (each in the sub-namespace and the sub-folder of its
+name). In the SysML2 model
 the system is `CanvasNetPlantUmlSystem` and its subsystem and unit `part def` names carry the prefix `PlantUml`
 (`PlantUmlSyntax`, `PlantUmlPreprocessor`, `PlantUmlDiagramDetector`, `PlantUmlStyling`, `PlantUmlSkinTheme`,
-`PlantUmlSkinParams`, `PlantUmlScenegraph`, `PlantUmlSceneModel`, `PlantUmlTextLayout`, and `PlantUmlScenePainter`),
+`PlantUmlSkinParams`, `PlantUmlScenegraph`, `PlantUmlSceneModel`, `PlantUmlTextLayout`, `PlantUmlScenePainter`,
+`PlantUmlSequence`, `PlantUmlSequenceParser`, `PlantUmlSequenceModel`, `PlantUmlSequenceLayout`, and
+`PlantUmlSequenceRenderer`),
 because the model package is shared by every system and the Mermaid system already uses the short names. It depends on
 the `CanvasNet` system's `Canvas`, `Geometry`, `Drawing`, `Fonts`, and `Rendering` subsystems through their public API.
 See the Folder Layout section below and *CanvasNetPlantUml System Design* (`canvas-net-plant-uml.md`). A further sibling
@@ -1759,11 +1764,17 @@ src/DemaConsulting.CanvasNet.PlantUml/
 ├── Styling/                       — Styling subsystem
 │   ├── SkinTheme.cs               — SkinTheme: the elements, their styles, and PlantUML's default look
 │   └── SkinParams*.cs             — SkinParams: the skinparam statements, the supported subset, and the colors
-└── Scenegraph/                    — Scenegraph subsystem
-    ├── SceneModel.cs              — SceneModel: the scene records and the shape builders
-    ├── TextLayout*.cs             — TextLayout: text metrics with the bundled fonts, line breaks, and creole
-    └── ScenePainter*.cs           — ScenePainter: the placement and the painting of a scene
-```n
+├── Scenegraph/                    — Scenegraph subsystem
+│   ├── SceneModel*.cs             — SceneModel: the scene records, the shape builders, and the page texts
+│   ├── TextLayout*.cs             — TextLayout: text metrics with the bundled fonts, line breaks, and creole
+│   └── ScenePainter*.cs           — ScenePainter: the placement and the painting of a scene
+└── Sequence/                      — Sequence subsystem
+    ├── SequenceParser*.cs         — SequenceParser: the sequence statements
+    ├── SequenceModel*.cs          — SequenceModel: participants, boxes, events, and the facts
+    ├── SequenceLayout*.cs         — SequenceLayout: the columns and rows of PlantUML's sequence engine
+    └── SequenceRenderer*.cs       — SequenceRenderer: PlantUML's shapes as scene items
+```
+
 Each sub-folder also holds a `NamespaceDoc.cs` with the namespace documentation. `CanvasNetPlantUml` uses only the
 `CanvasNet` system through its public API and declares it as its only package dependency.
 

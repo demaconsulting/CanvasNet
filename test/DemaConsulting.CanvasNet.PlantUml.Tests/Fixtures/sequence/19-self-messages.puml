@@ -1,0 +1,8 @@
+@startuml
+participant A
+participant B
+A -> A : self
+A -> A
+B -> B : self two\nlines
+A -> B : x
+@enduml

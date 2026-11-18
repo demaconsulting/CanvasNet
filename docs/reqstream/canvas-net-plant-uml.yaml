@@ -96,8 +96,11 @@ sections:
           - CanvasNetPlantUml-PlantUmlDocument-TextLimit
           - CanvasNetPlantUml-PlantUmlDocument-Limits
           - CanvasNetPlantUml-Syntax-Preprocessing
+          - CanvasNetPlantUml-Sequence-SequenceParser-Limits
+          - CanvasNetPlantUml-Sequence-SequenceLayout-Limits
         tests:
           - CanvasNetPlantUml_Limits_OversizedText_IsRefused
+          - CanvasNetPlantUml_Sequence_LayoutWorkLimit_Fails
 
       - id: CanvasNetPlantUml-Render
         title: >-
@@ -116,6 +119,27 @@ sections:
           - CanvasNetPlantUml-Scenegraph-Drawing
         tests:
           - CanvasNetPlantUml_UnsupportedType_MeasureReportsAsRender
+
+      - id: CanvasNetPlantUml-Sequence
+        title: >-
+          The library shall draw PlantUML sequence diagrams (the eight participant kinds, messages with their arrows,
+          activations, returns, numbering, notes, groups, boxes, dividers, delays, spaces, page texts, and the
+          supported skin parameters) with the layout of PlantUML's sequence engine, so that the size, the texts, the
+          participants, the life lines, and the message lines of the reference fixtures agree with PlantUML's within
+          1.5 pixels, and shall count participants as nodes, messages as edges, and boxes as subgraphs.
+        tags: [system]
+        justification: |
+          Sequence diagrams are the most used PlantUML diagrams in documentation; a picture must look like the one
+          PlantUML draws so that it can replace it.
+        children:
+          - CanvasNetPlantUml-Sequence-Reading
+          - CanvasNetPlantUml-Sequence-Drawing
+          - CanvasNetPlantUml-Syntax-Detection
+        tests:
+          - CanvasNetPlantUml_Sequence_ReferenceLayout_MatchesPlantUml
+          - CanvasNetPlantUml_Sequence_ReferenceGoldens_CoverEveryFixture
+          - CanvasNetPlantUml_Sequence_Fixtures_RenderWithoutReports
+          - CanvasNetPlantUml_Sequence_Facts_CountParticipantsMessagesAndBoxes
 
       - id: CanvasNetPlantUml-UnsupportedTypes
         title: >-
@@ -140,8 +164,10 @@ sections:
           Builds that must never accept an approximate picture need a hard failure.
         children:
           - CanvasNetPlantUml-PlantUmlDocument-Reports
+          - CanvasNetPlantUml-Sequence-SequenceParser-Unsupported
         tests:
           - CanvasNetPlantUml_UnsupportedType_StrictThrows
+          - CanvasNetPlantUml_Sequence_UnsupportedStatements_AreReported
 
       - id: CanvasNetPlantUml-DefaultLook
         title: >-
@@ -157,3 +183,4 @@ sections:
           - CanvasNetPlantUml-Scenegraph-Text
         tests:
           - CanvasNetPlantUml_Sequence_DefaultSkin_PaintsPlantUmlColors
+          - CanvasNetPlantUml_Sequence_Render_IsDeterministicAndScaled

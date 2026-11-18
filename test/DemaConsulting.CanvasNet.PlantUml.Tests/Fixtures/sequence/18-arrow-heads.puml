@@ -1,0 +1,13 @@
+@startuml
+participant A
+participant B
+A ->> B : async
+A ->x B : lost
+A -\ B : half
+A -/ B : half2
+A ->o B : circle
+A <-> B : both
+B <- A : rev
+A -[#red]> B : red
+A --> B : dotted
+@enduml

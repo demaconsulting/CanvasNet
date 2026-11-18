@@ -5253,6 +5253,10 @@ reviews:
       - "docs/sysml2/model/canvas-net-plant-uml.sysml"                # system SysML2 model
       - "test/DemaConsulting.CanvasNet.PlantUml.Tests/PlantUmlSystemIntegrationTests.cs"  # system tests
       - "test/DemaConsulting.CanvasNet.PlantUml.Tests/PlantUmlUnsupportedDiagramTests.cs"  # unsupported diagram types
+      - "test/DemaConsulting.CanvasNet.PlantUml.Tests/PlantUmlSequenceIntegrationTests.cs"  # sequence system tests
+      - "test/DemaConsulting.CanvasNet.PlantUml.Tests/PlantUmlReferenceLayoutTests.cs"  # reference layout tests
+      - "test/DemaConsulting.CanvasNet.PlantUml.Tests/Fixtures/**"     # original fixtures and reference goldens
+      - "tools/visual-diff/update-plantuml-goldens.ps1"               # golden generator (developer tool)
       - "test/DemaConsulting.CanvasNet.PlantUml.Tests/PlantUmlTestHelpers.cs"  # shared test helpers
       - "test/DemaConsulting.CanvasNet.PlantUml.Tests/SkinColors.cs"  # shared test colors
       - "test/DemaConsulting.CanvasNet.PlantUml.Tests/DemaConsulting.CanvasNet.PlantUml.Tests.csproj"  # test project
@@ -5441,6 +5445,7 @@ reviews:
       - "docs/verification/canvas-net-plant-uml/scenegraph/scene-model.md"  # unit verification
       - "docs/sysml2/model/canvas-net-plant-uml/scenegraph/scene-model.sysml"  # unit SysML2 model
       - "src/DemaConsulting.CanvasNet.PlantUml/Scenegraph/SceneModel.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.PlantUml/Scenegraph/SceneModel.Page.cs"  # unit source (page texts)
       - "test/DemaConsulting.CanvasNet.PlantUml.Tests/Scenegraph/SceneModelTests.cs"  # unit tests
 
   # CanvasNetPlantUml-Scenegraph-TextLayout Review (one per unit)
@@ -5476,6 +5481,88 @@ reviews:
       - "src/DemaConsulting.CanvasNet.PlantUml/Scenegraph/ScenePainter.cs"  # unit source
       - "src/DemaConsulting.CanvasNet.PlantUml/Scenegraph/ScenePainter.Text.cs"  # unit source
       - "test/DemaConsulting.CanvasNet.PlantUml.Tests/Scenegraph/ScenePainterTests.cs"  # unit tests
+
+  # CanvasNetPlantUml-Sequence Review (one per subsystem)
+  - id: CanvasNetPlantUml-Sequence
+    title: Review that CanvasNetPlantUml Sequence Subsystem Implementation is Correct
+    context:
+      - "docs/design/canvas-net-plant-uml.md"
+      - "docs/reqstream/canvas-net-plant-uml.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-plant-uml/sequence.yaml"  # subsystem requirements
+      - "docs/design/canvas-net-plant-uml/sequence.md"  # subsystem design
+      - "docs/verification/canvas-net-plant-uml/sequence.md"  # subsystem verification
+      - "docs/sysml2/model/canvas-net-plant-uml/sequence.sysml"  # subsystem SysML2 model
+      - "src/DemaConsulting.CanvasNet.PlantUml/Sequence/NamespaceDoc.cs"  # namespace documentation
+      - "test/DemaConsulting.CanvasNet.PlantUml.Tests/Sequence/SequenceTests.cs"  # subsystem tests
+      - "test/DemaConsulting.CanvasNet.PlantUml.Tests/Sequence/SequenceTestHelpers.cs"  # shared sequence test helpers
+  # CanvasNetPlantUml-Sequence-SequenceParser Review (one per unit)
+  - id: CanvasNetPlantUml-Sequence-SequenceParser
+    title: Review that CanvasNetPlantUml Sequence SequenceParser Implementation is Correct
+    context:
+      - "docs/design/canvas-net-plant-uml.md"
+      - "docs/reqstream/canvas-net-plant-uml.yaml"
+      - "docs/design/canvas-net-plant-uml/sequence.md"
+      - "docs/reqstream/canvas-net-plant-uml/sequence.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-plant-uml/sequence/sequence-parser.yaml"  # unit requirements
+      - "docs/design/canvas-net-plant-uml/sequence/sequence-parser.md"  # unit design
+      - "docs/verification/canvas-net-plant-uml/sequence/sequence-parser.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-plant-uml/sequence/sequence-parser.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.PlantUml/Sequence/SequenceParser.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.PlantUml/Sequence/SequenceParser.Statements.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.PlantUml.Tests/Sequence/SequenceParserTests.cs"  # unit tests
+  # CanvasNetPlantUml-Sequence-SequenceModel Review (one per unit)
+  - id: CanvasNetPlantUml-Sequence-SequenceModel
+    title: Review that CanvasNetPlantUml Sequence SequenceModel Implementation is Correct
+    context:
+      - "docs/design/canvas-net-plant-uml.md"
+      - "docs/reqstream/canvas-net-plant-uml.yaml"
+      - "docs/design/canvas-net-plant-uml/sequence.md"
+      - "docs/reqstream/canvas-net-plant-uml/sequence.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-plant-uml/sequence/sequence-model.yaml"  # unit requirements
+      - "docs/design/canvas-net-plant-uml/sequence/sequence-model.md"  # unit design
+      - "docs/verification/canvas-net-plant-uml/sequence/sequence-model.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-plant-uml/sequence/sequence-model.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.PlantUml/Sequence/SequenceModel.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.PlantUml/Sequence/SequenceModel.Elements.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.PlantUml.Tests/Sequence/SequenceModelTests.cs"  # unit tests
+  # CanvasNetPlantUml-Sequence-SequenceLayout Review (one per unit)
+  - id: CanvasNetPlantUml-Sequence-SequenceLayout
+    title: Review that CanvasNetPlantUml Sequence SequenceLayout Implementation is Correct
+    context:
+      - "docs/design/canvas-net-plant-uml.md"
+      - "docs/reqstream/canvas-net-plant-uml.yaml"
+      - "docs/design/canvas-net-plant-uml/sequence.md"
+      - "docs/reqstream/canvas-net-plant-uml/sequence.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-plant-uml/sequence/sequence-layout.yaml"  # unit requirements
+      - "docs/design/canvas-net-plant-uml/sequence/sequence-layout.md"  # unit design
+      - "docs/verification/canvas-net-plant-uml/sequence/sequence-layout.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-plant-uml/sequence/sequence-layout.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.PlantUml/Sequence/SequenceLayout.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.PlantUml/Sequence/SequenceLayout.Messages.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.PlantUml/Sequence/SequenceLayout.Blocks.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.PlantUml.Tests/Sequence/SequenceLayoutTests.cs"  # unit tests
+  # CanvasNetPlantUml-Sequence-SequenceRenderer Review (one per unit)
+  - id: CanvasNetPlantUml-Sequence-SequenceRenderer
+    title: Review that CanvasNetPlantUml Sequence SequenceRenderer Implementation is Correct
+    context:
+      - "docs/design/canvas-net-plant-uml.md"
+      - "docs/reqstream/canvas-net-plant-uml.yaml"
+      - "docs/design/canvas-net-plant-uml/sequence.md"
+      - "docs/reqstream/canvas-net-plant-uml/sequence.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-plant-uml/sequence/sequence-renderer.yaml"  # unit requirements
+      - "docs/design/canvas-net-plant-uml/sequence/sequence-renderer.md"  # unit design
+      - "docs/verification/canvas-net-plant-uml/sequence/sequence-renderer.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-plant-uml/sequence/sequence-renderer.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.PlantUml/Sequence/SequenceRenderer.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.PlantUml/Sequence/SequenceRenderer.Participants.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.PlantUml/Sequence/SequenceRenderer.Messages.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.PlantUml/Sequence/SequenceRenderer.Blocks.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.PlantUml.Tests/Sequence/SequenceRendererTests.cs"  # unit tests
 
   # CanvasNetTool-Architecture Review (one per system)
   - id: CanvasNetTool-Architecture

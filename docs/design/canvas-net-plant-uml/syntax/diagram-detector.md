@@ -20,12 +20,12 @@ types that PlantUML lays out with Graphviz. The unit's behavior is specified by 
 - `DetectedDiagram(DiagramType, IsSupported, Keyword, Location)` - the public type name, whether this version draws
   it (whether it is in `SupportedTypes`), the construct it was recognized by (an `@start` tag or a statement's first
   word), and its location.
-- `SupportedTypes` - the drawn types; `TagTypes` - the `@start` tags other than `uml` with their types (`mindmap`,
-  `gantt`, `wbs`, `json`, `yaml`, `salt`, `ditaa`, `dot`, `math`, `latex`, `regex`, `ebnf`, `chen`, `files`,
-  `chronology`, `board`, `creole`, `wire`, `nwdiag`, `chart`, `def`, `git`, `project`, `flow`, `packetdiag`,
-  `jcckit`).
+- `SupportedTypes` - the drawn types (`sequence`); `TagTypes` - the `@start` tags other than `uml` with their types
+  (`mindmap`, `gantt`, `wbs`, `json`, `yaml`, `salt`, `ditaa`, `dot`, `math`, `latex`, `regex`, `ebnf`, `chen`, `files`,
+  `chronology`, `board`, `creole`, `wire`, `nwdiag`, `chart`, `def`, `git`, `project`, `flow`, `packetdiag`, `jcckit`).
 - The keyword tables - the participant keywords and the keywords of the sequence diagram only, the keywords of the
-  activity diagram only, the keywords both accept (titles, notes, styling, `else`, `end`), and the keywords of the
+  activity diagram only, the keywords both accept (titles, notes, styling, `else`, `end`, and an aligned header or
+  footer such as `left header`), and the keywords of the
   other types with their type, in the order they are tried.
 
 #### Key Methods
@@ -49,8 +49,9 @@ types that PlantUML lays out with Graphviz. The unit's behavior is specified by 
   chart, another bracketed name a component, a parenthesized name a use case, and the keyword table names the rest; a
   time statement `@0` is a timing diagram.
 - `OuterStatements`, `BlockCloser`, `IsCloser` - the statements of a multi-line `note`, `hnote`, `rnote`, `legend`,
-  `title`, `header`, `footer`, `caption`, `ref`, `skinparam ... {`, and `<style>` block are text and are skipped up to
-  the closing statement.
+  `title`, `header`, `footer`, `caption` (also aligned, `left footer`), `ref`, `skinparam ... {`, and `<style>` block
+  are text and are skipped up to the closing statement; a closer that starts with `end` is also accepted with a space
+  after `end` (`end legend` closes `legend` as `endlegend` does).
 - `UnsupportedHint(detected)` and `EditDistance(a, b)` - the hint of a type that is not drawn, and the Levenshtein
   distance of two words.
 

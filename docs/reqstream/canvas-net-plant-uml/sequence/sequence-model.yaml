@@ -1,0 +1,42 @@
+---
+# Software Unit Requirements for SequenceModel
+#
+# These requirements describe the design-level behavior of the SequenceModel unit of the Sequence subsystem
+# (internal namespace DemaConsulting.CanvasNet.PlantUml.Sequence): the facts of a sequence diagram, its reports, and
+# its layout entry point. See docs/verification/canvas-net-plant-uml/sequence/sequence-model.md for the test-evidence
+# mapping.
+
+sections:
+  - title: CanvasNetPlantUml Requirements
+    sections:
+      - title: Sequence Requirements
+        sections:
+          - title: SequenceModel Requirements
+            requirements:
+              - id: CanvasNetPlantUml-Sequence-SequenceModel-Facts
+                title: >-
+                  The SequenceModel unit shall give the title of a sequence diagram and count its participants as
+                  nodes, its messages as edges, and its boxes as subgraphs.
+                justification: |
+                  Hosts show these facts without rendering the diagram.
+                tests:
+                  - PlantUmlSequenceModel_Facts_CountParticipantsMessagesAndBoxes
+
+              - id: CanvasNetPlantUml-Sequence-SequenceModel-Reports
+                title: >-
+                  The SequenceModel unit shall keep the reports of its parser, including those of its skin parameters,
+                  in text order.
+                justification: |
+                  Every measure and render call delivers the reports in the order of the text.
+                tests:
+                  - PlantUmlSequenceModel_Reports_KeepParserReportsInOrder
+
+              - id: CanvasNetPlantUml-Sequence-SequenceModel-Layout
+                title: >-
+                  The SequenceModel unit shall lay its diagram out and draw it, with its page texts, its background,
+                  and its own scale, afresh for every call, and reject null arguments.
+                justification: |
+                  The document asks the model for a scene under the options of each call.
+                tests:
+                  - PlantUmlSequenceModel_Layout_GivesSceneWithBackgroundScaleAndPage
+                  - PlantUmlSequenceModel_Constructor_RejectsNull

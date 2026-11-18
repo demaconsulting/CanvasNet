@@ -267,3 +267,20 @@ is their vector file.
   seeded angles and of every angle the layouts used, `Math.log` of seeded values and of the layouts' arguments, and
   `Math.pow` of every pair the cooling schedule makes for 1 to 1,016 nodes, each double as 16 hexadecimal digits.
   Regenerate both files together whenever puppeteer's Chrome changes.
+
+## PlantUML
+
+`update-plantuml-goldens.ps1` regenerates the reference pictures that `PlantUmlReferenceLayoutTests` compares
+CanvasNet's PlantUML layout with:
+
+```powershell
+pwsh tools/visual-diff/update-plantuml-goldens.ps1 -Jar <plantuml-mit.jar> [-Java <java>] [-Diagram sequence] [-Fixture <name>...]
+```
+
+It renders the original fixtures of `test/DemaConsulting.CanvasNet.PlantUml.Tests/Fixtures/sequence/` (and
+`Fixtures/activity/` when it exists) with the MIT-licensed PlantUML jar, with Graphviz turned off, and writes the SVG
+files to `Fixtures/reference/<type>/`. It needs Java 17 or later and the `plantuml-mit` jar; the committed goldens were
+made with `plantuml-mit-1.2026.10.jar` on Java 25 on Windows (see `Fixtures/reference/README.md`). To compare pictures
+by eye, render the same fixture with the jar (`-tpng`) and with CanvasNet, and compare them with
+`canvasnet compare <plantuml.png> <canvasnet.png>`; PlantUML's PNG is one pixel narrower and lower than its SVG, whose
+size CanvasNet follows.

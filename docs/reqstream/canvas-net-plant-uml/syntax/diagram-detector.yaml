@@ -28,13 +28,16 @@ sections:
               - id: CanvasNetPlantUml-Syntax-DiagramDetector-FactoryOrder
                 title: >-
                   The DiagramDetector unit shall detect a sequence diagram when every statement outside multi-line text
-                  blocks is a sequence statement, and otherwise an activity diagram of the new syntax when every
-                  statement is an activity statement.
+                  blocks (notes, legends, page texts, references, skin parameter blocks, and style blocks, each closed
+                  by its own end keyword written with or without a space) is a sequence statement, and otherwise an
+                  activity diagram of the new syntax when every statement is an activity statement.
                 justification: |
-                  PlantUML tries the sequence diagram first, so a text both types could read is a sequence diagram.
+                  PlantUML tries the sequence diagram first, so a text both types could read is a sequence diagram; the
+                  lines of a text block are text, not statements.
                 tests:
                   - PlantUmlDiagramDetector_Detect_SequenceStatements_IsSequence
                   - PlantUmlDiagramDetector_Detect_ActivityStatements_IsActivity
+                  - PlantUmlDiagramDetector_BlockClosers_AreRecognized
 
               - id: CanvasNetPlantUml-Syntax-DiagramDetector-OtherTypes
                 title: >-

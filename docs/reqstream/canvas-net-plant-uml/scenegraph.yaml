@@ -22,6 +22,7 @@ sections:
             children:
               - CanvasNetPlantUml-Scenegraph-SceneModel-Shapes
               - CanvasNetPlantUml-Scenegraph-SceneModel-Bounds
+              - CanvasNetPlantUml-Scenegraph-SceneModel-PageTexts
               - CanvasNetPlantUml-Scenegraph-ScenePainter-Paints
               - CanvasNetPlantUml-Scenegraph-ScenePainter-Placement
               - CanvasNetPlantUml-Scenegraph-ScenePainter-Bounded

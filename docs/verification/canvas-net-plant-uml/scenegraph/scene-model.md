@@ -36,3 +36,14 @@ path without a move.
 **Tests**: `SceneModelTests.PlantUmlSceneModel_BoundsOf_CombinesPathsAndText`
 
 Asserts the union of a rectangle and a text box, no bounds for no items, and the text of a line.
+
+##### CanvasNetPlantUml-Scenegraph-SceneModel-PageTexts: Page Texts Around The Body
+
+**Tests**: `SceneModelTests.PlantUmlSceneModel_ScenePage_PlacesPageTexts`,
+`SceneModelTests.PlantUmlSceneModel_ScenePage_NoTextsAndTranslate`
+
+Places a header, a title, a legend, a caption, and a footer around a body of 78.167 by 133.57 and asserts the page
+size and the positions PlantUML gives them (the header at 54.871, the title at 15 and its baseline at 43.111, the body
+moved to 12.475 and 62.188, and the baselines of the legend, caption, and footer); asserts that a body without page
+texts is returned as it is, and that translation moves a text line and a path and returns an item unchanged for a zero
+offset.

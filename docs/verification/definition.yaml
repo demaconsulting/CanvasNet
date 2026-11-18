@@ -249,6 +249,11 @@ input-files:
   - docs/verification/canvas-net-plant-uml/scenegraph/scene-model.md
   - docs/verification/canvas-net-plant-uml/scenegraph/text-layout.md
   - docs/verification/canvas-net-plant-uml/scenegraph/scene-painter.md
+  - docs/verification/canvas-net-plant-uml/sequence.md
+  - docs/verification/canvas-net-plant-uml/sequence/sequence-parser.md
+  - docs/verification/canvas-net-plant-uml/sequence/sequence-model.md
+  - docs/verification/canvas-net-plant-uml/sequence/sequence-layout.md
+  - docs/verification/canvas-net-plant-uml/sequence/sequence-renderer.md
   - docs/verification/canvas-net-viewer.md
   - docs/verification/canvas-net-viewer/canvas-net-viewer.md
   - docs/verification/canvas-net-viewer/viewer-exception.md

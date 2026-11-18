@@ -262,6 +262,11 @@ includes:
   - docs/reqstream/canvas-net-plant-uml/scenegraph/scene-model.yaml
   - docs/reqstream/canvas-net-plant-uml/scenegraph/text-layout.yaml
   - docs/reqstream/canvas-net-plant-uml/scenegraph/scene-painter.yaml
+  - docs/reqstream/canvas-net-plant-uml/sequence.yaml
+  - docs/reqstream/canvas-net-plant-uml/sequence/sequence-parser.yaml
+  - docs/reqstream/canvas-net-plant-uml/sequence/sequence-model.yaml
+  - docs/reqstream/canvas-net-plant-uml/sequence/sequence-layout.yaml
+  - docs/reqstream/canvas-net-plant-uml/sequence/sequence-renderer.yaml
   - docs/reqstream/canvas-net-viewer.yaml
   - docs/reqstream/canvas-net-viewer/canvas-net-viewer.yaml
   - docs/reqstream/canvas-net-viewer/platform-requirements.yaml
