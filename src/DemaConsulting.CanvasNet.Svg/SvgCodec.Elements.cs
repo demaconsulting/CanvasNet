@@ -127,6 +127,12 @@ public static partial class SvgCodec
     ///     cascade while the font stays the same; <see langword="null"/> before any cascade has run
     ///     (those units then use their 0.5em fallback).
     /// </param>
+    /// <param name="LetterSpacing">
+    ///     The inherited <c>letter-spacing</c> (see <see cref="TextSpacing"/>): a length resolved where
+    ///     it is declared, or a plain percentage kept relative to each character's font size; the
+    ///     default is zero (<c>normal</c>).
+    /// </param>
+    /// <param name="WordSpacing">The inherited <c>word-spacing</c>, in the same form as <paramref name="LetterSpacing"/>.</param>
     private sealed record RenderState(
         string Fill,
         string Stroke,
@@ -156,7 +162,9 @@ public static partial class SvgCodec
         float RootViewportHeight = 150f,
         LineHeightSpec? LineHeight = null,
         LineHeightSpec? RootLineHeight = null,
-        FontRelativeMetrics? FontMetrics = null)
+        FontRelativeMetrics? FontMetrics = null,
+        TextSpacing LetterSpacing = default,
+        TextSpacing WordSpacing = default)
     {
         /// <summary>
         ///     The default render state every document starts with, matching the SVG/CSS initial
@@ -922,7 +930,11 @@ public static partial class SvgCodec
             MarkerStart = Styled("marker-start") ?? parent.MarkerStart,
             MarkerMid = Styled("marker-mid") ?? parent.MarkerMid,
             MarkerEnd = Styled("marker-end") ?? parent.MarkerEnd,
-            PixelatedImages = ParseImageRendering(Styled("image-rendering")) ?? parent.PixelatedImages
+            PixelatedImages = ParseImageRendering(Styled("image-rendering")) ?? parent.PixelatedImages,
+            LetterSpacing = ResolveTextSpacing(
+                ResolveStyledValue(styleContext, "letter-spacing"), (string?)element.Attribute("letter-spacing"), fontState, parent.LetterSpacing),
+            WordSpacing = ResolveTextSpacing(
+                ResolveStyledValue(styleContext, "word-spacing"), (string?)element.Attribute("word-spacing"), fontState, parent.WordSpacing)
         };
     }
 

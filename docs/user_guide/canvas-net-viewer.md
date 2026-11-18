@@ -162,7 +162,7 @@ strict option; a nested SVG file reports none.
 It also passes `SvgLoadOptions.UnsupportedFeatureHandler`, for the SVG file it renders and for every nested SVG file,
 and reports each report as an `svg` note of severity `unsupported`: `svg-text-not-drawn` (text that is not drawn, such
 as text on a `textPath` or the HTML of a `foreignObject`) and `svg-text-unsupported` (text drawn without a feature it
-uses, such as `rotate` or `letter-spacing`). With the strict option either one fails the load with
+uses, such as `rotate` or `textLength`). With the strict option either one fails the load with
 `unsupported-feature`.
 
 #### Choosing a page, slide, or view with a fragment

@@ -623,6 +623,28 @@ With the bundled sans-serif font, asserts that leading tabs and spaces, a line f
 `tspan` boundary draw the same as one space between the glyphs (which differs from no space), that trailing spaces do
 not move an end-anchored text, that `xml:space="preserve"` keeps leading spaces, and that it maps a tab to one space.
 
+#### CanvasNetSvg-SvgCodec-TextSpacing: Letter and Word Spacing
+
+**Tests** (`SvgTextLayoutTests.cs`): `SvgCodec_Load_LetterSpacing_AddsSpaceAfterEveryCharacter`,
+`SvgCodec_Load_LetterSpacingUnits_ResolveEmPercentAndInheritance`,
+`SvgCodec_Load_LetterSpacingAnchorMiddleAndEnd_IncludesTheTrailingSpacing`,
+`SvgCodec_Load_TspanLetterSpacing_SpacesOnlyItsCharacters`, `SvgCodec_Load_WordSpacing_WidensSpacesAndNoBreakSpaces`,
+`SvgCodec_Load_LetterSpacingWithCombiningMark_SpacesTheClusterOnce`, `SvgCodec_Load_LetterSpacingWithDx_AddsToTheShift`,
+`SvgCodec_Load_LetterSpacingInClipPathText_ClipsToTheSpacedGlyphs`, `SvgCodec_Load_ZeroSpacing_DrawsExactlyAsPlainText`,
+`SvgCodec_Load_LongSpacedText_Renders`; (`SvgCodecTests.cs`):
+`SvgCodec_Load_LetterSpacingWithKerningPair_KeepsTheKerning`
+
+With the synthetic square font, asserts that `letter-spacing` follows every glyph; that `0.5em`, `50%`, a CSS
+`10px`, an `em` inherited from a group of another font size (fixed at the group), a percentage inherited from such a
+group (resolved with the text's own size), and an invalid value on a `tspan` or in CSS (ignored) all space by the
+expected 10 px, while `normal`, `0` and `initial` add nothing; that a middle or end anchor uses a width that includes
+the spacing after the last glyph, as Edge does; that a `tspan`'s spacing applies only to its own characters and each
+text chunk is anchored by its own spaced width; that `word-spacing` (a length or a percentage) widens a space and a
+no-break space and adds to the letter spacing, but not an en space; that a base character and its combining mark take
+the spacing once; that a `dx` shift adds to it; that a clip path's text clips to the spaced glyphs; that a zero
+spacing draws pixel-identically to no spacing; that a long spaced text renders; and, with a font that kerns `AB` by
+-10 units, that the spacing adds to the kerned advance. The layouts were cross-checked against Edge with Arial.
+
 #### CanvasNetSvg-SvgCodec-AnchorAndSwitchElements: `a` and `switch`
 
 **Tests** (`SvgTextLayoutTests.cs`): `SvgCodec_Load_AnchorElement_DrawsItsContent`,
@@ -635,7 +657,7 @@ group requiring the `Extensibility` feature draws the next child only, not the o
 #### CanvasNetSvg-SvgCodec-UnsupportedFeatureReports: Text That Is Not Drawn Is Reported
 
 **Tests** (`SvgUnsupportedFeatureTests.cs`): `SvgCodec_UnsupportedFeatureHandler_TextPath_ReportsTextNotDrawn`,
-`SvgCodec_UnsupportedFeatureHandler_RotateTextLengthAndSpacing_ReportsOneUnsupportedWithEveryFeature`,
+`SvgCodec_UnsupportedFeatureHandler_RotateTextLengthAndWritingMode_ReportsOneUnsupportedWithEveryFeature`,
 `SvgCodec_UnsupportedFeatureHandler_TextInForeignObjectNestedSvgAndUnknownElement_ReportsTextNotDrawn`,
 `SvgCodec_UnsupportedFeatureHandler_NegativeFontSizeAndHugeTransform_ReportsTextNotDrawn`,
 `SvgCodec_UnsupportedFeatureHandler_MissingGlyph_ReportsUnsupportedWithTheCodePoint`,
@@ -644,14 +666,16 @@ group requiring the `Extensibility` feature draws the next child only, not the o
 `SvgCodec_UnsupportedFeatureHandler_DoesNotChangeThePixels`, `SvgCodec_UnsupportedFeatureHandler_DefaultIsNull`
 
 Asserts that a `textPath` is one `svg-text-not-drawn` report naming `textPath` and the text; that `rotate`,
-`textLength`, `word-spacing`, a vertical `writing-mode`, `dominant-baseline`, `text-decoration`, an unknown
-`baseline-shift` and `alignment-baseline`, plus `letter-spacing` and `direction: rtl` inherited from a group, are one
-`svg-text-unsupported` report naming each; that a `foreignObject`, a nested `svg`, an unknown element holding a text,
+`textLength`, a vertical `writing-mode`, `dominant-baseline`, `text-decoration`, an unknown `baseline-shift` and
+`alignment-baseline`, plus `direction: rtl` inherited from a group, are one `svg-text-unsupported` report naming each,
+and that the `word-spacing` and inherited `letter-spacing` of the same text are not named (they are drawn); that a
+`foreignObject`, a nested `svg`, an unknown element holding a text,
 and a `tref` inside a text are one not-drawn report with a count of 4; that a negative `font-size`, a non-finite
 composed transform, and coordinates beyond the supported range are reported, and a zero `font-size` is not; that a
 private-use character no font covers is reported with its code point; that several texts give one report per code, the
 not-drawn one first, with the count (a text drawn twice through `use` counts once) and the first text named; that
-plain and styled text, an `x` list, a `switch` fallback, `title`, `defs` content and white-space-only text report
+plain and styled text, letter and word spacing, an `x` list, a `switch` fallback, `title`, `defs` content and
+white-space-only text report
 nothing; that a render with a handler draws the same pixels as one without; and that the handler is `null` by default.
 
 #### CanvasNetSvg-SvgCodec-ImageSourceUnsupportedNotes: Unsupported Notes Of A Linked SVG File

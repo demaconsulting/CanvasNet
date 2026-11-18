@@ -530,6 +530,30 @@ sections:
             tests:
               - SvgCodec_Load_TextWhiteSpace_CollapsesAndTrimsUnlessPreserved
 
+          - id: CanvasNetSvg-SvgCodec-TextSpacing
+            title: >-
+              The SvgCodec class shall add a text content element's letter-spacing after every
+              character (grapheme cluster) of its text and its word-spacing after every space and
+              no-break space, each a length, a percentage of the font size, or normal (zero),
+              inherited, keeping the font's kerning, and shall include that spacing, also after the
+              last character, in the width a text chunk is anchored by.
+            justification: |
+              Titles, eyebrows, and pills use letter spacing for tracking; drawing it as browsers
+              do keeps such labels at their intended width, and Edge includes the spacing after the
+              last character when it centers or ends a text.
+            tests:
+              - SvgCodec_Load_LetterSpacing_AddsSpaceAfterEveryCharacter
+              - SvgCodec_Load_LetterSpacingUnits_ResolveEmPercentAndInheritance
+              - SvgCodec_Load_LetterSpacingAnchorMiddleAndEnd_IncludesTheTrailingSpacing
+              - SvgCodec_Load_TspanLetterSpacing_SpacesOnlyItsCharacters
+              - SvgCodec_Load_WordSpacing_WidensSpacesAndNoBreakSpaces
+              - SvgCodec_Load_LetterSpacingWithCombiningMark_SpacesTheClusterOnce
+              - SvgCodec_Load_LetterSpacingWithDx_AddsToTheShift
+              - SvgCodec_Load_LetterSpacingInClipPathText_ClipsToTheSpacedGlyphs
+              - SvgCodec_Load_ZeroSpacing_DrawsExactlyAsPlainText
+              - SvgCodec_Load_LongSpacedText_Renders
+              - SvgCodec_Load_LetterSpacingWithKerningPair_KeepsTheKerning
+
           - id: CanvasNetSvg-SvgCodec-AnchorAndSwitchElements
             title: >-
               The SvgCodec class shall draw an a element like a group, and shall draw only the
@@ -551,8 +575,8 @@ sections:
               inside a text, text inside a foreignObject, a nested svg, an unknown element, or a
               switch without a drawable child, text with a negative font-size, under a non-finite
               transform, or with coordinates beyond the supported range) and svg-text-unsupported
-              for text drawn without a feature it uses (rotate, textLength, letter-spacing,
-              word-spacing, a vertical writing-mode, direction rtl, dominant-baseline,
+              for text drawn without a feature it uses (rotate, textLength, a vertical
+              writing-mode, direction rtl, dominant-baseline,
               alignment-baseline, text-decoration, an unsupported baseline-shift, or a character no
               font covers); it shall cover all drawn content, report nothing for content that is
               not drawn by design, skip the checks when no handler is set, and never change the
@@ -563,7 +587,7 @@ sections:
               build, while the rest of the document is still drawn.
             tests:
               - SvgCodec_UnsupportedFeatureHandler_TextPath_ReportsTextNotDrawn
-              - SvgCodec_UnsupportedFeatureHandler_RotateTextLengthAndSpacing_ReportsOneUnsupportedWithEveryFeature
+              - SvgCodec_UnsupportedFeatureHandler_RotateTextLengthAndWritingMode_ReportsOneUnsupportedWithEveryFeature
               - SvgCodec_UnsupportedFeatureHandler_TextInForeignObjectNestedSvgAndUnknownElement_ReportsTextNotDrawn
               - SvgCodec_UnsupportedFeatureHandler_NegativeFontSizeAndHugeTransform_ReportsTextNotDrawn
               - SvgCodec_UnsupportedFeatureHandler_MissingGlyph_ReportsUnsupportedWithTheCodePoint

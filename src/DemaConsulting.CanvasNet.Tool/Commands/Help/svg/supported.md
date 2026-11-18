@@ -53,8 +53,9 @@ examples:
   generic families and unknown families use the bundled Liberation Sans, Serif,
   and Mono.
 - tspan and a in text, as in browsers: a style per run, x, y, dx, and dy lists,
-  a new chunk at an absolute x or y, text-anchor per chunk, baseline-shift, and
-  white space collapsed (xml:space="preserve" keeps it).
+  a new chunk at an absolute x or y, text-anchor per chunk, baseline-shift,
+  letter-spacing and word-spacing, and white space collapsed
+  (xml:space="preserve" keeps it).
 - The root viewBox and preserveAspectRatio (all aligns, meet and slice), and
   percent lengths.
 - CSS in a style element (type, class, id, universal, and compound selectors;
@@ -66,7 +67,7 @@ examples:
 
 - Not drawn: animation (SMIL) and unknown filter primitives, silently;
   foreignObject, nested svg, and textPath, as svg-text-not-drawn if they hold
-  text. Text spacing, rotate, textLength, vertical or rtl writing, and
+  text. The text features rotate, textLength, vertical or rtl writing, and
   decoration are ignored (svg-text-unsupported).
 - A filter over its work budget is skipped: the element is drawn unfiltered.
 - Scripting, and image references the tool never follows: a network URL, a UNC

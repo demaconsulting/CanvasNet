@@ -6590,6 +6590,28 @@ public class SvgCodecTests
     }
 
     /// <summary>
+    ///     Proves that letter spacing keeps the font's kerning, as Edge does: the spacing adds to the kerned advance.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_LetterSpacingWithKerningPair_KeepsTheKerning()
+    {
+        // Arrange: "AB" at font size 100 (1:1). 'A' advances 100 - 10 (kerning) + 20 (spacing), so 'B' starts at
+        // 10 + 110 = 120 and covers 120 to 170; without the kerning it would start at 130
+        const string svg = "<svg viewBox='0 0 200 100'><text x='10' y='60' font-family='TestFont' font-size='100' letter-spacing='20' fill='black'>AB</text></svg>";
+        var fonts = new Dictionary<string, TrueTypeFont> { ["TestFont"] = BuildTestFont() };
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 200, 100, fonts);
+
+        // Assert: 'B' starts at 120, not 110 (no spacing) and not 130 (no kerning)
+        Assert.Equal(0, surface[118, 35].A);
+        Assert.Equal(255, surface[125, 35].A);
+        Assert.Equal(255, surface[168, 35].A);
+        Assert.Equal(0, surface[172, 35].A);
+    }
+
+    /// <summary>
     ///     Proves that <c>&lt;text&gt;</c> is still rendered (with the default font, no exception)
     ///     when <see cref="SvgCodec.Load(Stream,int,int,IReadOnlyDictionary{string,TrueTypeFont}?)"/>
     ///     is called with no fonts dictionary at all.

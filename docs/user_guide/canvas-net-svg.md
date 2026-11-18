@@ -216,7 +216,11 @@ Text is laid out as browsers lay it out (checked against Microsoft Edge):
   them by half the font's ascent plus descent.
 - **White space.** Tabs and line breaks are spaces, consecutive spaces collapse to one (also across `tspan`
   boundaries), and spaces at the start and end of the text are removed; `xml:space="preserve"` keeps every space.
-- **Not supported** (drawn without, and reported): `rotate`, `textLength`, `letter-spacing`, `word-spacing`, vertical
+- **Spacing.** `letter-spacing` adds space after every character, the last one too, so a centered or end-anchored
+  label is placed with that trailing space as in the browsers; `word-spacing` adds space after every space and
+  no-break space (on top of the letter spacing). Each takes a length (`2px`, `0.1em`), a percentage of the font size
+  (`10%`), or `normal`, may be negative, is inherited, and keeps the font's kerning; an invalid value is ignored.
+- **Not supported** (drawn without, and reported): `rotate`, `textLength`, vertical
   `writing-mode`, `direction: rtl`, `dominant-baseline`, `alignment-baseline`, and `text-decoration`. Text on a
   `textPath` is not drawn (reported).
 
@@ -515,7 +519,7 @@ set. Content drawn through `use`, `marker`, `pattern`, `mask`, and `clipPath` re
   unknown element, or a `switch` without a drawable child, text with a negative `font-size`, text under a transform
   that overflows, and text whose coordinates are beyond the supported range.
 - `svg-text-unsupported` (`SvgUnsupportedFeature.TextUnsupportedCode`): text drawn without a feature it uses - `rotate`,
-  `textLength`, `letter-spacing`, `word-spacing`, a vertical `writing-mode`, `direction: rtl`, `dominant-baseline`,
+  `textLength`, a vertical `writing-mode`, `direction: rtl`, `dominant-baseline`,
   `alignment-baseline`, `text-decoration`, an unsupported `baseline-shift`, and a character that no font has a glyph
   for (drawn as the missing-glyph box, named by its code point).
 

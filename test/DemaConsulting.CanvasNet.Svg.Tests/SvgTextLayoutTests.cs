@@ -87,6 +87,17 @@ public class SvgTextLayoutTests
     }
 
     /// <summary>
+    ///     Renders a markup and finds the first inked column of its last glyph on row 45.
+    /// </summary>
+    /// <param name="markup">The markup inside the root element.</param>
+    /// <returns>The column where the last ink run of row 45 starts.</returns>
+    private static int LastGlyphStart(string markup)
+    {
+        using var surface = Render(Doc(markup), 200, 100);
+        return InkRuns(surface, 45)[^1].Start;
+    }
+
+    /// <summary>
     ///     Test that a <c>tspan</c> with its own <c>fill</c> paints its characters in that color and the text after it
     ///     in the text's color.
     /// </summary>
@@ -493,5 +504,193 @@ public class SvgTextLayoutTests
 
         // Assert
         Assert.True(Inked(surface, 5, 45));
+    }
+
+    /// <summary>
+    ///     Test that <c>letter-spacing</c> adds its length after every character.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_LetterSpacing_AddsSpaceAfterEveryCharacter()
+    {
+        // Act
+        using var surface = Render(Doc("<text x='10' y='50' letter-spacing='10'>AAA</text>"), 200, 100);
+
+        // Assert: each 20 px advance is followed by 10 px
+        Assert.Equal([(10, 19), (40, 49), (70, 79)], InkRuns(surface, 45));
+    }
+
+    /// <summary>
+    ///     Test that <c>letter-spacing</c> in <c>em</c>, in percent of the font size, in CSS, and inherited all resolve
+    ///     as in Edge: <c>em</c> at the element that declares it, a percentage with each character's own font size; that
+    ///     <c>normal</c>, 0 and <c>initial</c> add nothing; and that an invalid value is ignored.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_LetterSpacingUnits_ResolveEmPercentAndInheritance()
+    {
+        // Arrange: every case lays out three 20 px glyphs
+        List<(int Start, int End)> spaced = [(10, 19), (40, 49), (70, 79)];
+        List<(int Start, int End)> plain = [(10, 19), (30, 39), (50, 59)];
+
+        // Act / Assert: spaced by 10
+        foreach (var markup in new[]
+                 {
+                     "<text x='10' y='50' letter-spacing='0.5em'>AAA</text>",
+                     "<text x='10' y='50' letter-spacing='50%'>AAA</text>",
+                     "<text x='10' y='50' style='letter-spacing:10px'>AAA</text>",
+                     "<g letter-spacing='1em' font-size='10'><text x='10' y='50' font-size='20'>AAA</text></g>",
+                     "<g letter-spacing='50%' font-size='10'><text x='10' y='50' font-size='20'>AAA</text></g>",
+                     "<text x='10' y='50' letter-spacing='10'>A<tspan letter-spacing='bogus'>AA</tspan></text>",
+                     "<text x='10' y='50' letter-spacing='10' style='letter-spacing:bogus'>AAA</text>"
+                 })
+        {
+            using var surface = Render(Doc(markup), 200, 100);
+            Assert.Equal(spaced, InkRuns(surface, 45));
+        }
+
+        // Act / Assert: not spaced
+        foreach (var markup in new[]
+                 {
+                     "<text x='10' y='50' letter-spacing='normal'>AAA</text>",
+                     "<text x='10' y='50' letter-spacing='0'>AAA</text>",
+                     "<g letter-spacing='10'><text x='10' y='50' letter-spacing='initial'>AAA</text></g>"
+                 })
+        {
+            using var surface = Render(Doc(markup), 200, 100);
+            Assert.Equal(plain, InkRuns(surface, 45));
+        }
+    }
+
+    /// <summary>
+    ///     Test that a middle or end anchor centers or ends a spaced text by a width that includes the spacing after its
+    ///     last character, as Edge does.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_LetterSpacingAnchorMiddleAndEnd_IncludesTheTrailingSpacing()
+    {
+        // Act: two glyphs spaced by 10, a width of 60, anchored at x = 100
+        using var middle = Render(Doc("<text x='100' y='50' letter-spacing='10' text-anchor='middle'>AA</text>"), 200, 100);
+        using var end = Render(Doc("<text x='100' y='50' letter-spacing='10' text-anchor='end'>AA</text>"), 200, 100);
+
+        // Assert
+        Assert.Equal([(70, 79), (100, 109)], InkRuns(middle, 45));
+        Assert.Equal([(40, 49), (70, 79)], InkRuns(end, 45));
+    }
+
+    /// <summary>
+    ///     Test that the <c>letter-spacing</c> of a <c>tspan</c> spaces only its own characters, and that each text chunk
+    ///     is anchored by its own spaced width.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_TspanLetterSpacing_SpacesOnlyItsCharacters()
+    {
+        // Act
+        using var surface = Render(Doc("<text x='10' y='50'>A<tspan letter-spacing='10'>AA</tspan>A</text>"), 200, 100);
+        using var chunks = Render(
+            Doc("<text x='50' y='30' text-anchor='middle' letter-spacing='10'>A<tspan x='100' y='70'>AA</tspan></text>"), 200, 100);
+
+        // Assert: the tspan's two glyphs are each followed by 10 px; chunk widths 30 and 60
+        Assert.Equal([(10, 19), (30, 39), (60, 69), (90, 99)], InkRuns(surface, 45));
+        Assert.Equal([(35, 44)], InkRuns(chunks, 25));
+        Assert.Equal([(70, 79), (100, 109)], InkRuns(chunks, 65));
+    }
+
+    /// <summary>
+    ///     Test that <c>word-spacing</c> widens spaces and no-break spaces (adding to the letter spacing), and leaves other
+    ///     spaces such as the en space alone, as Edge does.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_WordSpacing_WidensSpacesAndNoBreakSpaces()
+    {
+        // Arrange: the start of the second glyph of a text, which the spacing moves
+        var space = LastGlyphStart("<text x='10' y='50'>A A</text>");
+        var noBreakSpace = LastGlyphStart("<text x='10' y='50'>A&#xA0;A</text>");
+
+        // Act / Assert
+        Assert.Equal(space + 10, LastGlyphStart("<text x='10' y='50' word-spacing='10'>A A</text>"));
+        Assert.Equal(space + 10, LastGlyphStart("<text x='10' y='50' word-spacing='50%'>A A</text>"));
+        Assert.Equal(noBreakSpace + 10, LastGlyphStart("<text x='10' y='50' word-spacing='10'>A&#xA0;A</text>"));
+        Assert.Equal(space + 20, LastGlyphStart("<text x='10' y='50' letter-spacing='5' word-spacing='10'>A A</text>"));
+        Assert.True(DrawSame(
+            Doc("<text x='10' y='50'>A&#x2002;A</text>"),
+            Doc("<text x='10' y='50' word-spacing='10'>A&#x2002;A</text>")));
+    }
+
+    /// <summary>
+    ///     Test that a base character and its combining mark take the letter spacing once, as one grapheme cluster.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_LetterSpacingWithCombiningMark_SpacesTheClusterOnce()
+    {
+        // Arrange
+        var plain = LastGlyphStart("<text x='10' y='50'>A&#x301;A</text>");
+
+        // Act
+        var spaced = LastGlyphStart("<text x='10' y='50' letter-spacing='10'>A&#x301;A</text>");
+
+        // Assert
+        Assert.Equal(plain + 10, spaced);
+    }
+
+    /// <summary>
+    ///     Test that a <c>dx</c> shift adds to the letter spacing.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_LetterSpacingWithDx_AddsToTheShift()
+    {
+        // Act
+        using var surface = Render(Doc("<text x='10' y='50' dx='0 5' letter-spacing='10'>AA</text>"), 200, 100);
+
+        // Assert: 10 + 20 + 10 + 5
+        Assert.Equal([(10, 19), (45, 54)], InkRuns(surface, 45));
+    }
+
+    /// <summary>
+    ///     Test that a clip path's text uses the spaced layout, so it clips to the spaced glyphs and not the gaps.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_LetterSpacingInClipPathText_ClipsToTheSpacedGlyphs()
+    {
+        // Arrange
+        var svg = Doc(
+            "<clipPath id='c'><text x='10' y='50' font-family='TestFont' font-size='20' letter-spacing='10'>AA</text></clipPath>" +
+            "<rect width='200' height='100' fill='#00ff00' clip-path='url(#c)'/>");
+
+        // Act
+        using var surface = Render(svg, 200, 100);
+
+        // Assert
+        Assert.Equal([(10, 19), (40, 49)], InkRuns(surface, 45));
+    }
+
+    /// <summary>
+    ///     Test that a zero spacing draws exactly as no spacing, for a single run and for several anchored runs.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_ZeroSpacing_DrawsExactlyAsPlainText()
+    {
+        // Act / Assert
+        Assert.True(DrawSame(
+            Doc("<text x='100' y='50' text-anchor='middle' dx='5'>A AA</text>"),
+            Doc("<text x='100' y='50' text-anchor='middle' dx='5' letter-spacing='0' word-spacing='normal'>A AA</text>")));
+        Assert.True(DrawSame(
+            Doc("<text x='100' y='50' text-anchor='end'>A<tspan fill='#ff0000'>A A</tspan></text>"),
+            Doc("<text x='100' y='50' text-anchor='end' letter-spacing='0em' word-spacing='0%'>A<tspan fill='#ff0000'>A A</tspan></text>")));
+    }
+
+    /// <summary>
+    ///     Test that a long spaced text lays out cluster by cluster linearly and within the work budget.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_LongSpacedText_Renders()
+    {
+        // Arrange: 5000 characters with letter and word spacing
+        var svg = Doc($"<text x='10' y='50' letter-spacing='1' word-spacing='2'>{string.Join(' ', Enumerable.Repeat("AAAA", 1000))}</text>");
+
+        // Act
+        using var surface = Render(svg, 200, 100);
+
+        // Assert: the first glyph is drawn, the second follows after its spacing
+        Assert.Equal((10, 19), InkRuns(surface, 45)[0]);
+        Assert.Equal((31, 40), InkRuns(surface, 45)[1]);
     }
 }

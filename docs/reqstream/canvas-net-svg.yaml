@@ -361,11 +361,12 @@ sections:
         title: >-
           The library shall render an SVG text element's characters as glyph outlines, laid out as
           browsers do - each tspan and a run in its own style, characters placed by x/y/dx/dy lists
-          and baseline-shift, each text chunk anchored according to its text-anchor, and white space
-          collapsed - from a caller-supplied font matching its font-family when one is registered
-          and otherwise from a default font (installed fonts, the bundled Liberation fonts for the
-          generic families, and a bundled Liberation Sans last resort), never silently dropping the
-          text, and shall let a caller disable installed-font lookup for reproducible output.
+          and baseline-shift, each text chunk anchored according to its text-anchor, letter and word
+          spacing added, and white space collapsed - from a caller-supplied font matching its
+          font-family when one is registered and otherwise from a default font (installed fonts, the
+          bundled Liberation fonts for the generic families, and a bundled Liberation Sans last
+          resort), never silently dropping the text, and shall let a caller disable installed-font
+          lookup for reproducible output.
         tags: [system]
         justification: |
           Callers need text content in an SVG document rendered as recognizable glyph shapes
@@ -380,6 +381,7 @@ sections:
           - CanvasNetSvg-SvgCodec-TextSpans
           - CanvasNetSvg-SvgCodec-TextPositioning
           - CanvasNetSvg-SvgCodec-TextWhiteSpace
+          - CanvasNetSvg-SvgCodec-TextSpacing
           - CanvasNetSvg-SvgCodec-AnchorAndSwitchElements
         tests:
           - CanvasNetSvg_SystemIntegration_SvgTextRendering_RendersGlyphAtExpectedPosition

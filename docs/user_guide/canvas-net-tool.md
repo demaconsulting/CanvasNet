@@ -1132,7 +1132,7 @@ draws the model and the chart into their rectangles. The result lists each embed
 - **Text that is not drawn.** Text the SVG file (or an embedded SVG file) has but the library does not draw is the
   `unsupported` report **`svg-text-not-drawn`** (text on a `textPath`, the HTML of a `foreignObject`, a `text` inside a
   nested `svg` or an unknown element, a negative `font-size`), and text drawn without a feature it uses is
-  **`svg-text-unsupported`** (`rotate`, `textLength`, `letter-spacing`, `word-spacing`, vertical writing,
+  **`svg-text-unsupported`** (`rotate`, `textLength`, vertical writing,
   right-to-left `direction`, `dominant-baseline`, `text-decoration`, or a character no font has); each is reported
   once per file with the number of elements, and `--strict` fails on both with `unsupported-feature`.
 - **A file that is found but broken** (a corrupt picture, a model with a syntax error, a chart with an invalid

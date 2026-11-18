@@ -45,8 +45,9 @@ public static partial class SvgCodec
     ///     its runs together: a text of several runs with an opacity below 1 is painted into one
     ///     offscreen layer (see <see cref="NeedsTextRunsLayer"/>), so a run drawn over another
     ///     covers it, as in browsers. A text that lays out as one run of the <c>text</c> element
-    ///     itself takes exactly the call it always took, so plain text renders as before.
-    ///     <c>rotate</c>, <c>textLength</c>, spacing, vertical writing
+    ///     itself takes exactly the call it always took, so plain text renders as before. Letter and
+    ///     word spacing are laid out (see <see cref="LayOutSpacedRun"/>).
+    ///     <c>rotate</c>, <c>textLength</c>, vertical writing
     ///     and the other features the layout ignores are reported (see <see cref="SvgUnsupportedFeature"/>),
     ///     as is text whose coordinates are beyond the supported range (the shape renderer skips it).
     /// </remarks>

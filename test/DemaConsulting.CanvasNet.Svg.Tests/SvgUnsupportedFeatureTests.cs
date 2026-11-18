@@ -54,10 +54,11 @@ public class SvgUnsupportedFeatureTests
     }
 
     /// <summary>
-    ///     Test that the ignored text features of one text are reported as one unsupported report naming every feature.
+    ///     Test that the ignored text features of one text are reported as one unsupported report naming every feature,
+    ///     and that the letter and word spacing it also uses are not reported (they are drawn).
     /// </summary>
     [Fact]
-    public void SvgCodec_UnsupportedFeatureHandler_RotateTextLengthAndSpacing_ReportsOneUnsupportedWithEveryFeature()
+    public void SvgCodec_UnsupportedFeatureHandler_RotateTextLengthAndWritingMode_ReportsOneUnsupportedWithEveryFeature()
     {
         // Arrange: the inherited features come from the group, the others from the text and its tspan
         var svg = Doc(
@@ -73,12 +74,14 @@ public class SvgUnsupportedFeatureTests
         Assert.Equal(1, report.Count);
         foreach (var feature in new[]
                  {
-                     "rotate", "textLength", "letter-spacing", "word-spacing", "vertical writing-mode", "direction rtl",
+                     "rotate", "textLength", "vertical writing-mode", "direction rtl",
                      "dominant-baseline", "text-decoration", "baseline-shift", "alignment-baseline"
                  })
         {
             Assert.Contains(feature, report.Message, StringComparison.Ordinal);
         }
+
+        Assert.DoesNotContain("spacing", report.Message, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -175,8 +178,8 @@ public class SvgUnsupportedFeatureTests
     }
 
     /// <summary>
-    ///     Test that plain text, styled and positioned <c>tspan</c> runs, a <c>switch</c> fallback and descriptions
-    ///     report nothing.
+    ///     Test that plain text, styled and positioned <c>tspan</c> runs, letter and word spacing, a <c>switch</c>
+    ///     fallback and descriptions report nothing.
     /// </summary>
     [Fact]
     public void SvgCodec_UnsupportedFeatureHandler_PlainAndStyledText_ReportsNothing()
@@ -185,6 +188,7 @@ public class SvgUnsupportedFeatureTests
         var svg = Doc(
             "<text x='10 20' y='50' dx='1' letter-spacing='normal' rotate='0'>A<tspan fill='red' baseline-shift='super' dy='3'>A</tspan>" +
             "<title>AAA</title><a href='#x'>A</a></text>" +
+            "<g letter-spacing='1em'><text x='10' y='70' letter-spacing='2' word-spacing='3px'>A A</text></g>" +
             "<switch><foreignObject width='5' height='5'><p xmlns='http://www.w3.org/1999/xhtml'>html</p></foreignObject>" +
             "<text x='10' y='80'>A</text></switch>" +
             "<defs><text><textPath href='#p'>never drawn</textPath></text></defs>" +

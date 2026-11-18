@@ -23,9 +23,8 @@ public sealed record SvgUnsupportedFeature
     public const string TextNotDrawnCode = "svg-text-not-drawn";
 
     /// <summary>
-    ///     The code of text that is drawn without a feature it uses, such as <c>rotate</c>, <c>textLength</c>,
-    ///     <c>letter-spacing</c>, a vertical <c>writing-mode</c>, or a character that no font has a glyph for (drawn as
-    ///     the missing-glyph box).
+    ///     The code of text that is drawn without a feature it uses, such as <c>rotate</c>, <c>textLength</c>, a
+    ///     vertical <c>writing-mode</c>, or a character that no font has a glyph for (drawn as the missing-glyph box).
     /// </summary>
     public const string TextUnsupportedCode = "svg-text-unsupported";
 

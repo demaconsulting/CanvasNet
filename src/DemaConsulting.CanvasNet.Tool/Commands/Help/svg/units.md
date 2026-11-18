@@ -74,7 +74,8 @@ see-also:
   used; an invalid font-size, line-height, or font shorthand is dropped, so the
   next lower source applies, else the size is inherited (a browser does the
   same).
-- Units are not converted for: letter-spacing, word-spacing, and textLength
-  (which are not supported and are reported as svg-text-unsupported), and
-  nested svg elements (which are not drawn, so their width, height, x, and y
-  are never read).
+- letter-spacing and word-spacing take any length, em, and a percent of the
+  font size.
+- Units are not converted for: textLength (which is not supported and is
+  reported as svg-text-unsupported), and nested svg elements (which are not
+  drawn, so their width, height, x, and y are never read).

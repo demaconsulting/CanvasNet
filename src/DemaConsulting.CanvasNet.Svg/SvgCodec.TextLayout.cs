@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Numerics;
+using System.Text;
 using System.Xml.Linq;
 using DemaConsulting.CanvasNet.Fonts;
 using DemaConsulting.CanvasNet.Geometry;
@@ -20,9 +21,12 @@ namespace DemaConsulting.CanvasNet.Svg;
 //   2. Resolve the x, y, dx and dy lists of the text and of every tspan per character; a descendant's entry overrides
 //      its ancestor's.
 //   3. Place runs: an absolute x or y starts a new text chunk, dx/dy move the pen (a dy persists for the following text),
-//      and consecutive characters of the same element without their own position form one run.
-//   4. Anchor each chunk by the text-anchor of its first character. A chunk of a single run is laid out with exactly the
-//      arithmetic a plain text always used, so text without tspan or position lists draws exactly as before.
+//      and consecutive characters of the same element without their own position form one run. A run with
+//      letter-spacing or word-spacing is walked grapheme cluster by grapheme cluster: the letter spacing follows every
+//      cluster (the last one too) and the word spacing every space and no-break space, on top of the kerned advance.
+//   4. Anchor each chunk by the text-anchor of its first character; the chunk width includes the spacing after its last
+//      character, as in browsers. A chunk of a single run without spacing is laid out with exactly the arithmetic a
+//      plain text always used, so text without tspan, position lists or spacing draws exactly as before.
 //
 // Rendering, the filter bounds pre-pass and clip-path text all use this one layout, so they always agree.
 public static partial class SvgCodec
@@ -122,7 +126,35 @@ public static partial class SvgCodec
     /// <param name="Span">The run's element.</param>
     /// <param name="Font">The run's resolved font.</param>
     /// <param name="Pen">The pen position of the run's first character, before anchoring and baseline shift.</param>
-    private readonly record struct PendingRun(string Text, TextSpan Span, TrueTypeFont Font, Vector2 Pen);
+    /// <param name="LetterSpacing">The run's resolved <c>letter-spacing</c> in user units; 0 for none.</param>
+    /// <param name="WordSpacing">The run's resolved <c>word-spacing</c> in user units; 0 for none.</param>
+    private readonly record struct PendingRun(
+        string Text, TextSpan Span, TrueTypeFont Font, Vector2 Pen, float LetterSpacing, float WordSpacing)
+    {
+        /// <summary>Gets a value indicating whether the run has letter or word spacing to lay out.</summary>
+        public bool IsSpaced => LetterSpacing != 0f || WordSpacing != 0f;
+    }
+
+    /// <summary>
+    ///     A computed <c>letter-spacing</c> or <c>word-spacing</c> value: a length plus a fraction of the font size.
+    /// </summary>
+    /// <remarks>
+    ///     A plain percentage is kept as a fraction, so it is inherited as a percentage and resolved with the font size of
+    ///     each character, as browsers do (<c>50%</c> on a group of 10 px font size spaces its 20 px text by 10). Every
+    ///     other value - a number, a length, <c>em</c>, or a <c>calc()</c> expression - is resolved at the element that
+    ///     declares it and inherited as a length; a <c>calc()</c> that mixes in a percentage therefore resolves the
+    ///     percentage with the declaring element's font size (a documented approximation). The default value is zero
+    ///     (<c>normal</c>).
+    /// </remarks>
+    /// <param name="Length">The length part, in user units.</param>
+    /// <param name="FontSizeFraction">The part relative to the font size (0.5 for <c>50%</c>).</param>
+    private readonly record struct TextSpacing(float Length, float FontSizeFraction)
+    {
+        /// <summary>Resolves the spacing for a character of the given font size.</summary>
+        /// <param name="fontSize">The character's font size, in user units.</param>
+        /// <returns>The spacing in user units; may be negative.</returns>
+        public float Resolve(float fontSize) => Length + (FontSizeFraction * fontSize);
+    }
 
     /// <summary>
     ///     Lays out a <c>text</c> element as styled, positioned runs (see this file's header for the steps).
@@ -552,16 +584,28 @@ public static partial class SvgCodec
             var span = content.Spans[spanIndex];
             var runText = new string(buffer, index, end - index);
             var font = ResolveFont(context, span.State.FontFamily, span.State.FontWeight, span.State.FontStyle);
-            chunk.Add(new PendingRun(runText, span, font, pen));
             var size = span.State.FontSize;
             if (size > 0f && float.IsFinite(size))
             {
-                pen = new Vector2(pen.X + Rendering.TextRenderer.MeasureText(runText, font, size).Width, pen.Y);
+                // Spacing resolves with the run's own font size (a percentage is relative to it); without spacing the
+                // run advances by exactly the whole-run measure a plain text always used
+                var letterSpacing = span.State.LetterSpacing.Resolve(size);
+                var wordSpacing = span.State.WordSpacing.Resolve(size);
+                var run = new PendingRun(runText, span, font, pen, letterSpacing, wordSpacing);
+                chunk.Add(run);
+                var advance = run.IsSpaced
+                    ? LayOutSpacedRun(runText, font, size, letterSpacing, wordSpacing, null, Vector2.Zero)
+                    : Rendering.TextRenderer.MeasureText(runText, font, size).Width;
+                pen = new Vector2(pen.X + advance, pen.Y);
                 ReportMissingGlyphs(content, font, runText);
             }
-            else if (size != 0f && content.Collector is { } collector && !string.IsNullOrWhiteSpace(runText))
+            else
             {
-                collector.Add(SvgUnsupportedFeature.TextNotDrawnCode, "negative font-size", content.Text);
+                chunk.Add(new PendingRun(runText, span, font, pen, 0f, 0f));
+                if (size != 0f && content.Collector is { } collector && !string.IsNullOrWhiteSpace(runText))
+                {
+                    collector.Add(SvgUnsupportedFeature.TextNotDrawnCode, "negative font-size", content.Text);
+                }
             }
 
             index = end;
@@ -569,6 +613,86 @@ public static partial class SvgCodec
 
         AnchorTextChunk(chunk, chunkStart, pen.X, runs);
         return runs;
+    }
+
+    /// <summary>
+    ///     Lays out a run with <c>letter-spacing</c> or <c>word-spacing</c> grapheme cluster by grapheme cluster, and
+    ///     optionally outlines it.
+    /// </summary>
+    /// <param name="text">The run's characters; not empty.</param>
+    /// <param name="font">The run's resolved font.</param>
+    /// <param name="size">The run's font size; positive and finite.</param>
+    /// <param name="letterSpacing">The spacing added after every grapheme cluster, in user units; may be negative.</param>
+    /// <param name="wordSpacing">The spacing added after every word separator, in user units; may be negative.</param>
+    /// <param name="builder">The builder to append the glyph outlines to, or <see langword="null"/> to only measure.</param>
+    /// <param name="origin">The pen position of the run's first character, used when outlining.</param>
+    /// <returns>The run's advance, including the spacing after its last cluster.</returns>
+    /// <remarks>
+    ///     CSS Text 3 adds the letter spacing after every typographic character unit - a grapheme cluster, so a base and
+    ///     its combining marks, a surrogate pair and an emoji sequence each take it once - the last one included, and the
+    ///     word spacing after every word separator character (space, no-break space and the few script-specific word
+    ///     separators); a space takes both. Edge does exactly this. The font's kerning is kept: the advance of a cluster is
+    ///     the measure of the cluster and the next one together minus the measure of the next one alone, which is its
+    ///     kerned advance as <c>Rendering.TextRenderer</c> places it (glyph fallback included); the last cluster advances
+    ///     by its own measure. The renderer has no ligature shaping, so there are no ligatures to disable. The work is
+    ///     linear: two measures per cluster, plus one outline per cluster when drawing.
+    /// </remarks>
+    private static float LayOutSpacedRun(
+        string text, TrueTypeFont font, float size, float letterSpacing, float wordSpacing, PathBuilder? builder, Vector2 origin)
+    {
+        var pen = 0f;
+        var start = 0;
+        var length = StringInfo.GetNextTextElementLength(text.AsSpan());
+        float? measured = null;
+        while (length > 0)
+        {
+            // The kerned advance: the cluster with its successor, less the successor alone (kept for the next cluster);
+            // the last cluster advances by its own measure
+            var cluster = text.Substring(start, length);
+            var nextStart = start + length;
+            var nextLength = StringInfo.GetNextTextElementLength(text.AsSpan(nextStart));
+            float advance;
+            if (nextLength > 0)
+            {
+                var nextWidth = Rendering.TextRenderer.MeasureText(text.Substring(nextStart, nextLength), font, size).Width;
+                advance = Rendering.TextRenderer.MeasureText(text.Substring(start, length + nextLength), font, size).Width - nextWidth;
+                measured = nextWidth;
+            }
+            else
+            {
+                advance = measured ?? Rendering.TextRenderer.MeasureText(cluster, font, size).Width;
+            }
+
+            builder?.AppendPath(Rendering.TextRenderer.CreateTextPath(cluster, font, size, origin.X + pen, origin.Y));
+
+            // The spacing follows every cluster, the last one too; a word separator also takes the word spacing
+            pen += advance + letterSpacing;
+            if (IsWordSeparator(cluster))
+            {
+                pen += wordSpacing;
+            }
+
+            start = nextStart;
+            length = nextLength;
+        }
+
+        return pen;
+    }
+
+    /// <summary>
+    ///     Determines whether a grapheme cluster starts with a CSS word separator character, the characters
+    ///     <c>word-spacing</c> applies to.
+    /// </summary>
+    /// <param name="cluster">The cluster; not empty.</param>
+    /// <returns>
+    ///     <see langword="true"/> for U+0020 space, U+00A0 no-break space, U+1361 Ethiopic word space, U+10100/U+10101
+    ///     Aegean word separators, U+1039F Ugaritic word divider and U+1091F Phoenician word separator (CSS Text 3);
+    ///     other spaces such as U+2002 en space are not word separators, as in Edge.
+    /// </returns>
+    private static bool IsWordSeparator(string cluster)
+    {
+        Rune.DecodeFromUtf16(cluster, out var rune, out _);
+        return rune.Value is 0x20 or 0xA0 or 0x1361 or 0x10100 or 0x10101 or 0x1039F or 0x1091F;
     }
 
     /// <summary>
@@ -601,9 +725,11 @@ public static partial class SvgCodec
     /// <param name="chunkEnd">The pen x after the chunk's last character.</param>
     /// <param name="runs">The laid-out runs to append to.</param>
     /// <remarks>
-    ///     A chunk of one run is outlined by <see cref="BuildGlyphRunPath"/> with the anchor as its alignment: the very
-    ///     arithmetic a plain text always used, so such text draws exactly as before. A chunk of several runs is shifted by
-    ///     its whole advance (including <c>dx</c> shifts inside it) and each run is outlined from its own pen position.
+    ///     A chunk of one run without spacing is outlined by <see cref="BuildGlyphRunPath"/> with the anchor as its
+    ///     alignment: the very arithmetic a plain text always used, so such text draws exactly as before. Any other chunk
+    ///     is shifted by its whole advance (including <c>dx</c> shifts inside it and the spacing after its last character,
+    ///     as Edge anchors it) and each run is outlined from its own pen position, a spaced run cluster by cluster
+    ///     (<see cref="LayOutSpacedRun"/>).
     /// </remarks>
     private static void AnchorTextChunk(List<PendingRun> chunk, float chunkStart, float chunkEnd, List<TextRun> runs)
     {
@@ -614,7 +740,8 @@ public static partial class SvgCodec
 
         var anchor = chunk[0].Span.State.TextAnchor;
         var width = chunkEnd - chunkStart;
-        var offset = chunk.Count == 1
+        var plain = chunk.Count == 1 && !chunk[0].IsSpaced;
+        var offset = plain
             ? 0f
             : anchor switch
             {
@@ -622,12 +749,23 @@ public static partial class SvgCodec
                 TextAnchor.End => -width,
                 _ => 0f
             };
-        var align = chunk.Count == 1 ? anchor : TextAnchor.Start;
+        var align = plain ? anchor : TextAnchor.Start;
 
         foreach (var run in chunk)
         {
             var origin = new Vector2(run.Pen.X + offset, run.Pen.Y - run.Span.BaselineShift);
-            var path = BuildGlyphRunPath(run.Text, run.Font, run.Span.State.FontSize, align, origin);
+            Path path;
+            if (run.IsSpaced)
+            {
+                var builder = new PathBuilder();
+                LayOutSpacedRun(run.Text, run.Font, run.Span.State.FontSize, run.LetterSpacing, run.WordSpacing, builder, origin);
+                path = builder.Build();
+            }
+            else
+            {
+                path = BuildGlyphRunPath(run.Text, run.Font, run.Span.State.FontSize, align, origin);
+            }
+
             if (path.Subpaths.Count > 0)
             {
                 runs.Add(new TextRun(path, run.Span.State, run.Span.Element));
@@ -645,14 +783,13 @@ public static partial class SvgCodec
     /// <param name="collector">The collector.</param>
     /// <remarks>
     ///     Each text content element is checked for every feature; the ancestors of the <c>text</c> are checked for the
-    ///     inherited ones (spacing, writing mode, direction, dominant baseline, decoration), so a style set on a group is
-    ///     found too.
+    ///     inherited ones (writing mode, direction, dominant baseline, decoration), so a style set on a group is found too.
+    ///     Letter and word spacing are laid out, so they are not reported.
     /// </remarks>
     private static void CollectUnsupportedTextFeatures(TextContent content, RenderContext context, UnsupportedFeatureCollector collector)
     {
-        foreach (var span in content.Spans)
+        foreach (var element in content.Spans.Select(span => span.Element))
         {
-            var element = span.Element;
             if (((string?)element.Attribute("rotate")) is { } rotate && HasNonZeroNumber(rotate))
             {
                 collector.Add(SvgUnsupportedFeature.TextUnsupportedCode, "rotate", content.Text);
@@ -668,12 +805,12 @@ public static partial class SvgCodec
                 collector.Add(SvgUnsupportedFeature.TextUnsupportedCode, "alignment-baseline", content.Text);
             }
 
-            CollectUnsupportedInheritedTextFeatures(element, span.State, content.Text, context, collector);
+            CollectUnsupportedInheritedTextFeatures(element, content.Text, context, collector);
         }
 
         foreach (var ancestor in content.Text.Ancestors())
         {
-            CollectUnsupportedInheritedTextFeatures(ancestor, content.Spans[0].State, content.Text, context, collector);
+            CollectUnsupportedInheritedTextFeatures(ancestor, content.Text, context, collector);
         }
     }
 
@@ -681,23 +818,12 @@ public static partial class SvgCodec
     ///     Records the inherited text features one element sets that the layout ignores.
     /// </summary>
     /// <param name="element">The element (a text content element or an ancestor of the <c>text</c>).</param>
-    /// <param name="state">The state supplying the length bases of a spacing value.</param>
     /// <param name="text">The <c>text</c> element a report is counted against.</param>
     /// <param name="context">The fixed per-document render context.</param>
     /// <param name="collector">The collector.</param>
     private static void CollectUnsupportedInheritedTextFeatures(
-        XElement element, RenderState state, XElement text, RenderContext context, UnsupportedFeatureCollector collector)
+        XElement element, XElement text, RenderContext context, UnsupportedFeatureCollector collector)
     {
-        foreach (var spacing in (ReadOnlySpan<string>)["letter-spacing", "word-spacing"])
-        {
-            var value = ResolveElementProperty(element, spacing, context);
-            if (IsUnsupportedTextValue(value, "normal") &&
-                TryResolveLength(value!, state, PercentageAxis.Horizontal, out var length, out _) && length != 0f)
-            {
-                collector.Add(SvgUnsupportedFeature.TextUnsupportedCode, spacing, text);
-            }
-        }
-
         var writingMode = ResolveElementProperty(element, "writing-mode", context)?.Trim();
         if (writingMode != null &&
             (writingMode.StartsWith("tb", StringComparison.OrdinalIgnoreCase) ||
@@ -759,4 +885,84 @@ public static partial class SvgCodec
     private static bool HasNonZeroNumber(string list) =>
         list.Split([' ', ',', '\t', '\n', '\r'], StringSplitOptions.RemoveEmptyEntries)
             .Any(entry => !float.TryParse(entry, NumberStyles.Float, CultureInfo.InvariantCulture, out var value) || value != 0f);
+
+    /// <summary>
+    ///     Resolves the cascaded <c>letter-spacing</c> or <c>word-spacing</c> of an element.
+    /// </summary>
+    /// <param name="css">The value from the CSS cascade (inline style or stylesheet), or <see langword="null"/>.</param>
+    /// <param name="attribute">The presentation attribute's value, or <see langword="null"/>.</param>
+    /// <param name="fontState">The element's state after its own font cascade, the basis of <c>em</c> and other units.</param>
+    /// <param name="parent">The parent's computed value, inherited when no source is valid.</param>
+    /// <returns>The element's computed spacing (see <see cref="TextSpacing"/>).</returns>
+    /// <remarks>
+    ///     The first valid source wins, CSS before the attribute; an invalid value is ignored, so the next source or the
+    ///     inherited value applies, as in Edge. <c>inherit</c>, <c>unset</c> and <c>revert</c> take the parent's value,
+    ///     <c>initial</c> and <c>normal</c> are zero, a plain percentage is kept relative to the font size of each
+    ///     character, and any other length (a unitless number too, as browsers accept it) is resolved here. Negative
+    ///     values are valid.
+    /// </remarks>
+    private static TextSpacing ResolveTextSpacing(string? css, string? attribute, RenderState fontState, TextSpacing parent)
+    {
+        foreach (var raw in (ReadOnlySpan<string?>)[css, attribute])
+        {
+            if (TryParseTextSpacing(raw, fontState, parent, out var spacing))
+            {
+                return spacing;
+            }
+        }
+
+        return parent;
+    }
+
+    /// <summary>
+    ///     Parses one source's <c>letter-spacing</c> or <c>word-spacing</c> value (see <see cref="ResolveTextSpacing"/>).
+    /// </summary>
+    /// <param name="raw">The raw value, or <see langword="null"/> when the source does not set it.</param>
+    /// <param name="fontState">The element's state after its own font cascade.</param>
+    /// <param name="parent">The parent's computed value, for the CSS-wide keywords that inherit.</param>
+    /// <param name="spacing">The computed value when this method returns <see langword="true"/>.</param>
+    /// <returns><see langword="true"/> when the value is valid.</returns>
+    private static bool TryParseTextSpacing(string? raw, RenderState fontState, TextSpacing parent, out TextSpacing spacing)
+    {
+        spacing = default;
+        var text = raw?.Trim();
+        if (string.IsNullOrEmpty(text))
+        {
+            return false;
+        }
+
+        switch (ParseCssWideKeyword(text))
+        {
+            case CssWideKeyword.Inherit:
+                spacing = parent;
+                return true;
+            case CssWideKeyword.Initial:
+                return true;
+        }
+
+        if (text.Equals("normal", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        // A plain percentage stays relative: resolved against a font size of 1 it is the fraction itself
+        if (text.EndsWith('%') && !text.Contains('('))
+        {
+            if (!TryResolveLength(text, fontState with { FontSize = 1f }, PercentageAxis.FontSize, out var fraction, out _))
+            {
+                return false;
+            }
+
+            spacing = new TextSpacing(0f, fraction);
+            return true;
+        }
+
+        if (!TryResolveLength(text, fontState, PercentageAxis.FontSize, out var length, out _))
+        {
+            return false;
+        }
+
+        spacing = new TextSpacing(length, 0f);
+        return true;
+    }
 }

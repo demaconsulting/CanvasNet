@@ -442,7 +442,8 @@ explicit longhand attribute, an inline style and a stylesheet rule. `font-varian
 **Text positions.** Every entry of the `x`/`y`/`dx`/`dy` lists of `text` and `tspan` accepts any
 length, `em` and percentages included (Vega's `dy="0.71em"` is the canonical use of `em` in
 generated SVG), resolved against its own element's font and the viewport; see *Text Layout*.
-`letter-spacing`, `word-spacing`, `textLength` and `rotate` remain unsupported and are reported.
+`textLength` and `rotate` remain unsupported and are reported; `letter-spacing` and `word-spacing` are laid out (see
+*Text Layout*).
 
 **Accepted simplifications.** `ex`/`ch`/`lh`/`em` in a gradient, pattern or mask-region coordinate
 resolve against the referencing element's font rather than the paint server's own cascade; units are
@@ -487,8 +488,9 @@ italic keywords", never needs to distinguish a true italic face from a mechanica
 it defines a private `RenderState` record capturing the cascading presentation state (fill,
 stroke, fill-opacity, stroke-opacity, opacity, fill-rule, stroke-width, stroke-linecap,
 stroke-linejoin, stroke-miterlimit, stroke-dasharray, stroke-dashoffset, font-family, font-size,
-font-weight, font-style, text-anchor, and the three marker-start/marker-mid/marker-end
-specifications) that is threaded down through the element tree alongside an accumulated
+font-weight, font-style, text-anchor, letter-spacing, word-spacing, and the three
+marker-start/marker-mid/marker-end specifications) that is threaded down through the element tree
+alongside an accumulated
 `System.Numerics.Matrix3x2` transform, plus a private `RenderContext` capturing fixed per-document
 state (the id→`XElement` index, the caller's font-family-to-`SvgFontFace`-list dictionary, the
 `UseSystemFonts` setting, the optional `ImageResolver`, the per-render resolved-font cache, and the
@@ -808,7 +810,8 @@ regardless of that rule's own specificity). This resolution happens through a si
 *Presentation-Attribute Inheritance Model* above) for every `RenderState`-inherited property
 (`fill`, `stroke`, `fill-opacity`, `stroke-opacity`, `opacity`, `fill-rule`, `stroke-width`,
 `stroke-linecap`, `stroke-linejoin`, `stroke-miterlimit`, `stroke-dasharray`,
-`stroke-dashoffset`, `font-family`, `font-size`, `font-weight`, `font-style`, `text-anchor`, and
+`stroke-dashoffset`, `font-family`, `font-size`, `font-weight`, `font-style`, `text-anchor`,
+`letter-spacing`, `word-spacing`, and
 `marker-start`/`marker-mid`/`marker-end`): it returns the winning inline or stylesheet
 declaration's raw value, or `null` if neither tier has one, in which case the caller falls
 through to reading the plain presentation attribute directly - preserving exactly the
@@ -1793,11 +1796,26 @@ text layout, simplified to horizontal text, and was cross-checked against Micros
    `dx`/`dy` are then added (so a `dy` persists for the following text). Consecutive characters of
    the same element without a position of their own form one run, measured with its own font; the
    low half of a surrogate pair never starts a run.
-4. *Anchors.* A chunk is anchored by the `text-anchor` of its first character. A chunk of one run is
-   outlined with the anchor as its alignment, the very arithmetic a plain text always used, so text
-   without `tspan` or position lists draws as before. A chunk of several runs is shifted by
-   `-width/2` (middle) or `-width` (end) of its whole advance, `dx` shifts included.
-5. *Baseline shift.* `baseline-shift` on a `text`, `tspan` or `a` (resolved with
+4. *Anchors.* A chunk is anchored by the `text-anchor` of its first character. A chunk of one run
+   without spacing is outlined with the anchor as its alignment, the very arithmetic a plain text
+   always used, so text without `tspan`, position lists or spacing draws as before. Any other chunk
+   is shifted by `-width/2` (middle) or `-width` (end) of its whole advance, `dx` shifts and the
+   spacing after its last character included (Edge anchors by that width).
+5. *Spacing.* `letter-spacing` and `word-spacing` are inherited `RenderState` properties
+   (`TextSpacing`), resolved by `ResolveTextSpacing` from the first valid of CSS and the attribute
+   (an invalid value is ignored): `normal` and `initial` are zero, a plain percentage is kept as a
+   fraction of the font size and resolved with each run's own font size (so `50%` inherited from a
+   group of another font size still means half the character's size, as in Edge), and any other
+   length, `em` and a unitless number included, is resolved at the declaring element. A run whose
+   resolved spacing is not zero is laid out by `LayOutSpacedRun`, grapheme cluster by grapheme
+   cluster (`StringInfo.GetNextTextElementLength`, so a combining sequence or a surrogate pair takes
+   the spacing once): each cluster advances by the measure of itself and the next cluster less the
+   measure of the next cluster (its kerned advance, glyph fallback included, exactly as
+   `TextRenderer` places it), then by the letter spacing (after the last cluster too), and a cluster
+   starting with a CSS word separator (U+0020, U+00A0 and the few script word separators, not
+   U+2002) also by the word spacing. The renderer has no ligature shaping, so there are no ligatures
+   to disable. The work is linear: two measures and, when drawing, one outline per cluster.
+6. *Baseline shift.* `baseline-shift` on a `text`, `tspan` or `a` (resolved with
    `ResolveElementProperty`) accumulates through the nesting and moves only that element's runs: a
    length up, a percentage of the element's font size, and `super`/`sub` by half the font's ascent
    plus descent (Edge's rule, measured with Arial and Courier New); any other value is reported.
@@ -2126,8 +2144,8 @@ the first 24 characters of its text), the distinct elements (the count), and up 
   `font-size`; and a text whose transformed bounds are not finite or exceed `MaxCoordinateMagnitude` (from
   `RenderText`; `RenderShape` skips such geometry).
 - `svg-text-unsupported` (`SvgUnsupportedFeature.TextUnsupportedCode`): a non-zero `rotate`, `textLength`,
-  `alignment-baseline` and an unsupported `baseline-shift` on a text content element; a non-zero `letter-spacing` or
-  `word-spacing`, a vertical `writing-mode`, `direction: rtl`, a `dominant-baseline` and a `text-decoration` on a text
+  `alignment-baseline` and an unsupported `baseline-shift` on a text content element; a vertical `writing-mode`,
+  `direction: rtl`, a `dominant-baseline` and a `text-decoration` on a text
   content element or an ancestor of the `text`; and each code point that `GlyphFallback.FindMissing` finds no font
   for.
 

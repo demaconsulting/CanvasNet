@@ -139,7 +139,7 @@ public sealed record SvgLoadOptions
     ///         Two codes are reported: <see cref="SvgUnsupportedFeature.TextNotDrawnCode"/> for text that is not drawn
     ///         at all (for example <c>textPath</c> content, or text inside <c>foreignObject</c>) and
     ///         <see cref="SvgUnsupportedFeature.TextUnsupportedCode"/> for text drawn without a feature it uses (for
-    ///         example <c>rotate</c>, <c>letter-spacing</c>, or a character no font covers). A report never changes the
+    ///         example <c>rotate</c>, <c>textLength</c>, or a character no font covers). A report never changes the
     ///         pixels and never fails the render; failing is the host's choice.
     ///     </para>
     ///     <para>

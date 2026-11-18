@@ -36,11 +36,10 @@ see-also:
   reasons, counts the elements, and names the first. With --strict it is an
   unsupported-feature error.
 - `svg-text-unsupported`: Unsupported: text drawn without a feature it uses:
-  rotate, textLength, letter-spacing, word-spacing, vertical writing-mode,
-  direction rtl, dominant-baseline, alignment-baseline, text-decoration, an
-  unsupported baseline-shift, or a character no font has (drawn as a box). One
-  per drawing, like svg-text-not-drawn. With --strict it is an
-  unsupported-feature error.
+  rotate, textLength, vertical writing-mode, direction rtl, dominant-baseline,
+  alignment-baseline, text-decoration, an unsupported baseline-shift, or a
+  character no font has (drawn as a box). One per drawing, like
+  svg-text-not-drawn. With --strict it is an unsupported-feature error.
 - `image-fragment-unknown-parameter`: Warning: the fragment of an href names a
   parameter the linked file does not use (a typo such as pag=2, or any parameter
   on a raster or an SVG file). The picture is drawn without it. --strict does
