@@ -12,11 +12,25 @@ README is also shipped inside the NuGet packages. `render-images.ps1` draws it w
 background, so its white card reads on light and dark pages, and checks it like the other images. Update the SVG,
 and run the script, whenever a package or a project reference is added or removed.
 
-## composition.png
+## composition-explained.png
 
-`composition.png` (1440x1080) shows composition across formats: one SVG page, `showcase/composition.svg` (960x720,
-drawn at 1.5 times its size), whose pictures are other files that CanvasNet draws at the size of their boxes. It is
-referenced from the *Composition* section of the README by an absolute URL, like `showcase.png`.
+`composition-explained.png` (1600x900) explains composition: an exploded stack of three layers (the SVG page
+`composition-explained/page.svg`, the Mermaid diagram `flow.mmd` it embeds, and the OpenSCAD model `part.scad` and
+Vega-Lite chart `chart.vl.json` that the diagram's nodes embed), numbered cards with the markup of each link, and the
+finished page. It is referenced from the *Composition* section of the README by an absolute URL. The diagram and the
+model and chart layers are live drawings of their files under an SVG transform; the top layer is a manual copy of
+the content of `page.svg`, so a change to the page must be repeated there (the figure's header comment explains how
+its coordinates follow `page.svg`). `render-images.ps1` draws it with
+`--strict` on a transparent background, with file access confined to its folder.
+
+Every file in `composition-explained/` is **original to this repository** (MIT): `composition-explained.svg` and
+`page.svg` were authored for it, `part.scad` is a copy of `showcase/explode.scad`, and `flow.mmd` and `chart.vl.json`
+are adapted from `showcase/pipeline.mmd` and `showcase/output.vl.json`.
+
+## showcase/composition.svg
+
+`showcase/composition.svg` (960x720) is the *Composition* panel of `showcase.png`: one SVG page whose pictures are
+other files that CanvasNet draws at the size of their boxes.
 
 - The top panel embeds the Mermaid flowchart `showcase/pipeline.mmd` (`<image href="pipeline.mmd"/>`), whose picture
   nodes show the OpenSCAD model `showcase/hull.scad` and the Vega-Lite chart `showcase/output.vl.json`
@@ -32,8 +46,33 @@ referenced from the *Composition* section of the README by an absolute URL, like
 The text of the page uses only the generic font families `sans-serif` and `monospace`, which are always the bundled
 Liberation fonts, and Mermaid and Vega-Lite always use the bundled fonts, so the picture is the same on every machine.
 `composition.svg`, `pipeline.mmd`, `output.vl.json`, and `release.mmd` are **original to this repository** (MIT), and
-so are the reused `hull.scad` and `explode.scad`. `render-images.ps1` draws it with `--strict`, so a link that stops
-working fails the script, and checks it like the other images.
+so are the reused `hull.scad` and `explode.scad`. `render-images.ps1` draws it with `--strict` as a panel of
+`showcase.png`, so a link that stops working fails the script.
+
+## gearbox.png
+
+`gearbox.png` (1600x1000) is a product sheet for a planetary gearbox, `gears/gearbox-sheet.svg`, that links one
+OpenSCAD model, `gears/gearbox.scad`, four times: assembled, exploded (`#def.explode=1`), cut away
+(`#def.cutaway=1`), and from the top (`#view=top`). Its callouts name the OpenSCAD constructs behind each feature
+(`linear_extrude` with `twist`, `polygon` with a list comprehension, `difference`, `for`, `hull`, `minkowski`, `text`,
+`rotate_extrude`, `intersection`, `sphere`); each ends on a named point of the model through a `cn:x2y2` binding, so
+it stays on its feature at any size. Every link fixes the camera (`def.$vpd`, `def.$vpt`). It is referenced from the
+README by an absolute URL. `gearbox.scad` and `gearbox-sheet.svg` are **original to this repository** (MIT).
+
+## hero.png
+
+`hero.png` (1600x640) is the README banner, `hero/hero.svg`: the input cards and output tiles are live drawings of
+the files beside it, so the banner is itself one composite SVG drawn by CanvasNet. It is referenced from the top of the
+README by an absolute URL. Every file in `hero/` is licensed under this repository's MIT license, and none comes from a
+third party:
+
+- authored for the banner: `hero.svg`, `figure.svg`, `flow.mmd`, `bearing.scad`, `chart.vl.json`, and `vector.svg`;
+- `dc-logo-dark.svg`: the DEMA Consulting "DC" monogram of the repository's `Icon.png`, redrawn as vector paths in
+  colors for a dark background;
+- generated: `drawing.vsdx`, by `make-drawing.py` (Python standard library only; run `python make-drawing.py` in
+  `docs/images/hero`);
+- copied from `showcase/` (themselves original to this repository): `explode.scad`, `slide.pptx`, and
+  `mesh-shading.pdf`.
 
 ## mermaid-gallery.png
 
@@ -85,7 +124,7 @@ permissively licensed third-party file that is credited below.
   `shading-mesh-types-4-5-6-7.pdf` (MIT)
 - **PowerPoint**: `showcase/slide.pptx` - original, generated by `showcase/make-slide.py` with python-pptx (MIT)
 - **Visio**: `davehoward-test4-connectors.vsdx` (not copied here) - third-party, BSD 3-Clause; see the notice below
-- **Composition**: `showcase/composition.svg` and the files it links (see *composition.png* above) - original,
+- **Composition**: `showcase/composition.svg` and the files it links (see *showcase/composition.svg* above) - original,
   authored for this repository (MIT)
 
 The Visio panel renders `test4_connectors.vsdx` from the

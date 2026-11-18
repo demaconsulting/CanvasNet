@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:cn="https://demaconsulting.com/canvasnet" width="480" height="300" viewBox="0 0 480 300">
+  <!-- The output tile of hero.svg: a finished figure that is itself a composition. It links the chart and the
+       model of the input cards, and its callout arrow is bound to the last trend point of the chart. -->
+  <defs>
+    <linearGradient id="band" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#4f46e5"/>
+      <stop offset="1" stop-color="#db2777"/>
+    </linearGradient>
+    <linearGradient id="stage" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f1f5f9"/>
+      <stop offset="1" stop-color="#e2e8f0"/>
+    </linearGradient>
+    <marker id="tip" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="4" markerHeight="4" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#f59e0b"/>
+    </marker>
+    <clipPath id="card">
+      <rect width="480" height="300" rx="18"/>
+    </clipPath>
+  </defs>
+  <g clip-path="url(#card)">
+    <rect width="480" height="300" fill="#ffffff"/>
+    <rect width="480" height="56" fill="url(#band)"/>
+    <text x="22" y="37" font-family="sans-serif" font-size="22" font-weight="bold" fill="#ffffff">Weekly figures</text>
+    <rect x="16" y="72" width="270" height="176" rx="12" fill="#0f172a"/>
+    <image id="chart" href="chart.vl.json" x="22" y="78" width="258" height="164"/>
+    <rect x="300" y="72" width="164" height="176" rx="12" fill="url(#stage)"/>
+    <image href="bearing.scad" x="304" y="80" width="156" height="160"/>
+    <rect x="16" y="262" width="300" height="10" rx="5" fill="#cbd5e1"/>
+    <rect x="16" y="280" width="200" height="10" rx="5" fill="#e2e8f0"/>
+    <path d="M396 34 C330 34 290 52 268 80" fill="none" stroke="#f59e0b" stroke-width="4" stroke-linecap="round"/>
+    <line x1="268" y1="80" x2="256.3" y2="98.9" stroke="#f59e0b" stroke-width="4" stroke-linecap="round" marker-end="url(#tip)" cn:x2y2="#chart mark:point-6"/>
+    <circle cx="410" cy="34" r="13" fill="#f59e0b"/>
+    <text x="410" y="41" font-family="sans-serif" font-size="19" font-weight="bold" fill="#ffffff" text-anchor="middle">!</text>
+  </g>
+</svg>
