@@ -1,0 +1,13 @@
+%% The diagram of page.svg: a flowchart whose picture nodes show the model part.scad (exploded by the def. fragment
+%% of its link) and the chart chart.vl.json (its goal set by the param. fragment). page.svg picks the dark theme with
+%% the link flow.mmd#theme=dark; the classes color the nodes. Every picture node has its w and h. Original (MIT);
+%% adapted from docs/images/showcase/pipeline.mmd.
+flowchart LR
+    classDef step fill:#4f46e5,stroke:#a5b4fc,stroke-width:2px,color:#ffffff,font-weight:bold
+    classDef pic fill:#0b1226,stroke:#fbbf24,stroke-width:3px
+    spec([Spec]):::step --> part
+    part@{ img: "part.scad#def.explode=1", w: 170, h: 230, constraint: "off" }
+    part --> chart
+    chart@{ img: "chart.vl.json#param.goal=180", w: 290, h: 230, constraint: "off" }
+    class part,chart pic
+    linkStyle default stroke:#a5b4fc,stroke-width:3px

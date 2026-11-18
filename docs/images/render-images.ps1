@@ -4,7 +4,7 @@
 
 .DESCRIPTION
     The images in this folder are pictures the canvasnet tool draws from architecture.svg, the sources in
-    docs/images/showcase, the
+    docs/images/showcase, docs/images/hero, docs/images/gears, and docs/images/composition-explained, the
     examples of the user guide (docs/user_guide/examples), and one fixture in the test folder. This script is the one
     place that knows how.
 
@@ -130,16 +130,6 @@ function New-Showcase {
     Join-Path $Folder 'showcase.png'
 }
 
-# docs/images/composition.png: one SVG page (showcase/composition.svg) whose pictures are other files: a Mermaid
-# flowchart whose nodes show an OpenSCAD model and a Vega-Lite chart, one OpenSCAD model twice (chosen by the def.
-# fragment of each link), and a Mermaid sequence diagram with the theme chosen by its link. It is drawn at 1.5 times
-# its size so that its text stays sharp in the README.
-function New-Composition {
-    param([string]$Folder)
-    Invoke-ToolOrFail render 'docs/images/showcase/composition.svg' --strict --width 1440 -o "$Folder/composition.png"
-    Join-Path $Folder 'composition.png'
-}
-
 # docs/images/montage-explode.png: one assembly (showcase/explode.scad) three times, at explode levels 0, 0.5 and 1,
 # chosen by the fragment of each input path. The camera is fixed with -D '$vpd' and -D '$vpt' so that every cell has
 # the same scale; without them each cell would be fitted to its own geometry and the plate would shrink.
@@ -212,10 +202,39 @@ function New-Architecture {
     Join-Path $Folder 'architecture.png'
 }
 
+# docs/images/hero.png: the README banner (hero/hero.svg, original), one SVG page whose input cards and output tiles
+# are live drawings of the files beside it (Mermaid, OpenSCAD, Vega-Lite, SVG, PDF, PowerPoint, and Visio).
+function New-Hero {
+    param([string]$Folder)
+    Invoke-ToolOrFail render 'docs/images/hero/hero.svg' --strict --width 1600 -o "$Folder/hero.png"
+    Join-Path $Folder 'hero.png'
+}
+
+# docs/images/gearbox.png: the OpenSCAD product sheet (gears/gearbox-sheet.svg, original), which links one model
+# (gears/gearbox.scad) four times: assembled, exploded, cut away, and from the top, chosen by the fragment of each link.
+function New-Gearbox {
+    param([string]$Folder)
+    Invoke-ToolOrFail render 'docs/images/gears/gearbox-sheet.svg' --strict --width 1600 -o "$Folder/gearbox.png"
+    Join-Path $Folder 'gearbox.png'
+}
+
+# docs/images/composition-explained.png: how composition works (composition-explained/composition-explained.svg,
+# original), drawn on a transparent background with file access confined to its folder, as a build that restricts
+# file access would draw it.
+function New-CompositionExplained {
+    param([string]$Folder)
+    Invoke-ToolOrFail render 'docs/images/composition-explained/composition-explained.svg' --strict `
+        --background transparent --file-access 'roots,no-symlinks' --allow-root 'docs/images/composition-explained' `
+        -o "$Folder/composition-explained.png"
+    Join-Path $Folder 'composition-explained.png'
+}
+
 $images = @(
     @{ Path = 'docs/images/architecture.png'; Build = ${function:New-Architecture} }
+    @{ Path = 'docs/images/hero.png'; Build = ${function:New-Hero} }
+    @{ Path = 'docs/images/gearbox.png'; Build = ${function:New-Gearbox} }
+    @{ Path = 'docs/images/composition-explained.png'; Build = ${function:New-CompositionExplained} }
     @{ Path = 'docs/images/showcase.png'; Build = ${function:New-Showcase} }
-    @{ Path = 'docs/images/composition.png'; Build = ${function:New-Composition} }
     @{ Path = 'docs/images/montage-explode.png'; Build = ${function:New-MontageExplode} }
     @{ Path = 'docs/images/vegalite-gallery.png'; Build = ${function:New-VegaLiteGallery} }
     @{ Path = 'docs/images/mermaid-gallery.png'; Build = ${function:New-MermaidGallery} }

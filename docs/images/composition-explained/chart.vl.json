@@ -1,0 +1,36 @@
+{
+  "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+  "description": "Weekly units against a goal. The goal is a param, so a link sets it: chart.vl.json#param.goal=180. Original (MIT); adapted from docs/images/showcase/output.vl.json.",
+  "width": 190,
+  "height": 120,
+  "background": "transparent",
+  "padding": 6,
+  "params": [{"name": "goal", "value": 150}],
+  "data": {
+    "values": [
+      {"week": "W1", "units": 120},
+      {"week": "W2", "units": 165},
+      {"week": "W3", "units": 150},
+      {"week": "W4", "units": 210},
+      {"week": "W5", "units": 240}
+    ]
+  },
+  "layer": [
+    {
+      "mark": {"type": "bar", "cornerRadiusEnd": 3},
+      "encoding": {
+        "x": {"field": "week", "type": "ordinal", "title": null, "axis": {"labelAngle": 0}},
+        "y": {"field": "units", "type": "quantitative", "title": null, "axis": {"tickCount": 4}},
+        "color": {"condition": {"test": "datum.units >= goal", "value": "#f59e0b"}, "value": "#64748b"}
+      }
+    },
+    {
+      "mark": {"type": "rule", "color": "#22d3ee", "strokeWidth": 2, "strokeDash": [5, 3]},
+      "encoding": {"y": {"datum": {"expr": "goal"}, "type": "quantitative"}}
+    }
+  ],
+  "config": {
+    "view": {"stroke": null},
+    "axis": {"labelColor": "#e2e8f0", "labelFontSize": 13, "domainColor": "#64748b", "tickColor": "#64748b", "gridColor": "#334155"}
+  }
+}
