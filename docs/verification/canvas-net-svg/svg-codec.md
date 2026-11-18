@@ -642,6 +642,7 @@ not move an end-anchored text, that `xml:space="preserve"` keeps leading spaces,
 #### CanvasNetSvg-SvgCodec-TextSpacing: Letter and Word Spacing
 
 **Tests** (`SvgTextLayoutTests.cs`): `SvgCodec_Load_LetterSpacing_AddsSpaceAfterEveryCharacter`,
+`SvgCodec_Load_NegativeLetterSpacing_PullsCharactersCloser`,
 `SvgCodec_Load_LetterSpacingUnits_ResolveEmPercentAndInheritance`,
 `SvgCodec_Load_LetterSpacingAnchorMiddleAndEnd_IncludesTheTrailingSpacing`,
 `SvgCodec_Load_TspanLetterSpacing_SpacesOnlyItsCharacters`, `SvgCodec_Load_WordSpacing_WidensSpacesAndNoBreakSpaces`,
@@ -650,7 +651,8 @@ not move an end-anchored text, that `xml:space="preserve"` keeps leading spaces,
 `SvgCodec_Load_LongSpacedText_Renders`; (`SvgCodecTests.cs`):
 `SvgCodec_Load_LetterSpacingWithKerningPair_KeepsTheKerning`
 
-With the synthetic square font, asserts that `letter-spacing` follows every glyph; that `0.5em`, `50%`, a CSS
+With the synthetic square font, asserts that `letter-spacing` follows every glyph and a negative value pulls the
+glyphs closer; that `0.5em`, `50%`, a CSS
 `10px`, an `em` inherited from a group of another font size (fixed at the group), a percentage inherited from such a
 group (resolved with the text's own size), and an invalid value on a `tspan` or in CSS (ignored) all space by the
 expected 10 px, while `normal`, `0` and `initial` add nothing; that a middle or end anchor uses a width that includes

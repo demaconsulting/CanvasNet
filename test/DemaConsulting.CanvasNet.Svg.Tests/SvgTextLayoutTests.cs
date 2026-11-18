@@ -520,6 +520,19 @@ public class SvgTextLayoutTests
     }
 
     /// <summary>
+    ///     Test that a negative <c>letter-spacing</c> pulls each following character closer.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_NegativeLetterSpacing_PullsCharactersCloser()
+    {
+        // Act
+        using var surface = Render(Doc("<text x='10' y='50' letter-spacing='-5'>AAA</text>"), 200, 100);
+
+        // Assert: each 20 px advance is shortened by 5 px
+        Assert.Equal([(10, 19), (25, 34), (40, 49)], InkRuns(surface, 45));
+    }
+
+    /// <summary>
     ///     Test that <c>letter-spacing</c> in <c>em</c>, in percent of the font size, in CSS, and inherited all resolve
     ///     as in Edge: <c>em</c> at the element that declares it, a percentage with each character's own font size; that
     ///     <c>normal</c>, 0 and <c>initial</c> add nothing; and that an invalid value is ignored.

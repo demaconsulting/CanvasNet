@@ -563,6 +563,7 @@ sections:
               last character when it centers or ends a text.
             tests:
               - SvgCodec_Load_LetterSpacing_AddsSpaceAfterEveryCharacter
+              - SvgCodec_Load_NegativeLetterSpacing_PullsCharactersCloser
               - SvgCodec_Load_LetterSpacingUnits_ResolveEmPercentAndInheritance
               - SvgCodec_Load_LetterSpacingAnchorMiddleAndEnd_IncludesTheTrailingSpacing
               - SvgCodec_Load_TspanLetterSpacing_SpacesOnlyItsCharacters
