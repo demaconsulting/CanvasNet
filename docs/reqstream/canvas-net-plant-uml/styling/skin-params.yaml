@@ -1,0 +1,57 @@
+---
+# Software Unit Requirements for SkinParams
+#
+# These requirements describe the design-level behavior of the SkinParams unit of the Styling subsystem (internal
+# namespace DemaConsulting.CanvasNet.PlantUml.Styling): the line and block forms of the skinparam statement, the
+# supported subset, PlantUML's colors, and the reports of what has no effect. See
+# docs/verification/canvas-net-plant-uml/styling/skin-params.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetPlantUml Requirements
+    sections:
+      - title: Styling Requirements
+        sections:
+          - title: SkinParams Requirements
+            requirements:
+              - id: CanvasNetPlantUml-Styling-SkinParams-Forms
+                title: >-
+                  The SkinParams unit shall read a skin parameter written on one line and the parameters of a block,
+                  whose inner names are joined to the block's name, each located at its statement.
+                justification: |
+                  PlantUML accepts both forms, and a report about a parameter must point at its line.
+                tests:
+                  - PlantUmlSkinParams_TryRead_LineAndBlockForms
+
+              - id: CanvasNetPlantUml-Styling-SkinParams-Subset
+                title: >-
+                  The SkinParams unit shall apply, without regard to case, the document settings (background color,
+                  default font name, size, and color, round corners, shadowing), the sequence settings (arrow
+                  thickness, message alignment, response below arrow, maximum message size, foot box), and the colors,
+                  fonts, and line widths of the participant kinds, arrows, life lines, notes, groups, boxes, dividers,
+                  activities, swimlanes, partitions, title, header, footer, legend, and caption.
+                justification: |
+                  These are the skin parameters that diagrams commonly use to set their look.
+                tests:
+                  - PlantUmlSkinParams_Apply_SupportedSubset_ChangesTheme
+
+              - id: CanvasNetPlantUml-Styling-SkinParams-Colors
+                title: >-
+                  The SkinParams unit shall read PlantUML's colors: HTML color names with or without a hash,
+                  #RRGGBB, #RRGGBBAA, #RGB, a single hexadecimal digit for a gray, transparent, and the first color of a
+                  gradient.
+                justification: |
+                  Colors appear in skin parameters and on participants, notes, and boxes, in all of PlantUML's forms.
+                tests:
+                  - PlantUmlSkinParams_TryParseColor_ReadsPlantUmlForms
+
+              - id: CanvasNetPlantUml-Styling-SkinParams-Ignored
+                title: >-
+                  The SkinParams unit shall report a skin parameter outside the subset, a stereotyped parameter, and a
+                  value that cannot be read as the warning plantuml-skinparam-ignored at its line without changing the
+                  look, and a style block as plantuml-style-unsupported, skipping it to its end.
+                justification: |
+                  An author must learn which settings were not applied, and an unknown setting must not change the
+                  look.
+                tests:
+                  - PlantUmlSkinParams_Apply_Ignored_ReportsWarnings
+                  - PlantUmlSkinParams_TrySkipStyle_ReportsAndSkips

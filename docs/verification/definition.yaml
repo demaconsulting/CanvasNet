@@ -242,6 +242,13 @@ input-files:
   - docs/verification/canvas-net-plant-uml/syntax.md
   - docs/verification/canvas-net-plant-uml/syntax/preprocessor.md
   - docs/verification/canvas-net-plant-uml/syntax/diagram-detector.md
+  - docs/verification/canvas-net-plant-uml/styling.md
+  - docs/verification/canvas-net-plant-uml/styling/skin-theme.md
+  - docs/verification/canvas-net-plant-uml/styling/skin-params.md
+  - docs/verification/canvas-net-plant-uml/scenegraph.md
+  - docs/verification/canvas-net-plant-uml/scenegraph/scene-model.md
+  - docs/verification/canvas-net-plant-uml/scenegraph/text-layout.md
+  - docs/verification/canvas-net-plant-uml/scenegraph/scene-painter.md
   - docs/verification/canvas-net-viewer.md
   - docs/verification/canvas-net-viewer/canvas-net-viewer.md
   - docs/verification/canvas-net-viewer/viewer-exception.md

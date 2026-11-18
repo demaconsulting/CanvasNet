@@ -1,0 +1,37 @@
+---
+# Software Unit Requirements for SkinTheme
+#
+# These requirements describe the design-level behavior of the SkinTheme unit of the Styling subsystem (internal
+# namespace DemaConsulting.CanvasNet.PlantUml.Styling): the values of PlantUML's default look and its immutable
+# changes. See docs/verification/canvas-net-plant-uml/styling/skin-theme.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetPlantUml Requirements
+    sections:
+      - title: Styling Requirements
+        sections:
+          - title: SkinTheme Requirements
+            requirements:
+              - id: CanvasNetPlantUml-Styling-SkinTheme-DefaultLook
+                title: >-
+                  The SkinTheme unit shall hold the values of PlantUML's default look for every element of sequence and
+                  activity diagrams: a white document, SansSerif text of 14 pixels, participants filled #E2E2F0 and
+                  outlined #181818 half a pixel wide with a padding of 7, notes filled #FEFFDD, black group frames 1.5
+                  pixels wide, dashed life lines, gray header and footer text of 10 pixels, a bold title, activities
+                  filled #F1F1F1 with round corners, and swimlane titles of 18 pixels.
+                justification: |
+                  These are the values of PlantUML's own default skin, which a diagram without skin parameters must
+                  match.
+                tests:
+                  - PlantUmlSkinTheme_Default_HasPlantUmlSequenceLook
+                  - PlantUmlSkinTheme_Default_HasPlantUmlActivityLook
+
+              - id: CanvasNetPlantUml-Styling-SkinTheme-Immutable
+                title: >-
+                  The SkinTheme unit shall change the style of an element by returning a new theme, leaving the
+                  theme it was changed from unchanged.
+                justification: |
+                  The default look is shared by every document and call, so a diagram's skin parameters must never
+                  change it.
+                tests:
+                  - PlantUmlSkinTheme_With_ReturnsChangedCopy

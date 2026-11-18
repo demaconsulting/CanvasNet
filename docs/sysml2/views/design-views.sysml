@@ -198,6 +198,14 @@ package CanvasNet {
         expose PlantUmlSyntax::**;
     }
 
+    view PlantUmlStylingView : InterconnectionView {
+        expose PlantUmlStyling::**;
+    }
+
+    view PlantUmlScenegraphView : InterconnectionView {
+        expose PlantUmlScenegraph::**;
+    }
+
     view CanvasNetToolView : InterconnectionView {
         expose CanvasNetToolSystem::**;
     }

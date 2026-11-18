@@ -161,7 +161,7 @@ public sealed class PlantUmlLimits
     ///     The layout charges its iterative work (the constraint passes that place the participants, the rows of the
     ///     messages, notes and blocks, and the lines of their texts) to this budget, so a pathological diagram fails with
     ///     <see cref="PlantUmlDiagnosticCodes.LimitExceeded"/> instead of running for minutes.
-    ///     <c>PlantUmlDocument.Measure</c> lays the diagram out too and is bounded the same way.
+    ///     <see cref="PlantUmlDocument.Measure"/> lays the diagram out too and is bounded the same way.
     /// </remarks>
     /// <exception cref="ArgumentOutOfRangeException">Thrown on initialization when the value is less than one.</exception>
     public long MaxLayoutWork
@@ -177,7 +177,7 @@ public sealed class PlantUmlLimits
     ///     The painter counts, before it paints an item, the pixels of the item's box on the image (a fill and a stroke
     ///     count once each, text counts the box of each line), clipped to the image, and fails when the total would pass
     ///     the limit, before any pixel of that item is painted. The limit is on the pixels after
-    ///     <see cref="PlantUmlRenderOptions.Scale"/> is applied. <c>PlantUmlDocument.Measure</c> paints nothing.
+    ///     <see cref="PlantUmlRenderOptions.Scale"/> is applied. <see cref="PlantUmlDocument.Measure"/> paints nothing.
     /// </remarks>
     /// <exception cref="ArgumentOutOfRangeException">Thrown on initialization when the value is less than one.</exception>
     public long MaxPaintedPixels

@@ -4,7 +4,7 @@ namespace DemaConsulting.CanvasNet.PlantUml;
 ///     A size in whole pixels, used to report how large a diagram renders.
 /// </summary>
 /// <remarks>
-///     The value is what <c>PlantUmlDocument.Measure</c> returns so a
+///     The value is what <see cref="PlantUmlDocument.Measure(PlantUmlRenderOptions?, CancellationToken)"/> returns so a
 ///     caller can decide on a destination (a page, a slide, a tool's output size) before it renders. The type is an
 ///     immutable value type with value equality and is safe for concurrent use.
 /// </remarks>

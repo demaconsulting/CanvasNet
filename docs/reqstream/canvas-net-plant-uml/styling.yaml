@@ -1,0 +1,30 @@
+---
+# Software Subsystem Requirements for Styling
+#
+# These requirements decompose the CanvasNetPlantUml system's look into the Styling subsystem (internal namespace
+# DemaConsulting.CanvasNet.PlantUml.Styling): PlantUML's default look (SkinTheme) and the skinparam statements that
+# change it (SkinParams). Each requirement here links down to the unit requirements that implement it. See
+# docs/verification/canvas-net-plant-uml/styling.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetPlantUml Requirements
+    sections:
+      - title: Styling Requirements
+        requirements:
+          - id: CanvasNetPlantUml-Styling-DiagramLook
+            title: >-
+              The Styling subsystem shall give every element of a diagram PlantUML's default look, changed by the
+              supported skin parameters of the diagram in the order they are written, and shall report every skin
+              parameter and style block that has no effect.
+            justification: |
+              A diagram must look as PlantUML draws it, including the colors and fonts its author set, and an author
+              must learn which settings were not applied.
+            children:
+              - CanvasNetPlantUml-Styling-SkinTheme-DefaultLook
+              - CanvasNetPlantUml-Styling-SkinTheme-Immutable
+              - CanvasNetPlantUml-Styling-SkinParams-Forms
+              - CanvasNetPlantUml-Styling-SkinParams-Subset
+              - CanvasNetPlantUml-Styling-SkinParams-Colors
+              - CanvasNetPlantUml-Styling-SkinParams-Ignored
+            tests:
+              - PlantUmlStyling_SkinParamsOverDefaultLook_GiveDiagramLook

@@ -98,3 +98,62 @@ sections:
           - CanvasNetPlantUml-Syntax-Preprocessing
         tests:
           - CanvasNetPlantUml_Limits_OversizedText_IsRefused
+
+      - id: CanvasNetPlantUml-Render
+        title: >-
+          The library shall measure a document and render it onto a new Surface at its natural size times a scale or
+          fitted into an exact size over its background, deliver the warnings and unsupported-feature reports of the
+          call once, in order, on the calling thread (measuring reports what rendering reports), and stop when the
+          call is canceled.
+        tags: [system]
+        justification: |
+          Hosts measure first to choose a destination, render at a scale or into a page, and present every report of
+          a call exactly once.
+        children:
+          - CanvasNetPlantUml-PlantUmlDocument-MeasureRender
+          - CanvasNetPlantUml-PlantUmlDocument-RenderOptions
+          - CanvasNetPlantUml-PlantUmlDocument-ReadingReports
+          - CanvasNetPlantUml-Scenegraph-Drawing
+        tests:
+          - CanvasNetPlantUml_UnsupportedType_MeasureReportsAsRender
+
+      - id: CanvasNetPlantUml-UnsupportedTypes
+        title: >-
+          The library shall render a recognized diagram type that this version does not draw as an empty, transparent
+          picture of 20 by 20 pixels and report it as plantuml-diagram-unsupported at the construct it was recognized
+          by, with a hint.
+        tags: [system]
+        justification: |
+          A document with a diagram of a type that is not drawn must still be processed, and the author must learn
+          why the picture is empty.
+        children:
+          - CanvasNetPlantUml-PlantUmlDocument-MeasureRender
+        tests:
+          - CanvasNetPlantUml_UnsupportedType_RendersEmptyPictureAndReports
+
+      - id: CanvasNetPlantUml-StrictMode
+        title: >-
+          The library shall, when the caller asks for it, stop a measure or render call at the first unsupported
+          construct with an unsupported-feature exception, after delivering its report.
+        tags: [system]
+        justification: |
+          Builds that must never accept an approximate picture need a hard failure.
+        children:
+          - CanvasNetPlantUml-PlantUmlDocument-Reports
+        tests:
+          - CanvasNetPlantUml_UnsupportedType_StrictThrows
+
+      - id: CanvasNetPlantUml-DefaultLook
+        title: >-
+          The library shall draw a diagram with PlantUML's default look, changed by its supported skin parameters,
+          with the fonts bundled with CanvasNet only, so that two renders of the same document and options have
+          identical pixels on every machine.
+        tags: [system]
+        justification: |
+          Pictures are compared and checked into documentation; they must look like PlantUML's and must not depend on
+          the fonts or the speed of the machine that draws them.
+        children:
+          - CanvasNetPlantUml-Styling-DiagramLook
+          - CanvasNetPlantUml-Scenegraph-Text
+        tests:
+          - CanvasNetPlantUml_Sequence_DefaultSkin_PaintsPlantUmlColors

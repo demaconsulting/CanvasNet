@@ -1,0 +1,33 @@
+---
+# Software Unit Requirements for SceneModel
+#
+# These requirements describe the design-level behavior of the SceneModel unit of the Scenegraph subsystem (internal
+# namespace DemaConsulting.CanvasNet.PlantUml.Scenegraph): the shapes a diagram draws, the bounds of a scene, and the
+# device path of a shape. See docs/verification/canvas-net-plant-uml/scenegraph/scene-model.md for the test-evidence
+# mapping.
+
+sections:
+  - title: CanvasNetPlantUml Requirements
+    sections:
+      - title: Scenegraph Requirements
+        sections:
+          - title: SceneModel Requirements
+            requirements:
+              - id: CanvasNetPlantUml-Scenegraph-SceneModel-Shapes
+                title: >-
+                  The SceneModel unit shall build the outlines of rectangles with square or rounded corners, ellipses,
+                  closed polygons, open polylines, and lines, and turn them into device paths at a scale and offset.
+                justification: |
+                  These are the shapes of PlantUML's sequence and activity diagrams.
+                tests:
+                  - PlantUmlSceneModel_Shapes_HaveTheirBounds
+                  - PlantUmlSceneModel_ToPath_ScalesAndTranslates
+
+              - id: CanvasNetPlantUml-Scenegraph-SceneModel-Bounds
+                title: >-
+                  The SceneModel unit shall give the bounds of a set of items as the union of their shapes and the
+                  boxes of their text lines, and no bounds for no items.
+                justification: |
+                  A layout sizes its picture from the bounds of what it draws.
+                tests:
+                  - PlantUmlSceneModel_BoundsOf_CombinesPathsAndText

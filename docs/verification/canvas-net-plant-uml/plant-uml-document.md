@@ -9,7 +9,7 @@ limits, the records, codes, and exceptions) and the internal report sink.
 The unit is verified through its public API with small original texts in memory and in temporary files, and the
 internal `PlantUmlReportSink` directly through the test assembly's `InternalsVisibleTo` access. The unit's
 collaborators, the `Preprocessor` and `DiagramDetector` units of the Syntax subsystem, are used as is; no mocking is
-required. Unit tests reside in `PlantUmlDocumentTests.cs`, `PlantUmlLimitsTests.cs`,
+required. Unit tests reside in `PlantUmlDocumentTests.cs`, `PlantUmlRenderOptionsTests.cs`, `PlantUmlLimitsTests.cs`,
 `PlantUmlRecordsAndExceptionsTests.cs`, and `PlantUmlReportSinkTests.cs` within the
 `DemaConsulting.CanvasNet.PlantUml.Tests` project.
 
@@ -88,3 +88,26 @@ are distinct `plantuml-*` identifiers.
 Asserts that warnings and unsupported features are delivered in the order recorded, that a duplicate is recorded once,
 that the reports beyond the cap become one suppression notice, that strict mode records the report and then throws,
 and that a failing handler is ignored after a failure.
+
+#### CanvasNetPlantUml-PlantUmlDocument-MeasureRender: Sizes, Arguments, And Cancellation
+
+**Tests**: `PlantUmlDocumentTests.PlantUmlDocument_Render_InvalidArgumentsAndCancellation_Throw`
+
+Asserts that an exact size of zero or above the largest side and a scale that gives a picture below one pixel are
+refused, that a canceled token stops measuring and rendering, that an exact size is honored, and that the natural size
+of a type that is not drawn is 20 by 20.
+
+#### CanvasNetPlantUml-PlantUmlDocument-RenderOptions: The Options Validate
+
+**Tests**: `PlantUmlRenderOptionsTests.PlantUmlRenderOptions_Defaults_AreDocumented`,
+`PlantUmlRenderOptionsTests.PlantUmlRenderOptions_Init_InvalidValues_Throw`
+
+Asserts the defaults, the refusal of a zero, not-a-number, infinite, and too large scale and of null limits, and that a
+valid scale is kept.
+
+#### CanvasNetPlantUml-PlantUmlDocument-ReadingReports: Reading Reports Come With Every Call
+
+**Tests**: `PlantUmlDocumentTests.PlantUmlDocument_Render_ReadingReports_DeliveredEveryCallInOrder`
+
+Asserts that a measure and a render each deliver the theme report, the pragma warning, and the type report in that
+order, and that strict mode throws for the theme report.

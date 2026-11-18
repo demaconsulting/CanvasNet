@@ -5252,7 +5252,9 @@ reviews:
       - "docs/verification/canvas-net-plant-uml.md"                   # system verification
       - "docs/sysml2/model/canvas-net-plant-uml.sysml"                # system SysML2 model
       - "test/DemaConsulting.CanvasNet.PlantUml.Tests/PlantUmlSystemIntegrationTests.cs"  # system tests
+      - "test/DemaConsulting.CanvasNet.PlantUml.Tests/PlantUmlUnsupportedDiagramTests.cs"  # unsupported diagram types
       - "test/DemaConsulting.CanvasNet.PlantUml.Tests/PlantUmlTestHelpers.cs"  # shared test helpers
+      - "test/DemaConsulting.CanvasNet.PlantUml.Tests/SkinColors.cs"  # shared test colors
       - "test/DemaConsulting.CanvasNet.PlantUml.Tests/DemaConsulting.CanvasNet.PlantUml.Tests.csproj"  # test project
       - "src/DemaConsulting.CanvasNet.PlantUml/DemaConsulting.CanvasNet.PlantUml.csproj"  # project file
       - "src/DemaConsulting.CanvasNet.PlantUml/third-party/**"        # license text and provenance record
@@ -5313,6 +5315,7 @@ reviews:
       - "src/DemaConsulting.CanvasNet.PlantUml/PlantUmlUnsupportedFeatureException.cs"  # unit source
       - "src/DemaConsulting.CanvasNet.PlantUml/PlantUmlReportSink.cs"  # unit source (internal report sink)
       - "test/DemaConsulting.CanvasNet.PlantUml.Tests/PlantUmlDocumentTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.PlantUml.Tests/PlantUmlRenderOptionsTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.PlantUml.Tests/PlantUmlLimitsTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.PlantUml.Tests/PlantUmlRecordsAndExceptionsTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.PlantUml.Tests/PlantUmlReportSinkTests.cs"  # unit tests
@@ -5363,6 +5366,117 @@ reviews:
       - "docs/sysml2/model/canvas-net-plant-uml/syntax/diagram-detector.sysml"  # unit SysML2 model
       - "src/DemaConsulting.CanvasNet.PlantUml/Syntax/DiagramDetector.cs"  # unit source
       - "test/DemaConsulting.CanvasNet.PlantUml.Tests/Syntax/DiagramDetectorTests.cs"  # unit tests
+  # CanvasNetPlantUml-Styling Review (one per subsystem)
+  - id: CanvasNetPlantUml-Styling
+    title: Review that CanvasNetPlantUml Styling Subsystem Implementation is Correct
+    context:
+      - "docs/design/canvas-net-plant-uml.md"
+      - "docs/reqstream/canvas-net-plant-uml.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-plant-uml/styling.yaml"  # subsystem requirements
+      - "docs/design/canvas-net-plant-uml/styling.md"  # subsystem design
+      - "docs/verification/canvas-net-plant-uml/styling.md"  # subsystem verification
+      - "docs/sysml2/model/canvas-net-plant-uml/styling.sysml"  # subsystem SysML2 model
+      - "src/DemaConsulting.CanvasNet.PlantUml/Styling/NamespaceDoc.cs"  # namespace documentation
+      - "test/DemaConsulting.CanvasNet.PlantUml.Tests/Styling/StylingTests.cs"  # subsystem tests
+
+  # CanvasNetPlantUml-Styling-SkinTheme Review (one per unit)
+  - id: CanvasNetPlantUml-Styling-SkinTheme
+    title: Review that CanvasNetPlantUml Styling SkinTheme Implementation is Correct
+    context:
+      - "docs/design/canvas-net-plant-uml.md"
+      - "docs/reqstream/canvas-net-plant-uml.yaml"
+      - "docs/design/canvas-net-plant-uml/styling.md"
+      - "docs/reqstream/canvas-net-plant-uml/styling.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-plant-uml/styling/skin-theme.yaml"  # unit requirements
+      - "docs/design/canvas-net-plant-uml/styling/skin-theme.md"  # unit design
+      - "docs/verification/canvas-net-plant-uml/styling/skin-theme.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-plant-uml/styling/skin-theme.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.PlantUml/Styling/SkinTheme.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.PlantUml.Tests/Styling/SkinThemeTests.cs"  # unit tests
+
+  # CanvasNetPlantUml-Styling-SkinParams Review (one per unit)
+  - id: CanvasNetPlantUml-Styling-SkinParams
+    title: Review that CanvasNetPlantUml Styling SkinParams Implementation is Correct
+    context:
+      - "docs/design/canvas-net-plant-uml.md"
+      - "docs/reqstream/canvas-net-plant-uml.yaml"
+      - "docs/design/canvas-net-plant-uml/styling.md"
+      - "docs/reqstream/canvas-net-plant-uml/styling.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-plant-uml/styling/skin-params.yaml"  # unit requirements
+      - "docs/design/canvas-net-plant-uml/styling/skin-params.md"  # unit design
+      - "docs/verification/canvas-net-plant-uml/styling/skin-params.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-plant-uml/styling/skin-params.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.PlantUml/Styling/SkinParams.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.PlantUml/Styling/SkinParams.Colors.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.PlantUml.Tests/Styling/SkinParamsTests.cs"  # unit tests
+
+  # CanvasNetPlantUml-Scenegraph Review (one per subsystem)
+  - id: CanvasNetPlantUml-Scenegraph
+    title: Review that CanvasNetPlantUml Scenegraph Subsystem Implementation is Correct
+    context:
+      - "docs/design/canvas-net-plant-uml.md"
+      - "docs/reqstream/canvas-net-plant-uml.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-plant-uml/scenegraph.yaml"  # subsystem requirements
+      - "docs/design/canvas-net-plant-uml/scenegraph.md"  # subsystem design
+      - "docs/verification/canvas-net-plant-uml/scenegraph.md"  # subsystem verification
+      - "docs/sysml2/model/canvas-net-plant-uml/scenegraph.sysml"  # subsystem SysML2 model
+      - "src/DemaConsulting.CanvasNet.PlantUml/Scenegraph/NamespaceDoc.cs"  # namespace documentation
+      - "test/DemaConsulting.CanvasNet.PlantUml.Tests/Scenegraph/ScenegraphTests.cs"  # subsystem tests
+
+  # CanvasNetPlantUml-Scenegraph-SceneModel Review (one per unit)
+  - id: CanvasNetPlantUml-Scenegraph-SceneModel
+    title: Review that CanvasNetPlantUml Scenegraph SceneModel Implementation is Correct
+    context:
+      - "docs/design/canvas-net-plant-uml.md"
+      - "docs/reqstream/canvas-net-plant-uml.yaml"
+      - "docs/design/canvas-net-plant-uml/scenegraph.md"
+      - "docs/reqstream/canvas-net-plant-uml/scenegraph.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-plant-uml/scenegraph/scene-model.yaml"  # unit requirements
+      - "docs/design/canvas-net-plant-uml/scenegraph/scene-model.md"  # unit design
+      - "docs/verification/canvas-net-plant-uml/scenegraph/scene-model.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-plant-uml/scenegraph/scene-model.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.PlantUml/Scenegraph/SceneModel.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.PlantUml.Tests/Scenegraph/SceneModelTests.cs"  # unit tests
+
+  # CanvasNetPlantUml-Scenegraph-TextLayout Review (one per unit)
+  - id: CanvasNetPlantUml-Scenegraph-TextLayout
+    title: Review that CanvasNetPlantUml Scenegraph TextLayout Implementation is Correct
+    context:
+      - "docs/design/canvas-net-plant-uml.md"
+      - "docs/reqstream/canvas-net-plant-uml.yaml"
+      - "docs/design/canvas-net-plant-uml/scenegraph.md"
+      - "docs/reqstream/canvas-net-plant-uml/scenegraph.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-plant-uml/scenegraph/text-layout.yaml"  # unit requirements
+      - "docs/design/canvas-net-plant-uml/scenegraph/text-layout.md"  # unit design
+      - "docs/verification/canvas-net-plant-uml/scenegraph/text-layout.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-plant-uml/scenegraph/text-layout.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.PlantUml/Scenegraph/TextLayout.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.PlantUml/Scenegraph/TextLayout.Creole.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.PlantUml.Tests/Scenegraph/TextLayoutTests.cs"  # unit tests
+
+  # CanvasNetPlantUml-Scenegraph-ScenePainter Review (one per unit)
+  - id: CanvasNetPlantUml-Scenegraph-ScenePainter
+    title: Review that CanvasNetPlantUml Scenegraph ScenePainter Implementation is Correct
+    context:
+      - "docs/design/canvas-net-plant-uml.md"
+      - "docs/reqstream/canvas-net-plant-uml.yaml"
+      - "docs/design/canvas-net-plant-uml/scenegraph.md"
+      - "docs/reqstream/canvas-net-plant-uml/scenegraph.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-plant-uml/scenegraph/scene-painter.yaml"  # unit requirements
+      - "docs/design/canvas-net-plant-uml/scenegraph/scene-painter.md"  # unit design
+      - "docs/verification/canvas-net-plant-uml/scenegraph/scene-painter.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-plant-uml/scenegraph/scene-painter.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.PlantUml/Scenegraph/ScenePainter.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.PlantUml/Scenegraph/ScenePainter.Text.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.PlantUml.Tests/Scenegraph/ScenePainterTests.cs"  # unit tests
+
   # CanvasNetTool-Architecture Review (one per system)
   - id: CanvasNetTool-Architecture
     title: Review that CanvasNetTool Architecture Satisfies Requirements

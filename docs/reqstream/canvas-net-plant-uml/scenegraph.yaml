@@ -1,0 +1,46 @@
+---
+# Software Subsystem Requirements for Scenegraph
+#
+# These requirements decompose the CanvasNetPlantUml system's drawing into the Scenegraph subsystem (internal
+# namespace DemaConsulting.CanvasNet.PlantUml.Scenegraph): the scene a layout produces (SceneModel), the measurement
+# and layout of text with the bundled fonts (TextLayout), and the painting onto a Surface (ScenePainter). Each
+# requirement here links down to the unit requirements that implement it. See
+# docs/verification/canvas-net-plant-uml/scenegraph.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetPlantUml Requirements
+    sections:
+      - title: Scenegraph Requirements
+        requirements:
+          - id: CanvasNetPlantUml-Scenegraph-Drawing
+            title: >-
+              The Scenegraph subsystem shall describe a diagram as a scene of shapes and text lines and paint it onto a
+              Surface at any scale or fitted to a size, deterministically, within the painted-pixel budget.
+            justification: |
+              Every diagram type draws through one painter, so that the bounds, the budget, and the determinism hold
+              for all of them.
+            children:
+              - CanvasNetPlantUml-Scenegraph-SceneModel-Shapes
+              - CanvasNetPlantUml-Scenegraph-SceneModel-Bounds
+              - CanvasNetPlantUml-Scenegraph-ScenePainter-Paints
+              - CanvasNetPlantUml-Scenegraph-ScenePainter-Placement
+              - CanvasNetPlantUml-Scenegraph-ScenePainter-Bounded
+            tests:
+              - PlantUmlScenegraph_LayoutAndPaint_LabelInsideBox
+
+          - id: CanvasNetPlantUml-Scenegraph-Text
+            title: >-
+              The Scenegraph subsystem shall measure and draw text with the bundled fonts only, with PlantUML's metrics,
+              its line breaks, and its creole markup subset, and shall report markup outside the subset and characters
+              the bundled fonts lack.
+            justification: |
+              Text decides the size of every element; it must measure as PlantUML measures it and look the same on
+              every machine.
+            children:
+              - CanvasNetPlantUml-Scenegraph-TextLayout-Metrics
+              - CanvasNetPlantUml-Scenegraph-TextLayout-Fonts
+              - CanvasNetPlantUml-Scenegraph-TextLayout-Lines
+              - CanvasNetPlantUml-Scenegraph-TextLayout-Creole
+              - CanvasNetPlantUml-Scenegraph-TextLayout-Reports
+            tests:
+              - PlantUmlScenegraph_LayoutAndPaint_LabelInsideBox

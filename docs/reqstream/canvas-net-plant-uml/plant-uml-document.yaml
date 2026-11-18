@@ -88,3 +88,36 @@ sections:
               - PlantUmlReportSink_BeyondCap_AddsSingleSuppressedNotice
               - PlantUmlReportSink_Unsupported_Strict_RecordsAndThrows
               - PlantUmlReportSink_DeliverIgnoringHandlerFailures_SwallowsHandlerException
+
+          - id: CanvasNetPlantUml-PlantUmlDocument-MeasureRender
+            title: >-
+              The PlantUmlDocument unit shall measure the size a render gives (the natural size rounded up to whole
+              pixels, times the scale of the call and of the diagram), render at that size or at an exact size of 1 to
+              the largest surface side, refuse a scaled size outside that range, stop when the token is canceled, and
+              draw a type that is not drawn as an empty, transparent picture of 20 by 20 after its report.
+            justification: |
+              Measuring and rendering must agree, invalid sizes must fail before any work, and a type that is not drawn
+              must still give a picture.
+            tests:
+              - PlantUmlDocument_Render_InvalidArgumentsAndCancellation_Throw
+
+          - id: CanvasNetPlantUml-PlantUmlDocument-RenderOptions
+            title: >-
+              The PlantUmlDocument unit shall provide render options with documented defaults (scale 1, the diagram's
+              own background, the default limits, no handlers, not strict) that refuse a scale that is not finite and
+              positive or exceeds the largest surface side, and null limits.
+            justification: |
+              Options that accept invalid values would fail later with a less precise error.
+            tests:
+              - PlantUmlRenderOptions_Defaults_AreDocumented
+              - PlantUmlRenderOptions_Init_InvalidValues_Throw
+
+          - id: CanvasNetPlantUml-PlantUmlDocument-ReadingReports
+            title: >-
+              The PlantUmlDocument unit shall deliver the reports found while reading the text with every measure and
+              render call, in text order and before the reports of the call itself.
+            justification: |
+              Reading has no handlers; a directive that was dropped must be visible to the caller of every call, and
+              strict mode must stop at it.
+            tests:
+              - PlantUmlDocument_Render_ReadingReports_DeliveredEveryCallInOrder

@@ -4,18 +4,19 @@
 
 The `PlantUmlDocument` unit is the public API of the system, a direct unit of `CanvasNetPlantUml`. Its source files are
 in the root of `src/DemaConsulting.CanvasNet.PlantUml/`: `PlantUmlDocument.cs` (the entry points and the metadata),
-`PlantUmlDocument.Pipeline.cs` (the pipeline seam), `PlantUmlOpenOptions.cs`, `PlantUmlRenderOptions.cs`,
-`PlantUmlLimits.cs`, `PlantUmlLocation.cs`, `PlantUmlDiagnostic.cs`, `PlantUmlUnsupportedFeature.cs`, `PlantUmlSize.cs`,
-`PlantUmlDiagnosticCodes.cs`, `PlantUmlSyntaxException.cs`, `PlantUmlRenderException.cs`,
-`PlantUmlUnsupportedFeatureException.cs`, `PlantUmlReportSink.cs`, and `NamespaceDoc.cs`.
+`PlantUmlDocument.Render.cs` (the measure and render entry points), `PlantUmlDocument.Pipeline.cs` (the pipeline seam),
+`PlantUmlOpenOptions.cs`, `PlantUmlRenderOptions.cs`, `PlantUmlLimits.cs`, `PlantUmlLocation.cs`,
+`PlantUmlDiagnostic.cs`, `PlantUmlUnsupportedFeature.cs`, `PlantUmlSize.cs`, `PlantUmlDiagnosticCodes.cs`,
+`PlantUmlSyntaxException.cs`, `PlantUmlRenderException.cs`, `PlantUmlUnsupportedFeatureException.cs`,
+`PlantUmlReportSink.cs`, and `NamespaceDoc.cs`.
 
 ### Purpose
 
 `PlantUmlDocument` gives a consumer one validated, immutable object for a PlantUML diagram: it reads the text from a
-string, a file, or a stream with the same rules, detects the diagram type, parses a supported type, and exposes what
-the diagram declares without drawing it. Its records, codes, and exceptions are the vocabulary in which every part of
-the system reports problems, so that a host can react to a stable code and present a location as editors do. The
-unit's behavior is specified by the `CanvasNetPlantUml-PlantUmlDocument-*` requirements in
+string, a file, or a stream with the same rules, detects the diagram type, parses a supported type, exposes what the
+diagram declares without drawing it, and measures and renders it. Its records, codes, and exceptions are the vocabulary
+in which every part of the system reports problems, so that a host can react to a stable code and present a location as
+editors do. The unit's behavior is specified by the `CanvasNetPlantUml-PlantUmlDocument-*` requirements in
 `docs/reqstream/canvas-net-plant-uml/plant-uml-document.yaml`.
 
 ### Data Model
@@ -27,8 +28,7 @@ unit's behavior is specified by the `CanvasNetPlantUml-PlantUmlDocument-*` requi
 - `PlantUmlOpenOptions` - `SourceName` (null or not blank) and `Limits` (null for the defaults).
 - `PlantUmlRenderOptions` - `Scale` (finite, positive, at most `Surface.MaxDimension`), `Background` (null for the
   diagram's own background), `Limits` (not null), `WarningHandler`, `UnsupportedFeatureHandler`, and
-  `ThrowOnUnsupportedFeature`. The options of a measure or render call; the calls themselves are added with the
-  Scenegraph subsystem.
+  `ThrowOnUnsupportedFeature`. The options of a measure or render call.
 - `PlantUmlLimits` - `MaxTextSize` (50,000), `MaxNodes` (2,000), `MaxEdges` (500), `MaxLabelLength` (4,096),
   `MaxNestingDepth` (32, at most 256), `MaxIncludeDepth` (16, at most 64), `MaxIncludes` (64), `MaxLayoutWork`
   (50,000,000), `MaxPaintedPixels` (250,000,000), and `MaxDiagnostics` (1,000); every value is validated when it is set.
@@ -39,8 +39,12 @@ unit's behavior is specified by the `CanvasNetPlantUml-PlantUmlDocument-*` requi
 - `PlantUmlDiagnosticCodes` - the seventeen stable `plantuml-*` codes.
 - `PlantUmlPendingReport(IsWarning, Code, Message, Location, Hint)` - a report found while reading, replayed into the
   sink of every call.
-- `IPlantUmlDiagram` - the seam to a parsed diagram: `Title`, `NodeCount`, `EdgeCount`, `SubgraphCount`, and the
-  pending `Reports` of its parser.
+- `IPlantUmlDiagram` - the seam to a parsed diagram: `Title`, `NodeCount`, `EdgeCount`, `SubgraphCount`, the pending
+  `Reports` of its parser, and `Layout(DiagramRenderContext)`, which returns the scene of a call.
+- `DiagramRenderContext(Options, Sink, Text, CancellationToken)` - the options, the report sink, the text layout, and
+  the token of one call.
+- `UnsupportedDiagramSize` - 20, the side of the empty picture of a type that is not drawn (twice PlantUML's document
+  margin of 10).
 
 ### Key Methods
 
@@ -49,6 +53,19 @@ unit's behavior is specified by the `CanvasNetPlantUml-PlantUmlDocument-*` requi
 - `Open(string path, ...)` and `Open(Stream, ...)` - read the bytes in chunks of 8,192 bytes, stop as soon as the byte
   count certainly exceeds three bytes per character of four times `MaxTextSize`, drop a UTF-8 byte-order mark, decode
   strictly, and continue as `Parse`; a file's source name defaults to its path.
+- `Measure(options, token)` - runs the pipeline and returns the scaled size: the view box rounded up to whole pixels
+  (with a tolerance of 0.000001), times the scale of the call and the diagram's own scale, rounded half away from zero;
+  a side outside 1 to `Surface.MaxDimension` throws `ArgumentOutOfRangeException`.
+- `Render(options, token)` - the same size, the scene placed uniformly at the product of the two scales and painted;
+  `Render(width, height, options, token)` validates the size first and fits the scene. `LayoutScene` and
+  `MeasureNatural` are the internal forms that return the scene and the natural size.
+- `Run` - creates the sink (capped by `MaxDiagnostics`, strict per the options) and the context with a new
+  `TextLayout`, builds the scene, finishes the result, and delivers the reports once: after a failure, ignoring handler
+  failures; after success, disposing the result if a handler throws.
+- `BuildScene` - replays the pending reports of reading, then calls the diagram's `Layout`, mapping a defect
+  (`IsLayoutDefect`: a null reference, an index, key, cast, argument, arithmetic, or invalid-operation exception that is
+  not a documented failure) to a located `plantuml-render-failed` error with the defect as its inner exception; a type
+  that is not drawn reports `plantuml-diagram-unsupported` with the hint of the detector and gets an empty scene.
 - `PlantUmlReportSink.Warn` / `Unsupported` / `Deliver` / `DeliverIgnoringHandlerFailures` - record the reports of one
   call in order, drop duplicates, keep at most `MaxDiagnostics` (the first overflow becomes one
   `plantuml-diagnostics-suppressed` notice), throw in strict mode after recording the report, and deliver once on the
@@ -57,16 +74,18 @@ unit's behavior is specified by the `CanvasNetPlantUml-PlantUmlDocument-*` requi
 ### Error Handling
 
 Null, empty, and unreadable arguments throw `ArgumentNullException` or `ArgumentException`; a missing file throws
-`FileNotFoundException` or `DirectoryNotFoundException`. Invalid UTF-8 is a `PlantUmlSyntaxException` with the code
-`plantuml-syntax-error` at an unknown position of the named source. Text over the limit is an `InvalidDataException`
-whose message names `PlantUmlLimits.MaxTextSize`. Located syntax errors of the Syntax subsystem and of the diagram
-parsers propagate unchanged. A handler exception after a successful call propagates; after a failed call it is
-ignored so that the original failure is reported.
+`FileNotFoundException` or `DirectoryNotFoundException`. An invalid render size throws `ArgumentOutOfRangeException`
+before any work; a canceled token throws `OperationCanceledException`; a limit met while laying out or painting throws a
+located `PlantUmlRenderException` with `plantuml-limit-exceeded`. Invalid UTF-8 is a `PlantUmlSyntaxException` with the
+code `plantuml-syntax-error` at an unknown position of the named source. Text over the limit is an
+`InvalidDataException` whose message names `PlantUmlLimits.MaxTextSize`. Located syntax errors of the Syntax subsystem
+and of the diagram parsers propagate unchanged. A handler exception after a successful call propagates; after a failed
+call it is ignored so that the original failure is reported.
 
 ### Dependencies
 
-The unit uses the `Preprocessor` and `DiagramDetector` units of the Syntax subsystem, and the core `Canvas` subsystem
-(`Rgba32`, `Surface.MaxDimension`) for the render options.
+The unit uses the `Preprocessor` and `DiagramDetector` units of the Syntax subsystem, the `TextLayout`, `SceneModel`,
+and `ScenePainter` units of the Scenegraph subsystem, and the core `Canvas` subsystem (`Surface`, `Rgba32`).
 
 ### Callers
 

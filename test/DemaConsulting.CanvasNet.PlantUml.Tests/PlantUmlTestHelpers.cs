@@ -27,6 +27,51 @@ internal static class PlantUmlTestHelpers
     }
 
     /// <summary>
+    ///     Gets whether every pixel of a surface is fully transparent.
+    /// </summary>
+    /// <param name="surface">The surface.</param>
+    /// <returns>Whether it is.</returns>
+    public static bool IsFullyTransparent(Canvas.Surface surface)
+    {
+        for (var y = 0; y < surface.Height; y++)
+        {
+            foreach (var pixel in surface.GetRowSpan(y))
+            {
+                if (pixel.A != 0)
+                {
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    ///     Gets whether two surfaces have the same size and identical pixels.
+    /// </summary>
+    /// <param name="a">The first surface.</param>
+    /// <param name="b">The second surface.</param>
+    /// <returns>Whether they are identical.</returns>
+    public static bool PixelsEqual(Canvas.Surface a, Canvas.Surface b)
+    {
+        if (a.Width != b.Width || a.Height != b.Height)
+        {
+            return false;
+        }
+
+        for (var y = 0; y < a.Height; y++)
+        {
+            if (!a.GetRowSpan(y).SequenceEqual(b.GetRowSpan(y)))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /// <summary>
     ///     Writes a temporary file and returns its path.
     /// </summary>
     /// <param name="content">The bytes.</param>

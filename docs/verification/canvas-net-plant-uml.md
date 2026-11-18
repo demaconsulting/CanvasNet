@@ -11,7 +11,9 @@ This document describes the system-level verification strategy for CanvasNetPlan
 - **System tests** (described here) use only the public API, as a consumer would: they open original-work diagrams
   from in-memory text, streams, and temporary files with `PlantUmlDocument.Parse` and `PlantUmlDocument.Open`, supply
   `PlantUmlOpenOptions` and `PlantUmlLimits`, and assert on observable outputs: the metadata properties and the
-  exceptions with their codes, locations, and hints. The system test class is `PlantUmlSystemIntegrationTests`.
+  exceptions with their codes, locations, and hints, the sizes and sampled pixels of rendered surfaces, and the reports
+  delivered to the handlers. The system test classes are `PlantUmlSystemIntegrationTests` (reading, metadata, errors,
+  preprocessor, limits) and `PlantUmlUnsupportedDiagramTests` (the types that are not drawn, strict mode).
 - **Subsystem tests** exercise each internal subsystem through its own entry points (see the subsystem verification
   documents, for example *Syntax Subsystem Verification Design*).
 - **Unit tests** exercise each unit in isolation (see the unit verification documents).
@@ -68,6 +70,25 @@ Parses a diagram whose type is decided by a macro and a variable after a comment
 **Tests**: `PlantUmlSystemIntegrationTests.CanvasNetPlantUml_Limits_OversizedText_IsRefused`
 
 Parses a text of fifty messages under a size limit of one hundred characters and asserts an `InvalidDataException`.
+
+### CanvasNetPlantUml-Render: Measuring Reports What Rendering Reports
+
+**Tests**: `PlantUmlUnsupportedDiagramTests.CanvasNetPlantUml_UnsupportedType_MeasureReportsAsRender`
+
+Measures a mindmap and asserts the size of 20 by 20 and the one report that rendering delivers.
+
+### CanvasNetPlantUml-UnsupportedTypes: An Empty Picture And A Report
+
+**Tests**: `PlantUmlUnsupportedDiagramTests.CanvasNetPlantUml_UnsupportedType_RendersEmptyPictureAndReports`
+
+Renders a class diagram and asserts a fully transparent picture of 20 by 20, no warning, and one
+`plantuml-diagram-unsupported` report at `car.puml:2:1` that names the type and has a hint.
+
+### CanvasNetPlantUml-StrictMode: The First Unsupported Construct Throws
+
+**Tests**: `PlantUmlUnsupportedDiagramTests.CanvasNetPlantUml_UnsupportedType_StrictThrows`
+
+Renders a class diagram in strict mode and asserts the exception's feature and that its report was delivered first.
 
 ### CanvasNetPlantUml-Platform: Every Platform And Runtime
 

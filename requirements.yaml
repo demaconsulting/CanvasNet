@@ -255,6 +255,13 @@ includes:
   - docs/reqstream/canvas-net-plant-uml/syntax.yaml
   - docs/reqstream/canvas-net-plant-uml/syntax/preprocessor.yaml
   - docs/reqstream/canvas-net-plant-uml/syntax/diagram-detector.yaml
+  - docs/reqstream/canvas-net-plant-uml/styling.yaml
+  - docs/reqstream/canvas-net-plant-uml/styling/skin-theme.yaml
+  - docs/reqstream/canvas-net-plant-uml/styling/skin-params.yaml
+  - docs/reqstream/canvas-net-plant-uml/scenegraph.yaml
+  - docs/reqstream/canvas-net-plant-uml/scenegraph/scene-model.yaml
+  - docs/reqstream/canvas-net-plant-uml/scenegraph/text-layout.yaml
+  - docs/reqstream/canvas-net-plant-uml/scenegraph/scene-painter.yaml
   - docs/reqstream/canvas-net-viewer.yaml
   - docs/reqstream/canvas-net-viewer/canvas-net-viewer.yaml
   - docs/reqstream/canvas-net-viewer/platform-requirements.yaml

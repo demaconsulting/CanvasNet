@@ -1,3 +1,4 @@
+using DemaConsulting.CanvasNet.PlantUml.Scenegraph;
 using DemaConsulting.CanvasNet.PlantUml.Syntax;
 
 namespace DemaConsulting.CanvasNet.PlantUml;
@@ -9,10 +10,11 @@ namespace DemaConsulting.CanvasNet.PlantUml;
 /// <remarks>
 ///     <para>
 ///         This is the seam between <see cref="PlantUmlDocument"/> and the diagram subsystems: a diagram parser
-///         (registered in <see cref="DiagramRegistry"/>) produces it once when the document is opened.
+///         (registered in <see cref="DiagramRegistry"/>) produces it once when the document is opened, and every measure
+///         and render asks it for a scene under the limits of the call.
 ///     </para>
 ///     <para>
-///         Implementations are immutable and safe for concurrent use.
+///         Implementations are immutable and safe for concurrent use; <see cref="Layout"/> keeps no state between calls.
 ///     </para>
 /// </remarks>
 internal interface IPlantUmlDiagram
@@ -41,7 +43,35 @@ internal interface IPlantUmlDiagram
     ///     Gets the reports the parser found (unsupported statements, ignored skin parameters), in text order.
     /// </summary>
     IReadOnlyList<PlantUmlPendingReport> Reports { get; }
+
+    /// <summary>
+    ///     Lays the diagram out under the options of a call and describes it as a scene, whose view box is the natural
+    ///     size.
+    /// </summary>
+    /// <param name="context">The context of the call: options, report sink, text layout and cancellation.</param>
+    /// <returns>The scene.</returns>
+    /// <exception cref="PlantUmlRenderException">Thrown, located, when a limit is exceeded or the layout fails.</exception>
+    /// <exception cref="PlantUmlUnsupportedFeatureException">Thrown in strict mode at the first unsupported feature.</exception>
+    /// <exception cref="OperationCanceledException">Thrown when the call is canceled.</exception>
+    Scene Layout(DiagramRenderContext context);
 }
+
+/// <summary>
+///     The context of one measure or render call, handed to <see cref="IPlantUmlDiagram.Layout"/>.
+/// </summary>
+/// <remarks>
+///     The context belongs to one call on one thread: the sink buffers the reports of the call and the text layout is
+///     shared by the measurement and the painter, so both see the same faces.
+/// </remarks>
+/// <param name="Options">The effective options of the call.</param>
+/// <param name="Sink">The report sink of the call.</param>
+/// <param name="Text">The text layout of the call.</param>
+/// <param name="CancellationToken">The token that stops the work.</param>
+internal sealed record DiagramRenderContext(
+    PlantUmlRenderOptions Options,
+    PlantUmlReportSink Sink,
+    TextLayout Text,
+    CancellationToken CancellationToken);
 
 /// <summary>
 ///     The registry of the diagram parsers: which subsystem parses which supported diagram type.

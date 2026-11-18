@@ -702,6 +702,32 @@ tests:
           - query: "//*[local-name()='text']"
             min: 1
 
+  - name: SysML2Tools_PlantUmlStylingViewSvg
+    description: "PlantUmlStylingView diagram was rendered by SysML2Tools"
+    tags: [design]
+    files:
+      - pattern: "docs/design/generated/PlantUmlStylingView.svg"
+        count: 1
+        xml:
+          - query: "//*[local-name()='svg']"
+            count: 1
+          # A view that resolves to nothing still writes an <svg> root, so also require drawn text.
+          - query: "//*[local-name()='text']"
+            min: 1
+
+  - name: SysML2Tools_PlantUmlScenegraphViewSvg
+    description: "PlantUmlScenegraphView diagram was rendered by SysML2Tools"
+    tags: [design]
+    files:
+      - pattern: "docs/design/generated/PlantUmlScenegraphView.svg"
+        count: 1
+        xml:
+          - query: "//*[local-name()='svg']"
+            count: 1
+          # A view that resolves to nothing still writes an <svg> root, so also require drawn text.
+          - query: "//*[local-name()='text']"
+            min: 1
+
   - name: SysML2Tools_CanvasNetToolViewSvg
     description: "CanvasNetToolView diagram was rendered by SysML2Tools"
     tags: [design]

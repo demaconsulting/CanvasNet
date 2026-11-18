@@ -147,6 +147,53 @@ public class PlantUmlDocumentTests
     }
 
     /// <summary>
+    ///     Validates that the reports found while reading are delivered by every call, in text order, before the report
+    ///     of the type, and that strict mode stops at the first one.
+    /// </summary>
+    [Fact]
+    public void PlantUmlDocument_Render_ReadingReports_DeliveredEveryCallInOrder()
+    {
+        // Arrange
+        var document = PlantUmlDocument.Parse("@startuml\n!theme cerulean\n!pragma x\nclass A\n@enduml\n");
+        var order = new List<string>();
+        var options = new PlantUmlRenderOptions { WarningHandler = w => order.Add(w.Code), UnsupportedFeatureHandler = u => order.Add(u.Feature) };
+        var strict = new PlantUmlRenderOptions { ThrowOnUnsupportedFeature = true };
+
+        // Act
+        document.Measure(options, TestContext.Current.CancellationToken);
+        using var surface = document.Render(options, TestContext.Current.CancellationToken);
+        var ex = Assert.Throws<PlantUmlUnsupportedFeatureException>(() => document.Render(strict, TestContext.Current.CancellationToken));
+
+        // Assert
+        string[] once = [PlantUmlDiagnosticCodes.ThemeUnsupported, PlantUmlDiagnosticCodes.PragmaIgnored, PlantUmlDiagnosticCodes.DiagramUnsupported];
+        Assert.Equal([.. once, .. once], order);
+        Assert.Equal(PlantUmlDiagnosticCodes.ThemeUnsupported, ex.Feature);
+    }
+
+    /// <summary>
+    ///     Validates the argument contract of the render entry points: the exact size, the scaled size, and a canceled
+    ///     token.
+    /// </summary>
+    [Fact]
+    public void PlantUmlDocument_Render_InvalidArgumentsAndCancellation_Throw()
+    {
+        // Arrange
+        var document = PlantUmlDocument.Parse(PlantUmlTestHelpers.UnsupportedText);
+        using var source = new CancellationTokenSource();
+        source.Cancel();
+
+        // Act / Assert
+        Assert.Throws<ArgumentOutOfRangeException>(() => document.Render(0, 10, null, TestContext.Current.CancellationToken));
+        Assert.Throws<ArgumentOutOfRangeException>(() => document.Render(10, Canvas.Surface.MaxDimension + 1, null, TestContext.Current.CancellationToken));
+        Assert.Throws<ArgumentOutOfRangeException>(() => document.Render(new PlantUmlRenderOptions { Scale = 1e-3 }, TestContext.Current.CancellationToken));
+        Assert.ThrowsAny<OperationCanceledException>(() => document.Measure(null, source.Token));
+        Assert.ThrowsAny<OperationCanceledException>(() => document.Render(null, source.Token));
+        using var exact = document.Render(30, 10, null, TestContext.Current.CancellationToken);
+        Assert.Equal((30, 10), (exact.Width, exact.Height));
+        Assert.Equal(new PlantUmlSize(20, 20), document.MeasureNatural(null, TestContext.Current.CancellationToken));
+    }
+
+    /// <summary>
     ///     A stream that cannot be read.
     /// </summary>
     private sealed class UnreadableStream : MemoryStream
