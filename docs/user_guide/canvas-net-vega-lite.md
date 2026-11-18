@@ -403,8 +403,8 @@ What is supported, by area:
   `rect` rounds its corners with `cornerRadius` and with `cornerRadiusTopLeft`, `cornerRadiusTopRight`,
   `cornerRadiusBottomLeft`, and `cornerRadiusBottomRight`; a `bar` rounds the corners at its value end with
   `cornerRadiusEnd`: the top of a bar above zero and the bottom of one below, the right or left end of a horizontal
-  bar, and all four corners of a ranged bar (`x2` or `y2`). In a stack each segment is rounded at its own end, where
-  Vega-Lite rounds the ends of the whole stack.
+  bar, and all four corners of a ranged bar (`x2` or `y2`). In a stack each segment is rounded by itself
+  (`cornerRadiusEnd` at the segment's own end), where Vega-Lite rounds the ends of the whole stack.
 - **Channels**: `x`, `y`, `xOffset` and `yOffset` (grouped bars and offset points inside a band; see *Vega-Lite Offset
   Channels (Grouped Bars)*), `theta`, `radius`, `color`, `fill`, `stroke`, `size`, `opacity`, `fillOpacity`,
   `strokeOpacity`, `strokeWidth`, `strokeDash`, `shape`, `angle`, `text`, and `url`, each as a `field`, a literal

@@ -50,7 +50,8 @@ examples:
   chart.vl.json#param.threshold=5&amp;param.brush={%22x%22:[2,6]}). The prefix
   is not case sensitive, the name after it is (as written), the value is decoded
   after the fragment is split, and the last value of a name wins. A value that
-  is not usable (a def. name that is not an identifier, malformed JSON) is
+  is not usable (a def. name that is not an identifier, malformed JSON, an
+  azimuth or elevation that is not a number, an elevation outside -90 to 90) is
   image-fragment-invalid and the image is not drawn; a param. name the chart
   does not declare is the warning vl-param-unknown and the chart is drawn
   without it. def. on anything but a model, and param. on anything but a chart,

@@ -118,11 +118,11 @@ the front.
 input with more than one parameter in quotes (`"part.scad#view=top&def.width=20"`); and a `$` (as in `$vpd`) in single
 quotes, as in `-D '$vpd=300'`. A `#` in the middle of a word is not a comment, but one at the start of a word is.
 
-**Mistakes and warnings.** They have the codes of an SVG link. A value that cannot be used (a vector or a JSON value
-that is cut short, a `def.` name that is not an identifier, an unknown `view` or `theme`, an `azimuth` or `elevation`
-that is not a number, or an elevation outside -90 to 90, a page that is not a whole
-number, a fragment over its limits) is an **error** with the code `image-fragment-invalid`, and a page the file does not
-have is `page-out-of-range`; nothing is written. A parameter that the kind of the file does not use (`pag=2`, `page=2`
+**Mistakes and warnings.** They have the codes of an SVG link. A value that cannot be used is an **error** with the
+code `image-fragment-invalid`: a vector or a JSON value that is cut short, a `def.` name that is not an identifier, an
+unknown `view` or `theme`, an `azimuth` or `elevation` that is not a number, an elevation outside -90 to 90, a page
+that is not a whole number, or a fragment over its limits. A page the file does not have is `page-out-of-range`.
+Nothing is written for either. A parameter that the kind of the file does not use (`pag=2`, `page=2`
 on a PNG, `def.x=1` on a chart) is the **warning** `image-fragment-unknown-parameter`, a parameter given twice with
 different values is `image-fragment-duplicate-parameter`, and a `param.` name that the chart does not declare is
 `vl-param-unknown` (the chart is drawn without it): they are warnings, never errors, **also with `--strict`**, so a typo

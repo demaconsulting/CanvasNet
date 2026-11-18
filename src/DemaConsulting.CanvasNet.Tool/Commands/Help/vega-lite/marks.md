@@ -36,7 +36,8 @@ examples:
 ## Known differences
 
 - A stacked bar with cornerRadiusEnd or another corner radius rounds each
-  segment at its own end; Vega-Lite rounds only the outer ends of the stack.
+  segment by itself (cornerRadiusEnd at the segment's own end); Vega-Lite
+  rounds only the outer ends of the stack.
 - Composite marks (boxplot, errorbar, errorband) group by the bin, time unit,
   and aggregate of their channels as Vega-Lite does; the one difference is that
   the box of a box plot over a bin spans the whole bin, where Vega-Lite 6.5
