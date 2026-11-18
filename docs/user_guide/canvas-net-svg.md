@@ -155,6 +155,14 @@ Under `objectBoundingBox` they stay `1` and `0.5` of the shape's box. A pattern 
 `objectBoundingBox`, and of the viewport width or height under `userSpaceOnUse` (they used to be of
 the shape's box in both modes).
 
+**Paint on a shape with no width or no height.** A gradient or pattern in `objectBoundingBox` units (the default)
+is ignored on a shape whose box has no width or no height, such as a horizontal or vertical `line`, as SVG 2 and the
+browsers do. The fallback color written after the reference is painted instead, and without one nothing is drawn:
+`stroke="url(#g) red"` on a horizontal line is red, and `stroke="url(#g)"` draws nothing. Use
+`gradientUnits="userSpaceOnUse"` (or `patternUnits="userSpaceOnUse"`) to paint such a line with the gradient or
+pattern. A fallback may be any color, including `rgb(...)`; a reference to a missing id draws nothing even with a
+fallback.
+
 `font-size` can be set by an attribute, a `style` attribute, a `style` element rule, or the `font`
 shorthand (for example `font: italic bold 12px/1.5 "Helvetica Neue", sans-serif`, which also resets
 the style, weight and line height it does not name; the `font` attribute ranks below every other

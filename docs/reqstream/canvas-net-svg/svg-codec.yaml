@@ -132,13 +132,19 @@ sections:
               gradientUnits (objectBoundingBox or userSpaceOnUse), gradientTransform, and
               spreadMethod (pad, reflect, or repeat), with an omitted x2, cx, cy or r taking the
               specification's percentage default (100% or 50%) against the same basis as an
-              explicit percentage (the viewport under userSpaceOnUse units).
+              explicit percentage (the viewport under userSpaceOnUse units), resolving a reference
+              that is followed by a fallback color (url(#g) red), and shall ignore a gradient in
+              objectBoundingBox units on a shape whose bounding box has no width or no height (such
+              as a horizontal line), painting the fallback color instead, or nothing when there is
+              none.
             justification: |
               Gradients are a common way SVG documents encode smoothly varying colors;
               callers need them rasterized as varying pixel colors rather than a flat
               approximation. SVG 2 (Paint Servers) gives these attributes percentage initial
               values, so an omitted attribute must not behave differently from the same percentage
-              written explicitly.
+              written explicitly. SVG 2 (Coordinate Systems, object bounding box units) ignores a
+              bounding-box effect on a box with no width or no height, and browsers then paint the
+              fallback color, so a horizontal or vertical line must look the same as in a browser.
             tests:
               - SvgCodec_Load_LinearGradientUserSpaceOnUse_VariesAlongUserSpaceAxis
               - SvgCodec_Load_LinearGradientUserSpaceOnUseOmittedX2_SpansViewportWidth
@@ -148,6 +154,9 @@ sections:
               - SvgCodec_Load_StrokeGradient_PaintsVaryingColorAlongStroke
               - SvgCodec_Load_GradientFixture_RendersVaryingGradientColors
               - SvgCodec_Load_SvgGradientFixture_RendersVaryingGradientAndPinkBackground
+              - SvgCodec_Load_UrlWithRgbFallback_ResolvesTheReference
+              - SvgCodec_Load_ObjectBoundingBoxGradientOnHorizontalLine_PaintsNothing
+              - SvgCodec_Load_ObjectBoundingBoxGradientOnVerticalLine_PaintsTheFallbackColor
 
           - id: CanvasNetSvg-SvgCodec-GradientHrefInheritance
             title: >-
@@ -1501,7 +1510,10 @@ sections:
               patternTransform, and a viewBox/preserveAspectRatio pair on the pattern element
               itself (taking precedence over patternContentUnits when present), while
               tolerating a dangling or wrong-element-type pattern reference as a no-op
-              (rendering unfilled/unstroked).
+              (rendering unfilled/unstroked), and shall ignore a pattern whose tile or content is
+              in objectBoundingBox units on a shape whose bounding box has no width or no height,
+              painting the fallback color written after the reference instead, or nothing when
+              there is none.
             justification: |
               pattern is a common SVG authoring mechanism for a repeating tiled fill (a
               hatching, a texture, a repeated icon) that neither a solid color nor a gradient
@@ -1510,7 +1522,8 @@ sections:
               dangling or wrong-element-type reference as a no-op matches this codec's general
               dangling-reference convention (already applied to filter/marker/gradient/
               clip-path/mask references), so one bad pattern attribute cannot abort rendering
-              of an otherwise-valid document.
+              of an otherwise-valid document. SVG 2 ignores a bounding-box effect on a box with no
+              width or no height, and browsers then paint the fallback color.
             tests:
               - SvgCodec_Load_PatternDefaultUnits_TilesOnceAcrossShapeBoundingBox
               - SvgCodec_Load_PatternUserSpaceOnUseUnits_TilesRepeatedlyAcrossUserSpace
@@ -1525,6 +1538,8 @@ sections:
               - SvgCodec_Load_PatternZeroWidthOrHeight_RendersUnfilledWithoutThrowing
               - SvgCodec_Load_PatternWithoutWidthHeight_PaintsNothing
               - SvgCodec_Load_PatternContentWithGroupAndGradient_RendersViaRecursiveElementWalk
+              - SvgCodec_Load_ObjectBoundingBoxPatternOnHorizontalLine_PaintsNothingOrTheFallback
+              - SvgCodec_Load_UserSpacePatternOnHorizontalLine_StillPaints
 
           - id: CanvasNetSvg-SvgCodec-PatternHrefInheritance
             title: >-

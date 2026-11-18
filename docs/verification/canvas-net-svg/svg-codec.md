@@ -192,7 +192,10 @@ exhaustively by the `CssColor` unit tests in the core library.
 `SvgCodec_Load_SvgGradientFixture_RendersVaryingGradientAndPinkBackground`,
 `SvgCodec_Load_RadialGradientRNegative_FallsBackToDefaultRadiusWithoutThrowing`,
 `SvgCodec_Load_RadialGradientFrNegative_FallsBackToDefaultFocalRadiusWithoutThrowing`,
-`SvgCodec_Load_RadialGradientRFrValid_RendersNormally`
+`SvgCodec_Load_RadialGradientRFrValid_RendersNormally`,
+`SvgCodec_Load_UrlWithRgbFallback_ResolvesTheReference`,
+`SvgCodec_Load_ObjectBoundingBoxGradientOnHorizontalLine_PaintsNothing`,
+`SvgCodec_Load_ObjectBoundingBoxGradientOnVerticalLine_PaintsTheFallbackColor`
 
 Asserts a `userSpaceOnUse` linear gradient varies along the document's user-space axis;
 `SvgCodec_Load_LinearGradientUserSpaceOnUseOmittedX2_SpansViewportWidth` asserts that, on a 200x100
@@ -220,6 +223,14 @@ constructor and throwing an uncaught `ArgumentOutOfRangeException`, matching thi
 tolerant handling of every other gradient coordinate;
 `SvgCodec_Load_RadialGradientRFrValid_RendersNormally` confirms a valid, non-negative `r`/`fr`
 still renders the gradient normally after this validation was added.
+
+`SvgCodec_Load_UrlWithRgbFallback_ResolvesTheReference` asserts that `fill="url(#g) rgb(0,128,0)"` on a rect still
+draws the referenced black-to-white gradient (dark on the left, light on the right, gray in the middle), because the
+reference ends at its own closing parenthesis. `SvgCodec_Load_ObjectBoundingBoxGradientOnHorizontalLine_PaintsNothing`
+asserts that a gradient in the default `objectBoundingBox` units stroked along a horizontal line (a bounding box with
+no height) is ignored and the surface stays fully transparent, and
+`SvgCodec_Load_ObjectBoundingBoxGradientOnVerticalLine_PaintsTheFallbackColor` asserts that the same kind of gradient
+written `url(#g) red` on a vertical line paints the solid fallback red at both ends, as Edge does.
 
 #### CanvasNetSvg-SvgCodec-GradientHrefInheritance: Gradient Href Template Inheritance and Cycle Rejection
 
@@ -1825,7 +1836,9 @@ an oversized offscreen buffer allocation.
 `SvgCodec_Load_FillReferencesNonPatternElement_RendersUnfilled`,
 `SvgCodec_Load_PatternZeroWidthOrHeight_RendersUnfilledWithoutThrowing`,
 `SvgCodec_Load_PatternWithoutWidthHeight_PaintsNothing`,
-`SvgCodec_Load_PatternContentWithGroupAndGradient_RendersViaRecursiveElementWalk`
+`SvgCodec_Load_PatternContentWithGroupAndGradient_RendersViaRecursiveElementWalk`,
+`SvgCodec_Load_ObjectBoundingBoxPatternOnHorizontalLine_PaintsNothingOrTheFallback`,
+`SvgCodec_Load_UserSpacePatternOnHorizontalLine_StillPaints`
 
 Asserts a `fill="url(#id)"` referencing a `pattern` with the default `patternUnits`
 (`objectBoundingBox`) and an explicit `width="1" height="1"` (per SVG, `width`/`height`
@@ -1866,6 +1879,12 @@ per SVG's own "a pattern with no positive tile area applies no paint" semantics;
 `pattern`'s own content containing a nested `<g>` wrapping a `linearGradient`-filled shape renders
 correctly via the ordinary recursive `RenderElement` walk (not a bespoke, feature-limited content
 renderer), proving tile content may freely use this codec's other rendering features.
+
+`SvgCodec_Load_ObjectBoundingBoxPatternOnHorizontalLine_PaintsNothingOrTheFallback` asserts that a pattern in the
+default `objectBoundingBox` units stroked along a horizontal line (a bounding box with no height) is ignored, as in
+Edge: the line without a fallback stays transparent, and the line written `url(#p) lime` is the solid fallback lime
+along its whole length. `SvgCodec_Load_UserSpacePatternOnHorizontalLine_StillPaints` asserts that a
+`userSpaceOnUse` pattern on the same kind of line is still drawn (blue tile color, not the red fallback).
 
 #### CanvasNetSvg-SvgCodec-PatternTileSmoothing: Pattern Tile Sampling Is Scale-Aware
 

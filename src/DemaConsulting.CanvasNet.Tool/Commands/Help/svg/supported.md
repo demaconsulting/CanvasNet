@@ -24,7 +24,10 @@ examples:
 - Grouping with g and cascading presentation attributes; transform; use and
   symbol; marker.
 - Linear and radial gradients (with href inheritance), pattern, clipPath, and
-  mask.
+  mask. A paint may name a fallback color (url(#g) red). A gradient or pattern
+  in objectBoundingBox units is ignored on a shape with no width or no height,
+  such as a horizontal line, as in browsers: the fallback color is drawn, or
+  nothing.
 - Filters: the fe* primitives blend, color matrix, component transfer,
   composite, convolve matrix, lighting, displacement map, drop shadow, flood,
   Gaussian blur, image, merge, morphology, offset, tile, and turbulence.

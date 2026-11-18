@@ -1719,6 +1719,151 @@ public class SvgCodecTests
     }
 
     /// <summary>
+    ///     Proves that a gradient in the default <c>objectBoundingBox</c> units is ignored on a horizontal line, whose
+    ///     bounding box has no height, so a stroke with no fallback color paints nothing (as browsers do).
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_ObjectBoundingBoxGradientOnHorizontalLine_PaintsNothing()
+    {
+        // Arrange: a bounding-box gradient stroked along a perfectly horizontal line
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <linearGradient id='g'>
+                  <stop offset='0' stop-color='blue'/>
+                  <stop offset='1' stop-color='yellow'/>
+                </linearGradient>
+              </defs>
+              <line x1='10' y1='50' x2='90' y2='50' stroke='url(#g)' stroke-width='10'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: the surface stays fully transparent
+        Assert.Equal(0, CountInk(surface));
+    }
+
+    /// <summary>
+    ///     Proves that a gradient in <c>objectBoundingBox</c> units on a vertical line, whose bounding box has no
+    ///     width, is ignored and the fallback color written after the reference is painted instead.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_ObjectBoundingBoxGradientOnVerticalLine_PaintsTheFallbackColor()
+    {
+        // Arrange: a bounding-box gradient with a red fallback stroked along a vertical line
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <linearGradient id='g' gradientUnits='objectBoundingBox'>
+                  <stop offset='0' stop-color='blue'/>
+                  <stop offset='1' stop-color='yellow'/>
+                </linearGradient>
+              </defs>
+              <line x1='50' y1='10' x2='50' y2='90' stroke='url(#g) red' stroke-width='10'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: the whole stroke is the solid fallback red, not a gradient color
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[50, 20]);
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[50, 80]);
+    }
+
+    /// <summary>
+    ///     Proves that a pattern in the default <c>objectBoundingBox</c> units is ignored on a horizontal line: the
+    ///     stroke paints nothing without a fallback color and the fallback color with one.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_ObjectBoundingBoxPatternOnHorizontalLine_PaintsNothingOrTheFallback()
+    {
+        // Arrange: the same bounding-box pattern stroked along two horizontal lines, the second with a lime fallback
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <pattern id='p' width='0.25' height='1'>
+                  <rect width='5' height='5' fill='blue'/>
+                </pattern>
+              </defs>
+              <line x1='10' y1='25' x2='90' y2='25' stroke='url(#p)' stroke-width='10'/>
+              <line x1='10' y1='75' x2='90' y2='75' stroke='url(#p) lime' stroke-width='10'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: the first line is not drawn; the second is the solid fallback lime along its whole length
+        Assert.Equal(0, surface[50, 25].A);
+        Assert.Equal(0, surface[15, 25].A);
+        Assert.Equal(new Rgba32(0, 255, 0, 255), surface[15, 75]);
+        Assert.Equal(new Rgba32(0, 255, 0, 255), surface[85, 75]);
+    }
+
+    /// <summary>
+    ///     Proves that a pattern in <c>userSpaceOnUse</c> units on a horizontal line is still painted, because its tile
+    ///     does not depend on the bounding box of the line.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_UserSpacePatternOnHorizontalLine_StillPaints()
+    {
+        // Arrange: a user-space pattern of blue squares stroked along a horizontal line
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <pattern id='p' patternUnits='userSpaceOnUse' width='20' height='20'>
+                  <rect width='20' height='20' fill='blue'/>
+                </pattern>
+              </defs>
+              <line x1='10' y1='50' x2='90' y2='50' stroke='url(#p) red' stroke-width='10'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: the stroke shows the pattern, not the fallback
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[50, 50]);
+    }
+
+    /// <summary>
+    ///     Proves that a paint reference followed by a functional fallback color (<c>url(#g) rgb(0,128,0)</c>) still
+    ///     resolves the referenced gradient: the reference ends at its own closing parenthesis.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_UrlWithRgbFallback_ResolvesTheReference()
+    {
+        // Arrange: a horizontal black-to-white gradient on a rect, with an rgb() fallback after the reference
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <linearGradient id='g'>
+                  <stop offset='0' stop-color='black'/>
+                  <stop offset='1' stop-color='white'/>
+                </linearGradient>
+              </defs>
+              <rect width='100' height='100' fill='url(#g) rgb(0,128,0)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: the gradient is drawn (dark on the left, light on the right), not nothing and not the green fallback
+        Assert.True(surface[5, 50].R < 40);
+        Assert.True(surface[95, 50].R > 215);
+        Assert.Equal(surface[50, 50].R, surface[50, 50].G);
+    }
+
+    /// <summary>
     ///     Proves that a gradient with no <c>stop</c> children of its own inherits its color
     ///     stops from the gradient it references via <c>href</c>.
     /// </summary>

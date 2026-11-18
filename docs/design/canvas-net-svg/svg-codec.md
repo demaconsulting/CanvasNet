@@ -887,6 +887,20 @@ only once rather than once per reference. This is safe because a gradient's stop
 within a single `Load` call: the parsed document is built once and never mutated afterward, and
 this codec implements no scripting/animation support that could redefine them mid-render.
 
+**Paint fallback and empty bounding boxes.** A paint value may write a fallback color after the reference
+(`url(#g) red`). `ExtractUrlId` ends the referenced id at the first `)` after `url(`, as for an unquoted CSS
+`url()`, so a functional fallback such as `rgb(0,128,0)` is not taken into the id. A gradient in `objectBoundingBox`
+units (the default) cannot map its unit square onto a shape whose bounding box has no width or no height, such as a
+horizontal or vertical line; SVG 2 (Coordinate Systems, object bounding box units) then ignores the paint server.
+`IsObjectBoundingBoxServerOnEmptyBox` detects that case, and `ResolvePaint` returns the fallback color from
+`ResolvePaintFallback` (with the opacities folded into its alpha), or no paint when there is none, `none`, or an
+unrecognized color - the behavior of Chromium and Firefox. A pattern is ignored the same way when its `patternUnits`
+is `objectBoundingBox` or its content is in `objectBoundingBox` units without a `viewBox`; `RenderFill` and
+`RenderStroke` then paint the fallback color instead of calling `RenderPatternFill`, and the arrowhead hint's
+`HasVisiblePaint` follows the same rule. `ComputeObjectBoundingBoxMap` itself is unchanged, because its identity
+result for an empty box is still what `clipPathUnits` and `maskContentUnits` rely on. A dangling reference with a
+fallback (`url(#missing) red`) still paints nothing.
+
 **Use.** A `use` element referencing any element by id via `href`/`xlink:href` renders a copy of
 the referenced element (translated by the `use` element's own `x`/`y`), resolved through the
 document-order-independent id index described above. When the referenced element is a `symbol`

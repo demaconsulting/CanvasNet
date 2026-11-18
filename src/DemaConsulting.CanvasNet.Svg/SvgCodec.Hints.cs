@@ -154,7 +154,8 @@ public static partial class SvgCodec
     ///     pattern (resolved first, as the renderer does) is visible when its combined opacity is not zero; otherwise
     ///     the paint from <see cref="ResolvePaint"/> is visible when it is a color whose alpha (with the opacities folded
     ///     in) is not zero, or a gradient with at least one stop whose alpha is not zero. None, an unrecognized color,
-    ///     and a dangling or invalid <c>url(#...)</c> draw nothing.
+    ///     and a dangling or invalid <c>url(#...)</c> draw nothing. A gradient or pattern in <c>objectBoundingBox</c>
+    ///     units on a box with no width or no height is ignored, so only its fallback color can be visible.
     /// </summary>
     /// <param name="spec">The cascaded <c>fill</c> or <c>stroke</c> value.</param>
     /// <param name="alpha">The combined opacity multiplier of that paint.</param>
@@ -165,8 +166,15 @@ public static partial class SvgCodec
     /// <returns><see langword="true"/> when the paint is visible.</returns>
     private static bool HasVisiblePaint(string spec, float alpha, Path path, Matrix3x2 transform, RenderContext context, RenderState state)
     {
-        if (ResolvePatternElement(spec, context) != null)
+        if (ResolvePatternElement(spec, context) is { } pattern)
         {
+            // A bounding-box-relative pattern on a box with no width or no height is ignored and
+            // the renderer paints the fallback color instead, so visibility follows that color
+            if (IsObjectBoundingBoxServerOnEmptyBox(pattern, path))
+            {
+                return ResolvePaintFallback(spec.Trim(), alpha) is Rgba32 fallback && fallback.A > 0;
+            }
+
             return alpha > 0;
         }
 
