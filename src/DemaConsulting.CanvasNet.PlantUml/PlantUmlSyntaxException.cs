@@ -74,6 +74,25 @@ public sealed class PlantUmlSyntaxException : FormatException
     }
 
     /// <summary>
+    ///     Initializes a new instance of the <see cref="PlantUmlSyntaxException"/> class describing an error at a
+    ///     location that another exception caused (such as the refusal of an included file).
+    /// </summary>
+    /// <param name="innerException">The exception that caused the error.</param>
+    /// <param name="code">The stable <c>plantuml-*</c> code of the error. Must not be null or empty.</param>
+    /// <param name="description">The description of the error, without the location and the code.</param>
+    /// <param name="location">The location of the error in the original text.</param>
+    /// <param name="hint">The suggested fix, or <see langword="null"/>.</param>
+    /// <exception cref="ArgumentException">Thrown when <paramref name="code"/> is null or empty.</exception>
+    internal PlantUmlSyntaxException(Exception innerException, string code, string description, PlantUmlLocation location, string? hint)
+        : base(FormatMessage(code, description, location), innerException)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(code);
+        Code = code;
+        Location = location;
+        Hint = hint;
+    }
+
+    /// <summary>
     ///     Gets the stable <c>plantuml-*</c> code of the error.
     /// </summary>
     public string Code { get; }

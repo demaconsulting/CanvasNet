@@ -161,7 +161,8 @@ public class PreprocessorTests
 
     /// <summary>
     ///     Validates the reports of the unsupported directives: a macro with parameters, an expression, a dropped block,
-    ///     includes, a theme, a pragma (a warning), a dropped function and a built-in function.
+    ///     includes that are never followed (the standard library, a URL), a theme, a pragma (a warning), a dropped function
+    ///     and a built-in function.
     /// </summary>
     [Fact]
     public void PlantUmlPreprocessor_Run_UnsupportedDirectives_AreReportedAndDropped()
@@ -173,7 +174,7 @@ public class PreprocessorTests
             "!if %true()",
             "A -> B : inside",
             "!endif",
-            "!include common.iuml",
+            "!include <C4/C4_Container>",
             "!includeurl https://example.com/x.puml",
             "!theme cerulean",
             "!pragma teoz true",

@@ -26,9 +26,9 @@ sections:
 
           - id: CanvasNetPlantUml-Syntax-Preprocessing
             title: >-
-              The Syntax subsystem shall remove the comments, join continued lines, apply the supported directives,
-              report the others, and bound the size of the text and the nesting of the directives before the diagram
-              type is detected.
+              The Syntax subsystem shall remove the comments, join continued lines, apply the supported directives
+              (including the local include files), report the others, and bound the size of the text, the nesting of
+              the directives, and the includes before the diagram type is detected.
             justification: |
               The detector and the parsers must read the statements the author meant, after macros and variables, and
               a hostile text must be refused early.
@@ -37,9 +37,11 @@ sections:
               - CanvasNetPlantUml-Syntax-Preprocessor-Continuation
               - CanvasNetPlantUml-Syntax-Preprocessor-Directives
               - CanvasNetPlantUml-Syntax-Preprocessor-UnsupportedDirectives
+              - CanvasNetPlantUml-Syntax-Preprocessor-Includes
               - CanvasNetPlantUml-Syntax-Preprocessor-Limits
             tests:
               - PlantUmlSyntax_Detect_ReadsSubstitutedStatements
+              - PlantUmlSyntax_Includes_AreReadBeforeDetection
 
           - id: CanvasNetPlantUml-Syntax-Detection
             title: >-

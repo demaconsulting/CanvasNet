@@ -1,0 +1,6 @@
+@startuml
+' A diagram of its own, whose content is included
+!include ../common.iuml
+:Check the order;
+:Pick the items;
+@enduml

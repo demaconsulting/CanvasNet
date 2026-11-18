@@ -73,6 +73,33 @@ public class PlantUmlDocumentTests
     }
 
     /// <summary>
+    ///     Validates the include settings of the open options: an empty base directory and a null policy are refused,
+    ///     the defaults are no base directory and every local file, a file's includes start in its folder, and a text
+    ///     with includes needs a base directory.
+    /// </summary>
+    [Fact]
+    public void PlantUmlDocument_OpenOptions_IncludeSettings()
+    {
+        // Arrange
+        var folder = Path.Combine(AppContext.BaseDirectory, "Fixtures", "include");
+        var text = File.ReadAllText(Path.Combine(folder, "main.puml"));
+
+        // Act
+        var defaults = new PlantUmlOpenOptions();
+        var fromFile = PlantUmlDocument.Open(Path.Combine(folder, "main.puml"));
+        using var stream = new MemoryStream(Encoding.UTF8.GetBytes(text));
+        var fromStream = PlantUmlDocument.Open(stream, new PlantUmlOpenOptions { BaseDirectory = folder });
+
+        // Assert
+        Assert.Null(defaults.BaseDirectory);
+        Assert.Same(Files.FileAccessPolicy.AllowAll, defaults.FileAccess);
+        Assert.Throws<ArgumentException>(() => new PlantUmlOpenOptions { BaseDirectory = " " });
+        Assert.Throws<ArgumentNullException>(() => new PlantUmlOpenOptions { FileAccess = null! });
+        Assert.Equal(fromFile.NodeCount, fromStream.NodeCount);
+        Assert.Equal(PlantUmlDiagnosticCodes.IncludeFailed, Assert.Throws<PlantUmlSyntaxException>(() => PlantUmlDocument.Parse(text)).Code);
+    }
+
+    /// <summary>
     ///     Validates that a byte-order mark is removed and invalid UTF-8 is refused with a located syntax error.
     /// </summary>
     [Fact]

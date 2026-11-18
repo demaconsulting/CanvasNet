@@ -13,9 +13,10 @@ namespace DemaConsulting.CanvasNet.PlantUml.Syntax;
 ///         the diagram from its tag and its statements, in the order PlantUML's diagram factories try them.
 ///     </para>
 ///     <para>
-///         No regular expression runs on diagram text, so the preprocessing and the detection are linear in the text,
-///         and nothing is read from another file or the network. The namespace is internal to the package; every type is
-///         immutable or used by one call on one thread.
+///         No regular expression runs on diagram text, so the preprocessing and the detection are linear in the text;
+///         nothing is read from the network, and a local file only for an include directive, through the core file
+///         reference resolver under the caller's file-access policy. The namespace is internal to the package; every
+///         type is immutable or used by one call on one thread.
 ///     </para>
 /// </remarks>
 internal static class NamespaceDoc

@@ -43,7 +43,8 @@ internal sealed record PreprocessedSource(SourceLines Lines, DiagramBlock Block,
 ///         <b>Directives.</b> <c>!define NAME [value]</c> (no parameters), <c>!undef NAME</c>, <c>!$name = value</c> and
 ///         <c>!$name ?= value</c> (a quoted text, a number or another variable) are applied: every later <c>$name</c> and
 ///         every later <c>NAME</c> on word boundaries is replaced, once (a substituted value is not expanded again).
-///         Every other directive is reported and dropped: includes as
+///         <c>!include</c>, <c>!include_once</c> and <c>!include_many</c> of a local file read that file in place (see
+///         <c>Preprocessor.Includes</c>). Every other directive is reported and dropped: the other include forms as
 ///         <see cref="PlantUmlDiagnosticCodes.IncludeUnsupported"/>, <c>!theme</c> as
 ///         <see cref="PlantUmlDiagnosticCodes.ThemeUnsupported"/>, <c>!pragma</c> as the warning
 ///         <see cref="PlantUmlDiagnosticCodes.PragmaIgnored"/>, and the rest (<c>!if</c>, <c>!function</c>, ...) as
@@ -56,10 +57,11 @@ internal sealed record PreprocessedSource(SourceLines Lines, DiagramBlock Block,
 ///         <see cref="PlantUmlLimits.MaxTextSize"/> and the statements at most <see cref="PlantUmlLimits.MaxTextSize"/>
 ///         (an <see cref="InvalidDataException"/> otherwise); the nesting of dropped directive blocks is bounded by
 ///         <see cref="PlantUmlLimits.MaxNestingDepth"/>. No regular expression runs on the text and nothing is read from
-///         another file or the network. The class is stateless and safe for concurrent use.
+///         the network; another file is read only through the include resolver of the call. The class is stateless and
+///         safe for concurrent use.
 ///     </para>
 /// </remarks>
-internal static class Preprocessor
+internal static partial class Preprocessor
 {
     /// <summary>How many times <see cref="PlantUmlLimits.MaxTextSize"/> the original text may be.</summary>
     public const int SourceLengthFactor = 4;
@@ -77,10 +79,16 @@ internal static class Preprocessor
         ["definelong"] = "enddefinelong",
     };
 
-    /// <summary>The include directives, none of which is followed by this version.</summary>
-    private static readonly HashSet<string> IncludeDirectives = new(StringComparer.Ordinal)
+    /// <summary>The include directives that are never followed.</summary>
+    private static readonly HashSet<string> UnfollowedIncludes = new(StringComparer.Ordinal)
     {
-        "include", "include_once", "include_many", "includeurl", "includesub", "includedef", "import",
+        "includeurl", "includesub", "includedef", "import",
+    };
+
+    /// <summary>The include directives that read a local file.</summary>
+    private static readonly HashSet<string> FollowedIncludes = new(StringComparer.Ordinal)
+    {
+        "include", "include_once", "include_many",
     };
 
     /// <summary>
@@ -89,10 +97,11 @@ internal static class Preprocessor
     /// <param name="text">The original text.</param>
     /// <param name="sourceName">The source name placed in every location, or null.</param>
     /// <param name="limits">The limits of the open call.</param>
+    /// <param name="includes">The resolver of the include directives, or null when the text has no file source.</param>
     /// <returns>The preprocessed source.</returns>
     /// <exception cref="InvalidDataException">Thrown when the text or its statements are longer than the limits allow.</exception>
-    /// <exception cref="PlantUmlSyntaxException">Thrown, located, when a block has no end tag or the directives nest too deeply.</exception>
-    public static PreprocessedSource Run(string text, string? sourceName, PlantUmlLimits limits)
+    /// <exception cref="PlantUmlSyntaxException">Thrown, located, when a block has no end tag, the directives nest too deeply, or an include fails.</exception>
+    public static PreprocessedSource Run(string text, string? sourceName, PlantUmlLimits limits, IncludeResolver? includes = null)
     {
         ArgumentNullException.ThrowIfNull(text);
         ArgumentNullException.ThrowIfNull(limits);
@@ -108,7 +117,7 @@ internal static class Preprocessor
         var lines = new SourceLines(text, sourceName);
         var reports = new List<PlantUmlPendingReport>();
         var (tag, tagLocation, first, end) = Frame(lines, reports);
-        var statements = new State(lines, limits, reports).Read(first, end);
+        var statements = new State(lines, limits, reports, includes).Read(first, end);
         return new PreprocessedSource(lines, new DiagramBlock(tag, tagLocation, statements), reports);
     }
 
@@ -219,11 +228,15 @@ internal static class Preprocessor
     /// <summary>
     ///     The state of one preprocessing run: the variables, the macros and the statements read so far.
     /// </summary>
-    /// <param name="lines">The line table.</param>
+    /// <param name="rootLines">The line table of the text.</param>
     /// <param name="limits">The limits.</param>
     /// <param name="reports">The pending reports.</param>
-    private sealed class State(SourceLines lines, PlantUmlLimits limits, List<PlantUmlPendingReport> reports)
+    /// <param name="includes">The resolver of the include directives, or null.</param>
+    private sealed partial class State(SourceLines rootLines, PlantUmlLimits limits, List<PlantUmlPendingReport> reports, IncludeResolver? includes)
     {
+        /// <summary>The line table of the file being read (the text, or an included file).</summary>
+        private SourceLines _lines = rootLines;
+
         /// <summary>
         ///     Checks whether a character can be part of a PlantUML identifier.
         /// </summary>
@@ -262,8 +275,8 @@ internal static class Preprocessor
             for (var i = first; i < end; i++)
             {
                 // Strip the comments of the line; a line that is only a comment adds nothing
-                var start = lines.StartOf(i);
-                var line = lines.LineText(i);
+                var start = _lines.StartOf(i);
+                var line = _lines.LineText(i);
                 var lineBuilder = new SourceStatement.Builder();
                 var hadComment = StripComments(line, start, lineBuilder);
                 if (hadComment && lineBuilder.IsBlank && !continued)
@@ -282,7 +295,7 @@ internal static class Preprocessor
                 }
 
                 statement.AppendFrom(lineBuilder);
-                Handle(statement.Build(lines, start + line.Length));
+                Handle(statement.Build(_lines, start + line.Length));
                 statement = new SourceStatement.Builder();
                 continued = false;
             }
@@ -504,13 +517,15 @@ internal static class Preprocessor
                     return;
             }
 
-            if (IncludeDirectives.Contains(name))
+            if (FollowedIncludes.Contains(name))
             {
-                reports.Add(PlantUmlPendingReport.Unsupported(
-                    PlantUmlDiagnosticCodes.IncludeUnsupported,
-                    $"'!{name}' is not followed; what it would include is not drawn",
-                    statement.Location,
-                    "copy the included statements into the diagram"));
+                Include(statement, name);
+                return;
+            }
+
+            if (UnfollowedIncludes.Contains(name))
+            {
+                UnfollowedInclude(statement, $"'!{name}' is not followed; what it would include is not drawn");
                 return;
             }
 
@@ -700,7 +715,7 @@ internal static class Preprocessor
                 i = copyEnd;
             }
 
-            return changed ? builder.Build(lines, OffsetOf(statement, text.Length)) : statement;
+            return changed ? builder.Build(statement.Lines, OffsetOf(statement, text.Length)) : statement;
         }
 
         /// <summary>

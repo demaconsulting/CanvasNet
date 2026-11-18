@@ -1,0 +1,20 @@
+@startuml
+' Gallery: partitions, connectors, styled arrows and skin parameters
+skinparam activityBackgroundColor #FFF8E7
+skinparam activityBorderColor #8A6D3B
+title Release
+start
+partition Build {
+  :Compile;
+  :Run the tests;
+}
+-[#green]-> passed;
+partition Publish {
+  :Upload the package;
+  -[dashed]->
+  :Tag the release;
+}
+(A)
+:Announce it;
+end
+@enduml

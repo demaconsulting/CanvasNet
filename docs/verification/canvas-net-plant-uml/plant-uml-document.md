@@ -111,3 +111,25 @@ valid scale is kept.
 
 Asserts that a measure and a render each deliver the theme report, the pragma warning, and the type report in that
 order, and that strict mode throws for the theme report.
+
+#### CanvasNetPlantUml-PlantUmlDocument-IncludeOptions: Where Includes Are Found And Which Are Read
+
+**Tests**: `PlantUmlDocumentTests.PlantUmlDocument_OpenOptions_IncludeSettings`
+
+Asserts the defaults (no base directory, every local file), that a blank base directory and a null policy are refused,
+that a file and a stream with the folder as its base directory give the same diagram, and that a text with an include
+and no folder is `plantuml-include-failed`.
+
+#### CanvasNetPlantUml-PlantUmlDocument-ImageSource: A Linked Diagram As A Picture
+
+**Tests**: `PlantUmlImageSourceTests.PlantUmlImageSource_Properties_ClaimPlantUmlExtensions`,
+`PlantUmlImageSourceTests.PlantUmlImageSource_Render_DrawsTheDiagramOnTransparent`,
+`PlantUmlImageSourceTests.PlantUmlImageSource_Render_ReportsNotesAndStrictMode`,
+`PlantUmlImageSourceTests.PlantUmlImageSource_Render_IncludesFollowTheRequest`
+
+Asserts the name, the three extensions, no scheme, no fragment parameters, and the warning code; that a diagram is
+drawn at its measured size with a transparent corner and inside a requested size of 300 by 200; that a pragma is a
+`plantuml-warning` note with its specific code and location, a `goto` an unsupported note, a class diagram a transparent
+picture with a `plantuml-diagram-unsupported` note, and that strict mode throws; and that the include fixture draws
+with the folder of the request, fails without it, and fails under a policy that denies its files with the refusal as
+the inner exception.

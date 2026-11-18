@@ -24,6 +24,34 @@ sections:
               - PlantUmlDocument_Open_Utf8_IsStrictAndDropsBom
               - PlantUmlDocument_EntryPoints_InvalidArguments_Throw
 
+          - id: CanvasNetPlantUml-PlantUmlDocument-IncludeOptions
+            title: >-
+              The PlantUmlDocument unit shall provide open options for the include directives (a base directory,
+              which defaults to the folder of an opened file, and a file-access policy, which defaults to every
+              regular local file), refuse an empty base directory and a null policy, and read the include files of a
+              text, a stream, or a file under them.
+            justification: |
+              The caller decides where included files are found and which may be read, as for every other file a
+              document references.
+            tests:
+              - PlantUmlDocument_OpenOptions_IncludeSettings
+
+          - id: CanvasNetPlantUml-PlantUmlDocument-ImageSource
+            title: >-
+              The PlantUmlDocument unit shall provide an image source named plantuml for the .puml, .plantuml, and
+              .pu extensions, with no scheme and no fragment parameters, that draws a linked diagram at its natural
+              or requested size over a transparent background, resolves its includes in the folder of the request
+              under the request's file-access policy, returns its warnings as plantuml-warning notes with the specific
+              code and location and its unsupported features as notes with their codes, and throws in strict mode.
+            justification: |
+              A PlantUML diagram must be embeddable in the other document formats (SVG, Mermaid, Markdown) of the
+              repository as any other picture.
+            tests:
+              - PlantUmlImageSource_Properties_ClaimPlantUmlExtensions
+              - PlantUmlImageSource_Render_DrawsTheDiagramOnTransparent
+              - PlantUmlImageSource_Render_ReportsNotesAndStrictMode
+              - PlantUmlImageSource_Render_IncludesFollowTheRequest
+
           - id: CanvasNetPlantUml-PlantUmlDocument-TextLimit
             title: >-
               The PlantUmlDocument unit shall stop reading a string, a stream, or a file as soon as its length

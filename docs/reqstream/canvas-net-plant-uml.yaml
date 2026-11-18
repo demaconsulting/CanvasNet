@@ -83,6 +83,24 @@ sections:
           - CanvasNetPlantUml-PlantUmlDocument-Reports
         tests:
           - CanvasNetPlantUml_Preprocessor_SubsetIsApplied
+          - CanvasNetPlantUml_Includes_NetworkIsNeverRead
+
+      - id: CanvasNetPlantUml-Includes
+        title: >-
+          The library shall read the local files named by !include, !include_once, and !include_many, relative to
+          the including file and the folder of the diagram (or a base directory the caller names), only under the
+          caller's file-access policy, and shall refuse a missing, refused, or unreadable file and a diagram without
+          a folder with a located plantuml-include-failed error whose inner exception is the refusal of the policy.
+        tags: [system, security]
+        justification: |
+          Diagrams share settings and fragments through include files, and a host that renders untrusted documents
+          must decide which local files they may read.
+        children:
+          - CanvasNetPlantUml-Syntax-Preprocessor-Includes
+          - CanvasNetPlantUml-PlantUmlDocument-IncludeOptions
+        tests:
+          - CanvasNetPlantUml_Includes_LocalFilesAreRead
+          - CanvasNetPlantUml_Includes_FailuresAreLocated
 
       - id: CanvasNetPlantUml-Limits
         title: >-
@@ -104,6 +122,12 @@ sections:
         tests:
           - CanvasNetPlantUml_Limits_OversizedText_IsRefused
           - CanvasNetPlantUml_Sequence_LayoutWorkLimit_Fails
+          - CanvasNetPlantUml_Hardening_StructuralLimits_AreLocated
+          - CanvasNetPlantUml_Hardening_TextSize_IsRefused
+          - CanvasNetPlantUml_Hardening_IncludeLimits_AreLocated
+          - CanvasNetPlantUml_Hardening_RenderLimits_FailClosed
+          - CanvasNetPlantUml_Hardening_LargeDiagramsWithinTheLimits_Render
+          - CanvasNetPlantUml_Hardening_MutatedFixtures_ThrowOnlyDocumentedExceptions
 
       - id: CanvasNetPlantUml-Render
         title: >-
@@ -214,3 +238,20 @@ sections:
           - CanvasNetPlantUml_Sequence_Render_IsDeterministicAndScaled
           - CanvasNetPlantUml_Activity_DefaultSkin_PaintsPlantUmlColors
           - CanvasNetPlantUml_Activity_Render_IsDeterministicAndScaled
+          - CanvasNetPlantUml_Gallery_HoldsEveryDrawnDiagramType
+          - CanvasNetPlantUml_Gallery_RendersStrictWithoutWarnings
+
+      - id: CanvasNetPlantUml-ImageSource
+        title: >-
+          The library shall provide an image source for PlantUML files (.puml, .plantuml, .pu) that the image
+          resolvers of the other document formats use to draw a linked diagram as a picture of the size of its
+          placement over a transparent background, with the notes of the diagram, its includes read in the folder of
+          the linked file under the file-access policy of the render.
+        tags: [system]
+        justification: |
+          Documents embed diagrams as pictures; a PlantUML file must be embeddable wherever an SVG or a Mermaid
+          diagram is.
+        children:
+          - CanvasNetPlantUml-PlantUmlDocument-ImageSource
+        tests:
+          - CanvasNetPlantUml_ImageSource_DrawsALinkedDiagram

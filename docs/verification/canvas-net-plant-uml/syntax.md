@@ -38,3 +38,10 @@ asserts the type `sequence`, the location `full.puml:6:3` of the participant, an
 
 Reads a diagram whose only statement is written with a macro that expands to `class`, and asserts the type `class` at
 the line of the statement.
+
+#### CanvasNetPlantUml-Syntax-Preprocessing: Included Statements Are Detected
+
+**Tests**: `SyntaxTests.PlantUmlSyntax_Includes_AreReadBeforeDetection`
+
+Preprocesses a text whose only statement includes a tagged file of the include fixture, and asserts that the detector
+names an activity diagram at the first statement of the included file, located in that file.

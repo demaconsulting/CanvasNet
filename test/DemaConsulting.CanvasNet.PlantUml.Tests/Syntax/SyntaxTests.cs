@@ -44,4 +44,24 @@ public class SyntaxTests
         Assert.Equal("class", detected.DiagramType);
         Assert.Equal(3, detected.Location.Line);
     }
+
+    /// <summary>
+    ///     Validates that the statements of an included file are read before the type is detected, located in that file.
+    /// </summary>
+    [Fact]
+    public void PlantUmlSyntax_Includes_AreReadBeforeDetection()
+    {
+        // Arrange
+        var folder = Path.Combine(AppContext.BaseDirectory, "Fixtures", "include");
+        const string text = "@startuml\n!include parts/steps.puml\n@enduml\n";
+        var includes = new IncludeResolver(folder, null, Files.FileAccessPolicy.AllowAll, PlantUmlLimits.Default);
+
+        // Act
+        var source = Preprocessor.Run(text, "short.puml", PlantUmlLimits.Default, includes);
+        var detected = DiagramDetector.Detect(source);
+
+        // Assert
+        Assert.Equal("activity", detected.DiagramType);
+        Assert.Equal(new PlantUmlLocation("parts/steps.puml", 4, 1), detected.Location);
+    }
 }

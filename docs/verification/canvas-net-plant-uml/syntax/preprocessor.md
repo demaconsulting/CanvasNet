@@ -62,20 +62,42 @@ as written.
 
 ##### CanvasNetPlantUml-Syntax-Preprocessor-UnsupportedDirectives: Other Directives Are Reported
 
-**Tests**: `PreprocessorTests.PlantUmlPreprocessor_Run_UnsupportedDirectives_AreReportedAndDropped`
+**Tests**: `PreprocessorTests.PlantUmlPreprocessor_Run_UnsupportedDirectives_AreReportedAndDropped`,
+`PreprocessorIncludeTests.PlantUmlPreprocessor_Include_UnfollowedForms_AreReported`
 
 Asserts the codes, kinds, and lines of the reports of a macro with parameters, an expression, an `!if` block (dropped
-with its message), two includes, a theme, a pragma (a warning), a function block, and a built-in function call (kept
-as text).
+with its message), an include of the standard library and an `!includeurl`, a theme, a pragma (a warning), a function
+block, and a built-in function call (kept as text); asserts `plantuml-include-unsupported` at the lines of an include of
+a URL, of the standard library, and of a part of a file, an `!includesub`, and an `!includeurl`, and the statement after
+them kept.
+
+##### CanvasNetPlantUml-Syntax-Preprocessor-Includes: Local Files Are Read In Place
+
+**Tests**: `PreprocessorIncludeTests.PlantUmlPreprocessor_Include_ReadsTheFileInPlace`,
+`PreprocessorIncludeTests.PlantUmlPreprocessor_Include_RepeatsFollowTheDirective`,
+`PreprocessorIncludeTests.PlantUmlPreprocessor_Include_FailuresAreLocated`,
+`PreprocessorIncludeTests.PlantUmlPreprocessor_Include_DeniedFile_CarriesTheRefusal`
+
+In a temporary folder: asserts that a fragment in a subfolder sets a variable the text uses and includes the block of a
+tagged file relative to its own folder, with the included statement located at `more.iuml:2:1`; that a second
+`!include` of a file and an `!include` of the diagram's own file are skipped, that `!include_many` includes a file
+twice, and that a second `!include_once` is `plantuml-include-failed` at its line; that a missing file (at its line and
+column), a text without a folder (with a hint naming `BaseDirectory`), and a file that is not valid UTF-8 are
+`plantuml-include-failed` with hints; and that a file outside the roots of the policy is refused with the
+`FileReferenceException` of the denial as the inner exception and a message without the host folder.
 
 ##### CanvasNetPlantUml-Syntax-Preprocessor-Limits: Size And Nesting Are Bounded
 
 **Tests**: `PreprocessorTests.PlantUmlPreprocessor_Run_SizeOverLimit_ThrowsInvalidData`,
-`PreprocessorTests.PlantUmlPreprocessor_Run_DirectiveNestingOverLimit_Throws`
+`PreprocessorTests.PlantUmlPreprocessor_Run_DirectiveNestingOverLimit_Throws`,
+`PreprocessorIncludeTests.PlantUmlPreprocessor_Include_LimitsAndCycles`
 
 Asserts that comments do not count against the limit, that an original text over four times the limit and a macro
 that grows the statements over the limit are refused, and that the fourth nested `!if` under a nesting limit of three
-is a located `plantuml-limit-exceeded` error.
+is a located `plantuml-limit-exceeded` error; asserts that two files that include each other are read once each, and
+that an include one level past `MaxIncludeDepth` (in the included file), the fourth followed include under
+`MaxIncludes` of three, and a file that includes itself with `!include_many` are located `plantuml-limit-exceeded`
+errors.
 
 ##### CanvasNetPlantUml-Syntax-Preprocessor-Locations: Every Character Is Located
 

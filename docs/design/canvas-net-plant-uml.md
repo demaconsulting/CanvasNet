@@ -73,6 +73,12 @@ flowchart LR
 - **`PlantUmlDocument.Open(string path, ...)`** (in, UTF-8 file) - strict UTF-8, byte-order mark dropped, read in
   bounded chunks.
 - **`PlantUmlDocument.Open(Stream, ...)`** (in, UTF-8 stream) - as for a file; the stream is left open.
+- **Include files** (in, local UTF-8 files) - read for `!include`, `!include_once`, and `!include_many` from the folder
+  of the including file and `PlantUmlOpenOptions.BaseDirectory` (the folder of an opened file by default), under
+  `PlantUmlOpenOptions.FileAccess`; never a URL.
+- **`PlantUmlImageSource`** (in, an `ImageSourceRequest` of a linked `.puml`, `.plantuml`, or `.pu` file; out, an
+  `ImageSourceResult`) - the composition hook through which the image resolvers of the other formats draw a linked
+  diagram.
 - **Metadata properties** (out) - `DiagramType`, `IsSupported`, `Title`, `NodeCount`, `EdgeCount`, and
   `SubgraphCount`.
 - **`PlantUmlDocument.Measure(PlantUmlRenderOptions?, CancellationToken)`** (out, `PlantUmlSize`) - the size a render
@@ -90,9 +96,10 @@ flowchart LR
 
 CanvasNetPlantUml references the sibling `CanvasNet` system only, through its public API: its `Canvas` subsystem
 (`Surface`, `Rgba32`, `CssColor`), `Geometry` (paths), `Drawing` (path filling and stroking), `Fonts` (the bundled fonts
-through a font resolver with no system fonts), and `Rendering` (text measuring and text paths). It has no OTS runtime
-dependency and references no other format package of the repository (not the Mermaid package, whose scene graph it does
-not share). See *CanvasNet System Design* for the referenced subsystems.
+through a font resolver with no system fonts), `Rendering` (text measuring and text paths), `Files` (the file reference
+resolver and the file-access policy of the include files), and `ImageSources` (the image source interface). It has no
+OTS runtime dependency and references no other format package of the repository (not the Mermaid package, whose scene
+graph it does not share). See *CanvasNet System Design* for the referenced subsystems.
 
 ## Risk Control Measures
 
@@ -101,7 +108,10 @@ PlantUML text is untrusted input. The design segregates the risk as follows:
 - **Bounded input** - the original text is refused above four times `PlantUmlLimits.MaxTextSize` before any work, the
   statements are refused above `MaxTextSize` after preprocessing (so a macro cannot grow the text without bound), and
   dropped directive blocks nest at most `MaxNestingDepth` deep.
-- **No network, no foreign files** - no directive reads a URL; the include directives are reported and not followed.
+- **No network, files only under the policy** - no directive reads a URL or the standard library; a local include
+  file is found, checked, and read by the core `FileReferenceResolver` under the caller's `FileAccessPolicy` (network
+  and device paths and anything that is not a regular file are refused under every policy), bounded in size, depth
+  (`MaxIncludeDepth`), and count (`MaxIncludes`), and every failure is located at its directive.
 - **No regular expressions on input** - the preprocessor and the detector are hand-written scanners, linear in the
   text.
 - **Bounded rendering** - the painter skips coordinates that are not finite or too large and charges every item to
@@ -113,7 +123,8 @@ PlantUML text is untrusted input. The design segregates the risk as follows:
 ## Data Flow
 
 The text is read (strict UTF-8 for streams and files), framed and preprocessed into statements that keep the original
-location of every character, and classified into a diagram type. A supported type is parsed into its diagram model by
+location of every character (the statements of an included file are located in that file), and classified into a
+diagram type. A supported type is parsed into its diagram model by
 the parser registered in `DiagramRegistry` (a sequence diagram by the Sequence subsystem); the reports found while
 reading (ignored directives, a second diagram, statements and skin parameters that are not drawn) are kept by the
 document and the diagram model as pending reports, in text order, so that every later call can deliver them. A measure
@@ -168,8 +179,11 @@ of this repository, so the two diagram languages are bounded alike.
   assignments of a quoted text, a number, or another variable are applied; a substituted value is not expanded again.
   Every other directive (`!if`, `!function`, `!procedure`, `!foreach`, built-in `%functions`, ...) is reported as
   `plantuml-preprocessor-unsupported` and dropped with the block it opens; `!theme` is reported as
-  `plantuml-theme-unsupported`; `!pragma` has no effect and is reported as the warning `plantuml-pragma-ignored`; the
-  include directives are reported as `plantuml-include-unsupported`.
+  `plantuml-theme-unsupported`; `!pragma` has no effect and is reported as the warning `plantuml-pragma-ignored`.
+  `!include`, `!include_once`, and `!include_many` read local files only; a URL, the standard library (`<name>`), a part
+  of a file (`file!part`), `!includeurl`, `!includesub`, `!includedef`, and `!import` are reported as
+  `plantuml-include-unsupported`. A missing include file is an error (PlantUML ignores it), and the diagram's own file
+  counts as already included (PlantUML includes it once more).
 - **Look** - only the default look and the supported skin parameters are drawn; themes, `<style>` blocks, shadows,
   gradients (the first color is used), and hand-written mode are not. Text is drawn with Liberation fonts, whose glyphs
   differ slightly from Arial's although their advances are the same; a run is drawn with kerning while it is measured

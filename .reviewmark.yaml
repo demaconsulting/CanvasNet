@@ -5255,6 +5255,10 @@ reviews:
       - "test/DemaConsulting.CanvasNet.PlantUml.Tests/PlantUmlUnsupportedDiagramTests.cs"  # unsupported diagram types
       - "test/DemaConsulting.CanvasNet.PlantUml.Tests/PlantUmlSequenceIntegrationTests.cs"  # sequence system tests
       - "test/DemaConsulting.CanvasNet.PlantUml.Tests/PlantUmlActivityIntegrationTests.cs"  # activity system tests
+      - "test/DemaConsulting.CanvasNet.PlantUml.Tests/PlantUmlIncludeTests.cs"  # include and image source system tests
+      - "test/DemaConsulting.CanvasNet.PlantUml.Tests/PlantUmlHardeningTests.cs"  # limits and mutation fuzzer
+      - "test/DemaConsulting.CanvasNet.PlantUml.Tests/PlantUmlGalleryTests.cs"  # documentation gallery tests
+      - "docs/user_guide/examples/plantuml-*.puml"                    # documentation gallery diagrams
       - "test/DemaConsulting.CanvasNet.PlantUml.Tests/PlantUmlReferenceLayoutTests.cs"  # reference layout tests
       - "test/DemaConsulting.CanvasNet.PlantUml.Tests/Fixtures/**"     # original fixtures and reference goldens
       - "tools/visual-diff/update-plantuml-goldens.ps1"               # golden generator (developer tool)
@@ -5319,11 +5323,13 @@ reviews:
       - "src/DemaConsulting.CanvasNet.PlantUml/PlantUmlRenderException.cs"  # unit source
       - "src/DemaConsulting.CanvasNet.PlantUml/PlantUmlUnsupportedFeatureException.cs"  # unit source
       - "src/DemaConsulting.CanvasNet.PlantUml/PlantUmlReportSink.cs"  # unit source (internal report sink)
+      - "src/DemaConsulting.CanvasNet.PlantUml/PlantUmlImageSource.cs"  # unit source (image source)
       - "test/DemaConsulting.CanvasNet.PlantUml.Tests/PlantUmlDocumentTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.PlantUml.Tests/PlantUmlRenderOptionsTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.PlantUml.Tests/PlantUmlLimitsTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.PlantUml.Tests/PlantUmlRecordsAndExceptionsTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.PlantUml.Tests/PlantUmlReportSinkTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.PlantUml.Tests/PlantUmlImageSourceTests.cs"  # unit tests (image source)
 
   # CanvasNetPlantUml-Syntax Review (one per subsystem)
   - id: CanvasNetPlantUml-Syntax
@@ -5353,8 +5359,10 @@ reviews:
       - "docs/verification/canvas-net-plant-uml/syntax/preprocessor.md"  # unit verification
       - "docs/sysml2/model/canvas-net-plant-uml/syntax/preprocessor.sysml"  # unit SysML2 model
       - "src/DemaConsulting.CanvasNet.PlantUml/Syntax/Preprocessor.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.PlantUml/Syntax/Preprocessor.Includes.cs"  # unit source (include files)
       - "src/DemaConsulting.CanvasNet.PlantUml/Syntax/Preprocessor.MappedText.cs"  # unit source (location map)
       - "test/DemaConsulting.CanvasNet.PlantUml.Tests/Syntax/PreprocessorTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.PlantUml.Tests/Syntax/PreprocessorIncludeTests.cs"  # unit tests (include files)
 
   # CanvasNetPlantUml-Syntax-DiagramDetector Review (one per unit)
   - id: CanvasNetPlantUml-Syntax-DiagramDetector

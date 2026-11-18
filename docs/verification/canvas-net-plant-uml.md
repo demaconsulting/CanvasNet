@@ -15,8 +15,10 @@ This document describes the system-level verification strategy for CanvasNetPlan
   delivered to the handlers. The system test classes are `PlantUmlSystemIntegrationTests` (reading, metadata, errors,
   preprocessor, limits), `PlantUmlUnsupportedDiagramTests` (the types that are not drawn, strict mode),
   `PlantUmlSequenceIntegrationTests` (sequence diagrams from text to pixels), `PlantUmlActivityIntegrationTests`
-  (activity diagrams from text to pixels), and `PlantUmlReferenceLayoutTests` (the layout of the original fixtures
-  compared with the SVG goldens that PlantUML draws for them).
+  (activity diagrams from text to pixels), `PlantUmlReferenceLayoutTests` (the layout of the original fixtures
+  compared with the SVG goldens that PlantUML draws for them), `PlantUmlIncludeTests` (include files and the image
+  source of a linked diagram), `PlantUmlHardeningTests` (every limit and a seeded mutation fuzzer), and
+  `PlantUmlGalleryTests` (the diagrams of the user guide gallery).
 - **Subsystem tests** exercise each internal subsystem through its own entry points (see the subsystem verification
   documents, for example *Syntax Subsystem Verification Design*).
 - **Unit tests** exercise each unit in isolation (see the unit verification documents).
@@ -74,6 +76,23 @@ the type name of each and that none is drawn by this version.
 
 Parses a diagram whose type is decided by a macro and a variable after a comment, and asserts the detected type.
 
+**Tests**: `PlantUmlIncludeTests.CanvasNetPlantUml_Includes_NetworkIsNeverRead`
+
+Renders a sequence diagram that includes two URLs and the standard library, and asserts three
+`plantuml-include-unsupported` reports at their lines and the diagram drawn without them.
+
+### CanvasNetPlantUml-Includes: Local Files Are Read Under The Policy
+
+**Tests**: `PlantUmlIncludeTests.CanvasNetPlantUml_Includes_LocalFilesAreRead`,
+`PlantUmlIncludeTests.CanvasNetPlantUml_Includes_FailuresAreLocated`
+
+Opens the include fixture (a fragment with a variable and a skin parameter, the block of another diagram in a
+subfolder that includes the fragment again, and a repeated include), and asserts the activity type, the title and the
+six nodes, the same diagram when the text is parsed with the folder as its base directory, and a strict render without
+reports; asserts `plantuml-include-failed` with a hint for a missing file (at `a.puml:3:1`), for a text without a
+folder, and for a file outside the roots of the policy (at `main.puml:3:1`, with the `AccessDenied` refusal as the
+inner exception).
+
 ### CanvasNetPlantUml-Limits: An Oversized Text Is Refused
 
 **Tests**: `PlantUmlSystemIntegrationTests.CanvasNetPlantUml_Limits_OversizedText_IsRefused`,
@@ -81,6 +100,25 @@ Parses a diagram whose type is decided by a macro and a variable after a comment
 
 Parses a text of fifty messages under a size limit of one hundred characters and asserts an `InvalidDataException`;
 measures the groups fixture under a layout work limit of 20 and asserts a `plantuml-limit-exceeded` render error.
+
+**Tests**: `PlantUmlHardeningTests.CanvasNetPlantUml_Hardening_StructuralLimits_AreLocated`,
+`PlantUmlHardeningTests.CanvasNetPlantUml_Hardening_TextSize_IsRefused`,
+`PlantUmlHardeningTests.CanvasNetPlantUml_Hardening_IncludeLimits_AreLocated`,
+`PlantUmlHardeningTests.CanvasNetPlantUml_Hardening_RenderLimits_FailClosed`,
+`PlantUmlHardeningTests.CanvasNetPlantUml_Hardening_LargeDiagramsWithinTheLimits_Render`,
+`PlantUmlHardeningTests.CanvasNetPlantUml_Hardening_MutatedFixtures_ThrowOnlyDocumentedExceptions`
+
+For `MaxNodes`, `MaxEdges`, `MaxLabelLength`, and `MaxNestingDepth`, in sequence and activity diagrams and in the
+preprocessor, asserts `plantuml-limit-exceeded` at the source name and line where the text crosses the limit, naming the
+limit, with a hint, and that the text opens under the defaults; asserts that a long text and a growing macro are
+refused under a size limit of 200; asserts that one include too many fails at the directive of the main file and one
+level too deep at the directive of the included file; asserts `plantuml-limit-exceeded` render errors under a layout
+work limit and a painted pixel limit, and two reports and one suppression notice under a diagnostics limit of two;
+renders a chain of 400 actions, 32 nested ifs, and 200 participants; and opens, measures, and renders mutants of every
+sequence, activity, and gallery fixture (truncated, deleted ranges, inserted tokens of both languages and of the
+preprocessor, duplicated and swapped lines, flipped characters) with a fixed seed, asserting that only
+`PlantUmlSyntaxException` (with a documented code, the source name, a line, and a hint), a located
+`plantuml-limit-exceeded` `PlantUmlRenderException`, and `InvalidDataException` are thrown, and never a layout defect.
 
 ### CanvasNetPlantUml-Sequence: Sequence Diagrams Are Drawn As PlantUML Draws Them
 
@@ -155,6 +193,21 @@ its `scale 2` doubles the measured size.
 Renders an activity diagram and asserts the white background, the light gray `#F1F1F1` inside an action box, and the
 dark `#222222` of the start node; renders the fork fixture twice and asserts identical pixels, and asserts that a
 `scale 2` doubles the measured size.
+
+**Tests**: `PlantUmlGalleryTests.CanvasNetPlantUml_Gallery_HoldsEveryDrawnDiagramType`,
+`PlantUmlGalleryTests.CanvasNetPlantUml_Gallery_RendersStrictWithoutWarnings`
+
+Opens every diagram of the user guide gallery (`docs/user_guide/examples/plantuml-*.puml`, at least eight) and asserts
+that each is a supported sequence or activity diagram and that both types are shown; renders each in strict mode and
+asserts no report, the measured size, and a picture that is not blank.
+
+### CanvasNetPlantUml-ImageSource: A Linked Diagram Is Drawn
+
+**Tests**: `PlantUmlIncludeTests.CanvasNetPlantUml_ImageSource_DrawsALinkedDiagram`
+
+Draws the include fixture through a folder image resolver with the PlantUML image source and asserts the size the
+document measures (its includes read in its own folder) and no note; draws an activity fixture into a placement of 100
+by 100 and asserts that it fits; asserts that the resolver claims `.puml`.
 
 ### CanvasNetPlantUml-Platform: Every Platform And Runtime
 

@@ -16,7 +16,8 @@ namespace DemaConsulting.CanvasNet.PlantUml;
 ///         and fail-closed: text that holds no diagram, an unknown <c>@start</c> tag, or a statement the diagram cannot
 ///         read throws a <see cref="PlantUmlSyntaxException"/> with the file, line and column in the original text, a
 ///         stable code and a hint; text longer than <see cref="PlantUmlLimits.MaxTextSize"/> allows is an
-///         <see cref="InvalidDataException"/>. Reading never uses the network.
+///         <see cref="InvalidDataException"/>. Reading never uses the network; it reads the local files of the include
+///         directives only under <see cref="PlantUmlOpenOptions.FileAccess"/>.
 ///     </para>
 ///     <para>
 ///         <b>Diagram types.</b> Every diagram type that PlantUML knows is recognized (<see cref="DiagramType"/>), but
@@ -126,13 +127,13 @@ public sealed partial class PlantUmlDocument
     /// <param name="options">Optional open options; <see langword="null"/> uses the defaults.</param>
     /// <returns>The parsed document.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="text"/> is null.</exception>
-    /// <exception cref="PlantUmlSyntaxException">Thrown, located, when the text holds no diagram, its tag is unknown, a structural limit is exceeded, or a statement cannot be read.</exception>
+    /// <exception cref="PlantUmlSyntaxException">Thrown, located, when the text holds no diagram, its tag is unknown, a structural limit is exceeded, an included file cannot be read (<see cref="PlantUmlDiagnosticCodes.IncludeFailed"/>; a refusal of the file-access policy is the inner exception), or a statement cannot be read.</exception>
     /// <exception cref="InvalidDataException">Thrown when the text is longer than <see cref="PlantUmlLimits.MaxTextSize"/> allows.</exception>
     public static PlantUmlDocument Parse(string text, PlantUmlOpenOptions? options = null)
     {
         ArgumentNullException.ThrowIfNull(text);
         var effective = options ?? new PlantUmlOpenOptions();
-        return Create(text, effective.SourceName, effective.EffectiveLimits);
+        return Create(text, effective.SourceName, effective.EffectiveLimits, Includes(effective, effective.BaseDirectory, null));
     }
 
     /// <summary>
@@ -141,7 +142,8 @@ public sealed partial class PlantUmlDocument
     /// <remarks>
     ///     The file is read as strict UTF-8 (a byte-order mark is removed; invalid UTF-8 is rejected, never replaced), and
     ///     reading stops as soon as the size limit is certainly exceeded. Unless overridden in <paramref name="options"/>,
-    ///     the source name is <paramref name="path"/> exactly as supplied.
+    ///     the source name is <paramref name="path"/> exactly as supplied, and the include directives start in the folder
+    ///     of the file.
     /// </remarks>
     /// <param name="path">The path of the file. Must not be null, empty or whitespace.</param>
     /// <param name="options">Optional open options; <see langword="null"/> uses the defaults.</param>
@@ -150,7 +152,7 @@ public sealed partial class PlantUmlDocument
     /// <exception cref="ArgumentException">Thrown when <paramref name="path"/> is empty or whitespace.</exception>
     /// <exception cref="FileNotFoundException">Thrown when the file does not exist.</exception>
     /// <exception cref="DirectoryNotFoundException">Thrown when a directory of the path does not exist.</exception>
-    /// <exception cref="PlantUmlSyntaxException">Thrown, located, when the file is not valid UTF-8 or not a valid diagram.</exception>
+    /// <exception cref="PlantUmlSyntaxException">Thrown, located, when the file is not valid UTF-8, not a valid diagram, or an included file cannot be read (<see cref="PlantUmlDiagnosticCodes.IncludeFailed"/>).</exception>
     /// <exception cref="InvalidDataException">Thrown when the text is longer than <see cref="PlantUmlLimits.MaxTextSize"/> allows.</exception>
     public static PlantUmlDocument Open(string path, PlantUmlOpenOptions? options = null)
     {
@@ -158,7 +160,11 @@ public sealed partial class PlantUmlDocument
         var effective = options ?? new PlantUmlOpenOptions();
         using var stream = File.OpenRead(path);
         var text = ReadBounded(stream, effective.EffectiveLimits, effective.SourceName ?? path);
-        return Create(text, effective.SourceName ?? path, effective.EffectiveLimits);
+
+        // The includes of a file start in its folder unless the caller names another one
+        var fullPath = Path.GetFullPath(path);
+        var includes = Includes(effective, effective.BaseDirectory ?? Path.GetDirectoryName(fullPath), fullPath);
+        return Create(text, effective.SourceName ?? path, effective.EffectiveLimits, includes);
     }
 
     /// <summary>
@@ -174,7 +180,7 @@ public sealed partial class PlantUmlDocument
     /// <returns>The parsed document.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="stream"/> is null.</exception>
     /// <exception cref="ArgumentException">Thrown when <paramref name="stream"/> is not readable.</exception>
-    /// <exception cref="PlantUmlSyntaxException">Thrown, located, when the bytes are not valid UTF-8 or not a valid diagram.</exception>
+    /// <exception cref="PlantUmlSyntaxException">Thrown, located, when the bytes are not valid UTF-8, not a valid diagram, or an included file cannot be read (<see cref="PlantUmlDiagnosticCodes.IncludeFailed"/>).</exception>
     /// <exception cref="InvalidDataException">Thrown when the text is longer than <see cref="PlantUmlLimits.MaxTextSize"/> allows.</exception>
     public static PlantUmlDocument Open(Stream stream, PlantUmlOpenOptions? options = null)
     {
@@ -186,7 +192,7 @@ public sealed partial class PlantUmlDocument
 
         var effective = options ?? new PlantUmlOpenOptions();
         var text = ReadBounded(stream, effective.EffectiveLimits, effective.SourceName);
-        return Create(text, effective.SourceName, effective.EffectiveLimits);
+        return Create(text, effective.SourceName, effective.EffectiveLimits, Includes(effective, effective.BaseDirectory, null));
     }
 
     /// <summary>
@@ -195,15 +201,26 @@ public sealed partial class PlantUmlDocument
     /// <param name="text">The text.</param>
     /// <param name="sourceName">The source name.</param>
     /// <param name="limits">The limits.</param>
+    /// <param name="includes">The resolver of the include directives.</param>
     /// <returns>The document.</returns>
-    private static PlantUmlDocument Create(string text, string? sourceName, PlantUmlLimits limits)
+    private static PlantUmlDocument Create(string text, string? sourceName, PlantUmlLimits limits, IncludeResolver includes)
     {
         // The pipeline of PlantUML's reading: frame and preprocess, detect the type, then parse a supported type
-        var source = Preprocessor.Run(text, sourceName, limits);
+        var source = Preprocessor.Run(text, sourceName, limits, includes);
         var detected = DiagramDetector.Detect(source);
         var diagram = detected.IsSupported ? DiagramRegistry.Parse(detected, source, limits) : null;
         return new PlantUmlDocument(source, detected, diagram, sourceName);
     }
+
+    /// <summary>
+    ///     Creates the resolver of the include directives of one open call.
+    /// </summary>
+    /// <param name="options">The effective open options.</param>
+    /// <param name="baseDirectory">The directory relative paths start in, or null when the text has no folder.</param>
+    /// <param name="referrerPath">The full path of the opened file, or null.</param>
+    /// <returns>The resolver.</returns>
+    private static IncludeResolver Includes(PlantUmlOpenOptions options, string? baseDirectory, string? referrerPath) =>
+        new(baseDirectory, referrerPath, options.FileAccess, options.EffectiveLimits);
 
     /// <summary>
     ///     Reads a whole stream as strict UTF-8, stopping with an error once the size limit is certainly exceeded.

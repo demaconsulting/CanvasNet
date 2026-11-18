@@ -57,25 +57,49 @@ sections:
               - id: CanvasNetPlantUml-Syntax-Preprocessor-UnsupportedDirectives
                 title: >-
                   The Preprocessor unit shall report and drop every other directive (with its whole block when it opens
-                  one): includes as plantuml-include-unsupported, !theme as plantuml-theme-unsupported, !pragma as the
-                  warning plantuml-pragma-ignored, and the rest as plantuml-preprocessor-unsupported, and shall report
-                  a built-in function call and keep it as text.
+                  one): the include forms that are never followed (a URL, the standard library, a part of a file,
+                  !includeurl, !includesub, !includedef, and !import) as plantuml-include-unsupported, !theme as
+                  plantuml-theme-unsupported, !pragma as the warning plantuml-pragma-ignored, and the rest as
+                  plantuml-preprocessor-unsupported, and shall report a built-in function call and keep it as text.
                 justification: |
                   A directive outside the subset must be visible to the author and must not stop the diagram from being
-                  drawn; nothing is ever fetched from another file or the network.
+                  drawn; nothing is ever fetched from the network.
                 tests:
                   - PlantUmlPreprocessor_Run_UnsupportedDirectives_AreReportedAndDropped
+                  - PlantUmlPreprocessor_Include_UnfollowedForms_AreReported
+
+              - id: CanvasNetPlantUml-Syntax-Preprocessor-Includes
+                title: >-
+                  The Preprocessor unit shall read the local file of !include, !include_once, and !include_many in
+                  place (the content of its first block when it has an @start line, otherwise the whole file), found
+                  in the folder of the including file and then the base directory through the core file reference
+                  resolver under the caller's file-access policy, with the statements of the file located in it; it
+                  shall skip a second !include of a file (and of the diagram's own file), include a file again for
+                  !include_many, and refuse a second !include_once, a missing file, a refused file (with the refusal
+                  as the inner exception), a file that is not valid UTF-8, and a text without a folder with a located
+                  plantuml-include-failed error and a hint.
+                justification: |
+                  Real diagrams share their settings and fragments through local include files; reading them must be
+                  as safe as reading any other referenced file, and every failure must point at the directive.
+                tests:
+                  - PlantUmlPreprocessor_Include_ReadsTheFileInPlace
+                  - PlantUmlPreprocessor_Include_RepeatsFollowTheDirective
+                  - PlantUmlPreprocessor_Include_FailuresAreLocated
+                  - PlantUmlPreprocessor_Include_DeniedFile_CarriesTheRefusal
 
               - id: CanvasNetPlantUml-Syntax-Preprocessor-Limits
                 title: >-
                   The Preprocessor unit shall refuse an original text longer than four times the text size limit and
                   statements longer than the limit after substitution with an InvalidDataException, and directive
-                  blocks nested deeper than the nesting limit with a located plantuml-limit-exceeded error.
+                  blocks nested deeper than the nesting limit, includes nested deeper than MaxIncludeDepth, and more
+                  followed include directives than MaxIncludes with a located plantuml-limit-exceeded error.
                 justification: |
-                  A hostile text or a macro that grows the text must not exhaust memory.
+                  A hostile text, a macro that grows the text, or a file that includes itself must not exhaust memory
+                  or time.
                 tests:
                   - PlantUmlPreprocessor_Run_SizeOverLimit_ThrowsInvalidData
                   - PlantUmlPreprocessor_Run_DirectiveNestingOverLimit_Throws
+                  - PlantUmlPreprocessor_Include_LimitsAndCycles
 
               - id: CanvasNetPlantUml-Syntax-Preprocessor-Locations
                 title: >-
