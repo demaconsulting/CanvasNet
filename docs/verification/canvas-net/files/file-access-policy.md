@@ -22,7 +22,10 @@ project.
 - **Execution**: `dotnet test` invoked by `build.ps1` and the CI pipeline on Windows, Linux, and macOS
 - **Files**: per-test temporary directories, deleted by the test
 - **Operating-system scenarios**: the short-name scenario runs on Windows (it skips where the volume does not create
-  short names) and is linked with a source filter; the case-rule scenario asserts the expectation of each system
+  short names) and is linked with a source filter; the letter-case scenario of a real path asserts the same denial on
+  every system and the platform rule of the written path; scenarios that need a temporary folder that ignores letter
+  case (Windows, macOS) or compares it (Linux) probe the folder and skip elsewhere, and are linked with source filters;
+  no test changes a setting of the file system
 
 #### Acceptance Criteria
 
@@ -45,7 +48,8 @@ Any request is allowed; the name is `any` (also as `ToString`); no real path and
 `FileAccessPolicy_UnderRoots_RootCreatedAfterThePolicy_AllowsNothing`,
 `FileAccessPolicy_UnderRoots_WrittenPathOutsideEveryRoot_IsDeniedByThePreCheck`,
 `FileAccessPolicy_UnderRoots_InvalidRoots_Throw`,
-`FileAccessPolicy_UnderRoots_PlatformCaseRule_IsApplied`
+`FileAccessPolicy_UnderRoots_RealPathDifferingFromARootInLetterCase_IsDenied`,
+`FileAccessPolicy_UnderRoots_RootWrittenInAnotherLetterCase_AllowsFilesInside` (Windows, macOS)
 
 A file inside the second of two roots and the root itself are allowed; a sibling folder that shares the root's name as
 a prefix is denied before and after the open; a written path inside whose real path is outside is denied with the
@@ -54,20 +58,32 @@ with the "did not exist when the policy was created" reason and a hint, because 
 creation; a written path outside is denied by the pre-check, a written path inside passes it, and
 an outside written path whose real path is inside is still denied; a null list, a null, empty, white-space or invalid
 root, and no root at all are rejected, and on Windows a `\\?\GLOBALROOT\` or `\\.\` root is rejected while an
-extended-length drive root is accepted; an upper-case spelling is allowed on Windows and macOS and denied on Linux.
+extended-length drive root is accepted. A real path that spells the root in upper case is denied on every system (the
+real path is compared exactly): with the reason "its real path is outside the allowed roots" on Windows and macOS,
+where the upper-case written path passes the pre-check, and by the written-path test on Linux, where it does not. In
+a folder that ignores letter case, a root given in upper case allows a file inside it, because its real location is
+captured in the stored letter case.
 
 ##### CanvasNet-Files-FileAccessPolicy-NoSymlinks: No Links Below the Anchor
 
 **Tests**: `FileAccessPolicy_NoSymlinks_RealPathMatchesTheWrittenPath_IsAllowed`,
 `FileAccessPolicy_NoSymlinks_RealPathDiffersBelowTheAnchor_IsDenied`,
 `FileAccessPolicy_NoSymlinks_LinkAboveTheAnchor_IsTrusted`,
-`FileAccessPolicy_NoSymlinks_ShortNameSpelling_IsAllowed` (Windows)
+`FileAccessPolicy_NoSymlinks_ShortNameSpelling_IsAllowed` (Windows),
+`FileAccessPolicy_NoSymlinks_RealPathDifferingInLetterCaseBelowTheAnchor_IsDenied`,
+`FileAccessPolicy_NoSymlinks_WrittenPathInAnotherLetterCase_IsAllowed`,
+`FileAccessPolicy_NoSymlinks_LinkNamedLikeItsTargetInAnotherCase_IsDenied` (Linux),
+`FileAccessPolicy_NoSymlinks_AnchorInAnotherLetterCaseThanTheBase_IsNotTrusted` (Linux)
 
 A real path equal to the written path below the base directory is allowed and the name is `no-symlinks`; a different
 real path below the anchor is denied with a reason naming a symbolic link or junction and a hint; a base directory that
-is itself a link is trusted; a path written with short (8.3) names is allowed when its long spelling matches. That the
-base directory a resolver passes is the trusted chain origin, never a referring document's folder, is verified with
-the resolver (`CanvasNet-Files-FileReferenceResolver-ChainOrigin`).
+is itself a link is trusted; a path written with short (8.3) names is allowed when its long spelling matches. A real
+path that spells an existing folder below the anchor (`sub`) in another letter case (`SUB`) is denied; a path written as
+`SUB/A.TXT` whose stored spelling is `sub/a.txt` is allowed (compared in its on-disk spelling). In a case-sensitive
+folder a link `Docs` to `docs` is denied, and a link `ALLOWED` next to the base directory `allowed` is not trusted as
+the anchor, so a file reached through it is denied. That the base directory a resolver passes is the trusted chain
+origin, never a referring document's folder, is verified with the resolver
+(`CanvasNet-Files-FileReferenceResolver-ChainOrigin`).
 
 ##### CanvasNet-Files-FileAccessPolicy-AnchoredAt: A Nested Request Is Judged From the Outer Origin
 

@@ -684,6 +684,10 @@ file are the `usage-error` "The folder '...' of --allow-root does not exist." wi
 an input inside it, a relative input, two inputs in one other folder, and an input with a `#view=top` fragment, the
 default roots are the working directory, the other folder once, and the folder of the fragment input.
 
+**RenderCommand_DefaultRoots_InputFolderDifferingOnlyInLetterCase_IsItsOwnFolder**: an input in `WORK` next to the
+working directory `work` (a lexical comparison, so the folders need not exist) gives both folders as default roots,
+because the folders are compared exactly, letter case included.
+
 **RenderCommand_ReadFileAccess_RootsWithoutAllowRoot_UsesTheDefaultRoots**: `--file-access roots` for an input outside
 the working directory allows a file in the working directory and one beside the input, and denies a file elsewhere.
 
@@ -706,6 +710,11 @@ one `warning` diagnostic with the code `svg-arrowhead-shape` whose message point
 
 **RenderCommand_Verb_FileAccessOption_AppliesToTheVerbs**: `resize` of that diagram with `--file-access roots` exits
 with code 0, reports one `image-access-denied` warning, and leaves the picture undrawn.
+
+**RenderCommand_Run_AllowRootInAnotherLetterCase_DrawsThePictureInside** (Windows, macOS): in a temporary folder that
+ignores letter case, a diagram in `site` that links a green picture beside it, rendered with `--allow-root` naming
+`site` in upper case and `--strict`, exits with code 0 and draws the picture; the scenario probes the folder and skips
+where it compares letter case.
 
 **RenderCommand_Positions_Json_HasTheDocumentedShape**, **RenderCommand_Positions_ConvertCropAndPad_PixelOnTheNode**,
 **RenderCommand_Positions_ChartWithGrid_ReportsMarkValues**,

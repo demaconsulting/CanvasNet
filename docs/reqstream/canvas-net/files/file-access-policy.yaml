@@ -28,17 +28,22 @@ sections:
                 title: >-
                   The FileAccessPolicy class shall provide a policy named "roots" that allows a file only when both
                   the path as written and the real path lie inside one of the given folders (the folder itself
-                  included, a sibling that merely shares a name prefix excluded, compared under the platform's case
-                  rule and in each folder's written and real spelling), that refuses a path as written outside every
-                  folder before the file is opened, that compares the real path only with each folder's real location
-                  captured when the policy is created (a folder that does not exist then allows no file), that explains
-                  a denial with a reason and a hint, and that rejects a missing, empty or invalid folder, and on Windows
-                  a folder in a device namespace other than an ordinary extended-length drive or volume path, when it is
-                  created.
+                  included, a sibling that merely shares a name prefix excluded), comparing the path as written under
+                  the platform's case rule in each folder's written and real spelling, and the real path exactly,
+                  letter case included, with each folder's real location in its on-disk letter case (so a folder
+                  that differs from a given folder only in letter case is outside it, while a folder given in another
+                  letter case on a case-insensitive volume still allows the files inside it); that refuses a path as
+                  written outside every folder before the file is opened, that compares the real path only with each
+                  folder's real location captured when the policy is created (a folder that does not exist then
+                  allows no file), that explains a denial with a reason and a hint, and that rejects a missing, empty
+                  or invalid folder, and on Windows a folder in a device namespace other than an ordinary
+                  extended-length drive or volume path, when it is created.
                 justification: |
                   A build server or service confines documents to chosen folders; a link that stays inside is fine,
                   one that leads out is not, and a path outside the folders is never even opened. Looking a folder up
-                  again later would let a folder renamed and replaced by a link widen the policy.
+                  again later would let a folder renamed and replaced by a link widen the policy. A folder may be
+                  case-sensitive on every platform, so a folder named like a root in another letter case is another
+                  folder and must not pass as inside it.
                 tests:
                   - FileAccessPolicy_UnderRoots_RealPathInsideOrEqualToARoot_IsAllowed
                   - FileAccessPolicy_UnderRoots_SiblingWithSharedPrefix_IsDenied
@@ -46,23 +51,33 @@ sections:
                   - FileAccessPolicy_UnderRoots_RootCreatedAfterThePolicy_AllowsNothing
                   - FileAccessPolicy_UnderRoots_WrittenPathOutsideEveryRoot_IsDeniedByThePreCheck
                   - FileAccessPolicy_UnderRoots_InvalidRoots_Throw
-                  - FileAccessPolicy_UnderRoots_PlatformCaseRule_IsApplied
+                  - FileAccessPolicy_UnderRoots_RealPathDifferingFromARootInLetterCase_IsDenied
+                  - "windows@FileAccessPolicy_UnderRoots_RootWrittenInAnotherLetterCase_AllowsFilesInside"
+                  - "macos@FileAccessPolicy_UnderRoots_RootWrittenInAnotherLetterCase_AllowsFilesInside"
 
               - id: CanvasNet-Files-FileAccessPolicy-NoSymlinks
                 title: >-
                   The FileAccessPolicy class shall provide a policy named "no-symlinks" that allows a file only when
-                  its real path equals the path as written below the deepest folder shared by that path and the
-                  request's base directory (the trusted, host-chosen folder the chain of references started from),
-                  trusting that folder and everything above it, and comparing a path written with short (8.3) names
-                  in its long spelling.
+                  its real path equals, exactly and letter case included, the path as written below the deepest
+                  folder shared by that path and the request's base directory (the trusted, host-chosen folder the
+                  chain of references started from, found by whole components compared exactly), trusting that
+                  folder and everything above it, and comparing a path written with short (8.3) names or in another
+                  letter case than the one stored on disk in its on-disk spelling.
                 justification: |
                   Some hosts refuse links altogether, as the folder sandbox did; folders the host chose (and their
-                  links, such as the macOS temporary folder) are trusted, and a short spelling is not a link.
+                  links, such as the macOS temporary folder) are trusted, and a short spelling or a reference written
+                  in another letter case on a case-insensitive volume is not a link. On a case-sensitive folder a link
+                  named like its target in another letter case is a link, and a folder named like the base directory
+                  in another letter case is not trusted.
                 tests:
                   - FileAccessPolicy_NoSymlinks_RealPathMatchesTheWrittenPath_IsAllowed
                   - FileAccessPolicy_NoSymlinks_RealPathDiffersBelowTheAnchor_IsDenied
                   - FileAccessPolicy_NoSymlinks_LinkAboveTheAnchor_IsTrusted
                   - "windows@FileAccessPolicy_NoSymlinks_ShortNameSpelling_IsAllowed"
+                  - FileAccessPolicy_NoSymlinks_RealPathDifferingInLetterCaseBelowTheAnchor_IsDenied
+                  - FileAccessPolicy_NoSymlinks_WrittenPathInAnotherLetterCase_IsAllowed
+                  - "ubuntu@FileAccessPolicy_NoSymlinks_LinkNamedLikeItsTargetInAnotherCase_IsDenied"
+                  - "ubuntu@FileAccessPolicy_NoSymlinks_AnchorInAnotherLetterCaseThanTheBase_IsNotTrusted"
 
               - id: CanvasNet-Files-FileAccessPolicy-AnchoredAt
                 title: >-

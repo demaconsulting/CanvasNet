@@ -1805,7 +1805,10 @@ verbs, `inspect`, `compare`, `montage`, and `flatten`:
 - **`roots`** reads only files inside the allowed folders. `--allow-root <folder>` names them (repeatable; a relative
   folder is taken from the current folder); without it, the folders are the **current folder and the folder of each
   input**, so `roots` alone also allows everything under the current folder. Both the path as written and the real
-  path of the opened file must be inside. For a document you do not trust, name its folder with `--allow-root`.
+  path of the opened file must be inside; the real path is compared exactly, letter case included, in the case stored
+  on disk, so a folder that differs from an allowed folder only in letter case is outside it, while on a
+  case-insensitive volume a folder or reference written in another letter case still works. For a document you do not
+  trust, name its folder with `--allow-root`.
 - **`no-symlinks`** refuses a reference that passes through a symbolic link or junction below the folder of the input.
 - **`roots,no-symlinks`** applies both rules (in either order, in any letter case). With
   `--allow-root <folder of the input>` it is exactly the confinement of earlier versions.
@@ -1859,6 +1862,10 @@ This list is also the `canvasnet help files` card, bullet by bullet; a test keep
   pictures, data files, includes, and linked pages, at every level.
 - **`never read`**: A network URL (http:, https:, and other schemes), a UNC or network path, a file: URI with a host, a
   device path, an alternate data stream, and anything that is not a regular file are never read.
+- **`letter case`**: The real path of an opened file is compared letter for letter, in the case its folders and its
+  name have on disk, so a folder whose name differs from an allowed folder only in letter case is outside it. On a
+  case-insensitive volume a reference or --allow-root in any letter case still works. A file whose spelling on disk
+  cannot be confirmed to name the opened file is denied.
 - **`limits`**: Every size and count limit holds in every mode; a mode decides which files may be read, never how much.
   See 'canvasnet help limits'.
 - **`image-access-denied`**: Warning: a picture (an SVG image, a Mermaid picture, a Vega-Lite image mark, or a linked

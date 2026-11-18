@@ -115,9 +115,23 @@ file; with `MaxFiles` set, no more than that many distinct keys are opened or re
   The handle's facts come from `RealPath.Inspect` (or the `RealPathOf` and `IsRegularFileOf` hooks). On Windows, a real
   path that is a network location (`RealPath.IsNetworkLocation`) while the key is not is `NetworkPath` under every
   policy, before the regular-file check and the policy; a handle that is not known to be a regular file (including one
-  whose type the platform cannot tell) is `NotARegularFile` under every policy (fail closed); when the policy needs the
-  real path and it is unknown, `RealPathUnavailable` (fail closed); otherwise `CheckPolicy` runs and the file is read
-  from the same handle (`Read`).
+  whose type the platform cannot tell) is `NotARegularFile` under every policy (fail closed). When the policy needs the
+  real path and it is known, `ConfirmRealPath` gives it in the letter case stored on disk (`RealPath.GetExactPathName`,
+  or the `ExactPathOf` hook) and confirms that spelling against the open handle (`RealPath.TryConfirmExactPath`: equal
+  to the reported path, or the same volume serial and file index / device and inode, without following a link at the
+  last component). A spelling that cannot be confirmed is a denial (`AccessDenied`, reason `the letter case its real
+  path has on disk cannot be confirmed to name the opened file`, hint `reference the file in the letter case it has
+  on disk`, no host path in the text), thrown before anything is read and not remembered (the file counts); for the
+  exempt top-level file it is remembered on the outcome (`RealPathUnconfirmed`) and `CheckExemptFile` raises the same
+  denial when a reference reaches the file (a top-level file that leads to a network location is refused there anyway,
+  so its spelling is not looked up). The confirmed spelling replaces the real path for the policy, the result
+  (`FileReference.RealPath`) and every later cache re-check. When the policy needs the real path and it is unknown,
+  `RealPathUnavailable` (fail closed); otherwise `CheckPolicy` runs and the file is read from the same handle (`Read`).
+- `CaptureBeforeOpen` - for a policy that needs the real path, captures before every open the real location of each
+  folder the policy names (`AnchorsOf`) in its on-disk letter case (`RealPath.TryGetExactCanonicalDirectory`, or the
+  `DirectoryLocationOf` hook), once per resolver in a dictionary keyed exactly (`StringComparer.Ordinal`: on a
+  case-sensitive folder two spellings that differ in letter case are two folders), and the on-disk spelling of the key
+  (`FileAccessPolicy.ExactSpelling`).
 - `CheckPolicy` - builds the `FileAccessRequest` (reference, referrer = `relativeTo.Key` or `ReferrerPath`, base
   directory = the candidate's origin, requested path, real path) and asks the policy. An exception other than
   `OperationCanceledException`, or a `null` decision, is a denial with the reason `the file-access policy failed`; a
@@ -165,13 +179,17 @@ it). Invalid options are `ArgumentNullException` / `ArgumentOutOfRangeException`
 
 **Known limits**: where Windows cannot tell the real path, the default policy reads the file without the network check
 (a restrictive policy fails closed with `RealPathUnavailable`); a SUBST or DFS path whose drive is local but whose
-target is remote is refused (fail closed); paths are compared case-insensitively on Windows and macOS (see
-*FileAccessPolicy Unit Design*).
+target is remote is refused (fail closed); a file whose real path, in its on-disk letter case, cannot be confirmed to
+name the open file is denied (fail closed, see *FileAccessPolicy Unit Design*). The keys of the cache
+(`KeyComparer`) still compare written paths under the platform rule (case-insensitive on Windows and macOS); the policy
+is asked again on every cache hit with the confirmed real path of the cached file, so a key shared by two spellings
+never lets a file outside the policy through.
 
 #### Dependencies
 
 - **FileAccessPolicy** (same subsystem) - the policy that decides, including its lexical pre-check.
-- **RealPath** (same subsystem) - the open, the handle facts, and the platform path comparer.
+- **RealPath** (same subsystem) - the open, the handle facts, the on-disk spelling of a real path and its confirmation
+  against the handle, and the platform path comparer (cache keys).
 - **.NET base class library** - `System.IO` (`Path`, `FileStream`, `Directory`) and `System.Collections.Generic`.
 
 #### Callers

@@ -115,9 +115,10 @@ of --file-access." with the hint "Use any (the default), roots, no-symlinks, or 
 the mode confines references to folders and whether it refuses links; `any` is neither.
 
 **DefaultRoots(inputs, workingDirectory)**: the folders of `roots` when no `--allow-root` is given: the full path of the
-working directory first, then the folder of each input that is not the working directory or inside it. A relative
-input is taken from the working directory, and a `#` fragment is split off by the file that exists there before the
-folder is taken. The comparison is lexical, by whole path segments, and case-insensitive on Windows and macOS;
+working directory first, then the folder of each input that is not the working directory or inside it. A relative input
+is taken from the working directory, and a `#` fragment is split off by the file that exists there before the folder is
+taken. The comparison is lexical, by whole path segments, and exact (letter case included, as the policy compares real
+paths), so an input folder that differs from the working directory only in letter case stays a folder of its own;
 duplicates are dropped. An input whose path cannot be read is skipped here, since its probe reports the mistake.
 
 **ReadScadOptions(reader)**: when none of the model options was given, returns `null` (the loader then uses the

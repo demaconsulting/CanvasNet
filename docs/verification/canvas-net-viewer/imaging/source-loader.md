@@ -581,6 +581,12 @@ mode; a reference through a file symbolic link is drawn by default and is the `i
 `NoSymlinks`; a missing file and a text file are two warnings. The file-access policy, the dispatch, the cycle, depth,
 and count limits, and the file URI rules are verified by the `ImageSources` subsystem tests and the Viewer tests.
 
+**SourceLoader_Load_SvgEmbeddingUnderRootsWrittenInAnotherLetterCase_IsDrawn** (Windows, macOS): in a temporary folder
+that ignores letter case, a picture beside the SVG file in `site` is drawn in strict mode, with no diagnostic, under
+`UnderRoots` given `site` in upper case: the real path of the picture and the real location of the root are compared
+exactly, both in the letter case stored on disk. The scenario probes the folder and skips where it compares letter
+case.
+
 **SourceLoader_Load_SvgEmbeddingTooLargePicture_IsWarningThenStrictError**: a 33-byte PNG that only declares 9000 by
 9000
 pixels in a 10 by 10 placement is the one warning `svg-image-too-large` (source `svg`, severity `warning`), not an

@@ -93,6 +93,8 @@ sections:
           - SourceLoader_Load_VegaLiteDataOutsideTheRoots_ThrowsFileAccessDenied
           - SourceLoader_VegaLiteDataOutsideTheRoots_IsNeverOpenedUnderThePolicy
           - CanvasNetViewer_SystemIntegration_FileAccess_DefaultFollowsAndPolicyConfinesEveryReferenceKind
+          - "windows@SourceLoader_Load_SvgEmbeddingUnderRootsWrittenInAnotherLetterCase_IsDrawn"
+          - "macos@SourceLoader_Load_SvgEmbeddingUnderRootsWrittenInAnotherLetterCase_IsDrawn"
 
       - id: CanvasNetViewer-Imaging-SourceLoader-FileAccessDenied
         title: >-

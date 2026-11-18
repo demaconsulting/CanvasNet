@@ -174,6 +174,28 @@ sections:
                   - FileReferenceResolver_Resolve_InjectedOutsideRealPath_IsAccessDenied
                   - FileReferenceResolver_Resolve_InjectedRealPath_IsTheOneInTheRequestAndTheResult
 
+              - id: CanvasNet-Files-FileReferenceResolver-ExactCase
+                title: >-
+                  The FileReferenceResolver class shall give a policy that needs the real path that path in the letter
+                  case its folders and its name have on disk, and the real location of every trusted folder in its
+                  on-disk letter case, only once that spelling of the real path is confirmed to name the open file;
+                  shall deny a file whose spelling cannot be confirmed with AccessDenied, without reading it and
+                  without remembering the denial; and shall deny the top-level file the same way when a reference
+                  reaches it later.
+                justification: |
+                  The built-in policies compare real paths exactly, letter case included, so a folder that differs
+                  from an allowed one only in letter case stays outside it. The on-disk spelling keeps a reference or
+                  a root written in another letter case working on a case-insensitive volume; confirming it against
+                  the open file keeps the decision about the file that is read, and a spelling that cannot be
+                  confirmed fails closed.
+                tests:
+                  - FileReferenceResolver_Resolve_StoredSpellingNamingAnotherFile_IsAccessDenied
+                  - FileReferenceResolver_ResolveTopLevel_StoredSpellingNamingAnotherFile_IsDeniedWhenReferenced
+                  - "windows@FileReferenceResolver_Resolve_ReportedRealPathInAnotherLetterCase_IsCorrectedToTheStoredCase"
+                  - "macos@FileReferenceResolver_Resolve_ReportedRealPathInAnotherLetterCase_IsCorrectedToTheStoredCase"
+                  - "windows@FileReferenceResolver_Resolve_RootWrittenInAnotherLetterCase_ReadsTheFile"
+                  - "macos@FileReferenceResolver_Resolve_RootWrittenInAnotherLetterCase_ReadsTheFile"
+
               - id: CanvasNet-Files-FileReferenceResolver-RealPathUnavailable
                 title: >-
                   The FileReferenceResolver class shall refuse a file with RealPathUnavailable, without reading it,
