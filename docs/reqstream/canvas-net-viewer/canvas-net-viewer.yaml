@@ -97,7 +97,8 @@ sections:
               extensions and order above), hand the bytes and the fragment of the link to it, choose the page of a
               PDF, PowerPoint or Visio document from the fragment (page 1 without one), the view of a model from
               view= and its angles from azimuth= and elevation= (degrees, the elevation from -90 to 90, replacing
-              the angles of the view as --azimuth and --elevation do), and the theme of a Mermaid diagram from
+              the angles of the view as --azimuth and --elevation do) and its projection from projection= (ortho,
+              orthographic, or perspective, in any case, as --projection takes), and the theme of a Mermaid diagram from
               theme= (one of Mermaid's themes, in any case), keep
               the options of an embedding document away from an embedded file, report a page that does not exist
               as an unsupported note with the code image-page-out-of-range and a value that cannot be used as
@@ -116,6 +117,7 @@ sections:
               - CanvasNetViewer_Render_QueryAndEncodedFragment_AreHandled
               - CanvasNetViewer_Render_ScadViewFragment_ChoosesTheViewOrIsInvalid
               - CanvasNetViewer_Render_ScadAngleFragments_TurnTheViewOrAreInvalid
+              - CanvasNetViewer_Render_ScadProjectionFragment_ChoosesTheProjectionOrIsInvalid
               - CanvasNetViewer_Render_SchemeSource_ReceivesRawLinkAndParsedFragment
               - CanvasNetViewer_Render_ExtraSourceForBuiltInExtension_WinsAndGetsFragment
               - CanvasNetViewer_Render_NestedSvgWithFragment_UsesTheScopedResolver

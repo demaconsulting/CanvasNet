@@ -91,6 +91,7 @@ canvasnet montage "assembly.scad#def.explode=0" "assembly.scad#def.explode=0.5" 
 | `view=NAME` | `.scad` | `iso`, `front`, `back`, `left`, `right`, `top`, or `bottom`; replaces `--view` |
 | `azimuth=DEGREES` | `.scad` | Turns the view about the Z axis, like `--azimuth`; replaces `--azimuth` |
 | `elevation=DEGREES` | `.scad` | -90 to 90, like `--elevation`; replaces `--elevation` |
+| `projection=TYPE` | `.scad` | `ortho`, `orthographic`, or `perspective`; replaces `--projection` |
 | `def.NAME=VALUE` | `.scad` | Sets the variable `NAME` like `-D`; a vector is a JSON array (`def.$vpt=[0,0,2]`) |
 | `param.NAME=VALUE` | `.vl.json`, `.vl` | Sets the chart parameter `NAME` like `--param` |
 | `theme=NAME` | `.mmd`, `.mermaid` | `default`, `base`, `dark`, `forest`, or `neutral`; replaces `--theme` |
@@ -106,11 +107,10 @@ names an existing file is the file, and the rest after that `#` is the fragment.
 error names the file before the first `#`, and says that a file of the whole name does not exist either.
 
 **The fragment overrides the options of the command** for its input: its page replaces `--page` (and `--all-pages`: the
-input then gives that one page), its view, azimuth, and elevation replace `--view`, `--azimuth`, and `--elevation`
-(each only when the fragment sets it), its theme replaces `--theme`, and its variables and chart
-parameters are merged with
-`-D` and `--param` by name, the fragment winning. `--projection` still applies to the
-view. For `compare` it wins over the options of one side (`--a-page`, `--a-view`, `--a-define`) too. Other inputs are
+input then gives that one page), its view, azimuth, elevation, and projection replace `--view`, `--azimuth`,
+`--elevation`, and `--projection` (each only when the fragment sets it), its theme replaces `--theme`, and its variables
+and chart parameters are merged with `-D` and `--param` by name, the fragment winning. For `compare` it wins over the
+options of one side (`--a-page`, `--a-view`, `--a-define`) too. Other inputs are
 not affected: `canvasnet montage "a.scad#view=top" b.scad --view front` draws `a.scad` from the top and `b.scad` from
 the front.
 
@@ -120,7 +120,8 @@ quotes, as in `-D '$vpd=300'`. A `#` in the middle of a word is not a comment, b
 
 **Mistakes and warnings.** They have the codes of an SVG link. A value that cannot be used is an **error** with the
 code `image-fragment-invalid`: a vector or a JSON value that is cut short, a `def.` name that is not an identifier, an
-unknown `view` or `theme`, an `azimuth` or `elevation` that is not a number, an elevation outside -90 to 90, a page
+unknown `view`, `projection`, or `theme`, an `azimuth` or `elevation` that is not a number, an elevation outside -90 to
+90, a page
 that is not a whole number, or a fragment over its limits. A page the file does not have is `page-out-of-range`.
 Nothing is written for either. A parameter that the kind of the file does not use (`pag=2`, `page=2`
 on a PNG, `def.x=1` on a chart) is the **warning** `image-fragment-unknown-parameter`, a parameter given twice with
@@ -384,7 +385,7 @@ canvasnet convert <input> -o <output> [options]
 
 `render` loads one input, optionally sizes it, applies the transformations in the order written, and writes one
 output file (or one per page). `convert` is another name for the same command. The input path may end in a fragment
-that chooses the page, view, variables, chart parameters, or diagram theme for it (`"report.pdf#page=3"`,
+that chooses the page, view, projection, variables, chart parameters, or diagram theme for it (`"report.pdf#page=3"`,
 `"part.scad#view=top&def.width=20"`, `"chart.vl.json#param.t=5"`, `"flow.mmd#theme=dark"`), which overrides the
 matching options; see *Fragments
 on Input Paths*. The processing order is always:
@@ -1072,7 +1073,8 @@ draws the model and the chart into their rectangles. The result lists each embed
   diagram shows through; a chart keeps **its own background** (white unless it declares another), because a chart is
   meant to carry its own paper. An embedded model is drawn with the view the library chooses for it (isometric for a 3D
   model, top-down for a flat 2D model, or the view of its own `$vpr`, `$vpt`, `$vpd`, and `$vpf` variables;
-  `#view=front` in the link chooses a named view, and `#azimuth=30&amp;elevation=20` turns it) and default settings: the
+  `#view=front` in the link chooses a named view, `#azimuth=30&amp;elevation=20` turns it, and `#projection=perspective`
+  chooses the projection) and default settings: the
   options of the command (`--view`, `-D`, `--param`, `--page`, `--dpi`, ...) apply to the SVG file only; the link sets
   the variables of an embedded model and the parameters of an embedded chart (see *Variables and parameters in the
   link*).
@@ -1080,7 +1082,8 @@ draws the model and the chart into their rectangles. The result lists each embed
   `<image href="report.pdf#page=3" .../>` draws page 3 of a PDF, `deck.pptx#slide=2` (or `#page=2`) slide 2 of a
   presentation, `drawing.vsdx#page=2` page 2 of a Visio drawing, and `part.scad#view=front` draws a model from a named
   view (`iso`, `front`, `back`, `left`, `right`, `top`, `bottom`), turned with `#azimuth=30&amp;elevation=20` like
-  `--azimuth` and `--elevation`. The fragment is a list of `name=value` parameters
+  `--azimuth` and `--elevation`, and projected with `#projection=ortho|orthographic|perspective` like `--projection`.
+  The fragment is a list of `name=value` parameters
   separated by `&` (written `&amp;` inside an XML attribute); `%XX` escapes are decoded after the split; names are not
   case sensitive; a page counts from 1. A fragment is at most 2048 characters and 32 parameters. An embedded file never
   takes the options of the command: `--page` chooses the page of the SVG file only, and the page of an embedded document

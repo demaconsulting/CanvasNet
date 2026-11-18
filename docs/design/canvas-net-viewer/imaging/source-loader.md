@@ -485,7 +485,7 @@ no start names a file the first `#` splits, so that the missing file reported is
 when there is a fragment, `InputSelection.Create`, which parses the fragment with the core `ImageFragment` (over its
 limits: `image-fragment-invalid`) and reads it with the **built-in image source of the kind** of the file
 (`CanvasNetViewer.FindBuiltIn(kind)`, the `LoaderImageSource` that draws a link of that kind): its `ReadPage` (`page`,
-and `slide` for a presentation), `ReadScad` (`view`, `azimuth`, `elevation`, and the `def.` variables with
+and `slide` for a presentation), `ReadScad` (`view`, `azimuth`, `elevation`, `projection`, and the `def.` variables with
 `ImageParameterValues.ReadVariables`, vectors included, checked by constructing `ScadEvaluationOptions`) and `ReadChart`
 (the `param.` parameters) and `ReadDiagram` (the `theme` of a diagram, compared with the Mermaid themes without regard
 to case and kept by its canonical name), so a link and an input accept exactly the same parameters with the same values;
@@ -497,10 +497,13 @@ and, for a chart, one `vl-param-unknown` warning for each `param.` name the char
 compared with `SourceInfo.Chart.Parameters`; the unknown names are dropped from the selection, so the loader never sees
 them and the `--param` error of an unknown name stays an error); they are warnings of the source `input`, never errors,
 not even in strict mode. The result is `SourceInfo.Selection` (an `InputSelection`: `Fragment`, `Page`, `Scad`,
-`VegaLite`, `Mermaid`, `Diagnostics`) and `SourceInfo.Specifier` (the path, `#` and the fragment).
+`VegaLite`, `Mermaid`, `Diagnostics`, and the internal `ProjectionGiven`, set when the fragment of a model has
+`projection`) and `SourceInfo.Specifier` (the path, `#` and the fragment).
 **`InputSelection.ApplyTo(options)`** lays it over the options of a command: the page replaces the page, the view, the
-azimuth, and the elevation of the fragment each replace those of the command (only the ones the fragment sets; the
-others and the projection of the command still apply), the variables and the chart parameters are merged by name with
+azimuth, the elevation, and the projection of the fragment each replace those of the command (only the ones the fragment
+sets; the others still apply; the projection is replaced only when `ProjectionGiven` is set, because
+`ScadViewOptions.Perspective` cannot tell an orthographic choice from no choice), the variables and the chart parameters
+are merged by name with
 the fragment winning, the theme of the fragment replaces the theme of the options, and applying it twice gives the same
 options. `Load(info, options)`, `OpenPages`, and so every operation, apply it (`ApplySelection`), `PageSource.ReadPage`
 adds the `Diagnostics` to the notes of the first page that is loaded from the source (once, not for every page), and the

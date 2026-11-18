@@ -66,6 +66,9 @@ several pictures must share one scale.
   iso view is azimuth 45, elevation 35.26). The framing stays automatic, and
   render --json reports the azimuth and elevation used. Use single quotes in a
   shell, where $ expands inside double quotes, or write the $ as %24.
+- The projection in a link or input fragment: projection=ortho, orthographic,
+  or perspective, like --projection ('part.scad#projection=perspective'); in an
+  input fragment it replaces the --projection of the command.
 
 ## Known differences
 

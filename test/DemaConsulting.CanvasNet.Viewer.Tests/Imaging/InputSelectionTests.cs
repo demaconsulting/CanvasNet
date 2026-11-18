@@ -176,6 +176,39 @@ public class InputSelectionTests
     }
 
     /// <summary>
+    ///     Test that the projection of the fragment of a model replaces the projection of the command in both directions,
+    ///     that a fragment without one keeps the command's, and that the projection alone does not make the view explicit.
+    /// </summary>
+    [Fact]
+    public void InputSelection_ApplyTo_Model_FragmentProjectionReplacesTheCommandProjection()
+    {
+        // Arrange: one command asks for a perspective view, the other for the default orthographic one
+        using var directory = new TempDirectory();
+        var model = FixtureFactory.WriteText(directory.Path, "part.scad", Model);
+        var perspectiveCommand = new SourceOptions { Scad = new ScadViewOptions { Perspective = true } };
+        var orthographicCommand = new SourceOptions { Scad = new ScadViewOptions() };
+
+        // Act
+        var ortho = SourceLoader.Probe(InputReference.Parse(model + "#projection=ORTHO")).Selection!;
+        var perspective = SourceLoader.Probe(InputReference.Parse(model + "#projection=perspective")).Selection!;
+        var none = SourceLoader.Probe(InputReference.Parse(model + "#def.width=3")).Selection!;
+        var toOrthographic = ortho.ApplyTo(perspectiveCommand).Scad!;
+        var toPerspective = perspective.ApplyTo(orthographicCommand).Scad!;
+        var withoutOptions = perspective.ApplyTo(new SourceOptions()).Scad!;
+        var kept = none.ApplyTo(perspectiveCommand).Scad!;
+
+        // Assert: the fragment's projection wins either way, also over no options, and is not a view choice
+        Assert.False(toOrthographic.Perspective);
+        Assert.True(toPerspective.Perspective);
+        Assert.True(withoutOptions.Perspective);
+        Assert.False(toPerspective.IsViewExplicit);
+        Assert.Empty(perspective.Diagnostics);
+
+        // Assert: a fragment without a projection keeps the command's
+        Assert.True(kept.Perspective);
+    }
+
+    /// <summary>
     ///     Test that a selection of a document names the page, replaces the page of the command, and is checked against the page
     ///     count when the input is probed.
     /// </summary>
@@ -211,6 +244,8 @@ public class InputSelectionTests
     [InlineData("part.scad", "azimuth=abc")]
     [InlineData("part.scad", "elevation=95")]
     [InlineData("part.scad", "elevation=Infinity")]
+    [InlineData("part.scad", "projection=fisheye")]
+    [InlineData("part.scad", "projection=")]
     [InlineData("part.scad", "def.2x=1")]
     [InlineData("chart.vl.json", "param.cutoff={bad")]
     [InlineData("source.pdf", "page=x")]

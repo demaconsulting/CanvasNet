@@ -332,8 +332,9 @@ warning.
 **Input fragment.** `Run` probes the input with `SourceLoader.Probe(InputReference.Parse(settings.Input),
 settings.Source.FileAccess)`, so a `#`
 fragment on the input path (`part.scad#view=top&def.width=20`, `report.pdf#page=3`, `flow.mmd#theme=dark`) is read and
-checked before any pixel is decoded: the page, the view and variables of a model, the chart parameters, and the theme of
-a diagram it names override `--page`, `--view`, `-D`, `--param`, and `--theme` for this input (the library applies the
+checked before any pixel is decoded: the page, the view, angles, projection, and variables of a model, the chart
+parameters, and the theme of a diagram it names override `--page`, `--view`, `--azimuth`, `--elevation`, `--projection`,
+`-D`, `--param`, and `--theme` for this input (the library applies the
 selection over `settings.Source`), and a page it names makes the render a single page whatever `--all-pages` says
 (`WriteJsonFields` then writes `page`). The text result names the input with its fragment (`SourceInfo.Specifier`), the
 `input` object of the JSON result has the `fragment` member, and the warnings of the fragment are among the

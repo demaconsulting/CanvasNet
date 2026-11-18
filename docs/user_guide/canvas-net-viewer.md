@@ -172,6 +172,8 @@ of RFC 8118 (`report.pdf#page=3`). A document link draws **page 1 unless the fra
   or `bottom`);
 - `part.scad#azimuth=30&elevation=20` turns a model like `--azimuth` and `--elevation` of the tool (degrees; the
   elevation from -90 to 90; they replace the angles of the named view, `iso` without one);
+- `part.scad#projection=perspective` draws a model with a perspective camera, like `--projection` of the tool
+  (`ortho`, `orthographic`, or `perspective`, in any case);
 - `part.scad#def.width=20` sets the variable `width` of a model, exactly like `-D width=20` of the tool (a number,
   `true`, `false`,
   or text; `def.label=%22A%22` is the text `A`);
@@ -920,7 +922,8 @@ parameters and the values are those of a link (`page` and `slide`, `view`, `azim
 number, `true`, `false`, text, or a vector as a JSON array, and `param.<name>`). The facts it returns carry the result
 in `SourceInfo.Selection` (an `InputSelection`) and `SourceInfo.Specifier` (the path, `#`, and the fragment);
 `ImageRenderer`, `ImageInspector`, `ImageComparer`, `MontageBuilder`, and `SourceLoader.Load` apply it over their
-options, the fragment winning (its page replaces the page, its view and angles the view and angles, and its variables
+options, the fragment winning (its page replaces the page, its view, angles, and projection the view, angles, and
+projection, and its variables
 and parameters are merged by name). A value that cannot be used is a `ViewerException` with
 `ErrorCodes.ImageFragmentInvalid`, a page the file does not have is `ErrorCodes.PageOutOfRange`, and a parameter that is
 unknown or repeated is a warning among the diagnostics of the first page that is loaded

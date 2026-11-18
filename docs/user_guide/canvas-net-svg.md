@@ -328,7 +328,7 @@ the cycles, the number of images, and the pixels they may use in total (a pictur
 it is decoded, with the warning `svg-image-too-large`). A query after a file name (`logo.png?v=2`) is
 ignored, and a fragment (`report.pdf#page=3`) is read as `name=value` parameters: `#page=N` chooses the page of a
 PDF or VSDX document, `#slide=N` (or `#page=N`) the slide of a presentation, and `#view=front` the view of a model
-(and `#azimuth=`/`#elevation=` its angles)
+(and `#azimuth=`/`#elevation=` its angles, `#projection=` its projection)
 (viewer package); `#def.width=20` sets a variable of a linked model (like `-D width=20`) and `#param.threshold=5` a
 parameter of a
 linked chart (like `--param threshold=5`; the warning `vl-param-unknown` for a name the chart does not declare); without

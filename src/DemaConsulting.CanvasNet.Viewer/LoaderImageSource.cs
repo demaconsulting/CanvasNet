@@ -138,6 +138,11 @@ internal sealed class LoaderImageSource : IImageSource, IFragmentImageSource
     private const string ElevationParameter = "elevation";
 
     /// <summary>
+    ///     The fragment parameter that chooses the projection of the view of a model, like <c>--projection</c>.
+    /// </summary>
+    internal const string ProjectionParameter = "projection";
+
+    /// <summary>
     ///     The source whose name, extensions and schemes this source claims.
     /// </summary>
     private readonly IImageSource _claims;
@@ -153,8 +158,8 @@ internal sealed class LoaderImageSource : IImageSource, IFragmentImageSource
     private readonly string[] _pageParameters;
 
     /// <summary>
-    ///     Whether the fragment parameters <c>view</c>, <c>azimuth</c>, and <c>elevation</c> choose and turn the viewpoint
-    ///     of a model.
+    ///     Whether the fragment parameters <c>view</c>, <c>azimuth</c>, <c>elevation</c>, and <c>projection</c> choose and
+    ///     turn the viewpoint of a model.
     /// </summary>
     private readonly bool _acceptsView;
 
@@ -175,7 +180,7 @@ internal sealed class LoaderImageSource : IImageSource, IFragmentImageSource
     /// <param name="claims">The package source whose name, extensions and schemes this source claims.</param>
     /// <param name="kinds">The kinds of file the source draws; one, or the raster kinds.</param>
     /// <param name="pageParameters">The fragment parameters that choose the page; empty when the source has no pages.</param>
-    /// <param name="acceptsView">Whether the fragment parameters <c>view</c>, <c>azimuth</c>, and <c>elevation</c> choose and turn a viewpoint.</param>
+    /// <param name="acceptsView">Whether the fragment parameters <c>view</c>, <c>azimuth</c>, <c>elevation</c>, and <c>projection</c> choose and turn a viewpoint.</param>
     /// <remarks>
     ///     The parameters that only one kind takes are added by the kind: <c>def.</c> for a model, <c>param.</c> for a chart,
     ///     and <c>theme</c> for a Mermaid diagram.
@@ -188,7 +193,7 @@ internal sealed class LoaderImageSource : IImageSource, IFragmentImageSource
         _acceptsView = acceptsView;
         _acceptsTheme = kinds is [SourceKind.Mermaid];
         FragmentParameters = new ReadOnlyCollection<string>(
-            [.. pageParameters, .. acceptsView ? new[] { "view", AzimuthParameter, ElevationParameter } : [], .. _acceptsTheme ? new[] { MermaidImageSource.ThemeParameter } : []]);
+            [.. pageParameters, .. acceptsView ? new[] { "view", AzimuthParameter, ElevationParameter, ProjectionParameter } : [], .. _acceptsTheme ? new[] { MermaidImageSource.ThemeParameter } : []]);
         if (kinds is [SourceKind.Scad])
         {
             _prefixes = [ScadImageSource.DefinePrefix];
@@ -435,7 +440,7 @@ internal sealed class LoaderImageSource : IImageSource, IFragmentImageSource
 
     /// <summary>
     ///     Reads how a model is viewed and evaluated from a fragment: the viewpoint of <c>view=</c>, the angles of
-    ///     <c>azimuth=</c> and <c>elevation=</c> that turn it, and the variables of
+    ///     <c>azimuth=</c> and <c>elevation=</c> that turn it, the projection of <c>projection=</c>, and the variables of
     ///     every <c>def.&lt;name&gt;=&lt;value&gt;</c>.
     /// </summary>
     /// <param name="fragment">The fragment of the link.</param>
@@ -541,18 +546,21 @@ internal sealed class LoaderImageSource : IImageSource, IFragmentImageSource
     }
 
     /// <summary>
-    ///     Reads the viewpoint a fragment names and the angles that turn it.
+    ///     Reads the viewpoint a fragment names, the angles that turn it, and the projection.
     /// </summary>
     /// <remarks>
     ///     As on the command line, <c>view=</c> chooses the named view (iso without one) and <c>azimuth=</c> and
     ///     <c>elevation=</c> replace its angles, as <c>--azimuth</c> and <c>--elevation</c> replace the angles of
     ///     <c>--view</c>; any of the three makes the view explicit, so it wins over the viewport variables of the model.
+    ///     <c>projection=</c> takes the values of <c>--projection</c> (<c>ortho</c>, <c>orthographic</c>, or
+    ///     <c>perspective</c>, in any case); it chooses only the projection, so alone it leaves the view to the model.
     /// </remarks>
     /// <param name="fragment">The fragment of the link.</param>
-    /// <returns>The options that choose the viewpoint, or <see langword="null"/> when the source takes none or the fragment names none of the three.</returns>
+    /// <returns>The options that choose the viewpoint, or <see langword="null"/> when the source takes none or the fragment names none of the four.</returns>
     /// <exception cref="ImageSourceRefusedException">
-    ///     Thrown with the invalid-fragment code when the name is not a viewpoint or an angle is not a number of degrees
-    ///     (an elevation outside -90 to 90 included).
+    ///     Thrown with the invalid-fragment code when the name is not a viewpoint, an angle is not a number of degrees
+    ///     (an elevation outside -90 to 90 included), or the projection is not one of the projections (an empty value
+    ///     included).
     /// </exception>
     private ScadViewOptions? ReadView(ImageFragment fragment)
     {
@@ -561,7 +569,7 @@ internal sealed class LoaderImageSource : IImageSource, IFragmentImageSource
             return null;
         }
 
-        // Read the three parameters, the view first; none of them leaves the view to the model
+        // Read the four parameters, the view first; none of them leaves the view to the model
         var name = fragment.GetValue("view");
         if (name is not null && !SourceLoader.ScadViews.Any(v => string.Equals(v.Name, name, StringComparison.OrdinalIgnoreCase)))
         {
@@ -572,7 +580,8 @@ internal sealed class LoaderImageSource : IImageSource, IFragmentImageSource
 
         var azimuth = ReadDegrees(fragment, AzimuthParameter, double.NegativeInfinity, double.PositiveInfinity);
         var elevation = ReadDegrees(fragment, ElevationParameter, -90, 90);
-        if (name is null && azimuth is null && elevation is null)
+        var perspective = ReadPerspective(fragment);
+        if (name is null && azimuth is null && elevation is null && perspective is null)
         {
             return null;
         }
@@ -589,8 +598,40 @@ internal sealed class LoaderImageSource : IImageSource, IFragmentImageSource
             View = name ?? SourceLoader.DefaultScadView,
             ViewGiven = name is not null,
             Azimuth = azimuth,
-            Elevation = elevation
+            Elevation = elevation,
+            Perspective = perspective ?? false
         };
+    }
+
+    /// <summary>
+    ///     Reads the projection a fragment names, with the words of <c>--projection</c>.
+    /// </summary>
+    /// <param name="fragment">The fragment of the link.</param>
+    /// <returns>
+    ///     <see langword="true"/> for <c>perspective</c>, <see langword="false"/> for <c>ortho</c> or <c>orthographic</c>
+    ///     (any case), or <see langword="null"/> when the fragment does not have the parameter.
+    /// </returns>
+    /// <exception cref="ImageSourceRefusedException">Thrown with the invalid-fragment code when the value is any other word or empty.</exception>
+    private static bool? ReadPerspective(ImageFragment fragment)
+    {
+        if (fragment.GetValue(ProjectionParameter) is not { } text)
+        {
+            return null;
+        }
+
+        if (string.Equals(text, "perspective", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (string.Equals(text, "ortho", StringComparison.OrdinalIgnoreCase) || string.Equals(text, "orthographic", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        throw new ImageSourceRefusedException(
+            FolderImageResolver.FragmentInvalidCode,
+            $"the fragment parameter '{ProjectionParameter}' must be one of ortho, orthographic, perspective, not {Show(text)}");
     }
 
     /// <summary>

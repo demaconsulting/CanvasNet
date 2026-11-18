@@ -175,10 +175,10 @@ size rule, the folder rule, the network URL and absolute path rules, `--strict`,
 `canvasnet help svg --example embed`, which prints the `embed` snippet.
 
 **HelpTopics_SvgTopic_PageFragment_DocumentsGrammarPerFormatCodesAndStrict**: the `page fragment` and `page example`
-bullets of `svg fragments` name the grammar, the page, slide, and view parameters, the counting from 1, the live
-limits, the examples with `&amp;`, and `canvasnet help svg --example embed-pages`. The `svg diagnostics` card has the
-four fragment codes, and the `--strict` bullet of `svg options` names the two that fail and says that the warnings stay
-warnings.
+bullets of `svg fragments` name the grammar, the page, slide, view, angle, and projection parameters, the counting from
+1, the live limits, the examples with `&amp;`, and `canvasnet help svg --example embed-pages`. The `svg diagnostics`
+card has the four fragment codes, and the `--strict` bullet of `svg options` names the two that fail and says that the
+warnings stay warnings.
 
 **HelpTopics_FormatTopicsJsonAndLimits_DocumentFragmentsDetailLocationAndOrigin**: the `pdf`, `pptx`, `vsdx`, and
 `scad` trees show `report.pdf#page=3`, `deck.pptx#slide=3`, `drawing.vsdx#page=2`, and `part.scad#view=front`. The
@@ -374,7 +374,8 @@ stays a warning.
 
 **HelpTopics_InputFragments_AreDocumentedInTopicsAndUsages** (`InputFragmentTests.cs`): the `input fragment` bullet of
 `svg fragments` has the rule for the number sign (`no file has that exact name`), the quoting, the overrides of
-`--page`, `--view`, `-D`, and `--param`, the codes `image-fragment-invalid`, `page-out-of-range`, and
+`--page`, `--view`, `--azimuth`, `--elevation`, `--projection`, `--theme`, `-D`, and `--param`, the codes
+`image-fragment-invalid`, `page-out-of-range`, and
 `vl-param-unknown`, that the warnings stay warnings also with `--strict`, and the labels of montage. The `svg` tree
 shows `def.$vpd=300`; the `scad` tree has the montage and `'$vpd=300'`; the `errors`, `pdf`, `pptx`, `vsdx`, and
 `vega-lite` trees have their lines; and the usage of `render`, `crop`, `inspect`, `compare`, `montage`, and `info`

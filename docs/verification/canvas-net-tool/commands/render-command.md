@@ -644,6 +644,15 @@ reports the azimuth 30 and the elevation 20 with no diagnostics, and `compare` f
 `render part.scad --azimuth 30 --elevation 20`; `render "part.scad#azimuth=30" --elevation 10 --json` reports the
 azimuth 30 and the elevation 10, so the command still sets an angle the fragment does not.
 
+**InputFragment_Render_Projection_DrawsLikeTheOption**: `render "part.scad#projection=perspective" --json` reports the
+projection `perspective` with no diagnostics, and `compare` finds its image identical to the image of
+`render part.scad --projection perspective`; with `--projection ortho` on the command line the fragment still wins (the
+projection `perspective` and the same image), and `render "part.scad#projection=ortho" --projection perspective`
+reports `orthographic`.
+
+**InputFragment_Render_InvalidProjection_IsImageFragmentInvalid**: `render "part.scad#projection=fisheye"` and
+`render "part.scad#projection="` fail with `image-fragment-invalid` and write nothing.
+
 **InputFragment_EveryCommand_MalformedFragment_FailsWithTheCode** and **InputFragment_OverTheLimits_IsInvalid**: for a
 model, a chart, and a PDF, an unterminated vector or object, a name that is not an identifier, an unknown view, `view`
 without a value, a malformed JSON object, `azimuth=abc`, `elevation=95`, `page=abc`, and `page=0` are

@@ -832,6 +832,7 @@ value nested 40 levels deep and a null dictionary are
 **SourceLoader_ProbeInputReference_OverTheLimitsOrMissing_Throws**,
 **InputSelection_ApplyTo_Model_MergesVariablesAndReplacesTheView**,
 **InputSelection_ApplyTo_Model_FragmentAnglesReplaceTheCommandAngles**,
+**InputSelection_ApplyTo_Model_FragmentProjectionReplacesTheCommandProjection**,
 **InputSelection_ApplyTo_Chart_MergesParametersByName**,
 **InputSelection_ApplyTo_Diagram_FragmentThemeReplacesTheCommandTheme**,
 **InputSelection_Diagnostics_AreTheCodesOfALinkAndReportedOnce**,
@@ -849,10 +850,13 @@ gives no `Selection` and `Specifier` is the path; a null argument is rejected. F
 applying it twice gives the same, and a fragment with no view keeps `front`. Merged over the command options `front`,
 azimuth 30, and elevation 5, `azimuth=-90&elevation=-10` gives the view `front`, the azimuth 270 (normalized), and the
 elevation -10 with no notes, `elevation=20` alone keeps the azimuth 30, and `view=top&azimuth=10` gives the view `top`,
-the azimuth 10, and the elevation 5. For a PDF `page=2` is the selection page
+the azimuth 10, and the elevation 5. `projection=ORTHO` over a perspective command gives an orthographic view,
+`projection=perspective` over an orthographic command (and over no model options) a perspective one with no notes and
+without making the view explicit, and a fragment without `projection` (`def.width=3`) keeps the perspective of the
+command. For a PDF `page=2` is the selection page
 (and replaces a page of 7), `page=3` is `page-out-of-range`, and `slide=2` (a presentation parameter) is the warning
 `image-fragment-unknown-parameter` with no page. Each of `def.width=[1,2`, `view=sideways`, `azimuth=abc`,
-`elevation=95`, `elevation=Infinity`, `def.2x=1`,
+`elevation=95`, `elevation=Infinity`, `projection=fisheye`, `projection=`, `def.2x=1`,
 `param.cutoff={bad` and `page=x` is `image-fragment-invalid` whose message has the fragment and that has a hint, and so
 is `theme=midnight` on a diagram; a fragment of 2,049 characters and one of 33 parameters are `image-fragment-invalid`;
 a missing file with a fragment is `input-not-found` that says a file of that name does not exist either, and without a
