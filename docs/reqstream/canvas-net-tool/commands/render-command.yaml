@@ -376,6 +376,7 @@ sections:
           - RenderCommand_Run_SvgEmbeddingOutsideFolder_WarnsAndDrawsTheRest
           - RenderCommand_Run_SvgEmbeddingDeniedWithStrict_FailsWithFileAccessDenied
           - RenderCommand_Run_SvgHandDrawnArrowheadStrict_WarnsAndSucceeds
+          - RenderCommand_Run_SvgTextPath_IsUnsupportedAndStrictFails
 
       - id: CanvasNetTool-Commands-RenderCommand-SvgEmbed
         title: >-

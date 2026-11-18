@@ -659,4 +659,48 @@ public class SourceLoaderSvgImageTests
             Assert.DoesNotContain('\n', note.Message);
         }
     }
+
+    /// <summary>
+    ///     Test that a text the SVG library cannot draw is an <c>svg-text-not-drawn</c> note of severity
+    ///     <c>unsupported</c>, and that with <c>--strict</c> it is the error <c>unsupported-feature</c>.
+    /// </summary>
+    [Fact]
+    public void SourceLoader_Load_SvgTextNotDrawn_IsUnsupportedAndStrictFails()
+    {
+        // Arrange: a text on a path, which is not drawn
+        using var directory = new TempDirectory();
+        var path = WriteSvg(directory.Path, "label.svg", "<path id='p' d='M0 20 L40 20'/><text><textPath href='#p'>On a path</textPath></text>");
+
+        // Act
+        using var tolerant = Load(path);
+        var strict = Assert.Throws<ViewerException>(() => Load(path, strict: true));
+
+        // Assert
+        var note = Assert.Single(tolerant.Diagnostics);
+        Assert.Equal(("svg", "unsupported", "svg-text-not-drawn"), (note.Source, note.Severity, note.Code));
+        Assert.Contains("textPath", note.Message, StringComparison.Ordinal);
+        Assert.Equal(ErrorCodes.UnsupportedFeature, strict.Code);
+        Assert.Contains("svg-text-not-drawn", strict.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Test that a text a nested SVG file cannot draw is reported for the link: a note of the embedding file, and
+    ///     with <c>--strict</c> the error <c>unsupported-feature</c>.
+    /// </summary>
+    [Fact]
+    public void SourceLoader_Load_NestedSvgTextNotDrawn_IsReportedForTheLink()
+    {
+        // Arrange: the outer file embeds an SVG file whose text is on a path
+        using var directory = new TempDirectory();
+        WriteSvg(directory.Path, "inner.svg", "<path id='p' d='M0 20 L40 20'/><text><textPath href='#p'>On a path</textPath></text>");
+        var path = WriteSvg(directory.Path, "outer.svg", "<image href='inner.svg' x='0' y='0' width='40' height='40'/>");
+
+        // Act
+        using var tolerant = Load(path);
+        var strict = Assert.Throws<ViewerException>(() => Load(path, strict: true));
+
+        // Assert
+        Assert.Contains(tolerant.Diagnostics, d => d.Code == "svg-text-not-drawn" && d.Severity == "unsupported");
+        Assert.Equal(ErrorCodes.UnsupportedFeature, strict.Code);
+    }
 }

@@ -143,6 +143,19 @@ sections:
         tests:
           - SourceLoader_Load_SvgHandDrawnArrowhead_IsAWarningThatNeverFails
 
+      - id: CanvasNetViewer-Imaging-SourceLoader-SvgUnsupportedText
+        title: >-
+          The SourceLoader class shall report each feature the SVG library reports as not drawn or not supported
+          (svg-text-not-drawn, svg-text-unsupported) as an svg note of severity unsupported with that code, for the SVG
+          file it renders and for a nested SVG file it renders for an embedding document, and under
+          SourceOptions.Strict shall fail with unsupported-feature.
+        justification: |
+          Text that a render loses must be visible in the diagnostics, and a strict build must fail on it as on any
+          other unsupported feature, also when the text is in an SVG file that another document embeds.
+        tests:
+          - SourceLoader_Load_SvgTextNotDrawn_IsUnsupportedAndStrictFails
+          - SourceLoader_Load_NestedSvgTextNotDrawn_IsReportedForTheLink
+
       - id: CanvasNetViewer-Imaging-SourceLoader-SvgEmbedding
         title: >-
           The SourceLoader class shall, when it loads an SVG file, hand the SVG library the image resolver that

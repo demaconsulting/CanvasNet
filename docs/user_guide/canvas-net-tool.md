@@ -1129,6 +1129,12 @@ draws the model and the chart into their rectangles. The result lists each embed
   path that has no marker there, which does not follow the connector (see `canvasnet help svg arrows`). The notes of an
   embedded model or chart, and the lines a model prints with `echo`, are reported too, with the file in front of each
   message.
+- **Text that is not drawn.** Text the SVG file (or an embedded SVG file) has but the library does not draw is the
+  `unsupported` report **`svg-text-not-drawn`** (text on a `textPath`, the HTML of a `foreignObject`, a `text` inside a
+  nested `svg` or an unknown element, a negative `font-size`), and text drawn without a feature it uses is
+  **`svg-text-unsupported`** (`rotate`, `textLength`, `letter-spacing`, `word-spacing`, vertical writing,
+  right-to-left `direction`, `dominant-baseline`, `text-decoration`, or a character no font has); each is reported
+  once per file with the number of elements, and `--strict` fails on both with `unsupported-feature`.
 - **A file that is found but broken** (a corrupt picture, a model with a syntax error, a chart with an invalid
   specification) fails the render with its own error code (`corrupt-input`, `scad-error`, `vega-lite-error`, ...), and
   the message names both the embedding file (the SVG file you named, or the embedded SVG file that contains the link)
@@ -1160,9 +1166,9 @@ its `image` references that were not drawn (`svg-image-unresolved`, `svg-image-t
 budget, `image-fragment-invalid` for a fragment that cannot be used, or `image-page-out-of-range` for a page that does
 not exist, which `--strict` fails on; the fragment warnings do not; and `image-access-denied` for a link the file-access
 mode denies, which `--strict` turns into the error `file-access-denied`), a hand-drawn arrowhead
-(`svg-arrowhead-shape`, a warning `--strict` never fails on), and the notes of the files it embeds; what the
-SVG
-library cannot draw in the file itself (animation, an unknown filter primitive) is simply not drawn.
+(`svg-arrowhead-shape`, a warning `--strict` never fails on), text it does not draw or draws without a feature
+(`svg-text-not-drawn` and `svg-text-unsupported`, which `--strict` fails on), and the notes of the files it embeds;
+what else the SVG library cannot draw in the file itself (animation, an unknown filter primitive) is simply not drawn.
 
 A PPTX shape that the library does not implement at all (for example an unknown preset shape) is always a failure
 (`unsupported-feature`), with or without `--strict`; `--strict` additionally upgrades the skipped EMF and WMF
@@ -2042,8 +2048,9 @@ objects:
   `vl-mark-geoshape`, or `mermaid-icon-unsupported`, `vega-lite-warning` for a warning of the chart library,
   `mermaid-warning` for a warning of the diagram library, or `svg-image-unresolved`, `svg-image-too-large`,
   `image-fragment-invalid`, `image-page-out-of-range`, `image-fragment-unknown-parameter`, or
-  `image-fragment-duplicate-parameter` for an SVG `image` link, or `svg-arrowhead-shape` for an arrowhead drawn by hand
-  instead of with a marker). `detail` is the finer identifier when `code` is a
+  `image-fragment-duplicate-parameter` for an SVG `image` link, `svg-arrowhead-shape` for an arrowhead drawn by hand
+  instead of with a marker, or `svg-text-not-drawn` and `svg-text-unsupported` for SVG text that is not drawn or drawn
+  without a feature). `detail` is the finer identifier when `code` is a
   generic one (`scad-anchor-invalid` for a `scad-warning`, `vl-unknown-property` for a `vega-lite-warning`,
   `mermaid-config-unknown-key` for a `mermaid-warning`); `location` is `{"file","line","column"}` (a chart adds
   `"pointer"`, and a member that is not known is left out) where the file gave a position; `origin` lists the files,

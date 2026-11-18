@@ -700,6 +700,10 @@ writes no output.
 the end of a line, rendered with `--strict --json`, exits with code 0, writes the picture, reports `ok` true, and has
 one `warning` diagnostic with the code `svg-arrowhead-shape` whose message points at `canvasnet help svg arrows`.
 
+**RenderCommand_Run_SvgTextPath_IsUnsupportedAndStrictFails**: a diagram with a text on a `textPath`, rendered with
+`--json`, exits with code 0 and has one `unsupported` diagnostic with the code `svg-text-not-drawn`; rendered with
+`--strict --json`, it exits with code 1, reports the error `unsupported-feature`, and writes no output.
+
 **RenderCommand_Verb_FileAccessOption_AppliesToTheVerbs**: `resize` of that diagram with `--file-access roots` exits
 with code 0, reports one `image-access-denied` warning, and leaves the picture undrawn.
 

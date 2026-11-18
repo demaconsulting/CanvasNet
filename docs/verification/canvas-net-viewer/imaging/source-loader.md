@@ -607,6 +607,14 @@ scale of 3 and an unknown view name do not reach the embedded files (the raster 
 on the end of a line loads with and without strict mode, each time with one `svg` `warning` note with the code
 `svg-arrowhead-shape` whose one-line message contains `'canvasnet help svg arrows'`.
 
+**SourceLoader_Load_SvgTextNotDrawn_IsUnsupportedAndStrictFails**: an SVG file with a text on a `textPath` loads with
+one `svg` `unsupported` note with the code `svg-text-not-drawn` that names `textPath`; with strict mode the load fails
+with `unsupported-feature` and a message that names the code.
+
+**SourceLoader_Load_NestedSvgTextNotDrawn_IsReportedForTheLink**: an SVG file that embeds an SVG file whose text is on
+a `textPath` loads with an `unsupported` `svg-text-not-drawn` note; with strict mode the load fails with
+`unsupported-feature`.
+
 **SourceLoader_ComputeTargetSize_SizeOptions_FollowsPolicy** and
 **SourceLoader_Load_RasterWithWidth_ResizesKeepingAspectRatio**: the size policy for none, scale, width, height, and
 both, with rounding and the one-pixel minimum; a raster is resized and the operation recorded.

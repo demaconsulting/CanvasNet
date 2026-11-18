@@ -40,4 +40,6 @@ examples:
   chart, or diagram is an unsupported-feature error too. The warnings
   image-fragment-unknown-parameter, image-fragment-duplicate-parameter, and
   vl-param-unknown stay warnings: the picture was drawn. So does
-  svg-arrowhead-shape, a hint about how an arrowhead is drawn.
+  svg-arrowhead-shape, a hint about how an arrowhead is drawn. Text that is not
+  drawn or drawn without a feature (svg-text-not-drawn, svg-text-unsupported) is
+  an unsupported-feature error, also in an embedded SVG file.

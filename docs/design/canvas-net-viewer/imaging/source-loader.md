@@ -643,6 +643,17 @@ hint is never part of a strict check, so it never fails a load, even under `Sour
 drawn as written. `LoadScopedSvg` (a nested SVG file) sets no hint handler; only the file being rendered reports
 hints. Requirement: `CanvasNetViewer-Imaging-SourceLoader-SvgArrowheadHint`.
 
+#### SVG Unsupported Text
+
+`LoadSvg` and `LoadScopedSvg` (a nested SVG file) both set `SvgLoadOptions.UnsupportedFeatureHandler`, and
+`UnsupportedNotes` turns each `SvgUnsupportedFeature` into an `svg` note of severity `unsupported` with its code
+(`svg-text-not-drawn` or `svg-text-unsupported`), so the CLI prints it as `Unsupported: <code>: <message>`. Under
+`SourceOptions.Strict`, `ThrowForUnsupported` throws `unsupported-feature` for the first report ("'<file>' uses an SVG
+feature that is not supported (<code>): <message>", hint "Without --strict the text is drawn as far as possible and
+reported in the diagnostics."), after the picture and binding checks of `LoadSvg`; its inner exception is an
+`UnsupportedImageFeatureException`, so the resolver of an embedding document reports a nested file's failure as an
+unsupported image. Requirement: `CanvasNetViewer-Imaging-SourceLoader-SvgUnsupportedText`.
+
 #### Error Handling
 
 `Read` maps these library exceptions (an explicit list, not a catch-all) to a `ViewerException` with the file path in

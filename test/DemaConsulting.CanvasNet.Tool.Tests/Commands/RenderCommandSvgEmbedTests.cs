@@ -513,4 +513,35 @@ public class RenderCommandSvgEmbedTests
         Assert.Equal("warning", diagnostic.GetProperty("severity").GetString());
         Assert.Contains("canvasnet help svg arrows", diagnostic.GetProperty("message").GetString(), StringComparison.Ordinal);
     }
+
+    /// <summary>
+    ///     Test that a text on a <c>textPath</c> is an <c>svg-text-not-drawn</c> note of severity <c>unsupported</c>, and
+    ///     that <c>--strict</c> fails with <c>unsupported-feature</c> and writes nothing.
+    /// </summary>
+    [Fact]
+    public void RenderCommand_Run_SvgTextPath_IsUnsupportedAndStrictFails()
+    {
+        // Arrange
+        using var directory = new TempDirectory();
+        var input = WriteDiagram(directory.Path, "<path id='p' d='M10 40 L110 40'/><text><textPath href='#p'>On a path</textPath></text>");
+        var output = directory.Combine("out.png");
+        var strictOutput = directory.Combine("strict.png");
+
+        // Act
+        var plain = ToolHost.Invoke("render", input, "-o", output, "--json");
+        var strict = ToolHost.Invoke("render", input, "--strict", "-o", strictOutput, "--json");
+
+        // Assert: the note without --strict
+        Assert.True(plain.ExitCode == 0, plain.StdErr + plain.StdOut);
+        using var document = JsonDocument.Parse(plain.StdOut);
+        var diagnostic = Assert.Single(document.RootElement.GetProperty("diagnostics").EnumerateArray());
+        Assert.Equal("svg-text-not-drawn", diagnostic.GetProperty("code").GetString());
+        Assert.Equal("unsupported", diagnostic.GetProperty("severity").GetString());
+
+        // Assert: the error with --strict
+        Assert.Equal(1, strict.ExitCode);
+        using var failed = JsonDocument.Parse(strict.StdOut);
+        Assert.Equal(ErrorCodes.UnsupportedFeature, failed.RootElement.GetProperty("error").GetProperty("code").GetString());
+        Assert.False(File.Exists(strictOutput));
+    }
 }

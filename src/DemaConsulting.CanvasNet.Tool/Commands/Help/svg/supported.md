@@ -21,8 +21,8 @@ examples:
 ## Supported
 
 - Shapes: rect, circle, ellipse, line, polyline, polygon, path.
-- Grouping with g and cascading presentation attributes; transform; use and
-  symbol; marker.
+- Grouping with g and a, cascading presentation attributes; transform; use and
+  symbol; marker; switch draws its first child without foreignObject.
 - Linear and radial gradients (with href inheritance), pattern, clipPath, and
   mask. A paint may name a fallback color (url(#g) red). A gradient or pattern
   in objectBoundingBox units is ignored on a shape with no width or no height,
@@ -52,6 +52,9 @@ examples:
 - text, best effort, with weight and style: an installed family is used; the
   generic families and unknown families use the bundled Liberation Sans, Serif,
   and Mono.
+- tspan and a in text, as in browsers: a style per run, x, y, dx, and dy lists,
+  a new chunk at an absolute x or y, text-anchor per chunk, baseline-shift, and
+  white space collapsed (xml:space="preserve" keeps it).
 - The root viewBox and preserveAspectRatio (all aligns, meet and slice), and
   percent lengths.
 - CSS in a style element (type, class, id, universal, and compound selectors;
@@ -61,9 +64,10 @@ examples:
 
 ## Unsupported
 
-- These are silently not drawn, with no diagnostic: animation (animate and the
-  rest of SMIL), foreignObject, nested svg elements, and filter primitives the
-  library does not know.
+- Not drawn: animation (SMIL) and unknown filter primitives, silently;
+  foreignObject, nested svg, and textPath, as svg-text-not-drawn if they hold
+  text. Text spacing, rotate, textLength, vertical or rtl writing, and
+  decoration are ignored (svg-text-unsupported).
 - A filter over its work budget is skipped: the element is drawn unfiltered.
 - Scripting, and image references the tool never follows: a network URL, a UNC
   path, and a file: URI with a host. Each is reported as svg-image-unresolved
@@ -92,6 +96,6 @@ examples:
   differ between machines; generic and unknown families use the bundled
   Liberation fonts. A character those lack (such as U+221D) is taken from the
   bundled Noto fonts; a character nothing covers draws the font's missing-glyph
-  box with no diagnostic, because SVG rendering reports nothing.
+  box and is reported as svg-text-unsupported.
 - The drawing is rendered sharply at the target size, not rasterized first and
   scaled afterwards.
