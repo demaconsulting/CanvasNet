@@ -123,7 +123,7 @@ astral character that counts as two columns), while a valid surrogate pair is ac
 `SpecParserTests.SpecParser_Parse_ValidFormsOfCheckedPropertiesAreAccepted`,
 `SpecParserTests.SpecParser_Parse_Phase4DataFormsAreAccepted`
 
-Asserts that a known property with the wrong type or value (a theory of about one hundred and twenty rows over
+Asserts that a known property with the wrong type or value (a theory of about one hundred and seventy rows over
 `$schema`, `title`, `description`, `name`, `width`, `height`, `padding`, `autosize`, `background`, `config`, `datasets`,
 `mark`, `layer`, `vconcat`, `spec`, `data`, `encoding`, `params`, and `transform`, including nested properties such as
 `/encoding/y/axis/orient`, `/mark/cornerRadius`, `/mark/cornerRadiusEnd`, and the four single-corner radii of a bar or
