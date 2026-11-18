@@ -47,6 +47,9 @@ canvasnet help topics                                          # everything else
 Or from code, with the `DemaConsulting.CanvasNet.Viewer` package:
 
 ```csharp
+using DemaConsulting.CanvasNet.Codecs;
+using DemaConsulting.CanvasNet.Viewer;
+
 using var image = CanvasNetViewer.Render("diagrams/overview.svg", new ViewerRenderOptions { Width = 1200 });
 PngCodec.Save(image.Surface, "overview.png");
 ```
