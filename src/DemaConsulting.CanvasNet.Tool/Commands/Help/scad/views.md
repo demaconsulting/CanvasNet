@@ -40,6 +40,9 @@ several pictures must share one scale.
 
 ## Supported
 
+- The camera fits the result of the model: what a difference() removes or an
+  intersection() cuts away does not count, so a cutter larger than the part
+  does not shrink it; ghosts (%) and highlights (#) stay in the picture.
 - The viewport variables $vpt, $vpr, $vpd, and $vpf hold the camera of the
   picture, so a model can place geometry relative to it: translate($vpt)
   rotate($vpr) faces the camera. Assigning them at the top level of the model

@@ -290,7 +290,10 @@ listed. Directives are only legal at file scope, so `Directives` is the complete
   over an assignment in the file; the evaluator reads back what the document ended up with (see
   *ScadEvaluator Unit Design*).
 - `ScadViewport.ChooseCamera(plan, document, isFlatModel, scene, aspectRatio, out view)` (internal static) — chooses
-  the camera after the build, from the bounds of the scene, and reports the `ScadResolvedView`.
+  the camera after the build, from the bounds of the scene, and reports the `ScadResolvedView`. The bounds are those
+  of the result (`Scene.ComputeBounds()`): a `difference` counts only its first operand and an `intersection` the
+  overlap of its operands, so a cutter much larger than the model does not shrink it; ghosts and highlights always
+  count.
   - An explicit `Camera` is used as given (`Source = Camera`).
   - The document is **manual** when it (or an override) defined `$vpt`, `$vpd`, or `$vpf`: the camera is
     `ToCamera` of the values that are defined, the others keeping their defaults, and nothing is fitted to the

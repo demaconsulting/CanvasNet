@@ -596,9 +596,9 @@ var overlay = new OverlayNode(new Rgba32(255, 64, 128, 110), [cutter]);
 var part = new CsgNode(CsgOperation.Difference, [cube, new GroupNode([cutter, overlay])]);
 ```
 
-`Scene.ComputeBounds()` (and so `RenderFitted` and `Camera.FitToBounds`) includes the overlay bodies
-so that a ghost stays in the picture; `Scene.ComputeBounds(false)` leaves them out, for example to size
-only the solid.
+`Scene.ComputeBounds()` (and so `RenderFitted` and `Camera.FitToBounds`) includes the overlay bodies,
+even one inside a subtracted operand, so that a ghost or a highlighted cutter stays in the picture;
+`Scene.ComputeBounds(false)` leaves them out, for example to size only the solid.
 
 **Requirements.** Like constructive solid geometry, translucency and overlays are resolved with signed
 surface crossings, so every mesh in such a scene should be a closed, consistently wound, outward-oriented
@@ -707,8 +707,11 @@ Rendering behavior worth knowing:
 - **Determinism.** At any given `Supersampling` setting, the output is byte-identical for every
   `MaxDegreeOfParallelism` and every run, as for scenes without CSG. (Different `Supersampling`
   factors naturally produce different antialiasing.)
-- **Bounds.** `Scene.ComputeBounds()` includes every operand, even the removed parts (and every overlay
-  body), so `RenderFitted` and `Camera.FitToBounds` frame everything and may leave extra margin.
+- **Bounds.** `Scene.ComputeBounds()` follows the operations: a difference counts only its first
+  operand and an intersection the overlap of its operands' boxes (empty when they are disjoint), and
+  every overlay body counts, so `RenderFitted` and `Camera.FitToBounds` frame the result (a cutter
+  larger than the model does not shrink it). The first operand's box is an upper bound of a
+  difference, so a fitted view may leave some extra margin.
 
 ### Camera
 

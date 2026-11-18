@@ -865,7 +865,7 @@ using var image = document.Render(800, 600);
 PngCodec.Save(image, "bracket.png");
 
 // Or build the Render3D scene to measure it, or to render it yourself with another camera. (The bounds of a
-// scene include every operand of a boolean, so the cutters count towards the height; X and Y are the plate.)
+// scene are those of the result: a difference counts only its first operand, so the cutters do not count.)
 var scene = document.BuildScene();
 var bounds = scene.ComputeBounds();
 Console.WriteLine($"{bounds.Max.X - bounds.Min.X} x {bounds.Max.Y - bounds.Min.Y}");

@@ -165,6 +165,45 @@ public class ScadDocumentRenderTests
     }
 
     /// <summary>
+    ///     Validates that the fitted view of a difference with a cutter much larger than the model draws the result
+    ///     as large as the same result cut by a tight cutter: the geometry the difference removes is not framed.
+    /// </summary>
+    [Fact]
+    public void ScadDocument_Render_DifferenceWithHugeSubtrahend_FramesLikeATightSubtrahend()
+    {
+        // Arrange: both programs give the same solid, a 10-unit cube with a 5 x 5 notch through its height
+        var huge = ScadDocument.Parse("difference() { cube(10); translate([5, 5, -50]) cube(100); }");
+        var tight = ScadDocument.Parse("difference() { cube(10); translate([5, 5, -1]) cube([6, 6, 12]); }");
+
+        // Act
+        using var hugeSurface = huge.Render(96, 96, cancellationToken: TestContext.Current.CancellationToken);
+        using var tightSurface = tight.Render(96, 96, cancellationToken: TestContext.Current.CancellationToken);
+
+        // Assert: the drawn extents agree within one pixel and fill a good part of the image
+        AssertDrawnBoxesMatch(DrawnBox(tightSurface), DrawnBox(hugeSurface));
+        var (left, _, right, _) = DrawnBox(hugeSurface);
+        Assert.True(right - left > 48, $"The result is drawn {right - left + 1} pixels wide.");
+    }
+
+    /// <summary>
+    ///     Validates that the fitted view of an intersection draws the result as large as the plain result solid.
+    /// </summary>
+    [Fact]
+    public void ScadDocument_Render_Intersection_FramesLikeThePlainResult()
+    {
+        // Arrange: the intersection is the 5-unit cube at (5, 5, 5)
+        var intersection = ScadDocument.Parse("intersection() { cube(10); translate([5, 5, 5]) cube(100); }");
+        var plain = ScadDocument.Parse("translate([5, 5, 5]) cube(5);");
+
+        // Act
+        using var intersectionSurface = intersection.Render(96, 96, cancellationToken: TestContext.Current.CancellationToken);
+        using var plainSurface = plain.Render(96, 96, cancellationToken: TestContext.Current.CancellationToken);
+
+        // Assert
+        AssertDrawnBoxesMatch(DrawnBox(plainSurface), DrawnBox(intersectionSurface));
+    }
+
+    /// <summary>
     ///     Validates that a model color-free render uses the default gray and a changed default color is honored.
     /// </summary>
     [Fact]
@@ -412,5 +451,39 @@ public class ScadDocumentRenderTests
         }
 
         return count;
+    }
+
+    /// <summary>
+    ///     Finds the box of the pixels that differ from the white background.
+    /// </summary>
+    /// <param name="surface">The surface; it must show something.</param>
+    /// <returns>The first and last covered column and row.</returns>
+    private static (int Left, int Top, int Right, int Bottom) DrawnBox(Surface surface)
+    {
+        var (left, top, right, bottom) = (int.MaxValue, int.MaxValue, -1, -1);
+        for (var y = 0; y < surface.Height; y++)
+        {
+            if (ScadRenderTestHelpers.RowExtent(surface, y, White) is { } extent)
+            {
+                (left, right) = (Math.Min(left, extent.First), Math.Max(right, extent.Last));
+                (top, bottom) = (Math.Min(top, y), y);
+            }
+        }
+
+        Assert.True(right >= 0, "Nothing is drawn.");
+        return (left, top, right, bottom);
+    }
+
+    /// <summary>
+    ///     Asserts that two drawn boxes agree within one pixel on every side.
+    /// </summary>
+    /// <param name="expected">The expected box.</param>
+    /// <param name="actual">The actual box.</param>
+    private static void AssertDrawnBoxesMatch((int Left, int Top, int Right, int Bottom) expected, (int Left, int Top, int Right, int Bottom) actual)
+    {
+        Assert.InRange(actual.Left, expected.Left - 1, expected.Left + 1);
+        Assert.InRange(actual.Top, expected.Top - 1, expected.Top + 1);
+        Assert.InRange(actual.Right, expected.Right - 1, expected.Right + 1);
+        Assert.InRange(actual.Bottom, expected.Bottom - 1, expected.Bottom + 1);
     }
 }
