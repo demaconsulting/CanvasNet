@@ -40,22 +40,23 @@ internal sealed record PageTexts
 
 /// <summary>
 ///     The spacing of the page texts that differs between diagram types: PlantUML frames the body of an activity
-///     diagram 5 pixels further from its header, footer and side margins, and its legend 5 pixels closer to the body.
+///     diagram 5 pixels further from its header, title, footer and side margins, and counts its body 5 pixels shorter,
+///     because the body of an activity diagram already ends with 5 pixels of its own margin.
 /// </summary>
 /// <param name="Inset">The space added above the header and the title, beside the header and footer, and below the page.</param>
-/// <param name="LegendGap">The space between the body and the legend.</param>
+/// <param name="BodyTrim">The space at the bottom of the body that the texts below it may overlap.</param>
 /// <param name="LegendWidth">The space the page keeps beside the text of the legend.</param>
-internal sealed record PageMetrics(double Inset, double LegendGap, double LegendWidth)
+internal sealed record PageMetrics(double Inset, double BodyTrim, double LegendWidth)
 {
     /// <summary>
     ///     Gets the spacing of a sequence diagram.
     /// </summary>
-    public static PageMetrics Sequence { get; } = new(0, 7, 46);
+    public static PageMetrics Sequence { get; } = new(0, 0, 46);
 
     /// <summary>
     ///     Gets the spacing of an activity diagram.
     /// </summary>
-    public static PageMetrics Activity { get; } = new(5, 2, 55);
+    public static PageMetrics Activity { get; } = new(5, 5, 55);
 }
 
 /// <summary>
@@ -129,7 +130,7 @@ internal static class ScenePage
         // The body, centered
         var dx = (width - body.ViewBox.Width) / 2;
         items.AddRange(body.Items.Select(item => Translate(item, dx, y)));
-        y += body.ViewBox.Height;
+        y += body.ViewBox.Height - spacing.BodyTrim;
 
         if (legend is not null)
         {
@@ -141,15 +142,15 @@ internal static class ScenePage
                 TextAlign.Right => width - 18 - boxWidth,
                 _ => (width - 1 - boxWidth) / 2,
             };
-            items.Add(new ScenePath(SceneShapes.Rect(boxX, y + spacing.LegendGap, boxWidth, boxHeight, style.RoundCorner / 2))
+            items.Add(new ScenePath(SceneShapes.Rect(boxX, y + 7, boxWidth, boxHeight, style.RoundCorner / 2))
             {
                 Role = "legend",
                 Fill = style.Fill,
                 Stroke = style.Line is { } line ? new SceneStroke(line, style.LineWidth) : null,
                 Location = page.Legend.Location,
             });
-            items.AddRange(legend.Draw(boxX + style.Padding, y + spacing.LegendGap + style.Padding, TextAlign.Left, "legend", page.Legend.Location));
-            y += boxHeight + 18 + spacing.LegendGap;
+            items.AddRange(legend.Draw(boxX + style.Padding, y + 7 + style.Padding, TextAlign.Left, "legend", page.Legend.Location));
+            y += boxHeight + 25;
         }
 
         if (caption is not null)

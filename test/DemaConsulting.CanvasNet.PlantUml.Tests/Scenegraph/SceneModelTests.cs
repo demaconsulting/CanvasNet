@@ -114,7 +114,7 @@ public class SceneModelTests
 
     /// <summary>
     ///     Validates the spacing of an activity diagram's page: 5 pixels more above the header and the title, beside
-    ///     the header and the footer, and below the page, and the legend 5 pixels closer to the body.
+    ///     the header and the footer, and below the page, and the body counted 5 pixels shorter.
     /// </summary>
     [Fact]
     public void PlantUmlSceneModel_ScenePage_ActivitySpacing()
@@ -139,7 +139,7 @@ public class SceneModelTests
         Assert.Equal(5, Text(activity, "header").Baseline - Text(sequence, "header").Baseline, 3);
         Assert.Equal(5, Text(activity, "title").Baseline - Text(sequence, "title").Baseline, 3);
         Assert.Equal(0, activity.ViewBox.Height - sequence.ViewBox.Height, 3);
-        Assert.Equal(PageMetrics.Sequence, new PageMetrics(0, 7, 46));
+        Assert.Equal(PageMetrics.Sequence, new PageMetrics(0, 0, 46));
     }
 
     /// <summary>

@@ -48,10 +48,10 @@ specified by the `CanvasNetPlantUml-Scenegraph-SceneModel-*` requirements in
   end of the legend block in a block of its height plus 3; the footer is centered (or aligned 6 pixels from an edge) 5
   pixels above the end of the caption block in a block of its height plus 1. A body without page texts is returned as
   it is. Centered texts are centered in the page width minus one pixel, as PlantUML centers them. These are the values
-  of a sequence diagram (`PageMetrics.Sequence`); an optional `PageMetrics(Inset, LegendGap, LegendWidth)` gives the
+  of a sequence diagram (`PageMetrics.Sequence`); an optional `PageMetrics(Inset, BodyTrim, LegendWidth)` gives the
   values of another diagram type: `PageMetrics.Activity` adds 5 pixels above the header and the title, beside the
-  aligned header and footer, and below the page, puts the legend box 2 pixels below the body (in a block of its height
-  plus 20), and keeps 55 pixels beside the legend's text, as PlantUML frames an activity diagram.
+  aligned header and footer, and below the page, counts the body 5 pixels shorter (its own bottom margin), and keeps
+  55 pixels beside the legend's text, as PlantUML frames an activity diagram.
 - `ScenePage.Translate(item, dx, dy)` - a moved copy of a path or a text line (other items, and a zero offset, return
   the item itself).
 

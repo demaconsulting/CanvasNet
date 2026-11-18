@@ -48,4 +48,5 @@ size and the positions PlantUML gives them (the header at 54.871, the title at 1
 moved to 12.475 and 62.188, and the baselines of the legend, caption, and footer); asserts that a body without page
 texts is returned as it is, and that translation moves a text line and a path and returns an item unchanged for a zero
 offset; places a header, a title, and a legend with the spacing of an activity diagram and asserts the header 5 pixels
-further right and lower, the title 5 pixels lower, the same page height, and the spacing of a sequence diagram.
+further right and lower, the title 5 pixels lower, the same page height (the body counted 5 pixels shorter and the
+page 5 pixels higher), and the spacing of a sequence diagram.
