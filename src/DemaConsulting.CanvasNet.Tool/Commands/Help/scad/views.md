@@ -43,7 +43,9 @@ several pictures must share one scale.
 - The viewport variables $vpt, $vpr, $vpd, and $vpf hold the camera of the
   picture, so a model can place geometry relative to it: translate($vpt)
   rotate($vpr) faces the camera. Assigning them at the top level of the model
-  sets the view; --view, --azimuth, and --elevation win over the model.
+  sets the view; --view, --azimuth, and --elevation (or view=, azimuth=, and
+  elevation= in a fragment) win over the model and over def.$vpr, and the named
+  view (iso without one) supplies only the angles that were not given.
 - A fixed camera, so that several pictures of one model share a scale: set the
   viewport variables instead of letting the camera fit each picture. -D
   '$vpd=300' (or def.$vpd=300 in a fragment) sets the distance of the camera,
@@ -53,8 +55,10 @@ several pictures must share one scale.
   "part.scad#def.explode=1" -D '$vpd=300' -D '$vpt=[0,0,50]' --labels -o m.png
   shows the explode levels at one scale; without them each cell is fitted to its
   own geometry.
-- View angles in a link or input fragment, which takes no azimuth or
-  elevation: def.$vpr=[90-elevation,0,azimuth]. For example
+- View angles in a link or input fragment: azimuth=<degrees> and
+  elevation=<degrees>, like --azimuth and --elevation
+  ('part.scad#azimuth=45&elevation=20'). The viewport variable works too:
+  def.$vpr=[90-elevation,0,azimuth]; for example
   'part.scad#def.$vpr=[70,0,45]' is --azimuth 45 --elevation 20 (the default
   iso view is azimuth 45, elevation 35.26). The framing stays automatic, and
   render --json reports the azimuth and elevation used. Use single quotes in a

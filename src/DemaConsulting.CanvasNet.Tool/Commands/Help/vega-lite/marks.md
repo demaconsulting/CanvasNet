@@ -27,9 +27,17 @@ examples:
 
 - Marks: bar, rect, point, circle, square, rule, tick, line, area, trail, text,
   arc, image, boxplot, errorbar, errorband.
+- Corner radii: a bar or rect rounds its corners with cornerRadius and with
+  cornerRadiusTopLeft, cornerRadiusTopRight, cornerRadiusBottomLeft, and
+  cornerRadiusBottomRight; a bar rounds the corners at its value end with
+  cornerRadiusEnd (the top of a bar above zero, the bottom of one below, the
+  right or left end of a horizontal bar, and every corner of a ranged bar).
 
 ## Known differences
 
+- A stacked bar with cornerRadiusEnd or another corner radius rounds each
+  segment by itself (cornerRadiusEnd at the segment's own end); Vega-Lite
+  rounds only the outer ends of the stack.
 - Composite marks (boxplot, errorbar, errorband) group by the bin, time unit,
   and aggregate of their channels as Vega-Lite does; the one difference is that
   the box of a box plot over a bin spans the whole bin, where Vega-Lite 6.5

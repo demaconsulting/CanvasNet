@@ -500,7 +500,10 @@ internal sealed partial class ScenePainter
             return;
         }
 
-        FillAndStroke(RectanglePath(rect.X, rect.Y, rect.Width, rect.Height, rect.CornerRadius), rect, local, local.Transform);
+        var path = rect.CornerRadii is { } radii
+            ? RectanglePath(rect.X, rect.Y, rect.Width, rect.Height, radii)
+            : RectanglePath(rect.X, rect.Y, rect.Width, rect.Height, rect.CornerRadius);
+        FillAndStroke(path, rect, local, local.Transform);
     }
 
     /// <summary>
@@ -674,6 +677,89 @@ internal sealed partial class ScenePainter
         radius > 0
             ? Path.RoundRectangle((float)x, (float)y, (float)width, (float)height, (float)radius)
             : Path.Rectangle((float)x, (float)y, (float)width, (float)height);
+
+    /// <summary>
+    ///     Builds the path of a rectangle whose corners each have their own radius.
+    /// </summary>
+    /// <remarks>
+    ///     Follows the per-corner rectangle of Vega: each radius is clamped to between 0 and half the smaller side (a
+    ///     radius that is not a finite number counts as 0), and each rounded corner is a quarter circle drawn as one cubic
+    ///     curve, with the same kappa as the core <see cref="Path.RoundRectangle"/>. The outline runs clockwise from the
+    ///     top-left corner. Pure and thread-safe.
+    /// </remarks>
+    /// <param name="x">The left edge.</param>
+    /// <param name="y">The top edge.</param>
+    /// <param name="width">The width.</param>
+    /// <param name="height">The height.</param>
+    /// <param name="radii">The radius of each corner.</param>
+    /// <returns>The path; empty when the rectangle has no area, and a plain rectangle when no corner is rounded.</returns>
+    private static Path RectanglePath(double x, double y, double width, double height, SceneCornerRadii radii)
+    {
+        // A rectangle without area draws nothing
+        if (!(width > 0) || !(height > 0))
+        {
+            return Path.Empty;
+        }
+
+        // Clamp each radius so that two rounded corners of a side never overlap
+        var half = Math.Min(width, height) / 2;
+        var topLeft = ClampRadius(radii.TopLeft, half);
+        var topRight = ClampRadius(radii.TopRight, half);
+        var bottomRight = ClampRadius(radii.BottomRight, half);
+        var bottomLeft = ClampRadius(radii.BottomLeft, half);
+        if (topLeft <= 0 && topRight <= 0 && bottomRight <= 0 && bottomLeft <= 0)
+        {
+            return Path.Rectangle((float)x, (float)y, (float)width, (float)height);
+        }
+
+        // Walk the outline clockwise; a corner of radius 0 is the meeting point of its two sides. The kappa
+        // 4/3 * (sqrt(2) - 1) places the control points of a cubic that approximates a quarter circle.
+        const float Kappa = 0.5522847498f;
+        var left = (float)x;
+        var top = (float)y;
+        var right = (float)(x + width);
+        var bottom = (float)(y + height);
+        var builder = new PathBuilder()
+            .MoveTo(new Vector2(left + topLeft, top))
+            .LineTo(new Vector2(right - topRight, top));
+        if (topRight > 0)
+        {
+            var k = topRight * Kappa;
+            builder.CubicBezierTo(new Vector2(right - topRight + k, top), new Vector2(right, top + topRight - k), new Vector2(right, top + topRight));
+        }
+
+        builder.LineTo(new Vector2(right, bottom - bottomRight));
+        if (bottomRight > 0)
+        {
+            var k = bottomRight * Kappa;
+            builder.CubicBezierTo(new Vector2(right, bottom - bottomRight + k), new Vector2(right - bottomRight + k, bottom), new Vector2(right - bottomRight, bottom));
+        }
+
+        builder.LineTo(new Vector2(left + bottomLeft, bottom));
+        if (bottomLeft > 0)
+        {
+            var k = bottomLeft * Kappa;
+            builder.CubicBezierTo(new Vector2(left + bottomLeft - k, bottom), new Vector2(left, bottom - bottomLeft + k), new Vector2(left, bottom - bottomLeft));
+        }
+
+        builder.LineTo(new Vector2(left, top + topLeft));
+        if (topLeft > 0)
+        {
+            var k = topLeft * Kappa;
+            builder.CubicBezierTo(new Vector2(left, top + topLeft - k), new Vector2(left + topLeft - k, top), new Vector2(left + topLeft, top));
+        }
+
+        return builder.Close().Build();
+    }
+
+    /// <summary>
+    ///     Clamps the radius of one corner of a rectangle.
+    /// </summary>
+    /// <param name="radius">The radius; any value.</param>
+    /// <param name="maximum">Half the smaller side of the rectangle; positive.</param>
+    /// <returns>The radius from 0 to <paramref name="maximum"/>; 0 for a radius that is not a finite number.</returns>
+    private static float ClampRadius(double radius, double maximum) =>
+        double.IsFinite(radius) && radius > 0 ? (float)Math.Min(radius, maximum) : 0f;
 
     /// <summary>
     ///     Fills a path and then strokes it, as the item's paints say.

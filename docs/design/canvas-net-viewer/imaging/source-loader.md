@@ -482,14 +482,14 @@ path is the longest start of the text, ending before a `#`, that names an existi
 first, so a `#` in a folder name or in the file name is not a problem, and the fragment may itself hold a `#`), and when
 no start names a file the first `#` splits, so that the missing file reported is the one before it.
 `Probe(InputReference)` and `Probe(InputReference, fileAccess)` are `Probe(path)` and `Probe(path, fileAccess)` plus,
-when there is a fragment, `InputSelection.Create`, which parses the
-fragment with the core `ImageFragment` (over its limits: `image-fragment-invalid`) and reads it with the **built-in
-image source of the kind** of the file (`CanvasNetViewer.FindBuiltIn(kind)`, the `LoaderImageSource` that draws a link
-of that kind): its `ReadPage` (`page`, and `slide` for a presentation), `ReadScad` (`view`, and the `def.` variables
-with `ImageParameterValues.ReadVariables`, vectors included, checked by constructing `ScadEvaluationOptions`) and
-`ReadChart` (the `param.` parameters) and `ReadDiagram` (the `theme` of a diagram, compared with the Mermaid themes
-without regard to case and kept by its canonical name), so a link and an input accept exactly the same parameters with
-the same values; a value that cannot be used is a `ViewerException` with the code `image-fragment-invalid`
+when there is a fragment, `InputSelection.Create`, which parses the fragment with the core `ImageFragment` (over its
+limits: `image-fragment-invalid`) and reads it with the **built-in image source of the kind** of the file
+(`CanvasNetViewer.FindBuiltIn(kind)`, the `LoaderImageSource` that draws a link of that kind): its `ReadPage` (`page`,
+and `slide` for a presentation), `ReadScad` (`view`, `azimuth`, `elevation`, and the `def.` variables with
+`ImageParameterValues.ReadVariables`, vectors included, checked by constructing `ScadEvaluationOptions`) and `ReadChart`
+(the `param.` parameters) and `ReadDiagram` (the `theme` of a diagram, compared with the Mermaid themes without regard
+to case and kept by its canonical name), so a link and an input accept exactly the same parameters with the same values;
+a value that cannot be used is a `ViewerException` with the code `image-fragment-invalid`
 (`ErrorCodes.ImageFragmentInvalid`) whose message names the input, and a page the file does not have is
 `page-out-of-range` (`CheckPage`, at probe time). The notes are the `ReviewParameters` notes of the core `ImageFragment`
 (`image-fragment-unknown-parameter`, `image-fragment-duplicate-parameter`; the same code that reports them for a link)
@@ -498,14 +498,14 @@ compared with `SourceInfo.Chart.Parameters`; the unknown names are dropped from 
 them and the `--param` error of an unknown name stays an error); they are warnings of the source `input`, never errors,
 not even in strict mode. The result is `SourceInfo.Selection` (an `InputSelection`: `Fragment`, `Page`, `Scad`,
 `VegaLite`, `Mermaid`, `Diagnostics`) and `SourceInfo.Specifier` (the path, `#` and the fragment).
-**`InputSelection.ApplyTo(options)`** lays it over the options of a command: the page replaces the page, the view of the
-fragment (only when it names one) replaces the view while the azimuth, elevation and projection of the command still
-refine it, the variables and the chart parameters are merged by name with the fragment winning, the theme of the
-fragment replaces the theme of the options, and applying it twice gives the same options. `Load(info, options)`,
-`OpenPages`, and so every operation, apply it (`ApplySelection`), `PageSource.ReadPage` adds the `Diagnostics` to the
-notes of the first page that is loaded from the source (once, not for every page), and the operations take the page from
-it (see the units of the operations). Embedded links never go through this path: `LoaderImageSource` is given the link's
-own fragment by the resolver. The tests are in `InputSelectionTests.cs`.
+**`InputSelection.ApplyTo(options)`** lays it over the options of a command: the page replaces the page, the view, the
+azimuth, and the elevation of the fragment each replace those of the command (only the ones the fragment sets; the
+others and the projection of the command still apply), the variables and the chart parameters are merged by name with
+the fragment winning, the theme of the fragment replaces the theme of the options, and applying it twice gives the same
+options. `Load(info, options)`, `OpenPages`, and so every operation, apply it (`ApplySelection`), `PageSource.ReadPage`
+adds the `Diagnostics` to the notes of the first page that is loaded from the source (once, not for every page), and the
+operations take the page from it (see the units of the operations). Embedded links never go through this path:
+`LoaderImageSource` is given the link's own fragment by the resolver. The tests are in `InputSelectionTests.cs`.
 
 **Viewport variables.** The camera of a model is `$vpt` (the target, a vector), `$vpr` (the rotation, a vector), `$vpd`
 (the distance) and `$vpf` (the field of view). `ScadEvaluationOptions.Variables` overrides them (an explicit view or

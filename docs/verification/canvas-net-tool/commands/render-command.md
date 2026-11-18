@@ -124,6 +124,10 @@ a missing file, a truncated PNG, a text file, and a directory are `input-not-fou
 are `corrupt-input` with no output; a missing output, a missing or second input, an unknown
 option with a suggestion, a flag with a value, and a missing value are usage errors; null arguments throw.
 
+**RenderCommand_Run_MalformedSvg_ReportsTheLineAndColumn**: an SVG with `<!-- a -- b -->` on line 2 fails with
+`corrupt-input` and writes no output; the text error names `(line 2, column 10)` and says that `--` is not allowed
+inside an XML comment, and the JSON `error.message` names the same location.
+
 **RenderCommand_Run_DocumentDefaults_WritesFirstPage** and
 **RenderCommand_Run_DocumentJson_DescribesPageAndOperations**:
 each document renders page 1 at its size at 96 dpi with a text line that ends with `page 1`; the JSON for page 2 of the
@@ -635,9 +639,15 @@ fragment, and a `#` in a folder name is no problem; a missing file with a fragme
 file of that name does not exist either, with a hint about the `#`; `VIEW=Top&DEF.label=%22a%26b%22` draws the view
 `top` and the model echoes `a&b`.
 
+**InputFragment_Render_AzimuthAndElevation_DrawLikeTheOptions**: `render "part.scad#azimuth=30&elevation=20" --json`
+reports the azimuth 30 and the elevation 20 with no diagnostics, and `compare` finds its image identical to the image of
+`render part.scad --azimuth 30 --elevation 20`; `render "part.scad#azimuth=30" --elevation 10 --json` reports the
+azimuth 30 and the elevation 10, so the command still sets an angle the fragment does not.
+
 **InputFragment_EveryCommand_MalformedFragment_FailsWithTheCode** and **InputFragment_OverTheLimits_IsInvalid**: for a
 model, a chart, and a PDF, an unterminated vector or object, a name that is not an identifier, an unknown view, `view`
-without a value, a malformed JSON object, `page=abc`, and `page=0` are `image-fragment-invalid`, `page=9` is
+without a value, a malformed JSON object, `azimuth=abc`, `elevation=95`, `page=abc`, and `page=0` are
+`image-fragment-invalid`, `page=9` is
 `page-out-of-range`, for `render`, `crop`, `inspect`, `info`, `compare`, and `montage`, and no output is written; 33
 parameters and a 2,100 character value are `image-fragment-invalid`.
 

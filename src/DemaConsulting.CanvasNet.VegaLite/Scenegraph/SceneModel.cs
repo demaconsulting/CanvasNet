@@ -406,7 +406,31 @@ internal sealed record SceneRect : SceneItem
 
     /// <summary>Gets the corner radius (clamped to half the smaller side when drawn); 0 by default.</summary>
     public double CornerRadius { get; init; }
+
+    /// <summary>
+    ///     Gets the radius of each corner, or <see langword="null"/> (default) when every corner uses
+    ///     <see cref="CornerRadius"/>.
+    /// </summary>
+    /// <remarks>
+    ///     The mark builder sets this when a bar or rect mark has a per-corner radius (<c>cornerRadiusTopLeft</c> and
+    ///     the others) or a bar has <c>cornerRadiusEnd</c>; the radii are then already resolved, and
+    ///     <see cref="CornerRadius"/> is not used. Each radius is clamped to half the smaller side when drawn.
+    /// </remarks>
+    public SceneCornerRadii? CornerRadii { get; init; }
 }
+
+/// <summary>
+///     The radius of each corner of a <see cref="SceneRect"/>, as Vega's per-corner rectangle has them.
+/// </summary>
+/// <remarks>
+///     A radius that is negative or not a finite number is drawn as 0, and one larger than half the smaller side of the
+///     rectangle is drawn as that half.
+/// </remarks>
+/// <param name="TopLeft">The radius of the top-left corner.</param>
+/// <param name="TopRight">The radius of the top-right corner.</param>
+/// <param name="BottomRight">The radius of the bottom-right corner.</param>
+/// <param name="BottomLeft">The radius of the bottom-left corner.</param>
+internal readonly record struct SceneCornerRadii(double TopLeft, double TopRight, double BottomRight, double BottomLeft);
 
 /// <summary>
 ///     A straight line segment (a rule): an axis tick, a grid line, an axis domain or a <c>rule</c> mark.

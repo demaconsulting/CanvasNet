@@ -732,6 +732,88 @@ public sealed class ShapeLibraryTests
     }
 
     /// <summary>
+    ///     Checks that the stroke style of a class reaches its outline but never its texts, as in Mermaid: its
+    ///     <c>classBox</c> writes the class's styles on the HTML label spans, where a browser does not paint
+    ///     <c>stroke</c>, so the title, the members, and the methods keep the label color with no outline.
+    /// </summary>
+    [Fact]
+    public void ShapeLibrary_Draw_ClassBoxStrokeStyle_LeavesTheTextsUnstroked()
+    {
+        // Arrange: a class with a member and a method, drawn with a red stroke style and without styles, with its texts
+        // measured so that they are drawn
+        var member = new LayoutClassMember("+int x", string.Empty);
+        LayoutNode Node(string[] styles) =>
+            new() { Id = "A", Shape = "classBox", ClassBox = new LayoutClassBox("A", [], [member], [member], styles) };
+        var reports = new MermaidReportSink(100, false);
+        var config = MermaidConfigResolverVectorTests.ResolveLikeMermaid(new JsonObject(), "classDiagram\n  class A\n");
+        var labels = new LabelBuilder(ScenePainter.CreateFontResolver(), reports, null);
+        var context = new ShapeContext { Config = config, Styles = ClassStyles.Create(config, reports), MeasureLabel = labels.Build, Sink = reports };
+        var red = new Rgba32(0xff, 0, 0, 255);
+
+        // Act
+        var styled = ShapeLibrary.Draw(Node(["stroke:#f00", "stroke-width:3px"]), context);
+        var plain = ShapeLibrary.Draw(Node([]), context);
+
+        // Assert: the title, member, and method groups hold texts, none of them stroked
+        var styledTexts = ClassTexts(styled.Items).ToList();
+        var plainTexts = ClassTexts(plain.Items).ToList();
+        Assert.Equal(["class-label", "class-member", "class-method"], styledTexts.Select(t => t.Group).Distinct());
+        Assert.All(styledTexts, t => Assert.Null(t.Text.Stroke));
+        Assert.All(plainTexts, t => Assert.Null(t.Text.Stroke));
+
+        // Assert: the texts keep the colors they have without styles, and only the outline of the styled box is red
+        Assert.Equal(
+            plainTexts.SelectMany(t => t.Text.Runs).Select(run => run.Color),
+            styledTexts.SelectMany(t => t.Text.Runs).Select(run => run.Color));
+        Assert.DoesNotContain(red, styledTexts.SelectMany(t => t.Text.Runs).Select(run => run.Color));
+        Assert.Equal(red, styled.Items.OfType<ScenePath>().First(path => path.Role != "class-divider" && path.Stroke is not null).Stroke!.Color);
+        Assert.NotEqual(red, plain.Items.OfType<ScenePath>().First(path => path.Role != "class-divider" && path.Stroke is not null).Stroke!.Color);
+    }
+
+    /// <summary>
+    ///     Gets the text lines of the title, member, and method groups of a drawn class box.
+    /// </summary>
+    /// <param name="items">The items of the drawn node.</param>
+    /// <returns>Each text line with the role of the class group it belongs to, in drawing order.</returns>
+    private static IEnumerable<(string Group, SceneText Text)> ClassTexts(IEnumerable<SceneItem> items)
+    {
+        foreach (var group in items.OfType<SceneGroup>())
+        {
+            // A class group holds its texts, maybe inside further groups; any other group may hold a class group
+            var texts = group.Role is "class-label" or "class-member" or "class-method"
+                ? AllTexts(group.Children).Select(text => (group.Role, text))
+                : ClassTexts(group.Children);
+            foreach (var entry in texts)
+            {
+                yield return entry;
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Gets every text line among items and their groups.
+    /// </summary>
+    /// <param name="items">The items.</param>
+    /// <returns>The text lines in drawing order.</returns>
+    private static IEnumerable<SceneText> AllTexts(IEnumerable<SceneItem> items)
+    {
+        foreach (var item in items)
+        {
+            if (item is SceneText text)
+            {
+                yield return text;
+            }
+            else if (item is SceneGroup group)
+            {
+                foreach (var inner in AllTexts(group.Children))
+                {
+                    yield return inner;
+                }
+            }
+        }
+    }
+
+    /// <summary>
     ///     Gets the boxes of the dividers of a drawn class box.
     /// </summary>
     /// <param name="result">The drawn node.</param>

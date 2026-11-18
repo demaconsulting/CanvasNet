@@ -89,6 +89,8 @@ canvasnet montage "assembly.scad#def.explode=0" "assembly.scad#def.explode=0.5" 
 | --- | --- | --- |
 | `page=N` (`slide=N` for `.pptx`) | `.pdf`, `.pptx`, `.vsdx` | The page or slide, counted from 1; replaces `--page` |
 | `view=NAME` | `.scad` | `iso`, `front`, `back`, `left`, `right`, `top`, or `bottom`; replaces `--view` |
+| `azimuth=DEGREES` | `.scad` | Turns the view about the Z axis, like `--azimuth`; replaces `--azimuth` |
+| `elevation=DEGREES` | `.scad` | -90 to 90, like `--elevation`; replaces `--elevation` |
 | `def.NAME=VALUE` | `.scad` | Sets the variable `NAME` like `-D`; a vector is a JSON array (`def.$vpt=[0,0,2]`) |
 | `param.NAME=VALUE` | `.vl.json`, `.vl` | Sets the chart parameter `NAME` like `--param` |
 | `theme=NAME` | `.mmd`, `.mermaid` | `default`, `base`, `dark`, `forest`, or `neutral`; replaces `--theme` |
@@ -104,9 +106,10 @@ names an existing file is the file, and the rest after that `#` is the fragment.
 error names the file before the first `#`, and says that a file of the whole name does not exist either.
 
 **The fragment overrides the options of the command** for its input: its page replaces `--page` (and `--all-pages`: the
-input then gives that one page), its view replaces `--view`, its theme replaces `--theme`, and its variables and chart
+input then gives that one page), its view, azimuth, and elevation replace `--view`, `--azimuth`, and `--elevation`
+(each only when the fragment sets it), its theme replaces `--theme`, and its variables and chart
 parameters are merged with
-`-D` and `--param` by name, the fragment winning. `--azimuth`, `--elevation`, and `--projection` still refine the
+`-D` and `--param` by name, the fragment winning. `--projection` still applies to the
 view. For `compare` it wins over the options of one side (`--a-page`, `--a-view`, `--a-define`) too. Other inputs are
 not affected: `canvasnet montage "a.scad#view=top" b.scad --view front` draws `a.scad` from the top and `b.scad` from
 the front.
@@ -115,10 +118,11 @@ the front.
 input with more than one parameter in quotes (`"part.scad#view=top&def.width=20"`); and a `$` (as in `$vpd`) in single
 quotes, as in `-D '$vpd=300'`. A `#` in the middle of a word is not a comment, but one at the start of a word is.
 
-**Mistakes and warnings.** They have the codes of an SVG link. A value that cannot be used (a vector or a JSON value
-that is cut short, a `def.` name that is not an identifier, an unknown `view` or `theme`, a page that is not a whole
-number, a fragment over its limits) is an **error** with the code `image-fragment-invalid`, and a page the file does not
-have is `page-out-of-range`; nothing is written. A parameter that the kind of the file does not use (`pag=2`, `page=2`
+**Mistakes and warnings.** They have the codes of an SVG link. A value that cannot be used is an **error** with the
+code `image-fragment-invalid`: a vector or a JSON value that is cut short, a `def.` name that is not an identifier, an
+unknown `view` or `theme`, an `azimuth` or `elevation` that is not a number, an elevation outside -90 to 90, a page
+that is not a whole number, or a fragment over its limits. A page the file does not have is `page-out-of-range`.
+Nothing is written for either. A parameter that the kind of the file does not use (`pag=2`, `page=2`
 on a PNG, `def.x=1` on a chart) is the **warning** `image-fragment-unknown-parameter`, a parameter given twice with
 different values is `image-fragment-duplicate-parameter`, and a `param.` name that the chart does not declare is
 `vl-param-unknown` (the chart is drawn without it): they are warnings, never errors, **also with `--strict`**, so a typo
@@ -139,12 +143,15 @@ camera with the viewport variables: `$vpd` is the distance of the camera (for an
 height is about 0.4 times the distance, so a larger distance is a smaller picture), `$vpt` the point it looks at (the
 origin by default), `$vpr` its rotation, and `$vpf` its field of view. They are variables like any other, so
 `-D '$vpd=360' -D '$vpt=[0,0,50]'` (for every input of the command) or `def.$vpd=360&def.$vpt=[0,0,50]` (in a fragment)
-set them. A fragment takes no azimuth or elevation, so `def.$vpr=[90-elevation,0,azimuth]` sets the view angles there:
+set them. `azimuth=` and `elevation=` set the view angles in a fragment
+(`'part.scad#azimuth=45&elevation=20'` is `--azimuth 45 --elevation 20`); `def.$vpr=[90-elevation,0,azimuth]` does the
+same through the viewport variable:
 `'part.scad#def.$vpr=[70,0,45]'` is `--azimuth 45 --elevation 20`, with the framing still automatic (quote it with
-single quotes in a shell, where `$` expands inside double quotes). With `--view`, `--azimuth`, or `--elevation` the
-angles still come from the view. The picture below is the `montage` command above, for the assembly
-`docs/images/showcase/explode.scad` of this repository (the plate is as large in all three cells because the camera is
-fixed).
+single quotes in a shell, where `$` expands inside double quotes). With `--view`, `--azimuth`, or `--elevation` (or
+`view=`, `azimuth=`, or `elevation=` in the fragment) the view is explicit and `$vpr` does not set the angles: an angle
+that is given is used, and the named view (`iso` without one) supplies only the angles that were not given. The picture
+below is the `montage` command above, for the assembly `docs/images/showcase/explode.scad` of this repository (the
+plate is as large in all three cells because the camera is fixed).
 
 ![An assembly at three explode levels, drawn by canvasnet montage with one fixed camera](../images/montage-explode.png){width=80%}
 
@@ -1063,13 +1070,15 @@ draws the model and the chart into their rectangles. The result lists each embed
   diagram shows through; a chart keeps **its own background** (white unless it declares another), because a chart is
   meant to carry its own paper. An embedded model is drawn with the view the library chooses for it (isometric for a 3D
   model, top-down for a flat 2D model, or the view of its own `$vpr`, `$vpt`, `$vpd`, and `$vpf` variables;
-  `#view=front` in the link chooses a named view) and default settings: the options of the command (`--view`, `-D`,
-  `--param`, `--page`, `--dpi`, ...) apply to the SVG file only; the link sets the variables of an embedded model and
-  the parameters of an embedded chart (see *Variables and parameters in the link*).
+  `#view=front` in the link chooses a named view, and `#azimuth=30&amp;elevation=20` turns it) and default settings: the
+  options of the command (`--view`, `-D`, `--param`, `--page`, `--dpi`, ...) apply to the SVG file only; the link sets
+  the variables of an embedded model and the parameters of an embedded chart (see *Variables and parameters in the
+  link*).
 - **Choosing a page.** A link to a document draws **page 1 unless its fragment says otherwise**:
   `<image href="report.pdf#page=3" .../>` draws page 3 of a PDF, `deck.pptx#slide=2` (or `#page=2`) slide 2 of a
   presentation, `drawing.vsdx#page=2` page 2 of a Visio drawing, and `part.scad#view=front` draws a model from a named
-  view (`iso`, `front`, `back`, `left`, `right`, `top`, `bottom`). The fragment is a list of `name=value` parameters
+  view (`iso`, `front`, `back`, `left`, `right`, `top`, `bottom`), turned with `#azimuth=30&amp;elevation=20` like
+  `--azimuth` and `--elevation`. The fragment is a list of `name=value` parameters
   separated by `&` (written `&amp;` inside an XML attribute); `%XX` escapes are decoded after the split; names are not
   case sensitive; a page counts from 1. A fragment is at most 2048 characters and 32 parameters. An embedded file never
   takes the options of the command: `--page` chooses the page of the SVG file only, and the page of an embedded document
@@ -2151,7 +2160,8 @@ Each code, its cause, and what to do:
 - **`unsupported-format`**: The input is not a format the tool reads (for example a DOCX or an unknown extension). What
   to do: See `canvasnet formats`.
 - **`corrupt-input`**: The content is damaged or is not what its extension says (a truncated or garbage file), or a
-  model, chart, or diagram file is longer than the library reads. What to do: Repair or replace the file.
+  model, chart, or diagram file is longer than the library reads. An SVG file that is not well-formed XML is named with
+  the line and column of the error. What to do: Repair or replace the file.
 - **`unsupported-feature`**: The file is valid but uses a feature the library cannot draw or decode (an interlaced PNG,
   a PPTX shape the library lacks, or any skipped feature with `--strict`). What to do: Remove the feature, or drop
   `--strict` if it is only a skipped picture.

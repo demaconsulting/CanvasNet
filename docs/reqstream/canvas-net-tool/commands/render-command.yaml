@@ -271,7 +271,8 @@ sections:
           (part.scad#view=top&def.width=20, report.pdf#page=3, chart.vl.json#param.cutoff=5, flow.mmd#theme=dark) with
           the grammar and the checks of the link of an SVG image (InputReference and SourceLoader.Probe), treating a
           number sign as the start of a fragment only when no file has that exact name, let the fragment override
-          --page, --all-pages, --view, -D, --param and --theme for that input (variables and parameters by name), draw
+          --page, --all-pages, --view, --azimuth, --elevation, -D, --param and --theme for that input (variables
+          and parameters by name), draw
           the page the fragment names as the only page, name the input with its fragment in the text result and report
           it in the fragment member of the input object of the JSON result, fail with the code image-fragment-invalid
           for a fragment or a value that cannot be used and with page-out-of-range for a page the file does not have
@@ -296,6 +297,7 @@ sections:
           - InputFragment_OverTheLimits_IsInvalid
           - RenderCommand_Run_MermaidTheme_OptionFragmentAndTextPrecedence
           - InputFragment_Grammar_IsTheGrammarOfALink
+          - InputFragment_Render_AzimuthAndElevation_DrawLikeTheOptions
 
       - id: CanvasNetTool-Commands-RenderCommand-Source
         title: >-
@@ -461,7 +463,9 @@ sections:
           The render command shall report a missing, corrupt, or unsupported input (including a damaged
           document) as an expected error
           and write no output, shall report a missing output, a wrong number of inputs, or an unknown
-          option as a usage error, and shall reject null arguments.
+          option as a usage error, shall reject null arguments, and shall carry the line and column of
+          the XML error of an SVG input that is not well-formed into the message of the text and JSON
+          results.
         justification: |
           Mistakes must produce stable, actionable errors, and a failed render must not leave a partial
           output.
@@ -470,6 +474,7 @@ sections:
           - RenderCommand_Run_TruncatedDocument_ThrowsCorruptInputAndWritesNothing
           - RenderCommand_Run_CommandLineMistakes_ThrowUsageError
           - RenderCommand_Run_NullArguments_ThrowsArgumentNullException
+          - RenderCommand_Run_MalformedSvg_ReportsTheLineAndColumn
 
       - id: CanvasNetTool-Commands-RenderCommand-ScadAnchors
         title: >-

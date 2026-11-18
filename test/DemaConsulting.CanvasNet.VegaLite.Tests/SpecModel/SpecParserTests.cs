@@ -345,6 +345,12 @@ public class SpecParserTests
     [InlineData("{\"mark\":\"blob\"}", "/mark")]
     [InlineData("{\"mark\":{\"type\":\"bar\",\"orient\":\"diagonal\"}}", "/mark/orient")]
     [InlineData("{\"mark\":{\"type\":\"bar\",\"size\":\"big\"}}", "/mark/size")]
+    [InlineData("{\"mark\":{\"type\":\"bar\",\"cornerRadius\":\"round\"}}", "/mark/cornerRadius")]
+    [InlineData("{\"mark\":{\"type\":\"bar\",\"cornerRadiusEnd\":\"4\"}}", "/mark/cornerRadiusEnd")]
+    [InlineData("{\"mark\":{\"type\":\"bar\",\"cornerRadiusTopLeft\":true}}", "/mark/cornerRadiusTopLeft")]
+    [InlineData("{\"mark\":{\"type\":\"bar\",\"cornerRadiusTopRight\":[2]}}", "/mark/cornerRadiusTopRight")]
+    [InlineData("{\"mark\":{\"type\":\"rect\",\"cornerRadiusBottomRight\":{}}}", "/mark/cornerRadiusBottomRight")]
+    [InlineData("{\"mark\":{\"type\":\"rect\",\"cornerRadiusBottomLeft\":null}}", "/mark/cornerRadiusBottomLeft")]
     [InlineData("{\"layer\":{}}", "/layer")]
     [InlineData("{\"layer\":[1]}", "/layer/0")]
     [InlineData("{\"layer\":[{\"mark\":3}]}", "/layer/0/mark")]
@@ -644,7 +650,8 @@ public class SpecParserTests
               "config": { "view": { "stroke": null } },
               "data": { "name": "t", "format": { "parse": null, "type": "json" } },
               "datasets": { "t": [ { "a": 1 } ], "csv": "a,b\n1,2" },
-              "mark": { "type": "bar", "style": ["x", "y"], "discreteBandSize": { "band": 0.5 }, "color": { "gradient": "linear" } },
+              "mark": { "type": "bar", "style": ["x", "y"], "discreteBandSize": { "band": 0.5 }, "color": { "gradient": "linear" },
+                "cornerRadiusEnd": { "expr": "4" }, "cornerRadiusTopLeft": 2 },
               "encoding": {
                 "x": { "field": "a", "type": "ordinal", "sort": ["b", "a"], "scale": { "type": "band", "padding": { "expr": "0.1" } }, "axis": { "tickCount": "year" } },
                 "y": { "aggregate": "count", "type": "quantitative", "axis": null, "scale": null, "bin": { "maxbins": 5 } },

@@ -26,7 +26,8 @@ public static partial class SvgCodec
     /// <param name="stream">The stream to parse.</param>
     /// <returns>The document's root <c>svg</c> element.</returns>
     /// <exception cref="InvalidDataException">
-    ///     Thrown when <paramref name="stream"/> is not well-formed XML, or its root element is
+    ///     Thrown when <paramref name="stream"/> is not well-formed XML (the message names the line
+    ///     and column of the error, see <see cref="MalformedXml"/>), or its root element is
     ///     not named <c>svg</c>.
     /// </exception>
     private static XElement LoadRootElement(Stream stream)
@@ -43,7 +44,7 @@ public static partial class SvgCodec
         }
         catch (XmlException ex)
         {
-            throw new InvalidDataException("The stream does not contain well-formed XML.", ex);
+            throw MalformedXml(ex);
         }
 
         var root = document.Root;
@@ -74,8 +75,10 @@ public static partial class SvgCodec
     /// </returns>
     /// <exception cref="InvalidDataException">
     ///     Thrown when <paramref name="stream"/> is not well-formed XML up to and including the
-    ///     root start-tag, its root element is not named <c>svg</c>, or the root start-tag alone
-    ///     (including an oversized attribute value) exceeds <see cref="MaxDocumentCharacters"/>.
+    ///     root start-tag (the message names the line and column of the error, see
+    ///     <see cref="MalformedXml"/>), its root element is not named <c>svg</c>, or the root
+    ///     start-tag alone (including an oversized attribute value) exceeds
+    ///     <see cref="MaxDocumentCharacters"/>.
     /// </exception>
     private static XElement LoadRootElementAttributesOnly(Stream stream)
     {
@@ -116,8 +119,46 @@ public static partial class SvgCodec
         }
         catch (XmlException ex)
         {
-            throw new InvalidDataException("The stream does not contain well-formed XML.", ex);
+            throw MalformedXml(ex);
         }
+    }
+
+    /// <summary>
+    ///     Builds the <see cref="InvalidDataException"/> for a stream that is not well-formed XML,
+    ///     naming where the reader found the first error.
+    /// </summary>
+    /// <remarks>
+    ///     Both <see cref="LoadRootElement"/> and <see cref="LoadRootElementAttributesOnly"/> use
+    ///     this, so <c>Load</c> and <c>GetInfo</c> report the same message. The message names the
+    ///     line and column of the error so a user can find the fault in a large drawing, and it says
+    ///     that <c>--</c> is not allowed inside an XML comment when that is the error, since that
+    ///     rule is easy to break and the reader's own message does not explain it. The hint is found
+    ///     in the reader's English message, so on a runtime with localized messages only the
+    ///     location is added. Pure and thread-safe.
+    /// </remarks>
+    /// <param name="ex">The reader's exception; must not be null.</param>
+    /// <returns>
+    ///     An exception whose message is <c>The stream does not contain well-formed XML</c>, then
+    ///     <c>(line L, column C)</c> when the reader reports a line, then
+    ///     <c>: '--' is not allowed inside an XML comment</c> for that error, ending with a period.
+    ///     <paramref name="ex"/> is kept as the inner exception.
+    /// </returns>
+    private static InvalidDataException MalformedXml(XmlException ex)
+    {
+        // Name the location only when the reader knows it (an empty stream reports line 0)
+        var message = "The stream does not contain well-formed XML";
+        if (ex.LineNumber > 0)
+        {
+            message += string.Create(CultureInfo.InvariantCulture, $" (line {ex.LineNumber}, column {ex.LinePosition})");
+        }
+
+        // Explain the double hyphen in a comment, which the reader's message only quotes
+        if (ex.Message.Contains("'--'", StringComparison.Ordinal))
+        {
+            message += ": '--' is not allowed inside an XML comment";
+        }
+
+        return new InvalidDataException(message + ".", ex);
     }
 
     /// <summary>

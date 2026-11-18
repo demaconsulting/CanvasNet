@@ -745,6 +745,22 @@ bounded by the same character cap `LoadRootElement` already enforces — even th
 past the root start-tag, it still advances character-by-character through the tag's own attribute
 values.
 
+#### CanvasNetSvg-SvgCodec-MalformedXmlLocation: Malformed XML Location
+
+**Tests**: `SvgCodec_Load_MalformedXml_MessageNamesLineAndColumn`,
+`SvgCodec_Load_DoubleHyphenInComment_MessageExplainsTheComment`,
+`SvgCodec_GetInfo_MalformedXmlBeforeRoot_MessageNamesLineAndColumn`
+
+`SvgCodec_Load_MalformedXml_MessageNamesLineAndColumn` loads a drawing whose `</svg>` end tag on
+line 3 does not match the open `g` element of line 2, and asserts the message contains
+`(line 3, column 3)`, has no `'--'` comment hint, and keeps the `XmlException` as the inner
+exception. `SvgCodec_Load_DoubleHyphenInComment_MessageExplainsTheComment` loads a drawing with
+`<!-- a -- b -->` on line 2 and asserts the whole message: `The stream does not contain well-formed XML`,
+then `(line 2, column 10)`, then `: '--' is not allowed inside an XML comment.`
+`SvgCodec_GetInfo_MalformedXmlBeforeRoot_MessageNamesLineAndColumn` puts the same comment before the
+root element, where `GetInfo` reads, and asserts the message contains
+`(line 1, column 8): '--' is not allowed inside an XML comment`.
+
 #### CanvasNetSvg-SvgCodec-XxeHardening: DOCTYPE-Bearing Documents Rejected via Both Load and GetInfo
 
 **Tests**: `SvgCodec_Load_DocumentWithDoctypeDeclaration_ThrowsInvalidDataException`,

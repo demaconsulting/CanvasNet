@@ -1803,76 +1803,66 @@ overloads are unchanged and behave as `new SvgLoadOptions()`.
 `SvgCodec` draws a firm line between two categories of problem, and handles each one
 differently:
 
-- **Malformed or unparseable input** — the stream is not well-formed XML (`Load` throws
-  `System.Xml.XmlException` from its full `XDocument.Load` parse of the whole document, bounded to
-  a fixed maximum total character count via `XmlReaderSettings.MaxCharactersInDocument` so an
-  unbounded-size stream cannot be fully materialized into an in-memory DOM before any other guard
-  gets a chance to run — see the accepted-limitation note below; `GetInfo`
-  throws the same exception type from its bounded, root-start-tag-only `System.Xml.XmlReader`
-  read), or a value the codec must be able to parse to render anything at all is invalid (a
-  `viewBox`/`transform` attribute with the wrong number of components or a non-numeric or
-  non-finite (`NaN`/`Infinity`) component,
-  `path` `d` data with an unrecognized command letter or missing required arguments, or a
-  combined total of path-data commands/points-list coordinates/text characters exceeding the
-  fixed geometry-parsing work budget described above). Every one of these is caught (or detected)
-  and re-thrown/thrown as `System.IO.InvalidDataException` with a descriptive message naming what
-  was invalid, exactly the same contract every other codec in this system uses for malformed
-  source data. This throwing behavior is deliberately narrow: a non-finite gradient stop
-  `offset`/coordinate, an
-  `rgb()`/`rgba()` channel or alpha, or the root `<svg>` element's `width`/`height` fallback tier
-  is instead tolerated — treated as absent/unrecognized and resolved via each attribute's own
-  documented fallback — because rendering can still proceed meaningfully without that one value,
-  unlike a malformed `viewBox`/`transform`/`path` `d`, without which nothing can be rendered at
-  all. The same three-class policy governs every length (see *Length Units and font-size*): a
-  malformed length (an unknown unit, whitespace between number and unit, a malformed `calc()`, a
-  mixed-type `calc()` such as `calc(1 + 1px)`, or a
-  non-finite or over-magnitude result) in shape/text/use/image/marker geometry, `stroke-width`,
-  `stroke-dashoffset` or a `stroke-dasharray` entry is `InvalidDataException` (never a raw
-  `FormatException`); in the root `width`/`height` or a gradient/pattern/mask-region coordinate it
-  is treated as absent; in `font-size`, `line-height`, `font-family`, `font-weight`, `font-style`,
-  the `font` shorthand or text `dx`/`dy` the declaration is dropped (the next lower source
-  applies, else the value is inherited, or there is no offset for `dx`/`dy`) - a deliberate change
-  from throwing for `font-size`, matching the CSS invalid-declaration rule. An invalid `stroke-miterlimit` value
-  (non-finite, or less than `1` - the documented
-  contract of the `Drawing.StrokeStyle` it eventually feeds) is a further, separate tolerant case:
-  rather than throwing, it falls back to the inherited value, matching this codec's existing
-  tolerant handling of a malformed `stroke-dasharray`, since there is no natural "skip the whole
-  stroke" operation tied to an invalid miter limit alone the way there is for a non-positive
-  `stroke-width`. A negative `radialGradient` `r`/`fr` value (below the documented contract of
-  the `Drawing.RadialGradient` it eventually feeds — "finite and greater than or equal to zero")
-  is likewise a tolerant case: rather than throwing, it falls back to the same default already
-  used for an absent attribute, matching this codec's existing tolerant handling of every other
-  gradient coordinate (`cx`/`cy`/`fx`/`fy`/`x1`/`y1`/`x2`/`y2`), since a radius is otherwise
-  parsed identically to every other gradient coordinate and only its sign is additionally
-  constrained. A composed transform that overflows to a non-finite value across nested
-  `transform="scale(...)"` groups (each individual literal finite, but their cross-element product
-  not) is likewise a tolerant case: the affected element, and independently an affected gradient's
-  own `gradientTransform`/bounding-box composition, is skipped/treated as "no paint" rather than
-  reaching a `Drawing`-namespace constructor's own finiteness check and throwing an uncaught
-  `ArgumentOutOfRangeException`. A `path` `d` attribute whose relative-coordinate accumulation
-  (each command's individually-finite parsed literals summed against the current point), or whose
-  `S`/`T` smooth-curve reflection, overflows to a non-finite value is likewise a tolerant case:
-  the whole `path` element is skipped (rendered as an empty path, the same no-op `RenderShape`
-  already applies to any other empty path) rather than reaching `Drawing.DashSplitter`'s
-  dash-interval walk with a non-finite path length, which would otherwise stall its finite-step
-  `while` loop indefinitely whenever the affected shape also has a
-  `stroke-dasharray`. An extreme-but-individually-finite arc radius (an `A`/`a` path-data command,
-  or a `rect`'s rounded-corner/`circle`/`ellipse` quarter-arc construction) whose squared magnitude
-  overflows `Geometry.SvgArcConverter`'s internal ellipse-center arithmetic to a non-finite control
-  point or endpoint is likewise a tolerant case: each emitted Bezier segment's points are validated
-  finite immediately before being appended to the path builder, and the whole affected `path`/
-  `rect`/`circle`/`ellipse` element is skipped (rendered as an empty path) rather than propagating a
-  raw non-finite value into the rasterizer — the `path`-data case reuses `PathDataParser`'s existing
-  `RequireFinite`/`OverflowException` tolerant-skip mechanism, and the `rect`/`circle`/`ellipse`
-  shape-builder case adds the same convention (a narrowly-scoped `catch (OverflowException)`
-  returning an empty path) at its own, previously entirely unguarded, call site. A
-  `stroke-dasharray`/`stroke-dashoffset` that is individually finite as parsed, but overflows to a
-  non-finite value once scaled by a composed transform's own scale factor (the same scale
-  `stroke-width` is already scaled by), is likewise a tolerant case: rather than reaching
-  `Drawing.StrokeStyle`'s constructor and throwing, the scaled dash array/offset fall back to "no
-  dashing" (a solid stroke) — a more conservative choice than skipping the whole stroke, since the
-  stroke geometry itself remains perfectly valid and only its dash pattern overflowed — mirroring
-  `ParseDashArray`'s own existing tolerant "malformed dash array -> no dashing" convention.
+- **Malformed or unparseable input** — the stream is not well-formed XML (`Load` throws `System.Xml.XmlException` from
+  its full `XDocument.Load` parse of the whole document, bounded to a fixed maximum total character count via
+  `XmlReaderSettings.MaxCharactersInDocument` so an unbounded-size stream cannot be fully materialized into an in-memory
+  DOM before any other guard gets a chance to run — see the accepted-limitation note below; `GetInfo` throws the same
+  exception type from its bounded, root-start-tag-only `System.Xml.XmlReader` read), or a value the codec must be able
+  to parse to render anything at all is invalid (a `viewBox`/`transform` attribute with the wrong number of components
+  or a non-numeric or non-finite (`NaN`/`Infinity`) component, `path` `d` data with an unrecognized command letter or
+  missing required arguments, or a combined total of path-data commands/points-list coordinates/text characters
+  exceeding the fixed geometry-parsing work budget described above). Every one of these is caught (or detected) and
+  re-thrown/thrown as `System.IO.InvalidDataException` with a descriptive message naming what was invalid, exactly the
+  same contract every other codec in this system uses for malformed source data. For a stream that is not well-formed
+  XML, `Load` and `GetInfo` build the message the same way: it names `(line L, column C)` from the `XmlException` when
+  the reader reports a line, and adds `: '--' is not allowed inside an XML comment` when the reader's message names
+  `'--'`. The .NET reader messages are English, so on a runtime with localized messages only the location is added. The
+  `XmlException` is kept as the inner exception. This throwing behavior is deliberately narrow: a non-finite gradient
+  stop `offset`/coordinate, an `rgb()`/`rgba()` channel or alpha, or the root `<svg>` element's `width`/`height`
+  fallback tier is instead tolerated — treated as absent/unrecognized and resolved via each attribute's own documented
+  fallback — because rendering can still proceed meaningfully without that one value, unlike a malformed
+  `viewBox`/`transform`/`path` `d`, without which nothing can be rendered at all. The same three-class policy governs
+  every length (see *Length Units and font-size*): a malformed length (an unknown unit, whitespace between number and
+  unit, a malformed `calc()`, a mixed-type `calc()` such as `calc(1 + 1px)`, or a non-finite or over-magnitude result)
+  in shape/text/use/image/marker geometry, `stroke-width`, `stroke-dashoffset` or a `stroke-dasharray` entry is
+  `InvalidDataException` (never a raw `FormatException`); in the root `width`/`height` or a gradient/pattern/mask-region
+  coordinate it is treated as absent; in `font-size`, `line-height`, `font-family`, `font-weight`, `font-style`, the
+  `font` shorthand or text `dx`/`dy` the declaration is dropped (the next lower source applies, else the value is
+  inherited, or there is no offset for `dx`/`dy`) - a deliberate change from throwing for `font-size`, matching the CSS
+  invalid-declaration rule. An invalid `stroke-miterlimit` value (non-finite, or less than `1` - the documented contract
+  of the `Drawing.StrokeStyle` it eventually feeds) is a further, separate tolerant case: rather than throwing, it falls
+  back to the inherited value, matching this codec's existing tolerant handling of a malformed `stroke-dasharray`, since
+  there is no natural "skip the whole stroke" operation tied to an invalid miter limit alone the way there is for a
+  non-positive `stroke-width`. A negative `radialGradient` `r`/`fr` value (below the documented contract of the
+  `Drawing.RadialGradient` it eventually feeds — "finite and greater than or equal to zero") is likewise a tolerant
+  case: rather than throwing, it falls back to the same default already used for an absent attribute, matching this
+  codec's existing tolerant handling of every other gradient coordinate (`cx`/`cy`/`fx`/`fy`/`x1`/`y1`/`x2`/`y2`), since
+  a radius is otherwise parsed identically to every other gradient coordinate and only its sign is additionally
+  constrained. A composed transform that overflows to a non-finite value across nested `transform="scale(...)"` groups
+  (each individual literal finite, but their cross-element product not) is likewise a tolerant case: the affected
+  element, and independently an affected gradient's own `gradientTransform`/bounding-box composition, is skipped/treated
+  as "no paint" rather than reaching a `Drawing`-namespace constructor's own finiteness check and throwing an uncaught
+  `ArgumentOutOfRangeException`. A `path` `d` attribute whose relative-coordinate accumulation (each command's
+  individually-finite parsed literals summed against the current point), or whose `S`/`T` smooth-curve reflection,
+  overflows to a non-finite value is likewise a tolerant case: the whole `path` element is skipped (rendered as an empty
+  path, the same no-op `RenderShape` already applies to any other empty path) rather than reaching
+  `Drawing.DashSplitter`'s dash-interval walk with a non-finite path length, which would otherwise stall its finite-step
+  `while` loop indefinitely whenever the affected shape also has a `stroke-dasharray`. An
+  extreme-but-individually-finite arc radius (an `A`/`a` path-data command, or a `rect`'s
+  rounded-corner/`circle`/`ellipse` quarter-arc construction) whose squared magnitude overflows
+  `Geometry.SvgArcConverter`'s internal ellipse-center arithmetic to a non-finite control point or endpoint is likewise
+  a tolerant case: each emitted Bezier segment's points are validated finite immediately before being appended to the
+  path builder, and the whole affected `path`/ `rect`/`circle`/`ellipse` element is skipped (rendered as an empty path)
+  rather than propagating a raw non-finite value into the rasterizer — the `path`-data case reuses `PathDataParser`'s
+  existing `RequireFinite`/`OverflowException` tolerant-skip mechanism, and the `rect`/`circle`/`ellipse` shape-builder
+  case adds the same convention (a narrowly-scoped `catch (OverflowException)` returning an empty path) at its own,
+  previously entirely unguarded, call site. A `stroke-dasharray`/`stroke-dashoffset` that is individually finite as
+  parsed, but overflows to a non-finite value once scaled by a composed transform's own scale factor (the same scale
+  `stroke-width` is already scaled by), is likewise a tolerant case: rather than reaching `Drawing.StrokeStyle`'s
+  constructor and throwing, the scaled dash array/offset fall back to "no dashing" (a solid stroke) — a more
+  conservative choice than skipping the whole stroke, since the stroke geometry itself remains perfectly valid and only
+  its dash pattern overflowed — mirroring `ParseDashArray`'s own existing tolerant "malformed dash array -> no dashing"
+  convention.
 - **Well-formed but out-of-scope constructs** — see *Out-of-scope subset* above. These are
   silently skipped, not errors.
 

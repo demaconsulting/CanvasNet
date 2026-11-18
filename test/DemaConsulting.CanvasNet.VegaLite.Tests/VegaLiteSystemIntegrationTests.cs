@@ -240,6 +240,44 @@ public class VegaLiteSystemIntegrationTests
     }
 
     /// <summary>
+    ///     Validates that <c>cornerRadiusEnd</c> rounds only the value end of a bar, for a vertical and a horizontal bar.
+    /// </summary>
+    [Fact]
+    public void CanvasNetVegaLite_SystemIntegration_Render_BarCornerRadiusEnd_RoundsOnlyTheValueEnd()
+    {
+        // Arrange: one bar of a 100 by 100 view without axes or view border, with 5 pixels of padding. The band of the one
+        // category is 90 pixels wide from 5, and the value 10 is the top of the nice domain 0 to 10, so the bar covers
+        // 10 to 100 across and 5 to 105 along its value (surface pixels)
+        static string Chart(string x, string y) =>
+            "{ \"width\": 100, \"height\": 100, \"config\": { \"view\": { \"stroke\": null } }, \"data\": { \"values\": [ { \"k\": \"a\", \"n\": 10 } ] }, " +
+            "\"mark\": { \"type\": \"bar\", \"cornerRadiusEnd\": 8 }, \"encoding\": { \"x\": " + x + ", \"y\": " + y + " } }";
+        const string category = "{ \"field\": \"k\", \"type\": \"nominal\", \"axis\": null }";
+        const string value = "{ \"field\": \"n\", \"type\": \"quantitative\", \"axis\": null }";
+        var bar = new Rgba32(0x4c, 0x78, 0xa8, 255);
+        var white = VegaLiteTestHelpers.White;
+
+        // Act
+        using var vertical = VegaLiteDocument.Parse(Chart(category, value)).Render(cancellationToken: Ct);
+        using var horizontal = VegaLiteDocument.Parse(Chart(value, category)).Render(cancellationToken: Ct);
+
+        // Assert: one pixel inside each corner of the vertical bar (10 to 100 by 5 to 105), the top corners are the
+        // background and the bottom corners and the middle are the bar
+        Assert.Equal(white, vertical[11, 6]);
+        Assert.Equal(white, vertical[98, 6]);
+        Assert.Equal(bar, vertical[98, 103]);
+        Assert.Equal(bar, vertical[11, 103]);
+        Assert.Equal(bar, vertical[55, 55]);
+
+        // Assert: one pixel inside each corner of the horizontal bar (5 to 105 by 10 to 100), the right corners are the
+        // background and the left corners and the middle are the bar
+        Assert.Equal(bar, horizontal[6, 11]);
+        Assert.Equal(white, horizontal[103, 11]);
+        Assert.Equal(white, horizontal[103, 98]);
+        Assert.Equal(bar, horizontal[6, 98]);
+        Assert.Equal(bar, horizontal[55, 55]);
+    }
+
+    /// <summary>
     ///     Validates the scale, the uniform fit to an explicit size and the rejection of invalid sizes.
     /// </summary>
     [Fact]

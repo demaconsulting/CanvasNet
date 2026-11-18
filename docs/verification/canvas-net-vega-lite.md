@@ -339,6 +339,16 @@ above a bar and in the gaps, the `#ddd` grid lines at 160, 120, 80, 40, and 0, t
 and tick below the East band center, and the ink of the title and the axis texts in their bands, with the padding
 untouched.
 
+### Charts: Bar Corner Radius End Rounds Only The Value End
+
+**Test**: `CanvasNetVegaLite_SystemIntegration_Render_BarCornerRadiusEnd_RoundsOnlyTheValueEnd`
+
+Renders a one-bar chart with `cornerRadiusEnd: 8`, no axes, and no view border, once as a vertical bar and once as a
+horizontal bar, through the public `VegaLiteDocument.Render`. One pixel inside each corner of the bar (its position
+derived by hand from the band and linear scale formulas and the 5 pixels of padding), the corners at the value end
+(the top of the vertical bar, the right end of the horizontal bar) are the white background, and the corners at the
+base and the middle of the bar are the bar color `#4c78a8`.
+
 ### Charts: Points, Rules, And Ticks Have Expected Sample Pixels
 
 **Test**: `CanvasNetVegaLite_SystemIntegration_Render_PointRuleTickHaveExpectedSamplePixels`

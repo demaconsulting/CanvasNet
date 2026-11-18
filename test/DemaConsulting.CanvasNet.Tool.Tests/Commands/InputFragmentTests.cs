@@ -603,6 +603,8 @@ public class InputFragmentTests
     [InlineData("part.scad", "def.1x=3", "image-fragment-invalid")]
     [InlineData("part.scad", "view=sideways", "image-fragment-invalid")]
     [InlineData("part.scad", "view", "image-fragment-invalid")]
+    [InlineData("part.scad", "azimuth=abc", "image-fragment-invalid")]
+    [InlineData("part.scad", "elevation=95", "image-fragment-invalid")]
     [InlineData("chart.vl.json", "param.brush={x", "image-fragment-invalid")]
     [InlineData("report.pdf", "page=abc", "image-fragment-invalid")]
     [InlineData("report.pdf", "page=0", "image-fragment-invalid")]
@@ -666,6 +668,42 @@ public class InputFragmentTests
     }
 
     /// <summary>
+    ///     Test that <c>#azimuth=</c> and <c>#elevation=</c> turn the view of a model as <c>--azimuth</c> and <c>--elevation</c>
+    ///     do (the same angles in the result and the same picture), and that an angle the fragment does not set is still
+    ///     taken from the command.
+    /// </summary>
+    [Fact]
+    public void InputFragment_Render_AzimuthAndElevation_DrawLikeTheOptions()
+    {
+        // Arrange: an asymmetric model, so that a turned view draws a different picture
+        using var directory = new TempDirectory();
+        var model = FixtureFactory.WriteText(directory.Path, "part.scad", FixtureFactory.AsymmetricModel);
+        var byFragment = directory.Combine("fragment.png");
+        var byOptions = directory.Combine("options.png");
+
+        // Act
+        var (fragment, _) = RunOk("render", $"{model}#azimuth=30&elevation=20", "--size", "64x64", "-o", byFragment);
+        RunOk("render", model, "--azimuth", "30", "--elevation", "20", "--size", "64x64", "-o", byOptions).Document.Dispose();
+        var (compared, _) = RunOk("compare", byFragment, byOptions);
+        var (mixed, _) = RunOk("render", $"{model}#azimuth=30", "--elevation", "10", "--size", "64x64", "-o", directory.Combine("mixed.png"));
+
+        // Assert: the fragment reports the angles with no diagnostics, and draws what the options draw
+        var operation = fragment.RootElement.GetProperty("operations")[0];
+        Assert.Equal(30, operation.GetProperty("azimuth").GetDouble(), 9);
+        Assert.Equal(20, operation.GetProperty("elevation").GetDouble(), 9);
+        Assert.Empty(Notes(fragment));
+        Assert.True(compared.RootElement.GetProperty("metrics").GetProperty("identical").GetBoolean());
+
+        // Assert: the elevation the fragment does not set comes from the command
+        var refined = mixed.RootElement.GetProperty("operations")[0];
+        Assert.Equal(30, refined.GetProperty("azimuth").GetDouble(), 9);
+        Assert.Equal(10, refined.GetProperty("elevation").GetDouble(), 9);
+        fragment.Dispose();
+        compared.Dispose();
+        mixed.Dispose();
+    }
+
+    /// <summary>
     ///     Test that the help documents the fragment of an input path: the <c>input fragment</c> term of the <c>svg</c> topic
     ///     (the rule for the number sign, the quoting, the overrides, the codes), the fixed camera of the <c>scad</c> topic,
     ///     the error code in the <c>errors</c> topic, the page examples of the document topics, and the usage text of every
@@ -682,7 +720,7 @@ public class InputFragmentTests
         // Assert: the rules of the svg topic
         foreach (var expected in new[]
                  {
-                     "no file has that exact name", "Quote the input", "overrides --page, --view, --theme, -D, and --param",
+                     "no file has that exact name", "Quote the input", "overrides --page, --view, --azimuth, --elevation, --theme, -D, and --param",
                      "image-fragment-invalid", "page-out-of-range", "vl-param-unknown", "also with --strict", "Labels of montage"
                  })
         {

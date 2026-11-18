@@ -195,7 +195,9 @@ requirements in `docs/reqstream/canvas-net-mermaid/rendering/shape-library.yaml`
     groups with the roles `class-annotation`, `class-label`, `class-member`, and `class-method`, and the two dividers
     (`class-divider`, stroked only) under the name and under the attributes, from `y` to `y + 0.001` across the
     rectangle, unless the class is empty without the extra compartment. The rectangle and the dividers take the
-    style sheet's node paint with the class's own styles winning.
+    style sheet's node paint with the class's own styles winning. The class's stroke and its other shape styles never
+    reach the texts: Mermaid's `classBox` writes the class style on the HTML label spans, where a browser does not
+    paint `stroke`, and an SVG label takes only `color` as its fill, so the texts keep the label color with no outline.
   - **Result**: the node's size, bounds, and intersect function (`IntersectRect`) are those of the rectangle alone, as
     Mermaid's `updateNodeBounds(node, rect)`; the label is the name's.
 - `ClassHtmlLabels(MermaidConfig config)` - Mermaid's `evaluate(config.htmlLabels) ?? true`: only the top-level

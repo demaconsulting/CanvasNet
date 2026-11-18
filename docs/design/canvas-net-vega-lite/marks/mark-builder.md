@@ -123,7 +123,19 @@ property `RecordPositions` (false by default) says whether the items record what
 - A `rule` with only `x` is a vertical line across the height, with only `y` a horizontal line across the width (drawn
   from the far edge back to zero, as Vega-Lite does), and with both a stem from the value to zero along the measure
   axis; its stroke is black with a width from `strokeWidth`, `size`, or the size scale; a rule with neither channel
-draws nothing. - `cornerRadius` (a single radius) rounds bars and rectangles.
+draws nothing.
+- **Corner radii** (Vega-Lite's `compile/mark/encode/corner-radius.ts`): `cornerRadius` rounds every corner of bars and
+  rectangles. `cornerRadiusTopLeft`, `cornerRadiusTopRight`, `cornerRadiusBottomRight`, and `cornerRadiusBottomLeft`
+  each replace it for one corner; the scene item then carries `CornerRadii` with every corner resolved (`CornerPlan`),
+  and a chart with no corner property keeps `CornerRadii` null. `cornerRadiusEnd` applies only to a bar with an orient
+  (never to a rect): a ranged bar (`y2` for a vertical bar, `x2` for a horizontal one) gets it on every corner without
+  its own radius, and any other bar gets it on the corners of its value end, chosen per row from the rendered positions
+  (`CornerRadiiOf`), so a negative value or a reversed scale rounds the other end: the top of a vertical bar above its
+  baseline and the bottom of one below it, the right end of a horizontal bar right of its baseline and the left end of
+  one left of it. The corners away from the value end keep their own radius, else `cornerRadius`. Mark properties beat
+  configuration properties: a `cornerRadiusEnd` that only the configuration sets does not replace a corner that the
+  mark definition sets, by itself or through `cornerRadius`. A segment of a stack is rounded at its own value end,
+  where Vega-Lite clips the whole stack to round only its outer ends; this is a known difference.
 
 **Paint** (Vega-Lite `init.ts` and `color()`): `filled` is on for every mark except `point`, `line`, and `rule`; the
 mark color (`#4c78a8`, black for a rule and for a text) is the fill of a filled mark and the stroke of an unfilled one,
@@ -165,8 +177,8 @@ A result of the wrong kind leaves the default in place: a color expression that 
 mark properties, other encoding values, and conditions that cannot be evaluated) is not evaluated and is reported by the
 feature catalog (`vl-expr-ref`, `vl-encoding-condition`).
 
-**Ignored without a report**: `tooltip`, `href`, and the individual corner radii and
-`cornerRadiusEnd`. `x2` and `y2` of the marks other than `bar`, `rect`, `rule`, and `area` are reported by the feature
+**Ignored without a report**: `tooltip` and `href`. `x2` and `y2` of the marks other than `bar`, `rect`, `rule`, and
+`area` are reported by the feature
 catalog and ignored here. A `datum` of a temporal channel is read as one
 instant (a number is milliseconds, a text is a date text in the calendar of the scale; a text that is not a date gives
 the datum no position); a `datum` that is a date-time object is reported (`vl-encoding-datum-datetime`) and the

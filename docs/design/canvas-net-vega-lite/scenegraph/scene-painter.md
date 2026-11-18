@@ -151,6 +151,10 @@ pixels: about ten seconds in the worst case.
   gradient fill is still painted chunk by chunk, with the bounding
   box of the
   chunk as its reference (a gradient is not layered).
+- A rectangle is rounded by its `CornerRadius` (the core `Path.RoundRectangle`) or, when it carries `CornerRadii`, per
+  corner as Vega's per-corner rectangle is (`RectanglePath` with `SceneCornerRadii`): each radius is clamped to 0 to
+  half the shorter side, a radius that is not a finite number counts as 0, and each rounded corner is a quarter-circle
+  cubic curve with the kappa of the core path.
 - A group paints its own background and border as a (rounded) rectangle behind its children; a stroked group is offset
   as
   Vega does (half a pixel for a one-pixel stroke, so that the line covers exactly one pixel column and row). The

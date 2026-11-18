@@ -248,6 +248,42 @@ public class CanvasNetViewerFragmentTests
     }
 
     /// <summary>
+    ///     Test that <c>#azimuth=</c> and <c>#elevation=</c> turn the view of a model as <c>--azimuth</c> and
+    ///     <c>--elevation</c> do (replacing the angles of the named view), and that an angle that is not a number of
+    ///     degrees, or an elevation outside -90 to 90, is an invalid-fragment note with nothing drawn.
+    /// </summary>
+    [Fact]
+    public void CanvasNetViewer_Render_ScadAngleFragments_TurnTheViewOrAreInvalid()
+    {
+        // Arrange: a long bar, so that the front and the right views of it differ
+        using var folder = new ViewerTestFolder();
+        folder.WriteText("bar.scad", "cube([30, 10, 10]);");
+
+        // Act: the front view, the front view turned to azimuth 90, the right view, the angles of the right view alone,
+        // and two links with an angle that cannot be used
+        using var turned = Render(folder, "bar.scad#view=front", "bar.scad#view=front&azimuth=90", "bar.scad#view=right", "bar.scad#azimuth=90&elevation=0");
+        using var invalid = Render(folder, "bar.scad#azimuth=abc", "bar.scad#elevation=95");
+
+        // Assert: the three ways to the right view draw the same pixels, which differ from the front view
+        var surface = turned.Surface;
+        List<Rgba32> CellPixels(int cell) => [.. Enumerable.Range(0, 100 * 100).Select(i => surface[(cell * 100) + (i % 100), i / 100])];
+        var right = CellPixels(2);
+        Assert.Equal(right, CellPixels(1));
+        Assert.Equal(right, CellPixels(3));
+        Assert.NotEqual(right, CellPixels(0));
+        Assert.Empty(turned.Diagnostics);
+
+        // Assert: the invalid angles draw nothing and are reported with their values, not as unknown parameters
+        Assert.Equal(Backdrop, invalid.Surface[50, 50]);
+        Assert.Equal(Backdrop, invalid.Surface[150, 50]);
+        Assert.Equal(
+            [FolderImageResolver.FragmentInvalidCode, FolderImageResolver.FragmentInvalidCode],
+            invalid.Diagnostics.Select(d => d.Code));
+        Assert.Contains("'abc'", invalid.Diagnostics[0].Message, StringComparison.Ordinal);
+        Assert.Contains("'95'", invalid.Diagnostics[1].Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     ///     Test that a source of a URI scheme gets the link untouched (query included) with the fragment parsed, and
     ///     that a built-in source does not get a scheme link.
     /// </summary>

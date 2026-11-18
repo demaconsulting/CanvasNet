@@ -574,6 +574,21 @@ sections:
               - SvgCodec_Load_ViewBoxWidthExtremelySmallCausesNonFiniteFitScale_ThrowsInvalidDataException
               - SvgCodec_GetInfo_OversizedRootAttributeValueExceedingCharacterBudget_ThrowsInvalidDataException
 
+          - id: CanvasNetSvg-SvgCodec-MalformedXmlLocation
+            title: >-
+              The SvgCodec class shall name the line and column of the first XML error in the
+              message of the InvalidDataException for a stream that is not well-formed XML, from
+              both Load and GetInfo, and shall add that '--' is not allowed inside an XML comment
+              when that is the error.
+            justification: |
+              A user must be able to find the fault in a large drawing without a separate XML
+              checker, and a double hyphen inside a comment is an easy mistake whose cause the XML
+              reader does not explain.
+            tests:
+              - SvgCodec_Load_MalformedXml_MessageNamesLineAndColumn
+              - SvgCodec_Load_DoubleHyphenInComment_MessageExplainsTheComment
+              - SvgCodec_GetInfo_MalformedXmlBeforeRoot_MessageNamesLineAndColumn
+
           - id: CanvasNetSvg-SvgCodec-XxeHardening
             title: >-
               The SvgCodec class shall explicitly disable DTD processing (DtdProcessing.Prohibit)

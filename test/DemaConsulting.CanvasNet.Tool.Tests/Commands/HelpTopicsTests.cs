@@ -593,6 +593,8 @@ public partial class HelpTopicsTests
         Assert.Contains("page=N", fragment);
         Assert.Contains("slide=N", fragment);
         Assert.Contains("view=", fragment);
+        Assert.Contains("azimuth=", fragment);
+        Assert.Contains("elevation=", fragment);
         Assert.Contains("counts from 1", fragment);
         Assert.Contains(ImageFragment.MaxLength.ToString(System.Globalization.CultureInfo.InvariantCulture), fragment);
         Assert.Contains(ImageFragment.MaxParameters.ToString(System.Globalization.CultureInfo.InvariantCulture), fragment);

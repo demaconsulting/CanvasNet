@@ -827,6 +827,7 @@ value nested 40 levels deep and a null dictionary are
 **SourceLoader_ProbeInputReference_InvalidValue_IsImageFragmentInvalid**,
 **SourceLoader_ProbeInputReference_OverTheLimitsOrMissing_Throws**,
 **InputSelection_ApplyTo_Model_MergesVariablesAndReplacesTheView**,
+**InputSelection_ApplyTo_Model_FragmentAnglesReplaceTheCommandAngles**,
 **InputSelection_ApplyTo_Chart_MergesParametersByName**,
 **InputSelection_ApplyTo_Diagram_FragmentThemeReplacesTheCommandTheme**,
 **InputSelection_Diagnostics_AreTheCodesOfALinkAndReportedOnce**,
@@ -841,9 +842,13 @@ first `#` splits (`missing.scad#view=top`, `missing#a#b`, `#only`, `trailing#`).
 gives no `Selection` and `Specifier` is the path; a null argument is rejected. For
 `part.scad#view=top&def.width=20&def.$vpt=[0,0,2]` the selection merged over `front`, azimuth 30 and the variables
 `width=5`, `depth=9` has the view `top` (still given), the azimuth 30, `width=20`, `depth=9`, and the list `[0,0,2]`,
-applying it twice gives the same, and a fragment with no view keeps `front`. For a PDF `page=2` is the selection page
+applying it twice gives the same, and a fragment with no view keeps `front`. Merged over the command options `front`,
+azimuth 30, and elevation 5, `azimuth=-90&elevation=-10` gives the view `front`, the azimuth 270 (normalized), and the
+elevation -10 with no notes, `elevation=20` alone keeps the azimuth 30, and `view=top&azimuth=10` gives the view `top`,
+the azimuth 10, and the elevation 5. For a PDF `page=2` is the selection page
 (and replaces a page of 7), `page=3` is `page-out-of-range`, and `slide=2` (a presentation parameter) is the warning
-`image-fragment-unknown-parameter` with no page. Each of `def.width=[1,2`, `view=sideways`, `def.2x=1`,
+`image-fragment-unknown-parameter` with no page. Each of `def.width=[1,2`, `view=sideways`, `azimuth=abc`,
+`elevation=95`, `elevation=Infinity`, `def.2x=1`,
 `param.cutoff={bad` and `page=x` is `image-fragment-invalid` whose message has the fragment and that has a hint, and so
 is `theme=midnight` on a diagram; a fragment of 2,049 characters and one of 33 parameters are `image-fragment-invalid`;
 a missing file with a fragment is `input-not-found` that says a file of that name does not exist either, and without a

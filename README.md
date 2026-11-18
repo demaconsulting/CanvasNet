@@ -49,8 +49,9 @@ Any format CanvasNet reads can be a picture inside another. An SVG `<image href>
 shows one (`part@{ img: "part.scad" }`, or `<img src="part.scad">` in a label), and a Vega-Lite `image` mark can too.
 Links are read the way Pandoc reads them, relative to the document, under a file-access policy that the host chooses
 (by default every local file; confine untrusted documents to chosen folders), and never from the network. A URL fragment
-passes options to the linked file: `#page=` or `#slide=` (PDF, PowerPoint, Visio), `#view=` and `def.<name>=`
-(OpenSCAD views and variables), `param.<name>=` (Vega-Lite parameters), and `#theme=` (Mermaid); join several with
+passes options to the linked file: `#page=` or `#slide=` (PDF, PowerPoint, Visio), `#view=`, `#azimuth=`, `#elevation=`,
+and `def.<name>=` (OpenSCAD views, camera angles, and variables), `param.<name>=` (Vega-Lite parameters), and `#theme=`
+(Mermaid); join several with
 `&amp;` in XML.
 
 ```xml

@@ -316,6 +316,9 @@ E expression reference), and a wrong kind is a `VegaLiteSpecException` at the va
 - **Arc and polar properties.** `padAngle`, `innerRadius`, `outerRadius`, `radius`, `radius2`, `theta`, and `theta2` are
   numbers or expression references. `startAngle`, `endAngle`, and `padRadius` are not Vega-Lite properties and stay
   unknown properties (a warning).
+- **Corner radii.** `cornerRadius`, `cornerRadiusEnd`, `cornerRadiusTopLeft`, `cornerRadiusTopRight`,
+  `cornerRadiusBottomRight`, and `cornerRadiusBottomLeft` are numbers or expression references, so a corner radius of
+  another kind is an error at the value instead of a radius that the bar and rect marks ignore.
 - **Text properties.** `text` is a text, an array, an array of texts, or an expression reference; `fontStyle`,
   `ellipsis`,
   and `lineBreak` are texts or expression references; `fontWeight` is a text, a number, or an expression reference;

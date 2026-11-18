@@ -41,6 +41,7 @@ sections:
               as Vega-Lite resolves them.
             children:
               - CanvasNetVegaLite-Marks-MarkBuilder-Channels
+              - CanvasNetVegaLite-Marks-MarkBuilder-CornerRadii
             tests:
               - MarkBuilder_Build_ColorSizeAndOpacityUseExpectedProperties
 

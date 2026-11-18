@@ -7417,6 +7417,66 @@ public class SvgCodecTests
     }
 
     /// <summary>
+    ///     Proves that the message of the <see cref="InvalidDataException"/> for XML that is not
+    ///     well-formed names the line and column of the error, so a user can find the fault, and
+    ///     keeps the reader's <see cref="System.Xml.XmlException"/> as the inner exception.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_MalformedXml_MessageNamesLineAndColumn()
+    {
+        // Arrange: the end tag on line 3 does not match the open g element of line 2
+        const string svg = "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'>\n<g>\n</svg>";
+
+        // Act
+        using var stream = ToStream(svg);
+        var ex = Assert.Throws<InvalidDataException>(() => SvgCodec.Load(stream, 10, 10));
+
+        // Assert: the location is named, with no comment hint, and the reader's error is kept
+        Assert.Contains("(line 3, column 3)", ex.Message);
+        Assert.DoesNotContain("'--'", ex.Message);
+        Assert.IsType<System.Xml.XmlException>(ex.InnerException);
+    }
+
+    /// <summary>
+    ///     Proves that a <c>--</c> inside an XML comment is explained in the message, after the
+    ///     line and column of the error.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_DoubleHyphenInComment_MessageExplainsTheComment()
+    {
+        // Arrange: a comment on line 2 holding a double hyphen
+        const string svg = "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'>\n  <!-- a -- b -->\n</svg>";
+
+        // Act
+        using var stream = ToStream(svg);
+        var ex = Assert.Throws<InvalidDataException>(() => SvgCodec.Load(stream, 10, 10));
+
+        // Assert: the whole message
+        Assert.Equal(
+            "The stream does not contain well-formed XML (line 2, column 10): '--' is not allowed inside an XML comment.",
+            ex.Message);
+    }
+
+    /// <summary>
+    ///     Proves that <see cref="SvgCodec.GetInfo(Stream)"/>, which reads only up to the root
+    ///     start tag, names the line and column of an XML error before the root element in the
+    ///     same way <c>Load</c> does.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_GetInfo_MalformedXmlBeforeRoot_MessageNamesLineAndColumn()
+    {
+        // Arrange: a comment holding a double hyphen before the root element
+        const string svg = "<!-- a -- b -->\n<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10'/>";
+
+        // Act
+        using var stream = ToStream(svg);
+        var ex = Assert.Throws<InvalidDataException>(() => SvgCodec.GetInfo(stream));
+
+        // Assert: the location and the comment hint are named
+        Assert.Contains("(line 1, column 8): '--' is not allowed inside an XML comment", ex.Message);
+    }
+
+    /// <summary>
     ///     Proves that a malformed <c>viewBox</c> attribute (wrong number count) is rejected as an
     ///     <see cref="InvalidDataException"/>.
     /// </summary>
