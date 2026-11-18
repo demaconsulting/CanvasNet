@@ -6,16 +6,16 @@ see-also:
   - json/results
 ---
 
-- `source`: Where the report comes from: scad, vega-lite, mermaid, pptx, vsdx,
-  or svg. PDF and raster images have no diagnostics channel.
+- `source`: Where the report comes from: scad, vega-lite, mermaid, plantuml,
+  pptx, vsdx, or svg. PDF and raster images have no diagnostics channel.
 - `severity`: unsupported for a feature that was left out, or warning for a
   questionable construct that still rendered.
 - `code`: The stable generic identifier of the report, for example
   scad-module-surface, vl-mark-geoshape, svg-image-unresolved, or
   image-page-out-of-range. A warning of a SCAD model always has the code
   scad-warning, a warning of a Vega-Lite chart the code vega-lite-warning, and a
-  warning of a Mermaid diagram the code mermaid-warning; the finer identifier is
-  in detail.
+  warning of a Mermaid diagram the code mermaid-warning, and a warning of a
+  PlantUML diagram the code plantuml-warning; the finer identifier is in detail.
 - `message`: A description; for a model, chart, or diagram it gives file, line,
   and column.
 - `detail`: Only when the code is generic: the finer identifier of the library,

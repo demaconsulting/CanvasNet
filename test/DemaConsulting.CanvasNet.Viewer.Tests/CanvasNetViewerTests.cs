@@ -22,7 +22,7 @@ public class CanvasNetViewerTests
         var extensions = CanvasNetViewer.Extensions;
 
         // Assert
-        Assert.Equal(8, sources.Count);
+        Assert.Equal(9, sources.Count);
         Assert.Same(sources, CanvasNetViewer.ImageSources);
         Assert.False(sources is IList<IImageSource> { IsReadOnly: false });
         Assert.Equal(extensions.Order(StringComparer.Ordinal), extensions);

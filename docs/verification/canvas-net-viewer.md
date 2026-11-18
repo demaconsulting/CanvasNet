@@ -37,9 +37,10 @@ a video frame: it is a plain class in the test project that returns a differentl
 
 **Test**: `CanvasNetViewer_SystemIntegration_ImageSources_ListEveryFormat`
 
-Asserts that the list holds the eight sources in order (`raster`, `svg`, `pdf`, `pptx`, `vsdx`, `scad`, `vega-lite`,
-`mermaid`), that `Extensions` is exactly the sorted union of their claims (the nineteen extensions, `.mmd` and
-`.mermaid` included), and that no built-in source
+Asserts that the list holds the nine sources in order (`raster`, `svg`, `pdf`, `pptx`, `vsdx`, `scad`, `vega-lite`,
+`mermaid`, `plantuml`), that `Extensions` is exactly the sorted union of their claims (the twenty-two extensions,
+`.mmd`,
+`.mermaid`, `.puml`, `.plantuml`, and `.pu` included), and that no built-in source
 claims a URI scheme (so `http` and `https` links stay unresolved). Serves as the shared platform-proof test referenced
 by every `CanvasNetViewer-Platform-*` requirement.
 
@@ -80,6 +81,19 @@ own picture), the node fill of the default theme (`#ECECFF`) across its middle, 
 SVG document has the node fill of the dark theme (`#1F2020`) and is the one embedded image, listed with its link as
 written; and that the second link is refused with the one note `image-fragment-invalid` whose message names the `theme`
 parameter.
+
+### Integration: PlantUML Diagram Renders Directly And Embedded In SVG And Mermaid
+
+**Test**: `CanvasNetViewer_SystemIntegration_PlantUmlDiagram_RendersDirectlyAndEmbeddedInSvgAndMermaid`
+
+Writes a one-message sequence diagram (`seq.puml`) and a Mermaid flowchart whose one node shows it as its picture
+(`p@{ img: "seq.puml" }`), renders the diagram with `Render` by path, an SVG document that links it as `seq.puml` and as
+`seq.puml#theme=dark` with the resolver of `CreateImageResolver`, and the flowchart with `Render` by path. Asserts that
+the direct render has the format `plantuml`, a transparent corner, the participant fill of PlantUML's default look
+(`#E2E2F0`), and no note; that both cells of the SVG document show the participant fill, the embedded images are all
+of the format `plantuml`, and the theme of the second link is the one warning `image-fragment-unknown-parameter` (the
+PlantUML source takes no fragment parameter); and that the Mermaid flowchart shows the participant fill in its node
+with no note.
 
 ### Integration: Custom Source For New Extension Is Embedded
 

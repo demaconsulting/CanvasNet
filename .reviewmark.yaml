@@ -1783,6 +1783,7 @@ reviews:
       - "src/DemaConsulting.CanvasNet.Viewer/Imaging/InputSelection.cs"  # unit source (what the fragment chose)
       - "test/DemaConsulting.CanvasNet.Viewer.Tests/Imaging/SourceLoader*Tests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Viewer.Tests/Fixtures/mermaid/**"  # original Mermaid fixtures
+      - "test/DemaConsulting.CanvasNet.Viewer.Tests/Fixtures/plantuml/**"  # original PlantUML fixtures
       - "test/DemaConsulting.CanvasNet.Viewer.Tests/Imaging/InputSelectionTests.cs"  # unit tests (input fragments)
 
   # CanvasNetViewer-Imaging-ImageWriter Review (one per unit)

@@ -17,7 +17,7 @@ public partial class HelpTopicsTests
     /// <summary>
     ///     The drawing formats, which each have a style card and a composition card.
     /// </summary>
-    private static readonly string[] DrawingFormats = ["scad", "vega-lite", "mermaid", "svg"];
+    private static readonly string[] DrawingFormats = ["scad", "vega-lite", "mermaid", "plantuml", "svg"];
 
     /// <summary>
     ///     Test that every drawing format has a style card and a composition card, that each links to the hub of its

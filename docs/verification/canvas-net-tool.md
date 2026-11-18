@@ -31,9 +31,10 @@ run records the other self-tests (`CanvasNetTool_Formats`, `CanvasNetTool_Render
 `CanvasNetTool_Info`, `CanvasNetTool_RenderSvg`, `CanvasNetTool_PdfMinimal`, `CanvasNetTool_RenderScad`,
 `CanvasNetTool_CropResize`, `CanvasNetTool_RotateFlipPad`, `CanvasNetTool_Compare`, `CanvasNetTool_Montage`,
 `CanvasNetTool_Adjustments`,
-`CanvasNetTool_RenderVegaLite`, `CanvasNetTool_RenderMermaid`, and `CanvasNetTool_HelpExamples`), which
+`CanvasNetTool_RenderVegaLite`, `CanvasNetTool_RenderMermaid`, `CanvasNetTool_RenderPlantUml`, and
+`CanvasNetTool_HelpExamples`), which
 generate their own inputs and are evidence for the validation requirements. The self-validation suite is deliberately
-kept small (eighteen tests, in a documented order); the compare, montage, and adjustments self-tests are smoke tests
+kept small (nineteen tests, in a documented order); the compare, montage, and adjustments self-tests are smoke tests
 (the last runs every photo operation once on a generated sketch), the Vega-Lite self-test is a smoke test of one chart,
 the Mermaid self-test a smoke test of one three-node flowchart, the help self-test renders
 every source example of the help cards with `--strict`, and the detailed
@@ -85,7 +86,10 @@ belong to the "Sequential" collection because console redirection is process-wid
   theme `--theme` names, its pictures resolved relative to its folder, a type that is not drawn (a user journey, for
   example) is the diagnostic
 `mermaid-diagram-unsupported` (an `unsupported-feature` error with `--strict`), invalid text is a `mermaid-error` with a
-hint, and `--theme` on another kind of input is a `usage-error`;
+hint, and `--theme` on another kind of input is a `usage-error`; a PlantUML diagram is recognized by its `.puml`,
+`.plantuml`, or `.pu` file name, drawn at the size PlantUML lays it out at over its own white background with the
+bundled fonts, a type that is not drawn (a class diagram, for example) is the diagnostic `plantuml-diagram-unsupported`,
+invalid text is a `plantuml-error` with the location, and `--theme` or `--positions` on it is a `usage-error`;
   `info` describes a
   file, the pages of a document, the declarations of a model, and the marks, data, and parameters of a chart, and the
   type, direction, titles, and counts of a diagram (with `supported` false for a type that is not drawn), without
@@ -442,6 +446,13 @@ renders with exit code 0 and an
 `Unsupported: mermaid-diagram-unsupported:` line on standard error, and with `--strict` returns exit code 1 with an
 `Error: unsupported-feature:` line; and `--theme dark` on an SVG file returns exit code 1 with an
 `Error: usage-error:` line.
+
+**CanvasNetTool_PlantUml_RenderAsProcess_DescribesAndWritesImage**: a two-participant sequence diagram is listed,
+described, rendered, and explained by real processes (so the PlantUML assembly bundled next to the tool is loaded):
+`formats --json` lists the `plantuml` format; `info --json` names the `plantuml` format and the `diagram` object
+`sequence`, supported, with two nodes and two edges; `render --strict --json` writes a PNG of the size `info` reported
+with a white corner and the participant fill `#E2E2F0`; and `help puml` starts with `# PlantUML diagrams`; every
+process exits with 0.
 
 **CanvasNetTool_Compare_IdenticalImages_ReportsZeroDifference**: two identical gray PNGs are compared as real
 processes, as text with `--threshold rmse=0` (one `identical` line and the passed check) and as JSON (`identical`

@@ -26,7 +26,7 @@ public class SourceLoaderTests
         get
         {
             var data = new TheoryData<string, string>();
-            foreach (var (key, _) in FixtureFactory.Sources.Where(s => s.Key is not "scad" and not "mermaid"))
+            foreach (var (key, _) in FixtureFactory.Sources.Where(s => s.Key is not "scad" and not "mermaid" and not "plantuml"))
             {
                 foreach (var damage in new[] { "empty", "garbage", "one-byte", "header-only", "half", "missing-last-byte" })
                 {
@@ -181,6 +181,9 @@ public class SourceLoaderTests
     [InlineData(".vl", "vega-lite")]
     [InlineData(".mmd", "mermaid")]
     [InlineData(".MERMAID", "mermaid")]
+    [InlineData(".puml", "plantuml")]
+    [InlineData(".PlantUML", "plantuml")]
+    [InlineData(".pu", "plantuml")]
     public void SourceLoader_Detect_UnrecognizedContent_FallsBackToExtension(string extension, string expected)
     {
         // Arrange: a file with content no signature matches
@@ -329,7 +332,7 @@ public class SourceLoaderTests
             "pptx" => (FixtureFactory.PptxSlideWidth, FixtureFactory.PptxSlideHeight),
             "vsdx" => (FixtureFactory.VsdxPageWidth, FixtureFactory.VsdxPageHeight),
             "scad" => (SourceLoader.DefaultScadSize, SourceLoader.DefaultScadSize),
-            "vega-lite" or "mermaid" => (info.Width, info.Height),
+            "vega-lite" or "mermaid" or "plantuml" => (info.Width, info.Height),
             _ => (FixtureFactory.Width, FixtureFactory.Height)
         };
         Assert.Equal(width, info.Width);
@@ -900,6 +903,7 @@ public class SourceLoaderTests
             "scad" => ErrorCodes.ScadError,
             "vega-lite" => ErrorCodes.VegaLiteError,
             "mermaid" => ErrorCodes.MermaidError,
+            "plantuml" => ErrorCodes.PlantUmlError,
             _ => ErrorCodes.CorruptInput
         };
         Assert.Equal(expectedCode, exception.Code);

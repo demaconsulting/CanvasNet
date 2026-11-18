@@ -1,0 +1,7 @@
+@startuml
+title Order
+participant Alice
+participant Bob
+Alice -> Bob: request
+Bob --> Alice: response
+@enduml

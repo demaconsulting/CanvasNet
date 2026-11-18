@@ -107,7 +107,32 @@ public class SvgFlattenerTests
         var text = File.ReadAllText(output);
         Assert.Equal([(60, 40)], PictureSizes(text));
         Assert.DoesNotContain("flow.mmd", text, StringComparison.Ordinal);
-        Assert.Equal(new FileInfo(output).Length, result.Bytes);
+        Assert.Empty(result.Diagnostics);
+    }
+
+    /// <summary>
+    ///     Test that a linked PlantUML diagram is replaced by a PNG picture of its placement size, like a Mermaid diagram.
+    /// </summary>
+    [Fact]
+    public void SvgFlattener_Execute_PlantUmlImage_ReplacedWithPngDataUri()
+    {
+        // Arrange: a 60 by 40 placement of the diagram
+        using var directory = new TempDirectory();
+        File.Copy(FixtureFactory.FixturePath("plantuml/sequence.puml"), directory.Combine("seq.puml"));
+        var input = WriteSvg(directory, "dashboard.svg", "<image href='seq.puml' x='10' y='10' width='60' height='40'/>");
+        var output = directory.Combine("flat.svg");
+
+        // Act
+        var result = Flatten(input, output);
+
+        // Assert: one picture of the placement size replaces the link
+        Assert.True(result.Flattened);
+        var replaced = Assert.Single(result.Replaced);
+        Assert.Equal(("seq.puml", "plantuml", 1), (replaced.Href, replaced.Format, replaced.Elements));
+        Assert.Equal((60, 40), (replaced.Width, replaced.Height));
+        var text = File.ReadAllText(output);
+        Assert.Equal([(60, 40)], PictureSizes(text));
+        Assert.DoesNotContain("seq.puml", text, StringComparison.Ordinal);
         Assert.Empty(result.Diagnostics);
     }
 

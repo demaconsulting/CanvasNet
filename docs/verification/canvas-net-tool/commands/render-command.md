@@ -572,6 +572,26 @@ line after 1; a flowchart with an unclosed bracket returns exit code 1 with the 
 `Error: mermaid-error: Mermaid syntax error: ...` and a `Hint:` line on standard error, a failure document with the
 code `mermaid-error`, and no output.
 
+**RenderCommand_Run_PlantUml_WritesTheDiagramAndDescribesIt** (`RenderCommandPlantUmlTests.cs`): a sequence diagram
+rendered with `--strict` names the `plantuml` format and its natural size, writes a PNG of that size with a white
+corner and more than 200 pixels of the participant fill `#E2E2F0`, has a `render` operation without a theme, and has no
+diagnostic; with `--scale 2 --background transparent` the PNG is twice the size with a transparent corner and the
+operation lists the background `#00000000`.
+
+**RenderCommand_Run_PlantUmlThemeAndPositions_AreUsageErrors** (`RenderCommandPlantUmlTests.cs`): `--theme dark` on a
+`.puml` input is a `usage-error` whose message says that the option only applies to a Mermaid diagram and names the
+`plantuml` kind; `--positions all --json` is a `usage-error` that says the option only applies to a Mermaid diagram or a
+Vega-Lite chart; `inspect colors` with `--theme` returns exit code 1 with the same usage error; nothing is written.
+
+**RenderCommand_Run_PlantUmlUnsupportedType_IsDiagnosticThenStrictError** (`RenderCommandPlantUmlTests.cs`): a class
+diagram renders an empty 20 by 20 PNG with one located diagnostic (`plantuml`, `unsupported`,
+`plantuml-diagram-unsupported`), and with `--strict` fails with `unsupported-feature` and writes nothing.
+
+**RenderCommand_Run_PlantUmlWarningAndSyntaxError_FollowTheContract** (`RenderCommandPlantUmlTests.cs`): a diagram with
+an ignored skin parameter has the one diagnostic `plantuml-warning` with the `detail` `plantuml-skinparam-ignored` at
+line 2; a diagram with a statement no parser accepts returns exit code 1 with `Error: plantuml-error: PlantUML syntax
+error:` naming `broken.puml:3:`, a failure document with the code `plantuml-error`, and no output.
+
 **InspectCommand_Run_MermaidTheme_ReportsTheThemedColors**: `inspect pixel` of a point a few pixels inside the first
 node (14 and half the height) reports the forest node fill `#CDE498` with `--theme forest` and the default fill
 `#ECECFF` without it, so `inspect` reads a diagram in its theme as `render` does.

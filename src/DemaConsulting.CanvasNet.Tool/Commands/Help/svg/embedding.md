@@ -24,18 +24,19 @@ examples:
 - **href file types**: An image element may link a file whose name ends in .png,
   .jpg, .jpeg, .bmp, .tif, .tiff, .gif, .jp2, .j2k, or .j2c (a raster picture),
   .svg (another SVG file), .scad (an OpenSCAD model), .vl.json or .vl (a
-  Vega-Lite chart), .mmd or .mermaid (a Mermaid diagram), or .pdf, .pptx, or
-  .vsdx (a page of a document: a PDF page, a PowerPoint slide, or a Visio page;
-  page 1 unless the href chooses another one, see page fragment below). The
-  format is decided by the file name, not by the content, so a Vega-Lite chart
-  in a file whose extension is only json is not linked; a raster file is still
-  decoded by its content. Any other file is not drawn.
-- **size**: A model, a chart, a Mermaid diagram, a document page, and an SVG
-  file are drawn at the size of the image element (its width and height on the
-  output), so they stay sharp at any scale; a raster is fitted into the element
-  by preserveAspectRatio. An embedded model uses the library's own view of the
-  model (isometric for a 3D model, top-down for a flat 2D model) over a
-  transparent background.
+  Vega-Lite chart), .mmd or .mermaid (a Mermaid diagram), .puml, .plantuml, or
+  .pu (a PlantUML diagram), or .pdf, .pptx, or .vsdx (a page of a document: a
+  PDF page, a PowerPoint slide, or a Visio page; page 1 unless the href chooses
+  another one, see page fragment below). The format is decided by the file name,
+  not by the content, so a Vega-Lite chart in a file whose extension is only
+  json is not linked; a raster file is still decoded by its content. Any other
+  file is not drawn.
+- **size**: A model, a chart, a Mermaid or PlantUML diagram, a document page,
+  and an SVG file are drawn at the size of the image element (its width and
+  height on the output), so they stay sharp at any scale; a raster is fitted
+  into the element by preserveAspectRatio. An embedded model uses the library's
+  own view of the model (isometric for a 3D model, top-down for a flat 2D model)
+  over a transparent background.
 - **link rule**: The href is relative to the folder of the SVG file (a nested
   SVG file finds its own images beside itself). A query (?cache=1) after the
   file name is ignored; a fragment (#page=2) after it is read as parameters, see

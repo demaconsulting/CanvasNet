@@ -26,7 +26,7 @@ internal static class DiscoveryCommands
     ///     <c>Kind</c> is <c>raster</c> (decoded at its own size), <c>vector</c> (a drawing rendered at any
     ///     requested size), <c>document</c> (pages or slides rendered at any requested size), <c>model</c>
     ///     (a 3D model rendered from a viewpoint), <c>chart</c> (a Vega-Lite chart rendered at any requested size), or
-    ///     <c>diagram</c> (a Mermaid diagram rendered at any requested size).
+    ///     <c>diagram</c> (a Mermaid or PlantUML diagram rendered at any requested size).
     /// </remarks>
     internal static readonly IReadOnlyList<InputFormat> InputFormats =
     [
@@ -42,7 +42,8 @@ internal static class DiscoveryCommands
         new("vsdx", "document", [".vsdx"], true, true, "vsdx"),
         new("scad", "model", [".scad"], false, true, "scad"),
         new("vega-lite", "chart", [".vl.json", ".vl"], false, true, "vega-lite"),
-        new("mermaid", "diagram", [".mmd", ".mermaid"], false, true, "mermaid")
+        new("mermaid", "diagram", [".mmd", ".mermaid"], false, true, "mermaid"),
+        new("plantuml", "diagram", [".puml", ".plantuml", ".pu"], false, true, "plantuml")
     ];
 
     /// <summary>
@@ -117,7 +118,10 @@ internal static class DiscoveryCommands
             + "marks, data references, parameters, title, and schema version of its specification. A Mermaid diagram" + Environment.NewLine
             + "(.mmd or .mermaid) is parsed and measured (not drawn) and reports the size it is laid out at, its type" + Environment.NewLine
             + "(and whether this version draws it), direction, titles, and numbers of nodes, edges, and subgraphs" + Environment.NewLine
-            + "('canvasnet help mermaid' says what each diagram type counts). The input may end in a" + Environment.NewLine
+            + "('canvasnet help mermaid' says what each diagram type counts). A PlantUML diagram (.puml, .plantuml, or .pu)" + Environment.NewLine
+            + "is parsed with its !include files and measured (not drawn) and reports the same object: its type (sequence," + Environment.NewLine
+            + "activity, or a type that is not drawn), title, and numbers of nodes, edges, and subgraphs ('canvasnet help" + Environment.NewLine
+            + "plantuml options' says what they count). The input may end in a" + Environment.NewLine
             + "fragment (report.pdf#page=2) as for 'render'; only the page is used here: the other parameters are checked" + Environment.NewLine
             + "(a value that cannot be used is an error) and otherwise ignored, and an unknown or repeated parameter is a" + Environment.NewLine
             + "warning on standard error." + Environment.NewLine
@@ -223,7 +227,7 @@ internal static class DiscoveryCommands
         }
 
         /// <summary>
-        ///     Writes the <c>diagram</c> object of a Mermaid file.
+        ///     Writes the <c>diagram</c> object of a Mermaid or PlantUML file.
         /// </summary>
         /// <param name="writer">The writer.</param>
         /// <param name="diagram">What the diagram declares.</param>
@@ -231,7 +235,9 @@ internal static class DiscoveryCommands
         ///     The object has the diagram <c>type</c> (for example <c>flowchart</c> or <c>sequence</c>), whether this version
         ///     draws it (<c>supported</c>; a type that is not drawn is an empty picture with the note
         ///     <c>mermaid-diagram-unsupported</c>), and the numbers of <c>nodes</c>, <c>edges</c>, and <c>subgraphs</c> (the
-        ///     participants, messages, and boxes of a sequence diagram); the
+        ///     participants, messages, and boxes of a sequence diagram; for a PlantUML activity diagram the actions, start,
+        ///     stop, end, connector, and decision nodes, the arrows, and the swimlanes and partitions, and for a PlantUML type
+        ///     that is not drawn <c>plantuml-diagram-unsupported</c> and zero counts); the
         ///     <c>direction</c>, the <c>title</c>, and the accessible title <c>accTitle</c> are present when the diagram has
         ///     them. The diagram is parsed and measured but not drawn, and no picture of it is loaded.
         /// </remarks>

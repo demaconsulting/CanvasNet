@@ -178,7 +178,7 @@ internal sealed class LoaderImageSource : IImageSource, IFragmentImageSource
     /// <param name="acceptsView">Whether the fragment parameters <c>view</c>, <c>azimuth</c>, and <c>elevation</c> choose and turn a viewpoint.</param>
     /// <remarks>
     ///     The parameters that only one kind takes are added by the kind: <c>def.</c> for a model, <c>param.</c> for a chart,
-    ///     and <c>theme</c> for a Mermaid diagram.
+    ///     and <c>theme</c> for a Mermaid diagram; a PlantUML diagram takes no parameter of its own.
     /// </remarks>
     public LoaderImageSource(IImageSource claims, SourceKind[] kinds, string[] pageParameters, bool acceptsView)
     {

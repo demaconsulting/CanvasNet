@@ -44,24 +44,30 @@ see-also:
 - `info`: input {path, format, bytes} and one of image, document {pageCount,
   pages[]}, model {modules, functions, directives}, chart, or diagram (chart and
   diagram follow an image object with the laid-out size).
-- `diagram`: For a Mermaid diagram (info): {type, supported, direction, title,
-  accTitle, nodes, edges, subgraphs}. type is the diagram type (flowchart for
-  flowchart and graph, sequence for sequenceDiagram); supported is false for a
-  type this version does not draw (journey, timeline, and so on), which renders
-  as an empty picture with the diagnostic mermaid-diagram-unsupported; nodes,
-  edges, and subgraphs count the participants, the messages, and the boxes of a
-  sequence diagram, the classes, relations, and namespaces of a class diagram,
-  the states, transitions, and composite states of a state diagram, and the
-  entities, relationships, and subgraphs of an entity relationship diagram;
-  nodes counts the slices of a pie chart (its legend entries) and the tasks of a
-  gantt chart (its vertical markers included), subgraphs the sections of a gantt
-  chart, and edges is 0 for both; nodes and edges count the nodes of a mindmap
-  and the edges between them (one fewer than the nodes), and subgraphs is 0;
-  nodes counts the blocks of a packet diagram as written, and edges and
-  subgraphs are 0; nodes and edges count the commits of a git graph and the
-  links from each commit to its parents, subgraphs is 0, and direction is LR,
-  TB, or BT; direction, title, and accTitle are present when the diagram has
-  them.
+- `diagram`: For a Mermaid or PlantUML diagram (info): {type, supported,
+  direction, title, accTitle, nodes, edges, subgraphs}. type is the diagram type
+  (flowchart for flowchart and graph, sequence for sequenceDiagram); supported
+  is false for a type this version does not draw (journey, timeline, and so on),
+  which renders as an empty picture with the diagnostic
+  mermaid-diagram-unsupported; nodes, edges, and subgraphs count the
+  participants, the messages, and the boxes of a sequence diagram, the classes,
+  relations, and namespaces of a class diagram, the states, transitions, and
+  composite states of a state diagram, and the entities, relationships, and
+  subgraphs of an entity relationship diagram; nodes counts the slices of a pie
+  chart (its legend entries) and the tasks of a gantt chart (its vertical
+  markers included), subgraphs the sections of a gantt chart, and edges is 0 for
+  both; nodes and edges count the nodes of a mindmap and the edges between them
+  (one fewer than the nodes), and subgraphs is 0; nodes counts the blocks of a
+  packet diagram as written, and edges and subgraphs are 0; nodes and edges
+  count the commits of a git graph and the links from each commit to its
+  parents, subgraphs is 0, and direction is LR, TB, or BT; direction, title, and
+  accTitle are present when the diagram has them. For a PlantUML diagram type is
+  sequence, activity, or a type that is not drawn (class, usecase, and so on,
+  with the diagnostic plantuml-diagram-unsupported); nodes, edges, and subgraphs
+  count the participants, messages, and boxes of a sequence diagram, and the
+  actions, start, stop, end, connector, and decision nodes, the arrows, and the
+  swimlanes and partitions of an activity diagram; direction and accTitle are
+  never present.
 - `formats`: tool, library, inputs[], outputs[], quality {min, max, default},
   and maxDimension. Each inputs[] entry has format, kind, extensions, multiPage,
   vector, and helpTopic: the topic of 'canvasnet help <topic>' that describes

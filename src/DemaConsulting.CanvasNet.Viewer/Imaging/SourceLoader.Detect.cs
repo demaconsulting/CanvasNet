@@ -43,14 +43,18 @@ public static partial class SourceLoader
             [".scad"] = SourceKind.Scad,
             [".vl"] = SourceKind.VegaLite,
             [".mmd"] = SourceKind.Mermaid,
-            [".mermaid"] = SourceKind.Mermaid
+            [".mermaid"] = SourceKind.Mermaid,
+            [".puml"] = SourceKind.PlantUml,
+            [".plantuml"] = SourceKind.PlantUml,
+            [".pu"] = SourceKind.PlantUml
         });
 
     /// <summary>
     ///     The extensions of the text formats that have no signature and are never taken for an SVG drawing, whatever
-    ///     their text mentions: an OpenSCAD model, a Vega-Lite chart named <c>.vl</c>, and a Mermaid diagram.
+    ///     their text mentions: an OpenSCAD model, a Vega-Lite chart named <c>.vl</c>, a Mermaid diagram, and a PlantUML
+    ///     diagram.
     /// </summary>
-    private static readonly string[] NamedTextExtensions = [".scad", ".vl", ".mmd", ".mermaid"];
+    private static readonly string[] NamedTextExtensions = [".scad", ".vl", ".mmd", ".mermaid", ".puml", ".plantuml", ".pu"];
 
     /// <summary>
     ///     The file name suffix of a Vega-Lite chart that <see cref="ExtensionKinds"/> cannot express, because the
@@ -86,7 +90,9 @@ public static partial class SourceLoader
     ///     <c>$schema</c> string property (read from the first 4 KiB) names a Vega-Lite schema; the address in any other
     ///     property or nested value does not count. A JSON file is never taken for an SVG. A diagram has no signature either:
     ///     a file named <c>.mmd</c> or <c>.mermaid</c> is a Mermaid diagram (and is never taken for an SVG, even when a
-    ///     label holds SVG text); there is no content sniffing, so a Markdown file is never a diagram.
+    ///     label holds SVG text); there is no content sniffing, so a Markdown file is never a diagram. A PlantUML diagram
+    ///     is recognized the same way, by the names <c>.puml</c>, <c>.plantuml</c>, and <c>.pu</c> (an include fragment
+    ///     named <c>.iuml</c> is not a diagram of its own).
     ///     Only when the content says nothing does the file name extension decide, so that a damaged or empty file
     ///     with a known extension is reported as corrupt (by the load that follows) rather than as unsupported. A
     ///     damaged ZIP package is distinguished by its extension.

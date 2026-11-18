@@ -7,6 +7,7 @@ using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.ImageSources;
 using DemaConsulting.CanvasNet.Mermaid;
 using DemaConsulting.CanvasNet.Pdf;
+using DemaConsulting.CanvasNet.PlantUml;
 using DemaConsulting.CanvasNet.Pptx;
 using DemaConsulting.CanvasNet.Scad;
 using DemaConsulting.CanvasNet.Svg;
@@ -34,7 +35,7 @@ public partial class HelpTopicsTests
     ///     Matches the diagnostic identifiers a card may cite.
     /// </summary>
     private static readonly Regex IdentifierPattern =
-        new(@"\b(?:scad|vl|mermaid|pptx|vsdx|pdf|svg|image-fragment|image-page|image-access)-[A-Za-z0-9<>-]+", RegexOptions.CultureInvariant, TimeSpan.FromSeconds(5));
+        new(@"\b(?:scad|vl|mermaid|plantuml|pptx|vsdx|pdf|svg|image-fragment|image-page|image-access)-[A-Za-z0-9<>-]+", RegexOptions.CultureInvariant, TimeSpan.FromSeconds(5));
 
     /// <summary>
     ///     Matches a file name extension (lower case, with the dot, and the two-part <c>.vl.json</c>) in a sentence.
@@ -112,6 +113,7 @@ public partial class HelpTopicsTests
             ["vegalite"] = "vega-lite",
             ["vl"] = "vega-lite",
             ["mmd"] = "mermaid",
+            ["puml"] = "plantuml",
             ["powerpoint"] = "pptx",
             ["visio"] = "vsdx",
             ["png"] = "raster",
@@ -184,6 +186,10 @@ public partial class HelpTopicsTests
         Assert.Contains($"At most {MermaidLimits.Default.MaxNodes} nodes and {MermaidLimits.Default.MaxEdges} edges", limits);
         Assert.Contains($"At most {MermaidLimits.Default.MaxTextSize} characters", limits);
         Assert.Contains($"At most {MermaidLimits.Default.MaxImages} picture loads", limits);
+        Assert.Equal(PlantUmlLimits.Default.MaxIncludes.ToString(System.Globalization.CultureInfo.InvariantCulture), HelpTopics.Tokens["pumlMaxIncludes"]);
+        Assert.Contains($"At most {PlantUmlLimits.Default.MaxNodes} nodes (participants or activity nodes)", limits);
+        Assert.Contains($"At most {PlantUmlLimits.Default.MaxTextSize} characters of statements", limits);
+        Assert.Contains($"At most {PlantUmlLimits.Default.MaxIncludes} !include directives", limits);
         Assert.Contains($"{ImageWriter.MinQuality} to {ImageWriter.MaxQuality}, default {ImageWriter.DefaultQuality}", limits);
     }
 
@@ -222,6 +228,7 @@ public partial class HelpTopicsTests
             ["scad"] = ".scad",
             ["vega-lite"] = ".vl.json",
             ["mermaid"] = ".mmd",
+            ["plantuml"] = ".puml",
             ["svg"] = ".svg"
         };
         var files = typeof(HelpTopics).Assembly.GetManifestResourceNames()
@@ -493,6 +500,53 @@ public partial class HelpTopicsTests
 
         // Assert: the code list has its items, and nothing differs
         Assert.True(codeItems.Count >= 18, $"Only {codeItems.Count} items were found in the code list of the guide.");
+        Assert.True(differences.Count == 0, string.Join(Environment.NewLine, differences));
+    }
+
+    /// <summary>
+    ///     Test that the PlantUML diagram cards say what the lists of the PlantUML user guide say, item for item and in
+    ///     order: the <c>## Supported</c> bullets of <c>plantuml sequence</c> and <c>plantuml activity</c> are the items of
+    ///     the guide's supported sequence and activity syntax lists, and every item of the guide's code list
+    ///     (<c>**code**: kind: reported when</c>) is a bullet of <c>plantuml unsupported</c> or <c>plantuml diagnostics</c>.
+    /// </summary>
+    [Fact]
+    public void HelpTopics_PlantUmlTopic_DiagramSyntaxItems_MatchUserGuide()
+    {
+        // Arrange: the guide
+        var guide = File.ReadAllLines(Path.Combine(FindRepositoryRoot(), "docs", "user_guide", "canvas-net-plant-uml.md"));
+        (string Card, string Heading, int MinimumRows)[] diagrams =
+        [
+            ("sequence", "### Supported Sequence Syntax", 10),
+            ("activity", "### Supported Activity Syntax", 10),
+        ];
+
+        // Act: the bullets that the items of the guide's lists promise, compared with the cards
+        var differences = new List<string>();
+        foreach (var (card, heading, minimumRows) in diagrams)
+        {
+            var items = GuideItems(guide, heading).Select(i => i.Term + i.Tail).ToList();
+            Assert.True(items.Count >= minimumRows, $"Only {items.Count} items were found in the {card} list of the guide.");
+            CompareInOrder($"plantuml/{card} ## Supported", items, HelpCardText.Bullets($"plantuml/{card}", "Supported"), differences);
+        }
+
+        var codeItems = GuideItems(guide, "### PlantUML Unsupported Features and Strict Mode").ToList();
+        var unsupported = HelpCardText.Bullets("plantuml/unsupported").Select(CanonicalBullet).ToList();
+        var diagnostics = HelpCardText.Bullets("plantuml/diagnostics").Select(CanonicalBullet).ToList();
+        foreach (var (term, tail) in codeItems)
+        {
+            var parts = tail.Split(": ", 3);
+            Assert.True(parts.Length == 3 && parts[0].Length == 0, $"The code item '{term}' is not written as '**code**: kind: reported when'.");
+            var (bullets, expected) = parts[1] == "Unsupported"
+                ? (unsupported, $"{term}: {parts[2]}")
+                : (diagnostics, $"{term}: {parts[1]}: {parts[2]}");
+            if (!bullets.Contains(CanonicalBullet(expected)))
+            {
+                differences.Add($"bullet missing:{Environment.NewLine}  guide: {expected}");
+            }
+        }
+
+        // Assert: the code list has an item for every code of the library but the generic warning, and nothing differs
+        Assert.True(codeItems.Count >= 16, $"Only {codeItems.Count} items were found in the code list of the guide.");
         Assert.True(differences.Count == 0, string.Join(Environment.NewLine, differences));
     }
 
@@ -1288,6 +1342,7 @@ public partial class HelpTopicsTests
         typeof(ScadDocument).Assembly,
         typeof(VegaLiteDocument).Assembly,
         typeof(MermaidDocument).Assembly,
+        typeof(PlantUmlDocument).Assembly,
         typeof(PdfDocument).Assembly,
         typeof(PptxDocument).Assembly,
         typeof(VsdxDocument).Assembly,

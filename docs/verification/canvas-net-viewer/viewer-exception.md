@@ -33,7 +33,8 @@ exception are `null`.
 (`usage-error`, `operation-failed`, `input-not-found`, `input-unreadable`, `unsupported-format`, `corrupt-input`,
 `unsupported-feature`, `page-out-of-range`, `image-fragment-invalid`, `size-limit`, `same-input-output`,
 `output-exists`, `output-write-failed`,
-`scad-error`, `vega-lite-error`, `mermaid-error`, `budget-exceeded`, `file-access-denied`, `size-mismatch`,
+`scad-error`, `vega-lite-error`, `mermaid-error`, `plantuml-error`, `budget-exceeded`, `file-access-denied`,
+`size-mismatch`,
 `threshold-failed`).
 
 **CanvasNetViewer-ViewerException-PositionsUnmatched**: verified by

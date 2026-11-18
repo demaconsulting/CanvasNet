@@ -4,6 +4,7 @@ using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;
 using DemaConsulting.CanvasNet.Files;
 using DemaConsulting.CanvasNet.Mermaid;
+using DemaConsulting.CanvasNet.PlantUml;
 using DemaConsulting.CanvasNet.Pptx;
 using DemaConsulting.CanvasNet.Scad;
 using DemaConsulting.CanvasNet.VegaLite;
@@ -23,7 +24,8 @@ namespace DemaConsulting.CanvasNet.Viewer.Imaging;
 ///         <c>SourceLoader.Documents.cs</c> holds what the page-based sources share, and <c>SourceLoader.Pdf.cs</c>,
 ///         <c>SourceLoader.Pptx.cs</c>, and <c>SourceLoader.Vsdx.cs</c> handle the documents; <c>SourceLoader.Scad.cs</c>
 ///         handles an OpenSCAD model drawn from one viewpoint, <c>SourceLoader.VegaLite.cs</c> handles a Vega-Lite
-///         chart, and <c>SourceLoader.Mermaid.cs</c> handles a Mermaid diagram. A further source kind is
+///         chart, <c>SourceLoader.Mermaid.cs</c> handles a Mermaid diagram, and <c>SourceLoader.PlantUml.cs</c> handles a
+///         PlantUML diagram. A further source kind is
 ///         added by a new partial file with a probe method and a page source and one new case in each of
 ///         <see cref="Probe(string)"/> and <see cref="OpenPages"/>.
 ///     </para>
@@ -169,6 +171,7 @@ public static partial class SourceLoader
             SourceKind.Scad => ProbeScad(input, bytes, fileAccess),
             SourceKind.VegaLite => ProbeVegaLite(input, bytes, fileAccess),
             SourceKind.Mermaid => ProbeMermaid(input, bytes),
+            SourceKind.PlantUml => ProbePlantUml(input, bytes, fileAccess),
             _ => throw UnhandledKind(kind)
         };
         return info with { FileAccess = fileAccess };
@@ -350,6 +353,7 @@ public static partial class SourceLoader
             SourceKind.Scad => ScadPageSource.Open(input, info, options, context),
             SourceKind.VegaLite => VegaLitePageSource.Open(input, info, options, context),
             SourceKind.Mermaid => MermaidPageSource.Open(input, info, options, context),
+            SourceKind.PlantUml => PlantUmlPageSource.Open(input, info, options, context),
             _ => throw UnhandledKind(info.Format)
         };
     }
@@ -690,7 +694,11 @@ public static partial class SourceLoader
     ///     <see cref="MermaidUnsupportedFeatureException"/> (<c>unsupported-feature</c>), a diagram that is not valid -
     ///     <see cref="MermaidSyntaxException"/> - or that cannot be laid out or drawn - <see cref="MermaidRenderException"/>
     ///     (<c>mermaid-error</c> with the hint of the library, or <c>budget-exceeded</c> when a limit was exceeded; see
-    ///     <see cref="MapMermaid"/>), and
+    ///     <see cref="MapMermaid"/>), <see cref="PlantUmlUnsupportedFeatureException"/> (<c>unsupported-feature</c>), a
+    ///     PlantUML diagram that is not valid or whose include cannot be read - <see cref="PlantUmlSyntaxException"/> - or
+    ///     that cannot be laid out or drawn - <see cref="PlantUmlRenderException"/> (<c>plantuml-error</c> with the hint of
+    ///     the library, <c>budget-exceeded</c> when a limit was exceeded, or <c>file-access-denied</c> when the file-access
+    ///     policy refused an include; see <see cref="MapPlantUml"/>), and
     ///     invalid, truncated, or malformed data - <see cref="InvalidDataException"/>,
     ///     <see cref="XmlException"/>, <see cref="EndOfStreamException"/>, and <see cref="FormatException"/>
     ///     (<c>corrupt-input</c>).
@@ -785,6 +793,26 @@ public static partial class SourceLoader
         catch (MermaidRenderException ex)
         {
             throw MapMermaid(ex.Code, "render", Named(path, ex.Message, ex.Location.IsKnown), ex.Hint, ex);
+        }
+        catch (PlantUmlUnsupportedFeatureException ex)
+        {
+            // An IOException, so it comes before the input-unreadable mapping; the message already names the file and the position
+            throw new ViewerException(
+                ErrorCodes.UnsupportedFeature,
+                $"The PlantUML diagram uses a feature that is not supported ({ex.Feature}): {OneLine(ex.Message)}",
+                ex.Hint is { } hint
+                    ? $"{hint}. Without --strict the feature is left out and reported in the diagnostics."
+                    : "Without --strict the feature is left out and reported in the diagnostics.",
+                ex);
+        }
+        catch (PlantUmlSyntaxException ex)
+        {
+            // A FormatException, so it comes before the corrupt-input mapping
+            throw MapPlantUml(ex.Code, "syntax", Named(path, ex.Message, ex.Location.IsKnown), ex.Hint, ex);
+        }
+        catch (PlantUmlRenderException ex)
+        {
+            throw MapPlantUml(ex.Code, "render", Named(path, ex.Message, ex.Location.IsKnown), ex.Hint, ex);
         }
         catch (Exception ex) when (ex is InvalidDataException or XmlException or EndOfStreamException or FormatException)
         {

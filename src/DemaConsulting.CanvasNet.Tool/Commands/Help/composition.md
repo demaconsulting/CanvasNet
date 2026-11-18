@@ -8,6 +8,7 @@ see-also:
   - svg/arrows
   - positions
   - mermaid/composition
+  - plantuml/composition
   - vega-lite/composition
   - scad/composition
   - style
@@ -38,7 +39,8 @@ size, then render, look, and fix.
   caption, and arrows that point at its features: a framed SVG figure
   (`canvasnet help svg framed-figure`).
 - A process whose steps show the thing itself: Mermaid nodes with pictures
-  (`canvasnet help mermaid composition`).
+  (`canvasnet help mermaid composition`); a PlantUML sequence or activity
+  diagram can be such a picture (`canvasnet help plantuml composition`).
 - Several charts of one data set: one Vega-Lite specification with `layer`,
   `concat`, or `facet` (`canvasnet help vega-lite composition`).
 - Labels and leader lines on a model: anchors and an SVG overlay

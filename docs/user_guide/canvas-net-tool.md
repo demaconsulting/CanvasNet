@@ -1714,10 +1714,10 @@ declaration when nothing uses it any more; a binding that fails keeps its attrib
 
 This list is also the *Reference* section of `canvasnet help svg flatten`; a test keeps the two the same.
 
-- **replaced**: An `image` whose link names a file only CanvasNet draws: a Mermaid diagram, an OpenSCAD model, a
-  Vega-Lite chart, or a page of a PDF, PPTX, or VSDX document, with or without a fragment (`#page=2`, `#def.width=20`,
-  `#param.t=5`, `#theme=dark`), and an SVG file that links such a file directly or through further SVG files. Its `href`
-  (or its `xlink:href` when it has no `href`) becomes a `data:image/png;base64` URI of the picture.
+- **replaced**: An `image` whose link names a file only CanvasNet draws: a Mermaid or PlantUML diagram, an OpenSCAD
+  model, a Vega-Lite chart, or a page of a PDF, PPTX, or VSDX document, with or without a fragment (`#page=2`,
+  `#def.width=20`, `#param.t=5`, `#theme=dark`), and an SVG file that links such a file directly or through further SVG
+  files. Its `href` (or its `xlink:href` when it has no `href`) becomes a `data:image/png;base64` URI of the picture.
 - **kept**: Everything else, byte for byte: comments, formatting, line endings, a byte order mark, raster pictures, SVG
   files that link only rasters and SVG files, `data:` URIs (never followed), same-document `#` links, and network links.
 - **size**: Each picture is drawn at the size of its placement in the drawing at its natural size (through the `viewBox`

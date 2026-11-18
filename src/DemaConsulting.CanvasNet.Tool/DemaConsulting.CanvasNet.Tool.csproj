@@ -15,7 +15,7 @@
     <Version>0.0.0</Version>
     <Authors>DEMA Consulting</Authors>
     <Company>DEMA Consulting</Company>
-    <Description>DemaConsulting.CanvasNet.Tool is the canvasnet command-line tool: it inspects, renders, and transforms images and documents (PNG, JPEG, BMP, TIFF, GIF, JPEG 2000, SVG, PDF, PowerPoint, Visio, OpenSCAD models, Vega-Lite charts, and Mermaid diagrams) using the CanvasNet libraries, with a stable machine-readable JSON contract so that scripts and AI agents can drive it.</Description>
+    <Description>DemaConsulting.CanvasNet.Tool is the canvasnet command-line tool: it inspects, renders, and transforms images and documents (PNG, JPEG, BMP, TIFF, GIF, JPEG 2000, SVG, PDF, PowerPoint, Visio, OpenSCAD models, Vega-Lite charts, Mermaid diagrams, and PlantUML sequence and activity diagrams) using the CanvasNet libraries, with a stable machine-readable JSON contract so that scripts and AI agents can drive it.</Description>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/demaconsulting/CanvasNet</PackageProjectUrl>
     <RepositoryUrl>https://github.com/demaconsulting/CanvasNet</RepositoryUrl>
@@ -95,6 +95,7 @@
     <ProjectReference Include="..\DemaConsulting.CanvasNet.Scad\DemaConsulting.CanvasNet.Scad.csproj" PrivateAssets="all" />
     <ProjectReference Include="..\DemaConsulting.CanvasNet.VegaLite\DemaConsulting.CanvasNet.VegaLite.csproj" PrivateAssets="all" />
     <ProjectReference Include="..\DemaConsulting.CanvasNet.Mermaid\DemaConsulting.CanvasNet.Mermaid.csproj" PrivateAssets="all" />
+    <ProjectReference Include="..\DemaConsulting.CanvasNet.PlantUml\DemaConsulting.CanvasNet.PlantUml.csproj" PrivateAssets="all" />
     <ProjectReference Include="..\DemaConsulting.CanvasNet.Viewer\DemaConsulting.CanvasNet.Viewer.csproj" PrivateAssets="all" />
   </ItemGroup>
 
@@ -140,6 +141,14 @@
     <None Include="..\DemaConsulting.CanvasNet.Mermaid\third-party\LICENSE-*.txt" Exclude="..\DemaConsulting.CanvasNet.Mermaid\third-party\LICENSE-d3.txt" Pack="true" PackagePath="licenses\" />
     <None Include="..\DemaConsulting.CanvasNet.Mermaid\third-party\LICENSE-d3.txt" Pack="true" PackagePath="licenses\Mermaid-LICENSE-d3.txt" />
     <None Include="..\DemaConsulting.CanvasNet.Mermaid\third-party\README.md" Pack="true" PackagePath="licenses\Mermaid-third-party-README.md" />
+  </ItemGroup>
+
+  <!-- Third-party license notice of the bundled PlantUML library: the MIT license of PlantUML (whose default look and
+       layout geometry it ports) requires the notice to be reproduced in binary distributions, so it ships in the same
+       licenses\ folder, with the provenance README under a PlantUml prefix. -->
+  <ItemGroup>
+    <None Include="..\DemaConsulting.CanvasNet.PlantUml\third-party\LICENSE-plantuml.txt" Pack="true" PackagePath="licenses\" />
+    <None Include="..\DemaConsulting.CanvasNet.PlantUml\third-party\README.md" Pack="true" PackagePath="licenses\PlantUml-third-party-README.md" />
   </ItemGroup>
 
 </Project>

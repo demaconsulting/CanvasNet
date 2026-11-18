@@ -10,7 +10,8 @@ size policy and the options that belong to reading (page, resolution, orientatio
 reports a bad file as an expected error. The unit consists of the static class `SourceLoader` (partial files
 `SourceLoader.cs`, `SourceLoader.Detect.cs`, `SourceLoader.Raster.cs`, `SourceLoader.Svg.cs`,
 `SourceLoader.Documents.cs`, `SourceLoader.Pdf.cs`, `SourceLoader.Pptx.cs`, `SourceLoader.Vsdx.cs`,
-`SourceLoader.Scad.cs`, `SourceLoader.VegaLite.cs`, `SourceLoader.Mermaid.cs`, `SourceLoader.SvgImages.cs`,
+`SourceLoader.Scad.cs`, `SourceLoader.VegaLite.cs`, `SourceLoader.Mermaid.cs`, `SourceLoader.PlantUml.cs`,
+`SourceLoader.SvgImages.cs`,
 `SourceLoader.Positions.cs`, and
 `SourceLoader.Input.cs`),
 the input types `InputReference` and `InputSelection` (`InputReference.cs`, `InputSelection.cs`),
@@ -22,10 +23,13 @@ and applied by the core `Surface.ApplyExifOrientation`. The pixel helpers that u
 #### Data Model
 
 **SourceKind** (enum): `Png`, `Jpeg`, `Bmp`, `Tiff`, `Gif`, `Jpeg2000`, `Svg`, `Pdf`, `Pptx`, `Vsdx`, `Scad`,
-`VegaLite`, `Mermaid`, in the
+`VegaLite`, `Mermaid`, `PlantUml`, in the
 order the `formats` command lists them; `ToFormatName` gives the lower-case member name used in output and JSON
 (`vega-lite` for `VegaLite`, the one name that is not the lower-case member name). `IsChart(kind)` is true for
-`VegaLite`, and `IsDiagram(kind)` is true for `Mermaid`.
+`VegaLite`, and `IsDiagram(kind)` is true for `Mermaid` and `PlantUml` (a PlantUML diagram is described by the same
+`DiagramFacts`: the type `sequence`, `activity`, or a recognized type that is not drawn; the participants, messages,
+and boxes of a sequence diagram, or the nodes, arrows, and swimlanes plus partitions of an activity diagram, as the
+nodes, edges, and subgraphs; no direction and no accessible title).
 **OutputFormat** (enum): `Png`, `Jpeg`, `Bmp`, `Tiff`.
 
 **SourceInfo** (record): `Path`, `Format`, `Bytes`, `Width`, `Height` (stored size; for a document the size of page 1
@@ -101,14 +105,17 @@ what `OpenPages` returns.
 
 **ExtensionKinds**: the read-only table (it cannot be changed, not even through a cast) of file name extensions (lower
 case, with the dot) and their kinds (`.vl` is the
-chart extension, and `.mmd` and `.mermaid` are the diagram extensions); the `formats` command lists the same extensions
+chart extension, `.mmd` and `.mermaid` are the Mermaid diagram extensions, and `.puml`, `.plantuml`, and `.pu` are the
+PlantUML diagram extensions); the `formats` command lists the same extensions
 and a test keeps the two consistent. The two-part suffix of a chart, `.vl.json` (`VegaLiteJsonSuffix`), cannot be an
 extension (the extension of such a file is `.json`), so it is checked on the file name and the `formats` listing adds it
 to the extensions of the `vega-lite` row.
 
 The extensions an SVG `image` `href` may link are not a table of the tool: they are `CanvasNetViewer.Extensions`, the
 union of what the image sources of the core and format libraries claim (the raster extensions, `.svg`, `.pdf`,
-`.pptx`, `.vsdx`, `.scad`, `.vl`, `.vl.json`, `.mmd`, and `.mermaid`; a plain `.json` is not linkable). The list is
+`.pptx`, `.vsdx`, `.scad`, `.vl`, `.vl.json`, `.mmd`, `.mermaid`, `.puml`, `.plantuml`, and `.pu`; a plain `.json` is
+not
+linkable). The list is
 documented in the `svg` help topic, and a unit test compares it with the topic in both directions (and with the
 `formats` table). The resolver decides by the file name, not by the content, unlike `Detect`, which is what the tool's
 own commands use for the file they are given.
@@ -147,7 +154,10 @@ are a diagram by the extension table, and such a file is never taken for an SVG,
 hold SVG markup); the extensions of the text formats that the SVG sniff skips are one list, `NamedTextExtensions`
 (`.scad`, `.vl`, `.mmd`, and `.mermaid`). There is no content sniffing for a diagram, because the first keyword of
 Mermaid text (`flowchart`, `graph`) is too common: a Markdown or text file that holds a diagram stays
-`unsupported-format`. The content wins over the extension, but a file whose content says nothing keeps its extension's
+`unsupported-format`. A PlantUML diagram is recognized the same way, by `.puml`, `.plantuml`, and `.pu` only (all three
+are in `NamedTextExtensions`); `@startuml` is optional in a Pandoc block and so cannot be sniffed, and an include
+fragment named `.iuml` is not a diagram of its own and stays `unsupported-format`. The content wins over the extension,
+but a file whose content says nothing keeps its extension's
 kind, so that an empty or truncated `.png` is reported as corrupt by the load instead of as an unknown format. Otherwise
 throws `unsupported-format` with a hint to run `canvasnet formats`.
 
@@ -186,7 +196,12 @@ gets the standard `size-limit` of `ComputeTargetSize`. A message that does not m
 other `ArgumentException` of the measure is `mermaid-error` ("Mermaid measure error: ..."). A node that shows a picture
 without its own `w` and `h` takes the size of the picture when it is drawn, so the drawn diagram can be a little larger
 or smaller than the probed size; the `mermaid` help topic documents this, and a load at the natural size charges and
-reports the size it drew (see the Mermaid load). No pixels
+reports the size it drew (see the Mermaid load). A PlantUML diagram (`ProbePlantUml`) is opened with
+`PlantUmlDocument.Open(stream, options)` (`SourceName` is the name of the input, `BaseDirectory` its folder, and
+`FileAccess` the policy of the probe, so its `!include` files are read under that policy, as a model's includes are) and
+measured with `Measure` without report handlers (`MeasurePlantUml`, which reads an oversized natural size from the same
+"gives a size of W by H;" message as `MeasureDiagram`); the facts come from `DiagramType`, `IsSupported`, `Title`,
+`NodeCount`, `EdgeCount`, and `SubgraphCount`, with a null direction and accessible title. No pixels
 are decoded (a GIF's `GetInfo` does decode the first frame's data, as the library documents).
 
 **Load(path, options)** and **Load(info, options)**: open the source with `OpenPages` and read the page
@@ -442,6 +457,24 @@ stretched to the box of its node by the Mermaid library's painter (Mermaid sets 
 picture of a node). The tests are in `SourceLoaderMermaidImageTests.cs`; the other tests of the diagram source are in
 `SourceLoaderMermaidTests.cs`.
 
+A *PlantUML diagram* load (`PlantUmlPageSource`, `SourceLoader.PlantUml.cs`) opens the diagram once, with its folder and
+the file-access policy of the load for its includes. Without `Width` and `Height` it is drawn with
+`PlantUmlDocument.Render(options)` at the natural size times `Scale` (`PlantUmlRenderOptions.Scale`); with a width, a
+height, or both it is drawn sharply into the target size with `PlantUmlDocument.Render(width, height, options)`, fitted
+and centered. The `Background` of the `PlantUmlRenderOptions` (`CreatePlantUmlOptions`) is the background option as
+given, and `null` without one, so the diagram keeps its own background (white, as PlantUML draws it, unless its
+`skinparam backgroundColor` says otherwise); the render operation lists the width and the height, and the background
+only when one was given (as for a chart). `ThrowOnUnsupportedFeature` is `Strict`; a warning becomes the note
+(`plantuml`, `warning`, `plantuml-warning` (`PlantUmlImageSource.WarningCode`), the one-line text, the specific
+`plantuml-*` code as `Detail`, the location as `Location`), and an unsupported construct a note (`plantuml`,
+`unsupported`, the feature code, `file:line:column: message (hint)`, `DescribePlantUmlUnsupported`); a diagram type
+that is recognized but not drawn (a class diagram, for example) is one such note, `plantuml-diagram-unsupported`, and an
+empty 20 by 20 picture. There is no theme (a `#theme=` fragment is the unknown-parameter warning of the input selection,
+because the PlantUML source declares no fragment parameter), no picture resolver (PlantUML phase 1 draws no linked
+picture), and no feature positions (the tool refuses `--theme` and `--positions` for a PlantUML diagram). An
+`ArgumentException` of the render (the target size was validated before) is `plantuml-error`. The tests are in
+`SourceLoaderPlantUmlTests.cs`.
+
 *Feature positions* (`SourceLoader.Positions.cs`, for a diagram and a chart alike). When `SourceOptions.Positions` is
 set, the load creates one core `PositionCollector` of the selection (`CreatePositionCollector`, with the default cap of
 `PositionCollector.MaxPositions`) and passes its `Offer` as the `PositionHandler` and its `IncludesKind` as the
@@ -542,7 +575,8 @@ height for 5 to 8.
 **Surface.HasTransparency()** (core) says whether any pixel is not opaque; the loader flattens with the first when a
 background was given, and `ImageWriter` uses both for JPEG output.
 
-**SourceKindExtensions.IsVector(kind)** is true for SVG, PDF, PPTX, VSDX, SCAD, Vega-Lite, and Mermaid, the kinds that
+**SourceKindExtensions.IsVector(kind)** is true for SVG, PDF, PPTX, VSDX, SCAD, Vega-Lite, Mermaid, and PlantUML, the
+kinds that
 are rendered at the size they are asked for. **SourceLoader.BoxOptions(info, options, width, height)** gives the options
 that load a source into a box: for a vector kind a copy of the options with `Width` and `Height` set to the box and
 `Scale` cleared, so the source is rendered sharply at the box (a document page, a chart, and a diagram are fitted inside
@@ -698,7 +732,15 @@ with the quoted path and a colon (`Named`), so every message names the file. A d
 `ArgumentOutOfRangeException` for the parameter `scale` of a render (the pictures of the nodes made the scaled diagram
 larger than the largest image) to `size-limit` and any other `ArgumentException` of a render to `mermaid-error`
 ("Mermaid render error: ..."), and `MeasureDiagram` maps the measure as described under *Probe*; neither is ever a usage
-error. An `ArgumentException` of the library is not on the allow-list of `Read`, because the library throws it for
+error. The PlantUML library adds three more in the same place: `PlantUmlUnsupportedFeatureException` (an `IOException`,
+strict mode) is `unsupported-feature` ("The PlantUML diagram uses a feature that is not supported (feature): ..."), and
+`PlantUmlSyntaxException` (a `FormatException`: text that is not a valid diagram, an unknown `@start` tag, an include
+that cannot be read) and `PlantUmlRenderException` (a diagram that cannot be laid out or drawn) go to `MapPlantUml`: an
+include the file-access policy refused (the `FileReferenceException` inner exception, `IsFileAccessDenial`) is
+`file-access-denied` ("PlantUML include denied: ..."), `plantuml-limit-exceeded` is `budget-exceeded`, and every other
+code is `plantuml-error` ("PlantUML syntax error: ..." or "PlantUML render error: ..."), keeping the hint of the
+library; a text longer than the text limit is an `InvalidDataException`, so `corrupt-input`. An `ArgumentException` of
+the library is not on the allow-list of `Read`, because the library throws it for
 arguments that the caller chose; the two places that call the library with arguments the tool chose handle it
 themselves: `RenderChart` maps any `ArgumentException` of a render (the target size was validated by `ComputeTargetSize`
 before) to `vega-lite-error` ("Vega-Lite render error: ..."), and `MeasureChart` maps an `ArgumentOutOfRangeException`
@@ -746,6 +788,10 @@ position handler cannot occur, because the handler only offers the position to t
   `MermaidRenderOptions` (and its `ThemeNames`), `MermaidLimits`, the warnings and unsupported features, the stable
   `MermaidDiagnosticCodes`, and the exceptions that the loader maps; `MermaidImageSource` names the theme fragment
   parameter and the generic warning code.
+- **CanvasNet PlantUML system** - `PlantUmlDocument` parses (with its includes), measures, and draws a diagram, with
+  `PlantUmlOpenOptions`, `PlantUmlRenderOptions`, `PlantUmlLimits`, the warnings and unsupported features, the stable
+  `PlantUmlDiagnosticCodes`, and the exceptions that the loader maps; `PlantUmlImageSource` names the generic warning
+  code.
 - **CanvasNet core `Positions` subsystem** - `PositionSelection`, `PositionCollector`, `PositionSelector`, and
   `ImagePosition` for the feature positions of a diagram or a chart.
 

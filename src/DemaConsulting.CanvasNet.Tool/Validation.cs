@@ -52,6 +52,7 @@ internal static class Validation
         RunRenderScadTest(context, testResults);
         RunRenderVegaLiteTest(context, testResults);
         RunRenderMermaidTest(context, testResults);
+        RunRenderPlantUmlTest(context, testResults);
         RunPandocFilterTest(context, testResults);
         RunCropResizeTest(context, testResults);
         RunRotateFlipPadTest(context, testResults);
@@ -612,6 +613,64 @@ internal static class Validation
             var nodeFill = new Rgba32(0xEC, 0xEC, 0xFF, 255);
             var correct = rendered[0, 0] == white && rendered[14, height / 2] == nodeFill;
             return correct ? null : "The rendered diagram has the wrong pixels";
+        });
+    }
+
+    /// <summary>
+    ///     Runs a test that describes and renders a two-participant PlantUML sequence diagram written by the test, and checks
+    ///     the picture.
+    /// </summary>
+    /// <param name="context">The context for output.</param>
+    /// <param name="testResults">The test results collection.</param>
+    private static void RunRenderPlantUmlTest(Context context, DemaConsulting.TestResults.TestResults testResults)
+    {
+        RunSelfTest(context, testResults, "CanvasNetTool_RenderPlantUml", directory =>
+        {
+            var input = PathHelpers.SafePathCombine(directory, "talk.puml");
+            var output = PathHelpers.SafePathCombine(directory, "talk.png");
+            File.WriteAllText(input, "@startuml\nAlice -> Bob : Hello\nBob --> Alice : Hi\n@enduml\n");
+
+            // The diagram is parsed and measured, not drawn: a sequence diagram that this version draws, with two
+            // participants and two messages
+            var json = RunCommand(directory, "info", input, "--json");
+            int width;
+            int height;
+            using (var document = JsonDocument.Parse(json))
+            {
+                var diagram = document.RootElement.GetProperty("diagram");
+                var image = document.RootElement.GetProperty("image");
+                width = image.GetProperty("width").GetInt32();
+                height = image.GetProperty("height").GetInt32();
+                if (document.RootElement.GetProperty("input").GetProperty("format").GetString() != "plantuml"
+                    || diagram.GetProperty("type").GetString() != "sequence"
+                    || !diagram.GetProperty("supported").GetBoolean()
+                    || diagram.GetProperty("nodes").GetInt32() != 2
+                    || diagram.GetProperty("edges").GetInt32() != 2)
+                {
+                    return "The info document does not describe the diagram";
+                }
+            }
+
+            // The picture has the laid-out size, PlantUML's white background, and participant boxes in PlantUML's fill
+            RunCommand(directory, "render", input, "-o", output, "--strict");
+            using var rendered = PngCodec.Load(output);
+            if (rendered.Width != width || rendered.Height != height)
+            {
+                return "The rendered diagram has the wrong size";
+            }
+
+            var white = new Rgba32(255, 255, 255, 255);
+            var participantFill = new Rgba32(0xE2, 0xE2, 0xF0, 255);
+            var fill = 0;
+            for (var y = 0; y < height; y++)
+            {
+                for (var x = 0; x < width; x++)
+                {
+                    fill += rendered[x, y] == participantFill ? 1 : 0;
+                }
+            }
+
+            return rendered[0, 0] == white && fill > 200 ? null : "The rendered diagram has the wrong pixels";
         });
     }
 

@@ -33,12 +33,12 @@ examples:
   pixelated drawing.
 - image elements with an href to a local file, relative to the folder of the SVG
   file: a raster, an SVG file, an OpenSCAD model (.scad), a Vega-Lite chart
-  (.vl.json), a Mermaid diagram (.mmd), or a page of a PDF, PPTX, or VSDX
-  document (page 1 unless the href ends in #page=N). The format is decided by
-  the file name. A model, chart, or diagram is drawn at the size of the image, a
-  raster at its own size and then fitted; a local file: URI and a
-  percent-encoded path also work, and a nested SVG file finds its own images
-  beside itself.
+  (.vl.json), a Mermaid diagram (.mmd), a PlantUML diagram (.puml), or a page of
+  a PDF, PPTX, or VSDX document (page 1 unless the href ends in #page=N). The
+  format is decided by the file name. A model, chart, or diagram is drawn at the
+  size of the image, a raster at its own size and then fitted; a local file: URI
+  and a percent-encoded path also work, and a nested SVG file finds its own
+  images beside itself.
 - An embedded model is drawn with the view the library chooses for it (isometric
   for a 3D model, top-down for a flat 2D model, or the model's own $vpr, $vpt,
   $vpd, and $vpf variables) over a transparent background, so the diagram shows

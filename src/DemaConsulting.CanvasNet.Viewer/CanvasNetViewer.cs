@@ -4,6 +4,7 @@ using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.ImageSources;
 using DemaConsulting.CanvasNet.Mermaid;
 using DemaConsulting.CanvasNet.Pdf;
+using DemaConsulting.CanvasNet.PlantUml;
 using DemaConsulting.CanvasNet.Pptx;
 using DemaConsulting.CanvasNet.Scad;
 using DemaConsulting.CanvasNet.Svg;
@@ -20,7 +21,7 @@ namespace DemaConsulting.CanvasNet.Viewer;
 /// <remarks>
 ///     <para>
 ///         <b>The built-in sources.</b> The <see cref="ImageSources"/> property lists one <see cref="IImageSource"/> per format:
-///         raster (PNG, JPEG, BMP, TIFF, GIF, JPEG 2000), SVG, PDF, PPTX, VSDX, OpenSCAD, Vega-Lite and Mermaid. The list is fixed
+///         raster (PNG, JPEG, BMP, TIFF, GIF, JPEG 2000), SVG, PDF, PPTX, VSDX, OpenSCAD, Vega-Lite, Mermaid and PlantUML. The list is fixed
 ///         and explicit: there is no discovery, no reflection and no global registry that can be changed. To support
 ///         another format, or to replace how a built-in one is drawn, implement <see cref="IImageSource"/> and pass it
 ///         as an extra source; <b>an extra source that claims the same extension or URI scheme as a built-in one wins</b>
@@ -83,7 +84,8 @@ public static class CanvasNetViewer
         new LoaderImageSource(new VsdxImageSource(), [SourceKind.Vsdx], ["page"], false),
         new LoaderImageSource(new ScadImageSource(), [SourceKind.Scad], [], true),
         new LoaderImageSource(new VegaLiteImageSource(), [SourceKind.VegaLite], [], false),
-        new LoaderImageSource(new MermaidImageSource(), [SourceKind.Mermaid], [], false)
+        new LoaderImageSource(new MermaidImageSource(), [SourceKind.Mermaid], [], false),
+        new LoaderImageSource(new PlantUmlImageSource(), [SourceKind.PlantUml], [], false)
     ]);
 
     /// <summary>
@@ -104,7 +106,7 @@ public static class CanvasNetViewer
     }
 
     /// <summary>
-    ///     Gets the built-in image sources: raster, SVG, PDF, PPTX, VSDX, OpenSCAD, Vega-Lite and Mermaid. The instances are shared,
+    ///     Gets the built-in image sources: raster, SVG, PDF, PPTX, VSDX, OpenSCAD, Vega-Lite, Mermaid and PlantUML. The instances are shared,
     ///     stateless and thread-safe; the list cannot be changed. To add your own, compose a new sequence:
     ///     <c>new ImageSourceSet(CanvasNetViewer.ImageSources).Add(mySource)</c> (later sources win).
     /// </summary>

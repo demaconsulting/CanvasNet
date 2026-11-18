@@ -45,8 +45,8 @@ How a failure is reported, the stable error codes, and what --strict changes.
 
 ## What --strict does
 
-- `scad, vega-lite, mermaid, vsdx`: Every unsupported-feature diagnostic becomes
-  an unsupported-feature error and no output is written.
+- `scad, vega-lite, mermaid, plantuml, vsdx`: Every unsupported-feature
+  diagnostic becomes an unsupported-feature error and no output is written.
 - `pptx`: A skipped EMF or WMF picture becomes an error. Other unsupported
   shapes, fills, and pictures are errors with or without --strict.
 - `svg`: An image that was not drawn (svg-image-unresolved, or

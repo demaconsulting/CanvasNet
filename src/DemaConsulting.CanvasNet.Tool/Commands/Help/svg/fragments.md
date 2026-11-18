@@ -27,11 +27,11 @@ examples:
   azimuth=<degrees> and elevation=<degrees> (-90 to 90) turn it like --azimuth
   and --elevation (they replace the angles of the named view, iso without one).
   A Mermaid diagram takes theme=default|base|dark|forest|neutral
-  (flow.mmd#theme=dark), like --theme. A raster and an SVG file take no
-  parameter. A model and a chart also take the prefixed parameters of variable
-  fragment below. If a name is given twice with different values the last one
-  wins, with a warning. A fragment is at most {{fragmentMaxLength}} characters
-  and {{fragmentMaxParameters}} parameters.
+  (flow.mmd#theme=dark), like --theme. A raster, an SVG file, and a PlantUML
+  diagram take no parameter. A model and a chart also take the prefixed
+  parameters of variable fragment below. If a name is given twice with different
+  values the last one wins, with a warning. A fragment is at most
+  {{fragmentMaxLength}} characters and {{fragmentMaxParameters}} parameters.
 - **variable fragment**: A model and a chart take parameters whose name starts
   with a prefix, so they never collide with the names above. A model:
   def.<name>=<value> sets the variable <name> of the model exactly like -D

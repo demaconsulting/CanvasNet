@@ -16,7 +16,8 @@ the result records. It is a subsystem rather than a single unit because loading,
 separate responsibilities with distinct requirements and tests. It contains eleven units: `SourceLoader`, which
 recognizes a file, reads its header, and loads it (PNG, JPEG, BMP,
 TIFF, GIF, JPEG 2000, SVG, the pages of PDF, PPTX, and VSDX documents, a view of an OpenSCAD model, a Vega-Lite chart,
-and a Mermaid diagram), `ImagePipeline`, which crops, resizes, fits, rotates by any angle, flips, pads, adjusts the tone
+a Mermaid diagram, and a PlantUML diagram), `ImagePipeline`, which crops, resizes, fits, rotates by any angle, flips,
+pads, adjusts the tone
 of, deskews, trims, and draws a grid on pixels in the order the operations are given, `ImageWriter`, which writes PNG,
 JPEG, BMP, and TIFF files, and `ImageComparison`, which checks a comparison of two images against thresholds and holds
 the defaults of the comparison options, `ContactSheet`, which composes a grid of images, each fitted into a cell, with
@@ -115,7 +116,9 @@ CanvasNet SVG system) renders SVG; `PdfDocument`, `PptxDocument`, and `VsdxDocum
 and VSDX systems) list and render the pages of a document; `ScadDocument` (from the CanvasNet SCAD system, which
 draws with the Render3D system) parses and draws a model; `VegaLiteDocument` (from the CanvasNet Vega-Lite system)
 parses, measures, and draws a chart; `MermaidDocument` (from the CanvasNet Mermaid system) parses, measures, and draws a
-diagram. The core `Positions` subsystem (`PositionSelection`, `PositionCollector`, and `ImagePosition`) and the
+diagram; `PlantUmlDocument` (from the CanvasNet PlantUML system) parses (with its local includes), measures, and draws a
+PlantUML sequence or activity diagram. The core `Positions` subsystem (`PositionSelection`, `PositionCollector`, and
+`ImagePosition`) and the
 `PositionHandler` and `PositionKindFilter` of `MermaidRenderOptions` and `VegaLiteRenderOptions` are consumed for the
 feature positions.
 
@@ -125,7 +128,8 @@ A load is: detect the format (signature bytes, then ZIP entries, then SVG text, 
 header (`Probe`); refuse an image that is too large; compute the target size from the options; decode or render; apply
 what the options ask for (EXIF orientation, resize, flatten over a background); and return the pixels with the list of
 operations that were applied, which commands report as the `operations` of a JSON result. A vector source (SVG, a page
-of a PDF, PPTX, or VSDX document, a view of an OpenSCAD model, a Vega-Lite chart, or a Mermaid diagram) is rendered
+of a PDF, PPTX, or VSDX document, a view of an OpenSCAD model, a Vega-Lite chart, or a Mermaid or PlantUML diagram) is
+rendered
 directly at the target size, which is sharper than rendering at the natural size and resampling; a raster source is
 decoded at its own size and resized afterwards. A page of a document is chosen by its number counted from 1 and sized at
 a resolution in dots per inch (96 by default); every page of one document is loaded from one opened source. A model is
@@ -142,7 +146,10 @@ natural size, which the probe reports without loading the pictures of its nodes 
 reports the size it drew), and is drawn at that size times the
 scale exactly where Mermaid places it, or fitted into the box of the size options, with only the bundled fonts over
 white (or the background given), in the theme the options or the fragment of the input choose; the pictures of its nodes
-are read through the same resolver and file-access policy as those of an SVG file. A write is: resolve the format, check
+are read through the same resolver and file-access policy as those of an SVG file. A PlantUML diagram is drawn the same
+way (natural size times the scale, or fitted into the box) over its own background unless one is given, with no theme
+and no feature positions; its `!include` files are read from its folder under the file-access policy, and never from
+the network. A write is: resolve the format, check
 the target,
 flatten transparency for JPEG, and encode into a temporary file in the target directory (staging); moving it over the
 target (publishing, `ImageWriter.PublishAll`) is a separate step, so a command that writes several outputs touches no
@@ -171,5 +178,6 @@ render options of a chart and of a diagram, and the mapping of library exception
 explicit list of exception types in `SourceLoader.Read`; any other exception is a defect and propagates to the entry
 point, which reports and re-throws it. `Imaging` adds no dependency on a system other than the CanvasNet core library
 (its pixel, codec, font, and text-rendering parts; `ContactSheet` draws its labels with the text renderer and the
-bundled font) and the CanvasNet SVG, PDF, PPTX, VSDX, SCAD, Render3D, Vega-Lite, and Mermaid systems. Every source kind
+bundled font) and the CanvasNet SVG, PDF, PPTX, VSDX, SCAD, Render3D, Vega-Lite, Mermaid, and PlantUML systems. Every
+source kind
 is read; a further kind is added by a new partial file of `SourceLoader` and one new case in `Probe` and in `OpenPages`.

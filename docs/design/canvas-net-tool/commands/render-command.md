@@ -65,7 +65,11 @@ mindmap, packet diagram, or git graph at the size Mermaid lays it out at, with t
 sets unless the text sets one; a diagram type that is not drawn (journey, timeline, and so on) is an empty picture with
 the note
 `mermaid-diagram-unsupported`, and `canvasnet help mermaid` says what is supported; an example draws
-`flow.mmd --theme dark --scale 2`), and how `--positions <selector>` (a diagram or a chart, with `--json`,
+`flow.mmd --theme dark --scale 2`), how a PlantUML sequence or activity diagram is drawn (at the size PlantUML lays it
+out at, with its default look and the bundled fonts, its `!include` files read relative to the file that names them; a
+type that is not drawn is an empty picture with the note `plantuml-diagram-unsupported`, `--theme` and `--positions` do
+not apply, and `canvasnet help plantuml` says what is supported; an example draws `seq.puml --scale 2`), and how
+`--positions <selector>` (a diagram or a chart, with `--json`,
 repeatable) reports the box and attach pixel of the features it matches in the written image, with an example
 `flow.mmd --positions node:send --positions edge -o flow.png --json`. A verb has no alias, and its
 usage text is `canvasnet {verb} <input>
@@ -154,8 +158,9 @@ that of the parameterized chart. `compare` and `montage` have no chart options; 
 is the name of `MermaidRenderOptions.ThemeNames` that equals the value without regard to case (so `--theme Dark` is
 reported as `dark`), and a value that is not a theme is a `usage-error` whose hint lists the themes (`default`, `base`,
 `dark`, `forest`, `neutral`). The table `DiagramOptionNames` (`--theme`) is `internal` like `ChartOptionNames`. `Run`
-(and `inspect`) refuse the option for an input that is not a diagram with a `usage-error` that names the kind ("only
-applies to a Mermaid diagram"), before anything is drawn. The loader applies the theme: the theme fragment of the input
+(and `inspect`) refuse the option for an input that is not a Mermaid diagram (a PlantUML diagram, which has no theme,
+included) with a `usage-error` that names the kind ("only applies to a Mermaid diagram"), before anything is drawn. The
+loader applies the theme: the theme fragment of the input
 (`flow.mmd#theme=dark`) wins over the option, a theme the text of the diagram sets itself wins over both (as with the
 Mermaid command line), and the `render` operation lists the theme. `compare` and `montage` have no diagram option;
 `--theme` is not in their tables.
@@ -167,8 +172,9 @@ loaded. A `FormatException` of the parser becomes a `usage-error` whose message 
 problem, with the hint to run `canvasnet help positions selectors` for the grammar and to quote a selector with `*`,
 `"`, or spaces. `ReadSettings` stores the selection in `SourceOptions.Positions`. `Run` then refuses `--positions`
 without `--json` (`usage-error`, "...reports its positions in the JSON result, but --json was not given.", hint "Add
---json."), before the input is probed, and, after the probe, for an input that is neither a diagram nor a chart
-(`usage-error` naming the kind, with a hint that an OpenSCAD model reports its anchors instead). `inspect` excludes the
+--json."), before the input is probed, and, after the probe, for an input that is neither a Mermaid diagram nor a chart
+(a PlantUML diagram reports no positions) (`usage-error` naming the kind, with a hint that an OpenSCAD model reports its
+anchors instead). `inspect` excludes the
 option (`InspectCommand.Options.cs`), because its positions are a field of the render result only; `compare` and
 `montage` do not take it.
 

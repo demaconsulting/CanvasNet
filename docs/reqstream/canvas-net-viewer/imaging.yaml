@@ -23,7 +23,7 @@ sections:
       - id: CanvasNetViewer-Imaging-Load
         title: >-
           The Imaging subsystem shall load a PNG, JPEG, BMP, TIFF, GIF, JPEG 2000, SVG, PDF, PPTX,
-          VSDX, SCAD, Vega-Lite, or Mermaid file (a chosen page of a document, a named view of a model, a
+          VSDX, SCAD, Vega-Lite, Mermaid, or PlantUML file (a chosen page of a document, a named view of a model, a
           chart, a diagram) into pixels at the size and resolution the options ask for, and shall report the
           facts of a file, including the pages of a document, the declarations of a model, the marks, data,
           and parameters of a chart, and the type, direction, titles, and numbers of nodes, edges, and
@@ -57,6 +57,10 @@ sections:
           - CanvasNetViewer-Imaging-SourceLoader-MermaidProbe
           - CanvasNetViewer-Imaging-SourceLoader-MermaidRender
           - CanvasNetViewer-Imaging-SourceLoader-MermaidErrors
+          - CanvasNetViewer-Imaging-SourceLoader-PlantUmlDetection
+          - CanvasNetViewer-Imaging-SourceLoader-PlantUmlProbe
+          - CanvasNetViewer-Imaging-SourceLoader-PlantUmlRender
+          - CanvasNetViewer-Imaging-SourceLoader-PlantUmlErrors
           - CanvasNetViewer-Imaging-SourceLoader-Sizing
           - CanvasNetViewer-Imaging-SourceLoader-Background
           - CanvasNetViewer-Imaging-SourceLoader-Exif

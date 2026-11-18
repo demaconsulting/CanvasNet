@@ -168,7 +168,8 @@ Each interface, with its direction and format, and its constraints:
 The stable error codes are `usage-error`, `operation-failed`, `input-not-found`, `input-unreadable`,
 `unsupported-format`, `corrupt-input`, `unsupported-feature`, `page-out-of-range`, `image-fragment-invalid`,
 `size-limit`, `same-input-output`, `output-exists`, `output-write-failed`, `scad-error`, `vega-lite-error`,
-`mermaid-error`, `budget-exceeded`, `file-access-denied`, `size-mismatch`, `threshold-failed`, `positions-unmatched`,
+`mermaid-error`, `plantuml-error`, `budget-exceeded`, `file-access-denied`, `size-mismatch`, `threshold-failed`,
+`positions-unmatched`,
 `svg-binding-failed`, and `pandoc-filter-error`
 (the `ErrorCodes` type of the `ViewerException` unit of the Viewer library; see also *Program Unit Design*). A code is
 never changed once
@@ -185,7 +186,13 @@ pictures, painted pixels); `corrupt-input` is a text longer than the text limit 
 target size larger than the maximum image size (a diagram whose natural size is larger is still drawn with a smaller
 `--scale`, `--width`, or `--height`); `unsupported-feature` is a construct or a diagram type that is not drawn, with
 `--strict` (without it the diagnostic `mermaid-diagram-unsupported` and an empty picture); and `usage-error` is a
-`--theme` that is not a Mermaid theme or that is given for another kind of input. For `--positions` (a diagram or a
+`--theme` that is not a Mermaid theme or that is given for another kind of input. For a PlantUML diagram
+`plantuml-error` is text that is not a valid diagram, an unknown `@start` tag, an `!include` file that is missing or
+cannot be read, or a diagram the library cannot lay out (with the location and the hint of the library);
+`file-access-denied` is an include the file-access mode denies; `budget-exceeded`, `corrupt-input`, `size-limit`, and
+`unsupported-feature` are as for a Mermaid diagram (without `--strict` a type that is not drawn is the diagnostic
+`plantuml-diagram-unsupported` and an empty picture); and `usage-error` is `--theme` or `--positions` on a PlantUML
+diagram, which take no theme and report no positions. For `--positions` (a diagram or a
 chart) `usage-error` is a malformed selector, more than the selectors allowed, the option without `--json`, or the
 option for another kind of input, and `positions-unmatched` is a selector that matched nothing, with `--strict`
 (without it a warning of the same code). See *SourceLoader Unit Design* for the
@@ -198,7 +205,8 @@ mapping.
   Integration Design* (`ots/test-results.md`).
 - **The CanvasNet libraries** (same repository): the tool references the core `CanvasNet` package and the
   `CanvasNetSvg`, `CanvasNetPdf`, `CanvasNetPptx`, `CanvasNetVsdx`, `CanvasNetRender3D`, `CanvasNetScad`,
-  `CanvasNetVegaLite`, `CanvasNetMermaid`, and `CanvasNetViewer` systems. The tool calls the operations of the `Imaging`
+  `CanvasNetVegaLite`, `CanvasNetMermaid`, `CanvasNetPlantUml`, and `CanvasNetViewer` systems. The tool calls the
+  operations of the `Imaging`
   subsystem of `CanvasNetViewer` for everything that touches an image; that subsystem calls
   `CanvasNetViewer.CreateImageResolver` to let an SVG file embed the files beside it (the tool passes no extra sources:
   it has no plug-in mechanism), the core `Surface` and `Rgba32` types and the PNG, JPEG,
@@ -213,7 +221,9 @@ mapping.
   so there is no `--data-dir` option), and the `MermaidDocument` type of the
   `CanvasNetMermaid` system, which parses, measures, and draws a diagram with only the bundled fonts and no network (the
   tool also reads `MermaidRenderOptions.ThemeNames` to check `--theme` and `MermaidLimits` for the limits it quotes in
-  its help). The core `Positions` subsystem parses the `--positions` selectors (`PositionSelection`) and supplies the
+  its help), and the `PlantUmlLimits` type of the `CanvasNetPlantUml` system for the limits it quotes in its help (the
+  `PlantUmlDocument` that parses, measures, and draws a PlantUML diagram is called by the `Imaging` subsystem). The core
+  `Positions` subsystem parses the `--positions` selectors (`PositionSelection`) and supplies the
   positions the `render` command writes and the limits its help quotes. The core `Fonts` and `Rendering` subsystems also
   supply the
   bundled font and the text renderer with which `ContactSheet` draws the labels of a contact sheet, so that labels
@@ -225,12 +235,15 @@ mapping.
   both properties: it fails if the package's nuspec declares any dependency (a tool package must carry
   everything it needs, including the third-party `DemaConsulting.TestResults` and `System.Numerics.Tensors`
   libraries and the transitively used `CanvasNetCharts` assembly), if it is not a `DotnetTool` package, or if a
-  library assembly (the `CanvasNetVegaLite` and `CanvasNetMermaid` assemblies included), the tool's dependency manifest
+  library assembly (the `CanvasNetVegaLite`, `CanvasNetMermaid`, and `CanvasNetPlantUml` assemblies included), the
+  tool's dependency manifest
   (`.deps.json`) or runtime configuration file, or `DotnetToolSettings.xml` is missing from the package for any target
   framework. The package also carries the third-party license notices of the `CanvasNetVegaLite` system (the
   BSD-3-Clause texts of Vega and Vega-Lite and the ISC text of d3, with the notice README) and of the `CanvasNetMermaid`
   system (the notices of Mermaid and of the libraries it was ported from, with its notice README; its d3 text is packed
-  as `Mermaid-LICENSE-d3.txt` because the chart notices already use `LICENSE-d3.txt`) in its `licenses` folder, because
+  as `Mermaid-LICENSE-d3.txt` because the chart notices already use `LICENSE-d3.txt`) and of the `CanvasNetPlantUml`
+  system (the MIT notice of PlantUML as `LICENSE-plantuml.txt`, with its provenance README as
+  `PlantUml-third-party-README.md`) in its `licenses` folder, because
   binary distributions must reproduce them, and the same job checks that they are present. The test
   project references the libraries directly, which is what places their assemblies next to the tool
   assembly for the out-of-process system tests.

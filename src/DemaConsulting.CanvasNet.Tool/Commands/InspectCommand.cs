@@ -103,7 +103,8 @@ internal sealed partial class InspectCommand : ICommand
                 "Remove it, or inspect a .vl.json file.");
         }
 
-        if (settings.Source.Mermaid != null && !info.Format.IsDiagram())
+        // A PlantUML diagram is a diagram too, but it has no theme
+        if (settings.Source.Mermaid != null && info.Format != SourceKind.Mermaid)
         {
             throw new ToolException(
                 ErrorCodes.UsageError,

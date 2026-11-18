@@ -12,10 +12,12 @@ provides two commands, `formats` and `info`, implemented as the nested classes `
 #### Data Model
 
 **InputFormats** (`IReadOnlyList<InputFormat>`): one row per input format, in listing order - `png`, `jpeg`, `bmp`,
-`tiff`, `gif`, `jpeg2000`, `svg`, `pdf`, `pptx`, `vsdx`, `scad`, `vega-lite`, `mermaid`. A row (`InputFormat`) has
+`tiff`, `gif`, `jpeg2000`, `svg`, `pdf`, `pptx`, `vsdx`, `scad`, `vega-lite`, `mermaid`, `plantuml`. A row
+(`InputFormat`) has
 `Name`, `Kind` (`raster`: decoded at its own size; `vector`: a drawing rendered at any requested size; `document`: pages
 or slides rendered at any requested size; `model`: a 3D model rendered from a viewpoint; `chart`: a Vega-Lite chart
-rendered at any requested size; `diagram`: a Mermaid diagram rendered at any requested size), `Extensions` (lower case,
+rendered at any requested size; `diagram`: a Mermaid or PlantUML diagram rendered at any requested size), `Extensions`
+(lower case,
 with the dot), `MultiPage` (one file holds pages or slides that can be chosen), and `Vector` (rendered at the requested
 size rather than decoded at its own size), and `HelpTopic` (the help topic that describes the format: `raster` for the
 six raster formats, otherwise the name of the format). The rows are the `SourceKind` members in order, and their
@@ -23,7 +25,9 @@ extensions are those
 that `SourceLoader.ExtensionKinds` maps to the kind (the `vega-lite` row lists `.vl.json` and `.vl`: `.vl.json` is
 the two-part suffix `SourceLoader.VegaLiteJsonSuffix`, which is checked on the file name and cannot be an
 extension; the `mermaid` row, of the kind `diagram`, lists `.mmd` and `.mermaid`, is a vector format, is not multi-page,
-and has the help topic `mermaid`); a test keeps the table consistent with the enumeration and the
+and has the help topic `mermaid`; the `plantuml` row, of the kind `diagram`, lists `.puml`, `.plantuml`, and `.pu`, is a
+vector format, is not multi-page, and has the help topic `plantuml`); a test keeps the table consistent with the
+enumeration and the
 loader, so a listed format is one the code knows, and a further test probes a file of every listed kind to prove that
 the loader reads it.
 
@@ -95,7 +99,9 @@ joined with spaces). For a Mermaid diagram, one line:
 `{path}: mermaid, {w}x{h} px (laid out), {type}[ {direction}][ (not drawn by this version)], {n} node[s], {n} edge[s],`
 `{n} subgraph[s][, title "{title}"][, accTitle "{accTitle}"], {bytes} bytes` (for example
 `flow.mmd: mermaid, 674x286 px (laid out), flowchart LR, 5 nodes, 5 edges, 1 subgraph, title "Order flow", 313 bytes`;
-a title of several lines is joined with spaces).
+a title of several lines is joined with spaces). A PlantUML diagram is described by the same line with the format
+`plantuml` and no direction or accessible title (for example
+`seq.puml: plantuml, 378x517 px (laid out), sequence, 3 participants, 6 messages, 0 boxes, title "Checkout", 512 bytes`).
 
 **Info JSON document**: `ResultWriter.Success("info", ...)` with these fields after the envelope, in this order:
 
@@ -111,14 +117,19 @@ a title of several lines is joined with spaces).
   and concatenations), `dataReferences` (an array of objects in document order: `kind` (`inline`, `url`, `name`, or
   `sequence`), `url` as written for a `url` source, `rows` when the text gives the row count, and `line` of the `data`
   object), and `parameters` (an array of the declared parameter names).
-- **`diagram`**: for a Mermaid diagram, after `image` (which gives the laid-out `width` and `height`, 4 `channels`,
+- **`diagram`**: for a Mermaid or PlantUML diagram, after `image` (which gives the laid-out `width` and `height`, 4
+  `channels`,
   `hasAlpha` true, `canDecode` true, and `frameCount` 1), written by `WriteDiagram`: object: `type` (for example
   `flowchart`, `sequence`, or `mindmap`), `supported` (false for a type that is recognized but not drawn, such as a user
   journey, which `render` draws as an empty picture with the diagnostic `mermaid-diagram-unsupported`), `direction`,
   `title`, and `accTitle` only when the diagram has them, and `nodes`, `edges`, and `subgraphs` (for a mindmap its
   nodes, one edge fewer than its nodes, and 0 subgraphs; for a packet diagram its blocks as written, 0 edges, and 0
   subgraphs; for a git graph its commits, the links to their parents as edges, and 0 subgraphs; 0 for a type that is not
-  drawn).
+  drawn). For a PlantUML diagram the `type` is `sequence`, `activity`, or a recognized type that is not drawn (`class`,
+  `usecase`, `component`, `state`, `activity-legacy`, and so on, with the diagnostic `plantuml-diagram-unsupported`),
+  `direction` and `accTitle` are never written, and `nodes`, `edges`, and `subgraphs` are the participants, messages,
+  and boxes of a sequence diagram, or the actions, start, stop, end, connector, and decision nodes, the arrows, and the
+  swimlanes and partitions of an activity diagram.
 - **`model`**: for an OpenSCAD model, instead of `image`: object: `modules` and `functions` (arrays of the names defined
   at file scope, in source order, a repeated name kept) and `directives` (an array of objects: `kind` (`include` or
   `use`), `path` as written, and `line`).

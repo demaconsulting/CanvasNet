@@ -2,6 +2,7 @@ using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;
 using DemaConsulting.CanvasNet.Mermaid;
 using DemaConsulting.CanvasNet.Pdf;
+using DemaConsulting.CanvasNet.PlantUml;
 using DemaConsulting.CanvasNet.Pptx;
 using DemaConsulting.CanvasNet.Render3D.SceneRendering;
 using DemaConsulting.CanvasNet.Scad;
@@ -85,6 +86,9 @@ public class ImagingSubsystemTests
 
             case "mermaid":
                 return MermaidDocument.Open(path).Render(new MermaidRenderOptions { Background = new Rgba32(255, 255, 255, 255) }, TestContext.Current.CancellationToken);
+
+            case "plantuml":
+                return PlantUmlDocument.Open(path).Render(cancellationToken: TestContext.Current.CancellationToken);
 
             case "vega-lite":
                 var chart = VegaLiteDocument.Open(path);

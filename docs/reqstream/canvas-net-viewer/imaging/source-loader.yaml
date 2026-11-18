@@ -631,6 +631,92 @@ sections:
           - SourceLoader_Load_MermaidTruncatedOrDamaged_IsExpectedErrorOrLoads
           - SourceLoader_Load_GarbageWithKnownExtension_ThrowsCorruptInput
 
+      - id: CanvasNetViewer-Imaging-SourceLoader-PlantUmlDetection
+        title: >-
+          The SourceLoader class shall recognize a PlantUML diagram by the file name extension .puml, .plantuml, or .pu
+          (in any case), never take such a file for an SVG drawing whatever its text mentions, let a signature still
+          win over the name, and not recognize a diagram by its content nor an include fragment named .iuml as a
+          diagram of its own.
+        justification: |
+          A PlantUML diagram is text without a reliable signature (the @startuml tag is optional in a Pandoc block and
+          common in other text); the three extensions PlantUML's own tools use name a diagram for people and for the
+          tool, and an include fragment is only meaningful inside the diagram that includes it.
+        tests:
+          - SourceLoader_Detect_PlantUmlExtensions_ReturnPlantUml
+          - SourceLoader_Detect_UnrecognizedContent_FallsBackToExtension
+          - SourceLoader_ExtensionKinds_AreWellFormed
+
+      - id: CanvasNetViewer-Imaging-SourceLoader-PlantUmlProbe
+        title: >-
+          The SourceLoader class shall report for a PlantUML diagram, by parsing and measuring it without drawing it,
+          the natural size the library lays the diagram out at, four channels with transparency, one page, and what
+          the diagram declares (SourceInfo.Diagram, a DiagramFacts: its type, sequence, activity, or a recognized type
+          that is not drawn, whether this version draws it, its title, and its numbers of nodes, edges, and subgraphs,
+          zero for a type that is not drawn, with no direction and no accessible title), reading the files the
+          diagram includes under the file-access policy of the probe.
+        justification: |
+          Knowing what a diagram is, how big it will be, and whether this version draws its type before committing to
+          render it lets an agent choose sizes and avoid an empty picture, with the same facts object as a Mermaid
+          diagram so that a script reads both the same way.
+        tests:
+          - SourceLoader_Probe_PlantUmlSequence_ReportsDiagramFacts
+          - SourceLoader_Load_PlantUmlActivity_ProbesAndDraws
+          - SourceLoader_Load_PlantUmlUnsupportedType_IsOneNoteThenStrictError
+          - SourceLoader_Load_PlantUmlInclude_FollowsTheFileAccessPolicy
+          - SourceLoader_Probe_EachKind_ReportsHeaderFacts
+
+      - id: CanvasNetViewer-Imaging-SourceLoader-PlantUmlRender
+        title: >-
+          The SourceLoader class shall draw a PlantUML diagram at its natural size times the scale when neither a width
+          nor a height is given, and sharply into the box (fitted inside and centered when both sides are given)
+          otherwise; over the diagram's own background (white by default) unless a background color replaces it,
+          transparent when that background has no alpha; with only the bundled fonts, giving the same picture for the
+          same options every time; shall follow the !include directives of the diagram from the folder of the file
+          that names them under the file-access policy, and never fetch a URL; shall describe the drawn size, and the
+          background when one is given, in the render operation; shall take no fragment parameter (a theme fragment is
+          the warning image-fragment-unknown-parameter); shall return each warning of the library as the note
+          plantuml-warning (the specific code as Detail, the line and column as Location) and each construct it does
+          not draw as an unsupported note named by its feature (a diagram type that this version does not draw is one
+          note plantuml-diagram-unsupported and an empty picture); and, in strict mode, shall report the first
+          unsupported construct as an unsupported-feature error that names the feature.
+        justification: |
+          A diagram is a vector source: drawing it at the target size keeps text and lines sharp, and drawing it at its
+          natural size over its own background keeps the picture comparable with what PlantUML draws. Includes are
+          local files read under the same policy as every other referenced file, and reporting what the library leaves
+          out keeps a partial or empty diagram from being mistaken for a complete one.
+        tests:
+          - SourceLoader_Load_PlantUmlSequence_DrawsAtTheNaturalSizeOverWhite
+          - SourceLoader_Load_PlantUmlActivity_ProbesAndDraws
+          - SourceLoader_Load_PlantUmlSizeAndBackground_FollowTheOptions
+          - SourceLoader_Load_PlantUmlInclude_FollowsTheFileAccessPolicy
+          - SourceLoader_ProbeInputReference_PlantUmlTheme_IsAnUnknownParameter
+          - SourceLoader_Load_PlantUmlUnsupportedType_IsOneNoteThenStrictError
+          - SourceLoader_Load_PlantUml_MapsWarningsAndUnsupportedFeatures
+          - Imaging_Convert_InputKindToOutputFormat_WritesTheSourcePixels
+
+      - id: CanvasNetViewer-Imaging-SourceLoader-PlantUmlErrors
+        title: >-
+          The SourceLoader class shall report text that is not a valid PlantUML diagram, an unknown @start tag, an
+          include that cannot be read, and a diagram that cannot be laid out or drawn as a plantuml-error that names the
+          file and the position on one line and keeps the code and the hint of the library, an include the file-access
+          policy refuses as file-access-denied, a diagram that exceeds a limit of the library (nodes, edges, includes,
+          nesting, label length, layout work, or painted pixels) as budget-exceeded, a text longer than the text limit
+          of the library as corrupt-input, a target size larger than the maximum image size as size-limit, an
+          unsupported construct in strict mode as unsupported-feature, and shall give a picture or an expected error,
+          never an unexpected exception, for a diagram that is cut anywhere, emptied, or garbage.
+        justification: |
+          A diagram is hand-written text and fails in many ways; every failure that is the author's mistake must be a
+          concise, located, coded error that a script can branch on, as for a Mermaid diagram, while an unexpected
+          exception stays a defect that is not hidden.
+        tests:
+          - SourceLoader_Probe_PlantUmlInvalidText_IsPlantUmlError
+          - SourceLoader_Load_PlantUmlInclude_FollowsTheFileAccessPolicy
+          - SourceLoader_Probe_PlantUmlLimits_AreBudgetExceededAndCorruptInput
+          - SourceLoader_MapPlantUml_MapsByCode
+          - SourceLoader_Load_PlantUmlUnsupportedType_IsOneNoteThenStrictError
+          - SourceLoader_Load_PlantUmlTruncatedOrDamaged_IsExpectedErrorOrLoads
+          - SourceLoader_Load_GarbageWithKnownExtension_ThrowsCorruptInput
+
       - id: CanvasNetViewer-Imaging-SourceLoader-Sizing
         title: >-
           The SourceLoader class shall derive the target size from the natural size and the scale,
