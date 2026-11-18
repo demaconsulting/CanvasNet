@@ -274,13 +274,13 @@ is their vector file.
 CanvasNet's PlantUML layout with:
 
 ```powershell
-pwsh tools/visual-diff/update-plantuml-goldens.ps1 -Jar <plantuml-mit.jar> [-Java <java>] [-Diagram sequence] [-Fixture <name>...]
+pwsh tools/visual-diff/update-plantuml-goldens.ps1 -Jar <plantuml-mit.jar> [-Java <java>] [-Diagram activity] [-Fixture <name>...]
 ```
 
-It renders the original fixtures of `test/DemaConsulting.CanvasNet.PlantUml.Tests/Fixtures/sequence/` (and
-`Fixtures/activity/` when it exists) with the MIT-licensed PlantUML jar, with Graphviz turned off, and writes the SVG
-files to `Fixtures/reference/<type>/`. It needs Java 17 or later and the `plantuml-mit` jar; the committed goldens were
-made with `plantuml-mit-1.2026.10.jar` on Java 25 on Windows (see `Fixtures/reference/README.md`). To compare pictures
-by eye, render the same fixture with the jar (`-tpng`) and with CanvasNet, and compare them with
-`canvasnet compare <plantuml.png> <canvasnet.png>`; PlantUML's PNG is one pixel narrower and lower than its SVG, whose
-size CanvasNet follows.
+It renders the original fixtures of `test/DemaConsulting.CanvasNet.PlantUml.Tests/Fixtures/sequence/` and
+`Fixtures/activity/` (`-Diagram` picks one type; both by default) with the MIT-licensed PlantUML jar, with Graphviz
+turned off, and writes the SVG files to `Fixtures/reference/<type>/`. It needs Java 17 or later and the `plantuml-mit`
+jar; the committed goldens were made with `plantuml-mit-1.2026.10.jar` on Java 25 on Windows (see
+`Fixtures/reference/README.md`). To compare pictures by eye, render the same fixture with the jar (`-tpng`) and with
+CanvasNet, and compare them with `canvasnet compare <plantuml.png> <canvasnet.png>`; PlantUML's PNG is one pixel
+narrower and lower than its SVG, whose size CanvasNet follows.

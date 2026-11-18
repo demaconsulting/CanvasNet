@@ -113,11 +113,13 @@ at any size, and `flatten` bakes the numbers in (`canvasnet help svg bindings`).
   a fuzz-tested renderer that fails only with documented, located errors, and pixel-identical output across runs
 - 🧜 **Mermaid Diagrams** - Render Mermaid flowcharts, sequence, class, state, and entity relationship diagrams, pie
   charts, gantt charts, mindmaps, packet diagrams, and git graphs with ports of Mermaid's own layouts
+- 🌱 **PlantUML Diagrams** - Render PlantUML sequence diagrams and activity diagrams with PlantUML's default look and
+  layout, local `!include` files, and no Java, Graphviz, or network; other PlantUML types are recognized and reported
 - 🔍 **Header-Only Probing** - `GetInfo` reads headers without decoding pixels (GIF excepted)
 - 🖥️ **Command-Line Tool** - The script- and agent-friendly `canvasnet` dotnet tool, with photo clean-up
-- 📝 **Pandoc Filter** - Draw models, charts, diagrams, and pages in Pandoc documents, including `mermaid` code blocks
-  and SVG drawings that link them, which are flattened so WeasyPrint shows them: a thin Lua shim written by
-  `canvasnet pandoc-filter --write-shim` sends each document to the tool once (see User Guide)
+- 📝 **Pandoc Filter** - Draw models, charts, diagrams, and pages in Pandoc documents, including `mermaid` and
+  `plantuml` code blocks and SVG drawings that link them, which are flattened so WeasyPrint shows them: a thin Lua
+  shim written by `canvasnet pandoc-filter --write-shim` sends each document to the tool once (see User Guide)
 - 🖌️ **Path Filling** - Antialiased nonzero/even-odd fill of vector paths
 - 🖊️ **Stroke-to-Fill** - Convert stroked paths into fillable outlines
 - 🌅 **Gradient Paint** - Linear or radial gradient fills with spread
@@ -131,9 +133,9 @@ at any size, and `flatten` bakes the numbers in (`canvasnet help svg bindings`).
 - 🔐 **File-Access Policies** - `FileReferenceResolver` reads the files a document references like Pandoc does
   (`..`, absolute paths, links), and a `FileAccessPolicy` (`AllowAll`, `UnderRoots`, `NoSymlinks`, combined or your
   own) decides on the real path of the opened file, so a swapped link cannot slip through
-- 🖼️ **Linked Pictures** - SVG `<image href>` can embed 3D models, charts, Mermaid diagrams, other SVG files, document
-  pages (`report.pdf#page=3`, `deck.pptx#slide=2`), and pictures from the document's own folder; the `Viewer` package
-  lists every format, and you can add your own source
+- 🖼️ **Linked Pictures** - SVG `<image href>` can embed 3D models, charts, Mermaid and PlantUML diagrams, other SVG
+  files, document pages (`report.pdf#page=3`, `deck.pptx#slide=2`), and pictures from the document's own folder; the
+  `Viewer` package lists every format, and you can add your own source
 - 🔭 **Viewer** - `CanvasNetViewer.Render` draws any file CanvasNet can read (any page, at any resolution),
   `CreateImageResolver` makes SVG
   documents embed all of them, and its `Imaging` operations do everything the `canvasnet` tool does (probe, render with
@@ -173,6 +175,7 @@ the ones you need, the same way as above:
 | `DemaConsulting.CanvasNet.Scad` | OpenSCAD-language model rendering |
 | `DemaConsulting.CanvasNet.VegaLite` | Vega-Lite static chart rendering |
 | `DemaConsulting.CanvasNet.Mermaid` | Mermaid diagrams, mindmaps, packets, git graphs |
+| `DemaConsulting.CanvasNet.PlantUml` | PlantUML sequence and activity diagrams |
 | `DemaConsulting.CanvasNet.Viewer` | The `canvasnet` operations as library calls |
 | `DemaConsulting.CanvasNet.Tool` | The `canvasnet` command-line tool (dotnet tool) |
 
@@ -233,10 +236,11 @@ local file, as Pandoc reads them), `roots`, `no-symlinks`, and `roots,no-symlink
 the modes, the diagnostics of a denied file, and the opt-in of the Pandoc filter.
 
 `render` reads PNG, JPEG, BMP, TIFF, GIF, JPEG 2000, SVG, PDF, PPTX, VSDX, SCAD, Vega-Lite charts (`.vl.json`, `.vl`),
-and Mermaid diagrams (`.mmd`, `.mermaid`), and applies `--crop`, `--resize`, `--fit`, `--rotate` (any angle), `--flip`,
-and `--pad` in the order written, together with the photo operations `--grayscale`, `--invert`, `--threshold`,
-`--levels`, `--brightness`, `--contrast`, `--auto-levels`, `--deskew`, `--trim`, and `--grid`; `crop`, `resize`,
-`rotate`, `flip`, and `pad` are the same pipeline with one operation first. Defaults: an existing output is replaced
+Mermaid diagrams (`.mmd`, `.mermaid`), and PlantUML diagrams (`.puml`, `.plantuml`, `.pu`), and applies `--crop`,
+`--resize`, `--fit`, `--rotate` (any angle), `--flip`, and `--pad` in the order written, together with the photo
+operations `--grayscale`, `--invert`, `--threshold`, `--levels`, `--brightness`, `--contrast`, `--auto-levels`,
+`--deskew`, `--trim`, and `--grid`; `crop`, `resize`, `rotate`, `flip`, and `pad` are the same pipeline with one
+operation first. Defaults: an existing output is replaced
 (`--no-clobber` refuses), vector sources are flattened over white, a JPEG is turned upright by its EXIF orientation,
 document pages are drawn at 96 dpi (`--page`, `--all-pages`, `--dpi`), and no side of an image may exceed 8192 pixels.
 
@@ -287,6 +291,14 @@ What the library recognizes but cannot draw (icons, the hand-drawn look, the ELK
 with a stable `mermaid-*` code, and invalid text is the error `mermaid-error` with the file, line, column, and a hint.
 A node can show a picture that lies beside the diagram (`@{ img: "part.scad" }`), and an SVG drawing can embed a
 diagram with `<image href="flow.mmd" .../>`.
+
+A PlantUML diagram is read from a file named `.puml`, `.plantuml`, or `.pu` and is drawn with PlantUML's default look
+and layout at the size of PlantUML's SVG, for example `canvasnet render seq.puml -o seq.png --json`. This version
+draws sequence diagrams and activity diagrams (the new syntax); every other type is recognized, reported as
+`plantuml-diagram-unsupported`, and drawn as an empty picture. `!include` files are read from beside the diagram under
+`--file-access` and never from the network, themes are not supported (`!theme` is reported and the default look is
+drawn), and invalid text is the error `plantuml-error` with the file, line, column, and a hint (`canvasnet help
+plantuml`).
 
 `compare <a> <b>` measures how much two images, drawings, document pages, or models differ: the mean absolute error,
 RMSE, PSNR, a structural similarity (SSIM), the share of pixels that differ by more than `--tolerance`, and the RMSE of
@@ -347,11 +359,15 @@ canvasnet render sales.vl.json --scale 2 -o sales.png --json
 # 4e. Draw a Mermaid diagram (flowchart, sequence, gantt, mindmap, packet, git graph, ...) in the dark theme
 canvasnet info flow.mmd --json
 canvasnet render flow.mmd --theme dark --scale 2 -o flow.png --json
+
+# 4f. Draw a PlantUML sequence or activity diagram (local !include files only, never the network)
+canvasnet info seq.puml --json
+canvasnet render seq.puml --scale 2 -o seq.png --json
 ```
 
 Check `ok` in each JSON document and branch on `error.code` on a failure (`usage-error`, `input-not-found`,
 `corrupt-input`, `unsupported-feature`, `page-out-of-range`, `scad-error`, `vega-lite-error`, `mermaid-error`,
-`size-mismatch`, `threshold-failed`, and so on); read `diagnostics` even on
+`plantuml-error`, `size-mismatch`, `threshold-failed`, and so on); read `diagnostics` even on
 success, because they list what the renderer left out. For the full command reference, JSON schemas, error codes,
 defaults, and recipes see the [User Guide][link-releases].
 
@@ -634,7 +650,7 @@ See the Viewer chapter of the User Guide for adding your own image source (a new
 See the [User Guide][link-releases] for the full API reference and additional worked examples,
 including stroking, gradients, tile paint, font loading/metadata, chart building, OOXML chart
 parsing, PDF, PowerPoint and Visio rendering, 3D scene rendering, OpenSCAD-language model rendering,
-Vega-Lite chart rendering, Mermaid diagram rendering, and SVG and JPEG 2000 decoding.
+Vega-Lite chart rendering, Mermaid and PlantUML diagram rendering, and SVG and JPEG 2000 decoding.
 
 ## Building
 
@@ -711,6 +727,13 @@ Copyright 2010-2023 Mike Bostock). The license texts ship in the packages under 
 record of what was ported from where. The package is not affiliated with or endorsed by the Mermaid project or the
 authors of these libraries.
 
+The `DemaConsulting.CanvasNet.PlantUml` package (and the `canvasnet` tool, which bundles it) implements a subset of
+the PlantUML text language and is derived, with attribution, from the MIT-licensed distribution of PlantUML (MIT,
+Copyright (C) 2009-2024 Arnaud Roques): its default look and the layout geometry of its sequence and activity diagram
+engines are reimplemented in C#, and no Java runs. The license text ships in the packages under `licenses/`; see
+[the third-party notice][link-plantuml-third-party] (`src/DemaConsulting.CanvasNet.PlantUml/third-party`) for the
+record of what was ported from where. The package is not affiliated with or endorsed by the PlantUML project.
+
 ## Support
 
 - [Report a bug or request a feature][link-issues]
@@ -739,5 +762,6 @@ authors of these libraries.
 [link-releases]: https://github.com/demaconsulting/CanvasNet/releases
 [link-vegalite-third-party]: https://github.com/demaconsulting/CanvasNet/tree/main/src/DemaConsulting.CanvasNet.VegaLite/third-party
 [link-mermaid-third-party]: https://github.com/demaconsulting/CanvasNet/tree/main/src/DemaConsulting.CanvasNet.Mermaid/third-party
+[link-plantuml-third-party]: https://github.com/demaconsulting/CanvasNet/tree/main/src/DemaConsulting.CanvasNet.PlantUml/third-party
 [link-issues]: https://github.com/demaconsulting/CanvasNet/issues
 [link-discussions]: https://github.com/demaconsulting/CanvasNet/discussions

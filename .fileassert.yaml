@@ -1049,17 +1049,18 @@ tests:
           - query: "//head/title"
             count: 1
           # The Pandoc filter (docs/filters/canvasnet.lua) draws the example pictures; a source file that still
-          # names a .scad, .vl.json, .vsdx, .pptx, .pdf, .mmd, or .mermaid picture means the filter did not run (or
-          # left a diagram type the tool does not draw yet, which only a code block may be). The document embeds its
-          # resources, so every drawn picture is a data: URI and a picture Pandoc could not find is reported by
-          # Pandoc. Pandoc writes a picture whose extension is not an image type as <embed>, so the second check
-          # looks at both elements.
+          # names a .scad, .vl.json, .vsdx, .pptx, .pdf, .mmd, .mermaid, .puml, .plantuml, or .pu picture means the
+          # filter did not run (or left a diagram type the tool does not draw yet, which only a code block may be).
+          # The document embeds its resources, so every drawn picture is a data: URI and a picture Pandoc could not
+          # find is reported by Pandoc. Pandoc writes a picture whose extension is not an image type as <embed>, so
+          # the second check looks at both elements.
           - query: "//img[starts-with(@src,'data:image/png')]"
             min: 5
           - query: >-
               //*[self::img or self::embed][contains(@src,'.scad') or contains(@src,'.vl.json')
               or contains(@src,'.vsdx') or contains(@src,'.pptx') or contains(@src,'.pdf') or contains(@src,'.mmd')
-              or contains(@src,'.mermaid')]
+              or contains(@src,'.mermaid') or contains(@src,'.puml') or contains(@src,'.plantuml')
+              or contains(@src,'.pu')]
             count: 0
         text:
           - contains: "User Guide"

@@ -37,8 +37,8 @@ sections:
               - id: CanvasNetPlantUml-Styling-SkinParams-Colors
                 title: >-
                   The SkinParams unit shall read PlantUML's colors: HTML color names with or without a hash,
-                  #RRGGBB, #RRGGBBAA, #RGB, a single hexadecimal digit for a gray, transparent, and the first color of a
-                  gradient.
+                  `#RRGGBB`, `#RRGGBBAA`, `#RGB`, a single hexadecimal digit for a gray, transparent, and the first
+                  color of a gradient.
                 justification: |
                   Colors appear in skin parameters and on participants, notes, and boxes, in all of PlantUML's forms.
                 tests:

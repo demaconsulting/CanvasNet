@@ -394,6 +394,7 @@ jobs:
               'DemaConsulting.CanvasNet.Scad.dll',
               'DemaConsulting.CanvasNet.VegaLite.dll',
               'DemaConsulting.CanvasNet.Mermaid.dll',
+              'DemaConsulting.CanvasNet.PlantUml.dll',
               'DemaConsulting.CanvasNet.Viewer.dll',
               'DemaConsulting.TestResults.dll',
               'System.Numerics.Tensors.dll'
@@ -406,9 +407,10 @@ jobs:
                 }
               }
             }
-            # The third-party notices of the bundled Vega-Lite library (BSD-3-Clause and ISC) and
-            # of the bundled Mermaid library (MIT and ISC) must accompany the binaries, so they
-            # travel in the package's licenses folder (Mermaid's d3 notice under its own name).
+            # The third-party notices of the bundled Vega-Lite library (BSD-3-Clause and ISC), of the
+            # bundled Mermaid library (MIT and ISC), and of the bundled PlantUML library (MIT) must
+            # accompany the binaries, so they travel in the package's licenses folder (Mermaid's d3
+            # notice under its own name).
             $notices = @(
               'licenses/LICENSE-vega.txt',
               'licenses/LICENSE-d3.txt',
@@ -426,7 +428,9 @@ jobs:
               'licenses/LICENSE-cose-base.txt',
               'licenses/LICENSE-cytoscape.txt',
               'licenses/Mermaid-LICENSE-d3.txt',
-              'licenses/Mermaid-third-party-README.md'
+              'licenses/Mermaid-third-party-README.md',
+              'licenses/LICENSE-plantuml.txt',
+              'licenses/PlantUml-third-party-README.md'
             )
             foreach ($notice in $notices) {
               if (-not ($zip.Entries.FullName -contains $notice)) {
@@ -493,6 +497,7 @@ jobs:
           grep -q '"format":"scad"' formats.json || { echo "✗ Formats result does not list scad"; exit 1; }
           grep -q '"format":"vega-lite"' formats.json || { echo "✗ Formats result does not list vega-lite"; exit 1; }
           grep -q '"format":"mermaid"' formats.json || { echo "✗ Formats result does not list mermaid"; exit 1; }
+          grep -q '"format":"plantuml"' formats.json || { echo "✗ Formats result does not list plantuml"; exit 1; }
           echo "✓ Formats command succeeded"
 
       - name: Test render and crop
@@ -548,6 +553,26 @@ jobs:
           test -s smoke/flow.png \
             || { echo "✗ Diagram render wrote no output file"; exit 1; }
           echo "✓ Mermaid diagram render succeeded"
+
+      - name: Test PlantUML diagram render
+        shell: bash
+        run: |
+          echo "Testing canvasnet render of a PlantUML diagram..."
+          mkdir -p smoke
+          printf '@startuml\nAlice -> Bob : hello\nBob --> Alice : hi\n@enduml\n' > smoke/seq.puml
+          canvasnet info smoke/seq.puml --json > smoke/seq-info.json \
+            || { echo "✗ Info command failed"; exit 1; }
+          grep -q '"format":"plantuml"' smoke/seq-info.json \
+            || { echo "✗ Info result does not name plantuml"; exit 1; }
+          grep -q '"type":"sequence"' smoke/seq-info.json \
+            || { echo "✗ Info result does not report a sequence diagram"; exit 1; }
+          canvasnet render smoke/seq.puml --strict -o smoke/seq.png --json > smoke/seq-render.json \
+            || { echo "✗ Diagram render command failed"; exit 1; }
+          grep -q '"ok":true' smoke/seq-render.json \
+            || { echo "✗ Diagram render result is not a success document"; exit 1; }
+          test -s smoke/seq.png \
+            || { echo "✗ Diagram render wrote no output file"; exit 1; }
+          echo "✓ PlantUML diagram render succeeded"
 
       - name: Run self-validation
         shell: bash
@@ -1106,6 +1131,26 @@ jobs:
             exit 1
           fi
           echo "✓ Every Mermaid diagram (code block or picture) in the documents is drawn"
+
+      # === CHECK THAT EVERY PLANTUML DIAGRAM IS DRAWN ===
+      # canvasnet.lua draws every PlantUML diagram type the tool supports (sequence and activity diagrams) and leaves
+      # any other type as written, with a warning. A document that still holds such a diagram fails the build. Pandoc
+      # writes a code block with the class plantuml (class="sourceCode plantuml" when it is highlighted), and a .puml,
+      # .plantuml, or .pu picture as an image whose src is still that file (<img src="diagram.puml">).
+      # Downstream projects: Remove this section if the documents hold no PlantUML diagrams.
+
+      - name: Check every PlantUML diagram is drawn
+        shell: bash
+        run: |
+          if grep -l -E 'class="([^"]* )?plantuml( [^"]*)?"' docs/*/generated/*.html; then
+            echo "✗ The documents above hold a PlantUML block that was not drawn (see the canvasnet.lua warnings)"
+            exit 1
+          fi
+          if grep -l -E 'src="[^"]*\.(puml|plantuml|pu)(#[^"]*)?"' docs/*/generated/*.html; then
+            echo "✗ The documents above hold a PlantUML picture that was not drawn (see the canvasnet.lua warnings)"
+            exit 1
+          fi
+          echo "✓ Every PlantUML diagram (code block or picture) in the documents is drawn"
 
       # === UPLOAD ARTIFACTS ===
       # This section uploads all generated documentation artifacts.

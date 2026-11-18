@@ -6,7 +6,7 @@
 - **description**: CanvasNet is a family of .NET libraries and a command-line tool built around a span-based 32-bit
   RGBA canvas: image codecs (PNG, JPEG, JPEG 2000, TIFF, BMP, GIF), TrueType text, and vector drawing in the core,
   with packages that render SVG, PDF, PowerPoint (with charts), Visio, OpenSCAD 3D models, Vega-Lite charts, and
-  Mermaid diagrams onto it, a viewer that loads any of them, and the `canvasnet` tool that drives them all.
+  Mermaid and PlantUML diagrams onto it, a viewer that loads any of them, and the `canvasnet` tool that drives them all.
 - **languages**: `C#`
 - **technologies**: `.NET` (libraries: net8.0, net9.0, net10.0, net11.0; tool: net10.0, net11.0),
   System.Numerics.Tensors
@@ -31,6 +31,7 @@
 │   ├── DemaConsulting.CanvasNet.Charts/
 │   ├── DemaConsulting.CanvasNet.Mermaid/
 │   ├── DemaConsulting.CanvasNet.Pdf/
+│   ├── DemaConsulting.CanvasNet.PlantUml/
 │   ├── DemaConsulting.CanvasNet.Pptx/
 │   ├── DemaConsulting.CanvasNet.Render3D/
 │   ├── DemaConsulting.CanvasNet.Scad/
@@ -194,7 +195,7 @@ reqstream, versionmark, reviewmark, and sysml2tools.
 
 # Scoped Validation (ALL Agents Must Follow)
 
-The solution has twelve source projects and twelve test projects, and a full `pwsh ./build.ps1` builds and
+The solution has thirteen source projects and thirteen test projects, and a full `pwsh ./build.ps1` builds and
 tests all of them. While developing, build and test **only the affected test projects**; run the full
 build once before a pull request. `build.ps1` is a template-owned script and is deliberately not
 modified for this - use plain `dotnet test` on the test project instead. This policy refines any
@@ -224,6 +225,7 @@ A source project is a dependency of every project that references it, directly o
 | `DemaConsulting.CanvasNet.Scad` | `Scad.Tests`, `Viewer.Tests`, `Tool.Tests` |
 | `DemaConsulting.CanvasNet.VegaLite` | `VegaLite.Tests`, `Viewer.Tests`, `Tool.Tests` |
 | `DemaConsulting.CanvasNet.Mermaid` | `Mermaid.Tests`, `Viewer.Tests`, `Tool.Tests` |
+| `DemaConsulting.CanvasNet.PlantUml` | `PlantUml.Tests`, `Viewer.Tests`, `Tool.Tests` |
 | `DemaConsulting.CanvasNet.Viewer` | `Viewer.Tests`, `Tool.Tests` |
 | `DemaConsulting.CanvasNet.Tool` | `Tool.Tests` |
 | A test project only | That test project only (see the shared test support note below) |
