@@ -1775,8 +1775,9 @@ internal sealed partial class MarkBuilder
             var endFromMark = Def("cornerRadiusEnd") is not null;
             var markRadius = Def("cornerRadius") is not null;
 
-            // A ranged bar has its value at both ends, so every corner is rounded, unless the mark sets cornerRadius and
-            // only the configuration sets cornerRadiusEnd
+            // A ranged bar has its value at both ends, so every corner without a radius of its own (from the mark or the
+            // configuration) takes cornerRadiusEnd, unless the mark sets cornerRadius and only the configuration sets
+            // cornerRadiusEnd
             if (Get(_orient == "horizontal" ? "x" : "y") is { HasRange: true })
             {
                 return !endFromMark && markRadius

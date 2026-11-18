@@ -359,7 +359,9 @@ and left of zero `(5, 0, 0, 5)`, of a ranged bar with `y2` `(5, 5, 5, 5)`, of ea
 Asserts that a `rect` with `cornerRadiusTopLeft: 4` has the radii `(4, 0, 0, 0)` (the other corners use
 `cornerRadius`, 0); that a positive bar with `cornerRadiusEnd: 6`, `cornerRadiusBottomLeft: 2`, and `cornerRadius: 1`
 has `(6, 6, 1, 2)`; that `config.bar.cornerRadiusEnd: 6` does not replace the `cornerRadius: 2` of the mark
-(`(2, 2, 2, 2)`); and that a chart with no corner property keeps `CornerRadii` null, so its scene is unchanged.
+(`(2, 2, 2, 2)`); that it does not replace a `cornerRadiusTopLeft: 2` of the mark either, on a ranged bar with `y2`,
+whose other corners take the end (`(2, 6, 6, 6)`), and on a positive bar, whose other top corner does
+(`(2, 6, 0, 0)`); and that a chart with no corner property keeps `CornerRadii` null, so its scene is unchanged.
 
 ##### Point, Circle, Square, Rule, And Tick Geometry
 

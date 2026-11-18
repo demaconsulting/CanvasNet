@@ -126,7 +126,10 @@ astral character that counts as two columns), while a valid surrogate pair is ac
 Asserts that a known property with the wrong type or value (a theory of about one hundred and twenty rows over
 `$schema`, `title`, `description`, `name`, `width`, `height`, `padding`, `autosize`, `background`, `config`, `datasets`,
 `mark`, `layer`, `vconcat`, `spec`, `data`, `encoding`, `params`, and `transform`, including nested properties such as
-`/encoding/y/axis/orient`, `/data/sequence/start`, `/data/sequence/step`, `/data/sequence/as`, `/data/format/delimiter`
+`/encoding/y/axis/orient`, `/mark/cornerRadius`, `/mark/cornerRadiusEnd`, and the four single-corner radii of a bar or
+rect mark (`/mark/cornerRadiusTopLeft` and the others: a text, a boolean, an array, an object, or `null` where a number
+or an expression reference belongs), `/data/sequence/start`, `/data/sequence/step`, `/data/sequence/as`,
+`/data/format/delimiter`
 (empty, longer than one character, a quote, a line break, or not text), `/data/format/parse` (an unknown word or a
 number), `/data/format/parse/a` (an unknown type, a number, null, and, since Phase 8, a `date:` or `utc:` entry without
 a format in matching quotes: `date:%Y`, `utc:%Y`, `date:'%Y`, `date:'%Y"`, `date:'`, and `date:`), and
@@ -142,7 +145,8 @@ parameter, a cycle of parameter expressions, a self reference, a repeated parame
 (`event`) fail at the expression or name, and that the expression of a row-bound mark property or channel value with a
 syntax error or an unknown name fails at its `expr`; that when a nested view comes before a bad top-level mark in the
 text, the first problem in document order is the one reported; and that an original specification that touches every
-checked property with a valid but unusual form (including expression references) is accepted with no warnings, and that
+checked property with a valid but unusual form (including expression references, among them a `cornerRadiusEnd`
+expression reference, and a numeric `cornerRadiusTopLeft`) is accepted with no warnings, and that
 the data forms of the data stage - DSV delimiters (a pipe and a tab), `parse` as `"auto"`, `null`, or a map of `number`,
 `boolean`, `date`, `string`, and custom date formats (`date:'...'`, `utc:'...'`), a `property` path, sequences with a
 negative or a zero step and a field name, a named dataset, and top-level datasets given as an array, as text, and as an

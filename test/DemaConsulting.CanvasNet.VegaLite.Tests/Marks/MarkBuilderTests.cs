@@ -183,23 +183,32 @@ public class MarkBuilderTests
     /// <summary>
     ///     Validates the precedence of the corner radii: each corner falls back to <c>cornerRadius</c>, a
     ///     <c>cornerRadiusEnd</c> of the mark replaces the corners of the value end, one of the configuration does not
-    ///     replace a radius the mark sets, and a chart with no corner property keeps a uniform radius.
+    ///     replace a radius the mark sets (neither <c>cornerRadius</c> nor a single corner, on a ranged bar and at the
+    ///     value end of a bar), and a chart with no corner property keeps a uniform radius.
     /// </summary>
     [Fact]
     public void MarkBuilder_Build_CornerRadii_FollowVegaLitePrecedence()
     {
-        // Arrange: a positive vertical bar and a rect cell
+        // Arrange: a positive vertical bar, a ranged vertical bar, and a rect cell
         const string vertical = "{ \"x\": { \"field\": \"k\", \"type\": \"nominal\" }, \"y\": { \"field\": \"n\", \"type\": \"quantitative\" } }";
         const string cells = "{ \"x\": { \"field\": \"k\", \"type\": \"nominal\" }, \"y\": { \"field\": \"c\", \"type\": \"nominal\" } }";
         const string bar = "[ { \"k\": \"a\", \"n\": 10 } ]";
+        const string ranged = "{ \"x\": { \"field\": \"k\", \"type\": \"nominal\" }, \"y\": { \"field\": \"lo\", \"type\": \"quantitative\" }, \"y2\": { \"field\": \"hi\" } }";
+        const string configEnd = "\"config\": { \"bar\": { \"cornerRadiusEnd\": 6 } }, \"width\": 100,";
         var configured = Spec("{ \"type\": \"bar\", \"cornerRadius\": 2 }", vertical, bar)
-            .Replace("\"width\": 100,", "\"config\": { \"bar\": { \"cornerRadiusEnd\": 6 } }, \"width\": 100,", StringComparison.Ordinal);
+            .Replace("\"width\": 100,", configEnd, StringComparison.Ordinal);
+        var rangedCorner = Spec("{ \"type\": \"bar\", \"cornerRadiusTopLeft\": 2 }", ranged, "[ { \"k\": \"a\", \"lo\": 2, \"hi\": 8 } ]")
+            .Replace("\"width\": 100,", configEnd, StringComparison.Ordinal);
+        var endCorner = Spec("{ \"type\": \"bar\", \"cornerRadiusTopLeft\": 2 }", vertical, bar)
+            .Replace("\"width\": 100,", configEnd, StringComparison.Ordinal);
 
         // Act
         var rect = Assert.Single(Rectangles(Spec("{ \"type\": \"rect\", \"cornerRadiusTopLeft\": 4 }", cells, "[ { \"k\": \"a\", \"c\": \"p\" } ]"), 100, 100, "mark-rect"));
         var mixed = Assert.Single(Rectangles(Spec("{ \"type\": \"bar\", \"cornerRadiusEnd\": 6, \"cornerRadiusBottomLeft\": 2, \"cornerRadius\": 1 }", vertical, bar), 100, 100));
         var fromConfig = Assert.Single(Rectangles(configured, 100, 100));
         var plain = Assert.Single(Rectangles(Spec("\"bar\"", vertical, bar), 100, 100));
+        var rangedFromConfig = Assert.Single(Rectangles(rangedCorner, 100, 100));
+        var endFromConfig = Assert.Single(Rectangles(endCorner, 100, 100));
 
         // Assert: (a) a corner of its own, the others from cornerRadius (0)
         Assert.Equal(new SceneCornerRadii(4, 0, 0, 0), rect.CornerRadii);
@@ -212,6 +221,11 @@ public class MarkBuilderTests
 
         // Assert: (d) no corner property: the scene keeps the uniform radius
         Assert.Null(plain.CornerRadii);
+
+        // Assert: (e) a corner of the mark beats the cornerRadiusEnd of the configuration: on a ranged bar the other
+        // corners take the end, on a bar above zero the other top corner does
+        Assert.Equal(new SceneCornerRadii(2, 6, 6, 6), rangedFromConfig.CornerRadii);
+        Assert.Equal(new SceneCornerRadii(2, 6, 0, 0), endFromConfig.CornerRadii);
     }
 
     /// <summary>

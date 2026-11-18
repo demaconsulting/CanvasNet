@@ -147,10 +147,11 @@ set them. `azimuth=` and `elevation=` set the view angles in a fragment
 (`'part.scad#azimuth=45&elevation=20'` is `--azimuth 45 --elevation 20`); `def.$vpr=[90-elevation,0,azimuth]` does the
 same through the viewport variable:
 `'part.scad#def.$vpr=[70,0,45]'` is `--azimuth 45 --elevation 20`, with the framing still automatic (quote it with
-single quotes in a shell, where `$` expands inside double quotes). With `--view`, `--azimuth`, or `--elevation` the
-angles still come from the view. The picture below is the `montage` command above, for the assembly
-`docs/images/showcase/explode.scad` of this repository (the plate is as large in all three cells because the camera is
-fixed).
+single quotes in a shell, where `$` expands inside double quotes). With `--view`, `--azimuth`, or `--elevation` (or
+`view=`, `azimuth=`, or `elevation=` in the fragment) the view is explicit and `$vpr` does not set the angles: an angle
+that is given is used, and the named view (`iso` without one) supplies only the angles that were not given. The picture
+below is the `montage` command above, for the assembly `docs/images/showcase/explode.scad` of this repository (the
+plate is as large in all three cells because the camera is fixed).
 
 ![An assembly at three explode levels, drawn by canvasnet montage with one fixed camera](../images/montage-explode.png){width=80%}
 

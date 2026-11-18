@@ -43,7 +43,9 @@ several pictures must share one scale.
 - The viewport variables $vpt, $vpr, $vpd, and $vpf hold the camera of the
   picture, so a model can place geometry relative to it: translate($vpt)
   rotate($vpr) faces the camera. Assigning them at the top level of the model
-  sets the view; --view, --azimuth, and --elevation win over the model.
+  sets the view; --view, --azimuth, and --elevation (or view=, azimuth=, and
+  elevation= in a fragment) win over the model and over def.$vpr, and the named
+  view (iso without one) supplies only the angles that were not given.
 - A fixed camera, so that several pictures of one model share a scale: set the
   viewport variables instead of letting the camera fit each picture. -D
   '$vpd=300' (or def.$vpd=300 in a fragment) sets the distance of the camera,

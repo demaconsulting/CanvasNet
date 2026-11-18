@@ -114,7 +114,9 @@ internal sealed partial class SpecParser
     private static readonly Dictionary<string, Rule> MarkRules = Rules(
         "color: SZO", "fill: SZO", "stroke: SZO", "opacity: NE", "fillOpacity: NE", "strokeOpacity: NE", "size: NE",
         "strokeWidth: NE", "thickness: NE", "binSpacing: NE", "continuousBandSize: NE", "minBandSize: NE",
-        "discreteBandSize: NO", "cornerRadius: NE", "angle: NE", "dx: NE", "dy: NE", "filled: BE",
+        "discreteBandSize: NO", "cornerRadius: NE", "cornerRadiusEnd: NE", "cornerRadiusTopLeft: NE",
+        "cornerRadiusTopRight: NE", "cornerRadiusBottomRight: NE", "cornerRadiusBottomLeft: NE", "angle: NE", "dx: NE",
+        "dy: NE", "filled: BE",
         "orient: SE=horizontal|vertical", "style: ST", "clip: BE", "shape: SE", "strokeDash: AE", "strokeCap: SE",
         "strokeJoin: SE", "interpolate: SE=" + string.Join('|', InterpolateNames), "tension: NE", "point: BOSZ=transparent", "line: BZO",
         "invalid: SZ=filter|break-paths-filter-domains|break-paths-show-domains|break-paths-show-path-domains|show", "order: BZ",
