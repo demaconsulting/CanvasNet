@@ -1236,6 +1236,57 @@ words:
   - underflowing
   # The plural of the SVG and HTML 'href' attribute
   - hrefs
+  # PlantUML terms: the start and end tags, the preprocessor directives, the statement keywords, the skin parameters,
+  # the diagram types and engines named by PlantUML, and the author named in its license notice
+  - Arnaud
+  - Roques
+  - plantuml
+  - puml
+  - iuml
+  - startuml
+  - enduml
+  - startmindmap
+  - endmindmap
+  - startgantt
+  - endgantt
+  - startjson
+  - endjson
+  - skinparam
+  - skinparams
+  - teoz
+  - hnote
+  - rnote
+  - endhnote
+  - endrnote
+  - usecase
+  - newpage
+  - autoactivate
+  - autonumber
+  - footbox
+  - definelong
+  - enddefinelong
+  - endfunction
+  - endprocedure
+  - endwhile
+  - endswitch
+  - endlegend
+  - endheader
+  - endfooter
+  - endtitle
+  - endcaption
+  - endref
+  - startsub
+  - endsub
+  - includesub
+  - includeurl
+  - includedef
+  - ditaa
+  - nwdiag
+  - packetdiag
+  - jcckit
+  - metaclass
+  - portin
+  - portout
 # Percent-escapes in URL and file-name examples (such as "flow%2Emmd" for "flow.mmd"): the escape and the letters
 # glued to it are not words
 ignoreRegExpList:

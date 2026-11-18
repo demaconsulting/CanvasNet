@@ -676,6 +676,32 @@ tests:
           - query: "//*[local-name()='text']"
             min: 1
 
+  - name: SysML2Tools_CanvasNetPlantUmlViewSvg
+    description: "CanvasNetPlantUmlView diagram was rendered by SysML2Tools"
+    tags: [design]
+    files:
+      - pattern: "docs/design/generated/CanvasNetPlantUmlView.svg"
+        count: 1
+        xml:
+          - query: "//*[local-name()='svg']"
+            count: 1
+          # A view that resolves to nothing still writes an <svg> root, so also require drawn text.
+          - query: "//*[local-name()='text']"
+            min: 1
+
+  - name: SysML2Tools_PlantUmlSyntaxViewSvg
+    description: "PlantUmlSyntaxView diagram was rendered by SysML2Tools"
+    tags: [design]
+    files:
+      - pattern: "docs/design/generated/PlantUmlSyntaxView.svg"
+        count: 1
+        xml:
+          - query: "//*[local-name()='svg']"
+            count: 1
+          # A view that resolves to nothing still writes an <svg> root, so also require drawn text.
+          - query: "//*[local-name()='text']"
+            min: 1
+
   - name: SysML2Tools_CanvasNetToolViewSvg
     description: "CanvasNetToolView diagram was rendered by SysML2Tools"
     tags: [design]

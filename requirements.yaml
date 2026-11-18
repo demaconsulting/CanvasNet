@@ -249,6 +249,12 @@ includes:
   - docs/reqstream/canvas-net-mermaid/git-graph.yaml
   - docs/reqstream/canvas-net-mermaid/git-graph/git-graph-parser.yaml
   - docs/reqstream/canvas-net-mermaid/git-graph/git-graph-renderer.yaml
+  - docs/reqstream/canvas-net-plant-uml.yaml
+  - docs/reqstream/canvas-net-plant-uml/platform-requirements.yaml
+  - docs/reqstream/canvas-net-plant-uml/plant-uml-document.yaml
+  - docs/reqstream/canvas-net-plant-uml/syntax.yaml
+  - docs/reqstream/canvas-net-plant-uml/syntax/preprocessor.yaml
+  - docs/reqstream/canvas-net-plant-uml/syntax/diagram-detector.yaml
   - docs/reqstream/canvas-net-viewer.yaml
   - docs/reqstream/canvas-net-viewer/canvas-net-viewer.yaml
   - docs/reqstream/canvas-net-viewer/platform-requirements.yaml

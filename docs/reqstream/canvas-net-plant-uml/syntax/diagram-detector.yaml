@@ -1,0 +1,57 @@
+---
+# Software Unit Requirements for DiagramDetector
+#
+# These requirements describe the design-level behavior of the DiagramDetector unit of the Syntax subsystem (internal
+# namespace DemaConsulting.CanvasNet.PlantUml.Syntax): the diagram type from the @start tag or from the statements in
+# PlantUML's order, the recognized types that are not drawn, and the errors. See
+# docs/verification/canvas-net-plant-uml/syntax/diagram-detector.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetPlantUml Requirements
+    sections:
+      - title: Syntax Requirements
+        sections:
+          - title: DiagramDetector Requirements
+            requirements:
+              - id: CanvasNetPlantUml-Syntax-DiagramDetector-Tags
+                title: >-
+                  The DiagramDetector unit shall name the type of a block from its @start tag other than @startuml,
+                  and refuse an unknown tag with a located plantuml-unknown-diagram error whose hint names the nearest
+                  known tag.
+                justification: |
+                  A misspelled tag is a common mistake, and the nearest tag tells the author how to fix it.
+                tests:
+                  - PlantUmlDiagramDetector_Detect_OtherTag_NamesType
+                  - PlantUmlDiagramDetector_Detect_UnknownTag_ThrowsWithNearestTag
+                  - PlantUmlDiagramDetector_EditDistance_CountsEdits
+
+              - id: CanvasNetPlantUml-Syntax-DiagramDetector-FactoryOrder
+                title: >-
+                  The DiagramDetector unit shall detect a sequence diagram when every statement outside multi-line text
+                  blocks is a sequence statement, and otherwise an activity diagram of the new syntax when every
+                  statement is an activity statement.
+                justification: |
+                  PlantUML tries the sequence diagram first, so a text both types could read is a sequence diagram.
+                tests:
+                  - PlantUmlDiagramDetector_Detect_SequenceStatements_IsSequence
+                  - PlantUmlDiagramDetector_Detect_ActivityStatements_IsActivity
+
+              - id: CanvasNetPlantUml-Syntax-DiagramDetector-OtherTypes
+                title: >-
+                  The DiagramDetector unit shall name the type of a diagram that is neither from the first statement
+                  that only another type uses (class, object, use case, state, legacy activity, component, deployment,
+                  timing, gantt), as a type that is not drawn.
+                justification: |
+                  A diagram of a type that is not drawn must be reported as such, not as a syntax error.
+                tests:
+                  - PlantUmlDiagramDetector_Detect_OtherTypeKeyword_IsRecognized
+
+              - id: CanvasNetPlantUml-Syntax-DiagramDetector-Errors
+                title: >-
+                  The DiagramDetector unit shall refuse a diagram with nothing to draw, and a diagram whose statements
+                  no type accepts at the first statement the more likely type refuses, with located syntax errors.
+                justification: |
+                  PlantUML reports such text as a syntax error at a line; the error must point at the statement to fix.
+                tests:
+                  - PlantUmlDiagramDetector_Detect_EmptyDiagram_Throws
+                  - PlantUmlDiagramDetector_Detect_UnknownStatement_ThrowsAtStatement

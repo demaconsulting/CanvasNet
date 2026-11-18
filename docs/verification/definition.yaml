@@ -237,6 +237,11 @@ input-files:
   - docs/verification/canvas-net-mermaid/git-graph.md
   - docs/verification/canvas-net-mermaid/git-graph/git-graph-parser.md
   - docs/verification/canvas-net-mermaid/git-graph/git-graph-renderer.md
+  - docs/verification/canvas-net-plant-uml.md
+  - docs/verification/canvas-net-plant-uml/plant-uml-document.md
+  - docs/verification/canvas-net-plant-uml/syntax.md
+  - docs/verification/canvas-net-plant-uml/syntax/preprocessor.md
+  - docs/verification/canvas-net-plant-uml/syntax/diagram-detector.md
   - docs/verification/canvas-net-viewer.md
   - docs/verification/canvas-net-viewer/canvas-net-viewer.md
   - docs/verification/canvas-net-viewer/viewer-exception.md

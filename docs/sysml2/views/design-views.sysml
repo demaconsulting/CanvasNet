@@ -24,6 +24,7 @@ package CanvasNet {
         expose CanvasNetVegaLiteSystem::**;
         expose CanvasNetViewerSystem::**;
         expose CanvasNetMermaidSystem::**;
+        expose CanvasNetPlantUmlSystem::**;
         expose CanvasNetToolSystem::**;
         filter not @SysML::Documentation;
         filter not @SysML::Comment;
@@ -187,6 +188,14 @@ package CanvasNet {
 
     view MermaidGitGraphView : InterconnectionView {
         expose MermaidGitGraph::**;
+    }
+
+    view CanvasNetPlantUmlView : InterconnectionView {
+        expose CanvasNetPlantUmlSystem::**;
+    }
+
+    view PlantUmlSyntaxView : InterconnectionView {
+        expose PlantUmlSyntax::**;
     }
 
     view CanvasNetToolView : InterconnectionView {

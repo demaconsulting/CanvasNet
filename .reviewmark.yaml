@@ -5228,6 +5228,141 @@ reviews:
       - "src/DemaConsulting.CanvasNet.Mermaid/GitGraph/GitGraphRenderer.Labels.cs"  # unit source (labels, tags)
       - "test/DemaConsulting.CanvasNet.Mermaid.Tests/GitGraph/GitGraphRendererTests.cs"  # unit tests
 
+  # ---------------------------------------------------------------------------------------------
+  # CanvasNetPlantUml review-sets (static PlantUML renderer, derived with attribution)
+  # Provenance check for every CanvasNetPlantUml set: reviewers confirm that only the MIT-licensed
+  # distribution of PlantUML (plantuml-mit) informed the code, that no source, comment, test,
+  # example, or image of PlantUML was copied beyond the ported values and rules, that every file
+  # containing ported logic carries the "Portions derived from" header, and that the attribution is
+  # recorded in src/DemaConsulting.CanvasNet.PlantUml/third-party/README.md (see the Third-Party
+  # Provenance and Attribution section of docs/design/canvas-net-plant-uml.md).
+  # ---------------------------------------------------------------------------------------------
+
+  # CanvasNetPlantUml-Architecture Review (one per system)
+  - id: CanvasNetPlantUml-Architecture
+    title: Review that CanvasNetPlantUml Architecture Satisfies Requirements
+    context:
+      - "README.md"
+      - "docs/user_guide/**/*.md"
+    paths:
+      - "docs/reqstream/canvas-net-plant-uml.yaml"                    # system requirements
+      - "docs/design/introduction.md"                                 # design introduction
+      - "docs/design/canvas-net-plant-uml.md"                         # system design (provenance, known differences)
+      - "docs/verification/introduction.md"                           # verification introduction
+      - "docs/verification/canvas-net-plant-uml.md"                   # system verification
+      - "docs/sysml2/model/canvas-net-plant-uml.sysml"                # system SysML2 model
+      - "test/DemaConsulting.CanvasNet.PlantUml.Tests/PlantUmlSystemIntegrationTests.cs"  # system tests
+      - "test/DemaConsulting.CanvasNet.PlantUml.Tests/PlantUmlTestHelpers.cs"  # shared test helpers
+      - "test/DemaConsulting.CanvasNet.PlantUml.Tests/DemaConsulting.CanvasNet.PlantUml.Tests.csproj"  # test project
+      - "src/DemaConsulting.CanvasNet.PlantUml/DemaConsulting.CanvasNet.PlantUml.csproj"  # project file
+      - "src/DemaConsulting.CanvasNet.PlantUml/third-party/**"        # license text and provenance record
+
+  # CanvasNetPlantUml-Design Review (one per system)
+  - id: CanvasNetPlantUml-Design
+    title: Review that CanvasNetPlantUml Design is Consistent and Complete
+    context:
+      - "docs/reqstream/canvas-net-plant-uml.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-plant-uml/platform-requirements.yaml"  # platform requirements
+      - "docs/design/introduction.md"                                 # design introduction
+      - "docs/design/canvas-net-plant-uml.md"                         # system design
+      - "docs/design/canvas-net-plant-uml/**/*.md"                    # all system design documents
+
+  # CanvasNetPlantUml-Verification Review (one per system)
+  - id: CanvasNetPlantUml-Verification
+    title: Review that CanvasNetPlantUml Verification is Consistent and Complete
+    context:
+      - "docs/reqstream/canvas-net-plant-uml.yaml"
+    paths:
+      - "docs/verification/introduction.md"                           # verification introduction
+      - "docs/verification/canvas-net-plant-uml.md"                   # system verification
+      - "docs/verification/canvas-net-plant-uml/**/*.md"              # all verification documents
+
+  # CanvasNetPlantUml-AllRequirements Review (one per system)
+  - id: CanvasNetPlantUml-AllRequirements
+    title: Review that All CanvasNetPlantUml Requirements are Complete
+    context:
+      - "docs/design/canvas-net-plant-uml.md"
+      - "docs/reqstream/canvas-net-plant-uml.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-plant-uml/**/*.yaml"               # all requirements files
+
+  # CanvasNetPlantUml-PlantUmlDocument Review (one per direct unit)
+  - id: CanvasNetPlantUml-PlantUmlDocument
+    title: Review that CanvasNetPlantUml PlantUmlDocument Implementation is Correct
+    context:
+      - "docs/design/canvas-net-plant-uml.md"
+      - "docs/reqstream/canvas-net-plant-uml.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-plant-uml/plant-uml-document.yaml"  # unit requirements
+      - "docs/design/canvas-net-plant-uml/plant-uml-document.md"      # unit design
+      - "docs/verification/canvas-net-plant-uml/plant-uml-document.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-plant-uml/plant-uml-document.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.PlantUml/NamespaceDoc.cs"       # unit source
+      - "src/DemaConsulting.CanvasNet.PlantUml/PlantUmlDocument*.cs"  # unit source (partial files)
+      - "src/DemaConsulting.CanvasNet.PlantUml/PlantUmlOpenOptions.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.PlantUml/PlantUmlRenderOptions.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.PlantUml/PlantUmlLimits.cs"     # unit source
+      - "src/DemaConsulting.CanvasNet.PlantUml/PlantUmlLocation.cs"   # unit source
+      - "src/DemaConsulting.CanvasNet.PlantUml/PlantUmlDiagnostic.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.PlantUml/PlantUmlDiagnosticCodes.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.PlantUml/PlantUmlUnsupportedFeature.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.PlantUml/PlantUmlSize.cs"       # unit source
+      - "src/DemaConsulting.CanvasNet.PlantUml/PlantUmlSyntaxException.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.PlantUml/PlantUmlRenderException.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.PlantUml/PlantUmlUnsupportedFeatureException.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.PlantUml/PlantUmlReportSink.cs"  # unit source (internal report sink)
+      - "test/DemaConsulting.CanvasNet.PlantUml.Tests/PlantUmlDocumentTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.PlantUml.Tests/PlantUmlLimitsTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.PlantUml.Tests/PlantUmlRecordsAndExceptionsTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.PlantUml.Tests/PlantUmlReportSinkTests.cs"  # unit tests
+
+  # CanvasNetPlantUml-Syntax Review (one per subsystem)
+  - id: CanvasNetPlantUml-Syntax
+    title: Review that CanvasNetPlantUml Syntax Subsystem Implementation is Correct
+    context:
+      - "docs/design/canvas-net-plant-uml.md"
+      - "docs/reqstream/canvas-net-plant-uml.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-plant-uml/syntax.yaml"            # subsystem requirements
+      - "docs/design/canvas-net-plant-uml/syntax.md"                 # subsystem design
+      - "docs/verification/canvas-net-plant-uml/syntax.md"           # subsystem verification
+      - "docs/sysml2/model/canvas-net-plant-uml/syntax.sysml"        # subsystem SysML2 model
+      - "src/DemaConsulting.CanvasNet.PlantUml/Syntax/NamespaceDoc.cs"  # namespace documentation
+      - "test/DemaConsulting.CanvasNet.PlantUml.Tests/Syntax/SyntaxTests.cs"  # subsystem tests
+
+  # CanvasNetPlantUml-Syntax-Preprocessor Review (one per unit)
+  - id: CanvasNetPlantUml-Syntax-Preprocessor
+    title: Review that CanvasNetPlantUml Syntax Preprocessor Implementation is Correct
+    context:
+      - "docs/design/canvas-net-plant-uml.md"
+      - "docs/reqstream/canvas-net-plant-uml.yaml"
+      - "docs/design/canvas-net-plant-uml/syntax.md"
+      - "docs/reqstream/canvas-net-plant-uml/syntax.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-plant-uml/syntax/preprocessor.yaml"  # unit requirements
+      - "docs/design/canvas-net-plant-uml/syntax/preprocessor.md"    # unit design
+      - "docs/verification/canvas-net-plant-uml/syntax/preprocessor.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-plant-uml/syntax/preprocessor.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.PlantUml/Syntax/Preprocessor.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.PlantUml/Syntax/Preprocessor.MappedText.cs"  # unit source (location map)
+      - "test/DemaConsulting.CanvasNet.PlantUml.Tests/Syntax/PreprocessorTests.cs"  # unit tests
+
+  # CanvasNetPlantUml-Syntax-DiagramDetector Review (one per unit)
+  - id: CanvasNetPlantUml-Syntax-DiagramDetector
+    title: Review that CanvasNetPlantUml Syntax DiagramDetector Implementation is Correct
+    context:
+      - "docs/design/canvas-net-plant-uml.md"
+      - "docs/reqstream/canvas-net-plant-uml.yaml"
+      - "docs/design/canvas-net-plant-uml/syntax.md"
+      - "docs/reqstream/canvas-net-plant-uml/syntax.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-plant-uml/syntax/diagram-detector.yaml"  # unit requirements
+      - "docs/design/canvas-net-plant-uml/syntax/diagram-detector.md"  # unit design
+      - "docs/verification/canvas-net-plant-uml/syntax/diagram-detector.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-plant-uml/syntax/diagram-detector.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.PlantUml/Syntax/DiagramDetector.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.PlantUml.Tests/Syntax/DiagramDetectorTests.cs"  # unit tests
   # CanvasNetTool-Architecture Review (one per system)
   - id: CanvasNetTool-Architecture
     title: Review that CanvasNetTool Architecture Satisfies Requirements

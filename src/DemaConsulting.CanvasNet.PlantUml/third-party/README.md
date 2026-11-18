@@ -1,0 +1,34 @@
+# Third-Party Provenance and Attribution
+
+`DemaConsulting.CanvasNet.PlantUml` implements a subset of the PlantUML text language. The package is **derived with
+attribution**: to draw diagrams the way PlantUML draws them, its default look and its layout geometry are taken from
+the MIT-licensed distribution of PlantUML listed below. Every ported item is acknowledged here, the license text of the
+upstream project ships with the package (in its `licenses\` folder), and every source file that contains ported logic
+starts with the header comment `// Portions derived from PlantUML (MIT); see third-party/README.md`. Ported code is
+local source code, maintained and tested in this repository; no upstream package is a dependency, and no Java runs.
+
+This project is **not affiliated with, and is not endorsed or promoted by**, the PlantUML project or its authors. The
+name is used only to describe the language that is implemented.
+
+## Source of the Port
+
+- **Distribution**: `net.sourceforge.plantuml:plantuml-mit`, version 1.2026.10 (the MIT-licensed distribution
+  published on Maven Central), read from its sources jar `plantuml-mit-1.2026.10-sources.jar`.
+- **License**: MIT. Every file of the distribution starts with the header "PlantUML is free software; you can
+  redistribute it and/or modify it under the terms of the MIT License" and the notice "(C) Copyright 2009-2024, Arnaud
+  Roques". The PlantUML project publishes the same code under several licenses; the files of the MIT distribution also
+  keep, below the MIT header, the original header of the multi-licensed source tree. Only the MIT distribution was
+  read, and only under its MIT header.
+- **License file**: `LICENSE-plantuml.txt`.
+- **What is not taken**: no source text, comment, test, example or image of PlantUML is copied. The ported items are
+  values (colors, sizes, paddings, line widths) and the geometry rules that place and draw the elements, reimplemented
+  in C#. The test diagrams of this repository are original; the reference pictures they are compared with are
+  rendered by the jar from those original diagrams and belong to the authors of the diagrams.
+
+## Provenance Table
+
+| Upstream file or folder | CanvasNet unit that ports it | What is ported |
+| ----------------------- | ---------------------------- | -------------- |
+| `net/sourceforge/plantuml/BlockUmlBuilder.java`, `utils/StartUtils.java` | `Preprocessor` (`Syntax/`) | The framing of a text: the first `@start` ... `@end` block is the diagram, a text without a tag is one diagram, a further block is a further diagram |
+| `net/sourceforge/plantuml/tim/` (the preprocessor) | `Preprocessor` (`Syntax/`) | The meaning of the supported directives: `!define` without parameters, `!undef`, `!$variable =` and `?=`, the comment forms `'` and `/' ... '/`, and the trailing-backslash continuation |
+| `net/sourceforge/plantuml/PSystemBuilder.java` | `DiagramDetector` (`Syntax/`) | The order in which the diagram factories are tried (the sequence diagram first, the activity diagram of the new syntax later) and the `@start` tags of the other diagram types |

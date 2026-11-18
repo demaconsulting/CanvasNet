@@ -377,6 +377,17 @@ software items, specifically:
   (`canvas-net-mermaid.md`) for the known differences from Mermaid and its Phase Plan. `CanvasNetMermaid` depends on the
   `CanvasNet` system's `Canvas`, `Geometry`, `Drawing`, `Fonts`, `Rendering`, `ImageSources`, and `Positions` subsystems
   through their public API only
+- **CanvasNetPlantUml (System)** — A separate software system (packable as
+  `DemaConsulting.CanvasNet.PlantUml`) providing a static, offline renderer for the PlantUML diagram language,
+  derived with attribution from the MIT-licensed distribution of PlantUML (its license text ships in the package; not
+  affiliated with the PlantUML project). It contains one direct unit, `PlantUmlDocument` (the public `Parse`/`Open`
+  API with `PlantUmlOpenOptions`, `PlantUmlRenderOptions`, `PlantUmlLimits`, `PlantUmlLocation`, `PlantUmlDiagnostic`,
+  `PlantUmlUnsupportedFeature`, `PlantUmlSize`, `PlantUmlDiagnosticCodes`, `PlantUmlSyntaxException`,
+  `PlantUmlRenderException`, `PlantUmlUnsupportedFeatureException`, and the internal report sink), and the internal
+  subsystem `Syntax` (`Preprocessor` and `DiagramDetector`). Every PlantUML diagram type is recognized; the types
+  this version does not draw are reported as unsupported — see *CanvasNetPlantUml System Design*
+  (`canvas-net-plant-uml.md`) for the known differences from PlantUML and its Phase Plan. `CanvasNetPlantUml` depends
+  on the `CanvasNet` system's `Canvas` subsystem through its public API only
 - **CanvasNetTool (System)** — A separate software system, shipped as the `DemaConsulting.CanvasNet.Tool` dotnet
   tool package (command `canvasnet`), that lets people, scripts, and AI agents inspect, render, transform, compare,
   and compose
@@ -662,6 +673,16 @@ because the model package is shared by every system and `Rendering`, `SceneModel
 taken. It depends on the `CanvasNet` system's `Canvas`, `Geometry`, `Drawing`, `Fonts`, `Rendering`, `ImageSources`,
 and `Positions` subsystems through their public API. See the Folder Layout section below and *CanvasNetMermaid System
 Design* (`canvas-net-mermaid.md`).
+A further sibling top-level system, `CanvasNetPlantUml`, likewise lives in this same repository alongside `CanvasNet`
+and is distributed as its own NuGet package. It is a static, offline renderer for the PlantUML diagram language,
+derived with attribution from the MIT-licensed distribution of PlantUML (the license ships in the package): its direct
+unit, `PlantUmlDocument` (namespace `DemaConsulting.CanvasNet.PlantUml`), is the public API; its internal `Syntax`
+subsystem holds the `Preprocessor` and `DiagramDetector` units (in the sub-namespace and the sub-folder of its
+name). In the SysML2 model the system is `CanvasNetPlantUmlSystem` and its subsystem and unit `part def` names carry
+the prefix `PlantUml` (`PlantUmlSyntax`, `PlantUmlPreprocessor`, and `PlantUmlDiagramDetector`), because the
+model package is shared by every system and the Mermaid system already uses the short names. It depends on the
+`CanvasNet` system's `Canvas` subsystem through its public API. See the Folder Layout section below and
+*CanvasNetPlantUml System Design* (`canvas-net-plant-uml.md`).
 A further sibling top-level system, `CanvasNetViewer`, likewise lives in this same repository and is distributed as its
 own NuGet package (`DemaConsulting.CanvasNet.Viewer`). It aggregates the image sources of every format and is the
 library form of the `canvasnet` tool: its direct unit `CanvasNetViewer` (namespace `DemaConsulting.CanvasNet.Viewer`)
@@ -1707,6 +1728,39 @@ src/DemaConsulting.CanvasNet.Mermaid/
 
 Each sub-folder also holds a `NamespaceDoc.cs` with the namespace documentation. `CanvasNetMermaid` uses only the
 `CanvasNet` system through its public API and declares it as its only package dependency.
+
+The `CanvasNetPlantUml` system lives in the `src/DemaConsulting.CanvasNet.PlantUml/` project folder (the separate
+`DemaConsulting.CanvasNet.PlantUml` package). The `PlantUmlDocument` unit occupies the project root and each internal
+subsystem occupies the sub-folder whose name equals its sub-namespace (see *CanvasNetPlantUml System Design*,
+`canvas-net-plant-uml.md`):
+
+```text
+src/DemaConsulting.CanvasNet.PlantUml/
+├── DemaConsulting.CanvasNet.PlantUml.csproj — Package definition (net8.0/net9.0/net10.0/net11.0; packable; ships third-party/)
+├── NamespaceDoc.cs                — PlantUmlDocument: namespace-level XML documentation
+├── PlantUmlDocument.cs            — PlantUmlDocument: Parse/Open entry points and the metadata properties
+├── PlantUmlDocument.Pipeline.cs   — PlantUmlDocument: the internal diagram seam and registry
+├── PlantUmlOpenOptions.cs         — PlantUmlDocument: validated open options
+├── PlantUmlRenderOptions.cs       — PlantUmlDocument: validated render options
+├── PlantUmlLimits.cs              — PlantUmlDocument: resource limits
+├── PlantUmlLocation.cs            — PlantUmlDocument: file, line, and column value
+├── PlantUmlDiagnostic.cs          — PlantUmlDocument: warning record
+├── PlantUmlUnsupportedFeature.cs  — PlantUmlDocument: unsupported-feature report record
+├── PlantUmlSize.cs                — PlantUmlDocument: size in pixels
+├── PlantUmlDiagnosticCodes.cs     — PlantUmlDocument: the stable plantuml-* codes
+├── PlantUmlSyntaxException.cs     — PlantUmlDocument: located syntax exception
+├── PlantUmlRenderException.cs     — PlantUmlDocument: located render exception
+├── PlantUmlUnsupportedFeatureException.cs — PlantUmlDocument: strict-mode exception
+├── PlantUmlReportSink.cs          — PlantUmlDocument: ordered, de-duplicated, capped reports and pending reports
+├── third-party/                   — The PlantUML license text and the provenance table
+└── Syntax/                        — Syntax subsystem
+    ├── Preprocessor.cs            — Preprocessor: framing, comments, continued lines, and directives
+    ├── Preprocessor.MappedText.cs — Preprocessor: the line table and the located statements
+    └── DiagramDetector.cs         — DiagramDetector: the diagram type from the tag or the statements
+```n
+Each sub-folder also holds a `NamespaceDoc.cs` with the namespace documentation. `CanvasNetPlantUml` uses only the
+`CanvasNet` system through its public API and declares it as its only package dependency.
+
 The `CanvasNetViewer` system lives in the `src/DemaConsulting.CanvasNet.Viewer/` project folder (the separate
 `DemaConsulting.CanvasNet.Viewer` package). Its two direct units, `CanvasNetViewer` and `ViewerException`, occupy the
 project root, and its `Imaging` subsystem occupies the `Imaging/` sub-folder, whose name equals its sub-namespace (see
@@ -1974,6 +2028,19 @@ git graph fixtures are in `test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/
 and license texts are in `src/DemaConsulting.CanvasNet.Mermaid/third-party/`. The developer scripts that generate the
 vectors and goldens, and the visual-diff harness against mermaid-cli, are in `tools/visual-diff/` and
 `tools/visual-diff/mermaid/` (run by hand, never in CI); they are not software items.
+
+For the `CanvasNetPlantUml` system the parallel paths are, for example for the `Preprocessor` unit in the `Syntax`
+subsystem: requirements `docs/reqstream/canvas-net-plant-uml/syntax/preprocessor.yaml`, design
+`docs/design/canvas-net-plant-uml/syntax/preprocessor.md`, verification
+`docs/verification/canvas-net-plant-uml/syntax/preprocessor.md`, SysML2 model
+`docs/sysml2/model/canvas-net-plant-uml/syntax/preprocessor.sysml` (`part def PlantUmlPreprocessor`), source
+`src/DemaConsulting.CanvasNet.PlantUml/Syntax/Preprocessor.cs` (with `Preprocessor.MappedText.cs`), and tests
+`test/DemaConsulting.CanvasNet.PlantUml.Tests/Syntax/PreprocessorTests.cs`. The subsystem tests are
+`{Subsystem}Tests.cs` in each test folder, the direct unit `PlantUmlDocument` has no subsystem folder
+(`docs/design/canvas-net-plant-uml/plant-uml-document.md`), and the system itself is
+`docs/design/canvas-net-plant-uml.md` with `docs/sysml2/model/canvas-net-plant-uml.sysml`; its system tests are
+`PlantUmlSystemIntegrationTests.cs` in the root of its test project. The attribution record and license text are in
+`src/DemaConsulting.CanvasNet.PlantUml/third-party/`.
 
 The feature positions follow the same pattern. For the `Positions` subsystem of the `CanvasNet` system: requirements
 `docs/reqstream/canvas-net/positions.yaml`, design `docs/design/canvas-net/positions.md`, verification

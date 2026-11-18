@@ -1,0 +1,68 @@
+---
+# Software Subsystem Requirements for Syntax
+#
+# These requirements decompose the CanvasNetPlantUml system's input responsibility into the Syntax subsystem
+# (internal namespace DemaConsulting.CanvasNet.PlantUml.Syntax): the framing and preprocessing of a text with every
+# position mapped back to the original text (Preprocessor), and the detection of the diagram type (DiagramDetector).
+# Each requirement here links down to the unit requirements that implement it. See
+# docs/verification/canvas-net-plant-uml/syntax.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetPlantUml Requirements
+    sections:
+      - title: Syntax Requirements
+        requirements:
+          - id: CanvasNetPlantUml-Syntax-Framing
+            title: >-
+              The Syntax subsystem shall take the first @start ... @end block of a text as the diagram, ignoring the
+              text before it, read a text without a tag as one diagram, and report a further block.
+            justification: |
+              Files hold one tagged diagram and documents hold untagged code blocks; both must be read as PlantUML
+              reads them.
+            children:
+              - CanvasNetPlantUml-Syntax-Preprocessor-Framing
+            tests:
+              - PlantUmlSyntax_PreprocessAndDetect_FullText_KeepsOriginalLocations
+
+          - id: CanvasNetPlantUml-Syntax-Preprocessing
+            title: >-
+              The Syntax subsystem shall remove the comments, join continued lines, apply the supported directives,
+              report the others, and bound the size of the text and the nesting of the directives before the diagram
+              type is detected.
+            justification: |
+              The detector and the parsers must read the statements the author meant, after macros and variables, and
+              a hostile text must be refused early.
+            children:
+              - CanvasNetPlantUml-Syntax-Preprocessor-Comments
+              - CanvasNetPlantUml-Syntax-Preprocessor-Continuation
+              - CanvasNetPlantUml-Syntax-Preprocessor-Directives
+              - CanvasNetPlantUml-Syntax-Preprocessor-UnsupportedDirectives
+              - CanvasNetPlantUml-Syntax-Preprocessor-Limits
+            tests:
+              - PlantUmlSyntax_Detect_ReadsSubstitutedStatements
+
+          - id: CanvasNetPlantUml-Syntax-Detection
+            title: >-
+              The Syntax subsystem shall name the diagram type from the @start tag or from the statements, in
+              PlantUML's order, and refuse an unknown tag, an empty diagram, and statements no type accepts with
+              located errors.
+            justification: |
+              The type decides which parser reads the diagram and whether it is drawn at all.
+            children:
+              - CanvasNetPlantUml-Syntax-DiagramDetector-Tags
+              - CanvasNetPlantUml-Syntax-DiagramDetector-FactoryOrder
+              - CanvasNetPlantUml-Syntax-DiagramDetector-OtherTypes
+              - CanvasNetPlantUml-Syntax-DiagramDetector-Errors
+            tests:
+              - PlantUmlSyntax_PreprocessAndDetect_FullText_KeepsOriginalLocations
+
+          - id: CanvasNetPlantUml-Syntax-Locations
+            title: >-
+              The Syntax subsystem shall keep, for every character of every statement, the line and column of the
+              original text it came from, through comments, continued lines, and substitutions.
+            justification: |
+              Every later error and report must point into the text the author wrote.
+            children:
+              - CanvasNetPlantUml-Syntax-Preprocessor-Locations
+            tests:
+              - PlantUmlSyntax_PreprocessAndDetect_FullText_KeepsOriginalLocations
