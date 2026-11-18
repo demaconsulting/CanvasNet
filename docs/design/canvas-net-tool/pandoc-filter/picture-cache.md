@@ -41,9 +41,11 @@ several dashes).
 
 **Names**: `PictureFile` is `<stem>-<key>.png`, `FlattenedFile` is `<stem>-<key>.svg`, `UnsupportedMarker` is
 `<key>.unsupported` (holding the tool's message for a diagram it does not draw), and `PlainMarker` is `<key>.plain`
-(holding the tool's warnings, one per line, for a drawing with nothing to flatten). `BlockSourceFile(folder, text)` is
-the SHA-1 of `canvasnet.lua mermaid block\n` and the text (the block's text and a line feed, as written to the file)
-with `.mmd`. All are joined to the cache folder with `FilterPaths.Join`.
+(holding the tool's warnings, one per line, for a drawing with nothing to flatten). `BlockSourceFile(folder, text,
+kind)` is
+the SHA-1 of `canvasnet.lua <kind> block\n` and the text (the block's text and a line feed, as written to the file)
+with `.mmd` for a `mermaid` block (the name of earlier versions, so a cache keeps its block sources) and `.puml` for a
+`plantuml` block. All are joined to the cache folder with `FilterPaths.Join`.
 
 **PartialFile(folder, key, extension)**: `<key>.<9 random digits>.partial.<extension>` in the cache folder (`png` or
 `svg`), so that the links a flattened copy rebases for the cache folder are right after the rename. The digits come from

@@ -192,8 +192,8 @@ internal sealed partial class PandocFilterEngine
     }
 
     /// <summary>
-    ///     Plans a <c>CodeBlock</c>: a block of class <c>mermaid</c> is written to the cache folder and drawn like a
-    ///     <c>.mmd</c> picture; any other block is left alone.
+    ///     Plans a <c>CodeBlock</c>: a block of class <c>mermaid</c> or <c>plantuml</c> is written to the cache folder and
+    ///     drawn like a <c>.mmd</c> or <c>.puml</c> picture; any other block is left alone.
     /// </summary>
     /// <param name="index">The element's position.</param>
     /// <param name="node">The element.</param>
@@ -207,10 +207,10 @@ internal sealed partial class PandocFilterEngine
             return null;
         }
 
-        var name = PictureAttributes.BlockName(block.Attr.Id, block.Text);
+        var name = PictureAttributes.BlockName(block.Attr.Id, block.Text, kind);
         var (caption, attributes) = PictureAttributes.SplitCaption(block.Attr.Attributes);
         var text = block.Text + "\n";
-        var source = PictureCache.BlockSourceFile(CreateCacheFolder(), text);
+        var source = PictureCache.BlockSourceFile(CreateCacheFolder(), text, kind);
         PictureCache.WriteTextAtomically(source, text);
         var item = new PlannedPicture(index, name, node, block, caption);
         return PlanDraw(item, source, kind, attributes, kind, jobs);
@@ -358,7 +358,9 @@ internal sealed partial class PandocFilterEngine
         }
 
         // A code block becomes the picture: a figure with the caption, or a paragraph that holds the picture
-        var classes = block.Attr.Classes.Where(c => c != PictureAttributes.Mermaid).ToList();
+        // The class that made the block a picture is dropped (it is the name of the kind); the others stay
+        var drawnClass = PictureAttributes.BlockKindOf(block.Attr.Classes);
+        var classes = block.Attr.Classes.Where(c => c != drawnClass).ToList();
         JsonObject replacement;
         if (item.Caption is { } caption)
         {

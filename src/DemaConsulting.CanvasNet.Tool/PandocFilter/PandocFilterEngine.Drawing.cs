@@ -3,6 +3,7 @@ using System.Runtime.ExceptionServices;
 using System.Text;
 using DemaConsulting.CanvasNet.ImageSources;
 using DemaConsulting.CanvasNet.Mermaid;
+using DemaConsulting.CanvasNet.PlantUml;
 using DemaConsulting.CanvasNet.Tool.Commands;
 using DemaConsulting.CanvasNet.Viewer;
 
@@ -227,15 +228,21 @@ internal sealed partial class PandocFilterEngine
         catch (Exception ex) when (IsExpected(ex))
         {
             PictureCache.Delete(partial);
-            throw ToolFailure($"drawing '{job.Name}' failed: ", ex, job.Block ? BlockOwner : PictureOwner);
+            throw ToolFailure($"drawing '{job.Name}' failed: ", ex, job.Block ? BlockOwner : PictureOwner, job.Kind);
         }
 
         FailOnDenial(job, drawing, partial);
 
         // Only the diagram itself being a type the tool does not draw leaves the picture alone; the same report about a
         // picture embedded in it is an ordinary note
-        if (job.Kind == PictureAttributes.Mermaid
-            && drawing.Diagnostics.FirstOrDefault(d => d.Code == MermaidDiagnosticCodes.DiagramUnsupported && !d.Embedded) is { } unsupported)
+        var unsupportedCode = job.Kind switch
+        {
+            PictureAttributes.Mermaid => MermaidDiagnosticCodes.DiagramUnsupported,
+            PictureAttributes.PlantUml => PlantUmlDiagnosticCodes.DiagramUnsupported,
+            _ => null
+        };
+        if (unsupportedCode != null
+            && drawing.Diagnostics.FirstOrDefault(d => d.Code == unsupportedCode && !d.Embedded) is { } unsupported)
         {
             PictureCache.Delete(partial);
             return (new JobOutcome(false, [$"{job.Name}: {unsupported.Message}{LeftAlone}"], unsupported.Message, null),
@@ -267,7 +274,7 @@ internal sealed partial class PandocFilterEngine
         catch (Exception ex) when (IsExpected(ex))
         {
             PictureCache.Delete(partial);
-            throw ToolFailure($"flattening '{job.Name}' failed: ", ex, PictureOwner);
+            throw ToolFailure($"flattening '{job.Name}' failed: ", ex, PictureOwner, PictureAttributes.Mermaid);
         }
 
         // A denial stops the build before a marker or a copy is written
@@ -318,18 +325,19 @@ internal sealed partial class PandocFilterEngine
     /// <param name="prefix">The prefix, for example <c>drawing 'flow.mmd' failed: </c>.</param>
     /// <param name="ex">The tool's failure.</param>
     /// <param name="owner">Whose attributes a hint names: <c>the block's</c> or <c>the picture's</c>.</param>
+    /// <param name="kind">The kind of the picture; for a code block it is the class the hint's example names.</param>
     /// <returns>The exception to throw.</returns>
     /// <remarks>
     ///     A picture larger than the maximum image size whose size follows its natural size carries the scale that fits
     ///     (<c>SourceLoader.FitScaleDataKey</c>); its hint, which names the command-line options, is replaced by one that
     ///     names the <c>scale</c> attribute.
     /// </remarks>
-    private static ToolException ToolFailure(string prefix, Exception ex, string owner)
+    private static ToolException ToolFailure(string prefix, Exception ex, string owner, string kind)
     {
         var (code, hint) = ex switch
         {
             ViewerException { Code: ErrorCodes.SizeLimit } viewer when viewer.Data[FitScaleDataKey] is string fit =>
-                (viewer.Code, $"Set {owner} scale attribute to {fit} or less, for example {{{(owner == BlockOwner ? $".{PictureAttributes.Mermaid} " : string.Empty)}scale={fit}}}."),
+                (viewer.Code, $"Set {owner} scale attribute to {fit} or less, for example {{{(owner == BlockOwner ? $".{kind} " : string.Empty)}scale={fit}}}."),
             ViewerException viewer => (viewer.Code, viewer.Hint),
             ArgumentException => (ErrorCodes.UsageError, null),
             _ => (ErrorCodes.OperationFailed, (string?)null)

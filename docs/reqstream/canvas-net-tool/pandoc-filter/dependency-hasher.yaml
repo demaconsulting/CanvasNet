@@ -3,7 +3,8 @@
 #
 # The DependencyHasher class collects every file a picture of the Pandoc filter is drawn from as the parts of its cache
 # key, so that a change to any of them draws the picture again. It walks the includes and uses of an OpenSCAD model, the
-# data files, image links, and nested charts of a Vega-Lite chart, the picture links of a Mermaid diagram, and the image
+# data files, image links, and nested charts of a Vega-Lite chart, the picture links of a Mermaid diagram, the include
+# files of a PlantUML diagram, and the image
 # links of an SVG drawing (and tells whether the drawing links a file only the tool draws), takes a document page as its
 # file, and stops the build at 64 levels or 512 files rather than leaving a file out of the key.
 
@@ -60,6 +61,23 @@ sections:
           that a changed picture draws the diagram again.
         tests:
           - DependencyHasher_ForPicture_Diagram_HashesEveryPictureForm
+
+      - id: CanvasNetTool-PandocFilter-DependencyHasher-PlantUmlWalk
+        title: >-
+          The DependencyHasher unit shall add a PlantUML diagram (a .puml, .plantuml, or .pu picture, a PlantUML file a
+          drawing or diagram links, or the source of a plantuml code block) and every existing local file its !include,
+          !include_once, and !include_many lines name, relative to the folder of the file that names it and quotes
+          removed, each file once and in the order met, followed into the files it includes; and shall skip the includes
+          the PlantUML library never follows (the standard library in angle brackets, a URL, a name in square brackets,
+          and a part of a file after an exclamation mark), so the key of a Mermaid picture and of every other picture is
+          unchanged.
+        justification: |
+          A PlantUML diagram is drawn with the files it includes; every local include must be hashed so that a changed
+          one draws the diagram again, and nothing the library would not read may be read for the key.
+        tests:
+          - DependencyHasher_ForPicture_PlantUml_HashesEveryLocalInclude
+          - DependencyHasher_CollectPlantUmlIncludes_KeepsOnlyLocalFiles
+          - PandocFilter_Run_PlantUmlPictureAndBlock_DrawnAndRedrawnWhenAnIncludeChanges
 
       - id: CanvasNetTool-PandocFilter-DependencyHasher-SvgWalk
         title: >-

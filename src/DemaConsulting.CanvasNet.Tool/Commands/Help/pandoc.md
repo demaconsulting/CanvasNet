@@ -6,6 +6,7 @@ aliases:
 see-also:
   - files
   - mermaid
+  - plantuml
   - svg
 examples:
   - name: write-shim
@@ -33,14 +34,15 @@ Lua shim docs/filters/canvasnet.lua, which sends the whole document to
   so an old shim keeps working but may start the tool when it is not needed or
   miss a new format. The tool also says when the protocol of the shim changed.
 - `fast path`: The shim starts the tool only for a code block of class mermaid
-  (exact), or a local picture whose name ends in .svg, .vl.json, .vl, .scad,
-  .vsdx, .pptx, .pdf, .mmd, or .mermaid in any letter case (a name with a
-  #fragment or ?query does not). Any other document is left as it is without
-  starting the tool, so code-only documents build without it.
+  or plantuml (exact), or a local picture whose name ends in .svg, .vl.json,
+  .vl, .scad, .vsdx, .pptx, .pdf, .mmd, .mermaid, .puml, .plantuml, or .pu in
+  any letter case (a name with a #fragment or ?query does not). Any other
+  document is left as it is without starting the tool, so code-only documents
+  build without it.
 - `pictures`: A picture of a .scad model, a .vl.json or .vl chart, a .vsdx,
-  .pptx, or .pdf page, or a .mmd or .mermaid diagram is drawn as a PNG picture,
-  for example ![Part](part.scad){view=iso}. An .svg drawing that links one is
-  flattened. Any other picture is left alone.
+  .pptx, or .pdf page, a .mmd or .mermaid diagram, or a .puml, .plantuml, or .pu
+  diagram is drawn as a PNG picture, for example ![Part](part.scad){view=iso}.
+  An .svg drawing that links one is flattened. Any other picture is left alone.
 
 ## Attributes
 
@@ -61,13 +63,17 @@ Lua shim docs/filters/canvasnet.lua, which sends the whole document to
 - `others`: Every other attribute (width, an id, a class) stays on the picture.
   An attribute of another input type is an error, not ignored.
 
-## Mermaid blocks
+## Mermaid and PlantUML blocks
 
 - `code block`: A fenced code block of class mermaid is drawn like a .mmd
-  picture. With caption="..." it becomes a figure whose caption is read as
+  picture, and one of class plantuml like a .puml picture (@startuml is
+  optional). With caption="..." it becomes a figure whose caption is read as
   Markdown and which takes the id; otherwise a paragraph holds the picture.
 - `not drawn`: A diagram type the tool does not draw
-  (mermaid-diagram-unsupported) is left as written, with a warning.
+  (mermaid-diagram-unsupported, plantuml-diagram-unsupported) is left as
+  written, with a warning.
+- `includes`: A changed !include file draws its .puml picture again; a
+  plantuml block finds no relative include (use a .puml picture).
 
 ## Cache
 

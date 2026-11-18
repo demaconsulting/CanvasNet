@@ -64,10 +64,12 @@ Private nested types:
 not know is left alone; otherwise the source is located with `FilterPaths.LocateSource` in
 `FilterSettings.GetResourceDirectories()` and planned with `PlanDraw`.
 
-**PlanBlock**: a code block for which `PictureAttributes.BlockKindOf` finds no kind (it has no class `mermaid`) is left
-alone. Otherwise the caption attribute is split off (`PictureAttributes.SplitCaption`), the block's text and a line
-feed are written atomically to the cache folder (`PictureCache.BlockSourceFile`, a `.mmd` named by the SHA-1 of the
-text), and the file is planned with `PlanDraw` as that kind (`mermaid`) with the kind as the stem. Every picture and
+**PlanBlock**: a code block for which `PictureAttributes.BlockKindOf` finds no kind (it has no class `mermaid` or
+`plantuml`) is left alone. Otherwise the caption attribute is split off (`PictureAttributes.SplitCaption`), the block's
+text and a line feed are written atomically to the cache folder (`PictureCache.BlockSourceFile`, a `.mmd` or `.puml`
+named by the SHA-1 of the text), and the file is planned with `PlanDraw` as that kind (`mermaid` or `plantuml`) with
+the kind as the stem. A `plantuml` block is read from the cache folder, so a relative `!include` in it is looked up
+there. Every picture and
 code block that `PlanImage` and `PlanBlock` leave alone passes through the run untouched, which is what the shim's
 fast path relies on.
 
@@ -103,7 +105,8 @@ same for one job or many.
 
 **Render(job)**: calls `IPictureDrawer.Render` with the source, the options, the file-access arguments, and
 `--output` set to a partial file (`<key>.<9 digits>.partial.png`). After the denial check, a Mermaid picture whose
-diagnostics hold `mermaid-diagram-unsupported` not `Embedded` deletes the partial file, leaves the message to write to
+diagnostics hold `mermaid-diagram-unsupported` (a PlantUML picture `plantuml-diagram-unsupported`) not `Embedded`
+deletes the partial file, leaves the message to write to
 the `.unsupported` marker, and is not drawn, with the warning ending in `LeftAlone`. Otherwise every diagnostic and echo
 line becomes the warning `<name>: <text>`, and the partial file is left to commit to the picture file.
 
@@ -118,7 +121,8 @@ set to `FilterSettings.PictureSrc(file)` and its attributes to the kept ones (`P
 is replaced: with a caption, by a `Figure` with the block's identifier, a caption of one `Plain` holding the
 placeholder `Span` of class `canvasnet-markdown` (`PandocAst.MarkdownPlaceholder`), and one `Plain` with an image
 whose description is the same placeholder; without a caption, by a `Para` holding an image with the block's
-identifier and an empty description. The image keeps the block's classes other than `mermaid` and the kept
+identifier and an empty description. The image keeps the block's classes other than the one that made it a picture
+(`mermaid` or `plantuml`) and the kept
 attributes.
 
 #### Error Handling
@@ -133,7 +137,9 @@ All errors are `ToolException` (a `ViewerException`), with the Lua filter's mess
   file is deleted. A `size-limit` error that carries the scale that fits (`Exception.Data` under the key
   `DemaConsulting.CanvasNet.Viewer.FitScale`, set by `SourceLoader.ComputeTargetSize` for a size that follows the
   natural size) gets a hint that names the attribute instead of the command-line options: `Set the block's scale
-  attribute to <fit> or less, for example {.mermaid scale=<fit>}.` for a code block (the `Block` flag of the job), and
+  attribute to <fit> or less, for example {.mermaid scale=<fit>}.` (`{.plantuml scale=<fit>}` for a PlantUML block) for
+  a
+  code block (the `Block` flag of the job), and
   `Set the picture's scale attribute to <fit> or less, for example {scale=<fit>}.` for an image.
 - In a restrictive file-access mode, a diagnostic `image-access-denied` or `file-access-denied` stops the run with
   `drawing '<name>' failed: <message> (denied by CANVASNET_FILE_ACCESS/CANVASNET_ROOTS)` (`file-access-denied`), for a
@@ -156,7 +162,8 @@ unchanged and nothing is returned.
 - **DependencyHasher** - the hashes of the files a picture depends on, and whether a drawing is composite.
 - **PictureCache** - keys, file and marker names, atomic writes, commits, and deletes.
 - **RenderCommand** and **FlattenCommand** - called in-process by `ToolPictureDrawer`.
-- **MermaidDiagnosticCodes**, **FolderImageResolver**, **ErrorCodes**, and **ViewerException** - the codes it reads
+- **MermaidDiagnosticCodes**, **PlantUmlDiagnosticCodes**, **FolderImageResolver**, **ErrorCodes**, and
+  **ViewerException** - the codes it reads
   and reports.
 
 #### Callers

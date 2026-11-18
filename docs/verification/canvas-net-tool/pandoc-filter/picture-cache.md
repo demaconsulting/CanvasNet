@@ -34,7 +34,8 @@ PDF page with no parts.
 of `café.scad` is `caf--` (one dash per UTF-8 byte); in a cache folder the picture is `flow-k.png`, the flattened copy
 `d-k.svg`, the markers `k.unsupported` and `k.plain`, a partial file matches `k.<9 digits>.partial.png`, and the source
 of a journey code block is `cec4b774cf6e92d591d5001e3909f9dc6ca2cdcc.mmd`, the name the old filter wrote for the same
-block.
+block (also when the kind `mermaid` is named), while a PlantUML block is
+`eccade7d2733145c0211b90c5308527baf6876f0.puml`, the SHA-1 of the prefix that names `plantuml` and its text.
 
 **PictureCache_WriteTextAtomically_NewAndExisting_WritesOnce**: a new file holds the UTF-8 bytes of `é\n` without a byte
 order mark, an existing file keeps its text `kept` instead of `replaced`, and the folder holds only the two files, with

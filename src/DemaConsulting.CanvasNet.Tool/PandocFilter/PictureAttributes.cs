@@ -13,7 +13,7 @@ namespace DemaConsulting.CanvasNet.Tool.PandocFilter;
 internal sealed record PictureOptions(IReadOnlyList<string> Options, IReadOnlyList<KeyValuePair<string, string>> Keep);
 
 /// <summary>
-///     Reads the attributes of a picture or a Mermaid code block: which kind of input a picture is, the checks of every
+///     Reads the attributes of a picture or a Mermaid or PlantUML code block: which kind of input a picture is, the checks of every
 ///     drawing attribute with the Lua filter's messages, the defaults, the sorted options, and the attributes that stay.
 /// </summary>
 /// <remarks>
@@ -45,6 +45,9 @@ internal static class PictureAttributes
     /// <summary>The kind of a Mermaid diagram (<c>.mmd</c>, <c>.mermaid</c>, or a code block of class mermaid).</summary>
     internal const string Mermaid = "mermaid";
 
+    /// <summary>The kind of a PlantUML diagram (<c>.puml</c>, <c>.plantuml</c>, <c>.pu</c>, or a code block of class plantuml).</summary>
+    internal const string PlantUml = "plantuml";
+
     /// <summary>The size a model is drawn at unless <c>size</c> or <c>scale</c> is given.</summary>
     internal const string ScadDefaultSize = "1600x1200";
 
@@ -66,13 +69,14 @@ internal static class PictureAttributes
     private static readonly (string Suffix, string Kind)[] Suffixes =
     [
         (".vl.json", VegaLite), (".vl", VegaLite), (".scad", Scad), (".vsdx", Vsdx), (".pptx", Pptx), (".pdf", Pdf),
-        (".mmd", Mermaid), (".mermaid", Mermaid)
+        (".mmd", Mermaid), (".mermaid", Mermaid), (".puml", PlantUml), (".plantuml", PlantUml), (".pu", PlantUml)
     ];
 
     /// <summary>
-    ///     The classes of the code blocks the filter draws, each with the kind it draws them as.
+    ///     The classes of the code blocks the filter draws, each with the kind it draws them as (the class is the name of the
+    ///     kind).
     /// </summary>
-    private static readonly (string Class, string Kind)[] BlockClassKinds = [(Mermaid, Mermaid)];
+    private static readonly (string Class, string Kind)[] BlockClassKinds = [(Mermaid, Mermaid), (PlantUml, PlantUml)];
 
     /// <summary>
     ///     Gets the lowercase file name ends of every local picture the filter may change: <see cref="SvgSuffix"/> and the
@@ -303,7 +307,7 @@ internal static class PictureAttributes
     }
 
     /// <summary>
-    ///     Splits the <c>caption</c> attribute off the attributes of a Mermaid code block.
+    ///     Splits the <c>caption</c> attribute off the attributes of a Mermaid or PlantUML code block.
     /// </summary>
     /// <param name="attributes">The block's attributes, in their order.</param>
     /// <returns>
@@ -330,19 +334,20 @@ internal static class PictureAttributes
     }
 
     /// <summary>
-    ///     Gets the name a message gives a Mermaid code block (<c>block_name</c>).
+    ///     Gets the name a message gives a code block (<c>block_name</c>).
     /// </summary>
     /// <param name="identifier">The block's identifier; empty when it has none.</param>
     /// <param name="text">The block's text.</param>
+    /// <param name="kind">The kind the block is drawn as (<see cref="Mermaid"/> or <see cref="PlantUml"/>), which is its class.</param>
     /// <returns>
     ///     <c>mermaid block #id</c>, or <c>mermaid block (first line)</c> with the first non-blank line trimmed and cut to 40
-    ///     characters followed by <c>...</c>.
+    ///     characters followed by <c>...</c> (<c>plantuml block ...</c> for a PlantUML block).
     /// </returns>
-    internal static string BlockName(string identifier, string text)
+    internal static string BlockName(string identifier, string text, string kind = Mermaid)
     {
         if (identifier.Length > 0)
         {
-            return "mermaid block #" + identifier;
+            return $"{kind} block #{identifier}";
         }
 
         // The first line after any leading white space, without trailing white space
@@ -355,7 +360,7 @@ internal static class PictureAttributes
             first = string.Concat(runes.Take(40).Select(r => r.ToString())) + "...";
         }
 
-        return $"mermaid block ({first})";
+        return $"{kind} block ({first})";
     }
 
     /// <summary>

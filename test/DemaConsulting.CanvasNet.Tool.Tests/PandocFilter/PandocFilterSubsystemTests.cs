@@ -85,6 +85,45 @@ public class PandocFilterSubsystemTests
     }
 
     /// <summary>
+    ///     Test that a PlantUML picture and a PlantUML code block are drawn by the tool, that a second run draws nothing,
+    ///     that a change to a file the picture includes draws it again, and that a type the tool does not draw is left as
+    ///     written with a warning.
+    /// </summary>
+    [Fact]
+    public void PandocFilter_Run_PlantUmlPictureAndBlock_DrawnAndRedrawnWhenAnIncludeChanges()
+    {
+        // Arrange: a diagram that includes its participants, a sequence block, and a class block
+        using var tree = new FilterTree();
+        tree.Write("seq.puml", "@startuml\n!include people.iuml\nAlice -> Bob : hi\n@enduml\n");
+        tree.Write("people.iuml", "participant Alice\nparticipant Bob\n");
+        var document = PandocDoc.Document(
+            PandocDoc.Para(PandocDoc.Image("seq.puml")),
+            PandocDoc.CodeBlock("fig-talk", ["plantuml"], "Alice -> Bob : hello", ("caption", "The talk")),
+            PandocDoc.CodeBlock("", ["plantuml"], "@startuml\nclass Car\n@enduml"));
+        var drawer = new CountingDrawer();
+
+        // Act: draw, draw again, change the included file, and draw again
+        var first = tree.Run(drawer, document);
+        var afterFirst = drawer.Count;
+        var second = tree.Run(drawer, document);
+        var afterSecond = drawer.Count;
+        tree.Write("people.iuml", "participant Alice\nparticipant Carol\nparticipant Bob\n");
+        var third = tree.Run(drawer, document);
+
+        // Assert: three drawings (the class diagram is left as written), then none, then the picture again
+        Assert.Equal(3, afterFirst);
+        Assert.Equal(3, afterSecond);
+        Assert.Equal(first, second);
+        Assert.Equal(4, drawer.Count);
+        Assert.NotEqual(PandocDoc.ImageSources(first)[0], PandocDoc.ImageSources(third)[0]);
+        Assert.Equal(PandocDoc.ImageSources(first)[1], PandocDoc.ImageSources(third)[1]);
+        Assert.Equal(["plantuml block (@startuml): "], PandocDoc.Warnings(first).Select(w => w[..w.IndexOf(": ", StringComparison.Ordinal)] + ": "));
+        Assert.EndsWith("it is left as written and not drawn", Assert.Single(PandocDoc.Warnings(first)), StringComparison.Ordinal);
+        using var json = JsonDocument.Parse(first);
+        Assert.Equal(["Para", "Figure", "CodeBlock"], json.RootElement.GetProperty("blocks").EnumerateArray().Select(b => b.GetProperty("t").GetString()));
+    }
+
+    /// <summary>
     ///     Test that a mistake in a picture stops the run with the filter's error and a message that names the picture, and
     ///     that a picture the filter does not handle is left to Pandoc.
     /// </summary>
