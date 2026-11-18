@@ -52,7 +52,10 @@ public sealed record SvgLoadOptions
     ///     </para>
     ///     <para>
     ///     The resolver receives the raw <c>href</c> and the device-pixel size of the placement
-    ///     rectangle through <see cref="IImageResolver.Resolve(string, int, int)"/>. It returns a
+    ///     rectangle through <see cref="IImageResolver.Resolve(string, int, int)"/>: the placement's
+    ///     own <c>width</c> x <c>height</c> scaled by the largest stretch of the element's transform,
+    ///     so the requested box keeps the placement's aspect under a skew or a non-uniform scale
+    ///     (the transform then maps the drawn picture onto the device). It returns a
     ///     <see cref="Surface"/> or <see langword="null"/>. A <see langword="null"/> result is a
     ///     tolerant no-op: the element draws nothing. A returned surface is fitted into the
     ///     placement rectangle per the element's <c>preserveAspectRatio</c> and drawn through the

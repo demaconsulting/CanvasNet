@@ -39,7 +39,9 @@ examples:
   (.vl.json), a Mermaid diagram (.mmd), or a page of a PDF, PPTX, or VSDX
   document (page 1 unless the href ends in #page=N). The format is decided by
   the file name. A model, chart, or diagram is drawn at the size of the image, a
-  raster at its own size and then fitted; a local file: URI and a
+  raster at its own size and then fitted; under a skew or a non-uniform scale
+  the picture is laid out in the image and then transformed with it, as in
+  browsers; a local file: URI and a
   percent-encoded path also work, and a nested SVG file finds its own images
   beside itself.
 - An embedded model is drawn with the view the library chooses for it (isometric

@@ -365,8 +365,12 @@ after it exists; a resolver must protect the memory itself, as `FolderImageResol
 its pixel budget before it is allocated.
 
 A resolver receives the `href` exactly as written (trimmed) and `pixelWidth` x `pixelHeight`, the size of the
-element's placement rectangle **in device pixels after all transforms** (the viewBox fit, `transform`
-attributes, rotation and skew included), rounded up and between 1 and `Surface.MaxDimension`. Draw a vector
+element's placement rectangle **in device pixels after all transforms** (the viewBox fit and `transform`
+attributes), rounded up and between 1 and `Surface.MaxDimension`. Under a rotation, a skew, or a non-uniform scale
+the size is the placement's own `width` x `height` scaled by the largest stretch of the transform, so it keeps the
+placement's aspect: a 100 x 50 placement under `scale(2,1)` asks for 200 x 100, not 200 x 50, because the picture is
+laid out in its placement and the transform then stretches it, as in a browser. When the larger side would exceed
+`Surface.MaxDimension`, both sides are scaled down together. Draw a vector
 source (a rendered chart, another SVG) at that size to keep it sharp. The returned surface is fitted into the
 placement rectangle with the element's `preserveAspectRatio` and drawn through the same `image-rendering`,
 `opacity`, `clip-path`, `mask`, and `filter` handling as a `data:` raster. Return `null` for "not found / not

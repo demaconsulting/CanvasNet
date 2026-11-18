@@ -1065,7 +1065,9 @@ draws the model and the chart into their rectangles. The result lists each embed
   `embed` list names the files the SVG file you named embeds itself.)
 - **Size and background.** A model, chart, SVG file, or document page is drawn at the **device size of its rectangle**
   (after `--scale`, `--width`, and any transform in the SVG), so it is sharp; the rectangle is filled by a model, and a
-  chart, page, or SVG file is fitted inside it by the `preserveAspectRatio` of the element. A raster is decoded at its
+  chart, page, or SVG file is fitted inside it by the `preserveAspectRatio` of the element. Under a skew or a
+  non-uniform scale the picture is laid out in its rectangle first and then transformed with it, as in a browser, so
+  it fills the skewed or stretched rectangle. A raster is decoded at its
   own size and resampled once. A model, an SVG file, and a diagram are drawn over a **transparent** background, so the
   diagram shows through; a chart keeps **its own background** (white unless it declares another), because a chart is
   meant to carry its own paper. An embedded model is drawn with the view the library chooses for it (isometric for a 3D

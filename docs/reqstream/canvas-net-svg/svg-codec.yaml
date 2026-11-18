@@ -1653,8 +1653,11 @@ sections:
             title: >-
               The SvgCodec class shall, when the caller supplies SvgLoadOptions.ImageResolver, pass
               an image element's raw trimmed href/xlink:href and its placement size in device
-              pixels after the composed transform (rounded up, from 1 to the maximum surface
-              dimension) to the resolver, draw a returned surface through the same
+              pixels (the placement width and height in its own user space scaled by the largest
+              stretch of the composed transform, so the requested size keeps the placement's aspect
+              under a skew or a non-uniform scale, rounded up, from 1 to the maximum surface
+              dimension, and scaled down together to keep that aspect when the larger side would
+              exceed it) to the resolver, draw a returned surface through the same
               preserveAspectRatio fit, image-rendering, and clip-path/mask/filter/opacity effects
               pipeline as a decoded data URI raster, dispose the returned surface, treat a null
               result as a tolerant no-op, never pass a data: URI, a same-document fragment, or an
@@ -1666,13 +1669,20 @@ sections:
               files and rasters in an SVG diagram. An explicit resolver (the IImageResolver contract
               of the core package) keeps the codec free of file and network I/O and of every other
               format (the host decides what may be reached), and the device size lets the host draw
-              a vector source sharply at the size it is shown. A resolver backed by a live source
+              a vector source sharply at the size it is shown. As in SVG, the picture is laid out in
+              its placement in user space and the transform then maps it to the device, so a skewed
+              or non-uniformly scaled picture must be requested with the placement's own aspect or
+              it is drawn smaller and squashed. A resolver backed by a live source
               must be asked again each time, so nothing is cached. The resolver is trusted host
               code, so its failures are surfaced rather than hidden, while untrusted document
               content stays tolerant.
             tests:
               - SvgCodec_Load_ImageResolverSet_ReceivesRawHrefAndXlinkHref
               - SvgCodec_Load_ImageResolverSet_ReceivesPixelSizeAfterTransform
+              - SvgCodec_Load_ImageResolverSet_SkewOrNonUniformScale_RequestsThePlacementAspect
+              - SvgCodec_Load_ImageResolverReturnsRequestedSize_SkewX_FillsTheWholeParallelogram
+              - SvgCodec_Load_ImageResolverReturnsRequestedSize_NonUniformScale_FillsTheStretchedBox
+              - SvgCodec_Load_ImageResolverReturnsRequestedSize_RotateAndScale_FillsThePlacement
               - SvgCodec_Load_ImageResolverReturnsSurface_IsPlacedLikeADataUri
               - SvgCodec_Load_ImageResolverReturnsSurface_HonorsPreserveAspectRatio
               - SvgCodec_Load_ImageResolverReturnsSurface_AppliesOpacityAndClipPath

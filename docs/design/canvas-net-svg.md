@@ -61,7 +61,9 @@ class:
   external `href` names - a model, a chart, another SVG, a raster - and returns it as a `Surface`
   (which the codec draws through the same placement and effects pipeline as a `data:` raster and
   then disposes) or `null` (a no-op). `Resolve(href, pixelWidth, pixelHeight)` receives the raw `href` and
-  the placement size in device pixels after the transform. Default `null` is exactly the previous
+  the placement size in device pixels: the placement's own width and height scaled by the largest stretch of the
+  transform, so the request keeps the placement's aspect under a skew or a non-uniform scale. Default `null` is
+  exactly the previous
   behavior: only `data:` URIs are drawn and the library performs no file or network I/O; with a
   resolver, the only I/O is whatever the resolver does (`FolderImageResolver` of the core package reads under
   its `FileAccessPolicy`: `AllowAll` by default, confinement opt-in with `UnderRoots`/`NoSymlinks`). The codec never

@@ -150,7 +150,8 @@ sections:
           relative href draws a raster, an SVG file, an OpenSCAD model, a Vega-Lite chart, a Mermaid diagram, or the
           first page of a PDF, PPTX, or VSDX document relative to that folder, decided by the file name extension,
           under the file-access policy of the source options and with the nesting and count limits of the core
-          library); shall not pass the outer sizing,
+          library, filling its placement also under a skew or a non-uniform scale, as in a browser); shall not pass
+          the outer sizing,
           page, resolution, and model options on to an embedded file; shall add the notes and printed lines of an
           embedded file to the result, each note starting with the href; and shall list each file that the SVG file
           itself embeds, and no file embedded further down, as an embed operation.
@@ -164,6 +165,7 @@ sections:
           - SourceLoader_Load_SvgEmbeddingScad_DrawsModelOverTransparentBackground
           - SourceLoader_Load_SvgEmbeddingVegaLite_KeepsChartBackgroundOpaque
           - SourceLoader_Load_SvgEmbeddingNestedSvg_ListsOnlyTheOuterEmbedOperation
+          - SourceLoader_Load_SvgEmbeddedSvgUnderSkew_FillsItsPlacement
           - SourceLoader_Load_SvgEmbeddingByFileName_DrawsListedTypesAndSkipsOthers
           - SourceLoader_Load_SvgEmbeddingSymbolicLink_NoSymlinks_IsAccessDeniedWarning
           - SourceLoader_Load_SvgEmbeddingSymbolicLink_Default_IsDrawn

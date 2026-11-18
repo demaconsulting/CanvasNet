@@ -550,7 +550,8 @@ operations list says what happened.
 **SourceLoader_Load_SvgEmbeddingPng_DrawsPictureAndListsEmbedOperation**,
 **SourceLoader_Load_SvgEmbeddingScad_DrawsModelOverTransparentBackground**,
 **SourceLoader_Load_SvgEmbeddingVegaLite_KeepsChartBackgroundOpaque**,
-**SourceLoader_Load_SvgEmbeddingNestedSvg_ListsOnlyTheOuterEmbedOperation**, and
+**SourceLoader_Load_SvgEmbeddingNestedSvg_ListsOnlyTheOuterEmbedOperation**,
+**SourceLoader_Load_SvgEmbeddedSvgUnderSkew_FillsItsPlacement**, and
 **SourceLoader_Load_SvgEmbeddingByFileName_DrawsListedTypesAndSkipsOthers** (`SourceLoaderSvgImageTests.cs`; each test
 writes the files beside a 40 by 40 red SVG in a temporary folder): a green PNG is drawn in its placement with red
 around it, no notes, and one `embed` operation (`href`, `format` `png`, and its natural width of 4); the model fixture
@@ -558,7 +559,10 @@ is
 drawn at the size of its placement (80 pixels at `--scale 2`) with the red diagram at the corner (a transparent
 background); the chart fixture is opaque white in its placement, red below it, and drawn at the size of the
 placement; `sub/inner.svg` draws `sub/img.png` although the outer folder has no such file, and only the outer
-`sub/inner.svg` is an `embed` operation (the picture it embeds is not listed); a PDF named `.pdf` and a chart named
+`sub/inner.svg` is an `embed` operation (the picture it embeds is not listed); a nested SVG file that is green over its
+whole 20 by 10 viewBox, placed 20 by 10 under `skewX(30)` and under `scale(1,2)` at `--scale 2`, is green near the four
+corners and at the center of each transformed placement and red just outside each side, with no notes (as in Edge,
+the nested file fills its placement and is not drawn smaller or squashed); a PDF named `.pdf` and a chart named
 `.vl.json` are drawn (formats `pdf` and `vega-lite`) while the same contents named `.bin` and `.json` are two
 `svg-image-unresolved` warnings (the type is decided by the file name).
 

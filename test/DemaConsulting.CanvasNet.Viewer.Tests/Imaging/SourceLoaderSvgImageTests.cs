@@ -1,3 +1,4 @@
+using System.Numerics;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;
 using DemaConsulting.CanvasNet.Files;
@@ -172,6 +173,56 @@ public class SourceLoaderSvgImageTests
         Assert.Empty(loaded.Diagnostics);
         var embed = Assert.Single(loaded.Operations, o => o.Op == "embed");
         Assert.Equal("sub/inner.svg", embed.Fields.Single(f => f.Key == "href").Value);
+    }
+
+    /// <summary>
+    ///     Test that an embedded SVG file under a skew and under a non-uniform scale fills its whole placement, as in a
+    ///     browser: the nested file is laid out in the placement in user space and the transform then maps it, so it
+    ///     is not drawn smaller or squashed.
+    /// </summary>
+    [Fact]
+    public void SourceLoader_Load_SvgEmbeddedSvgUnderSkew_FillsItsPlacement()
+    {
+        // Arrange: a nested file that is green over its whole 20 by 10 viewBox, placed 20 by 10 under skewX(30) and
+        // under scale(1,2)
+        using var directory = new TempDirectory();
+        FixtureFactory.WriteText(
+            directory.Path,
+            "inner.svg",
+            "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 10'><rect width='20' height='10' fill='#00ff00'/></svg>");
+        var path = WriteSvg(
+            directory.Path,
+            "outer.svg",
+            "<image href='inner.svg' x='0' y='0' width='20' height='10' transform='translate(2,2) skewX(30)'/>"
+            + "<image href='inner.svg' x='0' y='0' width='20' height='10' transform='translate(10,17) scale(1,2)'/>");
+        var view = Matrix3x2.CreateScale(2f);
+        var skewed = Matrix3x2.CreateSkew(MathF.PI / 6f, 0f) * Matrix3x2.CreateTranslation(2f, 2f) * view;
+        var stretched = Matrix3x2.CreateScale(1f, 2f) * Matrix3x2.CreateTranslation(10f, 17f) * view;
+
+        // Act: at twice the natural size
+        using var loaded = SourceLoader.Load(path, new SourceOptions { Scale = 2 });
+
+        // Assert: both placements are green near their corners and at their centers, and red just outside them
+        foreach (var placement in new[] { skewed, stretched })
+        {
+            Rgba32 At(float u, float v)
+            {
+                var point = Vector2.Transform(new Vector2(u, v), placement);
+                return loaded.Surface[(int)point.X, (int)point.Y];
+            }
+
+            Assert.Equal(Green, At(1.2f, 2f));
+            Assert.Equal(Green, At(18.8f, 2f));
+            Assert.Equal(Green, At(1.2f, 8f));
+            Assert.Equal(Green, At(18.8f, 8f));
+            Assert.Equal(Green, At(10f, 5f));
+            Assert.Equal(Red, At(-1.5f, 5f));
+            Assert.Equal(Red, At(21.5f, 5f));
+            Assert.Equal(Red, At(10f, -1.2f));
+            Assert.Equal(Red, At(10f, 11.2f));
+        }
+
+        Assert.Empty(loaded.Diagnostics);
     }
 
     /// <summary>

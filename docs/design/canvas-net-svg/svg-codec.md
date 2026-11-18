@@ -1473,11 +1473,22 @@ takes the resolver path when a resolver was supplied and is a no-op otherwise. B
 a deferred `ImageLoad` (extra work units plus a loader), so the work-budget charge, the
 fit/sample/effects pipeline, and the disposal of the loaded surface (`using`) are shared.
 
-The resolver path computes the pixel size, which `Resolve(href, pixelWidth, pixelHeight)` receives, as the edge lengths
-of the placement rectangle after the composed transform - `width` times the length of the transform's first basis row,
-`height` times that of the second, so rotation and skew are covered - rounded up (with a 0.001 tolerance against
-floating-point noise) and clamped to 1 through `Surface.MaxDimension`; this is the size at which a vector source should
-be drawn to look crisp. The charge against the shared `FilterWorkBudget` is the effects-pipeline units plus the
+The resolver path computes the pixel size, which `Resolve(href, pixelWidth, pixelHeight)` receives, with
+`ComputeImageDevicePixels`: the placement `width` and `height` in their own user space, times the largest singular value
+`s` of the linear part of the composed transform (`s = sqrt((S + sqrt(S^2 - 4 det^2)) / 2)`, with `S` the sum of the
+squares of the four entries and `det` the determinant), rounded up (with a 0.001 tolerance against floating-point noise)
+and clamped to 1 through `Surface.MaxDimension` - when the larger side would exceed `Surface.MaxDimension`, both sides
+are first scaled down together, so the request keeps the placement's aspect. As in SVG, the picture is laid out in its
+own viewport (`x`, `y`, `width`, `height`, `preserveAspectRatio`) in user space and the full transform then maps that
+viewport to the device (`imageToPixel = fit * translate(x, y) * transform`), so the request has to have the placement's
+own aspect: the transformed edge lengths have a different aspect under a skew or a non-uniform scale (`scale(2,1)` turns
+100 x 50 into 200 x 50), and a vector source would letterbox its content into such a box before the fit letterboxed it
+again, so it would come out smaller and squashed. Using the largest stretch keeps the most stretched direction crisp;
+the less stretched one is minified by the sampler. For the identity, a uniform scale and a rotation `s` equals the
+transformed edge length, so those requests are unchanged; under a skew or a non-uniform scale the requested area grows
+by `s^2 / |det|` (about 1.8 for `skewX(30)`, 2 for `scale(2,1)`) and is charged as usual. This is the size at which a
+vector source should be drawn to look crisp. The charge against the shared `FilterWorkBudget` is the effects-pipeline
+units plus the
 requested pixel area plus `ResolverCallOverheadUnits` (100,000), made *before* the call; a declined charge skips the
 call. With the 50,000,000-unit cumulative budget that allows fewer than 500 calls per document, which bounds `use`
 fan-out. After the call, a returned surface larger than requested is charged for the extra pixels; a declined charge

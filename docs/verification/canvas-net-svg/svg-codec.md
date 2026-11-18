@@ -2047,13 +2047,24 @@ is caught alongside the malformed-payload cases above rather than propagating ou
 `SvgCodec_Load_ImageResolverThrowsFormatException_IsNotReportedAsInvalidSvgData`,
 `SvgCodec_Load_ImageResolverReturnsSurface_IsDisposedByCodec`,
 `SvgCodec_Load_ImageResolverSet_FeImageExternalHrefDoesNotCallResolver`,
-`SvgCodec_Load_ImageResolverSet_SameHrefTwiceAndTwoRenders_CallsResolverEachTime`
+`SvgCodec_Load_ImageResolverSet_SameHrefTwiceAndTwoRenders_CallsResolverEachTime`,
+`SvgCodec_Load_ImageResolverSet_SkewOrNonUniformScale_RequestsThePlacementAspect`,
+`SvgCodec_Load_ImageResolverReturnsRequestedSize_SkewX_FillsTheWholeParallelogram`,
+`SvgCodec_Load_ImageResolverReturnsRequestedSize_NonUniformScale_FillsTheStretchedBox`,
+`SvgCodec_Load_ImageResolverReturnsRequestedSize_RotateAndScale_FillsThePlacement`
 
 `SvgImageResolverTests.cs` renders small documents (a 10 by 10 viewBox with a red background) with a resolver and
 asserts: the request holds the raw `href` of both the `href` and the `xlink:href` forms, trimmed
-(`ReceivesRawHrefAndXlinkHref`); the pixel size is the edge length of the placement after the composed transform,
+(`ReceivesRawHrefAndXlinkHref`); the pixel size is the size of the placement after the composed transform,
 rounded up and at least 1, for the viewBox scale, a group `scale`, a `rotate(90)`, a fractional size, and a tiny size
-(`ReceivesPixelSizeAfterTransform`); a returned surface is drawn exactly like the same picture as a PNG data URI, pixel
+(`ReceivesPixelSizeAfterTransform`); under `skewX(30)`, `scale(2,1)`, and `rotate(30) scale(1,2)` a 40 by 20
+placement is requested with its own 2:1 aspect at the largest stretch of the transform (54 x 27, 80 x 40, and 80 x 40;
+`RequestsThePlacementAspect`), and a resolver that returns a solid green surface of exactly the requested size fills
+the whole transformed placement under each of those transforms - green near the four corners and at the center, red
+just outside each side, where a request with the transformed edge lengths would leave the picture letterboxed twice
+with red bands along two sides (`SkewX_FillsTheWholeParallelogram`, `NonUniformScale_FillsTheStretchedBox`,
+`RotateAndScale_FillsThePlacement`, on a 100 by 100 document at one pixel per unit); a returned surface is drawn
+exactly like the same picture as a PNG data URI, pixel
 for pixel (`IsPlacedLikeADataUri`, which proves the placement and the shared pipeline at once); `preserveAspectRatio`
 meet, slice, and none fit a 2:1 picture into a square placement (the top edge is drawn only for slice and none);
 `opacity` and a `clip-path` apply (the clipped half still shows the background and the other half is a blend);
