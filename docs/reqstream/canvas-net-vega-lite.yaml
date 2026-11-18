@@ -219,6 +219,7 @@ sections:
           - FeatureCatalog_Visit_SupportedSpecificationHasNoReports
           - CanvasNetVegaLite_SystemIntegration_Gallery_HoldsDescribedSpecifications
           - CanvasNetVegaLite_SystemIntegration_Gallery_RendersStrictWithoutWarnings
+          - CanvasNetVegaLite_SystemIntegration_Render_BarCornerRadiusEnd_RoundsOnlyTheValueEnd
 
       - id: CanvasNetVegaLite-InlineData
         title: >-

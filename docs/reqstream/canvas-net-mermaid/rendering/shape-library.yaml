@@ -122,7 +122,8 @@ sections:
                   an empty class unless class.hideEmptyMembersBox is set, each text wrapped at Mermaid's width, bold
                   names, underlined static and italic abstract members, HTML labels unless the top-level htmlLabels
                   setting is false and SVG labels spaced by Mermaid's text padding otherwise - painted by the style
-                  sheet with the class's own styles winning, and sized and intersected by its rectangle.
+                  sheet with the class's own styles winning (a stroke of the class paints the outline and the
+                  dividers, never the texts), and sized and intersected by its rectangle.
                 justification: |
                   The class box decides the size of every class, and so the whole layout of a class diagram; its parts
                   must be where Mermaid puts them.
@@ -133,6 +134,7 @@ sections:
                   - ShapeLibrary_Draw_ClassBoxSvgLabels_SpacesTheMembersByTheTextPadding
                   - ShapeLibrary_ClassHtmlLabels_FollowsMermaidsEvaluate
                   - ShapeLibrary_Draw_ClassBoxStyles_PaintTheDividersAsTheOutline
+                  - ShapeLibrary_Draw_ClassBoxStrokeStyle_LeavesTheTextsUnstroked
 
               - id: CanvasNetMermaid-Rendering-ShapeLibrary-TrustedStyles
                 title: >-

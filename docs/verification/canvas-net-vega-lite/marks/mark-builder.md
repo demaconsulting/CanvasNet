@@ -343,6 +343,24 @@ the clip rule (only `clip: true` clips a mark whose scales have no parameter dom
 chart whose x or y domain is a parameter is the system scenario
 `CanvasNetVegaLite_SystemIntegration_Params_DomainOfAParameterIsRawAndClipsTheMarks`).
 
+##### Bar Corner Radius End
+
+**Tests**: `MarkBuilderTests.MarkBuilder_Build_BarCornerRadiusEnd_RoundsTheValueEnd`
+
+With `cornerRadiusEnd: 5` on a bar mark, asserts the corner radii (top-left, top-right, bottom-right, bottom-left) of a
+vertical bar above zero `(5, 5, 0, 0)` and below zero `(0, 0, 5, 5)`, of a horizontal bar right of zero `(0, 5, 5, 0)`
+and left of zero `(5, 0, 0, 5)`, of a ranged bar with `y2` `(5, 5, 5, 5)`, of each of two stacked segments
+`(5, 5, 0, 0)`, and that a `rect` mark ignores the property (`CornerRadii` is null).
+
+##### Corner Radii Precedence
+
+**Tests**: `MarkBuilderTests.MarkBuilder_Build_CornerRadii_FollowVegaLitePrecedence`
+
+Asserts that a `rect` with `cornerRadiusTopLeft: 4` has the radii `(4, 0, 0, 0)` (the other corners use
+`cornerRadius`, 0); that a positive bar with `cornerRadiusEnd: 6`, `cornerRadiusBottomLeft: 2`, and `cornerRadius: 1`
+has `(6, 6, 1, 2)`; that `config.bar.cornerRadiusEnd: 6` does not replace the `cornerRadius: 2` of the mark
+(`(2, 2, 2, 2)`); and that a chart with no corner property keeps `CornerRadii` null, so its scene is unchanged.
+
 ##### Point, Circle, Square, Rule, And Tick Geometry
 
 **Tests**: `MarkBuilderTests.MarkBuilder_Build_PointCircleSquareRuleAndTickMatchExpectedSceneItems`

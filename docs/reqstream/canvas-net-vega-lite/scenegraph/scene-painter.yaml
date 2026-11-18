@@ -27,13 +27,16 @@ sections:
                   (an unusable width draws nothing, an overflowing offset counts as zero), and a dash
                   pattern that is unusable after the conversion, finer than a quarter of a surface pixel,
                   or longer than 50000 estimated dashes on a path is drawn solid, so that no such value
-                  escapes as an exception or makes the stroker do unbounded work.
+                  escapes as an exception or makes the stroker do unbounded work; and shall round each
+                  corner of a rectangle by its own radius when the rectangle carries one per corner,
+                  clamped to half its shorter side.
                 justification: |
                   Fill, stroke, and opacity are the basic paint of every mark and guide, and a chart
                   specification may carry any number as a stroke width, dash, or offset, which must not be
                   able to stop or stall the renderer.
                 tests:
                   - ScenePainter_Paint_RectAndRuleHonorsFillStrokeOpacity
+                  - ScenePainter_Paint_RectWithCornerRadii_RoundsEachCornerByItsRadius
                   - ScenePainter_Paint_NoPaintDrawsNothingAndBackgroundFillsTheSurface
                   - ScenePainter_Paint_PathologicalDashPatternsFallBackToSolid
                   - ScenePainter_Paint_ValuesOutsideTheFloatRangeAreSafe

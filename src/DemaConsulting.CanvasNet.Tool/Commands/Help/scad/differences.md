@@ -20,7 +20,10 @@ see-also:
   $vp* variables) over a transparent background. `<image
   href="part.scad#view=front" .../>` chooses a named view instead (iso, front,
   back, left, right, top, bottom); #view without a value, or an unknown name, is
-  image-fragment-invalid and the image is not drawn. Every def.<name>=<value> in
+  image-fragment-invalid and the image is not drawn. #azimuth=<degrees> and
+  #elevation=<degrees> (-90 to 90) turn it as --azimuth and --elevation do; a
+  value that is not a number, or an elevation outside -90 to 90, is
+  image-fragment-invalid. Every def.<name>=<value> in
   the fragment sets a variable of the model exactly like -D name=value (same
   value grammar and precedence; a name that is not an identifier, or a value
   that is not valid, is image-fragment-invalid), for example `<image

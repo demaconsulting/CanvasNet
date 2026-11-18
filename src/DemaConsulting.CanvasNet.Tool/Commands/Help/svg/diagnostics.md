@@ -62,5 +62,5 @@ see-also:
 - An embedded file that is found but is broken (a corrupt picture, a model with
   a syntax error, a chart with a bad specification, a diagram with a syntax
   error) is an error with its own code, and the message names both files.
-- `corrupt-input`: Error code: malformed XML, a root element that is not svg, or
-  a document over a limit.
+- `corrupt-input`: Error code: malformed XML (the message names the line and
+  column), a root element that is not svg, or a document over a limit.

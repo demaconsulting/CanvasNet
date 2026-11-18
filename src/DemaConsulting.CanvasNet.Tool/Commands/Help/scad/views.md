@@ -53,8 +53,10 @@ several pictures must share one scale.
   "part.scad#def.explode=1" -D '$vpd=300' -D '$vpt=[0,0,50]' --labels -o m.png
   shows the explode levels at one scale; without them each cell is fitted to its
   own geometry.
-- View angles in a link or input fragment, which takes no azimuth or
-  elevation: def.$vpr=[90-elevation,0,azimuth]. For example
+- View angles in a link or input fragment: azimuth=<degrees> and
+  elevation=<degrees>, like --azimuth and --elevation
+  ('part.scad#azimuth=45&elevation=20'). The viewport variable works too:
+  def.$vpr=[90-elevation,0,azimuth]; for example
   'part.scad#def.$vpr=[70,0,45]' is --azimuth 45 --elevation 20 (the default
   iso view is azimuth 45, elevation 35.26). The framing stays automatic, and
   render --json reports the azimuth and elevation used. Use single quotes in a

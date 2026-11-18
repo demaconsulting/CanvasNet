@@ -415,6 +415,42 @@ public class ScenePainterTests
     }
 
     /// <summary>
+    ///     Validates a rectangle with a radius per corner: each corner is rounded by its own radius, a radius larger than half
+    ///     the shorter side is clamped to it, and a radius that is not a number is drawn as a square corner.
+    /// </summary>
+    [Fact]
+    public void ScenePainter_Paint_RectWithCornerRadii_RoundsEachCornerByItsRadius()
+    {
+        // Arrange: a 40 pixel square rounded at the top only, one whose top-left radius is far beyond half its side,
+        // and one whose top-left radius is not a number
+        var scene = MakeScene(
+            160,
+            60,
+            new SceneRect("top", 10, 10, 40, 40) { Fill = "#ff0000", CornerRadii = new SceneCornerRadii(10, 10, 0, 0) },
+            new SceneRect("clamped", 60, 10, 40, 40) { Fill = "#ff0000", CornerRadii = new SceneCornerRadii(100, 0, 0, 0) },
+            new SceneRect("nan", 110, 10, 40, 40) { Fill = "#ff0000", CornerRadii = new SceneCornerRadii(double.NaN, 0, 0, 0) });
+
+        // Act
+        using var surface = PaintAtOne(scene, 160, 60);
+
+        // Assert: the top corners are cut away, the bottom corners and the middle are not
+        Assert.Equal(White, surface[11, 11]);
+        Assert.Equal(White, surface[48, 11]);
+        Assert.Equal(Red, surface[11, 48]);
+        Assert.Equal(Red, surface[48, 48]);
+        Assert.Equal(Red, surface[30, 30]);
+
+        // Assert: the radius of 100 is drawn as 20 (half the side): the corner is cut away, the middle and the other corners are not
+        Assert.Equal(White, surface[61, 11]);
+        Assert.Equal(Red, surface[80, 30]);
+        Assert.Equal(Red, surface[98, 11]);
+        Assert.Equal(Red, surface[98, 48]);
+
+        // Assert: a radius that is not a number leaves the corner square
+        Assert.Equal(Red, surface[110, 10]);
+    }
+
+    /// <summary>
     ///     Validates text drawing: it leaves ink where the layout says, rotates, scales and is deterministic.
     /// </summary>
     [Fact]

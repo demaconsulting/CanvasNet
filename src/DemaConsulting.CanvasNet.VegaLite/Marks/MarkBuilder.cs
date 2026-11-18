@@ -1707,6 +1707,8 @@ internal sealed partial class MarkBuilder
             var sizingX = SizingFor(isX: true, useSizeChannel: barX);
             var sizingY = SizingFor(isX: false, useSizeChannel: barY);
             var radius = Prop("cornerRadius")?.AsNumber() ?? 0;
+            var corners = CornerPlan(radius);
+            var measure = barY ? x : y;
             var strokeWidth = Prop("strokeWidth", vega: true)?.AsNumber();
             var items = new List<SceneItem>(Math.Min(_table.RowCount, 4096));
             var rows = MarkRows();
@@ -1720,10 +1722,112 @@ internal sealed partial class MarkBuilder
                 }
 
                 Reserve();
-                items.Add(Style(new SceneRect("mark-" + _type, xs.Start, ys.Start, xs.Length, ys.Length) { CornerRadius = radius, Datum = Datum(row) }, paint));
+                var radii = corners is { } plan ? CornerRadiiOf(plan.Base, plan.ValueEnd, barY, measure, row) : (SceneCornerRadii?)null;
+                items.Add(Style(new SceneRect("mark-" + _type, xs.Start, ys.Start, xs.Length, ys.Length) { CornerRadius = radius, CornerRadii = radii, Datum = Datum(row) }, paint));
             }
 
             return items;
+        }
+
+        /// <summary>
+        ///     Resolves the corner radii of a bar or rect mark once, before its rows are drawn, by the rules of Vega-Lite's
+        ///     <c>compile/mark/encode/corner-radius.ts</c>.
+        /// </summary>
+        /// <remarks>
+        ///     <para>
+        ///         Each of <c>cornerRadiusTopLeft</c>, <c>cornerRadiusTopRight</c>, <c>cornerRadiusBottomRight</c> and
+        ///         <c>cornerRadiusBottomLeft</c> falls back to <c>cornerRadius</c>. Only a bar with an orient takes
+        ///         <c>cornerRadiusEnd</c>: a ranged bar (<c>y2</c> for a vertical bar, <c>x2</c> for a horizontal one) gets it
+        ///         on every corner that has no radius of its own, and any other bar on the corners of its value end, which
+        ///         <see cref="CornerRadiiOf"/> chooses for each row.
+        ///     </para>
+        ///     <para>
+        ///         Mark properties beat configuration properties, so a <c>cornerRadiusEnd</c> that only the configuration sets
+        ///         does not replace a corner the mark definition sets, by itself or through <c>cornerRadius</c>.
+        ///     </para>
+        /// </remarks>
+        /// <param name="radius">The <c>cornerRadius</c> of the mark; 0 when it has none.</param>
+        /// <returns>
+        ///     <see langword="null"/> when the mark sets no per-corner radius and no <c>cornerRadiusEnd</c> applies, so every
+        ///     corner uses <paramref name="radius"/>; otherwise the radii of a corner away from the value end
+        ///     (<c>Base</c>) and of a corner at the value end (<c>ValueEnd</c>, <see langword="null"/> when every corner uses
+        ///     <c>Base</c>).
+        /// </returns>
+        private (SceneCornerRadii Base, SceneCornerRadii? ValueEnd)? CornerPlan(double radius)
+        {
+            // Read the radius of each corner, clockwise from the top-left, and the radius of the value end
+            string[] names = ["cornerRadiusTopLeft", "cornerRadiusTopRight", "cornerRadiusBottomRight", "cornerRadiusBottomLeft"];
+            var own = names.Select(name => Prop(name)?.AsNumber()).ToArray();
+            var end = _type == "bar" && _orient is not null ? Prop("cornerRadiusEnd")?.AsNumber() : null;
+            if (end is null && own.All(value => value is null))
+            {
+                return null;
+            }
+
+            // Away from the value end each corner has its own radius, else cornerRadius
+            var baseRadii = new SceneCornerRadii(own[0] ?? radius, own[1] ?? radius, own[2] ?? radius, own[3] ?? radius);
+            if (end is not { } endRadius)
+            {
+                return (baseRadii, null);
+            }
+
+            // A cornerRadiusEnd of the configuration does not replace a corner the mark definition sets
+            var endFromMark = Def("cornerRadiusEnd") is not null;
+            var markRadius = Def("cornerRadius") is not null;
+
+            // A ranged bar has its value at both ends, so every corner is rounded, unless the mark sets cornerRadius and
+            // only the configuration sets cornerRadiusEnd
+            if (Get(_orient == "horizontal" ? "x" : "y") is { HasRange: true })
+            {
+                return !endFromMark && markRadius
+                    ? (baseRadii, null)
+                    : (new SceneCornerRadii(own[0] ?? endRadius, own[1] ?? endRadius, own[2] ?? endRadius, own[3] ?? endRadius), null);
+            }
+
+            // At the value end each corner takes cornerRadiusEnd, unless the mark sets that corner and only the
+            // configuration sets cornerRadiusEnd
+            double AtEnd(int corner) => !endFromMark && (markRadius || Def(names[corner]) is not null) ? own[corner] ?? radius : endRadius;
+            return (baseRadii, new SceneCornerRadii(AtEnd(0), AtEnd(1), AtEnd(2), AtEnd(3)));
+        }
+
+        /// <summary>
+        ///     Chooses the corner radii of one bar: the value end of the bar takes the radii of the value end.
+        /// </summary>
+        /// <remarks>
+        ///     As in Vega-Lite, the rendered positions decide which end is the value end, so a negative value and a
+        ///     reversed scale round the right end: a vertical bar whose value is above its other end rounds its top, one
+        ///     below rounds its bottom, a horizontal bar whose value is right of its other end rounds its right end, and one
+        ///     left of it its left end. A segment of a stack runs from its own lower to its own upper end, so each segment
+        ///     is rounded at its own end (Vega-Lite rounds the ends of the whole stack instead).
+        /// </remarks>
+        /// <param name="baseRadii">The radii of the corners away from the value end.</param>
+        /// <param name="valueEnd">The radii of the corners at the value end, or <see langword="null"/> when every corner uses <paramref name="baseRadii"/>.</param>
+        /// <param name="horizontal"><see langword="true"/> for a horizontal bar, whose value runs along x.</param>
+        /// <param name="measure">The channel of the value (x for a horizontal bar, y for a vertical one), or null.</param>
+        /// <param name="row">The row.</param>
+        /// <returns>The radius of each corner; <paramref name="baseRadii"/> when the bar has no length or no valid ends.</returns>
+        private SceneCornerRadii CornerRadiiOf(SceneCornerRadii baseRadii, SceneCornerRadii? valueEnd, bool horizontal, Channel? measure, int row)
+        {
+            if (valueEnd is not { } end || RangePair(horizontal, measure, row) is not { } pair)
+            {
+                return baseRadii;
+            }
+
+            // The value is right of (horizontal) or below (vertical: a larger y) its other end, or before it; a bar
+            // without length has no value end
+            var valueAfter = pair.Main > pair.Other;
+            if (!valueAfter && !(pair.Main < pair.Other))
+            {
+                return baseRadii;
+            }
+
+            return (horizontal, valueAfter) switch
+            {
+                (true, true) => baseRadii with { TopRight = end.TopRight, BottomRight = end.BottomRight },
+                (true, false) => baseRadii with { TopLeft = end.TopLeft, BottomLeft = end.BottomLeft },
+                (false, true) => baseRadii with { BottomRight = end.BottomRight, BottomLeft = end.BottomLeft },
+                (false, false) => baseRadii with { TopLeft = end.TopLeft, TopRight = end.TopRight }
+            };
         }
 
         /// <summary>

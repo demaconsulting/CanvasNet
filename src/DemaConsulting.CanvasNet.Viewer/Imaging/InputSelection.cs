@@ -14,21 +14,22 @@ namespace DemaConsulting.CanvasNet.Viewer.Imaging;
 ///         <b>The grammar is the grammar of an SVG link.</b> The fragment is read by the built-in image source of the kind
 ///         of the file (the one that draws <c>&lt;image href="part.scad#view=top&amp;def.width=20"&gt;</c>), so an input and a
 ///         link accept the same parameters with the same values: <c>page</c> (and <c>slide</c> for a presentation) for a
-///         document, <c>view</c> and <c>def.&lt;name&gt;</c> for a model, <c>param.&lt;name&gt;</c> for a chart, <c>theme</c> for a
+///         document, <c>view</c>, <c>azimuth</c>, <c>elevation</c>, and <c>def.&lt;name&gt;</c> for a model, <c>param.&lt;name&gt;</c> for a chart, <c>theme</c> for a
 ///         Mermaid diagram; the values
 ///         of <c>def.</c> are read like <c>-D</c> (vectors such as <c>def.$vpt=[0,0,20]</c> included) and those of
 ///         <c>param.</c> like <c>--param</c>.
 ///     </para>
 ///     <para>
 ///         <b>Overrides.</b> <see cref="ApplyTo(SourceOptions)"/> lays the choices over the options of the command: the page
-///         replaces the page of the command; the view replaces the view; a variable replaces a variable of the same name
-///         of the command (the others are kept); a parameter replaces a parameter of the same name; the theme replaces the theme. The azimuth, the
-///         elevation, and the projection of the command still refine the view the fragment names.
+///         replaces the page of the command; the view, the azimuth, and the elevation each replace those of the command
+///         (one the fragment does not set keeps the value of the command); a variable replaces a variable of the same name
+///         of the command (the others are kept); a parameter replaces a parameter of the same name; the theme replaces the theme. The
+///         projection of the command still applies to the view.
 ///     </para>
 ///     <para>
 ///         <b>Errors and warnings.</b> A value that cannot be used (the fragment is too long or has too many parameters, a
 ///         page is not a whole number, a vector is not valid, a variable name is not an identifier, a view is not one of the
-///         views, a theme is not a Mermaid theme) is refused when the input is probed, as <see cref="ErrorCodes.ImageFragmentInvalid"/>; a page the file does
+///         views, an azimuth or elevation is not a number of degrees or an elevation is outside -90 to 90, a theme is not a Mermaid theme) is refused when the input is probed, as <see cref="ErrorCodes.ImageFragmentInvalid"/>; a page the file does
 ///         not have is <see cref="ErrorCodes.PageOutOfRange"/>. A parameter the kind does not use is the warning
 ///         <c>image-fragment-unknown-parameter</c>, a name given twice with different values is
 ///         <c>image-fragment-duplicate-parameter</c> (the last wins), and a <c>param.</c> name that the chart does not
@@ -50,8 +51,9 @@ public sealed record InputSelection
     public int? Page { get; internal init; }
 
     /// <summary>
-    ///     Gets what the fragment sets for a model: the viewpoint (when <see cref="ScadViewOptions.ViewGiven"/> is set) and the
-    ///     variables of the <c>def.</c> parameters; <see langword="null"/> when it sets neither (and for every other kind).
+    ///     Gets what the fragment sets for a model: the viewpoint (when <see cref="ScadViewOptions.ViewGiven"/> is set), the
+    ///     azimuth and elevation that replace its angles, and the
+    ///     variables of the <c>def.</c> parameters; <see langword="null"/> when it sets none of them (and for every other kind).
     /// </summary>
     public ScadViewOptions? Scad { get; internal init; }
 
@@ -201,7 +203,7 @@ public sealed record InputSelection
     ///     Merges what the fragment sets for a model into the options of the command.
     /// </summary>
     /// <param name="shared">The options of the command, or <see langword="null"/>.</param>
-    /// <returns>The merged options; the fragment's view and variables win.</returns>
+    /// <returns>The merged options; the fragment's view, azimuth, elevation, and variables win.</returns>
     private ScadViewOptions? MergeScad(ScadViewOptions? shared)
     {
         if (Scad is null)
@@ -216,10 +218,13 @@ public sealed record InputSelection
             defines[name] = value;
         }
 
+        // Each of the view, the azimuth, and the elevation that the fragment sets replaces that of the command
         return options with
         {
             View = Scad.ViewGiven ? Scad.View : options.View,
             ViewGiven = options.ViewGiven || Scad.ViewGiven,
+            Azimuth = Scad.Azimuth ?? options.Azimuth,
+            Elevation = Scad.Elevation ?? options.Elevation,
             Defines = defines
         };
     }

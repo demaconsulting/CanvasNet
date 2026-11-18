@@ -300,6 +300,35 @@ public class RenderCommandTests
     }
 
     /// <summary>
+    ///     Test that an SVG file that is not well-formed XML is a corrupt-input error whose text and
+    ///     JSON messages name the line and column of the XML error.
+    /// </summary>
+    [Fact]
+    public void RenderCommand_Run_MalformedSvg_ReportsTheLineAndColumn()
+    {
+        // Arrange: an SVG with a double hyphen inside a comment on line 2
+        using var directory = new TempDirectory();
+        var input = directory.Combine("bad.svg");
+        File.WriteAllText(input, "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'>\n  <!-- a -- b -->\n</svg>");
+        var output = directory.Combine("out.png");
+
+        // Act: render it with text output and with JSON output
+        var (textExit, _, textErr) = ToolHost.Invoke("render", input, "-o", output);
+        var (jsonExit, jsonOut, _) = ToolHost.Invoke("render", input, "-o", output, "--json");
+
+        // Assert: both fail with corrupt-input naming the location, and no output is written
+        Assert.NotEqual(0, textExit);
+        Assert.NotEqual(0, jsonExit);
+        Assert.False(File.Exists(output));
+        Assert.Contains("corrupt-input", textErr);
+        Assert.Contains("(line 2, column 10): '--' is not allowed inside an XML comment", textErr);
+        using var document = JsonDocument.Parse(jsonOut);
+        var error = document.RootElement.GetProperty("error");
+        Assert.Equal("corrupt-input", error.GetProperty("code").GetString());
+        Assert.Contains("(line 2, column 10)", error.GetProperty("message").GetString());
+    }
+
+    /// <summary>
     ///     Test that a requested size beyond the maximum is a size-limit error and writes nothing.
     /// </summary>
     [Fact]

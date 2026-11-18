@@ -53,7 +53,9 @@ replaces the solid `Fill` when it is set and can be drawn.
 - **`SceneGroup`** - a coordinate system at `(X, Y)` with a `Width`, `Height`, and `CornerRadius` for its own
   background and border, an optional `SceneClip`, a `StrokeOffset` (null means Vega's rule: half a pixel for a one-pixel
   stroke), and the `Children` in drawing order (the last is on top).
-- **`SceneRect`** `(X, Y, Width, Height)` with a `CornerRadius`; **`SceneRule`** `(X, Y, X2, Y2)`, visible only with a
+- **`SceneRect`** `(X, Y, Width, Height)` with a `CornerRadius` and an optional `CornerRadii` (`SceneCornerRadii`: the
+  top-left, top-right, bottom-right, and bottom-left radius; null means every corner uses `CornerRadius`);
+  **`SceneRule`** `(X, Y, X2, Y2)`, visible only with a
   stroke; **`ScenePath`** with `Points` and `Closed`, or with `Segments` (below); **`SceneSymbol`** `(X, Y)` with
   `Shape`
   (circle by default), `Size`

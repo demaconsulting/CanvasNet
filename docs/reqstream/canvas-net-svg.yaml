@@ -459,6 +459,7 @@ sections:
           data.
         children:
           - CanvasNetSvg-SvgCodec-MalformedXmlRejected
+          - CanvasNetSvg-SvgCodec-MalformedXmlLocation
           - CanvasNetSvg-SvgCodec-MalformedPathDataRejected
         tests:
           - CanvasNetSvg_SystemIntegration_SvgUnsupportedFormatValidation_MalformedXmlThrowsInvalidDataException

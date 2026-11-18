@@ -145,6 +145,37 @@ public class InputSelectionTests
     }
 
     /// <summary>
+    ///     Test that the azimuth and the elevation of the fragment of a model each replace those of the command (the azimuth
+    ///     normalized to 0 up to 360, as <c>--azimuth</c> is), that an angle the fragment does not set keeps the value of the
+    ///     command, and that a view and an angle of the fragment combine.
+    /// </summary>
+    [Fact]
+    public void InputSelection_ApplyTo_Model_FragmentAnglesReplaceTheCommandAngles()
+    {
+        // Arrange: the command chooses the front view at azimuth 30 and elevation 5
+        using var directory = new TempDirectory();
+        var model = FixtureFactory.WriteText(directory.Path, "part.scad", Model);
+        var shared = new SourceOptions
+        {
+            Scad = new ScadViewOptions { View = "front", ViewGiven = true, Azimuth = 30, Elevation = 5 }
+        };
+
+        // Act
+        var both = SourceLoader.Probe(InputReference.Parse(model + "#azimuth=-90&elevation=-10")).Selection!;
+        var merged = both.ApplyTo(shared).Scad!;
+        var elevationOnly = SourceLoader.Probe(InputReference.Parse(model + "#elevation=20")).Selection!.ApplyTo(shared).Scad!;
+        var viewAndAzimuth = SourceLoader.Probe(InputReference.Parse(model + "#view=top&azimuth=10")).Selection!.ApplyTo(shared).Scad!;
+
+        // Assert: both angles are the fragment's (the azimuth normalized), the view is the command's, and nothing is reported
+        Assert.Equal(("front", 270.0, -10.0), (merged.View, merged.Azimuth, merged.Elevation));
+        Assert.Empty(both.Diagnostics);
+
+        // Assert: an angle the fragment does not set keeps the command's; a view and an angle of the fragment combine
+        Assert.Equal((30.0, 20.0), (elevationOnly.Azimuth, elevationOnly.Elevation));
+        Assert.Equal(("top", 10.0, 5.0), (viewAndAzimuth.View, viewAndAzimuth.Azimuth, viewAndAzimuth.Elevation));
+    }
+
+    /// <summary>
     ///     Test that a selection of a document names the page, replaces the page of the command, and is checked against the page
     ///     count when the input is probed.
     /// </summary>
@@ -177,6 +208,9 @@ public class InputSelectionTests
     [Theory]
     [InlineData("part.scad", "def.width=[1,2")]
     [InlineData("part.scad", "view=sideways")]
+    [InlineData("part.scad", "azimuth=abc")]
+    [InlineData("part.scad", "elevation=95")]
+    [InlineData("part.scad", "elevation=Infinity")]
     [InlineData("part.scad", "def.2x=1")]
     [InlineData("chart.vl.json", "param.cutoff={bad")]
     [InlineData("source.pdf", "page=x")]

@@ -824,8 +824,9 @@ the last value of a name wins. A value that is not usable (a vector that is cut 
 accept) refuses the link with `ImageSourceRefusedException`, which the resolver reports as `image-fragment-invalid` and
 the picture is not drawn. Any other parameter in the link (`part.scad#page=2`) is the warning
 `image-fragment-unknown-parameter`; the view stays the library's choice, and the named views of the link
-(`#view=iso|front|back|left|right|top|bottom`) are a feature of the source that `CanvasNetViewer` lists (see the Viewer
-user guide), which also treats a missing `include` as an error, as `canvasnet render` does.
+(`#view=iso|front|back|left|right|top|bottom` and `#azimuth=`/`#elevation=`) are a feature of the source that
+`CanvasNetViewer` lists (see the Viewer user guide), which also treats a missing `include` as an error, as
+`canvasnet render` does.
 
 ```csharp
 // An SVG document that links to files of this kind, drawn through the resolver

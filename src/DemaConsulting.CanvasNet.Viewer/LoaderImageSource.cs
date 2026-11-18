@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Globalization;
 using System.Runtime.ExceptionServices;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;
@@ -97,7 +98,8 @@ internal sealed class DirectRenderOptions : IImageSourceOptions
 ///         own), a page fitted inside the placement and returned at the fitted size, a raster at its natural size and
 ///         upright, <see cref="ImageSourceRequest.ThrowOnUnsupportedFeature"/> as <see cref="SourceOptions.Strict"/>,
 ///         and the page, slide or view the fragment of the link names (<c>#page=2</c>, <c>#slide=2</c>,
-///         <c>#view=front</c>), the variables it sets for a model (<c>#def.width=20</c>, like <c>-D width=20</c>) and the
+///         <c>#view=front</c>, and the angles of a model, <c>#azimuth=30&amp;elevation=20</c>, like <c>--azimuth</c> and
+///         <c>--elevation</c>), the variables it sets for a model (<c>#def.width=20</c>, like <c>-D width=20</c>) and the
 ///         parameters it sets for a chart (<c>#param.threshold=5</c>, like <c>--param threshold=5</c>; a name the chart
 ///         does not declare is the warning <c>vl-param-unknown</c>, not an error) and the theme it names for a Mermaid
 ///         diagram (<c>#theme=dark</c>, like <c>--theme dark</c>). It never inherits the options of its
@@ -126,6 +128,16 @@ internal sealed class LoaderImageSource : IImageSource, IFragmentImageSource
     private const int HeaderLength = 4096;
 
     /// <summary>
+    ///     The fragment parameter that turns the view of a model about the Z axis, like <c>--azimuth</c>.
+    /// </summary>
+    private const string AzimuthParameter = "azimuth";
+
+    /// <summary>
+    ///     The fragment parameter that raises the eye of the view of a model above the XY plane, like <c>--elevation</c>.
+    /// </summary>
+    private const string ElevationParameter = "elevation";
+
+    /// <summary>
     ///     The source whose name, extensions and schemes this source claims.
     /// </summary>
     private readonly IImageSource _claims;
@@ -141,7 +153,8 @@ internal sealed class LoaderImageSource : IImageSource, IFragmentImageSource
     private readonly string[] _pageParameters;
 
     /// <summary>
-    ///     Whether the fragment parameter <c>view</c> chooses the viewpoint of a model.
+    ///     Whether the fragment parameters <c>view</c>, <c>azimuth</c>, and <c>elevation</c> choose and turn the viewpoint
+    ///     of a model.
     /// </summary>
     private readonly bool _acceptsView;
 
@@ -162,7 +175,7 @@ internal sealed class LoaderImageSource : IImageSource, IFragmentImageSource
     /// <param name="claims">The package source whose name, extensions and schemes this source claims.</param>
     /// <param name="kinds">The kinds of file the source draws; one, or the raster kinds.</param>
     /// <param name="pageParameters">The fragment parameters that choose the page; empty when the source has no pages.</param>
-    /// <param name="acceptsView">Whether the fragment parameter <c>view</c> chooses a viewpoint.</param>
+    /// <param name="acceptsView">Whether the fragment parameters <c>view</c>, <c>azimuth</c>, and <c>elevation</c> choose and turn a viewpoint.</param>
     /// <remarks>
     ///     The parameters that only one kind takes are added by the kind: <c>def.</c> for a model, <c>param.</c> for a chart,
     ///     and <c>theme</c> for a Mermaid diagram.
@@ -175,7 +188,7 @@ internal sealed class LoaderImageSource : IImageSource, IFragmentImageSource
         _acceptsView = acceptsView;
         _acceptsTheme = kinds is [SourceKind.Mermaid];
         FragmentParameters = new ReadOnlyCollection<string>(
-            [.. pageParameters, .. acceptsView ? new[] { "view" } : [], .. _acceptsTheme ? new[] { MermaidImageSource.ThemeParameter } : []]);
+            [.. pageParameters, .. acceptsView ? new[] { "view", AzimuthParameter, ElevationParameter } : [], .. _acceptsTheme ? new[] { MermaidImageSource.ThemeParameter } : []]);
         if (kinds is [SourceKind.Scad])
         {
             _prefixes = [ScadImageSource.DefinePrefix];
@@ -421,7 +434,8 @@ internal sealed class LoaderImageSource : IImageSource, IFragmentImageSource
     }
 
     /// <summary>
-    ///     Reads how a model is viewed and evaluated from a fragment: the viewpoint of <c>view=</c> and the variables of
+    ///     Reads how a model is viewed and evaluated from a fragment: the viewpoint of <c>view=</c>, the angles of
+    ///     <c>azimuth=</c> and <c>elevation=</c> that turn it, and the variables of
     ///     every <c>def.&lt;name&gt;=&lt;value&gt;</c>.
     /// </summary>
     /// <param name="fragment">The fragment of the link.</param>
@@ -527,26 +541,92 @@ internal sealed class LoaderImageSource : IImageSource, IFragmentImageSource
     }
 
     /// <summary>
-    ///     Reads the viewpoint a fragment names.
+    ///     Reads the viewpoint a fragment names and the angles that turn it.
     /// </summary>
+    /// <remarks>
+    ///     As on the command line, <c>view=</c> chooses the named view (iso without one) and <c>azimuth=</c> and
+    ///     <c>elevation=</c> replace its angles, as <c>--azimuth</c> and <c>--elevation</c> replace the angles of
+    ///     <c>--view</c>; any of the three makes the view explicit, so it wins over the viewport variables of the model.
+    /// </remarks>
     /// <param name="fragment">The fragment of the link.</param>
-    /// <returns>The options that choose the viewpoint, or <see langword="null"/> when the source takes none or the fragment names none.</returns>
-    /// <exception cref="ImageSourceRefusedException">Thrown with the invalid-fragment code when the name is not a viewpoint.</exception>
+    /// <returns>The options that choose the viewpoint, or <see langword="null"/> when the source takes none or the fragment names none of the three.</returns>
+    /// <exception cref="ImageSourceRefusedException">
+    ///     Thrown with the invalid-fragment code when the name is not a viewpoint or an angle is not a number of degrees
+    ///     (an elevation outside -90 to 90 included).
+    /// </exception>
     private ScadViewOptions? ReadView(ImageFragment fragment)
     {
-        if (!_acceptsView || fragment.GetValue("view") is not { } name)
+        if (!_acceptsView)
         {
             return null;
         }
 
-        if (!SourceLoader.ScadViews.Any(v => string.Equals(v.Name, name, StringComparison.OrdinalIgnoreCase)))
+        // Read the three parameters, the view first; none of them leaves the view to the model
+        var name = fragment.GetValue("view");
+        if (name is not null && !SourceLoader.ScadViews.Any(v => string.Equals(v.Name, name, StringComparison.OrdinalIgnoreCase)))
         {
             throw new ImageSourceRefusedException(
                 FolderImageResolver.FragmentInvalidCode,
                 $"the fragment parameter 'view' must be one of {string.Join(", ", SourceLoader.ScadViews.Select(v => v.Name))}, not {Show(name)}");
         }
 
-        return new ScadViewOptions { View = name, ViewGiven = true };
+        var azimuth = ReadDegrees(fragment, AzimuthParameter, double.NegativeInfinity, double.PositiveInfinity);
+        var elevation = ReadDegrees(fragment, ElevationParameter, -90, 90);
+        if (name is null && azimuth is null && elevation is null)
+        {
+            return null;
+        }
+
+        // An azimuth is normalized to 0 up to 360, as --azimuth is, so the result reports the same angle
+        if (azimuth is { } turn)
+        {
+            var normalized = turn % 360;
+            azimuth = normalized < 0 ? normalized + 360 : normalized;
+        }
+
+        return new ScadViewOptions
+        {
+            View = name ?? SourceLoader.DefaultScadView,
+            ViewGiven = name is not null,
+            Azimuth = azimuth,
+            Elevation = elevation
+        };
+    }
+
+    /// <summary>
+    ///     Reads an angle of a fragment in degrees.
+    /// </summary>
+    /// <remarks>
+    ///     The value is a finite number in the invariant culture (<c>30</c>, <c>-12.5</c>, <c>1e2</c>), without a unit,
+    ///     like the number attributes of the Pandoc filter.
+    /// </remarks>
+    /// <param name="fragment">The fragment of the link.</param>
+    /// <param name="name">The name of the parameter: <see cref="AzimuthParameter"/> or <see cref="ElevationParameter"/>.</param>
+    /// <param name="minimum">The smallest angle allowed; negative infinity for none.</param>
+    /// <param name="maximum">The largest angle allowed; positive infinity for none.</param>
+    /// <returns>The angle as written, or <see langword="null"/> when the fragment does not have the parameter.</returns>
+    /// <exception cref="ImageSourceRefusedException">
+    ///     Thrown with the invalid-fragment code when the value is empty, not a number, not finite, or outside
+    ///     <paramref name="minimum"/> to <paramref name="maximum"/>.
+    /// </exception>
+    private static double? ReadDegrees(ImageFragment fragment, string name, double minimum, double maximum)
+    {
+        if (fragment.GetValue(name) is not { } text)
+        {
+            return null;
+        }
+
+        if (double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var value)
+            && double.IsFinite(value) && value >= minimum && value <= maximum)
+        {
+            return value;
+        }
+
+        // Name the range only when the angle has one
+        var range = double.IsFinite(minimum) ? string.Create(CultureInfo.InvariantCulture, $" from {minimum} to {maximum}") : string.Empty;
+        throw new ImageSourceRefusedException(
+            FolderImageResolver.FragmentInvalidCode,
+            $"the fragment parameter '{name}' must be a number of degrees{range}, not {Show(text)}");
     }
 
     /// <summary>

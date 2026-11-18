@@ -36,6 +36,25 @@ sections:
                 tests:
                   - MarkBuilder_Build_BarAndRectPositionsMatchExpectedSceneItems
 
+              - id: CanvasNetVegaLite-Marks-MarkBuilder-CornerRadii
+                title: >-
+                  The MarkBuilder unit shall give each bar and rect the corner radii of its mark
+                  (cornerRadiusTopLeft, cornerRadiusTopRight, cornerRadiusBottomLeft, and
+                  cornerRadiusBottomRight, each falling back to cornerRadius), and shall round with
+                  cornerRadiusEnd the corners at the value end of each bar of an oriented bar mark: the
+                  top of a vertical bar above its baseline and the bottom of one below it, the right end
+                  of a horizontal bar right of its baseline and the left end of one left of it, every
+                  corner of a bar with x2 or y2, and each segment of a stack at its own end, unless only
+                  the configuration sets cornerRadiusEnd and the mark definition sets that corner or
+                  cornerRadius.
+                justification: |
+                  Rounded bar ends are a common chart style, and Vega-Lite defines cornerRadiusEnd in
+                  terms of the individual corner radii, so a chart that sets them must draw its corners
+                  as Vega-Lite does, including for negative values.
+                tests:
+                  - MarkBuilder_Build_BarCornerRadiusEnd_RoundsTheValueEnd
+                  - MarkBuilder_Build_CornerRadii_FollowVegaLitePrecedence
+
               - id: CanvasNetVegaLite-Marks-MarkBuilder-StackedLayers
                 title: >-
                   The MarkBuilder unit shall draw each layer of a stacked channel from the stack start to the

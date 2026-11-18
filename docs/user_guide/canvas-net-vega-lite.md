@@ -399,7 +399,12 @@ What is supported, by area:
 - **Marks**: `bar`, `rect`, `point`, `circle`, `square`, `rule`, `tick`, `line`, `area`, `trail`, `text`, `arc`, and
   `image` (through the image resolver of the caller), given as a string or as a definition object with `type`; see
   *Vega-Lite Line, Area, Text, and Arc Marks* and *Vega-Lite Image Marks*. The composite marks `boxplot`, `errorbar`,
-  and `errorband`, which are drawn as layers of those marks; see *Vega-Lite Layers and Composite Marks*.
+  and `errorband`, which are drawn as layers of those marks; see *Vega-Lite Layers and Composite Marks*. A `bar` or
+  `rect` rounds its corners with `cornerRadius` and with `cornerRadiusTopLeft`, `cornerRadiusTopRight`,
+  `cornerRadiusBottomLeft`, and `cornerRadiusBottomRight`; a `bar` rounds the corners at its value end with
+  `cornerRadiusEnd`: the top of a bar above zero and the bottom of one below, the right or left end of a horizontal
+  bar, and all four corners of a ranged bar (`x2` or `y2`). In a stack each segment is rounded at its own end, where
+  Vega-Lite rounds the ends of the whole stack.
 - **Channels**: `x`, `y`, `xOffset` and `yOffset` (grouped bars and offset points inside a band; see *Vega-Lite Offset
   Channels (Grouped Bars)*), `theta`, `radius`, `color`, `fill`, `stroke`, `size`, `opacity`, `fillOpacity`,
   `strokeOpacity`, `strokeWidth`, `strokeDash`, `shape`, `angle`, `text`, and `url`, each as a `field`, a literal

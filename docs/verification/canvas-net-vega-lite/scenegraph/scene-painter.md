@@ -235,6 +235,15 @@ not
 outside its hypotenuse, and that the one pixel border of a group is offset by half a pixel so that it covers exactly one
 pixel column and row.
 
+##### Rectangle With A Radius Per Corner
+
+**Tests**: `ScenePainterTests.ScenePainter_Paint_RectWithCornerRadii_RoundsEachCornerByItsRadius`
+
+Paints a 40 pixel red square with the corner radii `(10, 10, 0, 0)` at a scale of one and asserts that the pixels one
+inside the top corners are white while those of the bottom corners and the middle are red; that a top-left radius of
+100 is clamped to half the side (no exception, the corner is white, the middle and the other corners red); and that a
+top-left radius that is not a number leaves the corner square (red).
+
 ##### Text
 
 **Tests**: `ScenePainterTests.ScenePainter_Paint_TextUsesBaselineRotationAndScale`,
