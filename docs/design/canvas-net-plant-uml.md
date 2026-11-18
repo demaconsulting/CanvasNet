@@ -38,12 +38,16 @@ The system is decomposed into one direct unit and internal subsystems:
 - **Sequence** (subsystem) - the `SequenceParser` unit (the sequence statements), the `SequenceModel` unit (the parsed
   diagram), the `SequenceLayout` unit (the columns and rows of PlantUML's sequence engine), and the `SequenceRenderer`
   unit (PlantUML's shapes); see *Sequence Subsystem Design*.
+- **Activity** (subsystem) - the `ActivityParser` unit (the activity statements of the new syntax), the
+  `ActivityModel` unit (the tree of instructions), the `ActivityLayout` unit (the tile composition and compression of
+  PlantUML's activity engine), and the `ActivityRenderer` unit (the scene items); see *Activity Subsystem Design*.
 
 The SysML2 model names the system `CanvasNetPlantUmlSystem` and prefixes the names of its subsystems and units with
 `PlantUml` (`PlantUmlSyntax`, `PlantUmlPreprocessor`, `PlantUmlDiagramDetector`, `PlantUmlStyling`, `PlantUmlSkinTheme`,
 `PlantUmlSkinParams`, `PlantUmlScenegraph`, `PlantUmlSceneModel`, `PlantUmlTextLayout`, `PlantUmlScenePainter`,
 `PlantUmlSequence`, `PlantUmlSequenceParser`, `PlantUmlSequenceModel`, `PlantUmlSequenceLayout`,
-`PlantUmlSequenceRenderer`), because
+`PlantUmlSequenceRenderer`, `PlantUmlActivity`, `PlantUmlActivityParser`, `PlantUmlActivityModel`,
+`PlantUmlActivityLayout`, `PlantUmlActivityRenderer`), because
 the `CanvasNet` package of the model already holds the units of the Mermaid system with the same short names. The test
 methods of the units use the same prefix (`PlantUmlPreprocessor_...`), so that the requirements trace never mixes the
 evidence of two systems.
@@ -136,8 +140,9 @@ of Arial, Java's `SansSerif` on Windows), as PlantUML measures it with Java's lo
 
 CanvasNetPlantUml is derived with attribution, not clean-room. Its framing of a text, the meaning of the supported
 preprocessor directives, the order in which the diagram types are tried, the values of its default look
-(`plantuml.skin`), the way it measures text, and the geometry of the sequence engine ("teoz": the column constraints,
-row heights, and shapes) follow the MIT-licensed distribution of
+(`plantuml.skin`), the way it measures text, the geometry of the sequence engine ("teoz": the column constraints,
+row heights, and shapes), and the tile composition of the activity engine ("ftile": the tiles, their assembly and
+connections, the swimlanes, and the compression of the drawing) follow the MIT-licensed distribution of
 PlantUML (`plantuml-mit`, whose files carry the MIT header "(C) Copyright 2009-2024, Arnaud Roques"). Only the
 MIT-licensed distribution was read; no source text, comment, test, example, or image of PlantUML is copied: the
 ported items are values and rules, reimplemented in C#. The license text and the provenance table (which upstream
@@ -185,6 +190,17 @@ of this repository, so the two diagram languages are bounded alike.
   `plantuml-statement-unsupported` and not drawn. The header color glued to a group keyword (`alt#Gold`), the line
   style of a color (`#red;line:blue`), and the colors of activation outlines are not drawn; nested boxes are refused.
   The arrow thickness skin parameter widens the lines but not the heads.
+- **Activity engine** - PlantUML 1.2026.10 lays activity diagrams of the new syntax out with its "ftile" composition
+  and needs no Graphviz for them; CanvasNet ports that composition, so the size, texts, action boxes, circles, and
+  diamonds of the reference fixtures agree with PlantUML's SVG within 1.5 pixels (the swimlane pictures are 2 pixels
+  narrower than PlantUML's, within the 3 % size tolerance).
+- **Activity statements** - `switch` blocks (skipped up to `endswitch`), `goto` and `label`, `break`, `hide`, `show`,
+  `skin`, `mainframe`, the box styles of the specification and description language (`:text|`, `:text<`, `:text>`,
+  `:text/`, `:text]`, `:text}`) and the stereotypes of actions (drawn as plain boxes), the frames of `package`,
+  `rectangle`, and `card` groups (their instructions are drawn without a frame), and arrow options other than a color
+  and a style are reported as `plantuml-statement-unsupported`. An arrow with several colors is drawn with its first
+  color; a repeat loop whose back arrow crosses swimlanes is drawn with the simple back arrow; the legacy activity
+  syntax (`(*)`) is a type that is not drawn.
 
 ## Phase Plan
 

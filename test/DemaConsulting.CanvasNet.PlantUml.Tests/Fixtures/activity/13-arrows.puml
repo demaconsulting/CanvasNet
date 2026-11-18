@@ -1,0 +1,11 @@
+@startuml
+start
+:Request;
+-> sent;
+:Server;
+-[#blue]-> reply;
+:Response;
+-[dashed]->
+:Render;
+stop
+@enduml

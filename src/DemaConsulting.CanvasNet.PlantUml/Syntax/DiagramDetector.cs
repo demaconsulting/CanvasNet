@@ -39,7 +39,10 @@ internal sealed record DetectedDiagram(string DiagramType, bool IsSupported, str
 internal static class DiagramDetector
 {
     /// <summary>The types this version draws.</summary>
-    internal static readonly IReadOnlySet<string> SupportedTypes = new HashSet<string>(StringComparer.Ordinal) { "sequence" };
+    internal static readonly IReadOnlySet<string> SupportedTypes = new HashSet<string>(StringComparer.Ordinal) { "sequence", "activity" };
+
+    /// <summary>The closer of a multi-line action (<c>:text</c> up to a line that ends with <c>;</c>).</summary>
+    internal const string ActionCloser = ";";
 
     /// <summary>The <c>@start</c> tags PlantUML defines, other than <c>uml</c>, with the type each one starts.</summary>
     internal static readonly IReadOnlyDictionary<string, string> TagTypes = new Dictionary<string, string>(StringComparer.Ordinal)
@@ -90,7 +93,7 @@ internal static class DiagramDetector
     private static readonly HashSet<string> ActivityKeywords = new(StringComparer.OrdinalIgnoreCase)
     {
         "start", "stop", "kill", "detach", "endif", "elseif", "while", "endwhile", "repeat", "fork", "split",
-        "partition", "switch", "case", "endswitch", "goto", "label", "backward", "floating", "if",
+        "partition", "switch", "case", "endswitch", "goto", "label", "backward", "floating", "if", "swimlane",
     };
 
     /// <summary>The keywords that both drawn types accept (titles, notes, styling, blocks).</summary>
@@ -257,8 +260,13 @@ internal static class DiagramDetector
             {
                 if (IsCloser(text, closer))
                 {
+                    // The last line of a multi-line action is text too; the closer of other blocks is a statement
+                    if (closer != ActionCloser)
+                    {
+                        outer.Add(statement);
+                    }
+
                     closer = null;
-                    outer.Add(statement);
                 }
 
                 continue;
@@ -278,10 +286,15 @@ internal static class DiagramDetector
     /// <returns>The closing keyword, or null when the statement opens no text block.</returns>
     internal static string? BlockCloser(string text)
     {
+        if (OpensAction(text))
+        {
+            return ActionCloser;
+        }
+
         var word = FirstWord(text).ToLowerInvariant();
         switch (word)
         {
-            case "note" or "hnote" or "rnote":
+            case "note" or "hnote" or "rnote" or "floating":
                 // A note with its text after a colon is on one line
                 return text.Contains(':', StringComparison.Ordinal) ? null : "end note";
             case "legend":
@@ -310,6 +323,11 @@ internal static class DiagramDetector
     /// <returns>True when it does.</returns>
     internal static bool IsCloser(string text, string closer)
     {
+        if (closer == ActionCloser)
+        {
+            return EndsAction(text);
+        }
+
         var compact = string.Join(' ', text.Split(' ', StringSplitOptions.RemoveEmptyEntries)).ToLowerInvariant();
         return closer switch
         {
@@ -410,8 +428,87 @@ internal static class DiagramDetector
     /// </summary>
     /// <param name="text">The statement text.</param>
     /// <returns>True when the statement is an activity or common statement.</returns>
-    internal static bool AcceptsActivity(string text) =>
-        Classify(text) is StatementFamily.Common or StatementFamily.Activity || IsConnector(text);
+    internal static bool AcceptsActivity(string text)
+    {
+        if (Classify(text) is StatementFamily.Common or StatementFamily.Activity || IsConnector(text))
+        {
+            return true;
+        }
+
+        // Group closers, colored actions and tests, the group keywords, and labeled elseif or backward statements
+        var word = FirstWord(text).ToLowerInvariant();
+        return text == "}" || (text.StartsWith('#') && (text.Contains(':', StringComparison.Ordinal) || ColoredKeyword(text))) ||
+               (word is "group" or "package" or "rectangle" or "card" && text.TrimEnd().EndsWith('{')) || word == "break" ||
+               (text.StartsWith('(') && (text.Contains("elseif", StringComparison.OrdinalIgnoreCase) ||
+                                         text.Contains("else if", StringComparison.OrdinalIgnoreCase) ||
+                                         text.Contains("backward", StringComparison.OrdinalIgnoreCase)));
+    }
+
+    /// <summary>
+    ///     Decides whether a statement that starts with a color continues with an activity keyword
+    ///     (<c>#red if (...)</c>, <c>#red while (...)</c>, <c>#red repeat</c>, <c>#red (A)</c>).
+    /// </summary>
+    /// <param name="text">The statement text.</param>
+    /// <returns>True for a colored activity statement.</returns>
+    private static bool ColoredKeyword(string text)
+    {
+        var space = text.IndexOfAny([' ', '\t', '(']);
+        if (space < 0)
+        {
+            return false;
+        }
+
+        var rest = text[space..].TrimStart();
+        var word = FirstWord(rest).ToLowerInvariant();
+        return word is "if" or "while" or "repeat" || rest.StartsWith('(');
+    }
+
+    /// <summary>
+    ///     Decides whether a statement opens an action that continues on the next lines (<c>:text</c> without its
+    ///     ending <c>;</c>).
+    /// </summary>
+    /// <param name="text">The statement text.</param>
+    /// <returns>True when the action continues.</returns>
+    internal static bool OpensAction(string text)
+    {
+        var colon = -1;
+        if (text.StartsWith(':'))
+        {
+            colon = 0;
+        }
+        else if (text.StartsWith('#'))
+        {
+            colon = text.IndexOf(':', StringComparison.Ordinal);
+        }
+
+        if (colon < 0 || (colon > 0 && text[..colon].Contains(' ', StringComparison.Ordinal)))
+        {
+            return false;
+        }
+
+        return !EndsAction(text[(colon + 1)..]);
+    }
+
+    /// <summary>
+    ///     Decides whether a line ends an action: it ends with a semicolon (possibly followed by a stereotype or a link)
+    ///     or with one of the box style characters.
+    /// </summary>
+    /// <param name="text">The line.</param>
+    /// <returns>True when the line ends the action.</returns>
+    internal static bool EndsAction(string text)
+    {
+        var trimmed = text.TrimEnd();
+        if (trimmed.EndsWith(">>", StringComparison.Ordinal) && trimmed.LastIndexOf("<<", StringComparison.Ordinal) is var open and >= 0)
+        {
+            trimmed = trimmed[..open].TrimEnd();
+        }
+        else if (trimmed.EndsWith("]]", StringComparison.Ordinal) && trimmed.LastIndexOf("[[", StringComparison.Ordinal) is var link and >= 0)
+        {
+            trimmed = trimmed[..link].TrimEnd();
+        }
+
+        return trimmed.Length > 0 && trimmed[^1] is ';' or '|' or '<' or '>' or '/' or '\\' or ']' or '}';
+    }
 
     /// <summary>
     ///     Decides whether a statement is an activity connector <c>(A)</c>: a short name in parentheses alone.

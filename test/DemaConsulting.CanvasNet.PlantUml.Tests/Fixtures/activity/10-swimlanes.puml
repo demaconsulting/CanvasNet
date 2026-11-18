@@ -1,0 +1,13 @@
+@startuml
+|Customer|
+start
+:Place the order;
+|#AntiqueWhite|Shop|
+:Check the stock;
+:Prepare the parcel;
+|Courier|
+:Deliver;
+|Customer|
+:Receive;
+stop
+@enduml

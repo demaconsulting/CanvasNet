@@ -739,6 +739,18 @@ tests:
           # A view that resolves to nothing still writes an <svg> root, so also require drawn text.
           - query: "//*[local-name()='text']"
             min: 1
+  - name: SysML2Tools_PlantUmlActivityViewSvg
+    description: "PlantUmlActivityView diagram was rendered by SysML2Tools"
+    tags: [design]
+    files:
+      - pattern: "docs/design/generated/PlantUmlActivityView.svg"
+        count: 1
+        xml:
+          - query: "//*[local-name()='svg']"
+            count: 1
+          # A view that resolves to nothing still writes an <svg> root, so also require drawn text.
+          - query: "//*[local-name()='text']"
+            min: 1
 
   - name: SysML2Tools_CanvasNetToolViewSvg
     description: "CanvasNetToolView diagram was rendered by SysML2Tools"

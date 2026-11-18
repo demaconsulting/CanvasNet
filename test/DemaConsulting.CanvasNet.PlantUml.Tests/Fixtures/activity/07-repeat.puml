@@ -1,0 +1,11 @@
+@startuml
+start
+repeat
+  :Ask for the password;
+  :Check it;
+repeat while (wrong?) is (yes) not (no)
+:Welcome;
+repeat :Poll the server;
+repeat while (busy?)
+stop
+@enduml

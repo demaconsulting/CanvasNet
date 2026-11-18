@@ -1,3 +1,4 @@
+using DemaConsulting.CanvasNet.PlantUml.Activity;
 using DemaConsulting.CanvasNet.PlantUml.Scenegraph;
 using DemaConsulting.CanvasNet.PlantUml.Sequence;
 using DemaConsulting.CanvasNet.PlantUml.Syntax;
@@ -102,6 +103,7 @@ internal static class DiagramRegistry
         return detected.DiagramType switch
         {
             "sequence" => SequenceParser.Parse(source, detected, limits),
+            "activity" => ActivityParser.Parse(source, detected, limits),
             _ => throw new ArgumentException($"The diagram type '{detected.DiagramType}' is not supported.", nameof(detected)),
         };
     }

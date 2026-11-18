@@ -1,0 +1,81 @@
+---
+# Software Unit Requirements for ActivityLayout
+#
+# These requirements describe the design-level behavior of the ActivityLayout unit of the Activity subsystem
+# (internal namespace DemaConsulting.CanvasNet.PlantUml.Activity): the tile composition, the compression, and the
+# swimlanes of PlantUML's activity engine. See docs/verification/canvas-net-plant-uml/activity/activity-layout.md for
+# the test-evidence mapping.
+
+sections:
+  - title: CanvasNetPlantUml Requirements
+    sections:
+      - title: Activity Requirements
+        sections:
+          - title: ActivityLayout Requirements
+            requirements:
+              - id: CanvasNetPlantUml-Activity-ActivityLayout-Sequence
+                title: >-
+                  The ActivityLayout unit shall stack the instructions of a list on one axis, connected by arrows,
+                  remove the empty bands of the drawing on both axes as PlantUML compresses them, and place the
+                  drawing at PlantUML's margins, so that every shape fits in the size of the picture.
+                justification: |
+                  The spacing of PlantUML's pictures comes from this assembly and compression.
+                tests:
+                  - PlantUmlActivityLayout_Sequence_StacksOnOneAxis
+                  - PlantUmlActivityLayout_Fixtures_FitInTheirSize
+
+              - id: CanvasNetPlantUml-Activity-ActivityLayout-Conditions
+                title: >-
+                  The ActivityLayout unit shall place the branches of an if side by side below its diamond and join
+                  them on a merge diamond, an elseif chain as a row of diamonds, and a branch that ends beside the
+                  diamond.
+                justification: |
+                  Decisions are drawn as PlantUML draws them, branch by branch.
+                tests:
+                  - PlantUmlActivityLayout_If_PlacesBranchesSideBySide
+
+              - id: CanvasNetPlantUml-Activity-ActivityLayout-Loops
+                title: >-
+                  The ActivityLayout unit shall place a while loop with its test above its body, its exit beside the
+                  test and its back arrow around the body, and a repeat loop with its test below its body and its back
+                  arrow to the start.
+                justification: |
+                  Loops are drawn with their back arrows and labels as PlantUML draws them.
+                tests:
+                  - PlantUmlActivityLayout_While_PlacesTheTestAndTheBody
+
+              - id: CanvasNetPlantUml-Activity-ActivityLayout-Parallel
+                title: >-
+                  The ActivityLayout unit shall place the branches of a fork side by side between two bars (or ending
+                  on a merge diamond) and the branches of a split between two thin lines.
+                justification: |
+                  Parallel flows are drawn as PlantUML draws them.
+                tests:
+                  - PlantUmlActivityLayout_Fork_PlacesBranchesBetweenBars
+
+              - id: CanvasNetPlantUml-Activity-ActivityLayout-Swimlanes
+                title: >-
+                  The ActivityLayout unit shall draw every instruction in the column of its swimlane, under the
+                  centered title of the swimlane, between the dividers, and the arrows between swimlanes across them.
+                justification: |
+                  Swimlanes are drawn as PlantUML draws them.
+                tests:
+                  - PlantUmlActivityLayout_Swimlanes_PlaceInstructionsInTheirColumns
+
+              - id: CanvasNetPlantUml-Activity-ActivityLayout-Annotations
+                title: >-
+                  The ActivityLayout unit shall draw notes beside the instruction they belong to (or alone in the
+                  flow), and frame the instructions of a partition with its title.
+                justification: |
+                  Notes and partitions are drawn as PlantUML draws them.
+                tests:
+                  - PlantUmlActivityLayout_NotesAndGroups_SurroundTheirInstructions
+
+              - id: CanvasNetPlantUml-Activity-ActivityLayout-Limits
+                title: >-
+                  The ActivityLayout unit shall count its work against MaxLayoutWork, failing with a located
+                  plantuml-limit-exceeded render error, and stop when the call is canceled.
+                justification: |
+                  A hostile diagram must not take unbounded time to lay out.
+                tests:
+                  - PlantUmlActivityLayout_WorkLimitAndCancellation_StopTheLayout

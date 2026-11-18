@@ -1,0 +1,13 @@
+@startuml
+start
+if (size?) then (small)
+  :Pack in an envelope;
+elseif (medium) then (yes)
+  :Pack in a box;
+elseif (large) then (yes)
+  :Use a crate;
+else (huge)
+  :Call the freight team;
+endif
+stop
+@enduml

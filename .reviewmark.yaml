@@ -5254,6 +5254,7 @@ reviews:
       - "test/DemaConsulting.CanvasNet.PlantUml.Tests/PlantUmlSystemIntegrationTests.cs"  # system tests
       - "test/DemaConsulting.CanvasNet.PlantUml.Tests/PlantUmlUnsupportedDiagramTests.cs"  # unsupported diagram types
       - "test/DemaConsulting.CanvasNet.PlantUml.Tests/PlantUmlSequenceIntegrationTests.cs"  # sequence system tests
+      - "test/DemaConsulting.CanvasNet.PlantUml.Tests/PlantUmlActivityIntegrationTests.cs"  # activity system tests
       - "test/DemaConsulting.CanvasNet.PlantUml.Tests/PlantUmlReferenceLayoutTests.cs"  # reference layout tests
       - "test/DemaConsulting.CanvasNet.PlantUml.Tests/Fixtures/**"     # original fixtures and reference goldens
       - "tools/visual-diff/update-plantuml-goldens.ps1"               # golden generator (developer tool)
@@ -5563,6 +5564,83 @@ reviews:
       - "src/DemaConsulting.CanvasNet.PlantUml/Sequence/SequenceRenderer.Messages.cs"  # unit source
       - "src/DemaConsulting.CanvasNet.PlantUml/Sequence/SequenceRenderer.Blocks.cs"  # unit source
       - "test/DemaConsulting.CanvasNet.PlantUml.Tests/Sequence/SequenceRendererTests.cs"  # unit tests
+
+  # CanvasNetPlantUml-Activity Review (one per subsystem)
+  - id: CanvasNetPlantUml-Activity
+    title: Review that CanvasNetPlantUml Activity Subsystem Implementation is Correct
+    context:
+      - "docs/design/canvas-net-plant-uml.md"
+      - "docs/reqstream/canvas-net-plant-uml.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-plant-uml/activity.yaml"  # subsystem requirements
+      - "docs/design/canvas-net-plant-uml/activity.md"  # subsystem design
+      - "docs/verification/canvas-net-plant-uml/activity.md"  # subsystem verification
+      - "docs/sysml2/model/canvas-net-plant-uml/activity.sysml"  # subsystem SysML2 model
+      - "src/DemaConsulting.CanvasNet.PlantUml/Activity/NamespaceDoc.cs"  # namespace documentation
+      - "test/DemaConsulting.CanvasNet.PlantUml.Tests/Activity/ActivityTests.cs"  # subsystem tests
+      - "test/DemaConsulting.CanvasNet.PlantUml.Tests/Activity/ActivityTestHelpers.cs"  # shared activity test helpers
+  # CanvasNetPlantUml-Activity-ActivityParser Review (one per unit)
+  - id: CanvasNetPlantUml-Activity-ActivityParser
+    title: Review that CanvasNetPlantUml Activity ActivityParser Implementation is Correct
+    context:
+      - "docs/design/canvas-net-plant-uml.md"
+      - "docs/reqstream/canvas-net-plant-uml.yaml"
+      - "docs/design/canvas-net-plant-uml/activity.md"
+      - "docs/reqstream/canvas-net-plant-uml/activity.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-plant-uml/activity/activity-parser.yaml"  # unit requirements
+      - "docs/design/canvas-net-plant-uml/activity/activity-parser.md"  # unit design
+      - "docs/verification/canvas-net-plant-uml/activity/activity-parser.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-plant-uml/activity/activity-parser.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.PlantUml/Activity/ActivityParser.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.PlantUml/Activity/ActivityParser.Statements.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.PlantUml.Tests/Activity/ActivityParserTests.cs"  # unit tests
+  # CanvasNetPlantUml-Activity-ActivityModel Review (one per unit)
+  - id: CanvasNetPlantUml-Activity-ActivityModel
+    title: Review that CanvasNetPlantUml Activity ActivityModel Implementation is Correct
+    context:
+      - "docs/design/canvas-net-plant-uml.md"
+      - "docs/reqstream/canvas-net-plant-uml.yaml"
+      - "docs/design/canvas-net-plant-uml/activity.md"
+      - "docs/reqstream/canvas-net-plant-uml/activity.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-plant-uml/activity/activity-model.yaml"  # unit requirements
+      - "docs/design/canvas-net-plant-uml/activity/activity-model.md"  # unit design
+      - "docs/verification/canvas-net-plant-uml/activity/activity-model.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-plant-uml/activity/activity-model.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.PlantUml/Activity/ActivityModel.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.PlantUml/Activity/ActivityModel.Elements.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.PlantUml.Tests/Activity/ActivityModelTests.cs"  # unit tests
+  # CanvasNetPlantUml-Activity-ActivityLayout Review (one per unit)
+  - id: CanvasNetPlantUml-Activity-ActivityLayout
+    title: Review that CanvasNetPlantUml Activity ActivityLayout Implementation is Correct
+    context:
+      - "docs/design/canvas-net-plant-uml.md"
+      - "docs/reqstream/canvas-net-plant-uml.yaml"
+      - "docs/design/canvas-net-plant-uml/activity.md"
+      - "docs/reqstream/canvas-net-plant-uml/activity.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-plant-uml/activity/activity-layout.yaml"  # unit requirements
+      - "docs/design/canvas-net-plant-uml/activity/activity-layout.md"  # unit design
+      - "docs/verification/canvas-net-plant-uml/activity/activity-layout.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-plant-uml/activity/activity-layout.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.PlantUml/Activity/ActivityLayout*.cs"  # unit source (partial files)
+      - "test/DemaConsulting.CanvasNet.PlantUml.Tests/Activity/ActivityLayoutTests.cs"  # unit tests
+  # CanvasNetPlantUml-Activity-ActivityRenderer Review (one per unit)
+  - id: CanvasNetPlantUml-Activity-ActivityRenderer
+    title: Review that CanvasNetPlantUml Activity ActivityRenderer Implementation is Correct
+    context:
+      - "docs/design/canvas-net-plant-uml.md"
+      - "docs/reqstream/canvas-net-plant-uml.yaml"
+      - "docs/design/canvas-net-plant-uml/activity.md"
+      - "docs/reqstream/canvas-net-plant-uml/activity.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-plant-uml/activity/activity-renderer.yaml"  # unit requirements
+      - "docs/design/canvas-net-plant-uml/activity/activity-renderer.md"  # unit design
+      - "docs/verification/canvas-net-plant-uml/activity/activity-renderer.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-plant-uml/activity/activity-renderer.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.PlantUml/Activity/ActivityRenderer.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.PlantUml.Tests/Activity/ActivityRendererTests.cs"  # unit tests
 
   # CanvasNetTool-Architecture Review (one per system)
   - id: CanvasNetTool-Architecture

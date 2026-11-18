@@ -1290,6 +1290,12 @@ words:
   - metaclass
   - portin
   - portout
+  # PlantUML's activity engine and the upstream names of its classes and folders (ftile, Opale, FtileMarged)
+  - ftile
+  - ftiles
+  - activitydiagram
+  - Opale
+  - Marged
 # Percent-escapes in URL and file-name examples (such as "flow%2Emmd" for "flow.mmd"): the escape and the letters
 # glued to it are not words
 ignoreRegExpList:

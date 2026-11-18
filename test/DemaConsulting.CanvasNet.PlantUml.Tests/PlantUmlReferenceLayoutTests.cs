@@ -5,14 +5,15 @@ using DemaConsulting.CanvasNet.PlantUml.Scenegraph;
 namespace DemaConsulting.CanvasNet.PlantUml.Tests;
 
 /// <summary>
-///     Reference layout tests: CanvasNet's layout of the original sequence fixtures is compared with the SVG that
-///     PlantUML (plantuml-mit 1.2026.10) draws for them (the goldens in <c>Fixtures/reference/sequence</c>; see the
-///     README there).
+///     Reference layout tests: CanvasNet's layout of the original sequence and activity fixtures is compared with the
+///     SVG that PlantUML (plantuml-mit 1.2026.10) draws for them (the goldens in <c>Fixtures/reference/sequence</c> and
+///     <c>Fixtures/reference/activity</c>; see the README there).
 /// </summary>
 /// <remarks>
 ///     Positions agree within 1.5 pixels and sizes within 3 % (and at least 2 pixels): the diagram size, the anchor of
 ///     every text (matched by its content, in document order), the boxes of the participant heads and tails, the life
-///     lines, and the message lines.
+///     lines, and the message lines of a sequence diagram; the action boxes, the circles, and the diamonds and
+///     hexagons of an activity diagram.
 /// </remarks>
 public class PlantUmlReferenceLayoutTests
 {
@@ -35,6 +36,66 @@ public class PlantUmlReferenceLayoutTests
         }
 
         return data;
+    }
+
+    /// <summary>
+    ///     Gets the names of the activity fixtures.
+    /// </summary>
+    /// <returns>The names, without extension.</returns>
+    public static TheoryData<string> ActivityFixtures()
+    {
+        var data = new TheoryData<string>();
+        foreach (var file in Directory.GetFiles(Path.Combine(AppContext.BaseDirectory, "Fixtures", "activity"), "*.puml").Order(StringComparer.Ordinal))
+        {
+            data.Add(Path.GetFileNameWithoutExtension(file));
+        }
+
+        return data;
+    }
+
+    /// <summary>
+    ///     Validates that every activity fixture has a reference golden and every golden has its fixture.
+    /// </summary>
+    [Fact]
+    public void CanvasNetPlantUml_Activity_ReferenceGoldens_CoverEveryFixture()
+    {
+        // Arrange
+        var fixtures = Directory.GetFiles(Path.Combine(AppContext.BaseDirectory, "Fixtures", "activity"), "*.puml").Select(Path.GetFileNameWithoutExtension);
+        var goldens = Directory.GetFiles(Path.Combine(AppContext.BaseDirectory, "Fixtures", "reference", "activity"), "*.svg").Select(Path.GetFileNameWithoutExtension);
+
+        // Act
+        var missing = fixtures.Except(goldens).ToList();
+        var orphans = goldens.Except(fixtures).ToList();
+
+        // Assert
+        Assert.Empty(missing);
+        Assert.Empty(orphans);
+        Assert.True(fixtures.Count() >= 15);
+    }
+
+    /// <summary>
+    ///     Validates that the layout of an activity fixture matches PlantUML's: size, texts, action boxes, circles,
+    ///     diamonds and hexagons.
+    /// </summary>
+    /// <param name="name">The fixture name.</param>
+    [Theory]
+    [MemberData(nameof(ActivityFixtures))]
+    public void CanvasNetPlantUml_Activity_ReferenceLayout_MatchesPlantUml(string name)
+    {
+        // Arrange
+        var text = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", "activity", name + ".puml"));
+        var golden = XDocument.Load(Path.Combine(AppContext.BaseDirectory, "Fixtures", "reference", "activity", name + ".svg"));
+        var document = PlantUmlDocument.Parse(text);
+
+        // Act
+        var scene = document.LayoutScene(cancellationToken: TestContext.Current.CancellationToken);
+        var size = document.Measure(cancellationToken: TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal("activity", document.DiagramType);
+        AssertSize(golden, size);
+        AssertTextLines(golden, scene);
+        AssertActivityShapes(golden, scene);
     }
 
     /// <summary>
@@ -183,6 +244,86 @@ public class PlantUmlReferenceLayoutTests
             Assert.True(
                 ours.Exists(b => Math.Abs(b.X - left) <= Tolerance && Math.Abs(b.Right - right) <= Tolerance && Math.Abs(b.Y - top) <= Tolerance && Math.Abs(b.Bottom - bottom) <= Tolerance),
                 string.Create(CultureInfo.InvariantCulture, $"no message line from ({line.X1}, {line.Y1}) to ({line.X2}, {line.Y2})"));
+        }
+    }
+
+    /// <summary>
+    ///     Checks the anchor of every line of text, matched by content in document order; PlantUML writes each run of
+    ///     a formatted line as its own text, so the runs of a line (same baseline, a word space apart) are joined.
+    /// </summary>
+    /// <param name="golden">The golden.</param>
+    /// <param name="scene">The scene.</param>
+    private static void AssertTextLines(XDocument golden, Scene scene)
+    {
+        static string Normalize(string text) => string.Join(' ', text.Split(' ', StringSplitOptions.RemoveEmptyEntries));
+        var lines = new List<(string Text, double X, double Y, double Right)>();
+        foreach (var text in golden.Descendants(Svg + "text"))
+        {
+            var (x, y) = (Number(text.Attribute("x")!.Value), Number(text.Attribute("y")!.Value));
+            var length = text.Attribute("textLength") is { } attribute ? Number(attribute.Value) : 0;
+            if (lines.Count > 0 && Math.Abs(lines[^1].Y - y) < 1e-6 && x - lines[^1].Right is >= 0 and < 6)
+            {
+                var last = lines[^1];
+                lines[^1] = (last.Text + " " + text.Value.Trim(), last.X, y, x + length);
+            }
+            else
+            {
+                lines.Add((text.Value.Trim(), x, y, x + length));
+            }
+        }
+
+        var ours = scene.Items.OfType<SceneText>().ToList();
+        foreach (var line in lines)
+        {
+            var content = Normalize(line.Text);
+            var match = ours.FirstOrDefault(t => Normalize(t.Text) == content);
+            Assert.True(match is not null, $"no text '{content}'");
+            ours.Remove(match);
+            AssertNear(line.X, match.X, $"x of '{content}'");
+            AssertNear(line.Y, match.Baseline, $"baseline of '{content}'");
+        }
+    }
+
+    /// <summary>
+    ///     Checks the boxes of the actions (rectangles with round corners), the circles, and the diamonds and hexagons
+    ///     (polygons of more than four corners) of an activity diagram: each has a drawn shape with the same bounds.
+    /// </summary>
+    /// <param name="golden">The golden.</param>
+    /// <param name="scene">The scene.</param>
+    private static void AssertActivityShapes(XDocument golden, Scene scene)
+    {
+        var ours = scene.Items.OfType<ScenePath>().Select(p => Scene.BoundsOf([p])!.Value).ToList();
+        var expected = new List<SceneRect>();
+        foreach (var rect in golden.Descendants(Svg + "rect").Where(r => r.Attribute("rx")?.Value == "12.5"))
+        {
+            expected.Add(new SceneRect(Number(rect.Attribute("x")!.Value), Number(rect.Attribute("y")!.Value), Number(rect.Attribute("width")!.Value), Number(rect.Attribute("height")!.Value)));
+        }
+
+        foreach (var ellipse in golden.Descendants(Svg + "ellipse"))
+        {
+            var (cx, cy) = (Number(ellipse.Attribute("cx")!.Value), Number(ellipse.Attribute("cy")!.Value));
+            var (rx, ry) = (Number(ellipse.Attribute("rx")!.Value), Number(ellipse.Attribute("ry")!.Value));
+            expected.Add(new SceneRect(cx - rx, cy - ry, 2 * rx, 2 * ry));
+        }
+
+        foreach (var polygon in golden.Descendants(Svg + "polygon"))
+        {
+            var numbers = polygon.Attribute("points")!.Value.Split([',', ' '], StringSplitOptions.RemoveEmptyEntries).Select(Number).ToList();
+            if (numbers.Count / 2 <= 4)
+            {
+                continue;
+            }
+
+            var xs = numbers.Where((_, i) => i % 2 == 0).ToList();
+            var ys = numbers.Where((_, i) => i % 2 == 1).ToList();
+            expected.Add(new SceneRect(xs.Min(), ys.Min(), xs.Max() - xs.Min(), ys.Max() - ys.Min()));
+        }
+
+        foreach (var box in expected)
+        {
+            Assert.True(
+                ours.Exists(b => Math.Abs(b.X - box.X) <= Tolerance && Math.Abs(b.Y - box.Y) <= Tolerance && Math.Abs(b.Right - box.Right) <= Tolerance && Math.Abs(b.Bottom - box.Bottom) <= Tolerance),
+                string.Create(CultureInfo.InvariantCulture, $"no shape at ({box.X}, {box.Y}) of {box.Width} x {box.Height}"));
         }
     }
 

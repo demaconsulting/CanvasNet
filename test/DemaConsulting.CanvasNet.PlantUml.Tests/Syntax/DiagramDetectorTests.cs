@@ -47,7 +47,7 @@ public class DiagramDetectorTests
 
         // Assert
         Assert.Equal("activity", detected.DiagramType);
-        Assert.False(detected.IsSupported);
+        Assert.True(detected.IsSupported);
     }
 
     /// <summary>

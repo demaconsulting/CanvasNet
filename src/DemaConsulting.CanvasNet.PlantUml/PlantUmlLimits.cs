@@ -92,7 +92,8 @@ public sealed class PlantUmlLimits
     }
 
     /// <summary>
-    ///     Gets the maximum number of nodes of a diagram (the participants of a sequence diagram); 2,000 by default.
+    ///     Gets the maximum number of nodes of a diagram (the participants of a sequence diagram, the instructions and
+    ///     swimlanes of an activity diagram); 2,000 by default.
     /// </summary>
     /// <exception cref="ArgumentOutOfRangeException">Thrown on initialization when the value is less than one.</exception>
     public int MaxNodes
@@ -102,7 +103,8 @@ public sealed class PlantUmlLimits
     }
 
     /// <summary>
-    ///     Gets the maximum number of edges of a diagram (the messages of a sequence diagram); 500 by default.
+    ///     Gets the maximum number of edges of a diagram (the messages of a sequence diagram, the arrows of an activity
+    ///     diagram); 500 by default.
     /// </summary>
     /// <exception cref="ArgumentOutOfRangeException">Thrown on initialization when the value is less than one.</exception>
     public int MaxEdges
@@ -112,8 +114,9 @@ public sealed class PlantUmlLimits
     }
 
     /// <summary>
-    ///     Gets the maximum length of one label (the name of a participant, the text of a message, a note, a group
-    ///     header, a divider, a title or a legend) in UTF-16 characters; 4,096 by default.
+    ///     Gets the maximum length of one label (the name of a participant, the text of a message, an action, a
+    ///     condition, an arrow label, a note, a group header, a divider, a title or a legend) in UTF-16 characters;
+    ///     4,096 by default.
     /// </summary>
     /// <exception cref="ArgumentOutOfRangeException">Thrown on initialization when the value is less than one.</exception>
     public int MaxLabelLength
@@ -123,8 +126,8 @@ public sealed class PlantUmlLimits
     }
 
     /// <summary>
-    ///     Gets the maximum nesting depth of blocks of a diagram (groups inside groups of a sequence diagram); 32 by
-    ///     default.
+    ///     Gets the maximum nesting depth of blocks of a diagram (groups inside groups of a sequence diagram; ifs,
+    ///     loops, forks, splits and partitions inside each other in an activity diagram); 32 by default.
     /// </summary>
     /// <exception cref="ArgumentOutOfRangeException">Thrown on initialization when the value is outside 1 to 256.</exception>
     public int MaxNestingDepth

@@ -113,6 +113,36 @@ public class SceneModelTests
     }
 
     /// <summary>
+    ///     Validates the spacing of an activity diagram's page: 5 pixels more above the header and the title, beside
+    ///     the header and the footer, and below the page, and the legend 5 pixels closer to the body.
+    /// </summary>
+    [Fact]
+    public void PlantUmlSceneModel_ScenePage_ActivitySpacing()
+    {
+        // Arrange
+        var body = new Scene(new SceneRect(0, 0, 78.167, 133.57), [new ScenePath(SceneShapes.Rect(10, 10, 20, 20)) { Role = "body" }]);
+        var page = new PageTexts
+        {
+            Header = new PageText("head", TextAlign.Left, default),
+            Title = new PageText("My Title", TextAlign.Center, default),
+            Legend = new PageText("leg", TextAlign.Center, default),
+        };
+        var text = new TextLayout(TextLayout.CreateFontResolver());
+
+        // Act
+        var sequence = ScenePage.Decorate(body, page, SkinTheme.Default, text, null);
+        var activity = ScenePage.Decorate(body, page, SkinTheme.Default, text, null, PageMetrics.Activity);
+
+        // Assert
+        SceneText Text(Scene scene, string role) => scene.Items.OfType<SceneText>().Single(t => t.Role == role);
+        Assert.Equal(5, Text(activity, "header").X - Text(sequence, "header").X, 3);
+        Assert.Equal(5, Text(activity, "header").Baseline - Text(sequence, "header").Baseline, 3);
+        Assert.Equal(5, Text(activity, "title").Baseline - Text(sequence, "title").Baseline, 3);
+        Assert.Equal(0, activity.ViewBox.Height - sequence.ViewBox.Height, 3);
+        Assert.Equal(PageMetrics.Sequence, new PageMetrics(0, 7, 46));
+    }
+
+    /// <summary>
     ///     Validates that a body without page texts is returned unchanged, and that translation moves paths and texts
     ///     and leaves other items alone.
     /// </summary>

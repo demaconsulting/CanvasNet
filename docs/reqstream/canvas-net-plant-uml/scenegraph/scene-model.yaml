@@ -36,9 +36,12 @@ sections:
                 title: >-
                   The SceneModel unit shall place the page texts of a diagram around its body as PlantUML does: the
                   header and the title above it, the legend, the caption, and the footer below it, with their
-                  alignments, the body centered in the widest of them, and a body without page texts unchanged.
+                  alignments, the body centered in the widest of them, the spacing of the diagram type (an activity
+                  diagram's page is 5 pixels wider around its header, title, and footer, and its legend 5 pixels
+                  closer), and a body without page texts unchanged.
                 justification: |
                   Every diagram type has the same page texts, so they are placed once for all of them.
                 tests:
                   - PlantUmlSceneModel_ScenePage_PlacesPageTexts
                   - PlantUmlSceneModel_ScenePage_NoTextsAndTranslate
+                  - PlantUmlSceneModel_ScenePage_ActivitySpacing

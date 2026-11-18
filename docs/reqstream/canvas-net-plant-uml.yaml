@@ -2,8 +2,8 @@
 # Software System Requirements for CanvasNetPlantUml
 #
 # These requirements describe the externally visible behavior of the DemaConsulting.CanvasNet.PlantUml package (root
-# namespace DemaConsulting.CanvasNet.PlantUml; internal subsystem namespaces Syntax, Styling, Scenegraph, and
-# Sequence) from the perspective of its consumers, without specifying implementation details.
+# namespace DemaConsulting.CanvasNet.PlantUml; internal subsystem namespaces Syntax, Styling, Scenegraph,
+# Sequence, and Activity) from the perspective of its consumers, without specifying implementation details.
 #
 # CanvasNetPlantUml is an independent software system distributed as its own NuGet package. It reads PlantUML diagram
 # text and renders a static, deterministic picture onto a CanvasNet Surface using only managed code, the public
@@ -52,6 +52,7 @@ sections:
           - CanvasNetPlantUml-PlantUmlDocument-Records
         tests:
           - CanvasNetPlantUml_Open_InvalidText_FailsLocated
+          - CanvasNetPlantUml_Activity_SyntaxError_IsLocated
 
       - id: CanvasNetPlantUml-DiagramTypes
         title: >-
@@ -98,6 +99,8 @@ sections:
           - CanvasNetPlantUml-Syntax-Preprocessing
           - CanvasNetPlantUml-Sequence-SequenceParser-Limits
           - CanvasNetPlantUml-Sequence-SequenceLayout-Limits
+          - CanvasNetPlantUml-Activity-ActivityParser-Limits
+          - CanvasNetPlantUml-Activity-ActivityLayout-Limits
         tests:
           - CanvasNetPlantUml_Limits_OversizedText_IsRefused
           - CanvasNetPlantUml_Sequence_LayoutWorkLimit_Fails
@@ -141,6 +144,29 @@ sections:
           - CanvasNetPlantUml_Sequence_Fixtures_RenderWithoutReports
           - CanvasNetPlantUml_Sequence_Facts_CountParticipantsMessagesAndBoxes
 
+      - id: CanvasNetPlantUml-Activity
+        title: >-
+          The library shall draw PlantUML activity diagrams of the new syntax (start, stop, and end, actions, ifs with
+          elseif and else branches, while and repeat loops, forks, merges, and splits, arrows with labels and styles,
+          swimlanes, notes, connectors, partitions, kill and detach, page texts, and the supported skin parameters)
+          with the tile layout and compression of PlantUML's activity engine, without a graph layout, so that the
+          size, the texts, the action boxes, the circles, and the diamonds of the reference fixtures agree with
+          PlantUML's within 1.5 pixels (the size within 3 %), and shall count actions, nodes, and decisions as nodes,
+          arrows as edges, and swimlanes and partitions as subgraphs.
+        tags: [system]
+        justification: |
+          Activity diagrams are the second most used PlantUML diagrams in documentation; PlantUML lays them out
+          without Graphviz, so a managed port can draw them as PlantUML does.
+        children:
+          - CanvasNetPlantUml-Activity-Reading
+          - CanvasNetPlantUml-Activity-Drawing
+          - CanvasNetPlantUml-Syntax-Detection
+        tests:
+          - CanvasNetPlantUml_Activity_ReferenceLayout_MatchesPlantUml
+          - CanvasNetPlantUml_Activity_ReferenceGoldens_CoverEveryFixture
+          - CanvasNetPlantUml_Activity_Fixtures_RenderWithoutReports
+          - CanvasNetPlantUml_Activity_Facts_CountNodesArrowsAndGroups
+
       - id: CanvasNetPlantUml-UnsupportedTypes
         title: >-
           The library shall render a recognized diagram type that this version does not draw as an empty, transparent
@@ -165,9 +191,11 @@ sections:
         children:
           - CanvasNetPlantUml-PlantUmlDocument-Reports
           - CanvasNetPlantUml-Sequence-SequenceParser-Unsupported
+          - CanvasNetPlantUml-Activity-ActivityParser-Unsupported
         tests:
           - CanvasNetPlantUml_UnsupportedType_StrictThrows
           - CanvasNetPlantUml_Sequence_UnsupportedStatements_AreReported
+          - CanvasNetPlantUml_Activity_UnsupportedStatements_AreReported
 
       - id: CanvasNetPlantUml-DefaultLook
         title: >-
@@ -184,3 +212,5 @@ sections:
         tests:
           - CanvasNetPlantUml_Sequence_DefaultSkin_PaintsPlantUmlColors
           - CanvasNetPlantUml_Sequence_Render_IsDeterministicAndScaled
+          - CanvasNetPlantUml_Activity_DefaultSkin_PaintsPlantUmlColors
+          - CanvasNetPlantUml_Activity_Render_IsDeterministicAndScaled

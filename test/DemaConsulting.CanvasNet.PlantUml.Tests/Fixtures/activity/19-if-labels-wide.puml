@@ -1,0 +1,9 @@
+@startuml
+start
+if (Is the incoming request authenticated?) then (it is authenticated)
+  :Serve;
+else (not authenticated)
+  :Redirect to the sign in page;
+endif
+stop
+@enduml

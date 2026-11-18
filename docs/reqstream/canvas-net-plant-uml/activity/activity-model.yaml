@@ -1,0 +1,44 @@
+---
+# Software Unit Requirements for ActivityModel
+#
+# These requirements describe the design-level behavior of the ActivityModel unit of the Activity subsystem
+# (internal namespace DemaConsulting.CanvasNet.PlantUml.Activity): the facts of an activity diagram, its reports, and
+# its layout entry point. See docs/verification/canvas-net-plant-uml/activity/activity-model.md for the
+# test-evidence mapping.
+
+sections:
+  - title: CanvasNetPlantUml Requirements
+    sections:
+      - title: Activity Requirements
+        sections:
+          - title: ActivityModel Requirements
+            requirements:
+              - id: CanvasNetPlantUml-Activity-ActivityModel-Facts
+                title: >-
+                  The ActivityModel unit shall give the title of an activity diagram and count its actions, start,
+                  stop, end, and connector nodes and its decisions as nodes, its arrows as edges, and its swimlanes
+                  and partitions as subgraphs.
+                justification: |
+                  Hosts show these facts without rendering the diagram.
+                tests:
+                  - PlantUmlActivityModel_Facts_CountNodesEdgesAndSubgraphs
+                  - PlantUmlActivityModel_Facts_CountDecisionsAndLoops
+
+              - id: CanvasNetPlantUml-Activity-ActivityModel-Reports
+                title: >-
+                  The ActivityModel unit shall keep the reports of its parser, including those of its skin parameters,
+                  in text order.
+                justification: |
+                  Every measure and render call delivers the reports in the order of the text.
+                tests:
+                  - PlantUmlActivityModel_Reports_AreInTextOrder
+
+              - id: CanvasNetPlantUml-Activity-ActivityModel-Layout
+                title: >-
+                  The ActivityModel unit shall lay its diagram out and draw it, with its page texts spaced as PlantUML
+                  spaces them around an activity diagram, its background, and its own scale, afresh for every call.
+                justification: |
+                  The document asks the model for a scene under the options of each call.
+                tests:
+                  - PlantUmlActivityModel_Layout_DecoratesThePageAndScales
+                  - PlantUmlActivityModel_Registry_ParsesActivityDiagrams

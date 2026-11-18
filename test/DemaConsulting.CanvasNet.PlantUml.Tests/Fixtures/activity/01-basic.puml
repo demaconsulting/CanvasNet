@@ -1,0 +1,6 @@
+@startuml
+start
+:Open the file;
+:Read the header;
+stop
+@enduml

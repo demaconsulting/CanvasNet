@@ -37,8 +37,9 @@ specified by the `CanvasNetPlantUml-Scenegraph-SceneModel-*` requirements in
   starts at the origin.
 - `SceneShapes.Rect` (a radius clamped to half the smaller side; square corners for zero), `Ellipse` (four cubic arcs
   with the control distance 0.5523 of the radius), `Polygon` (closed), `Polyline`, and `Line`.
-- `ScenePage.Decorate(body, page, theme, text, sink)` - places the page texts around a body whose view box starts at
-  the origin, as PlantUML's annotated diagram does (values measured from PlantUML's output): the page is as wide as the
+- `ScenePage.Decorate(body, page, theme, text, sink, metrics)` - places the page texts around a body whose view box
+  starts at the origin, as PlantUML's annotated diagram does (values measured from PlantUML's output): the page is as
+  wide as the
   widest of the body, the title plus 31, the legend box plus 46, and the other texts plus 12; the header (10-pixel
   gray text) is drawn 5 pixels from the top and, right aligned, 6 pixels from the right edge, and takes its height plus
   one; the title (bold) is centered with its top 15 pixels into a block of its height plus 21; the body follows,
@@ -46,7 +47,11 @@ specified by the `CanvasNetPlantUml-Scenegraph-SceneModel-*` requirements in
   18 pixels from the left or right edge, in a block of its height plus 32; the caption is centered 4 pixels above the
   end of the legend block in a block of its height plus 3; the footer is centered (or aligned 6 pixels from an edge) 5
   pixels above the end of the caption block in a block of its height plus 1. A body without page texts is returned as
-  it is. Centered texts are centered in the page width minus one pixel, as PlantUML centers them.
+  it is. Centered texts are centered in the page width minus one pixel, as PlantUML centers them. These are the values
+  of a sequence diagram (`PageMetrics.Sequence`); an optional `PageMetrics(Inset, LegendGap, LegendWidth)` gives the
+  values of another diagram type: `PageMetrics.Activity` adds 5 pixels above the header and the title, beside the
+  aligned header and footer, and below the page, puts the legend box 2 pixels below the body (in a block of its height
+  plus 20), and keeps 55 pixels beside the legend's text, as PlantUML frames an activity diagram.
 - `ScenePage.Translate(item, dx, dy)` - a moved copy of a path or a text line (other items, and a zero offset, return
   the item itself).
 

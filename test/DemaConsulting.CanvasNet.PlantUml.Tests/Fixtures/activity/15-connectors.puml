@@ -1,0 +1,9 @@
+@startuml
+start
+:Step one;
+(A)
+detach
+(A)
+:Step two;
+stop
+@enduml

@@ -20,9 +20,10 @@ types that PlantUML lays out with Graphviz. The unit's behavior is specified by 
 - `DetectedDiagram(DiagramType, IsSupported, Keyword, Location)` - the public type name, whether this version draws
   it (whether it is in `SupportedTypes`), the construct it was recognized by (an `@start` tag or a statement's first
   word), and its location.
-- `SupportedTypes` - the drawn types (`sequence`); `TagTypes` - the `@start` tags other than `uml` with their types
-  (`mindmap`, `gantt`, `wbs`, `json`, `yaml`, `salt`, `ditaa`, `dot`, `math`, `latex`, `regex`, `ebnf`, `chen`, `files`,
-  `chronology`, `board`, `creole`, `wire`, `nwdiag`, `chart`, `def`, `git`, `project`, `flow`, `packetdiag`, `jcckit`).
+- `SupportedTypes` - the drawn types (`sequence`, `activity`); `TagTypes` - the `@start` tags other than `uml` with
+  their types (`mindmap`, `gantt`, `wbs`, `json`, `yaml`, `salt`, `ditaa`, `dot`, `math`, `latex`, `regex`, `ebnf`,
+  `chen`, `files`, `chronology`, `board`, `creole`, `wire`, `nwdiag`, `chart`, `def`, `git`, `project`, `flow`,
+  `packetdiag`, `jcckit`).
 - The keyword tables - the participant keywords and the keywords of the sequence diagram only, the keywords of the
   activity diagram only, the keywords both accept (titles, notes, styling, `else`, `end`, and an aligned header or
   footer such as `left header`), and the keywords of the
@@ -51,7 +52,9 @@ types that PlantUML lays out with Graphviz. The unit's behavior is specified by 
 - `OuterStatements`, `BlockCloser`, `IsCloser` - the statements of a multi-line `note`, `hnote`, `rnote`, `legend`,
   `title`, `header`, `footer`, `caption` (also aligned, `left footer`), `ref`, `skinparam ... {`, and `<style>` block
   are text and are skipped up to the closing statement; a closer that starts with `end` is also accepted with a space
-  after `end` (`end legend` closes `legend` as `endlegend` does).
+  after `end` (`end legend` closes `legend` as `endlegend` does). An activity action that opens with `:` (after an
+  optional color) and does not end with `;` (or one of the box-style endings) on its line is text up to the line that
+  ends it, which is skipped with it; a `floating note` opens a note block like `note`.
 - `UnsupportedHint(detected)` and `EditDistance(a, b)` - the hint of a type that is not drawn, and the Levenshtein
   distance of two words.
 
@@ -70,4 +73,4 @@ The unit reads the `PreprocessedSource` of the `Preprocessor` unit and uses the 
 #### Callers
 
 `PlantUmlDocument` detects every text it opens and reads `UnsupportedHint`; the diagram parsers use the multi-line
-block rules (`BlockCloser`, `IsCloser`).
+block rules (`BlockCloser`, `IsCloser`, `OpensAction`, `EndsAction`).

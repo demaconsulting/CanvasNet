@@ -39,6 +39,26 @@ internal sealed record PageTexts
 }
 
 /// <summary>
+///     The spacing of the page texts that differs between diagram types: PlantUML frames the body of an activity
+///     diagram 5 pixels further from its header, footer and side margins, and its legend 5 pixels closer to the body.
+/// </summary>
+/// <param name="Inset">The space added above the header and the title, beside the header and footer, and below the page.</param>
+/// <param name="LegendGap">The space between the body and the legend.</param>
+/// <param name="LegendWidth">The space the page keeps beside the text of the legend.</param>
+internal sealed record PageMetrics(double Inset, double LegendGap, double LegendWidth)
+{
+    /// <summary>
+    ///     Gets the spacing of a sequence diagram.
+    /// </summary>
+    public static PageMetrics Sequence { get; } = new(0, 7, 46);
+
+    /// <summary>
+    ///     Gets the spacing of an activity diagram.
+    /// </summary>
+    public static PageMetrics Activity { get; } = new(5, 2, 55);
+}
+
+/// <summary>
 ///     Places the page texts of a diagram around its body: the header and the title above it, the legend, the caption
 ///     and the footer below it, as PlantUML's annotated diagram does.
 /// </summary>
@@ -64,9 +84,11 @@ internal static class ScenePage
     /// <param name="theme">The theme that styles the texts.</param>
     /// <param name="text">The text layout of the call.</param>
     /// <param name="sink">The report sink of the call.</param>
+    /// <param name="metrics">The spacing of the diagram type; <see cref="PageMetrics.Sequence"/> when null.</param>
     /// <returns>The page scene; the body itself when there is no page text.</returns>
-    public static Scene Decorate(Scene body, PageTexts page, SkinTheme theme, TextLayout text, PlantUmlReportSink? sink)
+    public static Scene Decorate(Scene body, PageTexts page, SkinTheme theme, TextLayout text, PlantUmlReportSink? sink, PageMetrics? metrics = null)
     {
+        var spacing = metrics ?? PageMetrics.Sequence;
         ArgumentNullException.ThrowIfNull(body);
         ArgumentNullException.ThrowIfNull(page);
         ArgumentNullException.ThrowIfNull(theme);
@@ -88,19 +110,19 @@ internal static class ScenePage
         width = Math.Max(width, (header?.Width ?? 0) + 12);
         width = Math.Max(width, (footer?.Width ?? 0) + 12);
         width = Math.Max(width, (caption?.Width ?? 0) + 12);
-        width = Math.Max(width, (legend?.Width ?? 0) + 46);
+        width = Math.Max(width, (legend?.Width ?? 0) + spacing.LegendWidth);
 
         var items = new List<SceneItem>();
         double y = 0;
         if (header is not null)
         {
-            items.AddRange(header.Draw(AlignedX(page.Header!.Align, width, header.Width), 5, TextAlign.Left, "header", page.Header.Location));
+            items.AddRange(header.Draw(AlignedX(page.Header!.Align, width, header.Width, spacing.Inset), 5 + spacing.Inset, TextAlign.Left, "header", page.Header.Location));
             y += header.Height + 1;
         }
 
         if (title is not null)
         {
-            items.AddRange(title.Draw((width - 1 - title.Width) / 2, y + 15, TextAlign.Center, "title", page.Title!.Location));
+            items.AddRange(title.Draw((width - 1 - title.Width) / 2, y + 15 + spacing.Inset, TextAlign.Center, "title", page.Title!.Location));
             y += title.Height + 21;
         }
 
@@ -119,15 +141,15 @@ internal static class ScenePage
                 TextAlign.Right => width - 18 - boxWidth,
                 _ => (width - 1 - boxWidth) / 2,
             };
-            items.Add(new ScenePath(SceneShapes.Rect(boxX, y + 7, boxWidth, boxHeight, style.RoundCorner / 2))
+            items.Add(new ScenePath(SceneShapes.Rect(boxX, y + spacing.LegendGap, boxWidth, boxHeight, style.RoundCorner / 2))
             {
                 Role = "legend",
                 Fill = style.Fill,
                 Stroke = style.Line is { } line ? new SceneStroke(line, style.LineWidth) : null,
                 Location = page.Legend.Location,
             });
-            items.AddRange(legend.Draw(boxX + style.Padding, y + 7 + style.Padding, TextAlign.Left, "legend", page.Legend.Location));
-            y += boxHeight + 25;
+            items.AddRange(legend.Draw(boxX + style.Padding, y + spacing.LegendGap + style.Padding, TextAlign.Left, "legend", page.Legend.Location));
+            y += boxHeight + 18 + spacing.LegendGap;
         }
 
         if (caption is not null)
@@ -138,11 +160,11 @@ internal static class ScenePage
 
         if (footer is not null)
         {
-            items.AddRange(footer.Draw(AlignedX(page.Footer!.Align, width, footer.Width), y - 5, TextAlign.Left, "footer", page.Footer.Location));
+            items.AddRange(footer.Draw(AlignedX(page.Footer!.Align, width, footer.Width, spacing.Inset), y - 5, TextAlign.Left, "footer", page.Footer.Location));
             y += footer.Height + 1;
         }
 
-        return body with { ViewBox = new SceneRect(0, 0, width, y), Items = items };
+        return body with { ViewBox = new SceneRect(0, 0, width, y + spacing.Inset), Items = items };
     }
 
     /// <summary>
@@ -201,13 +223,14 @@ internal static class ScenePage
     /// <param name="align">The alignment.</param>
     /// <param name="width">The page width.</param>
     /// <param name="textWidth">The text width.</param>
+    /// <param name="inset">The extra space from the side.</param>
     /// <returns>The x.</returns>
-    private static double AlignedX(TextAlign align, double width, double textWidth)
+    private static double AlignedX(TextAlign align, double width, double textWidth, double inset)
     {
         return align switch
         {
-            TextAlign.Left => 6,
-            TextAlign.Right => width - 6 - textWidth,
+            TextAlign.Left => 6 + inset,
+            TextAlign.Right => width - 6 - inset - textWidth,
             _ => (width - 1 - textWidth) / 2,
         };
     }

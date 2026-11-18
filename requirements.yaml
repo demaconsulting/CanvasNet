@@ -267,6 +267,11 @@ includes:
   - docs/reqstream/canvas-net-plant-uml/sequence/sequence-model.yaml
   - docs/reqstream/canvas-net-plant-uml/sequence/sequence-layout.yaml
   - docs/reqstream/canvas-net-plant-uml/sequence/sequence-renderer.yaml
+  - docs/reqstream/canvas-net-plant-uml/activity.yaml
+  - docs/reqstream/canvas-net-plant-uml/activity/activity-parser.yaml
+  - docs/reqstream/canvas-net-plant-uml/activity/activity-model.yaml
+  - docs/reqstream/canvas-net-plant-uml/activity/activity-layout.yaml
+  - docs/reqstream/canvas-net-plant-uml/activity/activity-renderer.yaml
   - docs/reqstream/canvas-net-viewer.yaml
   - docs/reqstream/canvas-net-viewer/canvas-net-viewer.yaml
   - docs/reqstream/canvas-net-viewer/platform-requirements.yaml

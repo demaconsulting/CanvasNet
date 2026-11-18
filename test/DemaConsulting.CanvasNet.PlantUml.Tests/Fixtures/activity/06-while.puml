@@ -1,0 +1,10 @@
+@startuml
+start
+:Open the queue;
+while (more jobs?) is (yes)
+  :Take a job;
+  :Run it;
+endwhile (no)
+:Close the queue;
+stop
+@enduml

@@ -14,8 +14,9 @@ This document describes the system-level verification strategy for CanvasNetPlan
   exceptions with their codes, locations, and hints, the sizes and sampled pixels of rendered surfaces, and the reports
   delivered to the handlers. The system test classes are `PlantUmlSystemIntegrationTests` (reading, metadata, errors,
   preprocessor, limits), `PlantUmlUnsupportedDiagramTests` (the types that are not drawn, strict mode),
-  `PlantUmlSequenceIntegrationTests` (sequence diagrams from text to pixels), and `PlantUmlReferenceLayoutTests` (the
-  layout of the original fixtures compared with the SVG goldens that PlantUML draws for them).
+  `PlantUmlSequenceIntegrationTests` (sequence diagrams from text to pixels), `PlantUmlActivityIntegrationTests`
+  (activity diagrams from text to pixels), and `PlantUmlReferenceLayoutTests` (the layout of the original fixtures
+  compared with the SVG goldens that PlantUML draws for them).
 - **Subsystem tests** exercise each internal subsystem through its own entry points (see the subsystem verification
   documents, for example *Syntax Subsystem Verification Design*).
 - **Unit tests** exercise each unit in isolation (see the unit verification documents).
@@ -55,6 +56,11 @@ temporary file, and asserts that all three are sequence diagrams.
 Parses a diagram with a statement no type accepts under a source name, and asserts the code `plantuml-syntax-error`,
 the location `bad.puml:3:1`, and a hint.
 
+**Tests**: `PlantUmlActivityIntegrationTests.CanvasNetPlantUml_Activity_SyntaxError_IsLocated`
+
+Parses an activity diagram whose if is not closed and asserts `plantuml-syntax-error` at the line and column of the if
+and a hint that names `endif`.
+
 ### CanvasNetPlantUml-DiagramTypes: Every Type Is Recognized
 
 **Tests**: `PlantUmlSystemIntegrationTests.CanvasNetPlantUml_OtherDiagramTypes_AreRecognized`
@@ -90,6 +96,21 @@ text, the boxes of the participant heads and tails, the life lines, and the mess
 that every fixture has a golden; renders every fixture in strict mode with no report at its measured size; and asserts
 the title, node, edge, and subgraph counts of the page fixture.
 
+### CanvasNetPlantUml-Activity: Activity Diagrams Are Drawn As PlantUML Draws Them
+
+**Tests**: `PlantUmlReferenceLayoutTests.CanvasNetPlantUml_Activity_ReferenceLayout_MatchesPlantUml`,
+`PlantUmlReferenceLayoutTests.CanvasNetPlantUml_Activity_ReferenceGoldens_CoverEveryFixture`,
+`PlantUmlActivityIntegrationTests.CanvasNetPlantUml_Activity_Fixtures_RenderWithoutReports`,
+`PlantUmlActivityIntegrationTests.CanvasNetPlantUml_Activity_Facts_CountNodesArrowsAndGroups`
+
+For every original activity fixture (actions of one or several lines, ifs with elseif and else, nested ifs, while and
+repeat loops with backward actions, forks, merges, splits, swimlanes, notes, partitions, arrows with labels and styles,
+kill and detach, connectors, page texts, and skin parameters), compares the layout with the SVG that PlantUML 1.2026.10
+draws for it (`Fixtures/reference/activity`): the picture size within 3 %, and the anchor of every line of text, the
+action boxes, the circles, and the diamonds and hexagons within 1.5 pixels; asserts that every fixture has a golden;
+renders every fixture in strict mode with no report at its measured size; and asserts the title, node, edge, and
+subgraph counts of the page and partition fixtures.
+
 ### CanvasNetPlantUml-Render: Measuring Reports What Rendering Reports
 
 **Tests**: `PlantUmlUnsupportedDiagramTests.CanvasNetPlantUml_UnsupportedType_MeasureReportsAsRender`
@@ -114,6 +135,11 @@ Renders a class diagram in strict mode and asserts the exception's feature and t
 Renders a sequence diagram with `newpage` and `ref over`, asserts their two reports at their lines and the drawn
 picture, and asserts that strict mode throws for the first of them.
 
+**Tests**: `PlantUmlActivityIntegrationTests.CanvasNetPlantUml_Activity_UnsupportedStatements_AreReported`
+
+Renders an activity diagram with a box-style action ending and a `goto`, asserts their two reports at their lines and
+the drawn picture, and asserts that strict mode throws for the first of them.
+
 ### CanvasNetPlantUml-DefaultLook: PlantUML's Colors, Identical Pixels
 
 **Tests**: `PlantUmlSequenceIntegrationTests.CanvasNetPlantUml_Sequence_DefaultSkin_PaintsPlantUmlColors`,
@@ -122,6 +148,13 @@ picture, and asserts that strict mode throws for the first of them.
 Renders a sequence diagram and asserts the white background, the grey-blue `#E2E2F0` inside a participant head, and the
 pale yellow `#FEFFDD` inside a note; renders the groups fixture twice and asserts identical pixels, and asserts that
 its `scale 2` doubles the measured size.
+
+**Tests**: `PlantUmlActivityIntegrationTests.CanvasNetPlantUml_Activity_DefaultSkin_PaintsPlantUmlColors`,
+`PlantUmlActivityIntegrationTests.CanvasNetPlantUml_Activity_Render_IsDeterministicAndScaled`
+
+Renders an activity diagram and asserts the white background, the light gray `#F1F1F1` inside an action box, and the
+dark `#222222` of the start node; renders the fork fixture twice and asserts identical pixels, and asserts that a
+`scale 2` doubles the measured size.
 
 ### CanvasNetPlantUml-Platform: Every Platform And Runtime
 
