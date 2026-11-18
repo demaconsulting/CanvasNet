@@ -36,6 +36,17 @@ public class SvgTextLayoutTests
     private static bool Inked(Surface surface, int x, int y) => surface[x, y].A > 128;
 
     /// <summary>
+    ///     Asserts that a pixel matches an expected color within 2 per channel, allowing for rounding.
+    /// </summary>
+    /// <param name="expected">The expected color.</param>
+    /// <param name="actual">The actual pixel.</param>
+    private static void AssertNear(Rgba32 expected, Rgba32 actual) =>
+        Assert.True(
+            Math.Abs(expected.R - actual.R) <= 2 && Math.Abs(expected.G - actual.G) <= 2 &&
+            Math.Abs(expected.B - actual.B) <= 2 && Math.Abs(expected.A - actual.A) <= 2,
+            $"expected about {expected}, got {actual}");
+
+    /// <summary>
     ///     Finds the first and last inked columns of a row.
     /// </summary>
     /// <param name="surface">The surface.</param>
@@ -425,6 +436,28 @@ public class SvgTextLayoutTests
         Assert.Equal(new Rgba32(0, 0, 0, 255), surface[15, 45]);
         Assert.Equal(new Rgba32(255, 0, 0, 255), surface[35, 65]);
         Assert.False(Inked(surface, 35, 45));
+    }
+
+    /// <summary>
+    ///     Test that the opacity of a text applies once to all its runs, so a run that overlaps another covers it, as in
+    ///     browsers, instead of both showing through.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_TextOpacityWithOverlappingTspans_AppliesOnceToTheWholeText()
+    {
+        // Arrange: blue A at 10..19, a red tspan A moved back 15 px to 15..24, the text at half opacity, on white
+        var svg = Doc(
+            "<rect width='200' height='100' fill='#ffffff'/>" +
+            "<text x='10' y='50' opacity='0.5' fill='#0000ff'>A<tspan dx='-15' fill='#ff0000'>A</tspan></text>");
+
+        // Act
+        using var surface = Render(svg, 200, 100);
+
+        // Assert: red covers blue where they overlap (group opacity: ~(255,128,128), not ~(191,64,128));
+        // each run alone is half opaque
+        AssertNear(new Rgba32(255, 128, 128, 255), surface[17, 45]);
+        AssertNear(new Rgba32(128, 128, 255, 255), surface[12, 45]);
+        AssertNear(new Rgba32(255, 128, 128, 255), surface[22, 45]);
     }
 
     /// <summary>

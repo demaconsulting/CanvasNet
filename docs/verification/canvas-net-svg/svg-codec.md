@@ -587,7 +587,7 @@ plain middle-anchored text with a `dx` keeps the single-run layout (40 px of adv
 `SvgCodec_Load_TspanFontStyleItalic_UsesTheItalicFace`, `SvgCodec_Load_TspanClassAndStyle_AreStyledByTheCascade`,
 `SvgCodec_Load_NestedTspans_InheritAndOverride`, `SvgCodec_Load_TspanGradientFill_UsesTheTextBoundingBox`,
 `SvgCodec_Load_FilteredTextWithTspans_KeepsEachRunsPaint`, `SvgCodec_Load_ClipPathTextWithTspans_ClipsToEveryRun`,
-`SvgCodec_Load_TextTitleAndDesc_AreNotDrawn`
+`SvgCodec_Load_TextOpacityWithOverlappingTspans_AppliesOnceToTheWholeText`, `SvgCodec_Load_TextTitleAndDesc_AreNotDrawn`
 
 Asserts, with exact ink columns of the square synthetic font, that a `tspan` paints its glyph in its own `fill` while
 the text after it keeps the text's color; that a 40 px `tspan` draws a 20 px square and advances the pen by 40; that
@@ -595,7 +595,9 @@ the text after it keeps the text's color; that a 40 px `tspan` draws a 20 px squ
 `text tspan.b` descendant rule and an inline `style` each color their `tspan`; that a nested `tspan` inherits its
 parent's size and overrides its color; that a gradient on a `tspan` uses the bounding box of the whole text (its first
 glyph is in the blue half); that a filtered text keeps each run's color and `dy` position; that a `clipPath` text with a
-shifted 40 px `tspan` clips to both runs where they draw; and that `title` and `desc` inside a text draw nothing.
+shifted 40 px `tspan` clips to both runs where they draw; that a text at half opacity with a `tspan` moved back over its
+first glyph shows the red run over the blue one where they overlap and each run at half opacity elsewhere; and that
+`title` and `desc` inside a text draw nothing.
 
 #### CanvasNetSvg-SvgCodec-TextPositioning: Position Lists, Chunks, and Baseline Shift
 

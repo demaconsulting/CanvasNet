@@ -473,8 +473,10 @@ sections:
               The SvgCodec class shall draw the characters of each tspan and a element inside a
               text element with that element's own cascaded style - its presentation attributes,
               style attribute, and matching stylesheet rules (fill, stroke, opacity, font-family,
-              font-size, font-weight, font-style, text-anchor), inherited by nested elements - and
-              shall not draw the text of title, desc, or metadata elements inside a text element.
+              font-size, font-weight, font-style, text-anchor), inherited by nested elements, shall apply
+              the text element's own opacity to all of its runs together, so a run that overlaps another
+              covers it, and shall not draw the text of title, desc, or metadata elements inside a text
+              element.
             justification: |
               Labels routinely color, embolden, or resize a word with a tspan (charts, diagrams,
               and design tools emit them); drawing the whole text in the parent style loses that
@@ -489,6 +491,7 @@ sections:
               - SvgCodec_Load_TspanGradientFill_UsesTheTextBoundingBox
               - SvgCodec_Load_FilteredTextWithTspans_KeepsEachRunsPaint
               - SvgCodec_Load_ClipPathTextWithTspans_ClipsToEveryRun
+              - SvgCodec_Load_TextOpacityWithOverlappingTspans_AppliesOnceToTheWholeText
               - SvgCodec_Load_TextTitleAndDesc_AreNotDrawn
 
           - id: CanvasNetSvg-SvgCodec-TextPositioning

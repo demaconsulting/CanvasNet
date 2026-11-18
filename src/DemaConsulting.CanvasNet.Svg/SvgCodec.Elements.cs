@@ -45,7 +45,11 @@ public static partial class SvgCodec
     ///     as a documented simplification, <see cref="Opacity"/> is instead cascaded by multiplication
     ///     down the tree and folded directly into each descendant shape's fill/stroke alpha -
     ///     visually reasonable for the common case (non-overlapping children) but not equivalent to
-    ///     true isolated-group compositing when a group's children overlap each other.
+    ///     true isolated-group compositing when a group's children overlap each other. The one
+    ///     exception is a <c>text</c> of several runs with an opacity below 1, whose runs are
+    ///     painted into one offscreen layer and composited with that opacity once (see
+    ///     <see cref="NeedsTextRunsLayer"/>); a <c>tspan</c>'s own opacity, and the fill
+    ///     and stroke of one shape, still fold the opacity into each paint.
     /// </remarks>
     /// <param name="Fill">The raw <c>fill</c> paint specification (color keyword/hex/rgb()/none/url(#id)).</param>
     /// <param name="Stroke">The raw <c>stroke</c> paint specification, in the same forms as <paramref name="Fill"/>.</param>

@@ -203,8 +203,9 @@ Text is laid out as browsers lay it out (checked against Microsoft Edge):
 
 - **`tspan` and `a` runs.** A `tspan` or `a` inside a `text` draws its characters in its own style: its
   presentation attributes, `style` attribute, and stylesheet rules (classes, `text tspan` selectors) for `fill`,
-  `stroke`, `opacity`, `font-family`, `font-size`, `font-weight`, and `font-style`, inherited by nested elements. A
-  gradient on a `tspan` spans the whole text. `title`, `desc`, and `metadata` inside a text are not drawn.
+  `stroke`, `opacity`, `font-family`, `font-size`, `font-weight`, and `font-style`, inherited by nested elements. The
+  `opacity` of the `text` applies to all its runs together, so a run drawn over another covers it. A gradient on a
+  `tspan` spans the whole text. `title`, `desc`, and `metadata` inside a text are not drawn.
 - **Positions.** `x`, `y`, `dx`, and `dy` on a `text` or `tspan` are lists with one entry per character
   (`x="10 30 50"`); a nested element's entries win over its parent's. An absolute `x` or `y` starts a new text chunk
   (a new line of a multi-line label), and a `dy` moves the text that follows too (`dy="0.71em"`, as Vega writes it).

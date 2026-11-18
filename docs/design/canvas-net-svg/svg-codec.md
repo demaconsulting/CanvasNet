@@ -1803,16 +1803,20 @@ text layout, simplified to horizontal text, and was cross-checked against Micros
    plus descent (Edge's rule, measured with Arial and Courier New); any other value is reported.
 
 `RenderText` lays the text out from its state with an opacity of 1, so a run's state holds only the
-opacity of its nested elements, multiplied by the text's opacity when painted. A text that lays out
-as one run of the `text` element itself takes exactly the old `RenderShapeWithEffects` call. Other
-texts pass their runs to `RenderShapeWithEffects` and `RenderShapeEffectsPipeline` (an optional
-`runs` argument): the union of the runs is the shape for regions and effects, each run is painted
-with its own state, and `RenderShape`'s optional `boxPath` makes the whole text the object bounding
-box of a gradient or pattern on a `tspan`, as Blink does. `ComputeTextBounds` unions the runs, each
-expanded by its own stroke; `BuildClipChildTextPath` returns the union of the runs. The layout is
-linear in the characters and elements of the text: each character is visited a fixed number of
-times, and each run is measured and outlined once. The geometry work budget is charged with the
-character count before the layout, as before.
+opacity of its nested elements. A text of one run folds the text's opacity into its paint like any
+shape; a text of several runs with an opacity below 1 goes through `RenderShapeEffectsPipeline` even
+with no effect, which paints the runs opaque into one offscreen layer (charged `1 * area` to the
+filter work budget) and applies the opacity once, so overlapping runs do not show through each
+other, as in browsers. The opacity of a `tspan` itself is still folded into each of its runs. A text
+that lays out as one run of the `text` element itself takes exactly the old `RenderShapeWithEffects`
+call. Other texts pass their runs to `RenderShapeWithEffects` and `RenderShapeEffectsPipeline` (an
+optional `runs` argument): the union of the runs is the shape for regions and effects, each run is
+painted with its own state, and `RenderShape`'s optional `boxPath` makes the whole text the object
+bounding box of a gradient or pattern on a `tspan`, as Blink does. `ComputeTextBounds` unions the
+runs, each expanded by its own stroke; `BuildClipChildTextPath` returns the union of the runs. The
+layout is linear in the characters and elements of the text: each character is visited a fixed
+number of times, and each run is measured and outlined once. The geometry work budget is charged
+with the character count before the layout, as before.
 
 **Non-positive `font-size` renders nothing.** The cascaded `font-size` is only validated as finite
 and within the coordinate magnitude bound at parse time, so zero or a negative value reaches the

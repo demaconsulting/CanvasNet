@@ -109,7 +109,7 @@ public static partial class SvgCodec
         IReadOnlyList<TextRun>? runs = null)
     {
         var effects = ResolveEffectsSet(element, context, suppressEffects: scope.MarkerDepth > 0);
-        if (effects.Filter == null && effects.ClipPath == null && effects.Mask == null)
+        if (effects.Filter == null && effects.ClipPath == null && effects.Mask == null && !NeedsTextRunsLayer(runs, state))
         {
             RenderShapeOrRuns(localPath, runs, state, transform, context, scope, ref totalElements);
             return;
@@ -119,13 +119,28 @@ public static partial class SvgCodec
     }
 
     /// <summary>
+    ///     Determines whether the runs of a text need one offscreen layer so the text's opacity applies to them
+    ///     together, as in browsers, rather than to each run (overlapping runs would show through each other).
+    /// </summary>
+    /// <param name="runs">The runs of a text, or <see langword="null"/> for a shape or a text of one plain run.</param>
+    /// <param name="state">The cascaded render state of the text.</param>
+    /// <returns>
+    ///     <see langword="true"/> when there is more than one run and the opacity is between 0 and 1 (exclusive).
+    /// </returns>
+    private static bool NeedsTextRunsLayer(IReadOnlyList<TextRun>? runs, RenderState state) =>
+        runs is { Count: > 1 } && state.Opacity is > 0f and < 1f;
+
+    /// <summary>
     ///     Paints a shape's outline, or the styled runs of a text, through <see cref="RenderShape"/>.
     /// </summary>
     /// <param name="localPath">The shape's outline, or the union of the runs.</param>
     /// <param name="runs">The runs of a text, or <see langword="null"/> to paint <paramref name="localPath"/> with <paramref name="state"/>.</param>
     /// <param name="state">
-    ///     The state to paint with. For runs, its opacity multiplies each run's own (relative) opacity, so the
-    ///     effects pipeline's opaque state paints each run with only its <c>tspan</c> opacity.
+    ///     The state to paint with. For runs, its opacity multiplies each run's own (relative) opacity. The text's
+    ///     opacity is folded into its runs this way only when no offscreen layer is used (a text of one run, or a
+    ///     fallback); a text of several runs with an opacity below 1 is painted here with the effects pipeline's
+    ///     opaque state, so each run gets only its <c>tspan</c> opacity and the text's opacity applies once to the
+    ///     layer (see <see cref="NeedsTextRunsLayer"/>).
     /// </param>
     /// <param name="transform">The accumulated transform from local space into pixel space.</param>
     /// <param name="context">The fixed per-document render context.</param>
@@ -287,6 +302,12 @@ public static partial class SvgCodec
     ///     <see cref="CompositeFilterResultOntoCanvas"/>'s coverage argument - unchanged from
     ///     pre-Phase-2 behavior.
     ///     </para>
+    ///     <para>
+    ///     A text of several runs with an opacity between 0 and 1 (see <see cref="NeedsTextRunsLayer"/>) also comes
+    ///     through this pipeline when no effect applies: its region is then the plain painted bounds of the runs, it is
+    ///     charged <c>1 * area</c> like a <c>clip-path</c>-only application, and the runs are painted opaque into the
+    ///     one layer and composited with the text's opacity once, so overlapping runs do not show through each other.
+    ///     </para>
     /// </remarks>
     private static void RenderShapeEffectsPipeline(
         EffectsSet effects,
@@ -319,10 +340,11 @@ public static partial class SvgCodec
         var filterApplies = filterElement != null && primitiveCount != 0 &&
             IsFilterPrimitiveWorkWithinBudget(primitiveCount, pixelWidth, pixelHeight);
 
-        // Nothing will actually apply (no clip, no mask, and the filter did not survive its own
-        // guard) - this is exactly the pre-Phase-2 "filter absent/rejected" fast path, with zero
-        // side effects, preserving that regression byte-for-byte
-        if (!filterApplies && clipPathElement == null && maskElement == null)
+        // Nothing will actually apply (no clip, no mask, the filter did not survive its own
+        // guard, and the content is not a text whose runs need one opacity layer) - this is
+        // exactly the pre-Phase-2 "filter absent/rejected" fast path, with zero side effects,
+        // preserving that regression byte-for-byte
+        if (!filterApplies && clipPathElement == null && maskElement == null && !NeedsTextRunsLayer(runs, state))
         {
             RenderShapeOrRuns(localPath, runs, state, transform, context, scope, ref totalElements);
             return;

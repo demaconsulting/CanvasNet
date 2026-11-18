@@ -41,9 +41,12 @@ public static partial class SvgCodec
     ///     resolved (see <see cref="ResolveFont"/>): a caller-registered font first, then
     ///     installed/generic/bundled defaults, so text is never dropped for want of a registered
     ///     font. Each <c>tspan</c>/<c>a</c> run is painted with its own cascaded state, and a paint
-    ///     server or effect uses the bounding box of the whole text. A text that lays out as one
-    ///     run of the <c>text</c> element itself takes exactly the call it always took, so plain
-    ///     text renders as before. <c>rotate</c>, <c>textLength</c>, spacing, vertical writing
+    ///     server or effect uses the bounding box of the whole text. The text's opacity applies to
+    ///     its runs together: a text of several runs with an opacity below 1 is painted into one
+    ///     offscreen layer (see <see cref="NeedsTextRunsLayer"/>), so a run drawn over another
+    ///     covers it, as in browsers. A text that lays out as one run of the <c>text</c> element
+    ///     itself takes exactly the call it always took, so plain text renders as before.
+    ///     <c>rotate</c>, <c>textLength</c>, spacing, vertical writing
     ///     and the other features the layout ignores are reported (see <see cref="SvgUnsupportedFeature"/>),
     ///     as is text whose coordinates are beyond the supported range (the shape renderer skips it).
     /// </remarks>
