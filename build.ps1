@@ -15,7 +15,8 @@
 #   ProjectReference graph, and files linked into another project (Compile/None/EmbeddedResource items
 #   that point outside the project folder) select that project too. Changes that affect the whole
 #   build (solution, project, props/targets, global.json, .editorconfig, nuget.config, tool manifest,
-#   this script) fall back to the full build; changes the build does not read select nothing.
+#   this script) fall back to the full build; repository files tests read at run time select their test
+#   projects through $RuntimeReads; other changes the build does not read select nothing.
 #
 # EXTENSION POINTS:
 #   Search for "[PROJECT-SPECIFIC]" comments to find the designated locations
@@ -152,6 +153,14 @@ function Test-BuildWideFile {
         ($File -in @('.config/dotnet-tools.json', 'build.ps1'))
 }
 
+# [PROJECT-SPECIFIC] Repository files that tests read at run time (through the repository root, not through a
+# project item), and the test projects that read them. Keep in step with the tests.
+$RuntimeReads = [ordered]@{
+    '^docs/user_guide/canvas-net-(tool|mermaid)\.md$' = 'DemaConsulting.CanvasNet.Tool.Tests'
+    '^docs/filters/canvasnet\.lua$'                   = 'DemaConsulting.CanvasNet.Tool.Tests'
+    '^docs/user_guide/canvas-net-viewer\.md$'         = 'DemaConsulting.CanvasNet.Viewer.Tests'
+}
+
 function Resolve-ProjectName {
     param($Graph, [string]$Name)
 
@@ -195,6 +204,9 @@ if ($Affected -or $Project) {
             Write-Host "Changed files: $($changed.Count)"
             foreach ($file in $changed) {
                 if (Test-BuildWideFile $file) { $fullReason = "$file affects the whole build"; break }
+                foreach ($pattern in $RuntimeReads.Keys) {
+                    if ($file -match $pattern -and $graph.Contains($RuntimeReads[$pattern])) { [void]$selected.Add($RuntimeReads[$pattern]) }
+                }
                 foreach ($entry in $graph.Values) {
                     $owned = $file.StartsWith("$($entry.Directory)/", [System.StringComparison]::OrdinalIgnoreCase)
                     $linked = @($entry.Links | Where-Object { $file -match $_ }).Count -gt 0

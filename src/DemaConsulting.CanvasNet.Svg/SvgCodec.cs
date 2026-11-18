@@ -116,7 +116,7 @@ namespace DemaConsulting.CanvasNet.Svg;
 ///     well-formed-but-unsupported
 ///     constructs: encountering one never aborts the document, it is simply skipped, and every
 ///     other element continues to render normally. Text that is skipped this way, and text features
-///     the layout ignores (<c>textPath</c>, <c>rotate</c>, <c>textLength</c>, spacing, vertical
+///     the layout ignores (<c>textPath</c>, <c>rotate</c>, <c>textLength</c>, vertical
 ///     writing), are reported through <see cref="SvgLoadOptions.UnsupportedFeatureHandler"/> when the
 ///     caller sets one. Within the supported <c>marker</c> feature itself,
 ///     <c>markerContentUnits</c> (a rarely-used SVG 2 attribute) is not read, and a marker's

@@ -214,8 +214,11 @@ pwsh ./lint.ps1 -Changed     # run only the checks whose inputs changed
   (directly or transitively, from the `ProjectReference` graph) and every project that links the file in
   (`Compile`/`None`/`EmbeddedResource` items pointing outside the project folder), then builds and tests the
   selected test projects. A change to the solution, a project file, `*.props`/`*.targets`, `global.json`,
-  `.editorconfig`, `nuget.config`, `.config/dotnet-tools.json`, or `build.ps1` falls back to the full build;
-  a change the build does not read (documentation, images) builds nothing.
+  `.editorconfig`, `nuget.config`, `.config/dotnet-tools.json`, or `build.ps1` falls back to the full build.
+  Repository files that tests read at run time (the user guides the help-card parity tests compare, and the
+  checked-in Pandoc shim) select those test projects through the `$RuntimeReads` map in `build.ps1`; keep it in
+  step when a test starts reading another repository file. Any other change the build does not read
+  (documentation, images) builds nothing.
 - `build.ps1 -Project Svg,Mermaid` selects explicit projects by full or short name (`Core` for the core
   library, `Svg.Tests` for a test project) with the same rule.
 - `lint.ps1 -Changed` runs `dotnet format` only for changed C# files (the whole solution when a project or
