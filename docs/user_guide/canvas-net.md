@@ -2555,8 +2555,8 @@ parsed: `Fragment.Problem` says why, and the resolver reports `image-fragment-in
 
 A source that uses parameters implements `IFragmentImageSource` and declares their lower-case names; the built-in ones
 declare `["page"]` (`PdfImageSource`, `VsdxImageSource`), `["page", "slide"]` (`PptxImageSource`, the last of the two
-wins), and none for the others (the viewer's SCAD source adds `view`, `azimuth`, and `elevation`). With no parameter
-**page 1 is drawn**.
+wins), `["theme"]` (`MermaidImageSource`), and none for the others (the viewer's SCAD source adds `view`, `azimuth`,
+`elevation`, and `projection`). With no parameter **page 1 is drawn**.
 
 A source whose parameters are named by the author of the link (the variables of a model, the parameters of a chart)
 cannot list the names, so it declares a **prefix** in `FragmentParameterPrefixes` instead (a default interface member: a

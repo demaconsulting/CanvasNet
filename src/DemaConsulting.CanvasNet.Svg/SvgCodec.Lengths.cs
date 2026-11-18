@@ -682,7 +682,6 @@ public static partial class SvgCodec
         return true;
     }
 
-
     /// <summary>
     ///     A bounded recursive-descent evaluator for CSS <c>calc()</c>, <c>min()</c>, <c>max()</c>
     ///     and <c>clamp()</c> (CSS Values 4, "Mathematical Expressions"), evaluating eagerly to user

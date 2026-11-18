@@ -924,15 +924,14 @@ catch (ViewerException ex)
 link of an SVG image after the file name, and so does the library: `InputReference.Parse(text)` splits the text (a `#`
 starts a fragment only when no file has the name as written; the longest existing file before a `#` is the path), and
 `SourceLoader.Probe(InputReference)` reads the fragment with the built-in image source of the kind of the file, so the
-parameters and the values are those of a link (`page` and `slide`, `view`, `azimuth`, `elevation`, `def.<name>` with a
-number, `true`, `false`, text, or a vector as a JSON array, and `param.<name>`). The facts it returns carry the result
-in `SourceInfo.Selection` (an `InputSelection`) and `SourceInfo.Specifier` (the path, `#`, and the fragment);
-`ImageRenderer`, `ImageInspector`, `ImageComparer`, `MontageBuilder`, and `SourceLoader.Load` apply it over their
-options, the fragment winning (its page replaces the page, its view, angles, and projection the view, angles, and
-projection, and its variables
-and parameters are merged by name). A value that cannot be used is a `ViewerException` with
-`ErrorCodes.ImageFragmentInvalid`, a page the file does not have is `ErrorCodes.PageOutOfRange`, and a parameter that is
-unknown or repeated is a warning among the diagnostics of the first page that is loaded
+parameters and the values are those of a link (`page` and `slide`, `view`, `azimuth`, `elevation`, `projection`,
+`theme`, `def.<name>` with a number, `true`, `false`, text, or a vector as a JSON array, and `param.<name>`). The facts
+it returns carry the result in `SourceInfo.Selection` (an `InputSelection`) and `SourceInfo.Specifier` (the path, `#`,
+and the fragment); `ImageRenderer`, `ImageInspector`, `ImageComparer`, `MontageBuilder`, and `SourceLoader.Load` apply
+it over their options, the fragment winning (its page replaces the page, its view, angles, and projection the view,
+angles, and projection, and its variables and parameters are merged by name). A value that cannot be used is a
+`ViewerException` with `ErrorCodes.ImageFragmentInvalid`, a page the file does not have is `ErrorCodes.PageOutOfRange`,
+and a parameter that is unknown or repeated is a warning among the diagnostics of the first page that is loaded
 (`image-fragment-unknown-parameter`, `image-fragment-duplicate-parameter`, `vl-param-unknown`; never an error). To draw
 several versions of a model at one scale, fix the camera with `$vpd` (and `$vpt` to center it), as a variable of the
 command or of each fragment:

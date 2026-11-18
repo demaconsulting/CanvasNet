@@ -1747,8 +1747,9 @@ This list is also the *Reference* section of `canvasnet help svg flatten`; a tes
   64 pictures, nested ones included, 4 levels, and the pixel budget). The copy is at most 64 MiB (`size-limit`), and the
   drawing must be UTF-8 (`unsupported-feature` for another declared encoding unless the file is plain ASCII).
 - **`--strict`**: A link that is not drawn (`svg-image-unresolved`, `svg-image-too-large`, `image-fragment-invalid`, or
-  `image-page-out-of-range`) is an `unsupported-feature` error, as for render; a link the file-access mode denies
-  (`image-access-denied`) is the error `file-access-denied`; a position binding that fails is the error
+  `image-page-out-of-range`) is an `unsupported-feature` error, as for render, and so is text that a linked SVG file
+  does not draw or draws without a feature (`svg-text-not-drawn`, `svg-text-unsupported`); a link the file-access mode
+  denies (`image-access-denied`) is the error `file-access-denied`; a position binding that fails is the error
   `svg-binding-failed`; `svg-flatten-image-not-drawn` stays a warning.
 
 ### pandoc-filter
