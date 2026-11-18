@@ -64,7 +64,7 @@
   <style>
     .pTitle { font: bold 30px sans-serif; fill: #ffffff; }
     .pSub { font: 16px sans-serif; fill: #a5b4fc; }
-    .pPill { font: bold 15px sans-serif; fill: #052e1f; }
+    .pPill { font: bold 15px sans-serif; fill: #052e1f; letter-spacing: 1px; }
     .pLabel { font: bold 18px sans-serif; fill: #ffffff; }
     .pCode { font: 15px monospace; fill: #94a3b8; }
     .pNote { stroke: #f8fafc; stroke-width: 3; marker-end: url(#tipNote); }
@@ -76,7 +76,7 @@
     .frag { font: bold 23px monospace; fill: #34d399; }
     .num { font: bold 20px sans-serif; fill: #0b1026; }
     .tag { font: bold 21px monospace; }
-    .eyebrow { font: bold 22px sans-serif; fill: #e0e7ff; }
+    .eyebrow { font: bold 22px sans-serif; fill: #e0e7ff; letter-spacing: 3px; }
     .note { font: italic 20px sans-serif; fill: #a5b4fc; }
     .pill { font: bold 20px monospace; fill: #052e1f; }
   </style>
