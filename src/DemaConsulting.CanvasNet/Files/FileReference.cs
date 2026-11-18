@@ -43,8 +43,9 @@ public sealed class FileReference
 
     /// <summary>
     ///     Gets the real path of the file as reported for the open handle (links, junctions and short names resolved),
-    ///     or <see langword="null"/> in resolver-callback mode and where the platform cannot tell. It may reveal the
-    ///     host's directories.
+    ///     or <see langword="null"/> in resolver-callback mode and where the platform cannot tell. Under a policy that
+    ///     needs the real path it is in the letter case stored on disk, confirmed to name the opened file. It may reveal
+    ///     the host's directories.
     /// </summary>
     public string? RealPath { get; }
 

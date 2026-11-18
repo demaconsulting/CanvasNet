@@ -389,4 +389,64 @@ public class RenderCommandFileAccessTests
         using var image = PngCodec.Load(output);
         Assert.Equal(Red, image[20, 20]);
     }
+
+    /// <summary>
+    ///     Test that the folder of an input that differs from the working directory only in letter case is a default
+    ///     folder of its own: the folders are compared exactly, as the policy compares real paths, so on a folder that
+    ///     compares letter case that input keeps its own folder.
+    /// </summary>
+    [Fact]
+    public void RenderCommand_DefaultRoots_InputFolderDifferingOnlyInLetterCase_IsItsOwnFolder()
+    {
+        // Arrange: the comparison is lexical, so the folders need not exist
+        using var directory = new TempDirectory();
+        var work = directory.Combine("work");
+        var variant = directory.Combine("WORK");
+
+        // Act
+        var roots = RenderCommand.DefaultRoots([Path.Combine(variant, "a.svg")], work);
+
+        // Assert
+        Assert.Equal([work, variant], roots);
+    }
+
+    /// <summary>
+    ///     Test on a folder that ignores letter case that <c>--allow-root</c> written in another letter case still lets
+    ///     a picture inside the folder be drawn, with <c>--strict</c>. Skips where the temporary folder compares letter
+    ///     case.
+    /// </summary>
+    [Fact]
+    public void RenderCommand_Run_AllowRootInAnotherLetterCase_DrawsThePictureInside()
+    {
+        // Arrange: a diagram in site that links a green picture next to it
+        using var directory = new TempDirectory();
+        if (!FixtureFactory.IsCaseInsensitive(directory.Path))
+        {
+            Assert.Skip("This scenario needs a temporary folder that ignores letter case.");
+        }
+
+        using (var surface = new Surface(4, 4))
+        {
+            surface.Clear(new Rgba32(0, 255, 0, 255));
+            Directory.CreateDirectory(directory.Combine("site"));
+            PngCodec.Save(surface, directory.Combine("site", "picture.png"));
+        }
+
+        var input = FixtureFactory.WriteText(
+            directory.Combine("site"),
+            "diagram.svg",
+            "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 80' width='120' height='80'>"
+            + "<rect width='120' height='80' fill='#ff0000'/>"
+            + "<image href='picture.png' x='10' y='10' width='20' height='20'/></svg>");
+        var output = directory.Combine("out.png");
+        var root = directory.Combine("site").ToUpperInvariant();
+
+        // Act
+        var (exitCode, stdOut, _) = ToolHost.Invoke("render", input, "--allow-root", root, "--strict", "-o", output, "--json");
+
+        // Assert
+        Assert.True(exitCode == 0, stdOut);
+        using var image = PngCodec.Load(output);
+        Assert.Equal(new Rgba32(0, 255, 0, 255), image[20, 20]);
+    }
 }

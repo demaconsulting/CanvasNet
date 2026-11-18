@@ -309,6 +309,34 @@ public class SourceLoaderSvgImageTests
     }
 
     /// <summary>
+    ///     Test on a folder that ignores letter case that a picture inside a root written in another letter case is
+    ///     drawn, even in strict mode: the real path of the picture is compared exactly with the real location of the
+    ///     root, both in the letter case stored on disk. Skips where the temporary folder compares letter case.
+    /// </summary>
+    [Fact]
+    public void SourceLoader_Load_SvgEmbeddingUnderRootsWrittenInAnotherLetterCase_IsDrawn()
+    {
+        // Arrange: a picture next to the SVG file in site; the root names site in upper case
+        using var directory = new TempDirectory();
+        if (!FixtureFactory.IsCaseInsensitive(directory.Path))
+        {
+            Assert.Skip("This scenario needs a temporary folder that ignores letter case.");
+        }
+
+        Directory.CreateDirectory(directory.Combine("site"));
+        WriteSolidPng(directory.Combine("site", "logo.png"), Green);
+        var path = WriteSvg(directory.Combine("site"), "diagram.svg", "<image href='logo.png' x='10' y='10' width='20' height='20'/>");
+        var policy = FileAccessPolicy.UnderRoots(directory.Combine("site").ToUpperInvariant());
+
+        // Act
+        using var loaded = SourceLoader.Load(path, new SourceOptions { FileAccess = policy, Strict = true });
+
+        // Assert
+        Assert.Equal(Green, loaded.Surface[20, 20]);
+        Assert.Empty(loaded.Diagnostics);
+    }
+
+    /// <summary>
     ///     Test that, under the default policy, a reference to the parent folder of the SVG file is drawn.
     /// </summary>
     [Fact]

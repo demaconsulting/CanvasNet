@@ -20,6 +20,12 @@ internal static class FileTestSupport
     /// <summary>The reason given when a permission test runs where permissions are not enforced (as root).</summary>
     public const string PermissionsNotEnforced = "Folder permissions are not enforced for this user (running as root).";
 
+    /// <summary>The reason given when a test needs a folder that ignores letter case (Windows and macOS defaults).</summary>
+    public const string CaseInsensitiveOnly = "This scenario needs a temporary folder that ignores letter case.";
+
+    /// <summary>The reason given when a test needs a folder that compares letter case (the Linux default).</summary>
+    public const string CaseSensitiveOnly = "This scenario needs a temporary folder that compares letter case.";
+
     /// <summary>
     ///     Makes a folder execute-only for its owner (mode 0100: it may be searched but not listed) on Linux and macOS.
     /// </summary>
@@ -182,15 +188,59 @@ internal static class FileTestSupport
         File.OpenHandle("NUL", FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
 
     /// <summary>
-    ///     Gets the real location of a directory, as the policies compare it.
+    ///     Gets the real location of a directory in its on-disk letter case, as the policies compare it.
     /// </summary>
     /// <param name="path">The full path.</param>
     /// <returns>The real location.</returns>
     public static string Canonical(string path)
     {
-        var canonical = RealPath.TryGetCanonicalDirectory(Path.GetFullPath(path));
+        var canonical = RealPath.TryGetExactCanonicalDirectory(Path.GetFullPath(path));
         Assert.NotNull(canonical);
         return canonical;
+    }
+
+    /// <summary>
+    ///     Determines whether names in a folder are compared ignoring letter case (the default on Windows and macOS), by
+    ///     creating a probe file and looking for it in upper case. Nothing about the file system is changed.
+    /// </summary>
+    /// <param name="folder">The full path of an existing, writable folder.</param>
+    /// <returns><see langword="true"/> when the folder ignores letter case.</returns>
+    public static bool IsCaseInsensitive(string folder)
+    {
+        var probe = Path.Combine(folder, "case-probe");
+        File.WriteAllText(probe, "probe");
+        try
+        {
+            return File.Exists(Path.Combine(folder, "CASE-PROBE"));
+        }
+        finally
+        {
+            File.Delete(probe);
+        }
+    }
+
+    /// <summary>
+    ///     Skips the test unless names in a folder are compared ignoring letter case.
+    /// </summary>
+    /// <param name="folder">The full path of an existing, writable folder.</param>
+    public static void RequireCaseInsensitive(string folder)
+    {
+        if (!IsCaseInsensitive(folder))
+        {
+            Assert.Skip(CaseInsensitiveOnly);
+        }
+    }
+
+    /// <summary>
+    ///     Skips the test unless names in a folder are compared exactly (letter case included).
+    /// </summary>
+    /// <param name="folder">The full path of an existing, writable folder.</param>
+    public static void RequireCaseSensitive(string folder)
+    {
+        if (IsCaseInsensitive(folder))
+        {
+            Assert.Skip(CaseSensitiveOnly);
+        }
     }
 }
 

@@ -426,4 +426,324 @@ public class RealPathTests
         Assert.Equal(reserved, single);
         Assert.Equal(reserved, inPath);
     }
+
+    /// <summary>
+    ///     Validates that real paths are compared letter for letter on every platform (pure text): a folder that differs
+    ///     from the root only in letter case is outside it, while the root itself, a path below it and trailing
+    ///     separators behave as before, and a sibling that shares the root's name as a prefix is outside. The written-path
+    ///     test keeps the platform rule.
+    /// </summary>
+    [Fact]
+    public void RealPath_IsUnder_ComparesLetterCaseExactly()
+    {
+        // Arrange: a root and its letter-case variant spelled for this platform
+        var windows = OperatingSystem.IsWindows();
+        var separator = Path.DirectorySeparatorChar;
+        var root = windows ? @"C:\work\allowed" : "/work/allowed";
+        var variant = windows ? @"C:\work\ALLOWED" : "/work/ALLOWED";
+        var platformIgnoresCase = windows || OperatingSystem.IsMacOS();
+
+        // Act
+        var variantInside = RealPath.IsUnder(variant + separator + "x", root);
+        var inside = RealPath.IsUnder(root + separator + "x", root);
+        var itself = RealPath.IsUnder(root, root);
+        var rootWithSeparator = RealPath.IsUnder(root + separator + "x", root + separator);
+        var pathWithSeparator = RealPath.IsUnder(root + separator, root);
+        var sibling = RealPath.IsUnder(root + "2" + separator + "x", root);
+        var equal = RealPath.PathsEqual(variant, root);
+        var writtenVariantInside = RealPath.IsUnderAsWritten(variant + separator + "x", root);
+
+        // Assert
+        Assert.False(variantInside);
+        Assert.True(inside);
+        Assert.True(itself);
+        Assert.True(rootWithSeparator);
+        Assert.True(pathWithSeparator);
+        Assert.False(sibling);
+        Assert.False(equal);
+        Assert.Equal(platformIgnoresCase, writtenVariantInside);
+    }
+
+    /// <summary>
+    ///     Validates that the deepest shared folder is found by components compared letter for letter (pure text), so a
+    ///     folder that differs only in letter case is not shared, while on Windows a drive letter in either case is the
+    ///     same root.
+    /// </summary>
+    [Fact]
+    public void RealPath_CommonAncestor_ComparesComponentsExactly()
+    {
+        // Arrange
+        var windows = OperatingSystem.IsWindows();
+        var separator = Path.DirectorySeparatorChar;
+        var parent = windows ? @"C:\work" : "/work";
+
+        // Act
+        var shared = RealPath.CommonAncestor(parent + separator + "ALLOWED" + separator + "x", parent + separator + "allowed");
+        var same = RealPath.CommonAncestor(parent + separator + "allowed" + separator + "x", parent + separator + "allowed");
+
+        // Assert
+        Assert.Equal(parent, shared);
+        Assert.Equal(parent + separator + "allowed", same);
+        if (windows)
+        {
+            Assert.Equal(@"c:\work\allowed", RealPath.CommonAncestor(@"c:\work\allowed\x", @"C:\work\allowed"));
+        }
+    }
+
+    /// <summary>
+    ///     Validates that a folder and a file written in another letter case are given in the case stored on disk (the
+    ///     single entry that matches ignoring case), on every platform.
+    /// </summary>
+    [Fact]
+    public void RealPath_GetExactPathName_FolderAndFileInAnotherCase_GiveTheStoredCase()
+    {
+        // Arrange
+        using var directory = new SandboxTempDirectory();
+        directory.Write("Docs/Readme.txt", "r");
+        var folder = RealPath.GetExactPathName(Path.GetFullPath(directory.Path));
+
+        // Act
+        var exact = RealPath.GetExactPathName(Path.Join(folder, "docs", "README.txt"));
+
+        // Assert
+        Assert.Equal(Path.Join(folder, "Docs", "Readme.txt"), exact);
+    }
+
+    /// <summary>
+    ///     Validates that the part of a path that does not exist is kept as written, while the existing part is given in
+    ///     its stored letter case.
+    /// </summary>
+    [Fact]
+    public void RealPath_GetExactPathName_MissingTail_IsKeptAsWritten()
+    {
+        // Arrange
+        using var directory = new SandboxTempDirectory();
+        Directory.CreateDirectory(directory.Combine("Docs"));
+        var folder = RealPath.GetExactPathName(Path.GetFullPath(directory.Path));
+
+        // Act
+        var exact = RealPath.GetExactPathName(Path.Join(folder, "docs", "Missing", "Sub.txt"));
+
+        // Assert
+        Assert.Equal(Path.Join(folder, "Docs", "Missing", "Sub.txt"), exact);
+    }
+
+    /// <summary>
+    ///     Validates in a folder that compares letter case, holding <c>Docs</c> and <c>docs</c>, that the name spelled
+    ///     exactly wins and a name that matches both only ignoring case is kept as written. Skips where the temporary
+    ///     folder ignores letter case.
+    /// </summary>
+    [Fact]
+    public void RealPath_GetExactPathName_BothCaseVariantsExist_PrefersTheExactNameAndKeepsAnAmbiguousOne()
+    {
+        // Arrange
+        using var directory = new SandboxTempDirectory();
+        var folder = RealPath.GetExactPathName(Path.GetFullPath(directory.Path));
+        FileTestSupport.RequireCaseSensitive(folder);
+        Directory.CreateDirectory(Path.Join(folder, "Docs"));
+        Directory.CreateDirectory(Path.Join(folder, "docs"));
+
+        // Act
+        var exactName = RealPath.GetExactPathName(Path.Join(folder, "docs"));
+        var ambiguous = RealPath.GetExactPathName(Path.Join(folder, "DOCS"));
+
+        // Assert
+        Assert.Equal(Path.Join(folder, "docs"), exactName);
+        Assert.Equal(Path.Join(folder, "DOCS"), ambiguous);
+    }
+
+    /// <summary>
+    ///     Validates on Linux and macOS, where a name may hold <c>*</c> and <c>?</c>, that such characters match only
+    ///     themselves: <c>A*B</c> gives the stored <c>a*b</c>, never <c>aXb</c>, and <c>X?</c> gives <c>x?</c>, never
+    ///     <c>xy</c>.
+    /// </summary>
+    [Fact]
+    public void RealPath_GetExactPathName_WildcardCharactersInAName_MatchOnlyThatName()
+    {
+        // Arrange
+        if (OperatingSystem.IsWindows())
+        {
+            Assert.Skip(FileTestSupport.UnixOnly);
+        }
+
+        using var directory = new SandboxTempDirectory();
+        var folder = RealPath.GetExactPathName(Path.GetFullPath(directory.Path));
+        directory.Write("a*b", "1");
+        directory.Write("aXb", "2");
+        directory.Write("x?", "3");
+        directory.Write("xy", "4");
+
+        // Act
+        var star = RealPath.GetExactPathName(Path.Join(folder, "A*B"));
+        var question = RealPath.GetExactPathName(Path.Join(folder, "X?"));
+
+        // Assert
+        Assert.Equal(Path.Join(folder, "a*b"), star);
+        Assert.Equal(Path.Join(folder, "x?"), question);
+    }
+
+    /// <summary>
+    ///     Validates on Windows that a drive letter is given in upper case, as Windows stores and reports it.
+    /// </summary>
+    [Fact]
+    public void RealPath_GetExactPathName_DriveLetter_IsUpperCase()
+    {
+        // Arrange
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Skip(FileTestSupport.WindowsOnly);
+        }
+
+        using var directory = new SandboxTempDirectory();
+        var full = Path.GetFullPath(directory.Path);
+        var lower = char.ToLowerInvariant(full[0]) + full[1..];
+
+        // Act
+        var exact = RealPath.GetExactPathName(lower);
+
+        // Assert
+        Assert.Equal(char.ToUpperInvariant(full[0]), exact[0]);
+        Assert.Equal(RealPath.GetExactPathName(full), exact);
+    }
+
+    /// <summary>
+    ///     Validates the root rule (pure text, so it runs on every system): a drive letter is upper-cased, also after the
+    ///     extended-length prefix, while a UNC root, a volume GUID root and <c>/</c> are kept as they are.
+    /// </summary>
+    /// <param name="root">The root.</param>
+    /// <param name="expected">The root in its on-disk spelling.</param>
+    [Theory]
+    [InlineData(@"c:\", @"C:\")]
+    [InlineData(@"C:\", @"C:\")]
+    [InlineData(@"\\?\c:\", @"\\?\C:\")]
+    [InlineData(@"\\server\share", @"\\server\share")]
+    [InlineData(@"\\?\Volume{67589fd6-ee90-4e7d-9ad7-a17168a66d75}\", @"\\?\Volume{67589fd6-ee90-4e7d-9ad7-a17168a66d75}\")]
+    [InlineData("/", "/")]
+    public void RealPath_ExactRoot_DriveRootsUpperCasedAndOtherRootsKept(string root, string expected)
+    {
+        // Act
+        var exact = RealPath.ExactRoot(root);
+
+        // Assert
+        Assert.Equal(expected, exact);
+    }
+
+    /// <summary>
+    ///     Validates in a folder that ignores letter case that the real location of a folder written in another case is
+    ///     given in the case stored on disk. Skips where the temporary folder compares letter case.
+    /// </summary>
+    [Fact]
+    public void RealPath_TryGetExactCanonicalDirectory_FolderWrittenInAnotherCase_GivesTheStoredCase()
+    {
+        // Arrange
+        using var directory = new SandboxTempDirectory();
+        FileTestSupport.RequireCaseInsensitive(directory.Path);
+        Directory.CreateDirectory(directory.Combine("Stored"));
+
+        // Act
+        var canonical = RealPath.TryGetExactCanonicalDirectory(Path.GetFullPath(directory.Combine("STORED")));
+
+        // Assert
+        Assert.NotNull(canonical);
+        Assert.EndsWith(Path.DirectorySeparatorChar + "Stored", canonical, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates that a spelling naming another file is not confirmed for an open handle, and that the reported real
+    ///     path itself needs no confirmation.
+    /// </summary>
+    [Fact]
+    public void RealPath_TryConfirmExactPath_SpellingOfAnotherFile_IsUnconfirmed()
+    {
+        // Arrange
+        using var directory = new SandboxTempDirectory();
+        var path = Path.GetFullPath(directory.Write("a.txt", "a"));
+        var other = Path.GetFullPath(directory.Write("b.txt", "b"));
+        using var handle = RealPath.OpenForRead(path);
+        var realPath = RealPath.Inspect(handle).FinalPath!;
+
+        // Act
+        var otherFile = RealPath.TryConfirmExactPath(handle, realPath, other);
+        var itself = RealPath.TryConfirmExactPath(handle, realPath, realPath);
+
+        // Assert
+        Assert.Null(otherFile);
+        Assert.Same(realPath, itself);
+        Assert.False(RealPath.IsSameFile(handle, other));
+    }
+
+    /// <summary>
+    ///     Validates in a folder that ignores letter case that, for a real path reported in another letter case, its
+    ///     on-disk spelling is confirmed by identity to name the open file. Skips where the temporary folder compares
+    ///     letter case.
+    /// </summary>
+    [Fact]
+    public void RealPath_TryConfirmExactPath_StoredSpellingOfARealPathInAnotherCase_IsConfirmed()
+    {
+        // Arrange: the reported real path is upper-cased, as a file system that reports the spelling used to open would
+        using var directory = new SandboxTempDirectory();
+        FileTestSupport.RequireCaseInsensitive(directory.Path);
+        var path = Path.GetFullPath(directory.Write("a.txt", "a"));
+        using var handle = RealPath.OpenForRead(path);
+        var reported = RealPath.Inspect(handle).FinalPath!.ToUpperInvariant();
+        var exact = RealPath.GetExactPathName(reported);
+
+        // Act
+        var confirmed = RealPath.TryConfirmExactPath(handle, reported, exact);
+
+        // Assert
+        Assert.NotEqual(reported, exact);
+        Assert.Equal(exact, confirmed);
+        Assert.EndsWith(Path.DirectorySeparatorChar + "a.txt", confirmed, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates that a spelling that reaches the open file through a linked folder is not confirmed: the spelling
+    ///     must name the file through no link, so a link in a folder of the spelling cannot make a path elsewhere pass as
+    ///     the real path of the file.
+    /// </summary>
+    [Fact]
+    public void RealPath_TryConfirmExactPath_SpellingThroughALinkedFolder_IsUnconfirmed()
+    {
+        // Arrange: target/a.txt is open; link is a directory link (a junction on Windows) to target
+        using var directory = new SandboxTempDirectory();
+        var path = Path.GetFullPath(directory.Write("target/a.txt", "a"));
+        FileTestSupport.CreateDirectoryLinkOrSkip(directory.Combine("link"), directory.Combine("target"));
+        using var handle = RealPath.OpenForRead(path);
+        var realPath = RealPath.Inspect(handle).FinalPath!;
+        var throughLink = Path.Join(Path.GetDirectoryName(Path.GetDirectoryName(realPath)), "link", "a.txt");
+
+        // Act
+        var confirmed = RealPath.TryConfirmExactPath(handle, realPath, throughLink);
+
+        // Assert
+        Assert.Null(confirmed);
+    }
+
+    /// <summary>
+    ///     Validates on Linux and macOS that a symbolic link to the open file is not confirmed as its spelling: the link
+    ///     is opened itself, never followed.
+    /// </summary>
+    [Fact]
+    public void RealPath_TryConfirmExactPath_LinkToTheOpenedFile_IsUnconfirmed()
+    {
+        // Arrange
+        if (OperatingSystem.IsWindows())
+        {
+            Assert.Skip(FileTestSupport.UnixOnly);
+        }
+
+        using var directory = new SandboxTempDirectory();
+        var path = Path.GetFullPath(directory.Write("a.txt", "a"));
+        var link = Path.GetFullPath(directory.Combine("link.txt"));
+        File.CreateSymbolicLink(link, path);
+        using var handle = RealPath.OpenForRead(path);
+        var realPath = RealPath.Inspect(handle).FinalPath!;
+
+        // Act
+        var confirmed = RealPath.TryConfirmExactPath(handle, realPath, link);
+
+        // Assert
+        Assert.Null(confirmed);
+    }
 }

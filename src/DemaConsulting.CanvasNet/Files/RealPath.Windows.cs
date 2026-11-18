@@ -28,6 +28,36 @@ internal static partial class RealPath
     }
 
     /// <summary>
+    ///     Determines on Windows whether a path names the same file as an open handle, through no link: the volume serial
+    ///     number and the file index of both must be equal, and the final path of the handle opened by the path must be
+    ///     the path itself. The path is opened with <c>FILE_FLAG_OPEN_REPARSE_POINT</c>, so a link at its last component
+    ///     is compared itself, not its target; a junction or link in one of its folders changes the final path.
+    /// </summary>
+    /// <param name="handle">The open handle.</param>
+    /// <param name="path">The full path.</param>
+    /// <returns>The answer, or <see langword="null"/> when the path cannot be opened or an identity cannot be read.</returns>
+    [SupportedOSPlatform("windows")]
+    private static bool? IsSameFileWindows(SafeFileHandle handle, string path)
+    {
+        using var other = NativeMethods.OpenForIdentity(path);
+        if (other.IsInvalid)
+        {
+            return null;
+        }
+
+        // The same file, reached through no link: the final path of the handle opened by the spelling is the spelling
+        // itself (a junction or link in a folder of the path would make it another path)
+        var opened = NativeMethods.TryGetWindowsFileId(handle);
+        var named = NativeMethods.TryGetWindowsFileId(other);
+        if (opened is null || named is null)
+        {
+            return null;
+        }
+
+        return opened == named && string.Equals(NativeMethods.TryGetFinalPathName(other), path, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     ///     Determines whether a full path is a network location on Windows: a UNC path (<c>\\server\share</c> or
     ///     <c>\\?\UNC\server\share</c>), or a path on a mapped network drive (also as <c>\\?\Z:\</c>). A mapped network
     ///     drive is a network location, so a host working on <c>Z:\</c> keeps working when its files are compared with

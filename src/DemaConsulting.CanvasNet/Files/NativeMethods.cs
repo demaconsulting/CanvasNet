@@ -6,9 +6,9 @@ using Microsoft.Win32.SafeHandles;
 namespace DemaConsulting.CanvasNet.Files;
 
 /// <summary>
-///     The operating-system calls the <see cref="RealPath"/> unit needs and .NET does not offer: the final path and the
-///     type of an <b>open handle</b>, a non-blocking open on Unix, the real location of a macOS path by name, and the long
-///     spelling of a short (8.3) Windows path.
+///     The operating-system calls the <see cref="RealPath"/> unit needs and .NET does not offer: the final path, the type
+///     and the identity of an <b>open handle</b>, a non-blocking open on Unix, the real location of a macOS path by name,
+///     and the long spelling of a short (8.3) Windows path.
 /// </summary>
 /// <remarks>
 ///     <para>
@@ -19,10 +19,10 @@ namespace DemaConsulting.CanvasNet.Files;
 ///     </para>
 ///     <para>
 ///         <b>Windows</b> (<c>kernel32.dll</c>, loaded from System32 only): <c>GetFinalPathNameByHandleW</c>,
-///         <c>GetFileType</c>, <c>CreateFileW</c> and <c>GetLongPathNameW</c>. <b>Linux</b> (<c>libc</c>):
-///         <c>open</c> and <c>fstat</c> (with <c>__fxstat</c> for C libraries that predate an exported <c>fstat</c>).
-///         <b>macOS</b> (<c>libc</c>, which re-exports <c>libSystem</c>): <c>open</c>, <c>proc_pidfdinfo</c> (with
-///         <c>fstat</c> as a fallback for the file type) and <c>realpath</c>.
+///         <c>GetFileType</c>, <c>GetFileInformationByHandle</c>, <c>CreateFileW</c> and <c>GetLongPathNameW</c>.
+///         <b>Linux</b> (<c>libc</c>): <c>open</c> and <c>fstat</c> (with <c>__fxstat</c> for C libraries that predate
+///         an exported <c>fstat</c>). <b>macOS</b> (<c>libc</c>, which re-exports <c>libSystem</c>): <c>open</c>,
+///         <c>proc_pidfdinfo</c> (with <c>fstat</c> as a fallback for the file type) and <c>realpath</c>.
 ///     </para>
 /// </remarks>
 internal static class NativeMethods
@@ -41,6 +41,27 @@ internal static class NativeMethods
 
     /// <summary>The <c>CreateFileW</c> flag <c>FILE_FLAG_BACKUP_SEMANTICS</c>, needed to open a directory.</summary>
     private const uint WindowsBackupSemantics = 0x02000000;
+
+    /// <summary>
+    ///     The <c>CreateFileW</c> flag <c>FILE_FLAG_OPEN_REPARSE_POINT</c>: a link (symbolic link or junction) at the
+    ///     last component is opened itself instead of its target.
+    /// </summary>
+    private const uint WindowsOpenReparsePoint = 0x00200000;
+
+    /// <summary>The <c>CreateFileW</c> access right <c>FILE_READ_ATTRIBUTES</c>, all the identity of a file needs.</summary>
+    private const uint WindowsReadAttributes = 0x80;
+
+    /// <summary>The size of <c>BY_HANDLE_FILE_INFORMATION</c>, in bytes (seven 32-bit fields and three 64-bit file times).</summary>
+    private const int WindowsFileInformationSize = 52;
+
+    /// <summary>The offset of <c>dwVolumeSerialNumber</c> in <c>BY_HANDLE_FILE_INFORMATION</c>: 4 + three file times of 8.</summary>
+    private const int WindowsVolumeSerialOffset = 28;
+
+    /// <summary>The offset of <c>nFileIndexHigh</c> in <c>BY_HANDLE_FILE_INFORMATION</c>.</summary>
+    private const int WindowsFileIndexHighOffset = 44;
+
+    /// <summary>The offset of <c>nFileIndexLow</c> in <c>BY_HANDLE_FILE_INFORMATION</c>.</summary>
+    private const int WindowsFileIndexLowOffset = 48;
 
     /// <summary>The first size of a path buffer, in characters; it grows when Windows asks for more.</summary>
     private const int WindowsInitialPathBuffer = 512;
@@ -84,6 +105,21 @@ internal static class NativeMethods
     /// <summary>The macOS <c>open</c> flags <c>O_RDONLY | O_NONBLOCK | O_NOCTTY | O_CLOEXEC</c>.</summary>
     private const int MacOpenReadNonBlocking = 0x4 | 0x20000 | 0x01000000;
 
+    /// <summary>The Linux <c>open</c> flag <c>O_NOFOLLOW</c> on x64: a link at the last component is not followed.</summary>
+    private const int LinuxNoFollowX64 = 0x20000;
+
+    /// <summary>The Linux <c>open</c> flag <c>O_NOFOLLOW</c> on Arm64 (the generic value).</summary>
+    private const int LinuxNoFollowArm64 = 0x8000;
+
+    /// <summary>The macOS <c>open</c> flag <c>O_NOFOLLOW</c>: opening a link at the last component fails with <c>ELOOP</c>.</summary>
+    private const int MacNoFollow = 0x100;
+
+    /// <summary>
+    ///     The macOS <c>open</c> flag <c>O_NOFOLLOW_ANY</c> (macOS 11 and later; every supported .NET needs a later
+    ///     macOS): opening a path with a link at any component fails with <c>ELOOP</c>.
+    /// </summary>
+    private const int MacNoFollowAny = 0x20000000;
+
     /// <summary>The size of the buffer handed to <c>fstat</c>; larger than <c>struct stat</c> on every Linux architecture.</summary>
     private const int LinuxStatBufferSize = 256;
 
@@ -99,6 +135,18 @@ internal static class NativeMethods
 
     /// <summary>The offset of <c>vst_mode</c> (16 bits) in <c>vnode_fdinfowithpath</c>: 24 + 4.</summary>
     private const int MacModeOffset = 28;
+
+    /// <summary>
+    ///     The offset of <c>vst_dev</c> (32 bits) in <c>vnode_fdinfowithpath</c>: the first field of <c>vinfo_stat</c>,
+    ///     which starts <c>vnode_info</c> right after the 24-byte <c>proc_fileinfo</c>.
+    /// </summary>
+    private const int MacDeviceOffset = 24;
+
+    /// <summary>
+    ///     The offset of <c>vst_ino</c> (64 bits) in <c>vnode_fdinfowithpath</c>: 24 + 4 (<c>vst_dev</c>) + 2
+    ///     (<c>vst_mode</c>) + 2 (<c>vst_nlink</c>).
+    /// </summary>
+    private const int MacInodeOffset = 32;
 
     /// <summary>The offset of <c>vip_path</c> (a NUL-terminated UTF-8 path) in <c>vnode_fdinfowithpath</c>: 24 + 152.</summary>
     private const int MacPathOffset = 176;
@@ -171,6 +219,48 @@ internal static class NativeMethods
     }
 
     /// <summary>
+    ///     Gets the identity of an open file on Windows: the serial number of its volume and its 64-bit file index, which
+    ///     together name one file whatever path reached it.
+    /// </summary>
+    /// <param name="handle">The open handle.</param>
+    /// <returns>The identity, or <see langword="null"/> when Windows cannot tell.</returns>
+    [SupportedOSPlatform("windows")]
+    internal static (uint Volume, ulong Index)? TryGetWindowsFileId(SafeFileHandle handle)
+    {
+        if (handle.IsInvalid || handle.IsClosed)
+        {
+            return null;
+        }
+
+        var information = new byte[WindowsFileInformationSize];
+        if (!GetFileInformationByHandle(handle, information))
+        {
+            return null;
+        }
+
+        var index = ((ulong)BitConverter.ToUInt32(information, WindowsFileIndexHighOffset) << 32)
+            | BitConverter.ToUInt32(information, WindowsFileIndexLowOffset);
+        return (BitConverter.ToUInt32(information, WindowsVolumeSerialOffset), index);
+    }
+
+    /// <summary>
+    ///     Opens a path on Windows only to read its identity: with no right but reading attributes, shared with every
+    ///     other open, a directory allowed, and a link at the last component opened itself (not followed).
+    /// </summary>
+    /// <param name="path">The full path.</param>
+    /// <returns>The handle, which the caller disposes; invalid when the path cannot be opened.</returns>
+    [SupportedOSPlatform("windows")]
+    internal static SafeFileHandle OpenForIdentity(string path) =>
+        CreateFile(
+            path,
+            WindowsReadAttributes,
+            WindowsShareAll,
+            0,
+            WindowsOpenExisting,
+            WindowsBackupSemantics | WindowsOpenReparsePoint,
+            0);
+
+    /// <summary>
     ///     Gets the long spelling of a path whose components may be short (8.3) names.
     /// </summary>
     /// <param name="path">The full path of an existing file or directory.</param>
@@ -207,26 +297,34 @@ internal static class NativeMethods
     ///     permission; used for directories), <see langword="false"/> to open it for reading. Ignored on macOS, which
     ///     has no <c>O_PATH</c>; macOS directories are canonicalized with <c>realpath</c> instead.
     /// </param>
+    /// <param name="noFollow">
+    ///     <see langword="true"/> to read the identity of a name itself: a link at the last component is not followed
+    ///     (<c>O_NOFOLLOW</c>; with <c>O_PATH</c> Linux opens the link itself), and on macOS a link at any component
+    ///     refuses the open (<c>O_NOFOLLOW_ANY</c>, an <see cref="IOException"/> for <c>ELOOP</c>).
+    /// </param>
     /// <returns>The handle, which owns the descriptor.</returns>
     /// <exception cref="FileNotFoundException">Thrown when the file does not exist.</exception>
     /// <exception cref="DirectoryNotFoundException">Thrown when a directory of the path does not exist or is not a directory.</exception>
     /// <exception cref="UnauthorizedAccessException">Thrown when access is denied.</exception>
     /// <exception cref="PathTooLongException">Thrown when the path is too long.</exception>
-    /// <exception cref="IOException">Thrown for any other failure.</exception>
+    /// <exception cref="IOException">
+    ///     Thrown for any other failure, and for <paramref name="noFollow"/> on a Linux architecture whose flag value is
+    ///     not known here.
+    /// </exception>
     [SupportedOSPlatform("linux")]
     [SupportedOSPlatform("macos")]
-    internal static SafeFileHandle OpenNonBlocking(string path, bool pathOnly)
+    internal static SafeFileHandle OpenNonBlocking(string path, bool pathOnly, bool noFollow = false)
     {
         // The variadic mode argument of open is only read with O_CREAT, which is never passed, so the two fixed
         // arguments are all the call needs on every ABI (Arm64 macOS included)
         int flags;
         if (OperatingSystem.IsMacOS())
         {
-            flags = MacOpenReadNonBlocking;
+            flags = MacOpenReadNonBlocking | (noFollow ? MacNoFollow | MacNoFollowAny : 0);
         }
         else
         {
-            flags = pathOnly ? LinuxOpenPathOnly : LinuxOpenReadNonBlocking;
+            flags = (pathOnly ? LinuxOpenPathOnly : LinuxOpenReadNonBlocking) | (noFollow ? LinuxNoFollow() : 0);
         }
 
         var bytes = Encoding.UTF8.GetBytes(path + "\0");
@@ -259,20 +357,24 @@ internal static class NativeMethods
     }
 
     /// <summary>
-    ///     Gets the mode (type and permission bits) and the hard-link count of an open descriptor on Linux.
+    ///     Gets the mode (type and permission bits), the hard-link count and the identity (device and inode) of an open
+    ///     descriptor on Linux.
     /// </summary>
     /// <param name="handle">The open handle.</param>
     /// <returns>
-    ///     The mode and the link count (zero for a file that was deleted while open), or <see langword="null"/> when they
-    ///     cannot be read (for example on an architecture whose <c>struct stat</c> layout is not known here).
+    ///     The mode, the link count (zero for a file that was deleted while open), the device and the inode, or
+    ///     <see langword="null"/> when they cannot be read (for example on an architecture whose <c>struct stat</c>
+    ///     layout is not known here).
     /// </returns>
     [SupportedOSPlatform("linux")]
-    internal static (int Mode, long LinkCount)? TryGetLinuxStat(SafeFileHandle handle)
+    internal static (int Mode, long LinkCount, ulong Device, ulong Inode)? TryGetLinuxStat(SafeFileHandle handle)
     {
         // The two layouts of struct stat known here (glibc and musl agree on both):
         // - x64 (the kernel's x86_64 stat): st_dev u64 @0, st_ino u64 @8, st_nlink u64 @16, st_mode u32 @24
         // - Arm64 (the generic stat): st_dev u64 @0, st_ino u64 @8, st_mode u32 @16, st_nlink u32 @20
         // Other architectures are not known here
+        const int DeviceOffset = 0;
+        const int InodeOffset = 8;
         var architecture = RuntimeInformation.ProcessArchitecture;
         int modeOffset;
         int linkOffset;
@@ -305,7 +407,29 @@ internal static class NativeMethods
         }
 
         var linkCount = wideLinkCount ? BitConverter.ToInt64(buffer, linkOffset) : BitConverter.ToUInt32(buffer, linkOffset);
-        return (BitConverter.ToInt32(buffer, modeOffset), linkCount);
+        return (
+            BitConverter.ToInt32(buffer, modeOffset),
+            linkCount,
+            BitConverter.ToUInt64(buffer, DeviceOffset),
+            BitConverter.ToUInt64(buffer, InodeOffset));
+    }
+
+    /// <summary>
+    ///     Gets the Linux <c>O_NOFOLLOW</c> flag of the running architecture.
+    /// </summary>
+    /// <returns>The flag.</returns>
+    /// <exception cref="IOException">Thrown on an architecture whose flag value is not known here (fail closed).</exception>
+    private static int LinuxNoFollow()
+    {
+        var architecture = RuntimeInformation.ProcessArchitecture;
+        if (architecture == Architecture.X64)
+        {
+            return LinuxNoFollowX64;
+        }
+
+        return architecture == Architecture.Arm64
+            ? LinuxNoFollowArm64
+            : throw new IOException("O_NOFOLLOW is not known on this architecture.");
     }
 
     /// <summary>
@@ -330,12 +454,13 @@ internal static class NativeMethods
     }
 
     /// <summary>
-    ///     Gets the mode and the path of an open descriptor on macOS, from one <c>proc_pidfdinfo</c> call.
+    ///     Gets the mode, the path and the identity (device and inode) of an open descriptor on macOS, from one
+    ///     <c>proc_pidfdinfo</c> call.
     /// </summary>
     /// <param name="handle">The open handle.</param>
-    /// <returns>The mode and the path; each is <see langword="null"/> when it cannot be read.</returns>
+    /// <returns>The mode, the path and the identity; each is <see langword="null"/> when it cannot be read.</returns>
     [SupportedOSPlatform("macos")]
-    internal static (int? Mode, string? Path) TryGetMacVnodeInfo(SafeFileHandle handle)
+    internal static (int? Mode, string? Path, (ulong Device, ulong Inode)? Identity) TryGetMacVnodeInfo(SafeFileHandle handle)
     {
         // The kernel refuses a buffer smaller than the structure, and answers with the number of bytes it filled in
         var buffer = new byte[MacVnodePathInfoSize];
@@ -346,14 +471,15 @@ internal static class NativeMethods
         {
             // Without the vnode information there is no path, but the type can still come from fstat, so a device or a
             // named pipe is never mistaken for a file of unknown type
-            return (TryGetMacStatMode(handle), null);
+            return (TryGetMacStatMode(handle), null, null);
         }
 
         var mode = BitConverter.ToUInt16(buffer, MacModeOffset);
         var end = Array.IndexOf(buffer, (byte)0, MacPathOffset);
         var length = (end < 0 ? buffer.Length : end) - MacPathOffset;
         var path = length > 0 ? Encoding.UTF8.GetString(buffer, MacPathOffset, length) : null;
-        return (mode, path);
+        var identity = ((ulong)BitConverter.ToUInt32(buffer, MacDeviceOffset), BitConverter.ToUInt64(buffer, MacInodeOffset));
+        return (mode, path, identity);
     }
 
     /// <summary>
@@ -473,6 +599,16 @@ internal static class NativeMethods
     [DllImport("kernel32.dll", EntryPoint = "GetFileType", ExactSpelling = true, SetLastError = true)]
     [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
     private static extern uint GetFileType(SafeFileHandle file);
+
+    /// <summary>The Windows <c>GetFileInformationByHandle</c> function.</summary>
+    /// <param name="file">The open handle.</param>
+    /// <param name="information">The buffer for <c>BY_HANDLE_FILE_INFORMATION</c> (52 bytes).</param>
+    /// <returns><see langword="true"/> on success.</returns>
+    [SupportedOSPlatform("windows")]
+    [DllImport("kernel32.dll", EntryPoint = "GetFileInformationByHandle", ExactSpelling = true, SetLastError = true)]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetFileInformationByHandle(SafeFileHandle file, [Out] byte[] information);
 
     /// <summary>The Windows <c>CreateFileW</c> function.</summary>
     /// <param name="fileName">The path.</param>

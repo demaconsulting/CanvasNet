@@ -45,4 +45,12 @@ internal sealed class FileOpenHooks
     ///     ask the operating system.
     /// </summary>
     public Func<string, string?>? DirectoryLocationOf { get; init; }
+
+    /// <summary>
+    ///     Gets the function that replaces the on-disk spelling computed for the real path of an open handle (it is given
+    ///     the real path and returns the spelling to confirm against the handle), or <see langword="null"/> to compute it
+    ///     with <see cref="RealPath.GetExactPathName"/>. Lets a test offer a spelling that names another file, which the
+    ///     identity check must refuse.
+    /// </summary>
+    public Func<string, string>? ExactPathOf { get; init; }
 }

@@ -97,6 +97,26 @@ public class SandboxedFileResolverRaceTests
     }
 
     /// <summary>
+    ///     Validates that the file is refused (fail closed) when the on-disk spelling of its real path names another file:
+    ///     the identity check refuses the spelling, and nothing is read.
+    /// </summary>
+    [Fact]
+    public void SandboxedFileResolver_Resolve_StoredSpellingNamingAnotherFile_FailsClosedAsLinkCheckFailed()
+    {
+        // Arrange
+        using var directory = new SandboxTempDirectory();
+        directory.Write("root/a.txt", "inside");
+        var other = Path.GetFullPath(directory.Write("root/b.txt", "other"));
+        var resolver = Create(directory.Combine("root"), new FileOpenHooks { ExactPathOf = _ => other });
+
+        // Act
+        var ex = Assert.Throws<SandboxException>(() => resolver.Resolve("a.txt"));
+
+        // Assert
+        Assert.Equal(SandboxFailureKind.LinkCheckFailed, ex.Kind);
+    }
+
+    /// <summary>
     ///     Validates that a handle whose type the platform cannot tell is refused (fail closed), not read.
     /// </summary>
     [Fact]

@@ -16,21 +16,37 @@ public abstract partial class FileAccessPolicy
     ///     <see cref="SandboxedFileResolver"/>, which must tell an unknown anchor from a link.
     /// </summary>
     /// <remarks>
-    ///     Nothing is resolved by name here: the real location of the anchor and the long spelling of the written path
-    ///     are captured by the caller <b>before</b> the file is opened. An anchor renamed and replaced by a link after
-    ///     that capture therefore leads the open elsewhere, and the real path no longer matches.
+    ///     <para>
+    ///         Nothing is resolved by name here: the real location of the anchor and the on-disk spelling of the written
+    ///         path are captured by the caller <b>before</b> the file is opened. An anchor renamed and replaced by a link
+    ///         after that capture therefore leads the open elsewhere, and the real path no longer matches.
+    ///     </para>
+    ///     <para>
+    ///         The paths are compared exactly, letter case included (<see cref="RealPath.PathsEqual"/>): the real path
+    ///         and the anchor's real location are in their on-disk letter case, and the written path is compared both as
+    ///         written and in its on-disk spelling, so a reference written in another letter case on a case-insensitive
+    ///         volume still matches, while a link named like its target in another letter case does not.
+    ///         <see cref="Path.GetRelativePath(string, string)"/> only computes the text expected below the anchor (the
+    ///         anchor is a component prefix of the written path); a wrong text can only fail to match (fail closed).
+    ///     </para>
     /// </remarks>
     /// <param name="anchor">The trusted folder as written, an ancestor-or-self of <paramref name="requestedPath"/>.</param>
-    /// <param name="canonicalAnchor">The real location of the anchor captured before the open, or <see langword="null"/> when unknown.</param>
+    /// <param name="canonicalAnchor">
+    ///     The real location of the anchor in its on-disk letter case, captured before the open, or
+    ///     <see langword="null"/> when unknown.
+    /// </param>
     /// <param name="requestedPath">The full path as written.</param>
-    /// <param name="longRequestedPath">The written path with short (8.3) names expanded, captured before the open.</param>
-    /// <param name="realPath">The real path of the opened file.</param>
+    /// <param name="exactRequestedPath">
+    ///     The written path in its on-disk spelling (short (8.3) names expanded, letter case as stored), captured before
+    ///     the open (<see cref="ExactSpelling"/>).
+    /// </param>
+    /// <param name="realPath">The real path of the opened file, in its on-disk letter case.</param>
     /// <returns>
     ///     <see langword="true"/> when no link lies below the anchor, <see langword="false"/> when one does, and
     ///     <see langword="null"/> when the real location of the anchor is unknown.
     /// </returns>
     internal static bool? MatchesWithoutLinks(
-        string anchor, string? canonicalAnchor, string requestedPath, string longRequestedPath, string realPath)
+        string anchor, string? canonicalAnchor, string requestedPath, string exactRequestedPath, string realPath)
     {
         if (canonicalAnchor is null)
         {
@@ -44,30 +60,40 @@ public abstract partial class FileAccessPolicy
             return true;
         }
 
-        // A written path with short (8.3) names is compared in its long spelling too. The expansion keeps one component
-        // per component, so the part below the anchor is the same number of trailing components of the long spelling;
-        // this only rewrites the expected text, so a link still shows up as a different real path
-        if (relative == "." || string.Equals(longRequestedPath, requestedPath, StringComparison.Ordinal))
+        // A written path with short (8.3) names or in another letter case is compared in its on-disk spelling too. The
+        // spelling keeps one component per component, so the part below the anchor is the same number of trailing
+        // components of it; this only rewrites the expected text, so a link still shows up as a different real path
+        if (relative == "." || string.Equals(exactRequestedPath, requestedPath, StringComparison.Ordinal))
         {
             return false;
         }
 
         var count = relative.Split(ComponentSeparators, StringSplitOptions.RemoveEmptyEntries).Length;
-        var longParts = longRequestedPath.Split(ComponentSeparators, StringSplitOptions.RemoveEmptyEntries);
-        return longParts.Length >= count
+        var exactParts = exactRequestedPath.Split(ComponentSeparators, StringSplitOptions.RemoveEmptyEntries);
+        return exactParts.Length >= count
             && RealPath.PathsEqual(
-                Expected(canonicalAnchor, string.Join(Path.DirectorySeparatorChar, longParts[^count..])),
+                Expected(canonicalAnchor, string.Join(Path.DirectorySeparatorChar, exactParts[^count..])),
                 realPath);
     }
 
     /// <summary>
     ///     Gets the spelling of a full path with short (8.3) names expanded (Windows); elsewhere, or for a path without a
-    ///     short name, the path itself. Resolves by name, so it is called before a file is opened.
+    ///     short name, the path itself. Resolves by name, so it is called before a file is opened. Used for the written
+    ///     path, which is compared under the platform rule.
     /// </summary>
     /// <param name="path">The full path.</param>
     /// <returns>The long spelling.</returns>
     internal static string LongSpelling(string path) =>
         OperatingSystem.IsWindows() && path.Contains('~', StringComparison.Ordinal) ? RealPath.ExpandShortNames(path) : path;
+
+    /// <summary>
+    ///     Gets the on-disk spelling of a full path: short (8.3) names expanded (<see cref="LongSpelling"/>) and every
+    ///     existing component in the letter case stored on disk (<see cref="RealPath.GetExactPathName"/>). Resolves by
+    ///     name, so it is called before a file is opened; it only rewrites the text a real path is compared with.
+    /// </summary>
+    /// <param name="path">The full path.</param>
+    /// <returns>The on-disk spelling.</returns>
+    internal static string ExactSpelling(string path) => RealPath.GetExactPathName(LongSpelling(path));
 
     /// <summary>
     ///     Computes the real path a file must have when no link lies below the anchor.
@@ -171,8 +197,9 @@ public abstract partial class FileAccessPolicy
 
             // Both spellings must be inside: the written path (so an outside link that points in is still refused, as the
             // pre-check refused it before the open) and the real path of the handle (so a link that leads out is refused).
-            // The long spelling of the written path is the one captured before the open, when there is one
-            if (!IsWrittenPathInside(request.RequestedPath, request.Snapshot?.LongRequestedPath))
+            // The on-disk spelling of the written path is the one captured before the open, when there is one. The written
+            // path is compared under the platform rule; the real path exactly, letter case included
+            if (!IsWrittenPathInside(request.RequestedPath, request.Snapshot?.ExactRequestedPath))
             {
                 return FileAccessDecision.Deny("the path as written is outside the allowed roots", RootsHint);
             }
@@ -191,12 +218,14 @@ public abstract partial class FileAccessPolicy
         }
 
         /// <summary>
-        ///     Determines whether a path as written lies inside a root, in the root's written or real spelling.
+        ///     Determines whether a path as written lies inside a root, in the root's written or real spelling, under the
+        ///     platform comparison (case-insensitive on Windows and macOS): the lexical pre-filter, which never allows a
+        ///     file on its own.
         /// </summary>
         /// <param name="path">The full path as written.</param>
         /// <param name="longPath">
-        ///     The path with short (8.3) names expanded, captured before the open; <see langword="null"/> to expand it now
-        ///     (before the open, or for a request built by other code).
+        ///     The path with short (8.3) names expanded (the on-disk spelling captured before the open);
+        ///     <see langword="null"/> to expand it now (before the open, or for a request built by other code).
         /// </param>
         /// <returns><see langword="true"/> when the path is inside a root.</returns>
         private bool IsWrittenPathInside(string path, string? longPath = null)
@@ -213,44 +242,54 @@ public abstract partial class FileAccessPolicy
         }
 
         /// <summary>
-        ///     One root: its full path as given, and its real location captured once, when the policy is created.
+        ///     One root: its full path as given, and its real location in its on-disk letter case, captured once, when the
+        ///     policy is created.
         /// </summary>
         /// <remarks>
         ///     The real location is never looked up again, so a root renamed and replaced by a link later (even between
         ///     the open of a file and its check) cannot widen the policy: the real path of a file is compared only with
-        ///     the location captured here. A root that does not exist (or whose real location cannot be determined) when
-        ///     the policy is created has no captured location and allows no file (fail closed), even once it is created.
+        ///     the location captured here, exactly, letter case included, so a folder whose name differs from the root
+        ///     only in letter case (on a case-sensitive folder) is outside it. A root written in another letter case on a
+        ///     case-insensitive volume still works, because its location is captured in the case stored on disk. A root
+        ///     that does not exist (or whose real location cannot be determined) when the policy is created has no
+        ///     captured location and allows no file (fail closed), even once it is created.
         /// </remarks>
         private sealed class Root
         {
             /// <summary>
-            ///     Initializes a new instance of the <see cref="Root"/> class, capturing the real location of the root.
+            ///     Initializes a new instance of the <see cref="Root"/> class, capturing the real location of the root in
+            ///     its on-disk letter case.
             /// </summary>
             /// <param name="lexical">The full path of the root as given.</param>
             public Root(string lexical)
             {
                 Lexical = lexical;
-                Canonical = RealPath.TryGetCanonicalDirectory(lexical);
+                Canonical = RealPath.TryGetExactCanonicalDirectory(lexical);
             }
 
             /// <summary>Gets the full path of the root as given.</summary>
             public string Lexical { get; }
 
-            /// <summary>Gets the real location captured when the policy was created, or <see langword="null"/>.</summary>
+            /// <summary>
+            ///     Gets the real location in its on-disk letter case, captured when the policy was created, or
+            ///     <see langword="null"/>.
+            /// </summary>
             public string? Canonical { get; }
 
             /// <summary>
-            ///     Determines whether a path as written lies inside the root, in its given or its captured real spelling.
+            ///     Determines whether a path as written lies inside the root, in its given or its captured real spelling,
+            ///     under the platform comparison (the lexical pre-filter only).
             /// </summary>
             /// <param name="path">The full path.</param>
             /// <returns><see langword="true"/> when it is inside.</returns>
             public bool ContainsWrittenPath(string path) =>
-                RealPath.IsUnder(path, Lexical) || (Canonical is { } canonical && RealPath.IsUnder(path, canonical));
+                RealPath.IsUnderAsWritten(path, Lexical) || (Canonical is { } canonical && RealPath.IsUnderAsWritten(path, canonical));
 
             /// <summary>
-            ///     Determines whether a real path lies inside the real location captured when the policy was created.
+            ///     Determines whether a real path lies inside the real location captured when the policy was created,
+            ///     comparing exactly, letter case included.
             /// </summary>
-            /// <param name="path">The real path.</param>
+            /// <param name="path">The real path, in its on-disk letter case.</param>
             /// <returns><see langword="true"/> when it is inside.</returns>
             public bool ContainsRealPath(string path) => Canonical is { } canonical && RealPath.IsUnder(path, canonical);
         }
@@ -275,22 +314,22 @@ public abstract partial class FileAccessPolicy
 
             // After an open by the resolver only what it captured before the open is used: an anchor it did not capture
             // is unknown (fail closed), and nothing is resolved by name. A request built by other code has no open in
-            // progress, so the anchor is resolved now
+            // progress, so the anchor and the on-disk spelling of the written path are resolved now
             var anchor = AnchorOf(request.RequestedPath, request.BaseDirectory);
             string? canonicalAnchor;
-            string longRequestedPath;
+            string exactRequestedPath;
             if (request.Snapshot is { } snapshot)
             {
                 snapshot.AnchorLocations.TryGetValue(anchor, out canonicalAnchor);
-                longRequestedPath = snapshot.LongRequestedPath;
+                exactRequestedPath = snapshot.ExactRequestedPath;
             }
             else
             {
-                canonicalAnchor = RealPath.TryGetCanonicalDirectory(anchor);
-                longRequestedPath = LongSpelling(request.RequestedPath);
+                canonicalAnchor = RealPath.TryGetExactCanonicalDirectory(anchor);
+                exactRequestedPath = ExactSpelling(request.RequestedPath);
             }
 
-            return MatchesWithoutLinks(anchor, canonicalAnchor, request.RequestedPath, longRequestedPath, request.RealPath) switch
+            return MatchesWithoutLinks(anchor, canonicalAnchor, request.RequestedPath, exactRequestedPath, request.RealPath) switch
             {
                 null => FileAccessDecision.Deny(
                     "the real path of the folder the reference starts from cannot be determined",
@@ -305,7 +344,9 @@ public abstract partial class FileAccessPolicy
         /// <summary>
         ///     Gets the anchor of a reference: the deepest folder shared by the written path and the trusted base
         ///     directory (the origin of the chain, never a referring document's folder). It and everything above it are
-        ///     trusted, so links there (macOS <c>/var</c>, an 8.3 or linked home folder) do not count.
+        ///     trusted, so links there (macOS <c>/var</c>, an 8.3 or linked home folder) do not count. Components are
+        ///     compared exactly (<see cref="RealPath.CommonAncestor"/>), so a folder that differs from the base directory's
+        ///     only in letter case is not trusted as part of it.
         /// </summary>
         /// <param name="requestedPath">The full path as written.</param>
         /// <param name="baseDirectory">The trusted base directory.</param>

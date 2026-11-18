@@ -15,7 +15,7 @@ namespace DemaConsulting.CanvasNet.Files;
 ///     <para>
 ///         <b>File-system mode</b> (no resolver callback): the roots are the base directory and each search path as full
 ///         paths. A candidate is the full path of the text combined with a directory and must lie under the root that
-///         directory belongs to (ordinal comparison; case-insensitive on Windows and macOS). Every component below the
+///         directory belongs to (a lexical check, ordinal; case-insensitive on Windows and macOS). Every component below the
 ///         root, including the file itself, must not be a symbolic link or junction, whatever its target: the candidate
 ///         is walked top-down from the root, only existing components above the file are probed (a missing component
 ///         above the file means the file is missing, and nothing below it is examined; the file itself is always probed
@@ -25,7 +25,9 @@ namespace DemaConsulting.CanvasNet.Files;
 ///         and everything above it are trusted, because the caller chose them. The check precedes opening the file, so
 ///         nothing is read through a link and a file behind a link is not reported as existing. A caller who wants to
 ///         use linked content adds the real directory as a search path. Other reparse points that redirect nothing (for
-///         example the placeholders of a cloud-synchronized folder) are not links in this sense.
+///         example the placeholders of a cloud-synchronized folder) are not links in this sense. After the open, the real
+///         path of the handle, in its on-disk letter case confirmed to name the open file, must be exactly (letter case
+///         included) the candidate's path below the real location of its root, as written or in its on-disk spelling.
 ///     </para>
 ///     <para>
 ///         <b>Resolver mode</b>: no file-system access happens. Candidates are normalized logical paths (forward
