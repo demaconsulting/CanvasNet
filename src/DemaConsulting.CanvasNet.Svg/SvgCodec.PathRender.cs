@@ -26,13 +26,19 @@ public static partial class SvgCodec
     /// <param name="context">The fixed per-document render context.</param>
     /// <param name="scope">The recursion depths and budgets, forwarded to a <c>pattern</c> fill/stroke's own tile content walk (see <see cref="RenderFill"/>/<see cref="RenderStroke"/>); the element depth is the sole guard against a pattern-reference cycle.</param>
     /// <param name="totalElements">The running total-rendered-elements count, forwarded to a <c>pattern</c> fill/stroke's own tile content walk.</param>
+    /// <param name="boxPath">
+    ///     The outline whose bounds are the object bounding box of a gradient or pattern, or
+    ///     <see langword="null"/> (the default) for <paramref name="localPath"/> itself; a <c>tspan</c>
+    ///     run passes the whole text, as Chrome and Edge do.
+    /// </param>
     private static void RenderShape(
         Path localPath,
         RenderState state,
         Matrix3x2 transform,
         RenderContext context,
         RenderScope scope,
-        ref int totalElements)
+        ref int totalElements,
+        Path? boxPath = null)
     {
         if (localPath.Subpaths.Count == 0)
         {
@@ -62,8 +68,8 @@ public static partial class SvgCodec
             return;
         }
 
-        RenderFill(localPath, pixelPath, state, transform, context, scope, ref totalElements);
-        RenderStroke(localPath, pixelPath, state, transform, context, scope, ref totalElements);
+        RenderFill(boxPath ?? localPath, pixelPath, state, transform, context, scope, ref totalElements);
+        RenderStroke(boxPath ?? localPath, pixelPath, state, transform, context, scope, ref totalElements);
     }
 
     /// <summary>

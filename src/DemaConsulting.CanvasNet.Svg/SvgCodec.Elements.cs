@@ -281,6 +281,13 @@ public static partial class SvgCodec
         public ArrowheadHintCollector? ArrowheadHints { get; init; }
 
         /// <summary>
+        ///     The collector of unsupported-feature reports (see <see cref="SvgLoadOptions.UnsupportedFeatureHandler"/>), or
+        ///     <see langword="null"/> when no handler is set, which skips every check. Set once by <c>RenderRoot</c> and shared
+        ///     by every <c>with</c> copy of the context; only the painting walk records into it, never a pre-pass.
+        /// </summary>
+        public UnsupportedFeatureCollector? Unsupported { get; init; }
+
+        /// <summary>
         ///     The pictures the position-binding pre-pass already loaded, keyed by their <c>image</c> element's
         ///     reference identity (see <c>ResolvePositionBindings</c>). <c>RenderImageWithEffects</c> draws the stored
         ///     surface instead of asking the resolver again, so the positions and the drawn pixels come from the same
@@ -452,8 +459,9 @@ public static partial class SvgCodec
                 RenderElement(child, rootState, fitTransform, context, rootScope, ref totalElements);
             }
 
-            // Authoring hints are reported once the whole document is painted
+            // Authoring hints and unsupported features are reported once the whole document is painted
             context.ArrowheadHints?.Report();
+            context.Unsupported?.Report();
         }
         finally
         {
@@ -570,6 +578,12 @@ public static partial class SvgCodec
         var name = element.Name.LocalName;
         if (NonRenderingElements.Contains(name) || SkippedElements.Contains(name))
         {
+            // The HTML of a foreignObject and the text of a nested svg are not drawn: say so
+            if (name is "foreignObject" or "svg")
+            {
+                ReportSkippedText(element, context, name == "svg" ? "text inside a nested <svg>" : "HTML content of <foreignObject>");
+            }
+
             return;
         }
 
@@ -582,6 +596,7 @@ public static partial class SvgCodec
         // guarded closer to its own constructor (see this method's remarks)
         if (!IsFiniteTransform(transform))
         {
+            ReportSkippedText(element, context, "a non-finite transform");
             return;
         }
 
@@ -589,7 +604,20 @@ public static partial class SvgCodec
         {
             case "g":
             case "symbol":
+            case "a":
                 RenderGroupElement(element, state, transform, context, scope, ref totalElements);
+                break;
+
+            case "switch":
+                if (SelectSwitchChild(element) is { } chosen)
+                {
+                    RenderGroupElement(element, state, transform, context, scope, ref totalElements, [chosen]);
+                }
+                else
+                {
+                    ReportSkippedText(element, context, "<switch> without a drawable child");
+                }
+
                 break;
 
             case "rect":
@@ -634,13 +662,36 @@ public static partial class SvgCodec
 
             default:
                 // Any other element name (including future/unknown elements) is tolerated by
-                // silently skipping it, consistent with this codec's out-of-scope-construct policy
+                // skipping it, consistent with this codec's out-of-scope-construct policy; text
+                // inside it is reported as not drawn
+                ReportSkippedText(element, context, $"text inside unsupported element <{name}>");
                 break;
         }
     }
 
     /// <summary>
-    ///     Renders a <c>g</c>/<c>symbol</c> element's children - directly, or as one combined unit
+    ///     Chooses the child a <c>switch</c> element draws: the first direct child element that is not a
+    ///     <c>foreignObject</c>, does not require an extension, and does not require the
+    ///     <c>Extensibility</c> feature (support for <c>foreignObject</c>).
+    /// </summary>
+    /// <param name="element">The <c>switch</c> element.</param>
+    /// <returns>The chosen child, or <see langword="null"/> when no child qualifies.</returns>
+    /// <remarks>
+    ///     The codec cannot draw the HTML of a <c>foreignObject</c>, so a <c>switch</c> that offers one and a fallback (as
+    ///     draw.io exports do: a <c>foreignObject</c>, or a group that requires the <c>Extensibility</c> feature, then a
+    ///     <c>text</c>) draws the fallback the author designed for renderers without HTML. Descriptive and non-rendering
+    ///     children (<c>title</c>, <c>desc</c>, <c>metadata</c>, <c>defs</c>, ...) are passed over. <c>systemLanguage</c>
+    ///     and any other <c>requiredFeatures</c> count as satisfied.
+    /// </remarks>
+    private static XElement? SelectSwitchChild(XElement element) =>
+        element.Elements().FirstOrDefault(child =>
+            child.Name.LocalName is not ("foreignObject" or "title" or "desc" or "metadata") &&
+            !NonRenderingElements.Contains(child.Name.LocalName) &&
+            string.IsNullOrWhiteSpace((string?)child.Attribute("requiredExtensions")) &&
+            ((string?)child.Attribute("requiredFeatures"))?.Contains("#Extensibility", StringComparison.Ordinal) != true);
+
+    /// <summary>
+    ///     Renders a <c>g</c>/<c>symbol</c>/<c>a</c> element's children (or the child a <c>switch</c> chose) - directly, or as one combined unit
     ///     through <see cref="RenderGroupWithEffects"/> when the element carries its own
     ///     <c>filter</c>/<c>clip-path</c>/<c>mask</c>.
     /// </summary>
@@ -660,19 +711,24 @@ public static partial class SvgCodec
     /// <param name="context">The fixed per-document render context.</param>
     /// <param name="scope">The recursion depths and shared work budgets.</param>
     /// <param name="totalElements">The running total-rendered-elements count.</param>
+    /// <param name="children">
+    ///     The children to draw, or <see langword="null"/> (the default) for every child element; a
+    ///     <c>switch</c> passes only the child it chose (see <see cref="SelectSwitchChild"/>).
+    /// </param>
     private static void RenderGroupElement(
         XElement element,
         RenderState state,
         Matrix3x2 transform,
         RenderContext context,
         RenderScope scope,
-        ref int totalElements)
+        ref int totalElements,
+        IReadOnlyList<XElement>? children = null)
     {
         var effects = ResolveEffectsSet(element, context, suppressEffects: scope.MarkerDepth > 0);
         if (effects.Filter == null && effects.ClipPath == null && effects.Mask == null)
         {
             var childScope = scope.Nested();
-            foreach (var child in element.Elements())
+            foreach (var child in children ?? element.Elements())
             {
                 RenderElement(child, state, transform, context, childScope, ref totalElements);
             }
@@ -680,7 +736,7 @@ public static partial class SvgCodec
             return;
         }
 
-        RenderGroupWithEffects(effects, element.Elements().ToList(), state, transform, context, scope, ref totalElements);
+        RenderGroupWithEffects(effects, children ?? element.Elements().ToList(), state, transform, context, scope, ref totalElements);
     }
 
     /// <summary>

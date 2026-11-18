@@ -569,11 +569,97 @@ null `options` throws `ArgumentNullException` from all four options overloads; a
 #### CanvasNetSvg-SvgCodec-TextAnchor: Text-Anchor Alignment
 
 **Tests**: `SvgCodec_Load_TextAnchorMiddle_CentersTextHorizontally`,
-`SvgCodec_Load_TextAnchorEnd_RightAlignsText`
+`SvgCodec_Load_TextAnchorEnd_RightAlignsText`, `SvgCodec_Load_TextAnchorMiddleAndEnd_AnchorEachChunk`,
+`SvgCodec_Load_TextAnchorOfAChunk_IsThatOfItsFirstCharacter`, `SvgCodec_Load_PlainText_IsUnchangedByTheRunLayout`
 
 Asserts `text-anchor="middle"` centers the glyph run on the given `x` (checked against both the
 correctly-centered position and the position a start-anchored run would have used instead), and
 `text-anchor="end"` right-aligns the run so it ends at the given `x` (checked the same way).
+`SvgTextLayoutTests.cs` (the square synthetic font, so positions are exact) asserts that a chunk of two runs (the second
+a red `tspan`) is centered or end-aligned as a whole at x = 100; that a `tspan` with its own `x`/`y` and
+`text-anchor="end"` starts a chunk that ends at its `x` while the text's own chunk stays start-anchored; and that a
+plain middle-anchored text with a `dx` keeps the single-run layout (40 px of advance centered on x + dx).
+
+#### CanvasNetSvg-SvgCodec-TextSpans: Styled `tspan` and `a` Runs
+
+**Tests** (`SvgTextLayoutTests.cs`): `SvgCodec_Load_TspanFill_PaintsItsRunInItsOwnColor`,
+`SvgCodec_Load_TspanFontSize_ScalesItsRunAndAdvancesThePen`, `SvgCodec_Load_TspanFontWeightBold_UsesTheBoldFace`,
+`SvgCodec_Load_TspanFontStyleItalic_UsesTheItalicFace`, `SvgCodec_Load_TspanClassAndStyle_AreStyledByTheCascade`,
+`SvgCodec_Load_NestedTspans_InheritAndOverride`, `SvgCodec_Load_TspanGradientFill_UsesTheTextBoundingBox`,
+`SvgCodec_Load_FilteredTextWithTspans_KeepsEachRunsPaint`, `SvgCodec_Load_ClipPathTextWithTspans_ClipsToEveryRun`,
+`SvgCodec_Load_TextTitleAndDesc_AreNotDrawn`
+
+Asserts, with exact ink columns of the square synthetic font, that a `tspan` paints its glyph in its own `fill` while
+the text after it keeps the text's color; that a 40 px `tspan` draws a 20 px square and advances the pen by 40; that
+`font-weight="bold"` and `font-style="italic"` select the bold (16 px) and italic (13 px) faces; that a class rule, a
+`text tspan.b` descendant rule and an inline `style` each color their `tspan`; that a nested `tspan` inherits its
+parent's size and overrides its color; that a gradient on a `tspan` uses the bounding box of the whole text (its first
+glyph is in the blue half); that a filtered text keeps each run's color and `dy` position; that a `clipPath` text with a
+shifted 40 px `tspan` clips to both runs where they draw; and that `title` and `desc` inside a text draw nothing.
+
+#### CanvasNetSvg-SvgCodec-TextPositioning: Position Lists, Chunks, and Baseline Shift
+
+**Tests** (`SvgTextLayoutTests.cs`): `SvgCodec_Load_TspanDxDy_ShiftsTheRunAndTheFollowingText`,
+`SvgCodec_Load_TspanAbsoluteXY_StartsANewChunk`, `SvgCodec_Load_TextPositionLists_PlaceEachCharacter`,
+`SvgCodec_Load_TextPositionListMalformed_XIsInvalidAndDxEnds`, `SvgCodec_Load_TspanBaselineShift_ShiftsOnlyItsRun`,
+`SvgCodec_Load_LongPositionedText_Renders`; (`SvgPositionBindingTests.cs`):
+`SvgCodec_Binding_TextCoordinateList_IsUnsupported`
+
+Asserts that `dx="10" dy="20"` on a `tspan` moves its glyph and that the text after it stays on the new baseline; that
+a `tspan` with `x`/`y` starts a chunk at that position; that `x="10 50 100"` places the first three characters and the
+fourth follows the third, and `dx="0 5 5"` shifts the second and third; that an `x` list with a malformed entry is
+`InvalidDataException` while a malformed `dx` entry ends that list; that `baseline-shift` of 10, 50%, and `super` move
+only the `tspan` glyph up 10 px (half the synthetic font's ascent plus descent at 20 px), `sub` moves it down as -10
+does, and `baseline` changes nothing; that a text of 5000 characters with 5000 `x` entries renders; and that a text
+with an `x` list now draws (its position binding is still reported as unsupported).
+
+#### CanvasNetSvg-SvgCodec-TextWhiteSpace: Browser White-Space Processing
+
+**Tests** (`SvgTextLayoutTests.cs`): `SvgCodec_Load_TextWhiteSpace_CollapsesAndTrimsUnlessPreserved`
+
+With the bundled sans-serif font, asserts that leading tabs and spaces, a line feed, and spaces on both sides of a
+`tspan` boundary draw the same as one space between the glyphs (which differs from no space), that trailing spaces do
+not move an end-anchored text, that `xml:space="preserve"` keeps leading spaces, and that it maps a tab to one space.
+
+#### CanvasNetSvg-SvgCodec-AnchorAndSwitchElements: `a` and `switch`
+
+**Tests** (`SvgTextLayoutTests.cs`): `SvgCodec_Load_AnchorElement_DrawsItsContent`,
+`SvgCodec_Load_Switch_DrawsTheFirstSupportedChild`
+
+Asserts that an `a` around a `rect` draws it in the `a`'s fill and that an `a` inside a `text` colors its glyph; that a
+`switch` whose first child is a `foreignObject` draws its `text` fallback; and that a `switch` whose first child is a
+group requiring the `Extensibility` feature draws the next child only, not the one after it.
+
+#### CanvasNetSvg-SvgCodec-UnsupportedFeatureReports: Text That Is Not Drawn Is Reported
+
+**Tests** (`SvgUnsupportedFeatureTests.cs`): `SvgCodec_UnsupportedFeatureHandler_TextPath_ReportsTextNotDrawn`,
+`SvgCodec_UnsupportedFeatureHandler_RotateTextLengthAndSpacing_ReportsOneUnsupportedWithEveryFeature`,
+`SvgCodec_UnsupportedFeatureHandler_TextInForeignObjectNestedSvgAndUnknownElement_ReportsTextNotDrawn`,
+`SvgCodec_UnsupportedFeatureHandler_NegativeFontSizeAndHugeTransform_ReportsTextNotDrawn`,
+`SvgCodec_UnsupportedFeatureHandler_MissingGlyph_ReportsUnsupportedWithTheCodePoint`,
+`SvgCodec_UnsupportedFeatureHandler_SeveralElements_ReportsOnceWithTheCount`,
+`SvgCodec_UnsupportedFeatureHandler_PlainAndStyledText_ReportsNothing`,
+`SvgCodec_UnsupportedFeatureHandler_DoesNotChangeThePixels`, `SvgCodec_UnsupportedFeatureHandler_DefaultIsNull`
+
+Asserts that a `textPath` is one `svg-text-not-drawn` report naming `textPath` and the text; that `rotate`,
+`textLength`, `word-spacing`, a vertical `writing-mode`, `dominant-baseline`, `text-decoration`, an unknown
+`baseline-shift` and `alignment-baseline`, plus `letter-spacing` and `direction: rtl` inherited from a group, are one
+`svg-text-unsupported` report naming each; that a `foreignObject`, a nested `svg`, an unknown element holding a text,
+and a `tref` inside a text are one not-drawn report with a count of 4; that a negative `font-size`, a non-finite
+composed transform, and coordinates beyond the supported range are reported, and a zero `font-size` is not; that a
+private-use character no font covers is reported with its code point; that several texts give one report per code, the
+not-drawn one first, with the count (a text drawn twice through `use` counts once) and the first text named; that
+plain and styled text, an `x` list, a `switch` fallback, `title`, `defs` content and white-space-only text report
+nothing; that a render with a handler draws the same pixels as one without; and that the handler is `null` by default.
+
+#### CanvasNetSvg-SvgCodec-ImageSourceUnsupportedNotes: Unsupported Notes Of A Linked SVG File
+
+**Tests** (`SvgUnsupportedFeatureTests.cs`): `SvgImageSource_Render_TextPath_IsAnUnsupportedNoteOfTheResult`,
+`SvgImageSource_Render_TextPathWithThrowOnUnsupportedFeature_ThrowsUnsupportedImageFeatureException`
+
+Asserts that `SvgImageSource` returns the `textPath` of a linked file as one `svg` note of severity `Unsupported` with
+the code `svg-text-not-drawn`, and that a request with `ThrowOnUnsupportedFeature` fails with
+`UnsupportedImageFeatureException` whose feature is that code.
 
 #### CanvasNetSvg-SvgCodec-FontWeightStyleCascade: Font-Weight/Font-Style Attribute Parsing and Cascade
 
@@ -2302,14 +2388,14 @@ valid still resolves to 20,30 from one call, with the same work as without the b
 `SvgImageSource_Render_UnresolvedBinding_IsAWarningOfTheResult`
 
 `center` on a line, an unknown name, an image or a callout inside `defs`, an image or a group drawn by a `use`, and a
-`data:` image are `svg-binding-unsupported`, as are a text with a list of x (reported before the codec refuses the
-list), a plain resolver, and a source without positions. A selector that matches nothing, two positions, a match without
-a pixel, and a callout in `scale(0)` are `svg-binding-unmatched`, `svg-binding-ambiguous`, `svg-binding-unavailable`,
-and `svg-binding-singular`; a truncated list is ambiguous, and a picture that is not drawn or has no width is
-unavailable; a failed binding has no coordinates. A bound image under `scale(0)` or a matrix with a zero scale, or with
-a filter or mask region of zero or more than the maximum size, is unavailable, the resolver is never called, and the
-work charged equals that of the document without the binding. `SvgImageSource` returns an unresolved binding of the file
-as an `svg` warning with its code and still draws the file.
+`data:` image are `svg-binding-unsupported`, as are a text with a list of x (the text still draws, each character at its
+position), a plain resolver, and a source without positions. A selector that matches nothing, two positions, a match
+without a pixel, and a callout in `scale(0)` are `svg-binding-unmatched`, `svg-binding-ambiguous`,
+`svg-binding-unavailable`, and `svg-binding-singular`; a truncated list is ambiguous, and a picture that is not drawn or
+has no width is unavailable; a failed binding has no coordinates. A bound image under `scale(0)` or a matrix with a zero
+scale, or with a filter or mask region of zero or more than the maximum size, is unavailable, the resolver is never
+called, and the work charged equals that of the document without the binding. `SvgImageSource` returns an unresolved
+binding of the file as an `svg` warning with its code and still draws the file.
 
 ### Additional Regression Test Scenarios (Unlinked)
 
@@ -2722,6 +2808,6 @@ handler produces the same pixels as rendering without one.
 
 ### Acceptance Criteria
 
-A unit test run passes when every test method listed above, across `SvgCodecTests.cs`, `SvgFixtureTests.cs`, and
-`SvgArrowTests.cs`, passes without error or unexpected exception; any unexpected exception type or wrong pixel/return
-value constitutes a failure.
+A unit test run passes when every test method listed above, across `SvgCodecTests.cs`, `SvgFixtureTests.cs`,
+`SvgArrowTests.cs`, `SvgTextLayoutTests.cs`, and `SvgUnsupportedFeatureTests.cs`, passes without error or unexpected
+exception; any unexpected exception type or wrong pixel/return value constitutes a failure.

@@ -60,8 +60,8 @@ nor cacheable) - see *ViewBox Fitting Policy* below
   `em`, `ex`, `ch`, `rem`, `lh`, `rlh`, `vw`, `vh`, `vmin`, `vmax`), a percentage, or `calc()`/
   `min()`/`max()`/`clamp()`; `font-size` takes lengths, keywords (`xx-small` to `xxx-large`,
   `larger`, `smaller`) and the CSS-wide keywords from an attribute, an inline style, a stylesheet
-  rule or the `font` shorthand; a `text` element's first `dx`/`dy` value offsets its origin - see
-  *Length Units and font-size* below
+  rule or the `font` shorthand; the `x`/`y`/`dx`/`dy` lists of `text` and `tspan` place each
+  character - see *Length Units and font-size* and *Text Layout* below
 - Colors: every color value (`fill`, `stroke`, `stop-color`, `flood-color`, `lighting-color`) is parsed by
   the core `Canvas.CssColor` unit: the 148 CSS color names and `transparent`, `#rgb`/`#rgba`/`#rrggbb`/
   `#rrggbbaa`, `rgb()`/`rgba()` and `hsl()`/`hsla()` in comma or space-and-slash syntax, with fractional
@@ -118,15 +118,20 @@ nor cacheable) - see *ViewBox Fitting Policy* below
   dictionary of per-family `SvgFontFace` lists (or, via the legacy single-font-per-family
   overload, a plain `TrueTypeFont` dictionary) and, for any family the caller did not register,
   through installed fonts, the bundled Liberation fonts for the generic families, and a bundled
-  Liberation Sans last resort (see *Text* below)
+  Liberation Sans last resort (see *Text* below); `tspan` and `a` inside a `text` are drawn as runs
+  in their own cascaded style, placed by `x`/`y`/`dx`/`dy` lists and `baseline-shift`, with text
+  chunks anchored by `text-anchor` and white space collapsed as browsers do (see *Text Layout* below)
+- `a`, drawn like a group, and `switch`, which draws its first direct child that does not need
+  `foreignObject` (so a draw.io label draws its `text` fallback)
 
-#### Out-of-scope subset (tolerated, silently skipped)
+#### Out-of-scope subset (tolerated, skipped)
 
 A nested `svg`, `animate`/other SMIL
 animation elements, and `foreignObject` are all well-formed SVG
 constructs this codec does not implement. Encountering one of these does not fail the whole
-document: `SvgCodec` silently skips just that element (and, for a container element, everything
-nested inside it) and continues walking the rest of the tree. This is a deliberate,
+document: `SvgCodec` skips just that element (and, for a container element, everything
+nested inside it) and continues walking the rest of the tree; text inside it is reported (see
+*Unsupported-Feature Reports* below). This is a deliberate,
 tolerant-parsing policy distinct from the codec's malformed-input rejection policy (see
 *Error Handling* below) — a document using an out-of-scope construct is not itself invalid SVG,
 only partially outside this codec's supported feature set. Within a `style` element's own CSS
@@ -434,10 +439,10 @@ The `font` presentation attribute is expanded by `ExpandFontAttribute` as the lo
 explicit longhand attribute, an inline style and a stylesheet rule. `font-variant` and
 `font-stretch` components are parsed and ignored.
 
-**Text dx/dy.** `RenderText` adds the first `dx`/`dy` value (any length, em and percentages
-included) to the `x`/`y` origin, the canonical use of `em` in generated SVG (Vega's
-`dy="0.71em"`). Lists beyond the first value, `tspan` positioning, `letter-spacing`,
-`word-spacing`, `textLength` and `baseline-shift` remain unsupported.
+**Text positions.** Every entry of the `x`/`y`/`dx`/`dy` lists of `text` and `tspan` accepts any
+length, `em` and percentages included (Vega's `dy="0.71em"` is the canonical use of `em` in
+generated SVG), resolved against its own element's font and the viewport; see *Text Layout*.
+`letter-spacing`, `word-spacing`, `textLength` and `rotate` remain unsupported and are reported.
 
 **Accepted simplifications.** `ex`/`ch`/`lh`/`em` in a gradient, pattern or mask-region coordinate
 resolve against the referencing element's font rather than the paint server's own cascade; units are
@@ -1762,13 +1767,52 @@ therefore unaffected by this algorithm: with only one candidate, it is always se
 
 Each mapped character's glyph outline, advance width, and kerning (against the previous glyph) are
 looked up by core `Rendering.TextRenderer.CreateTextPath` (through `Fonts.TrueTypeFont.GetGlyphIndex`/
-`GetGlyphOutline`/`GetAdvanceWidth`/`GetKerning`), which lays the run out as one combined local-space
+`GetGlyphOutline`/`GetAdvanceWidth`/`GetKerning`), which lays one run out as one combined local-space
 outline path. A private `BuildGlyphRunPath` helper is a thin adapter: it maps `text-anchor`
-(`start`/`middle`/`end`) to `TextAlign.Left`/`Center`/`Right` and passes the cascaded `font-size` and
-the element's baseline anchor - `x`/`y` plus the first `dx`/`dy` value, resolved by one shared
-`ResolveTextOrigin` so rendering, the filter bounds pre-pass and a `clipPath` text child place the
-run identically. The resulting path is transformed into pixel space and
-filled like any other shape.
+(`start`/`middle`/`end`) to `TextAlign.Left`/`Center`/`Right` and passes the run's `font-size` and
+origin. The runs come from one shared layout, `LayoutText` (see *Text Layout* below), so rendering,
+the filter bounds pre-pass and a `clipPath` text child place every run identically. Each run path is
+transformed into pixel space and filled like any other shape.
+
+**Text Layout.** `LayoutText` (`SvgCodec.TextLayout.cs`) extends the single-run layout to the SVG 2
+text layout, simplified to horizontal text, and was cross-checked against Microsoft Edge:
+
+1. *Characters.* The child nodes of the `text` are walked in document order, recursing into `tspan`
+   and `a`; each nested element gets its own state from `ApplyPresentationAttributes` on its parent's
+   state, so presentation attributes, `style` and stylesheet rules (classes, descendant selectors)
+   cascade as for any element. `title`, `desc` and `metadata` are not content. `textPath`, `tref` and
+   any other element are not drawn (reported). White space follows CSS `white-space: normal` as
+   browsers do: tab, CR and LF become a space, a space after a space (across element boundaries) or
+   at the start is dropped, and trailing spaces are trimmed; under `xml:space="preserve"` (inherited
+   from the nearest element that sets it) only tab, CR and LF are mapped.
+2. *Positions.* The `x`, `y`, `dx` and `dy` lists of the `text` and every `tspan` are read in
+   document order, entry k to the k-th character of the element, so a descendant overrides its
+   ancestor; a list is read only as far as its element has characters. `x`/`y` are strict geometry
+   (class S); a malformed `dx`/`dy` entry ends that list (class F).
+3. *Runs.* The pen starts at (0, 0). An absolute `x` or `y` moves it and starts a new text chunk;
+   `dx`/`dy` are then added (so a `dy` persists for the following text). Consecutive characters of
+   the same element without a position of their own form one run, measured with its own font; the
+   low half of a surrogate pair never starts a run.
+4. *Anchors.* A chunk is anchored by the `text-anchor` of its first character. A chunk of one run is
+   outlined with the anchor as its alignment, the very arithmetic a plain text always used, so text
+   without `tspan` or position lists draws as before. A chunk of several runs is shifted by
+   `-width/2` (middle) or `-width` (end) of its whole advance, `dx` shifts included.
+5. *Baseline shift.* `baseline-shift` on a `text`, `tspan` or `a` (resolved with
+   `ResolveElementProperty`) accumulates through the nesting and moves only that element's runs: a
+   length up, a percentage of the element's font size, and `super`/`sub` by half the font's ascent
+   plus descent (Edge's rule, measured with Arial and Courier New); any other value is reported.
+
+`RenderText` lays the text out from its state with an opacity of 1, so a run's state holds only the
+opacity of its nested elements, multiplied by the text's opacity when painted. A text that lays out
+as one run of the `text` element itself takes exactly the old `RenderShapeWithEffects` call. Other
+texts pass their runs to `RenderShapeWithEffects` and `RenderShapeEffectsPipeline` (an optional
+`runs` argument): the union of the runs is the shape for regions and effects, each run is painted
+with its own state, and `RenderShape`'s optional `boxPath` makes the whole text the object bounding
+box of a gradient or pattern on a `tspan`, as Blink does. `ComputeTextBounds` unions the runs, each
+expanded by its own stroke; `BuildClipChildTextPath` returns the union of the runs. The layout is
+linear in the characters and elements of the text: each character is visited a fixed number of
+times, and each run is measured and outlined once. The geometry work budget is charged with the
+character count before the layout, as before.
 
 **Non-positive `font-size` renders nothing.** The cascaded `font-size` is only validated as finite
 and within the coordinate magnitude bound at parse time, so zero or a negative value reaches the
@@ -1776,7 +1820,7 @@ text renderer. `BuildGlyphRunPath` returns the empty path for any `font-size` th
 positive, so such a `text` element (and a `clipPath`/`mask`/filter that uses it) draws nothing and
 the document still loads. Zero behaves exactly as before; a negative size, invalid per CSS and SVG,
 previously drew point-mirrored glyphs and now draws nothing, because the shared text-to-path method
-rejects a non-positive size.
+rejects a non-positive size, and is reported as `svg-text-not-drawn`.
 
 **Default font resolution.** A `text` element is never dropped for want of a registered font. A
 private `ResolveFont` helper (`SvgCodec.Fonts.cs`), shared by text rendering, a `clipPath`'s `text`
@@ -1889,7 +1933,7 @@ differently:
   its dash pattern overflowed — mirroring `ParseDashArray`'s own existing tolerant "malformed dash array -> no dashing"
   convention.
 - **Well-formed but out-of-scope constructs** — see *Out-of-scope subset* above. These are
-  silently skipped, not errors.
+  skipped, not errors; text that is not drawn is reported (see *Unsupported-Feature Reports*).
 
 **Accepted limitation: document-size bound is a raw character count, not a streaming parse.**
 The `MaxCharactersInDocument` bound `Load` applies to its `XDocument.Load` call stops an
@@ -1962,13 +2006,16 @@ with
 { ImageResolver = request.Resolver })`. The background stays transparent so the embedding document shows through.
 Passing the **scoped resolver of the request** on is what makes nesting work with no state in the source: the `image`
 elements of the nested file resolve against the folder of that file, and the depth, cycle, and count limits of the whole
-render apply. When the request has no resolver the nested file's external links are not drawn. The SVG library neither
-reports unsupported features nor can fail on them, so the request's strictness switch has no effect; the only notes of
-the result are the position bindings of the file that were not resolved, as `svg` warnings with their codes. Content
+render apply. When the request has no resolver the nested file's external links are not drawn. The notes of the result
+are the position bindings of the file that were not resolved, as `svg` warnings with their codes, and the features the
+codec reports through `SvgLoadOptions.UnsupportedFeatureHandler`, as `Unsupported` notes with their `svg-text-*` codes;
+when the request sets `ThrowOnUnsupportedFeature`, the first such feature disposes the surface and throws
+`UnsupportedImageFeatureException` with its code instead. Content
 that is not an SVG document is `InvalidDataException` (from `GetInfo`), a request without a file
 `InvalidOperationException`, and a canceled request `OperationCanceledException`. The class is stateless, thread-safe,
-and references only the core package. Its requirement is `CanvasNetSvg-SvgCodec-SvgImageSource`, verified by
-`SvgImageSourceTests.cs`.
+and references only the core package. Its requirements are `CanvasNetSvg-SvgCodec-SvgImageSource` and
+`CanvasNetSvg-SvgCodec-ImageSourceUnsupportedNotes`, verified by `SvgImageSourceTests.cs` and
+`SvgUnsupportedFeatureTests.cs`.
 
 ### Position Bindings
 
@@ -2056,3 +2103,33 @@ in document order (element, `id`, pixel position) and says to use a `marker` wit
 the pixels and never fail the render; nested SVG files drawn through the image resolver report none.
 
 Requirement: `CanvasNetSvg-SvgCodec-ArrowheadShapeHint`, verified by `SvgArrowTests.cs`.
+
+### Unsupported-Feature Reports
+
+`SvgLoadOptions.UnsupportedFeatureHandler` receives `SvgUnsupportedFeature` records (`Code`, `Message`, `Count`) for
+features the codec cannot draw. `SvgCodec.Unsupported.cs` holds the collector; detection never changes what is painted.
+
+**Collection.** `RenderRoot` creates an `UnsupportedFeatureCollector` on the `RenderContext` only when a handler is set,
+so a render without one does no checks. Only the painting walk records: `LayoutText` records only when called with
+`report: true` (by `RenderText` and `BuildClipChildTextPath`), never from the bounds pre-pass, and the position-binding
+pre-pass has its own walk. `Add(code, feature, element)` keeps per code the first element (described by name, `id` and
+the first 24 characters of its text), the distinct elements (the count), and up to 16 distinct features or reasons.
+
+- `svg-text-not-drawn` (`SvgUnsupportedFeature.TextNotDrawnCode`): `textPath` content and any unknown element with
+  visible characters inside a `text` (from `LayoutText`); the HTML of a `foreignObject`, and a `text` inside a nested
+  `svg`, an unknown element, a `switch` without a drawable child, or a subtree whose composed transform is not finite
+  (from `RenderElement`, through `ReportSkippedText`, which scans each skipped element once); a run with a negative
+  `font-size`; and a text whose transformed bounds are not finite or exceed `MaxCoordinateMagnitude` (from
+  `RenderText`; `RenderShape` skips such geometry).
+- `svg-text-unsupported` (`SvgUnsupportedFeature.TextUnsupportedCode`): a non-zero `rotate`, `textLength`,
+  `alignment-baseline` and an unsupported `baseline-shift` on a text content element; a non-zero `letter-spacing` or
+  `word-spacing`, a vertical `writing-mode`, `direction: rtl`, a `dominant-baseline` and a `text-decoration` on a text
+  content element or an ancestor of the `text`; and each code point that `GlyphFallback.FindMissing` finds no font
+  for.
+
+**Reporting.** After the document is painted, `RenderDocument` calls `Report`, which calls the handler once per code,
+`svg-text-not-drawn` first, with the count and the message. Content that is not drawn by design (inside `defs`, a
+`switch` child that is not chosen, `title`/`desc`) reports nothing; content drawn through `use`, `marker`, `pattern`,
+`mask` and `clipPath` reports like any other.
+
+Requirement: `CanvasNetSvg-SvgCodec-UnsupportedFeatureReports`, verified by `SvgUnsupportedFeatureTests.cs`.

@@ -363,9 +363,9 @@ sections:
               registered, otherwise a default font (see
               CanvasNetSvg-SvgCodec-TextFontDefaultFallback) - positioned using the font's
               advance widths and kerning pairs and scaled by font-size, and taking a character
-              that the font lacks from the bundled fallback fonts of the core text renderer (the
-              SVG codec has no diagnostics channel, so a character that no bundled font covers
-              silently draws the font's missing-glyph box).
+              that the font lacks from the bundled fallback fonts of the core text renderer (a
+              character that no bundled font covers draws the font's missing-glyph box and is
+              reported, see CanvasNetSvg-SvgCodec-UnsupportedFeatureReports).
             justification: |
               Callers need text content in an SVG document rendered as recognizable glyph
               shapes at the correct position, using real font metrics rather than an
@@ -453,14 +453,121 @@ sections:
 
           - id: CanvasNetSvg-SvgCodec-TextAnchor
             title: >-
-              The SvgCodec class shall position a text element's glyph run relative to its
-              x/y according to text-anchor (start, middle, or end).
+              The SvgCodec class shall position each text chunk of a text element (the text from
+              one absolutely positioned character to the next) relative to its start position
+              according to the text-anchor (start, middle, or end) of the chunk's first character,
+              aligning the whole advance of the chunk, including dx shifts inside it.
             justification: |
               Callers need text alignment (left, centered, or right of a reference point)
-              to match the document's authored intent rather than always starting at x/y.
+              to match the document's authored intent rather than always starting at x/y, also
+              when a label mixes styled spans or starts new lines with tspan x/y.
             tests:
               - SvgCodec_Load_TextAnchorMiddle_CentersTextHorizontally
               - SvgCodec_Load_TextAnchorEnd_RightAlignsText
+              - SvgCodec_Load_TextAnchorMiddleAndEnd_AnchorEachChunk
+              - SvgCodec_Load_TextAnchorOfAChunk_IsThatOfItsFirstCharacter
+              - SvgCodec_Load_PlainText_IsUnchangedByTheRunLayout
+
+          - id: CanvasNetSvg-SvgCodec-TextSpans
+            title: >-
+              The SvgCodec class shall draw the characters of each tspan and a element inside a
+              text element with that element's own cascaded style - its presentation attributes,
+              style attribute, and matching stylesheet rules (fill, stroke, opacity, font-family,
+              font-size, font-weight, font-style, text-anchor), inherited by nested elements - and
+              shall not draw the text of title, desc, or metadata elements inside a text element.
+            justification: |
+              Labels routinely color, embolden, or resize a word with a tspan (charts, diagrams,
+              and design tools emit them); drawing the whole text in the parent style loses that
+              meaning, and drawing a title tooltip as visible text corrupts the label.
+            tests:
+              - SvgCodec_Load_TspanFill_PaintsItsRunInItsOwnColor
+              - SvgCodec_Load_TspanFontSize_ScalesItsRunAndAdvancesThePen
+              - SvgCodec_Load_TspanFontWeightBold_UsesTheBoldFace
+              - SvgCodec_Load_TspanFontStyleItalic_UsesTheItalicFace
+              - SvgCodec_Load_TspanClassAndStyle_AreStyledByTheCascade
+              - SvgCodec_Load_NestedTspans_InheritAndOverride
+              - SvgCodec_Load_TspanGradientFill_UsesTheTextBoundingBox
+              - SvgCodec_Load_FilteredTextWithTspans_KeepsEachRunsPaint
+              - SvgCodec_Load_ClipPathTextWithTspans_ClipsToEveryRun
+              - SvgCodec_Load_TextTitleAndDesc_AreNotDrawn
+
+          - id: CanvasNetSvg-SvgCodec-TextPositioning
+            title: >-
+              The SvgCodec class shall place the characters of a text element by the x, y, dx, and
+              dy lists of the text and its tspan elements, one entry per character (a nested
+              element's entries overriding its ancestors'), where an absolute x or y starts a new
+              text chunk at that position and a dx or dy shift persists for the text that follows,
+              and shall shift a text, tspan, or a element's characters up or down by its
+              baseline-shift (a length, a percentage of its font size, or super/sub by half the
+              font's ascent plus descent), rejecting an x or y entry that is not a valid length as
+              invalid data.
+            justification: |
+              Multi-line labels (tspan x/y), superscripts, and per-character placement are common
+              in exported SVG; ignoring them stacks lines on top of each other and misplaces text.
+              Browsers lay these out the same way, so documents look as their authors saw them.
+            tests:
+              - SvgCodec_Load_TspanDxDy_ShiftsTheRunAndTheFollowingText
+              - SvgCodec_Load_TspanAbsoluteXY_StartsANewChunk
+              - SvgCodec_Load_TextPositionLists_PlaceEachCharacter
+              - SvgCodec_Load_TextPositionListMalformed_XIsInvalidAndDxEnds
+              - SvgCodec_Load_TspanBaselineShift_ShiftsOnlyItsRun
+              - SvgCodec_Load_LongPositionedText_Renders
+              - SvgCodec_Binding_TextCoordinateList_IsUnsupported
+
+          - id: CanvasNetSvg-SvgCodec-TextWhiteSpace
+            title: >-
+              The SvgCodec class shall process the white space of a text element as browsers do:
+              tab, carriage return, and line feed become a space, consecutive spaces collapse to
+              one across element boundaries, and spaces at the start and end of the text are
+              removed, except that under xml:space="preserve" only tab, carriage return, and line
+              feed are mapped to a space.
+            justification: |
+              Pretty-printed SVG indents the content of text elements; drawing that indentation
+              shifts labels out of place, especially anchored ones.
+            tests:
+              - SvgCodec_Load_TextWhiteSpace_CollapsesAndTrimsUnlessPreserved
+
+          - id: CanvasNetSvg-SvgCodec-AnchorAndSwitchElements
+            title: >-
+              The SvgCodec class shall draw an a element like a group, and shall draw only the
+              first direct child of a switch element that is not a foreignObject, does not name a
+              required extension, and does not require the Extensibility feature.
+            justification: |
+              Links wrap ordinary content, and exporters such as draw.io wrap every label in a
+              switch whose first child is HTML in a foreignObject and whose fallback is a text;
+              dropping either loses the visible content.
+            tests:
+              - SvgCodec_Load_AnchorElement_DrawsItsContent
+              - SvgCodec_Load_Switch_DrawsTheFirstSupportedChild
+
+          - id: CanvasNetSvg-SvgCodec-UnsupportedFeatureReports
+            title: >-
+              The SvgCodec class shall report, through SvgLoadOptions.UnsupportedFeatureHandler after
+              painting, at most once per code with the number of elements and the first one named,
+              svg-text-not-drawn for text it does not draw (textPath content, an unknown element
+              inside a text, text inside a foreignObject, a nested svg, an unknown element, or a
+              switch without a drawable child, text with a negative font-size, under a non-finite
+              transform, or with coordinates beyond the supported range) and svg-text-unsupported
+              for text drawn without a feature it uses (rotate, textLength, letter-spacing,
+              word-spacing, a vertical writing-mode, direction rtl, dominant-baseline,
+              alignment-baseline, text-decoration, an unsupported baseline-shift, or a character no
+              font covers); it shall cover all drawn content, report nothing for content that is
+              not drawn by design, skip the checks when no handler is set, and never change the
+              pixels or fail the render.
+            justification: |
+              Text that silently disappears or loses its layout is the hardest rendering defect
+              for a reader to notice; a report lets a host tell the author, or fail a strict
+              build, while the rest of the document is still drawn.
+            tests:
+              - SvgCodec_UnsupportedFeatureHandler_TextPath_ReportsTextNotDrawn
+              - SvgCodec_UnsupportedFeatureHandler_RotateTextLengthAndSpacing_ReportsOneUnsupportedWithEveryFeature
+              - SvgCodec_UnsupportedFeatureHandler_TextInForeignObjectNestedSvgAndUnknownElement_ReportsTextNotDrawn
+              - SvgCodec_UnsupportedFeatureHandler_NegativeFontSizeAndHugeTransform_ReportsTextNotDrawn
+              - SvgCodec_UnsupportedFeatureHandler_MissingGlyph_ReportsUnsupportedWithTheCodePoint
+              - SvgCodec_UnsupportedFeatureHandler_SeveralElements_ReportsOnceWithTheCount
+              - SvgCodec_UnsupportedFeatureHandler_PlainAndStyledText_ReportsNothing
+              - SvgCodec_UnsupportedFeatureHandler_DoesNotChangeThePixels
+              - SvgCodec_UnsupportedFeatureHandler_DefaultIsNull
 
           - id: CanvasNetSvg-SvgCodec-FontWeightStyleCascade
             title: >-
@@ -921,9 +1028,10 @@ sections:
 
           - id: CanvasNetSvg-SvgCodec-UnsupportedConstructsIgnored
             title: >-
-              The SvgCodec class shall silently skip well-formed but out-of-scope elements
+              The SvgCodec class shall skip well-formed but out-of-scope elements
               (including a nested svg, animate/other SMIL animation elements, and
-              foreignObject), continuing to render the rest of the document.
+              foreignObject), continuing to render the rest of the document, and reporting text
+              inside them (see CanvasNetSvg-SvgCodec-UnsupportedFeatureReports).
             justification: |
               Real-world SVG documents commonly include constructs outside this codec's
               supported subset; rejecting the entire document because of one such element
@@ -1958,6 +2066,19 @@ sections:
               - SvgImageSource_Render_InvalidInput_Throws
               - SvgImageSource_Properties_NameExtensionAndNoSchemes
               - SvgImageSource_Properties_ExtensionsAndSchemesAreReadOnly
+
+          - id: CanvasNetSvg-SvgCodec-ImageSourceUnsupportedNotes
+            title: >-
+              The Svg package's image source shall return each feature of the linked SVG file that the
+              codec reports as not supported (svg-text-not-drawn, svg-text-unsupported) as an
+              Unsupported note of the result with that code, and, when the request asks to throw on an
+              unsupported feature, shall fail with UnsupportedImageFeatureException naming the first code.
+            justification: |
+              A diagram that embeds another SVG file must surface text the nested file loses, and a
+              strict render must fail for it as it does for any other unsupported feature.
+            tests:
+              - SvgImageSource_Render_TextPath_IsAnUnsupportedNoteOfTheResult
+              - SvgImageSource_Render_TextPathWithThrowOnUnsupportedFeature_ThrowsUnsupportedImageFeatureException
 
           - id: CanvasNetSvg-SvgCodec-PositionBindingSyntax
             title: >-

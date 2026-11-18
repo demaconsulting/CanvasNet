@@ -27,11 +27,13 @@ namespace DemaConsulting.CanvasNet.Svg;
 ///         warning. When the request has no resolver the file's own external links are not drawn.
 ///     </para>
 ///     <para>
-///         The SVG library neither reports unsupported features nor has a switch to fail on them, so
-///         <see cref="ImageSourceRequest.ThrowOnUnsupportedFeature"/> has no effect. The only notes of the result are
-///         the position bindings of the file that were not resolved (<see cref="SvgPositionBinding"/>), as warnings
-///         with their <c>svg-binding-*</c> code; their numbers in the file are kept. Text uses the fonts installed on
-///         the host (the default of <see cref="SvgLoadOptions"/>).
+///         The notes of the result are the position bindings of the file that were not resolved
+///         (<see cref="SvgPositionBinding"/>), as warnings with their <c>svg-binding-*</c> code (their numbers in the
+///         file are kept), and the features of the file the library cannot draw (<see cref="SvgUnsupportedFeature"/>,
+///         for example text on a <c>textPath</c>), as <see cref="ImageDiagnosticSeverity.Unsupported"/> notes with their
+///         <c>svg-text-*</c> code. With <see cref="ImageSourceRequest.ThrowOnUnsupportedFeature"/> the first such
+///         feature throws <see cref="UnsupportedImageFeatureException"/> instead. Text uses the fonts installed on the
+///         host (the default of <see cref="SvgLoadOptions"/>).
 ///     </para>
 ///     <para>
 ///         The source is stateless and thread-safe and claims no URI scheme.
@@ -69,12 +71,19 @@ public sealed class SvgImageSource : IImageSource
     ///     Draws the SVG file of a request.
     /// </summary>
     /// <param name="request">The request; it must carry the bytes of a file (<see cref="ImageSourceRequest.HasContent"/>).</param>
-    /// <returns>The picture at the requested (or natural) size, with a transparent background; its notes are the position bindings that were not resolved.</returns>
+    /// <returns>
+    ///     The picture at the requested (or natural) size, with a transparent background; its notes are the position
+    ///     bindings that were not resolved (warnings) and the features that are not drawn (unsupported notes).
+    /// </returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="request"/> is null.</exception>
     /// <exception cref="ImageSourceBudgetException">Thrown, before drawing, when the surface to allocate does not fit in the pixel budget (see <see cref="ImageSourceRequest"/>).</exception>
     /// <exception cref="InvalidOperationException">Thrown when the request has no file content (it was handed over by scheme).</exception>
     /// <exception cref="InvalidDataException">Thrown when the content is not a valid SVG document.</exception>
     /// <exception cref="OperationCanceledException">Thrown when the request is already canceled.</exception>
+    /// <exception cref="UnsupportedImageFeatureException">
+    ///     Thrown, after drawing, when <see cref="ImageSourceRequest.ThrowOnUnsupportedFeature"/> is set and the file uses
+    ///     a feature the library cannot draw; its feature is the <c>svg-text-*</c> code.
+    /// </exception>
     public ImageSourceResult Render(ImageSourceRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -95,14 +104,31 @@ public sealed class SvgImageSource : IImageSource
         // The nested links go through the scoped resolver, which shares the live budget, so recursion is bounded; a
         // position binding of the file that is not resolved is a warning of the result (the numbers in the file are kept)
         var bindings = new List<SvgPositionBinding>();
+        var unsupported = new List<SvgUnsupportedFeature>();
         using var content = request.OpenContent();
         var surface = SvgCodec.LoadWithFontFaces(
-            content, width, height, null, new SvgLoadOptions { ImageResolver = request.Resolver, BindingHandler = bindings.Add });
+            content,
+            width,
+            height,
+            null,
+            new SvgLoadOptions { ImageResolver = request.Resolver, BindingHandler = bindings.Add, UnsupportedFeatureHandler = unsupported.Add });
+
+        // A feature that is not drawn fails the request when the caller asked for that, otherwise it is a note
+        if (request.ThrowOnUnsupportedFeature && unsupported.Count > 0)
+        {
+            surface.Dispose();
+            throw new UnsupportedImageFeatureException(unsupported[0].Code, unsupported[0].Message);
+        }
+
         return new ImageSourceResult(surface)
         {
-            Diagnostics = [.. bindings
-                .Where(b => !b.IsResolved)
-                .Select(b => new ImageSourceDiagnostic(Name, ImageDiagnosticSeverity.Warning, b.Code!, b.Message))]
+            Diagnostics =
+            [
+                .. bindings
+                    .Where(b => !b.IsResolved)
+                    .Select(b => new ImageSourceDiagnostic(Name, ImageDiagnosticSeverity.Warning, b.Code!, b.Message)),
+                .. unsupported.Select(f => new ImageSourceDiagnostic(Name, ImageDiagnosticSeverity.Unsupported, f.Code, f.Message))
+            ]
         };
     }
 }

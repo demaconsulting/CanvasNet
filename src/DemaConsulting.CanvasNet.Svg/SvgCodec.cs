@@ -76,7 +76,13 @@ namespace DemaConsulting.CanvasNet.Svg;
 ///     <c>text-anchor</c>, and, for a caller that registers more than one <see cref="SvgFontFace"/>
 ///     per family via the <see cref="LoadWithFontFaces(Stream, int, int, IReadOnlyDictionary{string, IReadOnlyList{SvgFontFace}}?)"/>
 ///     overload, <c>font-weight</c>/<c>font-style</c>-aware closest-face matching - see this
-///     class's <c>SelectClosestFace</c> remarks for the matching algorithm); a shape/text
+///     class's <c>SelectClosestFace</c> remarks for the matching algorithm - laid out as styled,
+///     positioned runs: <c>tspan</c> and <c>a</c> inside <c>text</c> take their own cascade
+///     (presentation attributes, <c>style</c>, stylesheet rules), <c>x</c>/<c>y</c>/<c>dx</c>/<c>dy</c>
+///     lists place characters, an absolute position starts a text chunk anchored by its first
+///     character's <c>text-anchor</c>, <c>baseline-shift</c> moves a run, and white space collapses
+///     as in browsers - see <c>SvgCodec.TextLayout.cs</c>); <c>a</c> drawn like a group and
+///     <c>switch</c> drawing its first child that does not need <c>foreignObject</c>; a shape/text
 ///     element's own <c>clip-path="url(#id)"</c> and <c>mask="url(#id)"</c> presentation
 ///     attributes (resolved with the same dangling-reference tolerance as <c>filter</c>, and
 ///     combinable with <c>filter</c> and with each other on the same element, applied in the
@@ -109,7 +115,10 @@ namespace DemaConsulting.CanvasNet.Svg;
 ///     <c>animateColor</c>/<c>set</c>), <c>foreignObject</c>, and nested <c>svg</c> are all
 ///     well-formed-but-unsupported
 ///     constructs: encountering one never aborts the document, it is simply skipped, and every
-///     other element continues to render normally. Within the supported <c>marker</c> feature itself,
+///     other element continues to render normally. Text that is skipped this way, and text features
+///     the layout ignores (<c>textPath</c>, <c>rotate</c>, <c>textLength</c>, spacing, vertical
+///     writing), are reported through <see cref="SvgLoadOptions.UnsupportedFeatureHandler"/> when the
+///     caller sets one. Within the supported <c>marker</c> feature itself,
 ///     <c>markerContentUnits</c> (a rarely-used SVG 2 attribute) is not read, and a marker's
 ///     <c>overflow</c>/clipping-to-its-own-viewport behavior is not implemented (marker content is
 ///     never clipped to <c>markerWidth</c>/<c>markerHeight</c>) - both explicitly out of scope.
@@ -194,7 +203,7 @@ namespace DemaConsulting.CanvasNet.Svg;
 ///     <c>width</c>, <c>height</c>, <c>rx</c>, <c>ry</c>, <c>cx</c>, <c>cy</c>, <c>r</c>,
 ///     <c>x1</c>/<c>y1</c>/<c>x2</c>/<c>y2</c>, <c>refX</c>/<c>refY</c>, <c>markerWidth</c>/
 ///     <c>markerHeight</c>), <c>stroke-width</c>, <c>stroke-dashoffset</c>, each
-///     <c>stroke-dasharray</c> entry, <c>font-size</c>, <c>text</c>'s <c>dx</c>/<c>dy</c>, the
+///     <c>stroke-dasharray</c> entry, <c>font-size</c>, each <c>text</c>/<c>tspan</c> <c>x</c>/<c>y</c>/<c>dx</c>/<c>dy</c> entry, the
 ///     gradient/pattern/mask-region coordinates and the root <c>width</c>/<c>height</c> - accepts a
 ///     bare number (user units, per SVG 2 "Units"), a number with a CSS unit, a percentage, or a
 ///     <c>calc()</c>/<c>min()</c>/<c>max()</c>/<c>clamp()</c> expression (CSS Values and Units
@@ -273,7 +282,8 @@ namespace DemaConsulting.CanvasNet.Svg;
 ///     <c>line-height</c>, the <c>font</c> shorthand and the text <c>dx</c>/<c>dy</c> offsets: an
 ///     invalid declaration (including a number-typed math result in a CSS-declared
 ///     <c>font-size</c>) is ignored (the CSS invalid-declaration rule), so the value is inherited
-///     (or, for <c>dx</c>/<c>dy</c>, the offset is zero).
+///     (or, for <c>dx</c>/<c>dy</c>, the list ends at the invalid entry). The <c>x</c>/<c>y</c>
+///     lists of <c>text</c> and <c>tspan</c> are geometry (class S), entry by entry.
 ///     </para>
 ///     <para>
 ///     <b>GetInfo fallback policy.</b> <see cref="GetInfo(Stream)"/> resolves an intrinsic size in
@@ -622,7 +632,8 @@ public static partial class SvgCodec
                 UseSystemFonts = options?.UseSystemFonts ?? true,
                 ImageResolver = options?.ImageResolver,
                 BindingHandler = options?.BindingHandler,
-                ArrowheadHints = options?.HintHandler is { } hintHandler ? new ArrowheadHintCollector(hintHandler) : null
+                ArrowheadHints = options?.HintHandler is { } hintHandler ? new ArrowheadHintCollector(hintHandler) : null,
+                Unsupported = options?.UnsupportedFeatureHandler is { } unsupportedHandler ? new UnsupportedFeatureCollector(unsupportedHandler) : null
             };
             RenderDocument(root, fitTransform, size, context, diagnostics);
         }

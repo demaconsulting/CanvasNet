@@ -727,4 +727,59 @@ public class SvgSystemIntegrationTests
         Assert.Equal(1, hint.Count);
         Assert.Equal(255, surface[93, 20].A);
     }
+
+    /// <summary>
+    ///     Proves <c>CanvasNetSvg-Lib-SvgTextRendering</c> for styled text end-to-end: a <c>tspan</c> run is drawn in its
+    ///     own color and size from where the run before it ends, and a <c>tspan</c> with an absolute position starts a
+    ///     new chunk there.
+    /// </summary>
+    [Fact]
+    public void CanvasNetSvg_SystemIntegration_TspanRuns_DrawStyledAndPositionedText()
+    {
+        // Arrange: the square test font (a glyph is a S/2 square that advances S)
+        const string svg = """
+            <svg xmlns='http://www.w3.org/2000/svg' width='200' height='100' font-family='TestFont' font-size='20'>
+              <text x='10' y='50'>A<tspan fill='#ff0000' font-size='40'>A</tspan><tspan x='150' y='90'>A</tspan></text>
+            </svg>
+            """;
+
+        // Act
+        using var surface = SvgLengthTestSupport.Render(svg, 200, 100);
+
+        // Assert: black 10 px glyph at 10, red 20 px glyph at 30, the third chunk at 150 on the lower baseline, and no
+        // glyph at 50, where one flat run would have put the third one
+        Assert.Equal(new Rgba32(0, 0, 0, 255), surface[15, 45]);
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[40, 35]);
+        Assert.Equal(255, surface[155, 85].A);
+        Assert.Equal(0, surface[55, 45].A);
+    }
+
+    /// <summary>
+    ///     Proves <c>CanvasNetSvg-Lib-UnsupportedFeatureReports</c> end-to-end: a text on a <c>textPath</c> is reported
+    ///     once through <see cref="SvgLoadOptions.UnsupportedFeatureHandler"/> as
+    ///     <see cref="SvgUnsupportedFeature.TextNotDrawnCode"/>, and the rest of the document still renders.
+    /// </summary>
+    [Fact]
+    public void CanvasNetSvg_SystemIntegration_UnsupportedFeatureHandler_ReportsTextThatIsNotDrawn()
+    {
+        // Arrange
+        const string svg = """
+            <svg xmlns='http://www.w3.org/2000/svg' width='100' height='40'>
+              <rect x='60' y='10' width='20' height='20' fill='#00ff00'/>
+              <path id='p' d='M0 20 L100 20'/>
+              <text><textPath href='#p'>On a path</textPath></text>
+            </svg>
+            """;
+        var reports = new List<SvgUnsupportedFeature>();
+
+        // Act
+        using var stream = ToStream(svg);
+        using var surface = SvgCodec.LoadWithFontFaces(stream, 100, 40, null, new SvgLoadOptions { UnsupportedFeatureHandler = reports.Add });
+
+        // Assert
+        var report = Assert.Single(reports);
+        Assert.Equal(SvgUnsupportedFeature.TextNotDrawnCode, report.Code);
+        Assert.Equal(1, report.Count);
+        Assert.Equal(new Rgba32(0, 255, 0, 255), surface[70, 15]);
+    }
 }

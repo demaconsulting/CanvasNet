@@ -276,20 +276,21 @@ public static partial class SvgCodec
             _ => null
         };
 
-    /// <summary>Builds a <c>clipPath</c> direct <c>text</c> child's own glyph-run outline.</summary>
+    /// <summary>Builds a <c>clipPath</c> direct <c>text</c> child's own glyph outline: the union of its laid-out runs.</summary>
     /// <param name="child">The <c>text</c> element.</param>
     /// <param name="childState">The child's own cascaded render state.</param>
     /// <param name="context">The fixed per-document render context.</param>
     /// <param name="workBudget">The shared geometry-parsing work budget, charged with the text's character count.</param>
     /// <returns>
-    ///     The laid-out glyph-run outline, or <see langword="null"/> under the same tolerant
-    ///     condition as <see cref="RenderText"/> itself (no text content); the font is always
-    ///     resolved via <see cref="ResolveFont"/>.
+    ///     The union of the runs of <see cref="LayoutText"/> (so <c>tspan</c> positions and sizes
+    ///     clip exactly as they draw), <see cref="Path.Empty"/> when no run has an outline, or
+    ///     <see langword="null"/> under the same tolerant condition as <see cref="RenderText"/>
+    ///     itself (no text content); the font is always resolved via <see cref="ResolveFont"/>.
     /// </returns>
     private static Path? BuildClipChildTextPath(XElement child, RenderState childState, RenderContext context, GeometryWorkBudget workBudget)
     {
-        var text = child.Value;
-        if (string.IsNullOrEmpty(text))
+        var characterCount = CountTextCharacters(child);
+        if (characterCount == 0)
         {
             return null;
         }
@@ -297,12 +298,10 @@ public static partial class SvgCodec
         // Charge the text's character count before glyph layout, mirroring RenderText's own charge
         // site: with default fonts every clipPath text run is now laid out, not only those of a
         // caller that registered a font
-        workBudget.Charge(text.Length);
+        workBudget.Charge(characterCount);
 
-        var font = ResolveFont(context, childState.FontFamily, childState.FontWeight, childState.FontStyle);
-
-        var origin = ResolveTextOrigin(child, childState);
-        return BuildGlyphRunPath(text, font, childState, origin);
+        var runs = LayoutText(child, childState, context, report: true);
+        return runs.Count == 0 ? Path.Empty : CombineTextRuns(runs);
     }
 
     /// <summary>

@@ -359,12 +359,13 @@ sections:
 
       - id: CanvasNetSvg-Lib-SvgTextRendering
         title: >-
-          The library shall render an SVG text element's characters as glyph outlines, positioned
-          and anchored according to its text-anchor, from a caller-supplied font matching its
-          font-family when one is registered and otherwise from a default font (installed fonts,
-          the bundled Liberation fonts for the generic families, and a bundled Liberation Sans last
-          resort), never silently dropping the text, and shall let a caller disable installed-font
-          lookup for reproducible output.
+          The library shall render an SVG text element's characters as glyph outlines, laid out as
+          browsers do - each tspan and a run in its own style, characters placed by x/y/dx/dy lists
+          and baseline-shift, each text chunk anchored according to its text-anchor, and white space
+          collapsed - from a caller-supplied font matching its font-family when one is registered
+          and otherwise from a default font (installed fonts, the bundled Liberation fonts for the
+          generic families, and a bundled Liberation Sans last resort), never silently dropping the
+          text, and shall let a caller disable installed-font lookup for reproducible output.
         tags: [system]
         justification: |
           Callers need text content in an SVG document rendered as recognizable glyph shapes
@@ -376,8 +377,13 @@ sections:
           - CanvasNetSvg-SvgCodec-TextFontRegisteredPrecedence
           - CanvasNetSvg-SvgCodec-TextSystemFontsOption
           - CanvasNetSvg-SvgCodec-TextAnchor
+          - CanvasNetSvg-SvgCodec-TextSpans
+          - CanvasNetSvg-SvgCodec-TextPositioning
+          - CanvasNetSvg-SvgCodec-TextWhiteSpace
+          - CanvasNetSvg-SvgCodec-AnchorAndSwitchElements
         tests:
           - CanvasNetSvg_SystemIntegration_SvgTextRendering_RendersGlyphAtExpectedPosition
+          - CanvasNetSvg_SystemIntegration_TspanRuns_DrawStyledAndPositionedText
           - CanvasNetSvg_SystemIntegration_SvgTextDefaultFonts_RendersTextWithoutRegisteredFonts
           - SvgCodec_Load_TextWithMatchingFont_RendersGlyphAtExpectedPosition
           - SvgCodec_Load_TextWithKerningPair_AppliesKerningBetweenGlyphs
@@ -491,8 +497,8 @@ sections:
 
       - id: CanvasNetSvg-Lib-SvgTolerateUnsupportedConstructs
         title: >-
-          The library shall silently skip well-formed but out-of-scope SVG elements, continuing
-          to render the rest of the document, rather than rejecting the entire document.
+          The library shall skip well-formed but out-of-scope SVG elements, continuing to render
+          the rest of the document, rather than rejecting the entire document.
         tags: [system]
         justification: |
           Real-world SVG documents commonly include constructs outside this codec's supported
@@ -579,3 +585,21 @@ sections:
           - CanvasNetSvg-SvgCodec-ArrowheadShapeHint
         tests:
           - CanvasNetSvg_SystemIntegration_HintHandler_ReportsHandDrawnArrowhead
+
+      - id: CanvasNetSvg-Lib-UnsupportedFeatureReports
+        title: >-
+          The library shall report every SVG text it does not draw (svg-text-not-drawn) and every
+          text drawn without a feature it uses (svg-text-unsupported) through
+          SvgLoadOptions.UnsupportedFeatureHandler, at most once per code per document with the
+          number of elements, without changing the pixels or failing the render, and its image
+          source shall return the reports of a linked SVG file as unsupported notes (or fail the
+          request when it asks to throw on an unsupported feature).
+        tags: [system]
+        justification: |
+          Lost text must never pass unnoticed: a host shows the report to the author, and a strict
+          build fails on it, while the rest of the document is still drawn.
+        children:
+          - CanvasNetSvg-SvgCodec-UnsupportedFeatureReports
+          - CanvasNetSvg-SvgCodec-ImageSourceUnsupportedNotes
+        tests:
+          - CanvasNetSvg_SystemIntegration_UnsupportedFeatureHandler_ReportsTextThatIsNotDrawn

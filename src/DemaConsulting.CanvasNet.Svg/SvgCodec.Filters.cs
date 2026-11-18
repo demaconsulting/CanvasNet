@@ -73,6 +73,12 @@ public static partial class SvgCodec
     ///     filtered group.
     /// </param>
     /// <param name="totalElements">The running total-rendered-elements count, forwarded so a <c>mask</c>'s own content is charged against <see cref="MaxTotalRenderedElements"/> exactly like any other rendered subtree.</param>
+    /// <param name="runs">
+    ///     The styled runs of a <c>text</c> whose runs differ from <paramref name="state"/> (see
+    ///     <see cref="LayoutText"/>), painted one by one in place of <paramref name="localPath"/>,
+    ///     which is then their union (the bounding box basis); <see langword="null"/> (the default)
+    ///     paints <paramref name="localPath"/> with <paramref name="state"/>.
+    /// </param>
     /// <remarks>
     ///     A <c>filter</c>/<c>clip-path</c>/<c>mask</c> value of <c>none</c>/absent/not
     ///     <c>url(#id)</c> syntax, a dangling id, or an id resolving to an element not literally
@@ -99,16 +105,56 @@ public static partial class SvgCodec
         Matrix3x2 transform,
         RenderContext context,
         RenderScope scope,
-        ref int totalElements)
+        ref int totalElements,
+        IReadOnlyList<TextRun>? runs = null)
     {
         var effects = ResolveEffectsSet(element, context, suppressEffects: scope.MarkerDepth > 0);
         if (effects.Filter == null && effects.ClipPath == null && effects.Mask == null)
+        {
+            RenderShapeOrRuns(localPath, runs, state, transform, context, scope, ref totalElements);
+            return;
+        }
+
+        RenderShapeEffectsPipeline(effects, localPath, state, transform, context, scope, ref totalElements, runs);
+    }
+
+    /// <summary>
+    ///     Paints a shape's outline, or the styled runs of a text, through <see cref="RenderShape"/>.
+    /// </summary>
+    /// <param name="localPath">The shape's outline, or the union of the runs.</param>
+    /// <param name="runs">The runs of a text, or <see langword="null"/> to paint <paramref name="localPath"/> with <paramref name="state"/>.</param>
+    /// <param name="state">
+    ///     The state to paint with. For runs, its opacity multiplies each run's own (relative) opacity, so the
+    ///     effects pipeline's opaque state paints each run with only its <c>tspan</c> opacity.
+    /// </param>
+    /// <param name="transform">The accumulated transform from local space into pixel space.</param>
+    /// <param name="context">The fixed per-document render context.</param>
+    /// <param name="scope">The recursion depths and shared work budgets.</param>
+    /// <param name="totalElements">The running total-rendered-elements count.</param>
+    /// <remarks>
+    ///     Every run uses <paramref name="localPath"/>, the whole text, as the object bounding box of its paint servers,
+    ///     so a gradient on a <c>tspan</c> spans the text as in Chrome and Edge.
+    /// </remarks>
+    private static void RenderShapeOrRuns(
+        Path localPath,
+        IReadOnlyList<TextRun>? runs,
+        RenderState state,
+        Matrix3x2 transform,
+        RenderContext context,
+        RenderScope scope,
+        ref int totalElements)
+    {
+        if (runs == null)
         {
             RenderShape(localPath, state, transform, context, scope, ref totalElements);
             return;
         }
 
-        RenderShapeEffectsPipeline(effects, localPath, state, transform, context, scope, ref totalElements);
+        foreach (var run in runs)
+        {
+            var runState = run.State with { Opacity = run.State.Opacity * state.Opacity };
+            RenderShape(run.Path, runState, transform, context, scope, ref totalElements, boxPath: localPath);
+        }
     }
 
     /// <summary>
@@ -202,6 +248,11 @@ public static partial class SvgCodec
     ///     cumulative ceiling bounds the combined cost of all three effects together.
     /// </param>
     /// <param name="totalElements">The running total-rendered-elements count, forwarded to the <c>mask</c>'s own content rendering.</param>
+    /// <param name="runs">
+    ///     The styled runs of a <c>text</c> to paint as the content, or <see langword="null"/> to
+    ///     paint <paramref name="localPath"/> (see <see cref="RenderShapeWithEffects"/>); with runs
+    ///     the painted bounds are the union of each run's stroke-expanded bounds.
+    /// </param>
     /// <remarks>
     ///     The region this pipeline allocates its offscreen buffer at is chosen with the same
     ///     "never smaller than what a filter could need" precedence as the group counterpart of
@@ -244,15 +295,16 @@ public static partial class SvgCodec
         Matrix3x2 transform,
         RenderContext context,
         RenderScope scope,
-        ref int totalElements)
+        ref int totalElements,
+        IReadOnlyList<TextRun>? runs = null)
     {
         var (filterElement, clipPathElement, maskElement) = effects;
-        var rawBounds = ExpandBoundsForStroke(localPath.GetBounds(), state);
+        var rawBounds = runs == null ? ExpandBoundsForStroke(localPath.GetBounds(), state) : ComputeTextRunsBounds(runs);
 
         var region = ResolveEffectsRegionPixelBounds(filterElement, clipPathElement, maskElement, rawBounds, transform, state);
         if (region == null)
         {
-            RenderShape(localPath, state, transform, context, scope, ref totalElements);
+            RenderShapeOrRuns(localPath, runs, state, transform, context, scope, ref totalElements);
             return;
         }
 
@@ -272,7 +324,7 @@ public static partial class SvgCodec
         // side effects, preserving that regression byte-for-byte
         if (!filterApplies && clipPathElement == null && maskElement == null)
         {
-            RenderShape(localPath, state, transform, context, scope, ref totalElements);
+            RenderShapeOrRuns(localPath, runs, state, transform, context, scope, ref totalElements);
             return;
         }
 
@@ -287,7 +339,7 @@ public static partial class SvgCodec
             filterApplies, primitiveCount, filterElement != null && FilterUsesSourceAlpha(filterElement), clipPathElement != null, maskElement != null, pixelWidth, pixelHeight);
         if (!scope.FilterWorkBudget.TryCharge(workUnits))
         {
-            RenderShape(localPath, state, transform, context, scope, ref totalElements);
+            RenderShapeOrRuns(localPath, runs, state, transform, context, scope, ref totalElements);
             return;
         }
 
@@ -301,7 +353,7 @@ public static partial class SvgCodec
         // unmodified source, and the element's opacity is instead applied exactly once, afterward
         // (see this method's remarks)
         var opaqueState = state with { Opacity = 1f };
-        RenderShape(localPath, opaqueState, localToTemp, tempContext, scope, ref totalElements);
+        RenderShapeOrRuns(localPath, runs, opaqueState, localToTemp, tempContext, scope, ref totalElements);
 
         ApplyEffectsAndComposite(
             effects, filterApplies, new EffectsTarget(content, rawBounds, pixelX, pixelY, transform), state, context, scope, ref totalElements);
@@ -351,7 +403,7 @@ public static partial class SvgCodec
     ///     expressed in the local space that <paramref name="relativeTransform"/> maps <em>from</em>
     ///     (i.e. the caller's chosen reference frame, not necessarily pixel space) - a bounds-only
     ///     mirror of <see cref="RenderElement"/>'s dispatch switch, reusing the same
-    ///     <c>Build*Path</c>/<see cref="BuildGlyphRunPath"/> helpers and <see cref="ExpandBoundsForStroke"/>
+    ///     <c>Build*Path</c>/<see cref="LayoutText"/> helpers and <see cref="ExpandBoundsForStroke"/>
     ///     instead of actually rendering anything. Used exclusively by
     ///     <see cref="RenderGroupWithEffects"/> to size a filtered group's own <c>SourceGraphic</c>
     ///     buffer before any of its content is rendered.
@@ -467,7 +519,13 @@ public static partial class SvgCodec
         {
             case "g":
             case "symbol":
+            case "a":
                 return ComputeGroupBounds(element, state, transform, context, scope, ref totalElements);
+
+            case "switch":
+                return SelectSwitchChild(element) is { } chosen
+                    ? ComputeGroupBounds(element, state, transform, context, scope, ref totalElements, [chosen])
+                    : null;
 
             case "rect":
                 return ShapeBoundsRespectingOwnFilter(element, BuildRectPath(element, state), state, transform, context, scope.MarkerDepth);
@@ -537,6 +595,7 @@ public static partial class SvgCodec
     /// <param name="context">The fixed per-document render context.</param>
     /// <param name="scope">The recursion depths and budgets of the visit to <paramref name="element"/>.</param>
     /// <param name="totalElements">The running total-rendered-elements count.</param>
+    /// <param name="children">The children to bound, or <see langword="null"/> (the default) for every child element; a <c>switch</c> passes the child it draws.</param>
     /// <returns>The subtree bounds, or <see langword="null"/> if nothing paints.</returns>
     private static Rect? ComputeGroupBounds(
         XElement element,
@@ -544,7 +603,8 @@ public static partial class SvgCodec
         Matrix3x2 transform,
         RenderContext context,
         RenderScope scope,
-        ref int totalElements)
+        ref int totalElements,
+        IReadOnlyList<XElement>? children = null)
     {
         // Mirrors RenderElement's identical suppressEffects/ResolveFilterElement
         // derivation - a "g"/"symbol" element's own "filter" attribute never applies
@@ -567,7 +627,7 @@ public static partial class SvgCodec
 
         var childScope = scope.Nested();
         var bounds = Rect.Empty;
-        foreach (var child in element.Elements())
+        foreach (var child in children ?? element.Elements())
         {
             var childBounds = ComputeSubtreeLocalBounds(child, state, childRelativeTransform, context, childScope, ref totalElements);
             if (childBounds != null)
@@ -691,18 +751,16 @@ public static partial class SvgCodec
         RenderContext context,
         RenderScope scope)
     {
-        var text = element.Value;
-        if (string.IsNullOrEmpty(text))
+        var characterCount = CountTextCharacters(element);
+        if (characterCount == 0)
         {
             return null;
         }
 
-        var font = ResolveFont(context, state.FontFamily, state.FontWeight, state.FontStyle);
-
         // Charge the text's character count here too, mirroring RenderText's own
         // charge site - subject to the same caller-supplied counter/budget scoping as
         // this method's own totalElements/workBudget parameters
-        scope.WorkBudget.Charge(text.Length);
+        scope.WorkBudget.Charge(characterCount);
 
         // Also charge the shared, cumulative bounds-pre-pass geometry budget (see the
         // "polyline"/"polygon"/"path" cases above, and BoundsPrePassWorkBudget.
@@ -710,11 +768,22 @@ public static partial class SvgCodec
         // is likewise proportional to its character count, and re-parsed once per
         // nesting level under many nested filtered groups exactly like path/points
         // data would be
-        scope.BoundsPrePassBudget.ChargeGeometry(text.Length);
+        scope.BoundsPrePassBudget.ChargeGeometry(characterCount);
 
-        var origin = ResolveTextOrigin(element, state);
-        var glyphRunPath = BuildGlyphRunPath(text, font, state, origin);
-        return ShapeBoundsRespectingOwnFilter(element, glyphRunPath, state, transform, context, scope.MarkerDepth);
+        // The same layout as the paint, without reporting (the paint reports the text once); a single run of the
+        // text element itself keeps the plain-shape bounds, each other run is expanded by its own stroke
+        var runs = LayoutText(element, state, context, report: false);
+        if (runs.Count == 0)
+        {
+            return ShapeBoundsRespectingOwnFilter(element, Path.Empty, state, transform, context, scope.MarkerDepth);
+        }
+
+        if (runs.Count == 1 && ReferenceEquals(runs[0].Element, element))
+        {
+            return ShapeBoundsRespectingOwnFilter(element, runs[0].Path, state, transform, context, scope.MarkerDepth);
+        }
+
+        return BoundsRespectingOwnFilter(element, ComputeTextRunsBounds(runs), transform, context, scope.MarkerDepth);
     }
 
     /// <summary>
@@ -782,9 +851,26 @@ public static partial class SvgCodec
         RenderState state,
         Matrix3x2 transform,
         RenderContext context,
+        int markerDepth) =>
+        BoundsRespectingOwnFilter(element, ExpandBoundsForStroke(localPath.GetBounds(), state), transform, context, markerDepth);
+
+    /// <summary>
+    ///     The core of <see cref="ShapeBoundsRespectingOwnFilter"/> for already stroke-expanded local bounds, such as the
+    ///     union of the runs of a text, each expanded by its own stroke.
+    /// </summary>
+    /// <param name="element">The element whose own filter applies.</param>
+    /// <param name="rawLocalBounds">The stroke-expanded local bounds.</param>
+    /// <param name="transform">The element's own composed transform.</param>
+    /// <param name="context">The fixed per-document render context.</param>
+    /// <param name="markerDepth">The marker depth; above zero no filter applies.</param>
+    /// <returns>The bounds in the caller's frame, or <see langword="null"/> if empty.</returns>
+    private static Rect? BoundsRespectingOwnFilter(
+        XElement element,
+        Rect rawLocalBounds,
+        Matrix3x2 transform,
+        RenderContext context,
         int markerDepth)
     {
-        var rawLocalBounds = ExpandBoundsForStroke(localPath.GetBounds(), state);
         var ownFilterElement = markerDepth > 0 ? null : ResolveFilterElement(element, context);
         if (ownFilterElement == null)
         {

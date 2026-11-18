@@ -81,12 +81,23 @@ class:
   is `svg-arrowhead-shape` (`SvgHint.ArrowheadShapeCode`), a filled triangle drawn by hand on an unmarked connector
   end instead of a `marker`. Hints never change the pixels or fail the render, and no analysis runs without a handler
   (see *SvgCodec Design*, *Authoring Hints*).
+- **Unsupported-feature reports** (`SvgLoadOptions.UnsupportedFeatureHandler`, `Action<SvgUnsupportedFeature>?`, default
+  `null`): after painting, the codec reports text it does not draw (`svg-text-not-drawn`, for example `textPath` or the
+  HTML of a `foreignObject`) and text drawn without a feature it uses (`svg-text-unsupported`, for example `rotate` or
+  a character no font covers), at most once per code per document with the number of elements. Reports never change
+  the pixels or fail the render, and no checks run without a handler (see *SvgCodec Design*, *Unsupported-Feature
+  Reports*).
+- **Text layout**: `tspan` and `a` inside a `text` are drawn as runs in their own cascaded style, placed by the
+  `x`/`y`/`dx`/`dy` lists and `baseline-shift`, with each text chunk anchored by its `text-anchor` and white space
+  collapsed as browsers do; `a` is drawn like a group and `switch` draws its first child that does not need
+  `foreignObject` (see *SvgCodec Design*, *Text Layout*).
 - **Closed-path markers**: a closepath is a real segment, as in SVG 2, so the `marker-end` of a closed path or a
   `polygon` is drawn at its first point, oriented by bisecting the closing and the first segment.
 - **SvgImageSource** (`IImageSource`, claims `.svg`): The Svg package's image source, so that an SVG file can
   be embedded in another document through the shared `FolderImageResolver`: it draws the file at the size of its
   placement over a transparent background and resolves the file's own `image` elements through the resolver
-  scoped to the request (see *SvgCodec Design*, *Image Source*).
+  scoped to the request; the features the codec reports are `Unsupported` notes of the result, or
+  `UnsupportedImageFeatureException` when the request asks to throw (see *SvgCodec Design*, *Image Source*).
 - **Text font resolution**: A `text` element is rendered even when the caller registers no font:
   caller-registered fonts first, then (per family in the `font-family` list) generic keywords
   mapped to the bundled Liberation fonts and installed fonts matched by exact family name, then
