@@ -332,9 +332,10 @@ ignored silently), a value that is not allowed or a page that does not exist is 
 `image-fragment-duplicate-parameter` (the last wins). Inside an XML attribute write `&amp;` between parameters. The
 Viewer user guide has the grammar and the table of parameters. The core package has a raster source; the `Svg` package
 has
-`SvgImageSource` for `.svg` files; and the `Scad`, `VegaLite`, `Pdf`, `Pptx` and `Vsdx` packages have
-one each. The `DemaConsulting.CanvasNet.Viewer` package lists them all.
-The Mermaid user guide, *Example 56*, shows an SVG that embeds Mermaid diagrams next to a model and a chart.
+`SvgImageSource` for `.svg` files; and the `Scad`, `VegaLite`, `Mermaid`, `PlantUml`, `Pdf`, `Pptx` and `Vsdx`
+packages have one each. The `DemaConsulting.CanvasNet.Viewer` package lists them all.
+The Mermaid user guide, *Example 56*, shows an SVG that embeds Mermaid diagrams next to a model and a chart, and the
+PlantUML user guide, *Example 71*, an SVG that embeds two PlantUML diagrams (`.puml`).
 
 ```csharp
 // SVG files that embed raster images and other SVG files from the folder of the document

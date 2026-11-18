@@ -24,6 +24,8 @@ This user guide covers:
 - Rendering Mermaid flowcharts, sequence diagrams, class diagrams, state diagrams, entity relationship diagrams, pie
   charts, gantt charts, mindmaps, packet diagrams, and git graphs (`DemaConsulting.CanvasNet.Mermaid`), with a gallery
   of original diagrams
+- Rendering PlantUML sequence diagrams and activity diagrams (`DemaConsulting.CanvasNet.PlantUml`) with PlantUML's
+  default look, local `!include` files, and a gallery of original diagrams
 - The `canvasnet` command-line tool: its commands, options, JSON output, error codes, and self-validation
 
 ## References
@@ -55,9 +57,9 @@ Install the library using the .NET CLI:
 dotnet add package DemaConsulting.CanvasNet
 ```
 
-To use CanvasNet from the command line instead (to inspect, render, convert, and transform images, documents,
-OpenSCAD models, Vega-Lite charts, and Mermaid diagrams, from scripts or AI agents), install the `canvasnet` .NET tool,
-which bundles the libraries. The chapter on the command-line tool describes it in full:
+To use CanvasNet from the command line instead (to inspect, render, convert, and transform images, documents, OpenSCAD
+models, Vega-Lite charts, and Mermaid and PlantUML diagrams, from scripts or AI agents), install the `canvasnet` .NET
+tool, which bundles the libraries. The chapter on the command-line tool describes it in full:
 
 ```bash
 dotnet tool install --global DemaConsulting.CanvasNet.Tool

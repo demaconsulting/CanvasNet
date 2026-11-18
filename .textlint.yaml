@@ -1251,6 +1251,22 @@ words:
   - endgantt
   - startjson
   - endjson
+  - startwbs
+  - startyaml
+  - startsalt
+  - startditaa
+  - startdot
+  - startmath
+  - startlatex
+  - startregex
+  - startebnf
+  - startchen
+  - startfiles
+  - startchronology
+  - startboard
+  - startcreole
+  - startwire
+  - startnwdiag
   - skinparam
   - skinparams
   - teoz
