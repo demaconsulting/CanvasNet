@@ -137,7 +137,8 @@ public static partial class SvgCodec
     ///     <c>pattern</c> element (see <see cref="ResolvePatternElement"/>), rendering is dispatched
     ///     entirely to <see cref="RenderPatternFill"/> instead - a purely additive branch: every
     ///     other <c>fill</c> value (a solid color, a gradient reference, <c>none</c>, or a
-    ///     dangling/wrong-type <c>url(#id)</c> reference) falls through this check unaffected, and
+    ///     dangling/wrong-type <c>url(#id)</c> reference, which paints its fallback color or nothing)
+    ///     falls through this check unaffected, and
     ///     reaches the exact same <see cref="ResolvePaint"/>/<see cref="FillWithPaint"/> call this
     ///     method has always made. A pattern in <c>objectBoundingBox</c> units on a shape whose box has
     ///     no width or no height is ignored (see <see cref="IsObjectBoundingBoxServerOnEmptyBox"/>):
@@ -194,12 +195,14 @@ public static partial class SvgCodec
     ///     dispatched entirely to <see cref="RenderPatternFill"/> instead of
     ///     <see cref="ResolvePaint"/>/<see cref="FillWithPaint"/> - every other <c>stroke</c> value
     ///     (a solid color, a gradient reference, <c>none</c>, or a dangling/wrong-type
-    ///     <c>url(#id)</c> reference) is completely unaffected by this additional check. A pattern in
+    ///     <c>url(#id)</c> reference, which paints its fallback color or nothing) is completely
+    ///     unaffected by this additional check. A pattern in
     ///     <c>objectBoundingBox</c> units on a shape whose box has no width or no height (a horizontal
     ///     or vertical line) is ignored (see <see cref="IsObjectBoundingBoxServerOnEmptyBox"/>): the
     ///     outline is filled with the fallback color after the reference, or the stroke is skipped.
     ///     </para>
-    ///     A no-op stroke (<c>stroke="none"</c>, a dangling gradient reference, or a non-positive
+    ///     A no-op stroke (<c>stroke="none"</c>, a dangling gradient reference without a fallback
+    ///     color, or a non-positive
     ///     effective stroke width) never constructs a <see cref="Drawing.StrokeStyle"/> at all,
     ///     avoiding its constructor's own <see cref="ArgumentOutOfRangeException"/> for a
     ///     zero width. The same tolerant skip also covers a non-finite effective stroke width: the

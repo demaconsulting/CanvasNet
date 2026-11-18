@@ -174,6 +174,26 @@ sections:
               - SvgCodec_Load_GradientHrefChainOfTwoHops_ResolvesToEventualStops
               - SvgCodec_Load_GradientHrefCycle_ThrowsInvalidDataException
 
+          - id: CanvasNetSvg-SvgCodec-PaintReferenceFallback
+            title: >-
+              The SvgCodec class shall paint a fill or stroke whose url() reference is not a local
+              fragment, names no element of the document, or names an element that is not a
+              linearGradient, radialGradient, or pattern with the fallback color written after the
+              reference, and nothing when there is no fallback or it is none; a gradient without
+              stops paints nothing even with a fallback.
+            justification: |
+              SVG 2 Painting uses the fallback color when a paint server reference is invalid, and
+              browsers do; a document that names a gradient it no longer defines then keeps its
+              intended color instead of losing the shape.
+            tests:
+              - SvgCodec_Load_MissingPaintServerWithFallback_PaintsTheFallbackColor
+              - SvgCodec_Load_MissingPaintServerWithoutFallback_PaintsNothing
+              - SvgCodec_Load_NonPaintServerReferenceWithFallback_PaintsTheFallbackColor
+              - SvgCodec_Load_GradientWithoutStopsAndFallback_PaintsNothing
+              - SvgCodec_Load_DanglingPatternReference_RendersUnfilled
+              - SvgCodec_Load_FillReferencesNonPatternElement_RendersUnfilled
+              - SvgArrow_HintHandler_DanglingPaintReferences_FollowTheResolvedPaint
+
           - id: CanvasNetSvg-SvgCodec-UseElement
             title: >-
               The SvgCodec class shall render a use element as a copy of the element it
@@ -1643,22 +1663,22 @@ sections:
               to userSpaceOnUse, always mapped through the whole referencing element's own
               bounding box rather than any individual repeated tile's own sub-range),
               patternTransform, and a viewBox/preserveAspectRatio pair on the pattern element
-              itself (taking precedence over patternContentUnits when present), while
-              tolerating a dangling or wrong-element-type pattern reference as a no-op
-              (rendering unfilled/unstroked), and shall ignore a pattern whose tile or content is
-              in objectBoundingBox units on a shape whose bounding box has no width or no height,
-              painting the fallback color written after the reference instead, or nothing when
-              there is none.
+              itself (taking precedence over patternContentUnits when present), while painting
+              the fallback color written after a dangling or wrong-element-type pattern reference,
+              or nothing (rendering unfilled/unstroked) when there is none, and shall ignore a
+              pattern whose tile or content is in objectBoundingBox units on a shape whose
+              bounding box has no width or no height, painting the fallback color written after
+              the reference instead, or nothing when there is none.
             justification: |
               pattern is a common SVG authoring mechanism for a repeating tiled fill (a
               hatching, a texture, a repeated icon) that neither a solid color nor a gradient
               can express; callers relying on this common pattern need it actually tiled
-              rather than silently rendered as an unfilled or flat-colored shape. Tolerating a
-              dangling or wrong-element-type reference as a no-op matches this codec's general
-              dangling-reference convention (already applied to filter/marker/gradient/
-              clip-path/mask references), so one bad pattern attribute cannot abort rendering
-              of an otherwise-valid document. SVG 2 ignores a bounding-box effect on a box with no
-              width or no height, and browsers then paint the fallback color.
+              rather than silently rendered as an unfilled or flat-colored shape. Painting the
+              fallback color of a dangling or wrong-element-type reference, or nothing, follows
+              SVG 2 Painting and browsers (see PaintReferenceFallback), so one bad pattern
+              attribute cannot abort rendering of an otherwise-valid document. SVG 2 ignores a
+              bounding-box effect on a box with no width or no height, and browsers then paint
+              the fallback color.
             tests:
               - SvgCodec_Load_PatternDefaultUnits_TilesOnceAcrossShapeBoundingBox
               - SvgCodec_Load_PatternUserSpaceOnUseUnits_TilesRepeatedlyAcrossUserSpace

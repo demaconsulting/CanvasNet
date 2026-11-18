@@ -1864,6 +1864,112 @@ public class SvgCodecTests
     }
 
     /// <summary>
+    ///     Proves that a paint reference to an id no element has, or to another document, paints the fallback color
+    ///     written after it, with the fill opacity folded in, as SVG 2 and Edge do; for a fill and a stroke.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_MissingPaintServerWithFallback_PaintsTheFallbackColor()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <rect width='40' height='40' fill='url(#missing) orange'/>
+              <rect x='50' width='40' height='40' fill='url(other.svg#g) orange'/>
+              <rect y='50' width='40' height='40' fill='url(#missing) #0000ff' fill-opacity='0.5'/>
+              <line x1='50' y1='70' x2='90' y2='70' stroke='url(#missing) lime' stroke-width='10'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert
+        Assert.Equal(new Rgba32(255, 165, 0, 255), surface[20, 20]);
+        Assert.Equal(new Rgba32(255, 165, 0, 255), surface[70, 20]);
+        Assert.Equal(0, surface[20, 70].R);
+        Assert.True(surface[20, 70].B > 100);
+        Assert.Equal(128, surface[20, 70].A);
+        Assert.Equal(new Rgba32(0, 255, 0, 255), surface[70, 70]);
+    }
+
+    /// <summary>
+    ///     Proves that a paint reference to a missing id without a fallback color, or with <c>none</c> as the
+    ///     fallback, paints nothing.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_MissingPaintServerWithoutFallback_PaintsNothing()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <rect width='40' height='40' fill='url(#missing)'/>
+              <rect x='50' width='40' height='40' fill='url(#missing) none'/>
+              <line x1='10' y1='70' x2='90' y2='70' stroke='url(#missing)' stroke-width='10'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert
+        Assert.Equal(0, surface[20, 20].A);
+        Assert.Equal(0, surface[70, 20].A);
+        Assert.Equal(0, surface[50, 70].A);
+    }
+
+    /// <summary>
+    ///     Proves that a paint reference to an element that is not a paint server (a <c>rect</c>) paints the fallback
+    ///     color written after it, and nothing without one.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_NonPaintServerReferenceWithFallback_PaintsTheFallbackColor()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs><rect id='r' width='1' height='1'/></defs>
+              <rect width='40' height='40' fill='url(#r) orange'/>
+              <rect x='50' width='40' height='40' fill='url(#r)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert
+        Assert.Equal(new Rgba32(255, 165, 0, 255), surface[20, 20]);
+        Assert.Equal(0, surface[70, 20].A);
+    }
+
+    /// <summary>
+    ///     Proves that a gradient without stops paints nothing even with a fallback color, as in Edge: a gradient with
+    ///     zero stops is a valid paint server that paints as <c>none</c>.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_GradientWithoutStopsAndFallback_PaintsNothing()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs><linearGradient id='empty'/><linearGradient id='dangling' href='#missing'/></defs>
+              <rect width='40' height='40' fill='url(#empty) orange'/>
+              <rect x='50' width='40' height='40' fill='url(#dangling) orange'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert
+        Assert.Equal(0, surface[20, 20].A);
+        Assert.Equal(0, surface[70, 20].A);
+    }
+
+    /// <summary>
     ///     Proves that a gradient with no <c>stop</c> children of its own inherits its color
     ///     stops from the gradient it references via <c>href</c>.
     /// </summary>

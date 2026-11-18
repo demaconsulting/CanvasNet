@@ -27,7 +27,8 @@ examples:
   mask. A paint may name a fallback color (url(#g) red). A gradient or pattern
   in objectBoundingBox units is ignored on a shape with no width or no height,
   such as a horizontal line, as in browsers: the fallback color is drawn, or
-  nothing.
+  nothing. A reference to a missing id, to an element that is not a gradient or
+  pattern, or to another file draws the fallback color too, or nothing.
 - Filters: the fe* primitives blend, color matrix, component transfer,
   composite, convolve matrix, lighting, displacement map, drop shadow, flood,
   Gaussian blur, image, merge, morphology, offset, tile, and turbulence.

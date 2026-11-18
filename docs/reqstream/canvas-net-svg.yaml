@@ -36,6 +36,7 @@ sections:
           - CanvasNetSvg-SvgCodec-ColorGrammar
           - CanvasNetSvg-SvgCodec-Gradients
           - CanvasNetSvg-SvgCodec-GradientHrefInheritance
+          - CanvasNetSvg-SvgCodec-PaintReferenceFallback
           - CanvasNetSvg-SvgCodec-UseElement
           - CanvasNetSvg-SvgCodec-ElementNestingDepthLimit
           - CanvasNetSvg-SvgCodec-TotalElementBudget

@@ -189,7 +189,8 @@ own consistently-applied behavior:
 
 - **Tolerantly skipped, no-effect constructs** — a document containing one of these continues to
   render the rest of its content rather than failing outright: a dangling `url(#id)` reference
-  (gradient, pattern, filter, clip-path, or mask) that resolves to no element, a well-formed but
+  (gradient, pattern, filter, clip-path, or mask) that resolves to no element (a `fill` or `stroke`
+  paints the fallback color written after the reference, if any), a well-formed but
   out-of-scope/unrecognized element or filter primitive, an external (non-`data:`) `image` `href`
   when the caller supplied no `ImageResolver` (the library itself never performs file or network
   I/O: the resolver is an explicit, opt-in `IImageResolver` whose calls are charged against the shared

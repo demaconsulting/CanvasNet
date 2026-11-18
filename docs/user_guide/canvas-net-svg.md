@@ -161,8 +161,10 @@ is ignored on a shape whose box has no width or no height, such as a horizontal 
 browsers do. The fallback color written after the reference is painted instead, and without one nothing is drawn:
 `stroke="url(#g) red"` on a horizontal line is red, and `stroke="url(#g)"` draws nothing. Use
 `gradientUnits="userSpaceOnUse"` (or `patternUnits="userSpaceOnUse"`) to paint such a line with the gradient or
-pattern. A fallback may be any color, including `rgb(...)`; a reference to a missing id draws nothing even with a
-fallback.
+pattern. A fallback may be any color, including `rgb(...)`. A reference that names no element (`url(#missing) red`),
+names an element that is not a gradient or pattern, or points into another file (`url(other.svg#g) red`) also paints
+its fallback color, as SVG 2 and the browsers do, and nothing without one. A gradient without stops paints nothing,
+even with a fallback.
 
 `font-size` can be set by an attribute, a `style` attribute, a `style` element rule, or the `font`
 shorthand (for example `font: italic bold 12px/1.5 "Helvetica Neue", sans-serif`, which also resets

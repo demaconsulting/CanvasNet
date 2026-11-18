@@ -308,8 +308,9 @@ namespace DemaConsulting.CanvasNet.Svg;
 ///     geometry-parsing work budget (independent of the total-rendered-element budget, bounding a
 ///     single pathological element's own content) - is caught
 ///     and re-thrown as <see cref="InvalidDataException"/> with a descriptive message. A dangling <c>url(#id)</c>
-///     paint reference or an unrecognized color keyword is instead treated as tolerant "no paint"
-///     (nothing is drawn for that fill/stroke), and a <c>text</c> element whose <c>font-family</c>
+///     paint reference (or one to an element that is not a paint server) paints the fallback color
+///     written after it, or nothing without one, and an unrecognized color keyword is treated as
+///     tolerant "no paint" (nothing is drawn for that fill/stroke), and a <c>text</c> element whose <c>font-family</c>
 ///     no caller-registered font satisfies is not skipped but resolved to a default font (installed
 ///     family, generic family, or bundled Liberation Sans) rather than throwing - both documented
 ///     simplifications of an otherwise strict parser. An invalid

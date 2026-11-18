@@ -36,9 +36,14 @@ public static partial class SvgCodec
     /// </param>
     /// <returns>
     ///     A boxed <see cref="Rgba32"/>, a <see cref="Gradient"/>, or <see langword="null"/> - see
-    ///     this class's error-handling policy remarks for why an unrecognized color keyword or a
-    ///     dangling <c>url(#id)</c> reference tolerantly resolve to <see langword="null"/> rather
-    ///     than throwing. A gradient in <c>objectBoundingBox</c> units on a shape whose bounding box
+    ///     this class's error-handling policy remarks for why an unrecognized color keyword
+    ///     tolerantly resolves to <see langword="null"/> rather than throwing. A <c>url()</c>
+    ///     reference that is not a local <c>#id</c>, names no element, or names an element that is
+    ///     not a <c>linearGradient</c>, <c>radialGradient</c> or <c>pattern</c> resolves to the
+    ///     fallback color written after it (<c>url(#missing) orange</c>), or to
+    ///     <see langword="null"/> when there is none, as SVG 2 and browsers do; a gradient that
+    ///     exists but has no stops paints nothing even with a fallback (zero stops mean
+    ///     <c>none</c>). A gradient in <c>objectBoundingBox</c> units on a shape whose bounding box
     ///     has no width or no height is ignored, as the SVG specification requires: the fallback
     ///     color written after the reference (<c>url(#g) red</c>) is returned instead, or
     ///     <see langword="null"/> when there is none (see <see cref="IsObjectBoundingBoxServerOnEmptyBox"/>).
@@ -53,10 +58,13 @@ public static partial class SvgCodec
 
         if (trimmed.StartsWith("url(", StringComparison.OrdinalIgnoreCase))
         {
+            // A reference that is not a local fragment, names no element, or names an element that is not a paint
+            // server is invalid: the fallback color written after it is painted, or nothing without one (SVG 2
+            // Painting, "Specifying paint"; Edge does the same)
             var id = ExtractUrlId(trimmed);
-            if (id == null || !context.IdIndex.TryGetValue(id, out var element))
+            if (id == null || !context.IdIndex.TryGetValue(id, out var element) || !IsPaintServerElement(element))
             {
-                return null;
+                return ResolvePaintFallback(trimmed, alphaMultiplier);
             }
 
             // A bounding-box-relative gradient cannot be placed on a box with no width or no
@@ -128,8 +136,16 @@ public static partial class SvgCodec
     }
 
     /// <summary>
+    ///     Determines whether an element is a paint server a <c>fill</c> or <c>stroke</c> can reference.
+    /// </summary>
+    /// <param name="element">The referenced element.</param>
+    /// <returns><see langword="true"/> for a <c>linearGradient</c>, <c>radialGradient</c> or <c>pattern</c> element.</returns>
+    private static bool IsPaintServerElement(XElement element) =>
+        element.Name.LocalName is "linearGradient" or "radialGradient" or "pattern";
+
+    /// <summary>
     ///     Resolves the fallback color written after a <c>url(...)</c> reference in a paint value
-    ///     (<c>url(#g) red</c>), used when the referenced paint server is ignored.
+    ///     (<c>url(#g) red</c>), used when the referenced paint server is ignored or invalid.
     /// </summary>
     /// <param name="spec">The trimmed, <c>url(</c>-prefixed paint specification.</param>
     /// <param name="alphaMultiplier">The combined opacity multiplier folded into the fallback color's alpha.</param>

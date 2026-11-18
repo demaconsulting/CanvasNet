@@ -244,6 +244,22 @@ still resolves to the eventual stop-bearing template, and that a cyclical `href`
 referencing `b` referencing back to `a`) is rejected with `InvalidDataException` rather than
 looping indefinitely.
 
+#### CanvasNetSvg-SvgCodec-PaintReferenceFallback: Fallback Color of an Invalid Paint Reference
+
+**Tests**: `SvgCodec_Load_MissingPaintServerWithFallback_PaintsTheFallbackColor`,
+`SvgCodec_Load_MissingPaintServerWithoutFallback_PaintsNothing`,
+`SvgCodec_Load_NonPaintServerReferenceWithFallback_PaintsTheFallbackColor`,
+`SvgCodec_Load_GradientWithoutStopsAndFallback_PaintsNothing`, `SvgCodec_Load_DanglingPatternReference_RendersUnfilled`,
+`SvgCodec_Load_FillReferencesNonPatternElement_RendersUnfilled`; (`SvgArrowTests.cs`):
+`SvgArrow_HintHandler_DanglingPaintReferences_FollowTheResolvedPaint`
+
+Asserts that a fill referencing a missing id or another document (`url(other.svg#g)`) paints the fallback color written
+after it, with the fill opacity folded into its alpha, and that a stroke does the same; that without a fallback, or
+with `none`, nothing is painted; that a reference to a `rect` paints its fallback color, or nothing without one; that a
+gradient without stops, or whose `href` dangles, paints nothing even with a fallback, as Edge does; and that the
+arrowhead hint follows the fallback: a connector stroked `url(#missing) #000000` is visible, so the head at its end is
+reported.
+
 #### CanvasNetSvg-SvgCodec-UseElement: Use Element Resolution, Recursion Guard, and Dangling References
 
 **Tests**: `SvgCodec_Load_UseElement_RendersCopyAtOffsetIndependentOfDocumentOrder`,
@@ -1981,9 +1997,9 @@ asserts a pattern referenced from a `stroke` attribute paints the stroke's own g
 with tiled content, independent of the shape's own fill; asserts a shape with independent
 `fill="url(#a)"` and `stroke="url(#b)"` references renders each pattern into its own respective
 region without either interfering with the other; asserts `fill="url(#nonexistent)"` referencing
-a dangling id renders the shape unfilled (fully transparent, matching this codec's general
-dangling-reference convention, and byte-identical to this codec's pre-existing dangling-gradient-reference
-behavior); asserts a `fill` reference that resolves to a well-formed element which is
+a dangling id without a fallback color renders the shape unfilled (fully transparent, the same as a
+dangling gradient reference, see *PaintReferenceFallback*); asserts a `fill` reference without a fallback that resolves
+to a well-formed element which is
 not literally a `pattern` (a plain `rect`) is tolerated as a no-op, rendering unfilled, mirroring
 this codec's existing `clipPath`/`mask`/`filter`/marker wrong-element-type tolerance; asserts a
 `pattern` with a zero `width` or `height` renders the referencing shape unfilled without throwing,

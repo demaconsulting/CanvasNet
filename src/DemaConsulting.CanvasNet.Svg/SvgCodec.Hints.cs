@@ -84,8 +84,8 @@ public static partial class SvgCodec
         var name = element.Name.LocalName;
 
         // Visibility follows the renderer's own paint path (a pattern first, then ResolvePaint), so a dangling or invalid
-        // url(#...), a color that resolves to full transparency, or a gradient whose stops are all transparent counts as
-        // no paint, exactly as it is (not) drawn
+        // url(#...) without a fallback color, a color that resolves to full transparency, or a gradient whose stops are all
+        // transparent counts as no paint, exactly as it is (not) drawn; with a fallback color the fallback decides
         var hasFill = name != "line" && HasVisiblePaint(state.Fill, state.FillOpacity * state.Opacity, path, transform, context, state);
         var hasStroke = state.StrokeWidth > 0 && HasVisiblePaint(state.Stroke, state.StrokeOpacity * state.Opacity, path, transform, context, state);
 
@@ -154,7 +154,8 @@ public static partial class SvgCodec
     ///     pattern (resolved first, as the renderer does) is visible when its combined opacity is not zero; otherwise
     ///     the paint from <see cref="ResolvePaint"/> is visible when it is a color whose alpha (with the opacities folded
     ///     in) is not zero, or a gradient with at least one stop whose alpha is not zero. None, an unrecognized color,
-    ///     and a dangling or invalid <c>url(#...)</c> draw nothing. A gradient or pattern in <c>objectBoundingBox</c>
+    ///     and a dangling or invalid <c>url(#...)</c> without a fallback color draw nothing (with one, the fallback color
+    ///     decides). A gradient or pattern in <c>objectBoundingBox</c>
     ///     units on a box with no width or no height is ignored, so only its fallback color can be visible.
     /// </summary>
     /// <param name="spec">The cascaded <c>fill</c> or <c>stroke</c> value.</param>

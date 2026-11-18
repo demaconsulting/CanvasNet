@@ -291,7 +291,8 @@ public class SvgArrowTests
     /// <summary>
     ///     Test that visibility follows the resolved paint: a connector stroked with a dangling <c>url(#...)</c> is not
     ///     drawn, so a triangle at its end reports nothing, while a connector whose fill is a dangling <c>url(#...)</c> is
-    ///     unfilled, so a triangle at its end is reported.
+    ///     unfilled, so a triangle at its end is reported; a dangling stroke with a fallback color is drawn in that color,
+    ///     so it reports too.
     /// </summary>
     [Fact]
     public void SvgArrow_HintHandler_DanglingPaintReferences_FollowTheResolvedPaint()
@@ -309,14 +310,22 @@ public class SvgArrowTests
               <polygon points='100,100 90,95 90,105' fill='#000000'/>
             </svg>
             """;
+        const string fallbackStroke = """
+            <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200'>
+              <path d='M20,50 C60,50 60,100 100,100' fill='none' stroke='url(#missing) #000000' stroke-width='2'/>
+              <polygon points='100,100 90,95 90,105' fill='#000000'/>
+            </svg>
+            """;
 
         // Act
         var strokeHints = RenderHints(invisibleStroke);
         var fillHints = RenderHints(invisibleFill);
+        var fallbackHints = RenderHints(fallbackStroke);
 
         // Assert
         Assert.Empty(strokeHints);
         Assert.Equal(SvgHint.ArrowheadShapeCode, Assert.Single(fillHints).Code);
+        Assert.Equal(SvgHint.ArrowheadShapeCode, Assert.Single(fallbackHints).Code);
     }
 
     /// <summary>

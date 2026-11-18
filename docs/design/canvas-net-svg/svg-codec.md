@@ -906,8 +906,13 @@ unrecognized color - the behavior of Chromium and Firefox. A pattern is ignored 
 is `objectBoundingBox` or its content is in `objectBoundingBox` units without a `viewBox`; `RenderFill` and
 `RenderStroke` then paint the fallback color instead of calling `RenderPatternFill`, and the arrowhead hint's
 `HasVisiblePaint` follows the same rule. `ComputeObjectBoundingBoxMap` itself is unchanged, because its identity
-result for an empty box is still what `clipPathUnits` and `maskContentUnits` rely on. A dangling reference with a
-fallback (`url(#missing) red`) still paints nothing.
+result for an empty box is still what `clipPathUnits` and `maskContentUnits` rely on. A reference that is invalid -
+not a local `#id` (`url(other.svg#g)`), naming no element (`url(#missing) red`), or naming an element that is not a
+`linearGradient`, `radialGradient` or `pattern` (`IsPaintServerElement`) - paints its fallback color through
+`ResolvePaintFallback`, or nothing without one (SVG 2 Painting, "Specifying paint"; Edge does the same). A gradient
+that exists but has no stops paints nothing even with a fallback, because zero stops are a valid server that paints
+as `none`. Known differences from Edge, kept: an empty pattern paints nothing here (Edge paints the fallback), and
+`url(#missing) bogus` paints nothing here (Edge treats the invalid declaration as the initial black).
 
 **Use.** A `use` element referencing any element by id via `href`/`xlink:href` renders a copy of
 the referenced element (translated by the `use` element's own `x`/`y`), resolved through the
