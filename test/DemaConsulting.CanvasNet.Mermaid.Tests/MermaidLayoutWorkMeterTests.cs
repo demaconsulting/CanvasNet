@@ -46,4 +46,39 @@ public class MermaidLayoutWorkMeterTests
         Assert.Equal((MermaidDiagnosticCodes.RenderFailed, location), (ex.Code, ex.Location));
         Assert.Contains("no route", ex.Message, StringComparison.Ordinal);
     }
+
+    /// <summary>
+    ///     Validates that a Mermaid render failure is recognized as the consumer's own failure, so the shared layout lets
+    ///     it pass unchanged instead of wrapping it as a new layout failure.
+    /// </summary>
+    [Fact]
+    public void MermaidLayoutWorkMeter_IsFailure_MermaidRenderException_ReturnsTrue()
+    {
+        // Arrange
+        var meter = new MermaidLayoutWorkMeter(1, new MermaidLocation(null, 1, 1), CancellationToken.None);
+        var failure = new MermaidRenderException(MermaidDiagnosticCodes.LimitExceeded, "too much", default);
+
+        // Act
+        var isFailure = meter.IsFailure(failure);
+
+        // Assert
+        Assert.True(isFailure);
+    }
+
+    /// <summary>
+    ///     Validates that an invalid operation that is not a Mermaid failure is not recognized as one, so the shared layout
+    ///     reports it as a located render failure.
+    /// </summary>
+    [Fact]
+    public void MermaidLayoutWorkMeter_IsFailure_InvalidOperationException_ReturnsFalse()
+    {
+        // Arrange
+        var meter = new MermaidLayoutWorkMeter(1, new MermaidLocation(null, 1, 1), CancellationToken.None);
+
+        // Act
+        var isFailure = meter.IsFailure(new InvalidOperationException("dagre failed"));
+
+        // Assert
+        Assert.False(isFailure);
+    }
 }

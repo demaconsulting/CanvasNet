@@ -130,10 +130,14 @@ Charges a `MermaidLayoutWorkMeter` with a limit of 10 up to the limit and assert
 
 #### CanvasNetMermaid-MermaidDocument-LayoutFailure: A Layout Failure Is A Located Mermaid Error
 
-**Tests**: `MermaidLayoutWorkMeterTests.MermaidLayoutWorkMeter_Failure_Description_RenderFailedAtLocation`
+**Tests**: `MermaidLayoutWorkMeterTests.MermaidLayoutWorkMeter_Failure_Description_RenderFailedAtLocation`,
+`MermaidLayoutWorkMeterTests.MermaidLayoutWorkMeter_IsFailure_MermaidRenderException_ReturnsTrue`,
+`MermaidLayoutWorkMeterTests.MermaidLayoutWorkMeter_IsFailure_InvalidOperationException_ReturnsFalse`
 
 Asserts that the failure a `MermaidLayoutWorkMeter` creates with a description has the code `mermaid-render-failed`,
-the meter's location, and a message that contains the description.
+the meter's location, and a message that contains the description; that the meter recognizes a
+`MermaidRenderException` as Mermaid's own failure (which the shared layout lets pass unchanged); and that it does not
+recognize a plain `InvalidOperationException`, which the shared layout turns into a located render failure.
 
 #### CanvasNetMermaid-MermaidDocument-Reports: Ordered, De-Duplicated, Capped Delivery
 

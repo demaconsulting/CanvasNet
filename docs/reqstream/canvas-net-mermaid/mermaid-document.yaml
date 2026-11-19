@@ -153,6 +153,8 @@ sections:
               with a location, not as an internal exception of the layout package.
             tests:
               - MermaidLayoutWorkMeter_Failure_Description_RenderFailedAtLocation
+              - MermaidLayoutWorkMeter_IsFailure_MermaidRenderException_ReturnsTrue
+              - MermaidLayoutWorkMeter_IsFailure_InvalidOperationException_ReturnsFalse
 
           - id: CanvasNetMermaid-MermaidDocument-Reports
             title: >-

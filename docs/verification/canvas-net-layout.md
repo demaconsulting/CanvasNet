@@ -45,13 +45,16 @@ runs constitute a failure.
 ### CanvasNetLayout-LayeredLayout: Compound Cyclic Graphs Are Laid Out In Every Direction
 
 **Tests**:
-`LayoutSystemIntegrationTests.CanvasNetLayout_LayeredLayout_CompoundCyclicLabeledGraph_LaidOutInEveryRankDirection`
+`LayoutSystemIntegrationTests.CanvasNetLayout_LayeredLayout_CompoundCyclicLabeledGraph_LaidOutInEveryRankDirection`,
+`DagreTests.Dagre_Layout_UpstreamGolden_MatchesDagre`
 
 Lays out a graph of four nodes, two of them in a cluster, with the cycle `a -> b -> c -> a` (whose first edge has a
 label) and one more edge, in each of the rank directions `TB`, `BT`, `LR`, and `RL`, and asserts that every node center
 and route point is finite, every edge has a route of at least two points, the label center is finite, the drawing has
 a size, the cluster encloses its members, and the first edge of the cycle runs in the rank direction. That the results
-are exactly those of dagre-d3-es is verified by the stage goldens (*Dagre Subsystem Verification Design*).
+are exactly those of dagre-d3-es is verified by the stage goldens (*Dagre Subsystem Verification Design*), whose
+theory over every golden case is also linked here as the fidelity evidence of the system requirement: every rank,
+order, coordinate, size, route, and label center of the port equals the one recorded from dagre-d3-es.
 
 ### CanvasNetLayout-Limits: The Consumer's Budget Stops A Layout
 

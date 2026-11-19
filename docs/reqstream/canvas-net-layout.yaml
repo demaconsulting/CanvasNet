@@ -45,6 +45,7 @@ sections:
           - CanvasNetLayout-Dagre-TieBreaking
         tests:
           - CanvasNetLayout_LayeredLayout_CompoundCyclicLabeledGraph_LaidOutInEveryRankDirection
+          - Dagre_Layout_UpstreamGolden_MatchesDagre
 
       - id: CanvasNetLayout-Limits
         title: >-
