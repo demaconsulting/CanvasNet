@@ -6,11 +6,11 @@
 
 `PlantUmlDocument` (namespace `DemaConsulting.CanvasNet.PlantUml`) is distributed via the separate
 `DemaConsulting.CanvasNet.PlantUml` NuGet package, whose only dependency is the core `DemaConsulting.CanvasNet` package.
-It reads diagrams written in the PlantUML text language and draws **sequence diagrams** and **activity diagrams** (the
-new syntax) as static pictures with PlantUML's default look and layout, using only managed code and the fonts bundled
-with the libraries: no Java, no Graphviz, and no network. Every other PlantUML diagram type is recognized and reported,
-never drawn wrongly. The package is derived with attribution from the MIT-licensed PlantUML sources and is **not
-affiliated with or endorsed by** the PlantUML project (see *PlantUML Third-Party Attribution*).
+It reads diagrams written in the PlantUML text language and draws **sequence diagrams**, **activity diagrams** (the new
+syntax), **class diagrams**, and **object diagrams** as static pictures with PlantUML's default look, using only managed
+code and the fonts bundled with the libraries: no Java, no Graphviz, and no network. Every other PlantUML diagram type
+is recognized and reported, never drawn wrongly. The package is derived with attribution from the MIT-licensed PlantUML
+sources and is **not affiliated with or endorsed by** the PlantUML project (see *PlantUML Third-Party Attribution*).
 
 Install it next to the core package (see also the Installation section of the project README); the `canvasnet` tool and
 the `DemaConsulting.CanvasNet.Viewer` package already include it:
@@ -21,7 +21,10 @@ dotnet add package DemaConsulting.CanvasNet.PlantUml
 
 A sequence diagram is laid out as PlantUML 1.2026.10 lays it out with its teoz engine, and an activity diagram as
 PlantUML lays out the new activity syntax with its tile ("ftile") composition, so the participants, messages, actions,
-decisions, and lanes land where PlantUML puts them. Neither needs Graphviz, in PlantUML or here. A document is
+decisions, and lanes land where PlantUML puts them. Neither needs Graphviz, in PlantUML or here. PlantUML lays out
+class and object diagrams with Graphviz; this package lays them out with the dagre layered layout of the shared
+`DemaConsulting.CanvasNet.Layout` package instead, so the boxes, members, packages, notes, and arrows have PlantUML's
+shapes and look, but they are placed differently (see *Fonts, Determinism, and Known Differences*). A document is
 **immutable and thread-safe**: it is read and validated once and can then be measured and rendered any number of
 times, from several threads at once, each call giving the same result for the same options.
 
@@ -33,12 +36,12 @@ public sealed partial class PlantUmlDocument
     public static PlantUmlDocument Open(Stream stream, PlantUmlOpenOptions? options = null);
 
     public string? SourceName { get; }
-    public string DiagramType { get; }      // "sequence", "activity", or a type that is not drawn ("class", ...)
+    public string DiagramType { get; }      // "sequence", "activity", "class", "object", or a type not drawn
     public bool IsSupported { get; }        // true when this version draws the type
     public string? Title { get; }           // the title statement
-    public int NodeCount { get; }           // participants, or actions, start, stop, end, connector, and decisions
-    public int EdgeCount { get; }           // messages, or arrows
-    public int SubgraphCount { get; }       // boxes, or swimlanes and partitions
+    public int NodeCount { get; }           // participants; actions, start, stop, ...; or classes, objects, maps
+    public int EdgeCount { get; }           // messages, arrows, or relationships
+    public int SubgraphCount { get; }       // boxes, swimlanes and partitions, or packages
 
     public PlantUmlSize Measure(
         PlantUmlRenderOptions? options = null,
@@ -67,9 +70,12 @@ public sealed partial class PlantUmlDocument
   participants (a participant named only by a message counts), `EdgeCount` the number of messages, and
   `SubgraphCount` the number of boxes. For an activity diagram, `NodeCount` is the number of actions, start, stop, end,
   and connector circles, and decisions, `EdgeCount` the number of arrows, and `SubgraphCount` the number of swimlanes
-  and partitions (and groups). For a type that is not drawn, `IsSupported` is `false`, `Title` is `null`, and the
-  counts are zero. `DiagramType` is `sequence`, `activity`, or the name of the type that is not drawn: `class`,
-  `object`, `usecase`, `component`, `deployment`, `state`, `timing`, `activity-legacy` (the old `(*) --> ...` syntax),
+  and partitions (and groups). For a class or object diagram, `NodeCount` is the number of classes (and the other
+  kinds), objects, and maps (notes do not count), `EdgeCount` the number of relationships (hidden ones count, links to
+  notes do not), and `SubgraphCount` the number of packages and namespaces that hold something. For a type that is not
+  drawn, `IsSupported` is `false`, `Title` is `null`, and the counts are zero. `DiagramType` is `sequence`, `activity`,
+  `class`, `object` (a class diagram whose first declaration is an object or a map), or the name of the type that is
+  not drawn: `usecase`, `component`, `deployment`, `state`, `timing`, `activity-legacy` (the old `(*) --> ...` syntax),
   or the type of another `@start` tag, such as `mindmap`, `gantt`, `wbs`, `json`, `yaml`, or `salt`.
 - `Measure` lays the diagram out and returns the size that `Render` produces for the same options, without drawing. It
   delivers the same reports as `Render`.
@@ -158,13 +164,14 @@ The limits, with their defaults and what they bound:
 - `MaxTextSize` (default 50,000): the statements of the diagram after the preprocessor, in UTF-16 characters, so
   comments do not count but text that a macro or an include produces does. The whole text as supplied may be four times
   as long. Exceeding it throws `InvalidDataException`.
-- `MaxNodes` (default 2,000): the participants of a sequence diagram, or the instructions and swimlanes of an activity
-  diagram.
-- `MaxEdges` (default 500): the messages of a sequence diagram, or the arrows of an activity diagram.
+- `MaxNodes` (default 2,000): the participants of a sequence diagram, the instructions and swimlanes of an activity
+  diagram, or the classes, objects, maps, and notes of a class or object diagram.
+- `MaxEdges` (default 500): the messages of a sequence diagram, the arrows of an activity diagram, or the
+  relationships of a class or object diagram.
 - `MaxLabelLength` (default 4,096): one text (a participant name, a message, an action, a condition, an arrow label, a
-  note, a group header, a divider, a title, or a legend), in UTF-16 characters.
-- `MaxNestingDepth` (default 32, at most 256): groups inside groups, or ifs, loops, forks, splits, and partitions inside
-  each other.
+  class name, a member, a note, a group header, a divider, a title, or a legend), in UTF-16 characters.
+- `MaxNestingDepth` (default 32, at most 256): groups inside groups, ifs, loops, forks, splits, and partitions inside
+  each other, or packages inside packages (the packages of a dotted name count).
 - `MaxIncludeDepth` (default 16, at most 64): an included file that includes another file, and so on.
 - `MaxIncludes` (default 64): the include directives followed for one diagram; every followed directive counts.
 - `MaxLayoutWork` (default 50,000,000): the metered steps of the layout.
@@ -218,12 +225,16 @@ at PlantUML's sizes (participants 14 pixels, messages 13, activity texts 12, tit
 - Elements: the eight participant kinds (`participant`, `actor`, `boundary`, `control`, `entity`, `database`,
   `collections`, `queue`), `note`, `sequenceGroup` and `sequenceGroupHeader`, `sequenceBox`, `sequenceDivider`,
   `sequenceDelay`, `sequenceLifeLine`, `arrow`, `activity`, `activityDiamond`, `swimlane` and `swimlaneTitle`,
-  `partition`, `title`, `header`, `footer`, `legend`, and `caption`.
+  `partition`, `title`, `header`, `footer`, `legend`, and `caption`; in class and object diagrams also `class`,
+  `classStereotype`, `classAttribute` (the members), `object`, `objectStereotype`, `map`, and `package`, and `arrow`
+  styles their relationships.
 - Properties of each element: `BackgroundColor`, `BorderColor`, `FontColor`, `FontSize`, `FontName`, `FontStyle`, and
   `BorderThickness`.
 - Document settings: `backgroundColor` (`transparent` keeps the page clear), `defaultFontName`, `defaultFontSize`,
   `defaultFontColor`, `roundCorner`, `shadowing false`, `sequenceArrowThickness`, `sequenceMessageAlign`,
-  `responseMessageBelowArrow`, `maxMessageSize`, and `footbox`.
+  `responseMessageBelowArrow`, `maxMessageSize`, and `footbox`; in class and object diagrams also
+  `classAttributeIconSize` (0 writes the visibility characters instead of icons), `circledCharacterRadius`, `nodesep`,
+  and `ranksep` (the spaces between neighbors and between ranks of the layout).
 - Colors: HTML color names, `#RRGGBB`, `#RRGGBBAA`, `#RGB`, one hexadecimal digit for a gray (`#8`), and `transparent`.
   A gradient (`#red/blue`) uses its first color.
 
@@ -287,6 +298,53 @@ This list is also the *Supported* section of `canvasnet help plantuml activity`;
 - **Connectors**: `(A)` circles that join two parts of a flow.
 - **Page texts**: `title`, `header`, `footer`, `caption`, and `legend` ... `endlegend`, and `scale N`.
 
+### Supported Class Syntax
+
+This list is also the *Supported* section of `canvasnet help plantuml class`; a test keeps the two the same.
+
+- **Class diagrams**: a diagram of class declarations and class relationships is a class diagram, recognized in the
+  order PlantUML tries its diagram types. It is drawn with PlantUML's shapes and look and laid out with the dagre
+  layered layout instead of Graphviz.
+- **Classes**: `class`, `abstract class` (or `abstract`), `interface`, `enum`, `annotation`, `entity`, `exception`,
+  `struct`, `protocol`, `metaclass`, `stereotype`, `record`, and `dataclass`, each with the circled character and the
+  color of its kind; a name used only by a relationship is a class.
+- **Names**: a quoted display name with `as`, generic parameters (`class Box<T>`), stereotypes (`<<name>>`, several),
+  a circled character of its own (`<< (S,#FF7700) name >>`), and colors (`#color`, `#back;line:color;text:color`, and
+  `##line`).
+- **Members**: a body `{ ... }` or `Name : member`; a member with parentheses (or `{method}`) is a method and the others
+  (or `{field}`) are fields; `-`, `#`, `~`, `+`, and `*` are drawn as PlantUML's visibility icons, `{static}` (or
+  `{classifier}`) underlines a member, and `{abstract}` writes it in italics.
+- **Separators**: `--`, `..`, `==`, and `__` lines in a body, each with an optional title (`.. title ..`).
+- **Relationships**: extension `<|--`, implementation `<|..`, composition `*--`, aggregation `o--`, association `-->`,
+  dependency `..>`, plain `--` and `..`, and the ends `#`, `x`, `+`, `0`, `(`, and `)`, at either end and in either
+  direction, and `extends` and `implements` in a declaration.
+- **Labels**: multiplicities in quotes at both ends (`"1" *-- "many"`), a label after a colon, and its direction mark
+  `<` or `>`.
+- **Layout hints**: the length of the arrow (one dash keeps both ends side by side, each further dash adds a rank),
+  `-up-`, `-down-`, `-left-`, and `-right-` (or `-u-`, `-d-`, `-l-`, `-r-`), and the styles `-[hidden]-`,
+  `-[#color]-`, `-[dashed]-`, `-[dotted]-`, `-[bold]-`, and `-[thickness=N]-`.
+- **Packages**: `package` and `namespace` blocks, nested, with a quoted title, a `#color`, stereotypes, and the
+  outlines `<<Folder>>`, `<<Rectangle>>`, `<<Frame>>`, `<<Node>>`, `<<Cloud>>`, `<<Database>>`, and `<<Card>>`; a
+  dotted name (`net.http.Client`) makes its packages, and `set namespaceSeparator` changes the separator or turns it
+  off.
+- **Notes**: `note left`, `right`, `top`, or `bottom of Name`, a note after a declaration (`note left : text`), `note on
+  link`, and floating notes (`note "text" as N`) linked with `..`, on one line or up to `end note`, with a color.
+- **Hide and show**: `hide` or `show` `members`, `fields` (or `attributes`), `methods`, `circle`, and `stereotype`,
+  with `empty`, for every class or for a kind (`interface`), a stereotype (`<<tag>>`), or a name.
+- **Page texts**: `title`, `header`, `footer`, `caption`, and `legend` ... `endlegend`, `left to right direction` and
+  `top to bottom direction`, and `scale N`.
+
+### Supported Object Syntax
+
+This list is also the *Supported* section of `canvasnet help plantuml object`; a test keeps the two the same.
+
+- **Object diagrams**: a diagram whose first declaration is an `object` or a `map` is an object diagram; it is read and
+  drawn like a class diagram, and classes and objects can be mixed.
+- **Objects**: `object Name` or `object "Display" as Name`, with stereotypes and a `#color`, and fields in a body
+  `{ ... }` or as `Name : field = value`; separators divide the fields.
+- **Maps**: `map Name { key => value }`, drawn as a table of the keys and their values.
+- **Links**: the relationships, labels, layout hints, notes, packages, and page texts of a class diagram.
+
 ### PlantUML Unsupported Features and Strict Mode
 
 A construct that PlantUML defines but this package does not draw is reported as a `PlantUmlUnsupportedFeature` with a
@@ -297,7 +355,7 @@ stable `Feature` code, a message, a location, and a hint, and the rest of the di
 The codes, with their kind and when each is reported:
 
 - **`plantuml-diagram-unsupported`**: Unsupported: The diagram type is not drawn by this version (every type but
-  sequence and activity diagrams); the picture is empty.
+  sequence, activity, class, and object diagrams); the picture is empty.
 - **`plantuml-multiple-diagrams`**: Unsupported: The text has more than one `@start` block; only the first one is drawn.
 - **`plantuml-preprocessor-unsupported`**: Unsupported: A preprocessor directive outside the subset (`!if`, `!function`,
   `!procedure`, `!foreach`, built-in `%functions`, `!define` with parameters); it is dropped with the block it opens.
@@ -306,8 +364,8 @@ The codes, with their kind and when each is reported:
 - **`plantuml-theme-unsupported`**: Unsupported: A `!theme` line; the default look is drawn.
 - **`plantuml-style-unsupported`**: Unsupported: A `<style>` block; it is skipped.
 - **`plantuml-statement-unsupported`**: Unsupported: A statement PlantUML defines that this version does not draw (`ref
-  over`, `newpage`, `switch`, `goto`, a specification and description language box style, ...); the rest of the diagram
-  is drawn.
+  over`, `newpage`, `switch`, `goto`, a specification and description language box style, a role or a crow's foot of
+  a class relationship, `together`, ...); the rest of the diagram is drawn.
 - **`plantuml-markup-unsupported`**: Unsupported: Creole markup outside the subset (images, sprites, icons, tables,
   lists, headings); the markup is drawn as text.
 - **`plantuml-syntax-error`**: Error (plantuml-error): a statement no parser of the diagram type accepts, an empty
@@ -336,10 +394,9 @@ specific code being in its `detail`.
 **Unsupported diagram types.** Every diagram type that PlantUML knows is recognized, so a diagram that this version
 cannot draw is named, not misread:
 
-- inside `@startuml`: class (`class`, `interface`, `abstract`, `enum`, `annotation`), object (`object`, `map`), use
-  case (`usecase`, `(name)`), component (`component`, `[name]`), deployment (`node`, `artifact`, `cloud`, ...), state
-  (`state`, `[*]`), timing (`robust`, `concise`), and the legacy activity syntax (`(*) --> ...`, reported as
-  `activity-legacy`);
+- inside `@startuml`: use case (`usecase`, `(name)`), component (`component`, `[name]`), deployment (`node`,
+  `artifact`, `cloud`, ...), state (`state`, `[*]`), timing (`robust`, `concise`), and the legacy activity syntax
+  (`(*) --> ...`, reported as `activity-legacy`);
 - the other `@start` tags: `@startmindmap`, `@startgantt`, `@startwbs`, `@startjson`, `@startyaml`, `@startsalt`,
   `@startditaa`, `@startdot`, `@startmath`, `@startlatex`, `@startregex`, `@startebnf`, `@startchen`, `@startfiles`,
   `@startchronology`, `@startboard`, `@startcreole`, `@startwire`, and `@startnwdiag`.
@@ -363,8 +420,11 @@ characters these lack, with the warning `plantuml-text-missing-glyph`.
 The layout is checked against PlantUML itself: a set of original reference diagrams is drawn by the MIT distribution of
 PlantUML 1.2026.10 (`tools/visual-diff/update-plantuml-goldens.ps1` draws them again; it is never run by the build),
 and the size of each picture, the place of every text, and the boxes of the participants, messages, life lines,
-actions, circles, diamonds, and hexagons agree with PlantUML's SVG within 1.5 pixels (the size within 3%). The known
-differences from PlantUML are:
+actions, circles, diamonds, and hexagons agree with PlantUML's SVG within 1.5 pixels (the size within 3%). For class and
+object diagrams, which PlantUML lays out with Graphviz (the reference pictures use its built-in Smetana port), the
+shapes are checked instead of the places: the same classes, packages, and notes, the size and colors of every box, the
+place of every text inside its box (within 1.5 pixels), the icons and separators, the titles of the packages, and the
+style, decorations, and labels of every relationship. The known differences from PlantUML are:
 
 - **Fonts.** PlantUML uses the fonts of the Java runtime, so its pictures differ from these where Arial is not the
   sans-serif font. The glyph shapes differ slightly from Arial; the positions do not.
@@ -382,9 +442,19 @@ differences from PlantUML are:
   `package`, `rectangle`, and `card` groups are reported as `plantuml-statement-unsupported`. An arrow with several
   colors is drawn with its first color, a repeat loop whose back arrow crosses swimlanes is drawn with the simple back
   arrow, and a diagram with swimlanes can be up to 3 pixels narrower than PlantUML's.
+- **Class and object diagrams.** They are laid out with the dagre layered layout instead of Graphviz, so the boxes and
+  packages have PlantUML's shapes and sizes but other places, the arrows other curves, and the picture another size;
+  classes that no relationship connects stand in one row, where Graphviz packs them in a grid, and the left-to-right
+  order of the classes in a rank can differ. Roles, qualifiers, crow's feet, the redefinition ends, middle decorations
+  of a relationship, `norank`, `together`, `remove`, association classes (`(A, B) .. C`), lollipop interfaces, `json`
+  blocks, hiding single elements or by visibility, and a link to a member (`A::x`, drawn from its class) are reported
+  as `plantuml-statement-unsupported`. The direction mark of a label (`: label >`) is drawn as a small triangle, which
+  the Smetana layout of PlantUML leaves out.
 - **Detection.** Statements are recognized by their leading keywords and arrows, in the order PlantUML tries its
-  diagram types (sequence first). In rare ambiguous cases a diagram of a type that is not drawn is named differently;
-  that never changes whether it is drawn.
+  diagram types (sequence, class, the legacy activity syntax, the use case, component, and deployment family, state,
+  and activity). In rare ambiguous cases a diagram of a type that is not drawn is named differently; that never changes
+  whether it is drawn. A class diagram that also declares an element of another type (an actor, a use case, a
+  component, ...) is a `plantuml-syntax-error`, as PlantUML refuses it without `allowmixing`.
 - **Errors.** For invalid text PlantUML draws an error picture; this package throws a located
   `PlantUmlSyntaxException`.
 - **Interaction.** The picture is static and has no links.
@@ -397,8 +467,9 @@ Arnaud Roques), read from its MIT-licensed distribution `net.sourceforge.plantum
 diagrams the way PlantUML draws them, the values of its default look (`skin/plantuml.skin`: colors, fonts, sizes, line
 widths, corners, and paddings), the framing and the supported preprocessor directives, the order of its diagram
 detection, the sequence statements and the geometry of its teoz engine and its element shapes, the statements of the
-new activity syntax and the geometry of its tile composition, and the way Java measures text with its logical
-`SansSerif` font are reimplemented in C#. No source text, comment, test, example, or image of PlantUML is copied, no
+new activity syntax and the geometry of its tile composition, the class and object statements and the shapes of their
+boxes, members, icons, links, packages, and notes, and the way Java measures text with its logical `SansSerif` font
+are reimplemented in C#. No source text, comment, test, example, or image of PlantUML is copied, no
 Java runs, and no PlantUML package is a dependency.
 
 The license text ships in the NuGet package under `licenses/LICENSE-plantuml.txt` (also in the `canvasnet` tool, which
@@ -510,10 +581,10 @@ catch (PlantUmlSyntaxException ex)
 }
 
 // A known type that this version does not draw opens, is reported, and gives an empty picture
-var classes = PlantUmlDocument.Parse("@startuml\nclass Order\nclass Line\nOrder *-- Line\n@enduml\n");
-Console.WriteLine($"{classes.DiagramType} {classes.IsSupported}");    // Output: class False
+var legacy = PlantUmlDocument.Parse("@startuml\n(*) --> First\nFirst --> Second\n@enduml\n");
+Console.WriteLine($"{legacy.DiagramType} {legacy.IsSupported}");      // Output: activity-legacy False
 var reports = new List<PlantUmlUnsupportedFeature>();
-using var empty = classes.Render(new PlantUmlRenderOptions { UnsupportedFeatureHandler = reports.Add });
+using var empty = legacy.Render(new PlantUmlRenderOptions { UnsupportedFeatureHandler = reports.Add });
 Console.WriteLine($"{reports[0].Feature} {empty.Width}x{empty.Height}");
                                                                       // Output: plantuml-diagram-unsupported 20x20
 
@@ -651,12 +722,13 @@ stop
 A plain ` ```plantuml ` block works the same way, without a caption. The text of a block is written to the filter's
 cache folder and drawn from there, so a diagram that includes files must be a `.puml` file of its own, used as a
 picture; the filter then hashes its `!include` files too, so a changed include draws the picture again. A block or a
-picture of a type that this version does not draw (a class diagram, a mindmap, ...) is left as written, so the
+picture of a type that this version does not draw (a state diagram, a mindmap, ...) is left as written, so the
 document shows its code, and the tool's message is a Pandoc warning.
 
 ### Example 73: The PlantUML Gallery
 
-The gallery is a set of small sequence and activity diagrams that together use the major features of the package.
+The gallery is a set of small sequence, activity, class, and object diagrams that together use the major features of
+the package.
 Every diagram is **original to this repository**, lies in `docs/user_guide/examples` as `plantuml-*.puml`, and is
 drawn below by the Pandoc filter, so the pictures are always those of the version of the library that built this
 guide. A test (`PlantUmlGalleryTests`) renders every file with `ThrowOnUnsupportedFeature = true` and fails on any
@@ -699,3 +771,55 @@ footer:
 `skinparam` colors for the actions:
 
 ![Partitions and styles](examples/plantuml-activity-partitions.puml){scale=2 width=35%}
+
+*A class model.* An abstract class with a stereotype and members of every visibility, an interface, an enumeration, a
+generic class, extension, implementation, an aggregation with multiplicities and a label, and a note:
+
+![Library model](examples/plantuml-class-model.puml){scale=2 width=60%}
+
+*Packages.* Nested packages, a namespace, a package drawn as a cloud, and `hide empty members`:
+
+![Packages](examples/plantuml-class-packages.puml){scale=2 width=60%}
+
+*Objects.* Two objects with fields, a map, and labeled links:
+
+![Objects](examples/plantuml-object-basics.puml){scale=2 width=40%}
+
+### Example 74: Rendering a PlantUML Class Diagram
+
+A class diagram is read and drawn like the other types; its facts count the classes, the relationships, and the
+packages:
+
+```csharp
+using DemaConsulting.CanvasNet.Codecs;
+using DemaConsulting.CanvasNet.PlantUml;
+
+var model = PlantUmlDocument.Parse("""
+    @startuml
+    package sales {
+      abstract class Order {
+        - id : long
+        + {abstract} total() : decimal
+      }
+      class Line
+    }
+    interface Payable
+    Payable <|.. Order
+    Order "1" *-- "many" Line : contains >
+    note right of Payable : paid later
+    @enduml
+    """);
+
+Console.WriteLine($"{model.DiagramType} {model.IsSupported}");       // Output: class True
+Console.WriteLine($"{model.NodeCount} classes, {model.EdgeCount} relationships, {model.SubgraphCount} package");
+                                                                      // Output: 3 classes, 2 relationships, 1 package
+
+// Statements that are read but not drawn are reported, and the rest is drawn; strict mode fails on them
+var reports = new List<PlantUmlUnsupportedFeature>();
+using var picture = model.Render(new PlantUmlRenderOptions { Scale = 2, UnsupportedFeatureHandler = reports.Add });
+PngCodec.Save(picture, "sales.png");
+Console.WriteLine(reports.Count);                                     // Output: 0
+```
+
+The tool draws and describes it in the same way: `canvasnet render sales.puml --strict -o sales.png`, and
+`canvasnet info sales.puml` prints `class, 3 nodes, 2 edges, 1 subgraph`.

@@ -1,0 +1,15 @@
+@startuml
+object order {
+  id = 1042
+  total = 99.50
+}
+object customer {
+  name = "Ada"
+}
+map shipping {
+  carrier => Post
+  days => 3
+}
+customer --> order : places
+order --> shipping
+@enduml

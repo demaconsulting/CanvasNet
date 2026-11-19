@@ -62,12 +62,13 @@ see-also:
   count the commits of a git graph and the links from each commit to its
   parents, subgraphs is 0, and direction is LR, TB, or BT; direction, title, and
   accTitle are present when the diagram has them. For a PlantUML diagram type is
-  sequence, activity, or a type that is not drawn (class, usecase, and so on,
-  with the diagnostic plantuml-diagram-unsupported); nodes, edges, and subgraphs
-  count the participants, messages, and boxes of a sequence diagram, and the
-  actions, start, stop, end, connector, and decision nodes, the arrows, and the
-  swimlanes and partitions of an activity diagram; direction and accTitle are
-  never present.
+  sequence, activity, class, object, or a type that is not drawn (state,
+  usecase, and so on, with the diagnostic plantuml-diagram-unsupported); nodes,
+  edges, and subgraphs count the participants, messages, and boxes of a
+  sequence diagram, the actions, start, stop, end, connector, and decision
+  nodes, the arrows, and the swimlanes and partitions of an activity diagram,
+  and the classes, objects, and maps, the relationships, and the packages of a
+  class or object diagram; direction and accTitle are never present.
 - `formats`: tool, library, inputs[], outputs[], quality {min, max, default},
   and maxDimension. Each inputs[] entry has format, kind, extensions, multiPage,
   vector, and helpTopic: the topic of 'canvasnet help <topic>' that describes

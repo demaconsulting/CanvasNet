@@ -1,6 +1,6 @@
 ---
 title: Known differences from PlantUML
-summary: Fonts, framing, includes, the sequence and activity engines, and other general differences.
+summary: Fonts, framing, includes, layout engines, detection, and other general differences.
 see-also:
   - plantuml/unsupported
   - plantuml/style
@@ -22,7 +22,11 @@ The differences of one diagram type are on its card, for example
 - Only the default look and the supported skinparam settings are drawn: no
   themes, <style> blocks, shadows, gradients (the first color is used), or
   hand-written mode.
-- Statements are recognized by their leading keywords and arrows, so in rare
-  ambiguous cases a diagram of a type that is not drawn is named differently;
-  that never changes whether it is drawn.
+- Class and object diagrams, which PlantUML lays out with Graphviz, are laid
+  out with the dagre layered layout: the boxes have PlantUML's shapes and
+  sizes, but other places, and the picture another size.
+- Statements are recognized by their leading keywords and arrows, in the order
+  PlantUML tries its diagram types, so in rare ambiguous cases a diagram of a
+  type that is not drawn is named differently; that never changes whether it is
+  drawn.
 - The picture is static and has no links.
