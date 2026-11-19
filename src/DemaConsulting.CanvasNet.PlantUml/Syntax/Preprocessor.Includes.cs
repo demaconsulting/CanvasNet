@@ -124,7 +124,11 @@ internal static partial class Preprocessor
             }
 
             var file = includes.Load(path, _from, statement, name);
-            var seen = !_included.Add(file.Identity);
+
+            // The diagram's own file is recorded by its path as given, which can differ from the real path of the same
+            // file (a linked folder such as macOS /var), so it is also recognized by the path the include resolved to
+            var isRoot = includes.RootIdentity is { } rootPath && includes.KeyComparer.Equals(file.File.Key, rootPath);
+            var seen = !_included.Add(file.Identity) || isRoot;
             if (seen && name == "include")
             {
                 return;
