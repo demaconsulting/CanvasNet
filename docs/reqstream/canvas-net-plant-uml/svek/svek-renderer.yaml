@@ -1,0 +1,60 @@
+---
+# Software Unit Requirements for SvekRenderer
+#
+# These requirements describe the design-level behavior of the SvekRenderer unit of the Svek subsystem (internal
+# namespace DemaConsulting.CanvasNet.PlantUml.Svek): the scene of a laid-out diagram with its links, cluster symbols,
+# and notes. See docs/verification/canvas-net-plant-uml/svek/svek-renderer.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetPlantUml Requirements
+    sections:
+      - title: Svek Requirements
+        sections:
+          - title: SvekRenderer Requirements
+            requirements:
+              - id: CanvasNetPlantUml-Svek-SvekRenderer-Scene
+                title: >-
+                  The SvekRenderer unit shall draw a laid-out diagram as a scene with PlantUML's margins (6 left, 12
+                  above, 15 right, 16 below) over the theme's background, painting the clusters, the entities at their
+                  places, the notes, and the links in that order.
+                justification: |
+                  The scene is what the page texts decorate and the painter paints; the order and margins are
+                  PlantUML's.
+                tests:
+                  - PlantUmlSvekRenderer_Render_MarginsBackgroundAndOrder
+
+              - id: CanvasNetPlantUml-Svek-SvekRenderer-Links
+                title: >-
+                  The SvekRenderer unit shall draw a link as the curve of its route stopping at the contact length of
+                  its decorations, solid, dashed (7, 7), dotted (1, 3), or bold (2 wide), in its width and color or the
+                  theme's, with its decorations filled as PlantUML fills them, its label after the triangle of its
+                  direction mark, and its end labels, and shall draw nothing for a link that is not drawn.
+                justification: |
+                  Links must look like PlantUML's, with every decoration and label.
+                tests:
+                  - PlantUmlSvekRenderer_DrawLink_LineStyles
+                  - PlantUmlSvekRenderer_DrawLink_DecorationsAndShortenedLine
+                  - PlantUmlSvekRenderer_DrawLink_NotDrawn_DrawsNothing
+                  - PlantUmlSvekRenderer_DrawLink_LabelsAndTriangle
+
+              - id: CanvasNetPlantUml-Svek-SvekRenderer-Clusters
+                title: >-
+                  The SvekRenderer unit shall draw a cluster with PlantUML's container symbols (the folder of a package
+                  with its title tab, the rectangle, the frame, the node, the database, the cloud, and the card) and its
+                  title and stereotypes where PlantUML puts them, with the header band and padding each symbol needs,
+                  and shall draw nothing for a cluster without an outline.
+                justification: |
+                  Packages and containers must look like PlantUML's and leave room for their titles.
+                tests:
+                  - PlantUmlSvekRenderer_ClusterImage_Folder_MatchesPlantUml
+                  - PlantUmlSvekRenderer_ClusterImage_EverySymbol_DrawsInsideItsBox
+                  - PlantUmlSvekRenderer_ClusterImage_NoneAndCloud
+
+              - id: CanvasNetPlantUml-Svek-SvekRenderer-Notes
+                title: >-
+                  The SvekRenderer unit shall draw a note with its folded corner of 10, its text 6 from the left and 5
+                  from the top, and the pointer from the side the layout chose to its tip.
+                justification: |
+                  Notes look like PlantUML's and point at what they explain.
+                tests:
+                  - PlantUmlSvekRenderer_DrawNote_PointerFromEachSide

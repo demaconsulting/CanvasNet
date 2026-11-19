@@ -18,13 +18,17 @@ sections:
                   activity diagrams: a white document, SansSerif text of 14 pixels, participants filled `#E2E2F0` and
                   outlined `#181818` half a pixel wide with a padding of 7, notes filled `#FEFFDD`, black group frames
                   1.5 pixels wide, dashed life lines, gray header and footer text of 10 pixels, a bold title, activities
-                  filled `#F1F1F1` with round corners, and swimlane titles of 18 pixels.
+                  filled `#F1F1F1` with round corners, and swimlane titles of 18 pixels; and for the links and clusters
+                  of the diagrams that PlantUML lays out with Graphviz: link labels of 13 pixels with `#181818` lines
+                  one pixel wide, package outlines black and 1.5 pixels wide, and container outlines `#181818` and one
+                  pixel wide, both unfilled with corners of 5 and bold titles.
                 justification: |
                   These are the values of PlantUML's own default skin, which a diagram without skin parameters must
                   match.
                 tests:
                   - PlantUmlSkinTheme_Default_HasPlantUmlSequenceLook
                   - PlantUmlSkinTheme_Default_HasPlantUmlActivityLook
+                  - PlantUmlSkinTheme_Default_HasPlantUmlGraphLook
 
               - id: CanvasNetPlantUml-Styling-SkinTheme-Immutable
                 title: >-

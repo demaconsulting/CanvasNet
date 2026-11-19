@@ -274,6 +274,12 @@ includes:
   - docs/reqstream/canvas-net-plant-uml/activity/activity-model.yaml
   - docs/reqstream/canvas-net-plant-uml/activity/activity-layout.yaml
   - docs/reqstream/canvas-net-plant-uml/activity/activity-renderer.yaml
+  - docs/reqstream/canvas-net-plant-uml/svek.yaml
+  - docs/reqstream/canvas-net-plant-uml/svek/svek-model.yaml
+  - docs/reqstream/canvas-net-plant-uml/svek/svek-syntax.yaml
+  - docs/reqstream/canvas-net-plant-uml/svek/svek-layout.yaml
+  - docs/reqstream/canvas-net-plant-uml/svek/svek-geometry.yaml
+  - docs/reqstream/canvas-net-plant-uml/svek/svek-renderer.yaml
   - docs/reqstream/canvas-net-viewer.yaml
   - docs/reqstream/canvas-net-viewer/canvas-net-viewer.yaml
   - docs/reqstream/canvas-net-viewer/platform-requirements.yaml

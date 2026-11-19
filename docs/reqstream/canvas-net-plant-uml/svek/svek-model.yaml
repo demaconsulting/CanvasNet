@@ -1,0 +1,50 @@
+---
+# Software Unit Requirements for SvekModel
+#
+# These requirements describe the design-level behavior of the SvekModel unit of the Svek subsystem (internal
+# namespace DemaConsulting.CanvasNet.PlantUml.Svek): the lowered diagram that the diagram subsystems hand to the
+# shared engine, with its elements, facts, and validation. See
+# docs/verification/canvas-net-plant-uml/svek/svek-model.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetPlantUml Requirements
+    sections:
+      - title: Svek Requirements
+        sections:
+          - title: SvekModel Requirements
+            requirements:
+              - id: CanvasNetPlantUml-Svek-SvekModel-Elements
+                title: >-
+                  The SvekModel unit shall describe a diagram as entities with their size, the outline their links end
+                  on, and their painter, nested clusters with their image and concurrent regions, notes attached to an
+                  entity, to a link, or floating, and links with a decoration at each end, a line style, a width, a
+                  color, labels, a length, a weight, and a direction hint, with PlantUML's defaults (a length of 2, a
+                  weight of 1, a solid line), and shall give the members of a cluster in the order of the diagram.
+                justification: |
+                  Every diagram that PlantUML lays out with Graphviz is lowered to the same elements, so the layout and
+                  the drawing serve all of them; the order of the text decides dagre's results.
+                tests:
+                  - PlantUmlSvekModel_Link_Defaults
+                  - PlantUmlSvekModel_MembersOf_EntitiesNotesThenClusters
+                  - PlantUmlSvekModel_Constructors_RefuseMissingParts
+
+              - id: CanvasNetPlantUml-Svek-SvekModel-Facts
+                title: >-
+                  The SvekModel unit shall count the facts of a diagram: its entities as nodes, its links that do not
+                  touch a note as edges, and its clusters with members, regions not counted, as subgraphs.
+                justification: |
+                  The document reports the node, edge, and subgraph counts of every diagram type.
+                tests:
+                  - PlantUmlSvekModel_CountFacts_EntitiesLinksAndClusters
+
+              - id: CanvasNetPlantUml-Svek-SvekModel-Validation
+                title: >-
+                  The SvekModel unit shall refuse an inconsistent diagram (an id used twice, a parent, target, or link
+                  end outside the diagram, a link to a note attached to an element, a length below 1 or a weight that
+                  is not positive, members of a cluster with concurrent regions that are not regions) with an argument
+                  exception.
+                justification: |
+                  A lowering defect must fail before the layout instead of producing a wrong picture.
+                tests:
+                  - PlantUmlSvekModel_Validate_ConsistentDiagram_Passes
+                  - PlantUmlSvekModel_Validate_Inconsistencies_Throw

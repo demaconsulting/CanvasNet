@@ -18,7 +18,9 @@ unit's behavior is specified by the `CanvasNetPlantUml-Styling-SkinTheme-*` requ
 
 - `SkinElement` - `Document`, the eight participant kinds, `LifeLine`, `ActivationBox`, `Arrow`, `Note`, `Group`,
   `GroupHeader`, `Separator`, `Delay`, `Box`, `Title`, `Header`, `Footer`, `Legend`, `Caption`, and the activity
-  elements `Activity`, `ActivityDiamond`, `ActivityArrow`, `ActivityCircle`, `ActivityBar`, `Swimlane`, and `Partition`.
+  elements `Activity`, `ActivityDiamond`, `ActivityArrow`, `ActivityCircle`, `ActivityBar`, `Swimlane`, and `Partition`,
+  and the elements of the diagrams that PlantUML lays out with Graphviz, drawn by the Svek subsystem: `SvekArrow` (a
+  link and its labels), `Package` (a package cluster), and `Container` (the other container clusters).
 - `ElementStyle(FontFamily, FontSize, FontColor, Bold, Fill, Line, LineWidth, RoundCorner, Padding)` with `Italic` and
   `Dash` - a null fill or line draws none; `RoundCorner` is PlantUML's diameter (an SVG radius of half of it).
 - `SkinTheme` - the styles by element, `Background` (white; null for transparent), `Shadowing` (false),
@@ -33,7 +35,8 @@ unit's behavior is specified by the `CanvasNetPlantUml-Styling-SkinTheme-*` requ
   footer are 10-pixel `#888888` text; the title is bold; the legend is on `#DDDDDD` with a black outline and corners of
   15; activities are 12-pixel text on `#F1F1F1` with corners of 25 and a padding of 10; diamonds and activity arrows
   have 11-pixel text; circles are `#222222`; bars are `#555555`; swimlane titles are 18 pixels with black lines 1.5
-  wide.
+  wide; graph links have 13-pixel labels; package clusters are black, 1.5 pixels wide, and container clusters
+  `#181818`, one pixel wide, both unfilled with corners of 5 and bold titles.
 
 #### Key Methods
 

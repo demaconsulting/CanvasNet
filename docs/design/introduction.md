@@ -399,8 +399,10 @@ software items, specifically:
   `PlantUmlRenderException`, `PlantUmlUnsupportedFeatureException`, the internal report sink, and
   `PlantUmlImageSource`), and the internal subsystems `Syntax` (`Preprocessor` and `DiagramDetector`), `Styling`
   (`SkinTheme` and `SkinParams`), `Scenegraph` (`SceneModel`, `TextLayout`, and `ScenePainter`), `Sequence`
-  (`SequenceParser`, `SequenceModel`, `SequenceLayout`, and `SequenceRenderer`), and `Activity` (`ActivityParser`,
-  `ActivityModel`, `ActivityLayout`, and `ActivityRenderer`). Sequence diagrams and activity diagrams (the new syntax)
+  (`SequenceParser`, `SequenceModel`, `SequenceLayout`, and `SequenceRenderer`), `Activity` (`ActivityParser`,
+  `ActivityModel`, `ActivityLayout`, and `ActivityRenderer`), and `Svek` (`SvekModel`, `SvekSyntax`, `SvekLayout`,
+  `SvekGeometry`, and `SvekRenderer`: the shared engine of the diagrams that PlantUML lays out with Graphviz, not yet
+  used by a diagram type). Sequence diagrams and activity diagrams (the new syntax)
   are drawn; every PlantUML diagram type is recognized; the types
   this version does not draw are reported as unsupported — see *CanvasNetPlantUml System Design*
   (`canvas-net-plant-uml.md`) for the known differences from PlantUML and its Phase Plan. `CanvasNetPlantUml` depends
@@ -669,8 +671,8 @@ the `Graph` and `GraphAlgorithms` units and its internal `Dagre` subsystem holds
 `LayoutWorkMeter` units (namespaces `DemaConsulting.CanvasNet.Layout.Graphlib` and `.Dagre`). In the SysML2 model the
 system is `CanvasNetLayoutSystem` and the subsystem `part def` names carry the prefix `Layout` (`LayoutGraphlib` and
 `LayoutDagre`). Its types are internal and visible only to its friend assemblies (the `CanvasNetMermaid` and
-`CanvasNetPlantUml` packages and the tests); it references no other system. See the Folder Layout section below and *CanvasNetLayout System Design*
-(`canvas-net-layout.md`).
+`CanvasNetPlantUml` packages and the tests); it references no other system. See the Folder Layout section below and
+*CanvasNetLayout System Design* (`canvas-net-layout.md`).
 
 A further sibling top-level system, `CanvasNetMermaid`, likewise lives in this same repository alongside `CanvasNet` and
 is distributed as its own NuGet package. It is a static, offline renderer for the Mermaid diagram language that parses,
@@ -705,19 +707,22 @@ the package): its direct unit, `PlantUmlDocument` (namespace `DemaConsulting.Can
 the image source; its internal `Syntax` subsystem holds the `Preprocessor` and `DiagramDetector` units, its internal
 `Styling` subsystem holds the `SkinTheme` and `SkinParams` units, its internal `Scenegraph` subsystem holds the
 `SceneModel`, `TextLayout`, and `ScenePainter` units, its internal `Sequence` subsystem holds the `SequenceParser`,
-`SequenceModel`, `SequenceLayout`, and `SequenceRenderer` units, and its internal `Activity` subsystem holds the
-`ActivityParser`, `ActivityModel`, `ActivityLayout`, and `ActivityRenderer` units (each in the sub-namespace and the
-sub-folder of its name). In the SysML2 model the system is `CanvasNetPlantUmlSystem` and its subsystem and unit
-`part def` names carry the prefix `PlantUml` (`PlantUmlSyntax`, `PlantUmlPreprocessor`, `PlantUmlDiagramDetector`,
-`PlantUmlStyling`, `PlantUmlSkinTheme`, `PlantUmlSkinParams`, `PlantUmlScenegraph`, `PlantUmlSceneModel`,
-`PlantUmlTextLayout`, `PlantUmlScenePainter`, `PlantUmlSequence`, `PlantUmlSequenceParser`, `PlantUmlSequenceModel`,
-`PlantUmlSequenceLayout`, `PlantUmlSequenceRenderer`, `PlantUmlActivity`, `PlantUmlActivityParser`,
-`PlantUmlActivityModel`, `PlantUmlActivityLayout`, and `PlantUmlActivityRenderer`), because the model package is shared
-by every system and the Mermaid system already uses the short names. It depends on the `CanvasNet` system's `Canvas`,
-`Geometry`, `Drawing`, `Fonts`, `Rendering`, `Files`, and `ImageSources` subsystems through their public API, and on
-the `CanvasNetLayout` system (its graph layout and work meter) through internal friend access. See the
-Folder Layout section below and *CanvasNetPlantUml System Design* (`canvas-net-plant-uml.md`). A further sibling
-top-level system, `CanvasNetViewer`, likewise lives in this same repository and is distributed as its own NuGet package
+`SequenceModel`, `SequenceLayout`, and `SequenceRenderer` units, its internal `Activity` subsystem holds the
+`ActivityParser`, `ActivityModel`, `ActivityLayout`, and `ActivityRenderer` units, and its internal `Svek` subsystem
+(the shared engine of the diagrams that PlantUML lays out with Graphviz) holds the `SvekModel`, `SvekSyntax`,
+`SvekLayout`, `SvekGeometry`, and `SvekRenderer` units (each in the sub-namespace and the sub-folder of its name). In
+the SysML2 model the system is `CanvasNetPlantUmlSystem` and its subsystem and unit `part def` names carry the prefix
+`PlantUml` (`PlantUmlSyntax`, `PlantUmlPreprocessor`, `PlantUmlDiagramDetector`, `PlantUmlStyling`, `PlantUmlSkinTheme`,
+`PlantUmlSkinParams`, `PlantUmlScenegraph`, `PlantUmlSceneModel`, `PlantUmlTextLayout`, `PlantUmlScenePainter`,
+`PlantUmlSequence`, `PlantUmlSequenceParser`, `PlantUmlSequenceModel`, `PlantUmlSequenceLayout`,
+`PlantUmlSequenceRenderer`, `PlantUmlActivity`, `PlantUmlActivityParser`, `PlantUmlActivityModel`,
+`PlantUmlActivityLayout`, `PlantUmlActivityRenderer`, `PlantUmlSvek`, `PlantUmlSvekModel`, `PlantUmlSvekSyntax`,
+`PlantUmlSvekLayout`, `PlantUmlSvekGeometry`, and `PlantUmlSvekRenderer`), because the model package is shared by every
+system and the Mermaid system already uses the short names. It depends on the `CanvasNet` system's `Canvas`, `Geometry`,
+`Drawing`, `Fonts`, `Rendering`, `Files`, and `ImageSources` subsystems through their public API, and on the
+`CanvasNetLayout` system (its graph layout and work meter) through internal friend access. See the Folder Layout section
+below and *CanvasNetPlantUml System Design* (`canvas-net-plant-uml.md`). A further sibling top-level system,
+`CanvasNetViewer`, likewise lives in this same repository and is distributed as its own NuGet package
 (`DemaConsulting.CanvasNet.Viewer`). It aggregates the image sources of every format and is the library form of the
 `canvasnet` tool: its direct unit `CanvasNetViewer` (namespace `DemaConsulting.CanvasNet.Viewer`) lists the built-in
 sources (raster, SVG, PDF, PPTX, VSDX, OpenSCAD, Vega-Lite, Mermaid, and PlantUML), creates the `FolderImageResolver` of
@@ -1820,11 +1825,18 @@ src/DemaConsulting.CanvasNet.PlantUml/
 │   ├── SequenceModel*.cs          — SequenceModel: participants, boxes, events, and the facts
 │   ├── SequenceLayout*.cs         — SequenceLayout: the columns and rows of PlantUML's sequence engine
 │   └── SequenceRenderer*.cs       — SequenceRenderer: PlantUML's shapes as scene items
-└── Activity/                      — Activity subsystem
-    ├── ActivityParser*.cs         — ActivityParser: the activity statements of the new syntax
-    ├── ActivityModel*.cs          — ActivityModel: the instruction tree, swimlanes, page texts, and the facts
-    ├── ActivityLayout*.cs         — ActivityLayout: the tiles, swimlanes, and compression of PlantUML's ftile engine
-    └── ActivityRenderer.cs        — ActivityRenderer: the placed shapes as scene items
+├── Activity/                      — Activity subsystem
+│   ├── ActivityParser*.cs         — ActivityParser: the activity statements of the new syntax
+│   ├── ActivityModel*.cs          — ActivityModel: the instruction tree, swimlanes, page texts, and the facts
+│   ├── ActivityLayout*.cs         — ActivityLayout: the tiles, swimlanes, and compression of PlantUML's ftile engine
+│   └── ActivityRenderer.cs        — ActivityRenderer: the placed shapes as scene items
+└── Svek/                          — Svek subsystem (the shared engine of the graph diagrams)
+    ├── SvekModel*.cs              — SvekModel: the lowered diagram, its entity and cluster images, and the facts
+    ├── SvekSyntax*.cs             — SvekSyntax: names, links, notes, and the common statements of the graph diagrams
+    ├── SvekLayout*.cs             — SvekLayout: the layout over dagre with clusters, rows, notes, and routes
+    ├── PlantUmlLayoutWorkMeter.cs — SvekLayout: the work meter with PlantUML's located failures
+    ├── SvekGeometry*.cs           — SvekGeometry: curves, clipping, and the link decorations
+    └── SvekRenderer*.cs           — SvekRenderer: links, container symbols, and notes as scene items
 ```
 
 Each sub-folder also holds a `NamespaceDoc.cs` with the namespace documentation. `CanvasNetPlantUml` uses the

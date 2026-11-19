@@ -1,0 +1,110 @@
+---
+# Software Unit Requirements for SvekLayout
+#
+# These requirements describe the design-level behavior of the SvekLayout unit of the Svek subsystem (internal
+# namespace DemaConsulting.CanvasNet.PlantUml.Svek): the layout of a lowered diagram with the dagre layered layout of
+# the CanvasNetLayout system, and the PlantUmlLayoutWorkMeter that bounds it. See
+# docs/verification/canvas-net-plant-uml/svek/svek-layout.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetPlantUml Requirements
+    sections:
+      - title: Svek Requirements
+        sections:
+          - title: SvekLayout Requirements
+            requirements:
+              - id: CanvasNetPlantUml-Svek-SvekLayout-Ranks
+                title: >-
+                  The SvekLayout unit shall place the second end of a link below the first (right of it in a left to
+                  right diagram), at least as many ranks further as the length of the link minus one, with PlantUML's
+                  spacing (at least 35 between neighbors and 60 between ranks, or the diagram's nodesep and ranksep),
+                  and shall give the size of the drawing with its top-left corner at the origin.
+                justification: |
+                  The length of an arrow is how PlantUML authors ask for space, and the spacing is PlantUML's.
+                tests:
+                  - PlantUmlSvekLayout_Run_TopToBottom_SecondEndBelow
+                  - PlantUmlSvekLayout_Run_LeftToRight_SecondEndRight
+                  - PlantUmlSvekLayout_Run_Length_AddsRanks
+                  - PlantUmlSvekLayout_Run_RankSep_ChangesTheSpace
+                  - PlantUmlSvekLayout_Run_EmptyDiagram_HasNoSize
+
+              - id: CanvasNetPlantUml-Svek-SvekLayout-Hints
+                title: >-
+                  The SvekLayout unit shall follow the direction hints (up places the second end above the first with
+                  the route still from the first end to the second, left and right keep both ends in one rank) and
+                  shall lay a hidden link out without drawing it.
+                justification: |
+                  Hints and hidden links are how PlantUML authors arrange a diagram.
+                tests:
+                  - PlantUmlSvekLayout_Run_Hints_UpReversesLeftRightSameRank
+                  - PlantUmlSvekLayout_Run_HiddenLink_LaidOutNotDrawn
+
+              - id: CanvasNetPlantUml-Svek-SvekLayout-SameRank
+                title: >-
+                  The SvekLayout unit shall keep the ends of a link of length 1 in one rank, side by side with the
+                  first end of the edge first, drawn straight between them with the label above the middle, or as an
+                  arc over a node or note that the straight line would cross.
+                justification: |
+                  A single dash puts two elements side by side in PlantUML; the layered layout cannot route such a link
+                  itself.
+                tests:
+                  - PlantUmlSvekLayout_Run_LengthOne_SameRankStraightWithLabelAbove
+                  - PlantUmlSvekLayout_Run_LinkInOneRankAcrossANode_IsAnArc
+
+              - id: CanvasNetPlantUml-Svek-SvekLayout-Clusters
+                title: >-
+                  The SvekLayout unit shall lay a cluster that no link crosses out on its own and place it as one node
+                  with its padding, header, and title width, shall make a cluster that links cross tight around its
+                  members with its padding and a header band that overlaps nothing, end a link to such a cluster at
+                  its border, and arrange the regions of a cluster with concurrent regions stacked or side by side with
+                  separators, leaving a link between two regions unrouted.
+                justification: |
+                  Packages, containers, and composite states must enclose their members, show their titles, and never
+                  cover other elements.
+                tests:
+                  - PlantUmlSvekLayout_Run_ClusterWithoutCrossingLinks_LaidOutOnItsOwn
+                  - PlantUmlSvekLayout_Run_CompoundCluster_HeaderBandAndCutLinks
+                  - PlantUmlSvekLayout_Run_NestedCompoundClusters_NoOverlaps
+                  - PlantUmlSvekLayout_Run_ConcurrentRegions_ArrangedWithSeparators
+
+              - id: CanvasNetPlantUml-Svek-SvekLayout-Notes
+                title: >-
+                  The SvekLayout unit shall place a note attached to an entity on its side, 18 from it and centered on
+                  it, with a pointer to the entity's border, shall draw a floating note with a single link to an
+                  element as a pointer to that element instead of the link, and shall place a note on a link beside the
+                  link's label.
+                justification: |
+                  Notes must stay where the author put them and point at what they explain, as in PlantUML.
+                tests:
+                  - PlantUmlSvekLayout_Run_AttachedNotes_OnEachSideWithPointers
+                  - PlantUmlSvekLayout_Run_FloatingNoteWithOneLink_PointsAtTheEntity
+                  - PlantUmlSvekLayout_Run_NoteOnLink_BelowTheLabel
+
+              - id: CanvasNetPlantUml-Svek-SvekLayout-Routes
+                title: >-
+                  The SvekLayout unit shall route every link from its first end to its second, ending on the outline
+                  that the entity's image gives, loop a link from an element to itself at its right, keep parallel
+                  links apart, and place the label of a link beside its route with the direction of its triangle and
+                  its end labels near their ends, off the entities.
+                justification: |
+                  Links must touch the shapes they connect and their labels must be readable.
+                tests:
+                  - PlantUmlSvekLayout_Run_SelfAndParallelLinks_AreRouted
+                  - PlantUmlSvekLayout_Run_ClipOutlines_RoutesEndOnThem
+                  - PlantUmlSvekLayout_Run_Labels_PlacedBesideTheRoute
+
+              - id: CanvasNetPlantUml-Svek-SvekLayout-Limits
+                title: >-
+                  The SvekLayout unit shall charge the dagre runs and its own work to one meter per call, deterministic
+                  for a diagram, stop a layout past the layout work limit with a located PlantUmlRenderException with
+                  the code plantuml-limit-exceeded that names PlantUmlLimits.MaxLayoutWork and has a hint, report a
+                  layout that dagre cannot complete as plantuml-render-failed, stop a canceled call, and refuse an
+                  inconsistent diagram.
+                justification: |
+                  Graph layouts of untrusted text must be bounded and fail in the words of the PlantUML package.
+                tests:
+                  - PlantUmlSvekLayout_Run_Work_IsDeterministic
+                  - PlantUmlSvekLayout_Run_SmallBudget_LocatedLimitExceeded
+                  - PlantUmlSvekLayout_Run_Canceled_Throws
+                  - PlantUmlSvekLayout_Run_InconsistentDiagram_Throws
+                  - PlantUmlLayoutWorkMeter_Failures_AreLocatedPlantUmlErrors

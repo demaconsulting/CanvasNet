@@ -26,11 +26,13 @@ constitutes a failure.
 ##### CanvasNetPlantUml-Styling-SkinTheme-DefaultLook: The Values Of PlantUML's Default Skin
 
 **Tests**: `SkinThemeTests.PlantUmlSkinTheme_Default_HasPlantUmlSequenceLook`,
-`SkinThemeTests.PlantUmlSkinTheme_Default_HasPlantUmlActivityLook`
+`SkinThemeTests.PlantUmlSkinTheme_Default_HasPlantUmlActivityLook`,
+`SkinThemeTests.PlantUmlSkinTheme_Default_HasPlantUmlGraphLook`
 
 Asserts the participant font, fill, line, width, corners, and padding, the square actor, the note, arrow, group, life
-line, header, and title styles, the white background, the foot box, and the arrow thickness; and the activity, swimlane,
-and bar styles.
+line, header, and title styles, the white background, the foot box, and the arrow thickness; the activity, swimlane,
+and bar styles; and the link label size and line, and the package and container outlines, corners, fills, and bold
+titles of the graph diagrams.
 
 ##### CanvasNetPlantUml-Styling-SkinTheme-Immutable: A Change Returns A Copy
 

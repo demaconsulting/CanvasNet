@@ -149,9 +149,9 @@ requirements are proven by running a system test on every platform and framework
   is not supported, as for the other friend packages of the repository.
 - **No public API documentation.** The package has no public types; its API documentation (ApiMark) is empty.
 - **The tool package.** The `canvasnet` tool bundles `DemaConsulting.CanvasNet.Layout.dll` transitively through the
-  Mermaid and PlantUML libraries and ships the provenance README as `licenses/Layout-third-party-README.md`; the license texts of the
-  layout are byte-identical to the `LICENSE-dagre.txt` and `LICENSE-lodash.txt` that the Mermaid library already places
-  in the tool's `licenses/` folder, so they are not added twice.
+  Mermaid and PlantUML libraries and ships the provenance README as `licenses/Layout-third-party-README.md`; the license
+  texts of the layout are byte-identical to the `LICENSE-dagre.txt` and `LICENSE-lodash.txt` that the Mermaid library
+  already places in the tool's `licenses/` folder, so they are not added twice.
 - **Curve code stays with the consumer.** The edge curves of Mermaid (`EdgeBuilder.Curves.cs`, a port of d3-shape and
   d3-path under the ISC license, coupled to Mermaid's scene and number formatting) are not part of the layout: they
   exist to match Mermaid's SVG text, and another diagram language draws its edges its own way.

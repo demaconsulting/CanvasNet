@@ -3,7 +3,7 @@
 #
 # These requirements describe the externally visible behavior of the DemaConsulting.CanvasNet.PlantUml package (root
 # namespace DemaConsulting.CanvasNet.PlantUml; internal subsystem namespaces Syntax, Styling, Scenegraph,
-# Sequence, and Activity) from the perspective of its consumers, without specifying implementation details.
+# Sequence, Activity, and Svek) from the perspective of its consumers, without specifying implementation details.
 #
 # CanvasNetPlantUml is an independent software system distributed as its own NuGet package. It reads PlantUML diagram
 # text and renders a static, deterministic picture onto a CanvasNet Surface using only managed code, the public
@@ -50,6 +50,7 @@ sections:
           - CanvasNetPlantUml-Syntax-Detection
           - CanvasNetPlantUml-Syntax-Locations
           - CanvasNetPlantUml-PlantUmlDocument-Records
+          - CanvasNetPlantUml-Svek-Reading
         tests:
           - CanvasNetPlantUml_Open_InvalidText_FailsLocated
           - CanvasNetPlantUml_Activity_SyntaxError_IsLocated
@@ -119,6 +120,7 @@ sections:
           - CanvasNetPlantUml-Sequence-SequenceLayout-Limits
           - CanvasNetPlantUml-Activity-ActivityParser-Limits
           - CanvasNetPlantUml-Activity-ActivityLayout-Limits
+          - CanvasNetPlantUml-Svek-Limits
         tests:
           - CanvasNetPlantUml_Limits_OversizedText_IsRefused
           - CanvasNetPlantUml_Sequence_LayoutWorkLimit_Fails
@@ -233,6 +235,8 @@ sections:
         children:
           - CanvasNetPlantUml-Styling-DiagramLook
           - CanvasNetPlantUml-Scenegraph-Text
+          - CanvasNetPlantUml-Svek-Layout
+          - CanvasNetPlantUml-Svek-Drawing
         tests:
           - CanvasNetPlantUml_Sequence_DefaultSkin_PaintsPlantUmlColors
           - CanvasNetPlantUml_Sequence_Render_IsDeterministicAndScaled

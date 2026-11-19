@@ -41,13 +41,19 @@ The system is decomposed into one direct unit and internal subsystems:
 - **Activity** (subsystem) - the `ActivityParser` unit (the activity statements of the new syntax), the
   `ActivityModel` unit (the tree of instructions), the `ActivityLayout` unit (the tile composition and compression of
   PlantUML's activity engine), and the `ActivityRenderer` unit (the scene items); see *Activity Subsystem Design*.
+- **Svek** (subsystem) - the shared engine of the diagrams that PlantUML lays out with Graphviz: the `SvekModel` unit
+  (the diagram lowered to entities with their images, clusters, notes, and links), the `SvekSyntax` unit (the
+  statements those diagrams share), the `SvekLayout` unit (the layout over the dagre layered layout of
+  `CanvasNetLayout`), the `SvekGeometry` unit (curves, clipping, and the link decorations), and the `SvekRenderer`
+  unit (links, container symbols, and notes); no diagram type uses it yet; see *Svek Subsystem Design*.
 
 The SysML2 model names the system `CanvasNetPlantUmlSystem` and prefixes the names of its subsystems and units with
 `PlantUml` (`PlantUmlSyntax`, `PlantUmlPreprocessor`, `PlantUmlDiagramDetector`, `PlantUmlStyling`, `PlantUmlSkinTheme`,
 `PlantUmlSkinParams`, `PlantUmlScenegraph`, `PlantUmlSceneModel`, `PlantUmlTextLayout`, `PlantUmlScenePainter`,
 `PlantUmlSequence`, `PlantUmlSequenceParser`, `PlantUmlSequenceModel`, `PlantUmlSequenceLayout`,
 `PlantUmlSequenceRenderer`, `PlantUmlActivity`, `PlantUmlActivityParser`, `PlantUmlActivityModel`,
-`PlantUmlActivityLayout`, `PlantUmlActivityRenderer`), because
+`PlantUmlActivityLayout`, `PlantUmlActivityRenderer`, `PlantUmlSvek`, `PlantUmlSvekModel`, `PlantUmlSvekSyntax`,
+`PlantUmlSvekLayout`, `PlantUmlSvekGeometry`, `PlantUmlSvekRenderer`), because
 the `CanvasNet` package of the model already holds the units of the Mermaid system with the same short names. The test
 methods of the units use the same prefix (`PlantUmlPreprocessor_...`), so that the requirements trace never mixes the
 evidence of two systems.
@@ -155,14 +161,16 @@ of Arial, Java's `SansSerif` on Windows), as PlantUML measures it with Java's lo
 
 CanvasNetPlantUml is derived with attribution, not clean-room. Its framing of a text, the meaning of the supported
 preprocessor directives, the order in which the diagram types are tried, the values of its default look
-(`plantuml.skin`), the way it measures text, the geometry of the sequence engine ("teoz": the column constraints,
-row heights, and shapes), and the tile composition of the activity engine ("ftile": the tiles, their assembly and
-connections, the swimlanes, and the compression of the drawing) follow the MIT-licensed distribution of
-PlantUML (`plantuml-mit`, whose files carry the MIT header "(C) Copyright 2009-2024, Arnaud Roques"). Only the
-MIT-licensed distribution was read; no source text, comment, test, example, or image of PlantUML is copied: the
-ported items are values and rules, reimplemented in C#. The license text and the provenance table (which upstream
-file informed which unit) ship in `src/DemaConsulting.CanvasNet.PlantUml/third-party/`, the license text is packed in
-the package's `licenses\` folder, and every source file with ported logic starts with the header
+(`plantuml.skin`), the way it measures text, the geometry of the sequence engine ("teoz": the column constraints, row
+heights, and shapes), and the tile composition of the activity engine ("ftile": the tiles, their assembly and
+connections, the swimlanes, and the compression of the drawing), and the shapes, decorations, and spacing of the
+diagrams that PlantUML lays out with Graphviz (the "svek" engine: the link grammar, the link decorations, the container
+symbols, the notes and their pointers, and the cluster margins of the Smetana pipeline) follow the MIT-licensed
+distribution of PlantUML (`plantuml-mit`, whose files carry the MIT header "(C) Copyright 2009-2024, Arnaud Roques").
+Only the MIT-licensed distribution was read; no source text, comment, test, example, or image of PlantUML is copied: the
+ported items are values and rules, reimplemented in C#. The license text and the provenance table (which upstream file
+informed which unit) ship in `src/DemaConsulting.CanvasNet.PlantUml/third-party/`, the license text is packed in the
+package's `licenses\` folder, and every source file with ported logic starts with the header
 `// Portions derived from PlantUML (MIT); see third-party/README.md`. The package is not affiliated with the PlantUML
 project. No code of the GPL-licensed distributions is used.
 
@@ -219,6 +227,13 @@ of this repository, so the two diagram languages are bounded alike.
   and a style are reported as `plantuml-statement-unsupported`. An arrow with several colors is drawn with its first
   color; a repeat loop whose back arrow crosses swimlanes is drawn with the simple back arrow; the legacy activity
   syntax (`(*)`) is a type that is not drawn.
+- **Graph engine** - PlantUML lays class, object, state, use case, component, and deployment diagrams out with Graphviz
+  (or its Smetana port); the shared Svek engine places them with the dagre layered layout of `CanvasNetLayout` and
+  draws their links as cubic B-splines through dagre's routes, so the shapes, texts, and decorations follow PlantUML
+  while the positions of the elements and the curves of the links differ. Links of length 1 are kept in one rank as
+  rows (dagre's ranking cannot), a cluster with a title band is made tight around its members, and the crow's foot
+  decorations, the redefinition triangles, roles, qualifiers, the middle decorations, and `norank` are read but not
+  drawn. No diagram type uses the engine yet.
 
 ## Phase Plan
 
@@ -226,6 +241,7 @@ of this repository, so the two diagram languages are bounded alike.
   diagrams and activity diagrams of the new syntax with PlantUML's default look; local includes under the file-access
   policy; the image source; the Viewer, tool, and Pandoc filter integration.
 - **Phase 2** - the diagram types that PlantUML lays out with Graphviz (class, component, use case, state, object, and
-  deployment diagrams) need a graph layout: either a shared port of the dagre layout that the Mermaid package holds,
-  or a port of PlantUML's own Smetana layout; the decision is deferred. Themes, `<style>` blocks, feature positions,
-  and the conditional and function directives of the preprocessor are candidates as well.
+  deployment diagrams) are laid out by the shared Svek engine over the dagre layered layout of the `CanvasNetLayout`
+  package, which the Mermaid package shares (the engine is in place; the diagram types follow in steps). Themes,
+  `<style>` blocks, feature positions, and the conditional and function directives of the preprocessor are candidates as
+  well.

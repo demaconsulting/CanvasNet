@@ -263,6 +263,12 @@ input-files:
   - docs/design/canvas-net-plant-uml/activity/activity-model.md
   - docs/design/canvas-net-plant-uml/activity/activity-layout.md
   - docs/design/canvas-net-plant-uml/activity/activity-renderer.md
+  - docs/design/canvas-net-plant-uml/svek.md
+  - docs/design/canvas-net-plant-uml/svek/svek-model.md
+  - docs/design/canvas-net-plant-uml/svek/svek-syntax.md
+  - docs/design/canvas-net-plant-uml/svek/svek-layout.md
+  - docs/design/canvas-net-plant-uml/svek/svek-geometry.md
+  - docs/design/canvas-net-plant-uml/svek/svek-renderer.md
   - docs/design/canvas-net-viewer.md
   - docs/design/canvas-net-viewer/canvas-net-viewer.md
   - docs/design/canvas-net-viewer/viewer-exception.md

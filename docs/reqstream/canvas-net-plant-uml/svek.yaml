@@ -1,0 +1,96 @@
+---
+# Software Subsystem Requirements for Svek
+#
+# These requirements decompose the CanvasNetPlantUml system's diagrams that PlantUML lays out with Graphviz (class,
+# object, state, use case, component, and deployment diagrams) into the shared engine that every such diagram uses:
+# the Svek subsystem (internal namespace DemaConsulting.CanvasNet.PlantUml.Svek, named after PlantUML's own engine):
+# the lowered diagram (SvekModel), the shared statement readers (SvekSyntax), the layout over the dagre layered layout
+# of the CanvasNetLayout system (SvekLayout), the curves, clipping, and link decorations (SvekGeometry), and the drawing
+# of links, clusters, and notes (SvekRenderer). Each requirement here links down to the unit requirements that
+# implement it. The diagram subsystems that lower their models to this engine add their own requirements; until they
+# exist, these requirements serve the system's located errors, look, and limits. See
+# docs/verification/canvas-net-plant-uml/svek.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetPlantUml Requirements
+    sections:
+      - title: Svek Requirements
+        requirements:
+          - id: CanvasNetPlantUml-Svek-Reading
+            title: >-
+              The Svek subsystem shall read the statements that the diagrams PlantUML lays out with Graphviz share
+              (names with aliases, stereotypes, and colors, links with every decoration, length, direction hint, style,
+              label, and end label that PlantUML's link grammar knows, notes in every form, page texts, the direction,
+              the scale, hide and show, and the layout skin parameters), and shall refuse a malformed statement with a
+              located syntax error.
+            justification: |
+              Class, state, use case, component, and deployment diagrams write links, notes, and page texts the same
+              way; one reader keeps them consistent with PlantUML and with each other, and an error must point at its
+              line and column.
+            children:
+              - CanvasNetPlantUml-Svek-SvekSyntax-Names
+              - CanvasNetPlantUml-Svek-SvekSyntax-Arrows
+              - CanvasNetPlantUml-Svek-SvekSyntax-Links
+              - CanvasNetPlantUml-Svek-SvekSyntax-Notes
+              - CanvasNetPlantUml-Svek-SvekSyntax-Common
+              - CanvasNetPlantUml-Svek-SvekSyntax-Errors
+            tests:
+              - PlantUmlSvek_ReadLayoutRender_LinksNotesAndLabels
+
+          - id: CanvasNetPlantUml-Svek-Layout
+            title: >-
+              The Svek subsystem shall lay a diagram of entities, nested clusters, notes, and links out in ranks as
+              PlantUML lays it out with Graphviz (the rank direction, the length of a link in ranks, the direction
+              hints, links that keep their ends in one rank, clusters around their members with their headers,
+              concurrent regions, notes on their sides, and routes that end on the outlines of the entities), so that no
+              two entities overlap and every entity is inside its clusters.
+            justification: |
+              The diagrams must be placed like PlantUML's pictures where the layered layout allows it and must never
+              hide an element behind another.
+            children:
+              - CanvasNetPlantUml-Svek-SvekModel-Elements
+              - CanvasNetPlantUml-Svek-SvekModel-Facts
+              - CanvasNetPlantUml-Svek-SvekModel-Validation
+              - CanvasNetPlantUml-Svek-SvekLayout-Ranks
+              - CanvasNetPlantUml-Svek-SvekLayout-Hints
+              - CanvasNetPlantUml-Svek-SvekLayout-SameRank
+              - CanvasNetPlantUml-Svek-SvekLayout-Clusters
+              - CanvasNetPlantUml-Svek-SvekLayout-Notes
+              - CanvasNetPlantUml-Svek-SvekLayout-Routes
+              - CanvasNetPlantUml-Svek-SvekGeometry-Clipping
+            tests:
+              - PlantUmlSvek_ClustersAndRegions_DrawnWithoutOverlaps
+              - PlantUmlSvek_ReadLayoutRender_LinksNotesAndLabels
+
+          - id: CanvasNetPlantUml-Svek-Drawing
+            title: >-
+              The Svek subsystem shall draw the links of a laid-out diagram as curves with PlantUML's line styles,
+              decorations, labels, and direction marks, its clusters with PlantUML's container symbols and titles, and
+              its notes with their folded corner and the pointer to what they are attached to, around the drawings of
+              its entities.
+            justification: |
+              The links, containers, and notes are what makes a graph diagram look like PlantUML's picture, element by
+              element.
+            children:
+              - CanvasNetPlantUml-Svek-SvekGeometry-Spline
+              - CanvasNetPlantUml-Svek-SvekGeometry-Extremities
+              - CanvasNetPlantUml-Svek-SvekRenderer-Scene
+              - CanvasNetPlantUml-Svek-SvekRenderer-Links
+              - CanvasNetPlantUml-Svek-SvekRenderer-Clusters
+              - CanvasNetPlantUml-Svek-SvekRenderer-Notes
+            tests:
+              - PlantUmlSvek_ReadLayoutRender_LinksNotesAndLabels
+              - PlantUmlSvek_ClustersAndRegions_DrawnWithoutOverlaps
+
+          - id: CanvasNetPlantUml-Svek-Limits
+            title: >-
+              The Svek subsystem shall bound the layout of a diagram by the layout work limit, stopping a layout that
+              needs more work with a located plantuml-limit-exceeded error that names the limit, and shall stop a
+              canceled layout.
+            justification: |
+              Graph diagrams come from untrusted text; a dense graph must fail closed in the words of the PlantUML
+              package instead of running for minutes.
+            children:
+              - CanvasNetPlantUml-Svek-SvekLayout-Limits
+            tests:
+              - PlantUmlSvek_LayoutLimits_FailClosedAndCancel
