@@ -89,9 +89,9 @@ names the subsystem `MermaidRendering` (the core library already has a `Renderin
 
 **Consumed**:
 
-- the `Dagre` subsystem: `DagreLayout.Run`, the graph labels `DagreGraph`, `DagreNode`, and `DagreEdge`, and the
-  `LayoutWorkMeter` that bounds the work and observes cancellation
-- the `Graphlib` subsystem: the compound multigraph `Graph`
+- the `Dagre` subsystem of the CanvasNetLayout system: `DagreLayout.Run`, the graph labels `DagreGraph`, `DagreNode`,
+  and `DagreEdge`, and the `LayoutWorkMeter` that bounds the work and observes cancellation
+- the `Graphlib` subsystem of the CanvasNetLayout system: the compound multigraph `Graph`
 - the `Configuration` subsystem: `MermaidConfig` (with its `class` and `er` sections and the theme variables),
   `UnifiedStyles` (the style sheet of the theme as the shared units read it, which is the diagram's `FlowchartStyles`,
   `ClassStyles`, `StateStyles`, `ErStyles`, or `MindmapStyles`, with the sheet facts `CentersNodeSvgText`,

@@ -23,6 +23,7 @@ package CanvasNet {
         expose CanvasNetScadSystem::**;
         expose CanvasNetVegaLiteSystem::**;
         expose CanvasNetViewerSystem::**;
+        expose CanvasNetLayoutSystem::**;
         expose CanvasNetMermaidSystem::**;
         expose CanvasNetPlantUmlSystem::**;
         expose CanvasNetToolSystem::**;
@@ -118,6 +119,18 @@ package CanvasNet {
         expose VegaLiteScenegraph::**;
     }
 
+    view CanvasNetLayoutView : InterconnectionView {
+        expose CanvasNetLayoutSystem::**;
+    }
+
+    view LayoutGraphlibView : InterconnectionView {
+        expose LayoutGraphlib::**;
+    }
+
+    view LayoutDagreView : InterconnectionView {
+        expose LayoutDagre::**;
+    }
+
     view CanvasNetMermaidView : InterconnectionView {
         expose CanvasNetMermaidSystem::**;
     }
@@ -128,14 +141,6 @@ package CanvasNet {
 
     view MermaidConfigurationView : InterconnectionView {
         expose MermaidConfiguration::**;
-    }
-
-    view MermaidGraphlibView : InterconnectionView {
-        expose MermaidGraphlib::**;
-    }
-
-    view MermaidDagreView : InterconnectionView {
-        expose MermaidDagre::**;
     }
 
     view MermaidRenderingView : InterconnectionView {

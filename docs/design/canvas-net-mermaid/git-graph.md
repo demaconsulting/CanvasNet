@@ -67,8 +67,8 @@ the renderer its text helpers (`Decode`, `Rows`, and `Box32`).
 decoder (`HtmlSanitizer`), the description of unmatched text (`SourceScanner.Describe`), and the list of alternatives of
 a message (`TokenCursor.JoinAlternatives`); from `Configuration` the effective `MermaidConfig` with its `GitGraphConfig`
 section and the git graph style sheet `GitGraphStyles` (with `GitGraphElement` and `GitGraphComputedStyle`); from
-`Rendering` the text metrics and text utilities of `LabelBuilder`; from `Dagre` the `LayoutWorkMeter`; from
-`Scenegraph` the `Scene` and its items (`SceneGroup`, `ScenePath`, `SceneSegment`, `SceneText` with its
+`Rendering` the text metrics and text utilities of `LabelBuilder`; from `Dagre` (CanvasNetLayout) the `LayoutWorkMeter`;
+from `Scenegraph` the `Scene` and its items (`SceneGroup`, `ScenePath`, `SceneSegment`, `SceneText` with its
 `SceneRotation`, `SceneTextRun`, `SceneFont`, `SceneRect`, `SceneStroke`, and `SceneShadow`); and from the system the
 `IMermaidDiagram` contract, `DiagramRenderContext`, and the public `MermaidLimits`, `MermaidLocation`,
 `MermaidSyntaxException`, `MermaidRenderException`, and `MermaidDiagnosticCodes`.

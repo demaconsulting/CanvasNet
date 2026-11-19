@@ -58,10 +58,10 @@ decoder (`HtmlSanitizer`), the description of unmatched text (`SourceScanner.Des
 message (`TokenCursor.JoinAlternatives`), and JavaScript's `String(number)` (`YamlSubsetParser.FormatJsNumber`); from
 `Configuration` the effective `MermaidConfig` with its `PacketConfig` section and the packet style sheet `PacketStyles`
 (with `ShapePaint` and `TextPaint`); from `Rendering` the text metrics and text utilities of `LabelBuilder`; from
-`Dagre` the `LayoutWorkMeter`; from `Scenegraph` the `Scene` and its items (`SceneGroup`, `ScenePath`, `SceneSegment`,
-`SceneText`, `SceneTextRun`, `SceneFont`, `SceneRect`, and `SceneStroke`); and from the system the `IMermaidDiagram`
-contract, `DiagramRenderContext`, and the public `MermaidLimits`, `MermaidLocation`, `MermaidSyntaxException`,
-`MermaidRenderException`, and `MermaidDiagnosticCodes`.
+`Dagre` (CanvasNetLayout) the `LayoutWorkMeter`; from `Scenegraph` the `Scene` and its items (`SceneGroup`, `ScenePath`,
+`SceneSegment`, `SceneText`, `SceneTextRun`, `SceneFont`, `SceneRect`, and `SceneStroke`); and from the system the
+`IMermaidDiagram` contract, `DiagramRenderContext`, and the public `MermaidLimits`, `MermaidLocation`,
+`MermaidSyntaxException`, `MermaidRenderException`, and `MermaidDiagnosticCodes`.
 
 **Consumers**: the document pipeline of the system (`MermaidDocument.Pipeline.cs`): its `DiagramRegistry` calls the
 parser for a detected `packet` diagram with the limits of the open call, keeps the diagram as the document's diagram,

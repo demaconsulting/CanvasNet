@@ -7,7 +7,7 @@ package CanvasNet {
         comment verificationRef /* Verification: docs/verification/canvas-net-mermaid/cose.md */
         comment reqRef /* Requirements: docs/reqstream/canvas-net-mermaid/cose.yaml */
         comment /* Third-Party Provenance and Attribution: the layout ports the parts of layout-base and cose-base (MIT, iVis@Bilkent) and of cytoscape-cose-bilkent and cytoscape (MIT, The Cytoscape Consortium) that a mindmap reaches, and the options of Mermaid's cose-bilkent setup (MIT); the license texts ship as third-party/LICENSE-cose-base.txt and third-party/LICENSE-cytoscape.txt. The correctly rounded math is original work of this repository. */
-        comment /* Within the CanvasNetMermaid system the Cose subsystem depends only on the Dagre subsystem (the layout work meter) and the public exception and diagnostic-code types of the package root; it is called by the MindmapRenderer unit of the Mindmap subsystem. */
+        comment /* Within the CanvasNetMermaid system the Cose subsystem depends only on the Dagre subsystem of the CanvasNetLayout system (the layout work meter) and the public exception and diagnostic-code types of the package root; it is called by the MindmapRenderer unit of the Mindmap subsystem. */
 
         part coseLayout : CoseLayout;
     }

@@ -6,7 +6,7 @@ package CanvasNet {
         comment designRef /* Design: docs/design/canvas-net-mermaid/er.md */
         comment verificationRef /* Verification: docs/verification/canvas-net-mermaid/er.md */
         comment reqRef /* Requirements: docs/reqstream/canvas-net-mermaid/er.yaml */
-        comment /* Within the CanvasNetMermaid system the Er subsystem depends on the Syntax subsystem (scanner, mapped text, HTML sanitizing), the Configuration subsystem (effective configuration with its er section and the ER style sheet), the Rendering subsystem (layout data, cluster layout, label builder, and node images), the Dagre subsystem (layout work meter), and the Scenegraph subsystem (scene types); it is called by the document pipeline of the system. */
+        comment /* Within the CanvasNetMermaid system the Er subsystem depends on the Syntax subsystem (scanner, mapped text, HTML sanitizing), the Configuration subsystem (effective configuration with its er section and the ER style sheet), the Rendering subsystem (layout data, cluster layout, label builder, and node images), the Dagre subsystem of the CanvasNetLayout system (layout work meter), and the Scenegraph subsystem (scene types); it is called by the document pipeline of the system. */
 
         part erParser : ErParser;
         part erModel : ErModel;

@@ -55,12 +55,12 @@ exposes its elements (`Actors`, `Messages`, `Notes`, `Boxes`, `CreatedActors`, `
 
 **Consumed**: from the `Syntax` subsystem the preprocessed text and its map to the original text (`PreprocessedSource`,
 `MappedText`), the detected diagram (`DetectedDiagram`), the scanner and token cursor (`SourceScanner`, `ScanRule`,
-`ScanToken`, `TokenCursor`), the YAML subset reader of the participant metadata (`YamlSubsetParser`), the text
-sanitizer (`HtmlSanitizer`), and the edit distance of the nearest-name hints (`DiagramDetector.EditDistance`); from
+`ScanToken`, `TokenCursor`), the YAML subset reader of the participant metadata (`YamlSubsetParser`), the text sanitizer
+(`HtmlSanitizer`), and the edit distance of the nearest-name hints (`DiagramDetector.EditDistance`); from
 `Configuration` the effective `MermaidConfig` with its `SequenceConfig` section and the style sheet `SequenceStyles`;
 from `Rendering` the text utilities of `LabelBuilder` (`CalculateTextDimensions`, `WrapLabel`, `SplitBreaks`, and the
-SVG text boxes); from `Dagre` the `LayoutWorkMeter`; from `Scenegraph` the scene types, including the drop shadow of
-a path and the stroke of a text; and from the system the public `MermaidLimits`, `MermaidLocation`,
+SVG text boxes); from `Dagre` (CanvasNetLayout) the `LayoutWorkMeter`; from `Scenegraph` the scene types, including the
+drop shadow of a path and the stroke of a text; and from the system the public `MermaidLimits`, `MermaidLocation`,
 `MermaidSyntaxException`, `MermaidRenderException`, `MermaidDiagnosticCodes`, and `MermaidReportSink`.
 
 **Consumers**: the document pipeline of the system (`MermaidDocument.Pipeline.cs`) calls the parser for a detected

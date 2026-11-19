@@ -6,7 +6,7 @@ package CanvasNet {
         comment designRef /* Design: docs/design/canvas-net-mermaid/mindmap.md */
         comment verificationRef /* Verification: docs/verification/canvas-net-mermaid/mindmap.md */
         comment reqRef /* Requirements: docs/reqstream/canvas-net-mermaid/mindmap.yaml */
-        comment /* Within the CanvasNetMermaid system the Mindmap subsystem depends on the Syntax subsystem (preprocessed and mapped text, the detected diagram, the jison lexer infrastructure, and HTML sanitizing), the Configuration subsystem (effective configuration with its mindmap section, look, and layout, and the mindmap style sheet), the Rendering subsystem (ShapeLibrary, EdgeBuilder, and LabelBuilder), the Cose subsystem (the layout), the Dagre subsystem (layout work meter), and the Scenegraph subsystem (scene types); it is called by the document pipeline of the system. */
+        comment /* Within the CanvasNetMermaid system the Mindmap subsystem depends on the Syntax subsystem (preprocessed and mapped text, the detected diagram, the jison lexer infrastructure, and HTML sanitizing), the Configuration subsystem (effective configuration with its mindmap section, look, and layout, and the mindmap style sheet), the Rendering subsystem (ShapeLibrary, EdgeBuilder, and LabelBuilder), the Cose subsystem (the layout), the Dagre subsystem of the CanvasNetLayout system (layout work meter), and the Scenegraph subsystem (scene types); it is called by the document pipeline of the system. */
 
         part mindmapParser : MindmapParser;
         part mindmapRenderer : MindmapRenderer;

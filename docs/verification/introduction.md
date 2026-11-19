@@ -98,17 +98,21 @@ constituent software items, specifically:
   feature positions) — see
   *CanvasNetVegaLite System Verification*
   (`canvas-net-vega-lite.md`)
+- **CanvasNetLayout (System)** — A separate software system providing the shared graph layout of the diagram packages
+  (a port of graphlib and of the dagre layered layout of dagre-d3-es, with a work budget, cancellation, and
+  determinism), containing no direct unit and two internal subsystems: `Graphlib` (units `Graph` and
+  `GraphAlgorithms`) and `Dagre` (units `DagreLayout`, `DagreAcyclic`, `DagreRanker`, `DagreNesting`,
+  `DagreNormalizer`, `DagreOrdering`, `DagrePositioning`, `DagreCoordinateSystem`, and `LayoutWorkMeter`) — see
+  *CanvasNetLayout System Verification* (`canvas-net-layout.md`)
 - **CanvasNetMermaid (System)** — A separate software system providing a Mermaid diagram renderer that parses Mermaid
   text, describes, measures, and renders flowcharts, sequence diagrams, class diagrams, state diagrams, entity
   relationship diagrams, pie charts, gantt charts, mindmaps, packet diagrams, and git graphs with Mermaid's own layout
   and look, and
   reports the other diagram types as unsupported, containing a single direct unit, `MermaidDocument` (the public parse,
-  open, measure, and render API, options, limits, locations, report codes, exceptions, and the image source), and
-  seventeen internal subsystems:
+  open, measure, and render API, options, limits, locations, report codes, exceptions, the image source, and the
+  layout work meter with Mermaid's failures), and fifteen internal subsystems:
   `Syntax` (units `Preprocessor`, `DiagramDetector`, `YamlSubsetParser`, `SourceScanner`, and `HtmlSanitizer`),
-  `Configuration` (units `MermaidConfigResolver`, `ThemeResolver`, `ColorMath`, and `StyleDeclarations`), `Graphlib`
-  (units `Graph` and `GraphAlgorithms`), `Dagre` (units `DagreLayout`, `DagreAcyclic`, `DagreRanker`, `DagreNesting`,
-  `DagreNormalizer`, `DagreOrdering`, `DagrePositioning`, `DagreCoordinateSystem`, and `LayoutWorkMeter`),
+  `Configuration` (units `MermaidConfigResolver`, `ThemeResolver`, `ColorMath`, and `StyleDeclarations`),
   `Rendering` (units `ClusterLayout`, `ShapeLibrary`, `EdgeBuilder`, `LabelBuilder`, and `NodeImages`), `Scenegraph`
   (units `SceneModel`, `ScenePainter`, and `ScenePositions`), `Flowchart` (units `FlowchartParser` and
   `FlowchartModel`), `Sequence`
@@ -228,12 +232,22 @@ expression engine are tested in `test/DemaConsulting.CanvasNet.VegaLite.Tests/Da
 original fixtures are used: no Vega-Lite example, gallery chart, documentation snippet, or `vega-datasets` data set is
 copied.
 
-For example, the unit `DagreRanker` of the `Dagre` subsystem of the CanvasNetMermaid system has the requirements
-`docs/reqstream/canvas-net-mermaid/dagre/dagre-ranker.yaml`, the design
-`docs/design/canvas-net-mermaid/dagre/dagre-ranker.md`, this verification design
-`docs/verification/canvas-net-mermaid/dagre/dagre-ranker.md`, the source
-`src/DemaConsulting.CanvasNet.Mermaid/Dagre/DagreRanker.cs`, and the tests
-`test/DemaConsulting.CanvasNet.Mermaid.Tests/Dagre/DagreRankerTests.cs`. Each subsystem of that system has a
+For example, the unit `DagreRanker` of the `Dagre` subsystem of the CanvasNetLayout system has the requirements
+`docs/reqstream/canvas-net-layout/dagre/dagre-ranker.yaml`, the design
+`docs/design/canvas-net-layout/dagre/dagre-ranker.md`, this verification design
+`docs/verification/canvas-net-layout/dagre/dagre-ranker.md`, the source
+`src/DemaConsulting.CanvasNet.Layout/Dagre/DagreRanker.cs`, and the tests
+`test/DemaConsulting.CanvasNet.Layout.Tests/Dagre/DagreRankerTests.cs`. Each subsystem of that system has a
+subsystem test class `{Subsystem}Tests.cs` in its test folder (`Dagre/DagreTests.cs` with the dagre stage goldens of
+`Fixtures/upstream-vectors/dagre-layouts.json`, and `Graphlib/GraphlibTests.cs`), and its system tests are
+`LayoutSystemIntegrationTests.cs` in the root of its test project.
+
+For example, the unit `FlowchartParser` of the `Flowchart` subsystem of the CanvasNetMermaid system has the requirements
+`docs/reqstream/canvas-net-mermaid/flowchart/flowchart-parser.yaml`, the design
+`docs/design/canvas-net-mermaid/flowchart/flowchart-parser.md`, this verification design
+`docs/verification/canvas-net-mermaid/flowchart/flowchart-parser.md`, the source
+`src/DemaConsulting.CanvasNet.Mermaid/Flowchart/FlowchartParser.cs`, and the tests
+`test/DemaConsulting.CanvasNet.Mermaid.Tests/Flowchart/FlowchartParserTests.cs`. Each subsystem of that system has a
 subsystem test class `{Subsystem}Tests.cs` in its test folder; the system tests are `MermaidSystemIntegrationTests.cs`,
 `MermaidFlowchartIntegrationTests.cs`, `MermaidReferenceLayoutTests.cs`, `MermaidSequenceIntegrationTests.cs`,
 `MermaidSequenceReferenceLayoutTests.cs`, `MermaidClassIntegrationTests.cs`, `MermaidStateIntegrationTests.cs`,

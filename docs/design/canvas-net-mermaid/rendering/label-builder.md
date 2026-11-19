@@ -148,7 +148,7 @@ function of the request and the bundled fonts.
 
 - **Rendering subsystem** - `NodeImages` (natural sizes of label pictures)
 - **Configuration subsystem** - `MermaidFontConfig` and `ConfigScalar` (the fonts of the text utilities)
-- **Dagre subsystem** - `LayoutWorkMeter` (the work budget of the text utilities)
+- **Dagre subsystem (CanvasNetLayout system)** - `LayoutWorkMeter` (the work budget of the text utilities)
 - **Syntax subsystem** - `HtmlSanitizer` (Mermaid's sanitizing and the character references, with the `HtmlEntities`
   table)
 - **Scenegraph subsystem** - `SceneText`, `SceneTextRun`, `SceneImage`, `SceneFont`, `SceneRect`, `SceneItem`

@@ -50,9 +50,10 @@ renderer the model also exposes its elements (`Vertices`, `Edges`, `Subgraphs`, 
 `ScanToken`, `TokenCursor`), the YAML subset reader of the shape data (`YamlSubsetParser`), and the label sanitizer
 (`HtmlSanitizer`); from `Configuration` the effective `MermaidConfig` and the style sheet `FlowchartStyles`; from
 `Rendering` the layout input types (`LayoutData`, `LayoutNode`, `LayoutEdge`), the shape registry (`ShapeNames`), and
-the drawing (`ClusterLayout`, `ShapeContext`, `LabelBuilder`, `NodeImages`); from `Dagre` the `LayoutWorkMeter`; from
-`Scenegraph` the scene types; from `Graphlib` the JavaScript index rule of `ObjectKeyMap`; and from the system the
-public `MermaidLimits`, `MermaidLocation`, `MermaidSyntaxException`, `MermaidDiagnosticCodes`, and `MermaidReportSink`.
+the drawing (`ClusterLayout`, `ShapeContext`, `LabelBuilder`, `NodeImages`); from `Dagre` (CanvasNetLayout) the
+`LayoutWorkMeter`; from `Scenegraph` the scene types; from `Graphlib` (CanvasNetLayout) the JavaScript index rule of
+`ObjectKeyMap`; and from the system the public `MermaidLimits`, `MermaidLocation`, `MermaidSyntaxException`,
+`MermaidDiagnosticCodes`, and `MermaidReportSink`.
 
 **Consumers**: the document pipeline of the system (`MermaidDocument.Pipeline.cs`) calls the parser for a detected
 flowchart, keeps the model as the document's diagram, reads its metadata, and calls `Layout` for every measure and

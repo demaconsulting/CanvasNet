@@ -12,7 +12,7 @@ reads (the class box, state, and entity box inputs of `LayoutNode` are verified 
 The unit is verified by laying out small flowcharts with `ClusterLayout.Render` and asserting the structure and
 geometry of the drawn graph. The test helper `RenderingTestContext` parses the text, maps it to layout data with the
 `Flowchart` subsystem, builds the `ShapeContext` of the text (its configuration, style sheet, and the real
-`LabelBuilder` with the bundled fonts), and runs the layout with a `LayoutWorkMeter` of a given budget; the drawn
+`LabelBuilder` with the bundled fonts), and runs the layout with a `MermaidLayoutWorkMeter` of a given budget; the drawn
 graph is read with `SceneQuery` (nodes, subgraph rectangles, edges, edge labels, and terminal labels in absolute
 coordinates, by their Mermaid ids and roles). The class diagram behavior is verified with layout data built in the
 test (rectangular class nodes and solid class relations with cardinalities as terminal labels, under a chosen diagram

@@ -6,7 +6,7 @@ package CanvasNet {
         comment designRef /* Design: docs/design/canvas-net-mermaid/pie.md */
         comment verificationRef /* Verification: docs/verification/canvas-net-mermaid/pie.md */
         comment reqRef /* Requirements: docs/reqstream/canvas-net-mermaid/pie.yaml */
-        comment /* Within the CanvasNetMermaid system the Pie subsystem depends on the Syntax subsystem (preprocessed and mapped text, JavaScript trim, HTML sanitizing), the Configuration subsystem (effective configuration with its pie section and the pie style sheet), the Rendering subsystem (text metrics of the label builder), the Dagre subsystem (layout work meter), and the Scenegraph subsystem (scene types); it is called by the document pipeline of the system. */
+        comment /* Within the CanvasNetMermaid system the Pie subsystem depends on the Syntax subsystem (preprocessed and mapped text, JavaScript trim, HTML sanitizing), the Configuration subsystem (effective configuration with its pie section and the pie style sheet), the Rendering subsystem (text metrics of the label builder), the Dagre subsystem of the CanvasNetLayout system (layout work meter), and the Scenegraph subsystem (scene types); it is called by the document pipeline of the system. */
 
         part pieParser : PieParser;
         part pieRenderer : PieRenderer;

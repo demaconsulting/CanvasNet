@@ -23,7 +23,8 @@ class diagram, the state diagram, the entity relationship diagram, the gantt cha
 grammars and databases of the pie chart, the packet diagram, and the git graph (with the URL check of sanitize-url that
 Mermaid applies to the links a diagram keeps), its configuration defaults and precedence, its five themes and the khroma
 color functions they use, its unified renderer (shapes, labels, edges, markers, clusters), the dagre layered layout and
-graphlib graph that Mermaid bundles, its sequence renderer with the drawing functions of the sequence diagram, its pie
+graphlib graph that Mermaid bundles (ported in the shared CanvasNetLayout system, see *CanvasNetLayout System
+Design*), its sequence renderer with the drawing functions of the sequence diagram, its pie
 and gantt renderers with the d3 time scale, intervals, format, and axis and the dayjs date functions they use, and its
 mindmap renderer with the cose-bilkent force-directed layout (cytoscape-cose-bilkent over cose-base and layout-base) and
 the cytoscape edge points it reads back, its packet renderer, and its git graph renderer. Every
@@ -42,7 +43,7 @@ Mermaid diagram type is detected (the 40 detectors of Mermaid, in Mermaid's orde
 succeeds, `IsSupported` is false, and measuring or rendering reports `mermaid-diagram-unsupported` once and gives an
 empty, transparent 16 by 16 pixel picture (an exception in strict mode).
 
-The system consists of one direct unit and seventeen internal subsystems:
+The system consists of one direct unit and fifteen internal subsystems:
 
 - **MermaidDocument** (unit, root namespace; see *MermaidDocument Unit Design*) - the public API: `MermaidDocument`
   with `Parse`, `Open(path)`, `Open(stream)`, the metadata properties, `Measure`, `Render`, and
@@ -50,8 +51,10 @@ The system consists of one direct unit and seventeen internal subsystems:
   `MermaidLocation`, `MermaidDiagnostic`, `MermaidUnsupportedFeature`, and `MermaidSize` records; the
   `MermaidDiagnosticCodes` constants; the `MermaidSyntaxException`, `MermaidRenderException`, and
   `MermaidUnsupportedFeatureException` types; the internal `MermaidReportSink` (ordered, de-duplicated, capped report
-  delivery); the internal pipeline seam (`IMermaidDiagram`, `DiagramRenderContext`, `DiagramRegistry`); and the
-  `MermaidImageSource` that plugs the package into the CanvasNet image-source contract.
+  delivery); the internal pipeline seam (`IMermaidDiagram`, `DiagramRenderContext`, `DiagramRegistry`); the
+  `MermaidImageSource` that plugs the package into the CanvasNet image-source contract; and the internal
+  `MermaidLayoutWorkMeter`, the work meter of a render that gives the shared layout's failures Mermaid's codes,
+  locations, and hints.
 - **Syntax** (subsystem; see *Syntax Design*) - text to a clean diagram body: `Preprocessor` (line endings,
   frontmatter, directives, comments, entity encoding, size limits, and the location map back to the original text),
   `DiagramDetector` (Mermaid's detectors and their order), `YamlSubsetParser` (the js-yaml subset of the frontmatter
@@ -63,11 +66,6 @@ The system consists of one direct unit and seventeen internal subsystems:
   mindmap, packet, and git graph style sheets, the gantt and git graph ones with a class-set cascade and the mindmap one
   painting each node by its classes), `ColorMath` (the khroma subset), and
   `StyleDeclarations` (the CSS declaration subset of `style`, `classDef`, `linkStyle`, and `themeCSS`).
-- **Graphlib** (subsystem; see *Graphlib Design*) - `Graph` (graphlib's directed, multi, and compound graph with
-  JavaScript key order) and `GraphAlgorithms` (the traversals dagre uses).
-- **Dagre** (subsystem; see *Dagre Design*) - the layered layout: `DagreLayout` (the pipeline and its utilities),
-  `DagreAcyclic`, `DagreRanker`, `DagreNesting`, `DagreNormalizer`, `DagreOrdering`, `DagrePositioning`,
-  `DagreCoordinateSystem`, and `LayoutWorkMeter` (the work budget, cancellation, and the shared unique-id counter).
 - **Rendering** (subsystem; see *Rendering Design*) - Mermaid's unified renderer for any layout data:
   `ClusterLayout` (subgraph extraction, recursive layout, placement, the check of the edge ends, and the frame of a
   class, state, or entity relationship diagram), `ShapeLibrary` (the 53 documented shapes, their aliases, the bracket
@@ -126,31 +124,38 @@ The system consists of one direct unit and seventeen internal subsystems:
   commit places of both passes, the arrows with their rerouting lanes, the commit bullets, the rotated commit labels,
   the tags, the title, and the view box of the browser's bounding box).
 
+The graph library and the dagre layered layout are not subsystems of this system: they are the `Graphlib` and `Dagre`
+subsystems of the sibling CanvasNetLayout system (the `DemaConsulting.CanvasNet.Layout` package, a package dependency;
+see *CanvasNetLayout System Design*), whose internal types this system reaches through `InternalsVisibleTo`.
+`ClusterLayout` builds `Graph` instances and calls `DagreLayout.Run`, every renderer charges a `MermaidLayoutWorkMeter`
+(derived from the layout's abstract `LayoutWorkMeter`), and the flowchart model and gantt renderer use `ObjectKeyMap`.
+They are shown as `Layout` in the dependency direction below.
+
 The dependency direction is one way:
 
 ```text
-MermaidDocument -> Syntax -> Configuration -> Flowchart -> Rendering -> Dagre -> Graphlib
+MermaidDocument -> Syntax -> Configuration -> Flowchart -> Rendering -> Layout (Dagre -> Graphlib)
                                                         -> Scenegraph
-                                           -> Sequence  -> Rendering (LabelBuilder), Dagre (LayoutWorkMeter)
+                                           -> Sequence  -> Rendering (LabelBuilder), Layout (LayoutWorkMeter)
                                                         -> Scenegraph
-                                           -> Class     -> Rendering -> Dagre -> Graphlib
+                                           -> Class     -> Rendering -> Layout (Dagre -> Graphlib)
                                                         -> Scenegraph
-                                           -> State     -> Rendering -> Dagre -> Graphlib
+                                           -> State     -> Rendering -> Layout (Dagre -> Graphlib)
                                                         -> Scenegraph
-                                           -> Er        -> Rendering -> Dagre -> Graphlib
+                                           -> Er        -> Rendering -> Layout (Dagre -> Graphlib)
                                                         -> Scenegraph
-                                           -> Pie       -> Rendering (LabelBuilder), Dagre (LayoutWorkMeter)
+                                           -> Pie       -> Rendering (LabelBuilder), Layout (LayoutWorkMeter)
                                                         -> Scenegraph
-                                           -> Gantt     -> Rendering (LabelBuilder), Dagre (LayoutWorkMeter)
-                                                        -> Graphlib (ObjectKeyMap)
+                                           -> Gantt     -> Rendering (LabelBuilder), Layout (LayoutWorkMeter)
+                                                        -> Layout (ObjectKeyMap)
                                                         -> Scenegraph
                                            -> Mindmap   -> Rendering (ShapeLibrary, EdgeBuilder, LabelBuilder)
-                                                        -> Cose -> Dagre (LayoutWorkMeter)
-                                                        -> Dagre (LayoutWorkMeter)
+                                                        -> Cose -> Layout (LayoutWorkMeter)
+                                                        -> Layout (LayoutWorkMeter)
                                                         -> Scenegraph
-                                           -> Packet    -> Rendering (LabelBuilder), Dagre (LayoutWorkMeter)
+                                           -> Packet    -> Rendering (LabelBuilder), Layout (LayoutWorkMeter)
                                                         -> Scenegraph
-                                           -> GitGraph  -> Rendering (LabelBuilder), Dagre (LayoutWorkMeter)
+                                           -> GitGraph  -> Rendering (LabelBuilder), Layout (LayoutWorkMeter)
                                                         -> Scenegraph
 ```
 
@@ -234,6 +239,10 @@ records the name and the class simply adds no style.
 
 ## Dependencies
 
+- **CanvasNetLayout (sibling system, same repository; package dependency)** - the `Graphlib` subsystem (`Graph`,
+  `GraphEdge`, `ObjectKeyMap`, `GraphAlgorithms`) and the `Dagre` subsystem (`DagreGraph`, `DagreNode`, `DagreEdge`,
+  `DagrePoint`, `DagreLayout.Run` and `Same`, and the abstract `LayoutWorkMeter`), internal types reached through
+  `InternalsVisibleTo`; the two packages are built and released in lockstep (see *CanvasNetLayout System Design*).
 - **CanvasNet (sibling system, same repository)** - `Canvas` (`Surface`, `Rgba32`, `CssColor`), `Geometry` (`Path`
   and its builder for scene paths), `Drawing` (`PathFiller`, `PathStroker`), `Fonts` (`FontResolver` with
   `MapCommonAliasesToBundled` and no system fonts, `GenericFontFamilies`), `Rendering` (`TextRenderer` for measuring
@@ -443,7 +452,7 @@ Portions derived from <project> (<license>); see third-party/README.md`:
 | mermaid | MIT | the Syntax units except `HtmlSanitizer`, configuration, themes, renderer, every drawn diagram type |
 | `@mermaid-js/parser` | MIT | the grammars, tokens, and converters of `PieParser`, `PacketParser`, `GitGraphParser` |
 | Langium | MIT | `convertString` and `convertInt` of `PieParser`, `PacketParser`, and `GitGraphParser` |
-| dagre-d3-es (dagre, graphlib, dagre-d3) | MIT | `Graph`, `GraphAlgorithms`, the `Dagre` units, intersections |
+| dagre-d3 (in dagre-d3-es) | MIT | the intersections of `ShapeLibrary` (graphlib and dagre are in CanvasNetLayout) |
 | d3-shape and d3-path | ISC | `EdgeBuilder` curves and path numbers, the `pie` and `arc` of `PieRenderer` |
 | d3-scale, d3-time, d3-time-format, d3-array, d3-axis, d3-interpolate | ISC | `TimeAxis`, the axes of `GanttRenderer` |
 | dayjs (with the plugins Mermaid loads) | MIT | `Dayjs` of `GanttModel` |
@@ -451,14 +460,14 @@ Portions derived from <project> (<license>); see third-party/README.md`:
 | cytoscape-cose-bilkent and cytoscape | MIT | the layout glue and the straight-edge points of `CoseLayout` |
 | khroma | MIT | `ColorMath` |
 | js-yaml | MIT | `YamlSubsetParser` |
-| lodash | MIT | `Lodash` helpers of `DagreLayout` (sorting, extremes, unique ids) |
+| lodash | MIT | the `merge` of `MermaidConfigResolver` (the `Lodash` helpers are in CanvasNetLayout) |
 | marked | MIT | the markdown subset of `LabelBuilder` |
 | sanitize-url (a dependency of mermaid) | MIT | the link check `UrlSanitizer` (class, sequence, state, gantt links) |
 
 The license texts ship in the package's `licenses/` folder (and in the tool package, where the d3 notice is renamed
 `Mermaid-LICENSE-d3.txt` because the Vega-Lite package ships a different `LICENSE-d3.txt`). The public API, the scene
 model and painter, `NodeImages`, `HtmlEntities`, `HtmlSanitizer` (which reproduces DOMPurify's results for label HTML
-without porting its code), `StyleDeclarations`, `ObjectKeyMap`, `LayoutWorkMeter`, the correctly rounded math of
+without porting its code), `StyleDeclarations`, `MermaidLayoutWorkMeter`, the correctly rounded math of
 `CoseLayout`, the limits other than
 `maxTextSize` and `maxEdges`, the diagnostics, and all tests and fixtures are original work. The package is not
 affiliated with, and not endorsed by, the Mermaid project, the Cytoscape Consortium, iVis@Bilkent, or the authors of

@@ -137,9 +137,11 @@ order with type, pattern, length, markers, styles, curve, and animation; the dir
 - **Rendering subsystem** - `LayoutData`, `LayoutNode`, and `LayoutEdge` (the layout input), `ShapeNames` (the known
   shapes and the nearest name), and `ClusterLayout` (its `RenderDiagram`: the drawing, the title, and the view box),
   `ShapeContext`, `LabelBuilder`, and `NodeImages` (the drawing).
-- **Dagre subsystem** - `LayoutWorkMeter` (the shared layout work budget of a render).
+- **Dagre subsystem (CanvasNetLayout system)** - `LayoutWorkMeter` (the shared layout work budget of a render, created
+  as the `MermaidLayoutWorkMeter` of the MermaidDocument unit).
 - **Scenegraph subsystem** - `Scene` (the result of `Layout`, which `ClusterLayout.RenderDiagram` builds).
-- **Graphlib subsystem** - `ObjectKeyMap.IsArrayIndex` (the JavaScript rule for a `linkStyle` index).
+- **Graphlib subsystem (CanvasNetLayout system)** - `ObjectKeyMap.IsArrayIndex` (the JavaScript rule for a `linkStyle`
+  index).
 - **System** - `IMermaidDiagram`, `DiagramRenderContext`, `MermaidLimits`, `MermaidLocation`, `MermaidReportSink`,
   `MermaidSyntaxException`, and `MermaidDiagnosticCodes`.
 

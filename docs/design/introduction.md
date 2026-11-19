@@ -353,19 +353,28 @@ software items, specifically:
   never reference
   `CanvasNetCharts`, `CanvasNetSvg`, `CanvasNetPdf`, `CanvasNetPptx`, `CanvasNetVsdx`, `CanvasNetRender3D`, or
   `CanvasNetScad`
+- **CanvasNetLayout (System)** — A separate software system (packable as `DemaConsulting.CanvasNet.Layout`) providing
+  the shared graph layout of the diagram packages: a port, derived with attribution from dagre-d3-es (dagre and
+  graphlib) and lodash (their license texts ship in the package; not affiliated with those projects), of graphlib and
+  of the dagre layered layout, with the same results as dagre-d3-es, a work budget, cancellation, and determinism. It
+  contains no direct unit and two internal subsystems: `Graphlib` (`Graph` and `GraphAlgorithms`) and `Dagre`
+  (`DagreLayout`, `DagreAcyclic`, `DagreRanker`, `DagreNesting`, `DagreNormalizer`, `DagreOrdering`,
+  `DagrePositioning`, `DagreCoordinateSystem`, and the abstract `LayoutWorkMeter`). Its types are internal and visible
+  only to its friend assemblies (`DemaConsulting.CanvasNet.Mermaid` and the tests), so it has no public API — see
+  *CanvasNetLayout System Design* (`canvas-net-layout.md`). `CanvasNetLayout` depends on the .NET base class library
+  only; it references no other system
 - **CanvasNetMermaid (System)** — A separate software system (packable as `DemaConsulting.CanvasNet.Mermaid`)
   providing a static, offline renderer for the Mermaid diagram language that parses, describes, measures, and renders
   diagrams with Mermaid's own layout, shapes, labels, edges, and themes, derived with attribution from Mermaid,
-  dagre-d3-es (dagre and graphlib), d3, khroma, js-yaml, lodash, and marked (their license texts ship in the package;
+  dagre-d3 (the node intersections), d3, khroma, js-yaml, lodash, and marked (their license texts ship in the package;
   not affiliated with those projects). It contains one direct unit, `MermaidDocument` (the public
   `Parse`/`Open`/`Measure`/`Render` API with `MermaidOpenOptions`, `MermaidRenderOptions`, `MermaidLimits`,
   `MermaidLocation`, `MermaidDiagnostic`, `MermaidUnsupportedFeature`, `MermaidSize`, `MermaidDiagnosticCodes`,
   `MermaidSyntaxException`, `MermaidRenderException`, `MermaidUnsupportedFeatureException`, the internal report sink,
-  and `MermaidImageSource`), and seventeen internal subsystems: `Syntax` (`Preprocessor`, `DiagramDetector`,
-  `YamlSubsetParser`, `SourceScanner`, and `HtmlSanitizer`), `Configuration` (`MermaidConfigResolver`,
-  `ThemeResolver`, `ColorMath`, and `StyleDeclarations`), `Graphlib` (`Graph` and `GraphAlgorithms`), `Dagre`
-  (`DagreLayout`, `DagreAcyclic`, `DagreRanker`, `DagreNesting`, `DagreNormalizer`, `DagreOrdering`,
-  `DagrePositioning`, `DagreCoordinateSystem`, and `LayoutWorkMeter`), `Rendering` (`ClusterLayout`, `ShapeLibrary`,
+  `MermaidImageSource`, and the internal `MermaidLayoutWorkMeter`), and fifteen internal subsystems: `Syntax`
+  (`Preprocessor`, `DiagramDetector`, `YamlSubsetParser`, `SourceScanner`, and `HtmlSanitizer`), `Configuration`
+  (`MermaidConfigResolver`, `ThemeResolver`, `ColorMath`, and `StyleDeclarations`), `Rendering` (`ClusterLayout`,
+  `ShapeLibrary`,
   `EdgeBuilder`, `LabelBuilder`, and `NodeImages`), `Scenegraph` (`SceneModel`, `ScenePainter`, and `ScenePositions`),
   `Flowchart`
   (`FlowchartParser` and `FlowchartModel`), `Sequence` (`SequenceParser`, `SequenceModel`, `SequenceLayout`, and
@@ -378,7 +387,8 @@ software items, specifically:
   Mermaid diagram type is recognized and reported as unsupported — see *CanvasNetMermaid System Design*
   (`canvas-net-mermaid.md`) for the known differences from Mermaid and its Phase Plan. `CanvasNetMermaid` depends on the
   `CanvasNet` system's `Canvas`, `Geometry`, `Drawing`, `Fonts`, `Rendering`, `ImageSources`, and `Positions` subsystems
-  through their public API only
+  through their public API only, and on the `CanvasNetLayout` system's `Graphlib` and `Dagre` subsystems (the graph
+  layout of its flowchart, class, state, and ER diagrams) through internal friend access
 - **CanvasNetPlantUml (System)** — A separate software system (packable as
   `DemaConsulting.CanvasNet.PlantUml`) providing a static, offline renderer for the PlantUML diagram language,
   derived with attribution from the MIT-licensed distribution of PlantUML (its license text ships in the package; not
@@ -648,64 +658,69 @@ every system and `SceneModel` already names a `CanvasNetRender3D` subsystem (and
 public API. See
 the Folder Layout section below and *CanvasNetVegaLite System Design* (`canvas-net-vega-lite.md`).
 
+A further sibling top-level system, `CanvasNetLayout`, likewise lives in this same repository and is distributed as its
+own NuGet package: the shared graph layout of the diagram packages, derived with attribution from dagre-d3-es (dagre and
+graphlib) and lodash (the licenses ship in the package). It has no direct unit; its internal `Graphlib` subsystem holds
+the `Graph` and `GraphAlgorithms` units and its internal `Dagre` subsystem holds the `DagreLayout`, `DagreAcyclic`,
+`DagreRanker`, `DagreNesting`, `DagreNormalizer`, `DagreOrdering`, `DagrePositioning`, `DagreCoordinateSystem`, and
+`LayoutWorkMeter` units (namespaces `DemaConsulting.CanvasNet.Layout.Graphlib` and `.Dagre`). In the SysML2 model the
+system is `CanvasNetLayoutSystem` and the subsystem `part def` names carry the prefix `Layout` (`LayoutGraphlib` and
+`LayoutDagre`). Its types are internal and visible only to its friend assemblies (the `CanvasNetMermaid` package and
+the tests); it references no other system. See the Folder Layout section below and *CanvasNetLayout System Design*
+(`canvas-net-layout.md`).
+
 A further sibling top-level system, `CanvasNetMermaid`, likewise lives in this same repository alongside `CanvasNet` and
 is distributed as its own NuGet package. It is a static, offline renderer for the Mermaid diagram language that parses,
 describes, measures, and renders diagrams with Mermaid's own layout and look, derived with attribution from Mermaid,
-dagre-d3-es, d3, khroma, js-yaml, lodash, and marked (the licenses ship in the package): its direct unit,
-`MermaidDocument` (namespace `DemaConsulting.CanvasNet.Mermaid`), is the public API and the image source; its internal
-`Syntax` subsystem holds the `Preprocessor`, `DiagramDetector`, `YamlSubsetParser`, `SourceScanner`, and `HtmlSanitizer`
-units, its internal `Configuration` subsystem holds the `MermaidConfigResolver`, `ThemeResolver`, `ColorMath`, and
-`StyleDeclarations` units, its internal `Graphlib` subsystem holds the `Graph` and `GraphAlgorithms` units, its internal
-`Dagre` subsystem holds the `DagreLayout`, `DagreAcyclic`, `DagreRanker`, `DagreNesting`, `DagreNormalizer`,
-`DagreOrdering`, `DagrePositioning`, `DagreCoordinateSystem`, and `LayoutWorkMeter` units, its internal `Rendering`
-subsystem holds the `ClusterLayout`, `ShapeLibrary`, `EdgeBuilder`, `LabelBuilder`, and `NodeImages` units, its internal
-`Scenegraph` subsystem holds the `SceneModel`, `ScenePainter`, and `ScenePositions` units, its internal `Flowchart`
-subsystem holds the `FlowchartParser` and `FlowchartModel` units, its internal `Sequence` subsystem holds the
-`SequenceParser`, `SequenceModel`, `SequenceLayout`, and `SequenceRenderer` units, its internal `Class` subsystem holds
-the `ClassParser` and `ClassModel` units, its internal `State` subsystem holds the `StateParser` and `StateModel` units,
-its internal `Er` subsystem holds the `ErParser` and `ErModel` units, its internal `Pie` subsystem holds the `PieParser`
-and `PieRenderer` units, its internal `Gantt` subsystem holds the `GanttParser`, `GanttModel`, `GanttRenderer`, and
-`TimeAxis` units, its internal `Mindmap` subsystem holds the `MindmapParser` and `MindmapRenderer` units, its internal
-`Cose` subsystem holds the `CoseLayout` unit, its internal `Packet` subsystem holds the `PacketParser` and
-`PacketRenderer` units, and its internal `GitGraph` subsystem holds the `GitGraphParser` and `GitGraphRenderer` units
-(each subsystem lives in the sub-namespace and the sub-folder of its own name). In the SysML2 model the subsystem
-`part def` names carry the prefix `Mermaid` (`MermaidSyntax`, `MermaidConfiguration`, `MermaidGraphlib`, `MermaidDagre`,
-`MermaidRendering`, `MermaidScenegraph`, `MermaidFlowchart`, `MermaidSequence`, `MermaidClass`, `MermaidState`,
-`MermaidEr`, `MermaidPie`, `MermaidGantt`, `MermaidMindmap`, `MermaidCose`, `MermaidPacket`, and `MermaidGitGraph`) and
-the scene units are `MermaidSceneModel`, `MermaidScenePainter`, and `MermaidScenePositions`, because the model package
-is shared by every system and `Rendering`, `SceneModel`, `ScenePainter`, and `ScenePositions` are already taken. It
-depends on the `CanvasNet` system's `Canvas`, `Geometry`, `Drawing`, `Fonts`, `Rendering`, `ImageSources`, and
-`Positions` subsystems through their public API. See the Folder Layout section below and *CanvasNetMermaid System
+dagre-d3, d3, khroma, js-yaml, lodash, and marked (the licenses ship in the package): its direct unit, `MermaidDocument`
+(namespace `DemaConsulting.CanvasNet.Mermaid`), is the public API and the image source; its internal `Syntax` subsystem
+holds the `Preprocessor`, `DiagramDetector`, `YamlSubsetParser`, `SourceScanner`, and `HtmlSanitizer` units, its
+internal `Configuration` subsystem holds the `MermaidConfigResolver`, `ThemeResolver`, `ColorMath`, and
+`StyleDeclarations` units, its internal `Rendering` subsystem holds the `ClusterLayout`, `ShapeLibrary`, `EdgeBuilder`,
+`LabelBuilder`, and `NodeImages` units, its internal `Scenegraph` subsystem holds the `SceneModel`, `ScenePainter`, and
+`ScenePositions` units, its internal `Flowchart` subsystem holds the `FlowchartParser` and `FlowchartModel` units, its
+internal `Sequence` subsystem holds the `SequenceParser`, `SequenceModel`, `SequenceLayout`, and `SequenceRenderer`
+units, its internal `Class` subsystem holds the `ClassParser` and `ClassModel` units, its internal `State` subsystem
+holds the `StateParser` and `StateModel` units, its internal `Er` subsystem holds the `ErParser` and `ErModel` units,
+its internal `Pie` subsystem holds the `PieParser` and `PieRenderer` units, its internal `Gantt` subsystem holds the
+`GanttParser`, `GanttModel`, `GanttRenderer`, and `TimeAxis` units, its internal `Mindmap` subsystem holds the
+`MindmapParser` and `MindmapRenderer` units, its internal `Cose` subsystem holds the `CoseLayout` unit, its internal
+`Packet` subsystem holds the `PacketParser` and `PacketRenderer` units, and its internal `GitGraph` subsystem holds the
+`GitGraphParser` and `GitGraphRenderer` units (each subsystem lives in the sub-namespace and the sub-folder of its own
+name). In the SysML2 model the subsystem `part def` names carry the prefix `Mermaid` (`MermaidSyntax`,
+`MermaidConfiguration`, `MermaidRendering`, `MermaidScenegraph`, `MermaidFlowchart`, `MermaidSequence`, `MermaidClass`,
+`MermaidState`, `MermaidEr`, `MermaidPie`, `MermaidGantt`, `MermaidMindmap`, `MermaidCose`, `MermaidPacket`, and
+`MermaidGitGraph`) and the scene units are `MermaidSceneModel`, `MermaidScenePainter`, and `MermaidScenePositions`,
+because the model package is shared by every system and `Rendering`, `SceneModel`, `ScenePainter`, and `ScenePositions`
+are already taken. It depends on the `CanvasNet` system's `Canvas`, `Geometry`, `Drawing`, `Fonts`, `Rendering`,
+`ImageSources`, and `Positions` subsystems through their public API, and on the `CanvasNetLayout` system (its graph
+layout and work meter) through internal friend access. See the Folder Layout section below and *CanvasNetMermaid System
 Design* (`canvas-net-mermaid.md`). A further sibling top-level system, `CanvasNetPlantUml`, likewise lives in this same
 repository alongside `CanvasNet` and is distributed as its own NuGet package. It is a static, offline renderer for the
 PlantUML diagram language, derived with attribution from the MIT-licensed distribution of PlantUML (the license ships in
 the package): its direct unit, `PlantUmlDocument` (namespace `DemaConsulting.CanvasNet.PlantUml`), is the public API and
-the image source;
-its internal `Syntax` subsystem holds the `Preprocessor` and `DiagramDetector` units, its internal `Styling` subsystem
-holds the `SkinTheme` and `SkinParams` units, its internal `Scenegraph` subsystem holds the `SceneModel`,
-`TextLayout`, and `ScenePainter` units, its internal `Sequence` subsystem holds the `SequenceParser`,
+the image source; its internal `Syntax` subsystem holds the `Preprocessor` and `DiagramDetector` units, its internal
+`Styling` subsystem holds the `SkinTheme` and `SkinParams` units, its internal `Scenegraph` subsystem holds the
+`SceneModel`, `TextLayout`, and `ScenePainter` units, its internal `Sequence` subsystem holds the `SequenceParser`,
 `SequenceModel`, `SequenceLayout`, and `SequenceRenderer` units, and its internal `Activity` subsystem holds the
 `ActivityParser`, `ActivityModel`, `ActivityLayout`, and `ActivityRenderer` units (each in the sub-namespace and the
-sub-folder of its name). In the SysML2 model
-the system is `CanvasNetPlantUmlSystem` and its subsystem and unit `part def` names carry the prefix `PlantUml`
-(`PlantUmlSyntax`, `PlantUmlPreprocessor`, `PlantUmlDiagramDetector`, `PlantUmlStyling`, `PlantUmlSkinTheme`,
-`PlantUmlSkinParams`, `PlantUmlScenegraph`, `PlantUmlSceneModel`, `PlantUmlTextLayout`, `PlantUmlScenePainter`,
-`PlantUmlSequence`, `PlantUmlSequenceParser`, `PlantUmlSequenceModel`, `PlantUmlSequenceLayout`,
-`PlantUmlSequenceRenderer`, `PlantUmlActivity`, `PlantUmlActivityParser`, `PlantUmlActivityModel`,
-`PlantUmlActivityLayout`, and `PlantUmlActivityRenderer`),
-because the model package is shared by every system and the Mermaid system already uses the short names. It depends on
-the `CanvasNet` system's `Canvas`, `Geometry`, `Drawing`, `Fonts`, `Rendering`, `Files`, and `ImageSources` subsystems
-through their public API.
-See the Folder Layout section below and *CanvasNetPlantUml System Design* (`canvas-net-plant-uml.md`). A further sibling
+sub-folder of its name). In the SysML2 model the system is `CanvasNetPlantUmlSystem` and its subsystem and unit
+`part def` names carry the prefix `PlantUml` (`PlantUmlSyntax`, `PlantUmlPreprocessor`, `PlantUmlDiagramDetector`,
+`PlantUmlStyling`, `PlantUmlSkinTheme`, `PlantUmlSkinParams`, `PlantUmlScenegraph`, `PlantUmlSceneModel`,
+`PlantUmlTextLayout`, `PlantUmlScenePainter`, `PlantUmlSequence`, `PlantUmlSequenceParser`, `PlantUmlSequenceModel`,
+`PlantUmlSequenceLayout`, `PlantUmlSequenceRenderer`, `PlantUmlActivity`, `PlantUmlActivityParser`,
+`PlantUmlActivityModel`, `PlantUmlActivityLayout`, and `PlantUmlActivityRenderer`), because the model package is shared
+by every system and the Mermaid system already uses the short names. It depends on the `CanvasNet` system's `Canvas`,
+`Geometry`, `Drawing`, `Fonts`, `Rendering`, `Files`, and `ImageSources` subsystems through their public API. See the
+Folder Layout section below and *CanvasNetPlantUml System Design* (`canvas-net-plant-uml.md`). A further sibling
 top-level system, `CanvasNetViewer`, likewise lives in this same repository and is distributed as its own NuGet package
 (`DemaConsulting.CanvasNet.Viewer`). It aggregates the image sources of every format and is the library form of the
 `canvasnet` tool: its direct unit `CanvasNetViewer` (namespace `DemaConsulting.CanvasNet.Viewer`) lists the built-in
 sources (raster, SVG, PDF, PPTX, VSDX, OpenSCAD, Vega-Lite, Mermaid, and PlantUML), creates the `FolderImageResolver` of
-the core
-`ImageSources` subsystem for one render so that an SVG document can embed all of them, and renders any file as a picture
-(with the feature positions of a diagram or a chart that the core `Positions` selectors of its options match); its
-direct unit `ViewerException` is the exception of every expected failure with the stable `ErrorCodes`; and its `Imaging`
-subsystem (namespace `DemaConsulting.CanvasNet.Viewer.Imaging`) holds the `SourceLoader`, `ImagePipeline`,
+the core `ImageSources` subsystem for one render so that an SVG document can embed all of them, and renders any file as
+a picture (with the feature positions of a diagram or a chart that the core `Positions` selectors of its options match);
+its direct unit `ViewerException` is the exception of every expected failure with the stable `ErrorCodes`; and its
+`Imaging` subsystem (namespace `DemaConsulting.CanvasNet.Viewer.Imaging`) holds the `SourceLoader`, `ImagePipeline`,
 `ImageWriter`, `ImageComparison`, `ContactSheet`, and `GridOverlay` units that turn files into pixels, transform pixels
 (grid, and the ordered operations over the core library's flip, pad, trim, tone, rotation, and skew operations), turn
 pixels into files, check the comparison of two images against thresholds, and compose a contact sheet, and the
@@ -1634,9 +1649,36 @@ src/DemaConsulting.CanvasNet.VegaLite/
 `Rendering`) through its public API, and declares it as its only package dependency; the `ScenePainter`, `ArcGeometry`,
 `SymbolPathParser`, and `TextMeasurer` units use it — see *CanvasNetVegaLite System Design* (`canvas-net-vega-lite.md`).
 
+The `CanvasNetLayout` system lives in the `src/DemaConsulting.CanvasNet.Layout/` project folder (the separate
+`DemaConsulting.CanvasNet.Layout` package). It has no direct unit; its two internal subsystems occupy the sub-folders
+`Graphlib/` and `Dagre/`, whose names equal their sub-namespaces (see *CanvasNetLayout System Design*,
+`canvas-net-layout.md`):
+
+```text
+src/DemaConsulting.CanvasNet.Layout/
+├── DemaConsulting.CanvasNet.Layout.csproj — Package definition (net8.0/net9.0/net10.0/net11.0; packable; ships third-party/)
+├── third-party/                   — License texts and the provenance table of the ported projects
+├── Graphlib/                      — Graphlib subsystem
+│   ├── Graph.cs, GraphEdge.cs, ObjectKeyMap.cs — Graph: graphlib's graph with JavaScript key order
+│   └── GraphAlgorithms.cs         — GraphAlgorithms: depth-first preorder and postorder
+└── Dagre/                         — Dagre subsystem
+    ├── DagreLayout.cs, DagreLayout.Util.cs, DagreGraph.cs, LayoutModel.cs, Lodash.cs — DagreLayout: the pipeline
+    ├── DagreAcyclic.cs            — DagreAcyclic: cycle breaking
+    ├── DagreRanker*.cs            — DagreRanker: longest path, feasible tree, network simplex
+    ├── DagreNesting.cs            — DagreNesting: nesting graph, border segments, dummy chains
+    ├── DagreNormalizer.cs         — DagreNormalizer: long-edge dummies
+    ├── DagreOrdering*.cs          — DagreOrdering: crossing reduction
+    ├── DagrePositioning*.cs       — DagrePositioning: Brandes-Koepf coordinates
+    ├── DagreCoordinateSystem.cs   — DagreCoordinateSystem: rank direction transforms
+    └── LayoutWorkMeter.cs         — LayoutWorkMeter: the abstract work budget, cancellation, unique ids
+```
+
+Each sub-folder also holds a `NamespaceDoc.cs` with the namespace documentation. `CanvasNetLayout` uses only the .NET
+base class library and references no other system.
+
 The `CanvasNetMermaid` system lives in the `src/DemaConsulting.CanvasNet.Mermaid/` project folder (the separate
 `DemaConsulting.CanvasNet.Mermaid` package). The `MermaidDocument` unit occupies the project root; the internal
-subsystems occupy the sub-folders `Syntax/`, `Configuration/`, `Graphlib/`, `Dagre/`, `Rendering/`, `Scenegraph/`,
+subsystems occupy the sub-folders `Syntax/`, `Configuration/`, `Rendering/`, `Scenegraph/`,
 `Flowchart/`, `Sequence/`, `Class/`, `State/`, `Er/`, `Pie/`, `Gantt/`, `Mindmap/`, `Cose/`, `Packet/`, and
 `GitGraph/`, whose
 names equal
@@ -1663,6 +1705,7 @@ src/DemaConsulting.CanvasNet.Mermaid/
 ├── MermaidUnsupportedFeatureException.cs — MermaidDocument: strict-mode exception
 ├── MermaidReportSink.cs           — MermaidDocument: ordered, de-duplicated, capped report delivery
 ├── MermaidImageSource.cs          — MermaidDocument: the image source for .mmd and .mermaid files
+├── MermaidLayoutWorkMeter.cs      — MermaidDocument: the layout work meter with Mermaid's located failures
 ├── third-party/                   — License texts and the provenance table of the ported projects
 ├── Syntax/                        — Syntax subsystem
 │   ├── Preprocessor.cs, Preprocessor.MappedText.cs — Preprocessor: clean-up, frontmatter, directives, location map
@@ -1678,19 +1721,6 @@ src/DemaConsulting.CanvasNet.Mermaid/
 │   │                                ThemeResolver.GitGraphStyles.cs)
 │   ├── ColorMath.cs, ColorMath.Parsers.cs — ColorMath: the khroma subset
 │   └── StyleDeclarations.cs       — StyleDeclarations: the CSS declaration subset
-├── Graphlib/                      — Graphlib subsystem
-│   ├── Graph.cs, GraphEdge.cs, ObjectKeyMap.cs — Graph: graphlib's graph with JavaScript key order
-│   └── GraphAlgorithms.cs         — GraphAlgorithms: depth-first preorder and postorder
-├── Dagre/                         — Dagre subsystem
-│   ├── DagreLayout.cs, DagreLayout.Util.cs, DagreGraph.cs, LayoutModel.cs, Lodash.cs — DagreLayout: the pipeline
-│   ├── DagreAcyclic.cs            — DagreAcyclic: cycle breaking
-│   ├── DagreRanker*.cs            — DagreRanker: longest path, feasible tree, network simplex
-│   ├── DagreNesting.cs            — DagreNesting: nesting graph, border segments, dummy chains
-│   ├── DagreNormalizer.cs         — DagreNormalizer: long-edge dummies
-│   ├── DagreOrdering*.cs          — DagreOrdering: crossing reduction
-│   ├── DagrePositioning*.cs       — DagrePositioning: Brandes-Koepf coordinates
-│   ├── DagreCoordinateSystem.cs   — DagreCoordinateSystem: rank direction transforms
-│   └── LayoutWorkMeter.cs         — LayoutWorkMeter: work budget, cancellation, unique ids
 ├── Rendering/                     — Rendering subsystem
 │   ├── ClusterLayout*.cs, LayoutData.cs — ClusterLayout: subgraphs, recursive layout, placement, diagram frame
 │   ├── ShapeLibrary*.cs, ShapeNames.cs — ShapeLibrary: shapes, class and entity boxes, state and mindmap shapes
@@ -1739,8 +1769,9 @@ src/DemaConsulting.CanvasNet.Mermaid/
     └── GitGraphRenderer*.cs       — GitGraphRenderer: the gitGraphRenderer.ts drawing
 ```
 
-Each sub-folder also holds a `NamespaceDoc.cs` with the namespace documentation. `CanvasNetMermaid` uses only the
-`CanvasNet` system through its public API and declares it as its only package dependency.
+Each sub-folder also holds a `NamespaceDoc.cs` with the namespace documentation. `CanvasNetMermaid` uses the
+`CanvasNet` system through its public API and the `CanvasNetLayout` system through internal friend access, and declares
+both as its package dependencies.
 
 The `CanvasNetPlantUml` system lives in the `src/DemaConsulting.CanvasNet.PlantUml/` project folder (the separate
 `DemaConsulting.CanvasNet.PlantUml` package). The `PlantUmlDocument` unit occupies the project root and each internal
@@ -2031,15 +2062,29 @@ have no companion artifacts of their own: the original gallery specifications an
 harness is the project `tools/DemaConsulting.CanvasNet.VegaLite.Benchmarks/` (compiled by the solution build, run by
 hand), and the visual-diff scripts against Vega and Vega-Lite are in `tools/visual-diff/` (run by hand, never in CI).
 
-For the `CanvasNetMermaid` system the parallel paths are, for example for the `DagreRanker` unit in the `Dagre`
-subsystem: requirements `docs/reqstream/canvas-net-mermaid/dagre/dagre-ranker.yaml`, design
-`docs/design/canvas-net-mermaid/dagre/dagre-ranker.md`, verification
-`docs/verification/canvas-net-mermaid/dagre/dagre-ranker.md`, SysML2 model
-`docs/sysml2/model/canvas-net-mermaid/dagre/dagre-ranker.sysml`, source
-`src/DemaConsulting.CanvasNet.Mermaid/Dagre/DagreRanker.cs` (with `DagreRanker.FeasibleTree.cs` and
-`DagreRanker.NetworkSimplex.cs`), and tests `test/DemaConsulting.CanvasNet.Mermaid.Tests/Dagre/DagreRankerTests.cs`.
+For the `CanvasNetLayout` system the parallel paths are, for example for the `DagreRanker` unit in the `Dagre`
+subsystem: requirements `docs/reqstream/canvas-net-layout/dagre/dagre-ranker.yaml`, design
+`docs/design/canvas-net-layout/dagre/dagre-ranker.md`, verification
+`docs/verification/canvas-net-layout/dagre/dagre-ranker.md`, SysML2 model
+`docs/sysml2/model/canvas-net-layout/dagre/dagre-ranker.sysml`, source
+`src/DemaConsulting.CanvasNet.Layout/Dagre/DagreRanker.cs` (with `DagreRanker.FeasibleTree.cs` and
+`DagreRanker.NetworkSimplex.cs`), and tests `test/DemaConsulting.CanvasNet.Layout.Tests/Dagre/DagreRankerTests.cs`.
 The subsystem tests are `{Subsystem}Tests.cs` in each test folder (for example `Dagre/DagreTests.cs` with the dagre
-stage goldens), the direct unit `MermaidDocument` has no subsystem folder
+stage goldens of `Fixtures/upstream-vectors/dagre-layouts.json`), and the system itself is
+`docs/design/canvas-net-layout.md` with `docs/sysml2/model/canvas-net-layout.sysml`; its system tests are
+`LayoutSystemIntegrationTests.cs` in the root of its test project. The attribution record and license texts are in
+`src/DemaConsulting.CanvasNet.Layout/third-party/`.
+
+For the `CanvasNetMermaid` system the parallel paths are, for example for the `FlowchartParser` unit in the `Flowchart`
+subsystem: requirements `docs/reqstream/canvas-net-mermaid/flowchart/flowchart-parser.yaml`, design
+`docs/design/canvas-net-mermaid/flowchart/flowchart-parser.md`, verification
+`docs/verification/canvas-net-mermaid/flowchart/flowchart-parser.md`, SysML2 model
+`docs/sysml2/model/canvas-net-mermaid/flowchart/flowchart-parser.sysml`, source
+`src/DemaConsulting.CanvasNet.Mermaid/Flowchart/FlowchartParser.cs` (with `FlowchartParser.Lexer.cs`,
+`FlowchartParser.Statements.cs`, and `FlowchartParser.Links.cs`), and tests
+`test/DemaConsulting.CanvasNet.Mermaid.Tests/Flowchart/FlowchartParserTests.cs`. The subsystem tests are
+`{Subsystem}Tests.cs` in each test folder (for example `Flowchart/FlowchartTests.cs`), the direct unit `MermaidDocument`
+has no subsystem folder
 (`docs/design/canvas-net-mermaid/mermaid-document.md`), and the system itself is `docs/design/canvas-net-mermaid.md`
 with `docs/sysml2/model/canvas-net-mermaid.sysml`; its system tests are `MermaidSystemIntegrationTests.cs`,
 `MermaidFlowchartIntegrationTests.cs`, `MermaidReferenceLayoutTests.cs`, `MermaidSequenceIntegrationTests.cs`,
@@ -2049,8 +2094,8 @@ with `docs/sysml2/model/canvas-net-mermaid.sysml`; its system tests are `Mermaid
 `MermaidMindmapReferenceLayoutTests.cs`), `MermaidPacketIntegrationTests.cs`, `MermaidGitGraphIntegrationTests.cs`
 (with `MermaidGitGraphReferenceLayoutTests.cs`), `MermaidGalleryTests.cs`,
 `MermaidHardeningTests.cs`, and `MermaidUnsupportedDiagramTests.cs` in the root of its test project. Units whose helper
-types live in their own files list those files in their design and SysML2 model (for example `ObjectKeyMap.cs` belongs
-to `Graph`, `ShapeNames.cs` to `ShapeLibrary`, `LayoutData.cs` to `ClusterLayout`, and `HtmlEntities.cs` to
+types live in their own files list those files in their design and SysML2 model (for example `ShapeNames.cs` belongs
+to `ShapeLibrary`, `LayoutData.cs` to `ClusterLayout`, and `HtmlEntities.cs` to
 `HtmlSanitizer`). The original flowchart, sequence, class, state, entity relationship, pie, gantt, mindmap, packet, and
 git graph fixtures are in `test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/flowchart/`, `Fixtures/sequence/`,
 `Fixtures/class/`, `Fixtures/state/`, `Fixtures/er/`, `Fixtures/pie/`, `Fixtures/gantt/`, `Fixtures/mindmap/`,

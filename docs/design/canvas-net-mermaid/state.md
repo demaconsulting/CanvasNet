@@ -60,8 +60,8 @@ and the static helpers `Sanitize` and `TrimColon`. For tests and for the vectors
 with its `StateConfig` section (the spacing, the title margin, and the `defaultRenderer` named in the legacy report),
 the flowchart padding that Mermaid's data fetcher gives the notes, the look, the layout, the locations of keys, and the
 style sheet `StateStyles`; from `Rendering` the layout input types (`LayoutData`, `LayoutNode`, `LayoutEdge`) and the
-drawing (`ClusterLayout.RenderDiagram`, `ShapeContext`, `LabelBuilder`, `NodeImages`); from `Dagre` the
-`LayoutWorkMeter`; from `Scenegraph` the `Scene`; and from the system the `IMermaidDiagram` contract,
+drawing (`ClusterLayout.RenderDiagram`, `ShapeContext`, `LabelBuilder`, `NodeImages`); from `Dagre` (CanvasNetLayout)
+the `LayoutWorkMeter`; from `Scenegraph` the `Scene`; and from the system the `IMermaidDiagram` contract,
 `DiagramRenderContext`, and the public `MermaidLimits`, `MermaidLocation`, `MermaidSyntaxException`,
 `MermaidRenderException`, `MermaidDiagnosticCodes`, and `MermaidReportSink`.
 

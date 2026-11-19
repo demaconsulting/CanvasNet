@@ -120,6 +120,21 @@ configuration text that is not a JSON object, null limits, and a white-space sou
 
 Asserts every default value and that a limit below one and a depth limit outside its range are refused.
 
+#### CanvasNetMermaid-MermaidDocument-LayoutLimit: The Layout Limit Is A Located Mermaid Error
+
+**Tests**: `MermaidLayoutWorkMeterTests.MermaidLayoutWorkMeter_Charge_PastLimit_ThrowsLocatedLimitExceeded`
+
+Charges a `MermaidLayoutWorkMeter` with a limit of 10 up to the limit and asserts that the next charge throws a
+`MermaidRenderException` with the code `mermaid-limit-exceeded`, the meter's location, a message that names
+`MermaidLimits.MaxLayoutWork`, and a hint, with 10 steps used.
+
+#### CanvasNetMermaid-MermaidDocument-LayoutFailure: A Layout Failure Is A Located Mermaid Error
+
+**Tests**: `MermaidLayoutWorkMeterTests.MermaidLayoutWorkMeter_Failure_Description_RenderFailedAtLocation`
+
+Asserts that the failure a `MermaidLayoutWorkMeter` creates with a description has the code `mermaid-render-failed`,
+the meter's location, and a message that contains the description.
+
 #### CanvasNetMermaid-MermaidDocument-Reports: Ordered, De-Duplicated, Capped Delivery
 
 **Tests**: `MermaidReportSinkTests.MermaidReportSink_Deliver_KeepsOrderAcrossKinds`,

@@ -189,7 +189,7 @@ three letters, the meridiem `AM`/`PM`, and no long-date formats) and the token l
 - **Syntax subsystem** - `HtmlSanitizer` (Mermaid's `sanitizeText`), `UrlSanitizer` (Mermaid's `sanitizeUrl`),
   `Preprocessor.TrimJs` (JavaScript's `trim`), `ScanPatterns` (the JavaScript white space class), and
   `YamlSubsetParser.FormatJsNumber` (JavaScript's `String(number)`).
-- **Dagre subsystem** - `LayoutWorkMeter`, the work budget and cancellation of a render.
+- **Dagre subsystem (CanvasNetLayout system)** - `LayoutWorkMeter`, the work budget and cancellation of a render.
 - **Scenegraph subsystem** - `Scene`, the result of a layout.
 - **System** - `IMermaidDiagram`, `DiagramRenderContext`, `MermaidReportSink`, `MermaidLimits`, `MermaidLocation`,
   `MermaidSyntaxException`, `MermaidRenderException`, and `MermaidDiagnosticCodes`.

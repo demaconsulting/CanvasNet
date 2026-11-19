@@ -6,7 +6,7 @@ package CanvasNet {
         comment designRef /* Design: docs/design/canvas-net-mermaid/sequence.md */
         comment verificationRef /* Verification: docs/verification/canvas-net-mermaid/sequence.md */
         comment reqRef /* Requirements: docs/reqstream/canvas-net-mermaid/sequence.yaml */
-        comment /* Within the CanvasNetMermaid system the Sequence subsystem depends on the Syntax subsystem (scanner, mapped text, YAML subset reader, HTML sanitizer, and the edit distance of the diagram detector), the Configuration subsystem (effective configuration with its sequence section, and the sequence style sheet), the Rendering subsystem (the text measuring and wrapping of the label builder), the Dagre subsystem (layout work meter), and the Scenegraph subsystem (scene types with drop shadows and stroked text); it is called by the document pipeline of the system. */
+        comment /* Within the CanvasNetMermaid system the Sequence subsystem depends on the Syntax subsystem (scanner, mapped text, YAML subset reader, HTML sanitizer, and the edit distance of the diagram detector), the Configuration subsystem (effective configuration with its sequence section, and the sequence style sheet), the Rendering subsystem (the text measuring and wrapping of the label builder), the Dagre subsystem of the CanvasNetLayout system (layout work meter), and the Scenegraph subsystem (scene types with drop shadows and stroked text); it is called by the document pipeline of the system. */
 
         part sequenceParser : SequenceParser;
         part sequenceModel : SequenceModel;
