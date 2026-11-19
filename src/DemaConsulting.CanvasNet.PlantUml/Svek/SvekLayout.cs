@@ -130,9 +130,12 @@ internal sealed record SvekPlacement(
 ///         by side, with dashed separators.
 ///     </para>
 ///     <para>
-///         <b>Notes.</b> An entity and the notes attached to it are one node, so a note stays on its side; a floating
-///         note is a node of its own, and one with a single link to an entity points at it instead of drawing the
-///         link. A note on a link enlarges the label of the link.
+///         <b>Notes.</b> A note attached to an entity is a node of its own, joined to the entity by a hidden edge as
+///         PlantUML joins them for Graphviz: a note left or right of the entity (top or bottom in a left to right
+///         diagram) shares its rank, <see cref="NoteGap"/> away, and the others are one rank before or after it, so
+///         the routes of the links keep clear of the notes. A floating note is a node of its own, and one with a
+///         single link to an entity points at it instead of drawing the link. A note on a link enlarges the label of
+///         the link.
 ///     </para>
 ///     <para>
 ///         <b>Routes.</b> dagre gives no route through the rank for an edge whose ends share a rank; such a link is

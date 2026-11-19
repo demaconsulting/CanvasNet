@@ -171,77 +171,38 @@ internal sealed partial class SvekLayout
             unit.Parent = parent;
             work.Units.Add(unit);
             work.UnitsByNode[member] = unit;
+
+            // The notes attached to an entity are nodes of their own beside it, joined to it by a hidden edge
+            if (member is SvekEntity owner && _attached.TryGetValue(owner, out var notes))
+            {
+                foreach (var note in notes)
+                {
+                    _meter.Charge(1);
+                    var noteUnit = NoteUnit(note);
+                    noteUnit.Parent = parent;
+                    work.Units.Add(noteUnit);
+                    work.UnitsByNode[note] = noteUnit;
+                    work.AttachedNotes.Add((note, owner));
+                }
+            }
         }
     }
 
     /// <summary>
-    ///     Builds the unit of an entity with the notes attached to it: the entity in the middle and the notes on their
-    ///     sides, <see cref="NoteGap"/> away, stacked <see cref="NoteStackGap"/> apart and centered on the entity.
+    ///     Builds the unit of an entity.
     /// </summary>
     /// <param name="entity">The entity.</param>
-    /// <returns>The unit.</returns>
+    /// <returns>The unit, as large as the entity's image.</returns>
     private Unit EntityUnit(SvekEntity entity)
     {
         var (width, height) = (entity.Image.Width, entity.Image.Height);
         var unit = new Unit(entity, _ids[entity]);
-        if (!_attached.TryGetValue(entity, out var notes))
-        {
-            (unit.Width, unit.Height, unit.MainW, unit.MainH) = (width, height, width, height);
-            return unit;
-        }
-
-        // Measure the notes of each side
-        var measured = notes.Select(n => (Note: n, Text: Measure(n.Text, SkinElement.Note, n.Location))).ToList();
-        var sides = measured.GroupBy(m => m.Note.Position).ToDictionary(g => g.Key, g => g.ToList());
-        List<(SvekNote Note, TextBlock Text)> Side(NotePosition p) => sides.TryGetValue(p, out var list) ? list : [];
-        static (double W, double H) Size(TextBlock text) => (text.Width + NoteMarginLeft + NoteMarginRight, text.Height + (2 * NoteMarginY));
-        double Stack(List<(SvekNote Note, TextBlock Text)> list, bool vertical) =>
-            list.Count == 0 ? 0 : list.Sum(m => vertical ? Size(m.Text).H : Size(m.Text).W) + ((list.Count - 1) * NoteStackGap);
-        double Thick(List<(SvekNote Note, TextBlock Text)> list, bool vertical) =>
-            list.Count == 0 ? 0 : list.Max(m => vertical ? Size(m.Text).W : Size(m.Text).H) + NoteGap;
-
-        var (left, right, top, bottom) = (Side(NotePosition.Left), Side(NotePosition.Right), Side(NotePosition.Top), Side(NotePosition.Bottom));
-        var (leftW, rightW, topH, bottomH) = (Thick(left, true), Thick(right, true), Thick(top, false), Thick(bottom, false));
-        var innerH = Math.Max(height, Math.Max(Stack(left, true), Stack(right, true)));
-        var innerW = Math.Max(width, Math.Max(Stack(top, false), Stack(bottom, false)));
-        unit.Width = leftW + innerW + rightW;
-        unit.Height = topH + innerH + bottomH;
-        unit.MainX = leftW + ((innerW - width) / 2);
-        unit.MainY = topH + ((innerH - height) / 2);
-        (unit.MainW, unit.MainH) = (width, height);
-
-        // Place each side's notes, centered on the entity
-        void PlaceColumn(List<(SvekNote Note, TextBlock Text)> list, double x, bool alignRight)
-        {
-            var y = unit.MainY + (height / 2) - (Stack(list, true) / 2);
-            foreach (var (note, text) in list)
-            {
-                var (w, h) = Size(text);
-                unit.Notes.Add(new NoteSlot(note, text, new SceneRect(alignRight ? x - w : x, y, w, h)));
-                y += h + NoteStackGap;
-            }
-        }
-
-        void PlaceRow(List<(SvekNote Note, TextBlock Text)> list, double y, bool alignBottom)
-        {
-            var x = unit.MainX + (width / 2) - (Stack(list, false) / 2);
-            foreach (var (note, text) in list)
-            {
-                var (w, h) = Size(text);
-                unit.Notes.Add(new NoteSlot(note, text, new SceneRect(x, alignBottom ? y - h : y, w, h)));
-                x += w + NoteStackGap;
-            }
-        }
-
-        PlaceColumn(left, unit.MainX - NoteGap, true);
-        PlaceColumn(right, unit.MainX + width + NoteGap, false);
-        PlaceRow(top, unit.MainY - NoteGap, true);
-        PlaceRow(bottom, unit.MainY + height + NoteGap, false);
+        (unit.Width, unit.Height) = (width, height);
         return unit;
     }
 
     /// <summary>
-    ///     Builds the unit of a floating note.
+    ///     Builds the unit of a note (floating, or attached to an entity).
     /// </summary>
     /// <param name="note">The note.</param>
     /// <returns>The unit.</returns>
@@ -250,7 +211,6 @@ internal sealed partial class SvekLayout
         var text = Measure(note.Text, SkinElement.Note, note.Location);
         var unit = new Unit(note, _ids[note]) { NoteText = text };
         (unit.Width, unit.Height) = (text.Width + NoteMarginLeft + NoteMarginRight, text.Height + (2 * NoteMarginY));
-        (unit.MainW, unit.MainH) = (unit.Width, unit.Height);
         return unit;
     }
 
@@ -268,7 +228,6 @@ internal sealed partial class SvekLayout
         var unit = new Unit(cluster, _ids[cluster]) { Inner = inner };
         unit.Width = Math.Max(inner.Width + (2 * padding), minWidth);
         unit.Height = inner.Height + (2 * padding) + header;
-        (unit.MainW, unit.MainH) = (unit.Width, unit.Height);
         (unit.InnerX, unit.InnerY) = ((unit.Width - inner.Width) / 2, header + padding);
         return unit;
     }
@@ -473,11 +432,9 @@ internal sealed partial class SvekLayout
             {
                 case SvekEntity entity:
                     frame.Entities.Add(new WEntity(entity, main));
-                    foreach (var slot in unit.Notes)
-                    {
-                        frame.Notes.Add(AttachedNote(slot, unit));
-                    }
-
+                    break;
+                case SvekNote { Target: { } target } note:
+                    frame.Notes.Add(AttachedNote(note, unit.NoteText!, main, work.UnitsByNode[target].MainBox));
                     break;
                 case SvekNote note:
                     frame.Notes.Add(new WNote(note, unit.NoteText!, main));
@@ -496,7 +453,7 @@ internal sealed partial class SvekLayout
             frame.Clusters.Add(new WCluster(compound.Cluster, compound.Box));
         }
 
-        foreach (var edge in work.Edges)
+        foreach (var edge in work.Edges.Where(e => !e.Synthetic))
         {
             frame.Links.Add(edge.Placed!);
         }
@@ -524,24 +481,35 @@ internal sealed partial class SvekLayout
             .ToList();
 
     /// <summary>
-    ///     Places a note attached to an entity, with its pointer from the side facing the entity to the entity's border.
+    ///     Places a note attached to an entity, with its pointer from the side of the note that faces the entity (where
+    ///     the layout put it: the side with the widest gap between the two boxes, the note's own position on a tie) to the
+    ///     entity's border.
     /// </summary>
-    /// <param name="slot">The note's place in the unit.</param>
-    /// <param name="unit">The unit of the entity.</param>
+    /// <param name="note">The note.</param>
+    /// <param name="text">The laid-out text.</param>
+    /// <param name="box">The box of the note.</param>
+    /// <param name="target">The box of the entity.</param>
     /// <returns>The placed note.</returns>
-    private static WNote AttachedNote(NoteSlot slot, Unit unit)
+    private static WNote AttachedNote(SvekNote note, TextBlock text, SceneRect box, SceneRect target)
     {
-        var box = new SceneRect(unit.Box.X + slot.Box.X, unit.Box.Y + slot.Box.Y, slot.Box.Width, slot.Box.Height);
-        var target = unit.MainBox;
+        // The entity's side of the note: where the gap between them is the widest
+        var gaps = new[]
+        {
+            (Gap: target.Y - box.Bottom, Own: NotePosition.Top),
+            (Gap: box.Y - target.Bottom, Own: NotePosition.Bottom),
+            (Gap: target.X - box.Right, Own: NotePosition.Left),
+            (Gap: box.X - target.Right, Own: NotePosition.Right),
+        };
+        var position = gaps.OrderByDescending(g => g.Gap).ThenByDescending(g => g.Own == note.Position).First().Own;
         var (cx, cy) = (box.X + (box.Width / 2), box.Y + (box.Height / 2));
-        var (side, tip, pointerBase) = slot.Note.Position switch
+        var (side, tip, pointerBase) = position switch
         {
             NotePosition.Left => (NotePosition.Right, new SvekPoint(target.X, Math.Clamp(cy, target.Y, target.Bottom)), new SvekPoint(box.Right, cy)),
             NotePosition.Right => (NotePosition.Left, new SvekPoint(target.Right, Math.Clamp(cy, target.Y, target.Bottom)), new SvekPoint(box.X, cy)),
             NotePosition.Top => (NotePosition.Bottom, new SvekPoint(Math.Clamp(cx, target.X, target.Right), target.Y), new SvekPoint(cx, box.Bottom)),
             _ => (NotePosition.Top, new SvekPoint(Math.Clamp(cx, target.X, target.Right), target.Bottom), new SvekPoint(cx, box.Y)),
         };
-        return new WNote(slot.Note, slot.Text, box) { Side = side, Tip = tip, Base = pointerBase };
+        return new WNote(note, text, box) { Side = side, Tip = tip, Base = pointerBase };
     }
 
     /// <summary>
@@ -576,11 +544,13 @@ internal sealed partial class SvekLayout
 
         /// <summary>Gets the notes on the links of the scope.</summary>
         public List<WNote> LinkNotes { get; } = [];
+
+        /// <summary>Gets the notes attached to the entities of the scope, with their entities, in the order they were added.</summary>
+        public List<(SvekNote Note, SvekEntity Owner)> AttachedNotes { get; } = [];
     }
 
     /// <summary>
-    ///     A leaf node of a scope's graph: an entity with its attached notes, a floating note, or a cluster laid out on
-    ///     its own.
+    ///     A leaf node of a scope's graph: an entity, a note, or a cluster laid out on its own.
     /// </summary>
     /// <param name="node">The node.</param>
     /// <param name="id">The graph id.</param>
@@ -601,22 +571,7 @@ internal sealed partial class SvekLayout
         /// <summary>Gets or sets the height of the unit.</summary>
         public double Height { get; set; }
 
-        /// <summary>Gets or sets the left of the node in the unit.</summary>
-        public double MainX { get; set; }
-
-        /// <summary>Gets or sets the top of the node in the unit.</summary>
-        public double MainY { get; set; }
-
-        /// <summary>Gets or sets the width of the node.</summary>
-        public double MainW { get; set; }
-
-        /// <summary>Gets or sets the height of the node.</summary>
-        public double MainH { get; set; }
-
-        /// <summary>Gets the attached notes with their places in the unit.</summary>
-        public List<NoteSlot> Notes { get; } = [];
-
-        /// <summary>Gets or sets the text of a floating note.</summary>
+        /// <summary>Gets or sets the text of a note.</summary>
         public TextBlock? NoteText { get; set; }
 
         /// <summary>Gets or sets the content of a cluster laid out on its own.</summary>
@@ -640,8 +595,8 @@ internal sealed partial class SvekLayout
         /// <summary>Gets or sets the box of the unit after the layout.</summary>
         public SceneRect Box { get; set; }
 
-        /// <summary>Gets the box of the node after the layout.</summary>
-        public SceneRect MainBox => new(Box.X + MainX, Box.Y + MainY, MainW, MainH);
+        /// <summary>Gets the box of the node after the layout (the box of the unit).</summary>
+        public SceneRect MainBox => Box;
     }
 
     /// <summary>
@@ -669,14 +624,6 @@ internal sealed partial class SvekLayout
         /// <summary>Gets or sets the box after the layout.</summary>
         public SceneRect Box { get; set; }
     }
-
-    /// <summary>
-    ///     A note attached to an entity, with its place in the entity's unit.
-    /// </summary>
-    /// <param name="Note">The note.</param>
-    /// <param name="Text">The laid-out text.</param>
-    /// <param name="Box">The box relative to the unit.</param>
-    private sealed record NoteSlot(SvekNote Note, TextBlock Text, SceneRect Box);
 
     /// <summary>
     ///     A compound cluster of a scope's graph.

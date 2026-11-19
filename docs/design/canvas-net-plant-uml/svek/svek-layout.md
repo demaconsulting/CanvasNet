@@ -43,16 +43,21 @@ specified by the `CanvasNetPlantUml-Svek-SvekLayout-*` requirements in
   raised by a tenth of the widest horizontal and tallest vertical label sum of a link and its decoration margins (its
   "dzeta"), and at least what the cluster paddings need to stay inside dagre's cluster boxes.
 - `LayoutScope(scope)` - a cluster with concurrent regions is `ArrangeRegions`; any other scope is one compound
-  multigraph: `AddMembers` (units, and compound nodes for the clusters that links cross), `AddEdges` (for every link of
+  multigraph: `AddMembers` (units, the units of the notes attached to each entity, and compound nodes for the clusters
+  that links cross), `AddEdges` (for every link of
   the scope: the representatives of its ends in the scope, `MinLen` = length - 1, 0 for left and right, at least 1 for
-  up and down, the edge reversed for up and left, the label slot of its label, direction triangle, and note),
+  up and down, the edge reversed for up and left, the label slot of its label, direction triangle, and note; then
+  `NoteEdge` for every attached note, the hidden edge PlantUML's `CommandFactoryNoteOnEntity` gives Graphviz: a note
+  left or right of its entity (top or bottom in a left to right diagram) shares its rank, `MinLen` 0, the others are
+  one rank before (left, top) or after (right, bottom) it, `MinLen` 1, so the link routes keep clear of the notes),
   `FormRows`, `AddGraphNodes`, `AddGraphEdges`, `DagreLayout.Run`, then `ReadBack`, `TightenCompounds`,
   `InsertBands`, `RouteEdges`, and `BuildFrame`.
 - `FormRows` - dagre's network simplex raises every edge to at least one rank (its `simplify` step), so the units that
   links of length 1 join (with the same compound parent) become one row node, side by side (stacked in a left to right
   diagram) in a topological order of the links (`OrderRow`: every first end before its second, the earliest unit of
   the diagram first among the free ones, the earliest remaining one when the links form a cycle; linear in the units
-  and links), `NodeSep` apart or as far as the label between them needs.
+  and links), `NodeSep` apart or as far as the label between them needs (`NoteGap` between a note and its entity,
+  `NoteStackGap` between two notes of one entity).
 - `ClusterUnit` - lays a cluster out on its own (`LayoutScope`) and frames it: width `max(content + 2 padding,
   MinWidth)`, height `content + 2 padding + header`, content centered.
 - `ArrangeRegions` - lays out every region on its own and stacks them (or puts them side by side) across the widest
@@ -63,13 +68,16 @@ specified by the `CanvasNetPlantUml-Svek-SvekLayout-*` requirements in
   grow), and a band at the right of a cluster narrower than its title. Nothing overlaps by construction.
 - `RouteEdges` - for every edge: the route of a link in a row (straight between the centers), a loop at the right of a
   node for a link to itself (each further loop wider), or dagre's route turned back for a reversed edge; a straight
-  route that crosses another unit or an attached note becomes an arc over it; a link to a compound cluster goes to a
+  route that crosses another unit becomes an arc over it; the end of a route at a unit of a row moves in front of
+  that unit on the row's border and continues to its center (`SnapRowEnds`: dagre aims at the center of the row,
+  which may be over an attached note); a link to a compound cluster goes to a
   hidden 1-by-1 anchor inside it and its route is cut at the cluster's border; the ends are moved onto the outline of
   the entity's clip (aiming at the centers for a straight route); the label slot is placed at dagre's label center, or
   above the middle of the route; end labels go beside the line just off the end and are moved along the line until they
   overlap no entity.
 - `BuildFrame` and `PointNotes` - the placements of the units (entities, attached notes with the pointer from the side
-  facing the entity to its border, floating notes, clusters with their content and separators), of the compound
+  of the note that faces the entity - the side with the widest gap between the two boxes, the note's own position on a
+  tie - to the entity's border, floating notes, clusters with their content and separators), of the compound
   clusters, of the links and link notes; a pointer note's short link (at most three route points) becomes the note's
   pointer, from the side of the note nearest the link (PlantUML's `getOpaleStrategy`), and is not drawn.
 

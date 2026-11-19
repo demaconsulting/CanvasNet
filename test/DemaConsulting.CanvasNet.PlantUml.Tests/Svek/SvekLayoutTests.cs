@@ -200,8 +200,9 @@ public class SvekLayoutTests
     }
 
     /// <summary>
-    ///     Validates the notes attached to each side of an entity: placed on their side 18 from the entity, centered on
-    ///     it, with a pointer from the side facing the entity to the entity's border.
+    ///     Validates the notes attached to each side of an entity: left and right ones in its rank, 18 from the entity
+    ///     and centered on it, top and bottom ones a rank before and after it, each with a pointer from the side facing
+    ///     the entity to the entity's border.
     /// </summary>
     [Fact]
     public void PlantUmlSvekLayout_Run_AttachedNotes_OnEachSideWithPointers()
@@ -221,8 +222,8 @@ public class SvekLayoutTests
         var placed = placement.Notes.ToDictionary(n => n.Note.Position);
         Assert.Equal(box.X - SvekLayout.NoteGap, placed[NotePosition.Left].Box.Right, 6);
         Assert.Equal(box.Right + SvekLayout.NoteGap, placed[NotePosition.Right].Box.X, 6);
-        Assert.Equal(box.Y - SvekLayout.NoteGap, placed[NotePosition.Top].Box.Bottom, 6);
-        Assert.Equal(box.Bottom + SvekLayout.NoteGap, placed[NotePosition.Bottom].Box.Y, 6);
+        Assert.True(placed[NotePosition.Top].Box.Bottom <= box.Y - SvekLayout.MinRankSep + 1e-6);
+        Assert.True(placed[NotePosition.Bottom].Box.Y >= box.Bottom + SvekLayout.MinRankSep - 1e-6);
         Assert.Equal<NotePosition?>(NotePosition.Right, placed[NotePosition.Left].PointerSide);
         Assert.Equal<NotePosition?>(NotePosition.Left, placed[NotePosition.Right].PointerSide);
         Assert.Equal<NotePosition?>(NotePosition.Bottom, placed[NotePosition.Top].PointerSide);
@@ -230,6 +231,83 @@ public class SvekLayoutTests
         Assert.All(placed.Values, n => Assert.True(OnBorder(box, n.PointerTip)));
         Assert.All(placed.Values, n => Assert.False(Overlap(n.Box, box)));
     }
+
+    /// <summary>
+    ///     Validates that the notes attached above and below linked entities are nodes of their own that the link routes
+    ///     keep clear of (no route crosses a note, no note overlaps an entity).
+    /// </summary>
+    [Fact]
+    public void PlantUmlSvekLayout_Run_AttachedNotes_KeepClearOfLinks()
+    {
+        // Arrange
+        var (reader, sensor) = (Entity("Reader"), Entity("Sensor"));
+        var diagram = new SvekDiagram
+        {
+            Entities = [sensor, reader],
+            Notes =
+            [
+                new SvekNote("N1", "left") { Target = sensor, Position = NotePosition.Left },
+                new SvekNote("N2", "right") { Target = reader, Position = NotePosition.Right },
+                new SvekNote("N3", "top note") { Target = sensor, Position = NotePosition.Top },
+                new SvekNote("N4", "bottom note") { Target = reader, Position = NotePosition.Bottom },
+            ],
+            Links = [new SvekLink("l1", reader, sensor) { HeadDecor = LinkDecor.Arrow }],
+        };
+
+        // Act
+        var placement = Place(diagram);
+
+        // Assert
+        var route = LinkOf(placement, "l1").Route;
+        var entities = placement.Entities.Select(e => e.Box).ToList();
+        foreach (var note in placement.Notes)
+        {
+            var inner = new SceneRect(note.Box.X + 0.5, note.Box.Y + 0.5, note.Box.Width - 1, note.Box.Height - 1);
+            Assert.DoesNotContain(route.Zip(route.Skip(1)), s => SegmentCrosses(s.First, s.Second, inner));
+            Assert.DoesNotContain(entities, e => Overlap(e, note.Box));
+        }
+    }
+
+    /// <summary>
+    ///     Validates that in a left to right diagram the notes above and below an entity share its rank (stacked with
+    ///     it) and the notes left and right of it are a rank before and after it.
+    /// </summary>
+    [Fact]
+    public void PlantUmlSvekLayout_Run_AttachedNotesLeftToRight_KeepTheirSides()
+    {
+        // Arrange
+        var a = Entity("A");
+        var notes = new[] { NotePosition.Left, NotePosition.Right, NotePosition.Top, NotePosition.Bottom }
+            .Select(p => new SvekNote("N" + p, p.ToString()) { Target = a, Position = p })
+            .ToList();
+        var diagram = new SvekDiagram { Entities = [a], Notes = notes, RankDir = SvekRankDir.LeftToRight };
+
+        // Act
+        var placement = Place(diagram);
+
+        // Assert
+        var box = BoxOf(placement, "A");
+        var placed = placement.Notes.ToDictionary(n => n.Note.Position, n => n.Box);
+        Assert.Equal(box.Y - SvekLayout.NoteGap, placed[NotePosition.Top].Bottom, 6);
+        Assert.Equal(box.Bottom + SvekLayout.NoteGap, placed[NotePosition.Bottom].Y, 6);
+        Assert.True(placed[NotePosition.Left].Right < box.X);
+        Assert.True(placed[NotePosition.Right].X > box.Right);
+    }
+
+    /// <summary>
+    ///     Decides whether a segment crosses the inside of a rectangle (sampled finely).
+    /// </summary>
+    /// <param name="a">The start.</param>
+    /// <param name="b">The end.</param>
+    /// <param name="box">The rectangle.</param>
+    /// <returns>True when a sample of the segment is inside.</returns>
+    private static bool SegmentCrosses(SvekPoint a, SvekPoint b, SceneRect box) =>
+        Enumerable.Range(0, 201).Select(k => k / 200.0)
+            .Any(t =>
+            {
+                var (x, y) = (a.X + (t * (b.X - a.X)), a.Y + (t * (b.Y - a.Y)));
+                return x > box.X && x < box.Right && y > box.Y && y < box.Bottom;
+            });
 
     /// <summary>
     ///     Validates that a floating note with a single link to an entity points at the entity instead of drawing the

@@ -55,8 +55,36 @@ internal sealed partial class SvekLayout
                 LabelPos = slot is null ? "c" : "r",
                 LabelOffset = slot is null ? 0 : LabelOffset,
             };
-            work.Edges.Add(new EdgeWork(link, label, reversed, repFrom, repTo) { Slot = slot, MinLen = minLen });
+            var name = "l" + _linkIndex[link].ToString(System.Globalization.CultureInfo.InvariantCulture);
+            work.Edges.Add(new EdgeWork(link, label, reversed, repFrom, repTo) { Slot = slot, MinLen = minLen, Name = name });
         }
+
+        // The hidden edges that keep every attached note on its side of its entity
+        foreach (var (note, owner) in work.AttachedNotes)
+        {
+            work.Edges.Add(NoteEdge(note, owner));
+        }
+    }
+
+    /// <summary>
+    ///     Builds the hidden edge between an attached note and its entity, as PlantUML links them for Graphviz: a note
+    ///     beside the entity across the ranks (left or right, top or bottom in a left to right diagram) shares its rank,
+    ///     the others are one rank before (left, top) or after (right, bottom) it.
+    /// </summary>
+    /// <param name="note">The note.</param>
+    /// <param name="owner">The entity it is attached to.</param>
+    /// <returns>The edge; it is laid out but never drawn.</returns>
+    private EdgeWork NoteEdge(SvekNote note, SvekEntity owner)
+    {
+        var across = _diagram.RankDir == SvekRankDir.LeftToRight
+            ? note.Position is NotePosition.Top or NotePosition.Bottom
+            : note.Position is NotePosition.Left or NotePosition.Right;
+        var before = note.Position is NotePosition.Left or NotePosition.Top;
+        var (from, to) = before ? ((SvekNode)note, (SvekNode)owner) : (owner, note);
+        var minLen = across ? 0 : 1;
+        var link = new SvekLink("~" + note.Id, from, to) { Style = LinkStyle.Hidden, Length = minLen + 1 };
+        var label = new DagreEdge { MinLen = minLen, Weight = 1, LabelPos = "c" };
+        return new EdgeWork(link, label, false, from, to) { MinLen = minLen, Synthetic = true, Name = "s" + _ids[note][1..] };
     }
 
     /// <summary>
@@ -125,7 +153,7 @@ internal sealed partial class SvekLayout
                 if (k > 0)
                 {
                     var (a, b) = (index[ordered[k - 1]], index[unit]);
-                    offset += Math.Max(NodeSep, gaps.GetValueOrDefault((Math.Min(a, b), Math.Max(a, b))));
+                    offset += Math.Max(SpaceBetween(ordered[k - 1], unit), gaps.GetValueOrDefault((Math.Min(a, b), Math.Max(a, b))));
                 }
 
                 (unit.RowX, unit.RowY) = leftToRight ? (0.0, offset) : (offset, 0.0);
@@ -149,6 +177,24 @@ internal sealed partial class SvekLayout
             edge.InRow = work.UnitsByNode.TryGetValue(edge.RepFrom, out var from) && work.UnitsByNode.TryGetValue(edge.RepTo, out var to)
                 && from.Row is not null && ReferenceEquals(from.Row, to.Row) && !ReferenceEquals(from, to);
         }
+    }
+
+    /// <summary>
+    ///     Gets the space between two neighbors of a row: <see cref="NoteGap"/> between a note and its entity,
+    ///     <see cref="NoteStackGap"/> between two notes of one entity, and the space between neighbors otherwise.
+    /// </summary>
+    /// <param name="a">The first unit.</param>
+    /// <param name="b">The unit after it.</param>
+    /// <returns>The space.</returns>
+    private double SpaceBetween(Unit a, Unit b)
+    {
+        var (ta, tb) = ((a.Node as SvekNote)?.Target, (b.Node as SvekNote)?.Target);
+        if (ReferenceEquals(ta, b.Node) || ReferenceEquals(tb, a.Node))
+        {
+            return NoteGap;
+        }
+
+        return ta is not null && ReferenceEquals(ta, tb) ? NoteStackGap : NodeSep;
     }
 
     /// <summary>
@@ -274,8 +320,7 @@ internal sealed partial class SvekLayout
             var (v, fromCompound) = GraphNode(work, edge.RepFrom);
             var (w, toCompound) = GraphNode(work, edge.RepTo);
             (edge.FromCompound, edge.ToCompound) = (fromCompound, toCompound);
-            var name = "l" + _linkIndex[edge.Link].ToString(System.Globalization.CultureInfo.InvariantCulture);
-            work.Graph.SetEdge(edge.Reversed ? w : v, edge.Reversed ? v : w, edge.Label, name);
+            work.Graph.SetEdge(edge.Reversed ? w : v, edge.Reversed ? v : w, edge.Label, edge.Name);
         }
     }
 
@@ -357,7 +402,7 @@ internal sealed partial class SvekLayout
     /// <param name="work">The scope's work.</param>
     private void RouteEdges(ScopeWork work)
     {
-        foreach (var edge in work.Edges)
+        foreach (var edge in work.Edges.Where(e => !e.Synthetic))
         {
             _meter.Charge(edge.Points.Count + work.Units.Count + 1);
             var points = RowRoute(work, edge) ?? edge.Points.ToList();
@@ -371,6 +416,11 @@ internal sealed partial class SvekLayout
             if (points.Count == 2 && !self)
             {
                 points = AvoidUnits(work, edge, points);
+            }
+
+            if (!edge.InRow && !self)
+            {
+                SnapRowEnds(work, edge, points);
             }
 
             // A link to a compound cluster ends at its border
@@ -443,8 +493,7 @@ internal sealed partial class SvekLayout
         var (a, b) = (points[0], points[1]);
         var obstacles = work.Units
             .Where(u => !ReferenceEquals(u.Node, edge.RepFrom) && !ReferenceEquals(u.Node, edge.RepTo))
-            .Select(u => u.Box)
-            .Concat(work.Units.SelectMany(u => u.Notes.Select(n => new SceneRect(u.Box.X + n.Box.X, u.Box.Y + n.Box.Y, n.Box.Width, n.Box.Height))));
+            .Select(u => u.Box);
         var crossed = obstacles.Where(r => SegmentHitsRect(a, b, r)).ToList();
         if (crossed.Count == 0)
         {
@@ -466,6 +515,88 @@ internal sealed partial class SvekLayout
             .Max(c => ((c.Item1 - mid.X) * normal.X) + ((c.Item2 - mid.Y) * normal.Y)) + (RankSep / 4);
         var control = new SvekPoint(mid.X + (2 * clearance * normal.X), mid.Y + (2 * clearance * normal.Y));
         return [a, control, b];
+    }
+
+    /// <summary>
+    ///     Moves the ends of a route at a unit of a row onto the unit's own part of the row (dagre ends the route on the
+    ///     border of the row, aimed at the row's center, which may be over a neighbor such as an attached note): the end
+    ///     moves along the row's border in front of the unit, and the route continues to the unit's center, where
+    ///     <see cref="ClipEnds"/> clips it.
+    /// </summary>
+    /// <param name="work">The scope's work.</param>
+    /// <param name="edge">The edge.</param>
+    /// <param name="points">The route; its ends may be replaced and extended.</param>
+    private void SnapRowEnds(ScopeWork work, EdgeWork edge, List<SvekPoint> points)
+    {
+        if (points.Count < 2)
+        {
+            return;
+        }
+
+        var leftToRight = _diagram.RankDir == SvekRankDir.LeftToRight;
+        if (edge.FromCompound is null && work.UnitsByNode.TryGetValue(edge.RepFrom, out var from) && from.Row is { } fromRow)
+        {
+            SnapEnd(points, from.MainBox, RowBounds(fromRow), leftToRight, atEnd: false);
+        }
+
+        if (edge.ToCompound is null && work.UnitsByNode.TryGetValue(edge.RepTo, out var to) && to.Row is { } toRow)
+        {
+            SnapEnd(points, to.MainBox, RowBounds(toRow), leftToRight, atEnd: true);
+        }
+    }
+
+    /// <summary>
+    ///     Gets the bounds of the units of a row.
+    /// </summary>
+    /// <param name="row">The row.</param>
+    /// <returns>The union of their boxes.</returns>
+    private static SceneRect RowBounds(Row row) => row.Members.Select(m => m.Box).Aggregate((a, b) => a.Union(b));
+
+    /// <summary>
+    ///     Moves one end of a route in front of a unit of a row.
+    /// </summary>
+    /// <param name="points">The route.</param>
+    /// <param name="main">The box of the unit's node.</param>
+    /// <param name="row">The bounds of the row.</param>
+    /// <param name="leftToRight">Whether the row is stacked (a left to right diagram).</param>
+    /// <param name="atEnd">True for the last point, false for the first.</param>
+    private static void SnapEnd(List<SvekPoint> points, SceneRect main, SceneRect row, bool leftToRight, bool atEnd)
+    {
+        var end = atEnd ? points[^1] : points[0];
+        var center = new SvekPoint(main.X + (main.Width / 2), main.Y + (main.Height / 2));
+        var inFront = leftToRight ? end.Y >= main.Y && end.Y <= main.Bottom : end.X >= main.X && end.X <= main.Right;
+        if (inFront)
+        {
+            return;
+        }
+
+        // The end goes to the row's border in front of the unit, on the side it came from
+        SvekPoint snapped;
+        if (leftToRight)
+        {
+            snapped = new SvekPoint(end.X < center.X ? row.X : row.Right, center.Y);
+        }
+        else
+        {
+            snapped = new SvekPoint(center.X, end.Y < center.Y ? row.Y : row.Bottom);
+        }
+        var onBorder = SvekGeometry.Contains(ClipShape.Rectangle, main, snapped);
+        if (atEnd)
+        {
+            points[^1] = snapped;
+            if (!onBorder)
+            {
+                points.Add(center);
+            }
+        }
+        else
+        {
+            points[0] = snapped;
+            if (!onBorder)
+            {
+                points.Insert(0, center);
+            }
+        }
     }
 
     /// <summary>
@@ -828,6 +959,12 @@ internal sealed partial class SvekLayout
 
         /// <summary>Gets the label slot, or null.</summary>
         public LabelSlot? Slot { get; init; }
+
+        /// <summary>Gets the name of the dagre edge.</summary>
+        public string Name { get; init; } = string.Empty;
+
+        /// <summary>Gets a value indicating whether the edge only keeps an attached note beside its entity (never drawn).</summary>
+        public bool Synthetic { get; init; }
 
         /// <summary>Gets or sets the compound cluster the first end is, or null.</summary>
         public Compound? FromCompound { get; set; }

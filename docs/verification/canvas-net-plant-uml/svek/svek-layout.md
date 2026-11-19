@@ -71,11 +71,16 @@ vertical separators, and a link between two regions left unrouted.
 ##### CanvasNetPlantUml-Svek-SvekLayout-Notes: Notes
 
 **Tests**: `SvekLayoutTests.PlantUmlSvekLayout_Run_AttachedNotes_OnEachSideWithPointers`,
+`SvekLayoutTests.PlantUmlSvekLayout_Run_AttachedNotes_KeepClearOfLinks`,
+`SvekLayoutTests.PlantUmlSvekLayout_Run_AttachedNotesLeftToRight_KeepTheirSides`,
 `SvekLayoutTests.PlantUmlSvekLayout_Run_FloatingNoteWithOneLink_PointsAtTheEntity`,
 `SvekLayoutTests.PlantUmlSvekLayout_Run_NoteOnLink_BelowTheLabel`
 
-Asserts the notes on each side of an entity 18 from it, centered on it, with a pointer from the side facing the entity
-to its border; asserts that a floating note with one link to an entity points at it and does not draw the link while a
+Asserts the left and right notes of an entity 18 from it in its rank and the top and bottom notes at least a rank space
+above and below it, each with a pointer from the side facing the entity to its border; asserts that with a link between
+two entities that have notes on every side the route crosses no note and no note overlaps an entity; asserts that in a
+left to right diagram the top and bottom notes are 18 above and below the entity and the left and right ones are before
+and after it; asserts that a floating note with one link to an entity points at it and does not draw the link while a
 note with two links keeps them; asserts that a note on a link is in the link's label slot below its label.
 
 ##### CanvasNetPlantUml-Svek-SvekLayout-Routes: Routes And Labels

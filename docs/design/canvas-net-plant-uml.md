@@ -244,14 +244,14 @@ of this repository, so the two diagram languages are bounded alike.
   decorations, the redefinition triangles, roles, qualifiers, the middle decorations, and `norank` are read but not
   drawn. The jar's Smetana layout does not draw the direction triangle of a link label (`: label >`); the engine draws
   it, as PlantUML does with Graphviz.
-- **Class and object diagrams** - every entity box (its size, colors, texts, circled character, icons, and
-  separators), cluster title, and link decoration of the reference fixtures agrees with PlantUML's within 1.5 pixels;
-  the positions differ (unlinked classes are placed in one row where Graphviz makes a grid, and notes are placed beside
-  their entities by the engine). Link stereotypes, links to members (`A::x`, drawn from the class), association classes,
-  `together` groups (their members are drawn), `remove` and `restore`, `allowmixing`, `skin`, `json` blocks, `circle`
-  and `diamond` elements (drawn as classes), the visibility of a class, line styles of a class (`##[dashed]`), hiding a
-  single element or by visibility, links from map entries (drawn from the map), and notes on packages (drawn floating)
-  are reported as `plantuml-statement-unsupported`.
+- **Class and object diagrams** - every entity box (its size, colors, texts, circled character, icons, and separators),
+  cluster title, and link decoration of the reference fixtures agrees with PlantUML's within 1.5 pixels; the positions
+  differ (unlinked classes are placed in one row where Graphviz makes a grid, and dagre orders the nodes of a rank its
+  own way; attached notes are nodes beside their entities, as PlantUML makes them). Link stereotypes, links to members
+  (`A::x`, drawn from the class), association classes, `together` groups (their members are drawn), `remove` and
+  `restore`, `allowmixing`, `skin`, `json` blocks, `circle` and `diamond` elements (drawn as classes), the visibility of
+  a class, line styles of a class (`##[dashed]`), hiding a single element or by visibility, links from map entries
+  (drawn from the map), and notes on packages (drawn floating) are reported as `plantuml-statement-unsupported`.
 
 ## Phase Plan
 

@@ -70,14 +70,17 @@ sections:
 
               - id: CanvasNetPlantUml-Svek-SvekLayout-Notes
                 title: >-
-                  The SvekLayout unit shall place a note attached to an entity on its side, 18 from it and centered on
-                  it, with a pointer to the entity's border, shall draw a floating note with a single link to an
-                  element as a pointer to that element instead of the link, and shall place a note on a link beside the
-                  link's label.
+                  The SvekLayout unit shall place a note attached to an entity on its side as a node of its own that
+                  the link routes keep clear of (left and right 18 from it in its rank, top and bottom a rank before
+                  and after it, the axes swapped in a left to right diagram), with a pointer to the entity's border,
+                  shall draw a floating note with a single link to an element as a pointer to that element instead of
+                  the link, and shall place a note on a link beside the link's label.
                 justification: |
                   Notes must stay where the author put them and point at what they explain, as in PlantUML.
                 tests:
                   - PlantUmlSvekLayout_Run_AttachedNotes_OnEachSideWithPointers
+                  - PlantUmlSvekLayout_Run_AttachedNotes_KeepClearOfLinks
+                  - PlantUmlSvekLayout_Run_AttachedNotesLeftToRight_KeepTheirSides
                   - PlantUmlSvekLayout_Run_FloatingNoteWithOneLink_PointsAtTheEntity
                   - PlantUmlSvekLayout_Run_NoteOnLink_BelowTheLabel
 
