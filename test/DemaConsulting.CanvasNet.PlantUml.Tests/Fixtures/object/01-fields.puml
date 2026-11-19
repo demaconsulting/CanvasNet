@@ -1,0 +1,9 @@
+@startuml
+object pump {
+  rate = 12
+  state = "on"
+}
+object valve
+valve : open = true
+pump --> valve
+@enduml

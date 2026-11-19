@@ -92,7 +92,7 @@ public class PlantUmlSystemIntegrationTests
         // Arrange
         var texts = new Dictionary<string, string>
         {
-            ["class"] = "@startuml\nclass A\n@enduml\n",
+            ["activity-legacy"] = "@startuml\n(*) --> A\n@enduml\n",
             ["state"] = "@startuml\n[*] --> A\n@enduml\n",
             ["usecase"] = "@startuml\nusecase U\n@enduml\n",
             ["mindmap"] = "@startmindmap\n* a\n@endmindmap\n",

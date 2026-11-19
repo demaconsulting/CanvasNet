@@ -1,0 +1,17 @@
+@startuml
+class Wallet {
+  - balance : decimal
+  # owner : String
+  ~ limit : int
+  + id : long
+  - lock() : void
+  # audit() : void
+  ~ sync() : void
+  + {static} create() : Wallet
+  + {abstract} close() : void
+  {field} label() is a field
+  {method} refresh
+}
+Wallet : + deposit(amount : decimal) : void
+Wallet : currency : String
+@enduml

@@ -106,6 +106,18 @@ internal enum SkinElement
 
     /// <summary>A container cluster (rectangle, node, frame, cloud, database, card) of such a diagram.</summary>
     Container,
+
+    /// <summary>A class box of a class diagram: its outline, its fill, its name, and its members.</summary>
+    Class,
+
+    /// <summary>The stereotypes and the generic parameters of a class or an object.</summary>
+    ClassStereotype,
+
+    /// <summary>The members (fields and methods) of a class or an object, and the titles of its separators.</summary>
+    ClassAttribute,
+
+    /// <summary>An object or a map box of an object diagram: its outline, its fill, its name, and its fields.</summary>
+    Object,
 }
 
 /// <summary>
@@ -248,6 +260,17 @@ internal sealed record SkinTheme
     public double ArrowThickness { get; init; } = 1;
 
     /// <summary>
+    ///     Gets the size of the visibility icons of class members (<c>classAttributeIconSize</c>); 10 by default, 0 to
+    ///     write the visibility characters instead of drawing icons.
+    /// </summary>
+    public double ClassAttributeIconSize { get; init; } = 10;
+
+    /// <summary>
+    ///     Gets the radius of the circle of a class header (<c>circledCharacterRadius</c>); 11 by default.
+    /// </summary>
+    public double CircledCharacterRadius { get; init; } = 11;
+
+    /// <summary>
     ///     Gets the style of an element.
     /// </summary>
     /// <param name="element">The element.</param>
@@ -319,6 +342,10 @@ internal sealed record SkinTheme
             [SkinElement.SvekArrow] = root with { FontSize = 13 },
             [SkinElement.Package] = root with { Bold = true, Line = Black, LineWidth = 1.5, RoundCorner = 5 },
             [SkinElement.Container] = root with { Bold = true, LineWidth = 1, RoundCorner = 5 },
+            [SkinElement.Class] = root with { Fill = CommonBackground, LineWidth = 0.5, RoundCorner = 5 },
+            [SkinElement.ClassStereotype] = root with { FontSize = 12, Italic = true },
+            [SkinElement.ClassAttribute] = root,
+            [SkinElement.Object] = root with { Fill = CommonBackground, LineWidth = 0.5, RoundCorner = 5 },
         };
 
         // Participants and their kin: grey-blue, outlined half a pixel wide, padded 7; a participant has corners of 5

@@ -1,0 +1,13 @@
+@startuml
+class Ticket {
+  number : int
+  --
+  open() : void
+  .. lifecycle ..
+  close() : void
+  == audit ==
+  history : List
+  __ internal __
+  token : String
+}
+@enduml

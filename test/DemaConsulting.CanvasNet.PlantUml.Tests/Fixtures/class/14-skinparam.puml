@@ -1,0 +1,12 @@
+@startuml
+skinparam classBackgroundColor #FFF8E1
+skinparam classBorderColor #8D6E63
+skinparam classFontColor #3E2723
+skinparam arrowColor #5D4037
+skinparam packageBorderColor #5D4037
+class Oven #FFE0B2 {
+  temperature : int
+}
+class Tray
+Oven --> Tray
+@enduml

@@ -1,0 +1,10 @@
+@startuml
+object "Main Hall" as hall <<room>>
+object door {
+  width = 90
+  --
+  locked = false
+}
+hall --> door
+note right of door : the front door
+@enduml

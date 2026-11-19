@@ -1,0 +1,16 @@
+@startuml
+hide empty members
+class Plain
+class Fields {
+  size : int
+}
+class Methods {
+  run() : void
+}
+interface Quiet
+hide Quiet circle
+class Tagged <<tag>>
+hide stereotype
+Plain --> Fields
+Fields --> Methods
+@enduml

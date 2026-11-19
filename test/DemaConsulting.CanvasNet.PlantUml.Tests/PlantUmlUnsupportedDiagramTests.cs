@@ -14,7 +14,7 @@ public class PlantUmlUnsupportedDiagramTests
     public void CanvasNetPlantUml_UnsupportedType_RendersEmptyPictureAndReports()
     {
         // Arrange
-        var document = PlantUmlDocument.Parse(PlantUmlTestHelpers.UnsupportedText, new PlantUmlOpenOptions { SourceName = "car.puml" });
+        var document = PlantUmlDocument.Parse(PlantUmlTestHelpers.UnsupportedText, new PlantUmlOpenOptions { SourceName = "flow.puml" });
         var (options, warnings, unsupported) = PlantUmlTestHelpers.Collecting();
 
         // Act
@@ -25,8 +25,8 @@ public class PlantUmlUnsupportedDiagramTests
         Assert.True(PlantUmlTestHelpers.IsFullyTransparent(surface));
         Assert.Empty(warnings);
         var report = Assert.Single(unsupported);
-        Assert.Equal((PlantUmlDiagnosticCodes.DiagramUnsupported, new PlantUmlLocation("car.puml", 2, 1)), (report.Feature, report.Location));
-        Assert.Contains("class", report.Message, StringComparison.Ordinal);
+        Assert.Equal((PlantUmlDiagnosticCodes.DiagramUnsupported, new PlantUmlLocation("flow.puml", 2, 1)), (report.Feature, report.Location));
+        Assert.Contains("activity-legacy", report.Message, StringComparison.Ordinal);
         Assert.NotNull(report.Hint);
     }
 

@@ -28,7 +28,10 @@ internal sealed record SkinParamEntry(string Name, string Value, PlantUmlLocatio
 ///         colors, fonts, and line widths of the elements: the eight participant kinds, <c>arrow</c>, <c>lifeLine</c>,
 ///         <c>note</c>, <c>sequenceGroup</c>, <c>sequenceBox</c>, <c>sequenceDivider</c>, <c>activity</c>,
 ///         <c>activityDiamond</c>, <c>swimlane</c>, <c>partition</c>, <c>title</c>, <c>header</c>, <c>footer</c>,
-///         <c>legend</c>, and <c>caption</c>. Every other parameter, a stereotyped parameter, and a value that cannot be
+///         <c>legend</c>, and <c>caption</c>. The diagrams PlantUML lays out with Graphviz (class and object diagrams)
+///         also read <c>class</c>, <c>classStereotype</c>, <c>classAttribute</c>, <c>object</c>, <c>objectStereotype</c>, <c>map</c>, and
+///         <c>package</c>, apply <c>arrow</c> to their links, and read <c>classAttributeIconSize</c> and
+///         <c>circledCharacterRadius</c>. Every other parameter, a stereotyped parameter, and a value that cannot be
 ///         read is reported as the warning <see cref="PlantUmlDiagnosticCodes.SkinParamIgnored"/> and has no effect. A
 ///         <c>&lt;style&gt;</c> block is reported as <see cref="PlantUmlDiagnosticCodes.StyleUnsupported"/> and skipped.
 ///     </para>
@@ -84,6 +87,23 @@ internal static partial class SkinParams
     [
         SkinElement.Participant, SkinElement.Actor, SkinElement.Boundary, SkinElement.Control, SkinElement.Entity,
         SkinElement.Database, SkinElement.Collections, SkinElement.Queue, SkinElement.Legend, SkinElement.Caption,
+        SkinElement.Class, SkinElement.ClassAttribute, SkinElement.Object, SkinElement.Package, SkinElement.Container,
+    ];
+
+    /// <summary>
+    ///     The element prefixes that only the diagrams PlantUML lays out with Graphviz read (class and object diagrams),
+    ///     with the elements each one styles; <c>arrow</c> also styles their links.
+    /// </summary>
+    private static readonly (string Prefix, SkinElement[] Elements)[] GraphPrefixes =
+    [
+        ("classStereotype", [SkinElement.ClassStereotype]),
+        ("classAttribute", [SkinElement.ClassAttribute]),
+        ("class", [SkinElement.Class]),
+        ("objectStereotype", [SkinElement.ClassStereotype]),
+        ("object", [SkinElement.Object]),
+        ("map", [SkinElement.Object]),
+        ("package", [SkinElement.Package]),
+        ("arrow", [SkinElement.Arrow, SkinElement.ActivityArrow, SkinElement.SvekArrow]),
     ];
 
     /// <summary>
@@ -163,15 +183,20 @@ internal static partial class SkinParams
     /// <param name="theme">The theme to start from.</param>
     /// <param name="entries">The parameters.</param>
     /// <param name="reports">The pending reports, which receive a warning for every parameter that has no effect.</param>
+    /// <param name="graph">
+    ///     Whether the diagram is one that PlantUML lays out with Graphviz (a class or object diagram), which also reads
+    ///     the <c>class</c>, <c>object</c>, <c>map</c>, and <c>package</c> prefixes and the settings
+    ///     <c>classAttributeIconSize</c> and <c>circledCharacterRadius</c>; false by default.
+    /// </param>
     /// <returns>The theme with the parameters applied.</returns>
-    public static SkinTheme Apply(SkinTheme theme, IEnumerable<SkinParamEntry> entries, List<PlantUmlPendingReport> reports)
+    public static SkinTheme Apply(SkinTheme theme, IEnumerable<SkinParamEntry> entries, List<PlantUmlPendingReport> reports, bool graph = false)
     {
         ArgumentNullException.ThrowIfNull(theme);
         ArgumentNullException.ThrowIfNull(entries);
         ArgumentNullException.ThrowIfNull(reports);
         foreach (var entry in entries)
         {
-            var applied = TryApply(theme, entry, out var reason);
+            var applied = TryApply(theme, entry, graph, out var reason);
             if (applied is null)
             {
                 reports.Add(PlantUmlPendingReport.Warning(
@@ -293,9 +318,10 @@ internal static partial class SkinParams
     /// </summary>
     /// <param name="theme">The theme.</param>
     /// <param name="entry">The parameter.</param>
+    /// <param name="graph">Whether the diagram also reads the graph prefixes and settings.</param>
     /// <param name="reason">Receives why the parameter has no effect.</param>
     /// <returns>The new theme, or null when the parameter has no effect.</returns>
-    private static SkinTheme? TryApply(SkinTheme theme, SkinParamEntry entry, out string reason)
+    private static SkinTheme? TryApply(SkinTheme theme, SkinParamEntry entry, bool graph, out string reason)
     {
         reason = "it is not supported by this version";
         var name = entry.Name;
@@ -312,8 +338,23 @@ internal static partial class SkinParams
             return ApplySetting(theme, setting, value, ref reason);
         }
 
-        // An element property: the longest element prefix whose rest is a property name
-        foreach (var (prefix, elements) in Prefixes.OrderByDescending(p => p.Prefix.Length))
+        // The class settings of the graph diagrams
+        if (graph && name.Equals("classAttributeIconSize", StringComparison.OrdinalIgnoreCase))
+        {
+            return Number(value, 0, 100, ref reason) is { } iconSize ? theme with { ClassAttributeIconSize = iconSize } : null;
+        }
+
+        if (graph && name.Equals("circledCharacterRadius", StringComparison.OrdinalIgnoreCase))
+        {
+            return Number(value, 1, 100, ref reason) is { } radius ? theme with { CircledCharacterRadius = radius } : null;
+        }
+
+        // An element property: the longest element prefix whose rest is a property name (a graph prefix replaces the
+        // shared one of the same name)
+        var prefixes = graph
+            ? GraphPrefixes.Concat(Prefixes.Where(p => !GraphPrefixes.Any(g => g.Prefix == p.Prefix)))
+            : Prefixes;
+        foreach (var (prefix, elements) in prefixes.OrderByDescending(p => p.Prefix.Length))
         {
             if (name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) && Properties.TryGetValue(name[prefix.Length..], out var property))
             {

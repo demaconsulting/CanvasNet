@@ -36,10 +36,10 @@ internal sealed record DetectedDiagram(string DiagramType, bool IsSupported, str
 ///         expression. The class is stateless and safe for concurrent use.
 ///     </para>
 /// </remarks>
-internal static class DiagramDetector
+internal static partial class DiagramDetector
 {
     /// <summary>The types this version draws.</summary>
-    internal static readonly IReadOnlySet<string> SupportedTypes = new HashSet<string>(StringComparer.Ordinal) { "sequence", "activity" };
+    internal static readonly IReadOnlySet<string> SupportedTypes = new HashSet<string>(StringComparer.Ordinal) { "sequence", "activity", "class", "object" };
 
     /// <summary>The closer of a multi-line action (<c>:text</c> up to a line that ends with <c>;</c>).</summary>
     internal const string ActionCloser = ";";
@@ -204,7 +204,7 @@ internal static class DiagramDetector
         }
 
         // PlantUML tries the sequence diagram first, then the activity diagram of the new syntax
-        var sequenceReject = outer.FirstOrDefault(s => !AcceptsSequence(s.Text));
+        var sequenceReject = outer.FirstOrDefault(s => !AcceptsSequence(s.Text) || IsClassOnlyLink(s));
         if (sequenceReject is null)
         {
             var first = outer.First(s => Classify(s.Text) != StatementFamily.Common);
@@ -216,6 +216,12 @@ internal static class DiagramDetector
         {
             var first = outer.First(s => Classify(s.Text) != StatementFamily.Common);
             return new DetectedDiagram("activity", SupportedTypes.Contains("activity"), FirstWord(first.Text), first.Location);
+        }
+
+        // Then the graph families in PlantUML's order: class, legacy activity, description, and state
+        if (DetectGraph(statements) is { } graph)
+        {
+            return graph;
         }
 
         // The first statement that only another type uses names that type
@@ -576,7 +582,7 @@ internal static class DiagramDetector
         ArgumentNullException.ThrowIfNull(detected);
         var drawn = SupportedTypes.Count == 0
             ? "no PlantUML diagram type yet"
-            : "only " + string.Join(" and ", SupportedTypes.Order(StringComparer.Ordinal)) + " diagrams";
+            : "only " + JoinTypes(SupportedTypes.Order(StringComparer.Ordinal).ToList()) + " diagrams";
         return string.Create(
             CultureInfo.InvariantCulture,
             $"this version draws {drawn}; render this '{detected.DiagramType}' diagram with PlantUML itself");

@@ -56,9 +56,6 @@ public class DiagramDetectorTests
     /// <param name="statement">The statement.</param>
     /// <param name="type">The expected type.</param>
     [Theory]
-    [InlineData("class Car", "class")]
-    [InlineData("interface Shape", "class")]
-    [InlineData("object order", "object")]
     [InlineData("usecase Buy", "usecase")]
     [InlineData("(Buy) --> (Pay)", "usecase")]
     [InlineData("[*] --> Idle", "state")]
@@ -77,6 +74,82 @@ public class DiagramDetectorTests
         // Assert
         Assert.Equal(type, detected.DiagramType);
         Assert.False(detected.IsSupported);
+    }
+
+    /// <summary>
+    ///     Validates that the class family is detected and drawn: a class, an interface, or a class relationship is a
+    ///     class diagram, and an object or a map declared first is an object diagram.
+    /// </summary>
+    /// <param name="text">The statements.</param>
+    /// <param name="type">The expected type.</param>
+    [Theory]
+    [InlineData("class Car", "class")]
+    [InlineData("interface Shape", "class")]
+    [InlineData("Foo <|-- Bar", "class")]
+    [InlineData("A ..> B", "class")]
+    [InlineData("a::b --> c", "class")]
+    [InlineData("A : field", "class")]
+    [InlineData("package P {\nclass C\n}", "class")]
+    [InlineData("object order", "object")]
+    [InlineData("map M {\nk => v\n}", "object")]
+    [InlineData("class C {\n+ field : int\n--\n}\nC --> D", "class")]
+    public void PlantUmlDiagramDetector_Detect_ClassFamily_IsDrawn(string text, string type)
+    {
+        // Arrange / Act
+        var detected = Detect($"@startuml\n{text}\n@enduml\n");
+
+        // Assert
+        Assert.Equal(type, detected.DiagramType);
+        Assert.True(detected.IsSupported);
+    }
+
+    /// <summary>
+    ///     Validates PlantUML's factory order for texts that several families could read: a plain message is a sequence
+    ///     diagram, a class relationship a class diagram, a link to a use case or a component a description diagram, a
+    ///     state declaration a state diagram, and a class mixed with an actor is still a class diagram (whose parser
+    ///     refuses the actor).
+    /// </summary>
+    /// <param name="text">The statements.</param>
+    /// <param name="type">The expected type.</param>
+    [Theory]
+    [InlineData("A --> B\nB --> C : x", "sequence")]
+    [InlineData("A o-> B", "sequence")]
+    [InlineData("Foo <|-- Bar", "class")]
+    [InlineData("actor User\nUser --> (Login)", "usecase")]
+    [InlineData("A -> B\nB -> (U)", "usecase")]
+    [InlineData("actor Guest as g\npackage P {\nusecase UC1\n}\ng --> UC1", "usecase")]
+    [InlineData("DataAccess - [First Component]", "component")]
+    [InlineData("[A] --> B", "component")]
+    [InlineData("node N\ncloud C", "deployment")]
+    [InlineData("state A\nA --> B : go", "state")]
+    [InlineData("class A\nactor B", "class")]
+    [InlineData("(*) --> A", "activity-legacy")]
+    public void PlantUmlDiagramDetector_Detect_GraphFamilies_FollowPlantUmlOrder(string text, string type)
+    {
+        // Arrange / Act
+        var detected = Detect($"@startuml\n{text}\n@enduml\n");
+
+        // Assert
+        Assert.Equal(type, detected.DiagramType);
+    }
+
+    /// <summary>
+    ///     Validates the hint of a type that is not drawn: it lists the drawn types.
+    /// </summary>
+    [Fact]
+    public void PlantUmlDiagramDetector_UnsupportedHint_ListsDrawnTypes()
+    {
+        // Arrange
+        var detected = Detect("@startuml\n(*) --> A\n@enduml\n");
+
+        // Act
+        var hint = DiagramDetector.UnsupportedHint(detected);
+
+        // Assert
+        Assert.Contains("only activity, class, object, and sequence diagrams", hint, StringComparison.Ordinal);
+        Assert.Contains("activity-legacy", hint, StringComparison.Ordinal);
+        Assert.Equal("a, b, and c", DiagramDetector.JoinTypes(["a", "b", "c"]));
+        Assert.Equal("a and b", DiagramDetector.JoinTypes(["a", "b"]));
     }
 
     /// <summary>
