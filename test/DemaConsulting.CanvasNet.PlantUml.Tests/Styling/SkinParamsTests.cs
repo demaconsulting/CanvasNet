@@ -138,6 +138,47 @@ public class SkinParamsTests
     }
 
     /// <summary>
+    ///     Validates the graph subset: the class, object, map, package, and member prefixes and the class settings are
+    ///     applied in a class diagram, <c>arrow</c> styles its links too, and the same parameters are reported as
+    ///     ignored in a sequence or activity diagram.
+    /// </summary>
+    [Fact]
+    public void PlantUmlSkinParams_Apply_GraphSubset_OnlyInGraphDiagrams()
+    {
+        // Arrange
+        var entries = new List<SkinParamEntry>
+        {
+            new("classBackgroundColor", "#FFEEDD", default),
+            new("classStereotypeFontSize", "10", default),
+            new("classAttributeFontColor", "blue", default),
+            new("objectBorderColor", "red", default),
+            new("packageBorderThickness", "2", default),
+            new("arrowColor", "green", default),
+            new("classAttributeIconSize", "0", default),
+            new("circledCharacterRadius", "9", default),
+        };
+        var graphReports = new List<DemaConsulting.CanvasNet.PlantUml.PlantUmlPendingReport>();
+        var sequenceReports = new List<DemaConsulting.CanvasNet.PlantUml.PlantUmlPendingReport>();
+
+        // Act
+        var graph = SkinParams.Apply(SkinTheme.Default, entries, graphReports, graph: true);
+        var sequence = SkinParams.Apply(SkinTheme.Default, entries, sequenceReports);
+
+        // Assert
+        Assert.Empty(graphReports);
+        Assert.Equal(new Rgba32(0xFF, 0xEE, 0xDD, 255), graph[SkinElement.Class].Fill);
+        Assert.Equal(10, graph[SkinElement.ClassStereotype].FontSize);
+        Assert.Equal(new Rgba32(0, 0, 0xFF, 255), graph[SkinElement.ClassAttribute].FontColor);
+        Assert.Equal(new Rgba32(0xFF, 0, 0, 255), graph[SkinElement.Object].Line);
+        Assert.Equal(2, graph[SkinElement.Package].LineWidth);
+        Assert.Equal(new Rgba32(0, 0x80, 0, 255), graph[SkinElement.SvekArrow].Line);
+        Assert.Equal((0.0, 9.0), (graph.ClassAttributeIconSize, graph.CircledCharacterRadius));
+        Assert.Equal(7, sequenceReports.Count);
+        Assert.All(sequenceReports, r => Assert.Equal(PlantUmlDiagnosticCodes.SkinParamIgnored, r.Code));
+        Assert.Equal(new Rgba32(0, 0x80, 0, 255), sequence[SkinElement.Arrow].Line);
+    }
+
+    /// <summary>
     ///     Validates that a style block is reported once and skipped to its end.
     /// </summary>
     [Fact]

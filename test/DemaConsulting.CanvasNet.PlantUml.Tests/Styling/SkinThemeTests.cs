@@ -69,6 +69,27 @@ public class SkinThemeTests
     }
 
     /// <summary>
+    ///     Validates the default look of the class and object boxes: light grey, outlined half a pixel wide with corners
+    ///     of 5, stereotypes in italic 12, members in black 14, visibility icons of 10, and circles of radius 11.
+    /// </summary>
+    [Fact]
+    public void PlantUmlSkinTheme_Default_HasPlantUmlClassLook()
+    {
+        // Arrange
+        var theme = SkinTheme.Default;
+
+        // Act / Assert
+        foreach (var element in new[] { SkinElement.Class, SkinElement.Object })
+        {
+            Assert.Equal((SkinTheme.CommonBackground, SkinTheme.LineColor, 0.5, 5.0, 14.0), (theme[element].Fill!.Value, theme[element].Line!.Value, theme[element].LineWidth, theme[element].RoundCorner, theme[element].FontSize));
+        }
+
+        Assert.Equal((12.0, true), (theme[SkinElement.ClassStereotype].FontSize, theme[SkinElement.ClassStereotype].Italic));
+        Assert.Equal((14.0, SkinTheme.Black), (theme[SkinElement.ClassAttribute].FontSize, theme[SkinElement.ClassAttribute].FontColor));
+        Assert.Equal((10.0, 11.0), (theme.ClassAttributeIconSize, theme.CircledCharacterRadius));
+    }
+
+    /// <summary>
     ///     Validates that a change returns a new theme and leaves the default unchanged.
     /// </summary>
     [Fact]
