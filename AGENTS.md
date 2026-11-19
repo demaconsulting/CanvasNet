@@ -29,6 +29,7 @@
 ├── src/
 │   ├── DemaConsulting.CanvasNet/
 │   ├── DemaConsulting.CanvasNet.Charts/
+│   ├── DemaConsulting.CanvasNet.Layout/
 │   ├── DemaConsulting.CanvasNet.Mermaid/
 │   ├── DemaConsulting.CanvasNet.Pdf/
 │   ├── DemaConsulting.CanvasNet.PlantUml/
@@ -200,7 +201,7 @@ reqstream, versionmark, reviewmark, and sysml2tools.
 
 # Scoped Validation (ALL Agents Must Follow)
 
-The solution has thirteen source projects and thirteen test projects, and a full `pwsh ./build.ps1` builds and
+The solution has fourteen source projects and fourteen test projects, and a full `pwsh ./build.ps1` builds and
 tests all of them. While developing, build, test, fix, and lint **only what the change affects**; run the
 full build and full lint once before a pull request. The scripts compute the scope from the files changed
 since `origin/main` (or `-Base <ref>`) plus uncommitted and untracked files:
@@ -240,7 +241,7 @@ selects these test projects:
 
 | Changed project | Test projects to run (all under `test/`) |
 | --- | --- |
-| `DemaConsulting.CanvasNet` (core) | **All** test projects (every other project depends on it) |
+| `DemaConsulting.CanvasNet` (core) | **All** test projects except `Layout.Tests` (Layout references no project) |
 | `DemaConsulting.CanvasNet.Svg` | `Svg.Tests`, `Pptx.Tests`, `Viewer.Tests`, `Tool.Tests` |
 | `DemaConsulting.CanvasNet.Charts` | `Charts.Tests`, `Pptx.Tests`, `Viewer.Tests`, `Tool.Tests` |
 | `DemaConsulting.CanvasNet.Pdf` | `Pdf.Tests`, `Viewer.Tests`, `Tool.Tests` |
@@ -249,6 +250,7 @@ selects these test projects:
 | `DemaConsulting.CanvasNet.Render3D` | `Render3D.Tests`, `Scad.Tests`, `Viewer.Tests`, `Tool.Tests` |
 | `DemaConsulting.CanvasNet.Scad` | `Scad.Tests`, `Viewer.Tests`, `Tool.Tests` |
 | `DemaConsulting.CanvasNet.VegaLite` | `VegaLite.Tests`, `Viewer.Tests`, `Tool.Tests` |
+| `DemaConsulting.CanvasNet.Layout` | `Layout.Tests`, `Mermaid.Tests`, `Viewer.Tests`, `Tool.Tests` |
 | `DemaConsulting.CanvasNet.Mermaid` | `Mermaid.Tests`, `Viewer.Tests`, `Tool.Tests` |
 | `DemaConsulting.CanvasNet.PlantUml` | `PlantUml.Tests`, `Viewer.Tests`, `Tool.Tests` |
 | `DemaConsulting.CanvasNet.Viewer` | `Viewer.Tests`, `Tool.Tests` |

@@ -497,9 +497,10 @@ and unit of the model, the diagram shows only the NuGet packages, which package 
 applications and the `canvasnet` tool reach them.
 
 ![CanvasNet package architecture: applications use the Viewer and the canvasnet tool uses it too; the Viewer opens
-the seven format packages (PDF, SVG, PowerPoint, Visio, OpenSCAD, Vega-Lite, and Mermaid); PowerPoint also uses the
-SVG and Charts packages and OpenSCAD uses the Render3D package; every package builds on the DemaConsulting.CanvasNet
-core with its canvas, codecs, drawing, fonts, and file access](architecture.svg)
+the eight format packages (PDF, SVG, PowerPoint, Visio, OpenSCAD, Vega-Lite, Mermaid, and PlantUML); PowerPoint also
+uses the SVG and Charts packages, OpenSCAD uses the Render3D package, and Mermaid uses the Layout package (the shared
+graph layout, which needs only .NET); the format packages build on the DemaConsulting.CanvasNet core with its canvas,
+codecs, drawing, fonts, and file access](architecture.svg)
 
 CanvasNet is organized into ten subsystems under the system level: the `Canvas` subsystem
 (the `Surface` unit with its `SurfaceAdjustments`, `SurfaceTransforms`, `SurfaceGeometry`, `SurfaceComparison`, and
