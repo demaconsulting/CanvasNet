@@ -224,11 +224,11 @@ diagram titled `Talk` with a box around one of two participants and two messages
 `subgraphs` (no `direction` or `accTitle`), `sequence`, true, `Talk`, 2, 2, and 1, and as the one text line
 `{path}: plantuml, {w}x{h} px (laid out), sequence, 2 participants, 2 messages, 1 box, title "Talk", {bytes} bytes`.
 
-**DiscoveryCommands_Info_PlantUmlActivityAndClass_ReportTypeAndSupport** (`DiscoveryCommandsPlantUmlTests.cs`): an
-activity
-diagram with a decision (`.plantuml`) is described as `activity`, supported, with the node, edge, and subgraph counts of
-the library (at least five nodes), and a class diagram (`.pu`) as `class`, not supported, with zero nodes and the text
-`class (not drawn by this version), 0 nodes`.
+**DiscoveryCommands_Info_PlantUmlActivityClassAndLegacy_ReportTypeAndSupport** (`DiscoveryCommandsPlantUmlTests.cs`):
+an activity diagram with a decision (`.plantuml`) is described as `activity`, supported, with the node, edge, and
+subgraph counts of the library (at least five nodes); a class diagram with a package (`.pu`) as `class`, supported,
+with 2 nodes, 1 edge, and 1 subgraph and the text `class, 2 nodes, 1 edge`; and a legacy activity diagram (`.puml`) as
+`activity-legacy`, not supported, with zero nodes and the text `activity-legacy (not drawn by this version), 0 nodes`.
 
 **InputFragment_TextResultAndInfo_NameTheFragment** (`InputFragmentTests.cs`): `info source.pdf#page=2 --all-pages
 --json` describes only page 2 (the fragment wins over `--all-pages`) and its `input` object has the `path` and the

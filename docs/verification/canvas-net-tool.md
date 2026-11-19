@@ -88,8 +88,9 @@ belong to the "Sequential" collection because console redirection is process-wid
 `mermaid-diagram-unsupported` (an `unsupported-feature` error with `--strict`), invalid text is a `mermaid-error` with a
 hint, and `--theme` on another kind of input is a `usage-error`; a PlantUML diagram is recognized by its `.puml`,
 `.plantuml`, or `.pu` file name, drawn at the size PlantUML lays it out at over its own white background with the
-bundled fonts, a type that is not drawn (a class diagram, for example) is the diagnostic `plantuml-diagram-unsupported`,
-invalid text is a `plantuml-error` with the location, and `--theme` or `--positions` on it is a `usage-error`;
+bundled fonts, a type that is not drawn (a legacy activity diagram, for example) is the diagnostic
+`plantuml-diagram-unsupported`, invalid text is a `plantuml-error` with the location, and `--theme` or `--positions`
+on it is a `usage-error`;
   `info` describes a
   file, the pages of a document, the declarations of a model, and the marks, data, and parameters of a chart, and the
   type, direction, titles, and counts of a diagram (with `supported` false for a type that is not drawn), without

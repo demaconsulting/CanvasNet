@@ -1975,7 +1975,7 @@ topic may be named by an alias.
 | `scad` | `openscad` | OpenSCAD models, drawn as one still picture from a named viewpoint |
 | `vega-lite` | `vegalite`, `vl` | Vega-Lite charts: the supported subset of Vega-Lite 5 and 6 |
 | `mermaid` | `mmd` | Mermaid flowchart, sequence, class, state, ER, pie, gantt, mindmap, packet, git graphs, themes |
-| `plantuml` | `puml` | PlantUML sequence, activity, class, and object diagrams, the preprocessor and includes, and skin parameters |
+| `plantuml` | `puml` | PlantUML sequence, activity, class, and object diagrams, includes, and skin parameters |
 | `svg` | | SVG drawings: the supported subset, drawn sharply at the target size, and embedding with `<image href>` |
 | `pdf` | | PDF documents: a page is drawn as an image |
 | `pptx` | `powerpoint` | PowerPoint presentations: each slide is a page |

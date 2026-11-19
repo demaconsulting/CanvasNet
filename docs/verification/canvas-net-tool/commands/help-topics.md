@@ -52,8 +52,9 @@ fails the build. The content is checked against the things it describes, so that
   mindmap, packet, and git graph tables of the Mermaid user guide, code spans included. Every row of the guide's table
   of unsupported features and warnings must be a bullet of `mermaid unsupported` or `mermaid diagnostics` (the **guide
   parity test**), so the help that agents read and the guide that people read describe the same version. The
-  `## Supported` bullets of `plantuml sequence` and `plantuml activity` and the code bullets of `plantuml unsupported`
-  and `plantuml diagnostics` are compared the same way with the PlantUML user guide.
+  `## Supported` bullets of `plantuml sequence`, `plantuml activity`, `plantuml class`, and `plantuml object` and the
+  code bullets of `plantuml unsupported` and `plantuml diagnostics` are compared the same way with the PlantUML user
+  guide.
 - The `## Reference` bullets of `svg flatten` and the bullets of `files` are compared, word for word and in order, with
   the `#### Flatten Reference` and `#### File Access Reference` tables of the tool user guide.
 - The **style advice** is checked against the renderer: each theme the `mermaid style` card lists draws the examples
@@ -162,9 +163,10 @@ of `mermaid <type>` (`Syntax`, `Relations`, `Tags`) and of `mermaid <type> setti
 and the first letter of each part before a colon and a space compared ignoring case. Every row of the code table is a
 bullet of `mermaid unsupported` or `mermaid diagnostics`.
 
-**HelpTopics_PlantUmlTopic_DiagramSyntaxItems_MatchUserGuide**: the items of the `### Supported Sequence Syntax` and
-`### Supported Activity Syntax` lists of the PlantUML user guide (at least ten each) are, in order and with their code
-spans, the `## Supported` bullets of `plantuml sequence` and `plantuml activity`, and every item of its code list (at
+**HelpTopics_PlantUmlTopic_DiagramSyntaxItems_MatchUserGuide**: the items of the `### Supported Sequence Syntax`,
+`### Supported Activity Syntax`, `### Supported Class Syntax`, and `### Supported Object Syntax` lists of the PlantUML
+user guide (at least ten each, four for objects) are, in order and with their code spans, the `## Supported` bullets of
+`plantuml sequence`, `plantuml activity`, `plantuml class`, and `plantuml object`, and every item of its code list (at
 least sixteen) is a bullet of `plantuml unsupported` or `plantuml diagnostics`.
 
 **HelpTopics_SvgTopic_FlattenItems_MatchUserGuide** and **HelpTopics_FilesTopic_Items_MatchUserGuide**: the bullets

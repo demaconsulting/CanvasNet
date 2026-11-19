@@ -6,8 +6,8 @@ namespace DemaConsulting.CanvasNet.PlantUml.Syntax;
 ///     The detected type of a diagram.
 /// </summary>
 /// <param name="DiagramType">
-///     The public type name: <c>sequence</c>, <c>activity</c>, or a recognized type that is not drawn (<c>class</c>,
-///     <c>usecase</c>, <c>component</c>, <c>deployment</c>, <c>state</c>, <c>object</c>, <c>timing</c>,
+///     The public type name: <c>sequence</c>, <c>activity</c>, <c>class</c>, <c>object</c>, or a recognized type that
+///     is not drawn (<c>usecase</c>, <c>component</c>, <c>deployment</c>, <c>state</c>, <c>timing</c>,
 ///     <c>activity-legacy</c>, <c>mindmap</c>, <c>gantt</c>, <c>wbs</c>, <c>json</c>, <c>yaml</c>, <c>salt</c>, ...).
 /// </param>
 /// <param name="IsSupported">Whether this version draws the type.</param>

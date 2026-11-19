@@ -53,28 +53,25 @@ it.
 
 The command's name is `render`, its alias is `convert`, and its usage text has examples, says how the pipeline options
 combine, and says how an OpenSCAD model is drawn (the views, a model that is entirely 2D drawn from the top unless a
-view is chosen, the 800 by 800 default size, `-D`) and where its
-`include` and `use` files are read from, and how a Vega-Lite chart is drawn (at its laid-out size over its own
-background, with UTC dates and the bundled fonts; its local CSV, TSV, DSV (`format.delimiter`), and JSON data files are
-read relative to the folder of the specification under the file-access mode, a missing one is an error, delimited text
-is not type-inferred unless `format.parse` is `"auto"`,
+view is chosen, the 800 by 800 default size, `-D`) and where its `include` and `use` files are read from, and how a
+Vega-Lite chart is drawn (at its laid-out size over its own background, with UTC dates and the bundled fonts; its local
+CSV, TSV, DSV (`format.delimiter`), and JSON data files are read relative to the folder of the specification under the
+file-access mode, a missing one is an error, delimited text is not type-inferred unless `format.parse` is `"auto"`,
 there is no data-folder option, and nothing is read from the network; its only option is `--param`, which sets the
 parameters of the chart, and the usage text shows the option and the `param.` fragment of a link), and how a Mermaid
-diagram is drawn (a flowchart, sequence, class, state, or entity relationship diagram, pie chart, gantt chart,
-mindmap, packet diagram, or git graph at the size Mermaid lays it out at, with the bundled fonts, in the theme `--theme`
-sets unless the text sets one; a diagram type that is not drawn (journey, timeline, and so on) is an empty picture with
-the note
-`mermaid-diagram-unsupported`, and `canvasnet help mermaid` says what is supported; an example draws
-`flow.mmd --theme dark --scale 2`), how a PlantUML sequence or activity diagram is drawn (at the size PlantUML lays it
-out at, with its default look and the bundled fonts, its `!include` files read relative to the file that names them; a
-type that is not drawn is an empty picture with the note `plantuml-diagram-unsupported`, `--theme` and `--positions` do
-not apply, and `canvasnet help plantuml` says what is supported; an example draws `seq.puml --scale 2`), and how
-`--positions <selector>` (a diagram or a chart, with `--json`,
-repeatable) reports the box and attach pixel of the features it matches in the written image, with an example
-`flow.mmd --positions node:send --positions edge -o flow.png --json`. A verb has no alias, and its
-usage text is `canvasnet {verb} <input>
-{operand} -o <output> [options]` with the description of its operand, a statement that it takes every option of
-`render`, and its examples.
+diagram is drawn (a flowchart, sequence, class, state, or entity relationship diagram, pie chart, gantt chart, mindmap,
+packet diagram, or git graph at the size Mermaid lays it out at, with the bundled fonts, in the theme `--theme` sets
+unless the text sets one; a diagram type that is not drawn (journey, timeline, and so on) is an empty picture with the
+note `mermaid-diagram-unsupported`, and `canvasnet help mermaid` says what is supported; an example draws
+`flow.mmd --theme dark --scale 2`), how a PlantUML sequence, activity, class, or object diagram is drawn (at the size
+PlantUML lays it out at, with its default look and the bundled fonts, its `!include` files read relative to the file
+that names them; a type that is not drawn is an empty picture with the note `plantuml-diagram-unsupported`, `--theme`
+and `--positions` do not apply, and `canvasnet help plantuml` says what is supported; an example draws
+`seq.puml --scale 2`), and how `--positions <selector>` (a diagram or a chart, with `--json`, repeatable) reports the
+box and attach pixel of the features it matches in the written image, with an example
+`flow.mmd --positions node:send --positions edge -o flow.png --json`. A verb has no alias, and its usage text is
+`canvasnet {verb} <input> {operand} -o <output> [options]` with the description of its operand, a statement that it
+takes every option of `render`, and its examples.
 
 #### Key Methods
 

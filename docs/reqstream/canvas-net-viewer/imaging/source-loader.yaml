@@ -667,10 +667,10 @@ sections:
         title: >-
           The SourceLoader class shall report for a PlantUML diagram, by parsing and measuring it without drawing it,
           the natural size the library lays the diagram out at, four channels with transparency, one page, and what
-          the diagram declares (SourceInfo.Diagram, a DiagramFacts: its type, sequence, activity, or a recognized type
-          that is not drawn, whether this version draws it, its title, and its numbers of nodes, edges, and subgraphs,
-          zero for a type that is not drawn, with no direction and no accessible title), reading the files the
-          diagram includes under the file-access policy of the probe.
+          the diagram declares (SourceInfo.Diagram, a DiagramFacts: its type, sequence, activity, class, object, or a
+          recognized type that is not drawn, whether this version draws it, its title, and its numbers of nodes,
+          edges, and subgraphs, zero for a type that is not drawn, with no direction and no accessible title),
+          reading the files the diagram includes under the file-access policy of the probe.
         justification: |
           Knowing what a diagram is, how big it will be, and whether this version draws its type before committing to
           render it lets an agent choose sizes and avoid an empty picture, with the same facts object as a Mermaid
@@ -678,6 +678,7 @@ sections:
         tests:
           - SourceLoader_Probe_PlantUmlSequence_ReportsDiagramFacts
           - SourceLoader_Load_PlantUmlActivity_ProbesAndDraws
+          - SourceLoader_Load_PlantUmlClass_ReportsFactsAndDraws
           - SourceLoader_Load_PlantUmlUnsupportedType_IsOneNoteThenStrictError
           - SourceLoader_Load_PlantUmlInclude_FollowsTheFileAccessPolicy
           - SourceLoader_Probe_EachKind_ReportsHeaderFacts

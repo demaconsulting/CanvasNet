@@ -58,9 +58,10 @@ without a caption becomes a `Para` whose image has the identifier `b` and an emp
 written to the cache and two pictures are drawn.
 
 **PandocFilterEngine_Run_PlantUmlBlocks_BecomeFigureOrAreLeftAsWritten**: a captioned `plantuml` block with the class
-`wide` becomes a `Figure` whose image keeps only `wide` (the class `plantuml` is dropped, `scale` consumed); a class
-diagram block for which the tool reports `plantuml-diagram-unsupported` stays a `CodeBlock` with the one warning
-`plantuml block (@startuml): class diagrams are not drawn; it is left as written and not drawn`; two `.puml` files are
+`wide` becomes a `Figure` whose image keeps only `wide` (the class `plantuml` is dropped, `scale` consumed); a legacy
+activity block for which the tool reports `plantuml-diagram-unsupported` stays a `CodeBlock` with the one warning
+`plantuml block (@startuml): activity-legacy diagrams are not drawn; it is left as written and not drawn`; two `.puml`
+files are
 written to the cache, one `.unsupported` marker is left, and both blocks were drawn once.
 
 **PandocFilterEngine_Run_OneAndFourJobs_AreIdentical**: eight diagram images and one code block, each with a note,

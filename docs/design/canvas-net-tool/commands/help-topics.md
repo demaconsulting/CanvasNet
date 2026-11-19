@@ -168,8 +168,9 @@ Some bullets are compared word for word with the user guides:
 - The `## Syntax`, `## Relations`, and `## Tags` bullets of `mermaid <type>` and the `## Settings` bullets of
   `mermaid <type> settings` follow the tables of the Mermaid user guide.
 - The bullets of `mermaid unsupported` and `mermaid diagnostics` carry the guide's code table.
-- The `## Supported` bullets of `plantuml sequence` and `plantuml activity` follow the supported syntax lists of the
-  PlantUML user guide, and the bullets of `plantuml unsupported` and `plantuml diagnostics` carry its code list.
+- The `## Supported` bullets of `plantuml sequence`, `plantuml activity`, `plantuml class`, and `plantuml object`
+  follow the supported syntax lists of the PlantUML user guide, and the bullets of `plantuml unsupported` and
+  `plantuml diagnostics` carry its code list.
 - The `## Reference` bullets of `svg flatten` follow the `#### Flatten Reference` table.
 - The bullets of `files` follow the `#### File Access Reference` table of the tool user guide.
 

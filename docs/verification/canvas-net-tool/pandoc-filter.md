@@ -43,7 +43,8 @@ and points at a new picture, leaving two pictures in the cache.
 
 **PandocFilter_Run_PlantUmlPictureAndBlock_DrawnAndRedrawnWhenAnIncludeChanges**: with the real drawer, a `.puml`
 picture whose participants come from an `!include` file, a captioned `plantuml` block without `@startuml`, and a
-`plantuml` class-diagram block are drawn three times (the class diagram is left as written with the one warning
+`plantuml` legacy activity block are drawn three times (the legacy activity diagram is left as written with the one
+warning
 `plantuml block (@startuml): ... it is left as written and not drawn`, and the blocks become a `Figure` and stay a
 `CodeBlock`); a second run draws nothing and gives the same document; after the included file changes, a third run
 draws the picture once more with a new name while the block keeps its picture.

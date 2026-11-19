@@ -25,8 +25,8 @@ This user guide covers:
 - Rendering Mermaid flowcharts, sequence diagrams, class diagrams, state diagrams, entity relationship diagrams, pie
   charts, gantt charts, mindmaps, packet diagrams, and git graphs (`DemaConsulting.CanvasNet.Mermaid`), with a gallery
   of original diagrams
-- Rendering PlantUML sequence diagrams and activity diagrams (`DemaConsulting.CanvasNet.PlantUml`) with PlantUML's
-  default look, local `!include` files, and a gallery of original diagrams
+- Rendering PlantUML sequence, activity, class, and object diagrams (`DemaConsulting.CanvasNet.PlantUml`) with
+  PlantUML's default look, local `!include` files, and a gallery of original diagrams
 - The `canvasnet` command-line tool: its commands, options, JSON output, error codes, and self-validation
 
 ## References
