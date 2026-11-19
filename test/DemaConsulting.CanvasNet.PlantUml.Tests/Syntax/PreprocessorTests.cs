@@ -100,6 +100,92 @@ public class PreprocessorTests
     }
 
     /// <summary>
+    ///     Validates that a commented-out diagram in a block comment over several lines before the real one does not
+    ///     open the block: the real <c>@startuml</c> is the start, located on its own line.
+    /// </summary>
+    [Fact]
+    public void PlantUmlPreprocessor_Run_TagsInBlockCommentBeforeStart_AreIgnored()
+    {
+        // Arrange / Act
+        var source = Run("/' old version\n@startuml\nX -> Y\n@enduml\n'/\n@startuml\nA -> B\n@enduml\n");
+
+        // Assert
+        Assert.Equal("uml", source.Block.Tag);
+        Assert.Equal(new PlantUmlLocation("test.puml", 6, 1), source.Block.Location);
+        Assert.Equal(["A -> B"], Texts(source));
+        Assert.Empty(source.Reports);
+    }
+
+    /// <summary>
+    ///     Validates that an <c>@enduml</c> inside a block comment within the diagram does not end it, and that the
+    ///     statements after the comment keep their locations.
+    /// </summary>
+    [Fact]
+    public void PlantUmlPreprocessor_Run_EndInBlockCommentInsideDiagram_DoesNotEndIt()
+    {
+        // Arrange / Act
+        var source = Run("@startuml\nA -> B\n/'\n@enduml\n'/\nB -> A\n@enduml\n");
+
+        // Assert
+        Assert.Equal(["A -> B", "B -> A"], Texts(source));
+        var last = source.Block.Statements.Single(s => s.Text == "B -> A");
+        Assert.Equal(new PlantUmlLocation("test.puml", 6, 1), last.Location);
+        Assert.Empty(source.Reports);
+    }
+
+    /// <summary>
+    ///     Validates that tags in block comments on one line are not tags (before, inside, and after the diagram), and
+    ///     that a block comment opened on the <c>@startuml</c> line hides the <c>@enduml</c> inside it.
+    /// </summary>
+    [Fact]
+    public void PlantUmlPreprocessor_Run_TagsInOneLineBlockComments_AreIgnored()
+    {
+        // Arrange / Act
+        var source = Run("/' @startuml '/\n@startuml\nA -> B\n  /' @enduml '/\nB -> C\n@enduml\n/' @startuml '/\n");
+        var opened = Run("@startuml /' title\n@enduml\n'/\nA -> B\n@enduml\n");
+
+        // Assert
+        Assert.Equal(new PlantUmlLocation("test.puml", 2, 1), source.Block.Location);
+        Assert.Equal(["A -> B", "B -> C"], Texts(source));
+        Assert.Empty(source.Reports);
+        Assert.Equal(["A -> B"], Texts(opened));
+        Assert.Equal(new PlantUmlLocation("test.puml", 4, 1), opened.Block.Statements.Single(s => s.Text == "A -> B").Location);
+    }
+
+    /// <summary>
+    ///     Validates that tags after the apostrophe of a line comment are not tags (before, inside, and after the
+    ///     diagram).
+    /// </summary>
+    [Fact]
+    public void PlantUmlPreprocessor_Run_TagsInLineComments_AreIgnored()
+    {
+        // Arrange / Act
+        var source = Run("' @startuml\n@startuml\nA -> B\n  ' @enduml\nB -> C\n@enduml\n' @startuml\n");
+
+        // Assert
+        Assert.Equal(new PlantUmlLocation("test.puml", 2, 1), source.Block.Location);
+        Assert.Equal(["A -> B", "B -> C"], Texts(source));
+        Assert.Empty(source.Reports);
+    }
+
+    /// <summary>
+    ///     Validates that a diagram whose only <c>@enduml</c> is inside a block comment that is never closed is a
+    ///     syntax error at its start tag, whose hint names the line that opened the comment.
+    /// </summary>
+    [Fact]
+    public void PlantUmlPreprocessor_Run_EndInUnclosedBlockComment_ThrowsLocated()
+    {
+        // Arrange / Act
+        var ex = Assert.Throws<PlantUmlSyntaxException>(() => Run("@startuml\nA -> B\n/' open\n@enduml\n"));
+
+        // Assert
+        Assert.Equal(PlantUmlDiagnosticCodes.SyntaxError, ex.Code);
+        Assert.Equal(new PlantUmlLocation("test.puml", 1, 1), ex.Location);
+        Assert.Contains("line 3", ex.Hint, StringComparison.Ordinal);
+        Assert.Contains("@enduml", ex.Hint, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     ///     Validates that a trailing backslash joins a line with the next one, keeping the location of every character.
     /// </summary>
     [Fact]

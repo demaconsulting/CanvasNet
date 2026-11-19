@@ -18,14 +18,23 @@ sections:
                 title: >-
                   The Preprocessor unit shall read the content of the first @start ... @end block (whatever the case
                   of the tag), read a text without a tag whole, refuse a block without an end tag with a located
-                  error, and report one further block as plantuml-multiple-diagrams.
+                  error, report one further block as plantuml-multiple-diagrams, and count a tag line only outside
+                  the comments (a tag inside a block comment, on one line or over several lines, or after the
+                  apostrophe of a line comment is comment text), in the diagram and in an included file.
                 justification: |
-                  This is how PlantUML frames a file and a piped text.
+                  This is how PlantUML frames a file and a piped text. A commented-out @startuml or @enduml must not
+                  start, end, or truncate the diagram.
                 tests:
                   - PlantUmlPreprocessor_Run_BareText_IsOneDiagram
                   - PlantUmlPreprocessor_Run_StartUmlBlock_TakesItsContent
                   - PlantUmlPreprocessor_Run_MissingEnd_ThrowsLocated
                   - PlantUmlPreprocessor_Run_SecondBlock_ReportsMultipleDiagrams
+                  - PlantUmlPreprocessor_Run_TagsInBlockCommentBeforeStart_AreIgnored
+                  - PlantUmlPreprocessor_Run_EndInBlockCommentInsideDiagram_DoesNotEndIt
+                  - PlantUmlPreprocessor_Run_TagsInOneLineBlockComments_AreIgnored
+                  - PlantUmlPreprocessor_Run_TagsInLineComments_AreIgnored
+                  - PlantUmlPreprocessor_Run_EndInUnclosedBlockComment_ThrowsLocated
+                  - PlantUmlPreprocessor_Include_TagsInComments_AreIgnored
 
               - id: CanvasNetPlantUml-Syntax-Preprocessor-Comments
                 title: >-

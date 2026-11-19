@@ -31,7 +31,9 @@ internal sealed record PreprocessedSource(SourceLines Lines, DiagramBlock Block,
 ///     <para>
 ///         <b>Framing.</b> The first <c>@startXXX</c> ... <c>@endXXX</c> block is the diagram; text before it is ignored. A
 ///         text without any <c>@start</c> tag is one diagram, as PlantUML reads a piped text. A further block is reported
-///         as <see cref="PlantUmlDiagnosticCodes.MultipleDiagrams"/> and not read.
+///         as <see cref="PlantUmlDiagnosticCodes.MultipleDiagrams"/> and not read. A tag line counts only outside the
+///         comments described below: an <c>@start</c> or <c>@end</c> inside a block comment, or after the apostrophe of
+///         a line comment, is comment text.
 ///     </para>
 ///     <para>
 ///         <b>Lines.</b> A line whose first character (after white space) is <c>'</c> is a comment, <c>/'</c> ...
@@ -116,8 +118,8 @@ internal static partial class Preprocessor
 
         var lines = new SourceLines(text, sourceName);
         var reports = new List<PlantUmlPendingReport>();
-        var (tag, tagLocation, first, end) = Frame(lines, reports);
-        var statements = new State(lines, limits, reports, includes).Read(first, end);
+        var (tag, tagLocation, first, end, inComment) = Frame(lines, reports);
+        var statements = new State(lines, limits, reports, includes).Read(first, end, inComment);
         return new PreprocessedSource(lines, new DiagramBlock(tag, tagLocation, statements), reports);
     }
 
@@ -126,63 +128,135 @@ internal static partial class Preprocessor
     /// </summary>
     /// <param name="lines">The line table.</param>
     /// <param name="reports">The pending reports, which receive a report for a further block.</param>
-    /// <returns>The tag (null without one), its location, and the range of lines of the block's content.</returns>
+    /// <returns>
+    ///     The tag (null without one), its location, the range of lines of the block's content, and whether that content
+    ///     starts inside a block comment (opened on the <c>@start</c> line).
+    /// </returns>
     /// <exception cref="PlantUmlSyntaxException">Thrown when the block has no end tag.</exception>
-    private static (string? Tag, PlantUmlLocation Location, int First, int End) Frame(SourceLines lines, List<PlantUmlPendingReport> reports)
+    private static (string? Tag, PlantUmlLocation Location, int First, int End, bool InComment) Frame(SourceLines lines, List<PlantUmlPendingReport> reports)
     {
-        // The first line that starts with @start opens the diagram; without one, the whole text is the diagram
-        var start = -1;
-        for (var i = 0; i < lines.Count && start < 0; i++)
-        {
-            if (TagOf(lines.LineText(i), "@start") is not null)
-            {
-                start = i;
-            }
-        }
-
+        // The first line that starts with @start outside a comment opens the diagram; without one, the whole text is
+        // the diagram
+        var inComment = false;
+        var openedAt = -1;
+        var start = FindTag(lines, 0, "@start", ref inComment, ref openedAt);
         if (start < 0)
         {
-            return (null, lines.Locate(0), 0, lines.Count);
+            return (null, lines.Locate(0), 0, lines.Count, false);
         }
 
         var tag = TagOf(lines.LineText(start), "@start")!;
         var tagLocation = lines.Locate(lines.StartOf(start) + Indent(lines.LineText(start)));
+        var contentInComment = inComment;
 
-        // The first @end line closes it, whatever its tag
-        var end = -1;
-        for (var i = start + 1; i < lines.Count && end < 0; i++)
-        {
-            if (TagOf(lines.LineText(i), "@end") is not null)
-            {
-                end = i;
-            }
-        }
-
+        // The first @end line outside a comment closes it, whatever its tag
+        var end = FindTag(lines, start + 1, "@end", ref inComment, ref openedAt);
         if (end < 0)
         {
+            var hint = inComment
+                ? string.Create(
+                    CultureInfo.InvariantCulture,
+                    $"close the block comment opened on line {openedAt + 1} with '/, and end the diagram with a line '@end{tag}'")
+                : $"add a line '@end{tag}' after the last statement of the diagram";
             throw new PlantUmlSyntaxException(
                 PlantUmlDiagnosticCodes.SyntaxError,
                 $"the diagram that starts with '@start{tag}' has no '@end{tag}'",
                 tagLocation,
-                $"add a line '@end{tag}' after the last statement of the diagram",
+                hint,
                 [$"@end{tag}"]);
         }
 
         // Only the first block is read; a further block is reported once
-        for (var i = end + 1; i < lines.Count; i++)
+        var further = FindTag(lines, end + 1, "@start", ref inComment, ref openedAt);
+        if (further >= 0)
         {
-            if (TagOf(lines.LineText(i), "@start") is not null)
+            reports.Add(PlantUmlPendingReport.Unsupported(
+                PlantUmlDiagnosticCodes.MultipleDiagrams,
+                "the text holds more than one diagram; only the first one is drawn",
+                lines.Locate(lines.StartOf(further) + Indent(lines.LineText(further))),
+                "put each diagram in its own file or code block"));
+        }
+
+        return (tag, tagLocation, start + 1, end, contentInComment);
+    }
+
+    /// <summary>
+    ///     Finds the next line that starts with a tag prefix outside a comment, following the comments with the rules
+    ///     of <see cref="ScanComments"/>: a tag inside a block comment or after a line comment's apostrophe is text of
+    ///     the comment, not a tag.
+    /// </summary>
+    /// <param name="lines">The line table.</param>
+    /// <param name="from">The first line index to look at.</param>
+    /// <param name="prefix">The tag prefix (<c>@start</c> or <c>@end</c>).</param>
+    /// <param name="inComment">Whether a block comment is open at <paramref name="from"/>; updated past the line found (or the last line).</param>
+    /// <param name="openedAt">The line index that last opened a block comment; updated as lines are scanned.</param>
+    /// <returns>The index of the tag line, or -1 when there is none.</returns>
+    private static int FindTag(SourceLines lines, int from, string prefix, ref bool inComment, ref int openedAt)
+    {
+        for (var i = from; i < lines.Count; i++)
+        {
+            var line = lines.LineText(i);
+            var isTag = !inComment && TagOf(line, prefix) is not null;
+            var wasInComment = inComment;
+            ScanComments(line, 0, ref inComment, null);
+            if (inComment && !wasInComment)
             {
-                reports.Add(PlantUmlPendingReport.Unsupported(
-                    PlantUmlDiagnosticCodes.MultipleDiagrams,
-                    "the text holds more than one diagram; only the first one is drawn",
-                    lines.Locate(lines.StartOf(i) + Indent(lines.LineText(i))),
-                    "put each diagram in its own file or code block"));
-                break;
+                openedAt = i;
+            }
+
+            if (isTag)
+            {
+                return i;
             }
         }
 
-        return (tag, tagLocation, start + 1, end);
+        return -1;
+    }
+
+    /// <summary>
+    ///     Scans one line for comments, optionally copying the text outside them into a statement builder. A line whose
+    ///     first character (after white space) is an apostrophe is a comment (unless it opens a block comment), and a
+    ///     block comment starts at <c>/'</c> and ends at <c>'/</c>, possibly on a later line.
+    /// </summary>
+    /// <param name="line">The line text.</param>
+    /// <param name="start">The offset of the line in the original text.</param>
+    /// <param name="inComment">Whether a block comment is open at the start of the line; updated to its end.</param>
+    /// <param name="builder">The builder that receives the text outside the comments, or null to only follow them.</param>
+    /// <returns>True when the line was, held or ended inside a comment.</returns>
+    private static bool ScanComments(string line, int start, ref bool inComment, SourceStatement.Builder? builder)
+    {
+        var comment = inComment;
+
+        // A line whose first character is an apostrophe is a comment (unless it opens a block comment)
+        var indent = Indent(line);
+        if (!inComment && indent < line.Length && line[indent] == '\'' && !(indent + 1 < line.Length && line[indent + 1] == '/'))
+        {
+            return true;
+        }
+
+        var i = 0;
+        while (i < line.Length)
+        {
+            var opensOrCloses = i + 1 < line.Length &&
+                ((inComment && line[i] == '\'' && line[i + 1] == '/') || (!inComment && line[i] == '/' && line[i + 1] == '\''));
+            if (opensOrCloses)
+            {
+                // A block comment starts at /' and ends at '/
+                inComment = !inComment;
+                comment = true;
+                i += 2;
+                continue;
+            }
+
+            if (!inComment)
+            {
+                builder?.Append(line[i], start + i);
+            }
+
+            i++;
+        }
+
+        return comment;
     }
 
     /// <summary>
@@ -267,9 +341,11 @@ internal static partial class Preprocessor
         /// </summary>
         /// <param name="first">The first line index of the block's content.</param>
         /// <param name="end">The index after its last line.</param>
+        /// <param name="inComment">Whether the content starts inside a block comment.</param>
         /// <returns>The statements.</returns>
-        public List<SourceStatement> Read(int first, int end)
+        public List<SourceStatement> Read(int first, int end, bool inComment)
         {
+            _inComment = inComment;
             var statement = new SourceStatement.Builder();
             var continued = false;
             for (var i = first; i < end; i++)
@@ -278,7 +354,7 @@ internal static partial class Preprocessor
                 var start = _lines.StartOf(i);
                 var line = _lines.LineText(i);
                 var lineBuilder = new SourceStatement.Builder();
-                var hadComment = StripComments(line, start, lineBuilder);
+                var hadComment = ScanComments(line, start, ref _inComment, lineBuilder);
                 if (hadComment && lineBuilder.IsBlank && !continued)
                 {
                     continue;
@@ -301,49 +377,6 @@ internal static partial class Preprocessor
             }
 
             return _statements;
-        }
-
-        /// <summary>
-        ///     Copies a line into a statement builder without its comments.
-        /// </summary>
-        /// <param name="line">The line text.</param>
-        /// <param name="start">The offset of the line in the original text.</param>
-        /// <param name="builder">The builder.</param>
-        /// <returns>True when the line was, held or ended inside a comment.</returns>
-        private bool StripComments(string line, int start, SourceStatement.Builder builder)
-        {
-            var comment = _inComment;
-
-            // A line whose first character is an apostrophe is a comment (unless it opens a block comment)
-            var indent = Indent(line);
-            if (!_inComment && indent < line.Length && line[indent] == '\'' && !(indent + 1 < line.Length && line[indent + 1] == '/'))
-            {
-                return true;
-            }
-
-            var i = 0;
-            while (i < line.Length)
-            {
-                var opensOrCloses = i + 1 < line.Length &&
-                    ((_inComment && line[i] == '\'' && line[i + 1] == '/') || (!_inComment && line[i] == '/' && line[i + 1] == '\''));
-                if (opensOrCloses)
-                {
-                    // A block comment starts at /' and ends at '/
-                    _inComment = !_inComment;
-                    comment = true;
-                    i += 2;
-                    continue;
-                }
-
-                if (!_inComment)
-                {
-                    builder.Append(line[i], start + i);
-                }
-
-                i++;
-            }
-
-            return comment;
         }
 
         /// <summary>

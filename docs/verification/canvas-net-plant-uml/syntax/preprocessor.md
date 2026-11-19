@@ -31,12 +31,24 @@ asserted. Any statement, report, or location that differs from the expected lite
 **Tests**: `PreprocessorTests.PlantUmlPreprocessor_Run_BareText_IsOneDiagram`,
 `PreprocessorTests.PlantUmlPreprocessor_Run_StartUmlBlock_TakesItsContent`,
 `PreprocessorTests.PlantUmlPreprocessor_Run_MissingEnd_ThrowsLocated`,
-`PreprocessorTests.PlantUmlPreprocessor_Run_SecondBlock_ReportsMultipleDiagrams`
+`PreprocessorTests.PlantUmlPreprocessor_Run_SecondBlock_ReportsMultipleDiagrams`,
+`PreprocessorTests.PlantUmlPreprocessor_Run_TagsInBlockCommentBeforeStart_AreIgnored`,
+`PreprocessorTests.PlantUmlPreprocessor_Run_EndInBlockCommentInsideDiagram_DoesNotEndIt`,
+`PreprocessorTests.PlantUmlPreprocessor_Run_TagsInOneLineBlockComments_AreIgnored`,
+`PreprocessorTests.PlantUmlPreprocessor_Run_TagsInLineComments_AreIgnored`,
+`PreprocessorTests.PlantUmlPreprocessor_Run_EndInUnclosedBlockComment_ThrowsLocated`,
+`PreprocessorIncludeTests.PlantUmlPreprocessor_Include_TagsInComments_AreIgnored`
 
 Asserts that a text without a tag is one block with no tag; that an indented, mixed-case `@StartUml` with a name opens
 the block at its location and the text around it is ignored; that a block without an end is a syntax error at its
 start line whose hint names `@enduml`; and that a second and a third block give one `plantuml-multiple-diagrams` report
-at the second.
+at the second. Asserts that tags in comments are comment text: a commented-out diagram in a block comment over several
+lines before the real `@startuml` (the block located at the real tag, no report); an `@enduml` in a block comment
+inside the diagram (the statement after the comment kept and located on its line); tags in one-line block comments
+before, inside, and after the diagram, and an `@enduml` hidden by a block comment opened on the `@startuml` line; tags
+after the apostrophe of line comments before, inside, and after the diagram; that an `@enduml` only inside a block
+comment that is never closed is a syntax error at the start tag whose hint names the line that opened the comment; and
+that an included file is framed the same way.
 
 ##### CanvasNetPlantUml-Syntax-Preprocessor-Comments: Comments Are Removed
 

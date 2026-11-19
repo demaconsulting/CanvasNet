@@ -41,6 +41,25 @@ public sealed class PreprocessorIncludeTests : IDisposable
     }
 
     /// <summary>
+    ///     Validates that the block of an included file is framed outside its comments: tags in a block comment before
+    ///     its <c>@startuml</c> and an <c>@enduml</c> in a block comment inside it are comment text.
+    /// </summary>
+    [Fact]
+    public void PlantUmlPreprocessor_Include_TagsInComments_AreIgnored()
+    {
+        // Arrange
+        Write("part.iuml", "/'\n@startuml\nX -> Y\n@enduml\n'/\n@startuml\nA -> C\n/' @enduml\n'/\nC -> A\n@enduml\n");
+
+        // Act
+        var source = Run("@startuml\n!include part.iuml\n@enduml\n");
+
+        // Assert
+        var statements = source.Block.Statements.Where(s => s.Text.Length > 0).ToList();
+        Assert.Equal(["A -> C", "C -> A"], statements.Select(s => s.Text));
+        Assert.Equal(new PlantUmlLocation("part.iuml", 10, 1), statements[1].Location);
+    }
+
+    /// <summary>
     ///     Validates the three directives: a second <c>!include</c> of a file is skipped (also the diagram's own file),
     ///     <c>!include_many</c> includes it again, and a second <c>!include_once</c> is an error.
     /// </summary>

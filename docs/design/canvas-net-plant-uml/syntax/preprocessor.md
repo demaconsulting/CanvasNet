@@ -45,7 +45,11 @@ requirements in `docs/reqstream/canvas-net-plant-uml/syntax/preprocessor.yaml`.
   of the call, or none); returns the result.
 - Framing - the first line that starts (after white space) with `@start` opens the block and its tag is the letters
   after it; the first later line that starts with `@end` closes it; without an `@start` line the whole text is the
-  block. A further `@start` line after the end is reported once as `plantuml-multiple-diagrams`.
+  block. A further `@start` line after the end is reported once as `plantuml-multiple-diagrams`. The framing follows
+  the comments with the same scanner (`ScanComments`) that reads the lines, so a tag line counts only outside a block
+  comment and a line comment; a block comment opened on the `@start` line carries into the block's first line. An
+  included file is framed the same way (`IncludedRange`). When the block has no end because a block comment is still
+  open, the hint names the line that opened it.
 - Reading a line - a line whose first character is `'` is dropped; the characters between `/'` and `'/` are dropped,
   across lines; a line that ends with a single backslash is joined with the next one (the backslash removed); the
   statement is trimmed.

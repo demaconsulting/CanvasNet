@@ -148,12 +148,12 @@ internal static partial class Preprocessor
         /// <param name="file">The included file.</param>
         private void ReadIncluded(IncludedFile file)
         {
-            var (first, end) = IncludedRange(file.Lines);
+            var (first, end, startsInComment) = IncludedRange(file.Lines);
             var (lines, from, depth, inComment) = (_lines, _from, _depth, _inComment);
-            (_lines, _from, _depth, _inComment) = (file.Lines, file.File, _depth + 1, false);
+            (_lines, _from, _depth) = (file.Lines, file.File, _depth + 1);
             try
             {
-                Read(first, end);
+                Read(first, end, startsInComment);
             }
             finally
             {
@@ -206,31 +206,23 @@ internal static partial class Preprocessor
 
     /// <summary>
     ///     Gets the lines of an included file that are included: the content of its first block when it has an
-    ///     <c>@start</c> line, otherwise the whole file.
+    ///     <c>@start</c> line, otherwise the whole file. Tags inside comments are not tags, as in the diagram's framing.
     /// </summary>
     /// <param name="lines">The line table of the file.</param>
-    /// <returns>The first line index and the index after the last line.</returns>
-    private static (int First, int End) IncludedRange(SourceLines lines)
+    /// <returns>The first line index, the index after the last line, and whether the first line starts inside a block comment.</returns>
+    private static (int First, int End, bool InComment) IncludedRange(SourceLines lines)
     {
-        for (var i = 0; i < lines.Count; i++)
+        var inComment = false;
+        var openedAt = -1;
+        var start = FindTag(lines, 0, "@start", ref inComment, ref openedAt);
+        if (start < 0)
         {
-            if (TagOf(lines.LineText(i), "@start") is null)
-            {
-                continue;
-            }
-
-            for (var j = i + 1; j < lines.Count; j++)
-            {
-                if (TagOf(lines.LineText(j), "@end") is not null)
-                {
-                    return (i + 1, j);
-                }
-            }
-
-            return (i + 1, lines.Count);
+            return (0, lines.Count, false);
         }
 
-        return (0, lines.Count);
+        var contentInComment = inComment;
+        var end = FindTag(lines, start + 1, "@end", ref inComment, ref openedAt);
+        return (start + 1, end < 0 ? lines.Count : end, contentInComment);
     }
 }
 
