@@ -47,11 +47,13 @@ left and right keep both ends in one rank; asserts that a hidden link gives its 
 ##### CanvasNetPlantUml-Svek-SvekLayout-SameRank: Links In One Rank
 
 **Tests**: `SvekLayoutTests.PlantUmlSvekLayout_Run_LengthOne_SameRankStraightWithLabelAbove`,
+`SvekLayoutTests.PlantUmlSvekLayout_Run_LengthOne_ChainAndCycle_OrderedRows`,
 `SvekLayoutTests.PlantUmlSvekLayout_Run_LinkInOneRankAcrossANode_IsAnArc`
 
 Asserts that a link of length 1 keeps its ends in one rank, the first end left of the second, with a straight route
-between their borders and its label above the middle of the line; asserts that a link in one rank that would cross
-another node is an arc over it.
+between their borders and its label above the middle of the line; asserts that a chain of one-rank links written out of
+order keeps every first end left of its second at least 35 apart and that a cycle of one-rank links gives one row
+without overlaps; asserts that a link in one rank that would cross another node is an arc over it.
 
 ##### CanvasNetPlantUml-Svek-SvekLayout-Clusters: Clusters And Regions
 

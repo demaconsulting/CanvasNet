@@ -95,6 +95,36 @@ public class SvekLayoutTests
     }
 
     /// <summary>
+    ///     Validates the order of a row: a chain of one-rank links written out of order keeps every first end left of
+    ///     its second, and a cycle of one-rank links still gives one row without overlaps.
+    /// </summary>
+    [Fact]
+    public void PlantUmlSvekLayout_Run_LengthOne_ChainAndCycle_OrderedRows()
+    {
+        // Arrange: E0-E1-...-E5 written from the last link to the first, and the cycle A-B-C-A
+        var chain = Enumerable.Range(0, 6).Select(k => Entity("E" + k)).ToList();
+        var (a, b, c) = (Entity("A"), Entity("B"), Entity("C"));
+        var links = Enumerable.Range(0, 5).Reverse().Select(k => new SvekLink("e" + k, chain[k], chain[k + 1]) { Length = 1 }).ToList();
+        links.AddRange([new SvekLink("ab", a, b) { Length = 1 }, new SvekLink("bc", b, c) { Length = 1 }, new SvekLink("ca", c, a) { Length = 1 }]);
+        var diagram = new SvekDiagram { Entities = [.. chain, a, b, c], Links = links };
+
+        // Act
+        var placement = Place(diagram);
+
+        // Assert: the chain left to right in one rank, the cycle in one rank without overlaps
+        var boxes = chain.Select(e => BoxOf(placement, e.Id)).ToList();
+        for (var k = 1; k < boxes.Count; k++)
+        {
+            Assert.Equal(boxes[0].Y, boxes[k].Y, 6);
+            Assert.True(boxes[k].X >= boxes[k - 1].Right + SvekLayout.MinNodeSep - 1e-6);
+        }
+
+        var cycle = new[] { "A", "B", "C" }.Select(id => BoxOf(placement, id)).ToList();
+        Assert.All(cycle, box => Assert.Equal(cycle[0].Y, box.Y, 6));
+        Assert.True(cycle[0].Right <= cycle[1].X && cycle[1].Right <= cycle[2].X);
+    }
+
+    /// <summary>
     ///     Validates the direction hints: up puts the second end above the first and keeps the route from the first end
     ///     to the second; left and right keep both ends in one rank.
     /// </summary>

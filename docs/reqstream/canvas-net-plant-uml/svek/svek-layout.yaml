@@ -49,6 +49,7 @@ sections:
                   itself.
                 tests:
                   - PlantUmlSvekLayout_Run_LengthOne_SameRankStraightWithLabelAbove
+                  - PlantUmlSvekLayout_Run_LengthOne_ChainAndCycle_OrderedRows
                   - PlantUmlSvekLayout_Run_LinkInOneRankAcrossANode_IsAnArc
 
               - id: CanvasNetPlantUml-Svek-SvekLayout-Clusters

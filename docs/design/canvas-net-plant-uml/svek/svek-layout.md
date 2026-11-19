@@ -50,7 +50,9 @@ specified by the `CanvasNetPlantUml-Svek-SvekLayout-*` requirements in
   `InsertBands`, `RouteEdges`, and `BuildFrame`.
 - `FormRows` - dagre's network simplex raises every edge to at least one rank (its `simplify` step), so the units that
   links of length 1 join (with the same compound parent) become one row node, side by side (stacked in a left to right
-  diagram) in the order of the edges (first end first), `NodeSep` apart or as far as the label between them needs.
+  diagram) in a topological order of the links (`OrderRow`: every first end before its second, the earliest unit of
+  the diagram first among the free ones, the earliest remaining one when the links form a cycle; linear in the units
+  and links), `NodeSep` apart or as far as the label between them needs.
 - `ClusterUnit` - lays a cluster out on its own (`LayoutScope`) and frames it: width `max(content + 2 padding,
   MinWidth)`, height `content + 2 padding + header`, content centered.
 - `ArrangeRegions` - lays out every region on its own and stacks them (or puts them side by side) across the widest

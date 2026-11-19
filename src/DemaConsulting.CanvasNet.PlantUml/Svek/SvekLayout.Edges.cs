@@ -101,21 +101,20 @@ internal sealed partial class SvekLayout
             }
         }
 
-        _meter.Charge(work.Units.Count + flat.Count + 1);
+        _meter.Charge((2 * (work.Units.Count + flat.Count)) + 1);
         var leftToRight = _diagram.RankDir == SvekRankDir.LeftToRight;
+
+        // The widest label slot between every two units joined by one-rank links, in either order
+        var gaps = new Dictionary<(int, int), double>();
+        foreach (var (left, right, edge) in flat)
+        {
+            var key = (Math.Min(index[left], index[right]), Math.Max(index[left], index[right]));
+            gaps[key] = Math.Max(gaps.GetValueOrDefault(key), SlotExtent(edge.Slot, leftToRight));
+        }
+
         foreach (var component in work.Units.GroupBy(u => Find(index[u])).Where(g => g.Count() > 1))
         {
-            // The order of the row: every link's first end before its second, else the order of the diagram
-            var members = component.ToList();
-            var ordered = new List<Unit>();
-            var remaining = new HashSet<Unit>(members, ReferenceEqualityComparer.Instance);
-            while (remaining.Count > 0)
-            {
-                var next = members.FirstOrDefault(u => remaining.Contains(u) && !flat.Any(f => ReferenceEquals(f.Right, u) && remaining.Contains(f.Left)))
-                    ?? members.First(remaining.Contains);
-                ordered.Add(next);
-                remaining.Remove(next);
-            }
+            var ordered = OrderRow(component.ToList(), flat, index);
 
             // The units side by side (stacked in a left to right diagram), centered across the row
             var row = new Row("r" + work.Rows.Count.ToString(System.Globalization.CultureInfo.InvariantCulture), ordered[0].Parent);
@@ -125,13 +124,8 @@ internal sealed partial class SvekLayout
                 var unit = ordered[k];
                 if (k > 0)
                 {
-                    var previous = ordered[k - 1];
-                    var labels = flat
-                        .Where(f => (ReferenceEquals(f.Left, previous) && ReferenceEquals(f.Right, unit)) || (ReferenceEquals(f.Left, unit) && ReferenceEquals(f.Right, previous)))
-                        .Select(f => SlotExtent(f.Edge.Slot, leftToRight))
-                        .DefaultIfEmpty(0)
-                        .Max();
-                    offset += Math.Max(NodeSep, labels);
+                    var (a, b) = (index[ordered[k - 1]], index[unit]);
+                    offset += Math.Max(NodeSep, gaps.GetValueOrDefault((Math.Min(a, b), Math.Max(a, b))));
                 }
 
                 (unit.RowX, unit.RowY) = leftToRight ? (0.0, offset) : (offset, 0.0);
@@ -171,6 +165,83 @@ internal sealed partial class SvekLayout
         }
 
         return (leftToRight ? slot.Height : slot.Width) + 10;
+    }
+
+    /// <summary>
+    ///     Orders the units of a row: every one-rank link's first end before its second, the earliest unit of the
+    ///     diagram first among those that are free, and the earliest remaining one when the links form a cycle (Kahn's
+    ///     topological order, linear in the units and links).
+    /// </summary>
+    /// <param name="members">The units of the row, in the order of the diagram.</param>
+    /// <param name="flat">The one-rank links of the scope.</param>
+    /// <param name="index">The index of every unit in the scope.</param>
+    /// <returns>The units in row order.</returns>
+    private static List<Unit> OrderRow(List<Unit> members, List<(Unit Left, Unit Right, EdgeWork Edge)> flat, Dictionary<Unit, int> index)
+    {
+        var position = new Dictionary<Unit, int>(ReferenceEqualityComparer.Instance);
+        for (var k = 0; k < members.Count; k++)
+        {
+            position[members[k]] = k;
+        }
+
+        var incoming = new int[members.Count];
+        var successors = members.Select(_ => new List<int>()).ToArray();
+        foreach (var (left, right, _) in flat)
+        {
+            if (position.TryGetValue(left, out var l) && position.TryGetValue(right, out var r) && l != r)
+            {
+                successors[l].Add(r);
+                incoming[r]++;
+            }
+        }
+
+        var free = new PriorityQueue<int, int>();
+        for (var k = 0; k < members.Count; k++)
+        {
+            if (incoming[k] == 0)
+            {
+                free.Enqueue(k, index[members[k]]);
+            }
+        }
+
+        var placed = new bool[members.Count];
+        var ordered = new List<Unit>(members.Count);
+        var cursor = 0;
+        while (ordered.Count < members.Count)
+        {
+            int next;
+            if (free.Count > 0)
+            {
+                next = free.Dequeue();
+                if (placed[next])
+                {
+                    continue;
+                }
+            }
+            else
+            {
+                // A cycle: the earliest unit not yet placed breaks it
+                while (placed[cursor])
+                {
+                    cursor++;
+                }
+
+                next = cursor;
+            }
+
+            placed[next] = true;
+            ordered.Add(members[next]);
+            foreach (var successor in successors[next])
+            {
+                incoming[successor]--;
+                if (incoming[successor] == 0 && !placed[successor])
+                {
+                    free.Enqueue(successor, index[members[successor]]);
+                }
+            }
+        }
+
+        return ordered;
     }
 
     /// <summary>
@@ -562,6 +633,7 @@ internal sealed partial class SvekLayout
         var box = BoxAt(distance);
         for (var step = 0; step < 32 && work.Units.Any(u => Overlaps(u.MainBox, box)); step++)
         {
+            _meter.Charge(work.Units.Count + 1);
             distance += 2;
             box = BoxAt(distance);
         }
