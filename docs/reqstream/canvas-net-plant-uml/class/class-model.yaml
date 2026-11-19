@@ -1,0 +1,63 @@
+---
+# Software Unit Requirements for ClassModel
+#
+# These requirements describe the design-level behavior of the ClassModel unit of the Class subsystem (internal
+# namespace DemaConsulting.CanvasNet.PlantUml.Class): the diagram with its elements, the member and body rules, the hide
+# and show rules, the facts, and the lowering to the Svek engine. See
+# docs/verification/canvas-net-plant-uml/class/class-model.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetPlantUml Requirements
+    sections:
+      - title: Class Requirements
+        sections:
+          - title: ClassModel Requirements
+            requirements:
+              - id: CanvasNetPlantUml-Class-ClassModel-Members
+                title: >-
+                  The ClassModel unit shall read a member's visibility character (+ - # ~), its static and abstract
+                  modifiers and tags, and its guillemets, and shall split a body into separators with their titles,
+                  fields, and methods (a line with parentheses), as PlantUML does.
+                justification: |
+                  The member rules decide the icons, the underline and italic, and the compartments of a class.
+                tests:
+                  - PlantUmlClassModel_Member_ReadsVisibilityAndModifiers
+                  - PlantUmlClassModel_Body_SeparatesFieldsAndMethods
+
+              - id: CanvasNetPlantUml-Class-ClassModel-Facts
+                title: >-
+                  The ClassModel unit shall count as nodes the entities (notes not counted), as edges the links that do
+                  not touch a note (hidden links counted), and as subgraphs the packages that hold something.
+                justification: |
+                  The facts are reported by the document, the tool, and the viewer and must mean the same in every
+                  diagram type.
+                tests:
+                  - PlantUmlClassModel_Facts_CountEntitiesLinksAndPackages
+
+              - id: CanvasNetPlantUml-Class-ClassModel-Portions
+                title: >-
+                  The ClassModel unit shall apply the hide and show rules in order to every entity, to a kind, to a
+                  stereotype, or to a name, the empty flag only to empty compartments.
+                justification: |
+                  A later rule overrides an earlier one in PlantUML.
+                tests:
+                  - PlantUmlClassModel_PortionsOf_AppliesRulesInOrder
+
+              - id: CanvasNetPlantUml-Class-ClassModel-Lowering
+                title: >-
+                  The ClassModel unit shall lower the diagram for every call: every package to a cluster under its
+                  parent with its container symbol, every entity to an entity with its image and package, the notes
+                  with their targets, links, and text order, and the links with their decorations and settings.
+                justification: |
+                  The Svek engine lays out and draws what the model lowers; nothing may be lost on the way.
+                tests:
+                  - PlantUmlClassModel_Lower_MapsEveryElement
+
+              - id: CanvasNetPlantUml-Class-ClassModel-Layout
+                title: >-
+                  The ClassModel unit shall lay out a call as the Svek body decorated with the page texts with the
+                  spacing of PlantUML's graph diagrams, over the theme's background, at the diagram's own scale.
+                justification: |
+                  The picture must have PlantUML's page texts and size.
+                tests:
+                  - PlantUmlClassModel_Layout_DrawsBodyAndPageTexts

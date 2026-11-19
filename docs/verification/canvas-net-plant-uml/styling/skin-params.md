@@ -38,6 +38,15 @@ size, the foot box, the response below arrow, the message alignment, a participa
 background, the note border thickness, the arrow color, the life line background, and the title font style) and
 asserts each effect with no report.
 
+##### CanvasNetPlantUml-Styling-SkinParams-GraphSubset: The Class Parameters In Graph Diagrams Only
+
+**Tests**: `SkinParamsTests.PlantUmlSkinParams_Apply_GraphSubset_OnlyInGraphDiagrams`
+
+Applies a class background, a class stereotype size, a member color, an object border, a package border width, an
+arrow color, an icon size of 0, and a circle radius of 9 to a graph diagram and asserts each value on the theme with no
+report, including the arrow color on the links; applies them to a sequence diagram and asserts seven
+`plantuml-skinparam-ignored` reports and the arrow color applied to its messages.
+
 ##### CanvasNetPlantUml-Styling-SkinParams-Colors: PlantUML's Color Forms
 
 **Tests**: `SkinParamsTests.PlantUmlSkinParams_TryParseColor_ReadsPlantUmlForms`

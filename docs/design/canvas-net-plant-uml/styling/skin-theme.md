@@ -20,12 +20,15 @@ unit's behavior is specified by the `CanvasNetPlantUml-Styling-SkinTheme-*` requ
   `GroupHeader`, `Separator`, `Delay`, `Box`, `Title`, `Header`, `Footer`, `Legend`, `Caption`, and the activity
   elements `Activity`, `ActivityDiamond`, `ActivityArrow`, `ActivityCircle`, `ActivityBar`, `Swimlane`, and `Partition`,
   and the elements of the diagrams that PlantUML lays out with Graphviz, drawn by the Svek subsystem: `SvekArrow` (a
-  link and its labels), `Package` (a package cluster), and `Container` (the other container clusters).
+  link and its labels), `Package` (a package cluster), and `Container` (the other container clusters), and the class
+  diagram elements `Class` (a class box and its name), `ClassStereotype`, `ClassAttribute` (the members), and `Object`
+  (an object or a map).
 - `ElementStyle(FontFamily, FontSize, FontColor, Bold, Fill, Line, LineWidth, RoundCorner, Padding)` with `Italic` and
   `Dash` - a null fill or line draws none; `RoundCorner` is PlantUML's diameter (an SVG radius of half of it).
 - `SkinTheme` - the styles by element, `Background` (white; null for transparent), `Shadowing` (false),
   `MaxMessageSize` (zero, no wrapping), `MessageAlign` (`left`), `ResponseBelowArrow` (false), `Footbox` (true), and
-  `ArrowThickness` (1).
+  `ArrowThickness` (1), and the class settings `ClassAttributeIconSize` (10; 0 writes the visibility characters) and
+  `CircledCharacterRadius` (11).
 - The default values: the root is `SansSerif` 14 in black with lines `#181818` one pixel wide; the document is white;
   participants and their kin are filled `#E2E2F0`, outlined half a pixel wide, padded 7, and a participant has corners
   of 5; life lines are dashed 5 and 5, half a pixel wide; activation boxes are white; arrows have 13-pixel labels;
@@ -36,7 +39,8 @@ unit's behavior is specified by the `CanvasNetPlantUml-Styling-SkinTheme-*` requ
   15; activities are 12-pixel text on `#F1F1F1` with corners of 25 and a padding of 10; diamonds and activity arrows
   have 11-pixel text; circles are `#222222`; bars are `#555555`; swimlane titles are 18 pixels with black lines 1.5
   wide; graph links have 13-pixel labels; package clusters are black, 1.5 pixels wide, and container clusters
-  `#181818`, one pixel wide, both unfilled with corners of 5 and bold titles.
+  `#181818`, one pixel wide, both unfilled with corners of 5 and bold titles; classes and objects are `#F1F1F1`,
+  outlined half a pixel wide with corners of 5, stereotypes italic 12, and members black 14.
 
 #### Key Methods
 

@@ -45,7 +45,10 @@ The system is decomposed into one direct unit and internal subsystems:
   (the diagram lowered to entities with their images, clusters, notes, and links), the `SvekSyntax` unit (the
   statements those diagrams share), the `SvekLayout` unit (the layout over the dagre layered layout of
   `CanvasNetLayout`), the `SvekGeometry` unit (curves, clipping, and the link decorations), and the `SvekRenderer`
-  unit (links, container symbols, and notes); no diagram type uses it yet; see *Svek Subsystem Design*.
+  unit (links, container symbols, and notes); see *Svek Subsystem Design*.
+- **Class** (subsystem) - the `ClassParser` unit (the statements of class and object diagrams), the `ClassModel` unit
+  (the diagram with its hide and show rules, lowered to the Svek engine), and the `ClassRenderer` unit (the class,
+  object, and map boxes); see *Class Subsystem Design*.
 
 The SysML2 model names the system `CanvasNetPlantUmlSystem` and prefixes the names of its subsystems and units with
 `PlantUml` (`PlantUmlSyntax`, `PlantUmlPreprocessor`, `PlantUmlDiagramDetector`, `PlantUmlStyling`, `PlantUmlSkinTheme`,
@@ -53,7 +56,8 @@ The SysML2 model names the system `CanvasNetPlantUmlSystem` and prefixes the nam
 `PlantUmlSequence`, `PlantUmlSequenceParser`, `PlantUmlSequenceModel`, `PlantUmlSequenceLayout`,
 `PlantUmlSequenceRenderer`, `PlantUmlActivity`, `PlantUmlActivityParser`, `PlantUmlActivityModel`,
 `PlantUmlActivityLayout`, `PlantUmlActivityRenderer`, `PlantUmlSvek`, `PlantUmlSvekModel`, `PlantUmlSvekSyntax`,
-`PlantUmlSvekLayout`, `PlantUmlSvekGeometry`, `PlantUmlSvekRenderer`), because
+`PlantUmlSvekLayout`, `PlantUmlSvekGeometry`, `PlantUmlSvekRenderer`, `PlantUmlClass`, `PlantUmlClassParser`,
+`PlantUmlClassModel`, `PlantUmlClassRenderer`), because
 the `CanvasNet` package of the model already holds the units of the Mermaid system with the same short names. The test
 methods of the units use the same prefix (`PlantUmlPreprocessor_...`), so that the requirements trace never mixes the
 evidence of two systems.
@@ -135,7 +139,8 @@ PlantUML text is untrusted input. The design segregates the risk as follows:
 The text is read (strict UTF-8 for streams and files), framed and preprocessed into statements that keep the original
 location of every character (the statements of an included file are located in that file), and classified into a
 diagram type. A supported type is parsed into its diagram model by
-the parser registered in `DiagramRegistry` (a sequence diagram by the Sequence subsystem); the reports found while
+the parser registered in `DiagramRegistry` (a sequence diagram by the Sequence subsystem, an activity diagram by the
+Activity subsystem, and a class or object diagram by the Class subsystem); the reports found while
 reading (ignored directives, a second diagram, statements and skin parameters that are not drawn) are kept by the
 document and the diagram model as pending reports, in text order, so that every later call can deliver them. A measure
 or render call creates a report sink and a text layout, replays the pending reports, lays the diagram out into a scene
@@ -165,7 +170,9 @@ preprocessor directives, the order in which the diagram types are tried, the val
 heights, and shapes), and the tile composition of the activity engine ("ftile": the tiles, their assembly and
 connections, the swimlanes, and the compression of the drawing), and the shapes, decorations, and spacing of the
 diagrams that PlantUML lays out with Graphviz (the "svek" engine: the link grammar, the link decorations, the container
-symbols, the notes and their pointers, and the cluster margins of the Smetana pipeline) follow the MIT-licensed
+symbols, the notes and their pointers, and the cluster margins of the Smetana pipeline), and the boxes of class and
+object diagrams (the class header with its circled character, the member compartments with their visibility icons and
+separators, and the object and map tables) follow the MIT-licensed
 distribution of PlantUML (`plantuml-mit`, whose files carry the MIT header "(C) Copyright 2009-2024, Arnaud Roques").
 Only the MIT-licensed distribution was read; no source text, comment, test, example, or image of PlantUML is copied: the
 ported items are values and rules, reimplemented in C#. The license text and the provenance table (which upstream file
@@ -202,9 +209,11 @@ of this repository, so the two diagram languages are bounded alike.
   without, as Java measures it, so a glyph can move by a fraction of a pixel.
 - **Creole** - only the subset of bold, italic, monospace, underline, strike, color, size, font, and Unicode characters
   is drawn; images, sprites, icons, tables, lists, headings, rules, and backgrounds are drawn as text and reported.
-- **Detection** - statements are recognized by their leading keywords and arrows, so a text that PlantUML reads as a
-  diagram of a type that is not drawn can, in rare ambiguous cases, be named differently; the type of such a diagram
-  never changes whether it is drawn.
+- **Detection** - statements are recognized by their leading keywords and arrows, in PlantUML's order (sequence,
+  activity, class, legacy activity, description, state), so a text that PlantUML reads as a diagram of a type that is
+  not drawn can, in rare ambiguous cases, be named differently. A text that both a sequence and a class diagram could
+  read (`A --> B`) is a sequence diagram, as in PlantUML; a class diagram that mixes in an actor, a use case, or a
+  component is refused with the `allowmixing` hint, and `allowmixing` itself is reported, not applied.
 - **Sequence engine** - PlantUML 1.2026.10 lays every sequence diagram out with its "teoz" engine (the older "puma"
   engine is gone), so CanvasNet follows teoz and `!pragma teoz` is only reported as ignored. The size, texts,
   participants, life lines, and message lines of the reference fixtures agree with PlantUML's SVG within 1.5 pixels;
@@ -233,7 +242,16 @@ of this repository, so the two diagram languages are bounded alike.
   while the positions of the elements and the curves of the links differ. Links of length 1 are kept in one rank as
   rows (dagre's ranking cannot), a cluster with a title band is made tight around its members, and the crow's foot
   decorations, the redefinition triangles, roles, qualifiers, the middle decorations, and `norank` are read but not
-  drawn. No diagram type uses the engine yet.
+  drawn. The jar's Smetana layout does not draw the direction triangle of a link label (`: label >`); the engine draws
+  it, as PlantUML does with Graphviz.
+- **Class and object diagrams** - every entity box (its size, colors, texts, circled character, icons, and
+  separators), cluster title, and link decoration of the reference fixtures agrees with PlantUML's within 1.5 pixels;
+  the positions differ (unlinked classes are placed in one row where Graphviz makes a grid, and notes are placed beside
+  their entities by the engine). Link stereotypes, links to members (`A::x`, drawn from the class), association classes,
+  `together` groups (their members are drawn), `remove` and `restore`, `allowmixing`, `skin`, `json` blocks, `circle`
+  and `diamond` elements (drawn as classes), the visibility of a class, line styles of a class (`##[dashed]`), hiding a
+  single element or by visibility, links from map entries (drawn from the map), and notes on packages (drawn floating)
+  are reported as `plantuml-statement-unsupported`.
 
 ## Phase Plan
 
@@ -242,6 +260,7 @@ of this repository, so the two diagram languages are bounded alike.
   policy; the image source; the Viewer, tool, and Pandoc filter integration.
 - **Phase 2** - the diagram types that PlantUML lays out with Graphviz (class, component, use case, state, object, and
   deployment diagrams) are laid out by the shared Svek engine over the dagre layered layout of the `CanvasNetLayout`
-  package, which the Mermaid package shares (the engine is in place; the diagram types follow in steps). Themes,
+  package, which the Mermaid package shares (the engine is in place and draws class and object diagrams; the other
+  diagram types follow in steps). Themes,
   `<style>` blocks, feature positions, and the conditional and function directives of the preprocessor are candidates as
   well.

@@ -1,0 +1,123 @@
+---
+# Software Unit Requirements for ClassParser
+#
+# These requirements describe the design-level behavior of the ClassParser unit of the Class subsystem (internal
+# namespace DemaConsulting.CanvasNet.PlantUml.Class): the reading of the statements of a class or object diagram into a
+# ClassModel. See docs/verification/canvas-net-plant-uml/class/class-parser.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetPlantUml Requirements
+    sections:
+      - title: Class Requirements
+        sections:
+          - title: ClassParser Requirements
+            requirements:
+              - id: CanvasNetPlantUml-Class-ClassParser-Declarations
+                title: >-
+                  The ClassParser unit shall read the declarations of classes and their kin (class, abstract class,
+                  interface, enum, annotation, entity, exception, struct, protocol, metaclass, stereotype, record,
+                  dataclass), objects, and maps, with a display name written before or after the name with as, generic
+                  parameters, stereotypes (a spot written in a stereotype included), colors, and extends and implements.
+                justification: |
+                  Each kind is drawn with its own circled character and color, so its keyword must give its kind.
+                tests:
+                  - PlantUmlClassParser_Declaration_ReadsTheKind
+                  - PlantUmlClassParser_Declaration_ReadsDisplayGenericStereotypesAndColors
+
+              - id: CanvasNetPlantUml-Class-ClassParser-Bodies
+                title: >-
+                  The ClassParser unit shall keep the member and separator lines of a body in order, add a member
+                  written as Name : text (creating the class when it is new), read the fields of an object the same way,
+                  and read the entries key => value of a map.
+                justification: |
+                  The members and separators are drawn in the order written, as PlantUML draws them.
+                tests:
+                  - PlantUmlClassParser_Body_KeepsMembersAndSeparators
+                  - PlantUmlClassParser_Map_ReadsEntriesAndReportsEntryLinks
+
+              - id: CanvasNetPlantUml-Class-ClassParser-Names
+                title: >-
+                  The ClassParser unit shall read packages and namespaces (nested, with a title, a symbol chosen by a
+                  stereotype, other stereotypes, and a color), create the packages of a qualified name, read a name in a
+                  package as relative to it unless it starts with a package at the top, find an entity by its short
+                  name, and honor set namespaceSeparator.
+                justification: |
+                  Names must resolve to the entities PlantUML resolves them to, or links would connect other boxes.
+                tests:
+                  - PlantUmlClassParser_QualifiedNames_CreateAndResolvePackages
+                  - PlantUmlClassParser_Packages_ReadSymbolsStereotypesAndColors
+
+              - id: CanvasNetPlantUml-Class-ClassParser-Links
+                title: >-
+                  The ClassParser unit shall read relationships with the shared Svek link reader: the decorations at
+                  both ends (extension, implementation, composition, aggregation, arrows, and the other drawn ones), the
+                  style, the length from the dash count, the direction hint, the end labels, the label with its
+                  direction mark, and the color, creating the classes a link names.
+                justification: |
+                  Relationships carry the meaning of a class diagram and must keep every drawn part.
+                tests:
+                  - PlantUmlClassParser_Links_ReadDecorationsStylesAndLabels
+
+              - id: CanvasNetPlantUml-Class-ClassParser-Notes
+                title: >-
+                  The ClassParser unit shall read notes on a side of a named entity or of the last declared entity, on
+                  the last link, and floating with an alias that links connect, written on one line or up to end note.
+                justification: |
+                  Notes explain a diagram and must be attached to what they explain.
+                tests:
+                  - PlantUmlClassParser_Notes_AttachToEntitiesLinksOrFloat
+
+              - id: CanvasNetPlantUml-Class-ClassParser-HideShow
+                title: >-
+                  The ClassParser unit shall keep the hide and show rules of the members, fields, methods, circle, and
+                  stereotype of every entity, a kind, a stereotype, or a name, with the empty flag, in order, and report
+                  the other forms.
+                justification: |
+                  Hiding empty compartments and circles is common in PlantUML class diagrams.
+                tests:
+                  - PlantUmlClassParser_HideShow_ReadsRulesAndReportsTheRest
+
+              - id: CanvasNetPlantUml-Class-ClassParser-Common
+                title: >-
+                  The ClassParser unit shall read the direction, the scale, the layout and look skin parameters, and the
+                  page texts.
+                justification: |
+                  The common statements must behave as in the other diagram types.
+                tests:
+                  - PlantUmlClassParser_CommonStatements_AreRead
+
+              - id: CanvasNetPlantUml-Class-ClassParser-Unsupported
+                title: >-
+                  The ClassParser unit shall report, as plantuml-statement-unsupported at the statement, the statements
+                  and parts of statements it reads but does not draw (crow's feet, redefines and defined-by, roles,
+                  qualifiers, middle decorations, norank, link stereotypes, links to members, association classes,
+                  together, remove and restore, allowmixing, skin, url, newpage, mainframe, json, links from map
+                  entries), drawing the diagram without them.
+                justification: |
+                  A diagram must still be drawn when it uses a feature this version does not draw, and the author must
+                  know what is missing; strict mode turns the report into an error.
+                tests:
+                  - PlantUmlClassParser_Links_ReportWhatIsNotDrawn
+                  - PlantUmlClassParser_RecognizedStatements_AreReported
+                  - PlantUmlClassParser_Map_ReadsEntriesAndReportsEntryLinks
+
+              - id: CanvasNetPlantUml-Class-ClassParser-Errors
+                title: >-
+                  The ClassParser unit shall refuse a malformed statement, an unclosed body or package, a name used for
+                  another kind of element, and an element of another diagram type without allowmixing with a located
+                  plantuml-syntax-error and a hint.
+                justification: |
+                  PlantUML refuses such text; the error must point at the line and column to fix.
+                tests:
+                  - PlantUmlClassParser_MalformedStatements_AreLocatedErrors
+
+              - id: CanvasNetPlantUml-Class-ClassParser-Limits
+                title: >-
+                  The ClassParser unit shall bound the entities and notes by PlantUmlLimits.MaxNodes, the links by
+                  MaxEdges, the texts by MaxLabelLength, and the package nesting (implicit packages included) by
+                  MaxNestingDepth, failing at the statement that crosses a limit with a located plantuml-limit-exceeded
+                  error.
+                justification: |
+                  Untrusted text must fail closed before a huge diagram is measured and laid out.
+                tests:
+                  - PlantUmlClassParser_Limits_FailClosedAtTheLine

@@ -15,8 +15,10 @@ This document describes the system-level verification strategy for CanvasNetPlan
   delivered to the handlers. The system test classes are `PlantUmlSystemIntegrationTests` (reading, metadata, errors,
   preprocessor, limits), `PlantUmlUnsupportedDiagramTests` (the types that are not drawn, strict mode),
   `PlantUmlSequenceIntegrationTests` (sequence diagrams from text to pixels), `PlantUmlActivityIntegrationTests`
-  (activity diagrams from text to pixels), `PlantUmlReferenceLayoutTests` (the layout of the original fixtures
-  compared with the SVG goldens that PlantUML draws for them), `PlantUmlIncludeTests` (include files and the image
+  (activity diagrams from text to pixels), `PlantUmlClassIntegrationTests` (class and object diagrams from text to
+  pixels), `PlantUmlReferenceLayoutTests` (the layout of the original fixtures compared with the SVG goldens that
+  PlantUML draws for them), `PlantUmlReferenceShapeTests` (the entity boxes, clusters, and links of the class and object
+  fixtures compared with the goldens, positions aside), `PlantUmlIncludeTests` (include files and the image
   source of a linked diagram), `PlantUmlHardeningTests` (every limit and a seeded mutation fuzzer), and
   `PlantUmlGalleryTests` (the diagrams of the user guide gallery).
 - **Subsystem tests** exercise each internal subsystem through its own entry points (see the subsystem verification
@@ -63,12 +65,18 @@ the location `bad.puml:3:1`, and a hint.
 Parses an activity diagram whose if is not closed and asserts `plantuml-syntax-error` at the line and column of the if
 and a hint that names `endif`.
 
+**Tests**: `PlantUmlClassIntegrationTests.CanvasNetPlantUml_Class_SyntaxErrors_AreLocated`
+
+Parses a class diagram with an unclosed body and asserts `plantuml-syntax-error` at the line and column of the body
+with a hint that names `}`; parses a class diagram with an actor and asserts the error at the actor with the
+`allowmixing` hint.
+
 ### CanvasNetPlantUml-DiagramTypes: Every Type Is Recognized
 
 **Tests**: `PlantUmlSystemIntegrationTests.CanvasNetPlantUml_OtherDiagramTypes_AreRecognized`
 
-Opens a class diagram, a state diagram, a use case diagram, a mindmap, a gantt chart, and a JSON diagram, and asserts
-the type name of each and that none is drawn by this version.
+Opens a legacy activity diagram, a state diagram, a use case diagram, a mindmap, a gantt chart, and a JSON diagram,
+and asserts the type name of each and that none is drawn by this version.
 
 ### CanvasNetPlantUml-Preprocessor: The Subset Is Applied
 
@@ -106,19 +114,22 @@ measures the groups fixture under a layout work limit of 20 and asserts a `plant
 `PlantUmlHardeningTests.CanvasNetPlantUml_Hardening_IncludeLimits_AreLocated`,
 `PlantUmlHardeningTests.CanvasNetPlantUml_Hardening_RenderLimits_FailClosed`,
 `PlantUmlHardeningTests.CanvasNetPlantUml_Hardening_LargeDiagramsWithinTheLimits_Render`,
+`PlantUmlHardeningTests.CanvasNetPlantUml_Hardening_DenseClassGraph_LayoutWorkIsBounded`,
 `PlantUmlHardeningTests.CanvasNetPlantUml_Hardening_MutatedFixtures_ThrowOnlyDocumentedExceptions`
 
-For `MaxNodes`, `MaxEdges`, `MaxLabelLength`, and `MaxNestingDepth`, in sequence and activity diagrams and in the
-preprocessor, asserts `plantuml-limit-exceeded` at the source name and line where the text crosses the limit, naming the
-limit, with a hint, and that the text opens under the defaults; asserts that a long text and a growing macro are
+For `MaxNodes`, `MaxEdges`, `MaxLabelLength`, and `MaxNestingDepth`, in sequence, activity, and class diagrams and in
+the preprocessor, asserts `plantuml-limit-exceeded` at the source name and line where the text crosses the limit, naming
+the limit, with a hint, and that the text opens under the defaults; asserts that a long text and a growing macro are
 refused under a size limit of 200; asserts that one include too many fails at the directive of the main file and one
 level too deep at the directive of the included file; asserts `plantuml-limit-exceeded` render errors under a layout
 work limit and a painted pixel limit, and two reports and one suppression notice under a diagnostics limit of two;
-renders a chain of 400 actions, 32 nested ifs, and 200 participants; and opens, measures, and renders mutants of every
-sequence, activity, and gallery fixture (truncated, deleted ranges, inserted tokens of both languages and of the
-preprocessor, duplicated and swapped lines, flipped characters) with a fixed seed, asserting that only
-`PlantUmlSyntaxException` (with a documented code, the source name, a line, and a hint), a located
-`plantuml-limit-exceeded` `PlantUmlRenderException`, and `InvalidDataException` are thrown, and never a layout defect.
+renders a chain of 400 actions, 32 nested ifs, and 200 participants; asserts that a dense class diagram of 120 links
+fails under a layout work limit of 1000 with a render error at its first statement and is laid out under the default
+limit; and opens, measures, and renders mutants of every sequence, activity, class, object, and gallery fixture
+(truncated, deleted ranges, inserted tokens of the three languages and of the preprocessor, duplicated and swapped
+lines, flipped characters) with a fixed seed, asserting that only `PlantUmlSyntaxException` (with a documented code, the
+source name, a line, and a hint), a located `plantuml-limit-exceeded` `PlantUmlRenderException`, and
+`InvalidDataException` are thrown, and never a layout defect.
 
 ### CanvasNetPlantUml-Sequence: Sequence Diagrams Are Drawn As PlantUML Draws Them
 
@@ -149,24 +160,52 @@ anchor of every line of text, the action boxes, the circles, and the diamonds an
 that every fixture has a golden; renders every fixture in strict mode with no report at its measured size; and asserts
 the title, node, edge, and subgraph counts of the page and partition fixtures.
 
+### CanvasNetPlantUml-Class: Class And Object Diagrams Are Drawn With PlantUML's Shapes
+
+**Tests**: `PlantUmlReferenceShapeTests.CanvasNetPlantUml_Graph_ReferenceGoldens_CoverEveryFixture`,
+`PlantUmlReferenceShapeTests.CanvasNetPlantUml_Graph_ReferenceEntities_MatchPlantUml`,
+`PlantUmlReferenceShapeTests.CanvasNetPlantUml_Graph_ReferenceClusters_MatchPlantUml`,
+`PlantUmlReferenceShapeTests.CanvasNetPlantUml_Graph_ReferenceLinks_MatchPlantUml`,
+`PlantUmlClassIntegrationTests.CanvasNetPlantUml_Class_Fixtures_RenderWithoutReports`,
+`PlantUmlClassIntegrationTests.CanvasNetPlantUml_Object_Fixtures_RenderWithoutReports`,
+`PlantUmlClassIntegrationTests.CanvasNetPlantUml_Class_Facts_CountEntitiesLinksAndPackages`,
+`PlantUmlClassIntegrationTests.CanvasNetPlantUml_Object_MapAndObject_AreDrawn`
+
+For every original class and object fixture (every class kind, stereotypes, generics, members with every visibility
+and modifier, separators with titles, relationships of every drawn decoration, style, length, and direction, end
+labels and labels, packages and namespaces with their symbols, notes of every form, hide and show, page texts, the
+direction, skin parameters, objects, and maps), compares the picture with the SVG that PlantUML 1.2026.10 draws for it
+with its Smetana layout (`Fixtures/reference/class` and `Fixtures/reference/object`), positions aside: the same
+entities, clusters, and notes; every entity box of the same size within 1.5 pixels or 3 %, with the same fill and line
+colors, texts at the same offsets inside the box, spots, icons, and separators; every cluster title at the same offset
+from its outline; every link matched by its ends with the same line style, decorations congruent with PlantUML's, and
+labels; asserts that every fixture has a golden; renders every fixture in strict mode with no report at its measured
+size; asserts the title, node, edge, and subgraph counts of class and object diagrams; and asserts that an object
+diagram draws its objects without spots and its map as a table.
+
 ### CanvasNetPlantUml-Render: Measuring Reports What Rendering Reports
 
 **Tests**: `PlantUmlUnsupportedDiagramTests.CanvasNetPlantUml_UnsupportedType_MeasureReportsAsRender`
 
 Measures a mindmap and asserts the size of 20 by 20 and the one report that rendering delivers.
 
+**Tests**: `PlantUmlClassIntegrationTests.CanvasNetPlantUml_Class_Render_ObservesCancellation`
+
+Renders the packages class fixture with a canceled token and asserts an `OperationCanceledException`.
+
 ### CanvasNetPlantUml-UnsupportedTypes: An Empty Picture And A Report
 
 **Tests**: `PlantUmlUnsupportedDiagramTests.CanvasNetPlantUml_UnsupportedType_RendersEmptyPictureAndReports`
 
-Renders a class diagram and asserts a fully transparent picture of 20 by 20, no warning, and one
-`plantuml-diagram-unsupported` report at `car.puml:2:1` that names the type and has a hint.
+Renders a legacy activity diagram and asserts a fully transparent picture of 20 by 20, no warning, and one
+`plantuml-diagram-unsupported` report at `flow.puml:2:1` that names the type and has a hint.
 
 ### CanvasNetPlantUml-StrictMode: The First Unsupported Construct Throws
 
 **Tests**: `PlantUmlUnsupportedDiagramTests.CanvasNetPlantUml_UnsupportedType_StrictThrows`
 
-Renders a class diagram in strict mode and asserts the exception's feature and that its report was delivered first.
+Renders a legacy activity diagram in strict mode and asserts the exception's feature and that its report was
+delivered first.
 
 **Tests**: `PlantUmlSequenceIntegrationTests.CanvasNetPlantUml_Sequence_UnsupportedStatements_AreReported`
 
@@ -177,6 +216,11 @@ picture, and asserts that strict mode throws for the first of them.
 
 Renders an activity diagram with a box-style action ending and a `goto`, asserts their two reports at their lines and
 the drawn picture, and asserts that strict mode throws for the first of them.
+
+**Tests**: `PlantUmlClassIntegrationTests.CanvasNetPlantUml_Class_UnsupportedStatements_AreReported`
+
+Renders a class diagram with a crow's foot, a role, and a `together` group, asserts their three
+`plantuml-statement-unsupported` reports at their lines and the drawn picture, and asserts that strict mode throws.
 
 ### CanvasNetPlantUml-DefaultLook: PlantUML's Colors, Identical Pixels
 
@@ -194,12 +238,19 @@ Renders an activity diagram and asserts the white background, the light gray `#F
 dark `#222222` of the start node; renders the fork fixture twice and asserts identical pixels, and asserts that a
 `scale 2` doubles the measured size.
 
+**Tests**: `PlantUmlClassIntegrationTests.CanvasNetPlantUml_Class_DefaultSkin_PaintsPlantUmlColors`,
+`PlantUmlClassIntegrationTests.CanvasNetPlantUml_Class_Render_IsDeterministicAndScaled`
+
+Renders a class diagram and asserts the white background, the light gray `#F1F1F1` inside a class, the green `#ADD1B2`
+spot of a class, and the purple `#B4A7E5` spot of an interface; renders the relations fixture twice and asserts
+identical pixels, and asserts that a `scale 2` doubles the measured size.
+
 **Tests**: `PlantUmlGalleryTests.CanvasNetPlantUml_Gallery_HoldsEveryDrawnDiagramType`,
 `PlantUmlGalleryTests.CanvasNetPlantUml_Gallery_RendersStrictWithoutWarnings`
 
 Opens every diagram of the user guide gallery (`docs/user_guide/examples/plantuml-*.puml`, at least eight) and asserts
-that each is a supported sequence or activity diagram and that both types are shown; renders each in strict mode and
-asserts no report, the measured size, and a picture that is not blank.
+that each is a supported sequence, activity, class, or object diagram and that every drawn type is shown; renders each
+in strict mode and asserts no report, the measured size, and a picture that is not blank.
 
 ### CanvasNetPlantUml-ImageSource: A Linked Diagram Is Drawn
 
@@ -211,8 +262,8 @@ by 100 and asserts that it fits; asserts that the resolver claims `.puml`.
 
 ### CanvasNetPlantUml-Platform: Every Platform And Runtime
 
-**Tests**: `PlantUmlSequenceIntegrationTests.CanvasNetPlantUml_Sequence_DefaultSkin_PaintsPlantUmlColors` with the
-`windows@`,
+**Tests**: `PlantUmlSequenceIntegrationTests.CanvasNetPlantUml_Sequence_DefaultSkin_PaintsPlantUmlColors` and
+`PlantUmlClassIntegrationTests.CanvasNetPlantUml_Class_DefaultSkin_PaintsPlantUmlColors` with the `windows@`,
 `ubuntu@`, `macos@`, `net8.0@`, `net9.0@`, `net10.0@`, and `net11.0@` source filters
 
 The representative test is evidence for each platform and runtime only from a test run on that platform or runtime.

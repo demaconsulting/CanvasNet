@@ -21,9 +21,11 @@ sections:
               must learn which settings were not applied.
             children:
               - CanvasNetPlantUml-Styling-SkinTheme-DefaultLook
+              - CanvasNetPlantUml-Styling-SkinTheme-ClassLook
               - CanvasNetPlantUml-Styling-SkinTheme-Immutable
               - CanvasNetPlantUml-Styling-SkinParams-Forms
               - CanvasNetPlantUml-Styling-SkinParams-Subset
+              - CanvasNetPlantUml-Styling-SkinParams-GraphSubset
               - CanvasNetPlantUml-Styling-SkinParams-Colors
               - CanvasNetPlantUml-Styling-SkinParams-Ignored
             tests:

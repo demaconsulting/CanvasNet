@@ -34,6 +34,13 @@ line, header, and title styles, the white background, the foot box, and the arro
 and bar styles; and the link label size and line, and the package and container outlines, corners, fills, and bold
 titles of the graph diagrams.
 
+##### CanvasNetPlantUml-Styling-SkinTheme-ClassLook: The Class And Object Boxes
+
+**Tests**: `SkinThemeTests.PlantUmlSkinTheme_Default_HasPlantUmlClassLook`
+
+Asserts the fill, line, line width, corners, and font size of classes and objects, the italic 12 of stereotypes, the
+size and color of members, and the icon size of 10 and the circle radius of 11.
+
 ##### CanvasNetPlantUml-Styling-SkinTheme-Immutable: A Change Returns A Copy
 
 **Tests**: `SkinThemeTests.PlantUmlSkinTheme_With_ReturnsChangedCopy`

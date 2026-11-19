@@ -6,15 +6,16 @@ This document describes the subsystem-level verification strategy for the `Svek`
 
 ### Verification Approach
 
-No diagram type lowers its model to the subsystem yet, so the subsystem is verified the way the graph diagrams will use
-it: the tests read small original diagram texts with `SvekSyntax`, lower them to a `SvekDiagram` with test entity
-images (boxes of a given size with a rectangle, ellipse, or diamond outline), lay them out with `SvekLayout` over the
-dagre layout of the CanvasNetLayout system (used as is), draw them with `SvekRenderer`, and assert the scene and the
-placement: the sizes, the boxes, the routes, the decorations, the labels, the notes, and the clusters. The Syntax,
-Styling, and Scenegraph subsystems are used as is. No mocking is required; the internal types are reached through the
-test assembly's `InternalsVisibleTo` access. Subsystem tests reside in `Svek/SvekTests.cs`; the shared helpers (test
-entity images, the context of a layout call, the statements of a text, the box and route of a placed element, overlap
-and containment checks) are in `Svek/SvekTestHelpers.cs`.
+The subsystem is verified independently of the diagram types that lower their models to it (the Class subsystem's
+verification covers class and object diagrams end to end), the way the graph diagrams use it: the tests read small
+original diagram texts with `SvekSyntax`, lower them to a `SvekDiagram` with test entity images (boxes of a given size
+with a rectangle, ellipse, or diamond outline), lay them out with `SvekLayout` over the dagre layout of the
+CanvasNetLayout system (used as is), draw them with `SvekRenderer`, and assert the scene and the placement: the sizes,
+the boxes, the routes, the decorations, the labels, the notes, and the clusters. The Syntax, Styling, and Scenegraph
+subsystems are used as is. No mocking is required; the internal types are reached through the test assembly's
+`InternalsVisibleTo` access. Subsystem tests reside in `Svek/SvekTests.cs`; the shared helpers (test entity images, the
+context of a layout call, the statements of a text, the box and route of a placed element, overlap and containment
+checks) are in `Svek/SvekTestHelpers.cs`.
 
 ### Test Environment
 

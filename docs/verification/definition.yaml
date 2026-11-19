@@ -266,6 +266,10 @@ input-files:
   - docs/verification/canvas-net-plant-uml/svek/svek-layout.md
   - docs/verification/canvas-net-plant-uml/svek/svek-geometry.md
   - docs/verification/canvas-net-plant-uml/svek/svek-renderer.md
+  - docs/verification/canvas-net-plant-uml/class.md
+  - docs/verification/canvas-net-plant-uml/class/class-parser.md
+  - docs/verification/canvas-net-plant-uml/class/class-model.md
+  - docs/verification/canvas-net-plant-uml/class/class-renderer.md
   - docs/verification/canvas-net-viewer.md
   - docs/verification/canvas-net-viewer/canvas-net-viewer.md
   - docs/verification/canvas-net-viewer/viewer-exception.md

@@ -48,13 +48,26 @@ action, a condition, a connector, and stop is an activity diagram; asserts the c
 `end legend` and `endlegend` closing it and `end legends` not, the block of an aligned footer alone on its line, no
 block for an aligned header with text, an aligned header as a common statement, and `endbox` as a sequence statement.
 
+##### CanvasNetPlantUml-Syntax-DiagramDetector-GraphFamilies: Graph Families In PlantUML's Order
+
+**Tests**: `DiagramDetectorTests.PlantUmlDiagramDetector_Detect_ClassFamily_IsDrawn`,
+`DiagramDetectorTests.PlantUmlDiagramDetector_Detect_GraphFamilies_FollowPlantUmlOrder`
+
+Asserts that a class, an interface, an extension, a dependency, a member link, a member line, a package with a class,
+and a class with a body followed by a link are drawn class diagrams and that an object or a map is a drawn object
+diagram; asserts that plain messages and a message with a circle are sequence diagrams, an extension a class diagram,
+links to use cases use case diagrams, links to components component diagrams, nodes and clouds a deployment diagram,
+a state with a link a state diagram, a class with an actor a class diagram, and `(*)` a legacy activity diagram.
+
 ##### CanvasNetPlantUml-Syntax-DiagramDetector-OtherTypes: Other Types Are Named
 
-**Tests**: `DiagramDetectorTests.PlantUmlDiagramDetector_Detect_OtherTypeKeyword_IsRecognized`
+**Tests**: `DiagramDetectorTests.PlantUmlDiagramDetector_Detect_OtherTypeKeyword_IsRecognized`,
+`DiagramDetectorTests.PlantUmlDiagramDetector_UnsupportedHint_ListsDrawnTypes`
 
-Asserts the type of thirteen one-statement diagrams: class (two keywords), object, use case (keyword and parentheses),
-state (`[*]` and keyword), legacy activity, component (brackets and keyword), deployment, timing, and gantt; none is
-drawn.
+Asserts the type of one-statement diagrams: use case (keyword and parentheses), state (`[*]` and keyword), legacy
+activity, component (brackets and keyword), deployment, timing, and gantt; none is drawn. Asserts that the hint of a
+legacy activity diagram names it and lists the activity, class, object, and sequence diagrams as drawn, and the joined
+lists of two and three types.
 
 ##### CanvasNetPlantUml-Syntax-DiagramDetector-Errors: Empty And Unknown Diagrams Fail Located
 

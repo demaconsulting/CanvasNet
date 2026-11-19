@@ -400,10 +400,10 @@ software items, specifically:
   `PlantUmlImageSource`), and the internal subsystems `Syntax` (`Preprocessor` and `DiagramDetector`), `Styling`
   (`SkinTheme` and `SkinParams`), `Scenegraph` (`SceneModel`, `TextLayout`, and `ScenePainter`), `Sequence`
   (`SequenceParser`, `SequenceModel`, `SequenceLayout`, and `SequenceRenderer`), `Activity` (`ActivityParser`,
-  `ActivityModel`, `ActivityLayout`, and `ActivityRenderer`), and `Svek` (`SvekModel`, `SvekSyntax`, `SvekLayout`,
-  `SvekGeometry`, and `SvekRenderer`: the shared engine of the diagrams that PlantUML lays out with Graphviz, not yet
-  used by a diagram type). Sequence diagrams and activity diagrams (the new syntax)
-  are drawn; every PlantUML diagram type is recognized; the types
+  `ActivityModel`, `ActivityLayout`, and `ActivityRenderer`), `Svek` (`SvekModel`, `SvekSyntax`, `SvekLayout`,
+  `SvekGeometry`, and `SvekRenderer`: the shared engine of the diagrams that PlantUML lays out with Graphviz), and
+  `Class` (`ClassParser`, `ClassModel`, and `ClassRenderer`). Sequence diagrams, activity diagrams (the new syntax),
+  and class and object diagrams are drawn; every PlantUML diagram type is recognized; the types
   this version does not draw are reported as unsupported — see *CanvasNetPlantUml System Design*
   (`canvas-net-plant-uml.md`) for the known differences from PlantUML and its Phase Plan. `CanvasNetPlantUml` depends
   on the `CanvasNet` system's `Canvas`, `Geometry`, `Drawing`, `Fonts`, `Rendering`, `Files`, and `ImageSources`
@@ -708,16 +708,18 @@ the image source; its internal `Syntax` subsystem holds the `Preprocessor` and `
 `Styling` subsystem holds the `SkinTheme` and `SkinParams` units, its internal `Scenegraph` subsystem holds the
 `SceneModel`, `TextLayout`, and `ScenePainter` units, its internal `Sequence` subsystem holds the `SequenceParser`,
 `SequenceModel`, `SequenceLayout`, and `SequenceRenderer` units, its internal `Activity` subsystem holds the
-`ActivityParser`, `ActivityModel`, `ActivityLayout`, and `ActivityRenderer` units, and its internal `Svek` subsystem
+`ActivityParser`, `ActivityModel`, `ActivityLayout`, and `ActivityRenderer` units, its internal `Svek` subsystem
 (the shared engine of the diagrams that PlantUML lays out with Graphviz) holds the `SvekModel`, `SvekSyntax`,
-`SvekLayout`, `SvekGeometry`, and `SvekRenderer` units (each in the sub-namespace and the sub-folder of its name). In
+`SvekLayout`, `SvekGeometry`, and `SvekRenderer` units, and its internal `Class` subsystem holds the `ClassParser`,
+`ClassModel`, and `ClassRenderer` units (each in the sub-namespace and the sub-folder of its name). In
 the SysML2 model the system is `CanvasNetPlantUmlSystem` and its subsystem and unit `part def` names carry the prefix
 `PlantUml` (`PlantUmlSyntax`, `PlantUmlPreprocessor`, `PlantUmlDiagramDetector`, `PlantUmlStyling`, `PlantUmlSkinTheme`,
 `PlantUmlSkinParams`, `PlantUmlScenegraph`, `PlantUmlSceneModel`, `PlantUmlTextLayout`, `PlantUmlScenePainter`,
 `PlantUmlSequence`, `PlantUmlSequenceParser`, `PlantUmlSequenceModel`, `PlantUmlSequenceLayout`,
 `PlantUmlSequenceRenderer`, `PlantUmlActivity`, `PlantUmlActivityParser`, `PlantUmlActivityModel`,
 `PlantUmlActivityLayout`, `PlantUmlActivityRenderer`, `PlantUmlSvek`, `PlantUmlSvekModel`, `PlantUmlSvekSyntax`,
-`PlantUmlSvekLayout`, `PlantUmlSvekGeometry`, and `PlantUmlSvekRenderer`), because the model package is shared by every
+`PlantUmlSvekLayout`, `PlantUmlSvekGeometry`, `PlantUmlSvekRenderer`, `PlantUmlClass`, `PlantUmlClassParser`,
+`PlantUmlClassModel`, and `PlantUmlClassRenderer`), because the model package is shared by every
 system and the Mermaid system already uses the short names. It depends on the `CanvasNet` system's `Canvas`, `Geometry`,
 `Drawing`, `Fonts`, `Rendering`, `Files`, and `ImageSources` subsystems through their public API, and on the
 `CanvasNetLayout` system (its graph layout and work meter) through internal friend access. See the Folder Layout section
@@ -1812,7 +1814,7 @@ src/DemaConsulting.CanvasNet.PlantUml/
 │   ├── Preprocessor.cs            — Preprocessor: framing, comments, continued lines, and directives
 │   ├── Preprocessor.MappedText.cs — Preprocessor: the line table and the located statements
 │   ├── Preprocessor.Includes.cs   — Preprocessor: the local !include files under the file-access policy
-│   └── DiagramDetector.cs         — DiagramDetector: the diagram type from the tag or the statements
+│   └── DiagramDetector*.cs        — DiagramDetector: the diagram type from the tag or the statements
 ├── Styling/                       — Styling subsystem
 │   ├── SkinTheme.cs               — SkinTheme: the elements, their styles, and PlantUML's default look
 │   └── SkinParams*.cs             — SkinParams: the skinparam statements, the supported subset, and the colors
@@ -1830,13 +1832,17 @@ src/DemaConsulting.CanvasNet.PlantUml/
 │   ├── ActivityModel*.cs          — ActivityModel: the instruction tree, swimlanes, page texts, and the facts
 │   ├── ActivityLayout*.cs         — ActivityLayout: the tiles, swimlanes, and compression of PlantUML's ftile engine
 │   └── ActivityRenderer.cs        — ActivityRenderer: the placed shapes as scene items
-└── Svek/                          — Svek subsystem (the shared engine of the graph diagrams)
-    ├── SvekModel*.cs              — SvekModel: the lowered diagram, its entity and cluster images, and the facts
-    ├── SvekSyntax*.cs             — SvekSyntax: names, links, notes, and the common statements of the graph diagrams
-    ├── SvekLayout*.cs             — SvekLayout: the layout over dagre with clusters, rows, notes, and routes
-    ├── PlantUmlLayoutWorkMeter.cs — SvekLayout: the work meter with PlantUML's located failures
-    ├── SvekGeometry*.cs           — SvekGeometry: curves, clipping, and the link decorations
-    └── SvekRenderer*.cs           — SvekRenderer: links, container symbols, and notes as scene items
+├── Svek/                          — Svek subsystem (the shared engine of the graph diagrams)
+│   ├── SvekModel*.cs              — SvekModel: the lowered diagram, its entity and cluster images, and the facts
+│   ├── SvekSyntax*.cs             — SvekSyntax: names, links, notes, and the common statements of the graph diagrams
+│   ├── SvekLayout*.cs             — SvekLayout: the layout over dagre with clusters, rows, notes, and routes
+│   ├── PlantUmlLayoutWorkMeter.cs — SvekLayout: the work meter with PlantUML's located failures
+│   ├── SvekGeometry*.cs           — SvekGeometry: curves, clipping, and the link decorations
+│   └── SvekRenderer*.cs           — SvekRenderer: links, container symbols, and notes as scene items
+└── Class/                         — Class subsystem (class and object diagrams)
+    ├── ClassParser*.cs            — ClassParser: the class and object statements, names, and packages
+    ├── ClassModel*.cs             — ClassModel: entities, packages, notes, links, rules, and the lowering
+    └── ClassRenderer*.cs          — ClassRenderer: the class, object, and map boxes
 ```
 
 Each sub-folder also holds a `NamespaceDoc.cs` with the namespace documentation. `CanvasNetPlantUml` uses the

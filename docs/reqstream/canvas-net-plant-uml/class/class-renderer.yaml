@@ -1,0 +1,68 @@
+---
+# Software Unit Requirements for ClassRenderer
+#
+# These requirements describe the design-level behavior of the ClassRenderer unit of the Class subsystem (internal
+# namespace DemaConsulting.CanvasNet.PlantUml.Class): the images of class, object, and map boxes. See
+# docs/verification/canvas-net-plant-uml/class/class-renderer.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetPlantUml Requirements
+    sections:
+      - title: Class Requirements
+        sections:
+          - title: ClassRenderer Requirements
+            requirements:
+              - id: CanvasNetPlantUml-Class-ClassRenderer-ClassBox
+                title: >-
+                  The ClassRenderer unit shall size a class box as PlantUML's EntityImageClass does (the header of the
+                  circle block, the stereotypes in italic 12 above the name, and the generic box, then the field and
+                  method compartments, 8 high when empty) and draw the generic parameters in a dashed white box over the
+                  top-right corner, and nothing for a hidden circle.
+                justification: |
+                  The class box is the main shape of a class diagram and must have PlantUML's size and parts.
+                tests:
+                  - PlantUmlClassRenderer_EmptyClass_HasPlantUmlSize
+                  - PlantUmlClassRenderer_Header_DrawsStereotypesGenericAndSpot
+
+              - id: CanvasNetPlantUml-Class-ClassRenderer-Spot
+                title: >-
+                  The ClassRenderer unit shall draw the circled character of every kind with PlantUML's character and
+                  color (C, A, I, E, @, and the others), a spot written in a stereotype instead, and the name of an
+                  abstract class or an interface in italic.
+                justification: |
+                  The circle tells the reader the kind of a box at a glance.
+                tests:
+                  - PlantUmlClassRenderer_Spot_HasTheKindsCharacterAndColor
+
+              - id: CanvasNetPlantUml-Class-ClassRenderer-Members
+                title: >-
+                  The ClassRenderer unit shall draw the members with PlantUML's visibility icons (a square, a diamond, a
+                  triangle, or a circle, hollow for a field and filled for a method, in PlantUML's colors) in a column
+                  of the icon size plus 4, static members underlined and abstract ones in italic, and the visibility
+                  characters instead when the icon size is 0.
+                justification: |
+                  The icons and modifiers are how PlantUML shows a member's visibility and kind.
+                tests:
+                  - PlantUmlClassRenderer_Members_DrawIconsAndModifiers
+                  - PlantUmlClassRenderer_IconSizeZero_WritesTheCharacters
+
+              - id: CanvasNetPlantUml-Class-ClassRenderer-Separators
+                title: >-
+                  The ClassRenderer unit shall draw the separators of a body as PlantUML does: a solid line for --, a
+                  dotted line for .., a double line for ==, a thin line for __, and a title centered between two halves
+                  of the line.
+                justification: |
+                  Separators group the members as the author wrote them.
+                tests:
+                  - PlantUmlClassRenderer_Separators_DrawTheirLinesAndTitles
+
+              - id: CanvasNetPlantUml-Class-ClassRenderer-Objects
+                title: >-
+                  The ClassRenderer unit shall draw an object with its centered name and its fields below a line (16
+                  high without fields) and a map as a table of its entries with the keys centered and the values 5 from
+                  their column.
+                justification: |
+                  Object diagrams draw objects and maps as PlantUML's EntityImageObject and EntityImageMap do.
+                tests:
+                  - PlantUmlClassRenderer_Object_DrawsNameAndFields
+                  - PlantUmlClassRenderer_Map_DrawsATableOfEntries

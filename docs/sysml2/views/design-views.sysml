@@ -223,6 +223,10 @@ package CanvasNet {
         expose PlantUmlSvek::**;
     }
 
+    view PlantUmlClassView : InterconnectionView {
+        expose PlantUmlClass::**;
+    }
+
     view CanvasNetToolView : InterconnectionView {
         expose CanvasNetToolSystem::**;
     }

@@ -280,6 +280,10 @@ includes:
   - docs/reqstream/canvas-net-plant-uml/svek/svek-layout.yaml
   - docs/reqstream/canvas-net-plant-uml/svek/svek-geometry.yaml
   - docs/reqstream/canvas-net-plant-uml/svek/svek-renderer.yaml
+  - docs/reqstream/canvas-net-plant-uml/class.yaml
+  - docs/reqstream/canvas-net-plant-uml/class/class-parser.yaml
+  - docs/reqstream/canvas-net-plant-uml/class/class-model.yaml
+  - docs/reqstream/canvas-net-plant-uml/class/class-renderer.yaml
   - docs/reqstream/canvas-net-viewer.yaml
   - docs/reqstream/canvas-net-viewer/canvas-net-viewer.yaml
   - docs/reqstream/canvas-net-viewer/platform-requirements.yaml

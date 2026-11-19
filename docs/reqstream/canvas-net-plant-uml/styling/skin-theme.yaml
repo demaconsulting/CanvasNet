@@ -30,6 +30,18 @@ sections:
                   - PlantUmlSkinTheme_Default_HasPlantUmlActivityLook
                   - PlantUmlSkinTheme_Default_HasPlantUmlGraphLook
 
+              - id: CanvasNetPlantUml-Styling-SkinTheme-ClassLook
+                title: >-
+                  The SkinTheme unit shall hold the values of PlantUML's default look for class and object boxes: filled
+                  `#F1F1F1` and outlined `#181818` half a pixel wide with corners of 5 and names of 14 pixels,
+                  stereotypes in italic 12, black members of 14 pixels, visibility icons of 10 pixels, and circled
+                  characters of radius 11.
+                justification: |
+                  These are the values of PlantUML's own default skin for class diagrams, which a diagram without skin
+                  parameters must match.
+                tests:
+                  - PlantUmlSkinTheme_Default_HasPlantUmlClassLook
+
               - id: CanvasNetPlantUml-Styling-SkinTheme-Immutable
                 title: >-
                   The SkinTheme unit shall change the style of an element by returning a new theme, leaving the

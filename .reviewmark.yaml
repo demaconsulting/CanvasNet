@@ -5321,11 +5321,13 @@ reviews:
       - "test/DemaConsulting.CanvasNet.PlantUml.Tests/PlantUmlUnsupportedDiagramTests.cs"  # unsupported diagram types
       - "test/DemaConsulting.CanvasNet.PlantUml.Tests/PlantUmlSequenceIntegrationTests.cs"  # sequence system tests
       - "test/DemaConsulting.CanvasNet.PlantUml.Tests/PlantUmlActivityIntegrationTests.cs"  # activity system tests
+      - "test/DemaConsulting.CanvasNet.PlantUml.Tests/PlantUmlClassIntegrationTests.cs"  # class and object system tests
       - "test/DemaConsulting.CanvasNet.PlantUml.Tests/PlantUmlIncludeTests.cs"  # include and image source system tests
       - "test/DemaConsulting.CanvasNet.PlantUml.Tests/PlantUmlHardeningTests.cs"  # limits and mutation fuzzer
       - "test/DemaConsulting.CanvasNet.PlantUml.Tests/PlantUmlGalleryTests.cs"  # documentation gallery tests
       - "docs/user_guide/examples/plantuml-*.puml"                    # documentation gallery diagrams
       - "test/DemaConsulting.CanvasNet.PlantUml.Tests/PlantUmlReferenceLayoutTests.cs"  # reference layout tests
+      - "test/DemaConsulting.CanvasNet.PlantUml.Tests/PlantUmlReferenceShapeTests.cs"  # reference shape tests (graphs)
       - "test/DemaConsulting.CanvasNet.PlantUml.Tests/Fixtures/**"     # original fixtures and reference goldens
       - "tools/visual-diff/update-plantuml-goldens.ps1"               # golden generator (developer tool)
       - "test/DemaConsulting.CanvasNet.PlantUml.Tests/PlantUmlTestHelpers.cs"  # shared test helpers
@@ -5443,7 +5445,7 @@ reviews:
       - "docs/design/canvas-net-plant-uml/syntax/diagram-detector.md"  # unit design
       - "docs/verification/canvas-net-plant-uml/syntax/diagram-detector.md"  # unit verification
       - "docs/sysml2/model/canvas-net-plant-uml/syntax/diagram-detector.sysml"  # unit SysML2 model
-      - "src/DemaConsulting.CanvasNet.PlantUml/Syntax/DiagramDetector.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.PlantUml/Syntax/DiagramDetector*.cs"  # unit source (partial files)
       - "test/DemaConsulting.CanvasNet.PlantUml.Tests/Syntax/DiagramDetectorTests.cs"  # unit tests
   # CanvasNetPlantUml-Styling Review (one per subsystem)
   - id: CanvasNetPlantUml-Styling
@@ -5805,6 +5807,65 @@ reviews:
       - "docs/sysml2/model/canvas-net-plant-uml/svek/svek-renderer.sysml"  # unit SysML2 model
       - "src/DemaConsulting.CanvasNet.PlantUml/Svek/SvekRenderer*.cs"  # unit source (partial files)
       - "test/DemaConsulting.CanvasNet.PlantUml.Tests/Svek/SvekRendererTests.cs"  # unit tests
+  # CanvasNetPlantUml-Class Review (one per subsystem)
+  - id: CanvasNetPlantUml-Class
+    title: Review that CanvasNetPlantUml Class Subsystem Implementation is Correct
+    context:
+      - "docs/design/canvas-net-plant-uml.md"
+      - "docs/reqstream/canvas-net-plant-uml.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-plant-uml/class.yaml"  # subsystem requirements
+      - "docs/design/canvas-net-plant-uml/class.md"  # subsystem design
+      - "docs/verification/canvas-net-plant-uml/class.md"  # subsystem verification
+      - "docs/sysml2/model/canvas-net-plant-uml/class.sysml"  # subsystem SysML2 model
+      - "src/DemaConsulting.CanvasNet.PlantUml/Class/NamespaceDoc.cs"  # namespace documentation
+      - "test/DemaConsulting.CanvasNet.PlantUml.Tests/Class/ClassTests.cs"  # subsystem tests
+      - "test/DemaConsulting.CanvasNet.PlantUml.Tests/Class/ClassTestHelpers.cs"  # shared class test helpers
+  # CanvasNetPlantUml-Class-ClassParser Review (one per unit)
+  - id: CanvasNetPlantUml-Class-ClassParser
+    title: Review that CanvasNetPlantUml Class ClassParser Implementation is Correct
+    context:
+      - "docs/design/canvas-net-plant-uml.md"
+      - "docs/reqstream/canvas-net-plant-uml.yaml"
+      - "docs/design/canvas-net-plant-uml/class.md"
+      - "docs/reqstream/canvas-net-plant-uml/class.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-plant-uml/class/class-parser.yaml"  # unit requirements
+      - "docs/design/canvas-net-plant-uml/class/class-parser.md"  # unit design
+      - "docs/verification/canvas-net-plant-uml/class/class-parser.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-plant-uml/class/class-parser.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.PlantUml/Class/ClassParser*.cs"  # unit source (partial files)
+      - "test/DemaConsulting.CanvasNet.PlantUml.Tests/Class/ClassParserTests.cs"  # unit tests
+  # CanvasNetPlantUml-Class-ClassModel Review (one per unit)
+  - id: CanvasNetPlantUml-Class-ClassModel
+    title: Review that CanvasNetPlantUml Class ClassModel Implementation is Correct
+    context:
+      - "docs/design/canvas-net-plant-uml.md"
+      - "docs/reqstream/canvas-net-plant-uml.yaml"
+      - "docs/design/canvas-net-plant-uml/class.md"
+      - "docs/reqstream/canvas-net-plant-uml/class.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-plant-uml/class/class-model.yaml"  # unit requirements
+      - "docs/design/canvas-net-plant-uml/class/class-model.md"  # unit design
+      - "docs/verification/canvas-net-plant-uml/class/class-model.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-plant-uml/class/class-model.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.PlantUml/Class/ClassModel*.cs"  # unit source (partial files)
+      - "test/DemaConsulting.CanvasNet.PlantUml.Tests/Class/ClassModelTests.cs"  # unit tests
+  # CanvasNetPlantUml-Class-ClassRenderer Review (one per unit)
+  - id: CanvasNetPlantUml-Class-ClassRenderer
+    title: Review that CanvasNetPlantUml Class ClassRenderer Implementation is Correct
+    context:
+      - "docs/design/canvas-net-plant-uml.md"
+      - "docs/reqstream/canvas-net-plant-uml.yaml"
+      - "docs/design/canvas-net-plant-uml/class.md"
+      - "docs/reqstream/canvas-net-plant-uml/class.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-plant-uml/class/class-renderer.yaml"  # unit requirements
+      - "docs/design/canvas-net-plant-uml/class/class-renderer.md"  # unit design
+      - "docs/verification/canvas-net-plant-uml/class/class-renderer.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-plant-uml/class/class-renderer.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.PlantUml/Class/ClassRenderer*.cs"  # unit source (partial files)
+      - "test/DemaConsulting.CanvasNet.PlantUml.Tests/Class/ClassRendererTests.cs"  # unit tests
 
   # CanvasNetTool-Architecture Review (one per system)
   - id: CanvasNetTool-Architecture

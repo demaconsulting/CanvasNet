@@ -63,4 +63,5 @@ The Syntax subsystem (`SourceStatement`, `DiagramDetector.IsCloser`), the Stylin
 
 #### Callers
 
-The parsers of the graph diagrams (none in this step) and the tests.
+The parsers of the graph diagrams (the `ClassParser` unit of the Class subsystem), the `DiagramDetector` unit (the graph
+families), and the tests.
