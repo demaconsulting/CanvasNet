@@ -7,7 +7,7 @@ package CanvasNet {
         comment verificationRef /* Verification: docs/verification/canvas-net-plant-uml.md */
         comment reqRef /* Requirements: docs/reqstream/canvas-net-plant-uml.yaml */
         comment /* Third-Party Provenance and Attribution: CanvasNetPlantUml is derived with attribution, not clean-room. Its framing, preprocessor subset, detection order, default look (plantuml.skin), text metrics (Java's logical fonts on Windows), sequence geometry (the teoz engine), and activity tile composition (the ftile engine) follow the MIT-licensed distribution of PlantUML (plantuml-mit). The license text and the provenance table ship in src/DemaConsulting.CanvasNet.PlantUml/third-party/, and every file with ported logic carries a Portions derived from header. The package is not affiliated with the PlantUML project. */
-        comment /* CanvasNetPlantUml references the sibling CanvasNet system only: its Canvas subsystem (Surface, Rgba32), Geometry (paths), Drawing (path filling and stroking), Fonts (the bundled fonts through a font resolver with no system fonts), and Rendering (text measuring and text paths), Files (the file reference resolver and the file-access policy of the include files), and ImageSources (the image source interface of the composition hook). It has no OTS runtime dependency. */
+        comment /* CanvasNetPlantUml references the sibling CanvasNetLayout system (the graph library and the dagre layered layout, through internal friend access, for the diagrams that PlantUML lays out with Graphviz) and the sibling CanvasNet system: its Canvas subsystem (Surface, Rgba32), Geometry (paths), Drawing (path filling and stroking), Fonts (the bundled fonts through a font resolver with no system fonts), and Rendering (text measuring and text paths), Files (the file reference resolver and the file-access policy of the include files), and ImageSources (the image source interface of the composition hook). It has no OTS runtime dependency. */
 
         part plantUmlDocument : PlantUmlDocument;
         part plantUmlSyntax : PlantUmlSyntax;
@@ -23,5 +23,6 @@ package CanvasNet {
         dependency usesRendering from CanvasNetPlantUmlSystem to Rendering;
         dependency usesFiles from CanvasNetPlantUmlSystem to Files;
         dependency usesImageSources from CanvasNetPlantUmlSystem to ImageSources;
+        dependency usesLayout from CanvasNetPlantUmlSystem to CanvasNetLayoutSystem;
     }
 }

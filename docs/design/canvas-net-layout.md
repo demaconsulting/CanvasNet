@@ -26,16 +26,18 @@ The system consists of two internal subsystems and no direct unit:
 
 The dependency direction is one way: `Dagre -> Graphlib`. Neither subsystem uses any other CanvasNet system.
 
-**Consumers.** The system's consumers are the diagram systems that reference the package: today CanvasNetMermaid,
-whose `ClusterLayout` (in its `Rendering` subsystem) builds the input graphs and calls `DagreLayout.Run`, and whose
-renderers charge their own metered loops to the same meter. A consumer derives its own meter from `LayoutWorkMeter`
-(Mermaid's is `MermaidLayoutWorkMeter` of its `MermaidDocument` unit), so a layout fails in the words of the package
-that called it.
+**Consumers.** The system's consumers are the diagram systems that reference the package: CanvasNetMermaid, whose
+`ClusterLayout` (in its `Rendering` subsystem) builds the input graphs and calls `DagreLayout.Run`, and whose renderers
+charge their own metered loops to the same meter; and CanvasNetPlantUml, whose `SvekLayout` (in its `Svek`
+subsystem) lays out the diagrams that PlantUML lays out with Graphviz. A consumer derives its own meter from
+`LayoutWorkMeter` (Mermaid's is `MermaidLayoutWorkMeter` of its `MermaidDocument` unit, PlantUML's is
+`PlantUmlLayoutWorkMeter` of its `SvekLayout` unit), so a layout fails in the words of the package that called it.
 
 **API decision: internal types visible to friend assemblies.** Every type of the package is `internal`, and the
 package grants `InternalsVisibleTo` to `DemaConsulting.CanvasNet.Layout.Tests`, `DemaConsulting.CanvasNet.Mermaid`,
-and `DemaConsulting.CanvasNet.Mermaid.Tests` (a future diagram package that adopts the layout, such as the PlantUML
-package, is added to the list with its tests). The package therefore has no public API. The reasons:
+`DemaConsulting.CanvasNet.Mermaid.Tests`, `DemaConsulting.CanvasNet.PlantUml`, and
+`DemaConsulting.CanvasNet.PlantUml.Tests` (a further diagram package that adopts the layout is added to the list with
+its tests). The package therefore has no public API. The reasons:
 
 1. **The established pattern of the repository.** The core library grants internal access to the Pdf, Svg, Pptx,
    Viewer, and Vega-Lite packages, and Render3D to the Scad package; all packages are packed by one solution-wide
@@ -138,14 +140,16 @@ requirements are proven by running a system test on every platform and framework
 
 - **Friend assemblies.** The internal surface is reached only through `InternalsVisibleTo`
   (`DemaConsulting.CanvasNet.Layout.Tests`, `DemaConsulting.CanvasNet.Mermaid`,
-  `DemaConsulting.CanvasNet.Mermaid.Tests`). A consumer's node and edge labels may derive from `DagreNode` and
-  `DagreEdge` across the assembly boundary (Mermaid's `ClusterLayoutNode` and `ClusterLayoutEdge` do).
+  `DemaConsulting.CanvasNet.Mermaid.Tests`, `DemaConsulting.CanvasNet.PlantUml`,
+  `DemaConsulting.CanvasNet.PlantUml.Tests`). A consumer's node and edge labels may derive from `DagreNode` and
+  `DagreEdge` across the assembly boundary (Mermaid's `ClusterLayoutNode` and `ClusterLayoutEdge` do, and so do
+  PlantUML's `SvekLayout` labels).
 - **Lockstep release.** The friend assemblies are packed and released together with the package from one commit, so a
   consumer always runs with the layout it was built and tested with; upgrading `DemaConsulting.CanvasNet.Layout` alone
   is not supported, as for the other friend packages of the repository.
 - **No public API documentation.** The package has no public types; its API documentation (ApiMark) is empty.
 - **The tool package.** The `canvasnet` tool bundles `DemaConsulting.CanvasNet.Layout.dll` transitively through the
-  Mermaid library and ships the provenance README as `licenses/Layout-third-party-README.md`; the license texts of the
+  Mermaid and PlantUML libraries and ships the provenance README as `licenses/Layout-third-party-README.md`; the license texts of the
   layout are byte-identical to the `LICENSE-dagre.txt` and `LICENSE-lodash.txt` that the Mermaid library already places
   in the tool's `licenses/` folder, so they are not added twice.
 - **Curve code stays with the consumer.** The edge curves of Mermaid (`EdgeBuilder.Curves.cs`, a port of d3-shape and

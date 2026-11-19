@@ -13,8 +13,8 @@ document systems in this repository. It reads PlantUML text and **parses** it in
 subgraph counts), **measures** the size it renders at, and **renders** it onto a `Surface` (the core `CanvasNet` pixel
 buffer) at its natural size multiplied by a scale or fitted inside an exact size. Rendering is static, deterministic
 (pixel-identical surfaces on every run, thread, and platform, because only the bundled fonts are used), and offline (no
-network, no Java runtime, no Graphviz), and uses only the .NET base class library and the public API of the core
-`CanvasNet` package.
+network, no Java runtime, no Graphviz), and uses only the .NET base class library, the public API of the core
+`CanvasNet` package, and the internal graph layout of the `CanvasNetLayout` package.
 
 The goal is **fidelity to PlantUML**: a diagram must look like the picture that PlantUML draws with its default look.
 The package is therefore derived, with attribution, from the MIT-licensed distribution of PlantUML (see *Third-Party
@@ -94,12 +94,16 @@ flowchart LR
 
 ## Dependencies
 
-CanvasNetPlantUml references the sibling `CanvasNet` system only, through its public API: its `Canvas` subsystem
+CanvasNetPlantUml references the sibling `CanvasNetLayout` system (the graph library and the dagre layered layout,
+through internal friend access: `Graph`, `DagreLayout.Run`, and the abstract `LayoutWorkMeter`, whose PlantUML failures
+`PlantUmlLayoutWorkMeter` creates) for the diagrams that PlantUML lays out with Graphviz, and the sibling `CanvasNet`
+system through its public API: its `Canvas` subsystem
 (`Surface`, `Rgba32`, `CssColor`), `Geometry` (paths), `Drawing` (path filling and stroking), `Fonts` (the bundled fonts
 through a font resolver with no system fonts), `Rendering` (text measuring and text paths), `Files` (the file reference
 resolver and the file-access policy of the include files), and `ImageSources` (the image source interface). It has no
 OTS runtime dependency and references no other format package of the repository (not the Mermaid package, whose scene
-graph it does not share). See *CanvasNet System Design* for the referenced subsystems.
+graph it does not share). See *CanvasNet System Design* and *CanvasNetLayout System Design* for the referenced
+subsystems.
 
 ## Risk Control Measures
 

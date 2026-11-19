@@ -10,10 +10,10 @@
 # positions the nodes of a directed, possibly compound and cyclic graph in ranks and routes its edges, exactly as
 # dagre-d3-es does, within a work budget, observing cancellation, and deterministically. It depends only on the .NET
 # base class library. Its types are internal and visible only to its friend assemblies (the consuming diagram
-# packages, such as DemaConsulting.CanvasNet.Mermaid, and the tests), so its consumers are those packages; a consumer
-# supplies the work meter that creates its own located failures (see docs/design/canvas-net-layout.md). The ported
-# behavior of dagre, graphlib, dagre-d3-es, and lodash is attributed in the package's third-party notices
-# (src/DemaConsulting.CanvasNet.Layout/third-party).
+# packages, DemaConsulting.CanvasNet.Mermaid and DemaConsulting.CanvasNet.PlantUml, and the tests), so its consumers
+# are those packages; a consumer supplies the work meter that creates its own located failures (see
+# docs/design/canvas-net-layout.md). The ported behavior of dagre, graphlib, dagre-d3-es, and lodash is attributed in
+# the package's third-party notices (src/DemaConsulting.CanvasNet.Layout/third-party).
 #
 # The Graphlib and Dagre requirements were moved here from the CanvasNetMermaid system when the layout became its
 # own package; their IDs were renamed one to one by prefix (CanvasNetMermaid-Graphlib-* to CanvasNetLayout-Graphlib-*,

@@ -250,7 +250,7 @@ selects these test projects:
 | `DemaConsulting.CanvasNet.Render3D` | `Render3D.Tests`, `Scad.Tests`, `Viewer.Tests`, `Tool.Tests` |
 | `DemaConsulting.CanvasNet.Scad` | `Scad.Tests`, `Viewer.Tests`, `Tool.Tests` |
 | `DemaConsulting.CanvasNet.VegaLite` | `VegaLite.Tests`, `Viewer.Tests`, `Tool.Tests` |
-| `DemaConsulting.CanvasNet.Layout` | `Layout.Tests`, `Mermaid.Tests`, `Viewer.Tests`, `Tool.Tests` |
+| `DemaConsulting.CanvasNet.Layout` | `Layout.Tests`, `Mermaid.Tests`, `PlantUml.Tests`, `Viewer.Tests`, `Tool.Tests` |
 | `DemaConsulting.CanvasNet.Mermaid` | `Mermaid.Tests`, `Viewer.Tests`, `Tool.Tests` |
 | `DemaConsulting.CanvasNet.PlantUml` | `PlantUml.Tests`, `Viewer.Tests`, `Tool.Tests` |
 | `DemaConsulting.CanvasNet.Viewer` | `Viewer.Tests`, `Tool.Tests` |

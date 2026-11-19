@@ -74,6 +74,8 @@
     <InternalsVisibleTo Include="DemaConsulting.CanvasNet.Layout.Tests" />
     <InternalsVisibleTo Include="DemaConsulting.CanvasNet.Mermaid" />
     <InternalsVisibleTo Include="DemaConsulting.CanvasNet.Mermaid.Tests" />
+    <InternalsVisibleTo Include="DemaConsulting.CanvasNet.PlantUml" />
+    <InternalsVisibleTo Include="DemaConsulting.CanvasNet.PlantUml.Tests" />
   </ItemGroup>
 
   <ItemGroup>

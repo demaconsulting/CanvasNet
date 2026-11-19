@@ -360,7 +360,8 @@ software items, specifically:
   contains no direct unit and two internal subsystems: `Graphlib` (`Graph` and `GraphAlgorithms`) and `Dagre`
   (`DagreLayout`, `DagreAcyclic`, `DagreRanker`, `DagreNesting`, `DagreNormalizer`, `DagreOrdering`,
   `DagrePositioning`, `DagreCoordinateSystem`, and the abstract `LayoutWorkMeter`). Its types are internal and visible
-  only to its friend assemblies (`DemaConsulting.CanvasNet.Mermaid` and the tests), so it has no public API — see
+  only to its friend assemblies (`DemaConsulting.CanvasNet.Mermaid`, `DemaConsulting.CanvasNet.PlantUml`, and the
+  tests), so it has no public API — see
   *CanvasNetLayout System Design* (`canvas-net-layout.md`). `CanvasNetLayout` depends on the .NET base class library
   only; it references no other system
 - **CanvasNetMermaid (System)** — A separate software system (packable as `DemaConsulting.CanvasNet.Mermaid`)
@@ -404,7 +405,8 @@ software items, specifically:
   this version does not draw are reported as unsupported — see *CanvasNetPlantUml System Design*
   (`canvas-net-plant-uml.md`) for the known differences from PlantUML and its Phase Plan. `CanvasNetPlantUml` depends
   on the `CanvasNet` system's `Canvas`, `Geometry`, `Drawing`, `Fonts`, `Rendering`, `Files`, and `ImageSources`
-  subsystems through their public API only
+  subsystems through their public API and on the `CanvasNetLayout` system's `Graphlib` and `Dagre` subsystems (the
+  graph layout of the diagrams that PlantUML lays out with Graphviz) through internal friend access
 - **CanvasNetTool (System)** — A separate software system, shipped as the `DemaConsulting.CanvasNet.Tool` dotnet
   tool package (command `canvasnet`), that lets people, scripts, and AI agents inspect, render, transform, compare,
   and compose
@@ -666,8 +668,8 @@ the `Graph` and `GraphAlgorithms` units and its internal `Dagre` subsystem holds
 `DagreRanker`, `DagreNesting`, `DagreNormalizer`, `DagreOrdering`, `DagrePositioning`, `DagreCoordinateSystem`, and
 `LayoutWorkMeter` units (namespaces `DemaConsulting.CanvasNet.Layout.Graphlib` and `.Dagre`). In the SysML2 model the
 system is `CanvasNetLayoutSystem` and the subsystem `part def` names carry the prefix `Layout` (`LayoutGraphlib` and
-`LayoutDagre`). Its types are internal and visible only to its friend assemblies (the `CanvasNetMermaid` package and
-the tests); it references no other system. See the Folder Layout section below and *CanvasNetLayout System Design*
+`LayoutDagre`). Its types are internal and visible only to its friend assemblies (the `CanvasNetMermaid` and
+`CanvasNetPlantUml` packages and the tests); it references no other system. See the Folder Layout section below and *CanvasNetLayout System Design*
 (`canvas-net-layout.md`).
 
 A further sibling top-level system, `CanvasNetMermaid`, likewise lives in this same repository alongside `CanvasNet` and
@@ -712,7 +714,8 @@ sub-folder of its name). In the SysML2 model the system is `CanvasNetPlantUmlSys
 `PlantUmlSequenceLayout`, `PlantUmlSequenceRenderer`, `PlantUmlActivity`, `PlantUmlActivityParser`,
 `PlantUmlActivityModel`, `PlantUmlActivityLayout`, and `PlantUmlActivityRenderer`), because the model package is shared
 by every system and the Mermaid system already uses the short names. It depends on the `CanvasNet` system's `Canvas`,
-`Geometry`, `Drawing`, `Fonts`, `Rendering`, `Files`, and `ImageSources` subsystems through their public API. See the
+`Geometry`, `Drawing`, `Fonts`, `Rendering`, `Files`, and `ImageSources` subsystems through their public API, and on
+the `CanvasNetLayout` system (its graph layout and work meter) through internal friend access. See the
 Folder Layout section below and *CanvasNetPlantUml System Design* (`canvas-net-plant-uml.md`). A further sibling
 top-level system, `CanvasNetViewer`, likewise lives in this same repository and is distributed as its own NuGet package
 (`DemaConsulting.CanvasNet.Viewer`). It aggregates the image sources of every format and is the library form of the
@@ -1824,8 +1827,9 @@ src/DemaConsulting.CanvasNet.PlantUml/
     └── ActivityRenderer.cs        — ActivityRenderer: the placed shapes as scene items
 ```
 
-Each sub-folder also holds a `NamespaceDoc.cs` with the namespace documentation. `CanvasNetPlantUml` uses only the
-`CanvasNet` system through its public API and declares it as its only package dependency.
+Each sub-folder also holds a `NamespaceDoc.cs` with the namespace documentation. `CanvasNetPlantUml` uses the
+`CanvasNet` system through its public API and the `CanvasNetLayout` system through internal friend access, and declares
+both as its package dependencies.
 
 The `CanvasNetViewer` system lives in the `src/DemaConsulting.CanvasNet.Viewer/` project folder (the separate
 `DemaConsulting.CanvasNet.Viewer` package). Its two direct units, `CanvasNetViewer` and `ViewerException`, occupy the

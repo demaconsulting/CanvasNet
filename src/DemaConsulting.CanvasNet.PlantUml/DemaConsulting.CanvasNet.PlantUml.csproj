@@ -65,9 +65,11 @@
     </PackageReference>
   </ItemGroup>
 
-  <!-- Project References: the core library only (no Mermaid, Svg or any other format package) -->
+  <!-- Project References: the core library and the shared graph layout, whose dagre layered layout places the diagrams
+       that PlantUML lays out with Graphviz (no Mermaid, Svg or any other format package) -->
   <ItemGroup>
     <ProjectReference Include="..\DemaConsulting.CanvasNet\DemaConsulting.CanvasNet.csproj" />
+    <ProjectReference Include="..\DemaConsulting.CanvasNet.Layout\DemaConsulting.CanvasNet.Layout.csproj" />
   </ItemGroup>
 
   <ItemGroup>
