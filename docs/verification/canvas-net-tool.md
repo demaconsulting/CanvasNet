@@ -45,7 +45,7 @@ start-up files, the library assemblies, and the third-party libraries bundled fo
 Vega-Lite assembly and the licenses folder
 that carries the third-party notices of the Vega-Lite library) and smoke-tests the installed tool (`formats --json`, an
 SVG `render`, a `crop`, and the `info` and `render` of a small Vega-Lite chart); the self-validation covers the PDF,
-SCAD (OpenSCAD), Vega-Lite, and Mermaid paths of the bundled libraries.
+SCAD (OpenSCAD), Vega-Lite, Mermaid, and PlantUML paths of the bundled libraries.
 
 ## Test Environment
 
@@ -71,8 +71,8 @@ belong to the "Sequential" collection because console redirection is process-wid
   text or JSON, `help <topic> --example <name>` prints only the source or command line of an example, and an unknown
   help subject is a usage error that lists the valid subjects.
 - `render` and `convert` write PNG, JPEG, BMP, and TIFF files from every supported input (PNG, JPEG, BMP, TIFF, GIF,
-  JPEG 2000, SVG, the pages of PDF, PPTX, and VSDX documents, OpenSCAD models, Vega-Lite charts, and Mermaid diagrams)
-  with the documented defaults
+  JPEG 2000, SVG, the pages of PDF, PPTX, and VSDX documents, OpenSCAD models, Vega-Lite charts, Mermaid diagrams, and
+  PlantUML diagrams) with the documented defaults
   (overwrite, flatten
   over white, EXIF orientation, 96 dpi, 800x800 for a model, 8192-pixel limit), the same bytes for the same input, and
   a stable error for

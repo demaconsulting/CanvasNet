@@ -405,7 +405,7 @@ sections:
           and roots,no-symlinks, the options `--file-access` and `--allow-root`, what holds in every mode, the
           diagnostics image-access-denied and file-access-denied (with their live codes), and the variables
           CANVASNET_FILE_ACCESS and CANVASNET_ROOTS that the Pandoc filter reads; the svg, errors, limits, scad,
-          vega-lite, and mermaid cards shall point to it; and the codes it cites shall exist in the libraries.
+          vega-lite, mermaid, and plantuml cards shall point to it; and the codes it cites shall exist in the libraries.
         justification: |
           A user or an agent about to process a document it does not trust must learn from the tool itself which files
           a document can make it read and how to confine them; the codes and variables are verified against the code

@@ -15,12 +15,12 @@ and the analysis of colors are core `Surface` operations verified in the `Canvas
 *SurfaceComparison*, and *SurfaceAnalysis Unit Verification Design*). The subsystem tests in `ImagingSubsystemTests.cs`
 verify them working together, the way every
 operation uses them: a source file of each supported kind (PNG, JPEG, BMP, TIFF, GIF, JPEG 2000, SVG, PDF, PPTX, VSDX,
-SCAD, Vega-Lite, and Mermaid) is loaded and written as each output format (PNG, JPEG, BMP, and TIFF) - an
-input-by-output matrix of 52 cases -
+SCAD, Vega-Lite, Mermaid, and PlantUML) is loaded and written as each output format (PNG, JPEG, BMP, and TIFF) - an
+input-by-output matrix of 56 cases -
 and the output is decoded with the codec of its format and compared with the pixels the codec or the document library
 decodes or renders from the source (or, for the SVG, with the drawing flattened over white, and for the model, the
 library's orthographic isometric render at 800x800, for the chart, the library's render at its laid-out size, and for
-the diagram, the library's render at its natural size over white):
+the diagrams, the library's render at its natural size over white):
 exactly for a lossless
 output, on average for JPEG. Every named view of a model is also written as every output format and compared with the
 library's render for that view (28 cases). The tests generate their inputs in a temporary directory (see

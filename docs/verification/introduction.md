@@ -119,11 +119,13 @@ constituent software items, specifically:
   `PacketParser` and `PacketRenderer`), and `GitGraph` (units `GitGraphParser` and `GitGraphRenderer`) — see
   *CanvasNetMermaid System Verification* (`canvas-net-mermaid.md`)
 - **CanvasNetPlantUml (System)** — A separate software system providing a PlantUML diagram renderer that parses PlantUML
-  text, recognizes every PlantUML diagram type, and reports the types it does not draw as unsupported, containing a
-  single direct unit, `PlantUmlDocument` (the public API), and the internal subsystems `Syntax` (units `Preprocessor`
-  and `DiagramDetector`), `Styling` (units `SkinTheme` and `SkinParams`), `Scenegraph` (units `SceneModel`,
-  `TextLayout`, and `ScenePainter`), and `Sequence` (units `SequenceParser`, `SequenceModel`, `SequenceLayout`, and
-  `SequenceRenderer`) — see *CanvasNetPlantUml System Verification* (`canvas-net-plant-uml.md`)
+  text, draws sequence diagrams and activity diagrams (the new syntax) with PlantUML's own layout and look, recognizes
+  every other PlantUML diagram type and reports it as unsupported, containing a single direct unit, `PlantUmlDocument`
+  (the public API and the image source), and five internal subsystems: `Syntax` (units `Preprocessor` and
+  `DiagramDetector`), `Styling` (units `SkinTheme` and `SkinParams`), `Scenegraph` (units `SceneModel`, `TextLayout`,
+  and `ScenePainter`), `Sequence` (units `SequenceParser`, `SequenceModel`, `SequenceLayout`, and `SequenceRenderer`),
+  and `Activity` (units `ActivityParser`, `ActivityModel`, `ActivityLayout`, and `ActivityRenderer`) — see
+  *CanvasNetPlantUml System Verification* (`canvas-net-plant-uml.md`)
 - **CanvasNetViewer (System)** — A separate software system, distributed as the `DemaConsulting.CanvasNet.Viewer`
   package, that lists the image sources of every format, creates the image resolver that lets an SVG document embed
   them, renders any file as a picture, and is the library form of the `canvasnet` tool, containing two direct units,

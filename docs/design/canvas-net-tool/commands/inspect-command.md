@@ -50,7 +50,8 @@ decoded). The point is not checked against the image here; that needs the pixels
 **Run(context, args)**: parses the arguments with the table, reads the settings, then reports every mistake about the
 input before decoding: `SourceLoader.Probe` (under the file-access policy of the source options) and the checks that
 model options were given only for a model, `--param`
-only for a chart, and `--theme` only for a diagram (the messages of `render`). It then calls
+only for a chart, and `--theme` only for a Mermaid diagram (a PlantUML diagram has no theme; the messages of
+`render`). It then calls
 `ImageInspector.Execute(info, request)` of the Viewer library with an `InspectRequest` built
 from the settings (the kind is the positional member; the `SourceOptions`, the operations, the count, the radius, and
 the point are set explicitly as `init` properties), which checks the page, loads it (`SourceLoader.Load`, which honors

@@ -7,7 +7,7 @@
 #
 # Packaging note: CanvasNetViewer is distributed as the separate DemaConsulting.CanvasNet.Viewer NuGet package
 # (namespace DemaConsulting.CanvasNet.Viewer), which references the core package and the Svg, Pdf, Pptx, Vsdx,
-# Scad, VegaLite, and Mermaid packages. CanvasNetViewer is the sole unit of the CanvasNetViewer system. Every
+# Scad, VegaLite, Mermaid, and PlantUml packages. CanvasNetViewer is the sole unit of the CanvasNetViewer system. Every
 # "tests" entry below cites an existing test method in the DemaConsulting.CanvasNet.Viewer.Tests project; see
 # docs/verification/canvas-net-viewer/canvas-net-viewer.md for the test-evidence mapping.
 

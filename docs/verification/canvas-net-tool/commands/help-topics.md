@@ -136,7 +136,7 @@ ignoring case, and none is `topics`.
 and the `limits` card quotes them.
 
 **HelpTopics_FormatTopics_SubtreesHaveSupportedUnsupportedOptionsDiagnosticsDifferencesAndExamples**: the tree of each
-of the eight format topics has a card with bullets under each of `## Supported`, `## Unsupported`, `## Options`,
+of the nine format topics has a card with bullets under each of `## Supported`, `## Unsupported`, `## Options`,
 `## Diagnostics`, and `## Known differences`, and at least two examples.
 
 **HelpTopics_Examples_NamesUniqueKindsValidAndSourcesNonEmpty**: example names are unique below each root; content is
