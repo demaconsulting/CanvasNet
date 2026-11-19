@@ -1,0 +1,9 @@
+@startuml
+participant Browser
+participant Server
+Browser -> Server : GET /index
+Server --> Browser : 200 OK
+Browser -> Server : POST /form
+Server -> Server : validate
+Server --> Browser : 201 Created
+@enduml

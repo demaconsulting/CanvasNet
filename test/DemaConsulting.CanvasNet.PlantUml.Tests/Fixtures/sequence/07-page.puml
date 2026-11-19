@@ -1,0 +1,19 @@
+@startuml
+title Order Flow
+header draft
+footer page footer
+caption Figure 1: the order flow
+legend right
+solid: request
+dotted: reply
+endlegend
+box "Front end" #LightBlue
+participant Ui
+participant Bff
+end box
+participant Orders
+Ui -> Bff : submit
+Bff -> Orders : create
+Orders --> Bff : id
+Bff --> Ui : done
+@enduml

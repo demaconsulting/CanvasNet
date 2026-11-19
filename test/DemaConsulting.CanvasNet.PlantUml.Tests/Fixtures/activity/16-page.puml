@@ -1,0 +1,12 @@
+@startuml
+header Draft
+title Order handling
+caption Figure 1
+footer Page 1
+legend
+  Grey boxes are actions
+endlegend
+start
+:Handle the order;
+stop
+@enduml

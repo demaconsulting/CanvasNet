@@ -1,0 +1,14 @@
+@startuml
+|Kitchen|
+start
+:Take the order;
+fork
+  :Cook;
+fork again
+  |Bar|
+  :Pour drinks;
+end fork
+|Kitchen|
+:Serve;
+stop
+@enduml

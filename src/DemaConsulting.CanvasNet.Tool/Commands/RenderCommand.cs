@@ -72,8 +72,8 @@ internal sealed partial class RenderCommand : ICommand
     private static string RenderUsage =>
         "canvasnet render <input> -o <output> [options]" + Environment.NewLine
         + Environment.NewLine
-        + "Reads PNG, JPEG, BMP, TIFF, GIF, JPEG 2000, SVG, PDF, PPTX, VSDX, SCAD, Vega-Lite (.vl.json, .vl), or Mermaid" + Environment.NewLine
-        + "(.mmd, .mermaid) and writes the format of the output" + Environment.NewLine
+        + "Reads PNG, JPEG, BMP, TIFF, GIF, JPEG 2000, SVG, PDF, PPTX, VSDX, SCAD, Vega-Lite (.vl.json, .vl), Mermaid" + Environment.NewLine
+        + "(.mmd, .mermaid), or PlantUML (.puml, .plantuml, .pu) and writes the format of the output" + Environment.NewLine
         + "extension. Vector sources are flattened over white; a JPEG is turned upright by its EXIF orientation." + Environment.NewLine
         + "A PDF page, PPTX slide, or VSDX page is 96 dpi by default; choose it with --page and the size with --dpi." + Environment.NewLine
         + "An OpenSCAD model is drawn from one viewpoint (--view, --azimuth, --elevation, --projection) at 800x800" + Environment.NewLine
@@ -93,7 +93,11 @@ internal sealed partial class RenderCommand : ICommand
         + "sets its theme (default, base, dark, forest, or neutral) unless the text sets one. A gantt chart has no today line" + Environment.NewLine
         + "(the tool sets no clock). A diagram type that is not drawn (journey, timeline, and so on) is an empty picture with" + Environment.NewLine
         + "the note mermaid-diagram-unsupported; run 'canvasnet help mermaid' for what is supported." + Environment.NewLine
-        + "An SVG drawing can embed a picture, model, chart, Mermaid diagram, SVG file, or document page that sits" + Environment.NewLine
+        + "A PlantUML sequence or activity diagram is drawn at the size PlantUML lays it out at, with its default look and" + Environment.NewLine
+        + "the bundled fonts; its !include files are read relative to the file that names them. Another diagram type (class," + Environment.NewLine
+        + "use case, and so on) is an empty picture with the note plantuml-diagram-unsupported; --theme and --positions do" + Environment.NewLine
+        + "not apply; run 'canvasnet help plantuml' for what is supported." + Environment.NewLine
+        + "An SVG drawing can embed a picture, model, chart, Mermaid or PlantUML diagram, SVG file, or document page that sits" + Environment.NewLine
         + "beside it with <image href=\"part.scad\" .../> (report.pdf#page=2 chooses a page; part.scad#def.width=20" + Environment.NewLine
         + "and chart.vl.json#param.cutoff=50 set a variable or a parameter); run 'canvasnet help svg' for the file" + Environment.NewLine
         + "types, the link rule, the fragment, and an example." + Environment.NewLine
@@ -123,6 +127,7 @@ internal sealed partial class RenderCommand : ICommand
         + "  canvasnet render chart.vl.json --param cutoff=50 -o chart.png" + Environment.NewLine
         + "  canvasnet render flow.mmd --theme dark --scale 2 -o flow.png" + Environment.NewLine
         + "  canvasnet render flow.mmd --positions node:send --positions edge -o flow.png --json" + Environment.NewLine
+        + "  canvasnet render seq.puml --scale 2 -o seq.png" + Environment.NewLine
         + "  canvasnet render diagram.svg --file-access roots,no-symlinks -o diagram.png" + Environment.NewLine
         + "  canvasnet render photo.jpg --crop 10%,10%,80%,80% --resize 800x600 -o small.png" + Environment.NewLine
         + "  canvasnet render logo.png --fit 256x256 --pad 8 --pad-color white -o icon.png" + Environment.NewLine
@@ -217,7 +222,8 @@ internal sealed partial class RenderCommand : ICommand
                 "Remove it, or render a .vl.json file.");
         }
 
-        if (settings.Source.Mermaid != null && !info.Format.IsDiagram())
+        // A PlantUML diagram is a diagram too, but it has no theme and reports no positions
+        if (settings.Source.Mermaid != null && info.Format != SourceKind.Mermaid)
         {
             throw new ToolException(
                 ErrorCodes.UsageError,
@@ -225,7 +231,7 @@ internal sealed partial class RenderCommand : ICommand
                 "Remove it, or render a .mmd file.");
         }
 
-        if (settings.Source.Positions != null && !info.Format.IsDiagram() && !info.Format.IsChart())
+        if (settings.Source.Positions != null && info.Format != SourceKind.Mermaid && !info.Format.IsChart())
         {
             throw new ToolException(
                 ErrorCodes.UsageError,

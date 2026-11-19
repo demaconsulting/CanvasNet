@@ -6,7 +6,7 @@
 
 `CanvasNetViewer` is distributed via the separate `DemaConsulting.CanvasNet.Viewer` NuGet package (namespace
 `DemaConsulting.CanvasNet.Viewer`), which references the core `DemaConsulting.CanvasNet` package and the Svg, Pdf, Pptx,
-Vsdx, Scad, VegaLite, and Mermaid packages - see the Installation section of the project README.
+Vsdx, Scad, VegaLite, Mermaid, and PlantUml packages - see the Installation section of the project README.
 
 > **Breaking change.** The files a document references are no longer confined to its folder by default: links,
 > includes and data files are followed the way Pandoc follows them. Set `ViewerRenderOptions.FileAccess` (or
@@ -51,7 +51,7 @@ An example that catches a `ViewerException` therefore needs both `using DemaCons
 public static class CanvasNetViewer
 {
     public static IReadOnlyList<IImageSource> ImageSources { get; }   // raster, svg, pdf, pptx, vsdx, scad, vega-lite,
-                                                                      // mermaid
+                                                                      // mermaid, plantuml
     public static IReadOnlyList<string> Extensions { get; }           // every extension they claim, sorted
 
     public static FolderImageResolver CreateImageResolver(string folder, FolderImageResolverOptions? options = null);
@@ -70,7 +70,8 @@ extensions, and order listed above, and they are not the stand-alone `PdfImageSo
 the format packages (which stay public for use without the viewer). The file types a link can point to are the
 extensions in `CanvasNetViewer.Extensions`: `.png`, `.jpg`, `.jpeg`, `.bmp`,
 `.tif`, `.tiff`, `.gif`, `.jp2`, `.j2k`, `.j2c` (rasters), `.svg`, `.scad` (an OpenSCAD model), `.vl.json` and `.vl`
-(a Vega-Lite chart), `.mmd` and `.mermaid` (a Mermaid diagram), and `.pdf`, `.pptx`, and `.vsdx` (a page of the
+(a Vega-Lite chart), `.mmd` and `.mermaid` (a Mermaid diagram), `.puml`, `.plantuml`, and `.pu` (a PlantUML
+diagram), and `.pdf`, `.pptx`, and `.vsdx` (a page of the
 document: page 1, or the page the fragment of the
 link names, see *Choosing a page, slide, or view with a fragment* below). The type is decided by the
 file name; a chart in a plain `.json` file is not linked.
@@ -132,7 +133,9 @@ resolver's `svg-image-unresolved` already names the link. More pictures than the
 **So can a diagram.** The nodes of a Mermaid diagram (`A@{ img: "part.scad", w: 120, h: 120 }`, `<img src="logo.png">`
 in a label) load their pictures through the same resolver and file-access policy, from the folder of the diagram, or the
 resolver of the document that embeds the diagram. A link that is not drawn is `svg-image-unresolved`, the pictures that
-were drawn are listed in `Embedded`, and probing a diagram lays it out without loading any picture.
+were drawn are listed in `Embedded`, and probing a diagram lays it out without loading any picture. A PlantUML diagram
+reads its `!include` files from its own folder under the same file-access policy, so a denied include is
+`file-access-denied` (see the PlantUML user guide, *Preprocessor and Includes*).
 
 Every note carries an `Origin`, the chain of embedded files that it is about, outermost first: for a link that was not
 drawn it is the file that contains the link, and for a note that an embedded model or chart reported it is the embedding
@@ -189,6 +192,8 @@ of RFC 8118 (`report.pdf#page=3`). A document link draws **page 1 unless the fra
 - `flow.mmd#theme=dark` draws a Mermaid diagram in one of Mermaid's themes (`default`, `base`, `dark`, `forest`, or
   `neutral`, in any letter case), like `--theme dark` of the tool; a theme that the diagram sets itself still wins, and
   another name is `image-fragment-invalid`;
+- a PlantUML diagram (`flow.puml`) takes no parameter: `flow.puml#theme=dark` is drawn in the default look with the
+  warning `image-fragment-unknown-parameter`;
 - a raster and an SVG file take no parameter.
 
 The `def.` and `param.` prefixes keep the names a link author chooses from colliding with `view=` and `page=`; the
@@ -662,8 +667,8 @@ per kind:
 - an **SVG** is drawn at that size and fitted by its own `preserveAspectRatio` (by default the aspect ratio is kept and
   the drawing is centered);
 - a **PDF, PPTX, or VSDX** page is fitted inside the box and centered, never stretched, with `Background` in the margin;
-- an **OpenSCAD** model is framed to the box (not stretched), and a **Vega-Lite** chart or a **Mermaid** diagram is
-  scaled uniformly and centered over its background.
+- an **OpenSCAD** model is framed to the box (not stretched), and a **Vega-Lite** chart or a **Mermaid** or **PlantUML**
+  diagram is scaled uniformly and centered over its background.
 
 `Scale` takes precedence: when it is set, `Width` and `Height` are ignored (the command line rejects the combination).
 `CanvasNetViewer.Render` is different for a raster: with both sizes it fits the picture inside the box over a
@@ -1019,7 +1024,7 @@ foreach (var note in image.Diagnostics)
 
 **Diagnostics: `Code`, `Detail`, `Location`, and `Origin`.** Test the `Code` of a note, never its message. The code of a
 note for a model warning is the generic `scad-warning` (a chart warning is `vega-lite-warning`, a diagram warning
-`mermaid-warning`); the finer identifier of
+`mermaid-warning` or `plantuml-warning`); the finer identifier of
 the library's own warning, such as `scad-anchor-invalid` or `scad-include-not-found`, or the `vl-*` identifier of a
 chart
 warning, is in `Detail` (it is `null` when the `Code` is already the most specific). `Location` is where the note
@@ -1051,11 +1056,12 @@ beyond 8192 pixels, an output that cannot be written, inputs that cannot be comp
 stable `Code` (one of the strings of `ErrorCodes`, the same ones the tool prints), a message, and a hint. Anything else
 is a defect and is not caught. The codes are `usage-error`, `operation-failed`, `input-not-found`, `input-unreadable`,
 `unsupported-format`, `corrupt-input`, `unsupported-feature`, `page-out-of-range`, `size-limit`, `same-input-output`,
-`output-exists`, `output-write-failed`, `scad-error`, `vega-lite-error`, `mermaid-error`, `budget-exceeded`,
-`file-access-denied` (a referenced file the file-access policy denied), `size-mismatch`, `threshold-failed`, and
-`positions-unmatched` (a position selector that matched nothing, in strict mode), and `pandoc-filter-error` (used only
-by the `pandoc-filter` command of the tool). `ViewerException` is in `DemaConsulting.CanvasNet.Viewer` and the
-operations are in `DemaConsulting.CanvasNet.Viewer.Imaging`, so a program that catches it lists both:
+`output-exists`, `output-write-failed`, `scad-error`, `vega-lite-error`, `mermaid-error`, `plantuml-error`,
+`budget-exceeded`, `file-access-denied` (a referenced file the file-access policy denied), `size-mismatch`,
+`threshold-failed`, and `positions-unmatched` (a position selector that matched nothing, in strict mode), and
+`pandoc-filter-error` (used only by the `pandoc-filter` command of the tool). `ViewerException` is in
+`DemaConsulting.CanvasNet.Viewer` and the operations are in `DemaConsulting.CanvasNet.Viewer.Imaging`, so a program that
+catches it lists both:
 
 <!-- compile -->
 

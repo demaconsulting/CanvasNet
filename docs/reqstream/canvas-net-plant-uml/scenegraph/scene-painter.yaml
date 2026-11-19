@@ -1,0 +1,49 @@
+---
+# Software Unit Requirements for ScenePainter
+#
+# These requirements describe the design-level behavior of the ScenePainter unit of the Scenegraph subsystem
+# (internal namespace DemaConsulting.CanvasNet.PlantUml.Scenegraph): painting a scene onto a Surface, the placement,
+# the bounds checks, the painted-pixel budget, and cancellation. See
+# docs/verification/canvas-net-plant-uml/scenegraph/scene-painter.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetPlantUml Requirements
+    sections:
+      - title: Scenegraph Requirements
+        sections:
+          - title: ScenePainter Requirements
+            requirements:
+              - id: CanvasNetPlantUml-Scenegraph-ScenePainter-Paints
+                title: >-
+                  The ScenePainter unit shall paint the background, then every item in order: the fill and the
+                  (dashed) stroke of every path, and the runs of every text line at their measured advances, with a bar
+                  for an underlined or struck run.
+                justification: |
+                  The painter is the only part of the package that produces pixels.
+                tests:
+                  - PlantUmlScenePainter_Paint_FillStrokeAndBackground
+                  - PlantUmlScenePainter_Paint_DashedLineAndScale
+                  - PlantUmlScenePainter_Paint_TextInsideItsBox
+
+              - id: CanvasNetPlantUml-Scenegraph-ScenePainter-Placement
+                title: >-
+                  The ScenePainter unit shall place a scene at a uniform scale, or fitted into a size with its aspect
+                  ratio kept and centered.
+                justification: |
+                  A diagram is rendered at its natural size times a scale, or into the size of a page or a slide.
+                tests:
+                  - PlantUmlScenePainter_Paint_DashedLineAndScale
+                  - PlantUmlScenePainter_Fit_ScalesUniformlyAndCenters
+
+              - id: CanvasNetPlantUml-Scenegraph-ScenePainter-Bounded
+                title: >-
+                  The ScenePainter unit shall skip an item with a coordinate that is not finite or too large, fail with
+                  a located plantuml-limit-exceeded error before it paints the item that would pass the painted-pixel
+                  budget, and stop when the call is canceled.
+                justification: |
+                  A hostile or defective scene must not exhaust time or memory, and a caller must be able to stop a
+                  long rendering.
+                tests:
+                  - PlantUmlScenePainter_Paint_NonFiniteItem_IsSkipped
+                  - PlantUmlScenePainter_Paint_OverPixelBudget_ThrowsLocated
+                  - PlantUmlScenePainter_Paint_Canceled_Throws

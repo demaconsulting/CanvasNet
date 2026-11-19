@@ -72,6 +72,19 @@ The largest sizes and budgets the tool accepts, and the error each one produces.
 - **Size**: A diagram that lays out larger than {{maxDimension}} pixels on a
   side is size-limit unless --scale, --width, or --height makes it smaller.
 
+## PlantUML diagrams
+
+- **Text**: At most {{pumlMaxTextSize}} characters of statements after the
+  preprocessor (comments do not count); a longer text is corrupt-input.
+- **Graph**: At most {{pumlMaxNodes}} nodes (participants or activity nodes)
+  and {{pumlMaxEdges}} edges (messages or arrows); beyond that the diagram fails
+  with budget-exceeded (plantuml-limit-exceeded).
+- **Includes**: At most {{pumlMaxIncludes}} !include directives followed and
+  {{pumlMaxIncludeDepth}} levels of nesting; beyond that the diagram fails with
+  budget-exceeded. A URL is never followed.
+- **Size**: A diagram that lays out larger than {{maxDimension}} pixels on a
+  side is size-limit unless --scale, --width, or --height makes it smaller.
+
 ## SVG and documents
 
 - **SVG**: At most 5,000,000 characters, nesting depth 100, and 100,000 rendered

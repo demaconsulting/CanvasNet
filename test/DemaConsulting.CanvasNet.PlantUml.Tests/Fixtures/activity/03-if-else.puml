@@ -1,0 +1,11 @@
+@startuml
+start
+:Read input;
+if (valid?) then (yes)
+  :Process the record;
+else (no)
+  :Reject;
+endif
+:Log;
+stop
+@enduml

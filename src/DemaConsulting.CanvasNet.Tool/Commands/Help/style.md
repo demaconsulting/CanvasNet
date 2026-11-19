@@ -3,6 +3,7 @@ title: Making pictures look good
 summary: 'Make pictures look good: palette, fonts, size, background.'
 see-also:
   - mermaid/style
+  - plantuml/style
   - vega-lite/style
   - svg/style
   - scad/style
@@ -22,8 +23,8 @@ examples:
 
 Decide the final size first, choose a small palette, and check every change in
 the rendered PNG. The style card of each format shows the syntax:
-`canvasnet help mermaid style`, `vega-lite style`, `svg style`, and
-`scad style`.
+`canvasnet help mermaid style`, `plantuml style`, `vega-lite style`, `svg
+style`, and `scad style`.
 
 ## Palette and contrast
 
@@ -46,9 +47,9 @@ the rendered PNG. The style card of each format shows the syntax:
   scales with it: place it near its natural size (`canvasnet info file --json`
   reports `image.width` and `image.height`) so its text matches the text
   around it.
-- Mermaid and Vega-Lite text is always drawn with the bundled fonts; in SVG use
-  the generic families (`sans-serif`, `serif`, `monospace`), which are bundled
-  too, because an installed family differs between machines.
+- Mermaid, PlantUML, and Vega-Lite text is always drawn with the bundled fonts;
+  in SVG use the generic families (`sans-serif`, `serif`, `monospace`), which
+  are bundled too, because an installed family differs between machines.
 
 ## Spacing
 

@@ -1,0 +1,103 @@
+---
+# Software Unit Requirements for SequenceLayout
+#
+# These requirements describe the design-level behavior of the SequenceLayout unit of the Sequence subsystem
+# (internal namespace DemaConsulting.CanvasNet.PlantUml.Sequence): the geometry of PlantUML's sequence engine for the
+# participant columns and the rows of the events, and the limits of a layout. See
+# docs/verification/canvas-net-plant-uml/sequence/sequence-layout.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetPlantUml Requirements
+    sections:
+      - title: Sequence Requirements
+        sections:
+          - title: SequenceLayout Requirements
+            requirements:
+              - id: CanvasNetPlantUml-Sequence-SequenceLayout-Columns
+                title: >-
+                  The SequenceLayout unit shall place the participant columns at least 10 pixels apart, push the
+                  receiver of a message until the arrow is as long as its text plus 24 pixels (plus the activation boxes
+                  it meets), push the next participant past a self message's loop or text, and move the diagram so that
+                  its leftmost extent is at the 10-pixel margin.
+                justification: |
+                  These are the spacing rules of PlantUML's sequence engine.
+                tests:
+                  - PlantUmlSequenceLayout_Columns_MessagePushesReceiver
+                  - PlantUmlSequenceLayout_SelfMessage_PushesNextParticipant
+
+              - id: CanvasNetPlantUml-Sequence-SequenceLayout-Rows
+                title: >-
+                  The SequenceLayout unit shall align the heads at their bottom, start the first row 8 pixels below the
+                  life line start, stack a row per event with PlantUML's heights (a message as tall as its text plus 14
+                  pixels, a self message plus 27), and end the life lines 10 pixels below the last row.
+                justification: |
+                  These are the vertical rules of PlantUML's sequence engine.
+                tests:
+                  - PlantUmlSequenceLayout_Rows_StackMessagesBelowHeads
+
+              - id: CanvasNetPlantUml-Sequence-SequenceLayout-Activations
+                title: >-
+                  The SequenceLayout unit shall place an activation box 10 pixels wide on its life line, a nested box 5
+                  pixels to the right, from the arrow that starts it to the arrow that ends it (or the end of the life
+                  line), and end the arrows of a message at the boxes they meet.
+                justification: |
+                  Activation boxes show which participant is active, as PlantUML draws them.
+                tests:
+                  - PlantUmlSequenceLayout_Activations_BoxesAndArrowEnds
+
+              - id: CanvasNetPlantUml-Sequence-SequenceLayout-Notes
+                title: >-
+                  The SequenceLayout unit shall place a note left or right of its participant, centered over one
+                  participant or across the columns of two, or on the row of the message before it, with its outline 5
+                  pixels inside its layout box and as wide as its text and paddings in whole pixels.
+                justification: |
+                  These are PlantUML's note placements.
+                tests:
+                  - PlantUmlSequenceLayout_Notes_PlacedBesideOverAndOnRows
+
+              - id: CanvasNetPlantUml-Sequence-SequenceLayout-Groups
+                title: >-
+                  The SequenceLayout unit shall frame a group 16 pixels outside its content, at least as wide as its
+                  header and its section conditions, with a section line per else, and push the participants outside
+                  the group past its frame.
+                justification: |
+                  Group frames must enclose their messages without covering other participants.
+                tests:
+                  - PlantUmlSequenceLayout_Groups_FrameAroundContent
+
+              - id: CanvasNetPlantUml-Sequence-SequenceLayout-Boxes
+                title: >-
+                  The SequenceLayout unit shall draw a box 4 pixels around its participants (and their self messages),
+                  widened on both sides for a title wider than its participants, keep the participants outside it 20
+                  pixels away, and move the heads below the titles of the boxes.
+                justification: |
+                  These are PlantUML's box rules.
+                tests:
+                  - PlantUmlSequenceLayout_Boxes_AroundParticipants
+
+              - id: CanvasNetPlantUml-Sequence-SequenceLayout-Separators
+                title: >-
+                  The SequenceLayout unit shall draw a divider across the whole diagram (wider for a long text), a delay
+                  as dotted life lines with its text centered over the participants, and a space of its height.
+                justification: |
+                  These are PlantUML's dividers, delays, and spaces.
+                tests:
+                  - PlantUmlSequenceLayout_Separators_DividersDelaysAndSpaces
+
+              - id: CanvasNetPlantUml-Sequence-SequenceLayout-Footbox
+                title: >-
+                  The SequenceLayout unit shall draw the tails at the end of the life lines unless the foot box is
+                  hidden, and end a destroyed life line with the row of the destroying message.
+                justification: |
+                  The foot box and destroyed life lines change the bottom of the diagram.
+                tests:
+                  - PlantUmlSequenceLayout_HiddenFootboxAndDestroy
+
+              - id: CanvasNetPlantUml-Sequence-SequenceLayout-Limits
+                title: >-
+                  The SequenceLayout unit shall count its work against MaxLayoutWork, failing with a located
+                  plantuml-limit-exceeded render error over it, and stop when the call is canceled.
+                justification: |
+                  A hostile diagram must not take unbounded time to lay out.
+                tests:
+                  - PlantUmlSequenceLayout_Limits_WorkAndCancellation

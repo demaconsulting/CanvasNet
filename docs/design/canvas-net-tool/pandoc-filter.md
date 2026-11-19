@@ -53,8 +53,9 @@ filterPath)`, and the protocol constants (`Protocol`, `MinProtocol`, and `MaxPro
 <file>] [--embed-resources]` with `pandoc.pipe` and the document on standard input. Exit code 0 means standard output
 is the document; exit code 1 means standard output is the JSON failure document, whose message and hint the shim
 raises as the error of the build. The shim starts the tool only when the document has a code block of a class the
-engine draws (`mermaid`) or a local picture whose name ends in a suffix the engine may change (`.svg`, `.vl.json`,
-`.vl`, `.scad`, `.vsdx`, `.pptx`, `.pdf`, `.mmd`, or `.mermaid`, in any letter case); `--write-shim` writes both lists
+engine draws (`mermaid` or `plantuml`) or a local picture whose name ends in a suffix the engine may change (`.svg`,
+`.vl.json`, `.vl`, `.scad`, `.vsdx`, `.pptx`, `.pdf`, `.mmd`, `.mermaid`, `.puml`, `.plantuml`, or `.pu`, in any letter
+case); `--write-shim` writes both lists
 from `PictureAttributes`, so the shim is written again after the tool is updated.
 
 **RenderCommand.Execute** and **FlattenCommand.Execute** (consumed, from the `Commands` subsystem): `ToolPictureDrawer`

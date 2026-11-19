@@ -11,11 +11,11 @@ namespace DemaConsulting.CanvasNet.Tool.Commands;
 /// <remarks>
 ///     <para>
 ///         The options decide which local files a document may reference (an SVG image, a Mermaid picture, a Vega-Lite
-///         image mark or data file, an OpenSCAD include, a linked page); the inputs named on the command line are never
-///         judged. The mode <c>any</c> (the default) reads every regular local file, as Pandoc does; <c>roots</c> keeps
-///         the references inside the folders of <c>--allow-root</c>, or, without it, inside the working directory and
-///         the folder of each input outside it; <c>no-symlinks</c> refuses a symbolic link or junction; and
-///         <c>roots,no-symlinks</c> applies both. <c>--allow-root</c> alone implies <c>roots</c>.
+///         image mark or data file, an OpenSCAD include, a PlantUML include, a linked page); the inputs named on the
+///         command line are never judged. The mode <c>any</c> (the default) reads every regular local file, as Pandoc
+///         does; <c>roots</c> keeps the references inside the folders of <c>--allow-root</c>, or, without it, inside
+///         the working directory and the folder of each input outside it; <c>no-symlinks</c> refuses a symbolic link or
+///         junction; and <c>roots,no-symlinks</c> applies both. <c>--allow-root</c> alone implies <c>roots</c>.
 ///     </para>
 ///     <para>
 ///         Every mistake (an unknown mode, <c>--allow-root</c> with <c>any</c> or <c>no-symlinks</c>, a folder that does

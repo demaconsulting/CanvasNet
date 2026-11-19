@@ -1,0 +1,14 @@
+@startuml
+' Gallery: a simple activity with a decision
+title Handling a ticket
+start
+:Read the ticket;
+if (Is it a bug?) then (yes)
+  :Reproduce it;
+  :Fix it;
+else (no)
+  :Answer the question;
+endif
+:Close the ticket;
+stop
+@enduml

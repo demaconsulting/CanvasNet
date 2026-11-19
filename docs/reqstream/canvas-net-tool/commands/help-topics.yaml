@@ -327,6 +327,49 @@ sections:
           - HelpTopics_SvgTopic_ImageHrefFileTypes_MatchTheResolverExtensions
           - HelpTopics_MermaidGanttAdvice_ThemeCssStylesTheGridNotGridColor
 
+      - id: CanvasNetTool-Commands-HelpTopics-PlantUml
+        title: >-
+          The HelpTopics class shall provide the plantuml cards (alias puml) with what a diagram may use (sequence
+          diagrams and their participants, messages, activations, notes, groups, boxes, numbers, and page texts;
+          activity diagrams and their actions, decisions, loops, parallel branches, swimlanes, partitions, notes,
+          arrows, and connectors; the preprocessor subset and local includes under the file-access mode; the
+          supported skinparam settings, colors, and fonts; and the composition of a diagram in an SVG figure, a Mermaid
+          node, a montage, and a Pandoc document), each diagram type and construct that is not drawn with the
+          identifier of its diagnostic, the options that apply (--scale, --background, --strict, and --file-access)
+          and that --theme and --positions do not, the diagnostics and errors with their codes, and the known
+          differences from PlantUML; source examples of a sequence diagram, an activity diagram, and a styled
+          sequence diagram that render with the strict option without a diagnostic, and command examples for render,
+          info, an include under the file-access mode, a figure, and a montage; shall quote the limits of the PlantUML
+          library (text size, nodes, edges, includes, and include depth) from the code in the preprocessor and limits
+          cards; shall be linked from the style and composition hubs; and shall list .puml, .plantuml, and .pu among
+          the file types an image element of an SVG file may link.
+        justification: |
+          An agent that is asked to draw a PlantUML diagram must learn from the tool itself which diagram types and
+          constructs are drawn and how to style and place a diagram, and get a working diagram to start from; checking
+          the cards against the code keeps every statement of them true for the version installed.
+        tests:
+          - HelpTopics_Find_EveryAlias_ResolvesIgnoringCase
+          - HelpTopics_FormatTopics_SubtreesHaveSupportedUnsupportedOptionsDiagnosticsDifferencesAndExamples
+          - HelpTopics_Examples_NamesUniqueKindsValidAndSourcesNonEmpty
+          - HelpTopics_SourceExamples_RenderStrictWithoutDiagnostics
+          - HelpTopics_Text_HasNoUnresolvedTokens
+          - HelpTopics_DrawingFormats_HaveStyleAndCompositionCards
+          - HelpTopics_StyleAndCompositionHubs_LinkBothWays
+          - HelpTopics_CitedDiagnosticIds_ExistInTheLibraries
+          - HelpTopics_SvgTopic_ImageHrefFileTypes_MatchTheResolverExtensions
+
+      - id: CanvasNetTool-Commands-HelpTopics-PlantUmlGuideParity
+        title: >-
+          The HelpTopics class shall give in the plantuml sequence and activity cards, row for row and in order, the
+          same supported syntax rows, and in the plantuml unsupported and diagnostics cards the same
+          unsupported-feature,
+          warning, and error codes as the PlantUML user guide, worded the same, code spans included.
+        justification: |
+          People read the guide and agents read the help; both must describe the same version, and a row added to
+          one and not the other would tell one of them something untrue.
+        tests:
+          - HelpTopics_PlantUmlTopic_DiagramSyntaxItems_MatchUserGuide
+
       - id: CanvasNetTool-Commands-HelpTopics-MermaidGuideParity
         title: >-
           The HelpTopics class shall give in the mermaid cards, row for row and in order, the same class diagram
@@ -362,7 +405,7 @@ sections:
           and roots,no-symlinks, the options `--file-access` and `--allow-root`, what holds in every mode, the
           diagnostics image-access-denied and file-access-denied (with their live codes), and the variables
           CANVASNET_FILE_ACCESS and CANVASNET_ROOTS that the Pandoc filter reads; the svg, errors, limits, scad,
-          vega-lite, and mermaid cards shall point to it; and the codes it cites shall exist in the libraries.
+          vega-lite, mermaid, and plantuml cards shall point to it; and the codes it cites shall exist in the libraries.
         justification: |
           A user or an agent about to process a document it does not trust must learn from the tool itself which files
           a document can make it read and how to confine them; the codes and variables are verified against the code

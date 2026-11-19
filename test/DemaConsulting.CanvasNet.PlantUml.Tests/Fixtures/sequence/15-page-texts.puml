@@ -1,0 +1,12 @@
+@startuml
+title My Title
+header head
+footer foot
+caption cap
+legend
+leg
+endlegend
+participant A
+participant B
+A -> B : m
+@enduml

@@ -1,0 +1,11 @@
+@startuml
+start
+partition Preparation {
+  :Gather tools;
+  :Read the manual;
+}
+partition "Assembly work" {
+  :Fit the parts;
+}
+stop
+@enduml

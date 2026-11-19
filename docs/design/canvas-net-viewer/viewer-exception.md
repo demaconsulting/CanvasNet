@@ -20,13 +20,15 @@ the fields of a result, and reports the code, the message, and the hint of every
 **ErrorCodes** (static): the constants `UsageError`, `OperationFailed`, `InputNotFound`, `InputUnreadable`,
 `UnsupportedFormat`, `CorruptInput`, `UnsupportedFeature`, `PageOutOfRange`, `ImageFragmentInvalid`, `SizeLimit`,
 `SameInputOutput`,
-`OutputExists`, `OutputWriteFailed`, `ScadError`, `VegaLiteError`, `MermaidError`, `BudgetExceeded`, `FileAccessDenied`,
+`OutputExists`, `OutputWriteFailed`, `ScadError`, `VegaLiteError`, `MermaidError`, `PlantUmlError`, `BudgetExceeded`,
+`FileAccessDenied`,
 `SizeMismatch`, `ThresholdFailed`,
 `PositionsUnmatched`, `SvgBindingFailed`, and `PandocFilterError`, with the strings `usage-error`, `operation-failed`,
 `input-not-found`, `input-unreadable`,
 `unsupported-format`, `corrupt-input`, `unsupported-feature`, `page-out-of-range`, `image-fragment-invalid`,
 `size-limit`, `same-input-output`,
-`output-exists`, `output-write-failed`, `scad-error`, `vega-lite-error`, `mermaid-error`, `budget-exceeded`,
+`output-exists`, `output-write-failed`, `scad-error`, `vega-lite-error`, `mermaid-error`, `plantuml-error`,
+`budget-exceeded`,
 `file-access-denied`, `size-mismatch`, `threshold-failed`, `positions-unmatched`, `svg-binding-failed`, and
 `pandoc-filter-error`. The
 strings are the contract: they

@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="560" viewBox="0 0 760 560">
+  <rect width="760" height="560" fill="#f7f7fb"/>
+  <text x="24" y="40" font-family="Liberation Sans" font-size="24px" font-weight="bold" fill="#333">An order, two views</text>
+
+  <!-- A PlantUML sequence diagram, drawn at the size of its placement -->
+  <rect x="20" y="60" width="420" height="480" rx="8" fill="white" stroke="#ccc"/>
+  <text x="32" y="84" font-family="Liberation Sans" font-size="14px" fill="#555">Messages (PlantUML sequence diagram)</text>
+  <image x="32" y="92" width="396" height="440" href="plantuml-sequence-basics.puml"/>
+
+  <!-- A PlantUML activity diagram -->
+  <rect x="460" y="60" width="280" height="480" rx="8" fill="white" stroke="#ccc"/>
+  <text x="472" y="84" font-family="Liberation Sans" font-size="14px" fill="#555">Steps (PlantUML activity)</text>
+  <image x="472" y="100" width="256" height="420" href="plantuml-activity-basics.puml"/>
+</svg>

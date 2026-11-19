@@ -1,7 +1,8 @@
 ---
 # Software Unit Requirements for the PictureAttributes Class
 #
-# The PictureAttributes class reads the attributes of a picture or a Mermaid code block for the Pandoc filter: it
+# The PictureAttributes class reads the attributes of a picture or a Mermaid or PlantUML code block for the Pandoc
+# filter: it
 # decides which kind of input a picture names, checks every drawing attribute with the messages of the Lua filter
 # (version 16), adds the defaults of each kind, writes the sorted tool options, and keeps the attributes that stay on
 # the picture. It also names Mermaid code blocks for messages and splits off their caption. The supporting record
@@ -14,7 +15,8 @@ sections:
         title: >-
           The PictureAttributes unit shall classify a picture by the end of its name, in any letter case, as a
           Vega-Lite chart (.vl.json, .vl), an OpenSCAD model (.scad), a Visio drawing (.vsdx), a PowerPoint
-          presentation (.pptx), a PDF document (.pdf), a Mermaid diagram (.mmd, .mermaid), or a local SVG drawing
+          presentation (.pptx), a PDF document (.pdf), a Mermaid diagram (.mmd, .mermaid), a PlantUML diagram (.puml,
+          .plantuml, .pu), or a local SVG drawing
           (.svg), and shall leave alone a name with a URL scheme of two or more characters or any other name end.
         justification: |
           The filter must draw only the local inputs the tool reads and must leave web pictures and ordinary images
@@ -109,7 +111,10 @@ sections:
 
       - id: CanvasNetTool-PandocFilter-PictureAttributes-MermaidBlocks
         title: >-
-          The PictureAttributes unit shall name a Mermaid code block in messages as mermaid block  # id when it has an
+          The PictureAttributes unit shall draw a code block of class mermaid or plantuml (exact, the first of the two
+          the
+          block has) as that kind, shall name it in messages as mermaid block  # id or plantuml block  # id when it has
+          an
           identifier and otherwise by its first non-blank line, trimmed and cut to 40 characters followed by ..., and
           shall split the last caption attribute off the other attributes of the block.
         justification: |

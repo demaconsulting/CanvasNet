@@ -1,0 +1,12 @@
+@startuml
+|Customer|
+start
+:Choose item;
+if (in stock?) then (yes)
+  |Shop|
+  :Ship;
+else (no)
+  :Refund;
+endif
+stop
+@enduml

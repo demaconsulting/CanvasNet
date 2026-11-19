@@ -1,0 +1,17 @@
+@startuml
+participant Editor
+participant Linter
+Editor -> Linter : check
+note right: on the arrow row
+Linter --> Editor : findings
+note left of Editor : left of Editor
+note right of Linter : right of Linter
+note over Editor : over one
+note over Editor, Linter : across both participants
+note over Linter
+several
+lines
+end note
+hnote over Editor : hexagon
+rnote over Linter : rectangle
+@enduml

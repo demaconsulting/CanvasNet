@@ -676,6 +676,82 @@ tests:
           - query: "//*[local-name()='text']"
             min: 1
 
+  - name: SysML2Tools_CanvasNetPlantUmlViewSvg
+    description: "CanvasNetPlantUmlView diagram was rendered by SysML2Tools"
+    tags: [design]
+    files:
+      - pattern: "docs/design/generated/CanvasNetPlantUmlView.svg"
+        count: 1
+        xml:
+          - query: "//*[local-name()='svg']"
+            count: 1
+          # A view that resolves to nothing still writes an <svg> root, so also require drawn text.
+          - query: "//*[local-name()='text']"
+            min: 1
+
+  - name: SysML2Tools_PlantUmlSyntaxViewSvg
+    description: "PlantUmlSyntaxView diagram was rendered by SysML2Tools"
+    tags: [design]
+    files:
+      - pattern: "docs/design/generated/PlantUmlSyntaxView.svg"
+        count: 1
+        xml:
+          - query: "//*[local-name()='svg']"
+            count: 1
+          # A view that resolves to nothing still writes an <svg> root, so also require drawn text.
+          - query: "//*[local-name()='text']"
+            min: 1
+
+  - name: SysML2Tools_PlantUmlStylingViewSvg
+    description: "PlantUmlStylingView diagram was rendered by SysML2Tools"
+    tags: [design]
+    files:
+      - pattern: "docs/design/generated/PlantUmlStylingView.svg"
+        count: 1
+        xml:
+          - query: "//*[local-name()='svg']"
+            count: 1
+          # A view that resolves to nothing still writes an <svg> root, so also require drawn text.
+          - query: "//*[local-name()='text']"
+            min: 1
+
+  - name: SysML2Tools_PlantUmlScenegraphViewSvg
+    description: "PlantUmlScenegraphView diagram was rendered by SysML2Tools"
+    tags: [design]
+    files:
+      - pattern: "docs/design/generated/PlantUmlScenegraphView.svg"
+        count: 1
+        xml:
+          - query: "//*[local-name()='svg']"
+            count: 1
+          # A view that resolves to nothing still writes an <svg> root, so also require drawn text.
+          - query: "//*[local-name()='text']"
+            min: 1
+  - name: SysML2Tools_PlantUmlSequenceViewSvg
+    description: "PlantUmlSequenceView diagram was rendered by SysML2Tools"
+    tags: [design]
+    files:
+      - pattern: "docs/design/generated/PlantUmlSequenceView.svg"
+        count: 1
+        xml:
+          - query: "//*[local-name()='svg']"
+            count: 1
+          # A view that resolves to nothing still writes an <svg> root, so also require drawn text.
+          - query: "//*[local-name()='text']"
+            min: 1
+  - name: SysML2Tools_PlantUmlActivityViewSvg
+    description: "PlantUmlActivityView diagram was rendered by SysML2Tools"
+    tags: [design]
+    files:
+      - pattern: "docs/design/generated/PlantUmlActivityView.svg"
+        count: 1
+        xml:
+          - query: "//*[local-name()='svg']"
+            count: 1
+          # A view that resolves to nothing still writes an <svg> root, so also require drawn text.
+          - query: "//*[local-name()='text']"
+            min: 1
+
   - name: SysML2Tools_CanvasNetToolViewSvg
     description: "CanvasNetToolView diagram was rendered by SysML2Tools"
     tags: [design]
@@ -973,17 +1049,18 @@ tests:
           - query: "//head/title"
             count: 1
           # The Pandoc filter (docs/filters/canvasnet.lua) draws the example pictures; a source file that still
-          # names a .scad, .vl.json, .vsdx, .pptx, .pdf, .mmd, or .mermaid picture means the filter did not run (or
-          # left a diagram type the tool does not draw yet, which only a code block may be). The document embeds its
-          # resources, so every drawn picture is a data: URI and a picture Pandoc could not find is reported by
-          # Pandoc. Pandoc writes a picture whose extension is not an image type as <embed>, so the second check
-          # looks at both elements.
+          # names a .scad, .vl.json, .vsdx, .pptx, .pdf, .mmd, .mermaid, .puml, .plantuml, or .pu picture means the
+          # filter did not run (or left a diagram type the tool does not draw yet, which only a code block may be).
+          # The document embeds its resources, so every drawn picture is a data: URI and a picture Pandoc could not
+          # find is reported by Pandoc. Pandoc writes a picture whose extension is not an image type as <embed>, so
+          # the second check looks at both elements.
           - query: "//img[starts-with(@src,'data:image/png')]"
             min: 5
           - query: >-
               //*[self::img or self::embed][contains(@src,'.scad') or contains(@src,'.vl.json')
               or contains(@src,'.vsdx') or contains(@src,'.pptx') or contains(@src,'.pdf') or contains(@src,'.mmd')
-              or contains(@src,'.mermaid')]
+              or contains(@src,'.mermaid') or contains(@src,'.puml') or contains(@src,'.plantuml')
+              or contains(@src,'.pu')]
             count: 0
         text:
           - contains: "User Guide"

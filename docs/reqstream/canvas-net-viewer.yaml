@@ -8,8 +8,8 @@
 #
 # CanvasNetViewer is an independent software system, distributed as its own NuGet package. It
 # aggregates the image sources of every CanvasNet format package (CanvasNetSvg, CanvasNetPdf,
-# CanvasNetPptx, CanvasNetVsdx, CanvasNetScad, CanvasNetVegaLite, CanvasNetMermaid) and of the core ImageSources
-# subsystem (the raster source and the folder resolver), so that one call renders any file the
+# CanvasNetPptx, CanvasNetVsdx, CanvasNetScad, CanvasNetVegaLite, CanvasNetMermaid, CanvasNetPlantUml) and of the core
+# ImageSources subsystem (the raster source and the folder resolver), so that one call renders any file the
 # library can read and one call creates the resolver that lets an SVG document embed all of them -
 # see docs/design/canvas-net-viewer.md's Dependencies section for details.
 #
@@ -24,7 +24,7 @@ sections:
       - id: CanvasNetViewer-Sources
         title: >-
           The library shall list the image sources it supports, one for each of the raster, SVG, PDF,
-          PowerPoint, Visio, OpenSCAD, Vega-Lite, and Mermaid formats, in a fixed order that an application
+          PowerPoint, Visio, OpenSCAD, Vega-Lite, Mermaid, and PlantUML formats, in a fixed order that an application
           cannot change, and the file name extensions they claim as one sorted list.
         tags: [system]
         justification: |
@@ -82,6 +82,28 @@ sections:
           - CanvasNetViewer-Imaging-DiagramImages
         tests:
           - CanvasNetViewer_SystemIntegration_MermaidDiagram_RendersDirectlyAndEmbeddedWithTheme
+
+      - id: CanvasNetViewer-PlantUmlDiagrams
+        title: >-
+          The library shall render a PlantUML sequence or activity diagram (a .puml, .plantuml, or .pu file) directly,
+          at the size PlantUML lays it out at and with the fonts bundled with the library, and as a picture of an SVG
+          document or of a Mermaid node, with its !include files read under the same file-access policy as every other
+          referenced file; shall report what a diagram declares (its type, whether this version draws it, its title,
+          and its numbers of nodes, edges, and subgraphs) without drawing it; and shall draw a recognized diagram type
+          that this version does not draw as an empty picture with a note.
+        tags: [system]
+        justification: |
+          Sequence and activity diagrams are often written as PlantUML text in engineering documentation; an
+          application that already shows SVG documents, models, charts, and Mermaid diagrams must show a PlantUML
+          diagram, alone or inside a drawing or another diagram, with nothing but its file or its link, the same
+          picture on every machine, and with no Java or network.
+        children:
+          - CanvasNetViewer-Imaging-SourceLoader-PlantUmlDetection
+          - CanvasNetViewer-Imaging-SourceLoader-PlantUmlProbe
+          - CanvasNetViewer-Imaging-SourceLoader-PlantUmlRender
+          - CanvasNetViewer-Imaging-SourceLoader-PlantUmlErrors
+        tests:
+          - CanvasNetViewer_SystemIntegration_PlantUmlDiagram_RendersDirectlyAndEmbeddedInSvgAndMermaid
 
       - id: CanvasNetViewer-Render
         title: >-

@@ -25,6 +25,7 @@ namespace DemaConsulting.CanvasNet.Tool.PandocFilter;
 ///         file-access mode every file the picture references is read through the policy the tool will draw it under, so
 ///         a file the mode denies (outside the folders, or reached through a link the mode refuses) is never read
 ///         (<see cref="ReadFile"/>). The walks live in <c>DependencyHasher.Chart.cs</c>, <c>DependencyHasher.Mermaid.cs</c>,
+///         <c>DependencyHasher.PlantUml.cs</c>,
 ///         <c>DependencyHasher.Svg.cs</c>, and this file (models and the shared picture walk). An instance is not
 ///         thread-safe; the static entry points are, as each call has its own instance.
 ///     </para>
@@ -143,6 +144,9 @@ internal sealed partial class DependencyHasher
                 break;
             case PictureAttributes.Mermaid:
                 hasher.AddMermaid(source, root, 0);
+                break;
+            case PictureAttributes.PlantUml:
+                hasher.AddPlantUml(source, root, 0);
                 break;
             default:
                 var content = hasher.ReadFile(source) ?? throw Fail($"cannot read '{name}'");
@@ -276,6 +280,11 @@ internal sealed partial class DependencyHasher
             else if (lower.EndsWith(".mmd", StringComparison.Ordinal) || lower.EndsWith(".mermaid", StringComparison.Ordinal))
             {
                 AddMermaid(file, root, depth + 1);
+            }
+            else if (lower.EndsWith(".puml", StringComparison.Ordinal) || lower.EndsWith(".plantuml", StringComparison.Ordinal)
+                     || lower.EndsWith(".pu", StringComparison.Ordinal))
+            {
+                AddPlantUml(file, root, depth + 1);
             }
             else if (lower.EndsWith(".svg", StringComparison.Ordinal))
             {

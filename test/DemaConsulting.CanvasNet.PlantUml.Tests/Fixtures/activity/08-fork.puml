@@ -1,0 +1,19 @@
+@startuml
+start
+:Receive order;
+fork
+  :Bill the customer;
+fork again
+  :Pick the items;
+  :Pack them;
+fork again
+  :Notify;
+end fork
+:Ship;
+fork
+  :Audit;
+fork again
+  :Archive;
+end merge
+stop
+@enduml

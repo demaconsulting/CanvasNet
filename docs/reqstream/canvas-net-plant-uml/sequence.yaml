@@ -1,0 +1,74 @@
+---
+# Software Subsystem Requirements for Sequence
+#
+# These requirements decompose the CanvasNetPlantUml system's sequence diagrams into the Sequence subsystem
+# (internal namespace DemaConsulting.CanvasNet.PlantUml.Sequence): the parser that reads the statements
+# (SequenceParser), the model it produces (SequenceModel), the layout that places participants and rows as PlantUML's
+# sequence engine does (SequenceLayout), and the renderer that draws them (SequenceRenderer). Each requirement here
+# links down to the unit requirements that implement it. See docs/verification/canvas-net-plant-uml/sequence.md for
+# the test-evidence mapping.
+
+sections:
+  - title: CanvasNetPlantUml Requirements
+    sections:
+      - title: Sequence Requirements
+        requirements:
+          - id: CanvasNetPlantUml-Sequence-Reading
+            title: >-
+              The Sequence subsystem shall read the sequence statements of PlantUML (participants, messages,
+              activations, returns, numbering, notes, groups, boxes, dividers, delays, spaces, page texts, and settings)
+              into a model whose facts count its participants, messages, and boxes, shall report the statements it
+              does not draw, and shall refuse invalid statements and texts over the limits with located errors.
+            justification: |
+              A sequence diagram is only drawn right when every statement is read as PlantUML reads it; what is not
+              drawn must be reported and what is wrong must point at its line.
+            children:
+              - CanvasNetPlantUml-Sequence-SequenceParser-Participants
+              - CanvasNetPlantUml-Sequence-SequenceParser-Messages
+              - CanvasNetPlantUml-Sequence-SequenceParser-Activations
+              - CanvasNetPlantUml-Sequence-SequenceParser-Autonumber
+              - CanvasNetPlantUml-Sequence-SequenceParser-Notes
+              - CanvasNetPlantUml-Sequence-SequenceParser-Groups
+              - CanvasNetPlantUml-Sequence-SequenceParser-Boxes
+              - CanvasNetPlantUml-Sequence-SequenceParser-Separators
+              - CanvasNetPlantUml-Sequence-SequenceParser-PageTexts
+              - CanvasNetPlantUml-Sequence-SequenceParser-Settings
+              - CanvasNetPlantUml-Sequence-SequenceParser-Unsupported
+              - CanvasNetPlantUml-Sequence-SequenceParser-Errors
+              - CanvasNetPlantUml-Sequence-SequenceParser-Limits
+              - CanvasNetPlantUml-Sequence-SequenceModel-Facts
+              - CanvasNetPlantUml-Sequence-SequenceModel-Reports
+            tests:
+              - PlantUmlSequence_Registry_ParsesSequenceDiagrams
+              - PlantUmlSequence_ParseLayoutRender_DrawsParticipantsAndMessages
+
+          - id: CanvasNetPlantUml-Sequence-Drawing
+            title: >-
+              The Sequence subsystem shall lay a sequence diagram out with the geometry of PlantUML's sequence engine
+              (participant columns, rows, activations, notes, group frames, boxes, dividers, delays, and the foot box)
+              and draw it as a scene with PlantUML's shapes and the diagram's look, within the layout work limit.
+            justification: |
+              The picture must look like PlantUML's, element by element, and a hostile diagram must not take unbounded
+              time to lay out.
+            children:
+              - CanvasNetPlantUml-Sequence-SequenceModel-Layout
+              - CanvasNetPlantUml-Sequence-SequenceLayout-Columns
+              - CanvasNetPlantUml-Sequence-SequenceLayout-Rows
+              - CanvasNetPlantUml-Sequence-SequenceLayout-Activations
+              - CanvasNetPlantUml-Sequence-SequenceLayout-Notes
+              - CanvasNetPlantUml-Sequence-SequenceLayout-Groups
+              - CanvasNetPlantUml-Sequence-SequenceLayout-Boxes
+              - CanvasNetPlantUml-Sequence-SequenceLayout-Separators
+              - CanvasNetPlantUml-Sequence-SequenceLayout-Footbox
+              - CanvasNetPlantUml-Sequence-SequenceLayout-Limits
+              - CanvasNetPlantUml-Sequence-SequenceRenderer-Participants
+              - CanvasNetPlantUml-Sequence-SequenceRenderer-Lifelines
+              - CanvasNetPlantUml-Sequence-SequenceRenderer-Messages
+              - CanvasNetPlantUml-Sequence-SequenceRenderer-Notes
+              - CanvasNetPlantUml-Sequence-SequenceRenderer-Groups
+              - CanvasNetPlantUml-Sequence-SequenceRenderer-Blocks
+              - CanvasNetPlantUml-Sequence-SequenceRenderer-Placement
+            tests:
+              - PlantUmlSequence_Blocks_AreDrawnInRows
+              - PlantUmlSequence_SkinParams_ChangeTheDrawing
+              - PlantUmlSequence_Fixtures_AllLayOutAndDraw

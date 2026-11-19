@@ -86,6 +86,7 @@ sections:
           - CanvasNetTool-Validation-AdjustmentsSelfTest
           - CanvasNetTool-Validation-VegaLiteSelfTest
           - CanvasNetTool-Validation-MermaidSelfTest
+          - CanvasNetTool-Validation-PlantUmlSelfTest
           - CanvasNetTool-Validation-PandocFilterSelfTest
           - CanvasNetTool-Validation-HelpExamplesSelfTest
         tests:
@@ -360,7 +361,7 @@ sections:
           the number and size of the pages of a PDF, PPTX, or VSDX document, the modules,
           functions, and include and use directives of an OpenSCAD model, the marks, data
           references, parameters, title, and schema version of a Vega-Lite chart, and the type, direction,
-          titles, and numbers of nodes, edges, and subgraphs of a Mermaid diagram) without rendering it
+          titles, and numbers of nodes, edges, and subgraphs of a Mermaid or PlantUML diagram) without rendering it
           when the `info` command is run, as text or as JSON.
         tags: [system]
         justification: |
@@ -374,6 +375,7 @@ sections:
           - CanvasNetTool_Scad_Info_DescribesModel
           - CanvasNetTool_VegaLite_RenderAsProcess_DescribesAndWritesImage
           - CanvasNetTool_Mermaid_RenderAsProcess_DescribesAndWritesImage
+          - CanvasNetTool_PlantUml_RenderAsProcess_DescribesAndWritesImage
 
       - id: CanvasNetTool-System-Render
         title: >-
@@ -654,7 +656,8 @@ sections:
         title: >-
           The tool shall read PNG, JPEG, BMP, TIFF, GIF, JPEG 2000, SVG, PDF, PPTX, VSDX,
           OpenSCAD (SCAD), Vega-Lite (.vl.json, .vl, or a .json file with a Vega-Lite schema), and
-          Mermaid (.mmd or .mermaid) files, recognizing the format from the content before the file name
+          Mermaid (.mmd or .mermaid), and PlantUML (.puml, .plantuml, or .pu) files, recognizing the format from the
+          content before the file name
           extension (a model, a chart, or a diagram by its file name, or a chart also by its schema).
         tags: [system]
         justification: |
@@ -669,6 +672,7 @@ sections:
           - CanvasNetTool_Scad_OutputFormats_WriteDecodableFiles
           - CanvasNetTool_VegaLite_DetectionDiagnosticsAndErrors_FollowTheContract
           - CanvasNetTool_Mermaid_RenderAsProcess_DescribesAndWritesImage
+          - CanvasNetTool_PlantUml_RenderAsProcess_DescribesAndWritesImage
 
       - id: CanvasNetTool-System-Documents
         title: >-
@@ -827,6 +831,39 @@ sections:
           - CanvasNetTool_Mermaid_GitGraphAsProcess_IsDrawn
           - CanvasNetTool_Mermaid_ErrorsAndDiagnostics_FollowTheContract
 
+      - id: CanvasNetTool-System-PlantUml
+        title: >-
+          The tool shall render a PlantUML sequence or activity diagram (a `.puml`, `.plantuml`, or `.pu` file) at the
+          size the size options ask for (the size PlantUML lays it out at by default), over the diagram's own background
+          (white by default) unless `--background` says otherwise, with only the fonts bundled with the tool, with no
+          Java, no Graphviz, and nothing read from the network, giving the same picture every time; shall read its
+          `!include` files relative to the file that names them under the file-access mode of `--file-access`; shall
+          describe a diagram with the `info` command (its laid-out size and, in the same `diagram` object as a Mermaid
+          diagram, its type, whether this version draws it, its title, and its numbers of nodes, edges, and subgraphs),
+          list the `plantuml` format of the kind `diagram` with the `formats` command, and explain it in the help topic
+          `plantuml` (alias `puml`); shall report a diagram type that this version does not draw as the diagnostic
+          plantuml-diagram-unsupported with an empty picture (an unsupported-feature error with `--strict`); shall
+          report invalid text and an include that cannot be read with the error code plantuml-error, a diagram that
+          exceeds a limit of the library with budget-exceeded, an include the file-access mode denies with
+          file-access-denied, and `--theme` or `--positions` on a PlantUML diagram with usage-error, as expected
+          failures. The self-validation includes the PlantUML self-test (see the validate requirement).
+        tags: [system]
+        justification: |
+          Engineering documentation often holds sequence and activity diagrams as PlantUML text; drawing them without
+          Java, Graphviz, or a server, the same on every machine, lets agents check what they wrote and lets documents
+          embed the result, and every gap of the renderer is reported rather than silently skipped.
+        children:
+          - CanvasNetViewer-Imaging-SourceLoader-PlantUmlDetection
+          - CanvasNetViewer-Imaging-SourceLoader-PlantUmlProbe
+          - CanvasNetViewer-Imaging-SourceLoader-PlantUmlRender
+          - CanvasNetViewer-Imaging-SourceLoader-PlantUmlErrors
+          - CanvasNetTool-Commands-DiscoveryCommands-PlantUml
+          - CanvasNetTool-Commands-RenderCommand-PlantUml
+          - CanvasNetTool-Commands-HelpTopics-PlantUml
+        tests:
+          - CanvasNetTool_PlantUml_RenderAsProcess_DescribesAndWritesImage
+          - CanvasNetTool_RenderPlantUml
+
       - id: CanvasNetTool-System-SvgEmbed
         title: >-
           The tool shall let an SVG file embed, with an image element whose href is a relative path, a raster,
@@ -885,8 +922,9 @@ sections:
         title: >-
           The tool shall draw, with the pandoc-filter command run once per Pandoc run by the Lua shim
           docs/filters/canvasnet.lua, every picture of a Pandoc JSON document read from standard input that is an
-          OpenSCAD model, a Vega-Lite chart, a Mermaid diagram (also a Mermaid code block), a page of a PDF, PPTX, or
-          VSDX document, or an SVG drawing that links one, into a cache folder beside the folder of the shim that is
+          OpenSCAD model, a Vega-Lite chart, a Mermaid diagram (also a Mermaid code block), a PlantUML diagram (also a
+          PlantUML code block), a page of a PDF, PPTX, or VSDX document, or an SVG drawing that links one, into a cache
+          folder beside the folder of the shim that is
           reused while the source and every file it reads are unchanged, shall write the transformed document to
           standard output as UTF-8, shall write the shim with --write-shim, shall refuse a shim of a protocol it does
           not speak with a hint that names the command that fixes it, and shall report a mistake in a picture as the

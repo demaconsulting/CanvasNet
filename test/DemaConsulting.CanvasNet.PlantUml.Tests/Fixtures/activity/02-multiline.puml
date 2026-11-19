@@ -1,0 +1,9 @@
+@startuml
+start
+:Load the configuration
+from the user folder;
+:Validate **every** entry
+and //report// problems;
+:Done;
+end
+@enduml

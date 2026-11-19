@@ -1,0 +1,151 @@
+---
+# Software Unit Requirements for PlantUmlDocument
+#
+# These requirements describe the design-level behavior of the PlantUmlDocument unit (the public API of the root
+# namespace DemaConsulting.CanvasNet.PlantUml): the reading entry points, the metadata of a document, the options
+# and limits, the records, codes, and exceptions, and the report sink. See
+# docs/verification/canvas-net-plant-uml/plant-uml-document.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetPlantUml Requirements
+    sections:
+      - title: PlantUmlDocument Requirements
+        requirements:
+          - id: CanvasNetPlantUml-PlantUmlDocument-ParseOpen
+            title: >-
+              The PlantUmlDocument unit shall read a diagram from a string, a file path, or a readable stream as strict
+              UTF-8 without a byte-order mark, shall name the source after the path unless the options name it, and
+              shall reject null, empty, and unreadable arguments with the documented exceptions.
+            justification: |
+              The three entry points must agree, and invalid input must fail closed with a predictable exception.
+            tests:
+              - PlantUmlDocument_ParseAndOpen_SameText_Agree
+              - PlantUmlDocument_Open_SourceName_DefaultsToPath
+              - PlantUmlDocument_Open_Utf8_IsStrictAndDropsBom
+              - PlantUmlDocument_EntryPoints_InvalidArguments_Throw
+
+          - id: CanvasNetPlantUml-PlantUmlDocument-IncludeOptions
+            title: >-
+              The PlantUmlDocument unit shall provide open options for the include directives (a base directory,
+              which defaults to the folder of an opened file, and a file-access policy, which defaults to every
+              regular local file), refuse an empty base directory and a null policy, and read the include files of a
+              text, a stream, or a file under them.
+            justification: |
+              The caller decides where included files are found and which may be read, as for every other file a
+              document references.
+            tests:
+              - PlantUmlDocument_OpenOptions_IncludeSettings
+
+          - id: CanvasNetPlantUml-PlantUmlDocument-ImageSource
+            title: >-
+              The PlantUmlDocument unit shall provide an image source named plantuml for the .puml, .plantuml, and
+              .pu extensions, with no scheme and no fragment parameters, that draws a linked diagram at its natural
+              or requested size over a transparent background, resolves its includes in the folder of the request
+              under the request's file-access policy, returns its warnings as plantuml-warning notes with the specific
+              code and location and its unsupported features as notes with their codes, and throws in strict mode.
+            justification: |
+              A PlantUML diagram must be embeddable in the other document formats (SVG, Mermaid, Markdown) of the
+              repository as any other picture.
+            tests:
+              - PlantUmlImageSource_Properties_ClaimPlantUmlExtensions
+              - PlantUmlImageSource_Render_DrawsTheDiagramOnTransparent
+              - PlantUmlImageSource_Render_ReportsNotesAndStrictMode
+              - PlantUmlImageSource_Render_IncludesFollowTheRequest
+
+          - id: CanvasNetPlantUml-PlantUmlDocument-TextLimit
+            title: >-
+              The PlantUmlDocument unit shall stop reading a string, a stream, or a file as soon as its length
+              certainly exceeds the text size limit, with an InvalidDataException.
+            justification: |
+              A stream that never ends or a huge file must not consume unbounded memory before the limit is checked.
+            tests:
+              - PlantUmlDocument_Parse_TextOverLimit_ThrowsInvalidData
+
+          - id: CanvasNetPlantUml-PlantUmlDocument-Metadata
+            title: >-
+              The PlantUmlDocument unit shall expose the diagram type and whether this version draws it, and shall
+              open a recognized type that is not drawn without error and without metadata.
+            justification: |
+              A host decides what to do with a diagram (draw it, report it) from its type, before it renders.
+            tests:
+              - PlantUmlDocument_Parse_UnsupportedType_OpensWithoutMetadata
+
+          - id: CanvasNetPlantUml-PlantUmlDocument-Limits
+            title: >-
+              The PlantUmlDocument unit shall provide resource limits with documented defaults that validate every
+              value when it is set.
+            justification: |
+              Limits that accept invalid values would silently disable the protection they exist for.
+            tests:
+              - PlantUmlLimits_Default_HasDocumentedValues
+              - PlantUmlLimits_Init_BelowOne_Throws
+              - PlantUmlLimits_Init_DepthOutsideRange_Throws
+
+          - id: CanvasNetPlantUml-PlantUmlDocument-Records
+            title: >-
+              The PlantUmlDocument unit shall describe every report and failure with a location formatted as
+              file:line:column, a stable plantuml-* code from a published set of distinct codes, and a hint, and its
+              exceptions shall derive from FormatException (syntax), InvalidOperationException (render), and
+              IOException (unsupported feature).
+            justification: |
+              Consumers match on codes and exception types, and present locations the way editors and build tools
+              recognize them.
+            tests:
+              - PlantUmlLocation_ToString_Forms_AreFileLineColumn
+              - PlantUmlLocation_IsKnown_DependsOnLine
+              - PlantUmlDiagnostic_ToString_PrefixesLocationAndCode
+              - PlantUmlUnsupportedFeature_ToString_IncludesFeatureAndLocation
+              - PlantUmlSize_Equality_IsByValue
+              - PlantUmlSyntaxException_Located_CarriesCodeLocationHintAndExpected
+              - PlantUmlSyntaxException_StandardConstructors_UseGeneralCode
+              - PlantUmlRenderException_Constructors_CarryCodeAndLocation
+              - PlantUmlUnsupportedFeatureException_Constructors_CarryFeatureAndLocation
+              - PlantUmlDiagnosticCodes_AllCodes_AreDistinctPlantUmlIdentifiers
+
+          - id: CanvasNetPlantUml-PlantUmlDocument-Reports
+            title: >-
+              The PlantUmlDocument unit shall deliver the reports of a call in the order they were found, once,
+              without duplicates, capped by the diagnostics limit with a single suppression notice, and in strict mode
+              shall deliver the first unsupported feature before it throws for it.
+            justification: |
+              Deterministic, bounded reporting lets hosts present problems reliably, and a hostile diagram must not grow
+              the report buffer without bound.
+            tests:
+              - PlantUmlReportSink_Deliver_KeepsOrderAcrossKinds
+              - PlantUmlReportSink_Warn_Duplicate_IsRecordedOnce
+              - PlantUmlReportSink_BeyondCap_AddsSingleSuppressedNotice
+              - PlantUmlReportSink_Unsupported_Strict_RecordsAndThrows
+              - PlantUmlReportSink_DeliverIgnoringHandlerFailures_SwallowsHandlerException
+
+          - id: CanvasNetPlantUml-PlantUmlDocument-MeasureRender
+            title: >-
+              The PlantUmlDocument unit shall measure the size a render gives (the natural size rounded up to whole
+              pixels, times the scale of the call and of the diagram), render at that size or at an exact size of 1 to
+              the largest surface side, refuse a scaled size outside that range, stop when the token is canceled, and
+              draw a type that is not drawn as an empty, transparent picture of 20 by 20 after its report.
+            justification: |
+              Measuring and rendering must agree, invalid sizes must fail before any work, and a type that is not drawn
+              must still give a picture.
+            tests:
+              - PlantUmlDocument_Render_InvalidArgumentsAndCancellation_Throw
+
+          - id: CanvasNetPlantUml-PlantUmlDocument-RenderOptions
+            title: >-
+              The PlantUmlDocument unit shall provide render options with documented defaults (scale 1, the diagram's
+              own background, the default limits, no handlers, not strict) that refuse a scale that is not finite and
+              positive or exceeds the largest surface side, and null limits.
+            justification: |
+              Options that accept invalid values would fail later with a less precise error.
+            tests:
+              - PlantUmlRenderOptions_Defaults_AreDocumented
+              - PlantUmlRenderOptions_Init_InvalidValues_Throw
+
+          - id: CanvasNetPlantUml-PlantUmlDocument-ReadingReports
+            title: >-
+              The PlantUmlDocument unit shall deliver the reports found while reading the text with every measure and
+              render call, in text order and before the reports of the call itself.
+            justification: |
+              Reading has no handlers; a directive that was dropped must be visible to the caller of every call, and
+              strict mode must stop at it.
+            tests:
+              - PlantUmlDocument_Render_ReadingReports_DeliveredEveryCallInOrder

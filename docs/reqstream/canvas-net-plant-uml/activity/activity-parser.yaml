@@ -1,0 +1,117 @@
+---
+# Software Unit Requirements for ActivityParser
+#
+# These requirements describe the design-level behavior of the ActivityParser unit of the Activity subsystem
+# (internal namespace DemaConsulting.CanvasNet.PlantUml.Activity): the statements of an activity diagram of the new
+# syntax, their errors, their reports, and their limits. See
+# docs/verification/canvas-net-plant-uml/activity/activity-parser.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetPlantUml Requirements
+    sections:
+      - title: Activity Requirements
+        sections:
+          - title: ActivityParser Requirements
+            requirements:
+              - id: CanvasNetPlantUml-Activity-ActivityParser-Actions
+                title: >-
+                  The ActivityParser unit shall read start, stop, and end, and actions of one or several lines with
+                  an optional fill color, keeping the location of each statement.
+                justification: |
+                  Actions and the start and end nodes are the content of every activity diagram.
+                tests:
+                  - PlantUmlActivityParser_Actions_ReadTextColorAndNodes
+
+              - id: CanvasNetPlantUml-Activity-ActivityParser-Conditions
+                title: >-
+                  The ActivityParser unit shall read ifs with their tests and arrow labels (the then and the is or
+                  equals forms), their elseif branches, their else branch, and their end.
+                justification: |
+                  Decisions are drawn from their tests and labels, branch by branch.
+                tests:
+                  - PlantUmlActivityParser_If_ReadsBranchesAndLabels
+
+              - id: CanvasNetPlantUml-Activity-ActivityParser-Loops
+                title: >-
+                  The ActivityParser unit shall read while loops with their test, their labels, their backward action,
+                  and their exit label, and repeat loops with their start label, their test, their labels, and their
+                  backward action.
+                justification: |
+                  Loops are drawn with their back arrows and labels as PlantUML draws them.
+                tests:
+                  - PlantUmlActivityParser_Loops_ReadTestsLabelsAndBackward
+
+              - id: CanvasNetPlantUml-Activity-ActivityParser-Parallel
+                title: >-
+                  The ActivityParser unit shall read forks with their branches, an end fork with its label, an end
+                  merge, and splits with their branches.
+                justification: |
+                  Parallel flows are drawn between bars or joined on a diamond depending on how they end.
+                tests:
+                  - PlantUmlActivityParser_ForksAndSplits_ReadBranchesAndEnds
+
+              - id: CanvasNetPlantUml-Activity-ActivityParser-Arrows
+                title: >-
+                  The ActivityParser unit shall read arrows with a label, a color, and a dashed, dotted, bold, or
+                  hidden style, and lead them into the next instruction.
+                justification: |
+                  Arrow labels and styles change the drawing and the spacing of the instructions.
+                tests:
+                  - PlantUmlActivityParser_Arrows_LeadIntoTheNextInstruction
+
+              - id: CanvasNetPlantUml-Activity-ActivityParser-Swimlanes
+                title: >-
+                  The ActivityParser unit shall read swimlanes with their names, display names, and colors, in the
+                  order of their first use, and place every instruction in the current swimlane.
+                justification: |
+                  Swimlanes are drawn as columns in the order PlantUML draws them.
+                tests:
+                  - PlantUmlActivityParser_Swimlanes_ReadOrderColorsAndPlacement
+
+              - id: CanvasNetPlantUml-Activity-ActivityParser-Annotations
+                title: >-
+                  The ActivityParser unit shall read notes (left or right, floating, of one or several lines),
+                  connectors, partitions and groups, the package, rectangle, and card groups (reported and drawn
+                  without a frame), and kill and detach.
+                justification: |
+                  These constructs decorate and end the flow and must be attached to the instruction they belong to.
+                tests:
+                  - PlantUmlActivityParser_NotesConnectorsGroupsAndKill_AreRead
+
+              - id: CanvasNetPlantUml-Activity-ActivityParser-Settings
+                title: >-
+                  The ActivityParser unit shall read the page texts (title, header, footer, caption, and legend), the
+                  scale, and the skin parameters of an activity diagram.
+                justification: |
+                  The page texts and the look are part of the picture.
+                tests:
+                  - PlantUmlActivityParser_Settings_ReadPageTextsSkinParamsAndScale
+
+              - id: CanvasNetPlantUml-Activity-ActivityParser-Unsupported
+                title: >-
+                  The ActivityParser unit shall report the statements it recognizes but does not draw (switch blocks,
+                  goto and label, the specification and description language box styles, and similar) as
+                  plantuml-statement-unsupported at their lines, and continue without them.
+                justification: |
+                  A construct that is not drawn must never be drawn wrong or skipped silently.
+                tests:
+                  - PlantUmlActivityParser_UnsupportedStatements_AreReportedAndSkipped
+
+              - id: CanvasNetPlantUml-Activity-ActivityParser-Errors
+                title: >-
+                  The ActivityParser unit shall refuse a malformed or misplaced statement and a block that is not
+                  closed with a plantuml-syntax-error at the statement and a hint.
+                justification: |
+                  An author can only fix an error that points into the text that was written.
+                tests:
+                  - PlantUmlActivityParser_InvalidStatements_FailLocated
+
+              - id: CanvasNetPlantUml-Activity-ActivityParser-Limits
+                title: >-
+                  The ActivityParser unit shall refuse more instructions and swimlanes than MaxNodes, more arrows than
+                  MaxEdges, blocks nested deeper than MaxNestingDepth, and labels longer than MaxLabelLength with a
+                  located plantuml-limit-exceeded error.
+                justification: |
+                  Untrusted text must not exhaust memory, time, or the call stack.
+                tests:
+                  - PlantUmlActivityParser_Limits_AreEnforced

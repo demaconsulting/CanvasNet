@@ -1,0 +1,6 @@
+@startuml
+A -> B : m
+note right: attached
+B -> A : r
+note left: lft
+@enduml

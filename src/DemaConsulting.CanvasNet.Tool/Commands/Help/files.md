@@ -83,9 +83,10 @@ options, the diagnostics of a denial, and the Pandoc filter.
   Vega-Lite image mark, or a linked page) that the mode denies is not drawn, and
   the rest is; the message names the link, the mode, and why. With --strict it
   is the error file-access-denied.
-- `file-access-denied`: Error: an OpenSCAD include or use file or a Vega-Lite
-  data file that the mode denies, or a denied picture with --strict; the message
-  names the file as written and where it is referenced. No output is written.
+- `file-access-denied`: Error: an OpenSCAD include or use file, a PlantUML
+  !include file, or a Vega-Lite data file that the mode denies, or a denied
+  picture with --strict; the message names the file as written and where it is
+  referenced. No output is written.
 - `real path unavailable`: A mode other than any needs the real path of every
   opened file. Where the system cannot tell it (Linux without /proc, for
   example), the file is denied, never read unchecked.

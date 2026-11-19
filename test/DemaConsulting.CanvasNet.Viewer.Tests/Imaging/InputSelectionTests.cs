@@ -233,6 +233,27 @@ public class InputSelectionTests
     }
 
     /// <summary>
+    ///     Test that a PlantUML diagram takes no fragment parameter: a theme in its fragment is the unknown-parameter
+    ///     warning, and the diagram keeps the options of the command.
+    /// </summary>
+    [Fact]
+    public void SourceLoader_ProbeInputReference_PlantUmlTheme_IsAnUnknownParameter()
+    {
+        // Arrange
+        using var directory = new TempDirectory();
+        var diagram = directory.Combine("seq.puml");
+        File.Copy(FixtureFactory.FixturePath(Path.Combine("plantuml", "sequence.puml")), diagram);
+
+        // Act
+        var info = SourceLoader.Probe(InputReference.Parse(diagram + "#theme=dark"));
+
+        // Assert: probed as a diagram, with the theme reported as a parameter the source does not take
+        Assert.Equal(SourceKind.PlantUml, info.Format);
+        Assert.Null(info.Selection!.Mermaid);
+        Assert.Equal(FolderImageResolver.FragmentUnknownParameterCode, Assert.Single(info.Selection.Diagnostics).Code);
+    }
+
+    /// <summary>
     ///     Test that a value that cannot be used, and a fragment over its limits, is <c>image-fragment-invalid</c> with a message
     ///     that names the input.
     /// </summary>

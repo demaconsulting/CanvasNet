@@ -1,0 +1,67 @@
+---
+# Software Subsystem Requirements for Activity
+#
+# These requirements decompose the CanvasNetPlantUml system's activity diagrams (the new syntax) into the Activity
+# subsystem (internal namespace DemaConsulting.CanvasNet.PlantUml.Activity): the parser that reads the statements
+# (ActivityParser), the model it produces (ActivityModel), the layout that composes and places the tiles as PlantUML's
+# activity engine does (ActivityLayout), and the renderer that draws them (ActivityRenderer). Each requirement here
+# links down to the unit requirements that implement it. See docs/verification/canvas-net-plant-uml/activity.md for
+# the test-evidence mapping.
+
+sections:
+  - title: CanvasNetPlantUml Requirements
+    sections:
+      - title: Activity Requirements
+        requirements:
+          - id: CanvasNetPlantUml-Activity-Reading
+            title: >-
+              The Activity subsystem shall read the activity statements of PlantUML's new syntax (start, stop, end,
+              actions, ifs, while and repeat loops, forks, splits, arrows, swimlanes, notes, connectors, partitions,
+              kill and detach, page texts, and settings) into a model whose facts count its nodes, arrows, swimlanes,
+              and partitions, shall report the statements it does not draw, and shall refuse invalid statements and
+              texts over the limits with located errors.
+            justification: |
+              An activity diagram is only drawn right when every statement is read as PlantUML reads it; what is not
+              drawn must be reported and what is wrong must point at its line.
+            children:
+              - CanvasNetPlantUml-Activity-ActivityParser-Actions
+              - CanvasNetPlantUml-Activity-ActivityParser-Conditions
+              - CanvasNetPlantUml-Activity-ActivityParser-Loops
+              - CanvasNetPlantUml-Activity-ActivityParser-Parallel
+              - CanvasNetPlantUml-Activity-ActivityParser-Arrows
+              - CanvasNetPlantUml-Activity-ActivityParser-Swimlanes
+              - CanvasNetPlantUml-Activity-ActivityParser-Annotations
+              - CanvasNetPlantUml-Activity-ActivityParser-Settings
+              - CanvasNetPlantUml-Activity-ActivityParser-Unsupported
+              - CanvasNetPlantUml-Activity-ActivityParser-Errors
+              - CanvasNetPlantUml-Activity-ActivityParser-Limits
+              - CanvasNetPlantUml-Activity-ActivityModel-Facts
+              - CanvasNetPlantUml-Activity-ActivityModel-Reports
+            tests:
+              - PlantUmlActivity_ParseLayoutRender_DrawsNodesActionsAndArrows
+              - PlantUmlActivity_Fixtures_AllLayOutAndDraw
+
+          - id: CanvasNetPlantUml-Activity-Drawing
+            title: >-
+              The Activity subsystem shall lay an activity diagram out with the tile composition and compression of
+              PlantUML's activity engine (sequences, conditions, loops, forks and splits, swimlanes, notes, and
+              partitions) and draw it as a scene with PlantUML's shapes and the diagram's look, within the layout
+              work limit.
+            justification: |
+              The picture must look like PlantUML's, element by element, and a hostile diagram must not take unbounded
+              time to lay out.
+            children:
+              - CanvasNetPlantUml-Activity-ActivityModel-Layout
+              - CanvasNetPlantUml-Activity-ActivityLayout-Sequence
+              - CanvasNetPlantUml-Activity-ActivityLayout-Conditions
+              - CanvasNetPlantUml-Activity-ActivityLayout-Loops
+              - CanvasNetPlantUml-Activity-ActivityLayout-Parallel
+              - CanvasNetPlantUml-Activity-ActivityLayout-Swimlanes
+              - CanvasNetPlantUml-Activity-ActivityLayout-Annotations
+              - CanvasNetPlantUml-Activity-ActivityLayout-Limits
+              - CanvasNetPlantUml-Activity-ActivityRenderer-Shapes
+              - CanvasNetPlantUml-Activity-ActivityRenderer-Space
+              - CanvasNetPlantUml-Activity-ActivityRenderer-Scene
+            tests:
+              - PlantUmlActivity_NestedBlocks_AreDrawnInsideEachOther
+              - PlantUmlActivity_SkinParams_ChangeTheDrawing

@@ -16,9 +16,11 @@ sections:
       - id: CanvasNetTool-PandocFilter-Pictures
         title: >-
           The PandocFilter subsystem shall return a Pandoc JSON document in which every picture of an OpenSCAD model, a
-          Vega-Lite chart, a Mermaid diagram, or a page of a PDF, PPTX, or VSDX document is a PNG picture drawn into the
+          Vega-Lite chart, a Mermaid or PlantUML diagram, or a page of a PDF, PPTX, or VSDX document is a PNG picture
+          drawn into the
           cache folder with the options its attributes ask for, every SVG drawing that links one is its flattened copy,
-          and every Mermaid code block is a figure (with a caption) or a paragraph that shows its picture, while every
+          and every Mermaid or PlantUML code block is a figure (with a caption) or a paragraph that shows its picture,
+          while every
           other element, attribute, and text of the document is unchanged.
         justification: |
           A documentation build must show models, charts, diagrams, and document pages in any output format, written
@@ -45,12 +47,14 @@ sections:
           - CanvasNetTool-PandocFilter-FilterSettings-PictureSrc
           - CanvasNetTool-PandocFilter-PandocFilterEngine-SvgDrawings
           - CanvasNetTool-PandocFilter-PandocFilterEngine-MermaidBlocks
+          - CanvasNetTool-PandocFilter-PandocFilterEngine-PlantUmlBlocks
           - CanvasNetTool-PandocFilter-PandocFilterEngine-UnsupportedDiagram
           - CanvasNetTool-PandocFilter-PandocFilterEngine-Warnings
           - CanvasNetTool-PandocFilter-PandocFilterEngine-OtherPictures
         tests:
           - PandocFilter_Run_RealPictures_DrawnTheSameWithOneOrFourJobs
           - PandocFilter_Run_PictureMistakes_StopTheRunNamingThePicture
+          - PandocFilter_Run_PlantUmlPictureAndBlock_DrawnAndRedrawnWhenAnIncludeChanges
 
       - id: CanvasNetTool-PandocFilter-Cache
         title: >-
@@ -81,8 +85,10 @@ sections:
           - CanvasNetTool-PandocFilter-PictureCache-Commit
           - CanvasNetTool-PandocFilter-PandocFilterEngine-Cache
           - CanvasNetTool-PandocFilter-PandocFilterEngine-DuplicateKeys
+          - CanvasNetTool-PandocFilter-DependencyHasher-PlantUmlWalk
         tests:
           - PandocFilter_Run_UnchangedAndChangedSources_DrawOnlyWhatChanged
+          - PandocFilter_Run_PlantUmlPictureAndBlock_DrawnAndRedrawnWhenAnIncludeChanges
 
       - id: CanvasNetTool-PandocFilter-Jobs
         title: >-

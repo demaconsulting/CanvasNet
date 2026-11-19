@@ -1,0 +1,69 @@
+---
+# Software Unit Requirements for TextLayout
+#
+# These requirements describe the design-level behavior of the TextLayout unit of the Scenegraph subsystem (internal
+# namespace DemaConsulting.CanvasNet.PlantUml.Scenegraph): the metrics of the bundled fonts as PlantUML measures text,
+# the mapping of font families, line breaks and wrapping, the creole markup subset, and the reports. See
+# docs/verification/canvas-net-plant-uml/scenegraph/text-layout.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetPlantUml Requirements
+    sections:
+      - title: Scenegraph Requirements
+        sections:
+          - title: TextLayout Requirements
+            requirements:
+              - id: CanvasNetPlantUml-Scenegraph-TextLayout-Metrics
+                title: >-
+                  The TextLayout unit shall measure a text as wide as the sum of its glyph advances without kerning,
+                  and a line as high as Java's logical SansSerif font on Windows (17.609 pixels at 14 pixels), with
+                  the baseline at the line top plus the line height minus the descent.
+                justification: |
+                  PlantUML sizes every element from these measures; matching them makes the layout match PlantUML's.
+                tests:
+                  - PlantUmlTextLayout_Width_AliceAt14_MatchesPlantUml
+                  - PlantUmlTextLayout_LineMetrics_FollowLogicalFont
+                  - PlantUmlTextLayout_Draw_PlacesBaselinesAndAlignment
+
+              - id: CanvasNetPlantUml-Scenegraph-TextLayout-Fonts
+                title: >-
+                  The TextLayout unit shall draw SansSerif, Arial, and unknown families with the bundled Liberation
+                  Sans, Serif and Times with Liberation Serif, and Monospaced and Courier with Liberation Mono.
+                justification: |
+                  A picture must not depend on the fonts installed on the machine.
+                tests:
+                  - PlantUmlTextLayout_CssFamily_MapsToBundledFamilies
+
+              - id: CanvasNetPlantUml-Scenegraph-TextLayout-Lines
+                title: >-
+                  The TextLayout unit shall break lines at PlantUML's \n and at real line feeds, keep an escaped
+                  backslash, wrap a line at spaces to a width when one is given (a longer word stays whole), and align
+                  the lines of a block left, centered, or right.
+                justification: |
+                  Labels use \n for line breaks, and maxMessageSize wraps long messages.
+                tests:
+                  - PlantUmlTextLayout_Layout_LineBreaks_StackLines
+                  - PlantUmlTextLayout_Layout_Wrap_BreaksAtSpaces
+                  - PlantUmlTextLayout_Draw_PlacesBaselinesAndAlignment
+
+              - id: CanvasNetPlantUml-Scenegraph-TextLayout-Creole
+                title: >-
+                  The TextLayout unit shall read the creole subset (bold, italic, monospace, underline, and strike in
+                  their doubled-character and tag forms, the color, size, and font tags, Unicode characters, and the
+                  tilde escape), and keep lone markup characters and URLs as text.
+                justification: |
+                  Diagrams emphasize parts of their labels with creole markup.
+                tests:
+                  - PlantUmlTextLayout_Layout_CreoleSubset_StylesRuns
+                  - PlantUmlTextLayout_Layout_LoneMarkupCharacters_AreText
+
+              - id: CanvasNetPlantUml-Scenegraph-TextLayout-Reports
+                title: >-
+                  The TextLayout unit shall draw markup outside the subset (images, sprites, icons, tables, lists,
+                  headings, rules) as text and report it once as plantuml-markup-unsupported, and report a character
+                  that the bundled face lacks as the warning plantuml-text-missing-glyph.
+                justification: |
+                  A label must never be drawn differently from what its author wrote without a report.
+                tests:
+                  - PlantUmlTextLayout_Layout_UnsupportedMarkup_IsReportedAndKept
+                  - PlantUmlTextLayout_Layout_MissingGlyph_Warns

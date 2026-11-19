@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text.RegularExpressions;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Mermaid;
+using DemaConsulting.CanvasNet.PlantUml;
 using DemaConsulting.CanvasNet.Positions;
 using DemaConsulting.CanvasNet.Scad;
 using DemaConsulting.CanvasNet.VegaLite;
@@ -186,7 +187,7 @@ internal static partial class HelpTopics
     /// </remarks>
     public static IReadOnlyList<string> TopicNames { get; } =
     [
-        "scad", "vega-lite", "mermaid", "svg", "pdf", "pptx", "vsdx", "raster",
+        "scad", "vega-lite", "mermaid", "plantuml", "svg", "pdf", "pptx", "vsdx", "raster",
         "style", "composition", "positions", "json", "errors", "limits", "files", "pandoc"
     ];
 
@@ -194,7 +195,7 @@ internal static partial class HelpTopics
     ///     Gets the names of the topics that describe one format (and so list supported and unsupported features).
     /// </summary>
     public static IReadOnlyList<string> FormatTopicNames { get; } =
-        ["scad", "vega-lite", "mermaid", "svg", "pdf", "pptx", "vsdx", "raster"];
+        ["scad", "vega-lite", "mermaid", "plantuml", "svg", "pdf", "pptx", "vsdx", "raster"];
 
     /// <summary>
     ///     Gets the values of the <c>{{name}}</c> tokens, taken from the constants of the code.
@@ -398,6 +399,7 @@ internal static partial class HelpTopics
         var scad = ScadLimits.Default;
         var vegaLite = VegaLiteLimits.Default;
         var mermaid = MermaidLimits.Default;
+        var plantUml = PlantUmlLimits.Default;
         return new Dictionary<string, string>(StringComparer.Ordinal)
         {
             ["schemaVersion"] = Format(ResultWriter.SchemaVersion),
@@ -418,6 +420,11 @@ internal static partial class HelpTopics
             ["mmdMaxEdges"] = Format(mermaid.MaxEdges),
             ["mmdMaxNodes"] = Format(mermaid.MaxNodes),
             ["mmdMaxImages"] = Format(mermaid.MaxImages),
+            ["pumlMaxTextSize"] = Format(plantUml.MaxTextSize),
+            ["pumlMaxNodes"] = Format(plantUml.MaxNodes),
+            ["pumlMaxEdges"] = Format(plantUml.MaxEdges),
+            ["pumlMaxIncludes"] = Format(plantUml.MaxIncludes),
+            ["pumlMaxIncludeDepth"] = Format(plantUml.MaxIncludeDepth),
             ["fragmentMaxLength"] = Format(DemaConsulting.CanvasNet.ImageSources.ImageFragment.MaxLength),
             ["fragmentMaxParameters"] = Format(DemaConsulting.CanvasNet.ImageSources.ImageFragment.MaxParameters),
             ["positionsMax"] = Format(PositionCollector.MaxPositions),

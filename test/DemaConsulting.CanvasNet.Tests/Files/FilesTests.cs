@@ -30,6 +30,7 @@ public partial class FilesTests
         ["DemaConsulting.CanvasNet/Fonts/TrueTypeFont.cs"] = "Font files the host configures, not documents.",
         ["DemaConsulting.CanvasNet.Mermaid/MermaidDocument.cs"] = "Open of the top-level document the caller names.",
         ["DemaConsulting.CanvasNet.Pdf/PdfDocument.cs"] = "Open of the top-level document the caller names.",
+        ["DemaConsulting.CanvasNet.PlantUml/PlantUmlDocument.cs"] = "Open of the top-level document the caller names.",
         ["DemaConsulting.CanvasNet.Pptx/PptxDocument.cs"] = "Open of the top-level document the caller names.",
         ["DemaConsulting.CanvasNet.Scad/ScadDocument.cs"] = "Open of the top-level document the caller names.",
         ["DemaConsulting.CanvasNet.Svg/SvgCodec.cs"] = "Load and Save of a file the caller names.",

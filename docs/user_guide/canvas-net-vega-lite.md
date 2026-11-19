@@ -2656,14 +2656,14 @@ says nothing, and a picture that comes back at exactly the requested size is the
 **Resolvers.** `FolderImageResolver` of the core package resolves a link relative to the chart under its file-access
 policy (`FolderImageResolverOptions.FileAccess`; every local file by default, see the core user guide, *Migrating from
 the Folder Sandbox*) and understands every format of the CanvasNet libraries, so a chart can show a PNG or JPEG, an SVG,
-an OpenSCAD model (`"url": "part.scad"`), a page of a document (`"url": "report.pdf#page=2"`), a Mermaid diagram, or
-another chart; a remote link (`https://`) is refused and reported as `svg-image-unresolved` by the resolver. A resolver
-of your own may serve pictures from memory. The resolver is asked once for each link and size in a call (the answer is
-shared by every mark that shows it), and the chart disposes every surface it was given. A picture the resolver did not
-give (it returned `null`) is the warning `vl-mark-image-unresolved` at the mark, once for each link; the mark draws
-nothing, and strict mode does not fail for a warning. An exception of the resolver (a file that is found but broken, a
-limit of the resolver) propagates unchanged. `VegaLiteLimits.MaxImages` (256 by default) bounds the number of different
-questions of one call; the next one is a `VegaLiteRenderException` located at the mark.
+an OpenSCAD model (`"url": "part.scad"`), a page of a document (`"url": "report.pdf#page=2"`), a Mermaid or PlantUML
+diagram, or another chart; a remote link (`https://`) is refused and reported as `svg-image-unresolved` by the resolver.
+A resolver of your own may serve pictures from memory. The resolver is asked once for each link and size in a call (the
+answer is shared by every mark that shows it), and the chart disposes every surface it was given. A picture the resolver
+did not give (it returned `null`) is the warning `vl-mark-image-unresolved` at the mark, once for each link; the mark
+draws nothing, and strict mode does not fail for a warning. An exception of the resolver (a file that is found but
+broken, a limit of the resolver) propagates unchanged. `VegaLiteLimits.MaxImages` (256 by default) bounds the number of
+different questions of one call; the next one is a `VegaLiteRenderException` located at the mark.
 
 ```csharp
 var folder = new FolderImageResolver("assets", [new RasterImageSource(), new VegaLiteImageSource()]);

@@ -1,0 +1,19 @@
+@startuml
+autonumber
+participant Sender
+participant Receiver
+Sender -> Receiver : first
+== Phase two ==
+Sender -> Receiver : second
+...
+Receiver --> Sender : third
+... a little later ...
+Sender -> Receiver : fourth
+|||
+Sender -> Receiver : fifth
+||40||
+autonumber stop
+Sender -> Receiver : unnumbered
+autonumber resume
+Sender -> Receiver : sixth
+@enduml

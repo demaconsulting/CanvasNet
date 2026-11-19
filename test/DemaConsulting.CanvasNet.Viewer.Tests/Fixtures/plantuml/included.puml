@@ -1,0 +1,4 @@
+@startuml
+!include parts/people.iuml
+Alice -> Bob: hello
+@enduml

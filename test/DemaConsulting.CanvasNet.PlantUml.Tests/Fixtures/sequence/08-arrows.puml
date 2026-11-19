@@ -1,0 +1,14 @@
+@startuml
+participant Left
+participant Right
+Left ->> Right : open head
+Left -->> Right : open dotted
+Left ->x Right : lost
+Left -\ Right : upper half
+Left -/ Right : lower half
+Left ->o Right : with circle
+Left <-> Right : both ways
+Right <- Left : written backwards
+Left -[#0066CC]> Right : colored
+Right -> Left : leftwards
+@enduml

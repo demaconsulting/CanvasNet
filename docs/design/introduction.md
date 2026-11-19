@@ -79,8 +79,9 @@ software items, specifically:
   `ImageSources` subsystem of the core package depends on it): the `FileReferenceResolver` unit (the public
   resolver plus its `FileReferenceOptions`, `FileReference`, `FileReferenceException`, and
   `FileReferenceFailureKind` types) that reads a file a document references after a host-chosen policy approved
-  the open file (every regular local file by default, like Pandoc), used by `ImageSources`, `CanvasNetVegaLite`, and
-  `CanvasNetScad` for every referenced file; the `FileAccessPolicy` unit (the public hook, its built-in policies, and
+  the open file (every regular local file by default, like Pandoc), used by `ImageSources`, `CanvasNetVegaLite`,
+  `CanvasNetScad`, and `CanvasNetPlantUml` (its include files) for every referenced file; the `FileAccessPolicy` unit
+  (the public hook, its built-in policies, and
   the `FileAccessRequest`
   and `FileAccessDecision` types); the internal `RealPath` unit that tells the real path and the type of an open
   file per operating system; and the obsolete `SandboxedFileResolver` unit (the public resolver plus its
@@ -101,7 +102,8 @@ software items, specifically:
   allocate, forwards notes, and
   never caches a picture), and the `RasterImageSource` unit (the source for the raster formats). Each format package
   ships its own source (`SvgImageSource`, `ScadImageSource`, `VegaLiteImageSource`, `MermaidImageSource`,
-  `PdfImageSource`, `PptxImageSource`, `VsdxImageSource`), folded into the direct unit of that package
+  `PlantUmlImageSource`, `PdfImageSource`, `PptxImageSource`, `VsdxImageSource`), folded into the direct unit of that
+  package
 - **Positions (Subsystem)** — Feature positions of a rendered picture (where a node, an edge, a bar, or an axis is, so
   that a caller can place a callout without probing pixels), depending only on `ImageSources` (the bare selector values
   of `ImageParameterValues`): the `ImagePosition` unit (the immutable `ImagePosition` record of one feature with its
@@ -377,6 +379,22 @@ software items, specifically:
   (`canvas-net-mermaid.md`) for the known differences from Mermaid and its Phase Plan. `CanvasNetMermaid` depends on the
   `CanvasNet` system's `Canvas`, `Geometry`, `Drawing`, `Fonts`, `Rendering`, `ImageSources`, and `Positions` subsystems
   through their public API only
+- **CanvasNetPlantUml (System)** — A separate software system (packable as
+  `DemaConsulting.CanvasNet.PlantUml`) providing a static, offline renderer for the PlantUML diagram language,
+  derived with attribution from the MIT-licensed distribution of PlantUML (its license text ships in the package; not
+  affiliated with the PlantUML project). It contains one direct unit, `PlantUmlDocument` (the public `Parse`/`Open`
+  API with `PlantUmlOpenOptions`, `PlantUmlRenderOptions`, `PlantUmlLimits`, `PlantUmlLocation`, `PlantUmlDiagnostic`,
+  `PlantUmlUnsupportedFeature`, `PlantUmlSize`, `PlantUmlDiagnosticCodes`, `PlantUmlSyntaxException`,
+  `PlantUmlRenderException`, `PlantUmlUnsupportedFeatureException`, the internal report sink, and
+  `PlantUmlImageSource`), and the internal subsystems `Syntax` (`Preprocessor` and `DiagramDetector`), `Styling`
+  (`SkinTheme` and `SkinParams`), `Scenegraph` (`SceneModel`, `TextLayout`, and `ScenePainter`), `Sequence`
+  (`SequenceParser`, `SequenceModel`, `SequenceLayout`, and `SequenceRenderer`), and `Activity` (`ActivityParser`,
+  `ActivityModel`, `ActivityLayout`, and `ActivityRenderer`). Sequence diagrams and activity diagrams (the new syntax)
+  are drawn; every PlantUML diagram type is recognized; the types
+  this version does not draw are reported as unsupported — see *CanvasNetPlantUml System Design*
+  (`canvas-net-plant-uml.md`) for the known differences from PlantUML and its Phase Plan. `CanvasNetPlantUml` depends
+  on the `CanvasNet` system's `Canvas`, `Geometry`, `Drawing`, `Fonts`, `Rendering`, `Files`, and `ImageSources`
+  subsystems through their public API only
 - **CanvasNetTool (System)** — A separate software system, shipped as the `DemaConsulting.CanvasNet.Tool` dotnet
   tool package (command `canvasnet`), that lets people, scripts, and AI agents inspect, render, transform, compare,
   and compose
@@ -407,15 +425,16 @@ software items, specifically:
 - **CanvasNetViewer (System)** — A separate software system (packable as `DemaConsulting.CanvasNet.Viewer`) that
   aggregates the image sources of every format and is the library form of the `canvasnet` tool. It contains two direct
   units and one subsystem. The direct unit `CanvasNetViewer` (with `ViewerRenderOptions` and `ViewerImage`) lists the
-  built-in image sources (raster, SVG, PDF, PowerPoint, Visio, OpenSCAD, Vega-Lite, and Mermaid) and the extensions
-  they claim, creates the `FolderImageResolver` of the core `ImageSources` subsystem for one render so that an SVG
-  document can embed every format, renders any file by path or from a stream, returns the feature positions that the
-  selectors of its options match for a Mermaid diagram or a Vega-Lite chart (through the core `Positions` subsystem),
-  and lets a library user add image sources
+  built-in image sources (raster, SVG, PDF, PowerPoint, Visio, OpenSCAD, Vega-Lite, Mermaid, and PlantUML) and the
+  extensions they claim, creates the `FolderImageResolver` of the core `ImageSources` subsystem for one render so that
+  an SVG document can embed every format, renders any file by path or from a stream, returns the feature positions that
+  the selectors of its options match for a Mermaid diagram or a Vega-Lite chart (through the core `Positions`
+  subsystem), and lets a library user add image sources
   of their own (later sources win; nothing is cached). The direct unit `ViewerException` is the exception of every
   expected failure, with the stable `ErrorCodes`. The `Imaging` subsystem holds the `SourceLoader` unit, which
   recognizes, probes, and loads PNG, JPEG, BMP, TIFF, GIF, JPEG 2000, and SVG files, the pages of PDF, PPTX, and VSDX
-  documents, views of OpenSCAD models, Vega-Lite charts, and Mermaid diagrams, the `ImagePipeline` unit, which crops,
+  documents, views of OpenSCAD models, Vega-Lite charts, Mermaid diagrams, and PlantUML diagrams, the `ImagePipeline`
+  unit, which crops,
   resizes, fits, rotates by any angle, flips, pads, adjusts, deskews, trims, and grids pixels in the order the
   operations are given, the `GridOverlay` unit, which does the grid work for it (the flip, pad, trim, tone, rotation,
   skew, and analysis arithmetic is the core library's `Surface`), the `ImageWriter` unit, which writes PNG, JPEG, BMP,
@@ -424,8 +443,8 @@ software items, specifically:
   operation units that chain them: `ImageRenderer` (render the pages of a source), `ImageInspector` (colors and pixels),
   `ImageComparer` (compare two images), `MontageBuilder` (a contact sheet), and `SvgFlattener` (a copy of an SVG drawing
   that other SVG readers can show). It references the core package and the
-  Svg, Pdf, Pptx, Vsdx, Scad, Render3D, VegaLite, and Mermaid packages, is referenced only by the tool, and has no
-  plug-in mechanism of its own — see *CanvasNetViewer System Design* (`canvas-net-viewer.md`)
+  Svg, Pdf, Pptx, Vsdx, Scad, Render3D, VegaLite, Mermaid, and PlantUml packages, is referenced only by the tool, and
+  has no plug-in mechanism of its own — see *CanvasNetViewer System Design* (`canvas-net-viewer.md`)
 
 The following OTS items are also covered:
 
@@ -629,57 +648,72 @@ every system and `SceneModel` already names a `CanvasNetRender3D` subsystem (and
 public API. See
 the Folder Layout section below and *CanvasNetVegaLite System Design* (`canvas-net-vega-lite.md`).
 
-A further sibling top-level system, `CanvasNetMermaid`, likewise lives in this same repository alongside `CanvasNet`
-and is distributed as its own NuGet package. It is a static, offline renderer for the Mermaid diagram language that
-parses, describes, measures, and renders diagrams with Mermaid's own layout and look, derived with attribution from
-Mermaid, dagre-d3-es, d3, khroma, js-yaml, lodash, and marked (the licenses ship in the package): its direct unit,
+A further sibling top-level system, `CanvasNetMermaid`, likewise lives in this same repository alongside `CanvasNet` and
+is distributed as its own NuGet package. It is a static, offline renderer for the Mermaid diagram language that parses,
+describes, measures, and renders diagrams with Mermaid's own layout and look, derived with attribution from Mermaid,
+dagre-d3-es, d3, khroma, js-yaml, lodash, and marked (the licenses ship in the package): its direct unit,
 `MermaidDocument` (namespace `DemaConsulting.CanvasNet.Mermaid`), is the public API and the image source; its internal
-`Syntax` subsystem holds the `Preprocessor`, `DiagramDetector`, `YamlSubsetParser`, `SourceScanner`, and
-`HtmlSanitizer` units, its internal `Configuration` subsystem holds the `MermaidConfigResolver`, `ThemeResolver`,
-`ColorMath`, and `StyleDeclarations` units, its internal `Graphlib` subsystem holds the `Graph` and `GraphAlgorithms`
-units, its internal `Dagre` subsystem holds the `DagreLayout`, `DagreAcyclic`, `DagreRanker`, `DagreNesting`,
-`DagreNormalizer`, `DagreOrdering`, `DagrePositioning`, `DagreCoordinateSystem`, and `LayoutWorkMeter` units, its
-internal `Rendering` subsystem holds the `ClusterLayout`, `ShapeLibrary`, `EdgeBuilder`, `LabelBuilder`, and
-`NodeImages` units, its internal `Scenegraph` subsystem holds the `SceneModel`, `ScenePainter`, and `ScenePositions`
-units, its internal
-`Flowchart` subsystem holds the `FlowchartParser` and `FlowchartModel` units, its internal `Sequence` subsystem
-holds the `SequenceParser`, `SequenceModel`, `SequenceLayout`, and `SequenceRenderer` units, its internal `Class`
-subsystem holds the `ClassParser` and `ClassModel` units, its internal `State` subsystem holds the `StateParser` and
-`StateModel` units, its internal `Er` subsystem holds the `ErParser` and `ErModel` units, its internal `Pie` subsystem
-holds the `PieParser` and `PieRenderer` units, its internal `Gantt` subsystem holds the `GanttParser`,
-`GanttModel`, `GanttRenderer`, and `TimeAxis` units, its internal `Mindmap` subsystem holds the `MindmapParser` and
-`MindmapRenderer` units, its internal `Cose` subsystem holds the `CoseLayout` unit, its internal `Packet` subsystem
-holds the `PacketParser` and `PacketRenderer` units, and its internal `GitGraph` subsystem holds the `GitGraphParser`
-and `GitGraphRenderer` units (each subsystem lives in
-the sub-namespace and the sub-folder of its own name). In the SysML2 model the subsystem `part def` names carry the
-prefix `Mermaid` (`MermaidSyntax`, `MermaidConfiguration`, `MermaidGraphlib`, `MermaidDagre`, `MermaidRendering`,
-`MermaidScenegraph`, `MermaidFlowchart`, `MermaidSequence`, `MermaidClass`, `MermaidState`, `MermaidEr`, `MermaidPie`,
-`MermaidGantt`, `MermaidMindmap`, `MermaidCose`, `MermaidPacket`, and `MermaidGitGraph`) and the
-scene units are
-`MermaidSceneModel`, `MermaidScenePainter`, and `MermaidScenePositions`,
-because the model package is shared by every system and `Rendering`, `SceneModel`, `ScenePainter`, and
-`ScenePositions` are already
-taken. It depends on the `CanvasNet` system's `Canvas`, `Geometry`, `Drawing`, `Fonts`, `Rendering`, `ImageSources`,
-and `Positions` subsystems through their public API. See the Folder Layout section below and *CanvasNetMermaid System
-Design* (`canvas-net-mermaid.md`).
-A further sibling top-level system, `CanvasNetViewer`, likewise lives in this same repository and is distributed as its
-own NuGet package (`DemaConsulting.CanvasNet.Viewer`). It aggregates the image sources of every format and is the
-library form of the `canvasnet` tool: its direct unit `CanvasNetViewer` (namespace `DemaConsulting.CanvasNet.Viewer`)
-lists the built-in sources (raster, SVG, PDF, PPTX, VSDX, OpenSCAD, Vega-Lite, and Mermaid), creates the
-`FolderImageResolver` of
-the core `ImageSources` subsystem for one render so that an SVG document can embed all of them, and renders any file as
-a picture (with the feature positions of a diagram or a chart that the core `Positions` selectors of its options match);
-its direct unit `ViewerException` is the exception of every expected failure with the stable `ErrorCodes`;
-and its `Imaging` subsystem (namespace `DemaConsulting.CanvasNet.Viewer.Imaging`) holds the `SourceLoader`,
-`ImagePipeline`, `ImageWriter`, `ImageComparison`, `ContactSheet`, and `GridOverlay` units that turn files into pixels,
-transform pixels (grid, and the ordered operations over the core library's flip, pad, trim, tone, rotation, and skew
-operations), turn pixels into files, check the comparison of two images against thresholds, and compose a contact sheet,
-and the `ImageRenderer`, `ImageInspector`, `ImageComparer`, `MontageBuilder`, and `SvgFlattener` units that chain them
-into the render, inspect, compare, montage, and flatten operations. It references the core package and the
-`CanvasNetSvg`, `CanvasNetPdf`,
-`CanvasNetPptx`, `CanvasNetVsdx`, `CanvasNetScad`, `CanvasNetRender3D`, `CanvasNetVegaLite`, and `CanvasNetMermaid`
-packages; the tool references it. See the Folder Layout section below and *CanvasNetViewer System Design*
-(`canvas-net-viewer.md`).
+`Syntax` subsystem holds the `Preprocessor`, `DiagramDetector`, `YamlSubsetParser`, `SourceScanner`, and `HtmlSanitizer`
+units, its internal `Configuration` subsystem holds the `MermaidConfigResolver`, `ThemeResolver`, `ColorMath`, and
+`StyleDeclarations` units, its internal `Graphlib` subsystem holds the `Graph` and `GraphAlgorithms` units, its internal
+`Dagre` subsystem holds the `DagreLayout`, `DagreAcyclic`, `DagreRanker`, `DagreNesting`, `DagreNormalizer`,
+`DagreOrdering`, `DagrePositioning`, `DagreCoordinateSystem`, and `LayoutWorkMeter` units, its internal `Rendering`
+subsystem holds the `ClusterLayout`, `ShapeLibrary`, `EdgeBuilder`, `LabelBuilder`, and `NodeImages` units, its internal
+`Scenegraph` subsystem holds the `SceneModel`, `ScenePainter`, and `ScenePositions` units, its internal `Flowchart`
+subsystem holds the `FlowchartParser` and `FlowchartModel` units, its internal `Sequence` subsystem holds the
+`SequenceParser`, `SequenceModel`, `SequenceLayout`, and `SequenceRenderer` units, its internal `Class` subsystem holds
+the `ClassParser` and `ClassModel` units, its internal `State` subsystem holds the `StateParser` and `StateModel` units,
+its internal `Er` subsystem holds the `ErParser` and `ErModel` units, its internal `Pie` subsystem holds the `PieParser`
+and `PieRenderer` units, its internal `Gantt` subsystem holds the `GanttParser`, `GanttModel`, `GanttRenderer`, and
+`TimeAxis` units, its internal `Mindmap` subsystem holds the `MindmapParser` and `MindmapRenderer` units, its internal
+`Cose` subsystem holds the `CoseLayout` unit, its internal `Packet` subsystem holds the `PacketParser` and
+`PacketRenderer` units, and its internal `GitGraph` subsystem holds the `GitGraphParser` and `GitGraphRenderer` units
+(each subsystem lives in the sub-namespace and the sub-folder of its own name). In the SysML2 model the subsystem
+`part def` names carry the prefix `Mermaid` (`MermaidSyntax`, `MermaidConfiguration`, `MermaidGraphlib`, `MermaidDagre`,
+`MermaidRendering`, `MermaidScenegraph`, `MermaidFlowchart`, `MermaidSequence`, `MermaidClass`, `MermaidState`,
+`MermaidEr`, `MermaidPie`, `MermaidGantt`, `MermaidMindmap`, `MermaidCose`, `MermaidPacket`, and `MermaidGitGraph`) and
+the scene units are `MermaidSceneModel`, `MermaidScenePainter`, and `MermaidScenePositions`, because the model package
+is shared by every system and `Rendering`, `SceneModel`, `ScenePainter`, and `ScenePositions` are already taken. It
+depends on the `CanvasNet` system's `Canvas`, `Geometry`, `Drawing`, `Fonts`, `Rendering`, `ImageSources`, and
+`Positions` subsystems through their public API. See the Folder Layout section below and *CanvasNetMermaid System
+Design* (`canvas-net-mermaid.md`). A further sibling top-level system, `CanvasNetPlantUml`, likewise lives in this same
+repository alongside `CanvasNet` and is distributed as its own NuGet package. It is a static, offline renderer for the
+PlantUML diagram language, derived with attribution from the MIT-licensed distribution of PlantUML (the license ships in
+the package): its direct unit, `PlantUmlDocument` (namespace `DemaConsulting.CanvasNet.PlantUml`), is the public API and
+the image source;
+its internal `Syntax` subsystem holds the `Preprocessor` and `DiagramDetector` units, its internal `Styling` subsystem
+holds the `SkinTheme` and `SkinParams` units, its internal `Scenegraph` subsystem holds the `SceneModel`,
+`TextLayout`, and `ScenePainter` units, its internal `Sequence` subsystem holds the `SequenceParser`,
+`SequenceModel`, `SequenceLayout`, and `SequenceRenderer` units, and its internal `Activity` subsystem holds the
+`ActivityParser`, `ActivityModel`, `ActivityLayout`, and `ActivityRenderer` units (each in the sub-namespace and the
+sub-folder of its name). In the SysML2 model
+the system is `CanvasNetPlantUmlSystem` and its subsystem and unit `part def` names carry the prefix `PlantUml`
+(`PlantUmlSyntax`, `PlantUmlPreprocessor`, `PlantUmlDiagramDetector`, `PlantUmlStyling`, `PlantUmlSkinTheme`,
+`PlantUmlSkinParams`, `PlantUmlScenegraph`, `PlantUmlSceneModel`, `PlantUmlTextLayout`, `PlantUmlScenePainter`,
+`PlantUmlSequence`, `PlantUmlSequenceParser`, `PlantUmlSequenceModel`, `PlantUmlSequenceLayout`,
+`PlantUmlSequenceRenderer`, `PlantUmlActivity`, `PlantUmlActivityParser`, `PlantUmlActivityModel`,
+`PlantUmlActivityLayout`, and `PlantUmlActivityRenderer`),
+because the model package is shared by every system and the Mermaid system already uses the short names. It depends on
+the `CanvasNet` system's `Canvas`, `Geometry`, `Drawing`, `Fonts`, `Rendering`, `Files`, and `ImageSources` subsystems
+through their public API.
+See the Folder Layout section below and *CanvasNetPlantUml System Design* (`canvas-net-plant-uml.md`). A further sibling
+top-level system, `CanvasNetViewer`, likewise lives in this same repository and is distributed as its own NuGet package
+(`DemaConsulting.CanvasNet.Viewer`). It aggregates the image sources of every format and is the library form of the
+`canvasnet` tool: its direct unit `CanvasNetViewer` (namespace `DemaConsulting.CanvasNet.Viewer`) lists the built-in
+sources (raster, SVG, PDF, PPTX, VSDX, OpenSCAD, Vega-Lite, Mermaid, and PlantUML), creates the `FolderImageResolver` of
+the core
+`ImageSources` subsystem for one render so that an SVG document can embed all of them, and renders any file as a picture
+(with the feature positions of a diagram or a chart that the core `Positions` selectors of its options match); its
+direct unit `ViewerException` is the exception of every expected failure with the stable `ErrorCodes`; and its `Imaging`
+subsystem (namespace `DemaConsulting.CanvasNet.Viewer.Imaging`) holds the `SourceLoader`, `ImagePipeline`,
+`ImageWriter`, `ImageComparison`, `ContactSheet`, and `GridOverlay` units that turn files into pixels, transform pixels
+(grid, and the ordered operations over the core library's flip, pad, trim, tone, rotation, and skew operations), turn
+pixels into files, check the comparison of two images against thresholds, and compose a contact sheet, and the
+`ImageRenderer`, `ImageInspector`, `ImageComparer`, `MontageBuilder`, and `SvgFlattener` units that chain them into the
+render, inspect, compare, montage, and flatten operations. It references the core package and the `CanvasNetSvg`,
+`CanvasNetPdf`, `CanvasNetPptx`, `CanvasNetVsdx`, `CanvasNetScad`, `CanvasNetRender3D`, `CanvasNetVegaLite`,
+`CanvasNetMermaid`, and `CanvasNetPlantUml` packages; the tool references it. See the Folder Layout section below and
+*CanvasNetViewer System Design* (`canvas-net-viewer.md`).
 
 A final sibling top-level system, `CanvasNetTool`, likewise lives in this same repository and is distributed as
 its own dotnet tool package (`DemaConsulting.CanvasNet.Tool`, command `canvasnet`) rather than as a library.
@@ -696,7 +730,7 @@ process for the Lua shim `docs/filters/canvasnet.lua`. It is a thin shell: the c
 `Imaging` subsystem of the `CanvasNetViewer` system with request records built from the command line, and print the
 results. It uses the `CanvasNet`, `CanvasNetSvg`,
 `CanvasNetPdf`, `CanvasNetPptx`, `CanvasNetVsdx`, `CanvasNetRender3D`, `CanvasNetScad`, `CanvasNetVegaLite`,
-`CanvasNetMermaid`, and `CanvasNetViewer` systems
+`CanvasNetMermaid`, `CanvasNetPlantUml`, and `CanvasNetViewer` systems
 through their public API and bundles their assemblies in its package. No library system references the tool. See the
 Folder Layout section below and *CanvasNetTool System Design* (`canvas-net-tool.md`).
 
@@ -1707,6 +1741,60 @@ src/DemaConsulting.CanvasNet.Mermaid/
 
 Each sub-folder also holds a `NamespaceDoc.cs` with the namespace documentation. `CanvasNetMermaid` uses only the
 `CanvasNet` system through its public API and declares it as its only package dependency.
+
+The `CanvasNetPlantUml` system lives in the `src/DemaConsulting.CanvasNet.PlantUml/` project folder (the separate
+`DemaConsulting.CanvasNet.PlantUml` package). The `PlantUmlDocument` unit occupies the project root and each internal
+subsystem occupies the sub-folder whose name equals its sub-namespace (see *CanvasNetPlantUml System Design*,
+`canvas-net-plant-uml.md`):
+
+```text
+src/DemaConsulting.CanvasNet.PlantUml/
+├── DemaConsulting.CanvasNet.PlantUml.csproj — Package definition (net8.0/net9.0/net10.0/net11.0; packable; ships third-party/)
+├── NamespaceDoc.cs                — PlantUmlDocument: namespace-level XML documentation
+├── PlantUmlDocument.cs            — PlantUmlDocument: Parse/Open entry points and the metadata properties
+├── PlantUmlDocument.Render.cs     — PlantUmlDocument: Measure, Render, natural size, and report delivery
+├── PlantUmlDocument.Pipeline.cs   — PlantUmlDocument: the internal diagram seam and registry
+├── PlantUmlOpenOptions.cs         — PlantUmlDocument: validated open options
+├── PlantUmlRenderOptions.cs       — PlantUmlDocument: validated render options
+├── PlantUmlLimits.cs              — PlantUmlDocument: resource limits
+├── PlantUmlLocation.cs            — PlantUmlDocument: file, line, and column value
+├── PlantUmlDiagnostic.cs          — PlantUmlDocument: warning record
+├── PlantUmlUnsupportedFeature.cs  — PlantUmlDocument: unsupported-feature report record
+├── PlantUmlSize.cs                — PlantUmlDocument: size in pixels
+├── PlantUmlDiagnosticCodes.cs     — PlantUmlDocument: the stable plantuml-* codes
+├── PlantUmlSyntaxException.cs     — PlantUmlDocument: located syntax exception
+├── PlantUmlRenderException.cs     — PlantUmlDocument: located render exception
+├── PlantUmlUnsupportedFeatureException.cs — PlantUmlDocument: strict-mode exception
+├── PlantUmlReportSink.cs          — PlantUmlDocument: ordered, de-duplicated, capped reports and pending reports
+├── PlantUmlImageSource.cs         — PlantUmlDocument: the image source for .puml, .plantuml, and .pu files
+├── third-party/                   — The PlantUML license text and the provenance table
+├── Syntax/                        — Syntax subsystem
+│   ├── Preprocessor.cs            — Preprocessor: framing, comments, continued lines, and directives
+│   ├── Preprocessor.MappedText.cs — Preprocessor: the line table and the located statements
+│   ├── Preprocessor.Includes.cs   — Preprocessor: the local !include files under the file-access policy
+│   └── DiagramDetector.cs         — DiagramDetector: the diagram type from the tag or the statements
+├── Styling/                       — Styling subsystem
+│   ├── SkinTheme.cs               — SkinTheme: the elements, their styles, and PlantUML's default look
+│   └── SkinParams*.cs             — SkinParams: the skinparam statements, the supported subset, and the colors
+├── Scenegraph/                    — Scenegraph subsystem
+│   ├── SceneModel*.cs             — SceneModel: the scene records, the shape builders, and the page texts
+│   ├── TextLayout*.cs             — TextLayout: text metrics with the bundled fonts, line breaks, and creole
+│   └── ScenePainter*.cs           — ScenePainter: the placement and the painting of a scene
+├── Sequence/                      — Sequence subsystem
+│   ├── SequenceParser*.cs         — SequenceParser: the sequence statements
+│   ├── SequenceModel*.cs          — SequenceModel: participants, boxes, events, and the facts
+│   ├── SequenceLayout*.cs         — SequenceLayout: the columns and rows of PlantUML's sequence engine
+│   └── SequenceRenderer*.cs       — SequenceRenderer: PlantUML's shapes as scene items
+└── Activity/                      — Activity subsystem
+    ├── ActivityParser*.cs         — ActivityParser: the activity statements of the new syntax
+    ├── ActivityModel*.cs          — ActivityModel: the instruction tree, swimlanes, page texts, and the facts
+    ├── ActivityLayout*.cs         — ActivityLayout: the tiles, swimlanes, and compression of PlantUML's ftile engine
+    └── ActivityRenderer.cs        — ActivityRenderer: the placed shapes as scene items
+```
+
+Each sub-folder also holds a `NamespaceDoc.cs` with the namespace documentation. `CanvasNetPlantUml` uses only the
+`CanvasNet` system through its public API and declares it as its only package dependency.
+
 The `CanvasNetViewer` system lives in the `src/DemaConsulting.CanvasNet.Viewer/` project folder (the separate
 `DemaConsulting.CanvasNet.Viewer` package). Its two direct units, `CanvasNetViewer` and `ViewerException`, occupy the
 project root, and its `Imaging` subsystem occupies the `Imaging/` sub-folder, whose name equals its sub-namespace (see
@@ -1735,6 +1823,7 @@ src/DemaConsulting.CanvasNet.Viewer/
     ├── SourceLoader.Scad.cs       — SourceLoader: OpenSCAD models drawn from a named view
     ├── SourceLoader.VegaLite.cs   — SourceLoader: Vega-Lite charts
     ├── SourceLoader.Mermaid.cs    — SourceLoader: Mermaid diagrams
+    ├── SourceLoader.PlantUml.cs   — SourceLoader: PlantUML diagrams
     ├── SourceLoader.Positions.cs  — SourceLoader: the collector of the feature positions and the unmatched selectors
     ├── ImageOperations.cs         — ImagePipeline: the operation records (crop, resize, fit, rotate, flip, pad, photo)
     ├── ImagePipeline.cs           — ImagePipeline: applying the ordered operations to a surface
@@ -1754,9 +1843,9 @@ src/DemaConsulting.CanvasNet.Viewer/
 ```
 
 `CanvasNetViewer` references the `CanvasNet` core package (its `ImageSources` subsystem) and the `CanvasNetSvg`,
-`CanvasNetPdf`, `CanvasNetPptx`, `CanvasNetVsdx`, `CanvasNetScad`, `CanvasNetRender3D`, `CanvasNetVegaLite`, and
-`CanvasNetMermaid` packages for the image source each one supplies and the operations of `Imaging`; no package it except
-the tool.
+`CanvasNetPdf`, `CanvasNetPptx`, `CanvasNetVsdx`, `CanvasNetScad`, `CanvasNetRender3D`, `CanvasNetVegaLite`,
+`CanvasNetMermaid`, and `CanvasNetPlantUml` packages for the image source each one supplies and the operations of
+`Imaging`; no package references it except the tool.
 
 The `CanvasNetTool` system lives in the `src/DemaConsulting.CanvasNet.Tool/` project folder (the separate
 `DemaConsulting.CanvasNet.Tool` dotnet tool package). The six direct units occupy the project root, and the
@@ -1786,7 +1875,7 @@ src/DemaConsulting.CanvasNet.Tool/
 │   │   │                            mirror the tree (scad.md, mermaid.md, mermaid/gantt.md, style.md, ...)
 │   │   ├── positions.md, positions/ — HelpTopics: the positions topic and its cards (selectors.md, mermaid.md,
 │   │   │                            vega-lite.md, geometry.md)
-│   │   └── Examples/              — HelpTopics: the embedded example sources (SCAD, Vega-Lite, Mermaid, and SVG)
+│   │   └── Examples/              — HelpTopics: the embedded examples (SCAD, Vega-Lite, Mermaid, PlantUML, and SVG)
 │   ├── DiscoveryCommands.cs       — DiscoveryCommands: the formats and info commands and the format tables
 │   ├── RenderCommand.cs           — RenderCommand: the render command (alias convert), run and result
 │   ├── RenderCommand.Options.cs   — RenderCommand: the option table and the reading of the settings
@@ -1809,6 +1898,7 @@ src/DemaConsulting.CanvasNet.Tool/
     ├── DependencyHasher.cs        — DependencyHasher: the parts, the limits, and the OpenSCAD and picture walks
     ├── DependencyHasher.Chart.cs  — DependencyHasher: the Vega-Lite walk
     ├── DependencyHasher.Mermaid.cs — DependencyHasher: the Mermaid walk
+    ├── DependencyHasher.PlantUml.cs — DependencyHasher: the PlantUML walk (the local !include files)
     ├── DependencyHasher.Svg.cs    — DependencyHasher: the SVG scanner and walk
     ├── FilterSettings.cs          — FilterSettings: the inputs of the run and the CANVASNET_* variables
     ├── PictureCache.cs            — PictureCache: the key, the names, and the atomic writes
@@ -1827,7 +1917,7 @@ by CI (see `tools/README.md`):
 tools/
 ├── README.md                    — What each tool is for, when to run it, its prerequisites, and adding a tool
 ├── DemaConsulting.CanvasNet.VegaLite.Benchmarks/ — Profiling: Stopwatch Vega-Lite benchmarks (built by the solution)
-└── visual-diff/                 — Fidelity: visual diff against Vega, Vega-Lite, and mermaid-cli
+└── visual-diff/                 — Fidelity: visual diff against Vega, Vega-Lite, and mermaid-cli; PlantUML goldens
     └── mermaid/                 — Generators of the Mermaid test goldens and upstream vectors
 ```
 
@@ -1974,6 +2064,26 @@ git graph fixtures are in `test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/
 and license texts are in `src/DemaConsulting.CanvasNet.Mermaid/third-party/`. The developer scripts that generate the
 vectors and goldens, and the visual-diff harness against mermaid-cli, are in `tools/visual-diff/` and
 `tools/visual-diff/mermaid/` (run by hand, never in CI); they are not software items.
+
+For the `CanvasNetPlantUml` system the parallel paths are, for example for the `Preprocessor` unit in the `Syntax`
+subsystem: requirements `docs/reqstream/canvas-net-plant-uml/syntax/preprocessor.yaml`, design
+`docs/design/canvas-net-plant-uml/syntax/preprocessor.md`, verification
+`docs/verification/canvas-net-plant-uml/syntax/preprocessor.md`, SysML2 model
+`docs/sysml2/model/canvas-net-plant-uml/syntax/preprocessor.sysml` (`part def PlantUmlPreprocessor`), source
+`src/DemaConsulting.CanvasNet.PlantUml/Syntax/Preprocessor.cs` (with `Preprocessor.MappedText.cs` and
+`Preprocessor.Includes.cs`), and tests
+`test/DemaConsulting.CanvasNet.PlantUml.Tests/Syntax/PreprocessorTests.cs`. The subsystem tests are
+`{Subsystem}Tests.cs` in each test folder, the direct unit `PlantUmlDocument` has no subsystem folder
+(`docs/design/canvas-net-plant-uml/plant-uml-document.md`), and the system itself is
+`docs/design/canvas-net-plant-uml.md` with `docs/sysml2/model/canvas-net-plant-uml.sysml`; its system tests are
+`PlantUmlSystemIntegrationTests.cs`, `PlantUmlUnsupportedDiagramTests.cs`, `PlantUmlSequenceIntegrationTests.cs`,
+`PlantUmlActivityIntegrationTests.cs`, `PlantUmlReferenceLayoutTests.cs`, `PlantUmlIncludeTests.cs`,
+`PlantUmlHardeningTests.cs`, and `PlantUmlGalleryTests.cs` in the root of its test project. The original fixtures are
+in `Fixtures/sequence/`, `Fixtures/activity/`, and `Fixtures/include/` of the test project (the inputs of the
+unsupported diagram types are written inline in the tests, through `PlantUmlTestHelpers`),
+and the PlantUML reference layouts with their provenance README are in `Fixtures/reference/`; they are generated by
+`tools/visual-diff/update-plantuml-goldens.ps1` (run by hand, never in CI). The attribution record and license text
+are in `src/DemaConsulting.CanvasNet.PlantUml/third-party/`.
 
 The feature positions follow the same pattern. For the `Positions` subsystem of the `CanvasNet` system: requirements
 `docs/reqstream/canvas-net/positions.yaml`, design `docs/design/canvas-net/positions.md`, verification

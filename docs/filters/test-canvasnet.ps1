@@ -5,8 +5,9 @@
 .DESCRIPTION
     Builds a small document tree in a temporary folder, runs "dotnet pandoc" with docs/filters/canvasnet.lua
     over it, and checks what the filter promises. The filter is a thin Lua shim: it starts "canvasnet pandoc-filter"
-    once per Pandoc run, only when the document has a code block of a class the tool draws (mermaid) or a local picture
-    whose name ends in a suffix the tool draws (lists the shim takes from the tool's own tables when it is written),
+    once per Pandoc run, only when the document has a code block of a class the tool draws (mermaid, plantuml) or a
+    local picture whose name ends in a suffix the tool draws (lists the shim takes from the tool's own tables when it
+    is written),
     and the tool does all the work. Code blocks of other classes, rasters such as BMP, TIFF, ICO, and AVIF, names
     without an extension or with a fragment or query, and remote pictures never start it, and every listed suffix
     does. Whatever pandoc.pipe raises (a string, a table without a numeric error_code, a userdata, a table whose fields
@@ -26,7 +27,9 @@
     stops the build, a nested drawing outside the roots stops the build through the flatten, and a bad value is an error), an absolute or
     file: data url and an absolute SVG link are hashed, and a model the tool cannot draw stops the build with the tool's message.
     Mermaid diagrams are drawn from code blocks and from .mmd/.mermaid pictures (the pictures of their nodes are
-    hashed), sequence, class, state, ER, pie, gantt, mindmap, packet, and git graph diagrams are drawn by the filter itself, a diagram
+    hashed), sequence, class, state, ER, pie, gantt, mindmap, packet, and git graph diagrams are drawn by the filter itself,
+    PlantUML diagrams are drawn from code blocks and from .puml/.plantuml pictures (their !include files are hashed, so a
+    changed include draws them again), a PlantUML type the tool does not draw (a .pu class diagram) is left as written, a diagram
     type the tool does not draw is left as written (shown as code) with a warning, and the defaults-file filters run
     before a later command-line filter, which sees only the blocks left as written. An SVG picture that links no file only the tool draws is left
     unchanged (the tool decides); one that links a diagram (directly or through a nested SVG file) points at a flattened copy whose
@@ -596,6 +599,43 @@ journey
         $embedded.Log -match 'are not drawn by this version' -and $embedded.Log -notmatch 'left as written') `
         'a flowchart embedding an unsupported diagram is drawn, with the embedded report as a warning' "$($embedded.Log)`n$($embedded.Html)"
 
+    # --- PlantUML diagrams: code blocks, .puml/.plantuml/.pu pictures with includes, and the types not drawn ----
+    # A plantuml code block becomes the picture (a figure with a caption); .puml and .plantuml pictures are drawn and
+    # their !include files are hashed, so a changed include draws them again; a .pu class diagram is left as written.
+    Set-Content (Join-Path $guide 'talk.puml') -Value "@startuml`n!include people.iuml`nAlice -> Bob : Hello`n@enduml"
+    Set-Content (Join-Path $guide 'people.iuml') -Value "participant Alice`nparticipant Bob"
+    Copy-Item (Join-Path $guide 'talk.puml') (Join-Path $guide 'same.plantuml')
+    Set-Content (Join-Path $guide 'cars.pu') -Value "@startuml`nclass Car`n@enduml"
+    $plantUml = @'
+```{.plantuml #talk caption="The talk" width=60%}
+Alice -> Bob : Hello
+Bob --> Alice : Hi
+```
+
+![t](talk.puml)
+
+![s](same.plantuml)
+
+![c](cars.pu)
+'@
+    $pumlBefore = @(Get-Pictures).Count
+    $puml = Invoke-Filter 'plantuml' $plantUml
+    Write-Result ($puml.ExitCode -eq 0 -and $puml.Html -match '<figure[^>]*id="talk"' -and
+        $puml.Html -match 'generated/canvasnet/plantuml-' -and $puml.Html -match 'generated/canvasnet/talk-' -and
+        $puml.Html -match 'generated/canvasnet/same-' -and $puml.Html -match 'src="cars\.pu"' -and
+        @(Get-Pictures).Count -eq $pumlBefore + 3) `
+        'a plantuml block and .puml and .plantuml pictures are drawn; a .pu class diagram is left as written' "$($puml.Log)`n$($puml.Html)"
+    Write-Result (@(Get-ChildItem -LiteralPath $cache -Filter '*.puml').Count -ge 1 -and
+        $puml.Log.Contains('canvasnet.lua: cars.pu: ') -and $puml.Log -match 'it is left as written and not drawn') `
+        'the text of a plantuml block is written to the cache folder, and a class diagram is a warning' $puml.Log
+    $pumlStamp = Get-Stamp
+    $pumlAgain = Invoke-Filter 'plantuml' $plantUml
+    Write-Result ($pumlAgain.ExitCode -eq 0 -and (Get-Stamp) -eq $pumlStamp) 'a second run draws no PlantUML diagram again' $pumlAgain.Log
+    Set-Content (Join-Path $guide 'people.iuml') -Value "participant Alice`nparticipant Carol`nparticipant Bob"
+    $pumlChanged = Invoke-Filter 'plantuml' $plantUml
+    Write-Result ($pumlChanged.ExitCode -eq 0 -and @(Get-Pictures).Count -eq $pumlBefore + 5) `
+        'a changed !include file draws the PlantUML pictures that include it again' $pumlChanged.Log
+
     # Pandoc runs the filters in command-line order, a defaults file's filters where its --defaults option is: with
     # "--defaults ... --lua-filter later.lua", canvasnet.lua sees the mermaid blocks first, and the later filter sees
     # only the blocks left as written. A small Lua filter that marks every code block it sees is the later filter here.
@@ -792,8 +832,8 @@ journey
         'WeasyPrint draws the flattened diagram in the PDF, and the frame of the original' "flat $($means.flat), control $($means.control)"
 
     # --- Only what the tool draws starts it ---------------------------------------------------------------
-    # The shim starts the tool only for a code block with one of the classes the tool draws (mermaid), or a local
-    # picture whose name ends in one of the suffixes it draws; --write-shim writes both lists from the tool's tables.
+    # The shim starts the tool only for a code block with one of the classes the tool draws (mermaid, plantuml), or a
+    # local picture whose name ends in one of the suffixes it draws; --write-shim writes both lists from the tool's tables.
     # With a tool that cannot start, a document that does not need it builds, and one that does is a clear error.
     # (Pandoc lowercases the language of a bare fence, so the class Mermaid is written as an attribute, {.Mermaid}.)
     $saved = $env:CANVASNET_TOOL
@@ -813,12 +853,15 @@ journey
         $block = Invoke-Filter 'missing-tool-block' "``````mermaid`nflowchart LR`n  A --> B`n``````"
         Write-Result ($block.ExitCode -ne 0 -and $block.Log -match 'cannot run the canvasnet tool') `
             'one mermaid block starts the tool' $block.Log
+        $pumlBlock = Invoke-Filter 'missing-tool-plantuml-block' "``````plantuml`nAlice -> Bob`n``````"
+        Write-Result ($pumlBlock.ExitCode -ne 0 -and $pumlBlock.Log -match 'cannot run the canvasnet tool') `
+            'one plantuml block starts the tool' $pumlBlock.Log
 
         # Every suffix the shim lists starts the tool, in any letter case; the list is the one the engine draws
         $shimSource = [System.IO.File]::ReadAllText((Join-Path $tree 'docs/filters/canvasnet.lua'))
         $suffixLine = [regex]::Match($shimSource, 'local SUFFIXES = \{([^}]*)\}')
         $suffixes = @([regex]::Matches($suffixLine.Groups[1].Value, '"([^"]+)"') | ForEach-Object { $_.Groups[1].Value })
-        Write-Result (($suffixes -join ' ') -ceq '.svg .vl.json .vl .scad .vsdx .pptx .pdf .mmd .mermaid') `
+        Write-Result (($suffixes -join ' ') -ceq '.svg .vl.json .vl .scad .vsdx .pptx .pdf .mmd .mermaid .puml .plantuml .pu') `
             'the shim lists the picture suffixes the tool draws' ($suffixes -join ' ')
         $notStarted = @()
         foreach ($suffix in $suffixes) {

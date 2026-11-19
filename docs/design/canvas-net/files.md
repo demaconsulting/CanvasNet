@@ -113,8 +113,8 @@ the `RealPath` unit; it has no runtime NuGet dependency. It has no dependency on
 `Drawing`, `Fonts`, or `Rendering` subsystems. Its only core consumer is the `ImageSources` subsystem (its
 `FolderImageResolver` unit resolves every link of a document with `FileReferenceResolver` under the caller's
 policy); its other
-consumers are outside the core package: the `CanvasNetVegaLite` and `CanvasNetScad` systems depend on it through its
-public API (see *Callers*).
+consumers are outside the core package: the `CanvasNetVegaLite`, `CanvasNetScad`, and `CanvasNetPlantUml` systems
+depend on it through its public API (see *Callers*).
 
 ### Callers
 
@@ -122,8 +122,9 @@ public API (see *Callers*).
 directly by consumers of the CanvasNet package. `FileReferenceResolver` is also used internally by the
 `ImageSources` subsystem (the `FolderImageResolver` unit resolves every file link of a document relative to its
 folder, reads the top-level file of a render by path with `ResolveTopLevel`, and maps a denial to the warning
-`image-access-denied` and every other `FileReferenceException` to an unresolved-link warning) and by two satellite
-packages: `CanvasNetVegaLite`'s `DataFileResolver` unit (every local data file of a chart) and `CanvasNetScad`'s
-`ScadFileResolver` unit (every `include` and `use`). Each of those units keeps its own exception types, message
+`image-access-denied` and every other `FileReferenceException` to an unresolved-link warning) and by three satellite
+packages: `CanvasNetVegaLite`'s `DataFileResolver` unit (every local data file of a chart), `CanvasNetScad`'s
+`ScadFileResolver` unit (every `include` and `use`), and `CanvasNetPlantUml`'s `PlantUmlPreprocessor` unit (every
+`!include`, `!include_once`, and `!include_many` file). Each of those units keeps its own exception types, message
 wording, locations, limits, and text decoding and translates every `FileReferenceException` it receives, keeping it
 as the inner exception. No part of the library calls `SandboxedFileResolver` any longer.

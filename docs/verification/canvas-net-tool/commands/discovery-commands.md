@@ -213,6 +213,23 @@ out), gitGraph TB, 3 nodes, 3 edges, 0 subgraphs, title "History", accTitle "A h
 same `diagram` object as without the fragment and echoes `theme=forest` as the `fragment` of the `input` object, and
 `#theme=sunset` returns exit code 1 with an `Error: image-fragment-invalid:` line.
 
+**DiscoveryCommands_Formats_IncludesPlantUmlDiagram** (`DiscoveryCommandsPlantUmlTests.cs`): the `plantuml` row of the
+table has the kind `diagram`, is a vector format, is not multi-page, lists `.puml`, `.plantuml`, and `.pu`, and has the
+help topic `plantuml`; the JSON listing has the row with the kind `diagram`, and the text listing a matching line.
+
+**DiscoveryCommands_Info_PlantUmlSequence_ReportsParticipantsAndMessages** (`DiscoveryCommandsPlantUmlTests.cs`): a
+sequence
+diagram titled `Talk` with a box around one of two participants and two messages is described in JSON with the
+`plantuml` format, the laid-out width, and the `diagram` members `type`, `supported`, `title`, `nodes`, `edges`, and
+`subgraphs` (no `direction` or `accTitle`), `sequence`, true, `Talk`, 2, 2, and 1, and as the one text line
+`{path}: plantuml, {w}x{h} px (laid out), sequence, 2 participants, 2 messages, 1 box, title "Talk", {bytes} bytes`.
+
+**DiscoveryCommands_Info_PlantUmlActivityAndClass_ReportTypeAndSupport** (`DiscoveryCommandsPlantUmlTests.cs`): an
+activity
+diagram with a decision (`.plantuml`) is described as `activity`, supported, with the node, edge, and subgraph counts of
+the library (at least five nodes), and a class diagram (`.pu`) as `class`, not supported, with zero nodes and the text
+`class (not drawn by this version), 0 nodes`.
+
 **InputFragment_TextResultAndInfo_NameTheFragment** (`InputFragmentTests.cs`): `info source.pdf#page=2 --all-pages
 --json` describes only page 2 (the fragment wins over `--all-pages`) and its `input` object has the `path` and the
 `fragment` `page=2`.

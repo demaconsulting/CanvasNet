@@ -1,0 +1,34 @@
+@startuml
+participant Client
+participant Api
+participant Cache
+participant Db
+Client -> Api : fetch
+alt cached
+Api -> Cache : get
+Cache --> Api : hit
+else missing
+Api -> Db : query
+Db --> Api : rows
+end
+loop every item
+Api -> Api : map
+end
+opt audit enabled
+Api -> Db : insert
+end
+par
+Api -> Cache : refresh
+else
+Api -> Db : touch
+end
+critical commit
+Api -> Db : commit
+end
+break failure
+Api --> Client : error
+end
+group Reply [final step]
+Api --> Client : data
+end
+@enduml

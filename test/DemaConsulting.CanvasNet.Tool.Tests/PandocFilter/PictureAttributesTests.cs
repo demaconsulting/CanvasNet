@@ -22,6 +22,10 @@ public class PictureAttributesTests
     [InlineData("report.pdf", "pdf")]
     [InlineData("flow.mmd", "mermaid")]
     [InlineData("flow.mermaid", "mermaid")]
+    [InlineData("seq.puml", "plantuml")]
+    [InlineData("seq.PlantUML", "plantuml")]
+    [InlineData("seq.pu", "plantuml")]
+    [InlineData("part.iuml", null)]
     [InlineData("https://example.com/part.scad", null)]
     [InlineData("photo.png", null)]
     public void PictureAttributes_KindOf_FileNameEnd_GivesTheKind(string src, string? kind)
@@ -48,8 +52,8 @@ public class PictureAttributesTests
     public void PictureAttributes_PictureSuffixesAndBlockClasses_AreWhatTheEngineDraws()
     {
         // Assert: the lists
-        Assert.Equal([".svg", ".vl.json", ".vl", ".scad", ".vsdx", ".pptx", ".pdf", ".mmd", ".mermaid"], PictureAttributes.PictureSuffixes);
-        Assert.Equal(["mermaid"], PictureAttributes.BlockClasses);
+        Assert.Equal([".svg", ".vl.json", ".vl", ".scad", ".vsdx", ".pptx", ".pdf", ".mmd", ".mermaid", ".puml", ".plantuml", ".pu"], PictureAttributes.PictureSuffixes);
+        Assert.Equal(["mermaid", "plantuml"], PictureAttributes.BlockClasses);
 
         // Assert: every suffix is a picture the engine handles, in either letter case
         Assert.All(PictureAttributes.PictureSuffixes, suffix =>
@@ -61,7 +65,9 @@ public class PictureAttributesTests
         // Assert: the classes of a code block
         Assert.Equal("mermaid", PictureAttributes.BlockKindOf(["mermaid"]));
         Assert.Equal("mermaid", PictureAttributes.BlockKindOf(["numberLines", "mermaid"]));
+        Assert.Equal("plantuml", PictureAttributes.BlockKindOf(["plantuml"]));
         Assert.Null(PictureAttributes.BlockKindOf(["Mermaid"]));
+        Assert.Null(PictureAttributes.BlockKindOf(["puml"]));
         Assert.Null(PictureAttributes.BlockKindOf(["bash"]));
         Assert.Null(PictureAttributes.BlockKindOf([]));
     }
@@ -221,6 +227,8 @@ public class PictureAttributesTests
         Assert.Equal("mermaid block #flow", PictureAttributes.BlockName("flow", "graph"));
         Assert.Equal("mermaid block (flowchart LR)", PictureAttributes.BlockName("", "\n   flowchart LR  \r\nA-->B"));
         Assert.Equal("mermaid block (" + new string('é', 40) + "...)", PictureAttributes.BlockName("", new string('é', 41)));
+        Assert.Equal("plantuml block #seq", PictureAttributes.BlockName("seq", "@startuml", PictureAttributes.PlantUml));
+        Assert.Equal("plantuml block (@startuml)", PictureAttributes.BlockName("", "@startuml\nA -> B", PictureAttributes.PlantUml));
 
         // Act / Assert: the last caption is the caption, the other attributes stay
         var (caption, rest) = PictureAttributes.SplitCaption([new("caption", "A"), new("theme", "dark"), new("caption", "B *c*")]);

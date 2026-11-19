@@ -1,0 +1,22 @@
+@startuml
+' Gallery: forks, a merge and a split
+start
+:Receive the order;
+fork
+  :Charge the card;
+fork again
+  :Pick the items;
+  :Pack the parcel;
+end fork
+fork
+  :Email the customer;
+fork again
+  :Update the stock;
+end merge
+split
+  :Ship by road;
+split again
+  :Ship by air;
+end split
+stop
+@enduml

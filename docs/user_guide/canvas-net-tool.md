@@ -1,12 +1,12 @@
 # The canvasnet Command-Line Tool
 
-The `DemaConsulting.CanvasNet.Tool` package is a .NET tool whose command, `canvasnet`, exposes the CanvasNet
-libraries on the command line. It inspects, renders, converts, transforms, compares, and composes images, drawings,
-document pages, OpenSCAD models, Vega-Lite charts, and Mermaid diagrams, cleans up photographs of sketches (contrast,
-tilt, borders, and a coordinate grid), and measures their colors and pixels. It is built to be driven by programs as
-well as by people: a command's standard output holds only its own result, every result can be written as one JSON
-document, a failure is reported with a stable error code, and the exit code is always 0 or 1. This chapter describes the
-whole contract, so that a script or an AI agent can use the tool without reading its source.
+The `DemaConsulting.CanvasNet.Tool` package is a .NET tool whose command, `canvasnet`, exposes the CanvasNet libraries
+on the command line. It inspects, renders, converts, transforms, compares, and composes images, drawings, document
+pages, OpenSCAD models, Vega-Lite charts, and Mermaid and PlantUML diagrams, cleans up photographs of sketches
+(contrast, tilt, borders, and a coordinate grid), and measures their colors and pixels. It is built to be driven by
+programs as well as by people: a command's standard output holds only its own result, every result can be written as one
+JSON document, a failure is reported with a stable error code, and the exit code is always 0 or 1. This chapter
+describes the whole contract, so that a script or an AI agent can use the tool without reading its source.
 
 The tool is a thin command-line shell over the `DemaConsulting.CanvasNet.Viewer` library: it parses a command line into
 the requests of the library's `Imaging` operations (`SourceLoader`, `ImageRenderer`, `ImageInspector`, `ImageComparer`,
@@ -225,11 +225,11 @@ parse standard output alone in both cases; the text report on standard error is 
 | `flatten` | Copy an SVG drawing, with the pictures only CanvasNet can draw as PNG pictures, for any SVG reader |
 | `pandoc-filter` | Draw the pictures of a Pandoc document for the Lua shim of the Pandoc filter, or write the shim |
 
-`crop`, `resize`, `rotate`, `flip`, and `pad` are `render` with one transformation placed first, so each of them
-takes every option of `render` and works on every input that `render` reads (an SVG, a PDF page, an OpenSCAD model, a
-Vega-Lite chart, a Mermaid diagram, and so on, not only rasters). The photo operations (`--grayscale`, `--deskew`,
-`--trim`, `--grid`, and so on; see *Photos and Sketches*) are options of `render`, so they are available to all of these
-commands too, and `inspect` accepts them as well.
+`crop`, `resize`, `rotate`, `flip`, and `pad` are `render` with one transformation placed first, so each of them takes
+every option of `render` and works on every input that `render` reads (an SVG, a PDF page, an OpenSCAD model, a
+Vega-Lite chart, a Mermaid or PlantUML diagram, and so on, not only rasters). The photo operations (`--grayscale`,
+`--deskew`, `--trim`, `--grid`, and so on; see *Photos and Sketches*) are options of `render`, so they are available to
+all of these commands too, and `inspect` accepts them as well.
 
 ### Formats Read and Written
 
@@ -248,6 +248,7 @@ commands too, and `inspect` accepts them as well.
 | OpenSCAD | `.scad` | A model, drawn from one viewpoint |
 | Vega-Lite | `.vl.json`, `.vl` | A chart, drawn at its laid-out size (also a `.json` file with a Vega-Lite `$schema`) |
 | Mermaid | `.mmd`, `.mermaid` | A flowchart, sequence, class, state, ER, pie, gantt, mindmap, packet, or git graph |
+| PlantUML | `.puml`, `.plantuml`, `.pu` | A sequence or activity diagram |
 
 | Output | Extensions | Notes |
 | --- | --- | --- |
@@ -258,7 +259,8 @@ commands too, and `inspect` accepts them as well.
 
 The format of an input is recognized from its content (signature bytes, or the document structure inside a ZIP
 package), and the extension is used only when the content is not conclusive. A model, a chart, and a diagram are text
-without a signature: a model is recognized by `.scad`, a diagram by `.mmd` or `.mermaid`, and a chart by the file name
+without a signature: a model is recognized by `.scad`, a Mermaid diagram by `.mmd` or `.mermaid`, a PlantUML diagram by
+`.puml`, `.plantuml`, or `.pu`, and a chart by the file name
 suffix `.vl.json` or `.vl`, or, for a `.json`
 file, by a top-level Vega-Lite `$schema` property (an address under `vega.github.io/schema/vega-lite/`) in the first
 4 KiB of the file; the address in any other property does not count. A
@@ -283,12 +285,13 @@ of the library. Use it to discover what the installed version supports; the last
 ```text
 $ canvasnet formats
 Input formats:
-  Format    Kind      Extensions      Pages     Scalable  Help
-  png       raster    .png            single    no        help raster
+  Format     Kind      Extensions           Pages     Scalable  Help
+  png        raster    .png                 single    no        help raster
   ...
-  scad      model     .scad           single    yes       help scad
-  vega-lite chart     .vl.json .vl    single    yes       help vega-lite
-  mermaid   diagram   .mmd .mermaid   single    yes       help mermaid
+  scad       model     .scad                single    yes       help scad
+  vega-lite  chart     .vl.json .vl         single    yes       help vega-lite
+  mermaid    diagram   .mmd .mermaid        single    yes       help mermaid
+  plantuml   diagram   .puml .plantuml .pu  single    yes       help plantuml
 
 Output formats:
   Format  Extensions  Alpha  Quality
@@ -346,6 +349,11 @@ result has a `fragment` member (see *Fragments on Input Paths*).
   subgraphs; the nodes of a mindmap and its edges, one fewer; the blocks of a packet diagram as nodes; the commits of a
   git graph as nodes and the links to their parents as edges). The diagram is laid out without the pictures of its
   nodes, so no other file is read (see *Mermaid Diagrams* below).
+- A **PlantUML diagram** reports the size it is laid out at (the size of PlantUML's SVG), 4 channels with transparency,
+  and what the text declares: the diagram type (`sequence`, `activity`, or a type that is not drawn, such as `class`),
+  whether this version draws it, the title, and the numbers of nodes, edges, and subgraphs (participants, messages, and
+  boxes for a sequence diagram; actions, start, stop, end, connector, and decision nodes, arrows, and swimlanes and
+  partitions for an activity diagram). Its `!include` files are read to lay it out (see *PlantUML Diagrams* below).
 
 ```text
 $ canvasnet info shapes.svg
@@ -374,6 +382,10 @@ $ canvasnet info pets.mmd
 pets.mmd: mermaid, 595x450 px (laid out), pie, 3 nodes, 0 edges, 0 subgraphs, title "Pets adopted by volunteers", 101 bytes
 $ canvasnet info plan.mmd
 plan.mmd: mermaid, 784x220 px (laid out), gantt, 5 nodes, 0 edges, 2 subgraphs, title "Release plan", 365 bytes
+$ canvasnet info checkout.puml
+checkout.puml: plantuml, 254x354 px (laid out), sequence, 3 participants, 4 messages, 0 boxes, title "Checkout", 200 bytes
+$ canvasnet info ticket.puml
+ticket.puml: plantuml, 272x419 px (laid out), activity, 8 nodes, 9 edges, 0 subgraphs, title "Handling a ticket", 233 bytes
 ```
 
 ### render and convert
@@ -894,14 +906,74 @@ canvasnet help mermaid --example pie > pets.mmd
 canvasnet help mermaid --example gantt > plan.mmd
 ```
 
+#### PlantUML Diagrams
+
+A PlantUML diagram (`.puml`, `.plantuml`, or `.pu`) is drawn as a still image with PlantUML's own layout and its
+default look, at the size of the SVG that PlantUML 1.2026.10 would make for it (`info` reports it; a `scale` statement
+of the diagram multiplies it), or at the size the size options ask for, exactly as a Mermaid diagram. A diagram has one
+page, and the model and chart options given with it are a `usage-error`. No Java, no Graphviz, and no network are used:
+the `DemaConsulting.CanvasNet.PlantUml` library that the tool bundles reimplements the two layouts in .NET.
+
+This version draws **sequence diagrams** (laid out like PlantUML's teoz engine: the eight participant kinds, every
+arrow, activations, notes, groups, boxes, dividers, delays, `autonumber`, and the page texts) and **activity
+diagrams** in the new syntax (laid out like PlantUML's tile composition: actions, decisions, `while` and `repeat`
+loops, forks, merges, and splits, swimlanes, partitions, notes, styled arrows, and connectors). `canvasnet help
+plantuml` lists a card for each (`canvasnet help plantuml sequence`, `canvasnet help plantuml activity`) and for the
+preprocessor, the styles, composition, the options, the diagnostics, and the known differences. Every other PlantUML
+diagram type (class, use case, component, state, a mindmap, a gantt chart, ...) is recognized: `info` reports it with
+`"supported": false`, and `render` writes an empty picture of 20 by 20 pixels with the diagnostic
+`plantuml-diagram-unsupported` (`--strict` makes it an `unsupported-feature` failure).
+
+**Look.** The background is white, as PlantUML draws it (`skinparam backgroundColor transparent` or
+`--background transparent` keeps it clear), and the colors and fonts change with the supported `skinparam` settings
+(`canvasnet help plantuml style`). Themes are not supported: a `!theme` line is reported as
+`plantuml-theme-unsupported` and the default look is drawn, `--theme` on a `.puml` input is a `usage-error`, and a
+`#theme=` fragment is the warning `image-fragment-unknown-parameter`. `--positions` is a `usage-error` too, because a
+PlantUML diagram reports no feature positions. Only the bundled fonts are used (PlantUML's default sans-serif maps to
+Liberation Sans, which has Arial's advances), so the picture is the same on every machine.
+
+**Includes.** `!include`, `!include_once`, and `!include_many` read a local file relative to the file that names it,
+under the mode of `--file-access` and `--allow-root` (see *File Access*): a file the mode denies is the error
+`file-access-denied`, and a missing file is `plantuml-error` (`plantuml-include-failed`). A URL, the standard library
+(`!include <name>`), `!includeurl`, and `!includesub` are never fetched; they are reported as
+`plantuml-include-unsupported` and the rest of the diagram is drawn.
+
+**Diagnostics and errors.** A construct that PlantUML defines but this version does not draw (a `ref over`, a `switch`
+block, a `<style>` block, an `!if` directive, ...) is left out and reported in `diagnostics` with its stable
+`plantuml-*` code (for example `Unsupported: plantuml-theme-unsupported: theme.puml:2:1: ...`); `--strict` makes the
+first one an `unsupported-feature` failure. A warning (a `skinparam` setting outside the subset, a `!pragma`, a
+character the bundled fonts lack) has the code `plantuml-warning`, with the specific `plantuml-*` code in `detail` and
+the line and column in `location`. Text that is not a PlantUML diagram, has an unknown `@start` tag, or has a statement
+the diagram type does not accept is the error `plantuml-error`, which names the file, line, and column and gives a hint:
+
+```text
+Error: plantuml-error: PlantUML syntax error: bad.puml:3:1: plantuml-syntax-error: 'Alice ~~ Bob' is not a statement
+of a sequence diagram
+Hint: write a message as 'A -> B : text' and declare participants with 'participant', 'actor', ...
+```
+
+A diagram that exceeds a limit of the library (nodes, edges, includes, nesting, label length, layout work, painted
+pixels; see `canvasnet help limits`) fails with `budget-exceeded`, a text longer than 50,000 characters is
+`corrupt-input`, and a diagram that lays out larger than 8192 pixels on a side is `size-limit` unless a size option
+makes it fit.
+
+```bash
+canvasnet info checkout.puml --json
+canvasnet render checkout.puml -o checkout.png --json
+canvasnet render ticket.puml --strict --scale 2 -o ticket.png
+canvasnet render docs/order.puml --file-access roots --allow-root docs -o order.png --json
+canvasnet help plantuml --example sequence > sequence.puml
+canvasnet help plantuml --example activity > activity.puml
+```
+
 #### Feature Positions
 
 A Mermaid diagram or a Vega-Lite chart reports where its features land (the nodes, edges, and notes of a diagram, the
 views, axes, legends, and marks of a chart), for callouts and leader lines drawn over the picture, as the anchors of a
-model do. `--positions <selector>` asks for the features a selector matches; repeat it to ask for more. It needs
-`--json`, because the positions are a field of the JSON result, and a diagram or a chart as the input: without
-`--json`, or with another kind of input, it is a `usage-error` (a model reports anchors instead). `render`, `convert`,
-and the verbs take the option; `inspect` does not.
+model do; a PlantUML diagram reports none. `--positions <selector>` asks for the features a selector matches; repeat it
+to ask for more. It needs `--json`, because the positions are a field of the JSON result, and a diagram or a chart as
+the input: without `--json`, or with another kind of input, it is a `usage-error` (a model reports anchors instead).
+`render`, `convert`, and the verbs take the option; `inspect` does not.
 
 ```bash
 canvasnet render flowchart.mmd --size 430x280 --positions node:send --positions edge -o slot.png --json
@@ -1010,6 +1082,7 @@ accepts):
 | OpenSCAD model | `.scad` |
 | Vega-Lite chart | `.vl.json`, `.vl` |
 | Mermaid diagram (`#theme=NAME` chooses the theme) | `.mmd`, `.mermaid` |
+| PlantUML diagram (no fragment parameters) | `.puml`, `.plantuml`, `.pu` |
 | A document page (page 1, or `#page=N`; PDF, PowerPoint, Visio) | `.pdf`, `.pptx`, `.vsdx` |
 
 The format is decided by the **file name** (its extension), not by the content: a Vega-Lite chart must be named
@@ -1151,24 +1224,20 @@ An SVG file that has no such reference renders exactly as before.
 
 #### Diagnostics and --strict
 
-PPTX and VSDX documents, OpenSCAD models, Vega-Lite charts, Mermaid diagrams, and SVG files that embed other files
-report every picture,
-shape, or feature the library recognizes but cannot
-draw. By default the page is drawn without it and the report is returned in `diagnostics` in the JSON result and,
-without
-`--json`, written to standard error as `Unsupported: <code>: <message>` and `Warning: <code>: <message>` lines (see
-*Output, Errors, and Exit Codes*), so a feature that was left out is never silent.
-`--strict` turns the report into a failure (`unsupported-feature`) and writes no output. PDF and raster images have no
-such
-report: whatever the library cannot draw is simply not drawn, and `--strict` has no effect on them. An SVG file
-reports only
-its `image` references that were not drawn (`svg-image-unresolved`, `svg-image-too-large` for a picture over the pixel
-budget, `image-fragment-invalid` for a fragment that cannot be used, or `image-page-out-of-range` for a page that does
-not exist, which `--strict` fails on; the fragment warnings do not; and `image-access-denied` for a link the file-access
-mode denies, which `--strict` turns into the error `file-access-denied`), a hand-drawn arrowhead
-(`svg-arrowhead-shape`, a warning `--strict` never fails on), text it does not draw or draws without a feature
-(`svg-text-not-drawn` and `svg-text-unsupported`, which `--strict` fails on), and the notes of the files it embeds;
-what else the SVG library cannot draw in the file itself (animation, an unknown filter primitive) is simply not drawn.
+PPTX and VSDX documents, OpenSCAD models, Vega-Lite charts, Mermaid and PlantUML diagrams, and SVG files that embed
+other files report every picture, shape, or feature the library recognizes but cannot draw. By default the page is drawn
+without it and the report is returned in `diagnostics` in the JSON result and, without `--json`, written to standard
+error as `Unsupported: <code>: <message>` and `Warning: <code>: <message>` lines (see *Output, Errors, and Exit Codes*),
+so a feature that was left out is never silent. `--strict` turns the report into a failure (`unsupported-feature`) and
+writes no output. PDF and raster images have no such report: whatever the library cannot draw is simply not drawn, and
+`--strict` has no effect on them. An SVG file reports only its `image` references that were not drawn
+(`svg-image-unresolved`, `svg-image-too-large` for a picture over the pixel budget, `image-fragment-invalid` for a
+fragment that cannot be used, or `image-page-out-of-range` for a page that does not exist, which `--strict` fails on;
+the fragment warnings do not; and `image-access-denied` for a link the file-access mode denies, which `--strict` turns
+into the error `file-access-denied`), a hand-drawn arrowhead (`svg-arrowhead-shape`, a warning `--strict` never fails
+on), text it does not draw or draws without a feature (`svg-text-not-drawn` and `svg-text-unsupported`, which
+`--strict` fails on), and the notes of the files it embeds; what else the SVG library cannot draw in the file itself
+(animation, an unknown filter primitive) is simply not drawn.
 
 A PPTX shape that the library does not implement at all (for example an unknown preset shape) is always a failure
 (`unsupported-feature`), with or without `--strict`; `--strict` additionally upgrades the skipped EMF and WMF
@@ -1672,12 +1741,12 @@ canvasnet flatten <input.svg> -o <output.svg> [--scale <factor>] [--strict]
                   [--file-access <mode>] [--allow-root <folder>] [--no-clobber]
 ```
 
-An SVG drawing that links a Mermaid diagram, an OpenSCAD model, a Vega-Lite chart, or a page of a PDF, PowerPoint, or
-Visio file with `<image href>` (see *Embedding Images, Charts, and Models in an SVG*) is drawn completely only by
-CanvasNet: a browser or another SVG reader, such as WeasyPrint, shows nothing where those pictures belong. `flatten`
-writes a copy of the drawing in which each of those links is a PNG picture, embedded as a `data:` URI, so that any SVG
-reader shows the drawing as `canvasnet render` draws it. Everything else stays: the shapes and the text remain vectors,
-and raster pictures and SVG files that link only rasters keep their links.
+An SVG drawing that links a Mermaid or PlantUML diagram, an OpenSCAD model, a Vega-Lite chart, or a page of a PDF,
+PowerPoint, or Visio file with `<image href>` (see *Embedding Images, Charts, and Models in an SVG*) is drawn completely
+only by CanvasNet: a browser or another SVG reader, such as WeasyPrint, shows nothing where those pictures belong.
+`flatten` writes a copy of the drawing in which each of those links is a PNG picture, embedded as a `data:` URI, so that
+any SVG reader shows the drawing as `canvasnet render` draws it. Everything else stays: the shapes and the text remain
+vectors, and raster pictures and SVG files that link only rasters keep their links.
 
 ```bash
 canvasnet flatten dashboard.svg -o dashboard-flat.svg
@@ -1725,10 +1794,10 @@ declaration when nothing uses it any more; a binding that fails keeps its attrib
 
 This list is also the *Reference* section of `canvasnet help svg flatten`; a test keeps the two the same.
 
-- **replaced**: An `image` whose link names a file only CanvasNet draws: a Mermaid diagram, an OpenSCAD model, a
-  Vega-Lite chart, or a page of a PDF, PPTX, or VSDX document, with or without a fragment (`#page=2`, `#def.width=20`,
-  `#param.t=5`, `#theme=dark`), and an SVG file that links such a file directly or through further SVG files. Its `href`
-  (or its `xlink:href` when it has no `href`) becomes a `data:image/png;base64` URI of the picture.
+- **replaced**: An `image` whose link names a file only CanvasNet draws: a Mermaid or PlantUML diagram, an OpenSCAD
+  model, a Vega-Lite chart, or a page of a PDF, PPTX, or VSDX document, with or without a fragment (`#page=2`,
+  `#def.width=20`, `#param.t=5`, `#theme=dark`), and an SVG file that links such a file directly or through further SVG
+  files. Its `href` (or its `xlink:href` when it has no `href`) becomes a `data:image/png;base64` URI of the picture.
 - **kept**: Everything else, byte for byte: comments, formatting, line endings, a byte order mark, raster pictures, SVG
   files that link only rasters and SVG files, `data:` URIs (never followed), same-document `#` links, and network links.
 - **size**: Each picture is drawn at the size of its placement in the drawing at its natural size (through the `viewBox`
@@ -1795,10 +1864,10 @@ A value that does not match its grammar is a `usage-error` that quotes the value
 > `--file-access roots,no-symlinks --allow-root <folder of the input>`. Without `--allow-root`, `roots` also allows
 > everything under the current folder. See *Migrating from the Folder Sandbox* in the CanvasNet User Guide.
 
-A document can reference other files: the `<image href>` of an SVG drawing, the pictures of a Mermaid diagram, the
-image marks and the data files of a Vega-Lite chart, the `include` and `use` files of an OpenSCAD model, and the pages
-of a linked document. The **file-access mode** decides which of those local files may be read, for `render` and its
-verbs, `inspect`, `compare`, `montage`, and `flatten`:
+A document can reference other files: the `<image href>` of an SVG drawing, the pictures of a Mermaid diagram, the image
+marks and the data files of a Vega-Lite chart, the `include` and `use` files of an OpenSCAD model, the `!include` files
+of a PlantUML diagram, and the pages of a linked document. The **file-access mode** decides which of those local files
+may be read, for `render` and its verbs, `inspect`, `compare`, `montage`, and `flatten`:
 
 - **`any`** (the default) reads every regular local file, as Pandoc does: a relative path (with `..`), an absolute or
   drive path, a local `file:` URI, and a symbolic link or junction.
@@ -1821,10 +1890,10 @@ never read, and every limit holds (a mode decides which files may be read, never
 option: it measures a chart under `any`.
 
 A picture the mode denies is the warning **`image-access-denied`** (the rest is drawn; `--strict` makes it the error
-`file-access-denied`), and an OpenSCAD include or a Vega-Lite data file the mode denies is the error
-**`file-access-denied`**, which names the file as written and where it is referenced; no output is written. The JSON
-result never reports the mode itself. The `detail` of an `image-access-denied` note holds host paths, so a service that
-shows notes to untrusted authors should remove it.
+`file-access-denied`), and an OpenSCAD include, a PlantUML `!include` file, or a Vega-Lite data file the mode denies is
+the error **`file-access-denied`**, which names the file as written and where it is referenced; no output is written.
+The JSON result never reports the mode itself. The `detail` of an `image-access-denied` note holds host paths, so a
+service that shows notes to untrusted authors should remove it.
 
 ```bash
 # Links must stay in the docs and assets folders
@@ -1871,8 +1940,9 @@ This list is also the `canvasnet help files` card, bullet by bullet; a test keep
 - **`image-access-denied`**: Warning: a picture (an SVG image, a Mermaid picture, a Vega-Lite image mark, or a linked
   page) that the mode denies is not drawn, and the rest is; the message names the link, the mode, and why. With --strict
   it is the error file-access-denied.
-- **`file-access-denied`**: Error: an OpenSCAD include or use file or a Vega-Lite data file that the mode denies, or a
-  denied picture with --strict; the message names the file as written and where it is referenced. No output is written.
+- **`file-access-denied`**: Error: an OpenSCAD include or use file, a PlantUML !include file, or a Vega-Lite data file
+  that the mode denies, or a denied picture with --strict; the message names the file as written and where it is
+  referenced. No output is written.
 - **`real path unavailable`**: A mode other than any needs the real path of every opened file. Where the system cannot
   tell it (Linux without /proc, for example), the file is denied, never read unchecked.
 - **`detail`**: In the JSON result, the detail of an image-access-denied note holds the reference, the requested and
@@ -1892,7 +1962,7 @@ This list is also the `canvasnet help files` card, bullet by bullet; a test keep
 ## Help Topics
 
 `canvasnet help <subject>` explains the tool from the tool itself, offline and for the installed version. The subject
-is a command (see *Commands*) or one of sixteen help topics, which cover the input formats, how to make pictures look
+is a command (see *Commands*) or one of seventeen help topics, which cover the input formats, how to make pictures look
 good and compose them, and the subjects that apply to every command. A subject is matched in any letter case, and a
 topic may be named by an alias.
 
@@ -1901,6 +1971,7 @@ topic may be named by an alias.
 | `scad` | `openscad` | OpenSCAD models, drawn as one still picture from a named viewpoint |
 | `vega-lite` | `vegalite`, `vl` | Vega-Lite charts: the supported subset of Vega-Lite 5 and 6 |
 | `mermaid` | `mmd` | Mermaid flowchart, sequence, class, state, ER, pie, gantt, mindmap, packet, git graphs, themes |
+| `plantuml` | `puml` | PlantUML sequence and activity diagrams, the preprocessor and includes, and skin parameters |
 | `svg` | | SVG drawings: the supported subset, drawn sharply at the target size, and embedding with `<image href>` |
 | `pdf` | | PDF documents: a page is drawn as an image |
 | `pptx` | `powerpoint` | PowerPoint presentations: each slide is a page |
@@ -1936,21 +2007,21 @@ link by running it. For example, `help mermaid gantt` leads to `help mermaid sty
 composition` and the `style` and `composition` topics. Every card is at most 6,000 characters, and an index card at
 most 3,500.
 
-The tree of a format has the same parts every time: what is **supported**, what is **unsupported**, the **options**
-that apply, the **diagnostics** it reports and how `--strict` treats them, and the **known differences** from the
-original program. Each drawing format (`scad`, `vega-lite`, `mermaid`, and `svg`) also has a `style` card (how to make
-the picture look good) and a `composition` card (how to place it in, or combine it with, other pictures), linked to the
-`style` and `composition` topics. The cards are embedded in the tool, so they work offline and always describe the
+The tree of a format has the same parts every time: what is **supported**, what is **unsupported**, the **options** that
+apply, the **diagnostics** it reports and how `--strict` treats them, and the **known differences** from the original
+program. Each drawing format (`scad`, `vega-lite`, `mermaid`, `plantuml`, and `svg`) also has a `style` card (how to
+make the picture look good) and a `composition` card (how to place it in, or combine it with, other pictures), linked to
+the `style` and `composition` topics. The cards are embedded in the tool, so they work offline and always describe the
 version that is installed. This guide stays the narrative; the cards are the quick reference, and they are tested
 against the code (the options, the error codes, the diagnostic identifiers, the limits, and every example) and, for the
 style advice, against the renderer.
 
-The cards ship tiny examples. The source examples of `scad`, `vega-lite`, `mermaid`, and `svg` are files that render
-with `--strict` without a diagnostic, including a styled Mermaid flowchart (`help mermaid style --example styled`), a
-styled Vega-Lite chart (`help vega-lite style --example styled`), an SVG figure that embeds both
-(`help svg composition --example report`), and a framed figure of a model with a title band and callout arrows that end
-on its anchors (`help svg framed-figure --example framed`), and two connectors whose arrowheads land on the edges of
-their target boxes (`help svg arrows --example arrows`); the other examples are command lines:
+The cards ship tiny examples. The source examples of `scad`, `vega-lite`, `mermaid`, `plantuml`, and `svg` are files
+that render with `--strict` without a diagnostic, including a styled Mermaid flowchart
+(`help mermaid style --example styled`), a styled Vega-Lite chart (`help vega-lite style --example styled`), an SVG
+figure that embeds both (`help svg composition --example report`), and a framed figure of a model with a title band and
+callout arrows that end on its anchors (`help svg framed-figure --example framed`), and two connectors whose arrowheads
+land on the edges of their target boxes (`help svg arrows --example arrows`); the other examples are command lines:
 
 ```bash
 # Read a card, print its examples in full, and print one alone: the output is only the source, so it can be saved
@@ -1960,10 +2031,10 @@ canvasnet help scad --example plate > plate.scad
 canvasnet render plate.scad --view top --size 400x400 -o plate-top.png --json
 ```
 
-- `--example <name>` prints only the example: the source of a file (an `.scad`, `.vl.json`, `.mmd`, or `.svg` file) or,
-  for a card whose example is a command, the command line. It finds the example on the card or on any card below it,
-  so `help scad --example plate` and `help scad language --example plate` print the same file. Nothing else is written
-  to standard output.
+- `--example <name>` prints only the example: the source of a file (an `.scad`, `.vl.json`, `.mmd`, `.puml`, or `.svg`
+  file) or, for a card whose example is a command, the command line. It finds the example on the card or on any card
+  below it, so `help scad --example plate` and `help scad language --example plate` print the same file. Nothing else is
+  written to standard output.
 - `--examples` prints every example of the card in full: its name, kind (`source`, `command`, or `snippet`), file
   name, description, and content in a code block. It then lists the cards below it that have examples, each with its
   `--examples` command, so `help mermaid --examples` points at the cards of the diagram types. A `snippet` is not
@@ -2038,6 +2109,16 @@ objects:
 {"schemaVersion":2,"ok":true,"command":"info","input":{"path":"flow.mmd","format":"mermaid","bytes":313},"image":{"width":674,"height":286,"channels":4,"hasAlpha":true,"canDecode":true,"frameCount":1},"diagram":{"type":"flowchart","supported":true,"direction":"LR","title":"Order flow","nodes":5,"edges":5,"subgraphs":1}}
 ```
 
+For a PlantUML diagram the `diagram` object has the same members without `direction` and `accTitle`: `type` is
+`sequence`, `activity`, or a type that is not drawn (`class`, `usecase`, `component`, `state`, `mindmap`, ..., with
+`supported` false and zero counts), `nodes` are the participants of a sequence diagram or the actions, start, stop,
+end, connector, and decision nodes of an activity diagram, `edges` its messages or arrows, and `subgraphs` its boxes or
+its swimlanes and partitions:
+
+```json
+{"schemaVersion":2,"ok":true,"command":"info","input":{"path":"checkout.puml","format":"plantuml","bytes":200},"image":{"width":254,"height":354,"channels":4,"hasAlpha":true,"canDecode":true,"frameCount":1},"diagram":{"type":"sequence","supported":true,"title":"Checkout","nodes":3,"edges":4,"subgraphs":0}}
+```
+
 `render`, `convert`, and the transformation commands add:
 
 ```json
@@ -2052,9 +2133,10 @@ objects:
   document.
 - `diagnostics`: the features that were skipped, each `{"source","severity","code","message"}`, `page` for a document,
   and, only when there is something to say, `detail`, `location`, and `origin` after them (`source` is `scad`, `pptx`,
-  `vsdx`, `vega-lite`, `mermaid`, or `svg`; `code` is the library's stable feature token, such as `scad-module-surface`,
-  `vl-mark-geoshape`, or `mermaid-icon-unsupported`, `vega-lite-warning` for a warning of the chart library,
-  `mermaid-warning` for a warning of the diagram library, or `svg-image-unresolved`, `svg-image-too-large`,
+  `vsdx`, `vega-lite`, `mermaid`, `plantuml`, or `svg`; `code` is the library's stable feature token, such as
+  `scad-module-surface`, `vl-mark-geoshape`, `mermaid-icon-unsupported`, or `plantuml-theme-unsupported`,
+  `vega-lite-warning` for a warning of the chart library, `mermaid-warning` or `plantuml-warning` for a warning of a
+  diagram library, or `svg-image-unresolved`, `svg-image-too-large`,
   `image-fragment-invalid`, `image-page-out-of-range`, `image-fragment-unknown-parameter`, or
   `image-fragment-duplicate-parameter` for an SVG `image` link, `svg-arrowhead-shape` for an arrowhead drawn by hand
   instead of with a marker, or `svg-text-not-drawn` and `svg-text-unsupported` for SVG text that is not drawn or drawn
@@ -2210,6 +2292,9 @@ Each code, its cause, and what to do:
 - **`mermaid-error`**: A Mermaid diagram is not valid (no diagram keyword, a grammar error, an unknown shape, invalid
   frontmatter or shape data) or cannot be laid out. What to do: The message has the file, line, column, and `mermaid-*`
   code; the hint suggests the fix.
+- **`plantuml-error`**: A PlantUML diagram is not valid (a statement the diagram type does not accept, an unknown
+  `@start` tag, an `!include` file that is missing or cannot be read) or cannot be laid out. What to do: The message has
+  the file, line, column, and `plantuml-*` code; the hint suggests the fix.
 - **`budget-exceeded`**: A model exceeds a rendering limit, such as `--max-triangles`, or a chart or diagram exceeds a
   limit of its library while it is laid out or drawn (data rows, data files, data bytes, ticks, scene items; nodes,
   edges, nesting, layout work, pictures, painted pixels). What to do: Raise the limit (a model) or simplify the model or
@@ -2247,6 +2332,10 @@ Each default, and how to change it:
 - **Size of a Mermaid diagram**: The size of Mermaid's SVG for it. To change it: The size options.
 - **Theme of a Mermaid diagram**: `default`, unless the diagram sets one. To change it: `--theme`, or `#theme=` on the
   input.
+- **Size of a PlantUML diagram**: The size of PlantUML's SVG for it, times its `scale` statement. To change it: The size
+  options.
+- **Look of a PlantUML diagram**: PlantUML's default look on white. To change it: `skinparam` in the diagram,
+  `--background`.
 - **Fonts of a diagram**: The bundled fonts only. To change it: Not adjustable.
 - **Time zone and fonts of a chart**: UTC, the bundled fonts only. To change it: Not adjustable.
 - **Referenced files (pictures, includes, data files)**: Every regular local file, relative to the file that names it;
@@ -2309,8 +2398,9 @@ filters:
 
 For each Pandoc run, the shim sends the whole document to `dotnet canvasnet pandoc-filter` once, on standard input,
 and Pandoc continues with the document the tool writes back, so a document of many pictures starts the tool once. The
-tool is not started at all for a document without a code block of class `mermaid` and without a local picture whose
-name ends in `.svg`, `.vl.json`, `.vl`, `.scad`, `.vsdx`, `.pptx`, `.pdf`, `.mmd`, or `.mermaid` (in any letter case;
+tool is not started at all for a document without a code block of class `mermaid` or `plantuml` and without a local
+picture whose name ends in `.svg`, `.vl.json`, `.vl`, `.scad`, `.vsdx`, `.pptx`, `.pdf`, `.mmd`, `.mermaid`, `.puml`,
+`.plantuml`, or `.pu` (in any letter case;
 a name followed by a `#` fragment or a `?` query does not count, as the filter leaves such a picture alone). Code
 blocks of other languages (`bash`, `yaml`, `csharp`, and so on), raster pictures (PNG, JPEG, BMP, TIFF, ICO, AVIF, and
 so on), and remote pictures therefore never need the tool, and a code-only document builds without it. A fix of the
@@ -2319,7 +2409,8 @@ writes them from the tool's own tables), so write the shim again after each upda
 working, but it may start the tool for a document that does not need it, or miss a format the newer tool draws. The
 tool also says when the protocol of the shim changes (see *Shim protocol* below).
 
-A picture whose file name ends in `.scad`, `.vl.json`, `.vl`, `.mmd`, `.mermaid`, `.vsdx`, `.pptx`, or `.pdf` is then
+A picture whose file name ends in `.scad`, `.vl.json`, `.vl`, `.mmd`, `.mermaid`, `.puml`, `.plantuml`, `.pu`, `.vsdx`,
+`.pptx`, or `.pdf` is then
 drawn as a PNG, and the attributes written after it choose how. An SVG picture whose `<image>` elements link one of
 those files (directly or through a nested `.svg` file) is flattened, see below. Any other picture (a PNG, a JPEG, an SVG
 that links none of those files, an address on the internet) is left alone.
@@ -2365,6 +2456,22 @@ the document shows its code, with the tool's message as a Pandoc warning (`...; 
 Pandoc runs the filters in the order of its command line, and the filters of a defaults file take the place of its
 `--defaults` option, so a filter given after `--defaults` runs after this one and sees only the blocks left as written.
 The CanvasNet build fails when a generated document still holds such a block or picture.
+
+A PlantUML diagram can be written in the document the same way, as a fenced code block of class `plantuml`
+(`@startuml` and `@enduml` are optional). It reads the attributes of a `.puml` picture (`size`, `scale`, and
+`background`; a PlantUML diagram has no `theme`), and `caption` and the other attributes work as for a `mermaid`
+block. A `.puml`, `.plantuml`, or `.pu` picture is named in the cache by its text and by every file its `!include`,
+`!include_once`, and `!include_many` directives read (not a URL or the standard library), so a changed include draws
+it again; a block has no folder for its includes, so a diagram that includes files must be a file of its own. A block
+or a picture of a PlantUML type the tool does not draw (`plantuml-diagram-unsupported`: a class diagram, a mindmap, and
+so on) is left as written, with a warning, exactly as a Mermaid one.
+
+````markdown
+```{.plantuml caption="Order flow" width=60%}
+Alice -> Shop : order
+Shop --> Alice : receipt
+```
+````
 
 **SVG drawings.** WeasyPrint, which turns the HTML into the PDF, draws nothing for an `<image href="flow.mmd">` (or a
 model, a chart, or a page of a document) inside an SVG picture. For an `.svg` picture the filter reads the drawing and
@@ -2467,9 +2574,9 @@ pixels per side; a scale of 0.56 or less fits. (Set the block's scale attribute 
 {.mermaid scale=0.56}.)`
 
 The CanvasNet repository does not pin the tool in its manifest. Its build installs the package it has just built as a
-local tool before the documents are built, and uses `CANVASNET_TOOL` only on a developer's machine. `canvasnet help
-pandoc` is the full reference, and the examples in the chapters on the Scad, Vega-Lite, Mermaid, VSDX, PPTX, and PDF
-packages are drawn this way.
+local tool before the documents are built, and uses `CANVASNET_TOOL` only on a developer's machine.
+`canvasnet help pandoc` is the full reference, and the examples in the chapters on the Scad, Vega-Lite, Mermaid,
+PlantUML, VSDX, PPTX, and PDF packages are drawn this way.
 
 ### Migrating from the Full Lua Filter (Filter Version 16 and Earlier)
 
@@ -2490,14 +2597,13 @@ cache folder stay the same.
 
 ## Using the Tool from an AI Agent
 
-The tool is meant to be used by an agent that can look at images: it turns anything the agent cannot see directly (a
-PDF page, a PowerPoint slide, a Visio drawing, an OpenSCAD model, a Vega-Lite chart, a Mermaid diagram) into a PNG the
-agent can inspect, and writes
-the agent's own drawings (an SVG, a SCAD model, or a Mermaid diagram) as pictures it can compare with a reference. A few
-conventions make this reliable:
+The tool is meant to be used by an agent that can look at images: it turns anything the agent cannot see directly (a PDF
+page, a PowerPoint slide, a Visio drawing, an OpenSCAD model, a Vega-Lite chart, a Mermaid or PlantUML diagram) into a
+PNG the agent can inspect, and writes the agent's own drawings (an SVG, a SCAD model, or a Mermaid or PlantUML diagram)
+as pictures it can compare with a reference. A few conventions make this reliable:
 
 - Start with `canvasnet help topics`, then `canvasnet help <format>` for the index of a format (`scad`, `vega-lite`,
-  `mermaid`, `svg`, `pdf`, `pptx`, `vsdx`, `raster`), the card below it that answers the question
+  `mermaid`, `plantuml`, `svg`, `pdf`, `pptx`, `vsdx`, `raster`), the card below it that answers the question
   (`canvasnet help mermaid gantt`), and `canvasnet help <format> --example <name>` for a tiny example that is known
   to render. Follow the *See also* commands at the end of a card; `canvasnet help style` and
   `canvasnet help composition` explain how to make a picture look good and how to combine pictures. Add `--json` to
@@ -2705,7 +2811,7 @@ pictures side by side.
   byte, as is a JSON document. Different machines can differ where text is drawn from the host's fonts (text in SVG,
   PDF, PowerPoint, and Visio files that does not embed its font), so compare such pictures by eye rather than by
   checksum. Pictures made of shapes, rasters, and OpenSCAD models do not depend on fonts, and Vega-Lite charts and
-  Mermaid diagrams use only the
+  Mermaid and PlantUML diagrams use only the
   bundled fonts (and charts UTC dates), so they are the same on every machine. SVG text is always drawn: a
   family that is installed is used, the generic families (`sans-serif`, `serif`, `monospace`, ...) and any family that
   is not installed are drawn with the bundled Liberation Sans, Serif, and Mono fonts.
@@ -2718,9 +2824,9 @@ pictures side by side.
 - **Memory.** `compare` holds both images and one picture at a time (an 8192 by 8192 image is about 256 MB per copy),
   and `montage` holds the sheet and one input at a time.
 - **Quality of drawing.** The rendering libraries draw a defined subset of each format. Anything outside it is reported
-  where the library can report it (PPTX, VSDX, SCAD, Vega-Lite, and Mermaid: `diagnostics`; SVG: the `image` references
-  it could not draw). PDF has no such report, and a construct it (or the SVG library, inside an SVG file) cannot draw is
-  simply absent from the picture.
+  where the library can report it (PPTX, VSDX, SCAD, Vega-Lite, Mermaid, and PlantUML: `diagnostics`; SVG: the `image`
+  references it could not draw). PDF has no such report, and a construct it (or the SVG library, inside an SVG file)
+  cannot draw is simply absent from the picture.
 - **SVG embedding.** Local references are followed relative to the folder of the SVG file, under the file-access mode
   (never the network), at most 64 files per render and 4 levels of SVG files; an embedded model is drawn with its
   default view; the `feImage` filter primitive reads only a `data:` URI.
@@ -2741,7 +2847,9 @@ pictures side by side.
   ignored), no network, pictures read relative to the folder of the diagram under the file-access mode, no clock (a
   gantt chart has no today line, and its
   dates are in UTC), and the other diagram types (journey, timeline, and so on) are recognized but drawn as an empty
-  picture with the diagnostic `mermaid-diagram-unsupported`.
+  picture with the diagnostic `mermaid-diagram-unsupported`. A PlantUML sequence or activity diagram is drawn with the
+  default look only (no themes), its includes are local files only, and the other PlantUML types are drawn as an empty
+  picture with the diagnostic `plantuml-diagram-unsupported`.
 - **Models.** Only one view per command, and no animation. A model that needs `surface`, `import`, or other unsupported
   constructs is drawn without them.
 - **Rotation.** Any angle, clockwise, with nearest or bilinear sampling (the other `--filter` values mean bilinear
@@ -2793,6 +2901,7 @@ Copyright (c) DEMA Consulting
 ✓ CanvasNetTool_RenderScad - Passed
 ✓ CanvasNetTool_RenderVegaLite - Passed
 ✓ CanvasNetTool_RenderMermaid - Passed
+✓ CanvasNetTool_RenderPlantUml - Passed
 ✓ CanvasNetTool_PandocFilter - Passed
 ✓ CanvasNetTool_CropResize - Passed
 ✓ CanvasNetTool_RotateFlipPad - Passed
@@ -2801,8 +2910,8 @@ Copyright (c) DEMA Consulting
 ✓ CanvasNetTool_Adjustments - Passed
 ✓ CanvasNetTool_HelpExamples - Passed
 
-Total Tests: 18
-Passed: 18
+Total Tests: 19
+Passed: 19
 Failed: 0
 ```
 
@@ -2819,6 +2928,7 @@ Failed: 0
 | `CanvasNetTool_RenderScad` | An OpenSCAD model is drawn, and `-D` changes the picture |
 | `CanvasNetTool_RenderVegaLite` | A Vega-Lite chart is described by `info` and drawn with its bars correctly placed |
 | `CanvasNetTool_RenderMermaid` | A Mermaid flowchart is described by `info` and drawn at that size, nodes in place |
+| `CanvasNetTool_RenderPlantUml` | A PlantUML sequence diagram is described by `info` and drawn at that size |
 | `CanvasNetTool_PandocFilter` | `pandoc-filter` draws a Mermaid block of a Pandoc document as a figure |
 | `CanvasNetTool_CropResize` | `crop` and `resize` produce the expected pixels |
 | `CanvasNetTool_RotateFlipPad` | `rotate`, `flip`, and `pad` produce the expected pixels |

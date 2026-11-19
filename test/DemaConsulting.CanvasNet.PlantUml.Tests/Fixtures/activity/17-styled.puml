@@ -1,0 +1,10 @@
+@startuml
+skinparam activityBackgroundColor #DDEEFF
+skinparam activityBorderColor #3366AA
+skinparam activityFontSize 14
+skinparam arrowColor #AA3333
+start
+:Styled action;
+:Another one;
+stop
+@enduml

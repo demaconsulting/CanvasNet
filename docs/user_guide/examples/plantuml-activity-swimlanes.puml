@@ -1,0 +1,21 @@
+@startuml
+' Gallery: swimlanes with a colored lane, a note and an arrow label
+|Author|
+start
+:Write the change;
+|#AliceBlue|Reviewer|
+:Review the change;
+note right
+  Two reviewers for
+  large changes
+end note
+if (Approved?) then (yes)
+  :Approve it;
+else (no)
+  :Ask for changes;
+endif
+|Author|
+-> done;
+:Merge it;
+stop
+@enduml

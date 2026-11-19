@@ -1,0 +1,11 @@
+@startuml
+' A diagram whose look, greeting and steps come from included files
+!include common.iuml
+!include parts/steps.puml
+title Included
+start
+:$greeting;
+:Pack;
+!include common.iuml
+stop
+@enduml

@@ -2345,11 +2345,11 @@ public enum FileReferenceFailureKind
 }
 ```
 
-`FileReferenceResolver` reads the files a document **references** (an image link, an include, a data file) the way
-Pandoc does: a relative path is looked up next to the referring file (pass it as `relativeTo`), otherwise in
-`BaseDirectory`, and then in each `SearchPaths` entry; `..` and absolute paths (`/x`, and `C:/x` on Windows) are
-followed, and so are symbolic links. A missing file, including a dangling link, is `null`. Which files may be read is
-decided by the **file-access policy** in `FileAccess`:
+`FileReferenceResolver` reads the files a document **references** (an image link, an OpenSCAD or PlantUML include, a
+data file) the way Pandoc does: a relative path is looked up next to the referring file (pass it as `relativeTo`),
+otherwise in `BaseDirectory`, and then in each `SearchPaths` entry; `..` and absolute paths (`/x`, and `C:/x` on
+Windows) are followed, and so are symbolic links. A missing file, including a dangling link, is `null`. Which files may
+be read is decided by the **file-access policy** in `FileAccess`:
 
 | Policy | Name | Reads |
 | --- | --- | --- |
@@ -2455,11 +2455,12 @@ catch (FileReferenceException ex) when (ex.Kind == FileReferenceFailureKind.Acce
 ### Linked Images (ImageSources)
 
 The `DemaConsulting.CanvasNet.ImageSources` namespace lets a document that links to other pictures (an SVG
-`<image href="...">`, for example) draw them without the program that draws the document knowing any format. The
-core package supplies the contract, one safe resolver for folders, and a raster source; each format package supplies
-a source for its own format (`SvgImageSource`, `ScadImageSource`, `VegaLiteImageSource`, `PdfImageSource`,
-`PptxImageSource`, `VsdxImageSource`), and the `DemaConsulting.CanvasNet.Viewer` package lists them all. Nothing is
-registered globally and nothing is discovered: a source is used only when you pass it in.
+`<image href="...">`, for example) draw them without the program that draws the document knowing any format. The core
+package supplies the contract, one safe resolver for folders, and a raster source; each format package supplies a source
+for its own format (`SvgImageSource`, `ScadImageSource`, `VegaLiteImageSource`, `MermaidImageSource`,
+`PlantUmlImageSource`, `PdfImageSource`, `PptxImageSource`, `VsdxImageSource`), and the
+`DemaConsulting.CanvasNet.Viewer` package lists them all. Nothing is registered globally and nothing is discovered: a
+source is used only when you pass it in.
 
 ```csharp
 public interface IImageResolver { Surface? Resolve(string href, int pixelWidth, int pixelHeight); }

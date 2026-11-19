@@ -1,0 +1,42 @@
+---
+# Software Unit Requirements for ActivityRenderer
+#
+# These requirements describe the design-level behavior of the ActivityRenderer unit of the Activity subsystem
+# (internal namespace DemaConsulting.CanvasNet.PlantUml.Activity): the scene items of a placed activity diagram. See
+# docs/verification/canvas-net-plant-uml/activity/activity-renderer.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetPlantUml Requirements
+    sections:
+      - title: Activity Requirements
+        sections:
+          - title: ActivityRenderer Requirements
+            requirements:
+              - id: CanvasNetPlantUml-Activity-ActivityRenderer-Shapes
+                title: >-
+                  The ActivityRenderer unit shall turn the placed rectangles (with square or rounded corners),
+                  ellipses, lines, polygons, and paths into scene paths at their places, with their fill, stroke,
+                  role, and location.
+                justification: |
+                  The scene carries PlantUML's shapes to the painter and the roles and locations to the tests and
+                  hosts.
+                tests:
+                  - PlantUmlActivityRenderer_Rect_BecomesARoundedPath
+                  - PlantUmlActivityRenderer_EllipseLineAndPolygon_BecomePaths
+
+              - id: CanvasNetPlantUml-Activity-ActivityRenderer-Space
+                title: >-
+                  The ActivityRenderer unit shall draw nothing for the space that a shape occupies without paint.
+                justification: |
+                  PlantUML lays out invisible shapes that only take space.
+                tests:
+                  - PlantUmlActivityRenderer_UnpaintedShapes_DrawNothing
+
+              - id: CanvasNetPlantUml-Activity-ActivityRenderer-Scene
+                title: >-
+                  The ActivityRenderer unit shall build the scene of a placed diagram with its size, the theme's
+                  background, and its shapes and texts in paint order.
+                justification: |
+                  The scene is what the page texts decorate and the painter paints.
+                tests:
+                  - PlantUmlActivityRenderer_Render_BuildsTheScene

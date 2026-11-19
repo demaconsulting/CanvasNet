@@ -1,0 +1,16 @@
+@startuml
+participant Caller
+participant Service
+participant Store
+Caller -> Service ++ : request
+Service -> Store ++ : read
+Store --> Service -- : rows
+Service -> Service ++ : transform
+Service -> Store : log
+deactivate Service
+return result
+activate Caller
+Caller -> Store : audit
+deactivate Caller
+Caller -> Store !! : close
+@enduml

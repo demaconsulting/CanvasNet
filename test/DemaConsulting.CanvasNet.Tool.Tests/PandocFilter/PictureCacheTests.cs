@@ -70,6 +70,12 @@ public class PictureCacheTests
         Assert.Equal(
             FilterPaths.Join([cache, "cec4b774cf6e92d591d5001e3909f9dc6ca2cdcc.mmd"]),
             PictureCache.BlockSourceFile(cache, "journey\n  title A day\n  section Go\n    Walk: 5: Me\n"));
+        Assert.Equal(
+            PictureCache.BlockSourceFile(cache, "journey\n  title A day\n  section Go\n    Walk: 5: Me\n"),
+            PictureCache.BlockSourceFile(cache, "journey\n  title A day\n  section Go\n    Walk: 5: Me\n", PictureAttributes.Mermaid));
+        Assert.Equal(
+            FilterPaths.Join([cache, "eccade7d2733145c0211b90c5308527baf6876f0.puml"]),
+            PictureCache.BlockSourceFile(cache, "@startuml\nAlice -> Bob\n@enduml\n", PictureAttributes.PlantUml));
     }
 
     /// <summary>

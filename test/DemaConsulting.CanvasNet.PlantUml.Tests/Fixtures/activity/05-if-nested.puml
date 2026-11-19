@@ -1,0 +1,14 @@
+@startuml
+start
+if (logged in?) then (yes)
+  if (admin?) then (yes)
+    :Show the console;
+  endif
+else (no)
+  :Show the login page;
+endif
+if (cookie set?) then
+  :Remember;
+endif
+stop
+@enduml

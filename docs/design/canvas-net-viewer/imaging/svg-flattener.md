@@ -6,7 +6,8 @@
 #### Purpose
 
 `SvgFlattener` is the flatten operation of the library: it writes a copy of an SVG drawing in which every `image` link
-that only CanvasNet can draw (a Mermaid diagram, an OpenSCAD model, a Vega-Lite chart, a page of a PDF, PPTX, or VSDX
+that only CanvasNet can draw (a Mermaid or PlantUML diagram, an OpenSCAD model, a Vega-Lite chart, a page of a PDF,
+PPTX, or VSDX
 document, with or without a fragment, and a nested SVG file that links one at any depth) is a PNG picture of its
 placement size, as a `data:image/png;base64,...` URI, so that any SVG reader (a browser, WeasyPrint) shows the drawing
 as `canvasnet render` draws it. Its single responsibility is to decide which links to replace, at what size, and to

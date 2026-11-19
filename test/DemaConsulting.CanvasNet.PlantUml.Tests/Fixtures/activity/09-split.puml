@@ -1,0 +1,12 @@
+@startuml
+start
+split
+  :Send an email;
+split again
+  :Send a text message;
+split again
+  :Push a notification;
+end split
+:Wait for replies;
+stop
+@enduml

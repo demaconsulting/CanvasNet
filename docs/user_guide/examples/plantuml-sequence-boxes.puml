@@ -1,0 +1,24 @@
+@startuml
+' Gallery: boxes around participants, numbered messages and page texts
+header Draft
+title Payment flow
+autonumber
+box "Front end" #LightBlue
+  participant Browser
+  participant App
+end box
+box "Back end" #MistyRose
+  participant Api
+  participant Bank
+end box
+Browser -> App : pay
+App -> Api : charge
+Api -> Bank : authorize
+Bank --> Api : approved
+Api --> App : paid
+App --> Browser : receipt
+legend right
+  Numbers show the order of the messages
+endlegend
+footer Page 1
+@enduml

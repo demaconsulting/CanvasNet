@@ -1,0 +1,122 @@
+---
+# Software Unit Requirements for Preprocessor
+#
+# These requirements describe the design-level behavior of the Preprocessor unit of the Syntax subsystem (internal
+# namespace DemaConsulting.CanvasNet.PlantUml.Syntax): the framing of a text, the comments and continued lines, the
+# supported directives and the reports of the others, the size and nesting limits, and the map from every statement
+# character back to the original text. See docs/verification/canvas-net-plant-uml/syntax/preprocessor.md for the
+# test-evidence mapping.
+
+sections:
+  - title: CanvasNetPlantUml Requirements
+    sections:
+      - title: Syntax Requirements
+        sections:
+          - title: Preprocessor Requirements
+            requirements:
+              - id: CanvasNetPlantUml-Syntax-Preprocessor-Framing
+                title: >-
+                  The Preprocessor unit shall read the content of the first @start ... @end block (whatever the case
+                  of the tag), read a text without a tag whole, refuse a block without an end tag with a located
+                  error, report one further block as plantuml-multiple-diagrams, and count a tag line only outside
+                  the comments (a tag inside a block comment, on one line or over several lines, or after the
+                  apostrophe of a line comment is comment text), in the diagram and in an included file.
+                justification: |
+                  This is how PlantUML frames a file and a piped text. A commented-out @startuml or @enduml must not
+                  start, end, or truncate the diagram.
+                tests:
+                  - PlantUmlPreprocessor_Run_BareText_IsOneDiagram
+                  - PlantUmlPreprocessor_Run_StartUmlBlock_TakesItsContent
+                  - PlantUmlPreprocessor_Run_MissingEnd_ThrowsLocated
+                  - PlantUmlPreprocessor_Run_SecondBlock_ReportsMultipleDiagrams
+                  - PlantUmlPreprocessor_Run_TagsInBlockCommentBeforeStart_AreIgnored
+                  - PlantUmlPreprocessor_Run_EndInBlockCommentInsideDiagram_DoesNotEndIt
+                  - PlantUmlPreprocessor_Run_TagsInOneLineBlockComments_AreIgnored
+                  - PlantUmlPreprocessor_Run_TagsInLineComments_AreIgnored
+                  - PlantUmlPreprocessor_Run_EndInUnclosedBlockComment_ThrowsLocated
+                  - PlantUmlPreprocessor_Include_TagsInComments_AreIgnored
+
+              - id: CanvasNetPlantUml-Syntax-Preprocessor-Comments
+                title: >-
+                  The Preprocessor unit shall remove the lines whose first character is an apostrophe and every block
+                  comment between /' and '/, on one line or over several lines.
+                justification: |
+                  Comments must never reach the diagram parsers.
+                tests:
+                  - PlantUmlPreprocessor_Run_Comments_AreRemoved
+
+              - id: CanvasNetPlantUml-Syntax-Preprocessor-Continuation
+                title: >-
+                  The Preprocessor unit shall join a line that ends with a single backslash with the next line.
+                justification: |
+                  Long statements are split over lines with a trailing backslash in PlantUML.
+                tests:
+                  - PlantUmlPreprocessor_Run_Continuation_JoinsLinesWithLocations
+
+              - id: CanvasNetPlantUml-Syntax-Preprocessor-Directives
+                title: >-
+                  The Preprocessor unit shall replace every later whole-word use of a !define macro (until !undef) and
+                  every later $variable set by !$variable = or ?= with a quoted text, a number, or another variable.
+                justification: |
+                  Macros and variables carry the names and labels of real diagrams.
+                tests:
+                  - PlantUmlPreprocessor_Run_Define_SubstitutesWholeWords
+                  - PlantUmlPreprocessor_Run_Variables_AreSubstituted
+
+              - id: CanvasNetPlantUml-Syntax-Preprocessor-UnsupportedDirectives
+                title: >-
+                  The Preprocessor unit shall report and drop every other directive (with its whole block when it opens
+                  one): the include forms that are never followed (a URL, the standard library, a part of a file,
+                  !includeurl, !includesub, !includedef, and !import) as plantuml-include-unsupported, !theme as
+                  plantuml-theme-unsupported, !pragma as the warning plantuml-pragma-ignored, and the rest as
+                  plantuml-preprocessor-unsupported, and shall report a built-in function call and keep it as text.
+                justification: |
+                  A directive outside the subset must be visible to the author and must not stop the diagram from being
+                  drawn; nothing is ever fetched from the network.
+                tests:
+                  - PlantUmlPreprocessor_Run_UnsupportedDirectives_AreReportedAndDropped
+                  - PlantUmlPreprocessor_Include_UnfollowedForms_AreReported
+
+              - id: CanvasNetPlantUml-Syntax-Preprocessor-Includes
+                title: >-
+                  The Preprocessor unit shall read the local file of !include, !include_once, and !include_many in
+                  place (the content of its first block when it has an @start line, otherwise the whole file), found
+                  in the folder of the including file and then the base directory through the core file reference
+                  resolver under the caller's file-access policy, with the statements of the file located in it; it
+                  shall skip a second !include of a file (and of the diagram's own file), include a file again for
+                  !include_many, and refuse a second !include_once, a missing file, a refused file (with the refusal
+                  as the inner exception), a file that is not valid UTF-8, and a text without a folder with a located
+                  plantuml-include-failed error and a hint.
+                justification: |
+                  Real diagrams share their settings and fragments through local include files; reading them must be
+                  as safe as reading any other referenced file, and every failure must point at the directive.
+                tests:
+                  - PlantUmlPreprocessor_Include_ReadsTheFileInPlace
+                  - PlantUmlPreprocessor_Include_RepeatsFollowTheDirective
+                  - PlantUmlPreprocessor_Include_FailuresAreLocated
+                  - PlantUmlPreprocessor_Include_DeniedFile_CarriesTheRefusal
+
+              - id: CanvasNetPlantUml-Syntax-Preprocessor-Limits
+                title: >-
+                  The Preprocessor unit shall refuse an original text longer than four times the text size limit and
+                  statements longer than the limit after substitution with an InvalidDataException, and directive
+                  blocks nested deeper than the nesting limit, includes nested deeper than MaxIncludeDepth, and more
+                  followed include directives than MaxIncludes with a located plantuml-limit-exceeded error.
+                justification: |
+                  A hostile text, a macro that grows the text, or a file that includes itself must not exhaust memory
+                  or time.
+                tests:
+                  - PlantUmlPreprocessor_Run_SizeOverLimit_ThrowsInvalidData
+                  - PlantUmlPreprocessor_Run_DirectiveNestingOverLimit_Throws
+                  - PlantUmlPreprocessor_Include_LimitsAndCycles
+
+              - id: CanvasNetPlantUml-Syntax-Preprocessor-Locations
+                title: >-
+                  The Preprocessor unit shall locate every statement character at its one-based line and column in the
+                  original text (every line ending counted), and a substituted character at the name it replaces.
+                justification: |
+                  Every error and report must point into the text the author wrote.
+                tests:
+                  - PlantUmlPreprocessor_Run_Substitution_LocatesInsertedText
+                  - PlantUmlPreprocessor_Run_Continuation_JoinsLinesWithLocations
+                  - PlantUmlPreprocessor_SourceLines_LocatesEveryLineEnding

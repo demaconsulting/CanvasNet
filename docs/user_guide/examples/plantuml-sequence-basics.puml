@@ -1,0 +1,16 @@
+@startuml
+' Gallery: the participant kinds of a sequence diagram and the arrows between them
+title Placing an order
+actor Customer
+participant "Web shop" as Shop
+control Checkout
+entity Order
+database Stock
+Customer -> Shop : add to basket
+Shop -> Checkout : start checkout
+Checkout -> Stock : reserve items
+Stock --> Checkout : reserved
+Checkout -> Order : create
+Checkout ->> Shop : order number
+Shop --> Customer : confirmation
+@enduml

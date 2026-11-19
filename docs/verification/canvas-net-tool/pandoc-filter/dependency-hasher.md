@@ -58,6 +58,16 @@ again`, and one that names 513 existing data files fails with `'many.vl.json' na
 (percent-decoded to `q r.png`), unquoted `img: s.png , h: 3`, `<img src='t.png'>`, and `<IMG SRC=u.png/>` gives
 `flow.mmd` and the five pictures sorted (`u.png/` collapses to `u.png`).
 
+**DependencyHasher_ForPicture_PlantUml_HashesEveryLocalInclude**: a PlantUML diagram that includes `parts/people.iuml`
+(which includes `more/extra.iuml`), `"parts/style.iuml"` with `!include_once` (which includes the diagram back), and
+`parts/people.iuml` again with `!include_many`, and that names the standard library, a URL, a `[named]` block, a
+`file!part`, and a missing file, gives `seq.puml`, `parts/people.iuml`, `parts/more/extra.iuml`, and
+`parts/style.iuml` in that order; an SVG drawing that links the diagram is composite and hashes its includes too.
+
+**DependencyHasher_CollectPlantUmlIncludes_KeepsOnlyLocalFiles**: the scanner keeps `a.iuml` (trailing space trimmed),
+`b c.iuml` (quotes removed, after a tab), and `C:/d.iuml`, and skips a directive that is not at the start of a line,
+`!includeurl`, and `<std>`.
+
 **DependencyHasher_ForSvg_Scanner_FindsOnlyRealImageLinks**: in a drawing with an XML declaration, a DOCTYPE whose
 internal subset holds an image, an image in a comment, in CDATA, and in a processing instruction, a `>` inside a quoted
 attribute, an `l:href` bound to the XLink namespace, an `x:href` bound to another namespace, an entity-encoded href with

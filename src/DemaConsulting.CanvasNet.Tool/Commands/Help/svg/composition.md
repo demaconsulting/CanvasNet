@@ -33,8 +33,9 @@ and `canvasnet help vega-lite style --example styled` (`styled-chart.vl.json`).
 ## Placing pictures
 
 - `<image href="styled-flow.mmd" x="64" y="164" width="872" height="252"/>`: a
-  Mermaid diagram, a chart, a model, another SVG file, or a document page is
-  drawn at the size of the placement, so it stays sharp at any output size.
+  Mermaid or PlantUML diagram, a chart, a model, another SVG file, or a document
+  page is drawn at the size of the placement, so it stays sharp at any output
+  size.
 - Size each placement from the picture's natural size
   (`canvasnet info styled-flow.mmd --json` reports `image.width` and
   `image.height`): keep its aspect ratio, and stay near its natural size so its

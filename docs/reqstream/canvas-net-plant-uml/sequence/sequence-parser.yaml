@@ -1,0 +1,151 @@
+---
+# Software Unit Requirements for SequenceParser
+#
+# These requirements describe the design-level behavior of the SequenceParser unit of the Sequence subsystem
+# (internal namespace DemaConsulting.CanvasNet.PlantUml.Sequence): the statements of a sequence diagram, their
+# reports, their errors, and their limits. See docs/verification/canvas-net-plant-uml/sequence/sequence-parser.md for
+# the test-evidence mapping.
+
+sections:
+  - title: CanvasNetPlantUml Requirements
+    sections:
+      - title: Sequence Requirements
+        sections:
+          - title: SequenceParser Requirements
+            requirements:
+              - id: CanvasNetPlantUml-Sequence-SequenceParser-Participants
+                title: >-
+                  The SequenceParser unit shall read the declarations of the eight participant kinds (participant,
+                  actor, boundary, control, entity, database, collections, queue) with a quoted or plain name, an alias
+                  written either way, a color, and an order value, shall declare a participant on its first use, and
+                  shall sort the participants by their order values, keeping the declaration order otherwise.
+                justification: |
+                  These are the forms PlantUML accepts for participants; their order decides the columns.
+                tests:
+                  - PlantUmlSequenceParser_Declarations_ReadKindsAliasesColorsAndOrder
+                  - PlantUmlSequenceParser_ImplicitParticipant_LaterDeclarationUpdatesIt
+
+              - id: CanvasNetPlantUml-Sequence-SequenceParser-Messages
+                title: >-
+                  The SequenceParser unit shall read a message as a sender, an arrow, a receiver, activation shorthands,
+                  and an optional label, where the arrow has a solid or dotted body, a filled, open, half, or cross head
+                  on either end, a circle on either end, and a color, and an arrow with a head only on its left end
+                  points from the right participant to the left one.
+                justification: |
+                  These are PlantUML's message arrows; the direction decides the sender and the receiver.
+                tests:
+                  - PlantUmlSequenceParser_Arrows_ReadBodyHeadsAndDirection
+                  - PlantUmlSequenceParser_Arrows_CircleAndColor
+
+              - id: CanvasNetPlantUml-Sequence-SequenceParser-Activations
+                title: >-
+                  The SequenceParser unit shall attach the activation shorthands (++ activates the receiver, --
+                  deactivates the sender, !! destroys the receiver) and the activate, deactivate, and destroy statements
+                  that follow a message involving their participant to that message, keep the others as separate
+                  events, and read return as a dotted reply to the sender of the innermost activating message that ends
+                  its activation (or a reply to the last message when none is open).
+                justification: |
+                  PlantUML starts and ends an activation on the arrow that causes it, and return depends on the open
+                  activations.
+                tests:
+                  - PlantUmlSequenceParser_LifeChanges_AttachToTheirMessage
+                  - PlantUmlSequenceParser_Return_RepliesAndDeactivates
+
+              - id: CanvasNetPlantUml-Sequence-SequenceParser-Autonumber
+                title: >-
+                  The SequenceParser unit shall number the messages after autonumber, from a start and by a step, bold
+                  by default or with the zeros of a quoted format padded, and shall stop and resume the numbering.
+                justification: |
+                  Numbered messages are a common way to refer to the steps of a diagram.
+                tests:
+                  - PlantUmlSequenceParser_Autonumber_NumbersMessages
+
+              - id: CanvasNetPlantUml-Sequence-SequenceParser-Notes
+                title: >-
+                  The SequenceParser unit shall read notes left or right of a participant, over one or two
+                  participants, across all of them, and left or right of the message right before them (on its row),
+                  with a color, on one line or up to end note, drawn as a note, a hexagon (hnote), or a rectangle
+                  (rnote).
+                justification: |
+                  These are PlantUML's note forms.
+                tests:
+                  - PlantUmlSequenceParser_Notes_ReadPositionsShapesAndText
+
+              - id: CanvasNetPlantUml-Sequence-SequenceParser-Groups
+                title: >-
+                  The SequenceParser unit shall read the groups alt, opt, loop, par, break, critical, and group with a
+                  frame color and a condition (for group, a title and a bracketed condition), their else sections, and
+                  their end.
+                justification: |
+                  Groups frame the alternatives and loops of a sequence diagram.
+                tests:
+                  - PlantUmlSequenceParser_Groups_ReadKeywordsConditionsAndSections
+
+              - id: CanvasNetPlantUml-Sequence-SequenceParser-Boxes
+                title: >-
+                  The SequenceParser unit shall read boxes with a quoted or plain title and a color around the
+                  participants declared between box and end box.
+                justification: |
+                  Boxes group the participants of a system.
+                tests:
+                  - PlantUmlSequenceParser_Boxes_ReadTitleColorAndMembers
+
+              - id: CanvasNetPlantUml-Sequence-SequenceParser-Separators
+                title: >-
+                  The SequenceParser unit shall read dividers (== text ==), delays (... and ... text ...), and spaces
+                  (||| and ||N||).
+                justification: |
+                  These statements structure a sequence diagram vertically.
+                tests:
+                  - PlantUmlSequenceParser_Separators_ReadDividersDelaysAndSpaces
+
+              - id: CanvasNetPlantUml-Sequence-SequenceParser-PageTexts
+                title: >-
+                  The SequenceParser unit shall read the title, the header and the footer with their alignments, the
+                  caption, and the legend with its alignment, on one line or as a block.
+                justification: |
+                  The page texts name and explain a diagram.
+                tests:
+                  - PlantUmlSequenceParser_PageTexts_ReadTextsAndAlignments
+
+              - id: CanvasNetPlantUml-Sequence-SequenceParser-Settings
+                title: >-
+                  The SequenceParser unit shall read hide footbox and show footbox, scale N and scale N/M, and the skin
+                  parameters of the diagram into its look.
+                justification: |
+                  These settings change how a sequence diagram is drawn.
+                tests:
+                  - PlantUmlSequenceParser_Settings_ApplyFootboxScaleAndSkin
+
+              - id: CanvasNetPlantUml-Sequence-SequenceParser-Unsupported
+                title: >-
+                  The SequenceParser unit shall report the statements PlantUML accepts that this version does not draw
+                  (references, page breaks, participant creation, the main frame, messages to or from the diagram
+                  border, parallel statements, stereotypes, links, other hide and show statements, and other scale
+                  forms) as
+                  plantuml-statement-unsupported at their lines, and draw the diagram without them.
+                justification: |
+                  A diagram that uses such a statement must still be drawn, and its author must learn what is missing.
+                tests:
+                  - PlantUmlSequenceParser_UnsupportedStatements_AreReported
+
+              - id: CanvasNetPlantUml-Sequence-SequenceParser-Errors
+                title: >-
+                  The SequenceParser unit shall refuse a statement it cannot read, an incomplete declaration, message,
+                  or note, an else or end outside a group, an unclosed group, note, or box, and a nested box with a
+                  plantuml-syntax-error located at the statement, with a hint.
+                justification: |
+                  An author can only fix an error that points at the statement that was written.
+                tests:
+                  - PlantUmlSequenceParser_InvalidStatement_FailsLocated
+                  - PlantUmlSequenceParser_Blocks_InvalidFailLocated
+
+              - id: CanvasNetPlantUml-Sequence-SequenceParser-Limits
+                title: >-
+                  The SequenceParser unit shall refuse more participants than MaxNodes, more messages than MaxEdges,
+                  a text longer than MaxLabelLength, and groups nested deeper than MaxNestingDepth with a located
+                  plantuml-limit-exceeded error.
+                justification: |
+                  A hostile diagram must not exhaust memory or the layout.
+                tests:
+                  - PlantUmlSequenceParser_Limits_AreEnforced

@@ -156,9 +156,9 @@ function Test-BuildWideFile {
 # [PROJECT-SPECIFIC] Repository files that tests read at run time (through the repository root, not through a
 # project item), and the test projects that read them. Keep in step with the tests.
 $RuntimeReads = [ordered]@{
-    '^docs/user_guide/canvas-net-(tool|mermaid)\.md$' = 'DemaConsulting.CanvasNet.Tool.Tests'
-    '^docs/filters/canvasnet\.lua$'                   = 'DemaConsulting.CanvasNet.Tool.Tests'
-    '^docs/user_guide/canvas-net-viewer\.md$'         = 'DemaConsulting.CanvasNet.Viewer.Tests'
+    '^docs/user_guide/canvas-net-(tool|mermaid|plant-uml)\.md$' = 'DemaConsulting.CanvasNet.Tool.Tests'
+    '^docs/filters/canvasnet\.lua$'                             = 'DemaConsulting.CanvasNet.Tool.Tests'
+    '^docs/user_guide/canvas-net-viewer\.md$'                   = 'DemaConsulting.CanvasNet.Viewer.Tests'
 }
 
 function Resolve-ProjectName {

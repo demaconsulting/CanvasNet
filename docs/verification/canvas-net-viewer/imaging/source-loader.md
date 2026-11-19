@@ -5,7 +5,9 @@
 `SourceLoader` is verified with unit tests in
 `SourceLoaderTests.cs`, `SourceLoaderVectorTests.cs` (the page-based sources), `SourceLoaderScadTests.cs` (the
 OpenSCAD models), `SourceLoaderVegaLiteTests.cs` (the Vega-Lite charts), and `SourceLoaderMermaidTests.cs` and
-`SourceLoaderMermaidImageTests.cs` (the Mermaid diagrams and the pictures of their nodes), and
+`SourceLoaderMermaidImageTests.cs` (the Mermaid diagrams and the pictures of their nodes),
+`SourceLoaderPlantUmlTests.cs`
+(the PlantUML diagrams), and
 `SourceLoaderPositionTests.cs` (the feature positions of diagrams and charts); the reading and the
 application of the EXIF orientation are core operations (`JpegCodec.ReadExifOrientation` and
 `Surface.ApplyExifOrientation`) verified in the core
@@ -26,7 +28,12 @@ file-access policy, and the data errors are verified with real files); one origi
 `shipping.mermaid` (a flowchart with frontmatter, an accessible title, a subgraph, and a class), `sequence.mmd` (a
 two-participant sequence diagram), `class.mmd` (a class diagram of two classes and one relation), and `journey.mmd` (a
 user journey, a type this version does not draw), plus Mermaid text written by the tests; the expected node fills
-are the colors of Mermaid's default and dark themes. The other fixture files are an original SVG
+are the colors of Mermaid's default and dark themes. PlantUML diagrams are the fixture files
+`Fixtures/plantuml/sequence.puml` (two participants, two messages, and a title), `activity.plantuml` (an activity
+diagram with an if/else), `class.pu` (a class diagram, a type this version does not draw), and `included.puml` with
+`parts/people.iuml` (a diagram whose participants come from an include), plus PlantUML text written by the tests; the
+expected fills are the participant (`#E2E2F0`) and action (`#F1F1F1`) colors of PlantUML's default look. The other
+fixture files are an original SVG
 drawing and a JPEG 2000
 image copied from the
 repository's own codec fixtures (see `Fixtures/README.md`). Expected pixels come from the codecs and document
@@ -40,7 +47,7 @@ either loads or raises a `ViewerException` with an expected code - an unexpected
 is how gaps in the allow-list are found; by doing the same for each document with eight prefix lengths, a dropped
 tail, and an overwritten or zeroed middle, probing and loading every page; and by loading garbage with each known
 extension and requiring `corrupt-input` (`scad-error` for a model, `vega-lite-error` for a chart, `mermaid-error` for a
-diagram; the shared sweeps
+Mermaid diagram, `plantuml-error` for a PlantUML diagram; the shared sweeps
 include the chart
 fixture and also accept `vega-lite-error`). The models have their own sweep in
 `SourceLoaderScadTests.cs`, because a model is text and a cut one is
@@ -51,7 +58,9 @@ changes per document kind) raised only expected errors, so the allow-list needed
 The diagrams have their own sweep in `SourceLoaderMermaidTests.cs` for the same reason: every prefix of a diagram is
 loaded, and the mapping of the library's failures is verified both with real failures (invalid text, more edges than
 the limit, a text longer than the limit, a diagram wider than the largest image) and directly, by handing
-`RenderDiagram` the library's exceptions.
+`RenderDiagram` the library's exceptions. The PlantUML diagrams have the same kind of sweep in
+`SourceLoaderPlantUmlTests.cs` (every prefix of the activity fixture and 200 bytes of garbage), and `MapPlantUml` is
+handed the library's exceptions directly.
 
 #### Test Environment
 
@@ -105,6 +114,16 @@ file-symbolic-link scenarios skip where file links cannot be created (Windows wi
   picture), or, in strict mode, `unsupported-feature`; invalid text is `mermaid-error` with the location and the hint of
   the library, a limit of the library `budget-exceeded`, an overlong text `corrupt-input`, and a target size above the
   maximum `size-limit`; a cut or damaged diagram is an expected error or a shorter diagram that loads.
+- A PlantUML diagram (`.puml`, `.plantuml`, or `.pu`, never taken for an SVG, never recognized by its content, and
+  never an `.iuml` include fragment) is probed by parsing and measuring it (the laid-out size, four channels, and the
+  type, whether it is drawn, the title, and the numbers of nodes, edges, and subgraphs); it is drawn at its natural size
+  times the scale or fitted into the size given, over its own white background or the background given, with its
+  `!include` files read under the file-access policy (a denied include is `file-access-denied`), a theme fragment
+  reported as an unknown parameter, each warning a `plantuml-warning` note with its detail and location and each
+  construct it does not draw an unsupported note (a type that is not drawn is one note and an empty 20 by 20 picture),
+  or, in strict mode, `unsupported-feature`; invalid text, an unknown `@start` tag, and a missing include are
+  `plantuml-error` with the location, a limit of the library `budget-exceeded`, an overlong text `corrupt-input`; a cut
+  or damaged diagram is an expected error or a shorter diagram that loads.
 - The pictures of the nodes of a diagram are drawn through the resolver of the folder of the diagram under the
   file-access policy of the load (a raster fills its box), listed once each as `embed` operations, a link the policy
   denies is one `image-access-denied` warning (`file-access-denied` in strict mode), an unresolvable link or a cycle is
@@ -392,6 +411,61 @@ the natural width with the default node fill.
 one included, either loads or is a `mermaid-error` or `corrupt-input`, never another exception, and 200 bytes of
 garbage named `.mmd` are a `mermaid-error`.
 
+**SourceLoader_Detect_PlantUmlExtensions_ReturnPlantUml**: the same text, whose message label holds an SVG element,
+named
+`seq.puml`, `Seq.PLANTUML`, and `seq.pu` is a PlantUML diagram, and so is SVG content with the extension `.puml`; an
+include fragment named `part.iuml` is `unsupported-format`; the kind is a vector kind and a diagram, not a chart or a
+document, and its format name is `plantuml`. The fallback theory maps garbage named `.puml`, `.PlantUML`, and `.pu` to
+`plantuml`.
+
+**SourceLoader_Probe_PlantUmlSequence_ReportsDiagramFacts**: `sequence.puml` is probed as the `PlantUml` kind with one
+page, four channels, and transparency, at exactly the size `PlantUmlDocument.Measure` gives, with the facts `sequence`,
+supported, no direction, the title `Order`, no accessible title, 2 participants, 2 messages, and no box.
+
+**SourceLoader_Load_PlantUmlSequence_DrawsAtTheNaturalSizeOverWhite**: `sequence.puml` loaded in strict mode is a vector
+source at the probed size with a white corner, more than 200 pixels of the participant fill, no note, and one `render`
+operation with the width and the height only.
+
+**SourceLoader_Load_PlantUmlActivity_ProbesAndDraws**: `activity.plantuml` is probed with the facts `activity`,
+supported, and the counts of the library (at least five nodes), and loaded in strict mode with more than 200 pixels of
+the action fill and no note.
+
+**SourceLoader_Load_PlantUmlSizeAndBackground_FollowTheOptions**: a scale of 2 doubles both sides, a width of 300 keeps
+the aspect ratio, a 400 by 400 box is exact, and a background with zero alpha gives a transparent corner with the
+participants still drawn and the background in the `render` operation.
+
+**SourceLoader_Load_PlantUmlUnsupportedType_IsOneNoteThenStrictError**: `class.pu` is probed with the facts `class`, not
+supported, and zero counts, is an empty 20 by 20 picture with exactly one located one-line note (source `plantuml`,
+severity `unsupported`, code `plantuml-diagram-unsupported`), and in strict mode is `unsupported-feature` naming the
+code, with a hint that names `--strict` and the library's `PlantUmlUnsupportedFeatureException` as its cause.
+
+**SourceLoader_Load_PlantUml_MapsWarningsAndUnsupportedFeatures**: a diagram with `!theme cerulean` and an ignored
+`skinparam` has one warning (source `plantuml`, code `plantuml-warning`, detail `plantuml-skinparam-ignored`, line 3,
+named `noisy.puml:3:` in its message) and one unsupported note (`plantuml-theme-unsupported`, line 2), each on one line.
+
+**SourceLoader_Probe_PlantUmlInvalidText_IsPlantUmlError**: a statement no parser accepts, an unknown `@startDrawing`
+tag, and a missing include are each a `plantuml-error` whose one-line message starts with "PlantUML syntax error: ",
+names `bad.puml:` and the library's code (`plantuml-syntax-error`, `plantuml-unknown-diagram`,
+`plantuml-include-failed`), with
+the library's `PlantUmlSyntaxException` as the cause.
+
+**SourceLoader_Load_PlantUmlInclude_FollowsTheFileAccessPolicy**: `included.puml`, whose participants come from
+`parts/people.iuml`, is probed with two participants and one message and drawn in strict mode with the participant
+fill; a diagram under `site/` that includes `../outside.iuml` is `file-access-denied` ("PlantUML include denied") with
+a hint when the policy allows only `site/`.
+
+**SourceLoader_Probe_PlantUmlLimits_AreBudgetExceededAndCorruptInput**: one message more than the default edge limit is
+`budget-exceeded` naming `plantuml-limit-exceeded`, with a hint, and a diagram whose statements are longer than the
+default text limit is `corrupt-input` naming the file.
+
+**SourceLoader_MapPlantUml_MapsByCode**: a `PlantUmlRenderException` with the limit code is `budget-exceeded` with the
+library's hint and the exception as its cause; one with the render-failed code is the `plantuml-error` "PlantUML render
+error: a.puml:2:3: plantuml-render-failed: the layout failed" without a hint.
+
+**SourceLoader_Load_PlantUmlTruncatedOrDamaged_IsExpectedErrorOrLoads**: every prefix of `activity.plantuml`, the empty
+one included, either loads or is a `plantuml-error` or `corrupt-input`, never another exception, and 200 bytes of
+garbage named `.puml` are a `plantuml-error`.
+
 **SourceLoader_Probe_Pdf_ListsPagesWithSizeAndRotation**, **SourceLoader_Probe_Pptx_ListsSlidesWithPresentationSize**,
 and **SourceLoader_Probe_Vsdx_ListsPagesWithNamesAndSizes**: the PDF lists 144x96 and (rotated) 96x144 points with the
 rotation, the presentation two slides of 360x270 points, and the drawing the pages `First` and `Second` with their
@@ -663,7 +737,8 @@ whose rectangle operator has too few operands is `corrupt-input`, one that decla
 is `unsupported-feature`, and a valid archive whose slide, page, or presentation part is not valid is `corrupt-input`.
 Garbage in a file named `.scad` is a `scad-error` rather than `corrupt-input`, and garbage or a truncation of a chart
 is a
-`vega-lite-error`, and garbage in a file named `.mmd` a `mermaid-error`, the kinds whose damage is a syntax error (a
+`vega-lite-error`, garbage in a file named `.mmd` a `mermaid-error`, and garbage in a file named `.puml` a
+`plantuml-error`, the kinds whose damage is a syntax error (a
 diagram is left out of the shared truncation sweep, as a model is, because a cut diagram is usually still valid; it has
 its own sweep);
 **SourceLoader_OpenPages_UnhandledKind_IsNotAToolException**:
@@ -849,6 +924,8 @@ value nested 40 levels deep and a null dictionary are
 **InputSelection_ApplyTo_Model_FragmentProjectionReplacesTheCommandProjection**,
 **InputSelection_ApplyTo_Chart_MergesParametersByName**,
 **InputSelection_ApplyTo_Diagram_FragmentThemeReplacesTheCommandTheme**,
+**SourceLoader_ProbeInputReference_PlantUmlTheme_IsAnUnknownParameter** (a `#theme=dark` on a PlantUML diagram is
+probed as the diagram, with no theme in the selection and the one warning `image-fragment-unknown-parameter`),
 **InputSelection_Diagnostics_AreTheCodesOfALinkAndReportedOnce**,
 **SourceLoader_Load_InputWithFragment_DrawsWhatTheOptionsWouldDraw**,
 **SourceLoader_PublicMethods_NullArguments_ThrowArgumentNullException**, and

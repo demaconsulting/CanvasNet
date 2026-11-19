@@ -1,0 +1,13 @@
+@startuml
+start
+:Collect data;
+note right: from every sensor
+:Clean data;
+note left
+  drop outliers
+  and fill gaps
+end note
+:Store;
+floating note right: nightly batch
+stop
+@enduml

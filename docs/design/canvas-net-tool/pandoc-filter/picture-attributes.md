@@ -4,7 +4,8 @@
 
 #### Purpose
 
-`PictureAttributes` reads the attributes of a picture or a Mermaid code block for the Pandoc filter: which kind of
+`PictureAttributes` reads the attributes of a picture or a Mermaid or PlantUML code block for the Pandoc filter: which
+kind of
 input a picture names, the checks of every drawing attribute with the messages of the Lua filter, the defaults of each
 kind, the sorted tool options, and the attributes that stay on the picture. It is a literal port of `kind_of`,
 `is_svg`, the `OPTIONS` table, `build_options`, and `block_name` of the Lua filter (version 16). The unit is the
@@ -17,13 +18,14 @@ internal static class `PictureAttributes` in `PictureAttributes.cs`, which also 
 their bytes) and `Keep` (`IReadOnlyList<KeyValuePair<string, string>>`, the attributes that stay, in their original
 order).
 
-**Kinds** (constants): `vegalite`, `scad`, `vsdx`, `pptx`, `pdf`, and `mermaid`.
+**Kinds** (constants): `vegalite`, `scad`, `vsdx`, `pptx`, `pdf`, `mermaid`, and `plantuml`.
 
 **Suffixes**: the name ends checked in order: `.vl.json` and `.vl` (`vegalite`), `.scad`, `.vsdx`, `.pptx`, `.pdf`,
-`.mmd` and `.mermaid` (`mermaid`). `SvgSuffix` = `.svg` is the name end of a drawing (`IsSvg`).
+`.mmd` and `.mermaid` (`mermaid`), and `.puml`, `.plantuml`, and `.pu` (`plantuml`; an `.iuml` include fragment is not
+a picture). `SvgSuffix` = `.svg` is the name end of a drawing (`IsSvg`).
 
 **BlockClassKinds** (private): the classes of the code blocks the filter draws, each with its kind: `mermaid`
-(`mermaid`).
+(`mermaid`) and `plantuml` (`plantuml`); the class is the name of the kind, and the first of the two a block has wins.
 
 **PictureSuffixes**: `SvgSuffix` followed by the `Suffixes`, in order, the lowercase name ends of every local picture
 the filter may change. **BlockClasses**: the classes of `BlockClassKinds`. These two lists are the filter's own
@@ -71,7 +73,8 @@ order, and keeps every other attribute.
 
 **SplitCaption(attributes)**: returns the last `caption` value (or `null`) and the other attributes as a keep list.
 
-**BlockName(identifier, text)**: `mermaid block #<identifier>`, or `mermaid block (<first line>)` where the first line
+**BlockName(identifier, text, kind)**: `<kind> block #<identifier>`, or `<kind> block (<first line>)` (`kind` is
+`mermaid` unless the block is a `plantuml` block) where the first line
 follows any leading white space, has its trailing white space removed, and is cut to 40 characters (runes) followed by
 `...`.
 

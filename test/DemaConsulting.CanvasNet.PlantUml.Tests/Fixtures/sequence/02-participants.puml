@@ -1,0 +1,17 @@
+@startuml
+actor Shopper
+boundary Storefront
+control Checkout
+entity Basket
+database Inventory
+collections Workers
+queue Jobs
+participant "Payment\nGateway" as Pay #FFEECC
+Shopper -> Storefront : browse
+Storefront -> Checkout : start
+Checkout -> Basket : load
+Checkout -> Inventory : reserve
+Checkout -> Workers : notify
+Workers -> Jobs : enqueue
+Checkout -> Pay : charge
+@enduml

@@ -249,6 +249,29 @@ includes:
   - docs/reqstream/canvas-net-mermaid/git-graph.yaml
   - docs/reqstream/canvas-net-mermaid/git-graph/git-graph-parser.yaml
   - docs/reqstream/canvas-net-mermaid/git-graph/git-graph-renderer.yaml
+  - docs/reqstream/canvas-net-plant-uml.yaml
+  - docs/reqstream/canvas-net-plant-uml/platform-requirements.yaml
+  - docs/reqstream/canvas-net-plant-uml/plant-uml-document.yaml
+  - docs/reqstream/canvas-net-plant-uml/syntax.yaml
+  - docs/reqstream/canvas-net-plant-uml/syntax/preprocessor.yaml
+  - docs/reqstream/canvas-net-plant-uml/syntax/diagram-detector.yaml
+  - docs/reqstream/canvas-net-plant-uml/styling.yaml
+  - docs/reqstream/canvas-net-plant-uml/styling/skin-theme.yaml
+  - docs/reqstream/canvas-net-plant-uml/styling/skin-params.yaml
+  - docs/reqstream/canvas-net-plant-uml/scenegraph.yaml
+  - docs/reqstream/canvas-net-plant-uml/scenegraph/scene-model.yaml
+  - docs/reqstream/canvas-net-plant-uml/scenegraph/text-layout.yaml
+  - docs/reqstream/canvas-net-plant-uml/scenegraph/scene-painter.yaml
+  - docs/reqstream/canvas-net-plant-uml/sequence.yaml
+  - docs/reqstream/canvas-net-plant-uml/sequence/sequence-parser.yaml
+  - docs/reqstream/canvas-net-plant-uml/sequence/sequence-model.yaml
+  - docs/reqstream/canvas-net-plant-uml/sequence/sequence-layout.yaml
+  - docs/reqstream/canvas-net-plant-uml/sequence/sequence-renderer.yaml
+  - docs/reqstream/canvas-net-plant-uml/activity.yaml
+  - docs/reqstream/canvas-net-plant-uml/activity/activity-parser.yaml
+  - docs/reqstream/canvas-net-plant-uml/activity/activity-model.yaml
+  - docs/reqstream/canvas-net-plant-uml/activity/activity-layout.yaml
+  - docs/reqstream/canvas-net-plant-uml/activity/activity-renderer.yaml
   - docs/reqstream/canvas-net-viewer.yaml
   - docs/reqstream/canvas-net-viewer/canvas-net-viewer.yaml
   - docs/reqstream/canvas-net-viewer/platform-requirements.yaml

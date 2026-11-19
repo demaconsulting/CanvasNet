@@ -29,8 +29,8 @@ end
 -- Only what the tool may draw needs it: a code block with one of CLASSES (exact), or a local picture (no URL scheme)
 -- whose name ends in one of SUFFIXES (any letter case). --write-shim fills both from the tool's own tables, so write
 -- the shim again after updating the tool.
-local CLASSES = { "mermaid" }
-local SUFFIXES = { ".svg", ".vl.json", ".vl", ".scad", ".vsdx", ".pptx", ".pdf", ".mmd", ".mermaid" }
+local CLASSES = { "mermaid", "plantuml" }
+local SUFFIXES = { ".svg", ".vl.json", ".vl", ".scad", ".vsdx", ".pptx", ".pdf", ".mmd", ".mermaid", ".puml", ".plantuml", ".pu" }
 local function has_suffix(name)
   for _, suffix in ipairs(SUFFIXES) do if name:sub(-#suffix) == suffix then return true end end
   return false

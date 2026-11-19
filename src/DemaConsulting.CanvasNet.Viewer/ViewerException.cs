@@ -60,6 +60,9 @@ public static class ErrorCodes
     /// <summary>A Mermaid diagram has a syntax error or cannot be laid out or drawn.</summary>
     public const string MermaidError = "mermaid-error";
 
+    /// <summary>A PlantUML diagram has a syntax error, an include that cannot be read, or cannot be laid out or drawn.</summary>
+    public const string PlantUmlError = "plantuml-error";
+
     /// <summary>A resource budget (such as the triangle budget) was exceeded.</summary>
     public const string BudgetExceeded = "budget-exceeded";
 

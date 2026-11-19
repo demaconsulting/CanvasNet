@@ -5,8 +5,10 @@
 #### Purpose
 
 `HelpTopics` is the tree of help cards that `canvasnet help <topic> [<card> ...]` prints. A card is a short Markdown
-text about one subject. The sixteen root cards (the help topics) are one per format the tool reads (`scad`, `vega-lite`,
-`mermaid`, `svg`, `pdf`, `pptx`, `vsdx`, and `raster`), the two guidance hubs (`style` and `composition`), the
+text about one subject. The seventeen root cards (the help topics) are one per format the tool reads (`scad`,
+`vega-lite`,
+`mermaid`, `plantuml`, `svg`, `pdf`, `pptx`, `vsdx`, and `raster`), the two guidance hubs (`style` and `composition`),
+the
 feature-positions topic (`positions`: the `--positions` selectors and where the features of a diagram or a chart land),
 the cross-cutting subjects (`json`, `errors`, `limits`, and `files`), and the Pandoc filter (`pandoc`, alias `filter`:
 the `pandoc-filter` command and the Lua shim). A large topic is split into cards below its root, for example
@@ -37,11 +39,10 @@ assembly, so an installed tool needs no other file.
 
 The records are immutable, so the catalog is safe to share between threads.
 
-**TopicNames**: the root card identifiers in the order they are listed: `scad`, `vega-lite`, `mermaid`, `svg`, `pdf`,
-`pptx`, `vsdx`, `raster`, `style`, `composition`, `positions`, `json`, `errors`, `limits`, and `files`. The loader
-requires the
-embedded root cards to be exactly this set. **FormatTopicNames** is the first eight, the topics that describe one
-format.
+**TopicNames**: the root card identifiers in the order they are listed: `scad`, `vega-lite`, `mermaid`, `plantuml`,
+`svg`, `pdf`, `pptx`, `vsdx`, `raster`, `style`, `composition`, `positions`, `json`, `errors`, `limits`, `files`, and
+`pandoc`. The loader requires the embedded root cards to be exactly this set. **FormatTopicNames** is the first nine,
+the topics that describe one format.
 
 **Catalog**: a `Lazy<CardCatalog>` that loads every embedded card on first use. It holds the cards depth first (each
 root of `TopicNames`, followed by the cards below it in the order of its `children`) and a dictionary by identifier.
@@ -93,7 +94,7 @@ because the renderer prints the title as one, and no heading of the generated fo
   with its sibling files.
 - `command` (`CommandKind`): the inline `content` is a command line that starts with `canvasnet`.
 
-The `language` is `openscad`, `json`, `xml`, `mermaid`, or `shell`.
+The `language` is `openscad`, `json`, `xml`, `mermaid`, `plantuml`, or `shell`.
 
 **Tokens**: the title, the summary, the body, an example description, and a command may use `{{name}}` tokens, which
 the loader replaces from the live constants of the code, so a documented number cannot drift from the real one.
@@ -119,6 +120,11 @@ the loader replaces from the live constants of the code, so a documented number 
 | `mmdMaxEdges` | `MermaidLimits.Default.MaxEdges` |
 | `mmdMaxNodes` | `MermaidLimits.Default.MaxNodes` |
 | `mmdMaxImages` | `MermaidLimits.Default.MaxImages` |
+| `pumlMaxTextSize` | `PlantUmlLimits.Default.MaxTextSize` |
+| `pumlMaxNodes` | `PlantUmlLimits.Default.MaxNodes` |
+| `pumlMaxEdges` | `PlantUmlLimits.Default.MaxEdges` |
+| `pumlMaxIncludes` | `PlantUmlLimits.Default.MaxIncludes` |
+| `pumlMaxIncludeDepth` | `PlantUmlLimits.Default.MaxIncludeDepth` |
 | `fragmentMaxLength` | `ImageFragment.MaxLength` |
 | `fragmentMaxParameters` | `ImageFragment.MaxParameters` |
 | `positionsMax` | `PositionCollector.MaxPositions` |
@@ -135,6 +141,9 @@ double braces cannot be written.
 - `mermaid` has a card for each of the ten diagram types, and each type with a settings table in the guide has a
   `settings` card below it. It also has `style`, `composition`, `options`, `diagnostics`, `unsupported`, and
   `differences`.
+- `plantuml` (alias `puml`) has `sequence`, `activity`, `preprocessor`, `style`, `composition`, `options`,
+  `diagnostics`, `unsupported`, and `differences`; its source examples are a sequence diagram, an activity diagram,
+  and a styled sequence diagram.
 - `svg` has `supported`, `embedding`, `fragments`, `units`, `flatten`, `style`, `composition`, `framed-figure`,
   `arrows`, `options`, and `diagnostics`. The `svg arrows` card (aliases `markers` and `arrowheads`) teaches
   arrowheads drawn with a `marker` that follows the connector, the final tangent of a curve, and a tip-anchored
@@ -159,6 +168,8 @@ Some bullets are compared word for word with the user guides:
 - The `## Syntax`, `## Relations`, and `## Tags` bullets of `mermaid <type>` and the `## Settings` bullets of
   `mermaid <type> settings` follow the tables of the Mermaid user guide.
 - The bullets of `mermaid unsupported` and `mermaid diagnostics` carry the guide's code table.
+- The `## Supported` bullets of `plantuml sequence` and `plantuml activity` follow the supported syntax lists of the
+  PlantUML user guide, and the bullets of `plantuml unsupported` and `plantuml diagnostics` carry its code list.
 - The `## Reference` bullets of `svg flatten` follow the `#### Flatten Reference` table.
 - The bullets of `files` follow the `#### File Access Reference` table of the tool user guide.
 
@@ -334,7 +345,8 @@ fails the build before it reaches a user. The consistency of the content with th
 - **CommandRegistry** - `ClosestName`, for the suggestion of an unknown card.
 - **ArgumentReader** - `MaxDpi`, for a token.
 - **ImageWriter** (Imaging) and the core `Surface` - the quality and size constants for tokens.
-- **ScadLimits** (Scad), **VegaLiteLimits** (VegaLite), and **MermaidLimits** (Mermaid) - the resource limits for
+- **ScadLimits** (Scad), **VegaLiteLimits** (VegaLite), **MermaidLimits** (Mermaid), and **PlantUmlLimits** (PlantUml) -
+  the resource limits for
   tokens.
 - **ImageFragment** (core ImageSources) - the fragment limits for tokens.
 - **PositionCollector**, **PositionSelection**, and **PositionSelector** (core Positions) - the position limits for

@@ -1,0 +1,11 @@
+@startuml
+start
+:Start the engine;
+if (fuel?) then (yes)
+  :Drive;
+  end
+else (no)
+  :Refuel;
+  kill
+endif
+@enduml

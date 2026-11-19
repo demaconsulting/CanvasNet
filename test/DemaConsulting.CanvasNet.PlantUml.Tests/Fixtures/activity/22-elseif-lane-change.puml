@@ -1,0 +1,24 @@
+@startuml
+|Customer|
+start
+:Choose item;
+if (in stock?) then (yes)
+  |Shop|
+  :Ship;
+elseif (backorder?) then (yes)
+  :Wait;
+else (no)
+  :Refund;
+  kill
+endif
+while (more?) is (yes)
+  :Pack;
+endwhile (no)
+fork
+  :A;
+fork again
+  :B;
+end fork
+note right: done
+stop
+@enduml

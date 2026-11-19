@@ -6,7 +6,7 @@
 - **description**: CanvasNet is a family of .NET libraries and a command-line tool built around a span-based 32-bit
   RGBA canvas: image codecs (PNG, JPEG, JPEG 2000, TIFF, BMP, GIF), TrueType text, and vector drawing in the core,
   with packages that render SVG, PDF, PowerPoint (with charts), Visio, OpenSCAD 3D models, Vega-Lite charts, and
-  Mermaid diagrams onto it, a viewer that loads any of them, and the `canvasnet` tool that drives them all.
+  Mermaid and PlantUML diagrams onto it, a viewer that loads any of them, and the `canvasnet` tool that drives them all.
 - **languages**: `C#`
 - **technologies**: `.NET` (libraries: net8.0, net9.0, net10.0, net11.0; tool: net10.0, net11.0),
   System.Numerics.Tensors
@@ -31,6 +31,7 @@
 │   ├── DemaConsulting.CanvasNet.Charts/
 │   ├── DemaConsulting.CanvasNet.Mermaid/
 │   ├── DemaConsulting.CanvasNet.Pdf/
+│   ├── DemaConsulting.CanvasNet.PlantUml/
 │   ├── DemaConsulting.CanvasNet.Pptx/
 │   ├── DemaConsulting.CanvasNet.Render3D/
 │   ├── DemaConsulting.CanvasNet.Scad/
@@ -199,7 +200,7 @@ reqstream, versionmark, reviewmark, and sysml2tools.
 
 # Scoped Validation (ALL Agents Must Follow)
 
-The solution has twelve source projects and twelve test projects, and a full `pwsh ./build.ps1` builds and
+The solution has thirteen source projects and thirteen test projects, and a full `pwsh ./build.ps1` builds and
 tests all of them. While developing, build, test, fix, and lint **only what the change affects**; run the
 full build and full lint once before a pull request. The scripts compute the scope from the files changed
 since `origin/main` (or `-Base <ref>`) plus uncommitted and untracked files:
@@ -249,6 +250,7 @@ selects these test projects:
 | `DemaConsulting.CanvasNet.Scad` | `Scad.Tests`, `Viewer.Tests`, `Tool.Tests` |
 | `DemaConsulting.CanvasNet.VegaLite` | `VegaLite.Tests`, `Viewer.Tests`, `Tool.Tests` |
 | `DemaConsulting.CanvasNet.Mermaid` | `Mermaid.Tests`, `Viewer.Tests`, `Tool.Tests` |
+| `DemaConsulting.CanvasNet.PlantUml` | `PlantUml.Tests`, `Viewer.Tests`, `Tool.Tests` |
 | `DemaConsulting.CanvasNet.Viewer` | `Viewer.Tests`, `Tool.Tests` |
 | `DemaConsulting.CanvasNet.Tool` | `Tool.Tests` |
 | A test project only | That test project only (see the shared test support note below) |
@@ -263,8 +265,8 @@ Shared test support is linked between test projects, and `-Affected` follows tho
   `Tool.Tests`: a change runs **both** `Viewer.Tests` and `Tool.Tests`.
 - `TestSupport/**` in the core `Tests` project is linked into `Charts.Tests`, `Pdf.Tests`, `Pptx.Tests`,
   `Svg.Tests`, and `Vsdx.Tests` (and `SyntheticFontBuilder.cs` into `Scad.Tests`).
-- The user-guide examples under `docs/user_guide/examples/` are linked into `VegaLite.Tests` (`gallery/**`) and
-  `Mermaid.Tests` (`mermaid-*.mmd`).
+- The user-guide examples under `docs/user_guide/examples/` are linked into `VegaLite.Tests` (`gallery/**`),
+  `Mermaid.Tests` (`mermaid-*.mmd`), and `PlantUml.Tests` (`plantuml-*.puml`).
 
 ## Rules
 

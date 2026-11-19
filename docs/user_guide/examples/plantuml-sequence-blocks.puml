@@ -1,0 +1,20 @@
+@startuml
+' Gallery: groups, activations, notes, a divider and a delay
+participant Client
+participant Server
+participant Cache
+Client -> Server ++ : GET /report
+alt cached
+  Server -> Cache : lookup
+  note right : fast
+  Cache --> Server : report
+else expired
+  Server -> Server : build the report
+end
+Server --> Client -- : 200 OK
+== later ==
+...
+loop every hour
+  Server -> Cache : refresh
+end
+@enduml

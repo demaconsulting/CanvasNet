@@ -51,16 +51,21 @@ see-also:
   an unknown diagram type (mermaid-unknown-diagram), invalid frontmatter, or
   cannot be laid out; the message has file, line, column, and the mermaid-*
   code, and the hint suggests the fix.
+- `plantuml-error`: A PlantUML diagram has a syntax error
+  (plantuml-syntax-error), an unknown @start tag (plantuml-unknown-diagram), an
+  !include that cannot be read (plantuml-include-failed), or cannot be laid out;
+  the message has file, line, column, and the plantuml-* code, and the hint
+  suggests the fix.
 - `file-access-denied`: A file the document references (a model's include or use
-  file, a chart's data file, or with --strict a linked picture) was denied by
-  the file-access mode chosen with --file-access and --allow-root, or the mode
-  could not be applied; the message names the file as written, the mode, and
-  why. The default mode, any, reads every regular local file; see 'canvasnet
-  help files'.
+  file, a chart's data file, a PlantUML diagram's !include file, or with
+  --strict a linked picture) was denied by the file-access mode chosen with
+  --file-access and --allow-root, or the mode could not be applied; the message
+  names the file as written, the mode, and why. The default mode, any, reads
+  every regular local file; see 'canvasnet help files'.
 - `budget-exceeded`: A model exceeds a rendering limit such as --max-triangles,
   or a chart or diagram exceeds a limit of its library (mermaid-limit-exceeded
-  for a diagram). Raise the limit (a model) or simplify the model, chart, or
-  diagram.
+  or plantuml-limit-exceeded for a diagram). Raise the limit (a model) or
+  simplify the model, chart, or diagram.
 - `size-mismatch`: compare was given two images of different sizes and no
   --resize-to.
 - `threshold-failed`: compare measured a value on the wrong side of a

@@ -1,0 +1,20 @@
+@startuml
+title Release a build
+start
+:Run the tests;
+if (All tests pass?) then (yes)
+  :Package the build;
+  fork
+    :Publish the package;
+  fork again
+    :Tag the commit;
+  end fork
+else (no)
+  :Report the failures;
+  stop
+endif
+while (More targets?) is (yes)
+  :Deploy to the target;
+endwhile (no)
+stop
+@enduml

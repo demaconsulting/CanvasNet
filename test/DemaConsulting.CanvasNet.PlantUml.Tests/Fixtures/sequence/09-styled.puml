@@ -1,0 +1,12 @@
+@startuml
+skinparam participantBackgroundColor #FFF5E0
+skinparam noteBackgroundColor #E0FFE0
+skinparam sequenceArrowThickness 2
+hide footbox
+participant Third order 30
+participant First order 10
+participant Second order 20
+First -> Second : one
+Second -> Third : two
+note over Third : styled note
+@enduml

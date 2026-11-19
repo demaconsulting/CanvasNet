@@ -237,6 +237,28 @@ input-files:
   - docs/verification/canvas-net-mermaid/git-graph.md
   - docs/verification/canvas-net-mermaid/git-graph/git-graph-parser.md
   - docs/verification/canvas-net-mermaid/git-graph/git-graph-renderer.md
+  - docs/verification/canvas-net-plant-uml.md
+  - docs/verification/canvas-net-plant-uml/plant-uml-document.md
+  - docs/verification/canvas-net-plant-uml/syntax.md
+  - docs/verification/canvas-net-plant-uml/syntax/preprocessor.md
+  - docs/verification/canvas-net-plant-uml/syntax/diagram-detector.md
+  - docs/verification/canvas-net-plant-uml/styling.md
+  - docs/verification/canvas-net-plant-uml/styling/skin-theme.md
+  - docs/verification/canvas-net-plant-uml/styling/skin-params.md
+  - docs/verification/canvas-net-plant-uml/scenegraph.md
+  - docs/verification/canvas-net-plant-uml/scenegraph/scene-model.md
+  - docs/verification/canvas-net-plant-uml/scenegraph/text-layout.md
+  - docs/verification/canvas-net-plant-uml/scenegraph/scene-painter.md
+  - docs/verification/canvas-net-plant-uml/sequence.md
+  - docs/verification/canvas-net-plant-uml/sequence/sequence-parser.md
+  - docs/verification/canvas-net-plant-uml/sequence/sequence-model.md
+  - docs/verification/canvas-net-plant-uml/sequence/sequence-layout.md
+  - docs/verification/canvas-net-plant-uml/sequence/sequence-renderer.md
+  - docs/verification/canvas-net-plant-uml/activity.md
+  - docs/verification/canvas-net-plant-uml/activity/activity-parser.md
+  - docs/verification/canvas-net-plant-uml/activity/activity-model.md
+  - docs/verification/canvas-net-plant-uml/activity/activity-layout.md
+  - docs/verification/canvas-net-plant-uml/activity/activity-renderer.md
   - docs/verification/canvas-net-viewer.md
   - docs/verification/canvas-net-viewer/canvas-net-viewer.md
   - docs/verification/canvas-net-viewer/viewer-exception.md

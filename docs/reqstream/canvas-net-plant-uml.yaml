@@ -1,0 +1,257 @@
+---
+# Software System Requirements for CanvasNetPlantUml
+#
+# These requirements describe the externally visible behavior of the DemaConsulting.CanvasNet.PlantUml package (root
+# namespace DemaConsulting.CanvasNet.PlantUml; internal subsystem namespaces Syntax, Styling, Scenegraph,
+# Sequence, and Activity) from the perspective of its consumers, without specifying implementation details.
+#
+# CanvasNetPlantUml is an independent software system distributed as its own NuGet package. It reads PlantUML diagram
+# text and renders a static, deterministic picture onto a CanvasNet Surface using only managed code, the public
+# CanvasNet APIs, and the fonts bundled with CanvasNet: there is no Java, no Graphviz, and no network access. Every
+# PlantUML diagram type is recognized; the types this version does not draw are reported as unsupported with a stable
+# plantuml-* identifier instead of failing or drawing a guess (see docs/design/canvas-net-plant-uml.md, Known
+# Differences, and the Phase Plan). The ported look and geometry of the MIT-licensed distribution of PlantUML are
+# attributed in the package's third-party notice (src/DemaConsulting.CanvasNet.PlantUml/third-party).
+#
+# Every requirement below links down to the subsystem and unit requirements that implement it; the test evidence is
+# described in docs/verification/canvas-net-plant-uml.md.
+
+sections:
+  - title: CanvasNetPlantUml Requirements
+    requirements:
+      - id: CanvasNetPlantUml-Open
+        title: >-
+          The library shall parse PlantUML diagram text supplied as a string, a readable stream, or a file path into
+          a PlantUmlDocument that is identical whichever entry point is used, shall take the first @startuml block of
+          the text (or the whole text when it has no @start tag) as the diagram, shall ignore a leading byte-order
+          mark, shall refuse text that is not valid UTF-8, and shall reject null arguments and unreadable sources with
+          the documented exception contract.
+        tags: [system]
+        justification: |
+          Callers hold diagrams in different forms (a code block without tags, an embedded resource, a file with
+          tags); every entry point must yield the same validated result, and invalid arguments must fail closed with
+          a predictable exception rather than being coerced.
+        children:
+          - CanvasNetPlantUml-PlantUmlDocument-ParseOpen
+          - CanvasNetPlantUml-Syntax-Framing
+        tests:
+          - CanvasNetPlantUml_Open_StringStreamAndPath_Agree
+
+      - id: CanvasNetPlantUml-LocatedErrors
+        title: >-
+          The library shall refuse text that holds no diagram, an unknown @start tag, or a statement its diagram type
+          cannot read with a syntax exception that carries a stable plantuml-* code, the file, line, and column of
+          the problem in the original text, and a hint.
+        tags: [system]
+        justification: |
+          Diagrams are written by hand and checked in builds; an author or an agent can only fix an error that
+          points into the text that was written, and a tool can only react to a stable code.
+        children:
+          - CanvasNetPlantUml-Syntax-Detection
+          - CanvasNetPlantUml-Syntax-Locations
+          - CanvasNetPlantUml-PlantUmlDocument-Records
+        tests:
+          - CanvasNetPlantUml_Open_InvalidText_FailsLocated
+          - CanvasNetPlantUml_Activity_SyntaxError_IsLocated
+
+      - id: CanvasNetPlantUml-DiagramTypes
+        title: >-
+          The library shall recognize every PlantUML diagram type, from its @start tag or, inside @startuml, from its
+          statements in the order PlantUML tries them, and shall name the type of a document whether or not this
+          version draws it.
+        tags: [system]
+        justification: |
+          A host must be able to tell a sequence diagram from a class diagram without rendering it, so that it can
+          report a type that is not drawn instead of a syntax error.
+        children:
+          - CanvasNetPlantUml-Syntax-Detection
+          - CanvasNetPlantUml-PlantUmlDocument-Metadata
+        tests:
+          - CanvasNetPlantUml_OtherDiagramTypes_AreRecognized
+
+      - id: CanvasNetPlantUml-Preprocessor
+        title: >-
+          The library shall apply the supported subset of the PlantUML preprocessor (comments, continued lines,
+          !define without parameters, !undef, and !$variable assignments) before it reads the diagram, shall report
+          every other directive as unsupported instead of failing, and shall never read a URL or the network.
+        tags: [system, security]
+        justification: |
+          Real diagrams use macros and variables for names and labels; directives outside the subset must not stop
+          a diagram from being drawn, and an offline renderer must never fetch remote content that a text names.
+        children:
+          - CanvasNetPlantUml-Syntax-Preprocessing
+          - CanvasNetPlantUml-PlantUmlDocument-Reports
+        tests:
+          - CanvasNetPlantUml_Preprocessor_SubsetIsApplied
+          - CanvasNetPlantUml_Includes_NetworkIsNeverRead
+
+      - id: CanvasNetPlantUml-Includes
+        title: >-
+          The library shall read the local files named by !include, !include_once, and !include_many, relative to
+          the including file and the folder of the diagram (or a base directory the caller names), only under the
+          caller's file-access policy, and shall refuse a missing, refused, or unreadable file and a diagram without
+          a folder with a located plantuml-include-failed error whose inner exception is the refusal of the policy.
+        tags: [system, security]
+        justification: |
+          Diagrams share settings and fragments through include files, and a host that renders untrusted documents
+          must decide which local files they may read.
+        children:
+          - CanvasNetPlantUml-Syntax-Preprocessor-Includes
+          - CanvasNetPlantUml-PlantUmlDocument-IncludeOptions
+        tests:
+          - CanvasNetPlantUml_Includes_LocalFilesAreRead
+          - CanvasNetPlantUml_Includes_FailuresAreLocated
+
+      - id: CanvasNetPlantUml-Limits
+        title: >-
+          The library shall bound the resources that reading an untrusted text can consume, refusing a text longer
+          than the size limit with an InvalidDataException and a structural limit with a located exception whose
+          code is plantuml-limit-exceeded.
+        tags: [system, security]
+        justification: |
+          PlantUML text often comes from untrusted documents; a hostile text must fail closed rather than exhaust
+          memory, time, or the call stack.
+        children:
+          - CanvasNetPlantUml-PlantUmlDocument-TextLimit
+          - CanvasNetPlantUml-PlantUmlDocument-Limits
+          - CanvasNetPlantUml-Syntax-Preprocessing
+          - CanvasNetPlantUml-Sequence-SequenceParser-Limits
+          - CanvasNetPlantUml-Sequence-SequenceLayout-Limits
+          - CanvasNetPlantUml-Activity-ActivityParser-Limits
+          - CanvasNetPlantUml-Activity-ActivityLayout-Limits
+        tests:
+          - CanvasNetPlantUml_Limits_OversizedText_IsRefused
+          - CanvasNetPlantUml_Sequence_LayoutWorkLimit_Fails
+          - CanvasNetPlantUml_Hardening_StructuralLimits_AreLocated
+          - CanvasNetPlantUml_Hardening_TextSize_IsRefused
+          - CanvasNetPlantUml_Hardening_IncludeLimits_AreLocated
+          - CanvasNetPlantUml_Hardening_RenderLimits_FailClosed
+          - CanvasNetPlantUml_Hardening_LargeDiagramsWithinTheLimits_Render
+          - CanvasNetPlantUml_Hardening_MutatedFixtures_ThrowOnlyDocumentedExceptions
+
+      - id: CanvasNetPlantUml-Render
+        title: >-
+          The library shall measure a document and render it onto a new Surface at its natural size times a scale or
+          fitted into an exact size over its background, deliver the warnings and unsupported-feature reports of the
+          call once, in order, on the calling thread (measuring reports what rendering reports), and stop when the
+          call is canceled.
+        tags: [system]
+        justification: |
+          Hosts measure first to choose a destination, render at a scale or into a page, and present every report of
+          a call exactly once.
+        children:
+          - CanvasNetPlantUml-PlantUmlDocument-MeasureRender
+          - CanvasNetPlantUml-PlantUmlDocument-RenderOptions
+          - CanvasNetPlantUml-PlantUmlDocument-ReadingReports
+          - CanvasNetPlantUml-Scenegraph-Drawing
+        tests:
+          - CanvasNetPlantUml_UnsupportedType_MeasureReportsAsRender
+
+      - id: CanvasNetPlantUml-Sequence
+        title: >-
+          The library shall draw PlantUML sequence diagrams (the eight participant kinds, messages with their arrows,
+          activations, returns, numbering, notes, groups, boxes, dividers, delays, spaces, page texts, and the
+          supported skin parameters) with the layout of PlantUML's sequence engine, so that the size, the texts, the
+          participants, the life lines, and the message lines of the reference fixtures agree with PlantUML's within
+          1.5 pixels, and shall count participants as nodes, messages as edges, and boxes as subgraphs.
+        tags: [system]
+        justification: |
+          Sequence diagrams are the most used PlantUML diagrams in documentation; a picture must look like the one
+          PlantUML draws so that it can replace it.
+        children:
+          - CanvasNetPlantUml-Sequence-Reading
+          - CanvasNetPlantUml-Sequence-Drawing
+          - CanvasNetPlantUml-Syntax-Detection
+        tests:
+          - CanvasNetPlantUml_Sequence_ReferenceLayout_MatchesPlantUml
+          - CanvasNetPlantUml_Sequence_ReferenceGoldens_CoverEveryFixture
+          - CanvasNetPlantUml_Sequence_Fixtures_RenderWithoutReports
+          - CanvasNetPlantUml_Sequence_Facts_CountParticipantsMessagesAndBoxes
+
+      - id: CanvasNetPlantUml-Activity
+        title: >-
+          The library shall draw PlantUML activity diagrams of the new syntax (start, stop, and end, actions, ifs with
+          elseif and else branches, while and repeat loops, forks, merges, and splits, arrows with labels and styles,
+          swimlanes, notes, connectors, partitions, kill and detach, page texts, and the supported skin parameters)
+          with the tile layout and compression of PlantUML's activity engine, without a graph layout, so that the
+          size, the texts, the action boxes, the circles, and the diamonds of the reference fixtures agree with
+          PlantUML's within 1.5 pixels (the size within 3 %), and shall count actions, nodes, and decisions as nodes,
+          arrows as edges, and swimlanes and partitions as subgraphs.
+        tags: [system]
+        justification: |
+          Activity diagrams are the second most used PlantUML diagrams in documentation; PlantUML lays them out
+          without Graphviz, so a managed port can draw them as PlantUML does.
+        children:
+          - CanvasNetPlantUml-Activity-Reading
+          - CanvasNetPlantUml-Activity-Drawing
+          - CanvasNetPlantUml-Syntax-Detection
+        tests:
+          - CanvasNetPlantUml_Activity_ReferenceLayout_MatchesPlantUml
+          - CanvasNetPlantUml_Activity_ReferenceGoldens_CoverEveryFixture
+          - CanvasNetPlantUml_Activity_Fixtures_RenderWithoutReports
+          - CanvasNetPlantUml_Activity_Facts_CountNodesArrowsAndGroups
+
+      - id: CanvasNetPlantUml-UnsupportedTypes
+        title: >-
+          The library shall render a recognized diagram type that this version does not draw as an empty, transparent
+          picture of 20 by 20 pixels and report it as plantuml-diagram-unsupported at the construct it was recognized
+          by, with a hint.
+        tags: [system]
+        justification: |
+          A document with a diagram of a type that is not drawn must still be processed, and the author must learn
+          why the picture is empty.
+        children:
+          - CanvasNetPlantUml-PlantUmlDocument-MeasureRender
+        tests:
+          - CanvasNetPlantUml_UnsupportedType_RendersEmptyPictureAndReports
+
+      - id: CanvasNetPlantUml-StrictMode
+        title: >-
+          The library shall, when the caller asks for it, stop a measure or render call at the first unsupported
+          construct with an unsupported-feature exception, after delivering its report.
+        tags: [system]
+        justification: |
+          Builds that must never accept an approximate picture need a hard failure.
+        children:
+          - CanvasNetPlantUml-PlantUmlDocument-Reports
+          - CanvasNetPlantUml-Sequence-SequenceParser-Unsupported
+          - CanvasNetPlantUml-Activity-ActivityParser-Unsupported
+        tests:
+          - CanvasNetPlantUml_UnsupportedType_StrictThrows
+          - CanvasNetPlantUml_Sequence_UnsupportedStatements_AreReported
+          - CanvasNetPlantUml_Activity_UnsupportedStatements_AreReported
+
+      - id: CanvasNetPlantUml-DefaultLook
+        title: >-
+          The library shall draw a diagram with PlantUML's default look, changed by its supported skin parameters,
+          with the fonts bundled with CanvasNet only, so that two renders of the same document and options have
+          identical pixels on every machine.
+        tags: [system]
+        justification: |
+          Pictures are compared and checked into documentation; they must look like PlantUML's and must not depend on
+          the fonts or the speed of the machine that draws them.
+        children:
+          - CanvasNetPlantUml-Styling-DiagramLook
+          - CanvasNetPlantUml-Scenegraph-Text
+        tests:
+          - CanvasNetPlantUml_Sequence_DefaultSkin_PaintsPlantUmlColors
+          - CanvasNetPlantUml_Sequence_Render_IsDeterministicAndScaled
+          - CanvasNetPlantUml_Activity_DefaultSkin_PaintsPlantUmlColors
+          - CanvasNetPlantUml_Activity_Render_IsDeterministicAndScaled
+          - CanvasNetPlantUml_Gallery_HoldsEveryDrawnDiagramType
+          - CanvasNetPlantUml_Gallery_RendersStrictWithoutWarnings
+
+      - id: CanvasNetPlantUml-ImageSource
+        title: >-
+          The library shall provide an image source for PlantUML files (.puml, .plantuml, .pu) that the image
+          resolvers of the other document formats use to draw a linked diagram as a picture of the size of its
+          placement over a transparent background, with the notes of the diagram, its includes read in the folder of
+          the linked file under the file-access policy of the render.
+        tags: [system]
+        justification: |
+          Documents embed diagrams as pictures; a PlantUML file must be embeddable wherever an SVG or a Mermaid
+          diagram is.
+        children:
+          - CanvasNetPlantUml-PlantUmlDocument-ImageSource
+        tests:
+          - CanvasNetPlantUml_ImageSource_DrawsALinkedDiagram

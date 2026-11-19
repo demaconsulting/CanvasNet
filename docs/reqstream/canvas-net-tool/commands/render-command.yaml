@@ -246,6 +246,30 @@ sections:
           - RenderCommand_Run_MermaidWarningAndSyntaxError_FollowTheContract
           - RenderCommand_Metadata_DescribesCommandAndOptions
 
+      - id: CanvasNetTool-Commands-RenderCommand-PlantUml
+        title: >-
+          The render command shall render a PlantUML diagram (a .puml, .plantuml, or .pu file) at the size the size
+          options ask for (the size PlantUML lays it out at by default) over the diagram's own background, or the
+          background color given; shall describe what it drew (the drawn size, and the background when one is given)
+          in the render operation and the natural size and the plantuml format in the input of the result; shall
+          report the warnings of the diagram (plantuml-warning with the specific code in detail and the line and column
+          in location) and the constructs it does not draw (a diagram type that this version does not draw is the
+          diagnostic plantuml-diagram-unsupported with an empty 20 by 20 picture) in the diagnostics of the result and,
+          with the strict switch, fail with unsupported-feature and write no output; shall report invalid text as
+          plantuml-error with the location and the hint of the library; shall refuse the --theme and --positions
+          options, which only a Mermaid diagram (or, for --positions, a chart) takes, with a usage error before
+          anything is drawn, for render and inspect alike; and shall name PlantUML diagrams in its usage text.
+        justification: |
+          A PlantUML diagram is rendered like any other vector source; the result must say what picture was drawn, the
+          diagram types that this version does not draw must be reported rather than silently left empty, a bad
+          diagram must be a concise, coded error, and an option that would be silently ignored must be loud.
+        tests:
+          - RenderCommand_Run_PlantUml_WritesTheDiagramAndDescribesIt
+          - RenderCommand_Run_PlantUmlThemeAndPositions_AreUsageErrors
+          - RenderCommand_Run_PlantUmlUnsupportedType_IsDiagnosticThenStrictError
+          - RenderCommand_Run_PlantUmlWarningAndSyntaxError_FollowTheContract
+          - RenderCommand_Metadata_DescribesCommandAndOptions
+
       - id: CanvasNetTool-Commands-RenderCommand-Theme
         title: >-
           The render command, its verb commands and the inspect command shall accept the --theme name option for a
@@ -253,7 +277,8 @@ sections:
           name), draw the diagram in that theme unless the theme fragment of the input names another one (the fragment
           wins over the option) or the text of the diagram sets a theme itself (the text wins over both), refuse a name
           that is not a theme with a usage error that lists the themes, refuse the option for an input that is not a
-          diagram with a usage error that names the kind, before anything is drawn, and describe the option in the
+          Mermaid diagram (a PlantUML diagram included) with a usage error that names the kind, before anything is
+          drawn, and describe the option in the
           option table, the usage text and the mermaid topic.
         justification: |
           A diagram is drawn in a theme the way Mermaid's own command line draws it, without editing its file, and a
@@ -262,6 +287,7 @@ sections:
         tests:
           - RenderCommand_Run_MermaidTheme_OptionFragmentAndTextPrecedence
           - RenderCommand_Run_MermaidThemeMistakes_AreUsageErrors
+          - RenderCommand_Run_PlantUmlThemeAndPositions_AreUsageErrors
           - InspectCommand_Run_MermaidTheme_ReportsTheThemedColors
           - RenderCommand_Metadata_DescribesCommandAndOptions
 

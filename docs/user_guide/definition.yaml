@@ -19,6 +19,7 @@ input-files:
   - docs/user_guide/canvas-net-scad.md
   - docs/user_guide/canvas-net-vega-lite.md
   - docs/user_guide/canvas-net-mermaid.md
+  - docs/user_guide/canvas-net-plant-uml.md
   - docs/user_guide/canvas-net-viewer.md
   - docs/user_guide/canvas-net-tool.md
 template: template.html

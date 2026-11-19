@@ -185,6 +185,42 @@ public class PandocFilterEngineTests
     }
 
     /// <summary>
+    ///     Test that a code block of class <c>plantuml</c> is written to the cache as a <c>.puml</c> file and becomes a
+    ///     figure with its own class dropped and the others kept, that a PlantUML type the tool does not draw is left as
+    ///     written with a warning, and that the block's name in a message names the kind.
+    /// </summary>
+    [Fact]
+    public void PandocFilterEngine_Run_PlantUmlBlocks_BecomeFigureOrAreLeftAsWritten()
+    {
+        // Arrange: a captioned sequence block, and a class diagram the tool reports as not drawn
+        using var tree = new FilterTree();
+        var captioned = PandocDoc.CodeBlock("fig-s", ["plantuml", "wide"], "@startuml\nAlice -> Bob\n@enduml", ("caption", "The talk"), ("scale", "2"));
+        var unsupported = PandocDoc.CodeBlock("", ["plantuml"], "@startuml\nclass Car\n@enduml");
+        var classFile = Path.GetFileName(PictureCache.BlockSourceFile("cache", "@startuml\nclass Car\n@enduml\n", PictureAttributes.PlantUml));
+        var reporting = new StubDrawer
+        {
+            Report = name => name == classFile
+                ? new PictureDrawing(true, [new("plantuml-diagram-unsupported", "class diagrams are not drawn", false)], [])
+                : new PictureDrawing(true, [], [])
+        };
+
+        // Act
+        var output = tree.Run(reporting, PandocDoc.Document(captioned, unsupported));
+
+        // Assert: the figure with the kind's class dropped, and the unsupported block as written with its warning
+        using var json = JsonDocument.Parse(output);
+        var blocks = json.RootElement.GetProperty("blocks");
+        Assert.Equal("Figure", blocks[0].GetProperty("t").GetString());
+        var image = blocks[0].GetProperty("c")[2][0].GetProperty("c")[0];
+        Assert.Equal("""["",["wide"],[]]""", image.GetProperty("c")[0].GetRawText());
+        Assert.Equal("CodeBlock", blocks[1].GetProperty("t").GetString());
+        Assert.Equal(["plantuml block (@startuml): class diagrams are not drawn; it is left as written and not drawn"], PandocDoc.Warnings(output));
+        Assert.Equal(2, tree.CacheFiles().Count(name => name.EndsWith(".puml", StringComparison.Ordinal)));
+        Assert.Single(tree.CacheFiles(), name => name.EndsWith(".unsupported", StringComparison.Ordinal));
+        Assert.Equal(2, reporting.Calls.Count);
+    }
+
+    /// <summary>
     ///     Test that one job and four jobs give the same document, warnings, and cache files.
     /// </summary>
     [Fact]

@@ -24,15 +24,19 @@ fails the build. The content is checked against the things it describes, so that
   `CommandRegistry`: a known command, only options that the command or the tool declares, and for `canvasnet help` a
   path that names a card.
 - The `errors codes` card is compared with the error code constants of the tool through reflection.
-- The numbers (the largest image side, the resolution limit, the quality range, the triangle budget, and the Vega-Lite
-  and Mermaid limits) are the tokens substituted from the live constants, and the `limits` card is checked to quote
+- The numbers (the largest image side, the resolution limit, the quality range, the triangle budget, and the Vega-Lite,
+  Mermaid, and PlantUML limits) are the tokens substituted from the live constants, and the `limits` card is checked to
+  quote
   them.
-- Every diagnostic identifier a card cites (`scad-...`, `vl-...`, `mermaid-...`, `pptx-...`, `vsdx-...`, and `pdf-...`)
+- Every diagnostic identifier a card cites (`scad-...`, `vl-...`, `mermaid-...`, `plantuml-...`, `pptx-...`, `vsdx-...`,
+  and
+  `pdf-...`)
   must exist. Either the **trigger-table test** produces it with a tiny model or chart run through `ToolHost` (and a
   second test proves that `--strict` turns the report into `unsupported-feature`), or it is an error code, or the
   **assembly-literal check** finds the literal part of the identifier in the UTF-16 text of a library assembly.
   Anything else fails the test, so a card cannot cite an identifier that does not exist.
-- Every source example (OpenSCAD, Vega-Lite, Mermaid, and SVG) is written to a file and rendered through the real entry
+- Every source example (OpenSCAD, Vega-Lite, Mermaid, PlantUML, and SVG) is written to a file and rendered through the
+  real entry
   point (`ToolHost.Invoke`) with `--strict` (the **strict-clean example test**), and must succeed without a diagnostic.
 - The **file types** the `svg embedding` card lists for `<image href>` are compared in both directions with
   `CanvasNetViewer.Extensions` (the extensions of the image sources the tool wires in) and with the extensions of the
@@ -47,7 +51,9 @@ fails the build. The content is checked against the things it describes, so that
   (`## Settings`) are compared, row for row and in order, with the class, state, entity relationship, pie, gantt,
   mindmap, packet, and git graph tables of the Mermaid user guide, code spans included. Every row of the guide's table
   of unsupported features and warnings must be a bullet of `mermaid unsupported` or `mermaid diagnostics` (the **guide
-  parity test**), so the help that agents read and the guide that people read describe the same version.
+  parity test**), so the help that agents read and the guide that people read describe the same version. The
+  `## Supported` bullets of `plantuml sequence` and `plantuml activity` and the code bullets of `plantuml unsupported`
+  and `plantuml diagnostics` are compared the same way with the PlantUML user guide.
 - The `## Reference` bullets of `svg flatten` and the bullets of `files` are compared, word for word and in order, with
   the `#### Flatten Reference` and `#### File Access Reference` tables of the tool user guide.
 - The **style advice** is checked against the renderer: each theme the `mermaid style` card lists draws the examples
@@ -115,6 +121,7 @@ in `Roots`; every card comes after its parent; every card has a title, a summary
 root has an example.
 
 **HelpTopics_Find_EveryAlias_ResolvesIgnoringCase**: every documented root alias (`openscad`, `vegalite`, `vl`, `mmd`,
+`puml`,
 `powerpoint`, `visio`, the raster extensions, `file-access`, `links`, `position`, and `filter`) resolves to its card in
 lower and upper case; every name resolves to itself; the number of root aliases is exactly the documented number; and
 an unknown name and a card that is not a root (`gantt`) resolve to nothing.
@@ -129,7 +136,7 @@ ignoring case, and none is `topics`.
 and the `limits` card quotes them.
 
 **HelpTopics_FormatTopics_SubtreesHaveSupportedUnsupportedOptionsDiagnosticsDifferencesAndExamples**: the tree of each
-of the eight format topics has a card with bullets under each of `## Supported`, `## Unsupported`, `## Options`,
+of the nine format topics has a card with bullets under each of `## Supported`, `## Unsupported`, `## Options`,
 `## Diagnostics`, and `## Known differences`, and at least two examples.
 
 **HelpTopics_Examples_NamesUniqueKindsValidAndSourcesNonEmpty**: example names are unique below each root; content is
@@ -154,6 +161,11 @@ guide's tables under its heading (at least the documented number) are, in order 
 of `mermaid <type>` (`Syntax`, `Relations`, `Tags`) and of `mermaid <type> settings` (`Settings`), with a final period
 and the first letter of each part before a colon and a space compared ignoring case. Every row of the code table is a
 bullet of `mermaid unsupported` or `mermaid diagnostics`.
+
+**HelpTopics_PlantUmlTopic_DiagramSyntaxItems_MatchUserGuide**: the items of the `### Supported Sequence Syntax` and
+`### Supported Activity Syntax` lists of the PlantUML user guide (at least ten each) are, in order and with their code
+spans, the `## Supported` bullets of `plantuml sequence` and `plantuml activity`, and every item of its code list (at
+least sixteen) is a bullet of `plantuml unsupported` or `plantuml diagnostics`.
 
 **HelpTopics_SvgTopic_FlattenItems_MatchUserGuide** and **HelpTopics_FilesTopic_Items_MatchUserGuide**: the bullets
 are, word for word and in order, `<Term>: <Meaning>` of the rows of the guide's reference tables (at least 7 and 16
@@ -206,7 +218,8 @@ heading is an option or alias of `render` or a global option, and more than 30 s
 error code constants of the tool.
 
 **HelpTopics_CitedDiagnosticIds_ExistInTheLibraries**: every diagnostic identifier cited anywhere in the cards (found
-with a pattern for the families `scad-`, `vl-`, `mermaid-`, `pptx-`, `vsdx-`, `pdf-`, `image-fragment-`, `image-page-`,
+with a pattern for the families `scad-`, `vl-`, `mermaid-`, `plantuml-`, `pptx-`, `vsdx-`, `pdf-`, `image-fragment-`,
+`image-page-`,
 and `image-access-`) is an entry of the trigger table, an error code, one of the image-link codes, or a placeholder of
 the naming rule. Otherwise the literal part of the identifier (before a `<type>` placeholder) must be a string literal
 in one of the library assemblies (the assembly-literal check).
@@ -306,7 +319,8 @@ summary, and command.
 **HelpTopics_Bodies_DoNotUseReservedHeadingsOrTopLevelHeadings**: no body has a `#` heading or a heading of the
 footer outside a code block, and every code block names its language and is closed.
 
-**HelpTopics_DrawingFormats_HaveStyleAndCompositionCards**: `scad`, `vega-lite`, `mermaid`, and `svg` each list a
+**HelpTopics_DrawingFormats_HaveStyleAndCompositionCards**: `scad`, `vega-lite`, `mermaid`, `plantuml`, and `svg` each
+list a
 `style` and a `composition` card, which link to the hubs and to each other, and the root links to both hubs.
 
 **HelpTopics_StyleAndCompositionHubs_LinkBothWays**: the `style` and `composition` hubs link to the card of every

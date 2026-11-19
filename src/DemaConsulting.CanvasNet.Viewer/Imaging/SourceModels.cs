@@ -52,7 +52,10 @@ public enum SourceKind
     VegaLite,
 
     /// <summary>A Mermaid diagram (<c>.mmd</c>, <c>.mermaid</c>).</summary>
-    Mermaid
+    Mermaid,
+
+    /// <summary>A PlantUML diagram (<c>.puml</c>, <c>.plantuml</c>, <c>.pu</c>).</summary>
+    PlantUml
 }
 
 /// <summary>
@@ -124,11 +127,11 @@ public static class SourceKindExtensions
     ///     being resampled from pixels.
     /// </summary>
     /// <param name="kind">The kind.</param>
-    /// <returns><see langword="true"/> for SVG, PDF, PPTX, VSDX, OpenSCAD, Vega-Lite, and Mermaid.</returns>
+    /// <returns><see langword="true"/> for SVG, PDF, PPTX, VSDX, OpenSCAD, Vega-Lite, Mermaid, and PlantUML.</returns>
     public static bool IsVector(this SourceKind kind)
     {
         return kind is SourceKind.Svg or SourceKind.Pdf or SourceKind.Pptx or SourceKind.Vsdx or SourceKind.Scad or SourceKind.VegaLite
-            or SourceKind.Mermaid;
+            or SourceKind.Mermaid or SourceKind.PlantUml;
     }
 
     /// <summary>
@@ -145,10 +148,10 @@ public static class SourceKindExtensions
     ///     Determines whether a source kind is a diagram written as text, which is described by a <see cref="DiagramFacts"/>.
     /// </summary>
     /// <param name="kind">The kind.</param>
-    /// <returns><see langword="true"/> for a Mermaid diagram.</returns>
+    /// <returns><see langword="true"/> for a Mermaid diagram and a PlantUML diagram.</returns>
     public static bool IsDiagram(this SourceKind kind)
     {
-        return kind == SourceKind.Mermaid;
+        return kind is SourceKind.Mermaid or SourceKind.PlantUml;
     }
 }
 
@@ -306,8 +309,8 @@ public sealed record SourceInfo(
     public ChartFacts? Chart { get; init; }
 
     /// <summary>
-    ///     Gets what a Mermaid diagram declares (its type, direction, titles, and the numbers of nodes, edges, and
-    ///     subgraphs), or <see langword="null"/> for every other kind.
+    ///     Gets what a Mermaid or PlantUML diagram declares (its type, direction, titles, and the numbers of nodes, edges,
+    ///     and subgraphs), or <see langword="null"/> for every other kind.
     /// </summary>
     public DiagramFacts? Diagram { get; init; }
 
@@ -363,8 +366,16 @@ public sealed record ChartFacts(
     int? SchemaMajorVersion);
 
 /// <summary>
-///     What a Mermaid diagram declares, read by parsing it (the diagram is laid out for its size but not drawn).
+///     What a Mermaid or PlantUML diagram declares, read by parsing it (the diagram is laid out for its size but not drawn).
 /// </summary>
+/// <remarks>
+///     For a PlantUML diagram the type is <c>sequence</c>, <c>activity</c>, or the name of a recognized type that is not
+///     drawn (for example <c>class</c>, <c>usecase</c>, <c>component</c>, <c>state</c>, or <c>activity-legacy</c>, with the
+///     unsupported note <c>plantuml-diagram-unsupported</c>). The nodes of a sequence diagram are its participants, the
+///     edges its messages, and the subgraphs its boxes; the nodes of an activity diagram are its actions, start, stop,
+///     end, connector, and decision nodes, the edges its arrows, and the subgraphs its swimlanes and partitions. A
+///     PlantUML diagram has no direction and no accessible title.
+/// </remarks>
 /// <param name="Type">The diagram type, for example <c>flowchart</c> (a <c>graph</c> is a flowchart too), <c>sequence</c>, <c>class</c>, <c>pie</c>, <c>gantt</c>, <c>mindmap</c>, <c>packet</c> or <c>gitGraph</c>.</param>
 /// <param name="Supported">
 ///     <see langword="true"/> when this version draws the type; a diagram of a type that is recognized but not drawn

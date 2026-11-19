@@ -1,0 +1,46 @@
+# Third-Party Provenance and Attribution
+
+`DemaConsulting.CanvasNet.PlantUml` implements a subset of the PlantUML text language. The package is **derived with
+attribution**: to draw diagrams the way PlantUML draws them, its default look and its layout geometry are taken from
+the MIT-licensed distribution of PlantUML listed below. Every ported item is acknowledged here, the license text of the
+upstream project ships with the package (in its `licenses\` folder), and every source file that contains ported logic
+starts with the header comment `// Portions derived from PlantUML (MIT); see third-party/README.md`. Ported code is
+local source code, maintained and tested in this repository; no upstream package is a dependency, and no Java runs.
+
+This project is **not affiliated with, and is not endorsed or promoted by**, the PlantUML project or its authors. The
+name is used only to describe the language that is implemented.
+
+## Source of the Port
+
+- **Distribution**: `net.sourceforge.plantuml:plantuml-mit`, version 1.2026.10 (the MIT-licensed distribution
+  published on Maven Central), read from its sources jar `plantuml-mit-1.2026.10-sources.jar`.
+- **License**: MIT. Every file of the distribution starts with the header "PlantUML is free software; you can
+  redistribute it and/or modify it under the terms of the MIT License" and the notice "(C) Copyright 2009-2024, Arnaud
+  Roques". The PlantUML project publishes the same code under several licenses; the files of the MIT distribution also
+  keep, below the MIT header, the original header of the multi-licensed source tree. Only the MIT distribution was
+  read, and only under its MIT header.
+- **License file**: `LICENSE-plantuml.txt`.
+- **What is not taken**: no source text, comment, test, example or image of PlantUML is copied. The ported items are
+  values (colors, sizes, paddings, line widths) and the geometry rules that place and draw the elements, reimplemented
+  in C#. The test diagrams of this repository are original; the reference pictures they are compared with are
+  rendered by the jar from those original diagrams and belong to the authors of the diagrams.
+
+## Provenance Table
+
+| Upstream file or folder | CanvasNet unit that ports it | What is ported |
+| ----------------------- | ---------------------------- | -------------- |
+| `net/sourceforge/plantuml/BlockUmlBuilder.java`, `utils/StartUtils.java` | `Preprocessor` (`Syntax/`) | The framing of a text: the first `@start` ... `@end` block is the diagram, a text without a tag is one diagram, a further block is a further diagram |
+| `net/sourceforge/plantuml/tim/` (the preprocessor, `TContext.executeInclude`) | `Preprocessor` (`Syntax/`) | The meaning of the supported directives: `!define` without parameters, `!undef`, `!$variable =` and `?=`, the comment forms `'` and `/' ... '/`, the trailing-backslash continuation, and the include directives (`!include` of a file already included is skipped, `!include_once` of one is an error, `!include_many` repeats it, and a file with an `@start` tag contributes its first block) |
+| `net/sourceforge/plantuml/PSystemBuilder.java` | `DiagramDetector` (`Syntax/`) | The order in which the diagram factories are tried (the sequence diagram first, the activity diagram of the new syntax later) and the `@start` tags of the other diagram types |
+| `skin/plantuml.skin` | `SkinTheme` (`Styling/`) | The values of the default look: the colors, fonts, sizes, line widths, corners, paddings, and dashes of every element of sequence and activity diagrams |
+| `net/sourceforge/plantuml/skin/SkinParam.java`, `klimt/color/HColorSet.java` | `SkinParams` (`Styling/`) | The names of the supported skin parameters and their meaning, and PlantUML's color forms (names, hexadecimal forms, the gray digit, `transparent`, gradients) |
+| `net/sourceforge/plantuml/klimt/drawing/font/StringBounderEmbeddedFont.java` | `TextLayout` (`Scenegraph/`) | How Java measures text with its logical `SansSerif` font on Windows: the sum of the glyph advances without kerning, and the line of the composite font (ascent and descent at least 2059 and 450 units of 2048, plus the line gap) |
+| `net/sourceforge/plantuml/klimt/creole/` | `TextLayout` (`Scenegraph/`) | The creole markup subset (doubled-character styles, the style tags, the tilde escape, the Unicode character tag) |
+| `net/sourceforge/plantuml/Annotated.java`, `command/CommandLegend.java`, `command/CommandCaption.java`, and the pictures the jar draws for original diagrams | `SceneModel` (`Scenegraph/`, `ScenePage`) | The page texts of a diagram and their alignments; the places, margins, and paddings of the header, title, legend, caption, and footer were measured from the pictures |
+| `net/sourceforge/plantuml/sequencediagram/command/` | `SequenceParser` (`Sequence/`) | The sequence statements and their meaning: participant declarations, arrows and their dressings, the activation shorthands, `activate`/`deactivate`/`destroy`, `return` (the reply to the innermost activating message), `autonumber`, notes, groups, boxes, dividers, delays, spaces, and the attachment of a life change to the message before it |
+| `net/sourceforge/plantuml/sequencediagram/` (`SequenceDiagram.java`, `Message.java`, `Note.java`, `Grouping*.java`, `LifeEvent.java`) | `SequenceModel` (`Sequence/`) | The events of a sequence diagram and the facts of its participants, messages, and boxes |
+| `net/sourceforge/plantuml/sequencediagram/teoz/` (`LivingSpace*.java`, `CommunicationTile*.java`, `NoteTile.java`, `NotesTile.java`, `GroupingTile.java`, `ElseTile.java`, `DividerTile.java`, `DelayTile.java`, `HSpaceTile.java`, `LiveBoxes.java`), `net/sourceforge/plantuml/sequencediagram/Doll.java` | `SequenceLayout` (`Sequence/`) | The geometry of the teoz sequence engine: the column constraints (neighbor gaps, message lengths, activation offsets, self message reach, box margins, group frames clearing their neighbors), the row heights and offsets, the activation levels at both ends of an arrow, and the box rules |
+| `net/sourceforge/plantuml/skin/rose/` (`ComponentRoseArrow.java`, `ComponentRoseSelfArrow.java`, `ComponentRoseNote.java`, `ComponentRoseGroupingHeader.java`, `ComponentRoseGroupingElse.java`, `ComponentRoseDivider.java`, `ComponentRoseDelayText.java`, `ComponentRoseParticipant.java`, `ComponentRoseActor.java`, `ComponentRoseBoundary.java`, `ComponentRoseControl.java`, `ComponentRoseEntity.java`, `ComponentRoseDatabase.java`, `ComponentRoseQueue.java`, `ComponentRoseNoteBox.java`, `ComponentRoseNoteHexagonal.java`), `net/sourceforge/plantuml/skin/ActorStickMan.java` | `SequenceLayout`, `SequenceRenderer` (`Sequence/`) | The sizes, paddings, and shapes of the sequence elements: arrow heads (filled, open, half, cross, circle), self message loops, notes with their folded corner, hexagons, and rectangles, group tabs and sections, dividers, delays, the eight participant shapes, and the destroy cross |
+| `net/sourceforge/plantuml/activitydiagram3/command/` and `activitydiagram3/ActivityDiagram3.java` | `ActivityParser` (`Activity/`) | The statements of the new activity syntax and their meaning: actions, start, stop, end, kill and detach, ifs with elseif and else, while and repeat loops with their labels and backward actions, forks, merges, and splits, arrows with labels, colors, and styles, swimlanes, notes, connectors, partitions and groups, and where a pending arrow and the current swimlane go |
+| `net/sourceforge/plantuml/activitydiagram3/` (`Instruction*.java`, `Branch.java`, `LinkRendering.java`, `ForkStyle.java`) | `ActivityModel` (`Activity/`) | The tree of instructions of an activity diagram: lists, branches with their labels, loops with their incoming and outgoing arrows, forks and splits with their branches, and groups |
+| `net/sourceforge/plantuml/activitydiagram3/ftile/` (`Ftile*.java`, `FtileGeometry*.java`, `Hexagon.java`, `Snake.java`, `Worm.java`, `Swimlanes.java`, `Swimlane.java`, `LaneDivider.java`, `UGraphicInterceptor*.java`, `Connection*.java`, `ftile/vcompact/**`, `ftile/vertical/**`), `net/sourceforge/plantuml/klimt/drawing/LimitFinder.java`, `klimt/compress/` (`CompressionXorYBuilder`, `SlotFinder`, `SlotSet`, `CompressionTransform`), `svek/image/Opale.java`, `decoration/symbol/USymbolFrame.java` | `ActivityLayout` (`Activity/`) | The tile ("ftile") composition of the activity engine: the leaf tiles (boxes, circles, diamonds, hexagons, bars), the assembly of a list with its 35-pixel gaps, the if, elseif, while, repeat, fork, merge, and split tiles with their connections, notes and partitions, the merging of arrows into snakes and their simplification, the swimlane columns, dividers, and titles, the compression of the empty bands on both axes, and the extent of a drawing |

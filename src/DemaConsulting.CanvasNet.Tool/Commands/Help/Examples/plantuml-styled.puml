@@ -1,0 +1,20 @@
+@startuml
+skinparam defaultFontName sans-serif
+skinparam participantBackgroundColor #EEF4FB
+skinparam participantBorderColor #2F6DB3
+skinparam participantFontColor #1B2733
+skinparam arrowColor #2F6DB3
+skinparam sequenceLifeLineBorderColor #2F6DB3
+skinparam noteBackgroundColor #FFF8E1
+skinparam noteBorderColor #C8A100
+skinparam sequenceGroupBorderColor #2F6DB3
+skinparam sequenceGroupHeaderBackgroundColor #EEF4FB
+participant Client
+participant Service
+Client -> Service ++ : Request
+group Retry up to 3 times
+  Service -> Service : Validate
+end
+Service --> Client -- : Response
+note right of Service : Logged with a trace id
+@enduml

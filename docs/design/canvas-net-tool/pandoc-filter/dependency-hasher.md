@@ -7,10 +7,11 @@
 `DependencyHasher` collects every file a picture of the Pandoc filter is drawn from, as the parts of its cache key, so
 that a change to any of them draws the picture again. It is a literal port of the dependency walks of the Lua filter
 (version 16): the includes of an OpenSCAD model, the data files and pictures of a Vega-Lite chart, the pictures of a
-Mermaid diagram, and the image links of an SVG drawing, for which it also decides whether the drawing must be flattened.
+Mermaid diagram, the include files of a PlantUML diagram, and the image links of an SVG drawing, for which it also
+decides whether the drawing must be flattened.
 The unit is the internal sealed partial class `DependencyHasher`, split over `DependencyHasher.cs` (entry points, model
-walk, shared picture walk, file-access reads), `DependencyHasher.Chart.cs`, `DependencyHasher.Mermaid.cs`, and
-`DependencyHasher.Svg.cs`.
+walk, shared picture walk, file-access reads), `DependencyHasher.Chart.cs`, `DependencyHasher.Mermaid.cs`,
+`DependencyHasher.PlantUml.cs`, and `DependencyHasher.Svg.cs`.
 
 #### Data Model
 
@@ -43,7 +44,8 @@ One instance walks one picture and is not thread-safe; the static entry points a
 #### Key Methods
 
 **ForPicture(kind, source, name, policy)**: creates an instance and walks the picture by kind from the folder of
-`source`: `scad` with `AddScad`, `vegalite` with `AddChart`, `mermaid` with `AddMermaid`; any other kind (a `pdf`,
+`source`: `scad` with `AddScad`, `vegalite` with `AddChart`, `mermaid` with `AddMermaid`, `plantuml` with `AddPlantUml`;
+any other kind (a `pdf`,
 `pptx`, or `vsdx` document) is the single part labeled with the file name of `source`. Returns the parts.
 
 **ForSvg(source, policy)**: walks an SVG drawing with `AddSvg` and returns the parts and whether the drawing is
@@ -76,9 +78,18 @@ names in any letter case. Each link is tried as written and percent-decoded with
 diagram's folder (fragment and query cut, remote skipped); the existing files are deduplicated, sorted, and walked with
 `AddImageFiles`.
 
+**AddPlantUml(path, root, depth)**: takes the file once (an include cycle or a repeated include ends), refuses more
+than `MaxDepth` levels, adds the file, and follows every `!include`, `!include_once`, and `!include_many` line
+(`CollectPlantUmlIncludes`: the rest of the line after the directive at the start of a line, trailing white space
+trimmed and surrounding quotes removed) relative to the folder of the file that names it, as the PlantUML library
+resolves it; an include the library never follows is skipped (a path that starts with `<` or `[`, a URL, and a part of
+a file after `!`), a path built from a variable names no file, and a file that does not exist adds nothing. The keys of
+every other kind of picture are unchanged.
+
 **AddImageFiles(files, root, depth)** (`add_image_files`): for each file not yet seen, by its name end in ASCII lower
 case: `.scad` adds a model (`AddScad`, depth 0), `.vl.json` or `.vl` a nested chart labeled from its own folder,
-`.mmd` or `.mermaid` a nested diagram, `.svg` a nested drawing, and any other file is added as it is.
+`.mmd` or `.mermaid` a nested diagram, `.puml`, `.plantuml`, or `.pu` a nested PlantUML diagram (`AddPlantUml`), `.svg`
+a nested drawing, and any other file is added as it is.
 
 **AddSvg(path, root, depth)** (`add_svg_sources`): marks the drawing `Taken`, adds it (an unreadable drawing is
 `Plain`), and resolves each link `CollectSvgLinks` finds: the fragment and query are cut; a `file:` URI is decoded as it

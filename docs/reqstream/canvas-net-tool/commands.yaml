@@ -79,6 +79,8 @@ sections:
           - CanvasNetTool-Commands-HelpTopics-InputFragments
           - CanvasNetTool-Commands-HelpTopics-Mermaid
           - CanvasNetTool-Commands-HelpTopics-MermaidGuideParity
+          - CanvasNetTool-Commands-HelpTopics-PlantUml
+          - CanvasNetTool-Commands-HelpTopics-PlantUmlGuideParity
           - CanvasNetTool-Commands-HelpTopics-FileAccess
           - CanvasNetTool-Commands-HelpTopics-FileAccessGuideParity
           - CanvasNetTool-Commands-CommandRegistry-HelpSubjects
@@ -120,6 +122,7 @@ sections:
           - CanvasNetTool-Commands-DiscoveryCommands-InfoModel
           - CanvasNetTool-Commands-DiscoveryCommands-VegaLite
           - CanvasNetTool-Commands-DiscoveryCommands-Mermaid
+          - CanvasNetTool-Commands-DiscoveryCommands-PlantUml
           - CanvasNetTool-Commands-DiscoveryCommands-InfoErrors
           - CanvasNetTool-Commands-DiscoveryCommands-InfoFragments
         tests:
@@ -144,6 +147,7 @@ sections:
           - CanvasNetTool-Commands-RenderCommand-VegaLite
           - CanvasNetTool-Commands-RenderCommand-ChartParams
           - CanvasNetTool-Commands-RenderCommand-Mermaid
+          - CanvasNetTool-Commands-RenderCommand-PlantUml
           - CanvasNetTool-Commands-RenderCommand-Theme
           - CanvasNetTool-Commands-RenderCommand-InputFragments
           - CanvasNetTool-Commands-RenderCommand-Pipeline

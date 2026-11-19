@@ -1,0 +1,79 @@
+---
+# Software Unit Requirements for SequenceRenderer
+#
+# These requirements describe the design-level behavior of the SequenceRenderer unit of the Sequence subsystem
+# (internal namespace DemaConsulting.CanvasNet.PlantUml.Sequence): the scene items of a laid-out sequence diagram.
+# See docs/verification/canvas-net-plant-uml/sequence/sequence-renderer.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetPlantUml Requirements
+    sections:
+      - title: Sequence Requirements
+        sections:
+          - title: SequenceRenderer Requirements
+            requirements:
+              - id: CanvasNetPlantUml-Sequence-SequenceRenderer-Participants
+                title: >-
+                  The SequenceRenderer unit shall draw the heads and tails of the eight participant kinds with
+                  PlantUML's shapes (a rounded box, a stick figure, the boundary, control, and entity symbols, a
+                  cylinder, two stacked boxes, and a queue) in the participant's or the theme's colors.
+                justification: |
+                  Each participant kind has its own shape in PlantUML.
+                tests:
+                  - PlantUmlSequenceRenderer_Participants_DrawEveryKind
+
+              - id: CanvasNetPlantUml-Sequence-SequenceRenderer-Lifelines
+                title: >-
+                  The SequenceRenderer unit shall draw the life lines dashed, and dotted in delays, and the activation
+                  boxes filled and outlined.
+                justification: |
+                  These are PlantUML's life lines and activation boxes.
+                tests:
+                  - PlantUmlSequenceRenderer_LifelinesAndActivations
+
+              - id: CanvasNetPlantUml-Sequence-SequenceRenderer-Messages
+                title: >-
+                  The SequenceRenderer unit shall draw a message as a solid or dotted line in its color with its heads
+                  (filled, open, half, cross, circle) at their ends, a self message as a loop with its head, and the
+                  number and the label of a message.
+                justification: |
+                  These are PlantUML's message arrows.
+                tests:
+                  - PlantUmlSequenceRenderer_Messages_DrawHeadsAndBodies
+                  - PlantUmlSequenceRenderer_SelfMessage_LoopNumberAndLabel
+
+              - id: CanvasNetPlantUml-Sequence-SequenceRenderer-Notes
+                title: >-
+                  The SequenceRenderer unit shall draw a note as a sheet with a folded corner, a hexagon, or a rectangle
+                  in its or the theme's color, with its text.
+                justification: |
+                  These are PlantUML's note shapes.
+                tests:
+                  - PlantUmlSequenceRenderer_Notes_DrawShapes
+
+              - id: CanvasNetPlantUml-Sequence-SequenceRenderer-Groups
+                title: >-
+                  The SequenceRenderer unit shall draw a group as a frame with a header tab holding its keyword, its
+                  condition in brackets, its fill, and a dashed line with its condition for each section.
+                justification: |
+                  These are PlantUML's group frames.
+                tests:
+                  - PlantUmlSequenceRenderer_Groups_DrawTabFrameAndSections
+
+              - id: CanvasNetPlantUml-Sequence-SequenceRenderer-Blocks
+                title: >-
+                  The SequenceRenderer unit shall draw dividers as a double line with the text in a box, boxes with
+                  their titles, delay texts, and the cross of a destroyed life line.
+                justification: |
+                  These are PlantUML's dividers, boxes, delays, and destroy crosses.
+                tests:
+                  - PlantUmlSequenceRenderer_DividersBoxesDelaysAndDestroy
+
+              - id: CanvasNetPlantUml-Sequence-SequenceRenderer-Placement
+                title: >-
+                  The SequenceRenderer unit shall move every item by the offset of the layout and size the view box of
+                  the scene to the body of the diagram.
+                justification: |
+                  The scene's view box is the natural size of the picture.
+                tests:
+                  - PlantUmlSequenceRenderer_Render_MovesByOffsetAndSizesViewBox

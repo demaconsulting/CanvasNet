@@ -1,0 +1,11 @@
+@startuml
+start
+while (rows left?)
+  if (row valid?) then (yes)
+    :Import the row;
+  else (no)
+    :Skip it;
+  endif
+endwhile
+stop
+@enduml

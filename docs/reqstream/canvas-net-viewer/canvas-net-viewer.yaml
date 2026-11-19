@@ -7,7 +7,7 @@
 #
 # Packaging note: CanvasNetViewer is distributed as the separate DemaConsulting.CanvasNet.Viewer NuGet package
 # (namespace DemaConsulting.CanvasNet.Viewer), which references the core package and the Svg, Pdf, Pptx, Vsdx,
-# Scad, VegaLite, and Mermaid packages. CanvasNetViewer is the sole unit of the CanvasNetViewer system. Every
+# Scad, VegaLite, Mermaid, and PlantUml packages. CanvasNetViewer is the sole unit of the CanvasNetViewer system. Every
 # "tests" entry below cites an existing test method in the DemaConsulting.CanvasNet.Viewer.Tests project; see
 # docs/verification/canvas-net-viewer/canvas-net-viewer.md for the test-evidence mapping.
 
@@ -19,7 +19,8 @@ sections:
           - id: CanvasNetViewer-CanvasNetViewer-ImageSources
             title: >-
               The CanvasNetViewer class shall expose the built-in image sources as a fixed, read-only list
-              (raster, SVG, PDF, PowerPoint, Visio, OpenSCAD, Vega-Lite, and Mermaid, in that order, with shared
+              (raster, SVG, PDF, PowerPoint, Visio, OpenSCAD, Vega-Lite, Mermaid, and PlantUML, in that order, with
+              shared
               instances) and the extensions they claim as the sorted union of their claims.
             justification: |
               One fixed list is the single place where the supported file types are decided, and the help of
@@ -99,7 +100,7 @@ sections:
               view= and its angles from azimuth= and elevation= (degrees, the elevation from -90 to 90, replacing
               the angles of the view as --azimuth and --elevation do) and its projection from projection= (ortho,
               orthographic, or perspective, in any case, as --projection takes), and the theme of a Mermaid diagram from
-              theme= (one of Mermaid's themes, in any case), keep
+              theme= (one of Mermaid's themes, in any case; a PlantUML diagram takes no parameter), keep
               the options of an embedding document away from an embedded file, report a page that does not exist
               as an unsupported note with the code image-page-out-of-range and a value that cannot be used as
               image-fragment-invalid without drawing the image, report notes with their detail, location, page and

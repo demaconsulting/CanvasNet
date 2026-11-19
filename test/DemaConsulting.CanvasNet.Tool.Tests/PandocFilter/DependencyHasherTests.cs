@@ -191,6 +191,53 @@ public class DependencyHasherTests
     }
 
     /// <summary>
+    ///     Test the PlantUML walk: the three include directives are followed relative to the including file, a quoted path
+    ///     loses its quotes, each file is hashed once (a repeated include and a cycle end), and the includes PlantUML never
+    ///     follows (the standard library, a URL, a named block, a part of a file) and a missing file add nothing.
+    /// </summary>
+    [Fact]
+    public void DependencyHasher_ForPicture_PlantUml_HashesEveryLocalInclude()
+    {
+        // Arrange: a diagram that includes a fragment, which includes a sibling and the diagram back
+        using var directory = new TempDirectory();
+        var diagram = Write(
+            directory,
+            "seq.puml",
+            "@startuml\n!include parts/people.iuml\n  !include_once \"parts/style.iuml\"\n!include_many parts/people.iuml\n"
+            + "!include <C4/C4_Context>\n!include https://example.com/x.puml\n!include [named]\n!include parts/style.iuml!part\n"
+            + "!include missing.iuml\nAlice -> Bob\n@enduml\n");
+        Write(directory, "parts/people.iuml", "participant Alice\n!include more/extra.iuml\n");
+        Write(directory, "parts/style.iuml", "skinparam arrowColor red\n!include ../seq.puml\n");
+        Write(directory, "parts/more/extra.iuml", "participant Bob\n");
+
+        // Act
+        var parts = DependencyHasher.ForPicture("plantuml", Collapse(diagram), "seq.puml", null);
+        var embedded = DependencyHasher.ForSvg(Collapse(Write(directory, "page.svg", "<svg xmlns='http://www.w3.org/2000/svg'><image href='seq.puml' width='9' height='9'/></svg>")), null);
+
+        // Assert: the diagram and its includes in the order met, labeled from the diagram's folder
+        Assert.Equal(["seq.puml", "parts/people.iuml", "parts/more/extra.iuml", "parts/style.iuml"], Labels(parts));
+
+        // Assert: a drawing that links the diagram hashes the diagram and its includes, and must be flattened
+        Assert.True(embedded.Composite);
+        Assert.Contains("parts/more/extra.iuml", Labels(embedded.Parts));
+    }
+
+    /// <summary>
+    ///     Test the PlantUML include scanner on its own: the path after the directive, without quotes and trailing space,
+    ///     only at the start of a line, and without the includes PlantUML never follows.
+    /// </summary>
+    [Fact]
+    public void DependencyHasher_CollectPlantUmlIncludes_KeepsOnlyLocalFiles()
+    {
+        // Act
+        var paths = DependencyHasher.CollectPlantUmlIncludes(
+            "!include a.iuml  \n\t!include_once \"b c.iuml\"\nnote: !include not-a-directive.iuml\n!includeurl http://x\n!include C:/d.iuml\n!include <std>\n");
+
+        // Assert
+        Assert.Equal(["a.iuml", "b c.iuml", "C:/d.iuml"], paths);
+    }
+
+    /// <summary>
     ///     Test the drawing scanner: comments, character data, processing instructions, and a DOCTYPE hold no links; a
     ///     quoted <c>&gt;</c> does not end a tag; a prefixed href counts only in the XLink namespace; entities are decoded;
     ///     a missing diagram is a missing entry; and the drawing is composite.

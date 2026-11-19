@@ -14,16 +14,19 @@
   real tool (`dotnet canvasnet`, or the command in `-ToolCommand`/`CANVASNET_TOOL`), and prints PASS or FAIL per check.
   Its groups cover:
   - every handled input is drawn and others are left alone, `param-NAME`, the cache (a picture is drawn once and found
-    again; a changed source, include, data file, or attribute draws it again), and Mermaid code blocks and pictures,
+    again; a changed source, include, data file, or attribute draws it again), Mermaid code blocks and pictures,
     including the diagram types the filter draws itself, a type the tool does not draw left as written with a warning,
-    and the order of the defaults-file filters before a later command-line filter;
+    PlantUML code blocks and `.puml` and `.plantuml` pictures (a changed `!include` file draws them again, and a `.pu`
+    class diagram is left as written with a warning), and the order of the defaults-file filters before a later
+    command-line filter;
   - SVG pictures (plain ones left unchanged, composite ones flattened and cached, the scan rules, a link to a missing
     diagram, and WeasyPrint drawing the flattened diagram into a PDF);
   - the fast path (`CANVASNET_TOOL` names a program that does not exist): a document of `bash`, `yaml`, `csharp`,
     `text`, and `{.Mermaid}` code blocks and of PNG, JPEG, BMP, TIFF, ICO, AVIF, extension-less, fragment
     (`mesh-shading.pdf#page=2`), query (`t.vl.json?x`), and remote pictures builds without starting the tool, while a
-    model picture, one `mermaid` block, and a picture of each suffix the shim lists (read from the shim, checked to be
-    `.svg .vl.json .vl .scad .vsdx .pptx .pdf .mmd .mermaid`, in lower and upper case) each start it and give the clear
+    model picture, one `mermaid` block, one `plantuml` block, and a picture of each suffix the shim lists (read from the
+    shim, checked to be `.svg .vl.json .vl .scad .vsdx .pptx .pdf .mmd .mermaid .puml .plantuml .pu`, in lower and upper
+    case) each start it and give the clear
     `canvasnet.lua: cannot run the canvasnet tool` error;
   - the launch-failure branch: `dotnet pandoc lua` loads the shim with a stubbed `pandoc.pipe` that raises a string, a
     table without `error_code`, a table whose `error_code` is text, a userdata (`io.stdout`), a table whose fields and
@@ -64,12 +67,14 @@ The end-to-end script needs Pandoc from the repository's tool manifest (`dotnet 
 bytes equal `Generate` of the template (line endings aside), contain `local PROTOCOL = "1"` and
 `DemaConsulting.CanvasNet.Tool 0.2.0-beta.11 or later`, and `Protocol` lies between `MinProtocol` and `MaxProtocol`.
 
-**PandocFilterShim_Bytes_ListWhatTheEngineDraws**: the shim holds `local CLASSES = { "mermaid" }` and
-`local SUFFIXES = { ".svg", ".vl.json", ".vl", ".scad", ".vsdx", ".pptx", ".pdf", ".mmd", ".mermaid" }`, and neither
+**PandocFilterShim_Bytes_ListWhatTheEngineDraws**: the shim holds `local CLASSES = { "mermaid", "plantuml" }` and
+`local SUFFIXES = { ".svg", ".vl.json", ".vl", ".scad", ".vsdx", ".pptx", ".pdf", ".mmd", ".mermaid", ".puml",
+".plantuml", ".pu" }`, and neither
 placeholder.
 
 **PandocFilterShim_Generate_PlaceholdersExactlyOnce_FillsOrRefuses**: a template with both placeholders is filled with
-the Lua lists (`c = { "mermaid" }`, `s = { ".svg", ...`); a template without `@SUFFIXES@` and one with `@CLASSES@`
+the Lua lists (`c = { "mermaid", "plantuml" }`, `s = { ".svg", ...`); a template without `@SUFFIXES@` and one with
+`@CLASSES@`
 twice throw `InvalidOperationException` naming the placeholder.
 
 **PandocFilterShim_Bytes_AreTheRepositoryFilter**: the embedded bytes equal `docs/filters/canvasnet.lua` (line endings

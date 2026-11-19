@@ -23,8 +23,9 @@ The unit's behavior is specified by the `CanvasNetViewer-CanvasNetViewer-*` requ
 
 ### Data Model
 
-- **`CanvasNetViewer`** — static; holds two read-only values created once: the built-in sources, eight
-  `LoaderImageSource` adapters (raster, svg, pdf, pptx, vsdx, scad, vega-lite, and mermaid, in that order, with the
+- **`CanvasNetViewer`** — static; holds two read-only values created once: the built-in sources, nine
+  `LoaderImageSource` adapters (raster, svg, pdf, pptx, vsdx, scad, vega-lite, mermaid, and plantuml, in that order,
+  with the
   names, extensions and schemes of the format packages' sources; their extensions do not overlap), and the sorted union
   of their extensions, computed through an `ImageSourceSet` so that the claims are validated once. Both are exposed as
   read-only lists (`ImageSources`, `Extensions`). The sources are stateless and thread-safe, so the shared instances
@@ -34,7 +35,8 @@ The unit's behavior is specified by the `CanvasNetViewer-CanvasNetViewer-*` requ
   is built from the claims of the package source it stands for, the `SourceKind`s it draws, the fragment parameters of
   its pages (`page` for PDF and Visio, `page` and `slide` for PowerPoint) and whether it accepts `view`, `azimuth`,
   `elevation`, and `projection` (the model source only); the Mermaid source alone also accepts `theme`
-  (`MermaidImageSource.ThemeParameter`). It also declares the prefix of the parameters whose names the link author
+  (`MermaidImageSource.ThemeParameter`), and the PlantUML source accepts no parameter at all. It also declares the
+  prefix of the parameters whose names the link author
   chooses (`FragmentParameterPrefixes`): `def.` for the model source and `param.` for the chart source (the constants of
   `ScadImageSource` and `VegaLiteImageSource`), none for the others. It cannot be the package source itself: the format
   packages cannot call `SourceLoader`, which depends on all of them. The package sources stay public stand-alone
@@ -204,7 +206,8 @@ and
 `ImagePipeline.MapAnchors` and `MapPositions`), the
 `Canvas` subsystem (`Surface.FitInto`, `Surface.Resize`, `Rgba32`), the core `Positions` subsystem
 (`PositionSelection`, `ImagePosition`), and the claims of the sources of the `CanvasNetSvg`,
-`CanvasNetPdf`, `CanvasNetPptx`, `CanvasNetVsdx`, `CanvasNetScad`, `CanvasNetVegaLite`, and `CanvasNetMermaid` systems
+`CanvasNetPdf`, `CanvasNetPptx`, `CanvasNetVsdx`, `CanvasNetScad`, `CanvasNetVegaLite`, `CanvasNetMermaid`, and
+`CanvasNetPlantUml` systems
 (and, for the theme fragment, `MermaidImageSource.ThemeParameter` and `MermaidRenderOptions.ThemeNames`).
 
 ### Callers

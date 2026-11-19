@@ -240,6 +240,28 @@ input-files:
   - docs/design/canvas-net-mermaid/git-graph.md
   - docs/design/canvas-net-mermaid/git-graph/git-graph-parser.md
   - docs/design/canvas-net-mermaid/git-graph/git-graph-renderer.md
+  - docs/design/canvas-net-plant-uml.md
+  - docs/design/canvas-net-plant-uml/plant-uml-document.md
+  - docs/design/canvas-net-plant-uml/syntax.md
+  - docs/design/canvas-net-plant-uml/syntax/preprocessor.md
+  - docs/design/canvas-net-plant-uml/syntax/diagram-detector.md
+  - docs/design/canvas-net-plant-uml/styling.md
+  - docs/design/canvas-net-plant-uml/styling/skin-theme.md
+  - docs/design/canvas-net-plant-uml/styling/skin-params.md
+  - docs/design/canvas-net-plant-uml/scenegraph.md
+  - docs/design/canvas-net-plant-uml/scenegraph/scene-model.md
+  - docs/design/canvas-net-plant-uml/scenegraph/text-layout.md
+  - docs/design/canvas-net-plant-uml/scenegraph/scene-painter.md
+  - docs/design/canvas-net-plant-uml/sequence.md
+  - docs/design/canvas-net-plant-uml/sequence/sequence-parser.md
+  - docs/design/canvas-net-plant-uml/sequence/sequence-model.md
+  - docs/design/canvas-net-plant-uml/sequence/sequence-layout.md
+  - docs/design/canvas-net-plant-uml/sequence/sequence-renderer.md
+  - docs/design/canvas-net-plant-uml/activity.md
+  - docs/design/canvas-net-plant-uml/activity/activity-parser.md
+  - docs/design/canvas-net-plant-uml/activity/activity-model.md
+  - docs/design/canvas-net-plant-uml/activity/activity-layout.md
+  - docs/design/canvas-net-plant-uml/activity/activity-renderer.md
   - docs/design/canvas-net-viewer.md
   - docs/design/canvas-net-viewer/canvas-net-viewer.md
   - docs/design/canvas-net-viewer/viewer-exception.md

@@ -22,15 +22,17 @@ N/A - standard test environment. The unit is pure computation and needs no files
 #### Test Scenarios
 
 **PictureAttributes_KindOf_FileNameEnd_GivesTheKind**: each handled name end gives its kind in any letter case
-(`chart.VL.JSON`, `chart.vl`, `C:/models/part.scad` with a drive letter, `.vsdx`, `.pptx`, `.pdf`, `.mmd`, `.mermaid`),
-while `https://example.com/part.scad` and `photo.png` give none.
+(`chart.VL.JSON`, `chart.vl`, `C:/models/part.scad` with a drive letter, `.vsdx`, `.pptx`, `.pdf`, `.mmd`, `.mermaid`,
+`.puml`, `.PlantUML`, `.pu`), while `https://example.com/part.scad`, `photo.png`, and the include fragment `part.iuml`
+give none.
 
 **PictureAttributes_IsSvg_LocalSvgOnly**: `a/Drawing.SVG` is a drawing; a URL ending in `.svg` and `a.svgz` are not.
 
 **PictureAttributes_PictureSuffixesAndBlockClasses_AreWhatTheEngineDraws**: `PictureSuffixes` is `.svg`, `.vl.json`,
-`.vl`, `.scad`, `.vsdx`, `.pptx`, `.pdf`, `.mmd`, `.mermaid` and `BlockClasses` is `mermaid`; every suffix, in lower
-and upper case, is a drawing (`IsSvg`) or has a kind (`KindOf`); `BlockKindOf` gives `mermaid` for `mermaid` alone or
-after another class, and nothing for `Mermaid`, `bash`, or no class.
+`.vl`, `.scad`, `.vsdx`, `.pptx`, `.pdf`, `.mmd`, `.mermaid`, `.puml`, `.plantuml`, `.pu` and `BlockClasses` is
+`mermaid`, `plantuml`; every suffix, in lower and upper case, is a drawing (`IsSvg`) or has a kind (`KindOf`);
+`BlockKindOf` gives `mermaid` for `mermaid` alone or after another class and `plantuml` for `plantuml`, and nothing for
+`Mermaid`, `puml`, `bash`, or no class.
 
 **PictureAttributes_Build_InvalidAttribute_ThrowsTheLuaMessage**: each invalid value (`size` 0x10 and 8193x10, `scale`
 0 and `1e3`, `background` `#12`, `page` 0, `dpi` 1.5 for `.vsdx` and 0 for `.pdf`, an unknown `view`, `azimuth`
@@ -58,4 +60,5 @@ presentation gets `--page=7` from `007`, `--dpi=1e-05`, and `--background=transp
 
 **PictureAttributes_BlockNameAndCaption_FollowTheLuaFilter**: a block with an identifier is `mermaid block #flow`; one
 without is named by its first non-blank line trimmed (`mermaid block (flowchart LR)`) and cut to 40 characters with
-`...` (a non-ASCII character counts as one); the last of two captions is the caption and the other attribute stays.
+`...` (a non-ASCII character counts as one); a PlantUML block is `plantuml block #seq` or
+`plantuml block (@startuml)`; the last of two captions is the caption and the other attribute stays.

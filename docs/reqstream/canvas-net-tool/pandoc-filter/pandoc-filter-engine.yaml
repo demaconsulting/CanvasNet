@@ -35,7 +35,8 @@ sections:
 
       - id: CanvasNetTool-PandocFilter-PandocFilterEngine-UnsupportedDiagram
         title: >-
-          The PandocFilterEngine unit shall leave a Mermaid diagram whose own type the tool does not draw as written,
+          The PandocFilterEngine unit shall leave a Mermaid or PlantUML diagram whose own type the tool does not draw
+          (mermaid-diagram-unsupported or plantuml-diagram-unsupported) as written,
           warn that it is left as written and not drawn, record it in the cache so that a later build gives the same
           warning without drawing, and treat the same report about a picture embedded in a diagram as an ordinary
           warning.
@@ -44,6 +45,7 @@ sections:
           is told on every build, without the cost of starting the drawing again.
         tests:
           - PandocFilterEngine_Run_UnsupportedDiagram_LeftAsWrittenWithMarker
+          - PandocFilterEngine_Run_PlantUmlBlocks_BecomeFigureOrAreLeftAsWritten
 
       - id: CanvasNetTool-PandocFilter-PandocFilterEngine-SvgDrawings
         title: >-
@@ -66,6 +68,20 @@ sections:
           identifier, and its layout attributes, as the Lua filter published it.
         tests:
           - PandocFilterEngine_Run_MermaidBlocks_BecomeFigureOrParagraph
+
+      - id: CanvasNetTool-PandocFilter-PandocFilterEngine-PlantUmlBlocks
+        title: >-
+          The PandocFilterEngine unit shall replace a code block of class plantuml with its drawn picture as it replaces
+          a Mermaid block (a figure with the caption and the identifier, or a paragraph), writing its text to the cache
+          folder as a .puml file, dropping only the class plantuml and keeping the other classes and attributes, and
+          naming the block plantuml block in its messages and in the scale hint of an oversized picture
+          ({.plantuml scale=...}).
+        justification: |
+          A sequence or activity diagram written inline in the document is published like a Mermaid diagram, with its
+          caption, cross-reference identifier, and layout attributes, and a message points at the right kind of block.
+        tests:
+          - PandocFilterEngine_Run_PlantUmlBlocks_BecomeFigureOrAreLeftAsWritten
+          - PandocFilter_Run_PlantUmlPictureAndBlock_DrawnAndRedrawnWhenAnIncludeChanges
 
       - id: CanvasNetTool-PandocFilter-PandocFilterEngine-Warnings
         title: >-

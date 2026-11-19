@@ -1,0 +1,14 @@
+@startuml
+' Gallery: while and repeat loops with labels and a backward action
+start
+:Open the connection;
+repeat :Send a request;
+  :Wait for the answer;
+backward :Wait a second;
+repeat while (Timed out?) is (yes) not (no)
+while (More pages?) is (yes)
+  :Read a page;
+endwhile (no)
+:Close the connection;
+stop
+@enduml

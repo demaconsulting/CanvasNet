@@ -19,11 +19,13 @@ changed: `CanvasNetTool_VersionDisplay` and `CanvasNetTool_HelpDisplay` (the pla
 `CanvasNetTool_Info`, `CanvasNetTool_RenderSvg`, `CanvasNetTool_PdfMinimal`, `CanvasNetTool_RenderScad`,
 `CanvasNetTool_CropResize`, and `CanvasNetTool_RotateFlipPad`, and the comparison self-tests
 `CanvasNetTool_Compare` and `CanvasNetTool_Montage`, and the photo self-test `CanvasNetTool_Adjustments`, and the
-chart self-test `CanvasNetTool_RenderVegaLite`, and the diagram self-test `CanvasNetTool_RenderMermaid`, and the Pandoc
-filter self-test `CanvasNetTool_PandocFilter`, and the help self-test `CanvasNetTool_HelpExamples` (eighteen in total;
+chart self-test `CanvasNetTool_RenderVegaLite`, and the diagram self-tests `CanvasNetTool_RenderMermaid` and
+`CanvasNetTool_RenderPlantUml`, and the Pandoc filter self-test `CanvasNetTool_PandocFilter`, and the help self-test
+`CanvasNetTool_HelpExamples` (nineteen in total;
 the suite is deliberately kept small, so further coverage belongs in the unit and subsystem tests). They run in a
 fixed, documented order: `VersionDisplay`, `HelpDisplay`, `Formats`, `RenderPng`, `ConvertFormats`, `Info`,
-`RenderSvg`, `PdfMinimal`, `RenderScad`, `RenderVegaLite`, `RenderMermaid`, `PandocFilter`, `CropResize`,
+`RenderSvg`, `PdfMinimal`, `RenderScad`, `RenderVegaLite`, `RenderMermaid`, `RenderPlantUml`, `PandocFilter`,
+`CropResize`,
 `RotateFlipPad`, `Compare`, `Montage`, `Adjustments`, and `HelpExamples` (each with the prefix `CanvasNetTool_`).
 Each is
 recorded as a `TestResult` with
@@ -98,7 +100,7 @@ and in the file, white padding at the corner, the image fitted and centered in t
 label strip. These exercise the comparison, the
 contact sheet with its bundled-font labels, the picture creators, and the commands together.
 
-**RunAdjustmentsTest**: the photo self-test, one smoke test for every photo operation (the 16th self-test).
+**RunAdjustmentsTest**: the photo self-test, one smoke test for every photo operation (the 18th self-test).
 It generates a 160x100 PNG sketch with `CreateSketchSurface` (light-gray paper `#C8C8C8` with four dark two-pixel lines
 tilted 3 degrees clockwise, drawn with plain arithmetic, so that the pixel at 80,19 is ink and the pixel at 0,0 is
 paper) and runs the checks of four helpers in turn, stopping at the first failure. `CheckToneOperations` runs
@@ -137,7 +139,18 @@ left of its label, has the node fill `#ECECFF` of Mermaid's default theme. This 
 and its fonts, the detection of a diagram by its file name, the source loader, the `diagram` object of `info`, and the
 `render` command together; it needs no other file, no network, and no installed font.
 
-**RunHelpExamplesTest**: the help self-test (the 17th and last self-test, `CanvasNetTool_HelpExamples`), run through
+**RunRenderPlantUmlTest**: the PlantUML self-test (the 12th self-test, right after the Mermaid self-test,
+`CanvasNetTool_RenderPlantUml`), run through `RunSelfTest` and `RunCommand`. It writes an original two-participant
+sequence diagram to `talk.puml` in its temporary directory (`Alice -> Bob : Hello` and `Bob --> Alice : Hi`). It runs
+`info --json` and requires the `plantuml` format of the `input` object and, in the `diagram` object, the type
+`sequence`, `supported` true, two `nodes`, and two `edges`, and reads the laid-out size of the `image` object; then it
+renders the diagram with `--strict` to a PNG and requires that the file has exactly the size `info` reported, that the
+corner pixel (0, 0) is white (PlantUML's own background), and that more than 200 pixels have the participant fill
+`#E2E2F0` of PlantUML's default look. This exercises the bundled PlantUML library and its fonts, the detection of a
+diagram by its file name, the source loader, the `diagram` object of `info`, and the `render` command together; it
+needs no other file, no Java, no network, and no installed font.
+
+**RunHelpExamplesTest**: the help self-test (the 19th and last self-test, `CanvasNetTool_HelpExamples`), run through
 `RunSelfTest` and `RunCommand`, with three checks in turn that stop at the first failure. `CheckHelpExamplesRender`
 writes every source example of the help cards (`HelpTopics.SourceExamples`: the OpenSCAD models, the Vega-Lite charts,
 the Mermaid diagrams, and the SVG drawings) to a file named `<root>-<file name>` and runs

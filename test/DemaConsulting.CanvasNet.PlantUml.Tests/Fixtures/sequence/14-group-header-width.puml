@@ -1,0 +1,12 @@
+@startuml
+participant X
+participant A
+participant B
+participant Y
+group g
+A -> B : m
+end
+loop very long loop condition text
+A -> B : m
+end
+@enduml

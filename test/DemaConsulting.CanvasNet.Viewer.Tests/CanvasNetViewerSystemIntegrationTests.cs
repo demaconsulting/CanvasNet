@@ -24,9 +24,9 @@ public class CanvasNetViewerSystemIntegrationTests
         var sources = CanvasNetViewer.ImageSources;
 
         // Assert: one source per format, and the extensions are exactly the union of what they claim
-        Assert.Equal(["raster", "svg", "pdf", "pptx", "vsdx", "scad", "vega-lite", "mermaid"], sources.Select(s => s.Name));
+        Assert.Equal(["raster", "svg", "pdf", "pptx", "vsdx", "scad", "vega-lite", "mermaid", "plantuml"], sources.Select(s => s.Name));
         Assert.Equal(
-            [".bmp", ".gif", ".j2c", ".j2k", ".jp2", ".jpeg", ".jpg", ".mermaid", ".mmd", ".pdf", ".png", ".pptx", ".scad", ".svg", ".tif", ".tiff", ".vl", ".vl.json", ".vsdx"],
+            [".bmp", ".gif", ".j2c", ".j2k", ".jp2", ".jpeg", ".jpg", ".mermaid", ".mmd", ".pdf", ".plantuml", ".png", ".pptx", ".pu", ".puml", ".scad", ".svg", ".tif", ".tiff", ".vl", ".vl.json", ".vsdx"],
             CanvasNetViewer.Extensions);
         Assert.Equal(sources.SelectMany(s => s.Extensions).Order(StringComparer.Ordinal), CanvasNetViewer.Extensions);
         Assert.All(sources, s => Assert.Empty(s.Schemes));
@@ -108,6 +108,47 @@ public class CanvasNetViewerSystemIntegrationTests
         var refused = Assert.Single(resolver.Diagnostics);
         Assert.Equal(FolderImageResolver.FragmentInvalidCode, refused.Code);
         Assert.Contains("theme", refused.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Proves that a PlantUML diagram is drawn by the viewer directly (transparent, with the participant fill of
+    ///     PlantUML's default look), as the picture of an SVG <c>image</c>, and as the picture of a Mermaid node, with the
+    ///     <c>theme</c> fragment of a link reported as a parameter PlantUML does not take.
+    /// </summary>
+    [Fact]
+    public void CanvasNetViewer_SystemIntegration_PlantUmlDiagram_RendersDirectlyAndEmbeddedInSvgAndMermaid()
+    {
+        // Arrange: a sequence diagram, an SVG document that shows it, and a Mermaid flowchart whose node shows it
+        using var folder = new ViewerTestFolder();
+        folder.WriteText("seq.puml", "@startuml\nAlice -> Bob: hello\n@enduml\n");
+        folder.WriteText("flow.mmd", "flowchart LR\n    p@{ img: \"seq.puml\", w: 120, h: 120 }\n");
+        var participantFill = new Rgba32(0xE2, 0xE2, 0xF0, 255);
+        var svg = ViewerFixtures.Svg(ViewerFixtures.Cell("seq.puml", 0) + ViewerFixtures.Cell("seq.puml#theme=dark", 1));
+        var resolver = CanvasNetViewer.CreateImageResolver(folder.Path);
+
+        // Act
+        using var direct = CanvasNetViewer.Render(Path.Combine(folder.Path, "seq.puml"));
+        using var embedded = ViewerFixtures.RenderSvg(svg, resolver);
+        using var inMermaid = CanvasNetViewer.Render(Path.Combine(folder.Path, "flow.mmd"));
+
+        // Assert: the direct render is a transparent diagram with the participant fill and no note
+        Assert.Equal("plantuml", direct.Format);
+        Assert.Equal(0, direct.Surface[0, 0].A);
+        Assert.Contains(Enumerable.Range(0, direct.Surface.Height), y => Enumerable.Range(0, direct.Surface.Width).Any(x => direct.Surface[x, y] == participantFill));
+        Assert.Empty(direct.Diagnostics);
+
+        // Assert: both cells of the SVG document show the diagram, and the theme of the second link is reported as unknown
+        Assert.Contains(Enumerable.Range(0, 100), y => Enumerable.Range(0, 100).Any(x => embedded[x, y] == participantFill));
+        Assert.Contains(Enumerable.Range(0, 100), y => Enumerable.Range(100, 100).Any(x => embedded[x, y] == participantFill));
+        Assert.Equal(["plantuml"], resolver.Embedded.Select(e => e.Format).Distinct());
+        Assert.Equal(FolderImageResolver.FragmentUnknownParameterCode, Assert.Single(resolver.Diagnostics).Code);
+
+        // Assert: the Mermaid node shows the diagram as its picture
+        Assert.Equal("mermaid", inMermaid.Format);
+        Assert.Contains(
+            Enumerable.Range(0, inMermaid.Surface.Height),
+            y => Enumerable.Range(0, inMermaid.Surface.Width).Any(x => inMermaid.Surface[x, y] == participantFill));
+        Assert.Empty(inMermaid.Diagnostics);
     }
 
     /// <summary>
