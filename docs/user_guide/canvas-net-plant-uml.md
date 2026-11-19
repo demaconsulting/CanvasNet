@@ -381,7 +381,7 @@ differences from PlantUML are:
   styles (`:text|`, `:text<`, `:text>`, `:text/`, `:text]`, `:text}`, drawn as a plain box), and the frames of
   `package`, `rectangle`, and `card` groups are reported as `plantuml-statement-unsupported`. An arrow with several
   colors is drawn with its first color, a repeat loop whose back arrow crosses swimlanes is drawn with the simple back
-  arrow, and a diagram with swimlanes can be up to 2 pixels narrower than PlantUML's.
+  arrow, and a diagram with swimlanes can be up to 3 pixels narrower than PlantUML's.
 - **Detection.** Statements are recognized by their leading keywords and arrows, in the order PlantUML tries its
   diagram types (sequence first). In rare ambiguous cases a diagram of a type that is not drawn is named differently;
   that never changes whether it is drawn.

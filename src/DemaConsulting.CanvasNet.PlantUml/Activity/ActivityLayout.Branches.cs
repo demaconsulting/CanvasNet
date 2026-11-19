@@ -457,12 +457,14 @@ internal sealed class IfWithLinksTile : Tile
                 var (x2, y2) = (x + p2.X + dx2, y + p2.Y);
                 if (original != (x2 >= x1))
                 {
-                    var delta = (original ? -1 : 1) * ActivityLayout.HexagonHalfSize;
+                    // The step first goes the way the arrow went without swimlanes (PlantUML's leftOrRight names
+                    // that way after where the start is, so its RIGHT is an arrow to the left)
+                    var delta = (original ? 1 : -1) * ActivityLayout.HexagonHalfSize;
                     canvas.Add(new Snake(link, ArrowDirection.None).Add(x1, y1).Add(x1 + delta, y1).Add(x1 + delta, y1 + (_diamond1.Geometry.Height * .75)));
                     (x1, y1) = (x1 + delta, y1 + (_diamond1.Geometry.Height * .75));
                 }
 
-                canvas.Add(new Snake(link, head).Add(x1, y1).Add(x2, y1).Add(x2, y2));
+                canvas.Add(new Snake(link, head) { Merge = SnakeMerge.Limited }.Add(x1, y1).Add(x2, y1).Add(x2, y2));
             });
     }
 
@@ -508,14 +510,14 @@ internal sealed class IfWithLinksTile : Tile
                 if ((p2.X >= p1.X) == (x2 >= x1))
                 {
                     var middle = (y1 + y2) / 2;
-                    canvas.Add(new Snake(link, ArrowDirection.None).Add(x1, y1).Add(x1, middle).Add(x2 + delta, middle).Add(x2 + delta, y2));
-                    canvas.Add(new Snake(link, head).Add(x2 + delta, y2).Add(x2, y2));
+                    canvas.Add(new Snake(link, ArrowDirection.None) { Merge = SnakeMerge.Limited }.Add(x1, y1).Add(x1, middle).Add(x2 + delta, middle).Add(x2 + delta, y2));
+                    canvas.Add(new Snake(link, head) { Merge = SnakeMerge.Limited }.Add(x2 + delta, y2).Add(x2, y2));
                 }
                 else
                 {
                     var yb = y2 - (1.5 * ActivityLayout.HexagonHalfSize);
-                    canvas.Add(new Snake(link, ArrowDirection.None).Add(x1, y1).Add(x1, yb).Add(x2 + delta, yb));
-                    canvas.Add(new Snake(link, head).Add(x2 + delta, yb).Add(x2 + delta, y2).Add(x2, y2));
+                    canvas.Add(new Snake(link, ArrowDirection.None) { Merge = SnakeMerge.Limited }.Add(x1, y1).Add(x1, yb).Add(x2 + delta, yb));
+                    canvas.Add(new Snake(link, head) { Merge = SnakeMerge.Limited }.Add(x2 + delta, yb).Add(x2 + delta, y2).Add(x2, y2));
                 }
             });
     }
@@ -553,7 +555,7 @@ internal sealed class IfWithLinksTile : Tile
                 var total = Internal;
                 var (x1, y1) = (x + p1.X + dx1, y + p1.Y);
                 var (x2, y2) = (x + total.Left + dx2, y + total.Height - ActivityLayout.HexagonHalfSize);
-                canvas.Add(new Snake(link, ArrowDirection.None).Add(x1, y1).Add(x1, y2).Add(x2, y2).Add(x2, y + total.Height));
+                canvas.Add(new Snake(link, ArrowDirection.None) { Merge = SnakeMerge.Limited }.Add(x1, y1).Add(x1, y2).Add(x2, y2).Add(x2, y + total.Height));
             });
     }
 }

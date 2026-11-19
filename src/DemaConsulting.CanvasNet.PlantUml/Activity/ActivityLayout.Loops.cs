@@ -293,7 +293,7 @@ internal sealed class WhileTile : Tile
                 var (p1, p2) = (P1(), P2());
                 var (x1, y1, x2, y2) = (x + p1.X + dx1, y + p1.Y, x + p2.X + dx2, y + p2.Y);
                 var middle = (y1 + y2) / 2;
-                canvas.Add(new Snake(link, ArrowDirection.Down).Add(x1, y1).Add(x1, middle).Add(x2, middle).Add(x2, y2));
+                canvas.Add(new Snake(link, ArrowDirection.Down) { Merge = SnakeMerge.Limited }.Add(x1, y1).Add(x1, middle).Add(x2, middle).Add(x2, y2));
             });
     }
 
@@ -334,7 +334,7 @@ internal sealed class WhileTile : Tile
                 var x2 = x + DiamondOffset.X + _diamond.Geometry.Width + dx2;
                 var y2 = y + DiamondMiddle;
                 var xx = x + Math.Max(dx1, dx2) + Geometry.Width;
-                canvas.Add(new Snake(link, ArrowDirection.Left)
+                canvas.Add(new Snake(link, ArrowDirection.Left) { Merge = SnakeMerge.Limited }
                     .Add(x1, y1).Add(x1, y1 + ActivityLayout.HexagonHalfSize).Add(xx, y1 + ActivityLayout.HexagonHalfSize).Add(xx, y2).Add(x2, y2));
                 canvas.Empty(x1, y1 + ActivityLayout.HexagonHalfSize, 5, ActivityLayout.HexagonHalfSize);
                 canvas.Add(ActivityLayout.Head(ArrowDirection.Up, xx, (y1 + y2) / 2, link.Color ?? canvas.Layout.ArrowColor, false, link.Location));

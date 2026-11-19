@@ -206,8 +206,8 @@ of this repository, so the two diagram languages are bounded alike.
   The arrow thickness skin parameter widens the lines but not the heads.
 - **Activity engine** - PlantUML 1.2026.10 lays activity diagrams of the new syntax out with its "ftile" composition
   and needs no Graphviz for them; CanvasNet ports that composition, so the size, texts, action boxes, circles, and
-  diamonds of the reference fixtures agree with PlantUML's SVG within 1.5 pixels (the swimlane pictures are 2 pixels
-  narrower than PlantUML's, within the 3 % size tolerance).
+  diamonds of the reference fixtures agree with PlantUML's SVG within 1.5 pixels (the swimlane pictures are up to 3
+  pixels narrower than PlantUML's, within the 3 % size tolerance).
 - **Activity statements** - `switch` blocks (skipped up to `endswitch`), `goto` and `label`, `break`, `hide`, `show`,
   `skin`, `mainframe`, the box styles of the specification and description language (`:text|`, `:text<`, `:text>`,
   `:text/`, `:text]`, `:text}`) and the stereotypes of actions (drawn as plain boxes), the frames of `package`,

@@ -582,19 +582,45 @@ internal sealed class IfLongHorizontalTile : Tile
     private static double MiddleY(Tile diamond) => (diamond.Geometry.InY + diamond.Geometry.OutY) / 2;
 
     /// <summary>
-    ///     Creates the arrow from a hexagon to its branch.
+    ///     Creates the arrow from a hexagon to its branch (PlantUML's <c>ConnectionVerticalIn</c>). When the branch
+    ///     starts in another swimlane, the crossing pass draws it with a short step below the hexagon.
     /// </summary>
     /// <param name="index">The index.</param>
     /// <param name="link">The color.</param>
     /// <returns>The connection.</returns>
-    private DelegateConnection VerticalIn(int index, ActivityLink link) =>
-        new(_diamonds[index], _tiles[index], (canvas, x, y) =>
+    private DelegateConnection VerticalIn(int index, ActivityLink link)
+    {
+        (double X, double Y) P1()
         {
-            var (d, b) = (DiamondOffset(index), BranchOffset(index));
+            var d = DiamondOffset(index);
             var diamond = _diamonds[index].Geometry;
+            return (d.X + diamond.Left, d.Y + diamond.OutY);
+        }
+
+        (double X, double Y) P2()
+        {
+            var b = BranchOffset(index);
             var tile = _tiles[index].Geometry;
-            canvas.Add(new Snake(link, ArrowDirection.Down).Add(x + d.X + diamond.Left, y + d.Y + diamond.OutY).Add(x + b.X + tile.Left, y + b.Y + tile.InY));
-        });
+            return (b.X + tile.Left, b.Y + tile.InY);
+        }
+
+        return new DelegateConnection(
+            _diamonds[index],
+            _tiles[index],
+            (canvas, x, y) =>
+            {
+                var (p1, p2) = (P1(), P2());
+                canvas.Add(new Snake(link, ArrowDirection.Down).Add(x + p1.X, y + p1.Y).Add(x + p2.X, y + p2.Y));
+            },
+            (canvas, x, y, dx1, dx2) =>
+            {
+                var (p1, p2) = (P1(), P2());
+                var (x1, y1) = (x + p1.X + dx1, y + p1.Y);
+                var (x2, y2) = (x + p2.X + dx2, y + p2.Y);
+                var middle = y1 + 4;
+                canvas.Add(new Snake(link, ArrowDirection.Down).Add(x1, y1).Add(x1, middle).Add(x2, middle).Add(x2, y2));
+            });
+    }
 
     /// <summary>
     ///     Creates the arrow from a then branch down to the bottom of the tile.
@@ -690,7 +716,9 @@ internal sealed class IfLongHorizontalTile : Tile
         });
 
     /// <summary>
-    ///     Creates the horizontal line that joins the branches at the bottom.
+    ///     Creates the horizontal line that joins the branches at the bottom (PlantUML's <c>ConnectionHline</c>). With
+    ///     swimlanes, each lane draws only its part of the line, and only the lanes from the first to the last one
+    ///     where a branch ends draw it.
     /// </summary>
     /// <param name="link">The color.</param>
     /// <returns>The connection.</returns>
@@ -703,23 +731,118 @@ internal sealed class IfLongHorizontalTile : Tile
             }
 
             var (width, height) = Internal;
-            var minX = Math.Min(width / 2, Geometry.Left);
-            var maxX = Math.Max(width / 2, Geometry.Left);
-            for (var i = 0; i < _couples.Count; i++)
+            var ends = canvas.Mode == CanvasMode.Lane ? LaneMinMax(canvas.Layout.Lanes, canvas.Lane!, width) : SimpleMinMax(width);
+            if (ends is not (var minX, var maxX))
             {
-                if (_couples[i].Geometry.HasOut)
-                {
-                    var outX = CoupleOffset(i).X + _couples[i].Geometry.Left;
-                    (minX, maxX) = (Math.Min(minX, outX), Math.Max(maxX, outX));
-                }
-            }
-
-            if (_tile2.Geometry.HasOut)
-            {
-                var outX = Tile2Offset.X + _tile2.Geometry.Left;
-                (minX, maxX) = (Math.Min(minX, outX), Math.Max(maxX, outX));
+                return;
             }
 
             canvas.Add(new Snake(link, ArrowDirection.None) { Merge = SnakeMerge.None }.Add(x + minX, y + height).Add(x + maxX, y + height));
         });
+
+    /// <summary>
+    ///     Gets the ends of the joining line drawn without swimlanes (PlantUML's <c>getMinmaxSimple</c>).
+    /// </summary>
+    /// <param name="width">The width of the tile.</param>
+    /// <returns>The smallest and the largest x.</returns>
+    private (double MinX, double MaxX) SimpleMinMax(double width)
+    {
+        var minX = Math.Min(width / 2, Geometry.Left);
+        var maxX = Math.Max(width / 2, Geometry.Left);
+        foreach (var outX in OutXs(null))
+        {
+            (minX, maxX) = (Math.Min(minX, outX), Math.Max(maxX, outX));
+        }
+
+        return (minX, maxX);
+    }
+
+    /// <summary>
+    ///     Gets the ends of the part of the joining line drawn in one swimlane (PlantUML's <c>getMinmax</c>): nothing
+    ///     outside the lanes from the first to the last one where a branch ends, the whole width in the lanes between
+    ///     them, and from or to the branches that end in the first and the last lane.
+    /// </summary>
+    /// <param name="lanes">The swimlanes, from left to right.</param>
+    /// <param name="lane">The swimlane drawn.</param>
+    /// <param name="width">The width of the tile.</param>
+    /// <returns>The smallest and the largest x, or null when the lane draws no part of the line.</returns>
+    private (double MinX, double MaxX)? LaneMinMax(IReadOnlyList<ActivityLane> lanes, ActivityLane lane, double width)
+    {
+        var all = new List<Tile>(_couples) { _tile2 };
+        var current = IndexOf(lanes, lane);
+        var first = -1;
+        var last = -1;
+        for (var i = 0; i < lanes.Count; i++)
+        {
+            if (all.Any(t => OutcomeIn(t, lanes[i])))
+            {
+                first = first < 0 ? i : first;
+                last = i;
+            }
+        }
+
+        if (current < 0 || first < 0 || current < first || current > last)
+        {
+            return null;
+        }
+
+        var minX = Math.Min(current != first ? 0 : width, Geometry.Left);
+        var maxX = Math.Max(current != last ? width : 0, Geometry.Left);
+        foreach (var outX in OutXs(lane))
+        {
+            (minX, maxX) = (Math.Min(minX, outX), Math.Max(maxX, outX));
+        }
+
+        return (minX, maxX);
+    }
+
+    /// <summary>
+    ///     Gets the x of the out points of the branches that continue, in the coordinates of the tile.
+    /// </summary>
+    /// <param name="lane">The swimlane the branches must end in, or null for every branch.</param>
+    /// <returns>The x values.</returns>
+    private IEnumerable<double> OutXs(ActivityLane? lane)
+    {
+        for (var i = 0; i < _couples.Count; i++)
+        {
+            if (_couples[i].Geometry.HasOut && (lane is null || OutcomeIn(_couples[i], lane)))
+            {
+                yield return CoupleOffset(i).X + _couples[i].Geometry.Left;
+            }
+        }
+
+        if (_tile2.Geometry.HasOut && (lane is null || OutcomeIn(_tile2, lane)))
+        {
+            yield return Tile2Offset.X + _tile2.Geometry.Left;
+        }
+    }
+
+    /// <summary>
+    ///     Decides whether a branch continues in a swimlane (PlantUML's <c>ftileDoesOutcomeInThatSwimlane</c>, with
+    ///     the out point that <c>atLeastOne</c> also asks for).
+    /// </summary>
+    /// <param name="tile">The branch.</param>
+    /// <param name="lane">The swimlane.</param>
+    /// <returns>True when the branch has an out point in that lane.</returns>
+    private static bool OutcomeIn(Tile tile, ActivityLane lane) =>
+        tile.Geometry.HasOut && tile.LaneOut == lane && tile.Lanes.Contains(lane);
+
+    /// <summary>
+    ///     Finds the index of a swimlane.
+    /// </summary>
+    /// <param name="lanes">The swimlanes.</param>
+    /// <param name="lane">The swimlane.</param>
+    /// <returns>The index, or -1.</returns>
+    private static int IndexOf(IReadOnlyList<ActivityLane> lanes, ActivityLane lane)
+    {
+        for (var i = 0; i < lanes.Count; i++)
+        {
+            if (lanes[i] == lane)
+            {
+                return i;
+            }
+        }
+
+        return -1;
+    }
 }

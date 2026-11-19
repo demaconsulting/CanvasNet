@@ -1,4 +1,5 @@
 using DemaConsulting.CanvasNet.PlantUml.Activity;
+using DemaConsulting.CanvasNet.PlantUml.Scenegraph;
 
 namespace DemaConsulting.CanvasNet.PlantUml.Tests.Activity;
 
@@ -162,4 +163,112 @@ public class ActivityLayoutTests
         Assert.All(geometries, g => Assert.All(g.Shapes.Where(s => s.Kind == ActivityShapeKind.Rect && s.Role == "activity"), s =>
             Assert.True(s.X >= 0 && s.Y >= 0 && s.X + s.Width <= g.Width && s.Y + s.Height <= g.Height)));
     }
+
+    /// <summary>
+    ///     Validates that, when the first branch of an elseif chain changes swimlane, the arrows from both hexagons
+    ///     reach their branches in the other lane (PlantUML's <c>ConnectionVerticalIn</c> drawn across the lanes).
+    /// </summary>
+    [Fact]
+    public void PlantUmlActivityLayout_Swimlanes_ElseIfBranchInAnotherLane_DrawsArrowsFromTheHexagons()
+    {
+        // Act
+        var geometry = LayoutFixture("22-elseif-lane-change");
+
+        // Assert
+        var heads = ActivityTestHelpers.Shapes(geometry, "arrow-head");
+        var arrows = ActivityTestHelpers.Shapes(geometry, "arrow");
+        foreach (var name in new[] { "Ship", "Wait" })
+        {
+            var box = BoxOf(geometry, name);
+            Assert.Contains(heads, h => Math.Abs(h.X - (box.X + (box.Width / 2))) < 0.5 && Math.Abs(h.Y - box.Y) < 0.5);
+        }
+
+        var hexagons = TestHexagons(geometry, BoxOf(geometry, "Ship").Y);
+        Assert.Equal(2, hexagons.Count);
+        Assert.All(hexagons, hexagon =>
+        {
+            var (bottomX, bottomY) = (hexagon.X + (hexagon.Width / 2), hexagon.Y + hexagon.Height);
+            Assert.Contains(arrows, a => Math.Abs(a.X - bottomX) < 0.5 && Math.Abs(a.Y - bottomY) < 1 && a.Y2 > a.Y);
+        });
+    }
+
+    /// <summary>
+    ///     Validates that, when the branches of an elseif chain end in another swimlane, the line that joins them is
+    ///     drawn only from the lane where they end (PlantUML's <c>ConnectionHline.getMinmax</c>): no part of it lies
+    ///     entirely in the first lane, and it still joins the branches.
+    /// </summary>
+    [Fact]
+    public void PlantUmlActivityLayout_Swimlanes_ElseIfMergeLine_DrawnOnlyInLanesWithOutcomes()
+    {
+        // Act
+        var geometry = LayoutFixture("22-elseif-lane-change");
+
+        // Assert
+        var divider = ActivityTestHelpers.Shapes(geometry, "lane-divider").Select(d => d.X).Order().ElementAt(1);
+        var (ship, wait) = (BoxOf(geometry, "Ship"), BoxOf(geometry, "Wait"));
+        var loop = ActivityTestHelpers.Shapes(geometry, "diamond").Select(ActivityTestHelpers.Box).Single(b => b.Y > ship.Y);
+        var lines = ActivityTestHelpers.Shapes(geometry, "arrow")
+            .Where(a => Math.Abs(a.Y - a.Y2) < 1e-6 && a.Y > ship.Y + ship.Height && a.Y < loop.Y)
+            .ToList();
+        Assert.NotEmpty(lines);
+        Assert.All(lines, l => Assert.True(Math.Max(l.X, l.X2) > divider));
+        Assert.Contains(lines, l => Math.Min(l.X, l.X2) <= ship.X + (ship.Width / 2) + 0.5 && Math.Max(l.X, l.X2) >= wait.X + (wait.Width / 2) - 0.5);
+    }
+
+    /// <summary>
+    ///     Validates that, when the then branch of an if starts in another swimlane, its arrow first steps out of
+    ///     the hexagon and runs below it, not through it (PlantUML's <c>ConnectionHorizontalThenVertical</c> drawn
+    ///     across the lanes, merged in the limited way).
+    /// </summary>
+    [Fact]
+    public void PlantUmlActivityLayout_Swimlanes_IfBranchInAnotherLane_LeavesBelowTheHexagon()
+    {
+        // Act
+        var geometry = LayoutFixture("21-if-lane-change");
+
+        // Assert
+        var ship = BoxOf(geometry, "Ship");
+        var hexagon = TestHexagons(geometry, ship.Y).Single();
+        var shipX = ship.X + (ship.Width / 2);
+        var horizontal = ActivityTestHelpers.Shapes(geometry, "arrow")
+            .Single(a => Math.Abs(a.Y - a.Y2) < 1e-6 && Math.Abs(Math.Max(a.X, a.X2) - shipX) < 0.5 && a.Y < ship.Y);
+        Assert.True(horizontal.Y >= hexagon.Y + (0.75 * hexagon.Height) - 0.5, $"The arrow runs at y={horizontal.Y}, through the hexagon.");
+        Assert.True(horizontal.Y > hexagon.Y + hexagon.Height);
+        Assert.True(Math.Min(horizontal.X, horizontal.X2) < hexagon.X, "The step does not leave the hexagon on its left.");
+    }
+
+    /// <summary>
+    ///     Lays out an activity fixture.
+    /// </summary>
+    /// <param name="name">The name of the fixture without extension.</param>
+    /// <returns>The geometry.</returns>
+    private static ActivityGeometry LayoutFixture(string name) =>
+        ActivityLayout.Run((ActivityModel)PlantUmlDocument.Parse(ActivityTestHelpers.Fixture(name)).Diagram!, ActivityTestHelpers.Context());
+
+    /// <summary>
+    ///     Gets the bounds of the action box that holds a text.
+    /// </summary>
+    /// <param name="geometry">The geometry.</param>
+    /// <param name="text">The text of the action.</param>
+    /// <returns>The bounds of the box.</returns>
+    private static SceneRect BoxOf(ActivityGeometry geometry, string text)
+    {
+        var label = ActivityTestHelpers.Shapes(geometry, "activity-text").Single(t => t.Text!.Text == text);
+        var box = ActivityTestHelpers.Shapes(geometry, "activity")
+            .Single(b => label.X > b.X && label.X < b.X + b.Width && label.Y > b.Y && label.Y < b.Y + b.Height);
+        return new SceneRect(box.X, box.Y, box.Width, box.Height);
+    }
+
+    /// <summary>
+    ///     Gets the bounds of the hexagons above a height, from left to right.
+    /// </summary>
+    /// <param name="geometry">The geometry.</param>
+    /// <param name="belowY">The height the hexagons lie above.</param>
+    /// <returns>The bounds.</returns>
+    private static List<SceneRect> TestHexagons(ActivityGeometry geometry, double belowY) =>
+        ActivityTestHelpers.Shapes(geometry, "diamond")
+            .Select(ActivityTestHelpers.Box)
+            .Where(b => b.Y + b.Height < belowY)
+            .OrderBy(b => b.X)
+            .ToList();
 }

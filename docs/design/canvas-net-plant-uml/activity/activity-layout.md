@@ -54,7 +54,11 @@ requirements in `docs/reqstream/canvas-net-plant-uml/activity/activity-layout.ya
 - **Swimlanes** - every swimlane draws only the shapes of its own tiles (PlantUML's `UGraphicInterceptorOneSwimlane`)
   at the x of its column; the columns are as wide as their drawings (or their titles) with dividers between them; the
   arrows that cross swimlanes are drawn last across the columns; the titles are centered above them, and the background
-  of a colored swimlane spans its column.
+  of a colored swimlane spans its column. An arrow from a test to a branch that starts in another swimlane is drawn by
+  the crossing pass with a short step below the test (PlantUML's `ConnectionVerticalIn` and
+  `ConnectionHorizontalThenVertical`), and the crossing arrows of an if or a loop merge in the limited way (PlantUML's
+  `MergeStrategy.LIMITED`), so that the step is kept. The line that joins the branches of an elseif chain is drawn
+  only in the swimlanes from the first to the last one where a branch ends (PlantUML's `ConnectionHline.getMinmax`).
 - **Compression** - the empty bands of the drawing that no shape occupies are found on x and then on y (PlantUML's
   `SlotFinder`), each shrunk by 5 pixels at both ends, and removed; shapes, lines, and centered titles move or stretch
   with them. The extent of the drawing follows PlantUML's `LimitFinder`.

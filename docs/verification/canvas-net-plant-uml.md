@@ -142,12 +142,12 @@ the title, node, edge, and subgraph counts of the page fixture.
 `PlantUmlActivityIntegrationTests.CanvasNetPlantUml_Activity_Facts_CountNodesArrowsAndGroups`
 
 For every original activity fixture (actions of one or several lines, ifs with elseif and else, nested ifs, while and
-repeat loops with backward actions, forks, merges, splits, swimlanes, notes, partitions, arrows with labels and styles,
-kill and detach, connectors, page texts, and skin parameters), compares the layout with the SVG that PlantUML 1.2026.10
-draws for it (`Fixtures/reference/activity`): the picture size within 3 %, and the anchor of every line of text, the
-action boxes, the circles, and the diamonds and hexagons within 1.5 pixels; asserts that every fixture has a golden;
-renders every fixture in strict mode with no report at its measured size; and asserts the title, node, edge, and
-subgraph counts of the page and partition fixtures.
+repeat loops with backward actions, forks, merges, splits, swimlanes, branches that change swimlane, notes, partitions,
+arrows with labels and styles, kill and detach, connectors, page texts, and skin parameters), compares the layout with
+the SVG that PlantUML 1.2026.10 draws for it (`Fixtures/reference/activity`): the picture size within 3 %, and the
+anchor of every line of text, the action boxes, the circles, and the diamonds and hexagons within 1.5 pixels; asserts
+that every fixture has a golden; renders every fixture in strict mode with no report at its measured size; and asserts
+the title, node, edge, and subgraph counts of the page and partition fixtures.
 
 ### CanvasNetPlantUml-Render: Measuring Reports What Rendering Reports
 
