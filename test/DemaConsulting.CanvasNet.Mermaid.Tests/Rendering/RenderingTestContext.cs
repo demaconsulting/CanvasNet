@@ -1,6 +1,5 @@
 using System.Text.Json.Nodes;
 using DemaConsulting.CanvasNet.Mermaid.Configuration;
-using DemaConsulting.CanvasNet.Mermaid.Dagre;
 using DemaConsulting.CanvasNet.Mermaid.Flowchart;
 using DemaConsulting.CanvasNet.Mermaid.Rendering;
 using DemaConsulting.CanvasNet.Mermaid.Scenegraph;
@@ -83,7 +82,7 @@ internal static class RenderingTestContext
     /// <returns>The drawn root graph.</returns>
     public static RenderedGraph RenderData(LayoutData data, ShapeContext context)
     {
-        var meter = new LayoutWorkMeter(50_000_000, new MermaidLocation(null, 1, 1), TestContext.Current.CancellationToken);
+        var meter = new MermaidLayoutWorkMeter(50_000_000, new MermaidLocation(null, 1, 1), TestContext.Current.CancellationToken);
         return new ClusterLayout(context, meter).Render(data);
     }
 
@@ -108,7 +107,7 @@ internal static class RenderingTestContext
     public static RenderedGraph Render(string text, long maxWork = 50_000_000)
     {
         var (data, context) = Flowchart(text);
-        var meter = new LayoutWorkMeter(maxWork, new MermaidLocation(null, 1, 1), TestContext.Current.CancellationToken);
+        var meter = new MermaidLayoutWorkMeter(maxWork, new MermaidLocation(null, 1, 1), TestContext.Current.CancellationToken);
         return new ClusterLayout(context, meter).Render(data);
     }
 

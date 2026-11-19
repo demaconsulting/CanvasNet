@@ -3,7 +3,6 @@ using System.Text.Json.Nodes;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.ImageSources;
 using DemaConsulting.CanvasNet.Mermaid.Configuration;
-using DemaConsulting.CanvasNet.Mermaid.Dagre;
 using DemaConsulting.CanvasNet.Mermaid.Rendering;
 using DemaConsulting.CanvasNet.Mermaid.Scenegraph;
 
@@ -799,7 +798,7 @@ public sealed class LabelBuilderTests
     {
         // Arrange
         var builder = NewBuilder(out _);
-        builder.Meter = new LayoutWorkMeter(100, default, TestContext.Current.CancellationToken);
+        builder.Meter = new MermaidLayoutWorkMeter(100, default, TestContext.Current.CancellationToken);
 
         // Act
         builder.CalculateTextDimensions("abc", SequenceFont);
@@ -939,7 +938,7 @@ public sealed class LabelBuilderTests
     {
         // Arrange
         var builder = NewBuilder(out _);
-        builder.Meter = new LayoutWorkMeter(10_000, new MermaidLocation("s.mmd", 2, 3), TestContext.Current.CancellationToken);
+        builder.Meter = new MermaidLayoutWorkMeter(10_000, new MermaidLocation("s.mmd", 2, 3), TestContext.Current.CancellationToken);
 
         // Act
         var ex = Assert.Throws<MermaidRenderException>(() => builder.WrapLabel(new string('m', 1000), 1000, SequenceFont));

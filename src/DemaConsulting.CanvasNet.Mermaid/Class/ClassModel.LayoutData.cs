@@ -32,7 +32,7 @@ internal sealed partial class ClassModel
 
         // The settings of the rendering: pictures, labels, style sheet and the shared work budget
         var limits = context.Options.Limits;
-        var meter = new Dagre.LayoutWorkMeter(limits.MaxLayoutWork, KeywordLocation, context.CancellationToken);
+        var meter = new MermaidLayoutWorkMeter(limits.MaxLayoutWork, KeywordLocation, context.CancellationToken);
         var images = new NodeImages(context.Options.ImageResolver, limits.MaxImages, sink);
         var labels = new LabelBuilder(context.Fonts, sink, images) { Meter = meter };
         var font = new MermaidFontConfig(

@@ -1,6 +1,5 @@
 // Portions derived from mermaid (MIT); see third-party/README.md
 using DemaConsulting.CanvasNet.Mermaid.Configuration;
-using DemaConsulting.CanvasNet.Mermaid.Dagre;
 using DemaConsulting.CanvasNet.Mermaid.Rendering;
 using DemaConsulting.CanvasNet.Mermaid.Scenegraph;
 
@@ -36,7 +35,7 @@ internal sealed partial class FlowchartModel
             Images = images,
             Sink = sink,
         };
-        var meter = new LayoutWorkMeter(limits.MaxLayoutWork, KeywordLocation, context.CancellationToken);
+        var meter = new MermaidLayoutWorkMeter(limits.MaxLayoutWork, KeywordLocation, context.CancellationToken);
 
         // The drawing, the title above it and the view box grown by the diagram padding
         return new ClusterLayout(shapes, meter).RenderDiagram(

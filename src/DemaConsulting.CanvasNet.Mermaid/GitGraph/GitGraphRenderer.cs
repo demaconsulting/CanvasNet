@@ -3,8 +3,8 @@ using System.Globalization;
 using System.Text;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Drawing;
+using DemaConsulting.CanvasNet.Layout.Dagre;
 using DemaConsulting.CanvasNet.Mermaid.Configuration;
-using DemaConsulting.CanvasNet.Mermaid.Dagre;
 using DemaConsulting.CanvasNet.Mermaid.Rendering;
 using DemaConsulting.CanvasNet.Mermaid.Scenegraph;
 using DemaConsulting.CanvasNet.Mermaid.Syntax;
@@ -132,7 +132,7 @@ internal sealed partial class GitGraphRenderer
         _context = context;
         _conf = context.Config.GitGraph;
         _styles = GitGraphStyles.Create(context.Config, context.Sink);
-        _meter = new LayoutWorkMeter(context.Options.Limits.MaxLayoutWork, diagram.KeywordLocation, context.CancellationToken);
+        _meter = new MermaidLayoutWorkMeter(context.Options.Limits.MaxLayoutWork, diagram.KeywordLocation, context.CancellationToken);
         _labels = new LabelBuilder(context.Fonts, context.Sink, null) { Meter = _meter };
     }
 

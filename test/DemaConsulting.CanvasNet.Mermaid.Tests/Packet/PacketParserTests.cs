@@ -1,4 +1,4 @@
-using DemaConsulting.CanvasNet.Mermaid.Dagre;
+using DemaConsulting.CanvasNet.Layout.Dagre;
 using DemaConsulting.CanvasNet.Mermaid.Packet;
 using DemaConsulting.CanvasNet.Mermaid.Syntax;
 
@@ -336,7 +336,7 @@ public sealed class PacketParserTests
 
         // Act
         diagram.Rows(32, MermaidLimits.Default, meter);
-        var exception = Assert.Throws<MermaidRenderException>(() => diagram.Rows(32, MermaidLimits.Default, new LayoutWorkMeter(4, diagram.KeywordLocation, CancellationToken.None)));
+        var exception = Assert.Throws<MermaidRenderException>(() => diagram.Rows(32, MermaidLimits.Default, new MermaidLayoutWorkMeter(4, diagram.KeywordLocation, CancellationToken.None)));
 
         // Assert
         Assert.Equal(5, meter.Used);
@@ -347,7 +347,7 @@ public sealed class PacketParserTests
     ///     Gets a work meter without a practical limit.
     /// </summary>
     /// <returns>The meter.</returns>
-    private static LayoutWorkMeter Meter() => new(long.MaxValue, default, CancellationToken.None);
+    private static LayoutWorkMeter Meter() => new MermaidLayoutWorkMeter(long.MaxValue, default, CancellationToken.None);
 
     /// <summary>
     ///     Parses a packet text.

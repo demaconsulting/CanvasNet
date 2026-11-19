@@ -1,7 +1,7 @@
 using System.Globalization;
 using System.Numerics;
+using DemaConsulting.CanvasNet.Layout.Dagre;
 using DemaConsulting.CanvasNet.Mermaid.Cose;
-using DemaConsulting.CanvasNet.Mermaid.Dagre;
 
 namespace DemaConsulting.CanvasNet.Mermaid.Tests.Cose;
 
@@ -255,7 +255,7 @@ public class CoseLayoutTests
         // Arrange
         using var source = new CancellationTokenSource();
         source.Cancel();
-        var meter = new LayoutWorkMeter(long.MaxValue, default, source.Token);
+        var meter = new MermaidLayoutWorkMeter(long.MaxValue, default, source.Token);
 
         // Act / Assert
         Assert.Throws<OperationCanceledException>(() => CoseLayout.Run(Sizes(3), [new CoseLink(0, 1), new CoseLink(0, 2)], meter));
@@ -464,7 +464,7 @@ public class CoseLayoutTests
     /// <param name="location">The location of failures.</param>
     /// <returns>The meter.</returns>
     private static LayoutWorkMeter Meter(long maxWork = 50_000_000, MermaidLocation location = default) =>
-        new(maxWork, location, CancellationToken.None);
+        new MermaidLayoutWorkMeter(maxWork, location, CancellationToken.None);
 
     /// <summary>
     ///     Creates node sizes: widths from 60 in steps of 10, height 40.

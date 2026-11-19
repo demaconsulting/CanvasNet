@@ -5,7 +5,7 @@ using DemaConsulting.CanvasNet.Mermaid.Cose;
 using DemaConsulting.CanvasNet.Mermaid.Rendering;
 using DemaConsulting.CanvasNet.Mermaid.Scenegraph;
 using DemaConsulting.CanvasNet.Mermaid.Syntax;
-using LayoutWorkMeter = DemaConsulting.CanvasNet.Mermaid.Dagre.LayoutWorkMeter;
+using LayoutWorkMeter = DemaConsulting.CanvasNet.Layout.Dagre.LayoutWorkMeter;
 
 namespace DemaConsulting.CanvasNet.Mermaid.Mindmap;
 
@@ -76,7 +76,7 @@ internal sealed class MindmapRenderer
         ArgumentNullException.ThrowIfNull(context);
         _diagram = diagram;
         _context = context;
-        _meter = new LayoutWorkMeter(context.Options.Limits.MaxLayoutWork, diagram.KeywordLocation, context.CancellationToken);
+        _meter = new MermaidLayoutWorkMeter(context.Options.Limits.MaxLayoutWork, diagram.KeywordLocation, context.CancellationToken);
     }
 
     /// <summary>

@@ -1,5 +1,5 @@
 // Portions derived from cytoscape-cose-bilkent, cose-base and layout-base (MIT); see third-party/README.md
-using DemaConsulting.CanvasNet.Mermaid.Dagre;
+using DemaConsulting.CanvasNet.Layout.Dagre;
 
 namespace DemaConsulting.CanvasNet.Mermaid.Cose;
 

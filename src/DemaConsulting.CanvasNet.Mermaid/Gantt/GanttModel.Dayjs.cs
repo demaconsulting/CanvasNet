@@ -2,7 +2,7 @@
 using System.Globalization;
 using System.Numerics;
 using System.Text;
-using DemaConsulting.CanvasNet.Mermaid.Dagre;
+using DemaConsulting.CanvasNet.Layout.Dagre;
 using DemaConsulting.CanvasNet.Mermaid.Syntax;
 
 namespace DemaConsulting.CanvasNet.Mermaid.Gantt;

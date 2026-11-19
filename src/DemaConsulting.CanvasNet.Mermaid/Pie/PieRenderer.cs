@@ -1,8 +1,8 @@
 // Portions derived from mermaid (MIT); see third-party/README.md
 using System.Text;
 using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Layout.Dagre;
 using DemaConsulting.CanvasNet.Mermaid.Configuration;
-using DemaConsulting.CanvasNet.Mermaid.Dagre;
 using DemaConsulting.CanvasNet.Mermaid.Rendering;
 using DemaConsulting.CanvasNet.Mermaid.Scenegraph;
 using DemaConsulting.CanvasNet.Mermaid.Syntax;
@@ -90,7 +90,7 @@ internal sealed partial class PieRenderer
         _context = context;
         _conf = context.Config.Pie;
         _styles = PieStyles.Create(context.Config, context.Sink);
-        _meter = new LayoutWorkMeter(context.Options.Limits.MaxLayoutWork, diagram.KeywordLocation, context.CancellationToken);
+        _meter = new MermaidLayoutWorkMeter(context.Options.Limits.MaxLayoutWork, diagram.KeywordLocation, context.CancellationToken);
         _labels = new LabelBuilder(context.Fonts, context.Sink, null) { Meter = _meter };
     }
 
