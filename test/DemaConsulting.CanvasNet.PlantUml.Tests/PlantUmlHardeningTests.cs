@@ -33,6 +33,10 @@ public class PlantUmlHardeningTests
         { "MaxNestingDepth", 1, "@startuml\nalt one\nalt two\nA -> B\nend\nend\n@enduml\n", 3 },
         { "MaxNestingDepth", 1, "@startuml\nstart\nif (a) then\nif (b) then\n:x;\nendif\nendif\n@enduml\n", 4 },
         { "MaxNestingDepth", 1, "@startuml\n!if 1\n!if 2\n!endif\n!endif\nA -> B\n@enduml\n", 3 },
+        { "MaxNodes", 2, "@startuml\nclass A\nclass B\nclass C\n@enduml\n", 4 },
+        { "MaxEdges", 1, "@startuml\nA <|-- B\nB *-- C\n@enduml\n", 3 },
+        { "MaxLabelLength", 10, "@startuml\nclass A {\n+ " + new string('x', 40) + "\n}\n@enduml\n", 3 },
+        { "MaxNestingDepth", 1, "@startuml\npackage p {\npackage q {\nclass A\n}\n}\n@enduml\n", 3 },
     };
 
     /// <summary>
@@ -137,6 +141,27 @@ public class PlantUmlHardeningTests
     }
 
     /// <summary>
+    ///     Validates that the layout work of a dense class diagram is bounded: a small budget fails closed with a located
+    ///     plantuml-limit-exceeded render error, and the default budget lays it out.
+    /// </summary>
+    [Fact]
+    public void CanvasNetPlantUml_Hardening_DenseClassGraph_LayoutWorkIsBounded()
+    {
+        // Arrange
+        var links = Enumerable.Range(0, 60).SelectMany(i => new[] { $"C{i} --> C{(i * 7 + 3) % 60}\n", $"C{i} ..> C{(i * 11 + 5) % 60}\n" });
+        var document = PlantUmlDocument.Parse("@startuml\npackage p {\nclass C0\n}\n" + string.Concat(links) + "@enduml\n");
+
+        // Act
+        var ex = Assert.Throws<PlantUmlRenderException>(() => document.Measure(new PlantUmlRenderOptions { Limits = new PlantUmlLimits { MaxLayoutWork = 1000 } }, TestContext.Current.CancellationToken));
+        var size = document.Measure(new PlantUmlRenderOptions { Scale = 0.1 }, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(PlantUmlDiagnosticCodes.LimitExceeded, ex.Code);
+        Assert.Equal(2, ex.Location.Line);
+        Assert.True(size.Width >= 1 && size.Height >= 1);
+    }
+
+    /// <summary>
     ///     Validates that large diagrams within the limits render: a long chain of actions, blocks nested at the
     ///     nesting limit, and many participants.
     /// </summary>
@@ -179,9 +204,13 @@ public class PlantUmlHardeningTests
             "endlegend\n", "title t\n", "skinparam activityBackgroundColor #00FF00\n", "skinparam {\n", "!define X Y\n",
             "!$v = \"w\"\n", "$v", "!if 1\n", "!endif\n", "!include x.iuml\n", "!include <C4/C4>\n", "@startuml\n", "@enduml\n",
             "\"", "'", "/'", "'/", "\\\n", "**bold**", "<color:red>", "\t", "\n\n", " ",
+            "<|--", "*--", "o--", "..>", "--|>", "-up->", "-[hidden]-", "\"1..*\"", "class X {\n", "interface I\n", "enum E {\n",
+            "object o {\n", "map m {\n", "k => v\n", "package P {\n", "namespace N {\n", "note left of A\n", "note on link\n",
+            "note \"n\" as N\n", "hide empty members\n", "show circle\n", "--\n", ".. t ..\n", "==\n", "+ x : int\n", "{static}", "<<S>>",
+            "<T>", "A : field\n", "left to right direction\n", "together {\n", "a.b.C", "::",
         ];
         var random = new Random(20261118);
-        var folders = new[] { "sequence", "activity" };
+        var folders = new[] { "sequence", "activity", "class", "object" };
         var fixtures = folders
             .SelectMany(f => Directory.GetFiles(Path.Combine(AppContext.BaseDirectory, "Fixtures", f), "*.puml"))
             .Concat(Directory.GetFiles(Path.Combine(AppContext.BaseDirectory, "Gallery"), "plantuml-*.puml"))
@@ -205,7 +234,7 @@ public class PlantUmlHardeningTests
         }
 
         // Assert
-        Assert.True(fixtures.Count >= 28);
+        Assert.True(fixtures.Count >= 60);
         Assert.Empty(unexpected);
     }
 

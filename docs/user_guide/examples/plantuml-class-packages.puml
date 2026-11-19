@@ -1,0 +1,21 @@
+@startuml
+' Gallery: packages, namespaces, a package style, and hidden members
+hide empty members
+package web {
+  class Controller
+  package web.views {
+    class Page
+  }
+}
+namespace data {
+  class Repository
+  class Entity
+}
+package cloud <<Cloud>> {
+  class Storage
+}
+Controller --> Page
+Controller --> Repository
+Repository ..> Entity
+Repository --> Storage
+@enduml

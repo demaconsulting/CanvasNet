@@ -11,7 +11,7 @@ public class PlantUmlGalleryTests
     private const int MinimumDiagrams = 8;
 
     /// <summary>The diagram types this version draws, which the gallery shows.</summary>
-    private static readonly string[] DrawnTypes = ["sequence", "activity"];
+    private static readonly string[] DrawnTypes = ["sequence", "activity", "class", "object"];
 
     /// <summary>
     ///     Gets the folder of the gallery diagrams.

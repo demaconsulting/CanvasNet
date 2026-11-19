@@ -1,0 +1,24 @@
+@startuml
+' Gallery: kinds, members with visibility, generics, and the relationships
+title Library model
+abstract class Item <<catalog>> {
+  - id : long
+  # title : String
+  + {abstract} loanDays() : int
+}
+class Book {
+  + isbn : String
+  + loanDays() : int
+}
+class Shelf<T>
+interface Lendable
+enum Status {
+  ON_SHELF
+  ON_LOAN
+}
+Item <|-- Book
+Lendable <|.. Item
+Shelf "1" o-- "*" Book : holds >
+Book --> Status
+note right of Status : updated by the desk
+@enduml
