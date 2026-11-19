@@ -52,6 +52,23 @@ public class SkinThemeTests
     }
 
     /// <summary>
+    ///     Validates the default look of the links and clusters of the diagrams that PlantUML lays out with Graphviz.
+    /// </summary>
+    [Fact]
+    public void PlantUmlSkinTheme_Default_HasPlantUmlGraphLook()
+    {
+        // Arrange
+        var theme = SkinTheme.Default;
+
+        // Act / Assert
+        Assert.Equal((13.0, SkinTheme.LineColor, 1.0), (theme[SkinElement.SvekArrow].FontSize, theme[SkinElement.SvekArrow].Line!.Value, theme[SkinElement.SvekArrow].LineWidth));
+        Assert.Equal((SkinTheme.Black, 1.5, 5.0, true), (theme[SkinElement.Package].Line!.Value, theme[SkinElement.Package].LineWidth, theme[SkinElement.Package].RoundCorner, theme[SkinElement.Package].Bold));
+        Assert.Equal((SkinTheme.LineColor, 1.0, 5.0, true), (theme[SkinElement.Container].Line!.Value, theme[SkinElement.Container].LineWidth, theme[SkinElement.Container].RoundCorner, theme[SkinElement.Container].Bold));
+        Assert.Null(theme[SkinElement.Package].Fill);
+        Assert.Null(theme[SkinElement.Container].Fill);
+    }
+
+    /// <summary>
     ///     Validates that a change returns a new theme and leaves the default unchanged.
     /// </summary>
     [Fact]

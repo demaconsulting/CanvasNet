@@ -1314,6 +1314,20 @@ words:
   - Opale
   - Marged
   - Hline
+  # PlantUML's graph engine ("svek") and the upstream names of its classes, folders, and terms (CucaDiagramFileMaker,
+  # isOpalisable, classdiagram, descdiagram, dzeta, norank), and the Liang-Barsky clipping of its routes
+  - svek
+  - Cuca
+  - Opalisable
+  - classdiagram
+  - descdiagram
+  - dzeta
+  - norank
+  - unrouted
+  - guillemets
+  - nocolor
+  - Liang
+  - Barsky
 # Percent-escapes in URL and file-name examples (such as "flow%2Emmd" for "flow.mmd"): the escape and the letters
 # glued to it are not words
 ignoreRegExpList:

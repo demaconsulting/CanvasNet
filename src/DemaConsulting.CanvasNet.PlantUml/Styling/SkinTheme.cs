@@ -97,6 +97,15 @@ internal enum SkinElement
 
     /// <summary>A partition frame of an activity diagram.</summary>
     Partition,
+
+    /// <summary>A link of a diagram that PlantUML lays out with Graphviz (class, state, use case, ...) and its labels.</summary>
+    SvekArrow,
+
+    /// <summary>A package cluster (its folder outline and bold title) of such a diagram.</summary>
+    Package,
+
+    /// <summary>A container cluster (rectangle, node, frame, cloud, database, card) of such a diagram.</summary>
+    Container,
 }
 
 /// <summary>
@@ -143,7 +152,9 @@ internal sealed record ElementStyle(
 ///         "rose" look): a white document, <c>SansSerif</c> text (drawn with the bundled Liberation Sans, which has the
 ///         metrics of Arial, Java's <c>SansSerif</c> on Windows) of 14 pixels, participants filled with <c>#E2E2F0</c>
 ///         and outlined with <c>#181818</c> half a pixel wide, notes filled with <c>#FEFFDD</c>, group frames black and
-///         1.5 pixels wide, and the sizes and paddings of each element.
+///         1.5 pixels wide, the links of the graph diagrams with labels of 13 pixels, their package clusters (corners of 5) outlined in
+///         black 1.5 pixels wide and their container clusters in `#181818` one pixel wide with corners of 5, both with bold
+///         titles, and the sizes and paddings of each element.
 ///     </para>
 ///     <para>
 ///         A theme is immutable: <see cref="With(SkinElement, Func{ElementStyle, ElementStyle})"/> and the
@@ -305,6 +316,9 @@ internal sealed record SkinTheme
             [SkinElement.ActivityBar] = root with { Fill = Rgb(0x55, 0x55, 0x55), LineWidth = 0.5 },
             [SkinElement.Swimlane] = root with { FontSize = 18, Line = Black, LineWidth = 1.5 },
             [SkinElement.Partition] = root with { Line = Black, LineWidth = 1.5 },
+            [SkinElement.SvekArrow] = root with { FontSize = 13 },
+            [SkinElement.Package] = root with { Bold = true, Line = Black, LineWidth = 1.5, RoundCorner = 5 },
+            [SkinElement.Container] = root with { Bold = true, LineWidth = 1, RoundCorner = 5 },
         };
 
         // Participants and their kin: grey-blue, outlined half a pixel wide, padded 7; a participant has corners of 5
