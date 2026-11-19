@@ -176,12 +176,11 @@ public class SourceLoaderPlantUmlTests
     }
 
     /// <summary>
-    ///     Test that a diagram of a type this version recognizes but does not draw (a class diagram, the <c>.pu</c>
-    ///     extension) is an empty picture with one unsupported note, and that strict mode makes it an
-    ///     <c>unsupported-feature</c> error.
+    ///     Test that a class diagram (the <c>.pu</c> extension) is probed as a supported diagram with its classes,
+    ///     relationships, and packages, and drawn with PlantUML's light grey class boxes without a note.
     /// </summary>
     [Fact]
-    public void SourceLoader_Load_PlantUmlUnsupportedType_IsOneNoteThenStrictError()
+    public void SourceLoader_Load_PlantUmlClass_ReportsFactsAndDraws()
     {
         // Arrange
         using var directory = new TempDirectory();
@@ -189,11 +188,33 @@ public class SourceLoaderPlantUmlTests
 
         // Act
         var info = SourceLoader.Probe(path);
+        using var loaded = SourceLoader.Load(path, new SourceOptions { Strict = true });
+
+        // Assert
+        Assert.Equal(new DiagramFacts("class", true, null, null, null, 2, 1, 0), info.Diagram);
+        Assert.True(Count(loaded.Surface, new Rgba32(0xF1, 0xF1, 0xF1, 255)) > 200);
+        Assert.Empty(loaded.Diagnostics);
+    }
+
+    /// <summary>
+    ///     Test that a diagram of a type this version recognizes but does not draw (a legacy activity diagram, the
+    ///     <c>.pu</c> extension) is an empty picture with one unsupported note, and that strict mode makes it an
+    ///     <c>unsupported-feature</c> error.
+    /// </summary>
+    [Fact]
+    public void SourceLoader_Load_PlantUmlUnsupportedType_IsOneNoteThenStrictError()
+    {
+        // Arrange
+        using var directory = new TempDirectory();
+        var path = CopyFixture(directory, "legacy.pu");
+
+        // Act
+        var info = SourceLoader.Probe(path);
         using var loaded = SourceLoader.Load(path, new SourceOptions());
         var strict = Assert.Throws<ViewerException>(() => SourceLoader.Load(path, new SourceOptions { Strict = true }));
 
         // Assert: the facts and the empty picture of 20 pixels (twice PlantUML's document margin)
-        Assert.Equal(new DiagramFacts("class", false, null, null, null, 0, 0, 0), info.Diagram);
+        Assert.Equal(new DiagramFacts("activity-legacy", false, null, null, null, 0, 0, 0), info.Diagram);
         Assert.Equal((20, 20), (loaded.Surface.Width, loaded.Surface.Height));
 
         // Assert: one located note that names the type

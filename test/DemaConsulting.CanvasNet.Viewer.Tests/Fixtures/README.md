@@ -34,8 +34,10 @@ with the CanvasNet codecs and write them to a temporary directory, so that no bi
 - **`plantuml/activity.plantuml`**: A PlantUML activity diagram (new syntax) with a start, three actions, an if/else,
   and
   a stop; it uses the second extension. Written by hand for these tests.
-- **`plantuml/class.pu`**: A PlantUML class diagram of two classes and one composition, a type this version recognizes
-  but does not draw; it uses the third extension. Written by hand for these tests.
+- **`plantuml/class.pu`**: A PlantUML class diagram of two classes and one composition; it uses the third extension.
+  Written by hand for these tests.
+- **`plantuml/legacy.pu`**: A PlantUML activity diagram of the legacy syntax (`(*) --> First`), a type this version
+  recognizes but does not draw. Written by hand for these tests.
 - **`plantuml/included.puml`** and **`plantuml/parts/people.iuml`**: A PlantUML sequence diagram whose two participants
   come from an `!include` of a fragment in a subfolder. Written by hand for these tests.
 

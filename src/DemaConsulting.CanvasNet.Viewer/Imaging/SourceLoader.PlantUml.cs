@@ -31,8 +31,9 @@ namespace DemaConsulting.CanvasNet.Viewer.Imaging;
 ///         A render is static and offline and uses only the fonts bundled with the libraries, so the same diagram gives the
 ///         same pixels on every machine. A warning of the library is the note <c>plantuml-warning</c> with the specific
 ///         <c>plantuml-*</c> code in <see cref="ImageDiagnostic.Detail"/>; a construct the library recognizes but does not
-///         draw is the unsupported note named by its feature (a diagram type that is not drawn, such as a class diagram,
-///         is <c>plantuml-diagram-unsupported</c> and an empty picture); with <see cref="SourceOptions.Strict"/> it is an
+///         draw is the unsupported note named by its feature (a diagram type that is not drawn, such as a legacy
+///         activity diagram, is <c>plantuml-diagram-unsupported</c> and an empty picture); with
+///         <see cref="SourceOptions.Strict"/> it is an
 ///         <c>unsupported-feature</c> error instead. Text that is not a valid diagram, and a diagram that cannot be laid
 ///         out, is a <c>plantuml-error</c> with the location and the hint of the library; a limit of the library (nodes,
 ///         edges, includes, nesting, layout work, painted pixels) is <c>budget-exceeded</c>; a text longer than the text
@@ -198,7 +199,7 @@ public static partial class SourceLoader
     ///     Describes a construct the PlantUML library does not draw, with the location and the hint of the library.
     /// </summary>
     /// <param name="unsupported">The report.</param>
-    /// <returns>One line, for example <c>flow.puml:2:1: class diagrams are not drawn by this version (...)</c>.</returns>
+    /// <returns>One line, for example <c>flow.puml:2:1: activity-legacy diagrams are not drawn by this version (...)</c>.</returns>
     private static string DescribePlantUmlUnsupported(PlantUmlUnsupportedFeature unsupported)
     {
         var text = unsupported.Location.IsKnown ? $"{unsupported.Location}: {unsupported.Message}" : unsupported.Message;

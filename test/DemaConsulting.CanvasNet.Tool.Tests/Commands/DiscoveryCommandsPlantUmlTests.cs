@@ -92,22 +92,25 @@ public class DiscoveryCommandsPlantUmlTests
     }
 
     /// <summary>
-    ///     Test that info describes an activity diagram with the counts of the library, and a type this version does not draw
-    ///     with <c>supported</c> false and zero counts.
+    ///     Test that info describes an activity and a class diagram with the counts of the library, and a type this
+    ///     version does not draw with <c>supported</c> false and zero counts.
     /// </summary>
     [Fact]
-    public void DiscoveryCommands_Info_PlantUmlActivityAndClass_ReportTypeAndSupport()
+    public void DiscoveryCommands_Info_PlantUmlActivityClassAndLegacy_ReportTypeAndSupport()
     {
         // Arrange
         using var directory = new TempDirectory();
         var activity = FixtureFactory.WriteText(directory.Path, "flow.plantuml", Activity);
-        var classes = FixtureFactory.WriteText(directory.Path, "cars.pu", "@startuml\nclass Car\nclass Wheel\nCar *-- Wheel\n@enduml\n");
+        var classes = FixtureFactory.WriteText(directory.Path, "cars.pu", "@startuml\npackage garage {\nclass Car\n}\nclass Wheel\nCar *-- Wheel\n@enduml\n");
+        var legacy = FixtureFactory.WriteText(directory.Path, "legacy.puml", "@startuml\n(*) --> First\nFirst --> Second\n@enduml\n");
         var expected = PlantUmlDocument.Open(activity);
 
         // Act
         using var activityDocument = JsonDocument.Parse(RunInfo(true, activity));
         using var classDocument = JsonDocument.Parse(RunInfo(true, classes));
+        using var legacyDocument = JsonDocument.Parse(RunInfo(true, legacy));
         var classText = RunInfo(false, classes);
+        var legacyText = RunInfo(false, legacy);
 
         // Assert: the activity diagram and its counts
         var diagram = activityDocument.RootElement.GetProperty("diagram");
@@ -117,9 +120,15 @@ public class DiscoveryCommandsPlantUmlTests
             (diagram.GetProperty("nodes").GetInt32(), diagram.GetProperty("edges").GetInt32(), diagram.GetProperty("subgraphs").GetInt32()));
         Assert.True(expected.NodeCount >= 5);
 
-        // Assert: the class diagram is recognized and not drawn
-        var unsupported = classDocument.RootElement.GetProperty("diagram");
-        Assert.Equal(("class", false, 0), (unsupported.GetProperty("type").GetString(), unsupported.GetProperty("supported").GetBoolean(), unsupported.GetProperty("nodes").GetInt32()));
-        Assert.Contains("class (not drawn by this version), 0 nodes", classText, StringComparison.Ordinal);
+        // Assert: the class diagram is drawn: its classes, relationships, and packages
+        var classDiagram = classDocument.RootElement.GetProperty("diagram");
+        Assert.Equal(("class", true), (classDiagram.GetProperty("type").GetString(), classDiagram.GetProperty("supported").GetBoolean()));
+        Assert.Equal((2, 1, 1), (classDiagram.GetProperty("nodes").GetInt32(), classDiagram.GetProperty("edges").GetInt32(), classDiagram.GetProperty("subgraphs").GetInt32()));
+        Assert.Contains("class, 2 nodes, 1 edge", classText, StringComparison.Ordinal);
+
+        // Assert: the legacy activity diagram is recognized and not drawn
+        var unsupported = legacyDocument.RootElement.GetProperty("diagram");
+        Assert.Equal(("activity-legacy", false, 0), (unsupported.GetProperty("type").GetString(), unsupported.GetProperty("supported").GetBoolean(), unsupported.GetProperty("nodes").GetInt32()));
+        Assert.Contains("activity-legacy (not drawn by this version), 0 nodes", legacyText, StringComparison.Ordinal);
     }
 }
