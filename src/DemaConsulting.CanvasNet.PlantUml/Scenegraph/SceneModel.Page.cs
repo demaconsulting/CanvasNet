@@ -75,7 +75,6 @@ internal sealed record PageMetrics(double Inset, double BodyTrim, double LegendW
         LegendLeft = 12,
     };
 
-
     /// <summary>
     ///     Gets the space above the header (before <see cref="Inset"/>); 5 by default.
     /// </summary>

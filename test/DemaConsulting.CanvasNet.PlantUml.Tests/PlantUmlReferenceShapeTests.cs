@@ -162,7 +162,7 @@ public class PlantUmlReferenceShapeTests
     {
         // Arrange
         var (golden, scene, model) = Load(type, name);
-        var uids = Groups(golden, "entity").Concat(Groups(golden, "cluster")).ToDictionary(g => (string)g.Attribute("id")!, QualifiedName, StringComparer.Ordinal);
+        var names = Groups(golden, "entity").Concat(Groups(golden, "cluster")).ToDictionary(g => (string)g.Attribute("id")!, QualifiedName, StringComparer.Ordinal);
         var links = Groups(golden, "link").ToList();
 
         // Act
@@ -173,8 +173,8 @@ public class PlantUmlReferenceShapeTests
         var unmatched = drawn.ToList();
         foreach (var link in links)
         {
-            var from = uids[(string)link.Attribute("data-entity-1")!];
-            var to = uids[(string)link.Attribute("data-entity-2")!];
+            var from = names[(string)link.Attribute("data-entity-1")!];
+            var to = names[(string)link.Attribute("data-entity-2")!];
             var match = unmatched.FirstOrDefault(l => l.From.Id == from && l.To.Id == to) ?? unmatched.FirstOrDefault(l => l.From.Id == to && l.To.Id == from);
             Assert.True(match is not null, $"no link from {from} to {to}");
             unmatched.Remove(match);

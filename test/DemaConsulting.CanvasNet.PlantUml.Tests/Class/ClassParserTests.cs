@@ -226,7 +226,7 @@ public class ClassParserTests
     public void PlantUmlClassParser_CommonStatements_AreRead()
     {
         // Act
-        var model = Parse("left to right direction\nscale 2\nskinparam nodesep 50\nskinparam ranksep 70\nskinparam classBackgroundColor #FFEEDD\nskinparam roundedness 4\ntitle T\nclass A");
+        var model = Parse("left to right direction\nscale 2\nskinparam nodesep 50\nskinparam ranksep 70\nskinparam classBackgroundColor #FFEEDD\nskinparam wobble 4\ntitle T\nclass A");
 
         // Assert
         Assert.Equal((SvekRankDir.LeftToRight, 2.0, 50.0, 70.0), (model.RankDir, model.Scale, model.NodeSep!.Value, model.RankSep!.Value));
@@ -272,7 +272,7 @@ public class ClassParserTests
     [InlineData("class A\n}", 2, "package")]
     [InlineData("class A\nactor B", 2, "allowmixing")]
     [InlineData("class A\nA --> (B)", 2, "allowmixing")]
-    [InlineData("class A #notacolor", 1, "color")]
+    [InlineData("class A #pinkish", 1, "color")]
     [InlineData("class A\nwhat is this", 2, "class")]
     [InlineData("class A\nnote on link : x", 2, "link")]
     [InlineData("class A <T> extends", 1, "extends")]
@@ -302,8 +302,8 @@ public class ClassParserTests
     [InlineData("MaxNodes", 2, "class A\nclass B\nnote \"n\" as N", 3)]
     [InlineData("MaxNodes", 2, "A --> B\nB --> C", 2)]
     [InlineData("MaxEdges", 1, "A --> B\nB --> C", 2)]
-    [InlineData("MaxLabelLength", 5, "class A {\nverylongmember\n}", 2)]
-    [InlineData("MaxLabelLength", 5, "A --> B : longlabel", 1)]
+    [InlineData("MaxLabelLength", 5, "class A {\nlonger member\n}", 2)]
+    [InlineData("MaxLabelLength", 5, "A --> B : long label", 1)]
     [InlineData("MaxNestingDepth", 2, "class a.b.c.D", 1)]
     [InlineData("MaxNestingDepth", 1, "package p {\npackage q {\n}\n}", 2)]
     public void PlantUmlClassParser_Limits_FailClosedAtTheLine(string limit, int value, string body, int line)

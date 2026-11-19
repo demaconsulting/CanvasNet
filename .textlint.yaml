@@ -1328,6 +1328,17 @@ words:
   - nocolor
   - Liang
   - Barsky
+  # PlantUML's class diagram keywords and the upstream names of its folders and classes (allowmixing, dataclass,
+  # namespaceSeparator, objectdiagram, cucadiagram, Bodier), and the layout option and Java build of the goldens
+  # (-Playout=smetana, Temurin)
+  - allowmixing
+  - dataclass
+  - namespaceseparator
+  - objectdiagram
+  - cucadiagram
+  - Bodier
+  - Playout
+  - Temurin
 # Percent-escapes in URL and file-name examples (such as "flow%2Emmd" for "flow.mmd"): the escape and the letters
 # glued to it are not words
 ignoreRegExpList:
