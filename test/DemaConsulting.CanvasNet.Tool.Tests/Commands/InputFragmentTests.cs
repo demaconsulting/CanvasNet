@@ -704,6 +704,62 @@ public class InputFragmentTests
     }
 
     /// <summary>
+    ///     Test that <c>#projection=</c> draws a model as <c>--projection</c> does (the same projection in the result and the
+    ///     same picture), and that it wins over the <c>--projection</c> of the command.
+    /// </summary>
+    [Fact]
+    public void InputFragment_Render_Projection_DrawsLikeTheOption()
+    {
+        // Arrange: an asymmetric model, so that a perspective view draws a different picture
+        using var directory = new TempDirectory();
+        var model = FixtureFactory.WriteText(directory.Path, "part.scad", FixtureFactory.AsymmetricModel);
+        var byFragment = directory.Combine("fragment.png");
+        var byOptions = directory.Combine("options.png");
+        var overridden = directory.Combine("overridden.png");
+
+        // Act
+        var (fragment, _) = RunOk("render", $"{model}#projection=perspective", "--size", "64x64", "-o", byFragment);
+        RunOk("render", model, "--projection", "perspective", "--size", "64x64", "-o", byOptions).Document.Dispose();
+        var (wins, _) = RunOk("render", $"{model}#projection=perspective", "--projection", "ortho", "--size", "64x64", "-o", overridden);
+        var (same, _) = RunOk("compare", byFragment, byOptions);
+        var (winsSame, _) = RunOk("compare", overridden, byOptions);
+        var (ortho, _) = RunOk("render", $"{model}#projection=ortho", "--projection", "perspective", "--size", "64x64", "-o", directory.Combine("ortho.png"));
+
+        // Assert: the fragment reports the projection with no diagnostics, and draws what the option draws
+        Assert.Equal("perspective", fragment.RootElement.GetProperty("operations")[0].GetProperty("projection").GetString());
+        Assert.Empty(Notes(fragment));
+        Assert.True(same.RootElement.GetProperty("metrics").GetProperty("identical").GetBoolean());
+
+        // Assert: the fragment wins over the option of the command, in both directions
+        Assert.Equal("perspective", wins.RootElement.GetProperty("operations")[0].GetProperty("projection").GetString());
+        Assert.True(winsSame.RootElement.GetProperty("metrics").GetProperty("identical").GetBoolean());
+        Assert.Equal("orthographic", ortho.RootElement.GetProperty("operations")[0].GetProperty("projection").GetString());
+        fragment.Dispose();
+        wins.Dispose();
+        same.Dispose();
+        winsSame.Dispose();
+        ortho.Dispose();
+    }
+
+    /// <summary>
+    ///     Test that a projection the fragment of an input cannot use (another word, or none) is the error
+    ///     <c>image-fragment-invalid</c> and nothing is written.
+    /// </summary>
+    [Fact]
+    public void InputFragment_Render_InvalidProjection_IsImageFragmentInvalid()
+    {
+        // Arrange
+        using var directory = new TempDirectory();
+        var model = FixtureFactory.WriteText(directory.Path, "part.scad", FixtureFactory.AsymmetricModel);
+
+        // Act / Assert
+        Assert.Equal("image-fragment-invalid", RunFails("render", $"{model}#projection=fisheye", "-o", directory.Combine("a.png")));
+        Assert.Equal("image-fragment-invalid", RunFails("render", $"{model}#projection=", "-o", directory.Combine("b.png")));
+        Assert.False(File.Exists(directory.Combine("a.png")));
+        Assert.False(File.Exists(directory.Combine("b.png")));
+    }
+
+    /// <summary>
     ///     Test that the help documents the fragment of an input path: the <c>input fragment</c> term of the <c>svg</c> topic
     ///     (the rule for the number sign, the quoting, the overrides, the codes), the fixed camera of the <c>scad</c> topic,
     ///     the error code in the <c>errors</c> topic, the page examples of the document topics, and the usage text of every
@@ -720,7 +776,7 @@ public class InputFragmentTests
         // Assert: the rules of the svg topic
         foreach (var expected in new[]
                  {
-                     "no file has that exact name", "Quote the input", "overrides --page, --view, --azimuth, --elevation, --theme, -D, and --param",
+                     "no file has that exact name", "Quote the input", "overrides --page, --view, --azimuth, --elevation, --projection, --theme, -D, and --param",
                      "image-fragment-invalid", "page-out-of-range", "vl-param-unknown", "also with --strict", "Labels of montage"
                  })
         {

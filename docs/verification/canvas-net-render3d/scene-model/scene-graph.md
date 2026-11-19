@@ -64,22 +64,35 @@ Asserts that a mesh node's own appearance overrides its ancestors', that an ance
 inherited when the node has none, that an instance with no appearance anywhere reports `null`, and
 that beneath an overlay the overlay's color replaces every appearance.
 
-##### CanvasNetRender3D-SceneModel-SceneGraph-SceneBounds: Scene Bounds Are Tight
+##### CanvasNetRender3D-SceneModel-SceneGraph-SceneBounds: Scene Bounds Are Those Of The Result
 
 **Tests**: `SceneGraphTests.Scene_ComputeBounds_TransformedGroup_MatchesAnalytic`,
 `SceneGraphTests.Scene_ComputeBounds_EmptyGroup_IsEmpty`,
-`SceneGraphTests.Scene_ComputeBounds_CalledTwice_ReturnsSame`
+`SceneGraphTests.Scene_ComputeBounds_CalledTwice_ReturnsSame`,
+`SceneGraphTests.Scene_ComputeBounds_Difference_IsTheMinuendBounds`,
+`SceneGraphTests.Scene_ComputeBounds_Intersection_IsTheOverlapOfTheOperands`,
+`SceneGraphTests.Scene_ComputeBounds_DisjointIntersection_IsEmpty`,
+`SceneGraphTests.Scene_ComputeBounds_UnionCsg_IncludesEveryOperand`,
+`SceneGraphTests.Scene_ComputeBounds_NestedCsgUnderTransforms_MatchesAnalytic`
 
 Asserts the analytic bounds of a transformed group, that a scene of an empty group has empty bounds,
-and that repeated calls return the same value.
+and that repeated calls return the same value. For booleans it asserts that a 10-unit cube minus a
+100-unit cutter is bounded by the cube alone (with and without overlays); that an intersection of
+three boxes is bounded by the largest minimum and the smallest maximum on every axis; that an
+intersection of disjoint cubes is exactly `BoundingBox3D.Empty`; that a CSG union is bounded by all of
+its operands; and that a union of a difference and an intersection, under transforms on the operand,
+the intersection, and the enclosing group, gives the analytic world box.
 
 ##### CanvasNetRender3D-SceneModel-SceneGraph-DeepNesting: Deep Nesting Does Not Overflow The Stack
 
-**Test**: `SceneGraphTests.Scene_EnumerateInstances_TenThousandNestedGroups_DoesNotOverflowStack`
+**Tests**: `SceneGraphTests.Scene_EnumerateInstances_TenThousandNestedGroups_DoesNotOverflowStack`,
+`SceneGraphTests.Scene_ComputeBounds_TenThousandNestedCsgNodes_DoesNotOverflowStack`
 
 Builds a ten-thousand-level chain of nested groups, each translating by one unit along X, and
 asserts that enumeration returns the single leaf instance with an accumulated translation of
-10 000 and that the scene bounds agree.
+10 000 and that the scene bounds agree. Builds a ten-thousand-level chain of differences, each
+subtracting a far cutter from the level below and translating by one unit along X, and asserts
+that the bounds are the innermost cube moved by 10 000 (no cutter counts).
 
 ##### CanvasNetRender3D-SceneModel-SceneGraph-CsgNode: CsgNode Validates Its Arguments
 
@@ -102,16 +115,14 @@ rejected with the identity as default.
 `SceneGraphTests.Scene_EnumerateInstances_CsgNode_SharedChild_EnumeratedPerPath`,
 `SceneGraphTests.Scene_EnumerateInstances_CsgNode_ComposesTransformAndInheritsAppearance`,
 `SceneGraphTests.CsgNode_SingleChild_EnumeratesThatChild`,
-`SceneGraphTests.Scene_ComputeBounds_CsgNode_IncludesAllOperands`,
 `SceneGraphTests.Scene_EnumerateInstances_TenThousandNestedCsgNodes_DoesNotOverflowStack`
 
 Asserts, for a mixed tree of groups and difference/intersection nodes, that every operand appears
 as an instance in depth-first pre-order with its source `MeshNode` (a regression guard against a
 silently dropped node kind); that a node shared by two CSG parents is enumerated per path; that a
 `CsgNode` composes its transform child-then-parent and passes its appearance to operands that have
-none; that a single-child node of every operation enumerates exactly that child; that the scene
-bounds of a difference and an intersection include the far operand; and that ten thousand nested
-CSG nodes are enumerated without stack overflow.
+none; that a single-child node of every operation enumerates exactly that child; and that ten
+thousand nested CSG nodes are enumerated without stack overflow.
 
 ##### CanvasNetRender3D-SceneModel-SceneGraph-OverlayNode: OverlayNode Validates Its Arguments
 
@@ -138,11 +149,14 @@ without stack overflow with the single instance marked and the scene bounds corr
 ##### CanvasNetRender3D-SceneModel-SceneGraph-OverlayBounds: Overlay Bodies Can Be Left Out Of The Bounds
 
 **Tests**: `SceneGraphTests.Scene_ComputeBounds_WithoutOverlays_SkipsOverlayInstances`,
-`SceneGraphTests.Scene_ComputeBounds_Default_IncludesOverlays`
+`SceneGraphTests.Scene_ComputeBounds_Default_IncludesOverlays`,
+`SceneGraphTests.Scene_ComputeBounds_OverlayInsideASubtrahend_IsIncludedOnlyWithOverlays`
 
 Asserts, for a unit cube beside a far overlay cube, that `ComputeBounds(false)` covers only the cube,
 `ComputeBounds(true)` and `ComputeBounds()` cover both, a scene of only an overlay has empty bounds
-without overlays, and repeated calls return the cached values.
+without overlays, and repeated calls return the cached values. Asserts, for a unit cube minus a far
+highlighted cutter (the cutter beside an overlay of itself), that the bounds with overlays reach the
+cutter and the bounds without overlays are the unit cube alone.
 
 #### Acceptance Criteria
 

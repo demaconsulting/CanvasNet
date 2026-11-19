@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="320" height="220" viewBox="0 0 320 220">
+  <!-- The SVG card of hero.svg: a small vector landscape with gradients, curves, and a glow filter. -->
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1e1b4b"/>
+      <stop offset="0.6" stop-color="#7c3aed"/>
+      <stop offset="1" stop-color="#f472b6"/>
+    </linearGradient>
+    <radialGradient id="sun" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#fef3c7"/>
+      <stop offset="0.7" stop-color="#fbbf24"/>
+      <stop offset="1" stop-color="#f97316"/>
+    </radialGradient>
+    <linearGradient id="far" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#6d28d9"/>
+      <stop offset="1" stop-color="#312e81"/>
+    </linearGradient>
+    <linearGradient id="near" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1e3a8a"/>
+      <stop offset="1" stop-color="#0f172a"/>
+    </linearGradient>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="8"/>
+    </filter>
+    <clipPath id="frame">
+      <rect width="320" height="220" rx="14"/>
+    </clipPath>
+  </defs>
+  <g clip-path="url(#frame)">
+    <rect width="320" height="220" fill="url(#sky)"/>
+    <circle cx="214" cy="118" r="44" fill="#fbbf24" opacity="0.7" filter="url(#glow)"/>
+    <circle cx="214" cy="118" r="34" fill="url(#sun)"/>
+    <g fill="#ffffff">
+      <circle cx="40" cy="30" r="1.8"/>
+      <circle cx="92" cy="54" r="1.4"/>
+      <circle cx="150" cy="24" r="2"/>
+      <circle cx="270" cy="40" r="1.6"/>
+      <circle cx="300" cy="78" r="1.2"/>
+      <circle cx="18" cy="84" r="1.2"/>
+    </g>
+    <path d="M0 150 C40 120 70 118 110 140 C150 162 180 112 230 128 C270 140 290 120 320 126 L320 220 L0 220 Z" fill="url(#far)"/>
+    <path d="M0 178 C50 156 90 170 140 182 C190 194 230 160 320 170 L320 220 L0 220 Z" fill="url(#near)"/>
+    <path d="M0 200 C60 188 120 204 180 198 C230 193 280 186 320 194" fill="none" stroke="#22d3ee" stroke-width="3" stroke-linecap="round" opacity="0.8"/>
+  </g>
+</svg>

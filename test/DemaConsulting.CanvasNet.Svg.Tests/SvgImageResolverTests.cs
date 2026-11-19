@@ -1,3 +1,4 @@
+using System.Numerics;
 using System.Text;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;
@@ -234,6 +235,132 @@ public class SvgImageResolverTests
         Assert.Equal((6, 2), (requests["rotated"].PixelWidth, requests["rotated"].PixelHeight));
         Assert.Equal((3, 3), (requests["fraction"].PixelWidth, requests["fraction"].PixelHeight));
         Assert.Equal((1, 1), (requests["tiny"].PixelWidth, requests["tiny"].PixelHeight));
+    }
+
+    /// <summary>
+    ///     Test that under a skew, a non-uniform scale, and a rotation with a non-uniform scale the requested size keeps
+    ///     the aspect of the placement in its own user space, at the largest stretch of the transform.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_ImageResolverSet_SkewOrNonUniformScale_RequestsThePlacementAspect()
+    {
+        // Arrange: three 40 by 20 placements on a 100 by 100 viewBox drawn at one pixel per unit
+        var svg = "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'>"
+                  + "<image href='skew' x='0' y='0' width='40' height='20' transform='skewX(30)'/>"
+                  + "<image href='stretch' x='0' y='0' width='40' height='20' transform='scale(2,1)'/>"
+                  + "<image href='turn' x='0' y='0' width='40' height='20' transform='rotate(30) scale(1,2)'/>"
+                  + "</svg>";
+
+        // Act
+        var requests = Requests(svg, 100, 100).ToDictionary(r => r.Href);
+
+        // Assert: skewX(30) stretches by about 1.33 (40 x 20 -> 53.2 x 26.6, rounded up); the other two by exactly 2
+        Assert.Equal((54, 27), (requests["skew"].PixelWidth, requests["skew"].PixelHeight));
+        Assert.Equal((80, 40), (requests["stretch"].PixelWidth, requests["stretch"].PixelHeight));
+        Assert.Equal((80, 40), (requests["turn"].PixelWidth, requests["turn"].PixelHeight));
+        Assert.All(requests.Values, r => Assert.InRange(r.PixelWidth - (2 * r.PixelHeight), -1, 1));
+    }
+
+    /// <summary>
+    ///     Test that a resolver returning a solid surface of exactly the requested size fills the whole skewed
+    ///     placement (a parallelogram), with nothing drawn outside it.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_ImageResolverReturnsRequestedSize_SkewX_FillsTheWholeParallelogram()
+    {
+        // Arrange: a 40 by 20 placement under translate(20,40) skewX(30)
+        var placement = Matrix3x2.CreateSkew(MathF.PI / 6f, 0f) * Matrix3x2.CreateTranslation(20f, 40f);
+
+        // Act
+        using var surface = RenderSolidPlacement("translate(20,40) skewX(30)");
+
+        // Assert
+        AssertFillsPlacement(surface, placement);
+    }
+
+    /// <summary>
+    ///     Test that a resolver returning a solid surface of exactly the requested size fills the whole placement under a
+    ///     non-uniform scale, with nothing drawn outside it.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_ImageResolverReturnsRequestedSize_NonUniformScale_FillsTheStretchedBox()
+    {
+        // Arrange: a 40 by 20 placement under translate(10,30) scale(2,1), so the box spans 10..90 by 30..50
+        var placement = Matrix3x2.CreateScale(2f, 1f) * Matrix3x2.CreateTranslation(10f, 30f);
+
+        // Act
+        using var surface = RenderSolidPlacement("translate(10,30) scale(2,1)");
+
+        // Assert
+        AssertFillsPlacement(surface, placement);
+    }
+
+    /// <summary>
+    ///     Test that a resolver returning a solid surface of exactly the requested size fills the whole placement under a
+    ///     rotation with a non-uniform scale, with nothing drawn outside it.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_ImageResolverReturnsRequestedSize_RotateAndScale_FillsThePlacement()
+    {
+        // Arrange: a 40 by 20 placement under translate(50,15) rotate(30) scale(1,2)
+        var placement = Matrix3x2.CreateScale(1f, 2f)
+                        * Matrix3x2.CreateRotation(MathF.PI / 6f)
+                        * Matrix3x2.CreateTranslation(50f, 15f);
+
+        // Act
+        using var surface = RenderSolidPlacement("translate(50,15) rotate(30) scale(1,2)");
+
+        // Assert
+        AssertFillsPlacement(surface, placement);
+    }
+
+    /// <summary>
+    ///     Renders a 40 by 20 image placement under a transform on a red 100 by 100 document (one pixel per unit), with a
+    ///     resolver that returns a solid green surface of exactly the requested size.
+    /// </summary>
+    /// <param name="transform">The <c>transform</c> attribute of the image.</param>
+    /// <returns>The rendered surface.</returns>
+    private static Surface RenderSolidPlacement(string transform)
+    {
+        var svg = "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'>"
+                  + "<rect width='100' height='100' fill='rgb(255,0,0)'/>"
+                  + $"<image href='picture' x='0' y='0' width='40' height='20' transform='{transform}'/>"
+                  + "</svg>";
+        return Render(
+            svg,
+            new SvgLoadOptions { ImageResolver = new DelegateResolver(r => Solid(r.PixelWidth, r.PixelHeight, Green)) },
+            100,
+            100);
+    }
+
+    /// <summary>
+    ///     Asserts that a 40 by 20 placement is green near its four corners and at its center, and red just outside each
+    ///     side, after mapping those placement points through the transform of the placement.
+    /// </summary>
+    /// <param name="surface">The rendered surface (one pixel per unit).</param>
+    /// <param name="placement">The transform of the placement, the same as its <c>transform</c> attribute.</param>
+    private static void AssertFillsPlacement(Surface surface, Matrix3x2 placement)
+    {
+        // Samples a placement point, in its own user space, at the device pixel it maps to
+        Rgba32 At(float u, float v)
+        {
+            var point = Vector2.Transform(new Vector2(u, v), placement);
+            return surface[(int)point.X, (int)point.Y];
+        }
+
+        // Inside, about two units in from each edge: before the fix the picture was letterboxed twice, leaving red
+        // bands along two sides
+        Assert.Equal(Green, At(2.5f, 2f));
+        Assert.Equal(Green, At(37.5f, 2f));
+        Assert.Equal(Green, At(2.5f, 18f));
+        Assert.Equal(Green, At(37.5f, 18f));
+        Assert.Equal(Green, At(20f, 10f));
+
+        // Outside each side: the picture does not spill past the placement
+        Assert.Equal(Red, At(-4f, 10f));
+        Assert.Equal(Red, At(44f, 10f));
+        Assert.Equal(Red, At(20f, -3f));
+        Assert.Equal(Red, At(20f, 23f));
     }
 
     /// <summary>

@@ -1,0 +1,139 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:cn="https://demaconsulting.com/canvasnet" width="1600" height="1000" viewBox="0 0 1600 1000">
+  <!-- A product sheet for gearbox.scad (beside this file): the same model four times, chosen by the fragment of
+       each link. Every callout ends with a <line> whose end is bound (cn:x2y2) to an anchor the model declares, so
+       the dot lands on the feature; the written x2/y2 numbers are the fallback other SVG readers show.
+       Original to this repository (MIT). -->
+  <defs>
+    <linearGradient id="page" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f8fafc"/>
+      <stop offset="1" stop-color="#e2e8f0"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.45" r="0.6">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#eef2f7"/>
+    </radialGradient>
+    <linearGradient id="panel" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#f1f5f9"/>
+    </linearGradient>
+    <filter id="shadow" x="-5%" y="-5%" width="110%" height="115%">
+      <feDropShadow dx="0" dy="6" stdDeviation="9" flood-color="#0f172a" flood-opacity="0.12"/>
+    </filter>
+    <filter id="shadow-round" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="6" stdDeviation="9" flood-color="#0f172a" flood-opacity="0.14"/>
+    </filter>
+    <clipPath id="lens">
+      <circle cx="172" cy="462" r="96"/>
+    </clipPath>
+    <marker id="dot" viewBox="0 0 12 12" refX="6" refY="6" markerWidth="12" markerHeight="12" markerUnits="userSpaceOnUse">
+      <circle cx="6" cy="6" r="4.5" fill="#f59e0b" stroke="#0f172a" stroke-width="2"/>
+    </marker>
+  </defs>
+  <style>
+    .title { font: bold 46px sans-serif; fill: #0f172a; }
+    .lead { font: 26px sans-serif; fill: #475569; }
+    .tag { font: bold 24px sans-serif; fill: #64748b; }
+    .frag { font: bold 24px monospace; fill: #2563eb; }
+    .spec { font: 23px sans-serif; fill: #64748b; }
+    .cmd { font: 20px monospace; fill: #e2e8f0; }
+    .code { font: bold 26px monospace; fill: #0f172a; }
+    .note { font: 24px sans-serif; fill: #475569; }
+    .bar { fill: #f59e0b; }
+    .lead-line { stroke: #0f172a; stroke-width: 2; marker-end: url(#dot); }
+    .card { fill: url(#panel); stroke: #dbe3ec; stroke-width: 2; filter: url(#shadow); }
+  </style>
+
+  <!-- page and header -->
+  <rect width="1600" height="1000" fill="url(#page)"/>
+  <text class="title" x="40" y="72">Planetary gearbox · one .scad file, four views</text>
+  <rect x="1088" y="36" width="480" height="50" rx="25" fill="#0f172a"/>
+  <text class="cmd" x="1112" y="68" style="fill: #f59e0b">$</text>
+  <text class="cmd" x="1136" y="68">canvasnet render gearbox-sheet.svg</text>
+  <text class="lead" x="40" y="114">Drawn by CanvasNet in pure .NET: OpenSCAD interpreter, CSG engine and 3D renderer, no OpenSCAD install.</text>
+
+  <!-- hero card: the assembled gearbox -->
+  <rect class="card" x="32" y="146" width="1008" height="822" rx="18"/>
+  <rect x="32" y="146" width="1008" height="822" rx="18" fill="url(#glow)" opacity="0.6"/>
+  <text class="tag" x="60" y="190">ASSEMBLED</text>
+  <text class="frag" x="226" y="190">gearbox.scad</text>
+  <text class="spec" x="1012" y="190" text-anchor="end">module 2 · 15 / 12 / 39 teeth · ratio 3.6 : 1</text>
+  <image id="hero" href="gearbox.scad#azimuth=30&amp;elevation=30&amp;def.$vpd=470&amp;def.$vpt=[0,0,20]" x="40" y="170" width="992" height="790"/>
+
+  <!-- exploded card -->
+  <rect class="card" x="1060" y="146" width="508" height="450" rx="18"/>
+  <text class="tag" x="1086" y="190">EXPLODED</text>
+  <text class="frag" x="1234" y="190">#def.explode=1</text>
+  <image id="exploded" href="gearbox.scad#def.explode=1&amp;def.$vpd=590&amp;def.$vpt=[0,0,78]" x="1068" y="200" width="492" height="390"/>
+
+  <!-- cutaway card -->
+  <rect class="card" x="1060" y="612" width="508" height="356" rx="18"/>
+  <text class="tag" x="1086" y="656">CUTAWAY</text>
+  <text class="frag" x="1224" y="656">#def.cutaway=1</text>
+  <image id="cutaway" href="gearbox.scad#def.cutaway=1&amp;azimuth=40&amp;elevation=18&amp;def.$vpd=270&amp;def.$vpt=[0,0,14]" x="1068" y="664" width="492" height="276"/>
+
+  <!-- top view inset: the same model again, from above, in a round lens -->
+  <circle cx="172" cy="462" r="100" fill="#ffffff" stroke="#dbe3ec" stroke-width="2" filter="url(#shadow-round)"/>
+  <image href="gearbox.scad#view=top&amp;def.$vpd=240" x="76" y="366" width="192" height="192" clip-path="url(#lens)"/>
+  <circle cx="172" cy="462" r="96" fill="none" stroke="#ffffff" stroke-width="4"/>
+  <text class="frag" x="172" y="596" text-anchor="middle">#view=top</text>
+
+  <!-- hero callouts: a label with an accent bar, and a leader line whose dot is bound to an anchor of the model -->
+  <rect class="bar" x="60" y="232" width="5" height="62" rx="2"/>
+  <text class="code" x="76" y="256">linear_extrude(twist=…)</text>
+  <text class="note" x="76" y="286">mirrored: herringbone gears</text>
+  <line class="lead-line" x1="300" y1="300" x2="437" y2="516" cn:x2y2="#hero anchor:planet-teeth"/>
+
+  <rect class="bar" x="462" y="232" width="5" height="62" rx="2"/>
+  <text class="code" x="478" y="256">polygon([for …])</text>
+  <text class="note" x="478" y="286">involute teeth, computed</text>
+  <line class="lead-line" x1="520" y1="300" x2="484" y2="479" cn:x2y2="#hero anchor:sun-teeth"/>
+
+  <rect class="bar" x="790" y="232" width="5" height="90" rx="2"/>
+  <text class="code" x="806" y="256">difference()</text>
+  <text class="note" x="806" y="286">ring teeth cut</text>
+  <text class="note" x="806" y="314">into the housing</text>
+  <line class="lead-line" x1="830" y1="330" x2="590" y2="426" cn:x2y2="#hero anchor:ring-teeth"/>
+
+  <rect class="bar" x="784" y="392" width="5" height="62" rx="2"/>
+  <text class="code" x="800" y="416">for (i=[0:7])</text>
+  <text class="note" x="800" y="446">bolt circle</text>
+  <line class="lead-line" x1="790" y1="462" x2="721" y2="504" cn:x2y2="#hero anchor:bolt"/>
+
+  <rect class="bar" x="60" y="842" width="5" height="62" rx="2"/>
+  <text class="code" x="76" y="866">minkowski()</text>
+  <text class="note" x="76" y="896">rounded flange</text>
+  <line class="lead-line" x1="150" y1="836" x2="207" y2="653" cn:x2y2="#hero anchor:flange-corner"/>
+
+  <rect class="bar" x="380" y="842" width="5" height="62" rx="2"/>
+  <text class="code" x="396" y="866">text()</text>
+  <text class="note" x="396" y="896">inlaid lettering</text>
+  <line class="lead-line" x1="410" y1="836" x2="373" y2="700" cn:x2y2="#hero anchor:lettering"/>
+
+  <rect class="bar" x="700" y="842" width="5" height="90" rx="2"/>
+  <text class="code" x="716" y="866">rotate_extrude()</text>
+  <text class="note" x="716" y="896">housing profile with</text>
+  <text class="note" x="716" y="924">fillet and rim</text>
+  <line class="lead-line" x1="740" y1="836" x2="669" y2="674" cn:x2y2="#hero anchor:drum"/>
+
+  <!-- exploded callouts -->
+  <rect class="bar" x="1086" y="246" width="5" height="62" rx="2"/>
+  <text class="code" x="1102" y="270">hull()</text>
+  <text class="note" x="1102" y="300">carrier plate</text>
+  <line class="lead-line" x1="1180" y1="312" x2="1273" y2="342" cn:x2y2="#exploded anchor:carrier"/>
+
+  <rect class="bar" x="1406" y="376" width="5" height="62" rx="2"/>
+  <text class="code" x="1422" y="400">sphere()</text>
+  <text class="note" x="1422" y="430">× 14 balls</text>
+  <line class="lead-line" x1="1414" y1="420" x2="1303" y2="435" cn:x2y2="#exploded anchor:balls"/>
+
+  <!-- cutaway callouts -->
+  <rect class="bar" x="1086" y="892" width="5" height="62" rx="2"/>
+  <text class="code" x="1102" y="916">intersection()</text>
+  <text class="note" x="1102" y="946">red section faces</text>
+  <line class="lead-line" x1="1196" y1="888" x2="1244" y2="797" cn:x2y2="#cutaway anchor:section"/>
+
+  <rect class="bar" x="1348" y="892" width="5" height="62" rx="2"/>
+  <text class="code" x="1364" y="916">difference()</text>
+  <text class="note" x="1364" y="946">quarter removed</text>
+  <line class="lead-line" x1="1452" y1="888" x2="1435" y2="849" cn:x2y2="#cutaway anchor:cut-edge"/>
+</svg>

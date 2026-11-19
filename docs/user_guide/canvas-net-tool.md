@@ -91,6 +91,7 @@ canvasnet montage "assembly.scad#def.explode=0" "assembly.scad#def.explode=0.5" 
 | `view=NAME` | `.scad` | `iso`, `front`, `back`, `left`, `right`, `top`, or `bottom`; replaces `--view` |
 | `azimuth=DEGREES` | `.scad` | Turns the view about the Z axis, like `--azimuth`; replaces `--azimuth` |
 | `elevation=DEGREES` | `.scad` | -90 to 90, like `--elevation`; replaces `--elevation` |
+| `projection=TYPE` | `.scad` | `ortho`, `orthographic`, or `perspective`; replaces `--projection` |
 | `def.NAME=VALUE` | `.scad` | Sets the variable `NAME` like `-D`; a vector is a JSON array (`def.$vpt=[0,0,2]`) |
 | `param.NAME=VALUE` | `.vl.json`, `.vl` | Sets the chart parameter `NAME` like `--param` |
 | `theme=NAME` | `.mmd`, `.mermaid` | `default`, `base`, `dark`, `forest`, or `neutral`; replaces `--theme` |
@@ -106,11 +107,10 @@ names an existing file is the file, and the rest after that `#` is the fragment.
 error names the file before the first `#`, and says that a file of the whole name does not exist either.
 
 **The fragment overrides the options of the command** for its input: its page replaces `--page` (and `--all-pages`: the
-input then gives that one page), its view, azimuth, and elevation replace `--view`, `--azimuth`, and `--elevation`
-(each only when the fragment sets it), its theme replaces `--theme`, and its variables and chart
-parameters are merged with
-`-D` and `--param` by name, the fragment winning. `--projection` still applies to the
-view. For `compare` it wins over the options of one side (`--a-page`, `--a-view`, `--a-define`) too. Other inputs are
+input then gives that one page), its view, azimuth, elevation, and projection replace `--view`, `--azimuth`,
+`--elevation`, and `--projection` (each only when the fragment sets it), its theme replaces `--theme`, and its variables
+and chart parameters are merged with `-D` and `--param` by name, the fragment winning. For `compare` it wins over the
+options of one side (`--a-page`, `--a-view`, `--a-define`) too. Other inputs are
 not affected: `canvasnet montage "a.scad#view=top" b.scad --view front` draws `a.scad` from the top and `b.scad` from
 the front.
 
@@ -120,7 +120,8 @@ quotes, as in `-D '$vpd=300'`. A `#` in the middle of a word is not a comment, b
 
 **Mistakes and warnings.** They have the codes of an SVG link. A value that cannot be used is an **error** with the
 code `image-fragment-invalid`: a vector or a JSON value that is cut short, a `def.` name that is not an identifier, an
-unknown `view` or `theme`, an `azimuth` or `elevation` that is not a number, an elevation outside -90 to 90, a page
+unknown `view`, `projection`, or `theme`, an `azimuth` or `elevation` that is not a number, an elevation outside -90 to
+90, a page
 that is not a whole number, or a fragment over its limits. A page the file does not have is `page-out-of-range`.
 Nothing is written for either. A parameter that the kind of the file does not use (`pag=2`, `page=2`
 on a PNG, `def.x=1` on a chart) is the **warning** `image-fragment-unknown-parameter`, a parameter given twice with
@@ -396,7 +397,7 @@ canvasnet convert <input> -o <output> [options]
 
 `render` loads one input, optionally sizes it, applies the transformations in the order written, and writes one
 output file (or one per page). `convert` is another name for the same command. The input path may end in a fragment
-that chooses the page, view, variables, chart parameters, or diagram theme for it (`"report.pdf#page=3"`,
+that chooses the page, view, projection, variables, chart parameters, or diagram theme for it (`"report.pdf#page=3"`,
 `"part.scad#view=top&def.width=20"`, `"chart.vl.json#param.t=5"`, `"flow.mmd#theme=dark"`), which overrides the
 matching options; see *Fragments
 on Input Paths*. The processing order is always:
@@ -1138,12 +1139,15 @@ draws the model and the chart into their rectangles. The result lists each embed
   `embed` list names the files the SVG file you named embeds itself.)
 - **Size and background.** A model, chart, SVG file, or document page is drawn at the **device size of its rectangle**
   (after `--scale`, `--width`, and any transform in the SVG), so it is sharp; the rectangle is filled by a model, and a
-  chart, page, or SVG file is fitted inside it by the `preserveAspectRatio` of the element. A raster is decoded at its
+  chart, page, or SVG file is fitted inside it by the `preserveAspectRatio` of the element. Under a skew or a
+  non-uniform scale the picture is laid out in its rectangle first and then transformed with it, as in a browser, so
+  it fills the skewed or stretched rectangle. A raster is decoded at its
   own size and resampled once. A model, an SVG file, and a diagram are drawn over a **transparent** background, so the
   diagram shows through; a chart keeps **its own background** (white unless it declares another), because a chart is
   meant to carry its own paper. An embedded model is drawn with the view the library chooses for it (isometric for a 3D
   model, top-down for a flat 2D model, or the view of its own `$vpr`, `$vpt`, `$vpd`, and `$vpf` variables;
-  `#view=front` in the link chooses a named view, and `#azimuth=30&amp;elevation=20` turns it) and default settings: the
+  `#view=front` in the link chooses a named view, `#azimuth=30&amp;elevation=20` turns it, and `#projection=perspective`
+  chooses the projection) and default settings: the
   options of the command (`--view`, `-D`, `--param`, `--page`, `--dpi`, ...) apply to the SVG file only; the link sets
   the variables of an embedded model and the parameters of an embedded chart (see *Variables and parameters in the
   link*).
@@ -1151,7 +1155,8 @@ draws the model and the chart into their rectangles. The result lists each embed
   `<image href="report.pdf#page=3" .../>` draws page 3 of a PDF, `deck.pptx#slide=2` (or `#page=2`) slide 2 of a
   presentation, `drawing.vsdx#page=2` page 2 of a Visio drawing, and `part.scad#view=front` draws a model from a named
   view (`iso`, `front`, `back`, `left`, `right`, `top`, `bottom`), turned with `#azimuth=30&amp;elevation=20` like
-  `--azimuth` and `--elevation`. The fragment is a list of `name=value` parameters
+  `--azimuth` and `--elevation`, and projected with `#projection=ortho|orthographic|perspective` like `--projection`.
+  The fragment is a list of `name=value` parameters
   separated by `&` (written `&amp;` inside an XML attribute); `%XX` escapes are decoded after the split; names are not
   case sensitive; a page counts from 1. A fragment is at most 2048 characters and 32 parameters. An embedded file never
   takes the options of the command: `--page` chooses the page of the SVG file only, and the page of an embedded document
@@ -1197,6 +1202,12 @@ draws the model and the chart into their rectangles. The result lists each embed
   path that has no marker there, which does not follow the connector (see `canvasnet help svg arrows`). The notes of an
   embedded model or chart, and the lines a model prints with `echo`, are reported too, with the file in front of each
   message.
+- **Text that is not drawn.** Text the SVG file (or an embedded SVG file) has but the library does not draw is the
+  `unsupported` report **`svg-text-not-drawn`** (text on a `textPath`, the HTML of a `foreignObject`, a `text` inside a
+  nested `svg` or an unknown element, a negative `font-size`), and text drawn without a feature it uses is
+  **`svg-text-unsupported`** (`rotate`, `textLength`, vertical writing,
+  right-to-left `direction`, `dominant-baseline`, `text-decoration`, or a character no font has); each is reported
+  once per file with the number of elements, and `--strict` fails on both with `unsupported-feature`.
 - **A file that is found but broken** (a corrupt picture, a model with a syntax error, a chart with an invalid
   specification) fails the render with its own error code (`corrupt-input`, `scad-error`, `vega-lite-error`, ...), and
   the message names both the embedding file (the SVG file you named, or the embedded SVG file that contains the link)
@@ -1224,8 +1235,9 @@ writes no output. PDF and raster images have no such report: whatever the librar
 fragment that cannot be used, or `image-page-out-of-range` for a page that does not exist, which `--strict` fails on;
 the fragment warnings do not; and `image-access-denied` for a link the file-access mode denies, which `--strict` turns
 into the error `file-access-denied`), a hand-drawn arrowhead (`svg-arrowhead-shape`, a warning `--strict` never fails
-on), and the notes of the files it embeds; what the SVG library cannot draw in the file itself (animation, an unknown
-filter primitive) is simply not drawn.
+on), text it does not draw or draws without a feature (`svg-text-not-drawn` and `svg-text-unsupported`, which
+`--strict` fails on), and the notes of the files it embeds; what else the SVG library cannot draw in the file itself
+(animation, an unknown filter primitive) is simply not drawn.
 
 A PPTX shape that the library does not implement at all (for example an unknown preset shape) is always a failure
 (`unsupported-feature`), with or without `--strict`; `--strict` additionally upgrades the skipped EMF and WMF
@@ -1804,8 +1816,9 @@ This list is also the *Reference* section of `canvasnet help svg flatten`; a tes
   64 pictures, nested ones included, 4 levels, and the pixel budget). The copy is at most 64 MiB (`size-limit`), and the
   drawing must be UTF-8 (`unsupported-feature` for another declared encoding unless the file is plain ASCII).
 - **`--strict`**: A link that is not drawn (`svg-image-unresolved`, `svg-image-too-large`, `image-fragment-invalid`, or
-  `image-page-out-of-range`) is an `unsupported-feature` error, as for render; a link the file-access mode denies
-  (`image-access-denied`) is the error `file-access-denied`; a position binding that fails is the error
+  `image-page-out-of-range`) is an `unsupported-feature` error, as for render, and so is text that a linked SVG file
+  does not draw or draws without a feature (`svg-text-not-drawn`, `svg-text-unsupported`); a link the file-access mode
+  denies (`image-access-denied`) is the error `file-access-denied`; a position binding that fails is the error
   `svg-binding-failed`; `svg-flatten-image-not-drawn` stays a warning.
 
 ### pandoc-filter
@@ -1861,7 +1874,10 @@ may be read, for `render` and its verbs, `inspect`, `compare`, `montage`, and `f
 - **`roots`** reads only files inside the allowed folders. `--allow-root <folder>` names them (repeatable; a relative
   folder is taken from the current folder); without it, the folders are the **current folder and the folder of each
   input**, so `roots` alone also allows everything under the current folder. Both the path as written and the real
-  path of the opened file must be inside. For a document you do not trust, name its folder with `--allow-root`.
+  path of the opened file must be inside; the real path is compared exactly, letter case included, in the case stored
+  on disk, so a folder that differs from an allowed folder only in letter case is outside it, while on a
+  case-insensitive volume a folder or reference written in another letter case still works. For a document you do not
+  trust, name its folder with `--allow-root`.
 - **`no-symlinks`** refuses a reference that passes through a symbolic link or junction below the folder of the input.
 - **`roots,no-symlinks`** applies both rules (in either order, in any letter case). With
   `--allow-root <folder of the input>` it is exactly the confinement of earlier versions.
@@ -1915,6 +1931,10 @@ This list is also the `canvasnet help files` card, bullet by bullet; a test keep
   pictures, data files, includes, and linked pages, at every level.
 - **`never read`**: A network URL (http:, https:, and other schemes), a UNC or network path, a file: URI with a host, a
   device path, an alternate data stream, and anything that is not a regular file are never read.
+- **`letter case`**: The real path of an opened file is compared letter for letter, in the case its folders and its
+  name have on disk, so a folder whose name differs from an allowed folder only in letter case is outside it. On a
+  case-insensitive volume a reference or --allow-root in any letter case still works. A file whose spelling on disk
+  cannot be confirmed to name the opened file is denied.
 - **`limits`**: Every size and count limit holds in every mode; a mode decides which files may be read, never how much.
   See 'canvasnet help limits'.
 - **`image-access-denied`**: Warning: a picture (an SVG image, a Mermaid picture, a Vega-Lite image mark, or a linked
@@ -2118,8 +2138,9 @@ its swimlanes and partitions:
   `vega-lite-warning` for a warning of the chart library, `mermaid-warning` or `plantuml-warning` for a warning of a
   diagram library, or `svg-image-unresolved`, `svg-image-too-large`,
   `image-fragment-invalid`, `image-page-out-of-range`, `image-fragment-unknown-parameter`, or
-  `image-fragment-duplicate-parameter` for an SVG `image` link, or `svg-arrowhead-shape` for an arrowhead drawn by hand
-  instead of with a marker). `detail` is the finer identifier when `code` is a
+  `image-fragment-duplicate-parameter` for an SVG `image` link, `svg-arrowhead-shape` for an arrowhead drawn by hand
+  instead of with a marker, or `svg-text-not-drawn` and `svg-text-unsupported` for SVG text that is not drawn or drawn
+  without a feature). `detail` is the finer identifier when `code` is a
   generic one (`scad-anchor-invalid` for a `scad-warning`, `vl-unknown-property` for a `vega-lite-warning`,
   `mermaid-config-unknown-key` for a `mermaid-warning`); `location` is `{"file","line","column"}` (a chart adds
   `"pointer"`, and a member that is not known is left out) where the file gave a position; `origin` lists the files,

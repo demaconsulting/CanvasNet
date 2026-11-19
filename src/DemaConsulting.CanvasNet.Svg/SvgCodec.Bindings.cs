@@ -163,7 +163,8 @@ public static partial class SvgCodec
     /// <summary>
     ///     Walks the elements the painter reaches directly and records their cascaded state and transform, mirroring
     ///     <see cref="RenderElement"/>: the same cascade and transform composition, the same skipped and non-rendering
-    ///     elements, descent only into <c>g</c> and <c>symbol</c>, and no subtree with a non-finite transform.
+    ///     elements, descent only into <c>g</c>, <c>symbol</c>, <c>a</c> and the chosen child of a <c>switch</c>, and no
+    ///     subtree with a non-finite transform.
     /// </summary>
     /// <param name="root">The document's root element.</param>
     /// <param name="rootState">The root element's cascaded state.</param>
@@ -196,12 +197,16 @@ public static partial class SvgCodec
             }
 
             layout[element] = new BindingLayout(state, transform);
-            if (name is "g" or "symbol")
+            if (name is "g" or "symbol" or "a")
             {
                 foreach (var child in element.Elements().Reverse())
                 {
                     pending.Push((child, state, transform, depth + 1));
                 }
+            }
+            else if (name == "switch" && SelectSwitchChild(element) is { } chosen)
+            {
+                pending.Push((chosen, state, transform, depth + 1));
             }
         }
 
@@ -283,7 +288,7 @@ public static partial class SvgCodec
             return;
         }
 
-        // A text with a list of coordinates places each character; only the first scalar x/y is bound
+        // A text with a list of coordinates places each character; only a single scalar x/y is bound
         if (elementName == "text" && (IsCoordinateList(work.Element, "x") || IsCoordinateList(work.Element, "y")))
         {
             work.Fail(SvgPositionBinding.UnsupportedCode, "the text has a list of x or y coordinates; only a single x and y can be bound");

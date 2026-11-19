@@ -20,8 +20,8 @@ type:
 
 `SceneGraph` is the immutable description of "what to draw": a tree of nodes whose transforms
 compose from the root down and whose appearances are inherited with the innermost node winning. It
-also provides the one traversal that both bounds computation and rendering rely on, so that both
-see exactly the same instances in the same order.
+also provides the one traversal that rendering relies on, so that every consumer sees exactly the
+same instances in the same order, and the bounds of the result that a fitted camera frames.
 
 #### Data Model
 
@@ -52,11 +52,13 @@ see exactly the same instances in the same order.
   subtract or intersect. An overlay nested inside another overlay body is a plain group, so the
   outer color wins. The transform composes like a group's.
 - **`Scene`**: a non-null `Root`, and two lazily computed, cached `BoundingBox3D` values (with and
-  without overlay bodies). The bounds are the
-  union of **all** operand instances, which for a difference or intersection conservatively
-  encloses (and may exceed) the visible result; this keeps camera framing and the depth range
-  enclosing every operand. Overlay bodies are included by default (a fitted camera keeps a ghost in
-  the picture) and left out by `ComputeBounds(false)`.
+  without overlay bodies). The bounds follow the boolean structure: a union counts all of its
+  operands, a difference only its first operand, and an intersection the overlap of its operands'
+  boxes, so they are a tight upper bound of the result and a cutter larger than the model does not
+  shrink a fitted camera's framing. (The renderer's depth range does not use these bounds; it is
+  taken from every instance's vertices.) Overlay bodies are included by default, wherever they are
+  (a fitted camera keeps a ghost or a highlighted cutter in the picture), and left out by
+  `ComputeBounds(false)`.
 - **`SceneInstance(Mesh, World, Appearance, Order, Node, InOverlay)`**: the composed world matrix, the
   effective appearance (the forced overlay color beneath an overlay), the zero-based pre-order index
   of the mesh node (which is the instance's
@@ -80,13 +82,19 @@ bottom-up, cycles cannot be built.
 - `OverlayNode(Rgba32, IEnumerable<SceneNode>)`: a null sequence throws `ArgumentNullException`; a
   null element throws `ArgumentException`; the sequence is copied.
 - `Scene(SceneNode root)`: null root throws `ArgumentNullException`.
-- `Scene.ComputeBounds()`: the **tight** bounds, computed by transforming every vertex of every
-  instance by its world matrix in double precision and taking the union (not the union of
-  transformed bounding boxes, which can be loose under rotation). An empty scene or a scene of
-  empty groups yields `BoundingBox3D.Empty`. The result is cached. It equals `ComputeBounds(true)`.
-- `Scene.ComputeBounds(bool includeOverlays)`: the same computation, skipping the instances beneath an
-  `OverlayNode` when the argument is `false` (a scene of only overlays then has empty bounds); each of
-  the two results is cached separately.
+- `Scene.ComputeBounds()`: the bounds of the result, computed by an **iterative, explicit-stack
+  post-order** walk (no recursion, so ten thousand nested nodes cannot overflow the call stack).
+  Each node yields two world-space boxes, the solid result and the overlay bodies beneath it. A
+  `MeshNode` yields the box of its vertices transformed by its world matrix in double precision (not
+  the transformed bounding box, which can be loose under rotation); a `GroupNode`, a union `CsgNode`
+  and an overlay nested in an overlay (a plain group) unite their children's solids; a difference
+  keeps its first child's solid; an intersection keeps the overlap of its children's solids (empty
+  when disjoint); the outermost `OverlayNode` turns everything beneath it into overlay. Overlay boxes
+  always pass upward. This is the rule the SCAD builder uses for propagated bounds. An empty scene
+  or a scene of empty groups yields `BoundingBox3D.Empty`. It equals `ComputeBounds(true)`, the solid
+  united with the overlays.
+- `Scene.ComputeBounds(bool includeOverlays)`: the same walk; `false` returns the solid result only
+  (a scene of only overlays then has empty bounds). One walk fills both cached results.
 - `Scene.EnumerateInstances()` (internal): an **iterative, explicit-stack, depth-first pre-order**
   traversal. For each node: `world = node.Transform * parentWorld`;
   `appearance = forced ?? node.Appearance ?? parentAppearance`, with `forced` the color of the

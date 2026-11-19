@@ -613,7 +613,7 @@ public static partial class SvgCodec
 
     /// <summary>
     ///     Scans the next whitespace/comma-separated entry of a length list (a
-    ///     <c>stroke-dasharray</c>, or a text <c>dx</c>/<c>dy</c> list), treating a math function
+    ///     <c>stroke-dasharray</c>, or a text <c>x</c>/<c>y</c>/<c>dx</c>/<c>dy</c> list), treating a math function
     ///     call such as <c>calc(1px + 2px)</c> as one entry even though it contains spaces and commas.
     /// </summary>
     /// <param name="text">The list text.</param>
@@ -680,29 +680,6 @@ public static partial class SvgCodec
         entry = text[start..scan];
         position = scan;
         return true;
-    }
-
-    /// <summary>
-    ///     Resolves the first entry of a length list as a class F value (used for the text
-    ///     <c>dx</c>/<c>dy</c> attributes, of which only the first value is honored; see
-    ///     <see cref="SvgCodec"/>'s remarks on the malformed-length policy).
-    /// </summary>
-    /// <param name="raw">The raw list text, or <see langword="null"/> when the attribute is absent.</param>
-    /// <param name="state">The cascaded state supplying unit and percentage bases.</param>
-    /// <param name="axis">Which basis a <c>%</c> resolves against.</param>
-    /// <returns>The first entry's value, or <c>0</c> when absent, empty or malformed.</returns>
-    private static float ResolveFirstLengthOrZero(string? raw, RenderState state, PercentageAxis axis)
-    {
-        if (raw == null)
-        {
-            return 0f;
-        }
-
-        var position = 0;
-        return TryReadLengthListEntry(raw, ref position, out var entry) &&
-               TryResolveLength(entry, state, axis, out var value, out _)
-            ? value
-            : 0f;
     }
 
     /// <summary>

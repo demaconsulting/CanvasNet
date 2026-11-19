@@ -1,6 +1,6 @@
 ---
 title: 'Link fragments: pages, views, variables, params, and themes'
-summary: '#page=, #slide=, #view=, #azimuth=, #elevation=, #theme=, def., and param. in a link or input path.'
+summary: '#page=, #view=, #azimuth=, #elevation=, #projection=, #theme=, def., param. in a link or input.'
 see-also:
   - svg/embedding
   - limits
@@ -25,8 +25,9 @@ examples:
   leading zeros allowed), and with no parameter page 1 is drawn. A model takes
   view=iso|front|back|left|right|top|bottom instead of its automatic view, and
   azimuth=<degrees> and elevation=<degrees> (-90 to 90) turn it like --azimuth
-  and --elevation (they replace the angles of the named view, iso without one).
-  A Mermaid diagram takes theme=default|base|dark|forest|neutral
+  and --elevation (they replace the angles of the named view, iso without one),
+  and projection=ortho|orthographic|perspective chooses the projection like
+  --projection. A Mermaid diagram takes theme=default|base|dark|forest|neutral
   (flow.mmd#theme=dark), like --theme. A raster, an SVG file, and a PlantUML
   diagram take no parameter. A model and a chart also take the prefixed
   parameters of variable fragment below. If a name is given twice with different
@@ -51,7 +52,8 @@ examples:
   is not case sensitive, the name after it is (as written), the value is decoded
   after the fragment is split, and the last value of a name wins. A value that
   is not usable (a def. name that is not an identifier, malformed JSON, an
-  azimuth or elevation that is not a number, an elevation outside -90 to 90) is
+  azimuth or elevation that is not a number, an elevation outside -90 to 90, a
+  projection that is not ortho, orthographic, or perspective) is
   image-fragment-invalid and the image is not drawn; a param. name the chart
   does not declare is the warning vl-param-unknown and the chart is drawn
   without it. def. on anything but a model, and param. on anything but a chart,
@@ -64,8 +66,8 @@ examples:
   --labels -o m.png, canvasnet compare "a.scad#view=top" "b.scad#view=top". It
   works for render and its verbs, inspect, info, compare, and montage, with the
   same parameters and values as a link, and it overrides --page, --view,
-  --azimuth, --elevation, --theme, -D, and --param for that input (a variable
-  or a param by name; the --projection of the command still applies). The #
+  --azimuth, --elevation, --projection, --theme, -D, and --param for that input
+  (a variable or a param by name). The #
   starts a fragment only when no file has that exact name (a file
   called chart#2.png keeps working); when the name before the # is a file, the
   longest such name is used. Quote the input in a shell: an & ends a command

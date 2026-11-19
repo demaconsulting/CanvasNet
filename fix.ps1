@@ -6,13 +6,28 @@
 #   so agents and developers do not need to respond to lint output.
 #   Handles: dotnet format, LintMark (markdown), yamlfix, YAML line endings.
 #
+# USAGE:
+#   pwsh ./fix.ps1                          All fixers (unchanged template behavior)
+#   pwsh ./fix.ps1 -Changed [-Base <ref>]   Only the fixers for the file types changed since <ref>
+#                                           (default origin/main, else main) plus uncommitted changes;
+#                                           dotnet format is limited to the changed .cs files unless
+#                                           project or build configuration files changed
+#
 # EXTENSION POINTS:
 #   Search for "[PROJECT-SPECIFIC]" comments to find the designated locations
 #   for adding project-specific auto-fix operations.
 #
 # MODIFICATION POLICY:
-#   Only modify this file to add project-specific operations at the designated
-#   [PROJECT-SPECIFIC] extension points, or to update tool versions as needed.
+#   Started from the reference template; customized for this repository with the scoped
+#   -Changed mode. Without -Changed every fixer runs exactly as in the template.
+
+param(
+    # Run only the fixers for the changed file types.
+    [switch]$Changed,
+
+    # Git reference to compare against for -Changed (default: origin/main, else main).
+    [string]$Base
+)
 
 # ==============================================================================
 # HELPER FUNCTIONS
@@ -68,6 +83,64 @@ function Normalize-YamlLineEndings {
         }
 }
 
+function Get-ChangedFiles {
+    param([string]$Base)
+
+    # Default to origin/main, falling back to the local main branch
+    if (-not $Base) {
+        $Base = 'origin/main'
+        git rev-parse --verify --quiet "$Base^{commit}" > $null 2>&1
+        if ($LASTEXITCODE -ne 0) { $Base = 'main' }
+    }
+    git rev-parse --verify --quiet "$Base^{commit}" > $null 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "Cannot resolve base reference '$Base'."
+        return $null
+    }
+    Write-Host "Changes since: $Base (plus uncommitted and untracked files)"
+
+    # Committed changes since the merge-base, then staged, unstaged, and untracked files
+    $committed = @(git -c core.quotePath=false diff --name-only --no-renames "$Base...HEAD")
+    if ($LASTEXITCODE -ne 0) { return $null }
+    $working = @(git -c core.quotePath=false status --porcelain --untracked-files=all --no-renames)
+    if ($LASTEXITCODE -ne 0) { return $null }
+
+    $files = $committed + @($working | ForEach-Object { $_.Substring(3).Trim('"') })
+    return , @($files | Where-Object { $_ } | ForEach-Object { $_ -replace '\\', '/' } | Sort-Object -Unique)
+}
+
+function Test-AnyMatch {
+    param([string[]]$Files, [string]$Pattern)
+    return @($Files | Where-Object { $_ -match $Pattern }).Count -gt 0
+}
+
+# ==============================================================================
+# FIXER SELECTION
+# Without -Changed every fixer runs. With -Changed a fixer runs only when a file
+# type it handles changed; when the changed files cannot be determined, every fixer runs.
+# ==============================================================================
+
+$fixYaml = $true
+$fixMarkdown = $true
+$fixDotnet = $true
+$formatInclude = @()
+
+if ($Changed) {
+    $files = Get-ChangedFiles -Base $Base
+    if ($null -eq $files) {
+        Write-Host "Running all fixers: the changed files could not be determined."
+    } else {
+        Write-Host "Changed files: $($files.Count)"
+        $fixYaml = Test-AnyMatch $files '\.ya?ml$|^\.yamlfix\.toml$'
+        $fixMarkdown = Test-AnyMatch $files '\.md$|(^|/)\.lintmark\.yaml$|(^|/)\.editorconfig$'
+        $projectChanged = Test-AnyMatch $files `
+            '\.(csproj|props|targets|sln|slnx)$|(^|/)(\.editorconfig|\.globalconfig|global\.json|nuget\.config)$'
+        $csFiles = @($files | Where-Object { $_ -match '\.cs$' -and (Test-Path -LiteralPath $_) })
+        $fixDotnet = $projectChanged -or $csFiles.Count -gt 0
+        if (-not $projectChanged -and $csFiles.Count -gt 0 -and $csFiles.Count -le 200) { $formatInclude = $csFiles }
+    }
+}
+
 # ==============================================================================
 # AUTO-FIX
 # Applies all auto-fixers with progress output. Never fails — applies what it can and
@@ -75,28 +148,46 @@ function Normalize-YamlLineEndings {
 # ==============================================================================
 
 # --- YAML Auto-Fix ---
-Write-Host "Fixing: YAML..."
-if (Initialize-PythonVenv -Silent) {
-    yamlfix . 2>$null
-    deactivate 2>$null
+if ($fixYaml) {
+    Write-Host "Fixing: YAML..."
+    if (Initialize-PythonVenv -Silent) {
+        yamlfix . 2>$null
+        deactivate 2>$null
+    }
+    Normalize-YamlLineEndings
+} else {
+    Write-Host "Fixing: YAML... skipped (no YAML files changed)"
 }
-Normalize-YamlLineEndings
 
 # --- Markdown Auto-Fix ---
-Write-Host "Fixing: markdown..."
-dotnet tool restore > $null 2>&1
-if ($LASTEXITCODE -eq 0) {
-    dotnet lintmark --fix 2>$null
+if ($fixMarkdown) {
+    Write-Host "Fixing: markdown..."
+    dotnet tool restore > $null 2>&1
+    if ($LASTEXITCODE -eq 0) {
+        dotnet lintmark --fix 2>$null
+    }
+} else {
+    Write-Host "Fixing: markdown... skipped (no Markdown files changed)"
 }
 
 # [PROJECT-SPECIFIC] Add additional auto-fixers here.
 
 # --- .NET Auto-Format ---
-Write-Host "Fixing: dotnet format..."
-$slnFiles = @(Get-ChildItem -Filter "*.sln" -ErrorAction SilentlyContinue) +
-            @(Get-ChildItem -Filter "*.slnx" -ErrorAction SilentlyContinue)
-if ($slnFiles.Count -gt 0) {
-    dotnet format 2>$null
+if ($fixDotnet) {
+    if ($formatInclude.Count -gt 0) {
+        Write-Host "Fixing: dotnet format ($($formatInclude.Count) changed C# files)..."
+    } else {
+        Write-Host "Fixing: dotnet format..."
+    }
+    $slnFiles = @(Get-ChildItem -Filter "*.sln" -ErrorAction SilentlyContinue) +
+                @(Get-ChildItem -Filter "*.slnx" -ErrorAction SilentlyContinue)
+    if ($slnFiles.Count -gt 0) {
+        $formatArgs = @()
+        if ($formatInclude.Count -gt 0) { $formatArgs = @('--include') + $formatInclude }
+        dotnet format @formatArgs 2>$null
+    }
+} else {
+    Write-Host "Fixing: dotnet format... skipped (no C# or project files changed)"
 }
 
 # [PROJECT-SPECIFIC] Add additional language-specific auto-formatters here.

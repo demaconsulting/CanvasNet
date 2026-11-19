@@ -40,6 +40,9 @@ several pictures must share one scale.
 
 ## Supported
 
+- The camera fits the result of the model: what a difference() removes or an
+  intersection() cuts away does not count, so a cutter larger than the part
+  does not shrink it; ghosts (%) and highlights (#) stay in the picture.
 - The viewport variables $vpt, $vpr, $vpd, and $vpf hold the camera of the
   picture, so a model can place geometry relative to it: translate($vpt)
   rotate($vpr) faces the camera. Assigning them at the top level of the model
@@ -63,6 +66,9 @@ several pictures must share one scale.
   iso view is azimuth 45, elevation 35.26). The framing stays automatic, and
   render --json reports the azimuth and elevation used. Use single quotes in a
   shell, where $ expands inside double quotes, or write the $ as %24.
+- The projection in a link or input fragment: projection=ortho, orthographic,
+  or perspective, like --projection ('part.scad#projection=perspective'); in an
+  input fragment it replaces the --projection of the command.
 
 ## Known differences
 

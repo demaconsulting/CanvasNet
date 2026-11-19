@@ -858,6 +858,30 @@ public class FileReferenceResolverTests
     }
 
     /// <summary>
+    ///     Validates in a folder that ignores letter case that a root and a base directory written in another letter
+    ///     case still let a file inside be read, and that the real path of the file is in the letter case stored on
+    ///     disk. Skips where the temporary folder compares letter case.
+    /// </summary>
+    [Fact]
+    public void FileReferenceResolver_Resolve_RootWrittenInAnotherLetterCase_ReadsTheFile()
+    {
+        // Arrange
+        using var directory = new SandboxTempDirectory();
+        FileTestSupport.RequireCaseInsensitive(directory.Path);
+        directory.Write("root/a.txt", "a");
+        var upper = Path.GetFullPath(directory.Combine("root")).ToUpperInvariant();
+        var resolver = new FileReferenceResolver(
+            new FileReferenceOptions { BaseDirectory = upper, FileAccess = FileAccessPolicy.UnderRoots(upper) }, Ct);
+
+        // Act
+        var file = resolver.Resolve("a.txt");
+
+        // Assert
+        Assert.Equal("a", Text(file));
+        Assert.Equal(Path.Join(FileTestSupport.Canonical(directory.Combine("root")), "a.txt"), file!.RealPath);
+    }
+
+    /// <summary>
     ///     Validates that a restrictive policy fails closed when the real path is unavailable, while the default policy
     ///     still reads the file.
     /// </summary>

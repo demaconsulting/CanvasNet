@@ -102,12 +102,70 @@ sections:
 
               - id: CanvasNet-Files-RealPath-Comparison
                 title: >-
-                  The RealPath unit shall compare paths under the platform's rule (case-insensitive on Windows and
-                  macOS, exact elsewhere), treating a folder as containing itself and what lies below its separator
-                  but not a sibling that shares its name as a prefix, ignoring trailing separators, and finding the
-                  deepest folder two paths share by whole components.
+                  The RealPath unit shall compare real paths exactly, letter case included, on every platform (on
+                  macOS in the composed Unicode form), treating a folder as containing itself and what lies below its
+                  separator but not a sibling that shares its name as a prefix and not a folder that differs only in
+                  letter case, ignoring a trailing separator; shall compare paths as written under the platform's
+                  rule (case-insensitive on Windows and macOS, exact elsewhere) for the written-path pre-check only;
+                  and shall find the deepest folder two paths share by whole components compared exactly, with only
+                  their roots compared under the platform's rule.
                 justification: |
                   Every containment decision of the policies rests on these rules; a prefix match on text would let a
-                  sibling folder pass.
+                  sibling folder pass. A folder may be case-sensitive even on Windows (per-directory case
+                  sensitivity) and macOS (case-sensitive APFS), where two names that differ only in letter case are
+                  two folders, so a case-insensitive comparison of real paths would treat a folder outside an allowed
+                  root as inside it, and would trust a case-variant folder as the anchor of the no-symlinks rule.
                 tests:
                   - RealPath_IsUnder_BoundaryIsTheSeparator
+                  - RealPath_IsUnder_ComparesLetterCaseExactly
+                  - RealPath_CommonAncestor_ComparesComponentsExactly
+
+              - id: CanvasNet-Files-RealPath-ExactCase
+                title: >-
+                  The RealPath unit shall give a full path in the letter case its folders and its name have on disk:
+                  each existing component in the spelling of the folder entry spelled exactly as written, else of the
+                  single entry that matches it ignoring letter case, else as written (no entry, or several); the part
+                  below a missing folder and a component of a folder that cannot be listed as written; a wildcard
+                  character matching only itself; a drive letter in upper case and any other root unchanged; and
+                  shall give the real location of a folder in that letter case.
+                justification: |
+                  Real paths are compared exactly, so a real path and the real location of a root must both be in
+                  the spelling stored on disk; otherwise a root or a reference written in another letter case on a
+                  case-insensitive volume, or a file system that reports the spelling used to open a file, would deny
+                  files that are inside. Where the spelling is ambiguous it is kept as written, which can only deny.
+                tests:
+                  - RealPath_GetExactPathName_FolderAndFileInAnotherCase_GiveTheStoredCase
+                  - RealPath_GetExactPathName_MissingTail_IsKeptAsWritten
+                  - "ubuntu@RealPath_GetExactPathName_BothCaseVariantsExist_PrefersTheExactNameAndKeepsAnAmbiguousOne"
+                  - "ubuntu@RealPath_GetExactPathName_WildcardCharactersInAName_MatchOnlyThatName"
+                  - "macos@RealPath_GetExactPathName_WildcardCharactersInAName_MatchOnlyThatName"
+                  - "windows@RealPath_GetExactPathName_DriveLetter_IsUpperCase"
+                  - RealPath_ExactRoot_DriveRootsUpperCasedAndOtherRootsKept
+                  - "windows@RealPath_TryGetExactCanonicalDirectory_FolderWrittenInAnotherCase_GivesTheStoredCase"
+                  - "macos@RealPath_TryGetExactCanonicalDirectory_FolderWrittenInAnotherCase_GivesTheStoredCase"
+
+              - id: CanvasNet-Files-RealPath-Identity
+                title: >-
+                  The RealPath unit shall confirm the on-disk spelling of the real path of an open file only when it
+                  equals the reported real path or names the same file as the open handle (the volume serial number
+                  and file index on Windows, the device and inode on Linux and macOS) through no link (no link at its
+                  last component, and no junction or link in one of its folders: on Windows and Linux the final path of
+                  the file opened by that spelling is the spelling itself, on macOS it is opened with O_NOFOLLOW_ANY),
+                  and shall report it unconfirmed when it names another file, a link, a file reached through a linked
+                  folder, or a file whose identity cannot be read.
+                justification: |
+                  The on-disk spelling is found by name, after the open; another process could make it name another
+                  file, or reach the open file through a linked folder from a place it is not. Confirming it against
+                  the open handle, through no link, keeps the decision about the place of the file that is read, and an
+                  unconfirmed spelling lets the caller fail closed.
+                tests:
+                  - "windows@RealPath_TryConfirmExactPath_SpellingOfAnotherFile_IsUnconfirmed"
+                  - "ubuntu@RealPath_TryConfirmExactPath_SpellingOfAnotherFile_IsUnconfirmed"
+                  - "macos@RealPath_TryConfirmExactPath_SpellingOfAnotherFile_IsUnconfirmed"
+                  - "windows@RealPath_TryConfirmExactPath_StoredSpellingOfARealPathInAnotherCase_IsConfirmed"
+                  - "macos@RealPath_TryConfirmExactPath_StoredSpellingOfARealPathInAnotherCase_IsConfirmed"
+                  - "windows@RealPath_TryConfirmExactPath_SpellingThroughALinkedFolder_IsUnconfirmed"
+                  - "ubuntu@RealPath_TryConfirmExactPath_SpellingThroughALinkedFolder_IsUnconfirmed"
+                  - "macos@RealPath_TryConfirmExactPath_SpellingThroughALinkedFolder_IsUnconfirmed"
+                  - "ubuntu@RealPath_TryConfirmExactPath_LinkToTheOpenedFile_IsUnconfirmed"
+                  - "macos@RealPath_TryConfirmExactPath_LinkToTheOpenedFile_IsUnconfirmed"

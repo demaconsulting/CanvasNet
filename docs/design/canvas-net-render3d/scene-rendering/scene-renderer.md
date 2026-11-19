@@ -258,7 +258,9 @@ memory.
 
 Validates the scene and size, honors the cancellation token (before any bounds work), builds
 `Camera.FitToBounds(scene.ComputeBounds(), Camera.DefaultAzimuthDegrees, Camera.DefaultElevationDegrees, width / (double)height)`,
-and calls `Render`. An empty scene yields a fallback unit-cube framing and therefore the background only.
+and calls `Render`. The scene bounds are those of the result (a difference counts its first operand, an
+intersection the overlap of its operands, overlay bodies always count), so a large cutter does not shrink
+the framing. An empty scene yields a fallback unit-cube framing and therefore the background only.
 
 #### Error Handling
 

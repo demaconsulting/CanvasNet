@@ -462,6 +462,26 @@ internal static partial class FixtureFactory
 
         return ~crc;
     }
+
+    /// <summary>
+    ///     Determines whether names in a folder are compared ignoring letter case (the default on Windows and macOS), by
+    ///     creating a probe file and looking for it in upper case. Nothing about the file system is changed.
+    /// </summary>
+    /// <param name="folder">The full path of an existing, writable folder.</param>
+    /// <returns><see langword="true"/> when the folder ignores letter case.</returns>
+    public static bool IsCaseInsensitive(string folder)
+    {
+        var probe = Path.Combine(folder, "case-probe");
+        File.WriteAllText(probe, "probe");
+        try
+        {
+            return File.Exists(Path.Combine(folder, "CASE-PROBE"));
+        }
+        finally
+        {
+            File.Delete(probe);
+        }
+    }
 }
 
 /// <summary>

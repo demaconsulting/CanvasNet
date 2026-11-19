@@ -1,6 +1,6 @@
 ---
 title: Diagnostics of a drawing
-summary: The warnings of images that were not drawn, the fragment codes, and the errors of a drawing.
+summary: Images and text that were not drawn, the fragment codes, and the errors of a drawing.
 see-also:
   - svg/embedding
   - svg/bindings
@@ -29,6 +29,17 @@ see-also:
   does not follow the connector. One per drawing; the message counts them and
   names the first. Draw it with a marker (see 'canvasnet help svg arrows').
   --strict does not fail on it.
+- `svg-text-not-drawn`: Unsupported: text that is not drawn: text on a
+  textPath, an unknown element inside a text, the HTML of a foreignObject, a
+  text inside a nested svg or an unknown element, a negative font-size, or text
+  beyond the supported coordinates. One per drawing; the message lists the
+  reasons, counts the elements, and names the first. With --strict it is an
+  unsupported-feature error.
+- `svg-text-unsupported`: Unsupported: text drawn without a feature it uses:
+  rotate, textLength, vertical writing-mode, direction rtl, dominant-baseline,
+  alignment-baseline, text-decoration, an unsupported baseline-shift, or a
+  character no font has (drawn as a box). One per drawing, like
+  svg-text-not-drawn. With --strict it is an unsupported-feature error.
 - `image-fragment-unknown-parameter`: Warning: the fragment of an href names a
   parameter the linked file does not use (a typo such as pag=2, or any parameter
   on a raster or an SVG file). The picture is drawn without it. --strict does

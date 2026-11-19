@@ -1,0 +1,55 @@
+{
+  "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+  "description": "The Vega-Lite card of hero.svg: invented weekly counts, bars with a trend line, styled for a dark page. The compare tile links it a second time with param.last=22, a different last bar.",
+  "width": 300,
+  "height": 170,
+  "padding": 10,
+  "background": "transparent",
+  "data": {
+    "values": [
+      {"week": "W1", "figures": 12, "trend": 10},
+      {"week": "W2", "figures": 18, "trend": 15},
+      {"week": "W3", "figures": 15, "trend": 19},
+      {"week": "W4", "figures": 26, "trend": 24},
+      {"week": "W5", "figures": 31, "trend": 29},
+      {"week": "W6", "figures": 29, "trend": 33},
+      {"week": "W7", "figures": 40, "trend": 38}
+    ]
+  },
+  "params": [{"name": "last", "value": 40}],
+  "transform": [{"calculate": "datum.week === 'W7' ? last : datum.figures", "as": "count"}],
+  "encoding": {
+    "x": {"field": "week", "type": "ordinal", "title": null, "axis": {"labelAngle": 0}}
+  },
+  "layer": [
+    {
+      "mark": {"type": "bar", "cornerRadiusEnd": 4, "width": {"band": 0.62}},
+      "encoding": {
+        "y": {"field": "count", "type": "quantitative", "title": null, "axis": {"tickCount": 4}},
+        "color": {
+          "field": "week",
+          "type": "nominal",
+          "legend": null,
+          "scale": {"range": ["#06b6d4", "#0ea5e9", "#6366f1", "#8b5cf6", "#a855f7", "#d946ef", "#ec4899"]}
+        }
+      }
+    },
+    {
+      "mark": {"type": "line", "color": "#fde68a", "strokeWidth": 3, "interpolate": "monotone", "point": {"filled": true, "size": 50, "color": "#fde68a"}},
+      "encoding": {"y": {"field": "trend", "type": "quantitative"}}
+    }
+  ],
+  "config": {
+    "font": "sans-serif",
+    "view": {"stroke": null},
+    "axis": {
+      "labelColor": "#cbd5e1",
+      "labelFontSize": 13,
+      "domainColor": "#475569",
+      "tickColor": "#475569",
+      "gridColor": "#334155",
+      "gridDash": [3, 3]
+    },
+    "axisX": {"grid": false, "ticks": false}
+  }
+}

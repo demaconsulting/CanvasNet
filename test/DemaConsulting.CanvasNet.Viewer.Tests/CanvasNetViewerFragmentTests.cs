@@ -284,6 +284,41 @@ public class CanvasNetViewerFragmentTests
     }
 
     /// <summary>
+    ///     Test that <c>#projection=</c> chooses the projection of a model with the words of <c>--projection</c> (any case,
+    ///     orthographic when absent), and that any other value, or none, is an invalid-fragment note with nothing drawn.
+    /// </summary>
+    [Fact]
+    public void CanvasNetViewer_Render_ScadProjectionFragment_ChoosesTheProjectionOrIsInvalid()
+    {
+        // Arrange: a long bar, so that the perspective view of it differs from the orthographic one
+        using var folder = new ViewerTestFolder();
+        folder.WriteText("bar.scad", "cube([30, 10, 10]);");
+
+        // Act: no projection, the two orthographic words, perspective in two cases, and two values that cannot be used
+        using var chosen = Render(folder, "bar.scad", "bar.scad#projection=ortho", "bar.scad#projection=Orthographic", "bar.scad#projection=perspective", "bar.scad#projection=PERSPECTIVE");
+        using var invalid = Render(folder, "bar.scad#projection=fisheye", "bar.scad#projection=");
+
+        // Assert: the orthographic links draw the default picture, the perspective links another one, with no notes
+        var surface = chosen.Surface;
+        List<Rgba32> CellPixels(int cell) => [.. Enumerable.Range(0, 100 * 100).Select(i => surface[(cell * 100) + (i % 100), i / 100])];
+        var orthographic = CellPixels(0);
+        Assert.Equal(orthographic, CellPixels(1));
+        Assert.Equal(orthographic, CellPixels(2));
+        Assert.Equal(CellPixels(3), CellPixels(4));
+        Assert.NotEqual(orthographic, CellPixels(3));
+        Assert.Empty(chosen.Diagnostics);
+
+        // Assert: the invalid values draw nothing and are reported with their values, not as unknown parameters
+        Assert.Equal(Backdrop, invalid.Surface[50, 50]);
+        Assert.Equal(Backdrop, invalid.Surface[150, 50]);
+        Assert.Equal(
+            [FolderImageResolver.FragmentInvalidCode, FolderImageResolver.FragmentInvalidCode],
+            invalid.Diagnostics.Select(d => d.Code));
+        Assert.Contains("'fisheye'", invalid.Diagnostics[0].Message, StringComparison.Ordinal);
+        Assert.Contains("ortho, orthographic, perspective", invalid.Diagnostics[1].Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     ///     Test that a source of a URI scheme gets the link untouched (query included) with the fragment parsed, and
     ///     that a built-in source does not get a scheme link.
     /// </summary>

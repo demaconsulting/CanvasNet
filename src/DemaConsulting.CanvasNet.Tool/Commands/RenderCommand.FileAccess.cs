@@ -51,12 +51,6 @@ internal sealed partial class RenderCommand
     private const string NoSymlinksToken = "no-symlinks";
 
     /// <summary>
-    ///     The comparison of two full paths on this platform: case-insensitive on Windows and macOS.
-    /// </summary>
-    private static readonly StringComparison PathComparison =
-        OperatingSystem.IsWindows() || OperatingSystem.IsMacOS() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
-
-    /// <summary>
     ///     Reads the file-access options and builds the policy of one invocation, with the default folders of
     ///     <c>roots</c> taken from the current working directory.
     /// </summary>
@@ -180,7 +174,8 @@ internal sealed partial class RenderCommand
     /// <returns>The full paths of the folders, without duplicates, the working directory first.</returns>
     /// <exception cref="ArgumentNullException">Thrown when an argument is <see langword="null"/>.</exception>
     /// <remarks>
-    ///     The comparison is lexical (case-insensitive on Windows and macOS). An input whose path cannot be read is
+    ///     The comparison is lexical and exact (letter case included, as the policy compares real paths), so a folder
+    ///     that differs from another only in letter case is a root of its own. An input whose path cannot be read is
     ///     skipped here: its probe reports the mistake.
     /// </remarks>
     internal static IReadOnlyList<string> DefaultRoots(IEnumerable<string> inputs, string workingDirectory)
@@ -252,8 +247,15 @@ internal sealed partial class RenderCommand
     }
 
     /// <summary>
-    ///     Determines whether a full path is a folder or lies inside it, comparing whole path segments.
+    ///     Determines whether a full path is a folder or lies inside it, comparing whole path segments exactly (letter
+    ///     case included).
     /// </summary>
+    /// <remarks>
+    ///     The comparison is exact because the file-access policy compares real paths exactly: on a case-sensitive
+    ///     folder an input in <c>WORK</c> next to a working directory <c>work</c> is in another folder, which must stay a
+    ///     root of its own. On a case-insensitive volume a case-variant extra root is harmless (it has the same real
+    ///     location).
+    /// </remarks>
     /// <param name="path">The full path.</param>
     /// <param name="folder">The full path of the folder.</param>
     /// <returns><see langword="true"/> when <paramref name="path"/> is <paramref name="folder"/> or inside it.</returns>
@@ -261,7 +263,12 @@ internal sealed partial class RenderCommand
     {
         var trimmedPath = Path.TrimEndingDirectorySeparator(path);
         var trimmedFolder = Path.TrimEndingDirectorySeparator(folder);
-        return string.Equals(trimmedPath, trimmedFolder, PathComparison)
-               || trimmedPath.StartsWith(trimmedFolder.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar, PathComparison);
+        if (string.Equals(trimmedPath, trimmedFolder, StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        var boundary = Path.EndsInDirectorySeparator(folder) ? folder : folder + Path.DirectorySeparatorChar;
+        return path.StartsWith(boundary, StringComparison.Ordinal);
     }
 }

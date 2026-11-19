@@ -50,9 +50,11 @@ How a failure is reported, the stable error codes, and what --strict changes.
 - `pptx`: A skipped EMF or WMF picture becomes an error. Other unsupported
   shapes, fills, and pictures are errors with or without --strict.
 - `svg`: An image that was not drawn (svg-image-unresolved, or
-  svg-image-too-large) becomes an unsupported-feature error, an image the
-  file-access mode denied (image-access-denied) becomes the error
-  file-access-denied, and so does an unsupported feature of a model, chart, or
-  diagram it embeds.
+  svg-image-too-large) and an unsupported feature of a model, chart, or diagram
+  it embeds become unsupported-feature errors, and an image the file-access
+  mode denied (image-access-denied) becomes the error file-access-denied. Text
+  that is not drawn or drawn without a feature (svg-text-not-drawn,
+  svg-text-unsupported) is an unsupported-feature error, also in an embedded
+  SVG file.
 - `pdf, raster`: No effect: they have no diagnostics channel. A PDF feature that
   cannot be drawn is an error with or without --strict.

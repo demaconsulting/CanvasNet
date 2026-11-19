@@ -24,6 +24,12 @@ namespace DemaConsulting.CanvasNet.Files;
 ///         roots before anything is opened.
 ///     </para>
 ///     <para>
+///         <b>Exact letter case.</b> A policy that needs the real path receives it in the letter case its folders and
+///         its name have on disk, and only once that spelling is confirmed to name the open file (by its volume serial
+///         number and file index on Windows, its device and inode on Linux and macOS); the built-in policies compare it
+///         exactly. A file whose spelling cannot be confirmed is denied (<see cref="FileReferenceFailureKind.AccessDenied"/>).
+///     </para>
+///     <para>
 ///         <b>Search order.</b> A relative reference is looked up in the directory of the file it is relative to (when
 ///         one is given), otherwise in <see cref="FileReferenceOptions.BaseDirectory"/>, and then under each entry of
 ///         <see cref="FileReferenceOptions.SearchPaths"/> in order; the first candidate that exists wins. An absolute
@@ -57,6 +63,15 @@ public sealed partial class FileReferenceResolver
     /// <summary>The number of bytes read from a stream per call.</summary>
     private const int ReadChunkSize = 8192;
 
+    /// <summary>
+    ///     The denial of a file whose real path, in the letter case stored on disk, cannot be confirmed to name the
+    ///     opened file (for example a file system that reports the spelling used to open a file and holds several
+    ///     names that differ only in letter case). Its text names no host path.
+    /// </summary>
+    private static readonly FileAccessDecision UnconfirmedSpelling = FileAccessDecision.Deny(
+        "the letter case its real path has on disk cannot be confirmed to name the opened file",
+        "reference the file in the letter case it has on disk");
+
     /// <summary>The effective options.</summary>
     private readonly FileReferenceOptions _options;
 
@@ -79,10 +94,11 @@ public sealed partial class FileReferenceResolver
     private readonly HashSet<string> _counted;
 
     /// <summary>
-    ///     The real location of each trusted folder a policy compares against, captured the first time it is needed and
-    ///     before any file below it is opened; <see langword="null"/> where it could not be determined.
+    ///     The real location of each trusted folder a policy compares against, in its on-disk letter case, captured the
+    ///     first time it is needed and before any file below it is opened; <see langword="null"/> where it could not be
+    ///     determined. Keyed exactly: on a case-sensitive folder two spellings that differ in letter case are two folders.
     /// </summary>
-    private readonly Dictionary<string, string?> _folderLocations = new(RealPath.PathComparer);
+    private readonly Dictionary<string, string?> _folderLocations = new(StringComparer.Ordinal);
 
     /// <summary>
     ///     Initializes a resolver for one operation.
@@ -372,7 +388,7 @@ public sealed partial class FileReferenceResolver
             {
                 if (known.Exempt)
                 {
-                    CheckExemptFile(candidate, shown, relativeTo, cachedFile);
+                    CheckExemptFile(candidate, shown, relativeTo, cachedFile, known.RealPathUnconfirmed);
                 }
                 else if (_policy.RequiresRealPath)
                 {
@@ -392,14 +408,16 @@ public sealed partial class FileReferenceResolver
 
     /// <summary>
     ///     Applies the checks the top-level file skipped when a reference reaches it later: the network target, the real
-    ///     path a restrictive policy needs, and the policy.
+    ///     path a restrictive policy needs (confirmed in its on-disk letter case when the file was read), and the policy.
     /// </summary>
     /// <param name="candidate">The candidate.</param>
     /// <param name="shown">The reference as shown in messages.</param>
     /// <param name="relativeTo">The referring file, or <see langword="null"/>.</param>
     /// <param name="file">The file read as the top-level file.</param>
+    /// <param name="realPathUnconfirmed">Whether the on-disk spelling of its real path could not be confirmed.</param>
     /// <exception cref="FileReferenceException">Thrown when a check refuses the file.</exception>
-    private void CheckExemptFile(Candidate candidate, string shown, FileReference? relativeTo, FileReference file)
+    private void CheckExemptFile(
+        Candidate candidate, string shown, FileReference? relativeTo, FileReference file, bool realPathUnconfirmed)
     {
         if (OperatingSystem.IsWindows() && file.RealPath is { } real
             && RealPath.IsNetworkLocation(real) && !RealPath.IsNetworkLocation(candidate.Key))
@@ -426,6 +444,12 @@ public sealed partial class FileReferenceResolver
                 RequestedPath = candidate.Key,
                 PolicyName = _policy.Name,
             };
+        }
+
+        // A real path whose on-disk spelling was not confirmed to name the file is never handed to the policy
+        if (realPathUnconfirmed)
+        {
+            throw Denied(shown, candidate.Key, file.RealPath, UnconfirmedSpelling, null);
         }
 
         CheckPolicy(candidate, shown, relativeTo, file.RealPath, CaptureBeforeOpen(candidate));
@@ -497,6 +521,24 @@ public sealed partial class FileReferenceResolver
                 return Outcome.Failed(FileReferenceFailureKind.NotARegularFile, realPath, null);
             }
 
+            // A restrictive policy compares the real path exactly, letter case included, so it gets the spelling stored
+            // on disk, and only once that spelling is confirmed to name the open file. An unconfirmed spelling is denied;
+            // for the top-level file it is remembered and denied when a reference reaches the file. A top-level file
+            // that leads to a network location is refused then anyway, so its spelling is not looked up
+            var unconfirmed = false;
+            if (_policy.RequiresRealPath && realPath is not null
+                && !(exempt && OperatingSystem.IsWindows() && RealPath.IsNetworkLocation(realPath) && !RealPath.IsNetworkLocation(key)))
+            {
+                var confirmed = ConfirmRealPath(handle, realPath);
+                if (confirmed is null && !exempt)
+                {
+                    throw Denied(shown, key, realPath, UnconfirmedSpelling, null);
+                }
+
+                unconfirmed = confirmed is null;
+                realPath = confirmed ?? realPath;
+            }
+
             // A restrictive policy is never consulted without the real path: unknown means refused (fail closed). The
             // top-level file is not judged by the policy at all
             if (!exempt && _policy.RequiresRealPath)
@@ -510,14 +552,26 @@ public sealed partial class FileReferenceResolver
             }
 
             var outcome = Read(handle, candidate, realPath);
-            return exempt && outcome.File is not null ? outcome with { Exempt = true } : outcome;
+            return exempt && outcome.File is not null ? outcome with { Exempt = true, RealPathUnconfirmed = unconfirmed } : outcome;
         }
     }
 
     /// <summary>
+    ///     Gets the real path of an open handle in the letter case stored on disk, confirmed to name the open file.
+    /// </summary>
+    /// <param name="handle">The open handle.</param>
+    /// <param name="realPath">The real path reported for the handle.</param>
+    /// <returns>The confirmed spelling, or <see langword="null"/> when it cannot be confirmed (the caller denies).</returns>
+    private string? ConfirmRealPath(SafeFileHandle handle, string realPath)
+    {
+        var exact = _hooks?.ExactPathOf is { } exactPathOf ? exactPathOf(realPath) : RealPath.GetExactPathName(realPath);
+        return RealPath.TryConfirmExactPath(handle, realPath, exact);
+    }
+
+    /// <summary>
     ///     Captures, before a file is opened, what a restrictive policy compares the opened file against: the real
-    ///     location of each trusted folder it names (captured once per resolver, on first use) and the long spelling of
-    ///     the written path.
+    ///     location of each trusted folder it names, in its on-disk letter case (captured once per resolver, on first
+    ///     use), and the on-disk spelling of the written path.
     /// </summary>
     /// <param name="candidate">The candidate about to be opened.</param>
     /// <returns>The snapshot, or <see langword="null"/> for a policy that needs no real path.</returns>
@@ -528,21 +582,21 @@ public sealed partial class FileReferenceResolver
             return null;
         }
 
-        var anchors = new Dictionary<string, string?>(RealPath.PathComparer);
+        var anchors = new Dictionary<string, string?>(StringComparer.Ordinal);
         foreach (var anchor in _policy.AnchorsOf(candidate.Key, candidate.Origin))
         {
             if (!_folderLocations.TryGetValue(anchor, out var location))
             {
                 location = _hooks?.DirectoryLocationOf is { } locationOf
                     ? locationOf(anchor)
-                    : RealPath.TryGetCanonicalDirectory(anchor);
+                    : RealPath.TryGetExactCanonicalDirectory(anchor);
                 _folderLocations[anchor] = location;
             }
 
             anchors[anchor] = location;
         }
 
-        return new PreOpenSnapshot(FileAccessPolicy.LongSpelling(candidate.Key), anchors);
+        return new PreOpenSnapshot(FileAccessPolicy.ExactSpelling(candidate.Key), anchors);
     }
 
     /// <summary>
@@ -752,6 +806,12 @@ public sealed partial class FileReferenceResolver
         ///     and the policy; a later reference to it applies them.
         /// </summary>
         public bool Exempt { get; init; }
+
+        /// <summary>
+        ///     Gets a value indicating whether the on-disk spelling of the real path of the top-level file could not be
+        ///     confirmed to name the opened file; a later reference to it under a restrictive policy is denied.
+        /// </summary>
+        public bool RealPathUnconfirmed { get; init; }
 
         /// <summary>
         ///     Creates the outcome of a failure.

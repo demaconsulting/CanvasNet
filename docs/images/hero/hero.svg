@@ -1,0 +1,247 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:cn="https://demaconsulting.com/canvasnet" width="1600" height="640" viewBox="0 0 1600 640">
+  <!-- The README hero banner. Every picture in it is a live file of this folder that CanvasNet draws while it
+       draws this page: a Mermaid diagram, an OpenSCAD model, a Vega-Lite chart, an SVG file, a PDF page, a
+       PowerPoint slide, and a Visio page flow into the canvasnet engine, and come out as a composed figure, a
+       comparison, a montage, and a Pandoc document. -->
+  <defs>
+    <style>
+      .word { font: bold 92px sans-serif; fill: #ffffff; }
+      .eyebrow { font: bold 25px sans-serif; fill: #a5b4fc; }
+      .tag { font: bold 40px sans-serif; fill: #f8fafc; }
+      .body { font: 25px sans-serif; fill: #cbd5e1; }
+      .cmd { font: 25px monospace; fill: #e2e8f0; }
+      .prompt { fill: #5eead4; }
+      .file { fill: #f9a8d4; }
+      .brandText { fill: url(#brand); }
+      .note { font: italic 25px sans-serif; fill: #94a3b8; }
+      .label { font: bold 25px sans-serif; fill: #f1f5f9; text-anchor: middle; }
+      .engine { font: bold 32px monospace; fill: #ffffff; }
+      .api { font: bold 25px sans-serif; fill: #c4b5fd; }
+      .card { fill: url(#glass); stroke: url(#rim); stroke-width: 1.5; filter: url(#shadow); }
+      .panel { fill: #0a1022; stroke: #ffffff; stroke-opacity: 0.06; }
+      .flow { fill: none; stroke-width: 3; stroke-linecap: round; }
+      .page { fill: #ffffff; filter: url(#paper); }
+    </style>
+
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#070b1f"/>
+      <stop offset="0.55" stop-color="#130f3b"/>
+      <stop offset="1" stop-color="#071a2e"/>
+    </linearGradient>
+    <radialGradient id="glowViolet" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#7c3aed" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#7c3aed" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glowCyan" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#06b6d4" stop-opacity="0.45"/>
+      <stop offset="1" stop-color="#06b6d4" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glowPink" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#db2777" stop-opacity="0.4"/>
+      <stop offset="1" stop-color="#db2777" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="dots" width="24" height="24" patternUnits="userSpaceOnUse">
+      <circle cx="12" cy="12" r="1.2" fill="#a5b4fc" fill-opacity="0.16"/>
+    </pattern>
+    <linearGradient id="brand" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#22d3ee"/>
+      <stop offset="0.5" stop-color="#a78bfa"/>
+      <stop offset="1" stop-color="#f472b6"/>
+    </linearGradient>
+    <linearGradient id="glass" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0.04"/>
+    </linearGradient>
+    <linearGradient id="rim" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.38"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0.08"/>
+    </linearGradient>
+    <linearGradient id="engineFill" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1e1b4b"/>
+      <stop offset="1" stop-color="#0b1022"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="150%">
+      <feDropShadow dx="0" dy="10" stdDeviation="12" flood-color="#000000" flood-opacity="0.45"/>
+    </filter>
+    <filter id="paper" x="-20%" y="-20%" width="140%" height="150%">
+      <feDropShadow dx="0" dy="4" stdDeviation="4" flood-color="#000000" flood-opacity="0.5"/>
+    </filter>
+    <filter id="blur" x="-30%" y="-150%" width="160%" height="400%">
+      <feGaussianBlur stdDeviation="14"/>
+    </filter>
+    <filter id="heat" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur stdDeviation="6"/>
+    </filter>
+
+    <marker id="headPink" viewBox="0 0 10 10" refX="2.5" refY="5" markerWidth="4" markerHeight="4" orient="auto">
+      <path d="M0,0 L10,5 L0,10 L2.5,5 z" fill="#f472b6"/>
+    </marker>
+    <marker id="headAmber" viewBox="0 0 10 10" refX="2.5" refY="5" markerWidth="4" markerHeight="4" orient="auto">
+      <path d="M0,0 L10,5 L0,10 L2.5,5 z" fill="#fbbf24"/>
+    </marker>
+    <marker id="headCyan" viewBox="0 0 10 10" refX="2.5" refY="5" markerWidth="4" markerHeight="4" orient="auto">
+      <path d="M0,0 L10,5 L0,10 L2.5,5 z" fill="#22d3ee"/>
+    </marker>
+    <marker id="headViolet" viewBox="0 0 10 10" refX="2.5" refY="5" markerWidth="4" markerHeight="4" orient="auto">
+      <path d="M0,0 L10,5 L0,10 L2.5,5 z" fill="#a78bfa"/>
+    </marker>
+    <marker id="headBlue" viewBox="0 0 10 10" refX="2.5" refY="5" markerWidth="4" markerHeight="4" orient="auto">
+      <path d="M0,0 L10,5 L0,10 L2.5,5 z" fill="#60a5fa"/>
+    </marker>
+    <marker id="headMint" viewBox="0 0 10 10" refX="2.5" refY="5" markerWidth="4" markerHeight="4" orient="auto">
+      <path d="M0,0 L10,5 L0,10 L2.5,5 z" fill="#5eead4"/>
+    </marker>
+
+    <clipPath id="leftHalf">
+      <rect x="897" y="398" width="102" height="152"/>
+    </clipPath>
+    <clipPath id="rightHalf">
+      <rect x="999" y="398" width="102" height="152"/>
+    </clipPath>
+  </defs>
+
+  <!-- Background: deep gradient, soft glows, and a dot grid -->
+  <rect width="1600" height="640" fill="url(#bg)"/>
+  <ellipse cx="250" cy="170" rx="420" ry="300" fill="url(#glowViolet)"/>
+  <ellipse cx="1070" cy="294" rx="420" ry="220" fill="url(#glowCyan)"/>
+  <ellipse cx="1480" cy="620" rx="380" ry="260" fill="url(#glowPink)"/>
+  <rect width="1600" height="640" fill="url(#dots)"/>
+
+  <!-- Wordmark and tagline -->
+  <image href="dc-logo-dark.svg" x="46" y="54" width="50" height="50"/>
+  <text class="eyebrow" x="100" y="90">DEMA Consulting</text>
+  <text class="word" x="52" y="176">Canvas</text>
+  <text class="word brandText" x="379.2" y="176">Net</text>
+  <rect x="58" y="200" width="132" height="6" rx="3" fill="url(#brand)"/>
+  <text class="tag" x="56" y="266">Every format in.</text>
+  <text class="tag brandText" x="56" y="316">Crisp pictures out.</text>
+  <text class="body" x="58" y="368">One pure .NET engine draws SVG, PDF,</text>
+  <text class="body" x="58" y="402">PowerPoint, Visio, OpenSCAD, Vega-Lite</text>
+  <text class="body" x="58" y="436">and Mermaid, for people and AI agents.</text>
+  <rect x="56" y="468" width="452" height="54" rx="12" fill="#0a1022" fill-opacity="0.8" stroke="#a78bfa" stroke-opacity="0.45" stroke-width="1.5"/>
+  <text class="cmd prompt" x="78" y="503">$</text>
+  <text class="cmd" x="108" y="503">canvasnet render</text>
+  <text class="cmd file" x="363" y="503">hero.svg</text>
+  <text class="note" x="58" y="568">This banner is that one SVG file.</text>
+
+  <!-- Input cards -->
+  <g>
+    <rect class="card" x="580" y="40" width="167" height="160" rx="16"/>
+    <rect x="607.5" y="40" width="112" height="3" rx="1.5" fill="#f472b6"/>
+    <rect class="panel" x="588" y="48" width="151" height="112" rx="10"/>
+    <image href="flow.mmd" x="590" y="50" width="147" height="108"/>
+    <text class="label" x="663.5" y="190">Mermaid</text>
+
+    <rect class="card" x="759" y="40" width="167" height="160" rx="16"/>
+    <rect x="786.5" y="40" width="112" height="3" rx="1.5" fill="#fbbf24"/>
+    <rect class="panel" x="767" y="48" width="151" height="112" rx="10"/>
+    <image href="bearing.scad" x="767" y="48" width="151" height="112"/>
+    <text class="label" x="842.5" y="190">OpenSCAD</text>
+
+    <rect class="card" x="938" y="40" width="167" height="160" rx="16"/>
+    <rect x="965.5" y="40" width="112" height="3" rx="1.5" fill="#22d3ee"/>
+    <rect class="panel" x="946" y="48" width="151" height="112" rx="10"/>
+    <image href="chart.vl.json" x="948" y="52" width="147" height="104"/>
+    <text class="label" x="1021.5" y="190">Vega-Lite</text>
+
+    <rect class="card" x="1117" y="40" width="167" height="160" rx="16"/>
+    <rect x="1144.5" y="40" width="112" height="3" rx="1.5" fill="#a78bfa"/>
+    <rect class="panel" x="1125" y="48" width="151" height="112" rx="10"/>
+    <image href="vector.svg" x="1127" y="51" width="147" height="106"/>
+    <text class="label" x="1200.5" y="190">SVG</text>
+
+    <rect class="card" x="1296" y="40" width="264" height="160" rx="16"/>
+    <rect x="1348" y="40" width="160" height="3" rx="1.5" fill="#60a5fa"/>
+    <rect class="panel" x="1304" y="48" width="248" height="112" rx="10"/>
+    <g transform="rotate(-9 1354 104)">
+      <rect class="page" x="1318" y="68" width="72" height="72"/>
+      <image href="mesh-shading.pdf" x="1318" y="68" width="72" height="72"/>
+    </g>
+    <g transform="rotate(8 1500 104)">
+      <rect class="page" x="1462" y="76" width="76" height="57"/>
+      <image href="slide.pptx" x="1462" y="76" width="76" height="57"/>
+    </g>
+    <rect class="page" x="1380" y="70" width="96" height="64"/>
+    <image href="drawing.vsdx" x="1380" y="70" width="96" height="64"/>
+    <text class="label" x="1428" y="190">PDF · PPTX · VSDX</text>
+  </g>
+
+  <!-- Flows into the engine -->
+  <g class="flow">
+    <path d="M663.5,206 C663.5,236 930,226 930,253" stroke="#f472b6" marker-end="url(#headPink)"/>
+    <path d="M842.5,206 C842.5,236 1000,226 1000,253" stroke="#fbbf24" marker-end="url(#headAmber)"/>
+    <path d="M1021.5,206 C1021.5,236 1070,226 1070,253" stroke="#22d3ee" marker-end="url(#headCyan)"/>
+    <path d="M1200.5,206 C1200.5,236 1140,226 1140,253" stroke="#a78bfa" marker-end="url(#headViolet)"/>
+    <path d="M1428,206 C1428,236 1210,226 1210,253" stroke="#60a5fa" marker-end="url(#headBlue)"/>
+  </g>
+  <g stroke="#0a1022" stroke-width="2">
+    <circle cx="663.5" cy="206" r="5" fill="#f472b6"/>
+    <circle cx="842.5" cy="206" r="5" fill="#fbbf24"/>
+    <circle cx="1021.5" cy="206" r="5" fill="#22d3ee"/>
+    <circle cx="1200.5" cy="206" r="5" fill="#a78bfa"/>
+    <circle cx="1428" cy="206" r="5" fill="#60a5fa"/>
+  </g>
+  <!-- The engine -->
+  <rect x="860" y="262" width="420" height="64" rx="32" fill="url(#brand)" opacity="0.55" filter="url(#blur)"/>
+  <rect x="860" y="262" width="420" height="64" rx="32" fill="url(#engineFill)" stroke="url(#brand)" stroke-width="2.5"/>
+  <rect x="884" y="276" width="36" height="36" rx="9" fill="url(#brand)"/>
+  <path d="M890 304 L899 293 L905 299 L911 289 L916 304 Z" fill="#ffffff"/>
+  <circle cx="896" cy="285" r="3" fill="#ffffff"/>
+  <text class="engine" x="936" y="305">canvasnet</text>
+  <line x1="1120" y1="278" x2="1120" y2="310" stroke="#ffffff" stroke-opacity="0.25" stroke-width="1.5"/>
+  <text class="api" x="1140" y="303">.NET API</text>
+
+  <!-- Flows out of the engine -->
+  <g class="flow" stroke="#5eead4">
+    <path d="M980,330 C980,356 728,356 728,381" marker-end="url(#headMint)"/>
+    <path d="M1040,330 C1040,356 999,356 999,381" marker-end="url(#headMint)"/>
+    <path d="M1100,330 C1100,356 1232,356 1232,381" marker-end="url(#headMint)"/>
+    <path d="M1160,330 C1160,356 1457,356 1457,381" marker-end="url(#headMint)"/>
+  </g>
+  <g fill="#5eead4" stroke="#0a1022" stroke-width="2">
+    <circle cx="980" cy="330" r="5"/>
+    <circle cx="1040" cy="330" r="5"/>
+    <circle cx="1100" cy="330" r="5"/>
+    <circle cx="1160" cy="330" r="5"/>
+  </g>
+
+  <!-- Output tiles -->
+  <g>
+    <rect class="card" x="580" y="390" width="296" height="210" rx="16"/>
+    <rect class="panel" x="588" y="398" width="280" height="152" rx="10"/>
+    <image href="figure.svg" x="594" y="402" width="268" height="144"/>
+    <text class="label" x="728" y="585">PNG · JPEG · TIFF</text>
+
+    <rect class="card" x="889" y="390" width="220" height="210" rx="16"/>
+    <rect class="panel" x="897" y="398" width="204" height="152" rx="10"/>
+    <image id="before" href="chart.vl.json" x="897" y="411" width="204" height="126" clip-path="url(#leftHalf)"/>
+    <image id="after" href="chart.vl.json#param.last=22" x="897" y="411" width="204" height="126" clip-path="url(#rightHalf)"/>
+    <ellipse cx="1082" cy="471" rx="16" ry="48" fill="#facc15" fill-opacity="0.55" filter="url(#heat)" cn:center="#before mark:week=W7+@view=layer[0]"/>
+    <ellipse cx="1082" cy="471" rx="16" ry="48" fill="none" stroke="#facc15" stroke-width="2.5" stroke-dasharray="6 4" cn:center="#before mark:week=W7+@view=layer[0]"/>
+    <line x1="999" y1="404" x2="999" y2="544" stroke="#ffffff" stroke-width="2"/>
+    <circle cx="999" cy="474" r="8" fill="#ffffff"/>
+    <path d="M996 470 L992.5 474 L996 478 M1002 470 L1005.5 474 L1002 478" fill="none" stroke="#0a1022" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+    <text class="label" x="999" y="585">Compare</text>
+
+    <rect class="card" x="1122" y="390" width="220" height="210" rx="16"/>
+    <rect class="panel" x="1130" y="398" width="204" height="152" rx="10"/>
+    <image href="explode.scad#def.explode=0&amp;def.$vpd=420&amp;def.$vpt=[0,0,50]" x="1132" y="402" width="66" height="144"/>
+    <image href="explode.scad#def.explode=0.5&amp;def.$vpd=420&amp;def.$vpt=[0,0,50]" x="1199" y="402" width="66" height="144"/>
+    <image href="explode.scad#def.explode=1&amp;def.$vpd=420&amp;def.$vpt=[0,0,50]" x="1266" y="402" width="66" height="144"/>
+    <line x1="1198.5" y1="410" x2="1198.5" y2="538" stroke="#ffffff" stroke-opacity="0.15"/>
+    <line x1="1265.5" y1="410" x2="1265.5" y2="538" stroke="#ffffff" stroke-opacity="0.15"/>
+    <text class="label" x="1232" y="585">Montage</text>
+
+    <rect class="card" x="1355" y="390" width="205" height="210" rx="16"/>
+    <rect class="panel" x="1363" y="398" width="189" height="152" rx="10"/>
+    <path class="page" d="M1404 408 L1496 408 L1512 424 L1512 542 L1404 542 Z"/>
+    <path d="M1496 408 L1496 424 L1512 424 Z" fill="#cbd5e1"/>
+    <rect x="1414" y="420" width="56" height="8" rx="4" fill="#4f46e5"/>
+    <rect x="1414" y="436" width="86" height="5" rx="2.5" fill="#cbd5e1"/>
+    <rect x="1414" y="446" width="70" height="5" rx="2.5" fill="#cbd5e1"/>
+    <image href="flow.mmd" x="1414" y="456" width="88" height="50"/>
+    <rect x="1414" y="514" width="86" height="5" rx="2.5" fill="#cbd5e1"/>
+    <rect x="1414" y="524" width="60" height="5" rx="2.5" fill="#cbd5e1"/>
+    <text class="label" x="1457" y="585">Pandoc docs</text>
+  </g>
+</svg>

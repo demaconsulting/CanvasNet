@@ -2371,9 +2371,23 @@ directory or search path the chain of references started from - never a referrin
 above it (so a linked home or temporary folder is fine), and refuses any link below it. Use it through `Combine`, not
 inside a `FromDelegate` function, where it cannot know its starting folder in advance and denies. A hard link is the
 file itself
-and is not detected. On Windows and macOS paths are compared without regard to letter case: on a case-sensitive volume
-or directory of those systems, a sibling folder whose name differs from a root only in letter case counts as inside
-it, so do not configure roots next to such folders.
+and is not detected.
+
+**Letter case.** The real path of an opened file is compared with the folders **exactly, letter case included**, on
+every system: a folder whose name differs from an allowed folder only in letter case is outside it, because on a
+case-sensitive volume or directory (Linux, case-sensitive APFS on macOS, a Windows directory with case sensitivity
+enabled) it is another folder. Every side of the comparison is in the letter case stored on disk: `UnderRoots` captures
+each folder's real location in that case, and the resolver hands the policy the real path of the open file
+(`FileAccessRequest.RealPath`) in that case too, after confirming that this spelling names the opened file through no
+link (by its volume serial number and file index on Windows, its device and inode on Linux and macOS). So on a
+case-insensitive volume (the default on Windows and macOS) a folder or a reference written in another letter case still
+works. The fail-closed cases: a file whose stored spelling cannot be confirmed to name the opened file - for example on
+a file system that reports the spelling a file was opened with and holds several names that differ only in letter case,
+or a spelling that reaches the file through a linked folder another process created meanwhile - is denied
+(`AccessDenied`, the letter case its real path has on disk cannot be confirmed to name the opened file); a folder whose
+entries cannot be listed keeps the name as written, which can only deny. Only the check of the path as written before
+the open keeps the system's rule (case-insensitive on Windows and macOS). A policy you call yourself with `Check` must
+get `RealPath` in its on-disk letter case.
 
 Under **every** policy the resolver refuses a referenced network path (`\\server\share`, `//host`) as `NetworkPath`, a
 device path
@@ -2556,8 +2570,8 @@ parsed: `Fragment.Problem` says why, and the resolver reports `image-fragment-in
 
 A source that uses parameters implements `IFragmentImageSource` and declares their lower-case names; the built-in ones
 declare `["page"]` (`PdfImageSource`, `VsdxImageSource`), `["page", "slide"]` (`PptxImageSource`, the last of the two
-wins), and none for the others (the viewer's SCAD source adds `view`, `azimuth`, and `elevation`). With no parameter
-**page 1 is drawn**.
+wins), `["theme"]` (`MermaidImageSource`), and none for the others (the viewer's SCAD source adds `view`, `azimuth`,
+`elevation`, and `projection`). With no parameter **page 1 is drawn**.
 
 A source whose parameters are named by the author of the link (the variables of a model, the parameters of a chart)
 cannot list the names, so it declares a **prefix** in `FragmentParameterPrefixes` instead (a default interface member: a

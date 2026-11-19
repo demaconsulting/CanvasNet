@@ -18,7 +18,9 @@ The internal `FileOpenHooks` seams, supplied through an internal constructor tha
 core assembly's `InternalsVisibleTo` grant, make the open and the handle deterministic without any privilege, lock or
 timing: `BeforeOpen` records the paths that are opened, `Open` replaces the opener (to raise an open failure, report
 "not found", or hand in a device handle), `AfterOpen` changes the directory tree between the open and the check, and
-`RealPathOf` replaces the real path reported for the handle (an outside path, or none).
+`RealPathOf` replaces the real path reported for the handle (an outside path, an upper-cased path, or none), and
+`ExactPathOf` replaces the on-disk spelling computed for the real path (the path of another existing file, which the
+identity check must refuse).
 
 The race-free check is proven without timing in `FileReferenceResolverRaceTests`: inside `AfterOpen` the opened file is
 moved away and its folder replaced by a junction or symbolic link to an outside folder (Windows does not allow renaming
@@ -200,6 +202,23 @@ replaced by a junction or symbolic link to an outside folder, so the open reache
 (whose root location was captured when the policy was created) and under `NoSymlinks` (whose starting folder was
 captured before the open) the file is denied with the outside real path. A starting folder whose location could not be
 captured (the `DirectoryLocationOf` seam reports none) is denied under `NoSymlinks`.
+
+##### CanvasNet-Files-FileReferenceResolver-ExactCase: The Real Path in Its On-Disk Letter Case
+
+**Tests**: `FileReferenceResolver_Resolve_StoredSpellingNamingAnotherFile_IsAccessDenied`,
+`FileReferenceResolver_ResolveTopLevel_StoredSpellingNamingAnotherFile_IsDeniedWhenReferenced`,
+`FileReferenceResolver_Resolve_ReportedRealPathInAnotherLetterCase_IsCorrectedToTheStoredCase` (Windows, macOS),
+`FileReferenceResolver_Resolve_RootWrittenInAnotherLetterCase_ReadsTheFile` (Windows, macOS)
+
+When the `ExactPathOf` seam offers the path of another existing file as the on-disk spelling, the file is denied
+under `UnderRoots` and under `NoSymlinks` with `AccessDenied`, the reason "the letter case its real path has on disk
+cannot be confirmed to name the opened file" and its hint, no host path in the reason; asking again opens the file
+again (the denial is not remembered). The top-level file is read under the same seam, and a later reference to it is
+denied with the same reason. In a folder that ignores letter case, a real path reported in upper case (as a file
+system that reports the spelling used to open a file would) reaches the policy, and the result, in the stored letter
+case; and a root and base directory given in upper case under `UnderRoots` read a file inside, whose real path is in
+the stored letter case. The case-insensitive scenarios probe the temporary folder and skip where it compares letter
+case.
 
 ##### CanvasNet-Files-FileReferenceResolver-RealPathUnavailable: Fail Closed Without a Real Path
 

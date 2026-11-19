@@ -52,7 +52,10 @@ public sealed record SvgLoadOptions
     ///     </para>
     ///     <para>
     ///     The resolver receives the raw <c>href</c> and the device-pixel size of the placement
-    ///     rectangle through <see cref="IImageResolver.Resolve(string, int, int)"/>. It returns a
+    ///     rectangle through <see cref="IImageResolver.Resolve(string, int, int)"/>: the placement's
+    ///     own <c>width</c> x <c>height</c> scaled by the largest stretch of the element's transform,
+    ///     so the requested box keeps the placement's aspect under a skew or a non-uniform scale
+    ///     (the transform then maps the drawn picture onto the device). It returns a
     ///     <see cref="Surface"/> or <see langword="null"/>. A <see langword="null"/> result is a
     ///     tolerant no-op: the element draws nothing. A returned surface is fitted into the
     ///     placement rectangle per the element's <c>preserveAspectRatio</c> and drawn through the
@@ -126,4 +129,27 @@ public sealed record SvgLoadOptions
     ///     </para>
     /// </remarks>
     public Action<SvgHint>? HintHandler { get; init; }
+
+    /// <summary>
+    ///     Gets an optional callback that receives the reports of features the codec cannot draw (see
+    ///     <see cref="SvgUnsupportedFeature"/>), or <see langword="null"/> (the default) for none.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         Two codes are reported: <see cref="SvgUnsupportedFeature.TextNotDrawnCode"/> for text that is not drawn
+    ///         at all (for example <c>textPath</c> content, or text inside <c>foreignObject</c>) and
+    ///         <see cref="SvgUnsupportedFeature.TextUnsupportedCode"/> for text drawn without a feature it uses (for
+    ///         example <c>rotate</c>, <c>textLength</c>, or a character no font covers). A report never changes the
+    ///         pixels and never fails the render; failing is the host's choice.
+    ///     </para>
+    ///     <para>
+    ///         The callback is called on the rendering thread, after the document is painted, at most once per code, in
+    ///         the order of the two codes above. An exception it throws propagates to the caller of <c>Load</c>. Unlike
+    ///         hints, every drawn content reports, including content drawn through <c>use</c>, <c>marker</c>,
+    ///         <c>pattern</c>, <c>mask</c> and <c>clipPath</c>; content that is never drawn (inside <c>defs</c>, or a
+    ///         <c>switch</c> child that is not chosen) does not. A nested SVG file drawn through
+    ///         <see cref="ImageResolver"/> reports through its own render. When no handler is set nothing is collected.
+    ///     </para>
+    /// </remarks>
+    public Action<SvgUnsupportedFeature>? UnsupportedFeatureHandler { get; init; }
 }

@@ -12,14 +12,51 @@
 [![Security][badge-security]][link-security]
 [![NuGet][badge-nuget]][link-nuget]
 
-.NET canvas library for loading, saving, and cropping images
+![CanvasNet banner: the CanvasNet name with the tagline 'Every format in. Crisp pictures out.' and the command 'canvasnet render hero.svg'. Live renders of a Mermaid flowchart, an OpenSCAD bearing housing, a Vega-Lite bar chart, an SVG landscape, and PDF, PowerPoint and Visio pages flow on curved arrows into the canvasnet engine and its .NET API, and arrows lead out to a composed PNG figure, an image comparison that highlights a changed bar, a montage of an exploded 3D assembly, and a Pandoc document page. The banner is itself one SVG file drawn by CanvasNet from those source files](https://raw.githubusercontent.com/demaconsulting/CanvasNet/main/docs/images/hero.png)
 
 ## Overview
 
-CanvasNet is a .NET library providing a mutable, span-based 32-bit RGBA pixel buffer along with
-codecs for loading and saving images in common file formats. It's designed for fast, allocation-conscious
-image operations using `Span<T>`, and supports independent-copy cropping and high-quality resizing for
-load/crop/resize/save workflows.
+**Every format in. Crisp pictures out.** CanvasNet draws SVG, PDF, PowerPoint, Visio, OpenSCAD 3D models, Vega-Lite
+charts, and Mermaid and PlantUML diagrams to pixels in pure .NET, as a library and as the `canvasnet` command-line tool,
+built for people, scripts, and AI agents. The banner above is itself one SVG file that CanvasNet drew from the files it
+shows.
+
+### Why CanvasNet
+
+- **One renderer for every format** - no browser, no Node.js, no OpenSCAD, no Java, no native libraries: managed .NET
+  code only.
+- **Composition** - any file can be a picture in another: an SVG page embeds a Mermaid diagram whose nodes show a 3D
+  model and a chart, with fragments (`#page=2`, `#view=front`, `#theme=dark`, `#def.explode=1`) choosing what to draw
+  and bindings landing arrows on embedded nodes at any size.
+- **Made for AI agents** - built-in help cards with worked examples, one JSON document per command, stable error
+  codes, and `compare`, `montage`, `inspect`, and `--grid` so an agent can look at, measure, and check what it draws.
+- **The same pixels everywhere** - bundled fonts, no network access, documented resource limits, and file-access
+  policies for documents you do not trust.
+- **Documents that draw themselves** - the Pandoc filter turns `![Flow](flow.mmd)`, `![Part](part.scad)`, and
+  `mermaid` code blocks into pictures when the document is built.
+
+## Quick Start
+
+```bash
+dotnet tool install --global DemaConsulting.CanvasNet.Tool
+
+canvasnet render flow.mmd --theme dark --scale 2 -o flow.png   # a Mermaid diagram
+canvasnet render part.scad --view iso -o part.png              # an OpenSCAD model
+canvasnet render report.pdf --page 2 --dpi 150 -o page2.png    # a document page
+canvasnet help topics                                          # everything else, with examples
+```
+
+Or from code, with the `DemaConsulting.CanvasNet.Viewer` package:
+
+```csharp
+using DemaConsulting.CanvasNet.Codecs;
+using DemaConsulting.CanvasNet.Viewer;
+
+using var image = CanvasNetViewer.Render("diagrams/overview.svg", new ViewerRenderOptions { Width = 1200 });
+PngCodec.Save(image.Surface, "overview.png");
+```
+
+## Gallery
 
 ![CanvasNet showcase: an SVG dashboard, an OpenSCAD 3D model, a Vega-Lite bar chart, a Mermaid flowchart, a PDF page with mesh shadings, a PowerPoint slide with a chart, a Visio diagram, and an SVG page that composes several of them, all rendered by CanvasNet](https://raw.githubusercontent.com/demaconsulting/CanvasNet/main/docs/images/showcase.png)
 
@@ -37,11 +74,11 @@ specification and is rendered, in strict mode, by a test.*
 *Six of the ten Mermaid diagram types CanvasNet draws (sequence, class, state, gantt, mindmap, and git graph), each
 from the examples of the user guide, rendered in strict mode with ports of Mermaid's own layouts.*
 
-CanvasNet is a family of packages: a core canvas with image codecs, drawing, and fonts, a package for each format it
-reads, a Viewer that opens any of them, and the `canvasnet` tool that bundles them all. The diagram shows which
-package builds on which.
+![A product sheet for a planetary gearbox drawn by CanvasNet from a single OpenSCAD file. A large view shows the assembled gearbox: an orange sun gear and three blue herringbone planet gears inside a ring gear cut into a gray housing with a rounded flange, screws and engraved lettering. Callouts name the OpenSCAD construct behind each feature: linear_extrude with twist, polygon with a list comprehension, difference, a for loop, minkowski, text and rotate_extrude. A round inset shows the gears meshing from above. Two side panels show the same file as an exploded view (#def.explode=1), with the hull-shaped carrier and the bearing balls labeled, and as a cutaway (#def.cutaway=1), with the cut faces painted red](https://raw.githubusercontent.com/demaconsulting/CanvasNet/main/docs/images/gearbox.png)
 
-![CanvasNet package architecture: applications use the Viewer and the canvasnet tool uses it too; the Viewer opens the seven format packages (PDF, SVG, PowerPoint, Visio, OpenSCAD, Vega-Lite, and Mermaid); PowerPoint also uses the SVG and Charts packages and OpenSCAD uses the Render3D package; every package builds on the DemaConsulting.CanvasNet core with its canvas, codecs, drawing, fonts, and file access](https://raw.githubusercontent.com/demaconsulting/CanvasNet/main/docs/images/architecture.png)
+*One OpenSCAD file, four views: CanvasNet runs the model with its own OpenSCAD interpreter, CSG engine, and 3D
+renderer, in pure .NET with no OpenSCAD install. The exploded and cutaway views are the same file with a variable
+set by the link (`gearbox.scad#def.explode=1`), and every callout is bound to a named point of the model.*
 
 ## Composition
 
@@ -50,9 +87,11 @@ shows one (`part@{ img: "part.scad" }`, or `<img src="part.scad">` in a label), 
 Links are read the way Pandoc reads them, relative to the document, under a file-access policy that the host chooses
 (by default every local file; confine untrusted documents to chosen folders), and never from the network. A URL fragment
 passes options to the linked file: `#page=` or `#slide=` (PDF, PowerPoint, Visio), `#view=`, `#azimuth=`, `#elevation=`,
-and `def.<name>=` (OpenSCAD views, camera angles, and variables), `param.<name>=` (Vega-Lite parameters), and `#theme=`
-(Mermaid); join several with
+`#projection=`, and `def.<name>=` (OpenSCAD views, camera angles, projection, and variables), `param.<name>=` (Vega-Lite
+parameters), and `#theme=` (Mermaid); join several with
 `&amp;` in XML.
+
+![How CanvasNet composition works. On the left, an exploded view stacks three layers: the SVG page page.svg on top, the Mermaid diagram flow.mmd it embeds in the middle, and an OpenSCAD model and a Vega-Lite chart that the diagram's nodes embed at the bottom. Dashed lines show where each picture lands one layer up, and a pink line shows an annotation arrow of the page bound to a node of the diagram. Numbered cards show the markup behind each link: an SVG image href with #theme=dark, a cn:x2y2 binding, and Mermaid picture nodes with #def.explode=1 and #param.goal=180, plus the same link in Markdown through the Pandoc filter. A curved arrow labeled renders to points to the finished page, and a card lists fragments such as #page=2, #view=front, #theme=dark and #param.goal=180](https://raw.githubusercontent.com/demaconsulting/CanvasNet/main/docs/images/composition-explained.png)
 
 ```xml
 <svg xmlns="http://www.w3.org/2000/svg" width="960" height="720">
@@ -62,11 +101,6 @@ and `def.<name>=` (OpenSCAD views, camera angles, and variables), `param.<name>=
 </svg>
 ```
 
-![An SVG page titled System overview: a Mermaid flowchart whose nodes show an OpenSCAD enclosure and a Vega-Lite bar chart, one OpenSCAD assembly drawn twice with different explode fragments, and a Mermaid sequence diagram drawn with the dark theme](https://raw.githubusercontent.com/demaconsulting/CanvasNet/main/docs/images/composition.png)
-
-*One SVG page, three levels deep: SVG, then Mermaid, then OpenSCAD and Vega-Lite. See
-[its sources](https://github.com/demaconsulting/CanvasNet/blob/main/docs/images/README.md).*
-
 `canvasnet flatten overview.svg -o overview-flat.svg` turns such a composite SVG into a self-contained one whose links
 are embedded PNG pictures, so a browser, WeasyPrint, or any other PDF pipeline shows it.
 
@@ -75,17 +109,6 @@ A callout can be bound to a feature of an embedded picture: `cn:x2y2="#flow node
 at any size, and `flatten` bakes the numbers in (`canvasnet help svg bindings`).
 
 ## Features
-
-> **Breaking change: linked files are no longer confined by default.** SVG images, Mermaid pictures, Vega-Lite image
-> marks and data files, OpenSCAD `include` and `use`, and linked document pages now follow `..`, absolute paths, `file:`
-> URIs and symbolic links, as Pandoc does. To keep the old folder confinement, set
-> `FileAccess = FileAccessPolicy.Combine(FileAccessPolicy.UnderRoots(folder), FileAccessPolicy.NoSymlinks)` on the
-> options of the operation. The `SandboxedFileResolver` family is obsolete. The `canvasnet` tool follows the same
-> default. Exactly the old confinement is `--file-access roots,no-symlinks --allow-root <folder of the input>`; without
-> `--allow-root`, `roots` also allows everything under the current folder. For a document you do not trust, add
-> `--allow-root <the document's folder>`. The Pandoc filter stays unrestricted unless `CANVASNET_FILE_ACCESS` and
-> `CANVASNET_ROOTS` opt in. See *Migrating from the Folder Sandbox* in the
-> [core library user guide](https://github.com/demaconsulting/CanvasNet/blob/main/docs/user_guide/canvas-net.md#migrating-from-the-folder-sandbox).
 
 - 🖼️ **Pixel Buffer** - Mutable 32-bit RGBA surface with span access
 - ✂️ **Cropping** - Independent-copy crop for load/crop/save workflows
@@ -178,6 +201,10 @@ the ones you need, the same way as above:
 | `DemaConsulting.CanvasNet.PlantUml` | PlantUML sequence and activity diagrams |
 | `DemaConsulting.CanvasNet.Viewer` | The `canvasnet` operations as library calls |
 | `DemaConsulting.CanvasNet.Tool` | The `canvasnet` command-line tool (dotnet tool) |
+
+**Upgrading from an earlier version?** Linked files are no longer confined to the document's folder by default; see
+*Migrating from the Folder Sandbox* in the
+[core library user guide](https://github.com/demaconsulting/CanvasNet/blob/main/docs/user_guide/canvas-net.md#migrating-from-the-folder-sandbox).
 
 ## Command-Line Tool
 
@@ -651,6 +678,14 @@ See the [User Guide][link-releases] for the full API reference and additional wo
 including stroking, gradients, tile paint, font loading/metadata, chart building, OOXML chart
 parsing, PDF, PowerPoint and Visio rendering, 3D scene rendering, OpenSCAD-language model rendering,
 Vega-Lite chart rendering, Mermaid and PlantUML diagram rendering, and SVG and JPEG 2000 decoding.
+
+## Architecture
+
+CanvasNet is a family of packages: a core canvas with image codecs, drawing, and fonts, a package for each format it
+reads, a Viewer that opens any of them, and the `canvasnet` tool that bundles them all. The diagram shows which
+package builds on which.
+
+![CanvasNet package architecture: applications use the Viewer and the canvasnet tool uses it too; the Viewer opens the seven format packages (PDF, SVG, PowerPoint, Visio, OpenSCAD, Vega-Lite, and Mermaid); PowerPoint also uses the SVG and Charts packages and OpenSCAD uses the Render3D package; every package builds on the DemaConsulting.CanvasNet core with its canvas, codecs, drawing, fonts, and file access](https://raw.githubusercontent.com/demaconsulting/CanvasNet/main/docs/images/architecture.png)
 
 ## Building
 

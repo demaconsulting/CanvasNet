@@ -83,8 +83,9 @@ role. `HasSource` says whether either mode has anything to look in.
 **Path text rules.** Backslashes become forward slashes. A path that is empty or white space, contains a control
 character (`char.IsControl`: C0, DEL, and C1, including NUL) or a colon (drive letters and alternate data streams), or
 starts with a slash (absolute and UNC paths) is refused before anything is touched. Combining the text with a directory
-normalizes `.` and `..`; a result that is not under the root (ordinal comparison, case-insensitive on Windows and macOS)
-is refused with `OutsideRoot`, while `..` that stays inside the root is fine.
+normalizes `.` and `..`; a result that is not under the root (a lexical check: ordinal comparison, case-insensitive on
+Windows and macOS) is refused with `OutsideRoot`, while `..` that stays inside the root is fine. The decision about the
+opened file is exact (see `ReadVerified`).
 
 **Invariants**: a candidate (root plus key) is looked up at most once per instance (hit or miss); every component
 below a root is checked for a link before the file is opened, for every root the file is reached through, and the
@@ -126,21 +127,25 @@ a cancellation or an argument error is a `SandboxException`.
   exists, so a failure while reading or disposing it that is an `IOException` (including one spelled
   `FileNotFoundException` or `DirectoryNotFoundException`), `UnauthorizedAccessException` or `NotSupportedException` is
   `CannotRead`, never a missing candidate; other exception types are not mapped.
-- `ReadVerified` - opens the candidate through `RealPath.OpenForRead` (read-only with `FileShare.ReadWrite |
-  FileShare.Delete` on Windows; non-blocking and not inherited on Linux and macOS), asks `RealPath.Inspect` for the
-  facts of the **open handle**, and only then reads from that handle: a handle that is not a regular file (a device, a
-  named pipe) is `CannotRead`; a handle whose real path cannot be determined is `LinkCheckFailed` (fail closed); and
-  the link match of the `NoSymlinks` policy (`FileAccessPolicy.MatchesWithoutLinks`), anchored at the candidate's root,
-  must accept the real path - that is, the real path must be the real location of the root followed by the path below
-  the root. The real location of the root (and the long spelling of the candidate's path) is captured once per root,
-  before the walk and the open (`RootLocation`), and is never resolved by name after the open, so a root renamed and
-  replaced by a link in between is refused as `ThroughLink`. When the real location of the root could not be
-  determined the file is `LinkCheckFailed` (fail closed; a root
-  the process may search but not read has a real location); when the real path differs the file is
-  `ThroughLink` with the root-relative path **of the file** as the detail (the handle cannot tell which component is
-  the link). This repeats the walk's rule on the file that is actually read, so a component swapped for a link after
-  the walk is refused. `ThroughLink` and `LinkCheckFailed` from this step are thrown like walk refusals: they are not
-  cached and do not count against `MaxFiles`.
+- `ReadVerified` - opens the candidate through `RealPath.OpenForRead` (read-only with
+  `FileShare.ReadWrite | FileShare.Delete` on Windows; non-blocking and not inherited on Linux and macOS), asks
+  `RealPath.Inspect` for the facts of the **open handle**, and only then reads from that handle: a handle that is not a
+  regular file (a device, a named pipe) is `CannotRead`; a handle whose real path cannot be determined is
+  `LinkCheckFailed` (fail closed); and the link match of the `NoSymlinks` policy
+  (`FileAccessPolicy.MatchesWithoutLinks`), anchored at the candidate's root, must accept the real path - that is, the
+  real path must be the real location of the root followed by the path below the root, compared exactly, letter case
+  included. The real path is first taken in the letter case stored on disk (`RealPath.GetExactPathName`, or the
+  `ExactPathOf` hook) and confirmed against the open handle (`RealPath.TryConfirmExactPath`, by file identity); a
+  spelling that cannot be confirmed is `LinkCheckFailed` (fail closed). The real location of the root, in its on-disk
+  letter case (`RealPath.TryGetExactCanonicalDirectory`, kept in a dictionary keyed exactly), is captured once per root
+  (`RootLocation`), and the on-disk spelling of the candidate's path (`FileAccessPolicy.ExactSpelling`) before every
+  walk and open; neither is resolved by name after the open, so a root renamed and replaced by a link in between is
+  refused as `ThroughLink`. When the real location of the root could not be determined the file is `LinkCheckFailed`
+  (fail closed; a root the process may search but not read has a real location); when the real path differs the file is
+  `ThroughLink` with the root-relative path **of the file** as the detail (the handle cannot tell which component is the
+  link). This repeats the walk's rule on the file that is actually read, so a component swapped for a link after the
+  walk is refused. `ThroughLink` and `LinkCheckFailed` from this step are thrown like walk refusals: they are not cached
+  and do not count against `MaxFiles`.
 - `ReadFromStream` - the open-and-read of a stream opener (the verified handle wrapped in a `FileStream`, or a test's
   injected opener) with the missing/unreadable mapping above.
 - `ComponentExists` - the existence check of a directory component above the file during the link walk. It reads

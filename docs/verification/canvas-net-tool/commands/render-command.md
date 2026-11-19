@@ -664,6 +664,15 @@ reports the azimuth 30 and the elevation 20 with no diagnostics, and `compare` f
 `render part.scad --azimuth 30 --elevation 20`; `render "part.scad#azimuth=30" --elevation 10 --json` reports the
 azimuth 30 and the elevation 10, so the command still sets an angle the fragment does not.
 
+**InputFragment_Render_Projection_DrawsLikeTheOption**: `render "part.scad#projection=perspective" --json` reports the
+projection `perspective` with no diagnostics, and `compare` finds its image identical to the image of
+`render part.scad --projection perspective`; with `--projection ortho` on the command line the fragment still wins (the
+projection `perspective` and the same image), and `render "part.scad#projection=ortho" --projection perspective`
+reports `orthographic`.
+
+**InputFragment_Render_InvalidProjection_IsImageFragmentInvalid**: `render "part.scad#projection=fisheye"` and
+`render "part.scad#projection="` fail with `image-fragment-invalid` and write nothing.
+
 **InputFragment_EveryCommand_MalformedFragment_FailsWithTheCode** and **InputFragment_OverTheLimits_IsInvalid**: for a
 model, a chart, and a PDF, an unterminated vector or object, a name that is not an identifier, an unknown view, `view`
 without a value, a malformed JSON object, `azimuth=abc`, `elevation=95`, `page=abc`, and `page=0` are
@@ -695,6 +704,10 @@ file are the `usage-error` "The folder '...' of --allow-root does not exist." wi
 an input inside it, a relative input, two inputs in one other folder, and an input with a `#view=top` fragment, the
 default roots are the working directory, the other folder once, and the folder of the fragment input.
 
+**RenderCommand_DefaultRoots_InputFolderDifferingOnlyInLetterCase_IsItsOwnFolder**: an input in `WORK` next to the
+working directory `work` (a lexical comparison, so the folders need not exist) gives both folders as default roots,
+because the folders are compared exactly, letter case included.
+
 **RenderCommand_ReadFileAccess_RootsWithoutAllowRoot_UsesTheDefaultRoots**: `--file-access roots` for an input outside
 the working directory allows a file in the working directory and one beside the input, and denies a file elsewhere.
 
@@ -711,8 +724,17 @@ writes no output.
 the end of a line, rendered with `--strict --json`, exits with code 0, writes the picture, reports `ok` true, and has
 one `warning` diagnostic with the code `svg-arrowhead-shape` whose message points at `canvasnet help svg arrows`.
 
+**RenderCommand_Run_SvgTextPath_IsUnsupportedAndStrictFails**: a diagram with a text on a `textPath`, rendered with
+`--json`, exits with code 0 and has one `unsupported` diagnostic with the code `svg-text-not-drawn`; rendered with
+`--strict --json`, it exits with code 1, reports the error `unsupported-feature`, and writes no output.
+
 **RenderCommand_Verb_FileAccessOption_AppliesToTheVerbs**: `resize` of that diagram with `--file-access roots` exits
 with code 0, reports one `image-access-denied` warning, and leaves the picture undrawn.
+
+**RenderCommand_Run_AllowRootInAnotherLetterCase_DrawsThePictureInside** (Windows, macOS): in a temporary folder that
+ignores letter case, a diagram in `site` that links a green picture beside it, rendered with `--allow-root` naming
+`site` in upper case and `--strict`, exits with code 0 and draws the picture; the scenario probes the folder and skips
+where it compares letter case.
 
 **RenderCommand_Positions_Json_HasTheDocumentedShape**, **RenderCommand_Positions_ConvertCropAndPad_PixelOnTheNode**,
 **RenderCommand_Positions_ChartWithGrid_ReportsMarkValues**,

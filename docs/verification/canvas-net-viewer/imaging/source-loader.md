@@ -624,7 +624,8 @@ operations list says what happened.
 **SourceLoader_Load_SvgEmbeddingPng_DrawsPictureAndListsEmbedOperation**,
 **SourceLoader_Load_SvgEmbeddingScad_DrawsModelOverTransparentBackground**,
 **SourceLoader_Load_SvgEmbeddingVegaLite_KeepsChartBackgroundOpaque**,
-**SourceLoader_Load_SvgEmbeddingNestedSvg_ListsOnlyTheOuterEmbedOperation**, and
+**SourceLoader_Load_SvgEmbeddingNestedSvg_ListsOnlyTheOuterEmbedOperation**,
+**SourceLoader_Load_SvgEmbeddedSvgUnderSkew_FillsItsPlacement**, and
 **SourceLoader_Load_SvgEmbeddingByFileName_DrawsListedTypesAndSkipsOthers** (`SourceLoaderSvgImageTests.cs`; each test
 writes the files beside a 40 by 40 red SVG in a temporary folder): a green PNG is drawn in its placement with red
 around it, no notes, and one `embed` operation (`href`, `format` `png`, and its natural width of 4); the model fixture
@@ -632,7 +633,10 @@ is
 drawn at the size of its placement (80 pixels at `--scale 2`) with the red diagram at the corner (a transparent
 background); the chart fixture is opaque white in its placement, red below it, and drawn at the size of the
 placement; `sub/inner.svg` draws `sub/img.png` although the outer folder has no such file, and only the outer
-`sub/inner.svg` is an `embed` operation (the picture it embeds is not listed); a PDF named `.pdf` and a chart named
+`sub/inner.svg` is an `embed` operation (the picture it embeds is not listed); a nested SVG file that is green over its
+whole 20 by 10 viewBox, placed 20 by 10 under `skewX(30)` and under `scale(1,2)` at `--scale 2`, is green near the four
+corners and at the center of each transformed placement and red just outside each side, with no notes (as in Edge,
+the nested file fills its placement and is not drawn smaller or squashed); a PDF named `.pdf` and a chart named
 `.vl.json` are drawn (formats `pdf` and `vega-lite`) while the same contents named `.bin` and `.json` are two
 `svg-image-unresolved` warnings (the type is decided by the file name).
 
@@ -650,6 +654,12 @@ is no `embed` operation; `../secret.png` is drawn under the default policy and, 
 mode; a reference through a file symbolic link is drawn by default and is the `image-access-denied` warning under
 `NoSymlinks`; a missing file and a text file are two warnings. The file-access policy, the dispatch, the cycle, depth,
 and count limits, and the file URI rules are verified by the `ImageSources` subsystem tests and the Viewer tests.
+
+**SourceLoader_Load_SvgEmbeddingUnderRootsWrittenInAnotherLetterCase_IsDrawn** (Windows, macOS): in a temporary folder
+that ignores letter case, a picture beside the SVG file in `site` is drawn in strict mode, with no diagnostic, under
+`UnderRoots` given `site` in upper case: the real path of the picture and the real location of the root are compared
+exactly, both in the letter case stored on disk. The scenario probes the folder and skips where it compares letter
+case.
 
 **SourceLoader_Load_SvgEmbeddingTooLargePicture_IsWarningThenStrictError**: a 33-byte PNG that only declares 9000 by
 9000
@@ -676,6 +686,14 @@ scale of 3 and an unknown view name do not reach the embedded files (the raster 
 **SourceLoader_Load_SvgHandDrawnArrowhead_IsAWarningThatNeverFails**: an SVG file with a filled triangle drawn by hand
 on the end of a line loads with and without strict mode, each time with one `svg` `warning` note with the code
 `svg-arrowhead-shape` whose one-line message contains `'canvasnet help svg arrows'`.
+
+**SourceLoader_Load_SvgTextNotDrawn_IsUnsupportedAndStrictFails**: an SVG file with a text on a `textPath` loads with
+one `svg` `unsupported` note with the code `svg-text-not-drawn` that names `textPath`; with strict mode the load fails
+with `unsupported-feature` and a message that names the code.
+
+**SourceLoader_Load_NestedSvgTextNotDrawn_IsReportedForTheLink**: an SVG file that embeds an SVG file whose text is on
+a `textPath` loads with an `unsupported` `svg-text-not-drawn` note; with strict mode the load fails with
+`unsupported-feature`.
 
 **SourceLoader_ComputeTargetSize_SizeOptions_FollowsPolicy** and
 **SourceLoader_Load_RasterWithWidth_ResizesKeepingAspectRatio**: the size policy for none, scale, width, height, and
@@ -903,6 +921,7 @@ value nested 40 levels deep and a null dictionary are
 **SourceLoader_ProbeInputReference_OverTheLimitsOrMissing_Throws**,
 **InputSelection_ApplyTo_Model_MergesVariablesAndReplacesTheView**,
 **InputSelection_ApplyTo_Model_FragmentAnglesReplaceTheCommandAngles**,
+**InputSelection_ApplyTo_Model_FragmentProjectionReplacesTheCommandProjection**,
 **InputSelection_ApplyTo_Chart_MergesParametersByName**,
 **InputSelection_ApplyTo_Diagram_FragmentThemeReplacesTheCommandTheme**,
 **SourceLoader_ProbeInputReference_PlantUmlTheme_IsAnUnknownParameter** (a `#theme=dark` on a PlantUML diagram is
@@ -922,10 +941,13 @@ gives no `Selection` and `Specifier` is the path; a null argument is rejected. F
 applying it twice gives the same, and a fragment with no view keeps `front`. Merged over the command options `front`,
 azimuth 30, and elevation 5, `azimuth=-90&elevation=-10` gives the view `front`, the azimuth 270 (normalized), and the
 elevation -10 with no notes, `elevation=20` alone keeps the azimuth 30, and `view=top&azimuth=10` gives the view `top`,
-the azimuth 10, and the elevation 5. For a PDF `page=2` is the selection page
+the azimuth 10, and the elevation 5. `projection=ORTHO` over a perspective command gives an orthographic view,
+`projection=perspective` over an orthographic command (and over no model options) a perspective one with no notes and
+without making the view explicit, and a fragment without `projection` (`def.width=3`) keeps the perspective of the
+command. For a PDF `page=2` is the selection page
 (and replaces a page of 7), `page=3` is `page-out-of-range`, and `slide=2` (a presentation parameter) is the warning
 `image-fragment-unknown-parameter` with no page. Each of `def.width=[1,2`, `view=sideways`, `azimuth=abc`,
-`elevation=95`, `elevation=Infinity`, `def.2x=1`,
+`elevation=95`, `elevation=Infinity`, `projection=fisheye`, `projection=`, `def.2x=1`,
 `param.cutoff={bad` and `page=x` is `image-fragment-invalid` whose message has the fragment and that has a hint, and so
 is `theme=midnight` on a diagram; a fragment of 2,049 characters and one of 33 parameters are `image-fragment-invalid`;
 a missing file with a fragment is `input-not-found` that says a file of that name does not exist either, and without a

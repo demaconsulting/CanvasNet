@@ -37,6 +37,7 @@ sections:
           - CanvasNetViewer-Imaging-SourceLoader-Raster
           - CanvasNetViewer-Imaging-SourceLoader-Svg
           - CanvasNetViewer-Imaging-SourceLoader-SvgArrowheadHint
+          - CanvasNetViewer-Imaging-SourceLoader-SvgUnsupportedText
           - CanvasNetViewer-Imaging-SourceLoader-Documents
           - CanvasNetViewer-Imaging-SourceLoader-PageSelection
           - CanvasNetViewer-Imaging-SourceLoader-Resolution

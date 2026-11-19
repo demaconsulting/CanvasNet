@@ -40,7 +40,8 @@ sections:
           The library shall create, for a folder, a resolver that lets an SVG document embed a raster, a model,
           a chart, a diagram, another SVG file, and a page of a document under the file-access policy given (a query
           after the file name is ignored, and a fragment chooses the page of a document, # page=N or  # slide=N, the
-          view of a model,  # view=name, or its angles,  # azimuth=degrees and  # elevation=degrees, or the theme of a
+          view of a model,  # view=name, or its angles,  # azimuth=degrees and  # elevation=degrees, or its
+          projection,  # projection=type, or the theme of a
           diagram,  # theme=name; def.name=value sets a variable of a
           model and param.name=value a parameter of a chart),
           refuse a picture that would take more pixels than the render

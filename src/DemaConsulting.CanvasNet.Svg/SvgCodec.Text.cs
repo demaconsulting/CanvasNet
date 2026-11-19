@@ -17,8 +17,9 @@ public static partial class SvgCodec
     // ================================================================================================
 
     /// <summary>
-    ///     Renders a <c>text</c> element by laying out its glyphs as one combined local-space
-    ///     outline, then rendering it through the same fill/stroke pipeline as any other shape.
+    ///     Renders a <c>text</c> element: lays it out as styled, positioned runs (see
+    ///     <see cref="LayoutText"/>) and renders them through the same fill/stroke and effects
+    ///     pipeline as any other shape.
     /// </summary>
     /// <param name="element">The <c>text</c> element.</param>
     /// <param name="state">The cascaded render state, supplying <c>font-family</c>/<c>font-size</c>/<c>text-anchor</c>.</param>
@@ -36,56 +37,68 @@ public static partial class SvgCodec
     /// </param>
     /// <param name="totalElements">The running total-rendered-elements count, forwarded to <see cref="RenderShapeWithEffects"/>.</param>
     /// <remarks>
-    ///     Silently renders nothing - never throws - when the element has no text content. The font
-    ///     is always resolved (see <see cref="ResolveFont"/>): a caller-registered font first, then
+    ///     Silently renders nothing when the element has no character content. The font is always
+    ///     resolved (see <see cref="ResolveFont"/>): a caller-registered font first, then
     ///     installed/generic/bundled defaults, so text is never dropped for want of a registered
-    ///     font. Nested markup (for example <c>tspan</c>) is not given its own positioning: every
-    ///     descendant text node's content is concatenated and laid out as one flat run, a
-    ///     documented simplification. Only the first <c>dx</c>/<c>dy</c> value of the <c>text</c>
-    ///     element itself offsets the run; <c>letter-spacing</c>, <c>word-spacing</c>,
-    ///     <c>textLength</c>, <c>baseline-shift</c> and per-glyph position lists are not supported.
+    ///     font. Each <c>tspan</c>/<c>a</c> run is painted with its own cascaded state, and a paint
+    ///     server or effect uses the bounding box of the whole text. The text's opacity applies to
+    ///     its runs together: a text of several runs with an opacity below 1 is painted into one
+    ///     offscreen layer (see <see cref="NeedsTextRunsLayer"/>), so a run drawn over another
+    ///     covers it, as in browsers. A text that lays out as one run of the <c>text</c> element
+    ///     itself takes exactly the call it always took, so plain text renders as before. Letter and
+    ///     word spacing are laid out (see <see cref="LayOutSpacedRun"/>).
+    ///     <c>rotate</c>, <c>textLength</c>, vertical writing
+    ///     and the other features the layout ignores are reported (see <see cref="SvgUnsupportedFeature"/>),
+    ///     as is text whose coordinates are beyond the supported range (the shape renderer skips it).
     /// </remarks>
     private static void RenderText(
         XElement element, RenderState state, Matrix3x2 transform, RenderContext context,
         RenderScope scope, ref int totalElements)
     {
-        var text = element.Value;
-        if (string.IsNullOrEmpty(text))
+        var characterCount = CountTextCharacters(element);
+        if (characterCount == 0)
         {
             return;
         }
 
-        var font = ResolveFont(context, state.FontFamily, state.FontWeight, state.FontStyle);
-
         // Charge the text's character count before the expensive per-rune glyph-outline/kerning
         // loop begins, so a pathologically long run throws before that work is spent
-        scope.WorkBudget.Charge(text.Length);
+        scope.WorkBudget.Charge(characterCount);
 
-        var origin = ResolveTextOrigin(element, state);
-        var glyphRunPath = BuildGlyphRunPath(text, font, state, origin);
-        RenderShapeWithEffects(element, glyphRunPath, state, transform, context, scope, ref totalElements);
+        var runs = LayoutText(element, state, context, report: true);
+
+        // Nothing to paint (white space, or a zero font size): the empty outline still goes through the effects
+        // pipeline, exactly as before the run layout, so a filter with its own region behaves the same
+        if (runs.Count == 0)
+        {
+            RenderShapeWithEffects(element, Path.Empty, state, transform, context, scope, ref totalElements);
+            return;
+        }
+
+        var combined = CombineTextRuns(runs);
+        if (context.Unsupported is { } collector && !IsBoundsWithinCoordinateMagnitude(combined.GetBounds().Transform(transform)))
+        {
+            collector.Add(SvgUnsupportedFeature.TextNotDrawnCode, "coordinates beyond the supported range", element);
+        }
+
+        // One run of the text element itself is a plain text: the call it always took
+        if (runs.Count == 1 && ReferenceEquals(runs[0].Element, element))
+        {
+            RenderShapeWithEffects(element, combined, state, transform, context, scope, ref totalElements);
+            return;
+        }
+
+        RenderShapeWithEffects(element, combined, state, transform, context, scope, ref totalElements, runs);
     }
 
     /// <summary>
-    ///     Resolves a <c>text</c> element's baseline anchor: its <c>x</c>/<c>y</c> plus the first
-    ///     <c>dx</c>/<c>dy</c> value, shared by rendering, the filter bounds pre-pass and a
-    ///     <c>clipPath</c> text child so all three place the run identically.
+    ///     Determines whether the corners of a pixel-space box are finite and within <see cref="MaxCoordinateMagnitude"/>,
+    ///     the same limit <see cref="RenderShape"/> applies to every point of a shape.
     /// </summary>
-    /// <param name="element">The <c>text</c> element.</param>
-    /// <param name="state">The element's cascaded state (its font size is the <c>em</c> basis of <c>dx</c>/<c>dy</c>).</param>
-    /// <returns>The anchor in the element's local space.</returns>
-    /// <exception cref="InvalidDataException">Thrown when <c>x</c> or <c>y</c> is not a valid length (class S); a malformed <c>dx</c>/<c>dy</c> is ignored.</exception>
-    /// <remarks>
-    ///     <c>dx</c>/<c>dy</c> are the canonical use of <c>em</c> in generated SVG (a
-    ///     <c>dy="0.71em"</c> baseline offset). Only the first list value is honored, and a
-    ///     malformed one is ignored (class F in this class's remarks) because they are optional
-    ///     refinements of an otherwise valid position.
-    /// </remarks>
-    private static Vector2 ResolveTextOrigin(XElement element, RenderState state) => new(
-        GetFloatAttribute(element, "x", state, PercentageAxis.Horizontal) +
-            ResolveFirstLengthOrZero((string?)element.Attribute("dx"), state, PercentageAxis.Horizontal),
-        GetFloatAttribute(element, "y", state, PercentageAxis.Vertical) +
-            ResolveFirstLengthOrZero((string?)element.Attribute("dy"), state, PercentageAxis.Vertical));
+    /// <param name="pixelBounds">The pixel-space bounds of a shape.</param>
+    /// <returns><see langword="true"/> when the whole box is within the limit.</returns>
+    private static bool IsBoundsWithinCoordinateMagnitude(Rect pixelBounds) =>
+        IsFiniteAndWithinCoordinateMagnitude(pixelBounds.TopLeft) && IsFiniteAndWithinCoordinateMagnitude(pixelBounds.BottomRight);
 
     /// <summary>
     ///     Finds the first font-family name in <paramref name="fontFamily"/>'s CSS family list
@@ -239,17 +252,17 @@ public static partial class SvgCodec
     }
 
     /// <summary>
-    ///     Lays out <paramref name="text"/> as one combined local-space glyph-outline path,
-    ///     starting at <paramref name="origin"/>, applying <paramref name="state"/>'s
-    ///     <c>font-size</c>/<c>text-anchor"</c> and the font's own kerning.
+    ///     Outlines one run of text as a combined local-space glyph-outline path, starting at
+    ///     <paramref name="origin"/>, aligned per <paramref name="anchor"/>, with the font's own kerning.
     /// </summary>
     /// <param name="text">The text to lay out.</param>
     /// <param name="font">The matched font.</param>
-    /// <param name="state">The cascaded render state.</param>
-    /// <param name="origin">The text element's <c>x</c>/<c>y</c> anchor position, in local space.</param>
+    /// <param name="fontSize">The cascaded <c>font-size</c>.</param>
+    /// <param name="anchor">The <c>text-anchor</c> to align the run by around <paramref name="origin"/>.</param>
+    /// <param name="origin">The run's anchor position, in local space.</param>
     /// <returns>
     ///     The combined local-space path (empty if every glyph in <paramref name="text"/> has no
-    ///     contour data, for example an all-whitespace run, or if the cascaded <c>font-size</c> is
+    ///     contour data, for example an all-whitespace run, or if <paramref name="fontSize"/> is
     ///     not a positive finite number).
     /// </returns>
     /// <remarks>
@@ -260,21 +273,21 @@ public static partial class SvgCodec
     ///     non-positive size, and a negative size is invalid per CSS/SVG), so a document with such
     ///     a value degrades to blank text instead of failing.
     /// </remarks>
-    private static Path BuildGlyphRunPath(string text, TrueTypeFont font, RenderState state, Vector2 origin)
+    private static Path BuildGlyphRunPath(string text, TrueTypeFont font, float fontSize, TextAnchor anchor, Vector2 origin)
     {
         // Non-positive (or non-finite) font sizes draw nothing, per the remarks above
-        if (!(state.FontSize > 0f) || !float.IsFinite(state.FontSize))
+        if (!(fontSize > 0f) || !float.IsFinite(fontSize))
         {
             return Path.Empty;
         }
 
-        var align = state.TextAnchor switch
+        var align = anchor switch
         {
             TextAnchor.Middle => Rendering.TextAlign.Center,
             TextAnchor.End => Rendering.TextAlign.Right,
             _ => Rendering.TextAlign.Left
         };
 
-        return Rendering.TextRenderer.CreateTextPath(text, font, state.FontSize, origin.X, origin.Y, align);
+        return Rendering.TextRenderer.CreateTextPath(text, font, fontSize, origin.X, origin.Y, align);
     }
 }

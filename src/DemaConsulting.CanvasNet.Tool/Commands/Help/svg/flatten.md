@@ -53,7 +53,9 @@ to replace each such link with a PNG drawn at its placement.
   unless the file is plain ASCII).
 - `--strict`: A link that is not drawn (`svg-image-unresolved`,
   `svg-image-too-large`, `image-fragment-invalid`, or `image-page-out-of-range`)
-  is an `unsupported-feature` error, as for render; a link the file-access mode
-  denies (`image-access-denied`) is the error `file-access-denied`;
-  a position binding that fails is the error `svg-binding-failed`;
-  `svg-flatten-image-not-drawn` stays a warning.
+  is an `unsupported-feature` error, as for render, and so is text that a linked
+  SVG file does not draw or draws without a feature (`svg-text-not-drawn`,
+  `svg-text-unsupported`); a link the file-access mode denies
+  (`image-access-denied`) is the error `file-access-denied`; a position binding
+  that fails is the error `svg-binding-failed`; `svg-flatten-image-not-drawn`
+  stays a warning.

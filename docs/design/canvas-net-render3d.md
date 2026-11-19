@@ -390,8 +390,9 @@ overlay's `Color` (alpha honored; a forced override of every appearance beneath 
 in the boolean structure of every ancestor, so an overlay neither adds to, subtracts from nor
 intersects the solid. The renderer resolves each overlay as a separate solid (its own program and
 signed counters) and depth-composites its layers with those of the main solid. An overlay nested in
-an overlay is a plain group. `Scene.ComputeBounds()` includes overlay bodies (so a fitted camera keeps
-a ghost in the picture); `Scene.ComputeBounds(false)` excludes them, which geometry operations that
+an overlay is a plain group. `Scene.ComputeBounds()` includes overlay bodies wherever they are (so a
+fitted camera keeps a ghost, or a highlight inside a subtracted operand, in the picture);
+`Scene.ComputeBounds(false)` excludes them, which geometry operations that
 size the solid itself (such as a resize) use. Typical uses are a ghost (an overlay beside or around
 the solid, outside any boolean) and a highlight (the same node placed both in a boolean as the
 subtrahend and, wrapped in an overlay, beside it, so the cut and the translucent body both show).
@@ -557,10 +558,14 @@ The algorithm is exact when all of the following hold:
   explicit, is supported, including a camera inside an operand (for example inside a hollow room,
   which shows the room's walls); it is not reported. Fragments beyond the far plane are retained
   for the inference and are only filtered when chosen as the visible surface.
-- **Scene bounds are conservative.** `Scene.ComputeBounds()` includes every operand, even the
-  subtracted or intersected-away parts, and every overlay body, so `FitToBounds` frames everything
-  (a ghost stays in the picture) and an image may show
-  more margin than the result alone needs; `ComputeBounds(false)` leaves the overlay bodies out.
+- **Scene bounds follow the result.** `Scene.ComputeBounds()` counts only the first operand of a
+  difference and the overlap of the operands of an intersection, plus every overlay body, so
+  `FitToBounds` frames the result (a cutter larger than the model does not shrink it, and a ghost or
+  a highlighted cutter stays in the picture). The box of the first operand is an upper bound of a
+  difference, so an image may show more margin than the result alone needs;
+  `ComputeBounds(false)` leaves the overlay bodies out. The depth range is independent of these
+  bounds: it is derived from the vertices of every instance, so a fitted eye inside a large cutter
+  is handled like any camera inside an operand (see the previous bullet).
 - **Epsilon scaling.** The base tie tolerance is `1e-6 * max(scene diameter, |largest depth|)`,
   the Phase 1 value, so it scales with the scene. Events closer than the tolerance anywhere (thin
   features smaller than it, or a grazing silhouette fold whose front and back surfaces lie within

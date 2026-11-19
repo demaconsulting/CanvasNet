@@ -162,6 +162,12 @@ an `svg` warning: `svg-arrowhead-shape` (a filled triangle drawn by hand on the 
 `marker`), whose message ends with `(see 'canvasnet help svg arrows')`. A hint never fails a load, not even with the
 strict option; a nested SVG file reports none.
 
+It also passes `SvgLoadOptions.UnsupportedFeatureHandler`, for the SVG file it renders and for every nested SVG file,
+and reports each report as an `svg` note of severity `unsupported`: `svg-text-not-drawn` (text that is not drawn, such
+as text on a `textPath` or the HTML of a `foreignObject`) and `svg-text-unsupported` (text drawn without a feature it
+uses, such as `rotate` or `textLength`). With the strict option either one fails the load with
+`unsupported-feature`.
+
 #### Choosing a page, slide, or view with a fragment
 
 The fragment of a link (the text after the first `#`) is a list of `name=value` parameters separated by `&`, in the
@@ -175,6 +181,8 @@ of RFC 8118 (`report.pdf#page=3`). A document link draws **page 1 unless the fra
   or `bottom`);
 - `part.scad#azimuth=30&elevation=20` turns a model like `--azimuth` and `--elevation` of the tool (degrees; the
   elevation from -90 to 90; they replace the angles of the named view, `iso` without one);
+- `part.scad#projection=perspective` draws a model with a perspective camera, like `--projection` of the tool
+  (`ortho`, `orthographic`, or `perspective`, in any case);
 - `part.scad#def.width=20` sets the variable `width` of a model, exactly like `-D width=20` of the tool (a number,
   `true`, `false`,
   or text; `def.label=%22A%22` is the text `A`);
@@ -921,14 +929,14 @@ catch (ViewerException ex)
 link of an SVG image after the file name, and so does the library: `InputReference.Parse(text)` splits the text (a `#`
 starts a fragment only when no file has the name as written; the longest existing file before a `#` is the path), and
 `SourceLoader.Probe(InputReference)` reads the fragment with the built-in image source of the kind of the file, so the
-parameters and the values are those of a link (`page` and `slide`, `view`, `azimuth`, `elevation`, `def.<name>` with a
-number, `true`, `false`, text, or a vector as a JSON array, and `param.<name>`). The facts it returns carry the result
-in `SourceInfo.Selection` (an `InputSelection`) and `SourceInfo.Specifier` (the path, `#`, and the fragment);
-`ImageRenderer`, `ImageInspector`, `ImageComparer`, `MontageBuilder`, and `SourceLoader.Load` apply it over their
-options, the fragment winning (its page replaces the page, its view and angles the view and angles, and its variables
-and parameters are merged by name). A value that cannot be used is a `ViewerException` with
-`ErrorCodes.ImageFragmentInvalid`, a page the file does not have is `ErrorCodes.PageOutOfRange`, and a parameter that is
-unknown or repeated is a warning among the diagnostics of the first page that is loaded
+parameters and the values are those of a link (`page` and `slide`, `view`, `azimuth`, `elevation`, `projection`,
+`theme`, `def.<name>` with a number, `true`, `false`, text, or a vector as a JSON array, and `param.<name>`). The facts
+it returns carry the result in `SourceInfo.Selection` (an `InputSelection`) and `SourceInfo.Specifier` (the path, `#`,
+and the fragment); `ImageRenderer`, `ImageInspector`, `ImageComparer`, `MontageBuilder`, and `SourceLoader.Load` apply
+it over their options, the fragment winning (its page replaces the page, its view, angles, and projection the view,
+angles, and projection, and its variables and parameters are merged by name). A value that cannot be used is a
+`ViewerException` with `ErrorCodes.ImageFragmentInvalid`, a page the file does not have is `ErrorCodes.PageOutOfRange`,
+and a parameter that is unknown or repeated is a warning among the diagnostics of the first page that is loaded
 (`image-fragment-unknown-parameter`, `image-fragment-duplicate-parameter`, `vl-param-unknown`; never an error). To draw
 several versions of a model at one scale, fix the camera with `$vpd` (and `$vpt` to center it), as a variable of the
 command or of each fragment:

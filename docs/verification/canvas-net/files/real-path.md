@@ -20,6 +20,16 @@ runs each of them, and the requirements link them with source filters, so only r
 | Deleted file has no real path | skips | runs | skips |
 | Device and directory are not regular files | null device; folder refused | `/dev/null`, folder | `/dev/null`, folder |
 | Named pipe opens without blocking (pins the mode offset) | skips | runs | runs |
+| Identity of an open file and of another spelling (pins the identity offsets) | runs | runs | runs |
+| Case-insensitive temporary folder: stored letter case, same file in another case | runs | skips | runs |
+| Case-sensitive temporary folder: both case variants exist | skips | runs | skips |
+| Names with `*` and `?`; a symbolic link to the opened file | skips | runs | runs |
+| Drive letter upper-cased | runs | skips | skips |
+
+Whether the temporary folder ignores letter case is probed by creating a file and looking for it in upper case; no
+test changes a setting of the file system (no per-directory case sensitivity, no disk image), so the case-insensitive
+scenarios run where the default temporary folder is case-insensitive (Windows, macOS) and the case-sensitive ones where
+it is case-sensitive (Linux).
 
 The named-pipe open runs on the test thread with no time limit and no duration is asserted: an open that blocked would
 never return, which the time limit of the CI job reports.
@@ -38,7 +48,8 @@ seams in `FileOpenHooks` are exercised by the resolver tests (see *FileReference
 
 A unit-level test run passes on an operating system when every scenario that runs there passes. A wrong or missing
 real path where the system can tell it, a real path for a deleted file, a device or pipe reported as a regular file,
-or a blocked open constitutes a failure.
+a blocked open, a real path compared ignoring letter case, a wrong on-disk spelling, or a spelling confirmed for another
+file or a link constitutes a failure.
 
 #### Unit-Level Test Scenarios
 
@@ -101,3 +112,48 @@ network drive cannot be created on CI, so that branch is covered by review.
 A folder contains itself and what lies below its separator (also with a trailing separator) but not a sibling that
 shares its name as a prefix; the system root contains everything; trailing separators do not change equality; the
 deepest shared folder is found by whole components.
+
+**Tests**: `RealPath_IsUnder_ComparesLetterCaseExactly`, `RealPath_CommonAncestor_ComparesComponentsExactly`
+
+Pure text, on every system, with `C:\work\allowed` (Windows) or `/work/allowed` (elsewhere): `...\ALLOWED\x` is outside
+the root and `PathsEqual` of the two case variants is false, while `...\allowed\x`, the root itself, a root with a
+trailing separator and a path with a trailing separator are inside, and the sibling `allowed2` is outside. The
+written-path test (`IsUnderAsWritten`) of the case variant is inside on Windows and macOS and outside on Linux. The
+deepest shared folder of `...\ALLOWED\x` and `...\allowed` is the parent; on Windows a drive letter in either case is
+the same root.
+
+##### CanvasNet-Files-RealPath-ExactCase: The Letter Case Stored on Disk
+
+**Tests**: `RealPath_GetExactPathName_FolderAndFileInAnotherCase_GiveTheStoredCase`,
+`RealPath_GetExactPathName_MissingTail_IsKeptAsWritten`,
+`RealPath_GetExactPathName_BothCaseVariantsExist_PrefersTheExactNameAndKeepsAnAmbiguousOne` (Linux),
+`RealPath_GetExactPathName_WildcardCharactersInAName_MatchOnlyThatName` (Linux, macOS),
+`RealPath_GetExactPathName_DriveLetter_IsUpperCase` (Windows),
+`RealPath_ExactRoot_DriveRootsUpperCasedAndOtherRootsKept`,
+`RealPath_TryGetExactCanonicalDirectory_FolderWrittenInAnotherCase_GivesTheStoredCase` (Windows, macOS)
+
+A temporary `Docs/Readme.txt` asked as `docs/README.txt` is given as `Docs/Readme.txt` (the single entry that matches
+ignoring case, on every system); `docs/Missing/Sub.txt` keeps the missing tail as written after `Docs`. In a
+case-sensitive folder holding `Docs` and `docs`, `docs` is kept (the exact entry wins) and `DOCS` is kept as written
+(several matches). `A*B` next to `a*b` and `aXb` gives `a*b`, and `X?` next to `x?` and `xy` gives `x?` (wildcards match
+only themselves). A lower-case drive letter is upper-cased. The root rule (pure text) upper-cases `c:\` and `\\?\c:\`
+and keeps `\\server\share`, `\\?\Volume{GUID}\` and `/`. The real location of a folder `Stored` asked as `STORED` ends
+with `Stored`.
+
+##### CanvasNet-Files-RealPath-Identity: Confirming a Spelling Against the Open File
+
+**Tests**: `RealPath_TryConfirmExactPath_SpellingOfAnotherFile_IsUnconfirmed` (Windows, Linux, macOS),
+`RealPath_TryConfirmExactPath_StoredSpellingOfARealPathInAnotherCase_IsConfirmed` (Windows, macOS),
+`RealPath_TryConfirmExactPath_SpellingThroughALinkedFolder_IsUnconfirmed` (Windows, Linux, macOS),
+`RealPath_TryConfirmExactPath_LinkToTheOpenedFile_IsUnconfirmed` (Linux, macOS)
+
+With `a.txt` open, the path of `b.txt`, spelled through the real folder of `a.txt` (so the spelling has no link in it;
+on macOS the temporary folder is otherwise reached through the `/var` link), is not confirmed and `IsSameFile` is
+false, not unknown; the reported real path needs no confirmation and is returned as is. In a case-insensitive folder,
+for a real path reported in upper case, its on-disk spelling (`GetExactPathName`) differs from it and is confirmed,
+which pins the identity fields and the open flags on each system; when it is not, the test message carries the reason
+`TryConfirmExactPath` reports (the step that failed, with its `errno`).
+A spelling that reaches the open `target/a.txt` through a directory link (a junction on Windows) `link/a.txt` is not
+confirmed, although it is the same file, because a spelling must reach the file through no linked folder; a symbolic
+link to the open file is not confirmed either, because the spelling is opened without following a link at its last
+component.

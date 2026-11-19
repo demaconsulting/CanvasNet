@@ -84,7 +84,7 @@ Draw the layers in this order; each covers the one before:
 <marker id="arrow" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="5" markerHeight="5" orient="auto">
   <path d="M0,0 L10,5 L0,10 z" fill="#ea580c"/>
 </marker>
-<polyline points="748,191 712,191 500,279.7" fill="none" stroke="#ea580c" stroke-width="2.5" marker-end="url(#arrow)"/>
+<polyline points="748,191 712,191 500,278.2" fill="none" stroke="#ea580c" stroke-width="2.5" marker-end="url(#arrow)"/>
 ```
 
 - A short level leg before the slanted one keeps the labels in tidy columns.

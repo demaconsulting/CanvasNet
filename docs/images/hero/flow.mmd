@@ -1,0 +1,23 @@
+---
+config:
+  theme: base
+  themeVariables:
+    fontSize: "26px"
+    primaryColor: "#312e81"
+    primaryBorderColor: "#a78bfa"
+    primaryTextColor: "#ffffff"
+    lineColor: "#c4b5fd"
+  flowchart:
+    nodeSpacing: 14
+    rankSpacing: 24
+    padding: 10
+---
+%% The Mermaid card of hero.svg: one bold decision with two outcomes, kept small so it still reads as a
+%% flowchart when the banner is shown about 900 pixels wide.
+flowchart LR
+    ok{OK?} --> ship([Ship]):::done
+    ok --> fix[Fix]:::redo
+    classDef default stroke-width:3px,font-weight:bold
+    classDef done fill:#831843,stroke:#f472b6,stroke-width:3px,color:#ffffff,font-weight:bold
+    classDef redo fill:#1e3a8a,stroke:#60a5fa,stroke-width:3px,color:#ffffff,font-weight:bold
+    linkStyle default stroke-width:3px
