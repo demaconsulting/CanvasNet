@@ -731,7 +731,7 @@ internal sealed class IfLongHorizontalTile : Tile
             }
 
             var (width, height) = Internal;
-            var ends = canvas.Mode == CanvasMode.Lane ? LaneMinMax(canvas.Layout.Lanes, canvas.Lane!, width) : SimpleMinMax(width);
+            var ends = canvas.Mode == CanvasMode.Lane ? LaneMinMax(canvas.Layout.Lanes, canvas.Lane!, width, Column(canvas, x)) : SimpleMinMax(width);
             if (ends is not (var minX, var maxX))
             {
                 return;
@@ -758,15 +758,27 @@ internal sealed class IfLongHorizontalTile : Tile
     }
 
     /// <summary>
+    ///     Gets the column of the swimlane a canvas draws, in the coordinates of the tile.
+    /// </summary>
+    /// <param name="canvas">The canvas.</param>
+    /// <param name="x">The x of the tile's origin on the canvas.</param>
+    /// <returns>The left and right x of the column, or null while the lanes are measured.</returns>
+    private static (double Left, double Right)? Column(TileCanvas canvas, double x) =>
+        canvas.LaneColumn is var (left, right) ? (left - x, right - x) : null;
+
+    /// <summary>
     ///     Gets the ends of the part of the joining line drawn in one swimlane (PlantUML's <c>getMinmax</c>): nothing
-    ///     outside the lanes from the first to the last one where a branch ends, the whole width in the lanes between
-    ///     them, and from or to the branches that end in the first and the last lane.
+    ///     outside the lanes from the first to the last one where a branch ends, the whole column of the lane in the
+    ///     lanes between them, and from or to the branches that end in the first and the last lane. The parts reach
+    ///     the middle of the dividers, so that they join into one line across the lanes; while the lanes are measured
+    ///     (no column yet), the whole width of the tile stands for the column.
     /// </summary>
     /// <param name="lanes">The swimlanes, from left to right.</param>
     /// <param name="lane">The swimlane drawn.</param>
     /// <param name="width">The width of the tile.</param>
+    /// <param name="column">The column of the lane in the coordinates of the tile, or null while measuring.</param>
     /// <returns>The smallest and the largest x, or null when the lane draws no part of the line.</returns>
-    private (double MinX, double MaxX)? LaneMinMax(IReadOnlyList<ActivityLane> lanes, ActivityLane lane, double width)
+    private (double MinX, double MaxX)? LaneMinMax(IReadOnlyList<ActivityLane> lanes, ActivityLane lane, double width, (double Left, double Right)? column)
     {
         var all = new List<Tile>(_couples) { _tile2 };
         var current = IndexOf(lanes, lane);
@@ -786,8 +798,9 @@ internal sealed class IfLongHorizontalTile : Tile
             return null;
         }
 
-        var minX = Math.Min(current != first ? 0 : width, Geometry.Left);
-        var maxX = Math.Max(current != last ? width : 0, Geometry.Left);
+        var (left, right) = column ?? (0, width);
+        var minX = Math.Min(current != first ? left : width, Geometry.Left);
+        var maxX = Math.Max(current != last ? right : 0, Geometry.Left);
         foreach (var outX in OutXs(lane))
         {
             (minX, maxX) = (Math.Min(minX, outX), Math.Max(maxX, outX));

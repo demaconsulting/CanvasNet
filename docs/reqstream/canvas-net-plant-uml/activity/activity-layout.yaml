@@ -58,13 +58,15 @@ sections:
                   The ActivityLayout unit shall draw every instruction in the column of its swimlane, under the
                   centered title of the swimlane, between the dividers, and the arrows between swimlanes across them,
                   including the arrows from a test to a branch that starts in another swimlane, and the line that
-                  joins the branches of an elseif chain only in the swimlanes where they end.
+                  joins the branches of an elseif chain only in the swimlanes where they end, without a gap at the
+                  dividers between them.
                 justification: |
                   Swimlanes are drawn as PlantUML draws them.
                 tests:
                   - PlantUmlActivityLayout_Swimlanes_PlaceInstructionsInTheirColumns
                   - PlantUmlActivityLayout_Swimlanes_ElseIfBranchInAnotherLane_DrawsArrowsFromTheHexagons
                   - PlantUmlActivityLayout_Swimlanes_ElseIfMergeLine_DrawnOnlyInLanesWithOutcomes
+                  - PlantUmlActivityLayout_Swimlanes_ElseIfMergeLineAcrossThreeLanes_HasNoGapAtTheDividers
                   - PlantUmlActivityLayout_Swimlanes_IfBranchInAnotherLane_LeavesBelowTheHexagon
 
               - id: CanvasNetPlantUml-Activity-ActivityLayout-Annotations

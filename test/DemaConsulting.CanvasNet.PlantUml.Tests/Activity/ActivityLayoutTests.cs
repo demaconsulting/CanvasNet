@@ -216,6 +216,42 @@ public class ActivityLayoutTests
     }
 
     /// <summary>
+    ///     Validates that, when the branches of an elseif chain end in three swimlanes, the line that joins them runs
+    ///     on without a gap across the dividers of the lanes between them (PlantUML draws each lane's part of the
+    ///     <c>ConnectionHline</c> through the whole column of the lane, the divider margins included).
+    /// </summary>
+    [Fact]
+    public void PlantUmlActivityLayout_Swimlanes_ElseIfMergeLineAcrossThreeLanes_HasNoGapAtTheDividers()
+    {
+        // Act
+        var (_, geometry) = ActivityTestHelpers.Layout(
+            "|Customer|\nstart\n:Choose item;\nif (in stock?) then (yes)\n  :Pick;\nelseif (on order?) then (yes)\n" +
+            "  |Shop|\n  :Wait;\nelse (no)\n  |Bank|\n  :Refund;\nendif\nstop");
+
+        // Assert
+        var dividers = ActivityTestHelpers.Shapes(geometry, "lane-divider").Select(d => d.X).Order().ToList();
+        var (pick, refund) = (BoxOf(geometry, "Pick"), BoxOf(geometry, "Refund"));
+        var bottom = new[] { pick, BoxOf(geometry, "Wait"), refund }.Max(b => b.Y + b.Height);
+        var stop = ActivityTestHelpers.Shapes(geometry, "stop").Select(ActivityTestHelpers.Box).MinBy(b => b.Y);
+        var segments = ActivityTestHelpers.Shapes(geometry, "arrow")
+            .Where(a => Math.Abs(a.Y - a.Y2) < 1e-6 && a.Y > bottom && a.Y < stop.Y)
+            .Select(a => (Min: Math.Min(a.X, a.X2), Max: Math.Max(a.X, a.X2), a.Y))
+            .ToList();
+        var y = segments.Min(s => s.Y);
+        var parts = segments.Where(s => Math.Abs(s.Y - y) < 1e-6).OrderBy(s => s.Min).ToList();
+        var shown = string.Join(", ", parts.Select(p => $"{p.Min:0.#}-{p.Max:0.#}"));
+        Assert.True(dividers.Count >= 3, $"Dividers: {string.Join(", ", dividers)}");
+        var end = parts[0].Max;
+        foreach (var part in parts.Skip(1))
+        {
+            Assert.True(part.Min <= end + 0.5, $"The merge line at y={y} has a gap at x={end:0.#}: {shown}; dividers {string.Join(", ", dividers.Select(d => d.ToString("0.#")))}.");
+            end = Math.Max(end, part.Max);
+        }
+
+        Assert.True(parts[0].Min <= pick.X + (pick.Width / 2) + 0.5 && end >= refund.X + (refund.Width / 2) - 0.5, $"The merge line does not join the branches: {shown}.");
+    }
+
+    /// <summary>
     ///     Validates that, when the then branch of an if starts in another swimlane, its arrow first steps out of
     ///     the hexagon and runs below it, not through it (PlantUML's <c>ConnectionHorizontalThenVertical</c> drawn
     ///     across the lanes, merged in the limited way).

@@ -58,7 +58,9 @@ requirements in `docs/reqstream/canvas-net-plant-uml/activity/activity-layout.ya
   the crossing pass with a short step below the test (PlantUML's `ConnectionVerticalIn` and
   `ConnectionHorizontalThenVertical`), and the crossing arrows of an if or a loop merge in the limited way (PlantUML's
   `MergeStrategy.LIMITED`), so that the step is kept. The line that joins the branches of an elseif chain is drawn
-  only in the swimlanes from the first to the last one where a branch ends (PlantUML's `ConnectionHline.getMinmax`).
+  only in the swimlanes from the first to the last one where a branch ends (PlantUML's `ConnectionHline.getMinmax`);
+  each swimlane's part reaches the middle of the dividers beside it (the lane's column, which the drawing pass hands to
+  the canvas as `LaneColumn`), so that the parts join into one line across three or more swimlanes.
 - **Compression** - the empty bands of the drawing that no shape occupies are found on x and then on y (PlantUML's
   `SlotFinder`), each shrunk by 5 pixels at both ends, and removed; shapes, lines, and centered titles move or stretch
   with them. The extent of the drawing follows PlantUML's `LimitFinder`.

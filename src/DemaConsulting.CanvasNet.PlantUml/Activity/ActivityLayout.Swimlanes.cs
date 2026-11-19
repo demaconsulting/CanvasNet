@@ -90,7 +90,8 @@ internal sealed partial class ActivityLayout
 
             if (i < count)
             {
-                root.Draw(output.ForLane(lanes[i]), translates[i], titleDy);
+                var column = (x - dividers[i].X2, x + widths[i] + dividers[i + 1].X1);
+                root.Draw(output.ForLane(lanes[i], column), translates[i], titleDy);
             }
 
             var dividerX = x - (dividers[i].X1 + dividers[i].X2);

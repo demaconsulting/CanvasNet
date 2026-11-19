@@ -57,12 +57,15 @@ Asserts two bars with the branches between them at the same height, and one bar 
 **Tests**: `ActivityLayoutTests.PlantUmlActivityLayout_Swimlanes_PlaceInstructionsInTheirColumns`,
 `ActivityLayoutTests.PlantUmlActivityLayout_Swimlanes_ElseIfBranchInAnotherLane_DrawsArrowsFromTheHexagons`,
 `ActivityLayoutTests.PlantUmlActivityLayout_Swimlanes_ElseIfMergeLine_DrawnOnlyInLanesWithOutcomes`,
+`ActivityLayoutTests.PlantUmlActivityLayout_Swimlanes_ElseIfMergeLineAcrossThreeLanes_HasNoGapAtTheDividers`,
 `ActivityLayoutTests.PlantUmlActivityLayout_Swimlanes_IfBranchInAnotherLane_LeavesBelowTheHexagon`
 
 Asserts three dividers, every action between the dividers of its swimlane, and the titles above the actions. For an
 elseif chain whose first branch changes swimlane, asserts an arrow head at the top center of each branch's action and
 an arrow that leaves the bottom point of each of the two hexagons. For the same chain, asserts that every part of the
-line that joins the branches reaches past the first divider, and that one part joins the two branches. For an if
+line that joins the branches reaches past the first divider, and that one part joins the two branches. For an elseif
+chain whose branches end in three swimlanes, asserts that the parts of the joining line meet across both dividers
+between them, with no gap, and that the line runs from the first branch to the last. For an if
 whose then branch changes swimlane, asserts that the arrow to the branch first steps out of the hexagon on its left
 and runs below the hexagon, not through it.
 

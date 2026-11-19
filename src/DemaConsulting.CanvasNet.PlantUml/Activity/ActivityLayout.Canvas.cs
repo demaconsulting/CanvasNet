@@ -185,6 +185,22 @@ internal sealed class TileCanvas
     public TileCanvas ForLane(ActivityLane lane) => new(Layout, CanvasMode.Lane, _shapes, _snakes, lane, null, null);
 
     /// <summary>
+    ///     Creates a canvas on the same records that draws one swimlane placed in its column.
+    /// </summary>
+    /// <param name="lane">The swimlane.</param>
+    /// <param name="column">The left and right x of the lane's column, from divider to divider.</param>
+    /// <returns>The canvas.</returns>
+    public TileCanvas ForLane(ActivityLane lane, (double Left, double Right) column) =>
+        new(Layout, CanvasMode.Lane, _shapes, _snakes, lane, null, null) { LaneColumn = column };
+
+    /// <summary>
+    ///     Gets the left and right x of the column of the swimlane drawn in <see cref="CanvasMode.Lane"/>, from the
+    ///     middle of the divider on its left to the middle of the divider on its right, or null while the lanes are
+    ///     measured (before their columns are known).
+    /// </summary>
+    public (double Left, double Right)? LaneColumn { get; private init; }
+
+    /// <summary>
     ///     Creates a canvas on the same records that draws the connections between swimlanes.
     /// </summary>
     /// <param name="laneTranslate">The translation of every swimlane.</param>
