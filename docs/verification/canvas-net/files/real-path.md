@@ -147,9 +147,12 @@ with `Stored`.
 `RealPath_TryConfirmExactPath_SpellingThroughALinkedFolder_IsUnconfirmed` (Windows, Linux, macOS),
 `RealPath_TryConfirmExactPath_LinkToTheOpenedFile_IsUnconfirmed` (Linux, macOS)
 
-With `a.txt` open, the path of `b.txt` is not confirmed (and `IsSameFile` is false), while the reported real path needs
-no confirmation and is returned as is. In a case-insensitive folder, for a real path reported in upper case, its
-on-disk spelling (`GetExactPathName`) differs from it and is confirmed, which pins the identity fields on each system.
+With `a.txt` open, the path of `b.txt`, spelled through the real folder of `a.txt` (so the spelling has no link in it;
+on macOS the temporary folder is otherwise reached through the `/var` link), is not confirmed and `IsSameFile` is
+false, not unknown; the reported real path needs no confirmation and is returned as is. In a case-insensitive folder,
+for a real path reported in upper case, its on-disk spelling (`GetExactPathName`) differs from it and is confirmed,
+which pins the identity fields and the open flags on each system; when it is not, the test message carries the reason
+`TryConfirmExactPath` reports (the step that failed, with its `errno`).
 A spelling that reaches the open `target/a.txt` through a directory link (a junction on Windows) `link/a.txt` is not
 confirmed, although it is the same file, because a spelling must reach the file through no linked folder; a symbolic
 link to the open file is not confirmed either, because the spelling is opened without following a link at its last

@@ -91,6 +91,10 @@ whether the C library exports `fstat`.
   spelling. Windows and Linux compare the final path of the file opened by `path` (`GetFinalPathNameByHandleW`, the
   `/proc/self/fd` link) with `path` exactly; macOS opens `path` with `O_NOFOLLOW_ANY`. Never throws (a path that cannot
   be opened or an identity that cannot be read is `null`, unknown).
+- `TryConfirmExactPath(handle, realPath, exactPath, out reason)` and `IsSameFile(handle, path, out reason)` - the same
+  answers, with the reason a spelling is not confirmed (the step that failed: the open, with its `errno` or Win32
+  error, the identity read of either file, another file, or a link in the path), `null` when it is. The reason never
+  names the path; it is for diagnostics (the tests report it), and the denial a caller raises keeps its fixed text.
 - `IsUnder(path, root)` and `PathsEqual` - the deciding comparisons of real paths, under `Ordinal` on every platform
   (macOS: both sides in composed form): `PathsEqual` compares after `Path.TrimEndingDirectorySeparator`; `IsUnder` is
   true when the paths are equal after `Path.TrimEndingDirectorySeparator`, or when the path starts with the boundary,
@@ -140,9 +144,10 @@ Per system:
   `realpath(byte[] path, byte[] resolved)` returning a pointer; the result is decoded as UTF-8 up to the first NUL of
   the caller's buffer, and nothing is freed. Paths are compared in Unicode composed form. **Identity**: `vst_dev`
   (32 bits at offset 24, the first field of `vinfo_stat`) and `vst_ino` (64 bits at offset 32, after `vst_mode` and
-  `vst_nlink`) from `proc_pidfdinfo` for both descriptors; the path is opened with `O_NOFOLLOW` (0x100) and
-  `O_NOFOLLOW_ANY` (0x20000000, macOS 11 and later) added, so a link at any component fails with `ELOOP` (unknown,
-  unconfirmed).
+  `vst_nlink`) from `proc_pidfdinfo` for both descriptors; the path is opened with `O_NOFOLLOW_ANY` (0x20000000,
+  macOS 11 and later) alone, so a link at any component, the last one included, fails with `ELOOP` (unknown,
+  unconfirmed). `O_NOFOLLOW` (0x100) is not added: the kernel refuses the two flags together with `EINVAL`
+  (`vn_open_auth`), which would leave every spelling unconfirmed.
 - **Other systems**: `File.OpenHandle` (blocking) and unknown facts; a restrictive policy then fails closed.
 - `NativeMethods.WithDescriptor` is the one place that reads the raw descriptor of a handle (for the C calls and the
   `/proc` link), inside `DangerousAddRef`/`DangerousRelease`, so the descriptor cannot be closed and reused meanwhile.

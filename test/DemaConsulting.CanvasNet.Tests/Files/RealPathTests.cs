@@ -655,21 +655,25 @@ public class RealPathTests
     [Fact]
     public void RealPath_TryConfirmExactPath_SpellingOfAnotherFile_IsUnconfirmed()
     {
-        // Arrange
+        // Arrange: the other file is spelled through the real folder of the open file, so the spelling has no link in it
+        // (on macOS the temporary folder /var/folders is reached through the /var link, which a confirmation refuses)
         using var directory = new SandboxTempDirectory();
         var path = Path.GetFullPath(directory.Write("a.txt", "a"));
-        var other = Path.GetFullPath(directory.Write("b.txt", "b"));
+        directory.Write("b.txt", "b");
         using var handle = RealPath.OpenForRead(path);
         var realPath = RealPath.Inspect(handle).FinalPath!;
+        var other = Path.Join(Path.GetDirectoryName(realPath), "b.txt");
 
         // Act
         var otherFile = RealPath.TryConfirmExactPath(handle, realPath, other);
         var itself = RealPath.TryConfirmExactPath(handle, realPath, realPath);
+        var same = RealPath.IsSameFile(handle, other, out var reason);
 
         // Assert
         Assert.Null(otherFile);
         Assert.Same(realPath, itself);
-        Assert.False(RealPath.IsSameFile(handle, other));
+        Assert.True(same is not null, $"The identity of the other file is unknown: {reason}");
+        Assert.False(same);
     }
 
     /// <summary>
@@ -689,10 +693,11 @@ public class RealPathTests
         var exact = RealPath.GetExactPathName(reported);
 
         // Act
-        var confirmed = RealPath.TryConfirmExactPath(handle, reported, exact);
+        var confirmed = RealPath.TryConfirmExactPath(handle, reported, exact, out var reason);
 
         // Assert
         Assert.NotEqual(reported, exact);
+        Assert.True(confirmed is not null, $"The stored spelling is not confirmed: {reason}");
         Assert.Equal(exact, confirmed);
         Assert.EndsWith(Path.DirectorySeparatorChar + "a.txt", confirmed, StringComparison.Ordinal);
     }

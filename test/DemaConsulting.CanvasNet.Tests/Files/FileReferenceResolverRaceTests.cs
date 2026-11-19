@@ -310,12 +310,36 @@ public class FileReferenceResolverRaceTests
             Ct,
             new FileOpenHooks { RealPathOf = handle => RealPath.Inspect(handle).FinalPath!.ToUpperInvariant() });
 
-        // Act
-        var file = resolver.Resolve("a.txt");
+        // Act: a denial is reported with the reason the spelling is not confirmed, so a failure on a platform that cannot
+        // be run locally tells which step failed
+        FileReference? file;
+        try
+        {
+            file = resolver.Resolve("a.txt");
+        }
+        catch (FileReferenceException ex)
+        {
+            throw new Xunit.Sdk.XunitException(
+                $"The stored spelling is not confirmed: {DiagnoseConfirmation(directory.Combine("a.txt"))}", ex);
+        }
 
         // Assert
         Assert.Equal(expected, Assert.Single(policy.Requests).RealPath);
         Assert.Equal(expected, file!.RealPath);
+    }
+
+    /// <summary>
+    ///     Tells why the on-disk spelling of the upper-cased real path of a file is not confirmed, for the message of a
+    ///     failing test.
+    /// </summary>
+    /// <param name="path">The path of the file.</param>
+    /// <returns>The reason, or a note that it is confirmed when opened directly.</returns>
+    private static string DiagnoseConfirmation(string path)
+    {
+        using var handle = RealPath.OpenForRead(Path.GetFullPath(path));
+        var reported = RealPath.Inspect(handle).FinalPath!.ToUpperInvariant();
+        var confirmed = RealPath.TryConfirmExactPath(handle, reported, RealPath.GetExactPathName(reported), out var reason);
+        return confirmed is null ? reason ?? "no reason given" : "it is confirmed when the file is opened directly";
     }
 
     /// <summary>

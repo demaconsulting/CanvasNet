@@ -111,12 +111,10 @@ internal static class NativeMethods
     /// <summary>The Linux <c>open</c> flag <c>O_NOFOLLOW</c> on Arm64 (the generic value).</summary>
     private const int LinuxNoFollowArm64 = 0x8000;
 
-    /// <summary>The macOS <c>open</c> flag <c>O_NOFOLLOW</c>: opening a link at the last component fails with <c>ELOOP</c>.</summary>
-    private const int MacNoFollow = 0x100;
-
     /// <summary>
     ///     The macOS <c>open</c> flag <c>O_NOFOLLOW_ANY</c> (macOS 11 and later; every supported .NET needs a later
-    ///     macOS): opening a path with a link at any component fails with <c>ELOOP</c>.
+    ///     macOS): opening a path with a link at any component, the last one included, fails with <c>ELOOP</c>. It is
+    ///     passed alone: the kernel refuses it together with <c>O_NOFOLLOW</c> (0x100) with <c>EINVAL</c>.
     /// </summary>
     private const int MacNoFollowAny = 0x20000000;
 
@@ -298,9 +296,10 @@ internal static class NativeMethods
     ///     has no <c>O_PATH</c>; macOS directories are canonicalized with <c>realpath</c> instead.
     /// </param>
     /// <param name="noFollow">
-    ///     <see langword="true"/> to read the identity of a name itself: a link at the last component is not followed
-    ///     (<c>O_NOFOLLOW</c>; with <c>O_PATH</c> Linux opens the link itself), and on macOS a link at any component
-    ///     refuses the open (<c>O_NOFOLLOW_ANY</c>, an <see cref="IOException"/> for <c>ELOOP</c>).
+    ///     <see langword="true"/> to read the identity of a name itself: on Linux a link at the last component is not
+    ///     followed (<c>O_NOFOLLOW</c>; with <c>O_PATH</c> Linux opens the link itself), and on macOS a link at any
+    ///     component, the last one included, refuses the open (<c>O_NOFOLLOW_ANY</c> alone, an
+    ///     <see cref="IOException"/> for <c>ELOOP</c>).
     /// </param>
     /// <returns>The handle, which owns the descriptor.</returns>
     /// <exception cref="FileNotFoundException">Thrown when the file does not exist.</exception>
@@ -320,7 +319,9 @@ internal static class NativeMethods
         int flags;
         if (OperatingSystem.IsMacOS())
         {
-            flags = MacOpenReadNonBlocking | (noFollow ? MacNoFollow | MacNoFollowAny : 0);
+            // O_NOFOLLOW_ANY alone: it refuses a link at every component, the last one included, and the kernel
+            // rejects it combined with O_NOFOLLOW (vn_open_auth returns EINVAL for the pair)
+            flags = MacOpenReadNonBlocking | (noFollow ? MacNoFollowAny : 0);
         }
         else
         {

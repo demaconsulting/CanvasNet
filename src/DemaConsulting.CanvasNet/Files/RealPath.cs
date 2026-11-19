@@ -34,8 +34,8 @@ internal readonly record struct HandleFacts(bool? IsRegularFile, string? FinalPa
 ///         (<see cref="IsUnder(string, string)"/>, <see cref="PathsEqual"/>), because a folder may be case-sensitive
 ///         even on Windows and macOS. A real path is compared in the letter case stored on disk
 ///         (<see cref="GetExactPathName"/>), confirmed to name the open file by its identity
-///         (<see cref="TryConfirmExactPath"/>). Only paths as written are compared under the platform rule
-///         (<see cref="PathComparison"/>).
+///         (<see cref="TryConfirmExactPath(SafeFileHandle, string, string)"/>). Only paths as written are compared
+///         under the platform rule (<see cref="PathComparison"/>).
 ///     </para>
 ///     <para>
 ///         <b>Non-blocking open.</b> On Linux and macOS a file is opened with <c>O_NONBLOCK</c>, so opening a named pipe
@@ -385,8 +385,8 @@ internal static partial class RealPath
     ///     <para>
     ///         <b>Not a decision.</b> The spelling is found by name, so it says nothing about the opened file on its
     ///         own: a caller that uses it for the real path of an open handle confirms it first
-    ///         (<see cref="TryConfirmExactPath"/>). Reads the file system (one listing per folder of the path); safe to
-    ///         call from any thread.
+    ///         (<see cref="TryConfirmExactPath(SafeFileHandle, string, string)"/>). Reads the file system (one listing
+    ///         per folder of the path); safe to call from any thread.
     ///     </para>
     /// </remarks>
     /// <param name="path">The path; a relative path is made full against the current directory.</param>
@@ -454,11 +454,11 @@ internal static partial class RealPath
     /// </summary>
     /// <remarks>
     ///     When the spelling equals the reported real path exactly, it needs no confirmation. Otherwise the spelling must
-    ///     name the open file <b>through no link</b> (<see cref="IsSameFile"/>): the same volume serial number and file
-    ///     index on Windows, device and inode on Linux and macOS, with no link at its last component and no junction or
-    ///     link in one of its folders. A spelling that names another file, a link, a file reached through a linked
-    ///     folder (which would place the file where it is not), or a file whose identity cannot be read is not confirmed
-    ///     (fail closed). Never throws.
+    ///     name the open file <b>through no link</b> (<see cref="IsSameFile(SafeFileHandle, string)"/>): the same volume
+    ///     serial number and file index on Windows, device and inode on Linux and macOS, with no link at its last
+    ///     component and no junction or link in one of its folders. A spelling that names another file, a link, a file
+    ///     reached through a linked folder (which would place the file where it is not), or a file whose identity cannot
+    ///     be read is not confirmed (fail closed). Never throws.
     /// </remarks>
     /// <param name="handle">The open handle of the file.</param>
     /// <param name="realPath">The real path reported for the handle.</param>
@@ -467,14 +467,30 @@ internal static partial class RealPath
     ///     The confirmed spelling (<paramref name="realPath"/> when the two are equal, otherwise
     ///     <paramref name="exactPath"/>), or <see langword="null"/> when it is not confirmed.
     /// </returns>
-    internal static string? TryConfirmExactPath(SafeFileHandle handle, string realPath, string exactPath)
+    internal static string? TryConfirmExactPath(SafeFileHandle handle, string realPath, string exactPath) =>
+        TryConfirmExactPath(handle, realPath, exactPath, out _);
+
+    /// <summary>
+    ///     Confirms the on-disk spelling of the real path of an open file, as
+    ///     <see cref="TryConfirmExactPath(SafeFileHandle, string, string)"/>, and tells why a spelling is not confirmed.
+    /// </summary>
+    /// <param name="handle">The open handle of the file.</param>
+    /// <param name="realPath">The real path reported for the handle.</param>
+    /// <param name="exactPath">The real path in its on-disk letter case (<see cref="GetExactPathName"/>).</param>
+    /// <param name="reason">
+    ///     Why the spelling is not confirmed (the step that failed, with the <c>errno</c> where one is known), for
+    ///     diagnostics; <see langword="null"/> when it is confirmed. It never names the path.
+    /// </param>
+    /// <returns>The confirmed spelling, or <see langword="null"/> when it is not confirmed.</returns>
+    internal static string? TryConfirmExactPath(SafeFileHandle handle, string realPath, string exactPath, out string? reason)
     {
         if (string.Equals(realPath, exactPath, StringComparison.Ordinal))
         {
+            reason = null;
             return realPath;
         }
 
-        return IsSameFile(handle, exactPath) == true ? exactPath : null;
+        return IsSameFile(handle, exactPath, out reason) == true ? exactPath : null;
     }
 
     /// <summary>
@@ -492,32 +508,49 @@ internal static partial class RealPath
     ///     <see langword="null"/> when the path cannot be opened or an identity cannot be read (including on a platform
     ///     whose identity is not known here).
     /// </returns>
-    internal static bool? IsSameFile(SafeFileHandle handle, string path)
+    internal static bool? IsSameFile(SafeFileHandle handle, string path) => IsSameFile(handle, path, out _);
+
+    /// <summary>
+    ///     Determines whether a path names the same file as an open handle through no link, as
+    ///     <see cref="IsSameFile(SafeFileHandle, string)"/>, and tells why the answer is not <see langword="true"/>.
+    /// </summary>
+    /// <param name="handle">The open handle.</param>
+    /// <param name="path">The full path.</param>
+    /// <param name="reason">
+    ///     Why the answer is not <see langword="true"/> (the step that failed, with the <c>errno</c> where one is
+    ///     known), for diagnostics; <see langword="null"/> when it is. It never names the path.
+    /// </param>
+    /// <returns>The answer, as <see cref="IsSameFile(SafeFileHandle, string)"/>.</returns>
+    internal static bool? IsSameFile(SafeFileHandle handle, string path, out string? reason)
     {
         try
         {
             if (OperatingSystem.IsWindows())
             {
-                return IsSameFileWindows(handle, path);
+                return IsSameFileWindows(handle, path, out reason);
             }
 
             if (OperatingSystem.IsLinux())
             {
-                return IsSameFileLinux(handle, path);
+                return IsSameFileLinux(handle, path, out reason);
             }
 
             if (OperatingSystem.IsMacOS())
             {
-                return IsSameFileMac(handle, path);
+                return IsSameFileMac(handle, path, out reason);
             }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ExternalException
             or DllNotFoundException or EntryPointNotFoundException or ObjectDisposedException or ArgumentException
             or NotSupportedException)
         {
-            // A path that cannot be opened, or an identity that cannot be read, leaves the answer unknown (fail closed)
+            // A path that cannot be opened, or an identity that cannot be read, leaves the answer unknown (fail closed).
+            // The messages raised here carry the errno, never the path
+            reason = $"the path cannot be opened or an identity cannot be read ({ex.GetType().Name}: {ex.Message})";
+            return null;
         }
 
+        reason = "the identity of a file is not known on this platform";
         return null;
     }
 
