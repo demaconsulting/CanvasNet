@@ -47,7 +47,10 @@ public sealed record FileAccessRequest
 
     /// <summary>
     ///     Gets the final path of the opened file as reported by the operating system for the open handle: symbolic
-    ///     links, junctions, mapped and substituted drives, and short (8.3) names resolved.
+    ///     links, junctions, mapped and substituted drives, and short (8.3) names resolved. When
+    ///     <see cref="FileReferenceResolver"/> builds the request, the path is in the letter case its folders and its
+    ///     name have on disk, and that spelling was confirmed to name the open file (by its file identity), so a policy
+    ///     may compare it exactly, letter case included, as the built-in policies do.
     /// </summary>
     public required string RealPath { get; init; }
 
@@ -63,11 +66,13 @@ public sealed record FileAccessRequest
 /// <summary>
 ///     The facts a resolver captures before it opens a file, for the check after the open.
 /// </summary>
-/// <param name="LongRequestedPath">
-///     The requested path with short (8.3) names expanded (Windows), or the requested path itself.
+/// <param name="ExactRequestedPath">
+///     The requested path in its on-disk spelling (<see cref="FileAccessPolicy.ExactSpelling"/>): short (8.3) names
+///     expanded (Windows) and every existing component in the letter case stored on disk.
 /// </param>
 /// <param name="AnchorLocations">
-///     The real location of each trusted folder a policy asked for (<see cref="FileAccessPolicy.AnchorsOf"/>), keyed
-///     by the folder as written; <see langword="null"/> where it could not be determined.
+///     The real location of each trusted folder a policy asked for (<see cref="FileAccessPolicy.AnchorsOf"/>), in its
+///     on-disk letter case, keyed exactly by the folder as written; <see langword="null"/> where it could not be
+///     determined.
 /// </param>
-internal sealed record PreOpenSnapshot(string LongRequestedPath, IReadOnlyDictionary<string, string?> AnchorLocations);
+internal sealed record PreOpenSnapshot(string ExactRequestedPath, IReadOnlyDictionary<string, string?> AnchorLocations);

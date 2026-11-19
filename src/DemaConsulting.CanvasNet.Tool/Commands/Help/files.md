@@ -68,6 +68,12 @@ options, the diagnostics of a denial, and the Pandoc filter.
 - `never read`: A network URL (http:, https:, and other schemes), a UNC or
   network path, a file: URI with a host, a device path, an alternate data
   stream, and anything that is not a regular file are never read.
+- `letter case`: The real path of an opened file is compared letter for letter,
+  in the case its folders and its name have on disk, so a folder whose name
+  differs from an allowed folder only in letter case is outside it. On a
+  case-insensitive volume a reference or --allow-root in any letter case still
+  works. A file whose spelling on disk cannot be confirmed to name the opened
+  file is denied.
 - `limits`: Every size and count limit holds in every mode; a mode decides which
   files may be read, never how much. See 'canvasnet help limits'.
 

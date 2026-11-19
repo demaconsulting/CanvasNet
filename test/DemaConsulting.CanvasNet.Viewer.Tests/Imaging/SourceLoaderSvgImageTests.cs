@@ -1,3 +1,4 @@
+using System.Numerics;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;
 using DemaConsulting.CanvasNet.Files;
@@ -175,6 +176,56 @@ public class SourceLoaderSvgImageTests
     }
 
     /// <summary>
+    ///     Test that an embedded SVG file under a skew and under a non-uniform scale fills its whole placement, as in a
+    ///     browser: the nested file is laid out in the placement in user space and the transform then maps it, so it
+    ///     is not drawn smaller or squashed.
+    /// </summary>
+    [Fact]
+    public void SourceLoader_Load_SvgEmbeddedSvgUnderSkew_FillsItsPlacement()
+    {
+        // Arrange: a nested file that is green over its whole 20 by 10 viewBox, placed 20 by 10 under skewX(30) and
+        // under scale(1,2)
+        using var directory = new TempDirectory();
+        FixtureFactory.WriteText(
+            directory.Path,
+            "inner.svg",
+            "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 10'><rect width='20' height='10' fill='#00ff00'/></svg>");
+        var path = WriteSvg(
+            directory.Path,
+            "outer.svg",
+            "<image href='inner.svg' x='0' y='0' width='20' height='10' transform='translate(2,2) skewX(30)'/>"
+            + "<image href='inner.svg' x='0' y='0' width='20' height='10' transform='translate(10,17) scale(1,2)'/>");
+        var view = Matrix3x2.CreateScale(2f);
+        var skewed = Matrix3x2.CreateSkew(MathF.PI / 6f, 0f) * Matrix3x2.CreateTranslation(2f, 2f) * view;
+        var stretched = Matrix3x2.CreateScale(1f, 2f) * Matrix3x2.CreateTranslation(10f, 17f) * view;
+
+        // Act: at twice the natural size
+        using var loaded = SourceLoader.Load(path, new SourceOptions { Scale = 2 });
+
+        // Assert: both placements are green near their corners and at their centers, and red just outside them
+        foreach (var placement in new[] { skewed, stretched })
+        {
+            Rgba32 At(float u, float v)
+            {
+                var point = Vector2.Transform(new Vector2(u, v), placement);
+                return loaded.Surface[(int)point.X, (int)point.Y];
+            }
+
+            Assert.Equal(Green, At(1.2f, 2f));
+            Assert.Equal(Green, At(18.8f, 2f));
+            Assert.Equal(Green, At(1.2f, 8f));
+            Assert.Equal(Green, At(18.8f, 8f));
+            Assert.Equal(Green, At(10f, 5f));
+            Assert.Equal(Red, At(-1.5f, 5f));
+            Assert.Equal(Red, At(21.5f, 5f));
+            Assert.Equal(Red, At(10f, -1.2f));
+            Assert.Equal(Red, At(10f, 11.2f));
+        }
+
+        Assert.Empty(loaded.Diagnostics);
+    }
+
+    /// <summary>
     ///     Test that the format of an embedded file is decided by its file name: the first page of a PDF named
     ///     <c>.pdf</c> and a chart named <c>.vl.json</c> are drawn, while a chart in a plain <c>.json</c> file and a
     ///     PDF without the extension are not linked.
@@ -255,6 +306,34 @@ public class SourceLoaderSvgImageTests
         Assert.Contains("'../secret.png'", note.Message, StringComparison.Ordinal);
         Assert.DoesNotContain(loaded.Operations, o => o.Op == "embed");
         Assert.Equal(ErrorCodes.FileAccessDenied, strict.Code);
+    }
+
+    /// <summary>
+    ///     Test on a folder that ignores letter case that a picture inside a root written in another letter case is
+    ///     drawn, even in strict mode: the real path of the picture is compared exactly with the real location of the
+    ///     root, both in the letter case stored on disk. Skips where the temporary folder compares letter case.
+    /// </summary>
+    [Fact]
+    public void SourceLoader_Load_SvgEmbeddingUnderRootsWrittenInAnotherLetterCase_IsDrawn()
+    {
+        // Arrange: a picture next to the SVG file in site; the root names site in upper case
+        using var directory = new TempDirectory();
+        if (!FixtureFactory.IsCaseInsensitive(directory.Path))
+        {
+            Assert.Skip("This scenario needs a temporary folder that ignores letter case.");
+        }
+
+        Directory.CreateDirectory(directory.Combine("site"));
+        WriteSolidPng(directory.Combine("site", "logo.png"), Green);
+        var path = WriteSvg(directory.Combine("site"), "diagram.svg", "<image href='logo.png' x='10' y='10' width='20' height='20'/>");
+        var policy = FileAccessPolicy.UnderRoots(directory.Combine("site").ToUpperInvariant());
+
+        // Act
+        using var loaded = SourceLoader.Load(path, new SourceOptions { FileAccess = policy, Strict = true });
+
+        // Assert
+        Assert.Equal(Green, loaded.Surface[20, 20]);
+        Assert.Empty(loaded.Diagnostics);
     }
 
     /// <summary>
@@ -607,5 +686,49 @@ public class SourceLoaderSvgImageTests
             Assert.Contains("'canvasnet help svg arrows'", note.Message, StringComparison.Ordinal);
             Assert.DoesNotContain('\n', note.Message);
         }
+    }
+
+    /// <summary>
+    ///     Test that a text the SVG library cannot draw is an <c>svg-text-not-drawn</c> note of severity
+    ///     <c>unsupported</c>, and that with <c>--strict</c> it is the error <c>unsupported-feature</c>.
+    /// </summary>
+    [Fact]
+    public void SourceLoader_Load_SvgTextNotDrawn_IsUnsupportedAndStrictFails()
+    {
+        // Arrange: a text on a path, which is not drawn
+        using var directory = new TempDirectory();
+        var path = WriteSvg(directory.Path, "label.svg", "<path id='p' d='M0 20 L40 20'/><text><textPath href='#p'>On a path</textPath></text>");
+
+        // Act
+        using var tolerant = Load(path);
+        var strict = Assert.Throws<ViewerException>(() => Load(path, strict: true));
+
+        // Assert
+        var note = Assert.Single(tolerant.Diagnostics);
+        Assert.Equal(("svg", "unsupported", "svg-text-not-drawn"), (note.Source, note.Severity, note.Code));
+        Assert.Contains("textPath", note.Message, StringComparison.Ordinal);
+        Assert.Equal(ErrorCodes.UnsupportedFeature, strict.Code);
+        Assert.Contains("svg-text-not-drawn", strict.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Test that a text a nested SVG file cannot draw is reported for the link: a note of the embedding file, and
+    ///     with <c>--strict</c> the error <c>unsupported-feature</c>.
+    /// </summary>
+    [Fact]
+    public void SourceLoader_Load_NestedSvgTextNotDrawn_IsReportedForTheLink()
+    {
+        // Arrange: the outer file embeds an SVG file whose text is on a path
+        using var directory = new TempDirectory();
+        WriteSvg(directory.Path, "inner.svg", "<path id='p' d='M0 20 L40 20'/><text><textPath href='#p'>On a path</textPath></text>");
+        var path = WriteSvg(directory.Path, "outer.svg", "<image href='inner.svg' x='0' y='0' width='40' height='40'/>");
+
+        // Act
+        using var tolerant = Load(path);
+        var strict = Assert.Throws<ViewerException>(() => Load(path, strict: true));
+
+        // Assert
+        Assert.Contains(tolerant.Diagnostics, d => d.Code == "svg-text-not-drawn" && d.Severity == "unsupported");
+        Assert.Equal(ErrorCodes.UnsupportedFeature, strict.Code);
     }
 }

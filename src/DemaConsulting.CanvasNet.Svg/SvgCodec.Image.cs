@@ -400,8 +400,8 @@ public static partial class SvgCodec
             return null;
         }
 
-        // The device size of the placement is the edge length of the transformed rectangle, which
-        // also covers rotation and skew
+        // The device size of the placement is the user-space placement at the largest stretch of
+        // the transform, so it keeps the placement's aspect under rotation, skew and non-uniform scale
         var (pixelWidth, pixelHeight) = ComputeImageDevicePixels(width, height, transform);
         var requestedPixels = (long)pixelWidth * pixelHeight;
         return new ImageLoad(
@@ -410,20 +410,68 @@ public static partial class SvgCodec
     }
 
     /// <summary>
-    ///     Computes the device-pixel size the host resolver is asked for: the edge lengths of the
-    ///     placement rectangle through the element's accumulated transform, rounded up to whole pixels.
+    ///     Computes the device-pixel size the host resolver is asked for: the placement rectangle in its
+    ///     own user space (<paramref name="width"/> x <paramref name="height"/>, so the request keeps the
+    ///     placement's aspect) scaled by the largest stretch of the element's accumulated transform,
+    ///     rounded up to whole pixels.
     /// </summary>
     /// <param name="width">The placement width in local units.</param>
     /// <param name="height">The placement height in local units.</param>
     /// <param name="transform">The accumulated local-to-pixel transform; finite.</param>
-    /// <returns>The width and height, each from 1 to <see cref="Surface.MaxDimension"/>.</returns>
+    /// <returns>
+    ///     The width and height, each from 1 to <see cref="Surface.MaxDimension"/>. When the larger side
+    ///     would exceed <see cref="Surface.MaxDimension"/>, both are scaled down together so the aspect
+    ///     is kept.
+    /// </returns>
     /// <remarks>
+    ///     <para>
+    ///     As in SVG, the picture is laid out in its own viewport (<c>x</c>, <c>y</c>, <c>width</c>,
+    ///     <c>height</c>, <c>preserveAspectRatio</c>) in user space, and the full transform then maps
+    ///     that viewport to the device. A vector source therefore has to be asked for a box with the
+    ///     placement's own aspect: asking for the transformed edge lengths instead gives a box of the
+    ///     wrong shape under a skew or a non-uniform scale (for example 200 x 50 for a 100 x 50
+    ///     placement under <c>scale(2,1)</c>), into which the source letterboxes its content before
+    ///     the painter letterboxes it again into the placement, so it comes out smaller and squashed.
+    ///     </para>
+    ///     <para>
+    ///     The resolution scale is the largest singular value of the linear part of the transform
+    ///     (<c>sqrt((S + sqrt(S^2 - 4 det^2)) / 2)</c>, with <c>S</c> the sum of the squares of its four
+    ///     entries and <c>det</c> its determinant), so the most stretched direction stays sharp. For
+    ///     the identity, a uniform scale and a rotation it equals the transformed edge length, so those
+    ///     requests are unchanged. Under a skew or a non-uniform scale the requested area grows (by
+    ///     about 1.8 times for <c>skewX(30)</c>), and is charged as usual.
+    ///     </para>
+    ///     <para>
     ///     Shared by painting and by the position-binding pre-pass, so a bound picture is requested at
     ///     exactly the size the painter would have requested.
+    ///     </para>
     /// </remarks>
-    private static (int Width, int Height) ComputeImageDevicePixels(float width, float height, Matrix3x2 transform) =>
-        (ToDevicePixels(width * Math.Sqrt((transform.M11 * transform.M11) + (transform.M12 * transform.M12))),
-         ToDevicePixels(height * Math.Sqrt((transform.M21 * transform.M21) + (transform.M22 * transform.M22))));
+    private static (int Width, int Height) ComputeImageDevicePixels(float width, float height, Matrix3x2 transform)
+    {
+        // The largest singular value of the 2x2 linear part: the longest a unit vector can become
+        double a = transform.M11;
+        double b = transform.M12;
+        double c = transform.M21;
+        double d = transform.M22;
+        var sumOfSquares = (a * a) + (b * b) + (c * c) + (d * d);
+        var determinant = (a * d) - (b * c);
+        var discriminant = Math.Max(0d, (sumOfSquares * sumOfSquares) - (4d * determinant * determinant));
+        var scale = Math.Sqrt((sumOfSquares + Math.Sqrt(discriminant)) / 2d);
+
+        // The user-space placement at that uniform scale; when the larger side does not fit a
+        // surface, shrink both sides together so the requested box keeps the placement's aspect
+        var deviceWidth = width * scale;
+        var deviceHeight = height * scale;
+        var largest = Math.Max(deviceWidth, deviceHeight);
+        if (largest > Surface.MaxDimension)
+        {
+            var shrink = Surface.MaxDimension / largest;
+            deviceWidth *= shrink;
+            deviceHeight *= shrink;
+        }
+
+        return (ToDevicePixels(deviceWidth), ToDevicePixels(deviceHeight));
+    }
 
     /// <summary>
     ///     Charges the part of a resolved surface that exceeds the requested size, discarding the

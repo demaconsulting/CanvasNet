@@ -301,8 +301,8 @@ public class SvgPositionBindingTests
     }
 
     /// <summary>
-    ///     Test that a text with a list of x coordinates is not bound (the binding is reported before the codec refuses
-    ///     the list while it paints).
+    ///     Test that a text with a list of x coordinates is not bound: the binding is reported as unsupported, and the
+    ///     text still draws, each character at its own position.
     /// </summary>
     [Fact]
     public void SvgCodec_Binding_TextCoordinateList_IsUnsupported()
@@ -313,9 +313,12 @@ public class SvgPositionBindingTests
         using var stream = new MemoryStream(Encoding.UTF8.GetBytes(svg));
         var options = new SvgLoadOptions { ImageResolver = new PositionResolver(), BindingHandler = reports.Add, UseSystemFonts = false };
 
-        // Act / Assert
-        Assert.Throws<InvalidDataException>(() => SvgCodec.LoadWithFontFaces(stream, 100, 100, null, options));
+        // Act
+        using var surface = SvgCodec.LoadWithFontFaces(stream, 100, 100, null, options);
+
+        // Assert
         Assert.Equal(SvgPositionBinding.UnsupportedCode, Assert.Single(reports).Code);
+        Assert.Equal(100, surface.Width);
     }
 
     /// <summary>

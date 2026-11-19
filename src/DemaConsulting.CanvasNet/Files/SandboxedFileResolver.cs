@@ -95,10 +95,11 @@ public sealed partial class SandboxedFileResolver
     private readonly Dictionary<string, Content?> _contents;
 
     /// <summary>
-    ///     The real location of each root, captured the first time a file below it is looked up and before that file is
-    ///     opened; <see langword="null"/> where it could not be determined.
+    ///     The real location of each root, in its on-disk letter case, captured the first time a file below it is looked
+    ///     up and before that file is opened; <see langword="null"/> where it could not be determined. Keyed exactly: on a
+    ///     case-sensitive folder two spellings that differ in letter case are two folders.
     /// </summary>
-    private readonly Dictionary<string, string?> _rootLocations = new(RealPath.PathComparer);
+    private readonly Dictionary<string, string?> _rootLocations = new(StringComparer.Ordinal);
 
     /// <summary>
     ///     The outcome of reading one candidate that was opened or requested.
@@ -324,10 +325,10 @@ public sealed partial class SandboxedFileResolver
             return ReadFromCallback(candidate);
         }
 
-        // The real location of the root and the long spelling of the path are captured before the walk and the open; the
-        // check after the open uses only these, so a root renamed and replaced by a link in between cannot pass it
+        // The real location of the root and the on-disk spelling of the path are captured before the walk and the open;
+        // the check after the open uses only these, so a root renamed and replaced by a link in between cannot pass it
         var rootLocation = RootLocation(candidate.Root);
-        var longKey = FileAccessPolicy.LongSpelling(candidate.Key);
+        var exactKey = FileAccessPolicy.ExactSpelling(candidate.Key);
 
         // The walk runs before the file is opened, so nothing is ever read through a link and a file behind a link is
         // never reported as existing. A missing intermediate component ends the candidate there; the final component is
@@ -345,11 +346,12 @@ public sealed partial class SandboxedFileResolver
 
         // An injected stream opener (a test seam) has no handle to verify; the default path opens a handle and
         // verifies it before reading, which closes the race between the link walk and the open
-        return _openFile is null ? ReadVerified(candidate, rootLocation, longKey) : ReadFromStream(candidate, _openFile);
+        return _openFile is null ? ReadVerified(candidate, rootLocation, exactKey) : ReadFromStream(candidate, _openFile);
     }
 
     /// <summary>
-    ///     Gets the real location of a root, captured on first use (before any file below it is opened).
+    ///     Gets the real location of a root in its on-disk letter case, captured on first use (before any file below it
+    ///     is opened).
     /// </summary>
     /// <param name="root">The root.</param>
     /// <returns>The real location, or <see langword="null"/> when it cannot be determined.</returns>
@@ -357,7 +359,7 @@ public sealed partial class SandboxedFileResolver
     {
         if (!_rootLocations.TryGetValue(root, out var location))
         {
-            location = _hooks?.DirectoryLocationOf is { } locationOf ? locationOf(root) : RealPath.TryGetCanonicalDirectory(root);
+            location = _hooks?.DirectoryLocationOf is { } locationOf ? locationOf(root) : RealPath.TryGetExactCanonicalDirectory(root);
             _rootLocations[root] = location;
         }
 
@@ -365,21 +367,25 @@ public sealed partial class SandboxedFileResolver
     }
 
     /// <summary>
-    ///     Opens a candidate, verifies the open handle and reads it: the handle must be a regular file whose real path
-    ///     is the candidate's path below the real location of the root captured before the open, so a link swapped in
-    ///     after the link walk, or a root replaced by a link, is refused.
+    ///     Opens a candidate, verifies the open handle and reads it: the handle must be a regular file whose real path,
+    ///     in its on-disk letter case confirmed to name the open file, is exactly the candidate's path below the real
+    ///     location of the root captured before the open, so a link swapped in after the link walk, or a root replaced
+    ///     by a link, is refused.
     /// </summary>
     /// <param name="candidate">The candidate; its link walk has passed.</param>
-    /// <param name="rootLocation">The real location of the root captured before the open, or <see langword="null"/>.</param>
-    /// <param name="longKey">The candidate's path with short (8.3) names expanded, captured before the open.</param>
+    /// <param name="rootLocation">
+    ///     The real location of the root in its on-disk letter case, captured before the open, or <see langword="null"/>.
+    /// </param>
+    /// <param name="exactKey">The candidate's path in its on-disk spelling, captured before the open.</param>
     /// <returns>What was read, or <see langword="null"/> when the candidate does not exist.</returns>
     /// <exception cref="SandboxException">
     ///     Thrown with <see cref="SandboxFailureKind.CannotRead"/> when the open or the read fails or the file is not a
     ///     regular file, <see cref="SandboxFailureKind.LinkCheckFailed"/> when the real path of the file or the real
-    ///     location of its root cannot be determined, and <see cref="SandboxFailureKind.ThroughLink"/> when the real
-    ///     path shows a link below the root.
+    ///     location of its root cannot be determined, or the on-disk spelling of the real path cannot be confirmed to
+    ///     name the open file, and <see cref="SandboxFailureKind.ThroughLink"/> when the real path shows a link below
+    ///     the root.
     /// </exception>
-    private Content? ReadVerified(Candidate candidate, string? rootLocation, string longKey)
+    private Content? ReadVerified(Candidate candidate, string? rootLocation, string exactKey)
     {
         // The open attempt decides, and only the open: "not found" from the open means the candidate is missing
         _hooks?.BeforeOpen?.Invoke(candidate.Key);
@@ -418,11 +424,17 @@ public sealed partial class SandboxedFileResolver
                 throw new SandboxException(SandboxFailureKind.LinkCheckFailed, candidate.Key);
             }
 
+            // The real path is compared exactly, letter case included, so it is taken in the spelling stored on disk,
+            // and only once that spelling is confirmed to name the open file; otherwise the check fails (fail closed)
+            var exact = _hooks?.ExactPathOf is { } exactPathOf ? exactPathOf(realPath) : RealPath.GetExactPathName(realPath);
+            realPath = RealPath.TryConfirmExactPath(handle, realPath, exact)
+                ?? throw new SandboxException(SandboxFailureKind.LinkCheckFailed, candidate.Key);
+
             // Anchored at the root, the no-symlinks rule is exactly the walk's rule: the real path must be the real
             // location of the root captured before the open followed by the path below the root. A root whose real
             // location could not be determined is a failed check (fail closed), not a link
             var relative = Path.GetRelativePath(candidate.Root, candidate.Key).Replace('\\', '/');
-            switch (FileAccessPolicy.MatchesWithoutLinks(candidate.Root, rootLocation, candidate.Key, longKey, realPath))
+            switch (FileAccessPolicy.MatchesWithoutLinks(candidate.Root, rootLocation, candidate.Key, exactKey, realPath))
             {
                 case null:
                     throw new SandboxException(SandboxFailureKind.LinkCheckFailed, candidate.Key);

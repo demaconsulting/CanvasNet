@@ -187,24 +187,51 @@ public class FileAccessPolicyTests
     }
 
     /// <summary>
-    ///     Validates that paths are compared under the platform rule: case-insensitive on Windows and macOS, exact on
-    ///     Linux.
+    ///     Validates that a real path that differs from a root only in letter case is outside it on every platform (the
+    ///     real path is compared exactly), while the path as written keeps the platform rule: it passes the pre-check on
+    ///     Windows and macOS and fails it on Linux.
     /// </summary>
     [Fact]
-    public void FileAccessPolicy_UnderRoots_PlatformCaseRule_IsApplied()
+    public void FileAccessPolicy_UnderRoots_RealPathDifferingFromARootInLetterCase_IsDenied()
     {
         // Arrange: the written and real paths spell the root in upper case
         using var directory = new SandboxTempDirectory();
         var root = Directory.CreateDirectory(directory.Combine("root")).FullName;
         var policy = FileAccessPolicy.UnderRoots(root);
         var upper = Path.Combine(root.ToUpperInvariant(), "A.TXT");
-        var expected = OperatingSystem.IsWindows() || OperatingSystem.IsMacOS();
+        var writtenPasses = OperatingSystem.IsWindows() || OperatingSystem.IsMacOS();
 
         // Act
+        var early = policy.PreCheck(Path.GetFullPath(upper));
         var decision = policy.Check(Request(root, upper, Path.Join(FileTestSupport.Canonical(root).ToUpperInvariant(), "A.TXT")));
 
         // Assert
-        Assert.Equal(expected, decision.IsAllowed);
+        Assert.False(decision.IsAllowed);
+        Assert.Equal(writtenPasses, early is null);
+        Assert.Equal(
+            writtenPasses ? "its real path is outside the allowed roots" : "the path as written is outside the allowed roots",
+            decision.Reason);
+    }
+
+    /// <summary>
+    ///     Validates in a folder that ignores letter case that a root written in another letter case still allows the
+    ///     files inside it: its real location is captured in the case stored on disk. Skips where the temporary folder
+    ///     compares letter case.
+    /// </summary>
+    [Fact]
+    public void FileAccessPolicy_UnderRoots_RootWrittenInAnotherLetterCase_AllowsFilesInside()
+    {
+        // Arrange
+        using var directory = new SandboxTempDirectory();
+        FileTestSupport.RequireCaseInsensitive(directory.Path);
+        var root = Directory.CreateDirectory(directory.Combine("root")).FullName;
+        var policy = FileAccessPolicy.UnderRoots(root.ToUpperInvariant());
+
+        // Act
+        var decision = policy.Check(Request(root, Path.Combine(root, "a.txt"), Path.Join(FileTestSupport.Canonical(root), "a.txt")));
+
+        // Assert
+        Assert.True(decision.IsAllowed);
     }
 
     /// <summary>
@@ -299,6 +326,93 @@ public class FileAccessPolicyTests
 
         // Assert
         Assert.True(decision.IsAllowed);
+    }
+
+    /// <summary>
+    ///     Validates that the no-symlinks policy denies a file whose real path differs from the written path below the
+    ///     anchor only in letter case: on a folder that compares letter case that is another folder.
+    /// </summary>
+    [Fact]
+    public void FileAccessPolicy_NoSymlinks_RealPathDifferingInLetterCaseBelowTheAnchor_IsDenied()
+    {
+        // Arrange: the written folder exists as written; the reported real path spells it in upper case
+        using var directory = new SandboxTempDirectory();
+        var baseDirectory = Directory.CreateDirectory(directory.Combine("base")).FullName;
+        Directory.CreateDirectory(Path.Combine(baseDirectory, "sub"));
+
+        // Act
+        var decision = FileAccessPolicy.NoSymlinks.Check(Request(
+            baseDirectory, Path.Combine(baseDirectory, "sub", "a.txt"), Path.Join(FileTestSupport.Canonical(baseDirectory), "SUB", "a.txt")));
+
+        // Assert
+        Assert.False(decision.IsAllowed);
+        Assert.Contains("symbolic link or junction", decision.Reason, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates that a path written in another letter case than the one stored on disk is compared in its on-disk
+    ///     spelling, so it is not mistaken for a link.
+    /// </summary>
+    [Fact]
+    public void FileAccessPolicy_NoSymlinks_WrittenPathInAnotherLetterCase_IsAllowed()
+    {
+        // Arrange: stored as sub/a.txt, written as SUB/A.TXT
+        using var directory = new SandboxTempDirectory();
+        var baseDirectory = Directory.CreateDirectory(directory.Combine("base")).FullName;
+        directory.Write("base/sub/a.txt", "a");
+
+        // Act
+        var decision = FileAccessPolicy.NoSymlinks.Check(Request(
+            baseDirectory, Path.Combine(baseDirectory, "SUB", "A.TXT"), Path.Join(FileTestSupport.Canonical(baseDirectory), "sub", "a.txt")));
+
+        // Assert
+        Assert.True(decision.IsAllowed);
+    }
+
+    /// <summary>
+    ///     Validates in a folder that compares letter case that a link named like its target in another letter case
+    ///     (<c>Docs</c> pointing to <c>docs</c>) is denied. Skips where the temporary folder ignores letter case.
+    /// </summary>
+    [Fact]
+    public void FileAccessPolicy_NoSymlinks_LinkNamedLikeItsTargetInAnotherCase_IsDenied()
+    {
+        // Arrange
+        using var directory = new SandboxTempDirectory();
+        FileTestSupport.RequireCaseSensitive(directory.Path);
+        var baseDirectory = Directory.CreateDirectory(directory.Combine("base")).FullName;
+        directory.Write("base/docs/a.txt", "a");
+        FileTestSupport.CreateDirectoryLinkOrSkip(Path.Combine(baseDirectory, "Docs"), Path.Combine(baseDirectory, "docs"));
+
+        // Act
+        var decision = FileAccessPolicy.NoSymlinks.Check(Request(
+            baseDirectory, Path.Combine(baseDirectory, "Docs", "a.txt"), Path.Join(FileTestSupport.Canonical(baseDirectory), "docs", "a.txt")));
+
+        // Assert
+        Assert.False(decision.IsAllowed);
+    }
+
+    /// <summary>
+    ///     Validates in a folder that compares letter case that a folder named like the base directory in another letter
+    ///     case is not trusted as the anchor: <c>ALLOWED</c> is a link to another folder next to the base directory
+    ///     <c>allowed</c>, and a file reached through it is denied. Skips where the temporary folder ignores letter case.
+    /// </summary>
+    [Fact]
+    public void FileAccessPolicy_NoSymlinks_AnchorInAnotherLetterCaseThanTheBase_IsNotTrusted()
+    {
+        // Arrange
+        using var directory = new SandboxTempDirectory();
+        FileTestSupport.RequireCaseSensitive(directory.Path);
+        var baseDirectory = Directory.CreateDirectory(directory.Combine("allowed")).FullName;
+        directory.Write("elsewhere/a.txt", "a");
+        var variant = Path.GetFullPath(directory.Combine("ALLOWED"));
+        FileTestSupport.CreateDirectoryLinkOrSkip(variant, directory.Combine("elsewhere"));
+
+        // Act
+        var decision = FileAccessPolicy.NoSymlinks.Check(Request(
+            baseDirectory, Path.Combine(variant, "a.txt"), Path.Join(FileTestSupport.Canonical(directory.Combine("elsewhere")), "a.txt")));
+
+        // Assert
+        Assert.False(decision.IsAllowed);
     }
 
     /// <summary>

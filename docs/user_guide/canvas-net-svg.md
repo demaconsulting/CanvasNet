@@ -67,8 +67,9 @@ resolution and a 3-tier precedence (presentation attribute, then any matching st
 then an inline `style="..."` attribute, which always wins). Well-formed but
 out-of-scope constructs (`animate`/SMIL,
 `foreignObject`, nested `svg`, and any remaining unrecognized filter primitive type)
-are silently skipped/passed through so the rest of the document still
-renders; malformed/unparseable input throws `InvalidDataException`; for a document that is not well-formed XML the
+are skipped/passed through so the rest of the document still
+renders (text that is skipped this way is reported, see *Unsupported Features* below); malformed/unparseable input
+throws `InvalidDataException`; for a document that is not well-formed XML the
 message names the line and column of the error (and says that `--` is not allowed inside an XML comment when that is
 the cause).
 
@@ -155,6 +156,16 @@ Under `objectBoundingBox` they stay `1` and `0.5` of the shape's box. A pattern 
 `objectBoundingBox`, and of the viewport width or height under `userSpaceOnUse` (they used to be of
 the shape's box in both modes).
 
+**Paint on a shape with no width or no height.** A gradient or pattern in `objectBoundingBox` units (the default)
+is ignored on a shape whose box has no width or no height, such as a horizontal or vertical `line`, as SVG 2 and the
+browsers do. The fallback color written after the reference is painted instead, and without one nothing is drawn:
+`stroke="url(#g) red"` on a horizontal line is red, and `stroke="url(#g)"` draws nothing. Use
+`gradientUnits="userSpaceOnUse"` (or `patternUnits="userSpaceOnUse"`) to paint such a line with the gradient or
+pattern. A fallback may be any color, including `rgb(...)`. A reference that names no element (`url(#missing) red`),
+names an element that is not a gradient or pattern, or points into another file (`url(other.svg#g) red`) also paints
+its fallback color, as SVG 2 and the browsers do, and nothing without one. A gradient without stops paints nothing,
+even with a fallback.
+
 `font-size` can be set by an attribute, a `style` attribute, a `style` element rule, or the `font`
 shorthand (for example `font: italic bold 12px/1.5 "Helvetica Neue", sans-serif`, which also resets
 the style, weight and line height it does not name; the `font` attribute ranks below every other
@@ -190,9 +201,34 @@ resolution see the same names. CSS backslash escapes in a family name are decode
 `\41 cme`); a backslash before a newline joins the lines inside a quoted name and invalidates an
 unquoted list, which is then dropped like any invalid declaration.
 
-A text element's first `dx` and `dy` value moves it (`dy="0.71em"`, as Vega writes it). Lists of
-`dx`/`dy` beyond the first value, `tspan` positioning, `letter-spacing`, `word-spacing`,
-`textLength` and `baseline-shift` are not supported, and nested `svg` elements are skipped.
+Text is laid out as browsers lay it out (checked against Microsoft Edge):
+
+- **`tspan` and `a` runs.** A `tspan` or `a` inside a `text` draws its characters in its own style: its
+  presentation attributes, `style` attribute, and stylesheet rules (classes, `text tspan` selectors) for `fill`,
+  `stroke`, `opacity`, `font-family`, `font-size`, `font-weight`, and `font-style`, inherited by nested elements. The
+  `opacity` of the `text` applies to all its runs together, so a run drawn over another covers it. A gradient on a
+  `tspan` spans the whole text. `title`, `desc`, and `metadata` inside a text are not drawn.
+- **Positions.** `x`, `y`, `dx`, and `dy` on a `text` or `tspan` are lists with one entry per character
+  (`x="10 30 50"`); a nested element's entries win over its parent's. An absolute `x` or `y` starts a new text chunk
+  (a new line of a multi-line label), and a `dy` moves the text that follows too (`dy="0.71em"`, as Vega writes it).
+  An `x` or `y` entry that is not a length makes the document invalid, as a single `x` does; a bad `dx` or `dy`
+  entry ends that list.
+- **Anchors.** `text-anchor` aligns each chunk as a whole, by the anchor of the chunk's first character.
+- **`baseline-shift`.** A length moves the characters up, a percentage is of the font size, and `super`/`sub` move
+  them by half the font's ascent plus descent.
+- **White space.** Tabs and line breaks are spaces, consecutive spaces collapse to one (also across `tspan`
+  boundaries), and spaces at the start and end of the text are removed; `xml:space="preserve"` keeps every space.
+- **Spacing.** `letter-spacing` adds space after every character, the last one too, so a centered or end-anchored
+  label is placed with that trailing space as in the browsers; `word-spacing` adds space after every space and
+  no-break space (on top of the letter spacing). Each takes a length (`2px`, `0.1em`), a percentage of the font size
+  (`10%`), or `normal`, may be negative, is inherited, and keeps the font's kerning; an invalid value is ignored.
+- **Not supported** (drawn without, and reported): `rotate`, `textLength`, vertical
+  `writing-mode`, `direction: rtl`, `dominant-baseline`, `alignment-baseline`, and `text-decoration`. Text on a
+  `textPath` is not drawn (reported).
+
+An `a` element outside text is drawn like a group. A `switch` draws its first child that is not a `foreignObject`
+and does not require the `Extensibility` feature or an extension, so a draw.io label (HTML in a `foreignObject`, then a
+`text` fallback) draws its text. Nested `svg` elements are skipped.
 
 Example:
 
@@ -320,7 +356,7 @@ the cycles, the number of images, and the pixels they may use in total (a pictur
 it is decoded, with the warning `svg-image-too-large`). A query after a file name (`logo.png?v=2`) is
 ignored, and a fragment (`report.pdf#page=3`) is read as `name=value` parameters: `#page=N` chooses the page of a
 PDF or VSDX document, `#slide=N` (or `#page=N`) the slide of a presentation, and `#view=front` the view of a model
-(and `#azimuth=`/`#elevation=` its angles)
+(and `#azimuth=`/`#elevation=` its angles, `#projection=` its projection)
 (viewer package); `#def.width=20` sets a variable of a linked model (like `-D width=20`) and `#param.threshold=5` a
 parameter of a
 linked chart (like `--param threshold=5`; the warning `vl-param-unknown` for a name the chart does not declare); without
@@ -357,8 +393,12 @@ after it exists; a resolver must protect the memory itself, as `FolderImageResol
 its pixel budget before it is allocated.
 
 A resolver receives the `href` exactly as written (trimmed) and `pixelWidth` x `pixelHeight`, the size of the
-element's placement rectangle **in device pixels after all transforms** (the viewBox fit, `transform`
-attributes, rotation and skew included), rounded up and between 1 and `Surface.MaxDimension`. Draw a vector
+element's placement rectangle **in device pixels after all transforms** (the viewBox fit and `transform`
+attributes), rounded up and between 1 and `Surface.MaxDimension`. Under a rotation, a skew, or a non-uniform scale
+the size is the placement's own `width` x `height` scaled by the largest stretch of the transform, so it keeps the
+placement's aspect: a 100 x 50 placement under `scale(2,1)` asks for 200 x 100, not 200 x 50, because the picture is
+laid out in its placement and the transform then stretches it, as in a browser. When the larger side would exceed
+`Surface.MaxDimension`, both sides are scaled down together. Draw a vector
 source (a rendered chart, another SVG) at that size to keep it sharp. The returned surface is fitted into the
 placement rectangle with the element's `preserveAspectRatio` and drawn through the same `image-rendering`,
 `opacity`, `clip-path`, `mask`, and `filter` handling as a `data:` raster. Return `null` for "not found / not
@@ -467,6 +507,34 @@ foreach (var hint in hints)
 }
 ```
 
+##### Unsupported Features: SvgLoadOptions.UnsupportedFeatureHandler
+
+Set `SvgLoadOptions.UnsupportedFeatureHandler` to learn about text the codec cannot draw. After the document is painted,
+the codec calls the handler at most once per code with an `SvgUnsupportedFeature` (`Code`, `Message`, and `Count`, the
+number of elements); the message lists the features or reasons and names the first element (its name, `id`, and the
+start of its text). A report never changes the pixels and never fails the load, and no checks run when no handler is
+set. Content drawn through `use`, `marker`, `pattern`, `mask`, and `clipPath` reports too; content that is never drawn
+(inside `defs`, or a `switch` child that is not chosen) does not.
+
+- `svg-text-not-drawn` (`SvgUnsupportedFeature.TextNotDrawnCode`): text that is not drawn at all - text on a
+  `textPath`, an unknown element inside a `text`, the HTML of a `foreignObject`, a `text` inside a nested `svg`, an
+  unknown element, or a `switch` without a drawable child, text with a negative `font-size`, text under a transform
+  that overflows, and text whose coordinates are beyond the supported range.
+- `svg-text-unsupported` (`SvgUnsupportedFeature.TextUnsupportedCode`): text drawn without a feature it uses - `rotate`,
+  `textLength`, a vertical `writing-mode`, `direction: rtl`, `dominant-baseline`,
+  `alignment-baseline`, `text-decoration`, an unsupported `baseline-shift`, and a character that no font has a glyph
+  for (drawn as the missing-glyph box, named by its code point).
+
+```csharp
+var unsupported = new List<SvgUnsupportedFeature>();
+using var surface = SvgCodec.LoadWithFontFaces(
+    "figure.svg", 1200, 800, null, new SvgLoadOptions { UnsupportedFeatureHandler = unsupported.Add });
+foreach (var feature in unsupported)
+{
+    Console.WriteLine($"{feature.Code} ({feature.Count}): {feature.Message}");
+}
+```
+
 ##### SvgImageSource
 
 ```csharp
@@ -477,9 +545,10 @@ public sealed class SvgImageSource : IImageSource   // Name "svg"; Extensions ["
 `FolderImageResolver`). It draws the file at the size of its placement over a transparent background and
 resolves the file's own `image` elements through the resolver of the request, so relative links inside the
 nested file resolve against its own folder and the limits of the whole render apply: SVG files that embed each
-other stop with a warning instead of recursing without end. The SVG library has no switch for unsupported
-features, so the strictness switch has no effect; a position binding of the nested file that is not resolved is a
-warning of the result with its `svg-binding-*` code.
+other stop with a warning instead of recursing without end. A position binding of the nested file that is not resolved
+is a warning of the result with its `svg-binding-*` code, and text the nested file cannot draw is an `Unsupported` note
+with its `svg-text-*` code; with `ThrowOnUnsupportedFeature` set on the request, such text throws
+`UnsupportedImageFeatureException` instead.
 
 ##### SvgCodec Default Fonts
 
@@ -507,9 +576,8 @@ never consulted and every text you did not register a font for uses the bundled 
 bundled Noto Sans, Noto Sans Math, or Noto Sans Symbols 2 (the fallback of the core `GlyphFallback`, never an installed
 font), scaled to the font size, in the regular style and without kerning against a neighbor from another font. Text
 anchoring and measuring use the same advances, so a mixed run stays aligned. A character that no bundled font covers
-(a private-use or CJK character, for example) is drawn as the chosen font's own missing-glyph box, **silently**: SVG
-loading has no diagnostics channel (`SvgCodec` reports no warnings, only the work counters of
-`RenderDiagnostics`), so check a text with `GlyphFallback.FindMissing(font, text)` if you need to know.
+(a private-use or CJK character, for example) is drawn as the chosen font's own missing-glyph box and reported as
+`svg-text-unsupported` through `SvgLoadOptions.UnsupportedFeatureHandler` (see *Unsupported Features* above).
 
 ```csharp
 // Reproducible: text is drawn with the bundled Liberation fonts on every machine

@@ -74,16 +74,23 @@ sections:
 
               - id: CanvasNetRender3D-SceneModel-SceneGraph-SceneBounds
                 title: >-
-                  The Scene ComputeBounds method shall return the tight world-space bounding box
-                  obtained by transforming every instance's vertices in double precision, an empty
-                  box for an empty scene, and the same result on repeated calls.
+                  The Scene ComputeBounds method shall return the world-space bounding box of the
+                  result of the scene, with mesh vertices transformed in double precision, a CSG
+                  union bounded by all of its operands, a CSG difference by its first operand only,
+                  and a CSG intersection by the overlap of its operands (empty when they are
+                  disjoint), an empty box for an empty scene, and the same result on repeated calls.
                 justification: |
-                  Exact scene bounds give the camera a tight framing and the renderer an accurate
-                  depth range.
+                  Bounds of what is actually drawn give the camera a tight framing: geometry that a
+                  difference removes or an intersection cuts away must not shrink the framed model.
                 tests:
                   - Scene_ComputeBounds_TransformedGroup_MatchesAnalytic
                   - Scene_ComputeBounds_EmptyGroup_IsEmpty
                   - Scene_ComputeBounds_CalledTwice_ReturnsSame
+                  - Scene_ComputeBounds_Difference_IsTheMinuendBounds
+                  - Scene_ComputeBounds_Intersection_IsTheOverlapOfTheOperands
+                  - Scene_ComputeBounds_DisjointIntersection_IsEmpty
+                  - Scene_ComputeBounds_UnionCsg_IncludesEveryOperand
+                  - Scene_ComputeBounds_NestedCsgUnderTransforms_MatchesAnalytic
 
               - id: CanvasNetRender3D-SceneModel-SceneGraph-DeepNesting
                 title: >-
@@ -94,6 +101,7 @@ sections:
                   overflow cannot be caught by the caller.
                 tests:
                   - Scene_EnumerateInstances_TenThousandNestedGroups_DoesNotOverflowStack
+                  - Scene_ComputeBounds_TenThousandNestedCsgNodes_DoesNotOverflowStack
 
               - id: CanvasNetRender3D-SceneModel-SceneGraph-CsgNode
                 title: >-
@@ -120,19 +128,17 @@ sections:
                   The Scene shall enumerate every operand of a CsgNode exactly like the children of
                   a group (depth-first pre-order, child-then-parent transform composition,
                   innermost-appearance inheritance, once per path for a shared child, without
-                  recursion for ten thousand nested nodes), report for each instance the MeshNode
-                  it came from, and include every operand in the scene bounds.
+                  recursion for ten thousand nested nodes), and report for each instance the
+                  MeshNode it came from.
                 justification: |
                   The renderer recovers the boolean structure from the same traversal that yields
                   the instances; a node kind the traversal silently skipped would vanish from the
-                  render and from the bounds, and the source node lets diagnostics point back to
-                  the model.
+                  render, and the source node lets diagnostics point back to the model.
                 tests:
                   - Scene_EnumerateInstances_CsgNode_DescendsIntoOperandsInPreOrder
                   - Scene_EnumerateInstances_CsgNode_SharedChild_EnumeratedPerPath
                   - Scene_EnumerateInstances_CsgNode_ComposesTransformAndInheritsAppearance
                   - CsgNode_SingleChild_EnumeratesThatChild
-                  - Scene_ComputeBounds_CsgNode_IncludesAllOperands
                   - Scene_EnumerateInstances_TenThousandNestedCsgNodes_DoesNotOverflowStack
 
               - id: CanvasNetRender3D-SceneModel-SceneGraph-OverlayNode
@@ -170,8 +176,9 @@ sections:
               - id: CanvasNetRender3D-SceneModel-SceneGraph-OverlayBounds
                 title: >-
                   The Scene shall include overlay bodies in the bounds returned by ComputeBounds()
-                  (equal to ComputeBounds(true)) and provide a ComputeBounds(bool) overload whose
-                  false argument leaves them out, caching each result.
+                  (equal to ComputeBounds(true)), also an overlay inside an operand that a
+                  difference removes, and provide a ComputeBounds(bool) overload whose false
+                  argument leaves them out, caching each result.
                 justification: |
                   A fitted camera must frame a ghost so that it stays in the picture, whereas
                   geometry operations that size the solid itself (such as a resize) must not be
@@ -179,3 +186,4 @@ sections:
                 tests:
                   - Scene_ComputeBounds_WithoutOverlays_SkipsOverlayInstances
                   - Scene_ComputeBounds_Default_IncludesOverlays
+                  - Scene_ComputeBounds_OverlayInsideASubtrahend_IsIncludedOnlyWithOverlays

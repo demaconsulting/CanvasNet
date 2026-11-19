@@ -85,8 +85,8 @@ shows one (`part@{ img: "part.scad" }`, or `<img src="part.scad">` in a label), 
 Links are read the way Pandoc reads them, relative to the document, under a file-access policy that the host chooses
 (by default every local file; confine untrusted documents to chosen folders), and never from the network. A URL fragment
 passes options to the linked file: `#page=` or `#slide=` (PDF, PowerPoint, Visio), `#view=`, `#azimuth=`, `#elevation=`,
-and `def.<name>=` (OpenSCAD views, camera angles, and variables), `param.<name>=` (Vega-Lite parameters), and `#theme=`
-(Mermaid); join several with
+`#projection=`, and `def.<name>=` (OpenSCAD views, camera angles, projection, and variables), `param.<name>=` (Vega-Lite
+parameters), and `#theme=` (Mermaid); join several with
 `&amp;` in XML.
 
 ![How CanvasNet composition works. On the left, an exploded view stacks three layers: the SVG page page.svg on top, the Mermaid diagram flow.mmd it embeds in the middle, and an OpenSCAD model and a Vega-Lite chart that the diagram's nodes embed at the bottom. Dashed lines show where each picture lands one layer up, and a pink line shows an annotation arrow of the page bound to a node of the diagram. Numbered cards show the markup behind each link: an SVG image href with #theme=dark, a cn:x2y2 binding, and Mermaid picture nodes with #def.explode=1 and #param.goal=180, plus the same link in Markdown through the Pandoc filter. A curved arrow labeled renders to points to the finished page, and a card lists fragments such as #page=2, #view=front, #theme=dark and #param.goal=180](https://raw.githubusercontent.com/demaconsulting/CanvasNet/main/docs/images/composition-explained.png)

@@ -140,6 +140,7 @@ outside 1 to `Surface.MaxDimension` throws `ArgumentOutOfRangeException` without
 `CanvasNetViewer_Render_QueryAndEncodedFragment_AreHandled`,
 `CanvasNetViewer_Render_ScadViewFragment_ChoosesTheViewOrIsInvalid`,
 `CanvasNetViewer_Render_ScadAngleFragments_TurnTheViewOrAreInvalid`,
+`CanvasNetViewer_Render_ScadProjectionFragment_ChoosesTheProjectionOrIsInvalid`,
 `CanvasNetViewer_Render_SchemeSource_ReceivesRawLinkAndParsedFragment`,
 `CanvasNetViewer_Render_ExtraSourceForBuiltInExtension_WinsAndGetsFragment`,
 `CanvasNetViewer_Render_NestedSvgWithFragment_UsesTheScopedResolver`,
@@ -161,7 +162,10 @@ a warning with the last value used, and the same value twice silent; that a `?qu
 `#view=front` chooses the view of a model and an unknown view is invalid; that, for a bar `cube([30, 10, 10])`,
 `#view=front&azimuth=90`, `#view=right`, and `#azimuth=90&elevation=0` draw the same pixels, which differ from
 `#view=front`, with no notes, and `#azimuth=abc` and `#elevation=95` are two `image-fragment-invalid` notes naming their
-values with nothing drawn; that a scheme source receives the raw link and
+values with nothing drawn; that, for the same bar, no fragment, `#projection=ortho`, and `#projection=Orthographic` draw
+the same pixels, `#projection=perspective` and `#projection=PERSPECTIVE` draw the same other pixels, with no notes, and
+`#projection=fisheye` and an empty `#projection=` are two `image-fragment-invalid` notes (the first naming its value,
+the second listing the projections) with nothing drawn; that a scheme source receives the raw link and
 the parsed fragment, and that an extra source for a built-in extension wins and gets the fragment; that a nested SVG
 file
 draws its pages through the scoped resolver; that a fragment of thousands of characters is refused with a short message;

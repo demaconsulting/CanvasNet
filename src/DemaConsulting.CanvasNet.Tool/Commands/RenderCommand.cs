@@ -99,8 +99,8 @@ internal sealed partial class RenderCommand : ICommand
         + "types, the link rule, the fragment, and an example." + Environment.NewLine
         + "An input path takes the same fragment: report.pdf#page=3, part.scad#view=top&def.width=20 (quote it in a shell:" + Environment.NewLine
         + "& ends a command), chart.vl.json#param.cutoff=50, flow.mmd#theme=dark. It overrides --page, --view, --azimuth," + Environment.NewLine
-        + "--elevation, --theme, -D, and --param for that input; a '#' is a fragment only when no file has that exact name." + Environment.NewLine
-        + "'canvasnet help svg' lists the parameters." + Environment.NewLine
+        + "--elevation, --projection, --theme, -D, and --param for that input; a '#' is a fragment only when no file has that" + Environment.NewLine
+        + "exact name. 'canvasnet help svg' lists the parameters." + Environment.NewLine
         + "Every file a document references (an image, a picture, an include, a data file) is read as Pandoc reads it;" + Environment.NewLine
         + "--file-access roots (or --allow-root <folder>) confines them and no-symlinks refuses links: 'canvasnet help files'." + Environment.NewLine
         + "The operations --crop, --resize, --fit, --rotate, --flip, --pad, and the photo tools --grayscale, --invert," + Environment.NewLine

@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 using Microsoft.Win32.SafeHandles;
 
@@ -25,6 +26,49 @@ internal static partial class RealPath
         }
 
         return new HandleFacts(true, NativeMethods.TryGetFinalPathName(handle));
+    }
+
+    /// <summary>
+    ///     Determines on Windows whether a path names the same file as an open handle, through no link: the volume serial
+    ///     number and the file index of both must be equal, and the final path of the handle opened by the path must be
+    ///     the path itself. The path is opened with <c>FILE_FLAG_OPEN_REPARSE_POINT</c>, so a link at its last component
+    ///     is compared itself, not its target; a junction or link in one of its folders changes the final path.
+    /// </summary>
+    /// <param name="handle">The open handle.</param>
+    /// <param name="path">The full path.</param>
+    /// <param name="reason">Why the answer is not <see langword="true"/>; <see langword="null"/> when it is.</param>
+    /// <returns>The answer, or <see langword="null"/> when the path cannot be opened or an identity cannot be read.</returns>
+    [SupportedOSPlatform("windows")]
+    private static bool? IsSameFileWindows(SafeFileHandle handle, string path, out string? reason)
+    {
+        using var other = NativeMethods.OpenForIdentity(path);
+        if (other.IsInvalid)
+        {
+            reason = $"the path cannot be opened (Win32 error {Marshal.GetLastPInvokeError()})";
+            return null;
+        }
+
+        // The same file, reached through no link: the final path of the handle opened by the spelling is the spelling
+        // itself (a junction or link in a folder of the path would make it another path)
+        var opened = NativeMethods.TryGetWindowsFileId(handle);
+        var named = NativeMethods.TryGetWindowsFileId(other);
+        if (opened is null || named is null)
+        {
+            reason = opened is null
+                ? "the identity of the open file cannot be read"
+                : "the identity of the file the path names cannot be read";
+            return null;
+        }
+
+        if (opened != named)
+        {
+            reason = "the path names another file (volume serial number and file index differ)";
+            return false;
+        }
+
+        var reached = string.Equals(NativeMethods.TryGetFinalPathName(other), path, StringComparison.Ordinal);
+        reason = reached ? null : "the path reaches the file through a link or junction (its final path differs)";
+        return reached;
     }
 
     /// <summary>

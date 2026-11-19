@@ -3,7 +3,8 @@
   composition-explained.svg: how composition works, drawn by CanvasNet from the real files. On the left an exploded
   view stacks the three layers of one page: page.svg (top), the Mermaid diagram flow.mmd it embeds (middle), and the
   OpenSCAD model part.scad and Vega-Lite chart chart.vl.json that the diagram's nodes embed (bottom). Each plane is
-  a group with one affine transform whose two axes are scaled alike, so every embedded picture keeps its aspect.
+  a group with one affine transform; CanvasNet draws each embedded picture at the aspect of its slot under any skew
+  or scale, so the axes need not be scaled alike (here they are).
   Dashed lines project each picture onto the slot it fills; the pink line is bound with cn:x2y2 to a node of the
   embedded diagram. Numbered cards give the markup behind each link, with its fragment highlighted, and a card shows
   the same link in Markdown. On the right page.svg itself is drawn, and a card lists fragments. Only the generic font
@@ -13,8 +14,8 @@
   on its plane, and each layer below is the same matrix moved down by 230 units. Layer 1 repeats the page's own
   content; when page.svg changes, change layer 1 the same way. The dashed projection lines are in figure coordinates:
   a page point (x, y) on layer N is at (690 + 0.5506 x - 0.4669 y, 158 + 230 (N - 1) + 0.1475 x + 0.3269 y).
-  Code in the cards is split into several text elements, each placed at 0.6 em (13.8 units) per character, because
-  the style of a tspan is not drawn.
+  Code in the cards is split into several text elements, each placed at 0.6 em (13.8 units) per character, one per
+  color; this predates tspan styles in CanvasNet, and a styled tspan would now draw the same.
 -->
 <svg xmlns="http://www.w3.org/2000/svg" xmlns:cn="https://demaconsulting.com/canvasnet" width="1600" height="900" viewBox="0 0 1600 900">
   <defs>

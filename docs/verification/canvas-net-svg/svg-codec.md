@@ -192,7 +192,10 @@ exhaustively by the `CssColor` unit tests in the core library.
 `SvgCodec_Load_SvgGradientFixture_RendersVaryingGradientAndPinkBackground`,
 `SvgCodec_Load_RadialGradientRNegative_FallsBackToDefaultRadiusWithoutThrowing`,
 `SvgCodec_Load_RadialGradientFrNegative_FallsBackToDefaultFocalRadiusWithoutThrowing`,
-`SvgCodec_Load_RadialGradientRFrValid_RendersNormally`
+`SvgCodec_Load_RadialGradientRFrValid_RendersNormally`,
+`SvgCodec_Load_UrlWithRgbFallback_ResolvesTheReference`,
+`SvgCodec_Load_ObjectBoundingBoxGradientOnHorizontalLine_PaintsNothing`,
+`SvgCodec_Load_ObjectBoundingBoxGradientOnVerticalLine_PaintsTheFallbackColor`
 
 Asserts a `userSpaceOnUse` linear gradient varies along the document's user-space axis;
 `SvgCodec_Load_LinearGradientUserSpaceOnUseOmittedX2_SpansViewportWidth` asserts that, on a 200x100
@@ -221,6 +224,14 @@ tolerant handling of every other gradient coordinate;
 `SvgCodec_Load_RadialGradientRFrValid_RendersNormally` confirms a valid, non-negative `r`/`fr`
 still renders the gradient normally after this validation was added.
 
+`SvgCodec_Load_UrlWithRgbFallback_ResolvesTheReference` asserts that `fill="url(#g) rgb(0,128,0)"` on a rect still
+draws the referenced black-to-white gradient (dark on the left, light on the right, gray in the middle), because the
+reference ends at its own closing parenthesis. `SvgCodec_Load_ObjectBoundingBoxGradientOnHorizontalLine_PaintsNothing`
+asserts that a gradient in the default `objectBoundingBox` units stroked along a horizontal line (a bounding box with
+no height) is ignored and the surface stays fully transparent, and
+`SvgCodec_Load_ObjectBoundingBoxGradientOnVerticalLine_PaintsTheFallbackColor` asserts that the same kind of gradient
+written `url(#g) red` on a vertical line paints the solid fallback red at both ends, as Edge does.
+
 #### CanvasNetSvg-SvgCodec-GradientHrefInheritance: Gradient Href Template Inheritance and Cycle Rejection
 
 **Tests**: `SvgCodec_Load_GradientHrefInheritance_InheritsStopsFromTemplate`,
@@ -232,6 +243,22 @@ references via `href`, that a two-hop `href` chain (through an intermediate stop
 still resolves to the eventual stop-bearing template, and that a cyclical `href` chain (`a`
 referencing `b` referencing back to `a`) is rejected with `InvalidDataException` rather than
 looping indefinitely.
+
+#### CanvasNetSvg-SvgCodec-PaintReferenceFallback: Fallback Color of an Invalid Paint Reference
+
+**Tests**: `SvgCodec_Load_MissingPaintServerWithFallback_PaintsTheFallbackColor`,
+`SvgCodec_Load_MissingPaintServerWithoutFallback_PaintsNothing`,
+`SvgCodec_Load_NonPaintServerReferenceWithFallback_PaintsTheFallbackColor`,
+`SvgCodec_Load_GradientWithoutStopsAndFallback_PaintsNothing`, `SvgCodec_Load_DanglingPatternReference_RendersUnfilled`,
+`SvgCodec_Load_FillReferencesNonPatternElement_RendersUnfilled`; (`SvgArrowTests.cs`):
+`SvgArrow_HintHandler_DanglingPaintReferences_FollowTheResolvedPaint`
+
+Asserts that a fill referencing a missing id or another document (`url(other.svg#g)`) paints the fallback color written
+after it, with the fill opacity folded into its alpha, and that a stroke does the same; that without a fallback, or
+with `none`, nothing is painted; that a reference to a `rect` paints its fallback color, or nothing without one; that a
+gradient without stops, or whose `href` dangles, paints nothing even with a fallback, as Edge does; and that the
+arrowhead hint follows the fallback: a connector stroked `url(#missing) #000000` is visible, so the head at its end is
+reported.
 
 #### CanvasNetSvg-SvgCodec-UseElement: Use Element Resolution, Recursion Guard, and Dangling References
 
@@ -558,11 +585,125 @@ null `options` throws `ArgumentNullException` from all four options overloads; a
 #### CanvasNetSvg-SvgCodec-TextAnchor: Text-Anchor Alignment
 
 **Tests**: `SvgCodec_Load_TextAnchorMiddle_CentersTextHorizontally`,
-`SvgCodec_Load_TextAnchorEnd_RightAlignsText`
+`SvgCodec_Load_TextAnchorEnd_RightAlignsText`, `SvgCodec_Load_TextAnchorMiddleAndEnd_AnchorEachChunk`,
+`SvgCodec_Load_TextAnchorOfAChunk_IsThatOfItsFirstCharacter`, `SvgCodec_Load_PlainText_IsUnchangedByTheRunLayout`
 
 Asserts `text-anchor="middle"` centers the glyph run on the given `x` (checked against both the
 correctly-centered position and the position a start-anchored run would have used instead), and
 `text-anchor="end"` right-aligns the run so it ends at the given `x` (checked the same way).
+`SvgTextLayoutTests.cs` (the square synthetic font, so positions are exact) asserts that a chunk of two runs (the second
+a red `tspan`) is centered or end-aligned as a whole at x = 100; that a `tspan` with its own `x`/`y` and
+`text-anchor="end"` starts a chunk that ends at its `x` while the text's own chunk stays start-anchored; and that a
+plain middle-anchored text with a `dx` keeps the single-run layout (40 px of advance centered on x + dx).
+
+#### CanvasNetSvg-SvgCodec-TextSpans: Styled `tspan` and `a` Runs
+
+**Tests** (`SvgTextLayoutTests.cs`): `SvgCodec_Load_TspanFill_PaintsItsRunInItsOwnColor`,
+`SvgCodec_Load_TspanFontSize_ScalesItsRunAndAdvancesThePen`, `SvgCodec_Load_TspanFontWeightBold_UsesTheBoldFace`,
+`SvgCodec_Load_TspanFontStyleItalic_UsesTheItalicFace`, `SvgCodec_Load_TspanClassAndStyle_AreStyledByTheCascade`,
+`SvgCodec_Load_NestedTspans_InheritAndOverride`, `SvgCodec_Load_TspanGradientFill_UsesTheTextBoundingBox`,
+`SvgCodec_Load_FilteredTextWithTspans_KeepsEachRunsPaint`, `SvgCodec_Load_ClipPathTextWithTspans_ClipsToEveryRun`,
+`SvgCodec_Load_TextOpacityWithOverlappingTspans_AppliesOnceToTheWholeText`, `SvgCodec_Load_TextTitleAndDesc_AreNotDrawn`
+
+Asserts, with exact ink columns of the square synthetic font, that a `tspan` paints its glyph in its own `fill` while
+the text after it keeps the text's color; that a 40 px `tspan` draws a 20 px square and advances the pen by 40; that
+`font-weight="bold"` and `font-style="italic"` select the bold (16 px) and italic (13 px) faces; that a class rule, a
+`text tspan.b` descendant rule and an inline `style` each color their `tspan`; that a nested `tspan` inherits its
+parent's size and overrides its color; that a gradient on a `tspan` uses the bounding box of the whole text (its first
+glyph is in the blue half); that a filtered text keeps each run's color and `dy` position; that a `clipPath` text with a
+shifted 40 px `tspan` clips to both runs where they draw; that a text at half opacity with a `tspan` moved back over its
+first glyph shows the red run over the blue one where they overlap and each run at half opacity elsewhere; and that
+`title` and `desc` inside a text draw nothing.
+
+#### CanvasNetSvg-SvgCodec-TextPositioning: Position Lists, Chunks, and Baseline Shift
+
+**Tests** (`SvgTextLayoutTests.cs`): `SvgCodec_Load_TspanDxDy_ShiftsTheRunAndTheFollowingText`,
+`SvgCodec_Load_TspanAbsoluteXY_StartsANewChunk`, `SvgCodec_Load_TextPositionLists_PlaceEachCharacter`,
+`SvgCodec_Load_TextPositionListMalformed_XIsInvalidAndDxEnds`, `SvgCodec_Load_TspanBaselineShift_ShiftsOnlyItsRun`,
+`SvgCodec_Load_LongPositionedText_Renders`; (`SvgPositionBindingTests.cs`):
+`SvgCodec_Binding_TextCoordinateList_IsUnsupported`
+
+Asserts that `dx="10" dy="20"` on a `tspan` moves its glyph and that the text after it stays on the new baseline; that
+a `tspan` with `x`/`y` starts a chunk at that position; that `x="10 50 100"` places the first three characters and the
+fourth follows the third, and `dx="0 5 5"` shifts the second and third; that an `x` list with a malformed entry is
+`InvalidDataException` while a malformed `dx` entry ends that list; that `baseline-shift` of 10, 50%, and `super` move
+only the `tspan` glyph up 10 px (half the synthetic font's ascent plus descent at 20 px), `sub` moves it down as -10
+does, and `baseline` changes nothing; that a text of 5000 characters with 5000 `x` entries renders; and that a text
+with an `x` list now draws (its position binding is still reported as unsupported).
+
+#### CanvasNetSvg-SvgCodec-TextWhiteSpace: Browser White-Space Processing
+
+**Tests** (`SvgTextLayoutTests.cs`): `SvgCodec_Load_TextWhiteSpace_CollapsesAndTrimsUnlessPreserved`
+
+With the bundled sans-serif font, asserts that leading tabs and spaces, a line feed, and spaces on both sides of a
+`tspan` boundary draw the same as one space between the glyphs (which differs from no space), that trailing spaces do
+not move an end-anchored text, that `xml:space="preserve"` keeps leading spaces, and that it maps a tab to one space.
+
+#### CanvasNetSvg-SvgCodec-TextSpacing: Letter and Word Spacing
+
+**Tests** (`SvgTextLayoutTests.cs`): `SvgCodec_Load_LetterSpacing_AddsSpaceAfterEveryCharacter`,
+`SvgCodec_Load_NegativeLetterSpacing_PullsCharactersCloser`,
+`SvgCodec_Load_LetterSpacingUnits_ResolveEmPercentAndInheritance`,
+`SvgCodec_Load_LetterSpacingAnchorMiddleAndEnd_IncludesTheTrailingSpacing`,
+`SvgCodec_Load_TspanLetterSpacing_SpacesOnlyItsCharacters`, `SvgCodec_Load_WordSpacing_WidensSpacesAndNoBreakSpaces`,
+`SvgCodec_Load_LetterSpacingWithCombiningMark_SpacesTheClusterOnce`, `SvgCodec_Load_LetterSpacingWithDx_AddsToTheShift`,
+`SvgCodec_Load_LetterSpacingInClipPathText_ClipsToTheSpacedGlyphs`, `SvgCodec_Load_ZeroSpacing_DrawsExactlyAsPlainText`,
+`SvgCodec_Load_LongSpacedText_Renders`; (`SvgCodecTests.cs`):
+`SvgCodec_Load_LetterSpacingWithKerningPair_KeepsTheKerning`
+
+With the synthetic square font, asserts that `letter-spacing` follows every glyph and a negative value pulls the
+glyphs closer; that `0.5em`, `50%`, a CSS
+`10px`, an `em` inherited from a group of another font size (fixed at the group), a percentage inherited from such a
+group (resolved with the text's own size), and an invalid value on a `tspan` or in CSS (ignored) all space by the
+expected 10 px, while `normal`, `0` and `initial` add nothing; that a middle or end anchor uses a width that includes
+the spacing after the last glyph, as Edge does; that a `tspan`'s spacing applies only to its own characters and each
+text chunk is anchored by its own spaced width; that `word-spacing` (a length or a percentage) widens a space and a
+no-break space and adds to the letter spacing, but not an en space; that a base character and its combining mark take
+the spacing once; that a `dx` shift adds to it; that a clip path's text clips to the spaced glyphs; that a zero
+spacing draws pixel-identically to no spacing; that a long spaced text renders; and, with a font that kerns `AB` by
+-10 units, that the spacing adds to the kerned advance. The layouts were cross-checked against Edge with Arial.
+
+#### CanvasNetSvg-SvgCodec-AnchorAndSwitchElements: `a` and `switch`
+
+**Tests** (`SvgTextLayoutTests.cs`): `SvgCodec_Load_AnchorElement_DrawsItsContent`,
+`SvgCodec_Load_Switch_DrawsTheFirstSupportedChild`
+
+Asserts that an `a` around a `rect` draws it in the `a`'s fill and that an `a` inside a `text` colors its glyph; that a
+`switch` whose first child is a `foreignObject` draws its `text` fallback; and that a `switch` whose first child is a
+group requiring the `Extensibility` feature draws the next child only, not the one after it.
+
+#### CanvasNetSvg-SvgCodec-UnsupportedFeatureReports: Text That Is Not Drawn Is Reported
+
+**Tests** (`SvgUnsupportedFeatureTests.cs`): `SvgCodec_UnsupportedFeatureHandler_TextPath_ReportsTextNotDrawn`,
+`SvgCodec_UnsupportedFeatureHandler_RotateTextLengthAndWritingMode_ReportsOneUnsupportedWithEveryFeature`,
+`SvgCodec_UnsupportedFeatureHandler_TextInForeignObjectNestedSvgAndUnknownElement_ReportsTextNotDrawn`,
+`SvgCodec_UnsupportedFeatureHandler_NegativeFontSizeAndHugeTransform_ReportsTextNotDrawn`,
+`SvgCodec_UnsupportedFeatureHandler_MissingGlyph_ReportsUnsupportedWithTheCodePoint`,
+`SvgCodec_UnsupportedFeatureHandler_SeveralElements_ReportsOnceWithTheCount`,
+`SvgCodec_UnsupportedFeatureHandler_PlainAndStyledText_ReportsNothing`,
+`SvgCodec_UnsupportedFeatureHandler_DoesNotChangeThePixels`, `SvgCodec_UnsupportedFeatureHandler_DefaultIsNull`
+
+Asserts that a `textPath` is one `svg-text-not-drawn` report naming `textPath` and the text; that `rotate`,
+`textLength`, a vertical `writing-mode`, `dominant-baseline`, `text-decoration`, an unknown `baseline-shift` and
+`alignment-baseline`, plus `direction: rtl` inherited from a group, are one `svg-text-unsupported` report naming each,
+and that the `word-spacing` and inherited `letter-spacing` of the same text are not named (they are drawn); that a
+`foreignObject`, a nested `svg`, an unknown element holding a text,
+and a `tref` inside a text are one not-drawn report with a count of 4; that a negative `font-size`, a non-finite
+composed transform, and coordinates beyond the supported range are reported, and a zero `font-size` is not; that a
+private-use character no font covers is reported with its code point; that several texts give one report per code, the
+not-drawn one first, with the count (a text drawn twice through `use` counts once) and the first text named; that
+plain and styled text, letter and word spacing, an `x` list, a `switch` fallback, `title`, `defs` content and
+white-space-only text report
+nothing; that a render with a handler draws the same pixels as one without; and that the handler is `null` by default.
+
+#### CanvasNetSvg-SvgCodec-ImageSourceUnsupportedNotes: Unsupported Notes Of A Linked SVG File
+
+**Tests** (`SvgUnsupportedFeatureTests.cs`): `SvgImageSource_Render_TextPath_IsAnUnsupportedNoteOfTheResult`,
+`SvgImageSource_Render_TextPathWithThrowOnUnsupportedFeature_ThrowsUnsupportedImageFeatureException`
+
+Asserts that `SvgImageSource` returns the `textPath` of a linked file as one `svg` note of severity `Unsupported` with
+the code `svg-text-not-drawn`, and that a request with `ThrowOnUnsupportedFeature` fails with
+`UnsupportedImageFeatureException` whose feature is that code.
 
 #### CanvasNetSvg-SvgCodec-FontWeightStyleCascade: Font-Weight/Font-Style Attribute Parsing and Cascade
 
@@ -1825,7 +1966,9 @@ an oversized offscreen buffer allocation.
 `SvgCodec_Load_FillReferencesNonPatternElement_RendersUnfilled`,
 `SvgCodec_Load_PatternZeroWidthOrHeight_RendersUnfilledWithoutThrowing`,
 `SvgCodec_Load_PatternWithoutWidthHeight_PaintsNothing`,
-`SvgCodec_Load_PatternContentWithGroupAndGradient_RendersViaRecursiveElementWalk`
+`SvgCodec_Load_PatternContentWithGroupAndGradient_RendersViaRecursiveElementWalk`,
+`SvgCodec_Load_ObjectBoundingBoxPatternOnHorizontalLine_PaintsNothingOrTheFallback`,
+`SvgCodec_Load_UserSpacePatternOnHorizontalLine_StillPaints`
 
 Asserts a `fill="url(#id)"` referencing a `pattern` with the default `patternUnits`
 (`objectBoundingBox`) and an explicit `width="1" height="1"` (per SVG, `width`/`height`
@@ -1856,9 +1999,9 @@ asserts a pattern referenced from a `stroke` attribute paints the stroke's own g
 with tiled content, independent of the shape's own fill; asserts a shape with independent
 `fill="url(#a)"` and `stroke="url(#b)"` references renders each pattern into its own respective
 region without either interfering with the other; asserts `fill="url(#nonexistent)"` referencing
-a dangling id renders the shape unfilled (fully transparent, matching this codec's general
-dangling-reference convention, and byte-identical to this codec's pre-existing dangling-gradient-reference
-behavior); asserts a `fill` reference that resolves to a well-formed element which is
+a dangling id without a fallback color renders the shape unfilled (fully transparent, the same as a
+dangling gradient reference, see *PaintReferenceFallback*); asserts a `fill` reference without a fallback that resolves
+to a well-formed element which is
 not literally a `pattern` (a plain `rect`) is tolerated as a no-op, rendering unfilled, mirroring
 this codec's existing `clipPath`/`mask`/`filter`/marker wrong-element-type tolerance; asserts a
 `pattern` with a zero `width` or `height` renders the referencing shape unfilled without throwing,
@@ -1866,6 +2009,12 @@ per SVG's own "a pattern with no positive tile area applies no paint" semantics;
 `pattern`'s own content containing a nested `<g>` wrapping a `linearGradient`-filled shape renders
 correctly via the ordinary recursive `RenderElement` walk (not a bespoke, feature-limited content
 renderer), proving tile content may freely use this codec's other rendering features.
+
+`SvgCodec_Load_ObjectBoundingBoxPatternOnHorizontalLine_PaintsNothingOrTheFallback` asserts that a pattern in the
+default `objectBoundingBox` units stroked along a horizontal line (a bounding box with no height) is ignored, as in
+Edge: the line without a fallback stays transparent, and the line written `url(#p) lime` is the solid fallback lime
+along its whole length. `SvgCodec_Load_UserSpacePatternOnHorizontalLine_StillPaints` asserts that a
+`userSpaceOnUse` pattern on the same kind of line is still drawn (blue tile color, not the red fallback).
 
 #### CanvasNetSvg-SvgCodec-PatternTileSmoothing: Pattern Tile Sampling Is Scale-Aware
 
@@ -2028,13 +2177,24 @@ is caught alongside the malformed-payload cases above rather than propagating ou
 `SvgCodec_Load_ImageResolverThrowsFormatException_IsNotReportedAsInvalidSvgData`,
 `SvgCodec_Load_ImageResolverReturnsSurface_IsDisposedByCodec`,
 `SvgCodec_Load_ImageResolverSet_FeImageExternalHrefDoesNotCallResolver`,
-`SvgCodec_Load_ImageResolverSet_SameHrefTwiceAndTwoRenders_CallsResolverEachTime`
+`SvgCodec_Load_ImageResolverSet_SameHrefTwiceAndTwoRenders_CallsResolverEachTime`,
+`SvgCodec_Load_ImageResolverSet_SkewOrNonUniformScale_RequestsThePlacementAspect`,
+`SvgCodec_Load_ImageResolverReturnsRequestedSize_SkewX_FillsTheWholeParallelogram`,
+`SvgCodec_Load_ImageResolverReturnsRequestedSize_NonUniformScale_FillsTheStretchedBox`,
+`SvgCodec_Load_ImageResolverReturnsRequestedSize_RotateAndScale_FillsThePlacement`
 
 `SvgImageResolverTests.cs` renders small documents (a 10 by 10 viewBox with a red background) with a resolver and
 asserts: the request holds the raw `href` of both the `href` and the `xlink:href` forms, trimmed
-(`ReceivesRawHrefAndXlinkHref`); the pixel size is the edge length of the placement after the composed transform,
+(`ReceivesRawHrefAndXlinkHref`); the pixel size is the size of the placement after the composed transform,
 rounded up and at least 1, for the viewBox scale, a group `scale`, a `rotate(90)`, a fractional size, and a tiny size
-(`ReceivesPixelSizeAfterTransform`); a returned surface is drawn exactly like the same picture as a PNG data URI, pixel
+(`ReceivesPixelSizeAfterTransform`); under `skewX(30)`, `scale(2,1)`, and `rotate(30) scale(1,2)` a 40 by 20
+placement is requested with its own 2:1 aspect at the largest stretch of the transform (54 x 27, 80 x 40, and 80 x 40;
+`RequestsThePlacementAspect`), and a resolver that returns a solid green surface of exactly the requested size fills
+the whole transformed placement under each of those transforms - green near the four corners and at the center, red
+just outside each side, where a request with the transformed edge lengths would leave the picture letterboxed twice
+with red bands along two sides (`SkewX_FillsTheWholeParallelogram`, `NonUniformScale_FillsTheStretchedBox`,
+`RotateAndScale_FillsThePlacement`, on a 100 by 100 document at one pixel per unit); a returned surface is drawn
+exactly like the same picture as a PNG data URI, pixel
 for pixel (`IsPlacedLikeADataUri`, which proves the placement and the shared pipeline at once); `preserveAspectRatio`
 meet, slice, and none fit a 2:1 picture into a square placement (the top edge is drawn only for slice and none);
 `opacity` and a `clip-path` apply (the clipped half still shows the background and the other half is a blend);
@@ -2272,14 +2432,14 @@ valid still resolves to 20,30 from one call, with the same work as without the b
 `SvgImageSource_Render_UnresolvedBinding_IsAWarningOfTheResult`
 
 `center` on a line, an unknown name, an image or a callout inside `defs`, an image or a group drawn by a `use`, and a
-`data:` image are `svg-binding-unsupported`, as are a text with a list of x (reported before the codec refuses the
-list), a plain resolver, and a source without positions. A selector that matches nothing, two positions, a match without
-a pixel, and a callout in `scale(0)` are `svg-binding-unmatched`, `svg-binding-ambiguous`, `svg-binding-unavailable`,
-and `svg-binding-singular`; a truncated list is ambiguous, and a picture that is not drawn or has no width is
-unavailable; a failed binding has no coordinates. A bound image under `scale(0)` or a matrix with a zero scale, or with
-a filter or mask region of zero or more than the maximum size, is unavailable, the resolver is never called, and the
-work charged equals that of the document without the binding. `SvgImageSource` returns an unresolved binding of the file
-as an `svg` warning with its code and still draws the file.
+`data:` image are `svg-binding-unsupported`, as are a text with a list of x (the text still draws, each character at its
+position), a plain resolver, and a source without positions. A selector that matches nothing, two positions, a match
+without a pixel, and a callout in `scale(0)` are `svg-binding-unmatched`, `svg-binding-ambiguous`,
+`svg-binding-unavailable`, and `svg-binding-singular`; a truncated list is ambiguous, and a picture that is not drawn or
+has no width is unavailable; a failed binding has no coordinates. A bound image under `scale(0)` or a matrix with a zero
+scale, or with a filter or mask region of zero or more than the maximum size, is unavailable, the resolver is never
+called, and the work charged equals that of the document without the binding. `SvgImageSource` returns an unresolved
+binding of the file as an `svg` warning with its code and still draws the file.
 
 ### Additional Regression Test Scenarios (Unlinked)
 
@@ -2692,6 +2852,6 @@ handler produces the same pixels as rendering without one.
 
 ### Acceptance Criteria
 
-A unit test run passes when every test method listed above, across `SvgCodecTests.cs`, `SvgFixtureTests.cs`, and
-`SvgArrowTests.cs`, passes without error or unexpected exception; any unexpected exception type or wrong pixel/return
-value constitutes a failure.
+A unit test run passes when every test method listed above, across `SvgCodecTests.cs`, `SvgFixtureTests.cs`,
+`SvgArrowTests.cs`, `SvgTextLayoutTests.cs`, and `SvgUnsupportedFeatureTests.cs`, passes without error or unexpected
+exception; any unexpected exception type or wrong pixel/return value constitutes a failure.

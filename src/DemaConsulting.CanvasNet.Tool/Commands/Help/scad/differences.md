@@ -23,6 +23,8 @@ see-also:
   image-fragment-invalid and the image is not drawn. #azimuth=<degrees> and
   #elevation=<degrees> (-90 to 90) turn it as --azimuth and --elevation do; a
   value that is not a number, or an elevation outside -90 to 90, is
+  image-fragment-invalid. #projection=ortho|orthographic|perspective chooses
+  the projection as --projection does; any other value, or none, is
   image-fragment-invalid. Every def.<name>=<value> in
   the fragment sets a variable of the model exactly like -D name=value (same
   value grammar and precedence; a name that is not an identifier, or a value

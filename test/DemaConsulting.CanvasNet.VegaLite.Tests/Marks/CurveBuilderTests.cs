@@ -112,7 +112,7 @@ public class CurveBuilderTests
         // Arrange: (0,0), (10,10), (20,5)
         CurvePoint[] points = [P(0, 0), P(10, 10), P(20, 5)];
 
-        // Act / Assert: with t = 0.5 each interval changes at its middle x1 = x0 (1 - t) + x t (5 and 15): a line at the old y to x1, a line to the new y;
+        // Act / Assert: with t = 0.5 each interval changes at its middle, x0 times (1 - t) plus x times t (5 and 15): a line at the old y there, then a line to the new y;
         // lineEnd adds the last line to the final point because 0 < t < 1 and two points were seen
         Assert.Equal("M0,0 L5,0 L5,10 L15,10 L15,5 L20,5", Run(CurveKind.Step, null, points));
 

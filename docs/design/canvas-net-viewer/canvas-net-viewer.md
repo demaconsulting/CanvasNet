@@ -32,8 +32,8 @@ The unit's behavior is specified by the `CanvasNetViewer-CanvasNetViewer-*` requ
 - **`LoaderImageSource`** (internal sealed class, `IImageSource` and `IFragmentImageSource`) — an adapter over the
   `SourceLoader` of the `Imaging` subsystem, so that the tool, `Render` and a linked file are drawn by the same code. It
   is built from the claims of the package source it stands for, the `SourceKind`s it draws, the fragment parameters of
-  its pages (`page` for PDF and Visio, `page` and `slide` for PowerPoint) and whether it accepts `view`, `azimuth`, and
-  `elevation` (the model source only); the Mermaid source alone also accepts `theme`
+  its pages (`page` for PDF and Visio, `page` and `slide` for PowerPoint) and whether it accepts `view`, `azimuth`,
+  `elevation`, and `projection` (the model source only); the Mermaid source alone also accepts `theme`
   (`MermaidImageSource.ThemeParameter`). It also declares the prefix of the parameters whose names the link author
   chooses (`FragmentParameterPrefixes`): `def.` for the model source and `param.` for the chart source (the constants of
   `ScadImageSource` and `VegaLiteImageSource`), none for the others. It cannot be the package source itself: the format
@@ -70,13 +70,18 @@ The unit's behavior is specified by the `CanvasNetViewer-CanvasNetViewer-*` requ
 ### Key Methods
 
 **`LoaderImageSource.Render(request)`**: (1) take the options: a request with `DirectRenderOptions` uses them, a link
-builds them from its fragment (`page` or `slide` through `GetPositiveInt32`, `view`, `azimuth`, `elevation`, and every
+builds them from its fragment (`page` or `slide` through `GetPositiveInt32`, `view`, `azimuth`, `elevation`,
+`projection`, and every
 `def.<name>=<value>` for a
 model
 (`ReadScad`: `ReadView` checks the name of `view` against `SourceLoader.ScadViews` and `ReadDegrees` reads `azimuth`
 (any finite number of degrees, normalized to 0 up to 360 as `--azimuth` is) and `elevation` (a finite number from -90
 to 90) with the invariant culture, refusing any other value as `image-fragment-invalid`; the angles replace those of
-the named view, iso without one, and any of the three makes the view explicit; `ImageParameterValues.ReadVariables`,
+the named view, iso without one, and any of the three makes the view explicit; `ReadPerspective` reads `projection`
+with the words of `--projection` (`ortho` or `orthographic` for orthographic, `perspective`, in any case; any other
+value or an empty one is `image-fragment-invalid`) into `ScadViewOptions.Perspective`, which does not make the view
+explicit;
+`ImageParameterValues.ReadVariables`,
 the names checked by constructing `ScadEvaluationOptions`, the result
 a
 `ScadViewOptions` with `Defines` - and no explicit view when only definitions were given), every `param.<name>=<value>`

@@ -527,6 +527,21 @@ scene options is used for geometry without a `color()`; and that a cube drawn wi
 exactly as with the default angles set explicitly (nothing changes for a model with 3D objects), the picture being
 reported once as the view `(45, 35.26 degrees, perspective, not flat, Default)`.
 
+#### CanvasNetScad-ScadDocument-FittedViewBounds: The Fitted View Frames The Result
+
+**Tests**: `ScadDocumentRenderTests.ScadDocument_Render_DifferenceWithHugeSubtrahend_FramesLikeATightSubtrahend`,
+`ScadDocumentRenderTests.ScadDocument_Render_Intersection_FramesLikeThePlainResult`,
+`ScadViewportTests.ScadViewport_ChooseCamera_DifferenceWithHugeSubtrahend_FramesTheMinuend`,
+`ScadViewportTests.ScadViewport_ChooseCamera_Intersection_FramesTheOverlap`,
+`ScadViewportTests.ScadViewport_ChooseCamera_HighlightedSubtrahend_StaysFramed`
+
+Asserts that a 10-unit cube cut by a 100-unit cutter is drawn with the same extent, within one pixel on every side,
+as the same notched cube cut by a tight cutter (and fills more than half the picture), and that an intersection with
+a large box is drawn with the extent of the plain 5-unit result cube. Asserts that the camera chosen for the
+difference equals the camera fitted to the cube `[0, 10]^3`, that the camera chosen for the intersection (orthographic,
+aspect 1.5) equals the one fitted to the overlap `[5, 10]^3`, and that a highlighted (`#`) cutter beside the cube
+is still framed together with the cube.
+
 #### CanvasNetScad-ScadDocument-RenderOptions: ScadRenderOptions Is Immutable And Validated
 
 **Tests**: `ScadRenderOptionsTests.ScadRenderOptions_New_HasDocumentedDefaults`,

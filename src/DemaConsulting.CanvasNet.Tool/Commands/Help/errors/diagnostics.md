@@ -21,8 +21,9 @@ see-also:
   diagnostics[] and echo[] carry the same notes).
 - Only SCAD models, Vega-Lite charts, Mermaid diagrams, PPTX documents (skipped
   EMF and WMF pictures), VSDX documents, and SVG files (an image that was not
-  drawn, a hand-drawn arrowhead, and the notes of the files it embeds) report
-  diagnostics. PDF and raster images do not.
+  drawn, text that is not drawn or lacks a feature, svg-text-not-drawn and
+  svg-text-unsupported, a hand-drawn arrowhead, and the notes of the files it
+  embeds) report diagnostics. PDF and raster images do not.
 - The warning codes are scad-warning for a model, vega-lite-warning for a chart,
   mermaid-warning for a diagram (the mermaid-* code is in detail),
   svg-image-unresolved for an SVG image that was not drawn, svg-image-too-large

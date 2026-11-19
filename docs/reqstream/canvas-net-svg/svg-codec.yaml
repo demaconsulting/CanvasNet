@@ -132,13 +132,19 @@ sections:
               gradientUnits (objectBoundingBox or userSpaceOnUse), gradientTransform, and
               spreadMethod (pad, reflect, or repeat), with an omitted x2, cx, cy or r taking the
               specification's percentage default (100% or 50%) against the same basis as an
-              explicit percentage (the viewport under userSpaceOnUse units).
+              explicit percentage (the viewport under userSpaceOnUse units), resolving a reference
+              that is followed by a fallback color (url(#g) red), and shall ignore a gradient in
+              objectBoundingBox units on a shape whose bounding box has no width or no height (such
+              as a horizontal line), painting the fallback color instead, or nothing when there is
+              none.
             justification: |
               Gradients are a common way SVG documents encode smoothly varying colors;
               callers need them rasterized as varying pixel colors rather than a flat
               approximation. SVG 2 (Paint Servers) gives these attributes percentage initial
               values, so an omitted attribute must not behave differently from the same percentage
-              written explicitly.
+              written explicitly. SVG 2 (Coordinate Systems, object bounding box units) ignores a
+              bounding-box effect on a box with no width or no height, and browsers then paint the
+              fallback color, so a horizontal or vertical line must look the same as in a browser.
             tests:
               - SvgCodec_Load_LinearGradientUserSpaceOnUse_VariesAlongUserSpaceAxis
               - SvgCodec_Load_LinearGradientUserSpaceOnUseOmittedX2_SpansViewportWidth
@@ -148,6 +154,9 @@ sections:
               - SvgCodec_Load_StrokeGradient_PaintsVaryingColorAlongStroke
               - SvgCodec_Load_GradientFixture_RendersVaryingGradientColors
               - SvgCodec_Load_SvgGradientFixture_RendersVaryingGradientAndPinkBackground
+              - SvgCodec_Load_UrlWithRgbFallback_ResolvesTheReference
+              - SvgCodec_Load_ObjectBoundingBoxGradientOnHorizontalLine_PaintsNothing
+              - SvgCodec_Load_ObjectBoundingBoxGradientOnVerticalLine_PaintsTheFallbackColor
 
           - id: CanvasNetSvg-SvgCodec-GradientHrefInheritance
             title: >-
@@ -164,6 +173,26 @@ sections:
               - SvgCodec_Load_GradientHrefInheritance_InheritsStopsFromTemplate
               - SvgCodec_Load_GradientHrefChainOfTwoHops_ResolvesToEventualStops
               - SvgCodec_Load_GradientHrefCycle_ThrowsInvalidDataException
+
+          - id: CanvasNetSvg-SvgCodec-PaintReferenceFallback
+            title: >-
+              The SvgCodec class shall paint a fill or stroke whose url() reference is not a local
+              fragment, names no element of the document, or names an element that is not a
+              linearGradient, radialGradient, or pattern with the fallback color written after the
+              reference, and nothing when there is no fallback or it is none; a gradient without
+              stops paints nothing even with a fallback.
+            justification: |
+              SVG 2 Painting uses the fallback color when a paint server reference is invalid, and
+              browsers do; a document that names a gradient it no longer defines then keeps its
+              intended color instead of losing the shape.
+            tests:
+              - SvgCodec_Load_MissingPaintServerWithFallback_PaintsTheFallbackColor
+              - SvgCodec_Load_MissingPaintServerWithoutFallback_PaintsNothing
+              - SvgCodec_Load_NonPaintServerReferenceWithFallback_PaintsTheFallbackColor
+              - SvgCodec_Load_GradientWithoutStopsAndFallback_PaintsNothing
+              - SvgCodec_Load_DanglingPatternReference_RendersUnfilled
+              - SvgCodec_Load_FillReferencesNonPatternElement_RendersUnfilled
+              - SvgArrow_HintHandler_DanglingPaintReferences_FollowTheResolvedPaint
 
           - id: CanvasNetSvg-SvgCodec-UseElement
             title: >-
@@ -354,9 +383,9 @@ sections:
               registered, otherwise a default font (see
               CanvasNetSvg-SvgCodec-TextFontDefaultFallback) - positioned using the font's
               advance widths and kerning pairs and scaled by font-size, and taking a character
-              that the font lacks from the bundled fallback fonts of the core text renderer (the
-              SVG codec has no diagnostics channel, so a character that no bundled font covers
-              silently draws the font's missing-glyph box).
+              that the font lacks from the bundled fallback fonts of the core text renderer (a
+              character that no bundled font covers draws the font's missing-glyph box and is
+              reported, see CanvasNetSvg-SvgCodec-UnsupportedFeatureReports).
             justification: |
               Callers need text content in an SVG document rendered as recognizable glyph
               shapes at the correct position, using real font metrics rather than an
@@ -444,14 +473,149 @@ sections:
 
           - id: CanvasNetSvg-SvgCodec-TextAnchor
             title: >-
-              The SvgCodec class shall position a text element's glyph run relative to its
-              x/y according to text-anchor (start, middle, or end).
+              The SvgCodec class shall position each text chunk of a text element (the text from
+              one absolutely positioned character to the next) relative to its start position
+              according to the text-anchor (start, middle, or end) of the chunk's first character,
+              aligning the whole advance of the chunk, including dx shifts inside it.
             justification: |
               Callers need text alignment (left, centered, or right of a reference point)
-              to match the document's authored intent rather than always starting at x/y.
+              to match the document's authored intent rather than always starting at x/y, also
+              when a label mixes styled spans or starts new lines with tspan x/y.
             tests:
               - SvgCodec_Load_TextAnchorMiddle_CentersTextHorizontally
               - SvgCodec_Load_TextAnchorEnd_RightAlignsText
+              - SvgCodec_Load_TextAnchorMiddleAndEnd_AnchorEachChunk
+              - SvgCodec_Load_TextAnchorOfAChunk_IsThatOfItsFirstCharacter
+              - SvgCodec_Load_PlainText_IsUnchangedByTheRunLayout
+
+          - id: CanvasNetSvg-SvgCodec-TextSpans
+            title: >-
+              The SvgCodec class shall draw the characters of each tspan and a element inside a
+              text element with that element's own cascaded style - its presentation attributes,
+              style attribute, and matching stylesheet rules (fill, stroke, opacity, font-family,
+              font-size, font-weight, font-style, text-anchor), inherited by nested elements, shall apply
+              the text element's own opacity to all of its runs together, so a run that overlaps another
+              covers it, and shall not draw the text of title, desc, or metadata elements inside a text
+              element.
+            justification: |
+              Labels routinely color, embolden, or resize a word with a tspan (charts, diagrams,
+              and design tools emit them); drawing the whole text in the parent style loses that
+              meaning, and drawing a title tooltip as visible text corrupts the label.
+            tests:
+              - SvgCodec_Load_TspanFill_PaintsItsRunInItsOwnColor
+              - SvgCodec_Load_TspanFontSize_ScalesItsRunAndAdvancesThePen
+              - SvgCodec_Load_TspanFontWeightBold_UsesTheBoldFace
+              - SvgCodec_Load_TspanFontStyleItalic_UsesTheItalicFace
+              - SvgCodec_Load_TspanClassAndStyle_AreStyledByTheCascade
+              - SvgCodec_Load_NestedTspans_InheritAndOverride
+              - SvgCodec_Load_TspanGradientFill_UsesTheTextBoundingBox
+              - SvgCodec_Load_FilteredTextWithTspans_KeepsEachRunsPaint
+              - SvgCodec_Load_ClipPathTextWithTspans_ClipsToEveryRun
+              - SvgCodec_Load_TextOpacityWithOverlappingTspans_AppliesOnceToTheWholeText
+              - SvgCodec_Load_TextTitleAndDesc_AreNotDrawn
+
+          - id: CanvasNetSvg-SvgCodec-TextPositioning
+            title: >-
+              The SvgCodec class shall place the characters of a text element by the x, y, dx, and
+              dy lists of the text and its tspan elements, one entry per character (a nested
+              element's entries overriding its ancestors'), where an absolute x or y starts a new
+              text chunk at that position and a dx or dy shift persists for the text that follows,
+              and shall shift a text, tspan, or a element's characters up or down by its
+              baseline-shift (a length, a percentage of its font size, or super/sub by half the
+              font's ascent plus descent), rejecting an x or y entry that is not a valid length as
+              invalid data.
+            justification: |
+              Multi-line labels (tspan x/y), superscripts, and per-character placement are common
+              in exported SVG; ignoring them stacks lines on top of each other and misplaces text.
+              Browsers lay these out the same way, so documents look as their authors saw them.
+            tests:
+              - SvgCodec_Load_TspanDxDy_ShiftsTheRunAndTheFollowingText
+              - SvgCodec_Load_TspanAbsoluteXY_StartsANewChunk
+              - SvgCodec_Load_TextPositionLists_PlaceEachCharacter
+              - SvgCodec_Load_TextPositionListMalformed_XIsInvalidAndDxEnds
+              - SvgCodec_Load_TspanBaselineShift_ShiftsOnlyItsRun
+              - SvgCodec_Load_LongPositionedText_Renders
+              - SvgCodec_Binding_TextCoordinateList_IsUnsupported
+
+          - id: CanvasNetSvg-SvgCodec-TextWhiteSpace
+            title: >-
+              The SvgCodec class shall process the white space of a text element as browsers do:
+              tab, carriage return, and line feed become a space, consecutive spaces collapse to
+              one across element boundaries, and spaces at the start and end of the text are
+              removed, except that under xml:space="preserve" only tab, carriage return, and line
+              feed are mapped to a space.
+            justification: |
+              Pretty-printed SVG indents the content of text elements; drawing that indentation
+              shifts labels out of place, especially anchored ones.
+            tests:
+              - SvgCodec_Load_TextWhiteSpace_CollapsesAndTrimsUnlessPreserved
+
+          - id: CanvasNetSvg-SvgCodec-TextSpacing
+            title: >-
+              The SvgCodec class shall add a text content element's letter-spacing after every
+              character (grapheme cluster) of its text and its word-spacing after every space and
+              no-break space, each a length, a percentage of the font size, or normal (zero),
+              inherited, keeping the font's kerning, and shall include that spacing, also after the
+              last character, in the width a text chunk is anchored by.
+            justification: |
+              Titles, eyebrows, and pills use letter spacing for tracking; drawing it as browsers
+              do keeps such labels at their intended width, and Edge includes the spacing after the
+              last character when it centers or ends a text.
+            tests:
+              - SvgCodec_Load_LetterSpacing_AddsSpaceAfterEveryCharacter
+              - SvgCodec_Load_NegativeLetterSpacing_PullsCharactersCloser
+              - SvgCodec_Load_LetterSpacingUnits_ResolveEmPercentAndInheritance
+              - SvgCodec_Load_LetterSpacingAnchorMiddleAndEnd_IncludesTheTrailingSpacing
+              - SvgCodec_Load_TspanLetterSpacing_SpacesOnlyItsCharacters
+              - SvgCodec_Load_WordSpacing_WidensSpacesAndNoBreakSpaces
+              - SvgCodec_Load_LetterSpacingWithCombiningMark_SpacesTheClusterOnce
+              - SvgCodec_Load_LetterSpacingWithDx_AddsToTheShift
+              - SvgCodec_Load_LetterSpacingInClipPathText_ClipsToTheSpacedGlyphs
+              - SvgCodec_Load_ZeroSpacing_DrawsExactlyAsPlainText
+              - SvgCodec_Load_LongSpacedText_Renders
+              - SvgCodec_Load_LetterSpacingWithKerningPair_KeepsTheKerning
+
+          - id: CanvasNetSvg-SvgCodec-AnchorAndSwitchElements
+            title: >-
+              The SvgCodec class shall draw an a element like a group, and shall draw only the
+              first direct child of a switch element that is not a foreignObject, does not name a
+              required extension, and does not require the Extensibility feature.
+            justification: |
+              Links wrap ordinary content, and exporters such as draw.io wrap every label in a
+              switch whose first child is HTML in a foreignObject and whose fallback is a text;
+              dropping either loses the visible content.
+            tests:
+              - SvgCodec_Load_AnchorElement_DrawsItsContent
+              - SvgCodec_Load_Switch_DrawsTheFirstSupportedChild
+
+          - id: CanvasNetSvg-SvgCodec-UnsupportedFeatureReports
+            title: >-
+              The SvgCodec class shall report, through SvgLoadOptions.UnsupportedFeatureHandler after
+              painting, at most once per code with the number of elements and the first one named,
+              svg-text-not-drawn for text it does not draw (textPath content, an unknown element
+              inside a text, text inside a foreignObject, a nested svg, an unknown element, or a
+              switch without a drawable child, text with a negative font-size, under a non-finite
+              transform, or with coordinates beyond the supported range) and svg-text-unsupported
+              for text drawn without a feature it uses (rotate, textLength, a vertical
+              writing-mode, direction rtl, dominant-baseline,
+              alignment-baseline, text-decoration, an unsupported baseline-shift, or a character no
+              font covers); it shall cover all drawn content, report nothing for content that is
+              not drawn by design, skip the checks when no handler is set, and never change the
+              pixels or fail the render.
+            justification: |
+              Text that silently disappears or loses its layout is the hardest rendering defect
+              for a reader to notice; a report lets a host tell the author, or fail a strict
+              build, while the rest of the document is still drawn.
+            tests:
+              - SvgCodec_UnsupportedFeatureHandler_TextPath_ReportsTextNotDrawn
+              - SvgCodec_UnsupportedFeatureHandler_RotateTextLengthAndWritingMode_ReportsOneUnsupportedWithEveryFeature
+              - SvgCodec_UnsupportedFeatureHandler_TextInForeignObjectNestedSvgAndUnknownElement_ReportsTextNotDrawn
+              - SvgCodec_UnsupportedFeatureHandler_NegativeFontSizeAndHugeTransform_ReportsTextNotDrawn
+              - SvgCodec_UnsupportedFeatureHandler_MissingGlyph_ReportsUnsupportedWithTheCodePoint
+              - SvgCodec_UnsupportedFeatureHandler_SeveralElements_ReportsOnceWithTheCount
+              - SvgCodec_UnsupportedFeatureHandler_PlainAndStyledText_ReportsNothing
+              - SvgCodec_UnsupportedFeatureHandler_DoesNotChangeThePixels
+              - SvgCodec_UnsupportedFeatureHandler_DefaultIsNull
 
           - id: CanvasNetSvg-SvgCodec-FontWeightStyleCascade
             title: >-
@@ -912,9 +1076,10 @@ sections:
 
           - id: CanvasNetSvg-SvgCodec-UnsupportedConstructsIgnored
             title: >-
-              The SvgCodec class shall silently skip well-formed but out-of-scope elements
+              The SvgCodec class shall skip well-formed but out-of-scope elements
               (including a nested svg, animate/other SMIL animation elements, and
-              foreignObject), continuing to render the rest of the document.
+              foreignObject), continuing to render the rest of the document, and reporting text
+              inside them (see CanvasNetSvg-SvgCodec-UnsupportedFeatureReports).
             justification: |
               Real-world SVG documents commonly include constructs outside this codec's
               supported subset; rejecting the entire document because of one such element
@@ -1499,18 +1664,22 @@ sections:
               to userSpaceOnUse, always mapped through the whole referencing element's own
               bounding box rather than any individual repeated tile's own sub-range),
               patternTransform, and a viewBox/preserveAspectRatio pair on the pattern element
-              itself (taking precedence over patternContentUnits when present), while
-              tolerating a dangling or wrong-element-type pattern reference as a no-op
-              (rendering unfilled/unstroked).
+              itself (taking precedence over patternContentUnits when present), while painting
+              the fallback color written after a dangling or wrong-element-type pattern reference,
+              or nothing (rendering unfilled/unstroked) when there is none, and shall ignore a
+              pattern whose tile or content is in objectBoundingBox units on a shape whose
+              bounding box has no width or no height, painting the fallback color written after
+              the reference instead, or nothing when there is none.
             justification: |
               pattern is a common SVG authoring mechanism for a repeating tiled fill (a
               hatching, a texture, a repeated icon) that neither a solid color nor a gradient
               can express; callers relying on this common pattern need it actually tiled
-              rather than silently rendered as an unfilled or flat-colored shape. Tolerating a
-              dangling or wrong-element-type reference as a no-op matches this codec's general
-              dangling-reference convention (already applied to filter/marker/gradient/
-              clip-path/mask references), so one bad pattern attribute cannot abort rendering
-              of an otherwise-valid document.
+              rather than silently rendered as an unfilled or flat-colored shape. Painting the
+              fallback color of a dangling or wrong-element-type reference, or nothing, follows
+              SVG 2 Painting and browsers (see PaintReferenceFallback), so one bad pattern
+              attribute cannot abort rendering of an otherwise-valid document. SVG 2 ignores a
+              bounding-box effect on a box with no width or no height, and browsers then paint
+              the fallback color.
             tests:
               - SvgCodec_Load_PatternDefaultUnits_TilesOnceAcrossShapeBoundingBox
               - SvgCodec_Load_PatternUserSpaceOnUseUnits_TilesRepeatedlyAcrossUserSpace
@@ -1525,6 +1694,8 @@ sections:
               - SvgCodec_Load_PatternZeroWidthOrHeight_RendersUnfilledWithoutThrowing
               - SvgCodec_Load_PatternWithoutWidthHeight_PaintsNothing
               - SvgCodec_Load_PatternContentWithGroupAndGradient_RendersViaRecursiveElementWalk
+              - SvgCodec_Load_ObjectBoundingBoxPatternOnHorizontalLine_PaintsNothingOrTheFallback
+              - SvgCodec_Load_UserSpacePatternOnHorizontalLine_StillPaints
 
           - id: CanvasNetSvg-SvgCodec-PatternHrefInheritance
             title: >-
@@ -1638,8 +1809,11 @@ sections:
             title: >-
               The SvgCodec class shall, when the caller supplies SvgLoadOptions.ImageResolver, pass
               an image element's raw trimmed href/xlink:href and its placement size in device
-              pixels after the composed transform (rounded up, from 1 to the maximum surface
-              dimension) to the resolver, draw a returned surface through the same
+              pixels (the placement width and height in its own user space scaled by the largest
+              stretch of the composed transform, so the requested size keeps the placement's aspect
+              under a skew or a non-uniform scale, rounded up, from 1 to the maximum surface
+              dimension, and scaled down together to keep that aspect when the larger side would
+              exceed it) to the resolver, draw a returned surface through the same
               preserveAspectRatio fit, image-rendering, and clip-path/mask/filter/opacity effects
               pipeline as a decoded data URI raster, dispose the returned surface, treat a null
               result as a tolerant no-op, never pass a data: URI, a same-document fragment, or an
@@ -1651,13 +1825,20 @@ sections:
               files and rasters in an SVG diagram. An explicit resolver (the IImageResolver contract
               of the core package) keeps the codec free of file and network I/O and of every other
               format (the host decides what may be reached), and the device size lets the host draw
-              a vector source sharply at the size it is shown. A resolver backed by a live source
+              a vector source sharply at the size it is shown. As in SVG, the picture is laid out in
+              its placement in user space and the transform then maps it to the device, so a skewed
+              or non-uniformly scaled picture must be requested with the placement's own aspect or
+              it is drawn smaller and squashed. A resolver backed by a live source
               must be asked again each time, so nothing is cached. The resolver is trusted host
               code, so its failures are surfaced rather than hidden, while untrusted document
               content stays tolerant.
             tests:
               - SvgCodec_Load_ImageResolverSet_ReceivesRawHrefAndXlinkHref
               - SvgCodec_Load_ImageResolverSet_ReceivesPixelSizeAfterTransform
+              - SvgCodec_Load_ImageResolverSet_SkewOrNonUniformScale_RequestsThePlacementAspect
+              - SvgCodec_Load_ImageResolverReturnsRequestedSize_SkewX_FillsTheWholeParallelogram
+              - SvgCodec_Load_ImageResolverReturnsRequestedSize_NonUniformScale_FillsTheStretchedBox
+              - SvgCodec_Load_ImageResolverReturnsRequestedSize_RotateAndScale_FillsThePlacement
               - SvgCodec_Load_ImageResolverReturnsSurface_IsPlacedLikeADataUri
               - SvgCodec_Load_ImageResolverReturnsSurface_HonorsPreserveAspectRatio
               - SvgCodec_Load_ImageResolverReturnsSurface_AppliesOpacityAndClipPath
@@ -1933,6 +2114,19 @@ sections:
               - SvgImageSource_Render_InvalidInput_Throws
               - SvgImageSource_Properties_NameExtensionAndNoSchemes
               - SvgImageSource_Properties_ExtensionsAndSchemesAreReadOnly
+
+          - id: CanvasNetSvg-SvgCodec-ImageSourceUnsupportedNotes
+            title: >-
+              The Svg package's image source shall return each feature of the linked SVG file that the
+              codec reports as not supported (svg-text-not-drawn, svg-text-unsupported) as an
+              Unsupported note of the result with that code, and, when the request asks to throw on an
+              unsupported feature, shall fail with UnsupportedImageFeatureException naming the first code.
+            justification: |
+              A diagram that embeds another SVG file must surface text the nested file loses, and a
+              strict render must fail for it as it does for any other unsupported feature.
+            tests:
+              - SvgImageSource_Render_TextPath_IsAnUnsupportedNoteOfTheResult
+              - SvgImageSource_Render_TextPathWithThrowOnUnsupportedFeature_ThrowsUnsupportedImageFeatureException
 
           - id: CanvasNetSvg-SvgCodec-PositionBindingSyntax
             title: >-

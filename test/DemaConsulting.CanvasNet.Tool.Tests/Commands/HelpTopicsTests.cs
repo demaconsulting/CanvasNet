@@ -595,6 +595,7 @@ public partial class HelpTopicsTests
         Assert.Contains("view=", fragment);
         Assert.Contains("azimuth=", fragment);
         Assert.Contains("elevation=", fragment);
+        Assert.Contains("projection=", fragment);
         Assert.Contains("counts from 1", fragment);
         Assert.Contains(ImageFragment.MaxLength.ToString(System.Globalization.CultureInfo.InvariantCulture), fragment);
         Assert.Contains(ImageFragment.MaxParameters.ToString(System.Globalization.CultureInfo.InvariantCulture), fragment);

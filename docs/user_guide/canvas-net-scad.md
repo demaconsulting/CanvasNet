@@ -824,7 +824,8 @@ the last value of a name wins. A value that is not usable (a vector that is cut 
 accept) refuses the link with `ImageSourceRefusedException`, which the resolver reports as `image-fragment-invalid` and
 the picture is not drawn. Any other parameter in the link (`part.scad#page=2`) is the warning
 `image-fragment-unknown-parameter`; the view stays the library's choice, and the named views of the link
-(`#view=iso|front|back|left|right|top|bottom` and `#azimuth=`/`#elevation=`) are a feature of the source that
+(`#view=iso|front|back|left|right|top|bottom`, `#azimuth=`/`#elevation=`, and `#projection=`) are a feature of the
+source that
 `CanvasNetViewer` lists (see the Viewer user guide), which also treats a missing `include` as an error, as
 `canvasnet render` does.
 
@@ -865,7 +866,7 @@ using var image = document.Render(800, 600);
 PngCodec.Save(image, "bracket.png");
 
 // Or build the Render3D scene to measure it, or to render it yourself with another camera. (The bounds of a
-// scene include every operand of a boolean, so the cutters count towards the height; X and Y are the plate.)
+// scene are those of the result: a difference counts only its first operand, so the cutters do not count.)
 var scene = document.BuildScene();
 var bounds = scene.ComputeBounds();
 Console.WriteLine($"{bounds.Max.X - bounds.Min.X} x {bounds.Max.Y - bounds.Min.Y}");

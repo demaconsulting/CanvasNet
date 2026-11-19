@@ -61,7 +61,9 @@ class:
   external `href` names - a model, a chart, another SVG, a raster - and returns it as a `Surface`
   (which the codec draws through the same placement and effects pipeline as a `data:` raster and
   then disposes) or `null` (a no-op). `Resolve(href, pixelWidth, pixelHeight)` receives the raw `href` and
-  the placement size in device pixels after the transform. Default `null` is exactly the previous
+  the placement size in device pixels: the placement's own width and height scaled by the largest stretch of the
+  transform, so the request keeps the placement's aspect under a skew or a non-uniform scale. Default `null` is
+  exactly the previous
   behavior: only `data:` URIs are drawn and the library performs no file or network I/O; with a
   resolver, the only I/O is whatever the resolver does (`FolderImageResolver` of the core package reads under
   its `FileAccessPolicy`: `AllowAll` by default, confinement opt-in with `UnderRoots`/`NoSymlinks`). The codec never
@@ -79,12 +81,23 @@ class:
   is `svg-arrowhead-shape` (`SvgHint.ArrowheadShapeCode`), a filled triangle drawn by hand on an unmarked connector
   end instead of a `marker`. Hints never change the pixels or fail the render, and no analysis runs without a handler
   (see *SvgCodec Design*, *Authoring Hints*).
+- **Unsupported-feature reports** (`SvgLoadOptions.UnsupportedFeatureHandler`, `Action<SvgUnsupportedFeature>?`, default
+  `null`): after painting, the codec reports text it does not draw (`svg-text-not-drawn`, for example `textPath` or the
+  HTML of a `foreignObject`) and text drawn without a feature it uses (`svg-text-unsupported`, for example `rotate` or
+  a character no font covers), at most once per code per document with the number of elements. Reports never change
+  the pixels or fail the render, and no checks run without a handler (see *SvgCodec Design*, *Unsupported-Feature
+  Reports*).
+- **Text layout**: `tspan` and `a` inside a `text` are drawn as runs in their own cascaded style, placed by the
+  `x`/`y`/`dx`/`dy` lists and `baseline-shift`, with each text chunk anchored by its `text-anchor` and white space
+  collapsed as browsers do; `a` is drawn like a group and `switch` draws its first child that does not need
+  `foreignObject` (see *SvgCodec Design*, *Text Layout*).
 - **Closed-path markers**: a closepath is a real segment, as in SVG 2, so the `marker-end` of a closed path or a
   `polygon` is drawn at its first point, oriented by bisecting the closing and the first segment.
 - **SvgImageSource** (`IImageSource`, claims `.svg`): The Svg package's image source, so that an SVG file can
   be embedded in another document through the shared `FolderImageResolver`: it draws the file at the size of its
   placement over a transparent background and resolves the file's own `image` elements through the resolver
-  scoped to the request (see *SvgCodec Design*, *Image Source*).
+  scoped to the request; the features the codec reports are `Unsupported` notes of the result, or
+  `UnsupportedImageFeatureException` when the request asks to throw (see *SvgCodec Design*, *Image Source*).
 - **Text font resolution**: A `text` element is rendered even when the caller registers no font:
   caller-registered fonts first, then (per family in the `font-family` list) generic keywords
   mapped to the bundled Liberation fonts and installed fonts matched by exact family name, then
@@ -176,7 +189,8 @@ own consistently-applied behavior:
 
 - **Tolerantly skipped, no-effect constructs** — a document containing one of these continues to
   render the rest of its content rather than failing outright: a dangling `url(#id)` reference
-  (gradient, pattern, filter, clip-path, or mask) that resolves to no element, a well-formed but
+  (gradient, pattern, filter, clip-path, or mask) that resolves to no element (a `fill` or `stroke`
+  paints the fallback color written after the reference, if any), a well-formed but
   out-of-scope/unrecognized element or filter primitive, an external (non-`data:`) `image` `href`
   when the caller supplied no `ImageResolver` (the library itself never performs file or network
   I/O: the resolver is an explicit, opt-in `IImageResolver` whose calls are charged against the shared

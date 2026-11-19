@@ -66,8 +66,8 @@ public static partial class SvgCodec
         var transform = ParseGradientTransform(element) * bboxMap * elementTransform;
 
         // A non-finite composed transform cannot meaningfully position this gradient's stops -
-        // tolerate it as "no paint", matching ResolvePaint's existing dangling-reference/
-        // unrecognized-color convention, rather than letting it reach Gradient's constructor and
+        // tolerate it as "no paint", matching ResolvePaint's existing unrecognized-color
+        // convention, rather than letting it reach Gradient's constructor and
         // throw an uncaught ArgumentOutOfRangeException
         if (!IsFiniteTransform(transform))
         {

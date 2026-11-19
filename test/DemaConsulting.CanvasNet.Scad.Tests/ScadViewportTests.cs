@@ -451,6 +451,61 @@ public class ScadViewportTests
     }
 
     /// <summary>
+    ///     Validates that the fitted view of a difference frames its first operand: a cutter much larger than the
+    ///     model does not shrink it.
+    /// </summary>
+    [Fact]
+    public void ScadViewport_ChooseCamera_DifferenceWithHugeSubtrahend_FramesTheMinuend()
+    {
+        // Arrange
+        var plan = ScadViewport.Plan(new ScadRenderOptions());
+        var scene = BuildScene("difference() { cube(10); translate([5, 5, -50]) cube(100); }");
+
+        // Act
+        var camera = ScadViewport.ChooseCamera(plan, ScadDocumentViewport.None, false, scene, 1.0, out _);
+
+        // Assert: the same camera as for the plain cube
+        var cube = new BoundingBox3D(Vector3D.Zero, new Vector3D(10, 10, 10));
+        AssertCamera(Camera.FitToBounds(cube, 45.0, IsoElevation, 1.0, CameraProjection.Perspective), camera);
+    }
+
+    /// <summary>
+    ///     Validates that the fitted view of an intersection frames the overlap of its operands.
+    /// </summary>
+    [Fact]
+    public void ScadViewport_ChooseCamera_Intersection_FramesTheOverlap()
+    {
+        // Arrange
+        var plan = ScadViewport.Plan(new ScadRenderOptions { Projection = CameraProjection.Orthographic });
+        var scene = BuildScene("intersection() { cube(10); translate([5, 5, 5]) cube(100); }");
+
+        // Act
+        var camera = ScadViewport.ChooseCamera(plan, ScadDocumentViewport.None, false, scene, 1.5, out _);
+
+        // Assert: the camera of the box [5, 10]^3
+        var overlap = new BoundingBox3D(new Vector3D(5, 5, 5), new Vector3D(10, 10, 10));
+        AssertCamera(Camera.FitToBounds(overlap, 45.0, IsoElevation, 1.5, CameraProjection.Orthographic), camera);
+    }
+
+    /// <summary>
+    ///     Validates that a highlighted (<c>#</c>) subtrahend stays framed although it removes material.
+    /// </summary>
+    [Fact]
+    public void ScadViewport_ChooseCamera_HighlightedSubtrahend_StaysFramed()
+    {
+        // Arrange
+        var plan = ScadViewport.Plan(new ScadRenderOptions());
+        var scene = BuildScene("difference() { cube(10); #translate([20, 0, 0]) cube(5); }");
+
+        // Act
+        var camera = ScadViewport.ChooseCamera(plan, ScadDocumentViewport.None, false, scene, 1.0, out _);
+
+        // Assert: the cube and the highlight are framed together
+        var framed = new BoundingBox3D(Vector3D.Zero, new Vector3D(25, 10, 10));
+        AssertCamera(Camera.FitToBounds(framed, 45.0, IsoElevation, 1.0, CameraProjection.Perspective), camera);
+    }
+
+    /// <summary>
     ///     Builds a scene with a box away from the origin.
     /// </summary>
     /// <returns>The scene.</returns>
@@ -463,6 +518,14 @@ public class ScadViewportTests
     /// <returns>The scene.</returns>
     private static Scene Flat() =>
         new(new MeshNode(PrimitiveTessellator.Box(new Vector3D(10, 6, 0.1))) { Transform = Matrix4x4D.CreateTranslation(new Vector3D(5, 3, 0)) });
+
+    /// <summary>
+    ///     Builds the scene of an OpenSCAD program with the default options.
+    /// </summary>
+    /// <param name="source">The program.</param>
+    /// <returns>The scene.</returns>
+    private static Scene BuildScene(string source) =>
+        ScadDocument.Parse(source).BuildScene(cancellationToken: TestContext.Current.CancellationToken);
 
     /// <summary>
     ///     Asserts that two rotations (<c>$vpr</c> values) turn the camera axes the same way.

@@ -40,15 +40,15 @@
   <rect x="48" y="176" width="5" height="50" rx="2" fill="#f59e0b"/>
   <text class="label" x="64" y="196">Datum corner</text>
   <text class="detail" x="64" y="218">Dimensions start here</text>
-  <polyline class="callout" points="226,201 252,201 306.7,257.4"/>
+  <polyline class="callout" points="226,201 252,201 293.8,254.4"/>
   <rect x="760" y="166" width="5" height="50" rx="2" fill="#f59e0b"/>
   <text class="label" x="776" y="186">Through-hole</text>
   <text class="detail" x="776" y="208">8 mm wide, 5 mm deep</text>
-  <polyline class="callout" points="748,191 712,191 500,279.7"/>
+  <polyline class="callout" points="748,191 712,191 500,278.2"/>
   <rect x="760" y="336" width="5" height="50" rx="2" fill="#f59e0b"/>
   <text class="label" x="776" y="356">Hole wall</text>
   <text class="detail" x="776" y="378">Radius 4 mm</text>
-  <polyline class="callout" points="748,361 712,361 543.7,279.7"/>
+  <polyline class="callout" points="748,361 712,361 546.7,278.2"/>
   <!-- caption -->
   <text class="caption" x="56" y="518">Figure 1. The MP-30 plate as modeled in anchors.scad; every arrow ends on an anchor the model declares.</text>
 </svg>

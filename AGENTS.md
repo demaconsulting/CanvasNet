@@ -81,7 +81,11 @@ yet cover something.
 - **`pip-requirements.txt`** - Python dependencies for yamllint and yamlfix
 - **`docs/sysml2/`** - SysML2 architecture model; authoritative source for software structure
 - **`fix.ps1`** - Applies all auto-fixers silently (dotnet format, LintMark, YAML). Always exits 0.
-- **`build.ps1`** - Builds the solution and runs all tests (see *Scoped Validation* for development use).
+  `-Changed` limits it to the changed file types (see *Scoped Validation*).
+- **`build.ps1`** - Builds the solution and runs all tests; `-Affected` limits it to the affected test
+  projects (see *Scoped Validation*).
+- **`lint.ps1`** - Runs all lint checks (the CI merge gate); `-Changed` limits it to the checks whose
+  inputs changed (see *Scoped Validation*).
 
 # Standards Application (ALL Agents Must Follow)
 
@@ -180,7 +184,8 @@ After making changes, run the auto-fix pass. This applies all available fixers
 silently and **always exits 0** - agents do not need to respond to its output.
 
 ```pwsh
-pwsh ./fix.ps1
+pwsh ./fix.ps1 -Changed   # during development: only the fixers for the changed file types
+pwsh ./fix.ps1            # everything
 ```
 
 This automatically handles: `dotnet format`, Markdown formatting (LintMark), and YAML
@@ -195,22 +200,42 @@ reqstream, versionmark, reviewmark, and sysml2tools.
 # Scoped Validation (ALL Agents Must Follow)
 
 The solution has twelve source projects and twelve test projects, and a full `pwsh ./build.ps1` builds and
-tests all of them. While developing, build and test **only the affected test projects**; run the full
-build once before a pull request. `build.ps1` is a template-owned script and is deliberately not
-modified for this - use plain `dotnet test` on the test project instead. This policy refines any
-"run `pwsh ./build.ps1`" step in the agent definitions under `.github/agents/`, which are template-owned:
-use the scoped commands during development and the full build before a pull request. For example:
+tests all of them. While developing, build, test, fix, and lint **only what the change affects**; run the
+full build and full lint once before a pull request. The scripts compute the scope from the files changed
+since `origin/main` (or `-Base <ref>`) plus uncommitted and untracked files:
 
 ```pwsh
-dotnet test test/DemaConsulting.CanvasNet.Svg.Tests --configuration Release
+pwsh ./build.ps1 -Affected   # build and test only the affected test projects
+pwsh ./fix.ps1 -Changed      # run only the fixers for the changed file types
+pwsh ./lint.ps1 -Changed     # run only the checks whose inputs changed
 ```
 
-`dotnet test` on a test project also builds the source projects it references.
+- `build.ps1 -Affected` maps each changed file to its project, adds every project that references it
+  (directly or transitively, from the `ProjectReference` graph) and every project that links the file in
+  (`Compile`/`None`/`EmbeddedResource` items pointing outside the project folder), then builds and tests the
+  selected test projects. A change to the solution, a project file, `*.props`/`*.targets`, `global.json`,
+  `.editorconfig`, `nuget.config`, `.config/dotnet-tools.json`, or `build.ps1` falls back to the full build.
+  Repository files that tests read at run time (the user guides the help-card parity tests compare, and the
+  checked-in Pandoc shim) select those test projects through the `$RuntimeReads` map in `build.ps1`; keep it in
+  step when a test starts reading another repository file. Any other change the build does not read
+  (documentation, images) builds nothing.
+- `build.ps1 -Project Svg,Mermaid` selects explicit projects by full or short name (`Core` for the core
+  library, `Svg.Tests` for a test project) with the same rule.
+- `lint.ps1 -Changed` runs `dotnet format` only for changed C# files (the whole solution when a project or
+  build configuration file changed), TextLint and LintMark only for the file types they check, yamllint
+  only for YAML, and each compliance tool only when its inputs changed. It prints each skipped check.
+- Add `-DryRun` to `build.ps1` or `lint.ps1` to print the selection without running anything.
+
+These scripts started from the reference template and are customized here; with no switches they run
+the full build, all fixers, and all checks exactly as before (CI runs `lint.ps1` with no switches). This
+policy refines any "run `pwsh ./build.ps1`" step in the agent definitions under `.github/agents/`, which
+are template-owned: use the scoped commands during development and the full build before a pull request.
 
 ## Which Test Projects to Run
 
-A source project is a dependency of every project that references it, directly or transitively
-(derived from the `ProjectReference` graph). Run the test projects listed for each changed source project:
+`build.ps1 -Affected` computes this selection; the table is the human-readable reference. A source project
+is a dependency of every project that references it, directly or transitively. Each changed source project
+selects these test projects:
 
 | Changed project | Test projects to run (all under `test/`) |
 | --- | --- |
@@ -229,17 +254,25 @@ A source project is a dependency of every project that references it, directly o
 | A test project only | That test project only (see the shared test support note below) |
 
 Test project names are `DemaConsulting.CanvasNet.{Name}` as in the table (the core project is
-`DemaConsulting.CanvasNet.Tests`).
+`DemaConsulting.CanvasNet.Tests`). A change to the core library or `VegaLite` also builds the
+`tools/DemaConsulting.CanvasNet.VegaLite.Benchmarks` project (build only, no tests).
 
-The shared test support (`FixtureFactory*.cs`, `SurfaceAssert.cs`, and `Fixtures/**`) lives in `Viewer.Tests` and is
-linked into `Tool.Tests`: when it changes, run **both** `Viewer.Tests` and `Tool.Tests`.
+Shared test support is linked between test projects, and `-Affected` follows those links:
+
+- `FixtureFactory*.cs`, `SurfaceAssert.cs`, and `Fixtures/**` live in `Viewer.Tests` and are linked into
+  `Tool.Tests`: a change runs **both** `Viewer.Tests` and `Tool.Tests`.
+- `TestSupport/**` in the core `Tests` project is linked into `Charts.Tests`, `Pdf.Tests`, `Pptx.Tests`,
+  `Svg.Tests`, and `Vsdx.Tests` (and `SyntheticFontBuilder.cs` into `Scad.Tests`).
+- The user-guide examples under `docs/user_guide/examples/` are linked into `VegaLite.Tests` (`gallery/**`) and
+  `Mermaid.Tests` (`mermaid-*.mmd`).
 
 ## Rules
 
-- **Documentation-only changes** (`docs/`, `README.md`, agent files) need no build or test run;
-  run `pwsh ./fix.ps1` and the relevant lint checks instead.
-- **Changes outside a single project** (solution file, `global.json`, `.editorconfig`, package or
-  build configuration, `build.ps1`) affect everything - run the full `pwsh ./build.ps1`.
+- **Documentation-only changes** (`docs/`, `README.md`, agent files) need no build or test run
+  (`build.ps1 -Affected` reports nothing to build); run `pwsh ./fix.ps1 -Changed` and
+  `pwsh ./lint.ps1 -Changed` instead.
+- **Changes outside a single project** (solution file, project files, `global.json`, `.editorconfig`, package
+  or build configuration, `build.ps1`) affect everything - `build.ps1 -Affected` runs the full build.
 - **Before opening or updating a pull request** that changes code or build configuration, run the full
   `pwsh ./build.ps1` and `pwsh ./lint.ps1` once (via the lint-fix agent for lint). A documentation-only
   pull request needs only `pwsh ./fix.ps1` and `pwsh ./lint.ps1`. Scoped runs are for the inner

@@ -468,24 +468,152 @@ public class SceneGraphTests
     }
 
     /// <summary>
-    ///     Validates that scene bounds include every operand of a difference or intersection (conservative bounds).
+    ///     Validates that the bounds of a difference are those of its first operand, however large the subtrahends.
     /// </summary>
     [Fact]
-    public void Scene_ComputeBounds_CsgNode_IncludesAllOperands()
+    public void Scene_ComputeBounds_Difference_IsTheMinuendBounds()
     {
-        // Arrange: a unit cube minus a cube far away still reports both operands in the bounds
-        var far = new MeshNode(UnitCube) { Transform = Matrix4x4D.CreateTranslation(new Vector3D(9, 0, 0)) };
-        var difference = new Scene(new CsgNode(CsgOperation.Difference, [new MeshNode(UnitCube), far]));
-        var intersection = new Scene(new CsgNode(CsgOperation.Intersection, [new MeshNode(UnitCube), far]));
+        // Arrange: a 10-unit cube minus a 100-unit cube that pokes far out on every side but one
+        var minuend = new MeshNode(Render3DTestHelpers.CreateBoxMesh(Vector3D.Zero, new Vector3D(10, 10, 10)));
+        var cutter = new MeshNode(Render3DTestHelpers.CreateBoxMesh(new Vector3D(5, 5, -50), new Vector3D(100, 100, 100)));
+        var scene = new Scene(new CsgNode(CsgOperation.Difference, [minuend, cutter]));
 
         // Act
-        var differenceBounds = difference.ComputeBounds();
-        var intersectionBounds = intersection.ComputeBounds();
+        var bounds = scene.ComputeBounds();
+
+        // Assert: the cutter does not count, with or without overlays
+        Assert.Equal(Vector3D.Zero, bounds.Min);
+        Assert.Equal(new Vector3D(10, 10, 10), bounds.Max);
+        Assert.Equal(bounds, scene.ComputeBounds(false));
+    }
+
+    /// <summary>
+    ///     Validates that the bounds of an intersection are the overlap of the boxes of its operands.
+    /// </summary>
+    [Fact]
+    public void Scene_ComputeBounds_Intersection_IsTheOverlapOfTheOperands()
+    {
+        // Arrange: [0,10]^3 intersected with [5,105]^3 and with [-1,8] x [-1,100] x [2,100]
+        var first = new MeshNode(Render3DTestHelpers.CreateBoxMesh(Vector3D.Zero, new Vector3D(10, 10, 10)));
+        var second = new MeshNode(Render3DTestHelpers.CreateBoxMesh(new Vector3D(5, 5, 5), new Vector3D(100, 100, 100)));
+        var third = new MeshNode(Render3DTestHelpers.CreateBoxMesh(new Vector3D(-1, -1, 2), new Vector3D(9, 101, 98)));
+        var scene = new Scene(new CsgNode(CsgOperation.Intersection, [first, second, third]));
+
+        // Act
+        var bounds = scene.ComputeBounds();
+
+        // Assert: the largest minimum and the smallest maximum on every axis
+        Assert.Equal(new Vector3D(5, 5, 5), bounds.Min);
+        Assert.Equal(new Vector3D(8, 10, 10), bounds.Max);
+    }
+
+    /// <summary>
+    ///     Validates that an intersection of disjoint operands has empty bounds.
+    /// </summary>
+    [Fact]
+    public void Scene_ComputeBounds_DisjointIntersection_IsEmpty()
+    {
+        // Arrange: two unit cubes nine units apart, inside a group with nothing else
+        var far = new MeshNode(UnitCube) { Transform = Matrix4x4D.CreateTranslation(new Vector3D(9, 0, 0)) };
+        var scene = new Scene(new GroupNode([new CsgNode(CsgOperation.Intersection, [new MeshNode(UnitCube), far])]));
+
+        // Act
+        var bounds = scene.ComputeBounds();
 
         // Assert
-        Assert.Equal(new Vector3D(0, 0, 0), differenceBounds.Min);
-        Assert.Equal(new Vector3D(10, 1, 1), differenceBounds.Max);
-        Assert.Equal(differenceBounds, intersectionBounds);
+        Assert.True(bounds.IsEmpty);
+        Assert.Equal(BoundingBox3D.Empty, bounds);
+    }
+
+    /// <summary>
+    ///     Validates that the bounds of a CSG union include every operand.
+    /// </summary>
+    [Fact]
+    public void Scene_ComputeBounds_UnionCsg_IncludesEveryOperand()
+    {
+        // Arrange: a unit cube united with a unit cube nine units along X
+        var far = new MeshNode(UnitCube) { Transform = Matrix4x4D.CreateTranslation(new Vector3D(9, 0, 0)) };
+        var scene = new Scene(new CsgNode(CsgOperation.Union, [new MeshNode(UnitCube), far]));
+
+        // Act
+        var bounds = scene.ComputeBounds();
+
+        // Assert
+        Assert.Equal(Vector3D.Zero, bounds.Min);
+        Assert.Equal(new Vector3D(10, 1, 1), bounds.Max);
+    }
+
+    /// <summary>
+    ///     Validates that an overlay inside a subtracted operand still counts towards the bounds with overlays, and
+    ///     only then.
+    /// </summary>
+    [Fact]
+    public void Scene_ComputeBounds_OverlayInsideASubtrahend_IsIncludedOnlyWithOverlays()
+    {
+        // Arrange: a highlighted subtrahend (the cutter beside an overlay of itself) far along X
+        var cutter = new MeshNode(UnitCube) { Transform = Matrix4x4D.CreateTranslation(new Vector3D(20, 0, 0)) };
+        var highlighted = new GroupNode([cutter, new OverlayNode(new Rgba32(255, 0, 0, 80), [cutter])]);
+        var scene = new Scene(new CsgNode(CsgOperation.Difference, [new MeshNode(UnitCube), highlighted]));
+
+        // Act
+        var withOverlays = scene.ComputeBounds(true);
+        var withoutOverlays = scene.ComputeBounds(false);
+
+        // Assert: the highlight stays framed; the solid result is the minuend alone
+        Assert.Equal(Vector3D.Zero, withOverlays.Min);
+        Assert.Equal(new Vector3D(21, 1, 1), withOverlays.Max);
+        Assert.Equal(Vector3D.Zero, withoutOverlays.Min);
+        Assert.Equal(Vector3D.One, withoutOverlays.Max);
+    }
+
+    /// <summary>
+    ///     Validates that nested booleans under transforms combine like the solids, in world space.
+    /// </summary>
+    [Fact]
+    public void Scene_ComputeBounds_NestedCsgUnderTransforms_MatchesAnalytic()
+    {
+        // Arrange: group(translate 100)[ difference[ scale 4 cube, intersection[ cube, cube + (0.5, 0, 0) ] + (50, 0, 0) ] ]
+        var big = new MeshNode(UnitCube) { Transform = Matrix4x4D.CreateScale(4.0) };
+        var shifted = new MeshNode(UnitCube) { Transform = Matrix4x4D.CreateTranslation(new Vector3D(0.5, 0, 0)) };
+        var intersection = new CsgNode(CsgOperation.Intersection, [new MeshNode(UnitCube), shifted])
+        {
+            Transform = Matrix4x4D.CreateTranslation(new Vector3D(50, 0, 0)),
+        };
+        var difference = new CsgNode(CsgOperation.Difference, [big, intersection]);
+        var union = new CsgNode(CsgOperation.Union, [difference, intersection]);
+        var scene = new Scene(new GroupNode([union]) { Transform = Matrix4x4D.CreateTranslation(new Vector3D(100, 0, 0)) });
+
+        // Act
+        var bounds = scene.ComputeBounds();
+
+        // Assert: the minuend [0,4]^3 united with the overlap [50.5,51] x [0,1] x [0,1], moved by 100 along X
+        Assert.Equal(new Vector3D(100, 0, 0), bounds.Min);
+        Assert.Equal(new Vector3D(151, 4, 4), bounds.Max);
+    }
+
+    /// <summary>
+    ///     Validates that the bounds of a difference nested ten thousand deep, each with a far cutter, are computed
+    ///     without stack overflow and count only the innermost minuend.
+    /// </summary>
+    [Fact]
+    public void Scene_ComputeBounds_TenThousandNestedCsgNodes_DoesNotOverflowStack()
+    {
+        // Arrange: each level subtracts a cube far along Y from the level below and moves it +1 in X
+        var cutter = new MeshNode(UnitCube) { Transform = Matrix4x4D.CreateTranslation(new Vector3D(0, 1000, 0)) };
+        SceneNode node = new MeshNode(UnitCube);
+        for (var i = 0; i < 10_000; i++)
+        {
+            node = new CsgNode(CsgOperation.Difference, [node, cutter]) { Transform = Matrix4x4D.CreateTranslation(Vector3D.UnitX) };
+        }
+
+        var scene = new Scene(node);
+
+        // Act
+        var bounds = scene.ComputeBounds();
+
+        // Assert: the cutters never count
+        Assert.Equal(new Vector3D(10_000, 0, 0), bounds.Min);
+        Assert.Equal(new Vector3D(10_001, 1, 1), bounds.Max);
     }
 
     /// <summary>

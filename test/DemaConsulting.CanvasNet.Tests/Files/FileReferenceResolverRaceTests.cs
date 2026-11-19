@@ -256,6 +256,120 @@ public class FileReferenceResolverRaceTests
     }
 
     /// <summary>
+    ///     Validates under each restrictive policy that a file whose on-disk spelling names another file (a spelling the
+    ///     identity check refuses) is denied before it is read, with a reason that names no host path, and is not
+    ///     remembered: asking again opens it again.
+    /// </summary>
+    /// <param name="noSymlinks">Whether to use the no-symlinks policy (otherwise the roots policy).</param>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void FileReferenceResolver_Resolve_StoredSpellingNamingAnotherFile_IsAccessDenied(bool noSymlinks)
+    {
+        // Arrange: the computed on-disk spelling is replaced by the path of another existing file
+        using var directory = new SandboxTempDirectory();
+        directory.Write("root/a.txt", "inside");
+        var other = Path.GetFullPath(directory.Write("root/b.txt", "other"));
+        var root = directory.Combine("root");
+        var policy = noSymlinks ? FileAccessPolicy.NoSymlinks : FileAccessPolicy.UnderRoots(root);
+        var opens = 0;
+        var resolver = new FileReferenceResolver(
+            new FileReferenceOptions { BaseDirectory = root, FileAccess = policy },
+            Ct,
+            new FileOpenHooks { BeforeOpen = _ => opens++, ExactPathOf = _ => other });
+
+        // Act
+        var first = Assert.Throws<FileReferenceException>(() => resolver.Resolve("a.txt"));
+        var second = Assert.Throws<FileReferenceException>(() => resolver.Resolve("a.txt"));
+
+        // Assert
+        Assert.Equal(FileReferenceFailureKind.AccessDenied, first.Kind);
+        Assert.Equal("the letter case its real path has on disk cannot be confirmed to name the opened file", first.Reason);
+        Assert.Equal("reference the file in the letter case it has on disk", first.Hint);
+        Assert.DoesNotContain(directory.Path, first.Reason!, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(FileReferenceFailureKind.AccessDenied, second.Kind);
+        Assert.Equal(2, opens);
+    }
+
+    /// <summary>
+    ///     Validates in a folder that ignores letter case that a real path reported in another letter case (as a file
+    ///     system that reports the spelling used to open a file does) is given to the policy, and carried by the result,
+    ///     in the letter case stored on disk. Skips where the temporary folder compares letter case.
+    /// </summary>
+    [Fact]
+    public void FileReferenceResolver_Resolve_ReportedRealPathInAnotherLetterCase_IsCorrectedToTheStoredCase()
+    {
+        // Arrange
+        using var directory = new SandboxTempDirectory();
+        FileTestSupport.RequireCaseInsensitive(directory.Path);
+        directory.Write("a.txt", "a");
+        var expected = Path.Join(FileTestSupport.Canonical(directory.Path), "a.txt");
+        var policy = RecordingPolicy.AllowingAll();
+        var resolver = new FileReferenceResolver(
+            new FileReferenceOptions { BaseDirectory = directory.Path, FileAccess = policy },
+            Ct,
+            new FileOpenHooks { RealPathOf = handle => RealPath.Inspect(handle).FinalPath!.ToUpperInvariant() });
+
+        // Act: a denial is reported with the reason the spelling is not confirmed, so a failure on a platform that cannot
+        // be run locally tells which step failed
+        FileReference? file;
+        try
+        {
+            file = resolver.Resolve("a.txt");
+        }
+        catch (FileReferenceException ex)
+        {
+            throw new Xunit.Sdk.XunitException(
+                $"The stored spelling is not confirmed: {DiagnoseConfirmation(directory.Combine("a.txt"))}", ex);
+        }
+
+        // Assert
+        Assert.Equal(expected, Assert.Single(policy.Requests).RealPath);
+        Assert.Equal(expected, file!.RealPath);
+    }
+
+    /// <summary>
+    ///     Tells why the on-disk spelling of the upper-cased real path of a file is not confirmed, for the message of a
+    ///     failing test.
+    /// </summary>
+    /// <param name="path">The path of the file.</param>
+    /// <returns>The reason, or a note that it is confirmed when opened directly.</returns>
+    private static string DiagnoseConfirmation(string path)
+    {
+        using var handle = RealPath.OpenForRead(Path.GetFullPath(path));
+        var reported = RealPath.Inspect(handle).FinalPath!.ToUpperInvariant();
+        var confirmed = RealPath.TryConfirmExactPath(handle, reported, RealPath.GetExactPathName(reported), out var reason);
+        return confirmed is null ? reason ?? "no reason given" : "it is confirmed when the file is opened directly";
+    }
+
+    /// <summary>
+    ///     Validates that the top-level file, which the policy does not judge, is read even when the on-disk spelling of
+    ///     its real path cannot be confirmed, and that a reference that reaches it later is denied with the same reason.
+    /// </summary>
+    [Fact]
+    public void FileReferenceResolver_ResolveTopLevel_StoredSpellingNamingAnotherFile_IsDeniedWhenReferenced()
+    {
+        // Arrange
+        using var directory = new SandboxTempDirectory();
+        directory.Write("doc.txt", "doc");
+        var other = Path.GetFullPath(directory.Write("other.txt", "other"));
+        var resolver = new FileReferenceResolver(
+            new FileReferenceOptions { BaseDirectory = directory.Path, FileAccess = FileAccessPolicy.UnderRoots(directory.Path) },
+            Ct,
+            new FileOpenHooks { ExactPathOf = _ => other });
+        var document = resolver.ResolveTopLevel("doc.txt");
+
+        // Act
+        var ex = Assert.Throws<FileReferenceException>(() => resolver.Resolve("doc.txt"));
+
+        // Assert
+        Assert.NotNull(document);
+        Assert.Equal("doc", Encoding.UTF8.GetString(document.Content.Span));
+        Assert.Equal(FileReferenceFailureKind.AccessDenied, ex.Kind);
+        Assert.Equal("the letter case its real path has on disk cannot be confirmed to name the opened file", ex.Reason);
+    }
+
+    /// <summary>
     ///     Builds the outside-to-inside swap: <c>root/sub</c> is a link to <c>outside</c> (which holds <c>a.txt</c>), and
     ///     after the open the link is removed and replaced by a real folder with a benign <c>a.txt</c>.
     /// </summary>

@@ -26,13 +26,19 @@ public static partial class SvgCodec
     /// <param name="context">The fixed per-document render context.</param>
     /// <param name="scope">The recursion depths and budgets, forwarded to a <c>pattern</c> fill/stroke's own tile content walk (see <see cref="RenderFill"/>/<see cref="RenderStroke"/>); the element depth is the sole guard against a pattern-reference cycle.</param>
     /// <param name="totalElements">The running total-rendered-elements count, forwarded to a <c>pattern</c> fill/stroke's own tile content walk.</param>
+    /// <param name="boxPath">
+    ///     The outline whose bounds are the object bounding box of a gradient or pattern, or
+    ///     <see langword="null"/> (the default) for <paramref name="localPath"/> itself; a <c>tspan</c>
+    ///     run passes the whole text, as Chrome and Edge do.
+    /// </param>
     private static void RenderShape(
         Path localPath,
         RenderState state,
         Matrix3x2 transform,
         RenderContext context,
         RenderScope scope,
-        ref int totalElements)
+        ref int totalElements,
+        Path? boxPath = null)
     {
         if (localPath.Subpaths.Count == 0)
         {
@@ -62,8 +68,8 @@ public static partial class SvgCodec
             return;
         }
 
-        RenderFill(localPath, pixelPath, state, transform, context, scope, ref totalElements);
-        RenderStroke(localPath, pixelPath, state, transform, context, scope, ref totalElements);
+        RenderFill(boxPath ?? localPath, pixelPath, state, transform, context, scope, ref totalElements);
+        RenderStroke(boxPath ?? localPath, pixelPath, state, transform, context, scope, ref totalElements);
     }
 
     /// <summary>
@@ -131,9 +137,12 @@ public static partial class SvgCodec
     ///     <c>pattern</c> element (see <see cref="ResolvePatternElement"/>), rendering is dispatched
     ///     entirely to <see cref="RenderPatternFill"/> instead - a purely additive branch: every
     ///     other <c>fill</c> value (a solid color, a gradient reference, <c>none</c>, or a
-    ///     dangling/wrong-type <c>url(#id)</c> reference) falls through this check unaffected, and
+    ///     dangling/wrong-type <c>url(#id)</c> reference, which paints its fallback color or nothing)
+    ///     falls through this check unaffected, and
     ///     reaches the exact same <see cref="ResolvePaint"/>/<see cref="FillWithPaint"/> call this
-    ///     method has always made.
+    ///     method has always made. A pattern in <c>objectBoundingBox</c> units on a shape whose box has
+    ///     no width or no height is ignored (see <see cref="IsObjectBoundingBoxServerOnEmptyBox"/>):
+    ///     the fallback color after the reference is painted instead, or nothing.
     /// </remarks>
     private static void RenderFill(
         Path localPath,
@@ -145,6 +154,15 @@ public static partial class SvgCodec
         ref int totalElements)
     {
         var patternElement = ResolvePatternElement(state.Fill, context);
+        if (patternElement != null && IsObjectBoundingBoxServerOnEmptyBox(patternElement, localPath))
+        {
+            // A bounding-box-relative pattern on a box with no width or no height is ignored; the
+            // fallback color written after the reference is painted instead, if any
+            FillWithPaint(
+                context.Surface, pixelPath, ResolvePaintFallback(state.Fill.Trim(), state.FillOpacity * state.Opacity), state.FillRule);
+            return;
+        }
+
         if (patternElement != null)
         {
             RenderPatternFill(
@@ -177,9 +195,14 @@ public static partial class SvgCodec
     ///     dispatched entirely to <see cref="RenderPatternFill"/> instead of
     ///     <see cref="ResolvePaint"/>/<see cref="FillWithPaint"/> - every other <c>stroke</c> value
     ///     (a solid color, a gradient reference, <c>none</c>, or a dangling/wrong-type
-    ///     <c>url(#id)</c> reference) is completely unaffected by this additional check.
+    ///     <c>url(#id)</c> reference, which paints its fallback color or nothing) is completely
+    ///     unaffected by this additional check. A pattern in
+    ///     <c>objectBoundingBox</c> units on a shape whose box has no width or no height (a horizontal
+    ///     or vertical line) is ignored (see <see cref="IsObjectBoundingBoxServerOnEmptyBox"/>): the
+    ///     outline is filled with the fallback color after the reference, or the stroke is skipped.
     ///     </para>
-    ///     A no-op stroke (<c>stroke="none"</c>, a dangling gradient reference, or a non-positive
+    ///     A no-op stroke (<c>stroke="none"</c>, a dangling gradient reference without a fallback
+    ///     color, or a non-positive
     ///     effective stroke width) never constructs a <see cref="Drawing.StrokeStyle"/> at all,
     ///     avoiding its constructor's own <see cref="ArgumentOutOfRangeException"/> for a
     ///     zero width. The same tolerant skip also covers a non-finite effective stroke width: the
@@ -242,7 +265,18 @@ public static partial class SvgCodec
         // early-return entirely and instead build the stroke outline unconditionally below
         var patternElement = ResolvePatternElement(state.Stroke, context);
         object? paint = null;
-        if (patternElement == null)
+        if (patternElement != null && IsObjectBoundingBoxServerOnEmptyBox(patternElement, localPath))
+        {
+            // A bounding-box-relative pattern on a box with no width or no height (a horizontal or
+            // vertical line) is ignored; the stroke is painted with the fallback color, if any
+            patternElement = null;
+            paint = ResolvePaintFallback(state.Stroke.Trim(), state.StrokeOpacity * state.Opacity);
+            if (paint == null)
+            {
+                return;
+            }
+        }
+        else if (patternElement == null)
         {
             paint = ResolvePaint(state.Stroke, state.StrokeOpacity * state.Opacity, localPath, transform, context, state);
             if (paint == null)

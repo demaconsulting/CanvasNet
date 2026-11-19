@@ -41,9 +41,13 @@ local-to-remote symbolic links according to `fsutil behavior set SymlinkEvaluati
 default). Hosts that let untrusted parties create symbolic links in folders documents are read from should disable it
 (`L2R:0`). Junctions cannot target a share, and creating a symbolic link needs a privilege or Developer Mode.
 
-Known limit: paths are compared case-insensitively on Windows and macOS (their default file systems). On a
-case-sensitive volume or directory of those systems, a sibling folder whose name differs from a root only in letter
-case counts as inside that root; hosts should not configure roots next to such folders.
+Exact letter case: the real path of an opened file is compared with the allowed folders exactly, letter case included,
+on every platform, because a folder may be case-sensitive even on Windows (per-directory case sensitivity) and macOS
+(case-sensitive APFS); a sibling folder whose name differs from a root only in letter case is outside it. Every side of
+the comparison is in the letter case stored on disk (the real locations of roots and anchors, and the real path of the
+open file, confirmed by file identity to name that file), so on a case-insensitive volume a root or reference written in
+another letter case still works. A real path whose stored spelling cannot be confirmed is denied (fail closed). Only
+the lexical pre-check of a path as written keeps the platform rule (case-insensitive on Windows and macOS).
 
 ### Units
 

@@ -195,6 +195,15 @@ of the repository.
 
 Before submitting a pull request, ensure all quality checks pass:
 
+While developing, the scripts can limit themselves to what your change affects (compared with `origin/main`,
+including uncommitted files); run the full checks below before submitting:
+
+```pwsh
+pwsh ./build.ps1 -Affected   # build and test only the affected test projects
+pwsh ./fix.ps1 -Changed      # auto-fix only the changed file types
+pwsh ./lint.ps1 -Changed     # run only the lint checks whose inputs changed
+```
+
 ### 1. Build and Test
 
 ```bash

@@ -271,8 +271,8 @@ sections:
           (part.scad#view=top&def.width=20, report.pdf#page=3, chart.vl.json#param.cutoff=5, flow.mmd#theme=dark) with
           the grammar and the checks of the link of an SVG image (InputReference and SourceLoader.Probe), treating a
           number sign as the start of a fragment only when no file has that exact name, let the fragment override
-          --page, --all-pages, --view, --azimuth, --elevation, -D, --param and --theme for that input (variables
-          and parameters by name), draw
+          --page, --all-pages, --view, --azimuth, --elevation, --projection, -D, --param and --theme for that input
+          (variables and parameters by name), draw
           the page the fragment names as the only page, name the input with its fragment in the text result and report
           it in the fragment member of the input object of the JSON result, fail with the code image-fragment-invalid
           for a fragment or a value that cannot be used and with page-out-of-range for a page the file does not have
@@ -298,6 +298,8 @@ sections:
           - RenderCommand_Run_MermaidTheme_OptionFragmentAndTextPrecedence
           - InputFragment_Grammar_IsTheGrammarOfALink
           - InputFragment_Render_AzimuthAndElevation_DrawLikeTheOptions
+          - InputFragment_Render_Projection_DrawsLikeTheOption
+          - InputFragment_Render_InvalidProjection_IsImageFragmentInvalid
 
       - id: CanvasNetTool-Commands-RenderCommand-Source
         title: >-
@@ -374,6 +376,7 @@ sections:
           - RenderCommand_Run_SvgEmbeddingOutsideFolder_WarnsAndDrawsTheRest
           - RenderCommand_Run_SvgEmbeddingDeniedWithStrict_FailsWithFileAccessDenied
           - RenderCommand_Run_SvgHandDrawnArrowheadStrict_WarnsAndSucceeds
+          - RenderCommand_Run_SvgTextPath_IsUnsupportedAndStrictFails
 
       - id: CanvasNetTool-Commands-RenderCommand-SvgEmbed
         title: >-
@@ -503,7 +506,8 @@ sections:
         title: >-
           The render command and its verbs shall read `--file-access` (any, roots, no-symlinks, or roots,no-symlinks, in
           any letter case, tokens trimmed) and the repeatable `--allow-root` (which alone implies roots and replaces the
-          default folders, the working directory and the folder of each input outside it) in one routine shared by
+          default folders, the working directory and the folder of each input outside it, compared exactly, letter case
+          included) in one routine shared by
           every reading command; shall report an unknown mode, `--allow-root` with the mode any or no-symlinks (naming
           the conflict), and an `--allow-root` folder that does not exist as usage-error before any input is opened;
           shall pass the policy to the probe and the load of the input, so a denied picture is the warning
@@ -511,7 +515,9 @@ sections:
           file-access-denied; and shall not write the policy into the JSON result.
         justification: |
           One routine gives every reading command the same grammar and the same errors; checking the options first
-          means a typo is reported at once instead of silently denying every file.
+          means a typo is reported at once instead of silently denying every file. The policy compares real paths
+          exactly, so an input folder that differs from the working directory only in letter case must stay a
+          default folder of its own.
         tests:
           - RenderCommand_ReadFileAccess_WithoutOptions_IsAllowAll
           - RenderCommand_ReadFileAccess_EachMode_BuildsItsPolicy
@@ -520,12 +526,15 @@ sections:
           - RenderCommand_ReadFileAccess_AllowRootWithAnyOrNoSymlinks_IsUsageErrorNamingTheConflict
           - RenderCommand_ReadFileAccess_AllowRootThatDoesNotExist_IsUsageError
           - RenderCommand_DefaultRoots_AreTheWorkingDirectoryAndEachInputFolderOutsideIt
+          - RenderCommand_DefaultRoots_InputFolderDifferingOnlyInLetterCase_IsItsOwnFolder
           - RenderCommand_ReadFileAccess_RootsWithoutAllowRoot_UsesTheDefaultRoots
           - RenderCommand_Run_ScadIncludeOutsideTheRoots_FailsWithFileAccessDenied
           - RenderCommand_Run_VegaLiteDataOutsideTheRoots_FailsWithFileAccessDenied
           - RenderCommand_Run_SvgEmbeddingDeniedWithStrict_FailsWithFileAccessDenied
           - RenderCommand_Verb_FileAccessOption_AppliesToTheVerbs
           - RenderCommand_Run_SvgEmbeddingOutsideFolder_WarnsAndDrawsTheRest
+          - "windows@RenderCommand_Run_AllowRootInAnotherLetterCase_DrawsThePictureInside"
+          - "macos@RenderCommand_Run_AllowRootInAnotherLetterCase_DrawsThePictureInside"
 
       - id: CanvasNetTool-Commands-RenderCommand-Positions
         title: >-

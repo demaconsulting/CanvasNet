@@ -662,7 +662,7 @@ and that a single child is itself while no child is nothing without a warning.
 
 Asserts that an intersection of two solids is an `Intersection` node, that an empty operand anywhere empties the
 result, that a lone child is itself, and that `intersection_for` over three iterations is an intersection node of
-three operands with the closed-form bounds `[0,0,0]` to `[7,5,5]`.
+three operands with the overlap `[2,0,0]` to `[5,5,5]` of the three cubes as its scene bounds.
 
 ##### CanvasNetScad-ScadGeometry-ScadGeometryBuilder-BooleanOperands: Operand Counting
 

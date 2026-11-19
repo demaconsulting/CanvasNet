@@ -195,9 +195,9 @@ public class ScadGeometryBuilderBooleanTests
         // Arrange / Act
         var result = Build("intersection_for (i = [0:2]) translate([i, 0, 0]) cube(5);");
 
-        // Assert
+        // Assert: the bounds are the overlap of the three cubes
         AssertCsg(result.Scene.Root, CsgOperation.Intersection, 3);
-        AssertBounds(result.Scene.ComputeBounds(), new Vector3D(0, 0, 0), new Vector3D(7, 5, 5));
+        AssertBounds(result.Scene.ComputeBounds(), new Vector3D(2, 0, 0), new Vector3D(5, 5, 5));
     }
 
     /// <summary>

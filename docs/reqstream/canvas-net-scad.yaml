@@ -385,6 +385,7 @@ sections:
           fail before expensive work.
         children:
           - CanvasNetScad-ScadDocument-Render
+          - CanvasNetScad-ScadDocument-FittedViewBounds
           - CanvasNetScad-ScadDocument-RenderGeometry
         tests:
           - CanvasNetScad_SystemIntegration_Render_FixtureRendersWithDefaultAndExplicitCameras

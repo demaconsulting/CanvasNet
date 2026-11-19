@@ -21,10 +21,14 @@ examples:
 ## Supported
 
 - Shapes: rect, circle, ellipse, line, polyline, polygon, path.
-- Grouping with g and cascading presentation attributes; transform; use and
-  symbol; marker.
+- Grouping with g and a, cascading presentation attributes; transform; use and
+  symbol; marker; switch draws its first child without foreignObject.
 - Linear and radial gradients (with href inheritance), pattern, clipPath, and
-  mask.
+  mask. A paint may name a fallback color (url(#g) red). A gradient or pattern
+  in objectBoundingBox units is ignored on a shape with no width or no height,
+  such as a horizontal line, as in browsers: the fallback color is drawn, or
+  nothing. A reference to a missing id, to an element that is not a gradient or
+  pattern, or to another file draws the fallback color too, or nothing.
 - Filters: the fe* primitives blend, color matrix, component transfer,
   composite, convolve matrix, lighting, displacement map, drop shadow, flood,
   Gaussian blur, image, merge, morphology, offset, tile, and turbulence.
@@ -36,7 +40,9 @@ examples:
   (.vl.json), a Mermaid diagram (.mmd), or a page of a PDF, PPTX, or VSDX
   document (page 1 unless the href ends in #page=N). The format is decided by
   the file name. A model, chart, or diagram is drawn at the size of the image, a
-  raster at its own size and then fitted; a local file: URI and a
+  raster at its own size and then fitted; under a skew or a non-uniform scale
+  the picture is laid out in the image and then transformed with it, as in
+  browsers; a local file: URI and a
   percent-encoded path also work, and a nested SVG file finds its own images
   beside itself.
 - An embedded model is drawn with the view the library chooses for it (isometric
@@ -47,6 +53,10 @@ examples:
 - text, best effort, with weight and style: an installed family is used; the
   generic families and unknown families use the bundled Liberation Sans, Serif,
   and Mono.
+- tspan and a in text, as in browsers: a style per run, x, y, dx, and dy lists,
+  a new chunk at an absolute x or y, text-anchor per chunk, baseline-shift,
+  letter-spacing and word-spacing, and white space collapsed
+  (xml:space="preserve" keeps it).
 - The root viewBox and preserveAspectRatio (all aligns, meet and slice), and
   percent lengths.
 - CSS in a style element (type, class, id, universal, and compound selectors;
@@ -56,9 +66,10 @@ examples:
 
 ## Unsupported
 
-- These are silently not drawn, with no diagnostic: animation (animate and the
-  rest of SMIL), foreignObject, nested svg elements, and filter primitives the
-  library does not know.
+- Not drawn: animation (SMIL) and unknown filter primitives, silently;
+  foreignObject, nested svg, and textPath, as svg-text-not-drawn if they hold
+  text. The text features rotate, textLength, vertical or rtl writing, and
+  decoration are ignored (svg-text-unsupported).
 - A filter over its work budget is skipped: the element is drawn unfiltered.
 - Scripting, and image references the tool never follows: a network URL, a UNC
   path, and a file: URI with a host. Each is reported as svg-image-unresolved
@@ -87,6 +98,6 @@ examples:
   differ between machines; generic and unknown families use the bundled
   Liberation fonts. A character those lack (such as U+221D) is taken from the
   bundled Noto fonts; a character nothing covers draws the font's missing-glyph
-  box with no diagnostic, because SVG rendering reports nothing.
+  box and is reported as svg-text-unsupported.
 - The drawing is rendered sharply at the target size, not rasterized first and
   scaled afterwards.

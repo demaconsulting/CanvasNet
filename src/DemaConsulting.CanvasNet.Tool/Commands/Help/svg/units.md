@@ -38,7 +38,8 @@ see-also:
   deg, grad, rad, or turn (within 90deg either way). A font-family list splits
   only at commas outside quotes, so a quoted name can contain a comma, and a
   backslash before a newline joins the lines inside a quoted name but
-  invalidates an unquoted list. The first dx and dy of a text element move it.
+  invalidates an unquoted list. Every entry of the x, y, dx, and dy lists of a
+  text or tspan is a length in any unit (dy="0.71em" moves a line down).
 
 ## Known differences
 
@@ -73,7 +74,8 @@ see-also:
   used; an invalid font-size, line-height, or font shorthand is dropped, so the
   next lower source applies, else the size is inherited (a browser does the
   same).
-- Units are not converted for: letter-spacing, word-spacing, tspan positioning
-  (x, y, dx, and dy on a tspan), the lists of dx and dy beyond the first value
-  on a text element, textLength, baseline-shift, and nested svg elements (which
-  are not drawn, so their width, height, x, and y are never read).
+- letter-spacing and word-spacing take any length, em, and a percent of the
+  font size.
+- Units are not converted for: textLength (which is not supported and is
+  reported as svg-text-unsupported), and nested svg elements (which are not
+  drawn, so their width, height, x, and y are never read).

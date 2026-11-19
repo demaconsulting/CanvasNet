@@ -169,9 +169,10 @@ sections:
           - id: CanvasNet-Files-RaceFreeCheck
             title: >-
               The Files subsystem shall decide about the file that was opened, not about its name: the real path
-              it judges shall come from the open file itself and the bytes it returns shall be read from that same
-              open file, so a link swapped in or out of the directory tree after the open does not change the
-              decision or what is read.
+              it judges shall come from the open file itself (in the letter case stored on disk, confirmed to name
+              that open file, and compared exactly) and the bytes it returns shall be read from that same open
+              file, so a link swapped in or out of the directory tree after the open does not change the decision
+              or what is read.
             justification: |
               A check by name followed by an open by name can be raced by another process that changes the tree
               in between; deciding on the open file removes that window on every supported operating system.
@@ -180,6 +181,9 @@ sections:
               - CanvasNet-Files-RealPath-FinalPath
               - CanvasNet-Files-RealPath-CanonicalDirectory
               - CanvasNet-Files-RealPath-Comparison
+              - CanvasNet-Files-RealPath-ExactCase
+              - CanvasNet-Files-RealPath-Identity
+              - CanvasNet-Files-FileReferenceResolver-ExactCase
               - CanvasNet-Files-SandboxedFileResolver-RaceFree
             tests:
               - "windows@Files_RaceFreeCheck_SwapAfterOpen_DecisionFollowsTheOpenedFile"

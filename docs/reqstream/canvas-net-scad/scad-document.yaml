@@ -518,6 +518,23 @@ sections:
               - ScadDocument_Render_DefaultColorOption_IsHonored
               - ScadDocumentViewport_DefaultThreeDimensionalView_IsUnchangedAndReportedOnce
 
+          - id: CanvasNetScad-ScadDocument-FittedViewBounds
+            title: >-
+              The ScadDocument Render method shall fit an automatic view to the result of the model:
+              the first operand of a difference, the overlap of the operands of an intersection, and
+              every ghost and highlight, so that the geometry a difference removes or an intersection
+              cuts away does not count towards the framing.
+            justification: |
+              A cutter is often made much larger than the part so that it surely cuts through; if it
+              counted, the part would be drawn tiny in a picture framed for the cutter. Ghosts and
+              highlights are drawn, so they must stay in the picture.
+            tests:
+              - ScadDocument_Render_DifferenceWithHugeSubtrahend_FramesLikeATightSubtrahend
+              - ScadDocument_Render_Intersection_FramesLikeThePlainResult
+              - ScadViewport_ChooseCamera_DifferenceWithHugeSubtrahend_FramesTheMinuend
+              - ScadViewport_ChooseCamera_Intersection_FramesTheOverlap
+              - ScadViewport_ChooseCamera_HighlightedSubtrahend_StaysFramed
+
           - id: CanvasNetScad-ScadDocument-RenderOptions
             title: >-
               The ScadRenderOptions class shall be immutable with init-only properties Evaluation,

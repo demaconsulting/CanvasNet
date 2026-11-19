@@ -80,6 +80,14 @@ nothing is drawn at the last explicit point.
 Rasterizes a line with a filled triangle drawn by hand on its end, with `SvgLoadOptions.HintHandler` set. Asserts one
 `SvgHint` with the code `svg-arrowhead-shape` and a count of 1, and that the triangle is still drawn.
 
+### Integration: Unsupported Feature Handler Reports Text That Is Not Drawn
+
+**Test**: `CanvasNetSvg_SystemIntegration_UnsupportedFeatureHandler_ReportsTextThatIsNotDrawn`
+
+Rasterizes a document with a green square and a text on a `textPath`, with `SvgLoadOptions.UnsupportedFeatureHandler`
+set. Asserts one `SvgUnsupportedFeature` with the code `svg-text-not-drawn` and a count of 1, and that the square is
+still drawn.
+
 ### Integration: Svg Filter Rendering Applies Filter Chain To Shape
 
 **Test**: `CanvasNetSvg_SystemIntegration_SvgFilterRendering_AppliesFilterChainToShape`
@@ -171,6 +179,14 @@ Exercises end-to-end system behavior for text rendering: rasterizes a `text` ele
 caller-supplied font, through the public API. Asserts the glyph outline renders at the expected
 position, confirming `SvgCodec`'s text layout integrates correctly with the `CanvasNet` system's
 `Fonts`/`Drawing` units.
+
+### Integration: Tspan Runs Draw Styled And Positioned Text
+
+**Test**: `CanvasNetSvg_SystemIntegration_TspanRuns_DrawStyledAndPositionedText`
+
+Rasterizes a text with the square synthetic font whose second run is a red 40 px `tspan` and whose third run is a
+`tspan` with its own `x`/`y`. Asserts the black first glyph, the red 20 px square of the second right after it, the
+third glyph at its own position on the lower baseline, and nothing where a flat single run would have put a glyph.
 
 ### Integration: Svg Text Default Fonts Renders Text Without Registered Fonts
 
