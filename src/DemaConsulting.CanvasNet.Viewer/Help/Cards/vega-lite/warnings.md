@@ -12,11 +12,11 @@ see-also:
 ## Diagnostics
 
 - `svg-image-unresolved`: Warning: the url of an image mark cannot be drawn (the
-  file is missing, is remote, is of an unknown type, or embeds itself).
-  Reported once, with the reason; nothing is drawn. With --strict it fails with
+  file is missing, is remote, is of an unknown type, or embeds itself). Reported
+  once, with the reason; nothing is drawn. In strict mode it fails with
   unsupported-feature, naming the chart and the url. image-fragment-invalid and
   image-page-out-of-range (a #page= that no page matches) are reported and fail
-  with --strict the same way; svg-image-too-large is a picture beyond the pixel
+  in strict mode the same way; svg-image-too-large is a picture beyond the pixel
   budget, and a url the file-access mode denies is image-access-denied.
 - `vl-param-selection-projection`: Warning: a selection cannot be projected over
   a channel (the view has no field on it, or its field is aggregated), an
@@ -26,10 +26,10 @@ see-also:
   projects a channel without a continuous scale.
 - `vl-param-unknown`: Warning: the fragment of a link that embeds the chart
   (chart.vl.json#param.nope=1) sets a param the specification does not declare;
-  the chart is drawn without it. --param of the command line is a
-  vega-lite-error for the same mistake. --strict does not fail on it. A value
-  that is not usable (a JSON array that is cut short) is image-fragment-invalid
-  and the chart is not drawn.
+  the chart is drawn without it. The `Parameters` option is a vega-lite-error
+  for the same mistake (unless `WarnOnUnknownParameters` is set). Strict mode
+  does not fail on it. A value that is not usable (a JSON array that is cut
+  short) is image-fragment-invalid and the chart is not drawn.
 - `vl-param-extent-static`: Warning: an {"expr": ...} at a place that is fixed
   before the data is read (a title, a configuration value, an axis or legend
   property) reads the param that an extent transform computes; the param is null

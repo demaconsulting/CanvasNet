@@ -19,7 +19,7 @@ examples:
 
 Put the look in `config`, not in each encoding, so every chart of a document
 matches: copy the `config` of [[vega-lite/style#styled]]
-into each chart, render with `--scale 2`, and look at the PNG.
+into each chart, render it at twice its size, and look at the picture.
 
 ## Config that changes the picture
 
@@ -49,13 +49,13 @@ into each chart, render with `--scale 2`, and look at the PNG.
   adds space around everything (16 suits a figure).
 - Sort categories on purpose (`"sort": null` keeps the data order) and put the
   legend where the eye starts (`orient: "top"`).
-- Draw with `--scale 2`, or fit with `--width`; vectors are drawn at the
-  target size, so text stays sharp.
+- Draw at a scale of 2, or fit to a width; vectors are drawn at the target size,
+  so text stays sharp.
 
 ## Background
 
-- A chart is drawn over white. `"background": "transparent"` in the chart, or
-  `--background transparent`, keeps it clear.
+- A chart is drawn over white. `"background": "transparent"` in the chart, or a
+  transparent background of the render, keeps it clear.
 - Inside an SVG drawing a chart keeps its own background: write
   `"background": "transparent"` in the chart when the page has a color.
 - Text is drawn with the bundled Liberation fonts, so a chart looks the same on

@@ -31,8 +31,7 @@ see-also:
 A chart is laid out and drawn as one still picture; a defined subset of
 Vega-Lite 5 and 6.
 
-Write a normal Vega-Lite specification and render it with
-`canvasnet render chart.vl.json -o chart.png --json`, then look at the PNG.
+Write a normal Vega-Lite specification and render it, then look at the picture.
 Start with [[vega-lite/marks]] and
 [[vega-lite/encodings]];
 [[#bar]] prints a small chart to start

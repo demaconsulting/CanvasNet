@@ -11,13 +11,11 @@ see-also:
 
 ## Diagnostics
 
-- Without --strict an unsupported construct is left out and listed in
-  diagnostics[] of the JSON result as {source: scad, severity: unsupported,
-  code: <id>} (without --json, as an 'Unsupported: <id>: <message>' line on
-  standard error). With --strict the first one fails with unsupported-feature
-  and no file is written.
-- The output of echo() is in echo[] of the JSON result as 'ECHO: <text>' lines;
-  without --json it is written to standard error in the same form.
+- Without strict mode an unsupported construct is left out and reported as a
+  diagnostic (`ViewerImage.Diagnostics`) with the source scad, the severity
+  unsupported, and its code. In strict mode the first one fails with
+  unsupported-feature and nothing is drawn.
+- The output of echo() is kept as 'ECHO: <text>' lines (`ViewerImage.Echo`).
 - `scad-module-offset`: Also scad-module-surface, scad-module-import, and
   scad-module-roof: the module and its children are omitted.
 - `scad-projection-too-complex`: A projection needs more work than one
@@ -45,6 +43,6 @@ see-also:
 - `scad-error`: Error code: a syntax error, an evaluation error, or an include
   that cannot be read; the message names file, line, and column.
 - `budget-exceeded`: Error code: the model needs more triangles than
-  --max-triangles allows.
+  `MaxTriangles` allows.
 - See the OpenSCAD section of the Scad user guide for the complete list of
   identifiers.

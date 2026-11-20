@@ -1,4 +1,4 @@
-// A plate with a round hole and three callout anchors (see 'canvasnet help scad')
+// A plate with a round hole and three callout anchors (see the help card scad/anchors)
 difference() {
     cube([30, 20, 5]);
     translate([15, 10, -1]) cylinder(h = 7, r = 4, $fn = 48);

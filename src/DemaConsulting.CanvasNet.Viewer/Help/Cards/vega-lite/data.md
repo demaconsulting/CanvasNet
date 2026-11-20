@@ -17,8 +17,8 @@ see-also:
   none.
 - Data: inline values, a local url (JSON, CSV, TSV, or DSV, relative to the
   specification's folder, absolute, or a file: URI without a host), sequence,
-  and the datasets of the specification; --file-access decides which local files
-  may be read.
+  and the datasets of the specification; the file-access policy decides which
+  local files may be read.
 - Dates in UTC; text drawn with the bundled Liberation fonts, and a character
   they lack (such as the math sign U+221D) taken from the bundled Noto Sans,
   Noto Sans Math, or Noto Sans Symbols 2, per character; a character none covers
@@ -30,6 +30,6 @@ see-also:
 - A schema of version 5 is drawn with the version 6 defaults (a view is 300 by
   300 pixels by default, for example).
 - Dates are always UTC; nothing is read from the network; data files are read
-  relative to the specification's folder, under --file-access.
+  relative to the specification's folder, under the file-access policy.
 - Delimited text is not type-inferred (as in Vega): cells stay strings unless
   format.parse says otherwise.

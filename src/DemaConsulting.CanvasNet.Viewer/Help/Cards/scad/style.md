@@ -21,9 +21,9 @@ a translucent ghost.
 - `color("SteelBlue")`, `color("#2f6db3")`, or `color([0.2, 0.4, 0.7])` colors
   the children; an alpha below 1 (`color([0.5, 0.5, 0.5, 0.3])`) draws them
   translucent, which shows context parts without hiding the part in front.
-- `--default-color` colors every surface the model does not color (gray by
-  default): a soft color such as `"#9fb7d0"` reads better than gray in a
-  document, and `--default-color black` makes a flat 2D drawing crisp.
+- The default color (`ScadViewOptions.DefaultColor`) colors every surface the
+  model does not color (gray by default): a soft color such as `"#9fb7d0"` reads
+  better than gray in a document, and black makes a flat 2D drawing crisp.
 - Use one accent color for the feature the text talks about, and the default
   color for the rest.
 
@@ -32,15 +32,15 @@ a translucent ghost.
 - Round parts need enough facets in a close-up: set `$fn = 64` (or `$fa` and
   `$fs`) on curved shapes; a low value looks faceted.
 - `iso` (the default) shows three faces and suits most parts; `front` and `top`
-  suit a dimension drawing; `--azimuth`, `--elevation`, and
-  `--projection perspective` give a free view (see [[scad/views]]).
+  suit a dimension drawing; an azimuth, an elevation, and a perspective
+  projection give a free view (see [[scad/views]]).
 
 ## Size and background
 
-- `--size 1200x800` draws a large, sharp picture; the camera fits the model and
+- A size of 1200x800 draws a large, sharp picture; the camera fits the model and
   nothing is stretched (800x800 by default).
-- `--background transparent` keeps the picture clear for a page, a slide, or an
+- A transparent background keeps the picture clear for a page, a slide, or an
   SVG figure (a model linked from an SVG drawing is always transparent); a dark
-  `--background` needs light model colors.
+  background needs light model colors.
 - Pictures of several variants share one scale only with a fixed camera
-  (`-D '$vpd=300'`; see [[scad/composition]]).
+  ($vpd=300 in the definitions; see [[scad/composition]]).

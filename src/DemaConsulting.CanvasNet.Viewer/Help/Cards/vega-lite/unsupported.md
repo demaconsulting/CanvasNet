@@ -43,6 +43,6 @@ see-also:
   path, is never fetched; the chart is drawn with an empty dataset.
 - values given as text, the identity scale, and scale properties such as bins.
 - Vega (as opposed to Vega-Lite) specifications.
-- Anything injected from the command line other than the values of params
-  (--param): there is no option for datasets, configuration, a data folder, a
-  time zone, or fonts.
+- Anything injected by the host other than the values of params
+  (`ChartOptions.Parameters`): there is no option for datasets, configuration, a
+  data folder, a time zone, or fonts.

@@ -21,10 +21,9 @@ figure, or show its variants at one scale.
 1. Declare the points to label in the model:
    `echo("anchor", "hole-center", [15, 10, 5]);`
    ([[scad#anchors]] declares three).
-2. Render the picture you will show, with `--json`:
-   `canvasnet render part.scad --size 600x400 --background transparent
-   -o part.png --json`. Each entry of `anchors[]` gives the `pixel` [x, y] of a
-   point in `part.png`.
+2. Render the picture you will show (600x400 over a transparent background) and
+   save it as `part.png`: each of its anchors (`ViewerImage.Anchors`) gives the
+   pixel [x, y] of a point in `part.png`.
 3. Place `part.png` in an SVG drawing at its pixel size and draw each leader
    line from the anchor pixel plus the offset of the placement:
 
@@ -37,8 +36,8 @@ figure, or show its variants at one scale.
 </svg>
 ```
 
-- The pixels belong to that picture, its size, and its view. Steps such as
-  `--crop` and `--trim` move the anchors with the picture (see
+- The pixels belong to that picture, its size, and its view. Steps such as a
+  crop or a trim move the anchors with the picture (see
   [[scad/anchors]]).
 - Or link the model itself in an image of the same size and view: it is drawn
   with the same camera, so the same pixels plus the image `x` and `y` land on
@@ -54,6 +53,7 @@ figure, or show its variants at one scale.
 
 ## Variants side by side
 
-- Give each cell of a montage its own fragment, and fix the camera with
-  `-D '$vpd=...'` so every cell has the same scale; without it each cell is
-  fitted to its own geometry.
+- Give each picture of a contact sheet (`MontageBuilder` of the Imaging
+  namespace) its own fragment, and fix the camera with a definition of $vpd (in
+  `Defines`, or def.$vpd=... in each fragment) so every cell has the same scale;
+  without it each cell is fitted to its own geometry.

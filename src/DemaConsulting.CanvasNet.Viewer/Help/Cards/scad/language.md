@@ -32,7 +32,7 @@ examples:
 ---
 
 Write ordinary OpenSCAD. Everything in Supported is evaluated and drawn; a
-construct in Unsupported is left out and reported, or fails with `--strict`.
+construct in Unsupported is left out and reported, or fails in strict mode.
 
 ## Supported
 
@@ -50,20 +50,20 @@ construct in Unsupported is left out and reported, or fails with `--strict`.
   modules and extrusions use like any other. A model that is entirely 2D, for
   example a projection() drawing sheet, is drawn as a flat top-down view
   (orthographic) unless a view is chosen; its shapes are flat gray unless
-  colored. For a stronger drawing use --default-color black, or color the shape
-  in the model outside the projection (color("black") projection() ...; colors
-  inside projection() are dropped), and --background to choose the paper (white
-  by default, transparent keeps alpha).
+  colored. For a stronger drawing use a black default color (`DefaultColor`), or
+  color the shape in the model outside the projection (color("black")
+  projection() ...; colors inside projection() are dropped), and the background
+  of the render to choose the paper (transparent keeps alpha).
 - Modifiers: ! (show only), * (disable), # (highlight, a translucent copy), %
   (background, a translucent ghost).
 - The language: variables, functions, modules with children(), for, if, let,
   comprehensions, echo, assert, include and use, and the built-in functions.
 - Curve resolution from $fn, $fa, and $fs.
-- -D name=value overrides a variable of the model with a number, a boolean,
-  text, or a vector as a JSON array (-D "$vpt=[0,0,20]"); in an SVG link,
-  def.name=value in the fragment does the same, and so does the fragment of an
-  input path of the command line: canvasnet render "part.scad#def.width=20" -o
-  part.png (see [[svg]]).
+- A definition (`ScadViewOptions.Defines`) overrides a variable of the model
+  with a number, a boolean, text, or a vector ($vpt = [0, 0, 20]); in an SVG
+  link, def.name=value in the fragment does the same (def.$vpt=[0,0,20]), and so
+  does the fragment of an input path (part.scad#def.width=20; see
+  [[svg]]).
 - text() uses the bundled Liberation Sans unless the model names another font; a
   character the font lacks (such as U+221D) is taken from the bundled Noto
   fonts, and one that no font covers draws the missing-glyph box and gives one
@@ -79,7 +79,7 @@ construct in Unsupported is left out and reported, or fails with `--strict`.
 - hull with a difference or an intersection among its children, or with mixed 2D
   and 3D children.
 - multmatrix with a bottom row other than [0, 0, 0, 1].
-- Animation: one still picture per command; --time only sets $t. Run the command
-  once per view.
-- -D values that are expressions (a number, a boolean, text, or a vector of them
-  is accepted).
+- Animation: one still picture per render; the time (`ScadViewOptions.Time`)
+  only sets $t. Render once per view.
+- Definitions whose values are expressions (a number, a boolean, text, or a
+  vector of them is accepted).

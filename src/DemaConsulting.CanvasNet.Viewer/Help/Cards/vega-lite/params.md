@@ -18,11 +18,11 @@ see-also:
   view) in the state their value gives (none means empty): conditions with a
   param, a test that names one, and filters on one (the empty rule applies), and
   expressions that read the selection; the caller can replace the value of a
-  param (--param, or the param. fragment of an embedding link). A point
-  selection projects over fields or encodings, an interval over encodings, and
-  the tuples are matched as Vega does (an interval includes both ends). An
-  interval selection with a value draws its brush as Vega-Lite does (a shade
-  behind the marks and an outline in front, from select.mark and
+  param (`ChartOptions.Parameters`, or the param. fragment of an embedding
+  link). A point selection projects over fields or encodings, an interval over
+  encodings, and the tuples are matched as Vega does (an interval includes both
+  ends). An interval selection with a value draws its brush as Vega-Lite does (a
+  shade behind the marks and an outline in front, from select.mark and
   config.selection.interval.mark; one brush for a selection resolved globally,
   none in a facet); bind: scales sets the domain of the scales of a single view
   or of the layers of a top-level layered view (and is ignored in a concat,

@@ -12,10 +12,9 @@ see-also:
 ## Diagnostics
 
 - Identifiers have the form vl-<area>-<detail>, in lower case. An unsupported
-  construct is listed in diagnostics[] as {source: vega-lite, severity:
-  unsupported, code: <id>} (without --json, also as an
-  'Unsupported: <id>: <message>' line on standard error); the message gives
-  file, line, column, and JSON pointer. With --strict the first one fails with
+  construct is reported as a diagnostic (`ViewerImage.Diagnostics`) with the
+  source vega-lite, the severity unsupported, and its code; the message gives
+  file, line, column, and JSON pointer. In strict mode the first one fails with
   unsupported-feature.
 - `vl-mark-<type>`: A mark that is not drawn, for example vl-mark-geoshape; the
   view is drawn without marks.
