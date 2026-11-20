@@ -22,10 +22,10 @@ state diagram. The unit's behavior is specified by the
 - `DetectedDiagram(DiagramType, IsSupported, Keyword, Location)` - the public type name, whether this version draws
   it (whether it is in `SupportedTypes`), the construct it was recognized by (an `@start` tag or a statement's first
   word), and its location.
-- `SupportedTypes` - the drawn types (`sequence`, `activity`, `class`, `object`, `state`); `TagTypes` - the `@start`
-  tags other than `uml` with their types (`mindmap`, `gantt`, `wbs`, `json`, `yaml`, `salt`, `ditaa`, `dot`, `math`,
-  `latex`, `regex`, `ebnf`, `chen`, `files`, `chronology`, `board`, `creole`, `wire`, `nwdiag`, `chart`, `def`, `git`,
-  `project`, `flow`, `packetdiag`, `jcckit`).
+- `SupportedTypes` - the drawn types (`sequence`, `activity`, `class`, `object`, `state`, `component`); `TagTypes` - the
+  `@start` tags other than `uml` with their types (`mindmap`, `gantt`, `wbs`, `json`, `yaml`, `salt`, `ditaa`, `dot`,
+  `math`, `latex`, `regex`, `ebnf`, `chen`, `files`, `chronology`, `board`, `creole`, `wire`, `nwdiag`, `chart`, `def`,
+  `git`, `project`, `flow`, `packetdiag`, `jcckit`).
 - The keyword tables - the participant keywords and the keywords of the sequence diagram only, the keywords of the
   activity diagram only, the keywords both accept (titles, notes, styling, `else`, `end`, and an aligned header or
   footer such as `left header`), and the keywords of the
@@ -56,8 +56,11 @@ state diagram. The unit's behavior is specified by the
   (skipped as text by `ClassOuterStatements`), member lines `A : x`, packages, notes, hide and show, and links read by
   the `SvekSyntax` link reader whose ends are class names; the type is `object` when an object or a map is declared
   before any class, otherwise `class`. A text with `(*)` is then a legacy activity diagram; the description family
-  accepts its keywords, bracketed components, parenthesized use cases, and their links, and is a use case, component,
-  or deployment diagram by the first element that names one; the state family accepts states, `[*]`, and their links.
+  accepts its keywords, bracketed components, parenthesized use cases, interfaces written `() name`, and their links,
+  and is a use case diagram when any statement uses a use case construct (`actor`, `usecase`, `(name)`, `:name:`, or a
+  link to one), else a component diagram when any statement uses a component construct (`component`, `interface`,
+  ports, `[name]`, `() name`, or a link to one), else a deployment diagram; the state family accepts states, `[*]`, and
+  their links.
 - `IsClassOnlyLink(statement)` - a link that the sequence diagram reads but PlantUML's sequence diagram refuses (a
   dotted or doubled body, a direction word, a decoration the sequence diagram does not draw, or an end name with
   characters outside letters, digits, `_`, `.`, and `@`), so that the text falls through to the class family.

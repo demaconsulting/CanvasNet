@@ -36,9 +36,9 @@ places. The unit's behavior is specified by the `CanvasNetPlantUml-Svek-SvekRend
   decorations solid with their fills, the label after its direction triangle (PlantUML's `TextBlockArrow2`: a filled
   triangle of `(int)(0.8 × size)` in a square of the font size, its tip at the angle the layout gave, measured as
   PlantUML measures it from the y axis), and the end labels, every item with the link's id and location.
-- `ClusterImage(symbol, id, title, stereotypes, theme, text, sink, location, fill, line)` - measures the title (bold,
-  the style's size) and the stereotypes (`«name»`, italic 12) and builds the image in the `Package` style for a folder
-  and the `Container` style otherwise.
+- `ClusterImage(symbol, id, title, stereotypes, theme, text, sink, location, fill, line, stereotypeSize)` - measures
+  the title (bold, the style's size) and the stereotypes (`«name»`, italic of `stereotypeSize`: 12 by default, 14 in
+  description diagrams) and builds the image in the `Package` style for a folder and the `Container` style otherwise.
 - `SvekClusterImage.Draw(box)` - the outlines of PlantUML's `USymbol*` classes drawn "big": the folder with its tab as
   wide as the title plus 6 and as high as it plus 6, sloping 7 to the body, and the line under the tab, the title at
   (4, 2) (`USymbolFolder`); the rounded rectangle with a centered title at 2 below the stereotypes
@@ -67,5 +67,6 @@ Styling subsystem (`SkinTheme`, `SkinElement`, `ElementStyle`), the Scenegraph s
 
 #### Callers
 
-The diagram subsystems of the graph diagrams (the `ClassModel` unit of the Class subsystem and the
-`StateModel` unit of the State subsystem) and the tests.
+The diagram subsystems of the graph diagrams (the `ClassModel` unit of the Class subsystem, the `StateModel` unit of
+the State subsystem, and the `DescriptionModel` and `DescriptionRenderer` units of the Description subsystem) and the
+tests.

@@ -41,14 +41,16 @@ sections:
                 title: >-
                   The SvekRenderer unit shall draw a cluster with PlantUML's container symbols (the folder of a package
                   with its title tab, the rectangle, the frame, the node, the database, the cloud, and the card) and its
-                  title and stereotypes where PlantUML puts them, with the header band and padding each symbol needs,
-                  and shall draw nothing for a cluster without an outline.
+                  title and stereotypes (in italic of the size the diagram asks for: 12 by default, 14 in description
+                  diagrams) where PlantUML puts them, with the header band and padding each symbol needs, and shall
+                  draw nothing for a cluster without an outline.
                 justification: |
                   Packages and containers must look like PlantUML's and leave room for their titles.
                 tests:
                   - PlantUmlSvekRenderer_ClusterImage_Folder_MatchesPlantUml
                   - PlantUmlSvekRenderer_ClusterImage_EverySymbol_DrawsInsideItsBox
                   - PlantUmlSvekRenderer_ClusterImage_NoneAndCloud
+                  - PlantUmlSvekRenderer_ClusterImage_StereotypeSize_IsTheCallers
 
               - id: CanvasNetPlantUml-Svek-SvekRenderer-Notes
                 title: >-

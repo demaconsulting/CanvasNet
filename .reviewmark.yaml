@@ -5323,12 +5323,13 @@ reviews:
       - "test/DemaConsulting.CanvasNet.PlantUml.Tests/PlantUmlActivityIntegrationTests.cs"  # activity system tests
       - "test/DemaConsulting.CanvasNet.PlantUml.Tests/PlantUmlClassIntegrationTests.cs"  # class and object system tests
       - "test/DemaConsulting.CanvasNet.PlantUml.Tests/PlantUmlStateIntegrationTests.cs"  # state system tests
+      - "test/DemaConsulting.CanvasNet.PlantUml.Tests/PlantUmlDescriptionIntegrationTests.cs"  # component system tests
       - "test/DemaConsulting.CanvasNet.PlantUml.Tests/PlantUmlIncludeTests.cs"  # include and image source system tests
       - "test/DemaConsulting.CanvasNet.PlantUml.Tests/PlantUmlHardeningTests.cs"  # limits and mutation fuzzer
       - "test/DemaConsulting.CanvasNet.PlantUml.Tests/PlantUmlGalleryTests.cs"  # documentation gallery tests
       - "docs/user_guide/examples/plantuml-*.puml"                    # documentation gallery diagrams
       - "test/DemaConsulting.CanvasNet.PlantUml.Tests/PlantUmlReferenceLayoutTests.cs"  # reference layout tests
-      - "test/DemaConsulting.CanvasNet.PlantUml.Tests/PlantUmlReferenceShapeTests.cs"  # reference shape tests (graphs)
+      - "test/DemaConsulting.CanvasNet.PlantUml.Tests/PlantUmlReferenceShapeTests*.cs"  # reference shape tests (graphs)
       - "test/DemaConsulting.CanvasNet.PlantUml.Tests/Fixtures/**"     # original fixtures and reference goldens
       - "tools/visual-diff/update-plantuml-goldens.ps1"               # golden generator (developer tool)
       - "test/DemaConsulting.CanvasNet.PlantUml.Tests/PlantUmlTestHelpers.cs"  # shared test helpers
@@ -5926,6 +5927,65 @@ reviews:
       - "docs/sysml2/model/canvas-net-plant-uml/state/state-renderer.sysml"  # unit SysML2 model
       - "src/DemaConsulting.CanvasNet.PlantUml/State/StateRenderer.cs"  # unit source
       - "test/DemaConsulting.CanvasNet.PlantUml.Tests/State/StateRendererTests.cs"  # unit tests
+  # CanvasNetPlantUml-Description Review (one per subsystem)
+  - id: CanvasNetPlantUml-Description
+    title: Review that CanvasNetPlantUml Description Subsystem Implementation is Correct
+    context:
+      - "docs/design/canvas-net-plant-uml.md"
+      - "docs/reqstream/canvas-net-plant-uml.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-plant-uml/description.yaml"  # subsystem requirements
+      - "docs/design/canvas-net-plant-uml/description.md"  # subsystem design
+      - "docs/verification/canvas-net-plant-uml/description.md"  # subsystem verification
+      - "docs/sysml2/model/canvas-net-plant-uml/description.sysml"  # subsystem SysML2 model
+      - "src/DemaConsulting.CanvasNet.PlantUml/Description/NamespaceDoc.cs"  # namespace documentation
+      - "test/DemaConsulting.CanvasNet.PlantUml.Tests/Description/DescriptionTests.cs"  # subsystem tests
+      - "test/DemaConsulting.CanvasNet.PlantUml.Tests/Description/DescriptionTestHelpers.cs"  # shared test helpers
+  # CanvasNetPlantUml-Description-DescriptionParser Review (one per unit)
+  - id: CanvasNetPlantUml-Description-DescriptionParser
+    title: Review that CanvasNetPlantUml Description DescriptionParser Implementation is Correct
+    context:
+      - "docs/design/canvas-net-plant-uml.md"
+      - "docs/reqstream/canvas-net-plant-uml.yaml"
+      - "docs/design/canvas-net-plant-uml/description.md"
+      - "docs/reqstream/canvas-net-plant-uml/description.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-plant-uml/description/description-parser.yaml"  # unit requirements
+      - "docs/design/canvas-net-plant-uml/description/description-parser.md"  # unit design
+      - "docs/verification/canvas-net-plant-uml/description/description-parser.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-plant-uml/description/description-parser.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.PlantUml/Description/DescriptionParser*.cs"  # unit source (partial files)
+      - "test/DemaConsulting.CanvasNet.PlantUml.Tests/Description/DescriptionParserTests.cs"  # unit tests
+  # CanvasNetPlantUml-Description-DescriptionModel Review (one per unit)
+  - id: CanvasNetPlantUml-Description-DescriptionModel
+    title: Review that CanvasNetPlantUml Description DescriptionModel Implementation is Correct
+    context:
+      - "docs/design/canvas-net-plant-uml.md"
+      - "docs/reqstream/canvas-net-plant-uml.yaml"
+      - "docs/design/canvas-net-plant-uml/description.md"
+      - "docs/reqstream/canvas-net-plant-uml/description.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-plant-uml/description/description-model.yaml"  # unit requirements
+      - "docs/design/canvas-net-plant-uml/description/description-model.md"  # unit design
+      - "docs/verification/canvas-net-plant-uml/description/description-model.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-plant-uml/description/description-model.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.PlantUml/Description/DescriptionModel*.cs"  # unit source (partial files)
+      - "test/DemaConsulting.CanvasNet.PlantUml.Tests/Description/DescriptionModelTests.cs"  # unit tests
+  # CanvasNetPlantUml-Description-DescriptionRenderer Review (one per unit)
+  - id: CanvasNetPlantUml-Description-DescriptionRenderer
+    title: Review that CanvasNetPlantUml Description DescriptionRenderer Implementation is Correct
+    context:
+      - "docs/design/canvas-net-plant-uml.md"
+      - "docs/reqstream/canvas-net-plant-uml.yaml"
+      - "docs/design/canvas-net-plant-uml/description.md"
+      - "docs/reqstream/canvas-net-plant-uml/description.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-plant-uml/description/description-renderer.yaml"  # unit requirements
+      - "docs/design/canvas-net-plant-uml/description/description-renderer.md"  # unit design
+      - "docs/verification/canvas-net-plant-uml/description/description-renderer.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-plant-uml/description/description-renderer.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.PlantUml/Description/DescriptionRenderer*.cs"  # unit source (partial files)
+      - "test/DemaConsulting.CanvasNet.PlantUml.Tests/Description/DescriptionRendererTests.cs"  # unit tests
 
   # CanvasNetTool-Architecture Review (one per system)
   - id: CanvasNetTool-Architecture

@@ -1,0 +1,63 @@
+---
+# Software Unit Requirements for DescriptionRenderer
+#
+# These requirements describe the design-level behavior of the DescriptionRenderer unit of the Description subsystem
+# (internal namespace DemaConsulting.CanvasNet.PlantUml.Description): the images of the elements and containers. See
+# docs/verification/canvas-net-plant-uml/description/description-renderer.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetPlantUml Requirements
+    sections:
+      - title: Description Requirements
+        sections:
+          - title: DescriptionRenderer Requirements
+            requirements:
+              - id: CanvasNetPlantUml-Description-DescriptionRenderer-Components
+                title: >-
+                  The DescriptionRenderer unit shall draw a component as PlantUML's USymbolComponent2 draws it: a box
+                  with corners of 5 filled `#F1F1F1` and outlined `#181818` half a pixel wide, the texts 15 from the
+                  left and 20 from the top with margins of 25 and 10 on the other sides, the UML icon (a box of 15 by
+                  10 with two tabs of 4 by 2) at its top right, its stereotypes in italic centered over its name, and
+                  the colors of the declaration.
+                justification: |
+                  The component box is the most visible shape of a component diagram.
+                tests:
+                  - PlantUmlDescriptionRenderer_Image_Component_HasPlantUmlBoxAndIcon
+                  - PlantUmlDescriptionRenderer_Image_Stereotypes_AreCenteredOverTheName
+                  - PlantUmlDescriptionRenderer_Image_Colors_ReplaceTheTheme
+
+              - id: CanvasNetPlantUml-Description-DescriptionRenderer-Interfaces
+                title: >-
+                  The DescriptionRenderer unit shall draw an interface as a circle of radius 8 in a box of 18, its name
+                  8 below the box and its stereotypes 8 above it, centered, with the circle at the center of the image
+                  and the links ending on the circle's box.
+                justification: |
+                  PlantUML draws an interface as a lollipop circle with its name below it and lets the links reach the
+                  circle.
+                tests:
+                  - PlantUmlDescriptionRenderer_Image_Interface_IsACircleWithItsNameBelow
+
+              - id: CanvasNetPlantUml-Description-DescriptionRenderer-Symbols
+                title: >-
+                  The DescriptionRenderer unit shall draw the node, rectangle, folder, package, frame, cloud, database,
+                  and card symbols with the margins and outlines of PlantUML's USymbol classes (a package with its name
+                  in bold in its tab), and every other symbol as a rectangle with margins of 10.
+                justification: |
+                  A component diagram holds these symbols as leaves; their outlines are recognized by their shapes.
+                tests:
+                  - PlantUmlDescriptionRenderer_Image_Symbols_HavePlantUmlMargins
+                  - PlantUmlDescriptionRenderer_Image_FolderAndPackage_HaveTheirTab
+                  - PlantUmlDescriptionRenderer_Image_SymbolWithoutDrawing_IsARectangle
+
+              - id: CanvasNetPlantUml-Description-DescriptionRenderer-Containers
+                title: >-
+                  The DescriptionRenderer unit shall give a component container a rectangle cluster's header and
+                  padding, an outline one pixel wide without fill with the component icon, its stereotypes 13 from the
+                  top, and its bold title below them, and the other containers the Svek cluster symbols with
+                  stereotypes of 14, colored by the declaration or else by the skin parameters of their symbol.
+                justification: |
+                  Containers are drawn like PlantUML's large symbols around their members; PlantUML's style of a
+                  symbol colors its groups too.
+                tests:
+                  - PlantUmlDescriptionRenderer_ContainerImage_Component_HasIconAndTitle
+                  - PlantUmlDescriptionRenderer_ContainerImage_Symbols_UseClusterOutlines

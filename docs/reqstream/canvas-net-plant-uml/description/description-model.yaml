@@ -1,0 +1,47 @@
+---
+# Software Unit Requirements for DescriptionModel
+#
+# These requirements describe the design-level behavior of the DescriptionModel unit of the Description subsystem
+# (internal namespace DemaConsulting.CanvasNet.PlantUml.Description): the diagram with its elements, the facts, and the
+# lowering to the Svek engine. See docs/verification/canvas-net-plant-uml/description/description-model.md for the
+# test-evidence mapping.
+
+sections:
+  - title: CanvasNetPlantUml Requirements
+    sections:
+      - title: Description Requirements
+        sections:
+          - title: DescriptionModel Requirements
+            requirements:
+              - id: CanvasNetPlantUml-Description-DescriptionModel-Facts
+                title: >-
+                  The DescriptionModel unit shall count as nodes the leaf elements, as edges the links that do not
+                  touch a note (hidden links included), and as subgraphs the containers.
+                justification: |
+                  The facts are reported by the document, the tool, and the viewer and must mean the same in every
+                  diagram type.
+                tests:
+                  - PlantUmlDescriptionModel_Facts_CountLeavesLinksAndContainers
+
+              - id: CanvasNetPlantUml-Description-DescriptionModel-Lowering
+                title: >-
+                  The DescriptionModel unit shall lower the diagram for every call: every container to a cluster under
+                  its parent with its image, every leaf element to an entity with its image and cluster, the notes in
+                  text order, and the links (which may end at a container) with their settings, with ids of its own (of
+                  the notes without an alias and of the containers without a name) that never take the id of an
+                  element or a floating note.
+                justification: |
+                  The Svek engine lays out and draws what the model lowers; nothing may be lost on the way.
+                tests:
+                  - PlantUmlDescriptionModel_Lower_ContainersBecomeClusters
+                  - PlantUmlDescriptionModel_Lower_GeneratedIds_NeverCollide
+                  - PlantUmlDescriptionModel_Lower_ObservesCancellation
+
+              - id: CanvasNetPlantUml-Description-DescriptionModel-Layout
+                title: >-
+                  The DescriptionModel unit shall lay out a call as the Svek body decorated with the page texts with the
+                  spacing of PlantUML's graph diagrams, over the theme's background, at the diagram's own scale.
+                justification: |
+                  The picture must have PlantUML's page texts and size.
+                tests:
+                  - PlantUmlDescriptionModel_Layout_DrawsTheScene

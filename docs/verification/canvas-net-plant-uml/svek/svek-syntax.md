@@ -27,11 +27,14 @@ a code, or a location that differs from the expected literal constitutes a failu
 
 **Tests**: `SvekSyntaxTests.PlantUmlSvekSyntax_IdentifierEnds_QualifiedName_LongestFirst`,
 `SvekSyntaxTests.PlantUmlSvekSyntax_NameAliasStereotypesColor_AreRead`,
-`SvekSyntaxTests.PlantUmlSvekSyntax_TryReadLink_ShorthandEnds_AreRead`
+`SvekSyntaxTests.PlantUmlSvekSyntax_TryReadLink_ShorthandEnds_AreRead`,
+`SvekSyntaxTests.PlantUmlSvekSyntax_TryReadName_BusinessFormsAndQualifiers_AreRead`
 
 Asserts the ends of a qualified identifier at an index, longest first; asserts a plain and a quoted name, an alias,
 two stereotypes, and a color; asserts the shorthand ends `[Web]`, `(Login)`, `:User:`, `[*]`, `A[H]`, `[H*]`, and
-`B[H*]` with their kinds and texts.
+`B[H*]`, a second end in brackets before a label (`[Web] --> [Db] : sql`), and the interfaces `() HTTP` and
+`() "Message Queue"` with their kinds and texts; asserts the business forms `(Pay)/` and `:Clerk:/` (alone and as the
+ends of a link) and the qualifiers `[k]` and `[q]` of `A [k] --> [q] B`.
 
 ##### CanvasNetPlantUml-Svek-SvekSyntax-Arrows: The Arrow Grammar
 

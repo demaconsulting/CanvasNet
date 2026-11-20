@@ -54,6 +54,19 @@ sections:
                 tests:
                   - PlantUmlSkinTheme_Default_HasPlantUmlStateLook
 
+              - id: CanvasNetPlantUml-Styling-SkinTheme-DescriptionLook
+                title: >-
+                  The SkinTheme unit shall hold the values of PlantUML's default look for the elements of description
+                  diagrams (components, interfaces, nodes, rectangles, folders, frames, clouds, cards, and the other
+                  symbols): filled `#F1F1F1` and outlined `#181818` half a pixel wide with corners of 5 and text of 14
+                  pixels, and a description theme whose database is filled like them instead of like a sequence
+                  participant.
+                justification: |
+                  These are the values of PlantUML's componentDiagram element style, which a diagram without skin
+                  parameters must match.
+                tests:
+                  - PlantUmlSkinTheme_Description_HasPlantUmlComponentLook
+
               - id: CanvasNetPlantUml-Styling-SkinTheme-Immutable
                 title: >-
                   The SkinTheme unit shall change the style of an element by returning a new theme, leaving the

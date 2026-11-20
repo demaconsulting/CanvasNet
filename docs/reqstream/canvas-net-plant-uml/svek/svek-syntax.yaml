@@ -18,14 +18,16 @@ sections:
                 title: >-
                   The SvekSyntax unit shall read the names of PlantUML's graph diagrams: identifiers whose parts are
                   joined by a separator character or two colons, quoted names, the shorthands in parentheses,
-                  brackets, and colons, the pseudo-states [*], [H], and [H*] with an optional owner, aliases after as,
-                  stereotypes, and colors.
+                  brackets, and colons (with the slash of the business forms), interfaces written () name, the
+                  pseudo-states [*], [H], and [H*] with an optional owner, aliases after as, stereotypes, and colors,
+                  and shall read a name in brackets after an arrow as a qualifier only when a second end follows it.
                 justification: |
                   Every graph diagram names its elements this way, and a link names its ends with the same grammar.
                 tests:
                   - PlantUmlSvekSyntax_IdentifierEnds_QualifiedName_LongestFirst
                   - PlantUmlSvekSyntax_NameAliasStereotypesColor_AreRead
                   - PlantUmlSvekSyntax_TryReadLink_ShorthandEnds_AreRead
+                  - PlantUmlSvekSyntax_TryReadName_BusinessFormsAndQualifiers_AreRead
 
               - id: CanvasNetPlantUml-Svek-SvekSyntax-Arrows
                 title: >-

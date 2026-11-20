@@ -24,7 +24,9 @@ unit's behavior is specified by the `CanvasNetPlantUml-Styling-SkinTheme-*` requ
   diagram elements `Class` (a class box and its name), `ClassStereotype`, `ClassAttribute` (the members), and `Object`
   (an object or a map), and the state diagram elements `State` (a state box, a composite state, and its name),
   `StateAttribute` (the descriptions), `StateStart` and `StateEnd` (the start and end circles), and `StatePseudo`
-  (the choice diamond and the history circles).
+  (the choice diamond and the history circles), and the description diagram elements (`DescriptionElements`)
+  `Component`, `Interface`, `Node`, `Rectangle`, `Folder` (a folder or a package drawn as an element), `Frame`,
+  `Cloud`, `Card`, and `Description` (the other symbols).
 - `ElementStyle(FontFamily, FontSize, FontColor, Bold, Fill, Line, LineWidth, RoundCorner, Padding)` with `Italic` and
   `Dash` - a null fill or line draws none; `RoundCorner` is PlantUML's diameter (an SVG radius of half of it).
 - `SkinTheme` - the styles by element, `Background` (white; null for transparent), `Shadowing` (false),
@@ -44,7 +46,10 @@ unit's behavior is specified by the `CanvasNetPlantUml-Styling-SkinTheme-*` requ
   `#181818`, one pixel wide, both unfilled with corners of 5 and bold titles; classes and objects are `#F1F1F1`,
   outlined half a pixel wide with corners of 5, stereotypes italic 12, and members black 14; states are `#F1F1F1`,
   outlined half a pixel wide with corners of 25, with names and descriptions of 14; the start and end circles are
-  `#222222`, outlined one pixel wide; choices and histories are `#F1F1F1`, outlined half a pixel wide.
+  `#222222`, outlined one pixel wide; choices and histories are `#F1F1F1`, outlined half a pixel wide; the elements of
+  description diagrams are `#F1F1F1`, outlined half a pixel wide with corners of 5 and text of 14 (PlantUML's
+  `componentDiagram` element style). `Description` is the default look of description diagrams: `Default` with the
+  database (an element shared with sequence diagrams) filled `#F1F1F1` without padding.
 
 #### Key Methods
 

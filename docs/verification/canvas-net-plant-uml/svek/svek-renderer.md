@@ -47,13 +47,15 @@ end labels, in the font of the link labels.
 
 **Tests**: `SvekRendererTests.PlantUmlSvekRenderer_ClusterImage_Folder_MatchesPlantUml`,
 `SvekRendererTests.PlantUmlSvekRenderer_ClusterImage_EverySymbol_DrawsInsideItsBox`,
-`SvekRendererTests.PlantUmlSvekRenderer_ClusterImage_NoneAndCloud`
+`SvekRendererTests.PlantUmlSvekRenderer_ClusterImage_NoneAndCloud`,
+`SvekRendererTests.PlantUmlSvekRenderer_ClusterImage_StereotypeSize_IsTheCallers`
 
 Asserts the header band of a package's title, its tab as wide as the title plus 6 with its slope of 7, the line under
 the tab, and the bold title 4 from the left against PlantUML's picture; asserts that the rectangle, frame, node,
 database, cloud, and card draw their outlines inside their boxes with their titles, and the padding and extra header of
 the node and the database; asserts that a symbol of `None` draws nothing and reserves no space and that a cloud is the
-same for the same box.
+same for the same box; asserts italic stereotypes of 12 by default and of 14 when the caller asks for it, with a taller
+header.
 
 ##### CanvasNetPlantUml-Svek-SvekRenderer-Notes: Notes And Pointers
 

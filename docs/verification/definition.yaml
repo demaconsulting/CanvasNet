@@ -274,6 +274,10 @@ input-files:
   - docs/verification/canvas-net-plant-uml/state/state-parser.md
   - docs/verification/canvas-net-plant-uml/state/state-model.md
   - docs/verification/canvas-net-plant-uml/state/state-renderer.md
+  - docs/verification/canvas-net-plant-uml/description.md
+  - docs/verification/canvas-net-plant-uml/description/description-parser.md
+  - docs/verification/canvas-net-plant-uml/description/description-model.md
+  - docs/verification/canvas-net-plant-uml/description/description-renderer.md
   - docs/verification/canvas-net-viewer.md
   - docs/verification/canvas-net-viewer/canvas-net-viewer.md
   - docs/verification/canvas-net-viewer/viewer-exception.md

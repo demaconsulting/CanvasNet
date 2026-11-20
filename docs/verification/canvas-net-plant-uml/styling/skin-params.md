@@ -56,6 +56,15 @@ color that is not a color to a graph diagram and asserts the state fill, line, a
 start and end circles filled and outlined in their colors, and one report for the bad color; applies them to a sequence
 diagram and asserts seven `plantuml-skinparam-ignored` reports.
 
+##### CanvasNetPlantUml-Styling-SkinParams-DescriptionSubset: The Symbol Parameters In Description Diagrams Only
+
+**Tests**: `SkinParamsTests.PlantUmlSkinParams_Apply_DescriptionSubset_OnlyInDescriptionDiagrams`
+
+Asserts the fill and border of `component`, the fill of `interface`, the font color of `node`, the border width of
+`rectangle`, the fill of `folder`, the font size of `frame`, the border of `cloud`, the fill of `card` and `database`,
+and the border of `package` (a graph prefix) applied in a description diagram without a report; asserts that a class
+diagram reports the nine description symbol parameters as ignored.
+
 ##### CanvasNetPlantUml-Styling-SkinParams-Colors: PlantUML's Color Forms
 
 **Tests**: `SkinParamsTests.PlantUmlSkinParams_TryParseColor_ReadsPlantUmlForms`

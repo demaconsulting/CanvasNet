@@ -228,6 +228,27 @@ public class SvekRendererTests
     }
 
     /// <summary>
+    ///     Validates that the stereotypes of a cluster are italic of the size the caller asks for (12 by default, 14 in
+    ///     description diagrams), which also sets the height of the header.
+    /// </summary>
+    [Fact]
+    public void PlantUmlSvekRenderer_ClusterImage_StereotypeSize_IsTheCallers()
+    {
+        // Arrange
+        var small = SvekRenderer.ClusterImage(ClusterSymbol.Rectangle, "R", "Title", ["s"], SkinTheme.Default, Text, null, default);
+        var large = SvekRenderer.ClusterImage(ClusterSymbol.Rectangle, "R", "Title", ["s"], SkinTheme.Default, Text, null, default, stereotypeSize: 14);
+
+        // Act
+        var smallStereo = small.Draw(new SceneRect(0, 0, 100, 100)).OfType<SceneText>().Single(t => t.Role == "cluster-stereotype");
+        var largeStereo = large.Draw(new SceneRect(0, 0, 100, 100)).OfType<SceneText>().Single(t => t.Role == "cluster-stereotype");
+
+        // Assert
+        Assert.Equal((12.0, true), (smallStereo.Runs[0].Font.Size, smallStereo.Runs[0].Font.Italic));
+        Assert.Equal((14.0, true), (largeStereo.Runs[0].Font.Size, largeStereo.Runs[0].Font.Italic));
+        Assert.True(large.HeaderHeight > small.HeaderHeight);
+    }
+
+    /// <summary>
     ///     Validates the notes: the folded corner, the text 6 from the left and 5 from the top, and the pointer from each
     ///     side touching its tip.
     /// </summary>

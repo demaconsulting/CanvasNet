@@ -56,6 +56,7 @@ sections:
           - CanvasNetPlantUml_Activity_SyntaxError_IsLocated
           - CanvasNetPlantUml_Class_SyntaxErrors_AreLocated
           - CanvasNetPlantUml_State_SyntaxErrors_AreLocated
+          - CanvasNetPlantUml_Component_SyntaxErrors_AreLocated
 
       - id: CanvasNetPlantUml-DiagramTypes
         title: >-
@@ -71,6 +72,7 @@ sections:
           - CanvasNetPlantUml-PlantUmlDocument-Metadata
         tests:
           - CanvasNetPlantUml_OtherDiagramTypes_AreRecognized
+          - PlantUmlDiagramDetector_Detect_ComponentDiagram_IsDrawn
 
       - id: CanvasNetPlantUml-Preprocessor
         title: >-
@@ -125,6 +127,7 @@ sections:
           - CanvasNetPlantUml-Svek-Limits
           - CanvasNetPlantUml-Class-Limits
           - CanvasNetPlantUml-State-Limits
+          - CanvasNetPlantUml-Description-Limits
         tests:
           - CanvasNetPlantUml_Limits_OversizedText_IsRefused
           - CanvasNetPlantUml_Sequence_LayoutWorkLimit_Fails
@@ -135,6 +138,7 @@ sections:
           - CanvasNetPlantUml_Hardening_LargeDiagramsWithinTheLimits_Render
           - CanvasNetPlantUml_Hardening_DenseClassGraph_LayoutWorkIsBounded
           - CanvasNetPlantUml_Hardening_DenseStateGraph_LayoutWorkIsBounded
+          - CanvasNetPlantUml_Hardening_DenseComponentGraph_LayoutWorkIsBounded
           - CanvasNetPlantUml_Hardening_MutatedFixtures_ThrowOnlyDocumentedExceptions
 
       - id: CanvasNetPlantUml-Render
@@ -156,6 +160,7 @@ sections:
           - CanvasNetPlantUml_UnsupportedType_MeasureReportsAsRender
           - CanvasNetPlantUml_Class_Render_ObservesCancellation
           - CanvasNetPlantUml_State_Render_ObservesCancellation
+          - CanvasNetPlantUml_Component_Render_ObservesCancellation
 
       - id: CanvasNetPlantUml-Sequence
         title: >-
@@ -264,6 +269,38 @@ sections:
           - CanvasNetPlantUml_State_Facts_CountStatesTransitionsAndComposites
           - CanvasNetPlantUml_State_ConcurrentRegions_DrawDashedSeparators
 
+      - id: CanvasNetPlantUml-Component
+        title: >-
+          The library shall draw PlantUML component diagrams (components, interfaces, and the other symbols of the
+          description diagrams with display names, stereotypes, colors, and multi-line descriptions; containers of
+          every container symbol, nested; links with their decorations (the sockets of required and provided
+          interfaces included), styles, lengths, direction hints, and labels; notes; page texts; the direction; and
+          the supported skin parameters) with PlantUML's shapes, texts, colors, and decorations, laid out in ranks so
+          that no two elements overlap, so that every element, container, and link of the reference fixtures has the
+          size, texts, colors, and decorations of PlantUML's (positions may differ), and shall count leaf elements as
+          nodes, links as edges, and containers as subgraphs.
+        tags: [system]
+        justification: |
+          Component diagrams document the structure of software; PlantUML lays them out with Graphviz, which this
+          library does not use, so the components, interfaces, and containers must look like PlantUML's while the
+          layered layout places them.
+        children:
+          - CanvasNetPlantUml-Description-Reading
+          - CanvasNetPlantUml-Description-Layout
+          - CanvasNetPlantUml-Description-Drawing
+          - CanvasNetPlantUml-Svek-Reading
+          - CanvasNetPlantUml-Svek-Layout
+          - CanvasNetPlantUml-Svek-Drawing
+          - CanvasNetPlantUml-Syntax-Detection
+        tests:
+          - CanvasNetPlantUml_Graph_ReferenceGoldens_CoverEveryFixture
+          - CanvasNetPlantUml_Description_ReferenceElements_MatchPlantUml
+          - CanvasNetPlantUml_Description_ReferenceContainers_MatchPlantUml
+          - CanvasNetPlantUml_Description_ReferenceLinks_MatchPlantUml
+          - CanvasNetPlantUml_Component_Fixtures_RenderWithoutReports
+          - CanvasNetPlantUml_Component_Facts_CountElementsLinksAndContainers
+          - CanvasNetPlantUml_Component_Names_ResolveAsPlantUml
+
       - id: CanvasNetPlantUml-UnsupportedTypes
         title: >-
           The library shall render a recognized diagram type that this version does not draw as an empty, transparent
@@ -291,12 +328,14 @@ sections:
           - CanvasNetPlantUml-Activity-ActivityParser-Unsupported
           - CanvasNetPlantUml-Class-ClassParser-Unsupported
           - CanvasNetPlantUml-State-StateParser-Unsupported
+          - CanvasNetPlantUml-Description-DescriptionParser-Unsupported
         tests:
           - CanvasNetPlantUml_UnsupportedType_StrictThrows
           - CanvasNetPlantUml_Sequence_UnsupportedStatements_AreReported
           - CanvasNetPlantUml_Activity_UnsupportedStatements_AreReported
           - CanvasNetPlantUml_Class_UnsupportedStatements_AreReported
           - CanvasNetPlantUml_State_UnsupportedStatements_AreReported
+          - CanvasNetPlantUml_Component_UnsupportedStatements_AreReported
 
       - id: CanvasNetPlantUml-DefaultLook
         title: >-
@@ -319,6 +358,8 @@ sections:
           - CanvasNetPlantUml_Class_Render_IsDeterministicAndScaled
           - CanvasNetPlantUml_State_DefaultSkin_PaintsPlantUmlColors
           - CanvasNetPlantUml_State_Render_IsDeterministicAndScaled
+          - CanvasNetPlantUml_Component_DefaultSkin_PaintsPlantUmlColors
+          - CanvasNetPlantUml_Component_Render_IsDeterministicAndScaled
           - CanvasNetPlantUml_Gallery_HoldsEveryDrawnDiagramType
           - CanvasNetPlantUml_Gallery_RendersStrictWithoutWarnings
 

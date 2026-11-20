@@ -15,7 +15,8 @@ state, and description parsers read them alike and as PlantUML does. The unit's 
 #### Data Model
 
 The unit holds no state. It returns `SvekName(Text, Kind)` (`Plain`, `Quoted`, `Parenthesized`, `Bracketed`, `Colon`,
-`Star`, `History`, `DeepHistory`), `SvekArrow` (`TailDecor`, `HeadDecor`, `Length`, `Direction`, `Dotted`, `Doubled`,
+`Star`, `History`, `DeepHistory`, `Interface`; `Business` is set for a name in parentheses or colons followed by a
+slash), `SvekArrow` (`TailDecor`, `HeadDecor`, `Length`, `Direction`, `Dotted`, `Doubled`,
 `Text`, and from the brackets `Style`, `Thickness`, `Color`, `NoRank`, the unchecked `StyleText`, and the `Middle`
 decoration), `SvekLinkStatement` (the ends, the arrow, the end labels, roles, and qualifiers, the label and its mark,
 the color, the stereotypes, the weight, and whether a URL is written), `SvekNoteStatement` (the text, the side, the
@@ -25,7 +26,8 @@ target or `OnLink`, the alias, the fill), and `SvekHideShow(Show, What, Location
 
 - `IdentifierEnds(text, start)` and `NameEnds(text, start)` - the identifiers (`sep? letters (sep letters)*`, the
   separator being any character that is not a letter, digit, white space, quote, or one of `_ $ # : { } < >`, or `::`)
-  and names that start at an index, longest first.
+  and names that start at an index, longest first; `() name` and `() "Long name"` are interfaces, and `(x)/` and
+  `:x:/` are the business forms (offered before the forms without the slash).
 - `TryReadName`, `TryReadAlias`, `ReadStereotypes`, `ReadColor` - one name, `as Alias`, `<<a>> <<b>>`, `#color`.
 - `TryReadArrow(text, start, ...)` - PlantUML's arrow grammar: a decoration of PlantUML's `decors1` table (longest
   first, with word boundaries around an `o`), a body of `-`, `.`, `=`, an optional style in brackets, a direction word
@@ -33,8 +35,9 @@ target or `OnLink`, the alias, the fill), and `SvekHideShow(Show, What, Location
   and a decoration of `decors2`. Left and right make the length 1; up and down make it at least 2.
 - `TryReadLink(statement, ...)` - `[@weight] end1 [[q]] ["label"] [/role] arrow ["label"] [/role] [[q]] end2 [#color]
   [[[url]]] [<<stereotype>>] [: label]`: the ends, the decorations, and the direction words are tried from the longest
-  as PlantUML's regular expression backtracks (so `A-B` is a link of length 1); once the statement matches, the style
-  in brackets and the color are checked and the label is split (`SplitLabel`: quoted end labels around it when the
+  as PlantUML's regular expression backtracks (so `A-B` is a link of length 1; a name in brackets after the arrow is a
+  qualifier only when a second end follows it, so `[A] --> [B]` links two components); once the statement matches, the
+  style in brackets and the color are checked and the label is split (`SplitLabel`: quoted end labels around it when the
   arrow has none, a `>` or `<` mark at its end or start).
 - `TryReadNote(statements, ref index, ...)` - `note left|right|top|bottom [of Name] [#color] [: text]`,
   `note [side] on link [#color] [: text]`, `note "text" as N [#color]`, and `note as N` with a block up to `end note`.
@@ -63,6 +66,6 @@ The Syntax subsystem (`SourceStatement`, `DiagramDetector.IsCloser`), the Stylin
 
 #### Callers
 
-The parsers of the graph diagrams (the `ClassParser` unit of the Class subsystem and
-the `StateParser` unit of the State subsystem), the `DiagramDetector` unit (the graph
+The parsers of the graph diagrams (the `ClassParser` unit of the Class subsystem, the `StateParser` unit of the State
+subsystem, and the `DescriptionParser` unit of the Description subsystem), the `DiagramDetector` unit (the graph
 families), and the tests.

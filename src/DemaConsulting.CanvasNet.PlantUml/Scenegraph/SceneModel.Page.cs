@@ -59,7 +59,8 @@ internal sealed record PageMetrics(double Inset, double BodyTrim, double LegendW
     public static PageMetrics Activity { get; } = new(5, 5, 55);
 
     /// <summary>
-    ///     Gets the spacing of a diagram that PlantUML lays out with Graphviz (class, object, and state diagrams): the header is
+    ///     Gets the spacing of a diagram that PlantUML lays out with Graphviz (class, object, state, and description
+    ///     diagrams): the header is
     ///     at the very top, the title 10 below the header, the centered texts are centered 6 left of the middle of the
     ///     page (the body ends with a wider margin on the right), and the legend follows the body 6 below it (measured
     ///     from the pictures the jar draws).

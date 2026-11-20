@@ -1,0 +1,124 @@
+---
+# Software Unit Requirements for DescriptionParser
+#
+# These requirements describe the design-level behavior of the DescriptionParser unit of the Description subsystem
+# (internal namespace DemaConsulting.CanvasNet.PlantUml.Description): the reader of the statements of a description
+# diagram. See docs/verification/canvas-net-plant-uml/description/description-parser.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetPlantUml Requirements
+    sections:
+      - title: Description Requirements
+        sections:
+          - title: DescriptionParser Requirements
+            requirements:
+              - id: CanvasNetPlantUml-Description-DescriptionParser-Declarations
+                title: >-
+                  The DescriptionParser unit shall read a declaration with a symbol keyword or without one ([C], () I,
+                  (U), (U)/, :A:, :A:/, or a name with as), where the shape of a name overrides the keyword, with the
+                  display forms "Display" as Code, Display as Code, and Code as "Display", stereotypes before and after
+                  as, colors (`#back`, `#back;line:color;text:color`, `##line`), and a multi-line description in
+                  brackets or quotes that replaces the name.
+                justification: |
+                  These are the ways PlantUML authors declare description elements; the shape of a name chooses its
+                  symbol in PlantUML.
+                tests:
+                  - PlantUmlDescriptionParser_Parse_Declarations_ReadNamesAndDisplays
+                  - PlantUmlDescriptionParser_Parse_Shorthands_GiveTheirSymbols
+                  - PlantUmlDescriptionParser_Parse_MultilineDescriptions_ReplaceTheName
+                  - PlantUmlDescriptionParser_Parse_StereotypesAndColors_AreRead
+
+              - id: CanvasNetPlantUml-Description-DescriptionParser-Containers
+                title: >-
+                  The DescriptionParser unit shall read a container (an element of a container symbol declared with a
+                  block, anonymous or named, opened again by a later declaration of the same symbol), nested, and give
+                  its members the container's id as a prefix.
+                justification: |
+                  Containers structure a component or deployment diagram; the ids are PlantUML's qualified names, by
+                  which a drawing is compared with PlantUML's picture.
+                tests:
+                  - PlantUmlDescriptionParser_Parse_Containers_NestAndQualify
+
+              - id: CanvasNetPlantUml-Description-DescriptionParser-Names
+                title: >-
+                  The DescriptionParser unit shall resolve a name of a link or a note in the current container, in the
+                  containers around it, or by the name only one element was created with, create an element in the
+                  current container with the symbol of its shape otherwise, and give a name only written in links the
+                  symbol of an actor when the diagram has a use case or an actor, else of an interface.
+                justification: |
+                  A link must reach the element the author means; PlantUML gives the names of links their symbol when
+                  the diagram is complete.
+                tests:
+                  - PlantUmlDescriptionParser_Parse_Names_ResolveInScope
+                  - PlantUmlDescriptionParser_Parse_BareNames_BecomeInterfacesOrActors
+
+              - id: CanvasNetPlantUml-Description-DescriptionParser-Links
+                title: >-
+                  The DescriptionParser unit shall read a link with its decorations at both ends (the sockets of
+                  required and provided interfaces included), its length, direction hint, style in brackets, a body of
+                  dots as dashed and of equal signs as bold, its color, its end labels, and its label with its
+                  direction mark.
+                justification: |
+                  The arrow decides the ranks and the look of a link.
+                tests:
+                  - PlantUmlDescriptionParser_Parse_Links_ReadTheirArrows
+
+              - id: CanvasNetPlantUml-Description-DescriptionParser-Notes
+                title: >-
+                  The DescriptionParser unit shall attach a note to a side of an element, to the last link, or to the
+                  last element, keep a floating note with its alias that links may connect, and draw a note on a
+                  container as a floating note in it, reported.
+                justification: |
+                  Notes explain elements and links; the engine attaches notes to leaf elements only.
+                tests:
+                  - PlantUmlDescriptionParser_Parse_Notes_AreAttached
+
+              - id: CanvasNetPlantUml-Description-DescriptionParser-Common
+                title: >-
+                  The DescriptionParser unit shall read the page texts, the direction, the scale, the layout skin
+                  parameters, and the skin parameters of the description symbols.
+                justification: |
+                  These statements change the look and the layout of the diagram.
+                tests:
+                  - PlantUmlDescriptionParser_Parse_CommonStatements_AreRead
+
+              - id: CanvasNetPlantUml-Description-DescriptionParser-Unsupported
+                title: >-
+                  The DescriptionParser unit shall report as plantuml-statement-unsupported, at their lines, ports and
+                  the links that end at them (left out), middle decorations, roles, qualifiers, and stereotypes of
+                  links, together groups, hide, show, remove, and restore, archimate elements and the symbols without
+                  their own drawing (drawn as rectangles), json and map blocks, URLs, and notes on containers.
+                justification: |
+                  What is read but not drawn must be said, so that strict mode can refuse it.
+                tests:
+                  - PlantUmlDescriptionParser_Parse_UnsupportedParts_AreReported
+                  - PlantUmlDescriptionParser_Parse_Notes_AreAttached
+
+              - id: CanvasNetPlantUml-Description-DescriptionParser-Errors
+                title: >-
+                  The DescriptionParser unit shall refuse with a located plantuml-syntax-error and a hint a declaration
+                  that changes the symbol of an element (also after a link named it), an unclosed container or
+                  multi-line description, a closer without a container, a port outside a container, a statement of a
+                  class or state diagram, a pseudo-state of a state diagram, a description after a colon or in
+                  brackets on one line, a bad color, a container of a symbol that cannot hold elements, a short name of
+                  elements in several containers, a note alias that names an element, and a statement no description
+                  diagram has.
+                justification: |
+                  A malformed diagram must fail where the author can fix it. PlantUML refuses a redeclaration with
+                  another symbol ("This element is already defined"), a port at the top, a description after a colon,
+                  a one-line description in brackets, and statements of other diagrams without allowmixing; CanvasNet
+                  also refuses an unclosed container, a stray closer, an ambiguous short name, and an element that a
+                  later container declaration would replace, where PlantUML draws a picture that does not show what
+                  was written (safe, documented deviations).
+                tests:
+                  - PlantUmlDescriptionParser_Parse_Errors_AreLocated
+
+              - id: CanvasNetPlantUml-Description-DescriptionParser-Limits
+                title: >-
+                  The DescriptionParser unit shall fail with a located plantuml-limit-exceeded error that names the
+                  limit at the statement that creates one element, note, or port more than MaxNodes, one link more
+                  than MaxEdges, a text longer than MaxLabelLength, or a container deeper than MaxNestingDepth.
+                justification: |
+                  The limits bound the work of untrusted text before the layout.
+                tests:
+                  - PlantUmlDescriptionParser_Limits_FailClosedAtTheLine
