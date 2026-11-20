@@ -179,6 +179,51 @@ public class SkinParamsTests
     }
 
     /// <summary>
+    ///     Validates the description subset: the prefixes of the description symbols (component, interface, node,
+    ///     rectangle, folder, frame, cloud, card) style their elements in a description diagram, a graph prefix of the same
+    ///     diagram still applies, and a class diagram reports the description prefixes as ignored.
+    /// </summary>
+    [Fact]
+    public void PlantUmlSkinParams_Apply_DescriptionSubset_OnlyInDescriptionDiagrams()
+    {
+        // Arrange
+        var entries = new List<SkinParamEntry>
+        {
+            new("componentBackgroundColor", "#DDEEFF", default),
+            new("componentBorderColor", "#336699", default),
+            new("interfaceBackgroundColor", "#FFFFCC", default),
+            new("nodeFontColor", "blue", default),
+            new("rectangleBorderThickness", "2", default),
+            new("folderBackgroundColor", "#EEEEEE", default),
+            new("frameFontSize", "12", default),
+            new("cloudBorderColor", "red", default),
+            new("cardBackgroundColor", "white", default),
+            new("databaseBackgroundColor", "#ABCDEF", default),
+            new("packageBorderColor", "green", default),
+        };
+        var descriptionReports = new List<DemaConsulting.CanvasNet.PlantUml.PlantUmlPendingReport>();
+        var classReports = new List<DemaConsulting.CanvasNet.PlantUml.PlantUmlPendingReport>();
+
+        // Act
+        var description = SkinParams.Apply(SkinTheme.Description, entries, descriptionReports, graph: true, description: true);
+        SkinParams.Apply(SkinTheme.Default, entries, classReports, graph: true);
+
+        // Assert
+        Assert.Equal((new Rgba32(0xDD, 0xEE, 0xFF, 255), new Rgba32(0x33, 0x66, 0x99, 255)), (description[SkinElement.Component].Fill!.Value, description[SkinElement.Component].Line!.Value));
+        Assert.Equal(new Rgba32(0xFF, 0xFF, 0xCC, 255), description[SkinElement.Interface].Fill);
+        Assert.Equal(new Rgba32(0, 0, 0xFF, 255), description[SkinElement.Node].FontColor);
+        Assert.Equal(2, description[SkinElement.Rectangle].LineWidth);
+        Assert.Equal(new Rgba32(0xEE, 0xEE, 0xEE, 255), description[SkinElement.Folder].Fill);
+        Assert.Equal(12, description[SkinElement.Frame].FontSize);
+        Assert.Equal(new Rgba32(0xFF, 0, 0, 255), description[SkinElement.Cloud].Line);
+        Assert.Equal(SkinTheme.White, description[SkinElement.Card].Fill);
+        Assert.Equal(new Rgba32(0xAB, 0xCD, 0xEF, 255), description[SkinElement.Database].Fill);
+        Assert.Equal(new Rgba32(0, 0x80, 0, 255), description[SkinElement.Package].Line);
+        Assert.Empty(descriptionReports);
+        Assert.Equal(9, classReports.Count);
+    }
+
+    /// <summary>
     ///     Validates the state subset of the graph diagrams: the state and state attribute prefixes, and the start and
     ///     end colors (one color for the fill and the line); a sequence diagram reports them as ignored.
     /// </summary>

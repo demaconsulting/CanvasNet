@@ -112,6 +112,28 @@ public class SkinThemeTests
     }
 
     /// <summary>
+    ///     Validates the default look of description diagrams (PlantUML's componentDiagram elements): light grey
+    ///     elements outlined `#181818` half a pixel wide with corners of 5 and text of 14, and a database filled like
+    ///     them instead of like a sequence participant.
+    /// </summary>
+    [Fact]
+    public void PlantUmlSkinTheme_Description_HasPlantUmlComponentLook()
+    {
+        // Arrange
+        var theme = SkinTheme.Description;
+
+        // Act / Assert
+        Assert.Equal(9, SkinTheme.DescriptionElements.Count);
+        foreach (var element in SkinTheme.DescriptionElements)
+        {
+            Assert.Equal((SkinTheme.CommonBackground, SkinTheme.LineColor, 0.5, 5.0, 14.0), (theme[element].Fill!.Value, theme[element].Line!.Value, theme[element].LineWidth, theme[element].RoundCorner, theme[element].FontSize));
+        }
+
+        Assert.Equal(SkinTheme.CommonBackground, theme[SkinElement.Database].Fill);
+        Assert.Equal(SkinTheme.GreyBlue, SkinTheme.Default[SkinElement.Database].Fill);
+    }
+
+    /// <summary>
     ///     Validates that a change returns a new theme and leaves the default unchanged.
     /// </summary>
     [Fact]

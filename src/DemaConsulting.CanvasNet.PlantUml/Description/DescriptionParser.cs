@@ -406,17 +406,19 @@ internal sealed partial class DescriptionParser
     }
 
     /// <summary>
-    ///     Gets the id of the next note without an alias: <c>note"k</c>, with a quote that no name or alias can hold, so
-    ///     that it never takes the id of an element or of a floating note.
+    ///     Gets the id of the next note without an alias: <c>note</c>, a line feed, and a number. No name or alias holds a
+    ///     line feed (a statement is one line; a name in brackets, parentheses, or colons may hold a quote), so the id
+    ///     never takes the id of an element or of a floating note.
     /// </summary>
     /// <returns>The id.</returns>
-    private string NextNoteId() => "note\"" + (++_noteCount).ToString(CultureInfo.InvariantCulture);
+    private string NextNoteId() => "note\n" + (++_noteCount).ToString(CultureInfo.InvariantCulture);
 
     /// <summary>
-    ///     Gets the name of the next container without a name: <c>group"k</c>, with a quote that no name can hold.
+    ///     Gets the name of the next container without a name: <c>group</c>, a line feed, and a number, which no name can
+    ///     hold.
     /// </summary>
     /// <returns>The name.</returns>
-    private string NextAnonymousName() => "group\"" + (++_anonymousCount).ToString(CultureInfo.InvariantCulture);
+    private string NextAnonymousName() => "group\n" + (++_anonymousCount).ToString(CultureInfo.InvariantCulture);
 
     /// <summary>
     ///     Gets the id of the next link.

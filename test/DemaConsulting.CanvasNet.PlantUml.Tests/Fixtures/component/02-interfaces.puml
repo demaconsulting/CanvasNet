@@ -1,0 +1,12 @@
+@startuml
+interface HTTP
+() "Message Queue" as MQ
+interface "Admin API" as Admin
+[Web] - HTTP
+HTTP )-- [Client]
+[Web] --( Auth
+[Worker] --> MQ
+[Worker] ..> Metrics : push
+[Console] --> Admin
+[Web] 0)-- [Plugin]
+@enduml

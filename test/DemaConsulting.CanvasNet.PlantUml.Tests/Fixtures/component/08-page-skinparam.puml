@@ -1,0 +1,20 @@
+@startuml
+title Component Page
+header draft
+footer page 1
+caption figure 1
+legend right
+  components only
+end legend
+skinparam componentBackgroundColor #DDEEFF
+skinparam componentBorderColor #336699
+skinparam interfaceBackgroundColor #FFFFCC
+skinparam nodesep 40
+skinparam ranksep 50
+[Web] --> HTTP
+[Web] --> [Store]
+component Worker {
+  [Job]
+}
+[Store] --> Job
+@enduml

@@ -95,13 +95,15 @@ internal sealed partial class DescriptionParser
             return index;
         }
 
-        // A link first, as PlantUML tries its link command before its declarations
-        var word = SvekSyntax.FirstWord(text);
-        if (word != "note" && SvekSyntax.TryReadLink(statement, out var link))
+        // A link first, as PlantUML tries its link command before its declarations and notes (a note alias may start
+        // with a keyword: Note .. A)
+        if (SvekSyntax.TryReadLink(statement, out var link))
         {
             ReadLink(link);
             return index;
         }
+
+        var word = SvekSyntax.FirstWord(text);
 
         if (ReadKeywordStatement(index, word) is { } last)
         {
@@ -258,8 +260,8 @@ internal sealed partial class DescriptionParser
         }
 
         // The names: a code, a display with 'as', and the symbol their shape gives
-        var (code, display, symbol, multiline) = ReadNames(statement, ref i, keyword);
-        var stereotypes = SvekSyntax.ReadStereotypes(text, ref i);
+        var (code, display, symbol, multiline, early) = ReadNames(statement, ref i, keyword);
+        var stereotypes = early.Concat(SvekSyntax.ReadStereotypes(text, ref i)).ToList();
         var rest = text[i..].TrimEnd();
         var container = rest.EndsWith('{') && !rest.EndsWith("[{", StringComparison.Ordinal);
         if (multiline)
@@ -300,9 +302,12 @@ internal sealed partial class DescriptionParser
     /// <param name="statement">The statement.</param>
     /// <param name="i">The index of the first name; advanced past the names and the white space after them.</param>
     /// <param name="keyword">The symbol of the keyword, or null without one.</param>
-    /// <returns>The code, the display (or null for the code), the symbol, and whether a quoted display continues on the next lines.</returns>
+    /// <returns>
+    ///     The code, the display (or null for the code), the symbol, whether a quoted display continues on the next lines,
+    ///     and the stereotypes written before <c>as</c>.
+    /// </returns>
     /// <exception cref="PlantUmlSyntaxException">Thrown when the names cannot be read.</exception>
-    private (string Code, string? Display, DescriptionSymbol Symbol, bool Multiline) ReadNames(SourceStatement statement, ref int i, DescriptionSymbol? keyword)
+    private (string Code, string? Display, DescriptionSymbol Symbol, bool Multiline, IReadOnlyList<string> Stereotypes) ReadNames(SourceStatement statement, ref int i, DescriptionSymbol? keyword)
     {
         var text = statement.Text;
         if (!TryReadElementName(text, ref i, out var first))
@@ -312,10 +317,14 @@ internal sealed partial class DescriptionParser
 
         SvekSyntax.SkipSpaces(text, ref i);
         var at = i;
-        SvekSyntax.ReadStereotypes(text, ref at);
+        var early = SvekSyntax.ReadStereotypes(text, ref at);
         var (code, display) = (first, (SvekName?)null);
         var multiline = false;
-        if (SvekSyntax.TryKeyword(text, ref at, "as"))
+        if (!SvekSyntax.TryKeyword(text, ref at, "as"))
+        {
+            early = [];
+        }
+        else
         {
             SvekSyntax.SkipSpaces(text, ref at);
             if (TryReadElementName(text, ref at, out var second) && second.Kind != SvekNameKind.Interface)
@@ -351,7 +360,7 @@ internal sealed partial class DescriptionParser
 
         CheckLabel(code.Text, statement.Location);
         CheckLabel(display?.Text, statement.Location);
-        return (code.Text, display?.Text, symbol, multiline);
+        return (code.Text, display?.Text, symbol, multiline, early);
     }
 
     /// <summary>

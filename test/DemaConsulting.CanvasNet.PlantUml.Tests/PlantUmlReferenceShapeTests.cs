@@ -21,7 +21,7 @@ namespace DemaConsulting.CanvasNet.PlantUml.Tests;
 ///     cluster's outline; and, per link, its line style, its decorations (congruent polygons within 0.5 pixels), and
 ///     its labels.
 /// </remarks>
-public class PlantUmlReferenceShapeTests
+public partial class PlantUmlReferenceShapeTests
 {
     /// <summary>The tolerance of an offset, in pixels.</summary>
     private const double Tolerance = 1.5;
@@ -72,6 +72,7 @@ public class PlantUmlReferenceShapeTests
     [InlineData("class", 12)]
     [InlineData("object", 4)]
     [InlineData("state", 10)]
+    [InlineData("component", 8)]
     public void CanvasNetPlantUml_Graph_ReferenceGoldens_CoverEveryFixture(string type, int minimum)
     {
         // Arrange

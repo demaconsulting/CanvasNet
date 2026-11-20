@@ -189,6 +189,9 @@ public class SvekSyntaxTests
     [InlineData("Online --> [*] : logout", "Plain", "Online", "Star", "")]
     [InlineData("Paused --> [H] : resume", "Plain", "Paused", "History", "")]
     [InlineData("[H*] --> Editor : back", "DeepHistory", "", "Plain", "Editor")]
+    [InlineData("[Web] --> [Db] : sql", "Bracketed", "Web", "Bracketed", "Db")]
+    [InlineData("() HTTP - [Web]", "Interface", "HTTP", "Bracketed", "Web")]
+    [InlineData("[Web] --> () \"Message Queue\"", "Bracketed", "Web", "Interface", "Message Queue")]
     public void PlantUmlSvekSyntax_TryReadLink_ShorthandEnds_AreRead(string text, string fromKind, string from, string toKind, string to)
     {
         // Act
@@ -197,6 +200,26 @@ public class SvekSyntaxTests
         // Assert
         Assert.True(read);
         Assert.Equal((new SvekName(from, Enum.Parse<SvekNameKind>(fromKind)), new SvekName(to, Enum.Parse<SvekNameKind>(toKind))), (link.From, link.To));
+    }
+
+    /// <summary>
+    ///     Validates the business forms of the description diagrams: a slash after a use case or an actor is part of
+    ///     the name (<c>(Pay)/</c>, <c>:Clerk:/</c>), and a name in brackets after an arrow is a qualifier only when
+    ///     another name follows it.
+    /// </summary>
+    [Fact]
+    public void PlantUmlSvekSyntax_TryReadName_BusinessFormsAndQualifiers_AreRead()
+    {
+        // Act
+        var i = 0;
+        SvekSyntax.TryReadName("(Pay)/ x", ref i, out var pay);
+        SvekSyntax.TryReadLink(Statement(":Clerk:/ --> (Pay)/"), out var business);
+        SvekSyntax.TryReadLink(Statement("A [k] --> [q] B"), out var qualified);
+
+        // Assert
+        Assert.Equal((new SvekName("Pay", SvekNameKind.Parenthesized) { Business = true }, 6), (pay, i));
+        Assert.Equal((true, true), (business.From.Business, business.To.Business));
+        Assert.Equal(("k", "q", "B"), (qualified.TailQualifier, qualified.HeadQualifier, qualified.To.Text));
     }
 
     /// <summary>

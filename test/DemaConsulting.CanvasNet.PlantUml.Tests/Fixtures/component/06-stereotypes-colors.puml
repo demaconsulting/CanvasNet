@@ -1,0 +1,16 @@
+@startuml
+component Billing <<service>> #LightBlue
+component Ledger <<service>> <<legacy>>
+interface Pay <<api>>
+component Audit #back:white;line:blue;text:green
+package Lib <<library>> #FFEEDD {
+  [Core] #pink
+}
+node Host <<vm>> {
+  [Daemon]
+}
+Billing --> Pay
+Ledger --> Pay
+Audit --> Core
+Daemon --> Core
+@enduml

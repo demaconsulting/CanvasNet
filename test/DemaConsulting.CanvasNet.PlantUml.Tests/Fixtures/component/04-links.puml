@@ -1,0 +1,15 @@
+@startuml
+[A] --> [B] : solid
+[A] ..> [C] : dashed
+[A] ==> [D] : bold
+[B] -[#red]-> [E]
+[C] -[dashed,thickness=2]-> [E]
+[D] -[hidden]- [E]
+[A] -left-> [F] : left
+[E] <|-- [G]
+[E] *-- [Hub]
+[E] "1" o-- "many" [I]
+[I] --> [J] : < back
+[G] --- [J]
+[F] -up-> [K]
+@enduml

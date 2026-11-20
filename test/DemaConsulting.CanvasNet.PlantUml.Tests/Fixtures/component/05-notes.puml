@@ -1,0 +1,14 @@
+@startuml
+[Client] --> [Server]
+note left of Client : browser
+note right of [Server]
+  handles
+  requests
+end note
+note "shared" as N
+N .. Client
+N .. Server
+[Server] --> [Cache]
+note on link : cached
+note top of Cache #LightGreen : fast
+@enduml
