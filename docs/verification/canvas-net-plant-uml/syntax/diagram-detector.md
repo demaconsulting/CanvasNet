@@ -62,7 +62,8 @@ components, a link to `[*]`, and a color without a head are not.
 `DiagramDetectorTests.PlantUmlDiagramDetector_Detect_UseCaseDiagram_IsDrawn`,
 `DiagramDetectorTests.PlantUmlDiagramDetector_Detect_DeploymentDiagram_IsDrawn`,
 `DiagramDetectorTests.PlantUmlDiagramDetector_Detect_UnclosedActionOfActivity_IsActivity`,
-`DiagramDetectorTests.PlantUmlDiagramDetector_Detect_GraphFamilies_FollowPlantUmlOrder`
+`DiagramDetectorTests.PlantUmlDiagramDetector_Detect_GraphFamilies_FollowPlantUmlOrder`,
+`DiagramDetectorTests.PlantUmlDiagramDetector_OuterStatements_ManyUnclosedActions_VisitEachAtMostTwice`
 
 Asserts that a class, an interface, an extension, a dependency, a member link, a member line, a package with a class,
 and a class with a body followed by a link are drawn class diagrams, that an object or a map is a drawn object diagram,
@@ -77,7 +78,8 @@ diagram whose action is never closed (with text after it no graph family reads) 
 that plain messages and a message with a circle are sequence
 diagrams, an extension a class diagram, links to use cases use case diagrams, links to components component diagrams,
 nodes and clouds a deployment diagram, a state with a link a state diagram, a class with an actor a class diagram, and
-`(*)` a legacy activity diagram.
+`(*)` a legacy activity diagram. Asserts that 2,000 unclosed actions are 2,000 statements found in at most two visits
+each.
 
 ##### CanvasNetPlantUml-Syntax-DiagramDetector-OtherTypes: Other Types Are Named
 

@@ -43,7 +43,7 @@ state diagram. The unit's behavior is specified by the
   accepts is a sequence diagram; otherwise, when the activity diagram accepts them all and one is an activity
   statement, an activity diagram (unless an action is never closed and a graph family reads the text: PlantUML's
   multi-line action needs its ending `;`, so `:Guest:` is an actor); otherwise the first graph family that accepts
-  every statement (`DetectGraph`)
+  every statement (`DetectGraph`, tried at most once)
   names the type; otherwise the first statement with a marker of another type names that type;
   otherwise a syntax error at the first statement the more likely type (by the number of its specific statements)
   refuses.
@@ -60,7 +60,8 @@ state diagram. The unit's behavior is specified by the
 - `IsBorderMessage(text)` - a message with one participant and one end on the diagram border (`[->`, `[o->`, `?o->`,
   `->]`, `->x]`, `->?`, `->o?`, ...), read from the part before the label only, so a label may hold brackets and
   arrows; the `SequenceParser` reports these messages.
-- `DetectGraph(statements)` - tries the families in PlantUML's order: the class family accepts declarations, bodies
+- `DetectGraph(statements)` - finds the statements outside text blocks once, then tries the families in PlantUML's
+  order: the class family accepts declarations, bodies
   (skipped as text by `ClassOuterStatements`), member lines `A : x`, packages, notes, hide and show, and links read by
   the `SvekSyntax` link reader whose ends are class names; the type is `object` when an object or a map is declared
   before any class, otherwise `class`. A text with `(*)` is then a legacy activity diagram; the description family
@@ -85,7 +86,8 @@ state diagram. The unit's behavior is specified by the
   optional color) and does not end with `;` (or one of the box-style endings) on its line is text up to the line that
   ends it, which is skipped with it; a `floating note` opens a note block like `note`. The graph families read the
   statements with `openActionIsText` false: an action that is never closed is one statement and the lines after it
-  are statements (`EndsInOpenAction` tells whether the statements end inside an action).
+  are statements; no line after it ends an action, so every later action is one statement too and each statement is
+  visited at most twice (`EndsInOpenAction` tells whether the statements end inside an action).
 - `UnsupportedHint(detected)` and `EditDistance(a, b)` - the hint of a type that is not drawn, and the Levenshtein
   distance of two words.
 

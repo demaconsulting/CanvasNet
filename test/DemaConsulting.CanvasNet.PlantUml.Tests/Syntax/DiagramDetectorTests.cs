@@ -207,6 +207,26 @@ public class DiagramDetectorTests
     }
 
     /// <summary>
+    ///     Validates that the statements after actions that are never closed are found in linear steps: 2,000 unclosed
+    ///     actions are 2,000 statements, and each statement is visited at most twice (instead of once for every action
+    ///     before it).
+    /// </summary>
+    [Fact]
+    public void PlantUmlDiagramDetector_OuterStatements_ManyUnclosedActions_VisitEachAtMostTwice()
+    {
+        // Arrange
+        var source = Preprocessor.Run("@startuml\n" + string.Join('\n', Enumerable.Repeat(":a", 2000)) + "\n@enduml\n", null, PlantUmlLimits.Default);
+        var statements = source.Block.Statements.Where(s => s.Text.Length > 0).ToList();
+
+        // Act
+        var outer = DiagramDetector.OuterStatements(statements, openActionIsText: false, out var visits);
+
+        // Assert
+        Assert.Equal(2000, outer.Count);
+        Assert.True(visits <= 2 * statements.Count, $"visits {visits}");
+    }
+
+    /// <summary>
     ///     Validates that a diagram with messages to or from the diagram border (found and lost messages, with a circle,
     ///     a cross, a reversed arrow, or a color at the border end) is a sequence diagram, as in PlantUML.
     /// </summary>

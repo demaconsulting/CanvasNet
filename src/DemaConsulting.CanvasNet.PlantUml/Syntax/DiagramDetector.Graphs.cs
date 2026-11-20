@@ -44,8 +44,12 @@ internal static partial class DiagramDetector
     /// <returns>The detected type, or null when no graph family accepts every statement.</returns>
     internal static DetectedDiagram? DetectGraph(IReadOnlyList<SourceStatement> statements)
     {
+        // The statements outside text blocks (the graph families have no multi-line action: a line ':x' that is never
+        // closed is a statement)
+        var outer = OuterStatements(statements, openActionIsText: false);
+
         // The class family: every statement outside the bodies is a class statement
-        var classOuter = ClassOuterStatements(statements);
+        var classOuter = ClassOuterStatements(outer);
         if (classOuter.All(s => AcceptsClass(s)))
         {
             var first = classOuter.FirstOrDefault(s => Classify(s.Text) != StatementFamily.Common) ?? classOuter[0];
@@ -54,9 +58,7 @@ internal static partial class DiagramDetector
             return new DetectedDiagram(type, SupportedTypes.Contains(type), FirstWord(first.Text), first.Location);
         }
 
-        // The legacy activity diagram: a statement with (*) (the graph families have no multi-line action: a line
-        // ':x' that is never closed is a statement)
-        var outer = OuterStatements(statements, openActionIsText: false);
+        // The legacy activity diagram: a statement with (*)
         if (outer.FirstOrDefault(s => s.Text.Contains("(*)", StringComparison.Ordinal)) is { } legacy)
         {
             return new DetectedDiagram("activity-legacy", SupportedTypes.Contains("activity-legacy"), FirstWord(legacy.Text), legacy.Location);
@@ -120,13 +122,13 @@ internal static partial class DiagramDetector
     ///     Gets the statements of a class diagram outside the bodies of its classes, objects, maps, and json blocks
     ///     (whose lines are members, not statements) and outside multi-line text blocks.
     /// </summary>
-    /// <param name="statements">The statements.</param>
+    /// <param name="statements">The statements outside multi-line text blocks.</param>
     /// <returns>The outer statements, the openers and closers of the bodies included.</returns>
     private static List<SourceStatement> ClassOuterStatements(IReadOnlyList<SourceStatement> statements)
     {
         var outer = new List<SourceStatement>();
         var inBody = false;
-        foreach (var statement in OuterStatements(statements, openActionIsText: false))
+        foreach (var statement in statements)
         {
             var text = statement.Text;
             if (inBody)

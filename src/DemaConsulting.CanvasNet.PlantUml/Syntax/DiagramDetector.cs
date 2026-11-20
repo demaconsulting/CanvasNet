@@ -212,19 +212,32 @@ internal static partial class DiagramDetector
         }
 
         // (an action that is never closed refuses the activity diagram when a graph family accepts the text, as
-        // PlantUML's multi-line action needs its end: ':Guest:' declares an actor)
+        // PlantUML's multi-line action needs its end: ':Guest:' declares an actor; the graph families are tried once)
+        DetectedDiagram? graph = null;
+        var graphTried = false;
+        DetectedDiagram? Graph()
+        {
+            if (!graphTried)
+            {
+                graph = DetectGraph(statements);
+                graphTried = true;
+            }
+
+            return graph;
+        }
+
         var activityReject = outer.FirstOrDefault(s => !AcceptsActivity(s.Text));
         if (activityReject is null && outer.Any(s => Classify(s.Text) == StatementFamily.Activity)
-            && !(EndsInOpenAction(statements) && DetectGraph(statements) is not null))
+            && !(EndsInOpenAction(statements) && Graph() is not null))
         {
             var first = outer.First(s => Classify(s.Text) != StatementFamily.Common);
             return new DetectedDiagram("activity", SupportedTypes.Contains("activity"), FirstWord(first.Text), first.Location);
         }
 
         // Then the graph families in PlantUML's order: class, legacy activity, description, and state
-        if (DetectGraph(statements) is { } graph)
+        if (Graph() is { } detected)
         {
-            return graph;
+            return detected;
         }
 
         // The first statement that only another type uses names that type
@@ -294,14 +307,31 @@ internal static partial class DiagramDetector
     ///     statement and the lines after it are statements).
     /// </param>
     /// <returns>The outer statements, block openers and closers included.</returns>
-    private static List<SourceStatement> OuterStatements(IReadOnlyList<SourceStatement> statements, bool openActionIsText)
+    private static List<SourceStatement> OuterStatements(IReadOnlyList<SourceStatement> statements, bool openActionIsText) =>
+        OuterStatements(statements, openActionIsText, out _);
+
+    /// <summary>
+    ///     Gets the statements outside multi-line text blocks, counting the statements visited: each statement is
+    ///     visited at most twice, since after an action that is never closed no later action can be closed either.
+    /// </summary>
+    /// <param name="statements">The statements.</param>
+    /// <param name="openActionIsText">
+    ///     Whether the lines after an action that is never closed are its text (false: the unclosed action is one
+    ///     statement and the lines after it are statements).
+    /// </param>
+    /// <param name="visits">Receives the number of statements visited.</param>
+    /// <returns>The outer statements, block openers and closers included.</returns>
+    internal static List<SourceStatement> OuterStatements(IReadOnlyList<SourceStatement> statements, bool openActionIsText, out int visits)
     {
         var outer = new List<SourceStatement>();
         string? closer = null;
         var opener = -1;
+        var actionsClose = true;
         var i = -1;
+        visits = 0;
         while (++i < statements.Count)
         {
+            visits++;
             var statement = statements[i];
             var text = statement.Text;
             if (closer is not null)
@@ -318,8 +348,10 @@ internal static partial class DiagramDetector
                 }
                 else if (i == statements.Count - 1 && closer == ActionCloser && !openActionIsText)
                 {
-                    // The action is never closed: it is one statement and the lines after it are statements
+                    // The action is never closed: it is one statement and the lines after it are statements (no line
+                    // after it ends an action, so every later action is one statement too)
                     closer = null;
+                    actionsClose = false;
                     i = opener;
                 }
 
@@ -328,6 +360,11 @@ internal static partial class DiagramDetector
 
             outer.Add(statement);
             closer = BlockCloser(text);
+            if (closer == ActionCloser && !actionsClose)
+            {
+                closer = null;
+            }
+
             opener = i;
         }
 
