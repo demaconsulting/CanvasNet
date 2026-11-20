@@ -307,6 +307,28 @@ public class DescriptionParserTests
     }
 
     /// <summary>
+    ///     Validates that a link to a pseudo-state of a state diagram (the start or end <c>[*]</c>, a history
+    ///     <c>S[H]</c>, or a deep history <c>S[H*]</c>) fails at its statement with an error that names that pseudo-state
+    ///     as written.
+    /// </summary>
+    /// <param name="body">The diagram body.</param>
+    /// <param name="mark">The pseudo-state the error names.</param>
+    [Theory]
+    [InlineData("usecase U\nU --> [*]", "'[*]'")]
+    [InlineData("usecase U\nU --> S[H]", "'S[H]'")]
+    [InlineData("usecase U\nU --> S[H*]", "'S[H*]'")]
+    public void PlantUmlDescriptionParser_Parse_PseudoStateEnd_NamesTheMark(string body, string mark)
+    {
+        // Act
+        var ex = Assert.Throws<PlantUmlSyntaxException>(() => Parse(body));
+
+        // Assert
+        Assert.Equal(PlantUmlDiagnosticCodes.SyntaxError, ex.Code);
+        Assert.Equal(3, ex.Location.Line);
+        Assert.Contains(mark, ex.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     ///     Validates that the limits fail closed at the statement that crosses them: the elements and notes, the links,
     ///     a text length, and the nesting of containers.
     /// </summary>

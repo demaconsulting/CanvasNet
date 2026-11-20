@@ -751,7 +751,13 @@ internal sealed partial class DescriptionParser
         name = Normalize(name);
         if (name.Kind is SvekNameKind.Star or SvekNameKind.History or SvekNameKind.DeepHistory)
         {
-            throw Error($"'{(name.Kind == SvekNameKind.Star ? "[*]" : name.Text + "[H]")}' is a pseudo-state of a state diagram", location, MixingHint);
+            var mark = name.Kind switch
+            {
+                SvekNameKind.Star => "[*]",
+                SvekNameKind.History => name.Text + "[H]",
+                _ => name.Text + "[H*]",
+            };
+            throw Error($"'{mark}' is a pseudo-state of a state diagram", location, MixingHint);
         }
 
         if (_noteByAlias.TryGetValue(name.Text, out var note))

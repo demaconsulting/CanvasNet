@@ -96,14 +96,16 @@ block, a URL, and a stereotype of a link, and the links that are kept.
 
 ##### CanvasNetPlantUml-Description-DescriptionParser-Errors: Located Errors
 
-**Tests**: `DescriptionParserTests.PlantUmlDescriptionParser_Parse_Errors_AreLocated`
+**Tests**: `DescriptionParserTests.PlantUmlDescriptionParser_Parse_Errors_AreLocated`,
+`DescriptionParserTests.PlantUmlDescriptionParser_Parse_PseudoStateEnd_NamesTheMark`
 
 Asserts a located `plantuml-syntax-error` with a hint, at the expected line, for a component declared again as a node, a
 name of a link declared as a component, an unclosed container, a stray `}`, a port at the top, `class` and `state`
 statements, `[*]`, a description after a colon, a one-line description in brackets, a bad color, a `##Blue` line color
 of a node and of a use case and a `##[dashed]` line style of a node (all refused by PlantUML), an interface with a
 block, an actor with a block, a short name of elements in two containers, an unclosed multi-line description, a note
-alias that names an element, an unknown statement, and a container declared with the name of a component.
+alias that names an element, an unknown statement, and a container declared with the name of a component. Asserts that
+a link to `[*]`, `S[H]`, or `S[H*]` fails at its line with an error that names that pseudo-state.
 
 ##### CanvasNetPlantUml-Description-DescriptionParser-Limits: Limits
 

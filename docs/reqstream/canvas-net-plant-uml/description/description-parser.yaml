@@ -117,6 +117,7 @@ sections:
                   PlantUML draws a picture that does not show what was written (safe, documented deviations).
                 tests:
                   - PlantUmlDescriptionParser_Parse_Errors_AreLocated
+                  - PlantUmlDescriptionParser_Parse_PseudoStateEnd_NamesTheMark
 
               - id: CanvasNetPlantUml-Description-DescriptionParser-Limits
                 title: >-
