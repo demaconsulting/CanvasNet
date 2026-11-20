@@ -15,16 +15,19 @@ and run the script, whenever a package or a project reference is added or remove
 ## composition-explained.png
 
 `composition-explained.png` (1600x900) explains composition: an exploded stack of three layers (the SVG page
-`composition-explained/page.svg`, the Mermaid diagram `flow.mmd` it embeds, and the OpenSCAD model `part.scad` and
-Vega-Lite chart `chart.vl.json` that the diagram's nodes embed), numbered cards with the markup of each link, and the
-finished page. It is referenced from the *Composition* section of the README by an absolute URL. The diagram and the
-model and chart layers are live drawings of their files under an SVG transform; the top layer is a manual copy of
-the content of `page.svg`, so a change to the page must be repeated there (the figure's header comment explains how
-its coordinates follow `page.svg`). `render-images.ps1` draws it with
-`--strict` on a transparent background, with file access confined to its folder.
+`composition-explained/page.svg`, the Mermaid diagram `flow.mmd` it embeds, and the PlantUML state diagram
+`release.puml`, OpenSCAD model `part.scad`, and Vega-Lite chart `chart.vl.json` that the diagram's nodes embed),
+numbered cards with the markup of each link, and the finished page. It is referenced from the *Composition* section of
+the README by an absolute URL. The diagram layer and the bottom layer (the PlantUML diagram, the model, and the chart)
+are live drawings of their files under an SVG transform; the top layer is a manual copy of the content of `page.svg`,
+so a change to the page must be repeated there (the figure's header comment explains how its coordinates follow
+`page.svg`). The slots of the picture nodes on the lower layers, and the end of the page's "Goal met" arrow, are taken
+from `canvasnet render "flow.mmd#theme=dark" --size 608x234 --positions "node:*" --json`, moved by the corner of the
+diagram in the page (16, 96). `render-images.ps1` draws it with `--strict` on a transparent background, with file
+access confined to its folder.
 
-Every file in `composition-explained/` is **original to this repository** (MIT): `composition-explained.svg` and
-`page.svg` were authored for it, `part.scad` is a copy of `showcase/explode.scad`, and `flow.mmd` and `chart.vl.json`
+Every file in `composition-explained/` is **original to this repository** (MIT): `composition-explained.svg`,
+`page.svg`, and `release.puml` were authored for it, `part.scad` is a copy of `showcase/explode.scad`, and `flow.mmd` and `chart.vl.json`
 are adapted from `showcase/pipeline.mmd` and `showcase/output.vl.json`.
 
 ## showcase/composition.svg

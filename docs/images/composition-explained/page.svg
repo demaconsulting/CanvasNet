@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
   page.svg: the composed page of composition-explained.svg. It embeds the Mermaid diagram flow.mmd (whose nodes embed
-  part.scad and chart.vl.json) and chooses the diagram's dark theme with the #theme= fragment. The "Exploded for
+  the PlantUML diagram release.puml, part.scad, and chart.vl.json) and chooses the diagram's dark theme with the #theme= fragment. The "Exploded for
   review" arrow is bound with cn:x2y2 to the part node, so its tip lands on the model at any size; the "Goal met"
   arrow ends between the W4 and W5 bars (see its comment). Only the generic font families are used. Original,
   authored for this repository (MIT).
@@ -39,12 +39,12 @@
   <rect x="24" y="350" width="5" height="50" rx="2" fill="#fbbf24"/>
   <text class="pLabel" x="40" y="370">Exploded for review</text>
   <text class="pCode" x="40" y="393">part.scad#def.explode=1</text>
-  <line class="pNote" x1="212" y1="342" x2="212" y2="213" cn:x2y2="#flow node:part"/>
+  <line class="pNote" x1="235.3" y1="342" x2="235.3" y2="213" cn:x2y2="#flow node:part"/>
   <!-- the arrow ends between the tops of the W4 and W5 bars: the chart is nested in the diagram, so its bars cannot
        be bound from here. The point is the chart drawn alone at the size of its node (276 x 219) with the positions
-       mark:week=W4 and mark:week=W5, moved by the corner of the chart node (340.4, 103.6) -->
+       mark:week=W4 and mark:week=W5, moved by the corner of the chart node (339.0, 103.6) -->
   <rect x="356" y="350" width="5" height="50" rx="2" fill="#fbbf24"/>
   <text class="pLabel" x="372" y="370">Goal met in W4 and W5</text>
   <text class="pCode" x="372" y="393">chart.vl.json#param.goal=180</text>
-  <line class="pNote" x1="563.9" y1="342" x2="563.9" y2="149.4"/>
+  <line class="pNote" x1="562.5" y1="342" x2="562.5" y2="149.4"/>
 </svg>
