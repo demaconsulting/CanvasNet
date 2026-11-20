@@ -1346,6 +1346,10 @@ words:
   - deephistory
   - Stereogroup
   - notacolor
+  # PlantUML's description diagram keyword of its enterprise architecture elements (archimate) and the upstream
+  # name of its multi-line element command (CommandCreateElementMultilines)
+  - archimate
+  - Multilines
 # Percent-escapes in URL and file-name examples (such as "flow%2Emmd" for "flow.mmd"): the escape and the letters
 # glued to it are not words
 ignoreRegExpList:

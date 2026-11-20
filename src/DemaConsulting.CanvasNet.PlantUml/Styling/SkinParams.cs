@@ -89,7 +89,9 @@ internal static partial class SkinParams
         SkinElement.Participant, SkinElement.Actor, SkinElement.Boundary, SkinElement.Control, SkinElement.Entity,
         SkinElement.Database, SkinElement.Collections, SkinElement.Queue, SkinElement.Legend, SkinElement.Caption,
         SkinElement.Class, SkinElement.ClassAttribute, SkinElement.Object, SkinElement.Package, SkinElement.Container,
-        SkinElement.State, SkinElement.StateAttribute, SkinElement.StatePseudo,
+        SkinElement.State, SkinElement.StateAttribute, SkinElement.StatePseudo, SkinElement.Component, SkinElement.Interface,
+        SkinElement.Node, SkinElement.Rectangle, SkinElement.Folder, SkinElement.Frame, SkinElement.Cloud, SkinElement.Card,
+        SkinElement.Description,
     ];
 
     /// <summary>
@@ -108,6 +110,22 @@ internal static partial class SkinParams
         ("stateAttribute", [SkinElement.StateAttribute]),
         ("state", [SkinElement.State]),
         ("arrow", [SkinElement.Arrow, SkinElement.ActivityArrow, SkinElement.SvekArrow]),
+    ];
+
+    /// <summary>
+    ///     The element prefixes that only description diagrams read (use case, component, and deployment diagrams),
+    ///     with the elements each one styles.
+    /// </summary>
+    private static readonly (string Prefix, SkinElement[] Elements)[] DescriptionPrefixes =
+    [
+        ("component", [SkinElement.Component]),
+        ("interface", [SkinElement.Interface]),
+        ("node", [SkinElement.Node]),
+        ("rectangle", [SkinElement.Rectangle]),
+        ("folder", [SkinElement.Folder]),
+        ("frame", [SkinElement.Frame]),
+        ("cloud", [SkinElement.Cloud]),
+        ("card", [SkinElement.Card]),
     ];
 
     /// <summary>
@@ -193,15 +211,21 @@ internal static partial class SkinParams
     ///     prefixes and the settings <c>classAttributeIconSize</c>, <c>circledCharacterRadius</c>, <c>stateStartColor</c>,
     ///     and <c>stateEndColor</c>; false by default.
     /// </param>
+    /// <param name="description">
+    ///     Whether the diagram is a description diagram (use case, component, or deployment), which also reads the
+    ///     prefixes of its symbols: <c>component</c>, <c>interface</c>, <c>node</c>, <c>rectangle</c>, <c>folder</c>,
+    ///     <c>frame</c>, <c>cloud</c>, and <c>card</c> (and <c>database</c>, shared with sequence diagrams); false by
+    ///     default.
+    /// </param>
     /// <returns>The theme with the parameters applied.</returns>
-    public static SkinTheme Apply(SkinTheme theme, IEnumerable<SkinParamEntry> entries, List<PlantUmlPendingReport> reports, bool graph = false)
+    public static SkinTheme Apply(SkinTheme theme, IEnumerable<SkinParamEntry> entries, List<PlantUmlPendingReport> reports, bool graph = false, bool description = false)
     {
         ArgumentNullException.ThrowIfNull(theme);
         ArgumentNullException.ThrowIfNull(entries);
         ArgumentNullException.ThrowIfNull(reports);
         foreach (var entry in entries)
         {
-            var applied = TryApply(theme, entry, graph, out var reason);
+            var applied = TryApply(theme, entry, graph, description, out var reason);
             if (applied is null)
             {
                 reports.Add(PlantUmlPendingReport.Warning(
@@ -324,9 +348,10 @@ internal static partial class SkinParams
     /// <param name="theme">The theme.</param>
     /// <param name="entry">The parameter.</param>
     /// <param name="graph">Whether the diagram also reads the graph prefixes and settings.</param>
+    /// <param name="description">Whether the diagram also reads the prefixes of the description symbols.</param>
     /// <param name="reason">Receives why the parameter has no effect.</param>
     /// <returns>The new theme, or null when the parameter has no effect.</returns>
-    private static SkinTheme? TryApply(SkinTheme theme, SkinParamEntry entry, bool graph, out string reason)
+    private static SkinTheme? TryApply(SkinTheme theme, SkinParamEntry entry, bool graph, bool description, out string reason)
     {
         reason = "it is not supported by this version";
         var name = entry.Name;
@@ -361,11 +386,15 @@ internal static partial class SkinParams
             return Color(value, ref reason) is { } color ? theme.With(circle, s => s with { Fill = color, Line = color }) : null;
         }
 
-        // An element property: the longest element prefix whose rest is a property name (a graph prefix replaces the
-        // shared one of the same name)
-        var prefixes = graph
-            ? GraphPrefixes.Concat(Prefixes.Where(p => !GraphPrefixes.Any(g => g.Prefix == p.Prefix)))
-            : Prefixes;
+        // An element property: the longest element prefix whose rest is a property name (a description prefix
+        // replaces a graph one, and a graph prefix the shared one of the same name)
+        (string Prefix, SkinElement[] Elements)[] prefixes = description ? DescriptionPrefixes : [];
+        if (graph)
+        {
+            prefixes = [.. prefixes, .. GraphPrefixes.Where(g => !prefixes.Any(p => p.Prefix == g.Prefix))];
+        }
+
+        prefixes = [.. prefixes, .. Prefixes.Where(s => !prefixes.Any(p => p.Prefix == s.Prefix))];
         foreach (var (prefix, elements) in prefixes.OrderByDescending(p => p.Prefix.Length))
         {
             if (name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) && Properties.TryGetValue(name[prefix.Length..], out var property))

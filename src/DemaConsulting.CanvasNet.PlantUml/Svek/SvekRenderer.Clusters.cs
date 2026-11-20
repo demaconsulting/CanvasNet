@@ -211,8 +211,8 @@ internal static partial class SvekRenderer
     /// <remarks>
     ///     A <see cref="ClusterSymbol.Folder"/> (a package) uses the theme's <see cref="SkinElement.Package"/> style
     ///     (black, 1.5 wide, corners of 5, bold title); the other symbols use <see cref="SkinElement.Container"/>
-    ///     (<c>#181818</c>, 1 wide, corners of 5, bold title). Stereotypes are written <c>«name»</c> in italic 12, one
-    ///     per line, above the title (below it for a folder and a frame).
+    ///     (<c>#181818</c>, 1 wide, corners of 5, bold title). Stereotypes are written <c>«name»</c> in italic (12 by
+    ///     default, 14 in description diagrams), one per line, above the title (below it for a folder and a frame).
     /// </remarks>
     /// <param name="symbol">The symbol.</param>
     /// <param name="id">The id of the cluster.</param>
@@ -224,6 +224,7 @@ internal static partial class SvekRenderer
     /// <param name="location">The location of the cluster.</param>
     /// <param name="fill">The fill (<c>#color</c> of the cluster), or null for none.</param>
     /// <param name="line">The line color, or null for the style's.</param>
+    /// <param name="stereotypeSize">The font size of the stereotypes: 12 in class and object diagrams, 14 in description diagrams.</param>
     /// <returns>The image.</returns>
     public static SvekClusterImage ClusterImage(
         ClusterSymbol symbol,
@@ -235,7 +236,8 @@ internal static partial class SvekRenderer
         PlantUmlReportSink? sink,
         PlantUmlLocation location,
         Rgba32? fill = null,
-        Rgba32? line = null)
+        Rgba32? line = null,
+        double stereotypeSize = 12)
     {
         ArgumentNullException.ThrowIfNull(stereotypes);
         ArgumentNullException.ThrowIfNull(theme);
@@ -246,7 +248,7 @@ internal static partial class SvekRenderer
             : text.Layout(title, new SceneFont(style.FontFamily, style.FontSize, style.Bold, style.Italic), style.FontColor, 0, sink, location);
         var stereoBlock = stereotypes.Count == 0
             ? null
-            : text.Layout(string.Join("\n", stereotypes.Select(s => "\u00AB" + s + "\u00BB")), new SceneFont(style.FontFamily, 12, false, true), style.FontColor, 0, sink, location);
+            : text.Layout(string.Join("\n", stereotypes.Select(s => "\u00AB" + s + "\u00BB")), new SceneFont(style.FontFamily, stereotypeSize, false, true), style.FontColor, 0, sink, location);
         return new SvekClusterImage(symbol, id, titleBlock, stereoBlock, style, fill, line, location);
     }
 

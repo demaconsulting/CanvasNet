@@ -35,6 +35,9 @@ internal enum SvekNameKind
 
     /// <summary>The deep history pseudo-state <c>[H*]</c> or <c>X[H*]</c> (the text is the owner, empty for none).</summary>
     DeepHistory,
+
+    /// <summary>A name after an empty pair of parentheses (<c>() HTTP</c>, <c>() "Long name"</c>), an interface.</summary>
+    Interface,
 }
 
 /// <summary>
@@ -42,7 +45,14 @@ internal enum SvekNameKind
 /// </summary>
 /// <param name="Text">The text.</param>
 /// <param name="Kind">How it was written.</param>
-internal readonly record struct SvekName(string Text, SvekNameKind Kind);
+internal readonly record struct SvekName(string Text, SvekNameKind Kind)
+{
+    /// <summary>
+    ///     Gets a value indicating whether a name in parentheses or colons is followed by a slash (<c>(Pay)/</c>,
+    ///     <c>:Clerk:/</c>), PlantUML's business use case and business actor.
+    /// </summary>
+    public bool Business { get; init; }
+}
 
 /// <summary>
 ///     A <c>hide</c> or <c>show</c> statement: whether it shows, and what it names, in lower case with single spaces.
@@ -152,8 +162,9 @@ internal static partial class SvekSyntax
     }
 
     /// <summary>
-    ///     Reads a name at an index: a quoted name, a name in parentheses, brackets, or colons, a pseudo-state
-    ///     (<c>[*]</c>, <c>[H]</c>, <c>[H*]</c>, <c>X[H]</c>, <c>X[H*]</c>), or the longest identifier.
+    ///     Reads a name at an index: a quoted name, a name in parentheses, brackets, or colons (with the slash of a
+    ///     business form), an interface <c>() name</c>, a pseudo-state (<c>[*]</c>, <c>[H]</c>, <c>[H*]</c>,
+    ///     <c>X[H]</c>, <c>X[H*]</c>), or the longest identifier.
     /// </summary>
     /// <param name="text">The text.</param>
     /// <param name="index">The index; advanced past the name when one is read.</param>
@@ -213,11 +224,25 @@ internal static partial class SvekSyntax
             return [(new SvekName(kind == SvekNameKind.Bracketed ? inner : string.Empty, kind), close + 1)];
         }
 
+        if (c == '(' && start + 1 < text.Length && text[start + 1] == ')')
+        {
+            return InterfaceNameEnds(text, start + 2);
+        }
+
         if (c is '(' or ':')
         {
             var (closer, kind) = c == '(' ? (')', SvekNameKind.Parenthesized) : (':', SvekNameKind.Colon);
             var close = text.IndexOf(closer, start + 1);
-            return close > start + 1 ? [(new SvekName(text[(start + 1)..close], kind), close + 1)] : [];
+            if (close <= start + 1)
+            {
+                return [];
+            }
+
+            // A slash right after the closer marks the business form (PlantUML's "(x)/" and ":x:/")
+            var name = new SvekName(text[(start + 1)..close], kind);
+            return close + 1 < text.Length && text[close + 1] == '/' && (close + 2 >= text.Length || text[close + 2] != '/')
+                ? [(name with { Business = true }, close + 2), (name, close + 1)]
+                : [(name, close + 1)];
         }
 
         // Identifiers, each possibly followed by a history mark
@@ -238,6 +263,26 @@ internal static partial class SvekSyntax
         }
 
         return result;
+    }
+
+    /// <summary>
+    ///     Gets the names of an interface written <c>() name</c> (or <c>() "Long name"</c>), with their ends, longest
+    ///     first.
+    /// </summary>
+    /// <param name="text">The text.</param>
+    /// <param name="start">The index after the parentheses.</param>
+    /// <returns>The candidates; empty when no name follows.</returns>
+    private static IReadOnlyList<(SvekName Name, int End)> InterfaceNameEnds(string text, int start)
+    {
+        var i = start;
+        SkipSpaces(text, ref i);
+        if (i < text.Length && IsQuote(text[i]))
+        {
+            var close = IndexOfQuote(text, i + 1);
+            return close > i + 1 ? [(new SvekName(text[(i + 1)..close], SvekNameKind.Interface), close + 1)] : [];
+        }
+
+        return IdentifierEnds(text, i).Select(end => (new SvekName(text[i..end], SvekNameKind.Interface), end)).ToList();
     }
 
     /// <summary>

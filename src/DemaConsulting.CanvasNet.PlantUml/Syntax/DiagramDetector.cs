@@ -39,7 +39,7 @@ internal sealed record DetectedDiagram(string DiagramType, bool IsSupported, str
 internal static partial class DiagramDetector
 {
     /// <summary>The types this version draws.</summary>
-    internal static readonly IReadOnlySet<string> SupportedTypes = new HashSet<string>(StringComparer.Ordinal) { "sequence", "activity", "class", "object", "state" };
+    internal static readonly IReadOnlySet<string> SupportedTypes = new HashSet<string>(StringComparer.Ordinal) { "sequence", "activity", "class", "object", "state", "component" };
 
     /// <summary>The closer of a multi-line action (<c>:text</c> up to a line that ends with <c>;</c>).</summary>
     internal const string ActionCloser = ";";

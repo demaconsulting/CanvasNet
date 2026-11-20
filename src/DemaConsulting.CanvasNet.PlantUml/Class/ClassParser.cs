@@ -499,6 +499,7 @@ internal sealed partial class ClassParser
         {
             SvekNameKind.Parenthesized => ("a use case", "(" + name.Text + ")"),
             SvekNameKind.Bracketed => ("a component", "[" + name.Text + "]"),
+            SvekNameKind.Interface => ("an interface circle", "() " + name.Text),
             SvekNameKind.Colon => ("an actor", ":" + name.Text + ":"),
             SvekNameKind.Star or SvekNameKind.History or SvekNameKind.DeepHistory => ("a state", "[*]"),
             _ => (null, null),

@@ -353,36 +353,43 @@ internal static partial class SvekSyntax
             SkipSpaces(text, ref j);
             var headLabel = ReadQuotedLabel(text, ref j);
             var headRole = ReadRole(text, ref j);
-            var headQualifier = ReadQualifier(text, arrowEnd, ref j);
+            var beforeQualifier = j;
+            var qualifier = ReadQualifier(text, arrowEnd, ref j);
             SkipSpaces(text, ref j);
-            foreach (var (to, toEnd) in NameEnds(text, j))
-            {
-                if (!TryReadLinkTail(text, toEnd, out var tail))
-                {
-                    continue;
-                }
 
-                // The whole statement matches: check the style and the color, then split the label
-                var checkedArrow = CheckStyle(arrow, statement, i);
-                var color = tail.ColorStart < 0 ? null : ReadColorAt(text, tail.ColorStart, statement);
-                var (label, labelArrow, splitTail, splitHead) = tail.Label is null
-                    ? (null, LinkLabelArrow.None, null, null)
-                    : SplitLabel(tail.Label, tailLabel is null && headLabel is null);
-                link = new SvekLinkStatement(from, to, checkedArrow, statement.Location)
+            // A name in brackets after the arrow is a qualifier only when a second end follows it ([Web] --> [Db])
+            foreach (var qualified in qualifier is null ? [false] : new[] { true, false })
+            {
+                var headQualifier = qualified ? qualifier : null;
+                foreach (var (to, toEnd) in NameEnds(text, qualified ? j : beforeQualifier))
                 {
-                    TailLabel = tailLabel ?? splitTail,
-                    HeadLabel = headLabel ?? splitHead,
-                    TailRole = tailRole,
-                    HeadRole = headRole,
-                    TailQualifier = tailQualifier,
-                    HeadQualifier = headQualifier,
-                    Label = label,
-                    LabelArrow = labelArrow,
-                    Color = color,
-                    Stereotypes = tail.Stereotypes,
-                    HasUrl = tail.HasUrl,
-                };
-                return true;
+                    if (!TryReadLinkTail(text, toEnd, out var tail))
+                    {
+                        continue;
+                    }
+
+                    // The whole statement matches: check the style and the color, then split the label
+                    var checkedArrow = CheckStyle(arrow, statement, i);
+                    var color = tail.ColorStart < 0 ? null : ReadColorAt(text, tail.ColorStart, statement);
+                    var (label, labelArrow, splitTail, splitHead) = tail.Label is null
+                        ? (null, LinkLabelArrow.None, null, null)
+                        : SplitLabel(tail.Label, tailLabel is null && headLabel is null);
+                    link = new SvekLinkStatement(from, to, checkedArrow, statement.Location)
+                    {
+                        TailLabel = tailLabel ?? splitTail,
+                        HeadLabel = headLabel ?? splitHead,
+                        TailRole = tailRole,
+                        HeadRole = headRole,
+                        TailQualifier = tailQualifier,
+                        HeadQualifier = headQualifier,
+                        Label = label,
+                        LabelArrow = labelArrow,
+                        Color = color,
+                        Stereotypes = tail.Stereotypes,
+                        HasUrl = tail.HasUrl,
+                    };
+                    return true;
+                }
             }
         }
 

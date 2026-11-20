@@ -224,8 +224,8 @@ internal static partial class DiagramDetector
 
         if (SvekSyntax.TryReadLink(statement, out var link))
         {
-            return link.From.Kind is not (SvekNameKind.Parenthesized or SvekNameKind.Bracketed or SvekNameKind.Colon)
-                && link.To.Kind is not (SvekNameKind.Parenthesized or SvekNameKind.Bracketed or SvekNameKind.Colon);
+            return link.From.Kind is not (SvekNameKind.Parenthesized or SvekNameKind.Bracketed or SvekNameKind.Colon or SvekNameKind.Interface)
+                && link.To.Kind is not (SvekNameKind.Parenthesized or SvekNameKind.Bracketed or SvekNameKind.Colon or SvekNameKind.Interface);
         }
 
         var i = 0;
@@ -294,6 +294,7 @@ internal static partial class DiagramDetector
             return true;
         }
 
-        return SvekSyntax.TryReadLink(statement, out var link) && (link.From.Kind == SvekNameKind.Bracketed || link.To.Kind == SvekNameKind.Bracketed);
+        return SvekSyntax.TryReadLink(statement, out var link)
+            && (link.From.Kind is SvekNameKind.Bracketed or SvekNameKind.Interface || link.To.Kind is SvekNameKind.Bracketed or SvekNameKind.Interface);
     }
 }

@@ -927,7 +927,7 @@ their concurrent regions, the start, end, choice, fork, join, and history pseudo
 out the same way). `canvasnet help plantuml` lists a card for each (`canvasnet help plantuml sequence`, `canvasnet
 help plantuml activity`, `canvasnet help plantuml class`, `canvasnet help plantuml object`, `canvasnet help plantuml
 state`) and for the preprocessor, the styles, composition, the options, the diagnostics, and the known differences.
-Every other PlantUML diagram type (use case, component, a mindmap, a gantt chart, ...) is recognized: `info` reports it
+Every other PlantUML diagram type (use case, deployment, a mindmap, a gantt chart, ...) is recognized: `info` reports it
 with `"supported": false`, and `render` writes an empty picture of 20 by 20 pixels with the diagnostic
 `plantuml-diagram-unsupported` (`--strict` makes it an `unsupported-feature` failure).
 
@@ -2117,11 +2117,12 @@ objects:
 ```
 
 For a PlantUML diagram the `diagram` object has the same members without `direction` and `accTitle`: `type` is
-`sequence`, `activity`, `class`, `object`, `state`, or a type that is not drawn (`usecase`, `component`, `mindmap`,
-..., with `supported` false and zero counts), `nodes` are the participants of a sequence diagram, the actions, start,
-stop, end, connector, and decision nodes of an activity diagram, the classes, objects, and maps of a class or object
-diagram, or the states and pseudo-states of a state diagram, `edges` its messages, arrows, relationships, or
-transitions, and `subgraphs` its boxes, its swimlanes and partitions, its packages, or its composite states:
+`sequence`, `activity`, `class`, `object`, `state`, `component`, or a type that is not drawn (`usecase`, `deployment`,
+`mindmap`, ..., with `supported` false and zero counts), `nodes` are the participants of a sequence diagram, the
+actions, start, stop, end, connector, and decision nodes of an activity diagram, the classes, objects, and maps of a
+class or object diagram, or the states and pseudo-states of a state diagram, `edges` its messages, arrows,
+relationships, or transitions, and `subgraphs` its boxes, its swimlanes and partitions, its packages, or its composite
+states:
 
 ```json
 {"schemaVersion":2,"ok":true,"command":"info","input":{"path":"checkout.puml","format":"plantuml","bytes":200},"image":{"width":254,"height":354,"channels":4,"hasAlpha":true,"canDecode":true,"frameCount":1},"diagram":{"type":"sequence","supported":true,"title":"Checkout","nodes":3,"edges":4,"subgraphs":0}}

@@ -393,7 +393,7 @@ stable `Feature` code, a message, a location, and a hint, and the rest of the di
 The codes, with their kind and when each is reported:
 
 - **`plantuml-diagram-unsupported`**: Unsupported: The diagram type is not drawn by this version (every type but
-  sequence, activity, class, object, and state diagrams); the picture is empty.
+  sequence, activity, class, object, state, and component diagrams); the picture is empty.
 - **`plantuml-multiple-diagrams`**: Unsupported: The text has more than one `@start` block; only the first one is drawn.
 - **`plantuml-preprocessor-unsupported`**: Unsupported: A preprocessor directive outside the subset (`!if`, `!function`,
   `!procedure`, `!foreach`, built-in `%functions`, `!define` with parameters); it is dropped with the block it opens.
@@ -432,9 +432,8 @@ specific code being in its `detail`.
 **Unsupported diagram types.** Every diagram type that PlantUML knows is recognized, so a diagram that this version
 cannot draw is named, not misread:
 
-- inside `@startuml`: use case (`usecase`, `(name)`), component (`component`, `[name]`), deployment (`node`,
-  `artifact`, `cloud`, ...), timing (`robust`, `concise`), and the legacy activity syntax
-  (`(*) --> ...`, reported as `activity-legacy`);
+- inside `@startuml`: use case (`usecase`, `(name)`), deployment (`node`, `artifact`, `cloud`, ...), timing (`robust`,
+  `concise`), and the legacy activity syntax (`(*) --> ...`, reported as `activity-legacy`);
 - the other `@start` tags: `@startmindmap`, `@startgantt`, `@startwbs`, `@startjson`, `@startyaml`, `@startsalt`,
   `@startditaa`, `@startdot`, `@startmath`, `@startlatex`, `@startregex`, `@startebnf`, `@startchen`, `@startfiles`,
   `@startchronology`, `@startboard`, `@startcreole`, `@startwire`, and `@startnwdiag`.

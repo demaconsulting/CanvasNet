@@ -133,6 +133,33 @@ internal enum SkinElement
 
     /// <summary>The choice diamond and the history circles of a state diagram.</summary>
     StatePseudo,
+
+    /// <summary>A component of a description diagram (<c>component</c>, <c>[x]</c>): its box, icon, and texts.</summary>
+    Component,
+
+    /// <summary>An interface circle of a description diagram (<c>interface</c>, <c>() x</c>) and its name.</summary>
+    Interface,
+
+    /// <summary>A node symbol of a description diagram drawn as an element (not as a container).</summary>
+    Node,
+
+    /// <summary>A rectangle symbol of a description diagram drawn as an element.</summary>
+    Rectangle,
+
+    /// <summary>A folder (or package) symbol of a description diagram drawn as an element.</summary>
+    Folder,
+
+    /// <summary>A frame symbol of a description diagram drawn as an element.</summary>
+    Frame,
+
+    /// <summary>A cloud symbol of a description diagram drawn as an element.</summary>
+    Cloud,
+
+    /// <summary>A card symbol of a description diagram drawn as an element.</summary>
+    Card,
+
+    /// <summary>The other elements of a description diagram (the symbols that have no style of their own yet).</summary>
+    Description,
 }
 
 /// <summary>
@@ -231,9 +258,27 @@ internal sealed record SkinTheme
     ];
 
     /// <summary>
+    ///     Gets the elements of description diagrams (use case, component, and deployment), which share the defaults of
+    ///     PlantUML's <c>componentDiagram</c> elements: the common background, an outline half a pixel wide, and corners
+    ///     of 5.
+    /// </summary>
+    public static IReadOnlyList<SkinElement> DescriptionElements { get; } =
+    [
+        SkinElement.Component, SkinElement.Interface, SkinElement.Node, SkinElement.Rectangle, SkinElement.Folder,
+        SkinElement.Frame, SkinElement.Cloud, SkinElement.Card, SkinElement.Description,
+    ];
+
+    /// <summary>
     ///     Gets PlantUML's default look.
     /// </summary>
     public static SkinTheme Default { get; } = CreateDefault();
+
+    /// <summary>
+    ///     Gets the default look of description diagrams: <see cref="Default"/>, with the symbols that sequence diagrams
+    ///     share (a <c>database</c>) filled with the common background, as PlantUML's <c>componentDiagram</c> element
+    ///     style fills them.
+    /// </summary>
+    public static SkinTheme Description { get; } = Default.With(SkinElement.Database, s => s with { Fill = CommonBackground, Padding = 0 });
 
     /// <summary>
     ///     Gets the background of the document, or null for a transparent document; white by default.
@@ -367,6 +412,12 @@ internal sealed record SkinTheme
             [SkinElement.StateEnd] = root with { Fill = Rgb(0x22, 0x22, 0x22), Line = Rgb(0x22, 0x22, 0x22) },
             [SkinElement.StatePseudo] = root with { Fill = CommonBackground, LineWidth = 0.5 },
         };
+
+        // The elements of description diagrams: the common background, outlined half a pixel wide, corners of 5
+        foreach (var element in DescriptionElements)
+        {
+            styles[element] = root with { Fill = CommonBackground, LineWidth = 0.5, RoundCorner = 5 };
+        }
 
         // Participants and their kin: grey-blue, outlined half a pixel wide, padded 7; a participant has corners of 5
         foreach (var element in ParticipantElements)
