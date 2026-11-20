@@ -1,0 +1,15 @@
+@startuml
+skinparam defaultFontSize 18
+skinparam arrowFontSize 18
+skinparam nodesep 90
+skinparam ranksep 60
+[*] -right-> Draft
+Draft --> Review : submit
+state Review {
+  [*] -right-> Checking
+  Checking -right-> Signed : ok
+}
+Review -right-> Rejected : decline
+Review --> Published : release
+Published -right-> [*]
+@enduml

@@ -1,0 +1,15 @@
+@startuml
+hide footbox
+actor Shopper
+participant Shop
+participant Cart
+participant Payments
+database Orders
+Shopper -> Shop : check out
+Shop -> Cart ++ : list items
+Cart --> Shop -- : 2 books
+Shop -> Payments : charge
+Payments --> Shop : paid
+Shop -> Orders : save order
+Shop --> Shopper : thank you!
+@enduml

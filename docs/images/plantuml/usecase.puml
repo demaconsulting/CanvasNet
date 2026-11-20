@@ -1,0 +1,27 @@
+@startuml
+skinparam defaultFontSize 20
+skinparam arrowFontSize 20
+skinparam actorFontSize 20
+skinparam rectangleFontSize 20
+skinparam usecaseFontSize 20
+left to right direction
+actor Resident
+actor Guest
+rectangle "Home hub" {
+  usecase "Unlock the door" as Unlock
+  usecase "Scan a fingerprint" as Scan
+  usecase "Open the garage" as Garage
+  usecase "Set the heating" as Heat
+  usecase "Plan a schedule" as Plan
+  usecase "Get alerts" as Alerts
+  usecase "Arm the alarm" as Arm
+}
+Guest --> Unlock
+Resident --> Unlock
+Resident --> Garage
+Resident --> Heat
+Resident --> Alerts
+Resident --> Arm
+Unlock ..> Scan : <<include>>
+Heat <.. Plan : <<extend>>
+@enduml

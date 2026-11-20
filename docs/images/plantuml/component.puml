@@ -1,0 +1,31 @@
+@startuml
+skinparam defaultFontSize 22
+skinparam componentFontSize 22
+skinparam packageFontSize 22
+skinparam nodeFontSize 22
+skinparam databaseFontSize 22
+skinparam cloudFontSize 22
+skinparam nodesep 20
+skinparam ranksep 30
+package "Clients" {
+  [Web app] as Web
+  [Mobile app] as Mobile
+  [Partner API] as Partner
+}
+node "Backend" {
+  [API gateway] as Gateway
+  [Catalog]
+  [Orders]
+  [Payments]
+}
+database "Orders DB" as Db
+cloud "Card network" as Cards
+Web --> Gateway
+Mobile --> Gateway
+Partner --> Gateway
+Gateway --> Catalog
+Gateway --> Orders
+Gateway --> Payments
+Orders --> Db
+Payments --> Cards
+@enduml

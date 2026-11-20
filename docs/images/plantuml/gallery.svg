@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2496" height="1352" viewBox="0 0 2496 1352">
+  <!-- plantuml-gallery.png: six PlantUML diagram types of this folder, each linked with image href and drawn as
+       vector at the size of its 800x600 cell, in a 3x2 grid like the montages of the other galleries. Only the
+       generic font families are used. Original, authored for this repository (MIT). -->
+  <style>
+    .cell { fill: #ffffff; }
+    .label { font: 28px sans-serif; fill: #1f2937; text-anchor: middle; }
+  </style>
+  <rect width="2496" height="1352" fill="#e5e7eb"/>
+  <rect class="cell" x="24" y="24" width="800" height="600"/>
+  <image href="sequence.puml" x="52" y="52" width="744" height="544"/>
+  <text class="label" x="424" y="664">Sequence</text>
+  <rect class="cell" x="848" y="24" width="800" height="600"/>
+  <image href="activity.puml" x="876" y="52" width="744" height="544"/>
+  <text class="label" x="1248" y="664">Activity</text>
+  <rect class="cell" x="1672" y="24" width="800" height="600"/>
+  <image href="class.puml" x="1700" y="52" width="744" height="544"/>
+  <text class="label" x="2072" y="664">Class</text>
+  <rect class="cell" x="24" y="688" width="800" height="600"/>
+  <image href="state.puml" x="52" y="716" width="744" height="544"/>
+  <text class="label" x="424" y="1328">State</text>
+  <rect class="cell" x="848" y="688" width="800" height="600"/>
+  <image href="usecase.puml" x="876" y="716" width="744" height="544"/>
+  <text class="label" x="1248" y="1328">Use case</text>
+  <rect class="cell" x="1672" y="688" width="800" height="600"/>
+  <image href="component.puml" x="1700" y="716" width="744" height="544"/>
+  <text class="label" x="2072" y="1328">Component</text>
+</svg>

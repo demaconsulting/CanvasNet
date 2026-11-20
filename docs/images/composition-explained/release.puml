@@ -1,0 +1,22 @@
+' The release workflow of page.svg: a PlantUML state diagram that a picture node of flow.mmd shows beside the model
+' and the chart, in colors for the dark page. Original (MIT).
+@startuml
+skinparam backgroundColor transparent
+skinparam defaultFontName sans-serif
+skinparam shadowing false
+skinparam ranksep 24
+skinparam arrowColor #c4b5fd
+skinparam arrowThickness 2
+skinparam stateBackgroundColor #312e81
+skinparam stateBorderColor #a78bfa
+skinparam stateBorderThickness 2
+skinparam stateFontColor #ffffff
+skinparam stateFontSize 18
+skinparam stateFontStyle bold
+skinparam stateStartColor #a5b4fc
+hide empty description
+[*] --> Draft
+Draft --> Review
+Review --> Approved
+state Approved #065f46;line:#34d399
+@enduml
