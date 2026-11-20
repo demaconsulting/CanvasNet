@@ -1,0 +1,9 @@
+@startuml
+[*] --> A
+A -> B : one dash
+B --> C : two dashes
+C ---> D : three dashes
+A -[dashed]-> D : dashed
+B -[#red]-> D
+D -left-> A : back
+@enduml

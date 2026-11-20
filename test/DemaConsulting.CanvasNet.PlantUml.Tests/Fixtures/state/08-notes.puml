@@ -1,0 +1,13 @@
+@startuml
+[*] --> Reading
+Reading --> Writing : flush
+note left of Reading : polls the port
+note right of Writing
+  writes the block
+  to the disk
+end note
+note top of Writing : top note
+note bottom of Reading : bottom note
+note on link : buffered
+note "shared settings" as Cfg
+@enduml

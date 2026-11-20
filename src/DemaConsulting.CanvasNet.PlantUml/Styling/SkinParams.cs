@@ -28,10 +28,11 @@ internal sealed record SkinParamEntry(string Name, string Value, PlantUmlLocatio
 ///         colors, fonts, and line widths of the elements: the eight participant kinds, <c>arrow</c>, <c>lifeLine</c>,
 ///         <c>note</c>, <c>sequenceGroup</c>, <c>sequenceBox</c>, <c>sequenceDivider</c>, <c>activity</c>,
 ///         <c>activityDiamond</c>, <c>swimlane</c>, <c>partition</c>, <c>title</c>, <c>header</c>, <c>footer</c>,
-///         <c>legend</c>, and <c>caption</c>. The diagrams PlantUML lays out with Graphviz (class and object diagrams)
-///         also read <c>class</c>, <c>classStereotype</c>, <c>classAttribute</c>, <c>object</c>, <c>objectStereotype</c>, <c>map</c>, and
-///         <c>package</c>, apply <c>arrow</c> to their links, and read <c>classAttributeIconSize</c> and
-///         <c>circledCharacterRadius</c>. Every other parameter, a stereotyped parameter, and a value that cannot be
+///         <c>legend</c>, and <c>caption</c>. The diagrams PlantUML lays out with Graphviz (class, object, and state
+///         diagrams) also read <c>class</c>, <c>classStereotype</c>, <c>classAttribute</c>, <c>object</c>,
+///         <c>objectStereotype</c>, <c>map</c>, <c>package</c>, <c>state</c>, and <c>stateAttribute</c>, apply <c>arrow</c>
+///         to their links, and read <c>classAttributeIconSize</c>, <c>circledCharacterRadius</c>, <c>stateStartColor</c>,
+///         and <c>stateEndColor</c>. Every other parameter, a stereotyped parameter, and a value that cannot be
 ///         read is reported as the warning <see cref="PlantUmlDiagnosticCodes.SkinParamIgnored"/> and has no effect. A
 ///         <c>&lt;style&gt;</c> block is reported as <see cref="PlantUmlDiagnosticCodes.StyleUnsupported"/> and skipped.
 ///     </para>
@@ -88,10 +89,11 @@ internal static partial class SkinParams
         SkinElement.Participant, SkinElement.Actor, SkinElement.Boundary, SkinElement.Control, SkinElement.Entity,
         SkinElement.Database, SkinElement.Collections, SkinElement.Queue, SkinElement.Legend, SkinElement.Caption,
         SkinElement.Class, SkinElement.ClassAttribute, SkinElement.Object, SkinElement.Package, SkinElement.Container,
+        SkinElement.State, SkinElement.StateAttribute, SkinElement.StatePseudo,
     ];
 
     /// <summary>
-    ///     The element prefixes that only the diagrams PlantUML lays out with Graphviz read (class and object diagrams),
+    ///     The element prefixes that only the diagrams PlantUML lays out with Graphviz read (class, object, and state diagrams),
     ///     with the elements each one styles; <c>arrow</c> also styles their links.
     /// </summary>
     private static readonly (string Prefix, SkinElement[] Elements)[] GraphPrefixes =
@@ -103,6 +105,8 @@ internal static partial class SkinParams
         ("object", [SkinElement.Object]),
         ("map", [SkinElement.Object]),
         ("package", [SkinElement.Package]),
+        ("stateAttribute", [SkinElement.StateAttribute]),
+        ("state", [SkinElement.State]),
         ("arrow", [SkinElement.Arrow, SkinElement.ActivityArrow, SkinElement.SvekArrow]),
     ];
 
@@ -184,9 +188,10 @@ internal static partial class SkinParams
     /// <param name="entries">The parameters.</param>
     /// <param name="reports">The pending reports, which receive a warning for every parameter that has no effect.</param>
     /// <param name="graph">
-    ///     Whether the diagram is one that PlantUML lays out with Graphviz (a class or object diagram), which also reads
-    ///     the <c>class</c>, <c>object</c>, <c>map</c>, and <c>package</c> prefixes and the settings
-    ///     <c>classAttributeIconSize</c> and <c>circledCharacterRadius</c>; false by default.
+    ///     Whether the diagram is one that PlantUML lays out with Graphviz (a class, object, or state diagram), which also
+    ///     reads the <c>class</c>, <c>object</c>, <c>map</c>, <c>package</c>, <c>state</c>, and <c>stateAttribute</c>
+    ///     prefixes and the settings <c>classAttributeIconSize</c>, <c>circledCharacterRadius</c>, <c>stateStartColor</c>,
+    ///     and <c>stateEndColor</c>; false by default.
     /// </param>
     /// <returns>The theme with the parameters applied.</returns>
     public static SkinTheme Apply(SkinTheme theme, IEnumerable<SkinParamEntry> entries, List<PlantUmlPendingReport> reports, bool graph = false)
@@ -347,6 +352,13 @@ internal static partial class SkinParams
         if (graph && name.Equals("circledCharacterRadius", StringComparison.OrdinalIgnoreCase))
         {
             return Number(value, 1, 100, ref reason) is { } radius ? theme with { CircledCharacterRadius = radius } : null;
+        }
+
+        // The start and end circles of a state diagram: one color for the fill and the line
+        if (graph && (name.Equals("stateStartColor", StringComparison.OrdinalIgnoreCase) || name.Equals("stateEndColor", StringComparison.OrdinalIgnoreCase)))
+        {
+            var circle = name.StartsWith("stateStart", StringComparison.OrdinalIgnoreCase) ? SkinElement.StateStart : SkinElement.StateEnd;
+            return Color(value, ref reason) is { } color ? theme.With(circle, s => s with { Fill = color, Line = color }) : null;
         }
 
         // An element property: the longest element prefix whose rest is a property name (a graph prefix replaces the

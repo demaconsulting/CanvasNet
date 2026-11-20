@@ -1,0 +1,9 @@
+@startuml
+left to right direction
+[*] --> Queued
+Queued --> Sent : send
+Sent --> Acked : ack
+Sent -down-> Failed : timeout
+Failed -up-> Queued : retry
+Acked --> [*]
+@enduml

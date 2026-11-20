@@ -2,6 +2,7 @@ using DemaConsulting.CanvasNet.PlantUml.Activity;
 using DemaConsulting.CanvasNet.PlantUml.Class;
 using DemaConsulting.CanvasNet.PlantUml.Scenegraph;
 using DemaConsulting.CanvasNet.PlantUml.Sequence;
+using DemaConsulting.CanvasNet.PlantUml.State;
 using DemaConsulting.CanvasNet.PlantUml.Syntax;
 
 namespace DemaConsulting.CanvasNet.PlantUml;
@@ -106,6 +107,7 @@ internal static class DiagramRegistry
             "sequence" => SequenceParser.Parse(source, detected, limits),
             "activity" => ActivityParser.Parse(source, detected, limits),
             "class" or "object" => ClassParser.Parse(source, detected, limits),
+            "state" => StateParser.Parse(source, detected, limits),
             _ => throw new ArgumentException($"The diagram type '{detected.DiagramType}' is not supported.", nameof(detected)),
         };
     }

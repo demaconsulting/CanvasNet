@@ -1,0 +1,14 @@
+@startuml
+state check <<choice>>
+state split <<fork>>
+state merge <<join>>
+state halt <<end>>
+[*] --> check
+check --> split : [ok]
+check --> halt : [failed]
+split --> Load
+split --> Parse
+Load --> merge
+Parse --> merge
+merge --> [*]
+@enduml

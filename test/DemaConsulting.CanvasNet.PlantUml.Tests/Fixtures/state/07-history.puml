@@ -1,0 +1,15 @@
+@startuml
+[*] --> Editor
+state Editor {
+  [*] --> Typing
+  Typing --> Saving : save
+  Saving --> Typing
+}
+Editor --> Paused : pause
+Paused --> Editor[H] : resume
+Paused --> Editor[H*] : restore
+state Viewer {
+  [*] --> Page
+  Page --> [H]
+}
+@enduml

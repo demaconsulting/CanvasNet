@@ -118,6 +118,21 @@ internal enum SkinElement
 
     /// <summary>An object or a map box of an object diagram: its outline, its fill, its name, and its fields.</summary>
     Object,
+
+    /// <summary>A state box and a composite state of a state diagram: its outline, its fill, and its name.</summary>
+    State,
+
+    /// <summary>The description lines of a state.</summary>
+    StateAttribute,
+
+    /// <summary>The start circle of a state diagram (<c>[*]</c> as a source).</summary>
+    StateStart,
+
+    /// <summary>The end circle of a state diagram (<c>[*]</c> as a target, <c>&lt;&lt;end&gt;&gt;</c>).</summary>
+    StateEnd,
+
+    /// <summary>The choice diamond and the history circles of a state diagram.</summary>
+    StatePseudo,
 }
 
 /// <summary>
@@ -346,6 +361,11 @@ internal sealed record SkinTheme
             [SkinElement.ClassStereotype] = root with { FontSize = 12, Italic = true },
             [SkinElement.ClassAttribute] = root,
             [SkinElement.Object] = root with { Fill = CommonBackground, LineWidth = 0.5, RoundCorner = 5 },
+            [SkinElement.State] = root with { Fill = CommonBackground, LineWidth = 0.5, RoundCorner = 25 },
+            [SkinElement.StateAttribute] = root,
+            [SkinElement.StateStart] = root with { Fill = Rgb(0x22, 0x22, 0x22), Line = Rgb(0x22, 0x22, 0x22) },
+            [SkinElement.StateEnd] = root with { Fill = Rgb(0x22, 0x22, 0x22), Line = Rgb(0x22, 0x22, 0x22) },
+            [SkinElement.StatePseudo] = root with { Fill = CommonBackground, LineWidth = 0.5 },
         };
 
         // Participants and their kin: grey-blue, outlined half a pixel wide, padded 7; a participant has corners of 5
