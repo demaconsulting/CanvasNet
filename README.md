@@ -60,9 +60,9 @@ PngCodec.Save(image.Surface, "overview.png");
 
 ## Gallery
 
-![CanvasNet showcase: an SVG dashboard, an OpenSCAD 3D model, a Vega-Lite bar chart, a Mermaid flowchart, a PDF page with mesh shadings, a PowerPoint slide with a chart, a Visio diagram, and an SVG page that composes several of them, all rendered by CanvasNet](https://raw.githubusercontent.com/demaconsulting/CanvasNet/main/docs/images/showcase.png)
+![CanvasNet showcase: an SVG dashboard, an OpenSCAD 3D model, a Vega-Lite bar chart, a Mermaid flowchart, a PDF page with mesh shadings, a PowerPoint slide with a chart, a PlantUML sequence diagram, and an SVG page that composes several of them, all rendered by CanvasNet](https://raw.githubusercontent.com/demaconsulting/CanvasNet/main/docs/images/showcase.png)
 
-*Rendered with the `canvasnet` tool: SVG, OpenSCAD 3D, Vega-Lite, Mermaid, PDF, PowerPoint, Visio, and a composition
+*Rendered with the `canvasnet` tool: SVG, OpenSCAD 3D, Vega-Lite, Mermaid, PDF, PowerPoint, PlantUML, and a composition
 of them (see the Composition section below). See
 [how the image was made](https://github.com/demaconsulting/CanvasNet/blob/main/docs/images/README.md).*
 

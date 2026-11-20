@@ -1,0 +1,47 @@
+' The PlantUML panel of showcase.png: a sequence diagram with an actor, a database, an entity, activations, a group,
+' and a note, restyled with skinparam colors.
+@startuml
+skinparam defaultFontName sans-serif
+skinparam shadowing false
+skinparam defaultFontSize 16
+skinparam arrowFontSize 16
+skinparam noteFontSize 15
+skinparam sequenceGroupHeaderFontSize 15
+skinparam roundCorner 10
+skinparam sequenceArrowThickness 2
+skinparam arrowColor #1E3A8A
+skinparam sequenceLifeLineBorderColor #93C5FD
+skinparam participantBackgroundColor #DBEAFE
+skinparam participantBorderColor #2563EB
+skinparam participantFontColor #1E3A8A
+skinparam participantFontStyle bold
+skinparam actorBackgroundColor #DBEAFE
+skinparam actorBorderColor #2563EB
+skinparam actorFontColor #1E3A8A
+skinparam databaseBackgroundColor #DCFCE7
+skinparam databaseBorderColor #16A34A
+skinparam databaseFontColor #14532D
+skinparam noteBackgroundColor #FEF3C7
+skinparam noteBorderColor #D97706
+skinparam sequenceGroupBorderColor #7C3AED
+skinparam sequenceGroupHeaderBackgroundColor #EDE9FE
+skinparam entityBackgroundColor #FCE7F3
+skinparam entityBorderColor #DB2777
+skinparam entityFontColor #831843
+hide footbox
+actor Shopper
+participant "Web shop" as Shop
+database Stock
+participant Payments
+entity Bank
+Shopper -> Shop ++ : check out
+Shop -> Stock : reserve items
+Shop -> Payments ++ : charge card
+group 3-D Secure
+  Payments -> Bank : authorize
+  Bank --> Payments : approved
+  note right : asks the\nshopper's app
+end
+Payments --> Shop -- : receipt
+Shop --> Shopper -- : order confirmed
+@enduml

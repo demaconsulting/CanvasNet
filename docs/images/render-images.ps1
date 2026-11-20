@@ -5,8 +5,8 @@
 .DESCRIPTION
     The images in this folder are pictures the canvasnet tool draws from architecture.svg, the sources in
     docs/images/showcase, docs/images/hero, docs/images/gears, docs/images/plantuml, and
-    docs/images/composition-explained, the examples of the user guide (docs/user_guide/examples), and one fixture in
-    the test folder. This script is the one place that knows how.
+    docs/images/composition-explained, and the examples of the user guide (docs/user_guide/examples). This script is
+    the one place that knows how.
 
     Without -Check it draws every image into a temporary folder and copies the result over the committed file.
     Commit the changed images with the change that made them differ.
@@ -96,7 +96,6 @@ function Invoke-ToolOrFail {
 function New-Showcase {
     param([string]$Folder)
     $sources = 'docs/images/showcase'
-    $visio = 'test/DemaConsulting.CanvasNet.Vsdx.Tests/VsdxFixtures/davehoward-test4-connectors.vsdx'
     $labeled = Join-Path $Folder 'labeled'
     New-Item -ItemType Directory -Force -Path $labeled | Out-Null
 
@@ -108,15 +107,15 @@ function New-Showcase {
     Invoke-ToolOrFail render "$sources/mesh-shading.pdf" --dpi 144 --resize 600x600 --pad '100,0,100,0' `
         --pad-color white -o "$Folder/4-pdf.png"
     Invoke-ToolOrFail render "$sources/slide.pptx" --page 1 --dpi 80 --resize 800x600 -o "$Folder/5-pptx.png"
-    Invoke-ToolOrFail render $visio --page 1 --dpi 288 --trim --pad 40 --pad '59,0,60,0' --pad-color white `
-        --resize 800x600 -o "$Folder/6-vsdx.png"
+    Invoke-ToolOrFail render "$sources/checkout.puml" --strict --width 770 --pad '15,42,15,43' --pad-color white `
+        -o "$Folder/6-puml.png"
     Invoke-ToolOrFail render "$sources/flowchart.mmd" --strict --width 800 --pad '0,40,0,41' --pad-color white `
         -o "$Folder/7-mmd.png"
     Invoke-ToolOrFail render "$sources/composition.svg" --strict --size 800x600 -o "$Folder/8-composition.png"
 
     $labels = [ordered]@{
         '1-svg.png' = 'SVG'; '2-scad.png' = 'OpenSCAD 3D'; '3-vl.png' = 'Vega-Lite'; '7-mmd.png' = 'Mermaid'
-        '4-pdf.png' = 'PDF'; '5-pptx.png' = 'PowerPoint'; '6-vsdx.png' = 'Visio'; '8-composition.png' = 'Composition'
+        '4-pdf.png' = 'PDF'; '5-pptx.png' = 'PowerPoint'; '6-puml.png' = 'PlantUML'; '8-composition.png' = 'Composition'
     }
     foreach ($file in $labels.Keys) {
         Copy-Item (Join-Path $Folder $file) (Join-Path $labeled $labels[$file])
