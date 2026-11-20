@@ -125,9 +125,9 @@ namespace DemaConsulting.CanvasNet.Svg;
 ///     <c>markerContentUnits</c> (a rarely-used SVG 2 attribute) is not read, and a marker's
 ///     <c>overflow</c>/clipping-to-its-own-viewport behavior is not implemented (marker content is
 ///     never clipped to <c>markerWidth</c>/<c>markerHeight</c>) - both explicitly out of scope.
-///     Within the supported <c>filter</c> feature itself, an explicit
-///     <c>filterUnits="userSpaceOnUse"</c> is tolerantly ignored and always falls back to the
-///     <c>objectBoundingBox</c> default region computation; group-level (<c>g</c>/<c>symbol</c>)
+///     Within the supported <c>filter</c> feature itself, <c>filterUnits</c> is honored but
+///     <c>primitiveUnits</c> is not read and a primitive subregion is read as a fraction of the filter
+///     region (both reported as <see cref="SvgUnsupportedFeature.FilterUnsupportedCode"/>); group-level (<c>g</c>/<c>symbol</c>)
 ///     filtering and filtering a shape's own marker content are both not implemented (a
 ///     <c>filter</c> only ever affects the single element it is set on directly); and any
 ///     primitive type other than the seventeen implemented filter primitives listed above (for

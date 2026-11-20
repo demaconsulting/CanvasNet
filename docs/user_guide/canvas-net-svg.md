@@ -520,7 +520,8 @@ foreach (var hint in hints)
 
 ##### Unsupported Features: SvgLoadOptions.UnsupportedFeatureHandler
 
-Set `SvgLoadOptions.UnsupportedFeatureHandler` to learn about text the codec cannot draw. After the document is painted,
+Set `SvgLoadOptions.UnsupportedFeatureHandler` to learn about text and filters the codec cannot draw as written. After
+the document is painted,
 the codec calls the handler at most once per code with an `SvgUnsupportedFeature` (`Code`, `Message`, and `Count`, the
 number of elements); the message lists the features or reasons and names the first element (its name, `id`, and the
 start of its text). A report never changes the pixels and never fails the load, and no checks run when no handler is
@@ -535,6 +536,10 @@ set. Content drawn through `use`, `marker`, `pattern`, `mask`, and `clipPath` re
   `textLength`, a vertical `writing-mode`, `direction: rtl`, `dominant-baseline`,
   `alignment-baseline`, `text-decoration`, an unsupported `baseline-shift`, and a character that no font has a glyph
   for (drawn as the missing-glyph box, named by its code point).
+- `svg-filter-unsupported` (`SvgUnsupportedFeature.FilterUnsupportedCode`): a filter drawn without a feature it uses -
+  `primitiveUnits="objectBoundingBox"`, which is not read (primitive values stay in user units), or a primitive
+  subregion (`x`, `y`, `width` or `height` on an `fe*` primitive), which is read as a fraction of the filter
+  region; the element counted and named is the `filter`.
 
 ```csharp
 var unsupported = new List<SvgUnsupportedFeature>();

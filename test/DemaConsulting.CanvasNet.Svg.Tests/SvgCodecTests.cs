@@ -5270,24 +5270,19 @@ public class SvgCodecTests
     }
 
     /// <summary>
-    ///     Proves that <c>filterUnits="userSpaceOnUse"</c> falls back tolerantly to the same
-    ///     objectBoundingBox-relative region computation as the default, rather than being
-    ///     interpreted as literal absolute user-space coordinates - a deliberate simplification
-    ///     documented on <see cref="SvgCodec"/>'s own class-level remarks.
+    ///     Proves that <c>filterUnits="userSpaceOnUse"</c> reads the filter region's
+    ///     <c>x</c>/<c>y</c>/<c>width</c>/<c>height</c> as absolute user-space coordinates, as browsers do, not as
+    ///     fractions of the element's bounding box.
     /// </summary>
     [Fact]
-    public void SvgCodec_Load_FilterUserSpaceOnUse_FallsBackToObjectBoundingBoxDefault()
+    public void SvgCodec_Load_FilterUnitsUserSpaceOnUse_ReadsRegionAsAbsoluteCoordinates()
     {
-        // Arrange: x/y/width/height of 0/0/10/10 would, if interpreted literally as
-        // "userSpaceOnUse" absolute coordinates, place the filter region at (0,0)-(10,10) - a
-        // tiny box near the origin, unrelated to the rect's own (40,40)-(60,60) position
+        // Arrange: the region (0,0)-(30,30) does not touch the rect at (40,40)-(60,60)
         const string svg = """
-            <svg viewBox='0 0 100 100'>
-              <defs>
-                <filter id='f' x='0' y='0' width='10' height='10' filterUnits='userSpaceOnUse'>
-                  <feFlood flood-color='lime'/>
-                </filter>
-              </defs>
+            <svg xmlns='http://www.w3.org/2000/svg' width='100' height='100'>
+              <filter id='f' filterUnits='userSpaceOnUse' x='0' y='0' width='30' height='30'>
+                <feFlood flood-color='lime'/>
+              </filter>
               <rect x='40' y='40' width='20' height='20' fill='blue' filter='url(#f)'/>
             </svg>
             """;
@@ -5296,15 +5291,80 @@ public class SvgCodecTests
         using var stream = ToStream(svg);
         var surface = SvgCodec.Load(stream, 100, 100);
 
-        // Assert: the flood reaches far into the canvas, consistent only with the tolerant
-        // objectBoundingBox-fraction fallback (x/y/width/height=0/0/10/10 interpreted as
-        // fractions of the rect's own 20x20 bounding box), not with a literal (0,0)-(10,10)
-        // absolute user-space box
-        Assert.Equal(new Rgba32(0, 255, 0, 255), surface[90, 90]);
+        // Assert: the flood fills the absolute region only; the rect itself is outside it
+        Assert.Equal(new Rgba32(0, 255, 0, 255), surface[15, 15]);
+        Assert.Equal(0, surface[31, 31].A);
+        Assert.Equal(0, surface[50, 50].A);
+        Assert.Equal(0, surface[90, 90].A);
+    }
 
-        // Assert: nothing rendered near the origin, proving the literal absolute-coordinate
-        // interpretation was NOT used
-        Assert.Equal(0, surface[5, 5].A);
+    /// <summary>
+    ///     Proves that a <c>filterUnits="userSpaceOnUse"</c> region in percentages resolves against the viewport (width
+    ///     for <c>x</c> and <c>width</c>, height for <c>y</c> and <c>height</c>), and that an omitted attribute takes its
+    ///     <c>-10%</c>/<c>120%</c> initial value of the viewport.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FilterUnitsUserSpaceOnUsePercentages_ResolveAgainstViewport()
+    {
+        // Arrange: 10%/10%/20%/20% of 200x100 is (20,10)-(60,30); the default region of the second filter is
+        // (-20,-10)-(220,110), the whole canvas
+        const string percent = """
+            <svg xmlns='http://www.w3.org/2000/svg' width='200' height='100'>
+              <filter id='f' filterUnits='userSpaceOnUse' x='10%' y='10%' width='20%' height='20%'>
+                <feFlood flood-color='lime'/>
+              </filter>
+              <rect x='100' y='40' width='20' height='20' fill='blue' filter='url(#f)'/>
+            </svg>
+            """;
+        const string omitted = """
+            <svg xmlns='http://www.w3.org/2000/svg' width='200' height='100'>
+              <filter id='f' filterUnits='userSpaceOnUse'><feFlood flood-color='lime'/></filter>
+              <rect x='80' y='40' width='10' height='10' fill='blue' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var percentStream = ToStream(percent);
+        var percentSurface = SvgCodec.Load(percentStream, 200, 100);
+        using var omittedStream = ToStream(omitted);
+        var omittedSurface = SvgCodec.Load(omittedStream, 200, 100);
+
+        // Assert: the percentage region is filled and nothing outside it
+        Assert.Equal(new Rgba32(0, 255, 0, 255), percentSurface[21, 11]);
+        Assert.Equal(new Rgba32(0, 255, 0, 255), percentSurface[55, 25]);
+        Assert.Equal(0, percentSurface[19, 9].A);
+        Assert.Equal(0, percentSurface[65, 35].A);
+        Assert.Equal(0, percentSurface[110, 50].A);
+
+        // Assert: the default region of the viewport covers the corners
+        Assert.Equal(new Rgba32(0, 255, 0, 255), omittedSurface[1, 1]);
+        Assert.Equal(new Rgba32(0, 255, 0, 255), omittedSurface[198, 98]);
+    }
+
+    /// <summary>
+    ///     Proves that a <c>filterUnits="userSpaceOnUse"</c> filter on a stroked horizontal <c>line</c> - whose object
+    ///     bounding box has no height - is still applied, because its region does not depend on the box.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FilterUnitsUserSpaceOnUseOnHorizontalLine_IsApplied()
+    {
+        // Arrange: the region (100,30)-(200,70) contains the line
+        const string svg = """
+            <svg xmlns='http://www.w3.org/2000/svg' width='200' height='100'>
+              <filter id='g' filterUnits='userSpaceOnUse' x='100' y='30' width='100' height='40'><feFlood flood-color='red'/></filter>
+              <line x1='120' y1='50' x2='180' y2='50' stroke='blue' stroke-width='10' filter='url(#g)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 200, 100);
+
+        // Assert: the flood fills the region; nothing outside it
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[150, 35]);
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[105, 65]);
+        Assert.Equal(0, surface[50, 50].A);
+        Assert.Equal(0, surface[150, 75].A);
     }
 
     /// <summary>

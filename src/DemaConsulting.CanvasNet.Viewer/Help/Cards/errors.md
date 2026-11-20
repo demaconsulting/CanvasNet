@@ -38,7 +38,8 @@ Strict mode is `ViewerRenderOptions.ThrowOnUnsupportedFeature`
   it embeds become unsupported-feature errors, and an image the file-access
   policy denied (image-access-denied) becomes the error file-access-denied. Text
   that is not drawn or drawn without a feature (svg-text-not-drawn,
-  svg-text-unsupported) is an unsupported-feature error, also in an embedded SVG
-  file.
+  svg-text-unsupported) and a filter drawn without a feature
+  (svg-filter-unsupported) are unsupported-feature errors, also in an embedded
+  SVG file.
 - `pdf, raster`: No effect: they have no diagnostics channel. A PDF feature that
   cannot be drawn is an error with or without strict mode.

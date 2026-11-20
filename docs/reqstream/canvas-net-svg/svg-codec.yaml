@@ -599,13 +599,17 @@ sections:
               for text drawn without a feature it uses (rotate, textLength, a vertical
               writing-mode, direction rtl, dominant-baseline,
               alignment-baseline, text-decoration, an unsupported baseline-shift, or a character no
-              font covers); it shall cover all drawn content, report nothing for content that is
+              font covers), and svg-filter-unsupported for a filter applied with
+              primitiveUnits="objectBoundingBox" or a primitive subregion (x, y, width or height on
+              an fe* primitive); it shall cover all drawn content, report nothing for content that is
               not drawn by design, skip the checks when no handler is set, and never change the
               pixels or fail the render.
             justification: |
               Text that silently disappears or loses its layout is the hardest rendering defect
               for a reader to notice; a report lets a host tell the author, or fail a strict
-              build, while the rest of the document is still drawn.
+              build, while the rest of the document is still drawn. The codec does not implement
+              primitiveUnits and reads a primitive subregion as a fraction of the filter region,
+              so a filter that uses either is drawn differently from a browser; the report says so.
             tests:
               - SvgCodec_UnsupportedFeatureHandler_TextPath_ReportsTextNotDrawn
               - SvgCodec_UnsupportedFeatureHandler_RotateTextLengthAndWritingMode_ReportsOneUnsupportedWithEveryFeature
@@ -616,6 +620,8 @@ sections:
               - SvgCodec_UnsupportedFeatureHandler_PlainAndStyledText_ReportsNothing
               - SvgCodec_UnsupportedFeatureHandler_DoesNotChangeThePixels
               - SvgCodec_UnsupportedFeatureHandler_DefaultIsNull
+              - SvgCodec_UnsupportedFeatureHandler_FilterPrimitiveUnitsObjectBoundingBox_ReportsFilterUnsupported
+              - SvgCodec_UnsupportedFeatureHandler_FilterPrimitiveSubregion_ReportsFilterUnsupported
 
           - id: CanvasNetSvg-SvgCodec-FontWeightStyleCascade
             title: >-
@@ -1103,7 +1109,10 @@ sections:
               filter region's default (-10%/-10%/120%/120% of the element's own geometry
               bounding box: its fill geometry, excluding stroke and markers) or explicit
               x/y/width/height, drawing nothing when that box has no width or no height, and
-              tolerating any other primitive type as a no-op passthrough of its own input.
+              honoring filterUnits (under userSpaceOnUse the region is in absolute user units,
+              a percentage or an omitted attribute's initial value being of the viewport, and an
+              empty box drawing the filter normally), and tolerating any other primitive type as
+              a no-op passthrough of its own input.
             justification: |
               Real-world SVG documents commonly use filter="url(#id)" for common effects
               such as a solid-color halo/background behind text labels (the reported
@@ -1118,7 +1127,9 @@ sections:
               - SvgCodec_Load_FilterUnsupportedPrimitive_PassesThroughSourceGraphicUnchanged
               - SvgCodec_Load_FilterDefaultRegion_ExpandsBoundingBoxByTenAndTwentyPercent
               - SvgCodec_Load_FilterExplicitRegion_UsesDeclaredXYWidthHeight
-              - SvgCodec_Load_FilterUserSpaceOnUse_FallsBackToObjectBoundingBoxDefault
+              - SvgCodec_Load_FilterUnitsUserSpaceOnUse_ReadsRegionAsAbsoluteCoordinates
+              - SvgCodec_Load_FilterUnitsUserSpaceOnUsePercentages_ResolveAgainstViewport
+              - SvgCodec_Load_FilterUnitsUserSpaceOnUseOnHorizontalLine_IsApplied
               - SvgCodec_Load_FeOffsetFilter_ShiftsSourceGraphicByDxDy
               - SvgCodec_Load_FeOffsetFilterWithHalfPixelDx_RoundsAwayFromZeroNotToEven
               - SvgCodec_Load_LabelHaloFixture_RendersWhiteHaloBehindLineMidpointLabel
@@ -2142,7 +2153,8 @@ sections:
           - id: CanvasNetSvg-SvgCodec-ImageSourceUnsupportedNotes
             title: >-
               The Svg package's image source shall return each feature of the linked SVG file that the
-              codec reports as not supported (svg-text-not-drawn, svg-text-unsupported) as an
+              codec reports as not supported (svg-text-not-drawn, svg-text-unsupported,
+              svg-filter-unsupported) as an
               Unsupported note of the result with that code, and, when the request asks to throw on an
               unsupported feature, shall fail with UnsupportedImageFeatureException naming the first code.
             justification: |

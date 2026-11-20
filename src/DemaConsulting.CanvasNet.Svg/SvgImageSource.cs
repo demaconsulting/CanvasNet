@@ -31,7 +31,7 @@ namespace DemaConsulting.CanvasNet.Svg;
 ///         (<see cref="SvgPositionBinding"/>), as warnings with their <c>svg-binding-*</c> code (their numbers in the
 ///         file are kept), and the features of the file the library cannot draw (<see cref="SvgUnsupportedFeature"/>,
 ///         for example text on a <c>textPath</c>), as <see cref="ImageDiagnosticSeverity.Unsupported"/> notes with their
-///         <c>svg-text-*</c> code. With <see cref="ImageSourceRequest.ThrowOnUnsupportedFeature"/> the first such
+///         <c>svg-text-*</c> or <c>svg-filter-unsupported</c> code. With <see cref="ImageSourceRequest.ThrowOnUnsupportedFeature"/> the first such
 ///         feature throws <see cref="UnsupportedImageFeatureException"/> instead. Text uses the fonts installed on the
 ///         host (the default of <see cref="SvgLoadOptions"/>).
 ///     </para>

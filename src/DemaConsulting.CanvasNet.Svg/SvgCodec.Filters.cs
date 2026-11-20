@@ -401,7 +401,8 @@ public static partial class SvgCodec
     /// <param name="effects">The resolved <c>filter</c>/<c>clip-path</c>/<c>mask</c> elements.</param>
     /// <param name="geometryBounds">The element's local-space object bounding box (fill geometry, no stroke).</param>
     /// <returns>
-    ///     <see langword="true"/> when the box is empty or has no width or no height and a <c>filter</c> is present,
+    ///     <see langword="true"/> when the box is empty or has no width or no height and a <c>filter</c> has
+    ///     <c>filterUnits</c> in <c>objectBoundingBox</c> (the default),
     ///     a <c>mask</c> has <c>maskUnits</c> or <c>maskContentUnits</c> in <c>objectBoundingBox</c>, or a
     ///     <c>clipPath</c> has <c>clipPathUnits="objectBoundingBox"</c>.
     /// </returns>
@@ -421,12 +422,14 @@ public static partial class SvgCodec
         }
 
         var (filterElement, clipPathElement, maskElement) = effects;
+        var filterUsesBox = filterElement != null &&
+            !string.Equals((string?)filterElement.Attribute("filterUnits"), "userSpaceOnUse", StringComparison.Ordinal);
         var maskUsesBox = maskElement != null &&
             (!string.Equals((string?)maskElement.Attribute("maskUnits"), "userSpaceOnUse", StringComparison.Ordinal) ||
              string.Equals((string?)maskElement.Attribute("maskContentUnits"), "objectBoundingBox", StringComparison.Ordinal));
         var clipUsesBox = clipPathElement != null &&
             string.Equals((string?)clipPathElement.Attribute("clipPathUnits"), "objectBoundingBox", StringComparison.Ordinal);
-        return filterElement != null || maskUsesBox || clipUsesBox;
+        return filterUsesBox || maskUsesBox || clipUsesBox;
     }
 
     /// <summary>
@@ -717,7 +720,7 @@ public static partial class SvgCodec
 
         return ownFilterElement == null
             ? new SubtreeBounds(painted, geometry)
-            : ApplyOwnFilterToLocalBounds(ownFilterElement, new SubtreeBounds(painted, geometry), transform);
+            : ApplyOwnFilterToLocalBounds(ownFilterElement, new SubtreeBounds(painted, geometry), transform, state);
     }
 
     /// <summary>
@@ -818,7 +821,7 @@ public static partial class SvgCodec
             return null;
         }
 
-        return ownFilterElement == null ? targetBounds : ApplyOwnFilterToLocalBounds(ownFilterElement, targetBounds.Value, useTransform);
+        return ownFilterElement == null ? targetBounds : ApplyOwnFilterToLocalBounds(ownFilterElement, targetBounds.Value, useTransform, state);
     }
 
     /// <summary>
@@ -871,7 +874,7 @@ public static partial class SvgCodec
         }
 
         return BoundsRespectingOwnFilter(
-            element, new SubtreeBounds(ComputeTextRunsBounds(runs), ComputeTextRunsGeometryBounds(runs)), transform, context, scope.MarkerDepth);
+            element, new SubtreeBounds(ComputeTextRunsBounds(runs), ComputeTextRunsGeometryBounds(runs)), state, transform, context, scope.MarkerDepth);
     }
 
     /// <summary>
@@ -915,7 +918,7 @@ public static partial class SvgCodec
     {
         var geometry = localPath.GetBounds();
         return BoundsRespectingOwnFilter(
-            element, new SubtreeBounds(ExpandBoundsForStroke(geometry, state), geometry), transform, context, markerDepth);
+            element, new SubtreeBounds(ExpandBoundsForStroke(geometry, state), geometry), state, transform, context, markerDepth);
     }
 
     /// <summary>
@@ -924,6 +927,7 @@ public static partial class SvgCodec
     /// </summary>
     /// <param name="element">The element whose own filter applies.</param>
     /// <param name="localBounds">The stroke-expanded local painted bounds and the local geometry box.</param>
+    /// <param name="state">The element's own cascaded render state, resolving a <c>userSpaceOnUse</c> filter region.</param>
     /// <param name="transform">The element's own composed transform.</param>
     /// <param name="context">The fixed per-document render context.</param>
     /// <param name="markerDepth">The marker depth; above zero no filter applies.</param>
@@ -931,6 +935,7 @@ public static partial class SvgCodec
     private static SubtreeBounds? BoundsRespectingOwnFilter(
         XElement element,
         SubtreeBounds localBounds,
+        RenderState state,
         Matrix3x2 transform,
         RenderContext context,
         int markerDepth)
@@ -942,7 +947,7 @@ public static partial class SvgCodec
             return painted.IsEmpty ? null : new SubtreeBounds(painted, localBounds.Geometry.Transform(transform));
         }
 
-        return ApplyOwnFilterToLocalBounds(ownFilterElement, localBounds, transform);
+        return ApplyOwnFilterToLocalBounds(ownFilterElement, localBounds, transform, state);
     }
 
     /// <summary>
@@ -969,20 +974,21 @@ public static partial class SvgCodec
     ///     bounds and geometry box, in the local space <paramref name="transform"/> maps into the caller's
     ///     reference frame - i.e. excluding the element's own <c>transform</c> attribute and every
     ///     ancestor transform. The filter region is laid out on the geometry box, exactly mirroring
-    ///     <see cref="ComputeFilterRegionPixelBounds(XElement, Rect, Matrix3x2)"/>'s own <c>bounds</c> parameter.
+    ///     <see cref="ComputeFilterRegionPixelBounds(XElement, Rect, Matrix3x2, RenderState)"/>'s own <c>bounds</c> parameter.
     /// </param>
     /// <param name="transform">
     ///     The accumulated transform from <paramref name="localBounds"/>'s own local space into
     ///     the caller's chosen reference frame - the same <c>transform</c> local variable
     ///     <see cref="ComputeSubtreeLocalBounds"/> already computes for the visited element itself.
     /// </param>
+    /// <param name="state">The element's own cascaded render state, resolving a <c>userSpaceOnUse</c> filter region.</param>
     /// <returns>
     ///     The expanded (or, on fallback, raw) bounds mapped through <paramref name="transform"/>, with the
     ///     geometry box mapped too, or <see langword="null"/> if the painted box is itself empty/
     ///     degenerate, or the transformed result is empty.
     /// </returns>
     /// <remarks>
-    ///     Deliberately does not reproduce <see cref="ComputeFilterRegionPixelBounds(XElement, Rect, Matrix3x2)"/>'s
+    ///     Deliberately does not reproduce <see cref="ComputeFilterRegionPixelBounds(XElement, Rect, Matrix3x2, RenderState)"/>'s
     ///     full pixel-space checks (outward pixel rounding, or <see cref="IsFilterPrimitiveWorkWithinBudget"/>'s
     ///     region-area-weighted work check), nor does it charge <see cref="FilterWorkBudget"/>'s
     ///     cumulative ceiling: this bounds pre-pass necessarily runs before the ancestor filtered
@@ -1003,7 +1009,7 @@ public static partial class SvgCodec
     ///     One pixel-space-only check IS deliberately, partially approximated here, though: a
     ///     region already so large in its own pre-transform LOCAL space that it is virtually
     ///     certain to still exceed <see cref="MaxCoordinateMagnitude"/> (and therefore be rejected
-    ///     by <see cref="ComputeFilterRegionPixelBounds(XElement, Rect, Matrix3x2)"/>) once the
+    ///     by <see cref="ComputeFilterRegionPixelBounds(XElement, Rect, Matrix3x2, RenderState)"/>) once the
     ///     real render pass eventually transforms it all the way into actual pixel space. Without
     ///     this check, a descendant filter that is pathologically oversized and therefore
     ///     guaranteed to be rejected at real render time (falling back to the descendant's own
@@ -1023,7 +1029,7 @@ public static partial class SvgCodec
     ///     exists to avoid, and a strictly worse failure mode than merely over-sizing it.
     ///     </para>
     /// </remarks>
-    private static SubtreeBounds? ApplyOwnFilterToLocalBounds(XElement filterElement, SubtreeBounds localBounds, Matrix3x2 transform)
+    private static SubtreeBounds? ApplyOwnFilterToLocalBounds(XElement filterElement, SubtreeBounds localBounds, Matrix3x2 transform, RenderState state)
     {
         if (localBounds.Painted.IsEmpty)
         {
@@ -1038,7 +1044,7 @@ public static partial class SvgCodec
         // render time, and the painted box is kept here as a safe over-estimate
         var filterLocalRegion = CountFilterPrimitiveWorkUnits(filterElement) == 0
             ? null
-            : ComputeFilterRegionLocalBounds(filterElement, localBounds.Geometry);
+            : ComputeFilterRegionLocalBounds(filterElement, localBounds.Geometry, state);
 
         // A filter region that is already, in its own pre-transform local space, grossly larger
         // than MaxCoordinateMagnitude is virtually certain to still exceed MaxCoordinateMagnitude
@@ -1308,10 +1314,8 @@ public static partial class SvgCodec
     ///     pipeline (which derives <paramref name="bounds"/> from one shape's own
     ///     fill geometry) and <see cref="RenderGroupWithEffects"/> (which derives
     ///     <paramref name="bounds"/> from the union of an entire group subtree's own fill
-    ///     geometry via <see cref="ComputeSubtreeLocalBounds"/>) - always as if
-    ///     <c>filterUnits="objectBoundingBox"</c>, the SVG default, regardless of what an explicit
-    ///     <c>filterUnits="userSpaceOnUse"</c> actually says (a documented, deliberate
-    ///     simplification, see this class's remarks), converting the result to an integer
+    ///     geometry via <see cref="ComputeSubtreeLocalBounds"/>) - honoring <c>filterUnits</c> (see
+    ///     <see cref="ComputeFilterRegionLocalBounds"/>), converting the result to an integer
     ///     pixel-space bounding box, rounded outward.
     /// </summary>
     /// <param name="filterElement">The resolved <c>filter</c> element.</param>
@@ -1320,17 +1324,18 @@ public static partial class SvgCodec
     ///     geometry, without stroke or markers).
     /// </param>
     /// <param name="transform">The accumulated transform from local space into pixel space.</param>
+    /// <param name="state">The referencing element's cascaded state, resolving a <c>userSpaceOnUse</c> region.</param>
     /// <returns>
     ///     The pixel-space region as <c>(X, Y, Width, Height)</c>, or <see langword="null"/> if
-    ///     <paramref name="bounds"/> is empty/degenerate, the region resolves to a non-positive
+    ///     <paramref name="bounds"/> is empty/degenerate under <c>objectBoundingBox</c>, the region resolves to a non-positive
     ///     size, its pixel-space transform is non-finite or exceeds
     ///     <see cref="MaxCoordinateMagnitude"/>, or its rounded pixel size exceeds
     ///     <see cref="Surface.MaxDimension"/> on either axis.
     /// </returns>
     private static (int X, int Y, int Width, int Height)? ComputeFilterRegionPixelBounds(
-        XElement filterElement, Rect bounds, Matrix3x2 transform)
+        XElement filterElement, Rect bounds, Matrix3x2 transform, RenderState state)
     {
-        var localRegion = ComputeFilterRegionLocalBounds(filterElement, bounds);
+        var localRegion = ComputeFilterRegionLocalBounds(filterElement, bounds, state);
         return localRegion == null ? null : ConvertLocalRegionToPixelBounds(localRegion.Value, transform);
     }
 
@@ -1377,7 +1382,7 @@ public static partial class SvgCodec
 
         if (filterElement != null)
         {
-            return ComputeFilterRegionPixelBounds(filterElement, geometryBounds, transform);
+            return ComputeFilterRegionPixelBounds(filterElement, geometryBounds, transform, state);
         }
 
         return maskElement != null
@@ -1388,7 +1393,7 @@ public static partial class SvgCodec
     /// <summary>
     ///     Converts an already-computed local-space region into an integer pixel-space bounding
     ///     box, rounded outward - the shared pixel-space conversion/validation core factored out
-    ///     of <see cref="ComputeFilterRegionPixelBounds(XElement, Rect, Matrix3x2)"/> so
+    ///     of <see cref="ComputeFilterRegionPixelBounds(XElement, Rect, Matrix3x2, RenderState)"/> so
     ///     <see cref="ComputeMaskRegionPixelBounds"/> and a plain <c>clip-path</c>-only application
     ///     (which has no region-box concept of its own, and so passes its raw painted bounds
     ///     directly) can reuse the exact same finiteness/<see cref="MaxCoordinateMagnitude"/>/
@@ -1431,12 +1436,11 @@ public static partial class SvgCodec
 
     /// <summary>
     ///     Computes <paramref name="filterElement"/>'s filter region purely in the local space
-    ///     <paramref name="bounds"/> is expressed in - always as if <c>filterUnits="objectBoundingBox"</c>,
-    ///     the SVG default (the same documented simplification <see cref="ComputeFilterRegionPixelBounds(XElement, Rect, Matrix3x2)"/>
-    ///     itself makes) - the shared local-space core factored out of that method, stopping short
-    ///     of its own pixel-space transform/rounding/<see cref="MaxCoordinateMagnitude"/>/
+    ///     <paramref name="bounds"/> is expressed in, honoring <c>filterUnits</c> - the shared local-space
+    ///     core factored out of <see cref="ComputeFilterRegionPixelBounds(XElement, Rect, Matrix3x2, RenderState)"/>,
+    ///     stopping short of its own pixel-space transform/rounding/<see cref="MaxCoordinateMagnitude"/>/
     ///     <see cref="Surface.MaxDimension"/> checks. Used both by
-    ///     <see cref="ComputeFilterRegionPixelBounds(XElement, Rect, Matrix3x2)"/> itself and by
+    ///     <see cref="ComputeFilterRegionPixelBounds(XElement, Rect, Matrix3x2, RenderState)"/> itself and by
     ///     <see cref="ApplyOwnFilterToLocalBounds"/>, so <see cref="ComputeSubtreeLocalBounds"/>'s
     ///     bounds pre-pass can fold a nested filtered descendant's own expanded region into the
     ///     rest of its purely local-space bounds unioning without an awkward pixel-rounding
@@ -1444,12 +1448,40 @@ public static partial class SvgCodec
     /// </summary>
     /// <param name="filterElement">The resolved <c>filter</c> element.</param>
     /// <param name="bounds">The referencing element's local-space object bounding box (fill geometry, no stroke).</param>
+    /// <param name="state">The referencing element's cascaded state, resolving a CSS-unit or percentage value under <c>userSpaceOnUse</c>.</param>
     /// <returns>
     ///     The local-space filter region, or <see langword="null"/> if <paramref name="bounds"/> is
-    ///     empty/degenerate or the region resolves to a non-positive size.
+    ///     empty/degenerate under <c>objectBoundingBox</c> or the region resolves to a non-finite or
+    ///     non-positive size.
     /// </returns>
-    private static Rect? ComputeFilterRegionLocalBounds(XElement filterElement, Rect bounds)
+    /// <remarks>
+    ///     Under the default <c>filterUnits="objectBoundingBox"</c> each of <c>x</c>/<c>y</c>/<c>width</c>/<c>height</c>
+    ///     is a fraction (a number or a percentage) of <paramref name="bounds"/>, as before. Under
+    ///     <c>filterUnits="userSpaceOnUse"</c> each is an absolute local-space length, and a percentage - or the
+    ///     initial <c>-10%</c>/<c>-10%</c>/<c>120%</c>/<c>120%</c> of an omitted attribute - is of the current
+    ///     viewport on that attribute's axis, read by the same <see cref="ReadEffectRegionValue"/> the mask region
+    ///     uses (Filter Effects 1, <c>filterUnits</c>); such a region does not depend on the box, so an empty box is
+    ///     not rejected. <c>primitiveUnits</c> is not read: primitive subregions keep their existing reading as
+    ///     fractions of the filter region, and a document that needs either is reported as
+    ///     <see cref="SvgUnsupportedFeature.FilterUnsupportedCode"/> (see <see cref="ReportFilterUnsupportedFeatures"/>).
+    /// </remarks>
+    private static Rect? ComputeFilterRegionLocalBounds(XElement filterElement, Rect bounds, RenderState state)
     {
+        var isUserSpaceOnUse = string.Equals(
+            (string?)filterElement.Attribute("filterUnits"), "userSpaceOnUse", StringComparison.Ordinal);
+        if (isUserSpaceOnUse)
+        {
+            // userSpaceOnUse: absolute lengths, percentages of the viewport; the box is not used
+            var x = ReadEffectRegionValue((string?)filterElement.Attribute("x"), -0.10f, 0f, 0f, isUserSpaceOnUse: true, state, PercentageAxis.Horizontal);
+            var y = ReadEffectRegionValue((string?)filterElement.Attribute("y"), -0.10f, 0f, 0f, isUserSpaceOnUse: true, state, PercentageAxis.Vertical);
+            var width = ReadEffectRegionValue((string?)filterElement.Attribute("width"), 1.20f, 0f, 0f, isUserSpaceOnUse: true, state, PercentageAxis.Horizontal);
+            var height = ReadEffectRegionValue((string?)filterElement.Attribute("height"), 1.20f, 0f, 0f, isUserSpaceOnUse: true, state, PercentageAxis.Vertical);
+            return !float.IsFinite(x) || !float.IsFinite(y) || !float.IsFinite(width) || !float.IsFinite(height) ||
+                width <= 0f || height <= 0f
+                ? null
+                : new Rect(x, y, width, height);
+        }
+
         if (bounds.IsEmpty || bounds.Width <= 0f || bounds.Height <= 0f)
         {
             return null;
@@ -1840,6 +1872,7 @@ public static partial class SvgCodec
         RenderScope scope,
         ref int totalElements)
     {
+        ReportFilterUnsupportedFeatures(filterElement, context);
         var chain = new FilterChain(target, state, context, scope);
         foreach (var primitive in filterElement.Elements())
         {

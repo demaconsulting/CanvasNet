@@ -448,10 +448,8 @@ public static partial class SvgCodec
     /// <summary>
     ///     Computes <paramref name="maskElement"/>'s own mask region purely in the local space
     ///     <paramref name="bounds"/> is expressed in, honoring <c>maskUnits</c> (default
-    ///     <c>objectBoundingBox</c>) properly - unlike <see cref="ComputeFilterRegionLocalBounds"/>'s
-    ///     documented always-<c>objectBoundingBox</c> simplification for <c>filterUnits</c>, this
-    ///     phase's task requirements call for <c>maskUnits="userSpaceOnUse"</c> to be genuinely
-    ///     respected.
+    ///     <c>objectBoundingBox</c>) properly, exactly as <see cref="ComputeFilterRegionLocalBounds"/>
+    ///     honors <c>filterUnits</c>.
     /// </summary>
     /// <param name="maskElement">The resolved <c>mask</c> element.</param>
     /// <param name="bounds">The referencing element's local-space object bounding box (fill geometry, no stroke).</param>
@@ -480,7 +478,7 @@ public static partial class SvgCodec
     ///     "Attribute syntax" (Types 4.2), and a mixed-type expression falls back to the default
     ///     region. The defaults (<c>-10%</c>, <c>-10%</c>, <c>120%</c>, <c>120%</c>) are percentages in
     ///     both modes, so under <c>userSpaceOnUse</c> an omitted attribute is that percentage of the
-    ///     viewport, not of <paramref name="bounds"/> (see <see cref="ReadMaskRegionValue"/>).
+    ///     viewport, not of <paramref name="bounds"/> (see <see cref="ReadEffectRegionValue"/>).
     /// </remarks>
     private static Rect? ComputeMaskRegionLocalBounds(XElement maskElement, Rect bounds, RenderState state)
     {
@@ -496,10 +494,10 @@ public static partial class SvgCodec
 
         // The initial values are -10%, -10%, 120% and 120% in either units mode (CSS Masking 1); a
         // coordinate is offset from the bounds' origin, an extent is not
-        var x = ReadMaskRegionValue((string?)maskElement.Attribute("x"), -0.10f, bounds.X, bounds.Width, isUserSpaceOnUse, state, PercentageAxis.Horizontal);
-        var y = ReadMaskRegionValue((string?)maskElement.Attribute("y"), -0.10f, bounds.Y, bounds.Height, isUserSpaceOnUse, state, PercentageAxis.Vertical);
-        var width = ReadMaskRegionValue((string?)maskElement.Attribute("width"), 1.20f, 0f, bounds.Width, isUserSpaceOnUse, state, PercentageAxis.Horizontal);
-        var height = ReadMaskRegionValue((string?)maskElement.Attribute("height"), 1.20f, 0f, bounds.Height, isUserSpaceOnUse, state, PercentageAxis.Vertical);
+        var x = ReadEffectRegionValue((string?)maskElement.Attribute("x"), -0.10f, bounds.X, bounds.Width, isUserSpaceOnUse, state, PercentageAxis.Horizontal);
+        var y = ReadEffectRegionValue((string?)maskElement.Attribute("y"), -0.10f, bounds.Y, bounds.Height, isUserSpaceOnUse, state, PercentageAxis.Vertical);
+        var width = ReadEffectRegionValue((string?)maskElement.Attribute("width"), 1.20f, 0f, bounds.Width, isUserSpaceOnUse, state, PercentageAxis.Horizontal);
+        var height = ReadEffectRegionValue((string?)maskElement.Attribute("height"), 1.20f, 0f, bounds.Height, isUserSpaceOnUse, state, PercentageAxis.Vertical);
 
         if (!float.IsFinite(x) || !float.IsFinite(y) || !float.IsFinite(width) || !float.IsFinite(height) ||
             width <= 0f || height <= 0f)
@@ -511,9 +509,9 @@ public static partial class SvgCodec
     }
 
     /// <summary>
-    ///     Reads one of a mask region's own <c>x</c>/<c>y</c>/<c>width</c>/<c>height</c> attributes
+    ///     Reads one of a mask or filter region's own <c>x</c>/<c>y</c>/<c>width</c>/<c>height</c> attributes
     ///     (see <see cref="ComputeMaskRegionLocalBounds"/>'s remarks for the full
-    ///     percentage-vs-literal/<c>maskUnits</c> interpretation rules).
+    ///     percentage-vs-literal/<c>maskUnits</c> interpretation rules, which <c>filterUnits</c> shares).
     /// </summary>
     /// <param name="raw">The raw attribute text, or <see langword="null"/> if absent.</param>
     /// <param name="defaultFraction">
@@ -525,7 +523,7 @@ public static partial class SvgCodec
     ///     for <c>width</c>/<c>height</c>.
     /// </param>
     /// <param name="extent">The reference bounds' own extent on this axis.</param>
-    /// <param name="isUserSpaceOnUse">Whether <c>maskUnits="userSpaceOnUse"</c> was specified.</param>
+    /// <param name="isUserSpaceOnUse">Whether <c>maskUnits</c> (or <c>filterUnits</c>) is <c>userSpaceOnUse</c>.</param>
     /// <param name="state">The referencing element's state, supplying unit bases and the viewport.</param>
     /// <param name="axis">The viewport axis a <c>userSpaceOnUse</c> percentage resolves against.</param>
     /// <returns>The resolved local-space coordinate or extent.</returns>
@@ -535,7 +533,7 @@ public static partial class SvgCodec
     ///     <c>objectBoundingBox</c>, and against the current viewport on <paramref name="axis"/> under
     ///     <c>userSpaceOnUse</c>.
     /// </remarks>
-    private static float ReadMaskRegionValue(
+    private static float ReadEffectRegionValue(
         string? raw, float defaultFraction, float origin, float extent, bool isUserSpaceOnUse, RenderState state, PercentageAxis axis)
     {
         if (isUserSpaceOnUse)
@@ -559,7 +557,7 @@ public static partial class SvgCodec
     /// <summary>
     ///     Computes <paramref name="maskElement"/>'s own mask region and converts it to an integer
     ///     pixel-space bounding box - the mask counterpart of
-    ///     <see cref="ComputeFilterRegionPixelBounds(XElement, Rect, Matrix3x2)"/>, sharing its
+    ///     <see cref="ComputeFilterRegionPixelBounds(XElement, Rect, Matrix3x2, RenderState)"/>, sharing its
     ///     exact pixel-space conversion/validation core (see <see cref="ConvertLocalRegionToPixelBounds"/>).
     /// </summary>
     /// <param name="maskElement">The resolved <c>mask</c> element.</param>

@@ -681,7 +681,9 @@ group requiring the `Extensibility` feature draws the next child only, not the o
 `SvgCodec_UnsupportedFeatureHandler_MissingGlyph_ReportsUnsupportedWithTheCodePoint`,
 `SvgCodec_UnsupportedFeatureHandler_SeveralElements_ReportsOnceWithTheCount`,
 `SvgCodec_UnsupportedFeatureHandler_PlainAndStyledText_ReportsNothing`,
-`SvgCodec_UnsupportedFeatureHandler_DoesNotChangeThePixels`, `SvgCodec_UnsupportedFeatureHandler_DefaultIsNull`
+`SvgCodec_UnsupportedFeatureHandler_DoesNotChangeThePixels`, `SvgCodec_UnsupportedFeatureHandler_DefaultIsNull`,
+`SvgCodec_UnsupportedFeatureHandler_FilterPrimitiveUnitsObjectBoundingBox_ReportsFilterUnsupported`,
+`SvgCodec_UnsupportedFeatureHandler_FilterPrimitiveSubregion_ReportsFilterUnsupported`
 
 Asserts that a `textPath` is one `svg-text-not-drawn` report naming `textPath` and the text; that `rotate`,
 `textLength`, a vertical `writing-mode`, `dominant-baseline`, `text-decoration`, an unknown `baseline-shift` and
@@ -695,6 +697,10 @@ not-drawn one first, with the count (a text drawn twice through `use` counts onc
 plain and styled text, letter and word spacing, an `x` list, a `switch` fallback, `title`, `defs` content and
 white-space-only text report
 nothing; that a render with a handler draws the same pixels as one without; and that the handler is `null` by default.
+A filter in `primitiveUnits="objectBoundingBox"` applied by two rects is one `svg-filter-unsupported` report with a
+count of 1, starting "filter is drawn without: primitiveUnits="objectBoundingBox"" and naming `<filter id="f">`, with
+the same pixels as a render without a handler; a filter with a primitive subregion is one such report naming the
+primitive subregion, while a `filterUnits="userSpaceOnUse"` filter without either reports nothing.
 
 #### CanvasNetSvg-SvgCodec-ImageSourceUnsupportedNotes: Unsupported Notes Of A Linked SVG File
 
@@ -1305,7 +1311,9 @@ for `filter`'s own dedicated coverage - it is no longer an out-of-scope construc
 `SvgCodec_Load_FilterUnsupportedPrimitive_PassesThroughSourceGraphicUnchanged`,
 `SvgCodec_Load_FilterDefaultRegion_ExpandsBoundingBoxByTenAndTwentyPercent`,
 `SvgCodec_Load_FilterExplicitRegion_UsesDeclaredXYWidthHeight`,
-`SvgCodec_Load_FilterUserSpaceOnUse_FallsBackToObjectBoundingBoxDefault`,
+`SvgCodec_Load_FilterUnitsUserSpaceOnUse_ReadsRegionAsAbsoluteCoordinates`,
+`SvgCodec_Load_FilterUnitsUserSpaceOnUsePercentages_ResolveAgainstViewport`,
+`SvgCodec_Load_FilterUnitsUserSpaceOnUseOnHorizontalLine_IsApplied`,
 `SvgCodec_Load_FeOffsetFilter_ShiftsSourceGraphicByDxDy`,
 `SvgCodec_Load_FeOffsetFilterWithHalfPixelDx_RoundsAwayFromZeroNotToEven`,
 `SvgCodec_Load_LabelHaloFixture_RendersWhiteHaloBehindLineMidpointLabel`,
@@ -1336,9 +1344,11 @@ input rather than throwing or blanking the element's content; asserts the filter
 computation expands the referencing element's own bounding box by exactly -10%/-10%/120%/120%,
 verified at pixels just inside and just outside each computed edge; asserts an explicit `filter`
 `x`/`y`/`width`/`height` overrides the default region computation; asserts
-`filterUnits="userSpaceOnUse"` tolerantly falls back to the same objectBoundingBox-relative region
-computation as the default, rather than being interpreted as literal absolute user-space
-coordinates; asserts the region on a stroked `rect` is laid out on its fill geometry box, so the
+`filterUnits="userSpaceOnUse"` reads the region as absolute user-space coordinates (a 0,0 30x30 region floods
+only that corner, not the rect at 40,40), resolves a percentage against the viewport (10%/10%/20%/20% of 200x100 is
+20,10 40x20) and an omitted attribute as its initial value of the viewport (the whole canvas), and applies on a
+stroked horizontal `line` because the region does not need the object bounding box - each matching Edge headless;
+asserts the region on a stroked `rect` is laid out on its fill geometry box, so the
 stroke outside that box is not flooded, and that a filter on a stroked horizontal `line` (an object
 bounding box with no height) draws nothing, as in Edge; and asserts `feOffset` shifts its input by
 `dx`/`dy` prior to compositing back onto the canvas. Two real fixture files corroborate this end to end:

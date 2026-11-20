@@ -140,9 +140,10 @@ combinators, pseudo-classes, `@media`/other at-rules, and `!important` are expli
 scope - see that section for the per-construct rationale and failure-mode. Within the supported
 `marker` feature itself, `markerContentUnits` (a rarely-used SVG 2 attribute) and clipping marker
 content to its own `markerWidth`/`markerHeight` viewport (`overflow`) are both explicitly out of
-scope. Within the supported `filter` feature itself, `filterUnits="userSpaceOnUse"` (tolerantly falls back to
-the same objectBoundingBox-relative region computation as the default, rather than being
-interpreted as literal absolute user-space coordinates), a `filter` on a shape's own `marker`
+scope. Within the supported `filter` feature itself, `primitiveUnits` (not read: primitive values stay in user
+units) and the user-space reading of a primitive subregion (`x`/`y`/`width`/`height` on an `fe*` primitive is
+read as a fraction of the filter region), both reported as `svg-filter-unsupported` (see *Unsupported-Feature
+Reports*), a `filter` on a shape's own `marker`
 content (has no effect - `marker` content is never recursed into by the ordinary element walk, so
 a group-level filter on a `<g>` inside a `marker` is never reached) are explicitly out of
 scope. Encountering a genuinely unrecognized `fe*` primitive name (any type this codec does not
@@ -257,7 +258,7 @@ to the resolved `cx`/`cy`, `fr` to 0, and a pattern's omitted `x`, `y`, `width` 
 their initial value `0` (SVG 2: a zero `width`/`height` disables rendering) in either mode. This
 is an intended behavior change: a `userSpaceOnUse` gradient that omits those attributes used to be
 one user unit wide. A mask region's omitted `x`, `y`, `width` and `height` follow the same rule
-(`ReadMaskRegionValue`): their initial values `-10%`, `-10%`, `120%` and `120%` are percentages in
+(`ReadEffectRegionValue`): their initial values `-10%`, `-10%`, `120%` and `120%` are percentages in
 both units modes (CSS Masking 1), so under `maskUnits="userSpaceOnUse"` they are `-10%`/`120%` of
 the viewport width or height, not of the shape's bounds as before.
 
@@ -987,8 +988,12 @@ no effect. The filter region - the rectangular area, in the element's own local 
 offscreen buffer covers - defaults to -10%/-10%/120%/120% (`x`/`y`/`width`/`height`, objectBoundingBox units) of the
 element's own local-space object bounding box - its fill geometry (`localPath.GetBounds()`, the union of the runs for a
 text), without stroke or markers, the same box gradients and patterns use - or uses the filter element's own explicit
-`x`/`y`/`width`/`height` attributes when present (still always interpreted as objectBoundingBox-relative fractions, even
-when `filterUnits="userSpaceOnUse"` is declared - a deliberate, tolerant simplification). This local-space region is
+`x`/`y`/`width`/`height` attributes when present, as objectBoundingBox-relative fractions. Under
+`filterUnits="userSpaceOnUse"` the region is instead absolute user-space coordinates, with a percentage (plain, in a
+math function, or the `-10%`/`120%` initial value of an omitted attribute) of the current viewport on the
+attribute's axis - the same reader (`ReadEffectRegionValue`) as a `maskUnits="userSpaceOnUse"` region - and does
+not depend on the object bounding box, so an empty box does not stop it (`ComputeFilterRegionLocalBounds`, which
+the bounds pre-pass shares through `ApplyOwnFilterToLocalBounds`). This local-space region is
 transformed by the element's own accumulated transform, then rounded outward to an integer pixel bounding box; if that
 box is degenerate, non-finite, or exceeds `Surface.MaxDimension` on either axis, the filter is tolerantly skipped
 entirely and the element renders normally, exactly as if it had no `filter` attribute - the same bounded-resource
@@ -1345,7 +1350,7 @@ attribute's own axis (width for `x`/`width`, height for `y`/`height`), as for gr
 resolved such a percentage against the reference bounds. An omitted, empty or unparseable attribute
 takes its initial value (`-10%`, `-10%`, `120%`, `120%`) on the same basis as an explicit
 percentage in the active mode: the reference bounds under `objectBoundingBox`, the current viewport
-under `userSpaceOnUse` (one reader, `ReadMaskRegionValue`, serves all four attributes).
+under `userSpaceOnUse` (one reader, `ReadEffectRegionValue`, serves all four attributes).
 
 *Resource safety.* Both clip and mask reuse `FilterWorkBudget` (not a separate budget class) for
 their own offscreen-buffer allocation charge - a deliberate judgment call rather than the
@@ -1371,8 +1376,8 @@ generalization filter regions already used, now shared via `ResolveEffectsRegion
 
 *Region precedence.* When more than one of `filter`/`clip-path`/`mask` are present on the same
 element, `ResolveEffectsRegionPixelBounds` decides whose region sizes the shared offscreen
-buffer(s): the filter's own region wins if a filter is present (unchanged pre-Phase-2 behavior -
-filter regions are always objectBoundingBox-relative, a pre-existing simplification); otherwise
+buffer(s): the filter's own region wins if a filter is present (`ComputeFilterRegionPixelBounds`, honoring
+`filterUnits`); otherwise
 the mask's own region (`ComputeMaskRegionPixelBounds`, properly honoring `maskUnits`) if a mask is
 present; otherwise (clip-only, no mask or filter) the plain painted/stroke-expanded content
 bounds with no `-10%/120%` filter-style expansion. Filter and mask regions, and the
@@ -2151,9 +2156,15 @@ the first 24 characters of its text), the distinct elements (the count), and up 
   `direction: rtl`, a `dominant-baseline` and a `text-decoration` on a text
   content element or an ancestor of the `text`; and each code point that `GlyphFallback.FindMissing` finds no font
   for.
+- `svg-filter-unsupported` (`SvgUnsupportedFeature.FilterUnsupportedCode`): a `filter` that is applied (from
+  `EvaluateFilterChain`, through `ReportFilterUnsupportedFeatures`) with `primitiveUnits="objectBoundingBox"`,
+  which the codec does not read, or with a primitive subregion (`x`, `y`, `width` or `height` on a direct
+  `fe*` child), which it reads as a fraction of the filter region instead of in the primitive units; the element
+  counted is the `filter`, and the message reads "filter is drawn without: ...".
 
 **Reporting.** After the document is painted, `RenderDocument` calls `Report`, which calls the handler once per code,
-`svg-text-not-drawn` first, with the count and the message. Content that is not drawn by design (inside `defs`, a
+`svg-text-not-drawn` first, then `svg-text-unsupported` and `svg-filter-unsupported`, with the count and the message.
+Content that is not drawn by design (inside `defs`, a
 `switch` child that is not chosen, `title`/`desc`) reports nothing; content drawn through `use`, `marker`, `pattern`,
 `mask` and `clipPath` reports like any other.
 
