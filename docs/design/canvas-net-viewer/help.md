@@ -43,7 +43,7 @@ catalog or view depth first, the visible cards without a visible ancestor, the r
 aliases (null for an unknown or hidden card), the nearest visible descendants of a card, and its visible related cards.
 
 **Filter(include, exclude)** (provided): a view of the cards that have any included tag (all when nothing is included)
-and no excluded tag. The tags are the closed vocabulary of `HelpTags`; an unknown tag is `ArgumentException`.
+and no excluded tag. The tags are the closed vocabulary of `HelpTags`; an unknown (or null) tag is `ArgumentException`.
 
 **FormatMarkdown(card, formatLink)** (provided): the body of a card with each visible in-text link written by the
 host's callback, which receives a `HelpLink` (the target card, the example name, and the card that owns the example).

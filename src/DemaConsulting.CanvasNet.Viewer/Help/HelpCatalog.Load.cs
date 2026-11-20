@@ -86,7 +86,7 @@ public sealed partial class HelpCatalog
         IReadOnlyList<string> rootOrder)
     {
         // Parse every card; a library card is never an overlay
-        var sources = cards.Select(c => ParseCard(c.FileName, c.Text, examples, LibraryTokens)).ToList();
+        var sources = cards.Select(c => ParseCard(c.FileName, c.Text, examples, LibraryTokens, null)).ToList();
         if (sources.FirstOrDefault(s => s.Extends != null) is { } overlay)
         {
             throw HelpFrontMatter.Error(overlay.FileName, overlay.ExtendsLine, $"the key '{ExtendsKey}' is only allowed in an extension");
@@ -145,7 +145,8 @@ public sealed partial class HelpCatalog
 
         // Copy the existing nodes, so this catalog is never changed
         var nodes = _data.ById.Values.ToDictionary(n => n.Id, n => n.Copy(), StringComparer.Ordinal);
-        var sources = cards.Select(c => ParseCard(c.FileName, c.Text, examples, allTokens)).ToList();
+        // Parsing refuses a new card in the tree of an existing card, so each added card starts a new tree
+        var sources = cards.Select(c => ParseCard(c.FileName, c.Text, examples, allTokens, _data.ById)).ToList();
         var overlays = sources.Where(s => s.Extends != null).ToList();
         var added = sources.Where(s => s.Extends == null).ToList();
 
@@ -166,17 +167,9 @@ public sealed partial class HelpCatalog
             target.Examples = target.Examples.Concat(overlay.Examples).ToList();
         }
 
-        // A new card starts a new tree, never a branch of an existing one
+        // A new card starts a new tree (checked while parsing)
         foreach (var source in added)
         {
-            var root = source.Id.Split('/')[0];
-            if (_data.ById.ContainsKey(root))
-            {
-                throw new InvalidOperationException(
-                    $"Help card '{source.FileName}' is in the tree of the card '{root}' of the catalog: write it in the catalog's "
-                    + $"assembly, or make it an overlay with '{ExtendsKey}: {source.Id}' of an existing card.");
-            }
-
             nodes.Add(source.Id, source.ToNode());
         }
 
@@ -257,13 +250,20 @@ public sealed partial class HelpCatalog
     /// <param name="text">The text of the file.</param>
     /// <param name="examples">The example files by <c>&lt;root&gt;-&lt;file name&gt;</c>.</param>
     /// <param name="tokens">The token values.</param>
+    /// <param name="extending">
+    ///     The cards of the catalog being extended, or <see langword="null"/> when the library itself is created.
+    /// </param>
     /// <returns>The parsed card, its body with tokens replaced but links not yet parsed.</returns>
-    /// <exception cref="InvalidOperationException">Thrown when the card is malformed; the message names the file and the line.</exception>
+    /// <exception cref="InvalidOperationException">
+    ///     Thrown when the card is malformed (the message names the file and the line), or when it is an extension card
+    ///     that is not an overlay but is in the tree of a card of <paramref name="extending"/> (checked before the keys).
+    /// </exception>
     private static CardSource ParseCard(
         string fileName,
         string text,
         IReadOnlyDictionary<string, string> examples,
-        IReadOnlyDictionary<string, string> tokens)
+        IReadOnlyDictionary<string, string> tokens,
+        IReadOnlyDictionary<string, HelpNode>? extending)
     {
         // The file name is the identifier
         if (!fileName.EndsWith(CardExtension, StringComparison.Ordinal)
@@ -277,6 +277,16 @@ public sealed partial class HelpCatalog
         var document = HelpFrontMatter.Parse(NormalizeText(text), fileName);
         var properties = document.Properties.ToDictionary(p => p.Key, p => p.Value, StringComparer.Ordinal);
         var isOverlay = properties.ContainsKey(ExtendsKey);
+
+        // A new extension card starts a new tree, never a branch of an existing one; this is checked before the keys,
+        // so a card left behind by a move is reported as misplaced, not as malformed
+        var root = id.Split('/')[0];
+        if (!isOverlay && extending != null && extending.ContainsKey(root))
+        {
+            throw new InvalidOperationException(
+                $"Help card '{fileName}' is in the tree of the card '{root}' of the catalog: write it in the catalog's "
+                + $"assembly, or make it an overlay with '{ExtendsKey}: {id}' of an existing card.");
+        }
 
         // An overlay adds to a card; it cannot change what the card is or where it is
         string[] allowed = isOverlay
@@ -302,7 +312,6 @@ public sealed partial class HelpCatalog
             throw HelpFrontMatter.Error(fileName, badAlias.Line, $"the alias '{badAlias.Text}' must be lower case letters, digits, and dashes");
         }
 
-        var root = id.Split('/')[0];
         var exampleList = properties.TryGetValue("examples", out var exampleValue)
             ? RequireList(exampleValue, "examples", fileName).Select(e => ParseExample(e, root, fileName, examples, tokens)).ToList()
             : [];

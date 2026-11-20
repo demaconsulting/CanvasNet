@@ -186,7 +186,9 @@ public sealed partial class HelpCatalog
     ///     included), and it has no excluded tag. See the remarks of <see cref="HelpCatalog"/> for hidden parents and
     ///     links. Creating a view does not change this catalog.
     /// </returns>
-    /// <exception cref="ArgumentException">Thrown when a tag is not one of <see cref="HelpTags.All"/>.</exception>
+    /// <exception cref="ArgumentException">
+    ///     Thrown when a tag is <see langword="null"/> or is not one of <see cref="HelpTags.All"/>.
+    /// </exception>
     public HelpCatalog Filter(IEnumerable<string>? include, IEnumerable<string>? exclude = null)
     {
         var included = RequireTags(include, nameof(include));
@@ -311,11 +313,15 @@ public sealed partial class HelpCatalog
     /// <param name="tags">The tags, or <see langword="null"/>.</param>
     /// <param name="parameter">The parameter name, for the exception.</param>
     /// <returns>The tags as a set; empty for <see langword="null"/>.</returns>
-    /// <exception cref="ArgumentException">Thrown when a tag is unknown.</exception>
+    /// <exception cref="ArgumentException">Thrown when a tag is <see langword="null"/> or unknown.</exception>
     private static HashSet<string> RequireTags(IEnumerable<string>? tags, string parameter)
     {
+        // A null tag is reported like an unknown one (a set keeps a null element)
         var set = new HashSet<string>(tags ?? [], StringComparer.Ordinal);
-        var unknown = set.FirstOrDefault(t => !HelpTags.All.Contains(t));
+        var unknown = set
+            .Where(t => t is null || !HelpTags.All.Contains(t))
+            .Select(t => t ?? "null")
+            .FirstOrDefault();
         if (unknown != null)
         {
             throw new ArgumentException(

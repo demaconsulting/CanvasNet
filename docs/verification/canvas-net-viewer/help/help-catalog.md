@@ -51,12 +51,13 @@ to temporary folders that each test deletes.
 first, its roots in order, each card's children, related cards, parent, name, title, summary, tags, aliases, and its
 example with the file content normalized, in lists that are not `List<T>`.
 **HelpCatalog_Create_MalformedCard_ThrowsWithTheFileAndTheReason** (a theory): a link to an unknown card, to an
-unknown example of a card, and to an unknown example of the containing card, text that starts like a link, missing
-tags, an unknown tag, a card without a scope tag, a repeated tag, overlay keys and `extends` in a library card, a
-related card that does not exist, an unknown token, a repeated example name, a missing example file, children that are
-not the files of the folder, wrong roots, and a badly named file each fail with the file (and the line, where there is
-one) and the reason. **HelpCatalog_Create_SemanticErrors_ThrowWithFileAndLine**: an unknown key, a missing title, a
-list where text is expected, an example of an unknown kind, without a name, and with an unknown key each name the line.
+unknown example of a card, and to an unknown example of the containing card, text that starts like a link (including
+an upper-case start), missing tags, an unknown tag, a card without a scope tag, a repeated tag, overlay keys and
+`extends` in a library card, a related card that does not exist, an unknown token, a repeated example name, a missing
+example file, children that are not the files of the folder, wrong roots, and a badly named file each fail with the
+file (and the line, where there is one) and the reason. **HelpCatalog_Create_SemanticErrors_ThrowWithFileAndLine**: an
+unknown key, a missing title, a list where text is expected, an example of an unknown kind, without a name, and with an
+unknown key each name the line.
 **HelpCatalog_LibraryTokens_AreTheCodeConstants**: every library token is the formatted constant of the code.
 
 **Lookup.** **HelpCatalog_Find_PathsAndAliases_ResolveOrGiveNull** (a theory): paths with `/` or white space, aliases,
@@ -74,9 +75,9 @@ fenced block stays literal.
 
 **Views and hidden cards.** **HelpCatalog_Filter_IncludeExclude_SelectsCardsByTags**,
 **HelpCatalog_Filter_UnknownTag_ThrowsArgumentException**, and **HelpCatalog_Filter_OfAView_Composes**: a card is
-visible with an included tag and no excluded tag, an unknown tag is an `ArgumentException`, and a filter of a view keeps
-the cards visible in both. **HelpCatalog_Filter_HiddenParent_LiftsVisibleChildrenToRootsAndChildren**: the visible
-children of a hidden card move up to its nearest visible ancestor or the roots.
+visible with an included tag and no excluded tag, an unknown or null tag is an `ArgumentException`, and a filter of a
+view keeps the cards visible in both. **HelpCatalog_Filter_HiddenParent_LiftsVisibleChildrenToRootsAndChildren**: the
+visible children of a hidden card move up to its nearest visible ancestor or the roots.
 **HelpCatalog_Filter_Find_HiddenIsNull_VisibleChildOfHiddenParentResolves**: a visible card below hidden ones is found
 by its full path, a hidden card is not. **HelpCatalog_Filter_HiddenLinkTargets_BecomePlainText**: a link to a hidden
 card becomes its title, a link to a hidden example "an example", and a hidden related card is left out of the card and
@@ -96,9 +97,9 @@ hidden card reaches the host with the owner of the example as the card.
 body, related cards, and examples and replaces the title, a host card starts a new root, the host token is replaced,
 and the extended catalog is unchanged. **HelpCatalog_Extend_MisfitExtension_ThrowsWithTheReason** (a theory): an
 overlay of an unknown card or of another path, a host card in the tree of a library card (with the advice to write it
-in the catalog's assembly or make it an overlay), the overlay keys `tags` and `children`, a host link to an unknown
-card, an overlay example whose name repeats one of the tree, an overlay related card that is the card itself, and a
-host root whose alias repeats a library root's alias fail with the reason.
+in the catalog's assembly or make it an overlay, also when it lacks the card keys such as `tags`), the overlay keys
+`tags` and `children`, a host link to an unknown card, an overlay example whose name repeats one of the tree, an overlay
+related card that is the card itself, and a host root whose alias repeats a library root's alias fail with the reason.
 **HelpCatalog_Extend_TokenCollisionOrFilteredView_Throws**: a host token that redefines a library token and an
 extension of a filtered view fail. **HelpCatalog_Extend_AssemblyWithoutCards_KeepsTheCards**: the public `Extend` reads
 the resources of an assembly (one without help resources leaves the cards unchanged).

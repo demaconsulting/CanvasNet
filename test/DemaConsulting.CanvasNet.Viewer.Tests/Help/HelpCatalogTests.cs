@@ -127,6 +127,7 @@ public partial class HelpCatalogTests
     [InlineData("a/c.md", "---\ntitle: C\nsummary: S.\ntags:\n  - svg\n  - authoring\n---\n\nSee [[a#nope]].", "names no example 'nope' of the card 'a'")]
     [InlineData("a/c.md", "---\ntitle: C\nsummary: S.\ntags:\n  - svg\n  - authoring\n---\n\nSee [[#one]].", "names no example 'one' of the card 'a/c'")]
     [InlineData("a/c.md", "---\ntitle: C\nsummary: S.\ntags:\n  - svg\n  - authoring\n---\n\nSee [[A/b]] or [[a b]].", "line 9: text that starts like a link")]
+    [InlineData("a/c.md", "---\ntitle: C\nsummary: S.\ntags:\n  - svg\n  - authoring\n---\n\nSee [[Files]].", "line 9: text that starts like a link")]
     [InlineData("a/c.md", "---\ntitle: C\nsummary: S.\n---\n\nC.", "lacks the key 'tags'")]
     [InlineData("a/c.md", "---\ntitle: C\nsummary: S.\ntags:\n  - svg\n  - pretty\n---\n\nC.", "line 6: the tag 'pretty' is unknown")]
     [InlineData("a/c.md", "---\ntitle: C\nsummary: S.\ntags:\n  - svg\n---\n\nC.", "at least one scope tag")]
@@ -240,7 +241,7 @@ public partial class HelpCatalogTests
     }
 
     /// <summary>
-    ///     Test that an unknown tag is rejected.
+    ///     Test that an unknown or null tag is rejected.
     /// </summary>
     [Fact]
     public void HelpCatalog_Filter_UnknownTag_ThrowsArgumentException()
@@ -251,8 +252,12 @@ public partial class HelpCatalogTests
         // Act / Assert
         var include = Assert.Throws<ArgumentException>(() => catalog.Filter(["pretty"]));
         var exclude = Assert.Throws<ArgumentException>(() => catalog.Filter(null, ["SVG"]));
+        var nullInclude = Assert.Throws<ArgumentException>(() => catalog.Filter([null!]));
+        var nullExclude = Assert.Throws<ArgumentException>(() => catalog.Filter(null, [HelpTags.Svg, null!]));
         Assert.Equal("include", include.ParamName);
         Assert.Equal("exclude", exclude.ParamName);
+        Assert.Equal("include", nullInclude.ParamName);
+        Assert.Equal("exclude", nullExclude.ParamName);
     }
 
     /// <summary>
@@ -390,6 +395,8 @@ public partial class HelpCatalogTests
     [InlineData("a/c.md", "---\nextends: a/b\n---\n\nX.", "'extends: a/b' must name the existing card at the overlay's own path, 'a/c'")]
     [InlineData("a/e.md", "---\ntitle: E\nsummary: S.\ntags:\n  - design\n---\n\nE.", "is in the tree of the card 'a' of the catalog")]
     [InlineData("a.md", "---\ntitle: E\nsummary: S.\ntags:\n  - design\n---\n\nE.", "is in the tree of the card 'a' of the catalog")]
+    [InlineData("a/e.md", "---\ntitle: E\nsummary: S.\n---\n\nE.", "is in the tree of the card 'a' of the catalog")]
+    [InlineData("a/e.md", "---\ntitle: E\n---\n\nE.", "make it an overlay with 'extends: a/e'")]
     [InlineData("a/c.md", "---\nextends: a/c\ntags:\n  - design\n---\n\nX.", "the key 'tags' is not allowed in an overlay")]
     [InlineData("a/c.md", "---\nextends: a/c\nchildren:\n  - z\n---\n\nX.", "the key 'children' is not allowed in an overlay")]
     [InlineData("a/c.md", "---\nextends: a/c\n---\n\nSee [[json]].", "line 5: the link '[[json]]' names no card 'json'")]

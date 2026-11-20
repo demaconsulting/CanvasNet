@@ -109,9 +109,10 @@ other card. **TextWidth** is 78, the column at which generated lines are wrapped
 checks that the roots are `rootOrder`, builds the nodes, validates the tree (`ValidateTree`), and parses the links of
 every body (`ParseBody`) against the tree.
 
-**ParseCard** (private): checks the file name, parses the front matter, checks the allowed keys (fewer for an overlay),
-the aliases, the tags (`ParseTags`), and the examples (`ParseExample`, which reads the file of a source or snippet), and
-replaces the tokens.
+**ParseCard** (private): checks the file name, parses the front matter, refuses a host card that is not an overlay in
+the tree of an existing card (before any other key is checked, so a misplaced card gets the placement advice), checks
+the allowed keys (fewer for an overlay), the aliases, the tags (`ParseTags`), and the examples (`ParseExample`, which
+reads the file of a source or snippet), and replaces the tokens.
 
 **ValidateTree** (private): the children of a card are exactly the card files of its folder, a card below another needs
 its parent, related cards are existing other cards named once, names and aliases are unique among siblings and among
@@ -121,7 +122,8 @@ roots ignoring case, and example names are unique below each root.
 backticks and inline code spans of a paragraph), match the link grammar
 `[[<card>]]`, `[[<card>#<example>]]`, or `[[#<example>]]` outside code, resolve the card (it must exist) and the example
 (found depth first in the tree of the card the link names, or of the containing card for `[[#name]]`, as the command
-line's example search does), and report any other text outside code that starts with `[[` and a letter, digit, or `#`.
+line's example search does), and report any other text outside code that starts with `[[` and a letter (either case),
+digit, or `#`.
 
 **Find(path)**: splits the path at `/` and white space, walks the structural tree from the roots matching each segment
 by name or alias ignoring case (through hidden cards), and returns the card of this view, or null.
@@ -145,9 +147,10 @@ visible in this view (`Require` maps a card of another view with the same identi
 **Extend(assembly, resourcePrefix, tokens)** and **ExtendWith(cards, examples, tokens)** (internal seam): refuse a
 filtered view, add the tokens (refusing a redefinition), copy the nodes, parse the host cards, apply each overlay to the
 card at its own path (title and summary replaced when given, related cards appended without duplicates, examples
-appended), add each other card as a new tree (refusing a card in an existing tree with a message that says to move it
-to the library or make it an overlay), validate the new trees and the merged cards, parse the links of the new cards and
-of the overlay bodies against the combined tree, and append each overlay body after a blank line.
+appended), add each other card as a new tree (`ParseCard` has already refused a card in an existing tree with a
+message that says to move it to the library or make it an overlay), validate the new trees and the merged cards, parse
+the links of the new cards and of the overlay bodies against the combined tree, and append each overlay body after a
+blank line.
 
 **RenderText(card)**: `# <title>`, a blank line, the summary, `Also known as: ...` (when there are aliases),
 `Tags: ...`, the `Markdown`, then `## Cards` (each visible child as `- <id>` with its summary indented below),
@@ -169,7 +172,7 @@ width sits on a line of its own and is never split.
 #### Error Handling
 
 - A null argument throws `ArgumentNullException`.
-- An unknown tag of `Filter` throws `ArgumentException` that lists the vocabulary.
+- An unknown or null tag of `Filter` throws `ArgumentException` that lists the vocabulary.
 - A card that is not visible in the view, passed to `GetChildren`, `GetSeeAlso`, `FormatMarkdown`, `RenderText`, or
   `RenderJson`, throws `ArgumentException`.
 - A malformed card or example, an unknown token, a missing example file, an inconsistent tree, or a link that does not

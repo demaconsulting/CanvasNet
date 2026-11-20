@@ -32,10 +32,11 @@ public sealed partial class HelpCatalog
         TimeSpan.FromSeconds(1));
 
     /// <summary>
-    ///     Matches text that starts like a link, to report a link that does not parse.
+    ///     Matches text that starts like a link (a letter in either case, a digit, or <c>#</c>), to report a link that
+    ///     does not parse.
     /// </summary>
     private static readonly Regex LinkStartPattern = new(
-        @"\[\[[a-z0-9#]",
+        @"\[\[[A-Za-z0-9#]",
         RegexOptions.CultureInvariant,
         TimeSpan.FromSeconds(1));
 
