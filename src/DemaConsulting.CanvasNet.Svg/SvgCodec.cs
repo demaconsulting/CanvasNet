@@ -292,8 +292,9 @@ namespace DemaConsulting.CanvasNet.Svg;
 ///     <b>GetInfo fallback policy.</b> <see cref="GetInfo(Stream)"/> resolves an intrinsic size in
 ///     three tiers: a valid <c>viewBox</c> attribute, if present; otherwise valid <c>width</c>/
 ///     <c>height</c> attributes (converted to user units - <c>1in</c> is 96 - using the root's own
-///     <c>font-size</c> attribute or inline <c>style</c> for <c>em</c>/<c>rem</c>; a percentage or
-///     viewport unit has no basis and counts as absent), if both are present and parse successfully;
+///     <c>font-size</c> and <c>line-height</c> from its attributes, inline <c>style</c> and stylesheet rules for
+///     <c>em</c>/<c>rem</c>/<c>lh</c>/<c>rlh</c>, as it is drawn; a percentage or viewport unit, or a font size or
+///     line height in viewport units, has no basis and counts as absent), if both are present and parse successfully;
 ///     otherwise the CSS/UA
 ///     default replaced-element intrinsic size of 300x150. <see cref="ImageInfo.Channels"/> is
 ///     always <c>4</c> and <see cref="ImageInfo.HasAlpha"/> is always <see langword="true"/>,
@@ -302,8 +303,9 @@ namespace DemaConsulting.CanvasNet.Svg;
 ///     <para>
 ///     <b>Error-handling policy.</b> Malformed or unparseable input - <see cref="XDocument.Load(Stream)"/>
 ///     (used by <see cref="Load(Stream, int, int, IReadOnlyDictionary{string, TrueTypeFont}?)"/>,
-///     which parses the whole document) or the bounded, root-start-tag-only <see cref="XmlReader"/>
-///     read used by <see cref="GetInfo(Stream)"/> throwing <see cref="XmlException"/>, a
+///     which parses the whole document) or the bounded <see cref="XmlReader"/> read used by
+///     <see cref="GetInfo(Stream)"/> (the root start-tag, and the body only for a font-relative root size)
+///     throwing <see cref="XmlException"/> up to the root start-tag, a
 ///     non-<c>svg</c> root element, missing required path/shape data, invalid numeric syntax
 ///     (including a non-finite <c>NaN</c>/<c>Infinity</c> value), a non-positive <c>viewBox</c>
 ///     size, a malformed <c>transform</c> attribute, a gradient <c>href</c> cycle, or a combined
@@ -612,7 +614,9 @@ public static partial class SvgCodec
     {
         try
         {
-            var (origin, size) = ResolveViewBoxOrSize(root);
+            // The stylesheet is built first so a stylesheet font-size or line-height sizes the root as it draws it
+            var stylesheet = BuildStylesheet(root);
+            var (origin, size) = ResolveViewBoxOrSize(root, stylesheet);
             var fitTransform = ComputeFitTransform(root, origin, size, surface.Width, surface.Height);
 
             // A tiny-but-positive, finite resolved viewBox/width/height (for example a subnormal
@@ -630,7 +634,6 @@ public static partial class SvgCodec
             }
 
             var idIndex = BuildIdIndex(root);
-            var stylesheet = BuildStylesheet(root);
             var context = new RenderContext(surface, idIndex, fonts, stylesheet)
             {
                 UseSystemFonts = options?.UseSystemFonts ?? true,
@@ -822,10 +825,16 @@ public static partial class SvgCodec
     }
 
     /// <summary>
-    ///     Reads only an SVG document's root <c>svg</c> element (<c>viewBox</c>/<c>width</c>/
+    ///     Reads an SVG document's root <c>svg</c> element (<c>viewBox</c>/<c>width</c>/
     ///     <c>height</c> attributes) and reports its resolved intrinsic size, without rendering
     ///     any shape content.
     /// </summary>
+    /// <remarks>
+    ///     Only the root start-tag is read, unless the root has no <c>viewBox</c> and a <c>width</c> or <c>height</c> in a
+    ///     font-relative unit (<c>em</c>, <c>ex</c>, <c>ch</c>, <c>rem</c>, <c>lh</c>, <c>rlh</c>): then the whole
+    ///     document is read, so a stylesheet <c>font-size</c> or <c>line-height</c> sizes the root as <c>Load</c>
+    ///     draws it. If the rest of that document is not well-formed, the size comes from the start-tag alone.
+    /// </remarks>
     /// <param name="stream">
     ///     The stream to read the SVG document from. Reading begins at the stream's current
     ///     position.
@@ -844,17 +853,19 @@ public static partial class SvgCodec
     ///     four numbers, or non-positive width/height). A malformed or unparseable <c>width</c>/
     ///     <c>height</c> attribute is <b>not</b> included in this list: per this class's GetInfo
     ///     fallback policy remarks, such a value is treated as absent and falls back to the next
-    ///     sizing tier (ultimately the 300x150 default size) rather than throwing.
+    ///     sizing tier (ultimately the 300x150 default size) rather than throwing. Also thrown when, for a
+    ///     font-relative root size, matching the document's stylesheet against the root exceeds the CSS matching budget.
     /// </exception>
     public static ImageInfo GetInfo(Stream stream)
     {
         ArgumentNullException.ThrowIfNull(stream);
 
-        var root = LoadRootElementAttributesOnly(stream);
+        var root = LoadRootElementForInfo(stream);
 
         try
         {
-            var (_, size) = ResolveViewBoxOrSize(root);
+            // The stylesheet is empty unless the root size is font-relative and the whole document was read
+            var (_, size) = ResolveViewBoxOrSize(root, BuildStylesheet(root));
 
             // Clamp each resolved dimension to a valid Int32 range in double precision *before*
             // casting to int: int.MaxValue (2147483647) is not exactly representable as a float

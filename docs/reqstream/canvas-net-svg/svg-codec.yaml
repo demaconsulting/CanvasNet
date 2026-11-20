@@ -704,23 +704,40 @@ sections:
             title: >-
               The SvgCodec class shall report an SVG document's resolved intrinsic width,
               height, channel count (4), and alpha presence (true) via GetInfo, given a
-              stream or a file path, using its viewBox when present.
+              stream or a file path, using its viewBox when present, and reading past the root
+              start tag only when the root has no viewBox and a width or height in a
+              font-relative unit, so that a stylesheet font-size or line-height sizes the root as
+              Load draws it, falling back to the start-tag-only size when the rest of the document
+              is not well-formed.
             justification: |
               Callers need to inspect an SVG document's intrinsic size before choosing a
-              raster target size to load it into.
+              raster target size to load it into. Browsers size an em or lh root with the
+              stylesheet's font, so GetInfo must too, but reading the whole document only when the
+              size can depend on it keeps the common case as cheap as the start tag, and a
+              malformed body is a Load error, not a reason for GetInfo to fail.
             tests:
               - SvgCodec_GetInfo_ViewBoxPresent_ReturnsViewBoxDimensions
               - SvgCodec_GetInfo_FromFilePath_ReturnsExpectedInfo
+              - SvgCodec_GetInfoAndLoad_RootFontSizeFromStylesheet_Agree
+              - SvgCodec_GetInfo_RootSizeInLineHeightUnitsFromStylesheet_UsesRule
+              - SvgCodec_GetInfo_FontRelativeRootSizeWithMalformedBody_UsesStartTagOnly
 
           - id: CanvasNetSvg-SvgCodec-GetInfoFallback
             title: >-
               The SvgCodec class shall fall back to the document's width/height attributes
               when no viewBox is present, and to the CSS/UA default replaced-element
-              intrinsic size of 300x150 when neither a viewBox nor width/height are present.
+              intrinsic size of 300x150 when neither a viewBox nor width/height are present,
+              treating a width or height that depends on a root font-size or line-height in
+              viewport units as absent, in GetInfo and Load alike.
             justification: |
               Many real-world SVG documents omit a viewBox, or omit sizing information
-              entirely; GetInfo must still report a usable size rather than failing.
+              entirely; GetInfo must still report a usable size rather than failing. A root
+              font-size or line-height in viewport units depends on the size being decided
+              (browsers give such an image no natural size), so both entry points use the same
+              fallback and Load resolves the viewport unit against it.
             tests:
+              - SvgCodec_GetInfoAndLoad_RootSizeFromViewportRelativeLineHeight_FallsBackAndAgrees
+              - SvgCodec_GetInfo_RootSizeInLineHeightUnits_UsesRootLineHeight
               - SvgCodec_GetInfo_NoViewBoxWidthHeightPresent_ReturnsWidthHeight
               - SvgCodec_GetInfo_NoViewBoxNoWidthHeight_ReturnsCssDefault300x150
               - SvgCodec_GetInfo_WidthExceedsInt32Range_ClampsToInt32MaxValueWithoutThrowing
@@ -763,8 +780,9 @@ sections:
             title: >-
               The SvgCodec class shall explicitly disable DTD processing (DtdProcessing.Prohibit)
               and external entity/DTD resolution (a null XmlResolver) on every XmlReaderSettings
-              instance it constructs - both Load's full-document parse and GetInfo's root-start-tag-
-              only parse - and shall reject a document containing a DOCTYPE declaration (including
+              instance it constructs - both Load's full-document parse and GetInfo's bounded parse
+              (the root start tag, and the body only for a font-relative root size) - and shall reject
+              a document containing a DOCTYPE declaration (including
               one that declares an external or parameter entity) with InvalidDataException via
               either entry point.
             justification: |
@@ -847,8 +865,9 @@ sections:
               user units) - with ex measured as the height of the font's x glyph and ch as the
               advance of the glyph 0, each falling back to 0.5em when the font has no such
               glyph, and shall report a root width/height in these units from GetInfo converted
-              to user units rather than with the unit stripped, resolving lh and rlh there
-              against the root's own line-height and font-size exactly as Load does.
+              to user units rather than with the unit stripped, resolving em, rem, lh and rlh
+              there against the root's own font-size and line-height from its attributes, inline
+              style and stylesheet rules exactly as Load does.
             justification: |
               SVG 2 and CSS Values 4 define lengths with units, and real documents (Vega and
               Vega-Lite output with font-size="10px", Inkscape output in mm, hand-written SVG in
@@ -883,6 +902,8 @@ sections:
               - SvgCodec_Load_RootSizeInInches_FitsContentToConvertedSize
               - SvgCodec_GetInfo_RootSizeInLineHeightUnits_UsesRootLineHeight
               - SvgCodec_Load_RootSizeInLineHeightUnits_FitsContentToReportedSize
+              - SvgCodec_GetInfo_RootSizeInLineHeightUnitsFromStylesheet_UsesRule
+              - SvgCodec_GetInfoAndLoad_RootFontSizeFromStylesheet_Agree
               - SvgCodec_Load_LineHeightInLineHeightUnits_ResolvesAgainstParent
               - SvgCodec_Load_LegacyNumberForms_StillParse
 

@@ -7818,7 +7818,7 @@ public class SvgCodecTests
 
     /// <summary>
     ///     Regression test for the unbounded <c>GetInfo</c> header-only parse finding:
-    ///     <c>LoadRootElementAttributesOnly</c> never reads past the root start-tag's attributes,
+    ///     <c>LoadRootElementForInfo</c> never reads past the root start-tag's attributes (for this size),
     ///     but (pre-fix) used a plain <see cref="System.Xml.XmlReader"/> with no
     ///     <c>MaxCharactersInDocument</c> setting, so a single oversized attribute value on the
     ///     root <c>svg</c> element could still force it to materialize an unbounded amount of
@@ -7892,7 +7892,7 @@ public class SvgCodecTests
     ///     Proves that <see cref="SvgCodec.GetInfo(Stream)"/> also rejects a document whose
     ///     DOCTYPE declares and references an external general entity with
     ///     <see cref="InvalidDataException"/>, demonstrating the same XXE hardening is in effect
-    ///     on <c>LoadRootElementAttributesOnly</c>'s independent
+    ///     on <c>LoadRootElementForInfo</c>'s independent
     ///     <see cref="System.Xml.XmlReaderSettings"/> instance, not merely <c>Load</c>'s.
     /// </summary>
     [Fact]

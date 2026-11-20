@@ -112,9 +112,15 @@ the root `width`/`height` and the `viewBox` disagree.
 `font` shorthand (a number multiplies each element's own font size; a length, `em` or percentage is
 fixed where it is declared). Inside `line-height` itself, `lh` is the parent's line height and, on
 the root `svg`, `rlh` is the initial 1.2 x 16 = 19.2, as in CSS, so `line-height: 2lh` never refers
-to itself. A root `width`/`height` in `lh` or `rlh` uses the root's own line height and font size
-(from its `style` attribute, `font-size` attribute or `font` attribute), so `GetInfo` reports
-`width="2lh" height="3rlh" font-size="10" style="line-height: 2"` as 40 by 60.
+to itself. A root `width`/`height` in `em`, `rem`, `lh` or `rlh` uses the root's own font size and
+line height (from its `style` attribute, a `style` element rule, its `font-size` attribute or its `font`
+attribute), exactly as the root is drawn and as browsers size it, so `GetInfo` reports
+`width="2lh" height="3rlh" font-size="10" style="line-height: 2"` as 40 by 60, and
+`width="10em" height="5em"` with `<style>svg { font-size: 20px }</style>` as 200 by 100. CSS `width` and
+`height` rules do not size the root, as browsers ignore them for an SVG image. A root `font-size` or
+`line-height` in viewport units (`font-size: 5vw`) depends on the size it would decide, so a `width` or
+`height` that uses it counts as absent: `GetInfo` and `Load` both use the `viewBox` or 300 by 150, and
+the viewport unit is then resolved against that size (browsers give such an image no natural size).
 
 `calc()` supports `+`, `-`, `*` and `/` (with spaces around `+` and `-`, as CSS requires),
 parentheses and nested `calc()`, and `min()`, `max()` and `clamp()` take lengths or numbers (not
@@ -659,11 +665,13 @@ Decodes and rasterizes an SVG file at the specified path, as `Load(Stream, int, 
 public static ImageInfo GetInfo(Stream stream)
 ```
 
-Parses only the SVG document's root `svg` start-tag and its own attributes (never reading into
-the document body) and returns an `ImageInfo` describing its intrinsic size, without rasterizing
-pixel data. Uses `viewBox` when present; otherwise falls back to `width`/`height` attributes;
-otherwise falls back to the CSS/UA default replaced-element intrinsic size of 300x150. `Channels`
-is always 4 and `HasAlpha` is always true.
+Parses the SVG document's root `svg` start-tag and its own attributes and returns an `ImageInfo`
+describing its intrinsic size, without rasterizing pixel data. Uses `viewBox` when present; otherwise
+falls back to `width`/`height` attributes; otherwise falls back to the CSS/UA default replaced-element
+intrinsic size of 300x150. The document body is read only when the root has no `viewBox` and a
+`width` or `height` in `em`, `ex`, `ch`, `rem`, `lh` or `rlh`, so a `style` element's `font-size`
+or `line-height` sizes it as `Load` draws it; when that body is not well-formed, the size comes from
+the start-tag alone. `Channels` is always 4 and `HasAlpha` is always true.
 
 **Exceptions:**
 
@@ -673,7 +681,8 @@ is always 4 and `HasAlpha` is always true.
   named `svg`, or its `viewBox` attribute is present but malformed (not exactly four numbers, or
   non-positive width/height). A malformed or unparseable `width`/`height` attribute is **not**
   included in this list: such a value is treated as absent and falls back to the next sizing tier
-  (ultimately the 300x150 default size) rather than throwing.
+  (ultimately the 300x150 default size) rather than throwing. For a font-relative root size it is also
+  thrown when matching the document's stylesheet against the root exceeds the CSS matching budget.
 
 ##### SvgCodec.GetInfo(string path)
 

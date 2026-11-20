@@ -365,15 +365,23 @@ Not lengths, and unchanged: `viewBox`, `transform` arguments, path data, `points
 `stroke-miterlimit`, filter primitive parameters, `stdDeviation`, and the filter region and
 primitive subregion fractions.
 
-**Root width/height.** `ParseLength` resolves them with a throwaway state: a percentage or a
-viewport unit resolves against NaN and so counts as absent, `ex`/`ch` use their fallbacks, and
-`em`/`rem` use the root's own `font-size` from its attribute, inline `style` (including the `font`
-shorthand) or `font` attribute, else 16. `lh`/`rlh` use the root's own `line-height`
-(`ReadRootLineHeight`) from its inline `style` (including the `font` shorthand) or `font` attribute,
-else `normal`, resolved with the root's own font size through the same `ResolveComputedLineHeight`
-the element cascade uses; a `line-height` that needs the viewport (`vw`...) has no basis here and is
-dropped. Stylesheet rules are not consulted because the stylesheet
-is built after the size is known. `GetInfo` and `Load` therefore agree. A number-typed math result
+**Root width/height.** `ParseLength` resolves them with a throwaway state (`CreateRootSizeState`): a
+percentage or a viewport unit resolves against NaN and so counts as absent, `ex`/`ch` use their
+fallbacks, and `em`/`rem` use the root's own `font-size` from its CSS (inline `style`, then a
+stylesheet rule, including the `font` shorthand), attribute or `font` attribute, else 16
+(`ReadRootFontSize`). `lh`/`rlh` use the root's own `line-height` (`ReadRootLineHeight`) from its
+CSS or `font` attribute, else `normal`, resolved with the root's own font size through the same
+`ResolveComputedLineHeight` the element cascade uses. Both read the root's styling context
+(`CssStylesheet.BuildElementContext`), so `RenderRoot` builds the stylesheet before it sizes the root,
+and the root is sized with the font it is drawn with, as browsers do. CSS `width`/`height` are not
+read: browsers ignore them for the natural size of an SVG image (Edge reports 300x150 for
+`svg { width: 200px }` without attributes, and the attributes when present). A root `font-size` or
+`line-height` that depends on the viewport (`5vw`, `20vw`) cannot size the viewport it depends on:
+each is resolved against two very different probe viewports (`SmallProbeViewport`,
+`LargeProbeViewport`), and one that differs is NaN, so a `width`/`height` that depends on it counts
+as absent and the size falls back to the `viewBox` or 300x150 (decision D5; Edge gives such an image no
+natural size). `Load` then resolves the viewport unit against that same size. `GetInfo` and `Load`
+therefore agree. A number-typed math result
 in the root `width`/`height` is user units (px), like a literal (SVG 2 *Types* 4.2; *Coordinates*
 8.1); in the root's `font-size` it is accepted only from the `font-size` attribute, mirroring the
 element cascade. Intended behavior changes:
@@ -502,8 +510,8 @@ resolved fit transform).
 
 ### XML Parsing Hardening (XXE)
 
-Both `LoadRootElement` (backing `Load`'s full-document parse) and `LoadRootElementAttributesOnly`
-(backing `GetInfo`'s root-start-tag-only parse) obtain their XML reader from the core `Packaging`
+Both `LoadRootElement` (backing `Load`'s full-document parse) and `LoadRootElementForInfo`
+(backing `GetInfo`'s bounded parse) obtain their XML reader from the core `Packaging`
 subsystem's `SafeXml` (`SafeXml.Load(stream, MaxDocumentCharacters)` and
 `SafeXml.CreateReader(stream, MaxDocumentCharacters)` respectively; see *SafeXml Unit Design*,
 `canvas-net/packaging/safe-xml.md`), which sets `DtdProcessing = DtdProcessing.Prohibit`,
@@ -624,17 +632,23 @@ legacy single-font-per-family overload directly above.
 
 #### GetInfo(Stream stream)
 
-Reads only the root `svg` start-tag's own attributes, using a forward-only `System.Xml.XmlReader`
-that advances no further than the root element's attributes and never walks into the document
-body. This reader is still bounded by the same fixed `MaxCharactersInDocument` character cap
+Reads the root `svg` start-tag's own attributes, using a forward-only `System.Xml.XmlReader`
+(`LoadRootElementForInfo`) that advances no further than the root element's attributes and never
+walks into the document body - unless the root has no `viewBox` and its `width` or `height`
+resolves differently against two different root fonts (`RootSizeDependsOnFont`: an `em`, `ex`,
+`ch`, `rem`, `lh` or `rlh` size, decision D4). Only then does the same reader read the whole root
+element (`XNode.ReadFrom`), so `BuildStylesheet` can give `CreateRootSizeState` the stylesheet's
+`font-size` and `line-height`; a body that is not well-formed (or over the character cap) gives the
+start-tag-only element instead, so such a document is still sized from its start tag (with the initial
+font) rather than failing. This reader is still bounded by the same fixed `MaxCharactersInDocument` character cap
 `Load`'s own parse enforces: even though the reader never advances into the document body, it
 still advances character-by-character through the root start-tag's own attribute values, so an
 oversized single attribute value alone could otherwise force an unbounded amount of data to be
 materialized. Resolves the intrinsic size per the three-tier fallback policy described in *GetInfo
 Fallback Policy* below. This is intentionally narrower than `Load`'s full `XDocument.Load` parse
 of the whole document: a document that is malformed only beyond the root `svg` element's own
-attributes is accepted by `GetInfo` (which never reads that far) even though `Load` would reject
-it. Always reports `Channels = 4` and `HasAlpha = true`, because every SVG document this codec
+attributes is accepted by `GetInfo` even though `Load` would reject it.
+Always reports `Channels = 4` and `HasAlpha = true`, because every SVG document this codec
 rasterizes produces an RGBA `Surface` regardless of what the source markup does or does not
 paint.
 
@@ -728,7 +742,8 @@ tolerant-skip convention for other overflow cases (see *Error Handling* below).
 tiers, in order: (1) the `viewBox` attribute, if present; (2) the `width`/`height` attributes, if
 both are present and resolve to positive numbers - each converted from its CSS unit to user units
 (see *Length Units and font-size* above; `1in` is 96, and a percentage or viewport unit counts as
-absent); (3) the CSS/UA default replaced-element
+absent, as does a font-relative size whose root `font-size` or `line-height` is in viewport units);
+(3) the CSS/UA default replaced-element
 intrinsic size of 300x150, if neither of the above is present. This mirrors how a web browser
 sizes an `<img src="...svg">` element with no size and no viewBox, and ensures `GetInfo` always returns
 a usable, positive size rather than failing on a document that omits explicit sizing information

@@ -887,7 +887,7 @@ error at all.
 `SvgCodec_GetInfo_OversizedRootAttributeValueExceedingCharacterBudget_ThrowsInvalidDataException`
 is a regression test for the unbounded `GetInfo` header-only parse finding: a single root-element
 attribute value padded well past the codec's fixed `MaxCharactersInDocument` bound is now rejected
-with `InvalidDataException`, since the reader used by `LoadRootElementAttributesOnly` is now
+with `InvalidDataException`, since the reader used by `LoadRootElementForInfo` is now
 bounded by the same character cap `LoadRootElement` already enforces — even though it never reads
 past the root start-tag, it still advances character-by-character through the tag's own attribute
 values.
@@ -927,8 +927,8 @@ documented framework behavior of `DtdProcessing.Prohibit` combined with the `nul
 This coverage is for external *general* entities only; external *parameter* entities are not
 separately tested, though the same `DtdProcessing.Prohibit` rejection applies equally to both.
 Separately, asserts `GetInfo` throws `InvalidDataException` for the same external-entity-declaring
-document, proving the hardening applies equally to `LoadRootElementAttributesOnly`'s
-root-start-tag-only `XmlReaderSettings`, not only to `LoadRootElement`'s full-document
+document, proving the hardening applies equally to `LoadRootElementForInfo`'s
+bounded `XmlReaderSettings`, not only to `LoadRootElement`'s full-document
 `XmlReaderSettings`.
 
 #### CanvasNetSvg-SvgCodec-MalformedPathDataRejected: Malformed Path "d" Data Rejected
@@ -1058,6 +1058,8 @@ a basis-1 fraction (or a fraction of the shape's bounds) under `userSpaceOnUse`.
 `SvgCodec_Load_RootSizeInInches_FitsContentToConvertedSize`,
 `SvgCodec_GetInfo_RootSizeInLineHeightUnits_UsesRootLineHeight`,
 `SvgCodec_Load_RootSizeInLineHeightUnits_FitsContentToReportedSize`,
+`SvgCodec_GetInfo_RootSizeInLineHeightUnitsFromStylesheet_UsesRule`,
+`SvgCodec_GetInfoAndLoad_RootFontSizeFromStylesheet_Agree`,
 `SvgCodec_Load_LineHeightInLineHeightUnits_ResolvesAgainstParent`,
 `SvgCodec_Load_LegacyNumberForms_StillParse`
 
@@ -1084,8 +1086,13 @@ font size (`2lh` by `3rlh` at `font-size='10'` and `line-height:2` is 40x60), an
 to fill exactly that size. `lh` and `rlh` inside `line-height` are asserted to resolve against the
 parent's line height (a `1lh` line height under a parent with `line-height:2` at size 10 is 20,
 even when the element's own size is 50) and, on the root, against the initial 1.2 x 16 = 19.2
-(`line-height:5lh` and `5rlh` both give 96, in `GetInfo` and in `Load`) without a cycle; a
-`line-height` in a viewport unit has no basis for the root size and leaves `normal`.
+(`line-height:5lh` and `5rlh` both give 96, in `GetInfo` and in `Load`) without a cycle; a root
+`line-height` (`10vw`) or `font-size` (`5vw`) in a viewport unit leaves a size that depends on it
+absent, so `GetInfo` reports 300x150. A stylesheet rule sizes the root as it draws it: `svg { line-height: 2 }`
+makes `10lh` x `5lh` at `font-size='10'` 200x100, and `svg { font-size: 20px }` makes `10em` x `5em`
+200x100 in `GetInfo`, with a `5em` rect drawn 100 wide by `Load` at that size, while `width`/`height`
+rules in the same stylesheet do not change the size. Edge headless reports the same natural size for each
+of these as an `<img>` and draws the same pixels; for the viewport-unit roots it reports no natural size.
 
 #### CanvasNetSvg-SvgCodec-FontSizeSourcesAndKeywords: font-size Sources, Keywords and the font Shorthand
 
@@ -2533,12 +2540,15 @@ later resolved for that same element.
 
 #### Bounded GetInfo Header-Only Parsing
 
-**Test**: `SvgCodec_GetInfo_MalformedXmlAfterRootElement_DoesNotThrowAndReturnsViewBoxDimensions`
+**Tests**: `SvgCodec_GetInfo_MalformedXmlAfterRootElement_DoesNotThrowAndReturnsViewBoxDimensions`,
+`SvgCodec_GetInfo_FontRelativeRootSizeWithMalformedBody_UsesStartTagOnly`
 
 Asserts `GetInfo`'s bounded, root-start-tag-only `XmlReader` parse still resolves and returns
 `viewBox` dimensions for a document that is malformed only beyond the root element's own
 attributes - the same markup the `MalformedXmlRejected` scenario above proves `Load`'s
-full-document parse still correctly rejects.
+full-document parse still correctly rejects. A root sized in `em` without a `viewBox` makes `GetInfo`
+read the body for its stylesheet; when that body is not well-formed, `GetInfo` still returns the
+start-tag-only size (`10em` x `5em` at the initial 16 is 160x80) instead of failing.
 
 #### Non-Finite Numeric Attribute/Token Rejection or Tolerant Fallback
 

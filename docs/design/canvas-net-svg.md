@@ -240,9 +240,10 @@ so this risk control is inherently contained within it (IEC 62304 §5.3.3).
 2. **Validation**: Rejects a null `stream`/`path` with `ArgumentNullException`, an empty/
    whitespace `path` with `ArgumentException`, and malformed SVG data (up to and including the
    root `svg` start-tag) with `InvalidDataException`
-3. **Processing**: Reads only the root `svg` start-tag's own attributes via a forward-only,
-   character-budget-capped `XmlReader`, resolving intrinsic size by falling back from `viewBox`
-   to `width`/`height` to a 300x150 CSS default
+3. **Processing**: Reads the root `svg` start-tag's own attributes via a forward-only,
+   character-budget-capped `XmlReader` (and the rest of the document only for a font-relative root
+   size without a `viewBox`, for its stylesheet font), resolving intrinsic size by falling back from
+   `viewBox` to `width`/`height` to a 300x150 CSS default
 4. **Output**: A `Codecs.ImageInfo` record struct reporting the resolved width, height,
    `Channels = 4`, and `HasAlpha = true`
 
