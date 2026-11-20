@@ -506,8 +506,8 @@ public partial class HelpTopicsTests
     /// <summary>
     ///     Test that the PlantUML diagram cards say what the lists of the PlantUML user guide say, item for item and in
     ///     order: the <c>## Supported</c> bullets of <c>plantuml sequence</c>, <c>plantuml activity</c>,
-    ///     <c>plantuml class</c>, and <c>plantuml object</c> are the items of the guide's supported syntax lists of those
-    ///     types, and every item of the guide's code list
+    ///     <c>plantuml class</c>, <c>plantuml object</c>, and <c>plantuml state</c> are the items of the guide's
+    ///     supported syntax lists of those types, and every item of the guide's code list
     ///     (<c>**code**: kind: reported when</c>) is a bullet of <c>plantuml unsupported</c> or <c>plantuml diagnostics</c>.
     /// </summary>
     [Fact]

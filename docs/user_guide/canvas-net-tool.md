@@ -2117,7 +2117,7 @@ objects:
 ```
 
 For a PlantUML diagram the `diagram` object has the same members without `direction` and `accTitle`: `type` is
-`sequence`, `activity`, `class`, `object`, or a type that is not drawn (`usecase`, `component`, `state`, `mindmap`,
+`sequence`, `activity`, `class`, `object`, `state`, or a type that is not drawn (`usecase`, `component`, `mindmap`,
 ..., with `supported` false and zero counts), `nodes` are the participants of a sequence diagram, the actions, start,
 stop, end, connector, and decision nodes of an activity diagram, the classes, objects, and maps of a class or object
 diagram, or the states and pseudo-states of a state diagram, `edges` its messages, arrows, relationships, or
