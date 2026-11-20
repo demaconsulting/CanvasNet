@@ -1,0 +1,48 @@
+---
+# Software Unit Requirements for StateModel
+#
+# These requirements describe the design-level behavior of the StateModel unit of the State subsystem (internal
+# namespace DemaConsulting.CanvasNet.PlantUml.State): the diagram with its elements, the facts, and the lowering to the
+# Svek engine. See docs/verification/canvas-net-plant-uml/state/state-model.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetPlantUml Requirements
+    sections:
+      - title: State Requirements
+        sections:
+          - title: StateModel Requirements
+            requirements:
+              - id: CanvasNetPlantUml-State-StateModel-Facts
+                title: >-
+                  The StateModel unit shall count as nodes the simple states and the pseudo-states, as edges the
+                  transitions that do not touch a note, and as subgraphs the composite states.
+                justification: |
+                  The facts are reported by the document, the tool, and the viewer and must mean the same in every
+                  diagram type.
+                tests:
+                  - PlantUmlStateModel_Facts_CountStatesTransitionsAndComposites
+
+              - id: CanvasNetPlantUml-State-StateModel-Lowering
+                title: >-
+                  The StateModel unit shall lower the diagram for every call: every composite state to a cluster under
+                  its parent with its image (and, with concurrent regions, the arrangement of its first separator and a
+                  cluster without image per region), every simple state and pseudo-state to an entity with its image
+                  and cluster, the notes in text order, and the transitions with their settings, with ids of its own
+                  (of the notes without an alias and of the regions) that never take the id of a state or a floating
+                  note.
+                justification: |
+                  The Svek engine lays out and draws what the model lowers; nothing may be lost on the way.
+                tests:
+                  - PlantUmlStateModel_Lower_CompositeStates_BecomeClusters
+                  - PlantUmlStateModel_Lower_ConcurrentRegions_BecomeRegionClusters
+                  - PlantUmlStateModel_Lower_ObservesCancellation
+                  - PlantUmlStateModel_Lower_GeneratedIds_NeverCollide
+
+              - id: CanvasNetPlantUml-State-StateModel-Layout
+                title: >-
+                  The StateModel unit shall lay out a call as the Svek body decorated with the page texts with the
+                  spacing of PlantUML's graph diagrams, over the theme's background, at the diagram's own scale.
+                justification: |
+                  The picture must have PlantUML's page texts and size.
+                tests:
+                  - PlantUmlStateModel_Layout_DrawsTheScene

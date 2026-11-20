@@ -153,7 +153,8 @@ from the origin, or an exception. The same input always gives the same result, b
 
 #### Dependencies
 
-- **Dagre subsystem** - `LayoutWorkMeter` (`Charge`, `Failure`, `LimitExceeded`, and cancellation).
+- **Dagre subsystem (CanvasNetLayout system)** - `LayoutWorkMeter` (`Charge`, `Failure`, `LimitExceeded`, and
+  cancellation).
 - **System** - `MermaidRenderException` and `MermaidDiagnosticCodes`.
 - **.NET base class library** - `System.Numerics.BigInteger`, collections,
   `System.Runtime.CompilerServices.RuntimeHelpers` (`EnsureSufficientExecutionStack`), and the exactly rounded

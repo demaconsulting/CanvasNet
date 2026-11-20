@@ -5,8 +5,8 @@ namespace DemaConsulting.CanvasNet.PlantUml.Tests;
 /// </summary>
 internal static class PlantUmlTestHelpers
 {
-    /// <summary>A small class diagram, a known type that this version does not draw.</summary>
-    public const string UnsupportedText = "@startuml\nclass Car\nclass Wheel\nCar *-- Wheel\n@enduml\n";
+    /// <summary>A small legacy activity diagram, a known type that this version does not draw.</summary>
+    public const string UnsupportedText = "@startuml\n(*) --> First\nFirst --> Second\n@enduml\n";
 
     /// <summary>
     ///     Creates render options that collect every report.

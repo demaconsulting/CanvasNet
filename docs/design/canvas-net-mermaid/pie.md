@@ -58,8 +58,8 @@ JavaScript's `String(number)` (`YamlSubsetParser.FormatJsNumber`); from `Configu
 with its `PieConfig` section (`textPosition`, `donutHole`, `legendPosition`, and `highlightSlice`) and its theme
 variables, the pie style sheet `PieStyles` (with `SlicePaint`, `ShapePaint`, and `TextPaint`), `ConfigScalar`, and
 `StyleDeclarations`; from `Rendering` the text metrics and text utilities of `LabelBuilder` and the 3-digit rounding of
-d3-path (`CurvePath.Round`); from `Dagre` the `LayoutWorkMeter`; from `Scenegraph` the `Scene` and its items
-(`SceneGroup`, `ScenePath`, `SceneSegment`, `SceneText`, `SceneTextRun`, `SceneFont`, `SceneRect`, and
+d3-path (`CurvePath.Round`); from `Dagre` (CanvasNetLayout) the `LayoutWorkMeter`; from `Scenegraph` the `Scene` and its
+items (`SceneGroup`, `ScenePath`, `SceneSegment`, `SceneText`, `SceneTextRun`, `SceneFont`, `SceneRect`, and
 `SceneStroke`); from the core `CanvasNet` the color `Rgba32`; and from the system the `IMermaidDiagram` contract,
 `DiagramRenderContext`, and the public `MermaidLimits`, `MermaidLocation`, `MermaidSyntaxException`,
 `MermaidRenderException`, and `MermaidDiagnosticCodes`.

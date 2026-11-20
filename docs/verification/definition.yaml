@@ -165,6 +165,20 @@ input-files:
   - docs/verification/canvas-net-vega-lite/scenegraph/css-paint.md
   - docs/verification/canvas-net-vega-lite/scenegraph/arc-geometry.md
   - docs/verification/canvas-net-vega-lite/scenegraph/symbol-path-parser.md
+  - docs/verification/canvas-net-layout.md
+  - docs/verification/canvas-net-layout/graphlib.md
+  - docs/verification/canvas-net-layout/graphlib/graph.md
+  - docs/verification/canvas-net-layout/graphlib/graph-algorithms.md
+  - docs/verification/canvas-net-layout/dagre.md
+  - docs/verification/canvas-net-layout/dagre/dagre-layout.md
+  - docs/verification/canvas-net-layout/dagre/dagre-acyclic.md
+  - docs/verification/canvas-net-layout/dagre/dagre-ranker.md
+  - docs/verification/canvas-net-layout/dagre/dagre-nesting.md
+  - docs/verification/canvas-net-layout/dagre/dagre-normalizer.md
+  - docs/verification/canvas-net-layout/dagre/dagre-ordering.md
+  - docs/verification/canvas-net-layout/dagre/dagre-positioning.md
+  - docs/verification/canvas-net-layout/dagre/dagre-coordinate-system.md
+  - docs/verification/canvas-net-layout/dagre/layout-work-meter.md
   - docs/verification/canvas-net-mermaid.md
   - docs/verification/canvas-net-mermaid/mermaid-document.md
   - docs/verification/canvas-net-mermaid/syntax.md
@@ -178,19 +192,6 @@ input-files:
   - docs/verification/canvas-net-mermaid/configuration/theme-resolver.md
   - docs/verification/canvas-net-mermaid/configuration/color-math.md
   - docs/verification/canvas-net-mermaid/configuration/style-declarations.md
-  - docs/verification/canvas-net-mermaid/graphlib.md
-  - docs/verification/canvas-net-mermaid/graphlib/graph.md
-  - docs/verification/canvas-net-mermaid/graphlib/graph-algorithms.md
-  - docs/verification/canvas-net-mermaid/dagre.md
-  - docs/verification/canvas-net-mermaid/dagre/dagre-layout.md
-  - docs/verification/canvas-net-mermaid/dagre/dagre-acyclic.md
-  - docs/verification/canvas-net-mermaid/dagre/dagre-ranker.md
-  - docs/verification/canvas-net-mermaid/dagre/dagre-nesting.md
-  - docs/verification/canvas-net-mermaid/dagre/dagre-normalizer.md
-  - docs/verification/canvas-net-mermaid/dagre/dagre-ordering.md
-  - docs/verification/canvas-net-mermaid/dagre/dagre-positioning.md
-  - docs/verification/canvas-net-mermaid/dagre/dagre-coordinate-system.md
-  - docs/verification/canvas-net-mermaid/dagre/layout-work-meter.md
   - docs/verification/canvas-net-mermaid/rendering.md
   - docs/verification/canvas-net-mermaid/rendering/cluster-layout.md
   - docs/verification/canvas-net-mermaid/rendering/shape-library.md
@@ -259,6 +260,24 @@ input-files:
   - docs/verification/canvas-net-plant-uml/activity/activity-model.md
   - docs/verification/canvas-net-plant-uml/activity/activity-layout.md
   - docs/verification/canvas-net-plant-uml/activity/activity-renderer.md
+  - docs/verification/canvas-net-plant-uml/svek.md
+  - docs/verification/canvas-net-plant-uml/svek/svek-model.md
+  - docs/verification/canvas-net-plant-uml/svek/svek-syntax.md
+  - docs/verification/canvas-net-plant-uml/svek/svek-layout.md
+  - docs/verification/canvas-net-plant-uml/svek/svek-geometry.md
+  - docs/verification/canvas-net-plant-uml/svek/svek-renderer.md
+  - docs/verification/canvas-net-plant-uml/class.md
+  - docs/verification/canvas-net-plant-uml/class/class-parser.md
+  - docs/verification/canvas-net-plant-uml/class/class-model.md
+  - docs/verification/canvas-net-plant-uml/class/class-renderer.md
+  - docs/verification/canvas-net-plant-uml/state.md
+  - docs/verification/canvas-net-plant-uml/state/state-parser.md
+  - docs/verification/canvas-net-plant-uml/state/state-model.md
+  - docs/verification/canvas-net-plant-uml/state/state-renderer.md
+  - docs/verification/canvas-net-plant-uml/description.md
+  - docs/verification/canvas-net-plant-uml/description/description-parser.md
+  - docs/verification/canvas-net-plant-uml/description/description-model.md
+  - docs/verification/canvas-net-plant-uml/description/description-renderer.md
   - docs/verification/canvas-net-viewer.md
   - docs/verification/canvas-net-viewer/canvas-net-viewer.md
   - docs/verification/canvas-net-viewer/viewer-exception.md

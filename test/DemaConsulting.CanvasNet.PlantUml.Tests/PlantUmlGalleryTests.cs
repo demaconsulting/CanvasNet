@@ -8,10 +8,10 @@ namespace DemaConsulting.CanvasNet.PlantUml.Tests;
 public class PlantUmlGalleryTests
 {
     /// <summary>The fewest diagrams the gallery must hold.</summary>
-    private const int MinimumDiagrams = 8;
+    private const int MinimumDiagrams = 18;
 
     /// <summary>The diagram types this version draws, which the gallery shows.</summary>
-    private static readonly string[] DrawnTypes = ["sequence", "activity"];
+    private static readonly string[] DrawnTypes = ["sequence", "activity", "class", "object", "state", "usecase", "component", "deployment"];
 
     /// <summary>
     ///     Gets the folder of the gallery diagrams.
@@ -35,7 +35,7 @@ public class PlantUmlGalleryTests
     }
 
     /// <summary>
-    ///     Validates that the gallery holds at least eight diagrams, every one a supported diagram of a type this version
+    ///     Validates that the gallery holds at least 18 diagrams, every one a supported diagram of a type this version
     ///     draws, and that every drawn type is shown.
     /// </summary>
     [Fact]

@@ -1,0 +1,17 @@
+@startuml
+actor User
+actor Admin
+User <|-- Admin
+usecase Login
+usecase "Reset Password" as RP
+usecase Checkout
+usecase "Apply Coupon" as AC
+usecase Pay
+User --> Login
+Admin --> RP
+User --> Checkout
+Checkout ..> Pay : <<include>>
+AC ..> Checkout : <<extend>>
+Login .> RP : <<extend>>
+(Pay by Card) --|> Pay
+@enduml

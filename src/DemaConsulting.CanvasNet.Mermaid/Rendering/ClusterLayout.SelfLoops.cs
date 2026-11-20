@@ -1,6 +1,6 @@
 // Portions derived from mermaid (MIT); see third-party/README.md
-using DemaConsulting.CanvasNet.Mermaid.Dagre;
-using DemaConsulting.CanvasNet.Mermaid.Graphlib;
+using DemaConsulting.CanvasNet.Layout.Dagre;
+using DemaConsulting.CanvasNet.Layout.Graphlib;
 
 namespace DemaConsulting.CanvasNet.Mermaid.Rendering;
 

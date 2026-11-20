@@ -1,0 +1,100 @@
+---
+# Software System Requirements for CanvasNetLayout
+#
+# These requirements describe the externally visible behavior of the DemaConsulting.CanvasNet.Layout package (root
+# namespace DemaConsulting.CanvasNet.Layout; internal subsystem namespaces Graphlib and Dagre) from the perspective of
+# its consumers, without specifying implementation details.
+#
+# CanvasNetLayout is an independent software system distributed as its own NuGet package: the shared graph layout of
+# the CanvasNet diagram packages. It holds a port of graphlib and of the dagre layered layout of dagre-d3-es, which
+# positions the nodes of a directed, possibly compound and cyclic graph in ranks and routes its edges, exactly as
+# dagre-d3-es does, within a work budget, observing cancellation, and deterministically. It depends only on the .NET
+# base class library. Its types are internal and visible only to its friend assemblies (the consuming diagram
+# packages, DemaConsulting.CanvasNet.Mermaid and DemaConsulting.CanvasNet.PlantUml, and the tests), so its consumers
+# are those packages; a consumer supplies the work meter that creates its own located failures (see
+# docs/design/canvas-net-layout.md). The ported behavior of dagre, graphlib, dagre-d3-es, and lodash is attributed in
+# the package's third-party notices (src/DemaConsulting.CanvasNet.Layout/third-party).
+#
+# The Graphlib and Dagre requirements were moved here from the CanvasNetMermaid system when the layout became its
+# own package; their IDs were renamed one to one by prefix (CanvasNetMermaid-Graphlib-* to CanvasNetLayout-Graphlib-*,
+# CanvasNetMermaid-Dagre-* to CanvasNetLayout-Dagre-*), and the Mermaid system requirements link to them as children.
+#
+# Every requirement below links down to the subsystem requirements that implement it; the test evidence is described
+# in docs/verification/canvas-net-layout.md.
+
+sections:
+  - title: CanvasNetLayout Requirements
+    requirements:
+      - id: CanvasNetLayout-LayeredLayout
+        title: >-
+          The library shall lay out a directed graph - simple or multi, flat or compound, with or without cycles,
+          self loops, and edge labels, in any of the four rank directions - with the ranks, orders, node centers,
+          cluster sizes, edge routes, edge label centers, and drawing size that the dagre layout of dagre-d3-es
+          computes for it.
+        tags: [system]
+        justification: |
+          The diagram packages draw their graphs the way their reference implementations do, and Mermaid lays out
+          flowcharts, class, state, and ER diagrams with the dagre of dagre-d3-es; one shared, faithful port gives
+          every consumer the same layout without each package carrying its own copy.
+        children:
+          - CanvasNetLayout-Graphlib-GraphStructure
+          - CanvasNetLayout-Graphlib-KeyOrder
+          - CanvasNetLayout-Graphlib-Traversals
+          - CanvasNetLayout-Graphlib-Consistency
+          - CanvasNetLayout-Dagre-Layout
+          - CanvasNetLayout-Dagre-TieBreaking
+        tests:
+          - CanvasNetLayout_LayeredLayout_CompoundCyclicLabeledGraph_LaidOutInEveryRankDirection
+          - Dagre_Layout_UpstreamGolden_MatchesDagre
+
+      - id: CanvasNetLayout-Limits
+        title: >-
+          The library shall charge the work of a layout to the budget its consumer gives and stop a layout that would
+          pass the budget, or nest deeper than the stack allows, with the consumer's own limit failure, and a layout
+          that dagre itself cannot complete with the consumer's own render failure.
+        tags: [system]
+        justification: |
+          Graphs come from untrusted diagram text; a pathological graph must stop early with an error in the words of
+          the package the caller used (its code, location, and limit name), not run for minutes or fail with an
+          internal exception of the layout.
+        children:
+          - CanvasNetLayout-Dagre-Limits
+        tests:
+          - CanvasNetLayout_Limits_SmallBudget_ConsumerLimitFailure
+
+      - id: CanvasNetLayout-Cancellation
+        title: >-
+          The library shall observe the cancellation token its consumer gives during a layout and stop a canceled
+          layout with an OperationCanceledException.
+        tags: [system]
+        justification: |
+          A layout is the longest step of a render; a caller that cancels must not wait for it to finish.
+        children:
+          - CanvasNetLayout-Dagre-Cancellation
+        tests:
+          - CanvasNetLayout_Cancellation_Canceled_ThrowsOperationCanceled
+
+      - id: CanvasNetLayout-Determinism
+        title: >-
+          The library shall give identical layouts, using identical work, for the same graph, whether laid out
+          repeatedly or concurrently, and whatever was laid out before it.
+        tags: [system]
+        justification: |
+          Identical pixels on every render and every thread start with an identical layout; no state may be shared
+          between the layouts of different diagrams.
+        children:
+          - CanvasNetLayout-Dagre-Determinism
+        tests:
+          - CanvasNetLayout_Determinism_RepeatedAndParallel_Identical
+
+      - id: CanvasNetLayout-ThirdPartyNotices
+        title: >-
+          The package shall ship the license notices of the projects whose algorithms it ports (dagre-d3-es with
+          graphlib, and lodash) and a provenance record that names every ported unit and states that the project is
+          not affiliated with them.
+        tags: [system]
+        justification: |
+          The MIT licenses of the ported projects require their notices in binary distributions, and a reviewer must
+          be able to trace every ported unit to its source.
+        tests:
+          - CanvasNetLayout_ThirdPartyNotices_ShipWithPackage

@@ -1,0 +1,20 @@
+@startuml
+' Gallery: states with descriptions, a composite state, a choice, the history, and notes
+title Washing machine
+[*] --> Idle
+Idle : door unlocked
+state Washing {
+  [*] --> Filling
+  Filling --> Rinsing : full
+  Rinsing --> Spinning : rinsed
+  Spinning --> [*]
+}
+state program <<choice>>
+Idle --> program : start
+program --> Washing : [door closed]
+program --> Idle : [door open]
+Washing --> Paused : pause
+Paused --> Washing[H] : resume
+Washing --> Idle : done
+note right of Paused : the door stays locked
+@enduml

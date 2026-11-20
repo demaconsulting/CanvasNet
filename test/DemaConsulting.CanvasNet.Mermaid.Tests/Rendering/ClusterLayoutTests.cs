@@ -1,5 +1,5 @@
-using DemaConsulting.CanvasNet.Mermaid.Dagre;
-using DemaConsulting.CanvasNet.Mermaid.Graphlib;
+using DemaConsulting.CanvasNet.Layout.Dagre;
+using DemaConsulting.CanvasNet.Layout.Graphlib;
 using DemaConsulting.CanvasNet.Mermaid.Rendering;
 using DemaConsulting.CanvasNet.Mermaid.Scenegraph;
 using LayoutEdge = DemaConsulting.CanvasNet.Mermaid.Rendering.LayoutEdge;
@@ -268,7 +268,7 @@ public sealed class ClusterLayoutTests
         var context = RenderingTestContext.CreateClass();
         var data = new LayoutData([Box("A")], [], context.Config) { DiagramType = "classDiagram", Direction = "TB" };
         var labels = new LabelBuilder(ScenePainter.CreateFontResolver(), null, null);
-        var meter = new LayoutWorkMeter(50_000_000, new MermaidLocation(null, 1, 1), TestContext.Current.CancellationToken);
+        var meter = new MermaidLayoutWorkMeter(50_000_000, new MermaidLocation(null, 1, 1), TestContext.Current.CancellationToken);
         var drawing = RenderingTestContext.RenderData(data, context).Bounds!.Value;
 
         // Act
@@ -297,7 +297,7 @@ public sealed class ClusterLayoutTests
         var context = RenderingTestContext.CreateState();
         var data = new LayoutData([Box("A")], [], context.Config) { DiagramType = "stateDiagram", Direction = "TB" };
         var labels = new LabelBuilder(ScenePainter.CreateFontResolver(), null, null);
-        var meter = new LayoutWorkMeter(50_000_000, new MermaidLocation(null, 1, 1), TestContext.Current.CancellationToken);
+        var meter = new MermaidLayoutWorkMeter(50_000_000, new MermaidLocation(null, 1, 1), TestContext.Current.CancellationToken);
         const string Title = "A title much wider than the drawing";
 
         // Act

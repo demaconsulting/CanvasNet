@@ -163,7 +163,7 @@ Mermaid's cap of 10,000 rows.
   JavaScript white space and line terminator classes), `HtmlSanitizer` (Mermaid's `sanitizeText`),
   `SourceScanner.Describe` (the description of unmatched text), `TokenCursor.JoinAlternatives` (the list of expected
   tokens in a message), and `YamlSubsetParser.FormatJsNumber` (JavaScript's `String(number)`).
-- **Dagre subsystem** - `LayoutWorkMeter`, charged by the row split.
+- **Dagre subsystem (CanvasNetLayout system)** - `LayoutWorkMeter`, charged by the row split.
 - **Scenegraph subsystem** - `Scene`, the result of a layout.
 - **System** - `IMermaidDiagram`, `DiagramRenderContext`, `MermaidLimits`, `MermaidLocation`, `MermaidSyntaxException`,
   `MermaidRenderException`, and `MermaidDiagnosticCodes`.

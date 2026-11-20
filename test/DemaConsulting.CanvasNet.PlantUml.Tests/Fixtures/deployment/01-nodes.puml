@@ -1,0 +1,9 @@
+@startuml
+node "Web Server" as Web
+artifact "app.war" as App
+database Orders
+cloud Internet
+Internet --> Web
+Web --> App : deploys
+App --> Orders
+@enduml

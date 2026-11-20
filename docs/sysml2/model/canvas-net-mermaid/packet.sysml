@@ -6,7 +6,7 @@ package CanvasNet {
         comment designRef /* Design: docs/design/canvas-net-mermaid/packet.md */
         comment verificationRef /* Verification: docs/verification/canvas-net-mermaid/packet.md */
         comment reqRef /* Requirements: docs/reqstream/canvas-net-mermaid/packet.yaml */
-        comment /* Within the CanvasNetMermaid system the Packet subsystem depends on the Syntax subsystem (preprocessed and mapped text, JavaScript trim, HTML sanitizing), the Configuration subsystem (effective configuration with its packet section and the packet style sheet), the Rendering subsystem (text metrics of the label builder), the Dagre subsystem (layout work meter), and the Scenegraph subsystem (scene types); it is called by the document pipeline of the system. */
+        comment /* Within the CanvasNetMermaid system the Packet subsystem depends on the Syntax subsystem (preprocessed and mapped text, JavaScript trim, HTML sanitizing), the Configuration subsystem (effective configuration with its packet section and the packet style sheet), the Rendering subsystem (text metrics of the label builder), the Dagre subsystem of the CanvasNetLayout system (layout work meter), and the Scenegraph subsystem (scene types); it is called by the document pipeline of the system. */
 
         part packetParser : PacketParser;
         part packetRenderer : PacketRenderer;

@@ -18,12 +18,22 @@ unit's behavior is specified by the `CanvasNetPlantUml-Styling-SkinTheme-*` requ
 
 - `SkinElement` - `Document`, the eight participant kinds, `LifeLine`, `ActivationBox`, `Arrow`, `Note`, `Group`,
   `GroupHeader`, `Separator`, `Delay`, `Box`, `Title`, `Header`, `Footer`, `Legend`, `Caption`, and the activity
-  elements `Activity`, `ActivityDiamond`, `ActivityArrow`, `ActivityCircle`, `ActivityBar`, `Swimlane`, and `Partition`.
+  elements `Activity`, `ActivityDiamond`, `ActivityArrow`, `ActivityCircle`, `ActivityBar`, `Swimlane`, and `Partition`,
+  and the elements of the diagrams that PlantUML lays out with Graphviz, drawn by the Svek subsystem: `SvekArrow` (a
+  link and its labels), `Package` (a package cluster), and `Container` (the other container clusters), and the class
+  diagram elements `Class` (a class box and its name), `ClassStereotype`, `ClassAttribute` (the members), and `Object`
+  (an object or a map), and the state diagram elements `State` (a state box, a composite state, and its name),
+  `StateAttribute` (the descriptions), `StateStart` and `StateEnd` (the start and end circles), and `StatePseudo`
+  (the choice diamond and the history circles), and the description diagram elements (`DescriptionElements`)
+  `Component`, `Interface`, `Node`, `Rectangle`, `Folder` (a folder or a package drawn as an element), `Frame`,
+  `Cloud`, `Card`, `Artifact`, `Storage`, `File`, `Stack`, `Agent`, `Hexagon`, `Person`, `Label`, `UseCase` (a use
+  case ellipse and its texts), and `Description` (the action, the process, and archimate elements).
 - `ElementStyle(FontFamily, FontSize, FontColor, Bold, Fill, Line, LineWidth, RoundCorner, Padding)` with `Italic` and
   `Dash` - a null fill or line draws none; `RoundCorner` is PlantUML's diameter (an SVG radius of half of it).
 - `SkinTheme` - the styles by element, `Background` (white; null for transparent), `Shadowing` (false),
   `MaxMessageSize` (zero, no wrapping), `MessageAlign` (`left`), `ResponseBelowArrow` (false), `Footbox` (true), and
-  `ArrowThickness` (1).
+  `ArrowThickness` (1), and the class settings `ClassAttributeIconSize` (10; 0 writes the visibility characters) and
+  `CircledCharacterRadius` (11).
 - The default values: the root is `SansSerif` 14 in black with lines `#181818` one pixel wide; the document is white;
   participants and their kin are filled `#E2E2F0`, outlined half a pixel wide, padded 7, and a participant has corners
   of 5; life lines are dashed 5 and 5, half a pixel wide; activation boxes are white; arrows have 13-pixel labels;
@@ -33,7 +43,15 @@ unit's behavior is specified by the `CanvasNetPlantUml-Styling-SkinTheme-*` requ
   footer are 10-pixel `#888888` text; the title is bold; the legend is on `#DDDDDD` with a black outline and corners of
   15; activities are 12-pixel text on `#F1F1F1` with corners of 25 and a padding of 10; diamonds and activity arrows
   have 11-pixel text; circles are `#222222`; bars are `#555555`; swimlane titles are 18 pixels with black lines 1.5
-  wide.
+  wide; graph links have 13-pixel labels; package clusters are black, 1.5 pixels wide, and container clusters
+  `#181818`, one pixel wide, both unfilled with corners of 5 and bold titles; classes and objects are `#F1F1F1`,
+  outlined half a pixel wide with corners of 5, stereotypes italic 12, and members black 14; states are `#F1F1F1`,
+  outlined half a pixel wide with corners of 25, with names and descriptions of 14; the start and end circles are
+  `#222222`, outlined one pixel wide; choices and histories are `#F1F1F1`, outlined half a pixel wide; the elements of
+  description diagrams are `#F1F1F1`, outlined half a pixel wide with corners of 5 and text of 14 (PlantUML's
+  `componentDiagram` element style). `Description` is the default look of description diagrams: `Default` with the
+  database, the actor, the queue, the boundary, the control, the entity, and the collections (elements shared with
+  sequence diagrams) filled `#F1F1F1` without padding, the last five with corners of 5.
 
 #### Key Methods
 

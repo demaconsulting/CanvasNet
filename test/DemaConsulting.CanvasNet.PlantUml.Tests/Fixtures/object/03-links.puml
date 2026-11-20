@@ -1,0 +1,8 @@
+@startuml
+object alpha
+object beta
+object gamma
+alpha *-- beta
+alpha o-- gamma : owns
+beta ..> gamma
+@enduml

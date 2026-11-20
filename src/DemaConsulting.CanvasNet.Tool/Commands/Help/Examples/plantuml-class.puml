@@ -1,0 +1,22 @@
+@startuml
+title Orders
+package sales {
+  abstract class Order {
+    - id : long
+    # placed : Date
+    + {abstract} total() : decimal
+  }
+  class Line {
+    + quantity : int
+  }
+}
+interface Payable
+enum Status {
+  OPEN
+  PAID
+}
+Payable <|.. Order
+Order "1" *-- "many" Line : contains >
+Order --> Status
+note right of Payable : paid at checkout
+@enduml

@@ -5,7 +5,7 @@ This folder holds the images used by the project README and the tool user guide.
 ## architecture.png
 
 `architecture.png` (1800x1260) is the package architecture diagram: the core package, the format packages and the
-two shared building blocks they use, the Viewer, and the `canvasnet` tool, with arrows from each package to the
+three shared building blocks they use, the Viewer, and the `canvasnet` tool, with arrows from each package to the
 packages it references. Its source is `architecture.svg` (original to this repository, MIT), which the user guide and
 the design document embed directly; the README shows the PNG by an absolute URL, like `showcase.png`, because the
 README is also shipped inside the NuGet packages. `render-images.ps1` draws it with `--strict` on a transparent

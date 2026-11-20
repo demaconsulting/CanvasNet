@@ -1,0 +1,122 @@
+---
+# Software Subsystem Requirements for Dagre
+#
+# These requirements decompose the CanvasNetLayout system's layout responsibility into the Dagre subsystem
+# (internal namespace DemaConsulting.CanvasNet.Layout.Dagre): the port of dagre's layered layout from dagre-d3-es
+# (DagreLayout with the lodash and V8 semantics it depends on, DagreAcyclic, DagreRanker, DagreNesting,
+# DagreNormalizer, DagreOrdering, DagrePositioning, and DagreCoordinateSystem) and the work budget of the layout of
+# one diagram (LayoutWorkMeter). Each requirement here links down to the unit requirements that implement it. See
+# docs/verification/canvas-net-layout/dagre.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetLayout Requirements
+    sections:
+      - title: Dagre Requirements
+        requirements:
+          - id: CanvasNetLayout-Dagre-Layout
+            title: >-
+              The Dagre subsystem shall lay out a directed graph - simple or multi, flat or compound, with or
+              without cycles and self loops, in any of the four rank directions, with any of the three rankers,
+              any alignment, and labels at the left, center, or right of an edge - with the same ranks, orders,
+              node centers, cluster sizes, edge routes, edge label centers, and drawing size as dagre-d3-es,
+              within a relative difference of 1e-9.
+            justification: |
+              Mermaid lays out flowcharts with the dagre of dagre-d3-es; a drawing that matches Mermaid needs the
+              same layout, so the port is checked stage by stage against layouts recorded from dagre-d3-es itself.
+            children:
+              - CanvasNetLayout-Dagre-DagreLayout-Defaults
+              - CanvasNetLayout-Dagre-DagreLayout-Results
+              - CanvasNetLayout-Dagre-DagreLayout-EdgeLabels
+              - CanvasNetLayout-Dagre-DagreLayout-SelfLoops
+              - CanvasNetLayout-Dagre-DagreLayout-CyclesAndClusters
+              - CanvasNetLayout-Dagre-DagreLayout-RankUtilities
+              - CanvasNetLayout-Dagre-DagreAcyclic-BreakCycles
+              - CanvasNetLayout-Dagre-DagreAcyclic-Greedy
+              - CanvasNetLayout-Dagre-DagreAcyclic-Restore
+              - CanvasNetLayout-Dagre-DagreRanker-NetworkSimplex
+              - CanvasNetLayout-Dagre-DagreRanker-Pivots
+              - CanvasNetLayout-Dagre-DagreRanker-FeasibleTree
+              - CanvasNetLayout-Dagre-DagreRanker-RankerChoice
+              - CanvasNetLayout-Dagre-DagreRanker-UnlabeledNode
+              - CanvasNetLayout-Dagre-DagreNesting-ClusterBorders
+              - CanvasNetLayout-Dagre-DagreNesting-Cleanup
+              - CanvasNetLayout-Dagre-DagreNesting-DummyChains
+              - CanvasNetLayout-Dagre-DagreNesting-BorderSegments
+              - CanvasNetLayout-Dagre-DagreNormalizer-Split
+              - CanvasNetLayout-Dagre-DagreNormalizer-LabelNode
+              - CanvasNetLayout-Dagre-DagreNormalizer-Restore
+              - CanvasNetLayout-Dagre-DagreOrdering-InitialOrder
+              - CanvasNetLayout-Dagre-DagreOrdering-Sweeps
+              - CanvasNetLayout-Dagre-DagreOrdering-CrossCount
+              - CanvasNetLayout-Dagre-DagreOrdering-Barycenter
+              - CanvasNetLayout-Dagre-DagreOrdering-ClusterConstraints
+              - CanvasNetLayout-Dagre-DagrePositioning-Ranks
+              - CanvasNetLayout-Dagre-DagrePositioning-Conflicts
+              - CanvasNetLayout-Dagre-DagrePositioning-Alignment
+              - CanvasNetLayout-Dagre-DagrePositioning-Balance
+              - CanvasNetLayout-Dagre-DagrePositioning-Coordinates
+              - CanvasNetLayout-Dagre-DagreCoordinateSystem-Adjust
+              - CanvasNetLayout-Dagre-DagreCoordinateSystem-Undo
+            tests:
+              - Dagre_Layout_UpstreamGolden_MatchesDagre
+
+          - id: CanvasNetLayout-Dagre-TieBreaking
+            title: >-
+              The Dagre subsystem shall break ties between equal candidates as dagre does when it runs in
+              JavaScript - in the key order of JavaScript objects, with the steps of V8's array sort, with
+              lodash's handling of undefined and NaN values, and with lodash's naming of new nodes - so that
+              graphs with numeric node names, parallel edges, and equal barycenters get dagre's layout.
+            justification: |
+              Many of dagre's decisions are ties settled by iteration and sort order; a port that settled them
+              any other way would give a different, equally valid, layout that no longer matches Mermaid.
+            children:
+              - CanvasNetLayout-Dagre-DagreLayout-JavaScriptSemantics
+              - CanvasNetLayout-Dagre-LayoutWorkMeter-UniqueIds
+            tests:
+              - Dagre_Layout_UpstreamGolden_MatchesDagre
+
+          - id: CanvasNetLayout-Dagre-Limits
+            title: >-
+              The Dagre subsystem shall charge the work of every iterative layout stage, deterministically, to the
+              budget of steps per diagram that the consumer gives (for Mermaid, MermaidLimits.MaxLayoutWork), and
+              shall stop a layout that would pass the budget or nest deeper than the stack allows with the
+              consumer's located limit failure (for Mermaid, a MermaidRenderException with the code
+              mermaid-limit-exceeded), and a layout that dagre itself cannot complete with the consumer's located
+              render failure (for Mermaid, the code mermaid-render-failed), letting the consumer's own failures pass
+              unchanged.
+            justification: |
+              Untrusted diagram text can describe a graph whose layout would run for minutes or exhaust the stack;
+              the layout must fail early, at a documented limit, with an error the caller can act on.
+            children:
+              - CanvasNetLayout-Dagre-LayoutWorkMeter-Budget
+              - CanvasNetLayout-Dagre-LayoutWorkMeter-Failure
+              - CanvasNetLayout-Dagre-DagreLayout-Failures
+            tests:
+              - Dagre_Layout_CompleteGraph30_SmallBudget_LimitExceeded
+              - Dagre_Layout_CompleteGraph30_DefaultBudget_CompletesWithPinnedWork
+              - Dagre_Layout_SmallGraph_PinnedWork
+
+          - id: CanvasNetLayout-Dagre-Cancellation
+            title: >-
+              The Dagre subsystem shall observe the cancellation token of the call at every charge of layout work
+              and stop a canceled layout with an OperationCanceledException.
+            justification: |
+              A layout is the longest step of a render; a caller that cancels must not wait for it to finish.
+            children:
+              - CanvasNetLayout-Dagre-LayoutWorkMeter-Cancellation
+            tests:
+              - Dagre_Layout_Canceled_ThrowsOperationCanceled
+
+          - id: CanvasNetLayout-Dagre-Determinism
+            title: >-
+              The Dagre subsystem shall give identical layouts for the same graph, whether laid out repeatedly or
+              concurrently, and whatever was laid out before it.
+            justification: |
+              Identical pixels on every render and every thread start with an identical layout; no state may be
+              shared between the layouts of different diagrams.
+            children:
+              - CanvasNetLayout-Dagre-DagreLayout-JavaScriptSemantics
+              - CanvasNetLayout-Dagre-DagreLayout-Results
+              - CanvasNetLayout-Dagre-LayoutWorkMeter-UniqueIds
+            tests:
+              - Dagre_Layout_RepeatedAndParallel_Identical

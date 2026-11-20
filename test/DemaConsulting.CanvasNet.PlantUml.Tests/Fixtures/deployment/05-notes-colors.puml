@@ -1,0 +1,23 @@
+@startuml
+node Server #LightBlue {
+  artifact App
+}
+storage Backup #back:LightGray;line:Red
+queue Events #line:Blue
+stack Infra <<infra>>
+hexagon Port <<adapter>> #Yellow
+person Admin <<staff>>
+boundary Api <<rest>>
+collections Shards <<db>>
+file Log <<text>> #Pink
+label Hint <<tip>>
+App --> Backup
+App --> Events
+Events --> Port
+Admin --> Api
+Api --> Shards
+note right of Backup : nightly
+note left of Infra : shared\nlayers
+skinparam artifactBackgroundColor White
+skinparam queueBorderColor DarkGreen
+@enduml

@@ -36,9 +36,15 @@ examples:
 
 ## Supported
 
-- info reports the type (sequence, activity, or the name of a type that is not
-  drawn, such as class or usecase), whether this version draws it, the title,
-  and the numbers of nodes, edges, and subgraphs: the participants, messages,
-  and boxes of a sequence diagram; the actions, start, stop, end, connector,
-  and decision nodes, the arrows, and the swimlanes and partitions of an
-  activity diagram. direction and accTitle are absent.
+- info reports the type (sequence, activity, class, object, state, usecase,
+  component, deployment, or the name of a type that is not drawn, such as
+  timing),
+  whether this version draws it,
+  the title, and the numbers of nodes, edges, and subgraphs: the participants,
+  messages, and boxes of a sequence diagram; the actions, start, stop, end,
+  connector, and decision nodes, the arrows, and the swimlanes and partitions
+  of an activity diagram; the classes, objects, and maps, the relationships,
+  and the packages that hold something of a class or object diagram; the
+  states and pseudo-states, the transitions, and the composite states of a
+  state diagram; the elements, the links, and the containers of a use case,
+  component, or deployment diagram. direction and accTitle are absent.

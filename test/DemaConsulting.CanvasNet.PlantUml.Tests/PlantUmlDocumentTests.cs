@@ -167,7 +167,7 @@ public class PlantUmlDocumentTests
         var document = PlantUmlDocument.Parse(PlantUmlTestHelpers.UnsupportedText);
 
         // Assert
-        Assert.Equal("class", document.DiagramType);
+        Assert.Equal("activity-legacy", document.DiagramType);
         Assert.False(document.IsSupported);
         Assert.Null(document.Title);
         Assert.Equal((0, 0, 0), (document.NodeCount, document.EdgeCount, document.SubgraphCount));
@@ -181,7 +181,7 @@ public class PlantUmlDocumentTests
     public void PlantUmlDocument_Render_ReadingReports_DeliveredEveryCallInOrder()
     {
         // Arrange
-        var document = PlantUmlDocument.Parse("@startuml\n!theme cerulean\n!pragma x\nclass A\n@enduml\n");
+        var document = PlantUmlDocument.Parse("@startuml\n!theme cerulean\n!pragma x\n(*) --> A\n@enduml\n");
         var order = new List<string>();
         var options = new PlantUmlRenderOptions { WarningHandler = w => order.Add(w.Code), UnsupportedFeatureHandler = u => order.Add(u.Feature) };
         var strict = new PlantUmlRenderOptions { ThrowOnUnsupportedFeature = true };

@@ -168,6 +168,20 @@ input-files:
   - docs/design/canvas-net-vega-lite/scenegraph/css-paint.md
   - docs/design/canvas-net-vega-lite/scenegraph/arc-geometry.md
   - docs/design/canvas-net-vega-lite/scenegraph/symbol-path-parser.md
+  - docs/design/canvas-net-layout.md
+  - docs/design/canvas-net-layout/graphlib.md
+  - docs/design/canvas-net-layout/graphlib/graph.md
+  - docs/design/canvas-net-layout/graphlib/graph-algorithms.md
+  - docs/design/canvas-net-layout/dagre.md
+  - docs/design/canvas-net-layout/dagre/dagre-layout.md
+  - docs/design/canvas-net-layout/dagre/dagre-acyclic.md
+  - docs/design/canvas-net-layout/dagre/dagre-ranker.md
+  - docs/design/canvas-net-layout/dagre/dagre-nesting.md
+  - docs/design/canvas-net-layout/dagre/dagre-normalizer.md
+  - docs/design/canvas-net-layout/dagre/dagre-ordering.md
+  - docs/design/canvas-net-layout/dagre/dagre-positioning.md
+  - docs/design/canvas-net-layout/dagre/dagre-coordinate-system.md
+  - docs/design/canvas-net-layout/dagre/layout-work-meter.md
   - docs/design/canvas-net-mermaid.md
   - docs/design/canvas-net-mermaid/mermaid-document.md
   - docs/design/canvas-net-mermaid/syntax.md
@@ -181,19 +195,6 @@ input-files:
   - docs/design/canvas-net-mermaid/configuration/theme-resolver.md
   - docs/design/canvas-net-mermaid/configuration/color-math.md
   - docs/design/canvas-net-mermaid/configuration/style-declarations.md
-  - docs/design/canvas-net-mermaid/graphlib.md
-  - docs/design/canvas-net-mermaid/graphlib/graph.md
-  - docs/design/canvas-net-mermaid/graphlib/graph-algorithms.md
-  - docs/design/canvas-net-mermaid/dagre.md
-  - docs/design/canvas-net-mermaid/dagre/dagre-layout.md
-  - docs/design/canvas-net-mermaid/dagre/dagre-acyclic.md
-  - docs/design/canvas-net-mermaid/dagre/dagre-ranker.md
-  - docs/design/canvas-net-mermaid/dagre/dagre-nesting.md
-  - docs/design/canvas-net-mermaid/dagre/dagre-normalizer.md
-  - docs/design/canvas-net-mermaid/dagre/dagre-ordering.md
-  - docs/design/canvas-net-mermaid/dagre/dagre-positioning.md
-  - docs/design/canvas-net-mermaid/dagre/dagre-coordinate-system.md
-  - docs/design/canvas-net-mermaid/dagre/layout-work-meter.md
   - docs/design/canvas-net-mermaid/rendering.md
   - docs/design/canvas-net-mermaid/rendering/cluster-layout.md
   - docs/design/canvas-net-mermaid/rendering/shape-library.md
@@ -262,6 +263,24 @@ input-files:
   - docs/design/canvas-net-plant-uml/activity/activity-model.md
   - docs/design/canvas-net-plant-uml/activity/activity-layout.md
   - docs/design/canvas-net-plant-uml/activity/activity-renderer.md
+  - docs/design/canvas-net-plant-uml/svek.md
+  - docs/design/canvas-net-plant-uml/svek/svek-model.md
+  - docs/design/canvas-net-plant-uml/svek/svek-syntax.md
+  - docs/design/canvas-net-plant-uml/svek/svek-layout.md
+  - docs/design/canvas-net-plant-uml/svek/svek-geometry.md
+  - docs/design/canvas-net-plant-uml/svek/svek-renderer.md
+  - docs/design/canvas-net-plant-uml/class.md
+  - docs/design/canvas-net-plant-uml/class/class-parser.md
+  - docs/design/canvas-net-plant-uml/class/class-model.md
+  - docs/design/canvas-net-plant-uml/class/class-renderer.md
+  - docs/design/canvas-net-plant-uml/state.md
+  - docs/design/canvas-net-plant-uml/state/state-parser.md
+  - docs/design/canvas-net-plant-uml/state/state-model.md
+  - docs/design/canvas-net-plant-uml/state/state-renderer.md
+  - docs/design/canvas-net-plant-uml/description.md
+  - docs/design/canvas-net-plant-uml/description/description-parser.md
+  - docs/design/canvas-net-plant-uml/description/description-model.md
+  - docs/design/canvas-net-plant-uml/description/description-renderer.md
   - docs/design/canvas-net-viewer.md
   - docs/design/canvas-net-viewer/canvas-net-viewer.md
   - docs/design/canvas-net-viewer/viewer-exception.md

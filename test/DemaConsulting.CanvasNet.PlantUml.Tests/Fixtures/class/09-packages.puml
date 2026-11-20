@@ -1,0 +1,22 @@
+@startuml
+package shop {
+  class Cart
+  package shop.pay {
+    class Payment
+  }
+}
+namespace stock {
+  class Item
+}
+package infra <<Rectangle>> {
+  class Gateway
+}
+package Store <<Node>> {
+  class Shelf
+}
+class net.http.Client
+Cart --> Item
+Payment --> Gateway
+Gateway --> Client
+Shelf --> Item
+@enduml

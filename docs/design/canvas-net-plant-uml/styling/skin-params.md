@@ -17,10 +17,18 @@ silently ignored, so an author learns which settings were not applied. The unit'
 
 - `SkinParamEntry(Name, Value, Location)` - the full parameter name (a block's name and the inner name joined), the
   value text, and the location of the statement.
-- The element prefixes and the elements each one styles: the eight participant kinds; `note`; `sequenceGroupHeader`
-  (the header tab), `sequenceGroup` (the frame and the tab); `sequenceBox`; `sequenceDivider`; `sequenceDelay`;
+- The element prefixes and the elements each one styles: the eight participant kinds; `note`; `sequenceGroupHeader` (the
+  header tab), `sequenceGroup` (the frame and the tab); `sequenceBox`; `sequenceDivider`; `sequenceDelay`;
   `sequenceLifeLine` and `lifeLine`; `arrow` (sequence and activity arrows); `activityDiamond`; `activity`;
-  `swimlaneTitle` and `swimlane`; `partition`; `title`; `header`; `footer`; `legend`; and `caption`.
+  `swimlaneTitle` and `swimlane`; `partition`; `title`; `header`; `footer`; `legend`; and `caption`. The graph prefixes,
+  read only in the diagrams PlantUML lays out with Graphviz (class, object, state, use case, component, and deployment
+  diagrams): `class`,
+  `classStereotype` and `objectStereotype` (the stereotypes), `classAttribute` (the members), `object` and `map`,
+  `package`, `state` (the states and composite states), and `stateAttribute` (their descriptions); there `arrow` also
+  styles the links (`SvekArrow`). The description prefixes, read only in description diagrams: `component`, `interface`,
+  `node`, `rectangle`, `folder`, `frame`, `cloud`, `card`, `artifact`, `storage`, `file`, `stack`, `agent`, `hexagon`,
+  `person`, `label`, and `usecase` (with `database`, `actor`, `queue`, `boundary`, `control`, `entity`, and
+  `collections`, shared with sequence diagrams, styling those symbols of the description theme).
 - The property suffixes: `BackgroundColor`, `BorderColor` (also `Color` and `LineColor`), `FontColor`, `FontSize`,
   `FontName`, `FontStyle`, and `BorderThickness` (also `Thickness`).
 - The accepted ranges: font sizes from 1 to 500, line widths from 0 to 100, widths from 1 to 100,000.
@@ -31,7 +39,11 @@ silently ignored, so an author learns which settings were not applied. The unit'
   when it ends with `{`, a block whose inner statements up to `}` are entries named with the block's name first.
 - `TrySkipStyle(statements, ref index, reports)` - a statement that starts with `<style` is reported once as
   `plantuml-style-unsupported` and skipped up to the statement that holds `</style>`.
-- `Apply(theme, entries, reports)` - for each entry in order: a stereotyped name is ignored; a document or sequence
+- `Apply(theme, entries, reports, graph, description)` - for each entry in order: a stereotyped name is ignored; in a
+  description diagram (`description` true) the description prefixes come first; in a graph diagram
+  (`graph` true) `classAttributeIconSize` (0 to 100) and `circledCharacterRadius` (1 to 100) set the class settings,
+  `stateStartColor` and `stateEndColor` set the fill and the line of the start and end circles, and the graph prefixes
+  join the element prefixes; a document or sequence
   setting (`backgroundColor`, `defaultFontName`, `defaultFontSize` for the participant kinds, the legend and the
   caption, `defaultFontColor`, `roundCorner` for the participant kinds, `shadowing`, `sequenceArrowThickness`,
   `sequenceMessageAlign`, `responseMessageBelowArrow`, `maxMessageSize`, `footbox`) is applied; otherwise the longest

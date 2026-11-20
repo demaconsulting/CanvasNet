@@ -1,0 +1,19 @@
+@startuml
+' Gallery: nodes, artifacts, a database, a cloud, storage, a file, a stack, and nested containers
+title Deployment
+cloud Internet
+node "Load balancer" as LB
+node "App host" as Host {
+  artifact "shop.war" as War
+  stack "Runtime" as Runtime {
+    file "app.conf" as Conf
+  }
+}
+database "Orders DB" as DB
+storage Backups
+Internet --> LB
+LB --> War : HTTPS
+War --> DB : JDBC
+DB ..> Backups : nightly
+War ..> Conf
+@enduml

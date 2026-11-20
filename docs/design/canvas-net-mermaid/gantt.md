@@ -66,12 +66,12 @@ dayjs and JavaScript functions; and the renderer and the time axis expose the fu
 
 **Consumed**: from the `Syntax` subsystem the preprocessed text and its map to the original text (`PreprocessedSource`,
 `MappedText`), the detected diagram (`DetectedDiagram`), the rule-driven lexer with start conditions and its token
-cursor (`SourceScanner`, `ScanRule`, `ScanMatcher`, `ScanToken`, and `TokenCursor`), the JavaScript character classes
-of `ScanPatterns`, JavaScript's `trim` (`Preprocessor.TrimJs`), the text sanitizer (`HtmlSanitizer`), the URL
-sanitizer of the `strict` security level (`UrlSanitizer`), and JavaScript's `String(number)`
-(`YamlSubsetParser.FormatJsNumber`); from `Configuration` the effective `MermaidConfig` with its `GanttConfig` section
-and the gantt style sheet `GanttStyles` with `StyleDeclarations`; from `Rendering` the text metrics and text utilities
-of `LabelBuilder`; from `Dagre` the `LayoutWorkMeter`; from `Graphlib` the key order of a JavaScript object
+cursor (`SourceScanner`, `ScanRule`, `ScanMatcher`, `ScanToken`, and `TokenCursor`), the JavaScript character classes of
+`ScanPatterns`, JavaScript's `trim` (`Preprocessor.TrimJs`), the text sanitizer (`HtmlSanitizer`), the URL sanitizer of
+the `strict` security level (`UrlSanitizer`), and JavaScript's `String(number)` (`YamlSubsetParser.FormatJsNumber`);
+from `Configuration` the effective `MermaidConfig` with its `GanttConfig` section and the gantt style sheet
+`GanttStyles` with `StyleDeclarations`; from `Rendering` the text metrics and text utilities of `LabelBuilder`; from
+`Dagre` (CanvasNetLayout) the `LayoutWorkMeter`; from `Graphlib` (CanvasNetLayout) the key order of a JavaScript object
 (`ObjectKeyMap`), which the renderer's section maps keep; from `Scenegraph` the `Scene` and its items; from the core
 `CanvasNet` the color `Rgba32`; and from the system the `IMermaidDiagram` contract, `DiagramRenderContext`,
 `MermaidReportSink`, the public `MermaidRenderOptions` (its `Now`), `MermaidLimits`, `MermaidLocation`,

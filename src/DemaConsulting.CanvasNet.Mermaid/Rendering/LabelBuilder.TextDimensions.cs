@@ -1,7 +1,7 @@
 // Portions derived from mermaid (MIT); see third-party/README.md
 using System.Globalization;
+using DemaConsulting.CanvasNet.Layout.Dagre;
 using DemaConsulting.CanvasNet.Mermaid.Configuration;
-using DemaConsulting.CanvasNet.Mermaid.Dagre;
 using DemaConsulting.CanvasNet.Mermaid.Scenegraph;
 using DemaConsulting.CanvasNet.Mermaid.Syntax;
 using DemaConsulting.CanvasNet.Rendering;

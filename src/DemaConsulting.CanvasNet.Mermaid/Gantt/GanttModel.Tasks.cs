@@ -1,6 +1,6 @@
 // Portions derived from mermaid (MIT) and dayjs (MIT); see third-party/README.md
 using System.Globalization;
-using DemaConsulting.CanvasNet.Mermaid.Dagre;
+using DemaConsulting.CanvasNet.Layout.Dagre;
 using DemaConsulting.CanvasNet.Mermaid.Syntax;
 
 namespace DemaConsulting.CanvasNet.Mermaid.Gantt;

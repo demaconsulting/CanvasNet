@@ -111,16 +111,15 @@ are called directly on the core `Surface` (`Compare`, `CreateDiff`, `CreateOverl
 `Sample`).
 
 **Surface and the codecs** (consumed, from the CanvasNet core library): `Surface` holds the pixels; `PngCodec`,
-`JpegCodec`, `BmpCodec`, `TiffCodec`, `GifCodec`, and `Jpeg2000Codec` decode and encode; `SvgCodec` (from the
-CanvasNet SVG system) renders SVG; `PdfDocument`, `PptxDocument`, and `VsdxDocument` (from the CanvasNet PDF, PPTX,
-and VSDX systems) list and render the pages of a document; `ScadDocument` (from the CanvasNet SCAD system, which
-draws with the Render3D system) parses and draws a model; `VegaLiteDocument` (from the CanvasNet Vega-Lite system)
-parses, measures, and draws a chart; `MermaidDocument` (from the CanvasNet Mermaid system) parses, measures, and draws a
-diagram; `PlantUmlDocument` (from the CanvasNet PlantUML system) parses (with its local includes), measures, and draws a
-PlantUML sequence or activity diagram. The core `Positions` subsystem (`PositionSelection`, `PositionCollector`, and
-`ImagePosition`) and the
-`PositionHandler` and `PositionKindFilter` of `MermaidRenderOptions` and `VegaLiteRenderOptions` are consumed for the
-feature positions.
+`JpegCodec`, `BmpCodec`, `TiffCodec`, `GifCodec`, and `Jpeg2000Codec` decode and encode; `SvgCodec` (from the CanvasNet
+SVG system) renders SVG; `PdfDocument`, `PptxDocument`, and `VsdxDocument` (from the CanvasNet PDF, PPTX, and VSDX
+systems) list and render the pages of a document; `ScadDocument` (from the CanvasNet SCAD system, which draws with the
+Render3D system) parses and draws a model; `VegaLiteDocument` (from the CanvasNet Vega-Lite system) parses, measures,
+and draws a chart; `MermaidDocument` (from the CanvasNet Mermaid system) parses, measures, and draws a diagram;
+`PlantUmlDocument` (from the CanvasNet PlantUML system) parses (with its local includes), measures, and draws a PlantUML
+sequence, activity, class, object, state, use case, component, or deployment diagram. The core `Positions` subsystem
+(`PositionSelection`, `PositionCollector`, and `ImagePosition`) and the `PositionHandler` and `PositionKindFilter` of
+`MermaidRenderOptions` and `VegaLiteRenderOptions` are consumed for the feature positions.
 
 ### Design
 

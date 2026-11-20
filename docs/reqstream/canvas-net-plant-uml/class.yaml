@@ -1,0 +1,85 @@
+---
+# Software Subsystem Requirements for Class
+#
+# These requirements decompose the CanvasNetPlantUml system's class and object diagrams into the Class subsystem
+# (internal namespace DemaConsulting.CanvasNet.PlantUml.Class): the reader of the statements (ClassParser), the
+# diagram with its hide and show rules and its lowering to the Svek engine (ClassModel), and the drawing of class,
+# object, and map boxes (ClassRenderer). Each requirement here links down to the unit requirements that implement it.
+# See docs/verification/canvas-net-plant-uml/class.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetPlantUml Requirements
+    sections:
+      - title: Class Requirements
+        requirements:
+          - id: CanvasNetPlantUml-Class-Reading
+            title: >-
+              The Class subsystem shall read the statements of a class or object diagram (classes and their kin with
+              display names, generic parameters, stereotypes, colors, and bodies; objects and maps; members; packages
+              and namespaces with qualified names; relationships; notes; hide and show; the page texts, the direction,
+              the scale, and the skin parameters) into a model, report the statements it reads but does not draw, and
+              refuse a malformed statement with a located syntax error.
+            justification: |
+              Class and object diagrams are the most used graph diagrams; their statements must be read as PlantUML
+              reads them, and what is not drawn must be said, not silently dropped.
+            children:
+              - CanvasNetPlantUml-Class-ClassParser-Declarations
+              - CanvasNetPlantUml-Class-ClassParser-Bodies
+              - CanvasNetPlantUml-Class-ClassParser-Names
+              - CanvasNetPlantUml-Class-ClassParser-Links
+              - CanvasNetPlantUml-Class-ClassParser-Notes
+              - CanvasNetPlantUml-Class-ClassParser-HideShow
+              - CanvasNetPlantUml-Class-ClassParser-Common
+              - CanvasNetPlantUml-Class-ClassParser-Unsupported
+              - CanvasNetPlantUml-Class-ClassParser-Errors
+              - CanvasNetPlantUml-Class-ClassModel-Members
+            tests:
+              - PlantUmlClass_ReadLayoutRender_DrawsTheModel
+              - PlantUmlClass_SkinAndReports_ReachTheDrawing
+
+          - id: CanvasNetPlantUml-Class-Layout
+            title: >-
+              The Class subsystem shall apply the hide and show rules to every entity, lower the diagram to the Svek
+              engine (packages as clusters, entities with their images, notes, and links with their decorations and
+              settings), lay it out, and decorate it with its page texts at its own scale, and shall count its
+              entities, links, and packages for the document's facts.
+            justification: |
+              The model is what the document measures, renders, and reports; the shared engine places it like the
+              other graph diagrams.
+            children:
+              - CanvasNetPlantUml-Class-ClassModel-Facts
+              - CanvasNetPlantUml-Class-ClassModel-Portions
+              - CanvasNetPlantUml-Class-ClassModel-Lowering
+              - CanvasNetPlantUml-Class-ClassModel-Layout
+            tests:
+              - PlantUmlClass_ReadLayoutRender_DrawsTheModel
+
+          - id: CanvasNetPlantUml-Class-Drawing
+            title: >-
+              The Class subsystem shall draw a class box with PlantUML's header (the circled character of its kind, the
+              stereotypes, the name, and the generic parameters) and compartments (the members with their visibility
+              icons and modifiers, and the separators with their titles), an object box with its name and fields, and
+              a map as a table of its entries, in the look of the diagram's skin parameters.
+            justification: |
+              The boxes are what makes a class or object diagram look like PlantUML's picture.
+            children:
+              - CanvasNetPlantUml-Class-ClassRenderer-ClassBox
+              - CanvasNetPlantUml-Class-ClassRenderer-Spot
+              - CanvasNetPlantUml-Class-ClassRenderer-Members
+              - CanvasNetPlantUml-Class-ClassRenderer-Separators
+              - CanvasNetPlantUml-Class-ClassRenderer-Objects
+            tests:
+              - PlantUmlClass_ReadLayoutRender_DrawsTheModel
+              - PlantUmlClass_SkinAndReports_ReachTheDrawing
+
+          - id: CanvasNetPlantUml-Class-Limits
+            title: >-
+              The Class subsystem shall bound a diagram by the node, edge, label length, and nesting limits while
+              reading it, failing at the statement that crosses a limit with a located plantuml-limit-exceeded error
+              that names the limit.
+            justification: |
+              Class diagrams come from untrusted text; a huge diagram must fail closed before it is laid out.
+            children:
+              - CanvasNetPlantUml-Class-ClassParser-Limits
+            tests:
+              - PlantUmlClassParser_Limits_FailClosedAtTheLine

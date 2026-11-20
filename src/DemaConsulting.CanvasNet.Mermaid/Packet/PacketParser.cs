@@ -1,7 +1,7 @@
 // Portions derived from mermaid (MIT), @mermaid-js/parser (MIT) and Langium (MIT); see third-party/README.md
 using System.Globalization;
 using System.Text;
-using DemaConsulting.CanvasNet.Mermaid.Dagre;
+using DemaConsulting.CanvasNet.Layout.Dagre;
 using DemaConsulting.CanvasNet.Mermaid.Scenegraph;
 using DemaConsulting.CanvasNet.Mermaid.Syntax;
 

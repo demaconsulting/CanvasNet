@@ -1,0 +1,15 @@
+@startuml
+class Account
+abstract class Ledger
+interface Postable
+enum Currency
+annotation Audited
+entity Journal
+exception Overdraft
+struct Amount
+protocol Settles
+metaclass Meta
+stereotype Marker
+record Entry
+dataclass Snapshot
+@enduml

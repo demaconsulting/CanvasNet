@@ -30,7 +30,8 @@ two-participant sequence diagram), `class.mmd` (a class diagram of two classes a
 user journey, a type this version does not draw), plus Mermaid text written by the tests; the expected node fills
 are the colors of Mermaid's default and dark themes. PlantUML diagrams are the fixture files
 `Fixtures/plantuml/sequence.puml` (two participants, two messages, and a title), `activity.plantuml` (an activity
-diagram with an if/else), `class.pu` (a class diagram, a type this version does not draw), and `included.puml` with
+diagram with an if/else), `class.pu` (a class diagram of two classes and one composition), `legacy.pu` (a legacy
+activity diagram, a type this version does not draw), and `included.puml` with
 `parts/people.iuml` (a diagram whose participants come from an include), plus PlantUML text written by the tests; the
 expected fills are the participant (`#E2E2F0`) and action (`#F1F1F1`) colors of PlantUML's default look. The other
 fixture files are an original SVG
@@ -434,10 +435,23 @@ the action fill and no note.
 the aspect ratio, a 400 by 400 box is exact, and a background with zero alpha gives a transparent corner with the
 participants still drawn and the background in the `render` operation.
 
-**SourceLoader_Load_PlantUmlUnsupportedType_IsOneNoteThenStrictError**: `class.pu` is probed with the facts `class`, not
-supported, and zero counts, is an empty 20 by 20 picture with exactly one located one-line note (source `plantuml`,
-severity `unsupported`, code `plantuml-diagram-unsupported`), and in strict mode is `unsupported-feature` naming the
-code, with a hint that names `--strict` and the library's `PlantUmlUnsupportedFeatureException` as its cause.
+**SourceLoader_Load_PlantUmlClass_ReportsFactsAndDraws**: `class.pu` is probed with the facts `class`, supported, 2
+nodes, 1 edge, and no subgraph, and loaded in strict mode with more than 200 pixels of the class fill and no note.
+
+**SourceLoader_Load_PlantUmlState_ReportsFactsAndDraws**: `state.puml` (a composite state with its own start) is probed
+with the facts `state`, supported, 5 nodes, 5 edges, and 1 subgraph, and loaded in strict mode with more than 200
+pixels of the state fill, more than 50 pixels of the start and end color, and no note.
+
+**SourceLoader_Load_PlantUmlDescription_ReportsFactsAndDraws**: `usecase.puml`, `component.puml`, and
+`deployment.puml` are probed with the facts `usecase` (3 nodes, 3 edges), `component` (4 nodes, 3 edges), and
+`deployment` (3 nodes, 2 edges), each supported with 1 subgraph (its container), and loaded in strict mode with more
+than 200 pixels of the element fill, more than 100 dark pixels of the outlines and texts, and no note.
+
+**SourceLoader_Load_PlantUmlUnsupportedType_IsOneNoteThenStrictError**: `legacy.pu` is probed with the facts
+`activity-legacy`, not supported, and zero counts, is an empty 20 by 20 picture with exactly one located one-line note
+(source `plantuml`, severity `unsupported`, code `plantuml-diagram-unsupported`), and in strict mode is
+`unsupported-feature` naming the code, with a hint that names `--strict` and the library's
+`PlantUmlUnsupportedFeatureException` as its cause.
 
 **SourceLoader_Load_PlantUml_MapsWarningsAndUnsupportedFeatures**: a diagram with `!theme cerulean` and an ignored
 `skinparam` has one warning (source `plantuml`, code `plantuml-warning`, detail `plantuml-skinparam-ignored`, line 3,

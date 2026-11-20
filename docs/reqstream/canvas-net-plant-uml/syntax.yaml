@@ -53,6 +53,7 @@ sections:
             children:
               - CanvasNetPlantUml-Syntax-DiagramDetector-Tags
               - CanvasNetPlantUml-Syntax-DiagramDetector-FactoryOrder
+              - CanvasNetPlantUml-Syntax-DiagramDetector-GraphFamilies
               - CanvasNetPlantUml-Syntax-DiagramDetector-OtherTypes
               - CanvasNetPlantUml-Syntax-DiagramDetector-Errors
             tests:

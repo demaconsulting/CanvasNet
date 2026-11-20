@@ -242,7 +242,8 @@ parsing, so it is safe for concurrent renders.
   state style sheet).
 - **Rendering subsystem** - `LayoutData`, `LayoutNode`, and `LayoutEdge` (the layout input), and `ClusterLayout`,
   `ShapeContext`, `LabelBuilder`, and `NodeImages` (the drawing).
-- **Dagre subsystem** - `LayoutWorkMeter`, the work budget and cancellation of a render.
+- **Dagre subsystem (CanvasNetLayout system)** - `LayoutWorkMeter` (created as the `MermaidLayoutWorkMeter` of the
+  MermaidDocument unit), the work budget and cancellation of a render.
 - **Scenegraph subsystem** - `Scene`, the result of a layout.
 - **System** - `IMermaidDiagram`, `DiagramRenderContext`, `MermaidLimits`, `MermaidLocation`, `MermaidReportSink`,
   `MermaidSyntaxException`, `MermaidRenderException`, and `MermaidDiagnosticCodes`.

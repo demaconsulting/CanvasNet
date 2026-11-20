@@ -18,7 +18,7 @@ sections:
                   The SceneModel unit shall build the outlines of rectangles with square or rounded corners, ellipses,
                   closed polygons, open polylines, and lines, and turn them into device paths at a scale and offset.
                 justification: |
-                  These are the shapes of PlantUML's sequence and activity diagrams.
+                  These are the shapes of PlantUML's sequence, activity, and graph diagrams.
                 tests:
                   - PlantUmlSceneModel_Shapes_HaveTheirBounds
                   - PlantUmlSceneModel_ToPath_ScalesAndTranslates
@@ -38,10 +38,12 @@ sections:
                   header and the title above it, the legend, the caption, and the footer below it, with their
                   alignments, the body centered in the widest of them, the spacing of the diagram type (an activity
                   diagram's page is 5 pixels wider around its header, title, and footer, and its body counts 5 pixels
-                  shorter), and a body without page texts unchanged.
+                  shorter; a graph diagram's header is at the top, its title 10 below it, its centered texts centered 6
+                  left of the middle, and its legend 6 below the body), and a body without page texts unchanged.
                 justification: |
                   Every diagram type has the same page texts, so they are placed once for all of them.
                 tests:
                   - PlantUmlSceneModel_ScenePage_PlacesPageTexts
                   - PlantUmlSceneModel_ScenePage_NoTextsAndTranslate
                   - PlantUmlSceneModel_ScenePage_ActivitySpacing
+                  - PlantUmlSceneModel_ScenePage_SvekSpacing

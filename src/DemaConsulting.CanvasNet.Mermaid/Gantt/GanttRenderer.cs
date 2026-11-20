@@ -1,9 +1,9 @@
 // Portions derived from mermaid (MIT) and d3 (ISC); see third-party/README.md
 using System.Text;
 using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Layout.Dagre;
+using DemaConsulting.CanvasNet.Layout.Graphlib;
 using DemaConsulting.CanvasNet.Mermaid.Configuration;
-using DemaConsulting.CanvasNet.Mermaid.Dagre;
-using DemaConsulting.CanvasNet.Mermaid.Graphlib;
 using DemaConsulting.CanvasNet.Mermaid.Rendering;
 using DemaConsulting.CanvasNet.Mermaid.Scenegraph;
 using DemaConsulting.CanvasNet.Mermaid.Syntax;
@@ -112,7 +112,7 @@ internal sealed partial class GanttRenderer
         _context = context;
         _conf = context.Config.Gantt;
         _styles = GanttStyles.Create(context.Config, context.Sink);
-        _meter = new LayoutWorkMeter(context.Options.Limits.MaxLayoutWork, model.KeywordLocation, context.CancellationToken);
+        _meter = new MermaidLayoutWorkMeter(context.Options.Limits.MaxLayoutWork, model.KeywordLocation, context.CancellationToken);
         _labels = new LabelBuilder(context.Fonts, context.Sink, null) { Meter = _meter };
         _clock = new GanttClock(context.Options.Now, context.Sink);
     }

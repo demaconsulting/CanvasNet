@@ -99,7 +99,7 @@ public class PandocFilterSubsystemTests
         var document = PandocDoc.Document(
             PandocDoc.Para(PandocDoc.Image("seq.puml")),
             PandocDoc.CodeBlock("fig-talk", ["plantuml"], "Alice -> Bob : hello", ("caption", "The talk")),
-            PandocDoc.CodeBlock("", ["plantuml"], "@startuml\nclass Car\n@enduml"));
+            PandocDoc.CodeBlock("", ["plantuml"], "@startuml\n(*) --> First\n@enduml"));
         var drawer = new CountingDrawer();
 
         // Act: draw, draw again, change the included file, and draw again
@@ -110,7 +110,7 @@ public class PandocFilterSubsystemTests
         tree.Write("people.iuml", "participant Alice\nparticipant Carol\nparticipant Bob\n");
         var third = tree.Run(drawer, document);
 
-        // Assert: three drawings (the class diagram is left as written), then none, then the picture again
+        // Assert: three drawings (the legacy activity diagram is left as written), then none, then the picture again
         Assert.Equal(3, afterFirst);
         Assert.Equal(3, afterSecond);
         Assert.Equal(first, second);

@@ -1,0 +1,106 @@
+---
+# Software Unit Requirements for SvekSyntax
+#
+# These requirements describe the design-level behavior of the SvekSyntax unit of the Svek subsystem (internal
+# namespace DemaConsulting.CanvasNet.PlantUml.Svek): the statement readers that the diagrams PlantUML lays out with
+# Graphviz share (names, the link arrow grammar of PlantUML's CommandLinkClass and CommandLinkElement, link statements,
+# notes, page texts, and the common statements). See docs/verification/canvas-net-plant-uml/svek/svek-syntax.md for
+# the test-evidence mapping.
+
+sections:
+  - title: CanvasNetPlantUml Requirements
+    sections:
+      - title: Svek Requirements
+        sections:
+          - title: SvekSyntax Requirements
+            requirements:
+              - id: CanvasNetPlantUml-Svek-SvekSyntax-Names
+                title: >-
+                  The SvekSyntax unit shall read the names of PlantUML's graph diagrams: identifiers whose parts are
+                  joined by a separator character or two colons, quoted names, the shorthands in parentheses,
+                  brackets, and colons (with the slash of the business forms), interfaces written () name, the
+                  pseudo-states [*], [H], and [H*] with an optional owner, aliases after as, stereotypes, and colors,
+                  and shall read a name in brackets after an arrow as a qualifier only when a second end follows it.
+                justification: |
+                  Every graph diagram names its elements this way, and a link names its ends with the same grammar.
+                tests:
+                  - PlantUmlSvekSyntax_IdentifierEnds_QualifiedName_LongestFirst
+                  - PlantUmlSvekSyntax_NameAliasStereotypesColor_AreRead
+                  - PlantUmlSvekSyntax_TryReadLink_ShorthandEnds_AreRead
+                  - PlantUmlSvekSyntax_TryReadName_BusinessFormsAndQualifiers_AreRead
+
+              - id: CanvasNetPlantUml-Svek-SvekSyntax-Arrows
+                title: >-
+                  The SvekSyntax unit shall read a link arrow as PlantUML's link grammar does: every decoration before
+                  and after the body, the length of the body, the direction hints up, down, left, and right with their
+                  short forms (left and right one long, up and down at least two long), a dotted or doubled body, the
+                  middle decorations, and the styles in brackets (a color, dashed, dotted, bold, hidden, plain, norank,
+                  and a thickness).
+                justification: |
+                  The decorations, lengths, hints, and styles of the arrows decide how a link is placed and drawn.
+                tests:
+                  - PlantUmlSvekSyntax_TryReadArrow_EveryDecoration_IsRead
+                  - PlantUmlSvekSyntax_TryReadArrow_LengthAndHint_AreRead
+                  - PlantUmlSvekSyntax_TryReadArrow_NoBody_ReturnsFalse
+                  - PlantUmlSvekSyntax_TryReadLink_BracketStyles_AreApplied
+                  - PlantUmlSvekSyntax_ResolveStyle_Body_DecidesTheStyle
+
+              - id: CanvasNetPlantUml-Svek-SvekSyntax-Links
+                title: >-
+                  The SvekSyntax unit shall read a link statement with its ends tried from the longest, as PlantUML's
+                  regular expression backtracks, its quoted end labels, roles, qualifiers, weight, color, URL,
+                  stereotypes, and label, shall split the label as PlantUML does (quoted end labels around it and its
+                  direction mark), shall write the parts of the label in double angle brackets with guillemets
+                  (<<include>> as «include»), and shall not take a statement without an arrow between two names, or
+                  with an end of more than 100 parts, for a link.
+                justification: |
+                  A link must connect the elements PlantUML connects and carry the labels PlantUML draws. Trying every
+                  split of both ends is cubic in the length of a statement, so the parts of an end are bounded far
+                  beyond any real name to bound the work of reading untrusted text.
+                tests:
+                  - PlantUmlSvekSyntax_TryReadLink_FullStatement_IsRead
+                  - PlantUmlSvekSyntax_TryReadLink_Ends_AreReadWithBacktracking
+                  - PlantUmlSvekSyntax_TryReadLink_RarelyUsedParts_AreRead
+                  - PlantUmlSvekSyntax_SplitLabel_EndLabelsAndMarks_AreTakenOut
+                  - PlantUmlSvekSyntax_Guillemets_ReplaceStereotypeParts
+                  - PlantUmlSvekSyntax_TryReadLink_NotALink_ReturnsFalse
+                  - PlantUmlSvekSyntax_TryReadLink_EndsOfManyParts_AreBounded
+
+              - id: CanvasNetPlantUml-Svek-SvekSyntax-Notes
+                title: >-
+                  The SvekSyntax unit shall read every form of note statement: attached to a side of a named element
+                  or of the last element, on a link with an optional side, and floating with an alias, each with an
+                  optional color, on one line or as a block up to end note.
+                justification: |
+                  Notes are written the same way in every graph diagram.
+                tests:
+                  - PlantUmlSvekSyntax_TryReadNote_EveryForm_IsRead
+                  - PlantUmlSvekSyntax_TryReadNote_UnclosedOrOther_ErrorOrFalse
+
+              - id: CanvasNetPlantUml-Svek-SvekSyntax-Common
+                title: >-
+                  The SvekSyntax unit shall read the page texts (title, aligned header and footer, caption, and legend,
+                  on one line or as a block), the direction statements, the scale factor, the hide and show statements,
+                  and the layout skin parameters nodesep and ranksep (reporting a value that is not a number and
+                  linetype as ignored).
+                justification: |
+                  These statements mean the same in every graph diagram.
+                tests:
+                  - PlantUmlSvekSyntax_TryReadPageText_EveryKind_IsRead
+                  - PlantUmlSvekSyntax_DirectionScaleHideShow_AreRead
+                  - PlantUmlSvekSyntax_TakeLayoutSettings_NodesepRanksepLinetype
+
+              - id: CanvasNetPlantUml-Svek-SvekSyntax-Errors
+                title: >-
+                  The SvekSyntax unit shall refuse a style in brackets that is not a style, a color that is not a
+                  color, an unclosed note or page text block, and a text over the label limit with a located
+                  PlantUmlSyntaxException with the code plantuml-syntax-error (plantuml-limit-exceeded for the limit)
+                  and a hint.
+                justification: |
+                  An author can only fix an error that points into the text.
+                tests:
+                  - PlantUmlSvekSyntax_TryReadLink_UnknownStyle_ThrowsLocated
+                  - PlantUmlSvekSyntax_TryReadLink_BadColor_ThrowsLocated
+                  - PlantUmlSvekSyntax_ReadColor_NotAColor_ThrowsLocated
+                  - PlantUmlSvekSyntax_TryReadNote_UnclosedOrOther_ErrorOrFalse
+                  - PlantUmlSvekSyntax_TryReadPageText_UnclosedOrTooLong_Throws

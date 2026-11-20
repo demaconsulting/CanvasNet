@@ -1,0 +1,7 @@
+@startuml
+class Box<T> <<container>>
+class Pair<K, V>
+class Gauge << (G,#FF9900) widget >>
+interface Repository<E> <<persistence>> <<generic>>
+Box <|-- Pair
+@enduml

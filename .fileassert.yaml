@@ -442,6 +442,45 @@ tests:
           - query: "//*[local-name()='text']"
             min: 1
 
+  - name: SysML2Tools_CanvasNetLayoutViewSvg
+    description: "CanvasNetLayoutView diagram was rendered by SysML2Tools"
+    tags: [design]
+    files:
+      - pattern: "docs/design/generated/CanvasNetLayoutView.svg"
+        count: 1
+        xml:
+          - query: "//*[local-name()='svg']"
+            count: 1
+          # A view that resolves to nothing still writes an <svg> root, so also require drawn text.
+          - query: "//*[local-name()='text']"
+            min: 1
+
+  - name: SysML2Tools_LayoutGraphlibViewSvg
+    description: "LayoutGraphlibView diagram was rendered by SysML2Tools"
+    tags: [design]
+    files:
+      - pattern: "docs/design/generated/LayoutGraphlibView.svg"
+        count: 1
+        xml:
+          - query: "//*[local-name()='svg']"
+            count: 1
+          # A view that resolves to nothing still writes an <svg> root, so also require drawn text.
+          - query: "//*[local-name()='text']"
+            min: 1
+
+  - name: SysML2Tools_LayoutDagreViewSvg
+    description: "LayoutDagreView diagram was rendered by SysML2Tools"
+    tags: [design]
+    files:
+      - pattern: "docs/design/generated/LayoutDagreView.svg"
+        count: 1
+        xml:
+          - query: "//*[local-name()='svg']"
+            count: 1
+          # A view that resolves to nothing still writes an <svg> root, so also require drawn text.
+          - query: "//*[local-name()='text']"
+            min: 1
+
   - name: SysML2Tools_CanvasNetMermaidViewSvg
     description: "CanvasNetMermaidView diagram was rendered by SysML2Tools"
     tags: [design]
@@ -473,32 +512,6 @@ tests:
     tags: [design]
     files:
       - pattern: "docs/design/generated/MermaidConfigurationView.svg"
-        count: 1
-        xml:
-          - query: "//*[local-name()='svg']"
-            count: 1
-          # A view that resolves to nothing still writes an <svg> root, so also require drawn text.
-          - query: "//*[local-name()='text']"
-            min: 1
-
-  - name: SysML2Tools_MermaidGraphlibViewSvg
-    description: "MermaidGraphlibView diagram was rendered by SysML2Tools"
-    tags: [design]
-    files:
-      - pattern: "docs/design/generated/MermaidGraphlibView.svg"
-        count: 1
-        xml:
-          - query: "//*[local-name()='svg']"
-            count: 1
-          # A view that resolves to nothing still writes an <svg> root, so also require drawn text.
-          - query: "//*[local-name()='text']"
-            min: 1
-
-  - name: SysML2Tools_MermaidDagreViewSvg
-    description: "MermaidDagreView diagram was rendered by SysML2Tools"
-    tags: [design]
-    files:
-      - pattern: "docs/design/generated/MermaidDagreView.svg"
         count: 1
         xml:
           - query: "//*[local-name()='svg']"

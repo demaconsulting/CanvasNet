@@ -6,8 +6,8 @@ namespace DemaConsulting.CanvasNet.PlantUml.Syntax;
 ///     The detected type of a diagram.
 /// </summary>
 /// <param name="DiagramType">
-///     The public type name: <c>sequence</c>, <c>activity</c>, or a recognized type that is not drawn (<c>class</c>,
-///     <c>usecase</c>, <c>component</c>, <c>deployment</c>, <c>state</c>, <c>object</c>, <c>timing</c>,
+///     The public type name: <c>sequence</c>, <c>activity</c>, <c>class</c>, <c>object</c>, <c>state</c>,
+///     <c>usecase</c>, <c>component</c>, <c>deployment</c>, or a recognized type that is not drawn (<c>timing</c>,
 ///     <c>activity-legacy</c>, <c>mindmap</c>, <c>gantt</c>, <c>wbs</c>, <c>json</c>, <c>yaml</c>, <c>salt</c>, ...).
 /// </param>
 /// <param name="IsSupported">Whether this version draws the type.</param>
@@ -27,7 +27,7 @@ internal sealed record DetectedDiagram(string DiagramType, bool IsSupported, str
 ///         sequence diagram first: when every statement is a sequence statement, the diagram is a sequence diagram;
 ///         else, when every statement is an activity statement of the new syntax, it is an activity diagram; else the
 ///         first statement with a keyword that only another type uses (<c>class</c>, <c>usecase</c>, <c>[*]</c>,
-///         <c>(*)</c>, <c>component</c>, <c>node</c>, ...) names that type, which is recognized but not drawn; else the
+///         <c>(*)</c>, <c>component</c>, <c>node</c>, ...) names that type, which is drawn or only recognized; else the
 ///         text is a syntax error at the first statement that the more likely of the two drawn types does not accept.
 ///     </para>
 ///     <para>
@@ -36,10 +36,10 @@ internal sealed record DetectedDiagram(string DiagramType, bool IsSupported, str
 ///         expression. The class is stateless and safe for concurrent use.
 ///     </para>
 /// </remarks>
-internal static class DiagramDetector
+internal static partial class DiagramDetector
 {
     /// <summary>The types this version draws.</summary>
-    internal static readonly IReadOnlySet<string> SupportedTypes = new HashSet<string>(StringComparer.Ordinal) { "sequence", "activity" };
+    internal static readonly IReadOnlySet<string> SupportedTypes = new HashSet<string>(StringComparer.Ordinal) { "sequence", "activity", "class", "object", "state", "usecase", "component", "deployment" };
 
     /// <summary>The closer of a multi-line action (<c>:text</c> up to a line that ends with <c>;</c>).</summary>
     internal const string ActionCloser = ";";
@@ -204,18 +204,40 @@ internal static class DiagramDetector
         }
 
         // PlantUML tries the sequence diagram first, then the activity diagram of the new syntax
-        var sequenceReject = outer.FirstOrDefault(s => !AcceptsSequence(s.Text));
+        var sequenceReject = outer.FirstOrDefault(s => !AcceptsSequence(s.Text) || IsClassOnlyLink(s));
         if (sequenceReject is null)
         {
             var first = outer.First(s => Classify(s.Text) != StatementFamily.Common);
             return new DetectedDiagram("sequence", SupportedTypes.Contains("sequence"), FirstWord(first.Text), first.Location);
         }
 
+        // (an action that is never closed refuses the activity diagram when a graph family accepts the text, as
+        // PlantUML's multi-line action needs its end: ':Guest:' declares an actor; the graph families are tried once)
+        DetectedDiagram? graph = null;
+        var graphTried = false;
+        DetectedDiagram? Graph()
+        {
+            if (!graphTried)
+            {
+                graph = DetectGraph(statements);
+                graphTried = true;
+            }
+
+            return graph;
+        }
+
         var activityReject = outer.FirstOrDefault(s => !AcceptsActivity(s.Text));
-        if (activityReject is null && outer.Any(s => Classify(s.Text) == StatementFamily.Activity))
+        if (activityReject is null && outer.Any(s => Classify(s.Text) == StatementFamily.Activity)
+            && !(EndsInOpenAction(statements) && Graph() is not null))
         {
             var first = outer.First(s => Classify(s.Text) != StatementFamily.Common);
             return new DetectedDiagram("activity", SupportedTypes.Contains("activity"), FirstWord(first.Text), first.Location);
+        }
+
+        // Then the graph families in PlantUML's order: class, legacy activity, description, and state
+        if (Graph() is { } detected)
+        {
+            return detected;
         }
 
         // The first statement that only another type uses names that type
@@ -249,12 +271,68 @@ internal static class DiagramDetector
     /// </summary>
     /// <param name="statements">The statements.</param>
     /// <returns>The outer statements, block openers and closers included.</returns>
-    internal static List<SourceStatement> OuterStatements(IReadOnlyList<SourceStatement> statements)
+    internal static List<SourceStatement> OuterStatements(IReadOnlyList<SourceStatement> statements) =>
+        OuterStatements(statements, openActionIsText: true);
+
+    /// <summary>
+    ///     Decides whether the statements end inside a multi-line action (<c>:text</c> whose ending <c>;</c> never
+    ///     comes).
+    /// </summary>
+    /// <param name="statements">The statements.</param>
+    /// <returns>True when they do.</returns>
+    internal static bool EndsInOpenAction(IReadOnlyList<SourceStatement> statements)
+    {
+        string? closer = null;
+        foreach (var text in statements.Select(s => s.Text))
+        {
+            if (closer is null)
+            {
+                closer = BlockCloser(text);
+            }
+            else if (IsCloser(text, closer))
+            {
+                closer = null;
+            }
+        }
+
+        return closer == ActionCloser;
+    }
+
+    /// <summary>
+    ///     Gets the statements outside multi-line text blocks.
+    /// </summary>
+    /// <param name="statements">The statements.</param>
+    /// <param name="openActionIsText">
+    ///     Whether the lines after an action that is never closed are its text (false: the unclosed action is one
+    ///     statement and the lines after it are statements).
+    /// </param>
+    /// <returns>The outer statements, block openers and closers included.</returns>
+    private static List<SourceStatement> OuterStatements(IReadOnlyList<SourceStatement> statements, bool openActionIsText) =>
+        OuterStatements(statements, openActionIsText, out _);
+
+    /// <summary>
+    ///     Gets the statements outside multi-line text blocks, counting the statements visited: each statement is
+    ///     visited at most twice, since after an action that is never closed no later action can be closed either.
+    /// </summary>
+    /// <param name="statements">The statements.</param>
+    /// <param name="openActionIsText">
+    ///     Whether the lines after an action that is never closed are its text (false: the unclosed action is one
+    ///     statement and the lines after it are statements).
+    /// </param>
+    /// <param name="visits">Receives the number of statements visited.</param>
+    /// <returns>The outer statements, block openers and closers included.</returns>
+    internal static List<SourceStatement> OuterStatements(IReadOnlyList<SourceStatement> statements, bool openActionIsText, out int visits)
     {
         var outer = new List<SourceStatement>();
         string? closer = null;
-        foreach (var statement in statements)
+        var opener = -1;
+        var actionsClose = true;
+        var i = -1;
+        visits = 0;
+        while (++i < statements.Count)
         {
+            visits++;
+            var statement = statements[i];
             var text = statement.Text;
             if (closer is not null)
             {
@@ -268,12 +346,26 @@ internal static class DiagramDetector
 
                     closer = null;
                 }
+                else if (i == statements.Count - 1 && closer == ActionCloser && !openActionIsText)
+                {
+                    // The action is never closed: it is one statement and the lines after it are statements (no line
+                    // after it ends an action, so every later action is one statement too)
+                    closer = null;
+                    actionsClose = false;
+                    i = opener;
+                }
 
                 continue;
             }
 
             outer.Add(statement);
             closer = BlockCloser(text);
+            if (closer == ActionCloser && !actionsClose)
+            {
+                closer = null;
+            }
+
+            opener = i;
         }
 
         return outer;
@@ -576,7 +668,7 @@ internal static class DiagramDetector
         ArgumentNullException.ThrowIfNull(detected);
         var drawn = SupportedTypes.Count == 0
             ? "no PlantUML diagram type yet"
-            : "only " + string.Join(" and ", SupportedTypes.Order(StringComparer.Ordinal)) + " diagrams";
+            : "only " + JoinTypes(SupportedTypes.Order(StringComparer.Ordinal).ToList()) + " diagrams";
         return string.Create(
             CultureInfo.InvariantCulture,
             $"this version draws {drawn}; render this '{detected.DiagramType}' diagram with PlantUML itself");
@@ -644,27 +736,96 @@ internal static class DiagramDetector
         text.StartsWith("||", StringComparison.Ordinal);
 
     /// <summary>
-    ///     Decides whether a statement is a sequence message: a participant (or <c>[</c>, <c>]</c>, <c>?</c>), an arrow
-    ///     and a participant.
+    ///     Decides whether a statement is a sequence message: a participant (or an end on the diagram border), an arrow
+    ///     and a participant (or an end on the diagram border).
     /// </summary>
     /// <param name="text">The statement text.</param>
     /// <returns>True for a message.</returns>
-    internal static bool IsSequenceArrow(string text)
+    internal static bool IsSequenceArrow(string text) =>
+        TryFindMessageArrow(text, out var left, out var run, out var right)
+        && (IsParticipantEnd(left, isLeft: true) || IsBorderStart(left))
+        && (IsParticipantEnd(right, isLeft: false) || IsBorderEnd(run, right));
+
+    /// <summary>
+    ///     Decides whether a statement is a message to or from the diagram border (a found or a lost message): the
+    ///     left forms <c>[-></c>, <c>[o-></c>, <c>[x-></c>, <c>]-></c>, <c>?-></c>, <c>?o-></c> and the right forms
+    ///     <c>-&gt;]</c>, <c>-&gt;o]</c>, <c>-&gt;x]</c>, <c>-&gt;?</c>, <c>-&gt;o?</c>, with any body, head, or color
+    ///     (PlantUML's <c>CommandExoArrowLeft</c> and <c>CommandExoArrowRight</c>); only the part before the label is
+    ///     read, so a label may hold brackets and arrows.
+    /// </summary>
+    /// <param name="text">The statement text.</param>
+    /// <returns>True for a message with an end on the border.</returns>
+    internal static bool IsBorderMessage(string text) =>
+        TryFindMessageArrow(text, out var left, out var run, out var right)
+        && ((IsBorderStart(left) && IsParticipantEnd(right, isLeft: false))
+            || (IsParticipantEnd(left, isLeft: true) && IsBorderEnd(run, right)));
+
+    /// <summary>
+    ///     Finds the arrow of a message before its label: the first run of arrow characters that holds a dash or a
+    ///     dot and a head or a dash pair.
+    /// </summary>
+    /// <param name="text">The statement text.</param>
+    /// <param name="left">Receives the trimmed text before the arrow.</param>
+    /// <param name="run">Receives the arrow.</param>
+    /// <param name="right">Receives the trimmed text after the arrow, up to the label.</param>
+    /// <returns>True when the statement has an arrow before its label.</returns>
+    private static bool TryFindMessageArrow(string text, out string left, out string run, out string right)
     {
-        // The arrow is before the label: a run of arrow characters that holds a dash or a dot and a head or a dash pair
         var colon = text.IndexOf(':', StringComparison.Ordinal);
         var head = colon >= 0 ? text[..colon] : text;
         for (var i = 0; i < head.Length; i++)
         {
             if (head[i] is '-' or '.' && IsArrowRun(head, i, out var runStart, out var runEnd))
             {
-                var left = head[..runStart].Trim();
-                var right = head[runEnd..].Trim();
-                return IsParticipantEnd(left, true) && IsParticipantEnd(right, false);
+                left = head[..runStart].Trim();
+                run = head[runStart..runEnd];
+                right = head[runEnd..].Trim();
+                return true;
             }
         }
 
+        left = run = right = string.Empty;
         return false;
+    }
+
+    /// <summary>
+    ///     Decides whether the end before an arrow is on the diagram border: <c>[</c>, <c>]</c>, or <c>?</c>, optionally
+    ///     followed by a circle <c>o</c> or a cross <c>x</c>.
+    /// </summary>
+    /// <param name="end">The trimmed text before the arrow.</param>
+    /// <returns>True for a border end.</returns>
+    private static bool IsBorderStart(string end) =>
+        end.Length is 1 or 2 && end[0] is '[' or ']' or '?' && (end.Length == 1 || end[1] is 'o' or 'x');
+
+    /// <summary>
+    ///     Decides whether the end after an arrow is on the diagram border: a <c>?</c> (or a lone bracket) after the
+    ///     arrow, or an arrow that ends with <c>]</c> after its head or body (a circle or a cross between them),
+    ///     followed only by the activation shorthands.
+    /// </summary>
+    /// <param name="run">The arrow.</param>
+    /// <param name="right">The trimmed text after the arrow, up to the label.</param>
+    /// <returns>True for a border end.</returns>
+    private static bool IsBorderEnd(string run, string right)
+    {
+        var rest = right.TrimEnd('+', '-', '*', '!', ' ');
+        if (rest is "?" or "]" or "[")
+        {
+            return true;
+        }
+
+        if (rest.Length > 0 || !run.EndsWith(']'))
+        {
+            return false;
+        }
+
+        // The ']' must follow the head or the body (not close a color, as in -[#red])
+        var body = run[..^1];
+        if (body.Length > 0 && body[^1] is 'o' or 'x')
+        {
+            body = body[..^1];
+        }
+
+        return body.Length > 0 && body[^1] is '>' or '-' or '<' or '/' or '\\';
     }
 
     /// <summary>
@@ -712,8 +873,8 @@ internal static class DiagramDetector
     }
 
     /// <summary>
-    ///     Decides whether one end of a message can be a sequence participant: a name (not one in brackets or
-    ///     parentheses, which belong to other types), or the found and lost ends <c>[</c>, <c>]</c> and <c>?</c>.
+    ///     Decides whether one end of a message can be a sequence participant: a name not in brackets or parentheses
+    ///     (which belong to other types).
     /// </summary>
     /// <param name="end">The trimmed text of the end.</param>
     /// <param name="isLeft">Whether it is the end before the arrow.</param>
@@ -723,11 +884,6 @@ internal static class DiagramDetector
         if (end.Length == 0)
         {
             return false;
-        }
-
-        if (end is "[" or "]" or "?")
-        {
-            return true;
         }
 
         // The end after the arrow may carry the activation shorthands (++, --, **, !!) and a color

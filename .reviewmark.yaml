@@ -3895,6 +3895,288 @@ reviews:
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Scenegraph/ScenePositionsTests.cs"  # unit tests
 
   # ---------------------------------------------------------------------------------------------
+  # CanvasNetLayout review-sets (shared graph layout of the diagram packages, derived with attribution)
+  # Provenance check for every CanvasNetLayout set: reviewers confirm that no source, test, example,
+  # or documentation text of dagre, graphlib, dagre-d3-es, or lodash was copied beyond the ported
+  # behavior, that every file containing ported logic carries the "Portions derived from" header,
+  # and that the attribution is recorded in src/DemaConsulting.CanvasNet.Layout/third-party/README.md
+  # (see the Third-Party Provenance and Attribution section of docs/design/canvas-net-layout.md).
+  # The Graphlib and Dagre sets were moved from CanvasNetMermaid with the code (renamed from
+  # CanvasNetMermaid-Graphlib* and CanvasNetMermaid-Dagre*), so their earlier review evidence does not carry over.
+  # ---------------------------------------------------------------------------------------------
+
+  # CanvasNetLayout-Architecture Review (one per system)
+  - id: CanvasNetLayout-Architecture
+    title: Review that CanvasNetLayout Architecture Satisfies Requirements
+    context:
+      - "README.md"
+      - "docs/user_guide/**/*.md"
+    paths:
+      - "docs/reqstream/canvas-net-layout.yaml"                       # system requirements
+      - "docs/design/introduction.md"                                 # design introduction
+      - "docs/design/canvas-net-layout.md"                            # system design (API decision, provenance)
+      - "docs/verification/introduction.md"                           # verification introduction
+      - "docs/verification/canvas-net-layout.md"                      # system verification
+      - "docs/sysml2/model/canvas-net-layout.sysml"                   # system SysML2 model
+      - "test/DemaConsulting.CanvasNet.Layout.Tests/LayoutSystemIntegrationTests.cs"  # system tests
+      - "test/DemaConsulting.CanvasNet.Layout.Tests/DemaConsulting.CanvasNet.Layout.Tests.csproj"  # test project
+      - "src/DemaConsulting.CanvasNet.Layout/DemaConsulting.CanvasNet.Layout.csproj"  # project file
+      - "src/DemaConsulting.CanvasNet.Layout/third-party/**"          # license texts and provenance record
+
+  # CanvasNetLayout-Design Review (one per system)
+  - id: CanvasNetLayout-Design
+    title: Review that CanvasNetLayout Design is Consistent and Complete
+    context:
+      - "docs/reqstream/canvas-net-layout.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-layout/platform-requirements.yaml"  # platform requirements
+      - "docs/design/introduction.md"                                 # design introduction
+      - "docs/design/canvas-net-layout.md"                            # system design
+      - "docs/design/canvas-net-layout/**/*.md"                       # all system design documents
+
+  # CanvasNetLayout-Verification Review (one per system)
+  - id: CanvasNetLayout-Verification
+    title: Review that CanvasNetLayout Verification is Consistent and Complete
+    context:
+      - "docs/reqstream/canvas-net-layout.yaml"
+    paths:
+      - "docs/verification/introduction.md"                           # verification introduction
+      - "docs/verification/canvas-net-layout.md"                      # system verification
+      - "docs/verification/canvas-net-layout/**/*.md"                 # all verification documents
+
+  # CanvasNetLayout-AllRequirements Review (one per system)
+  - id: CanvasNetLayout-AllRequirements
+    title: Review that All CanvasNetLayout Requirements are Complete
+    context:
+      - "docs/design/canvas-net-layout.md"
+      - "docs/reqstream/canvas-net-layout.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-layout/**/*.yaml"                  # all requirements files
+
+  # CanvasNetLayout-Graphlib Review (subsystem)
+  - id: CanvasNetLayout-Graphlib
+    title: Review that CanvasNetLayout Graphlib Subsystem Implementation is Correct
+    context:
+      - "docs/design/canvas-net-layout.md"
+      - "docs/reqstream/canvas-net-layout.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-layout/graphlib.yaml"         # subsystem requirements
+      - "docs/design/canvas-net-layout/graphlib.md"              # subsystem design
+      - "docs/verification/canvas-net-layout/graphlib.md"        # subsystem verification
+      - "docs/sysml2/model/canvas-net-layout/graphlib.sysml"     # subsystem SysML2 model
+      - "src/DemaConsulting.CanvasNet.Layout/Graphlib/NamespaceDoc.cs"  # namespace documentation
+      - "test/DemaConsulting.CanvasNet.Layout.Tests/Graphlib/GraphlibTests.cs"  # subsystem tests
+
+  # CanvasNetLayout-Graphlib-Graph Review (one per unit)
+  - id: CanvasNetLayout-Graphlib-Graph
+    title: Review that CanvasNetLayout Graphlib Graph Implementation is Correct
+    context:
+      - "docs/design/canvas-net-layout.md"
+      - "docs/reqstream/canvas-net-layout.yaml"
+      - "docs/design/canvas-net-layout/graphlib.md"
+      - "docs/reqstream/canvas-net-layout/graphlib.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-layout/graphlib/graph.yaml"  # unit requirements
+      - "docs/design/canvas-net-layout/graphlib/graph.md"  # unit design
+      - "docs/verification/canvas-net-layout/graphlib/graph.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-layout/graphlib/graph.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Layout/Graphlib/Graph.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Layout/Graphlib/GraphEdge.cs"  # unit source (edge identity)
+      - "src/DemaConsulting.CanvasNet.Layout/Graphlib/ObjectKeyMap.cs"  # unit source (JavaScript key order)
+      - "test/DemaConsulting.CanvasNet.Layout.Tests/Graphlib/GraphTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Layout.Tests/Graphlib/ObjectKeyMapTests.cs"  # unit tests (key order)
+
+  # CanvasNetLayout-Graphlib-GraphAlgorithms Review (one per unit)
+  - id: CanvasNetLayout-Graphlib-GraphAlgorithms
+    title: Review that CanvasNetLayout Graphlib GraphAlgorithms Implementation is Correct
+    context:
+      - "docs/design/canvas-net-layout.md"
+      - "docs/reqstream/canvas-net-layout.yaml"
+      - "docs/design/canvas-net-layout/graphlib.md"
+      - "docs/reqstream/canvas-net-layout/graphlib.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-layout/graphlib/graph-algorithms.yaml"  # unit requirements
+      - "docs/design/canvas-net-layout/graphlib/graph-algorithms.md"  # unit design
+      - "docs/verification/canvas-net-layout/graphlib/graph-algorithms.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-layout/graphlib/graph-algorithms.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Layout/Graphlib/GraphAlgorithms.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.Layout.Tests/Graphlib/GraphAlgorithmsTests.cs"  # unit tests
+
+  # CanvasNetLayout-Dagre Review (one per subsystem)
+  - id: CanvasNetLayout-Dagre
+    title: Review that CanvasNetLayout Dagre Subsystem Implementation is Correct
+    context:
+      - "docs/design/canvas-net-layout.md"
+      - "docs/reqstream/canvas-net-layout.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-layout/dagre.yaml"  # subsystem requirements
+      - "docs/design/canvas-net-layout/dagre.md"  # subsystem design
+      - "docs/verification/canvas-net-layout/dagre.md"  # subsystem verification
+      - "docs/sysml2/model/canvas-net-layout/dagre.sysml"  # subsystem SysML2 model
+      - "src/DemaConsulting.CanvasNet.Layout/Dagre/NamespaceDoc.cs"  # namespace documentation
+      - "test/DemaConsulting.CanvasNet.Layout.Tests/Dagre/DagreTests.cs"  # subsystem tests
+      - "test/DemaConsulting.CanvasNet.Layout.Tests/Dagre/DagreGoldens.cs"  # subsystem test helper (golden reader)
+      - "test/DemaConsulting.CanvasNet.Layout.Tests/Dagre/DagreTestGraphs.cs"  # test helper (meters, graph builders)
+      - "test/DemaConsulting.CanvasNet.Layout.Tests/Dagre/TestLayoutWorkMeter.cs"  # test helper (test consumer meter)
+      - "test/DemaConsulting.CanvasNet.Layout.Tests/Dagre/LayoutTestException.cs"  # test helper (test consumer failure)
+      - "test/DemaConsulting.CanvasNet.Layout.Tests/Fixtures/upstream-vectors/dagre-layouts.json"  # 224 dagre goldens
+
+  # CanvasNetLayout-Dagre-DagreLayout Review (one per unit)
+  - id: CanvasNetLayout-Dagre-DagreLayout
+    title: Review that CanvasNetLayout Dagre DagreLayout Implementation is Correct
+    context:
+      - "docs/design/canvas-net-layout.md"
+      - "docs/reqstream/canvas-net-layout.yaml"
+      - "docs/design/canvas-net-layout/dagre.md"
+      - "docs/reqstream/canvas-net-layout/dagre.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-layout/dagre/dagre-layout.yaml"  # unit requirements
+      - "docs/design/canvas-net-layout/dagre/dagre-layout.md"  # unit design
+      - "docs/verification/canvas-net-layout/dagre/dagre-layout.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-layout/dagre/dagre-layout.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Layout/Dagre/DagreLayout.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Layout/Dagre/DagreLayout.Util.cs"  # unit source (util.js helpers)
+      - "src/DemaConsulting.CanvasNet.Layout/Dagre/DagreGraph.cs"  # unit source (input labels)
+      - "src/DemaConsulting.CanvasNet.Layout/Dagre/LayoutModel.cs"  # unit source (layout labels)
+      - "src/DemaConsulting.CanvasNet.Layout/Dagre/Lodash.cs"  # unit source (lodash and V8 sort semantics)
+      - "test/DemaConsulting.CanvasNet.Layout.Tests/Dagre/DagreLayoutTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Layout.Tests/Dagre/LodashTests.cs"  # unit tests (Lodash)
+
+  # CanvasNetLayout-Dagre-DagreAcyclic Review (one per unit)
+  - id: CanvasNetLayout-Dagre-DagreAcyclic
+    title: Review that CanvasNetLayout Dagre DagreAcyclic Implementation is Correct
+    context:
+      - "docs/design/canvas-net-layout.md"
+      - "docs/reqstream/canvas-net-layout.yaml"
+      - "docs/design/canvas-net-layout/dagre.md"
+      - "docs/reqstream/canvas-net-layout/dagre.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-layout/dagre/dagre-acyclic.yaml"  # unit requirements
+      - "docs/design/canvas-net-layout/dagre/dagre-acyclic.md"  # unit design
+      - "docs/verification/canvas-net-layout/dagre/dagre-acyclic.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-layout/dagre/dagre-acyclic.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Layout/Dagre/DagreAcyclic.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.Layout.Tests/Dagre/DagreAcyclicTests.cs"  # unit tests
+
+  # CanvasNetLayout-Dagre-DagreRanker Review (one per unit)
+  - id: CanvasNetLayout-Dagre-DagreRanker
+    title: Review that CanvasNetLayout Dagre DagreRanker Implementation is Correct
+    context:
+      - "docs/design/canvas-net-layout.md"
+      - "docs/reqstream/canvas-net-layout.yaml"
+      - "docs/design/canvas-net-layout/dagre.md"
+      - "docs/reqstream/canvas-net-layout/dagre.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-layout/dagre/dagre-ranker.yaml"  # unit requirements
+      - "docs/design/canvas-net-layout/dagre/dagre-ranker.md"  # unit design
+      - "docs/verification/canvas-net-layout/dagre/dagre-ranker.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-layout/dagre/dagre-ranker.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Layout/Dagre/DagreRanker.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Layout/Dagre/DagreRanker.FeasibleTree.cs"  # unit source (partial file)
+      - "src/DemaConsulting.CanvasNet.Layout/Dagre/DagreRanker.NetworkSimplex.cs"  # unit source (partial file)
+      - "test/DemaConsulting.CanvasNet.Layout.Tests/Dagre/DagreRankerTests.cs"  # unit tests
+
+  # CanvasNetLayout-Dagre-DagreNesting Review (one per unit)
+  - id: CanvasNetLayout-Dagre-DagreNesting
+    title: Review that CanvasNetLayout Dagre DagreNesting Implementation is Correct
+    context:
+      - "docs/design/canvas-net-layout.md"
+      - "docs/reqstream/canvas-net-layout.yaml"
+      - "docs/design/canvas-net-layout/dagre.md"
+      - "docs/reqstream/canvas-net-layout/dagre.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-layout/dagre/dagre-nesting.yaml"  # unit requirements
+      - "docs/design/canvas-net-layout/dagre/dagre-nesting.md"  # unit design
+      - "docs/verification/canvas-net-layout/dagre/dagre-nesting.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-layout/dagre/dagre-nesting.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Layout/Dagre/DagreNesting.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.Layout.Tests/Dagre/DagreNestingTests.cs"  # unit tests
+
+  # CanvasNetLayout-Dagre-DagreNormalizer Review (one per unit)
+  - id: CanvasNetLayout-Dagre-DagreNormalizer
+    title: Review that CanvasNetLayout Dagre DagreNormalizer Implementation is Correct
+    context:
+      - "docs/design/canvas-net-layout.md"
+      - "docs/reqstream/canvas-net-layout.yaml"
+      - "docs/design/canvas-net-layout/dagre.md"
+      - "docs/reqstream/canvas-net-layout/dagre.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-layout/dagre/dagre-normalizer.yaml"  # unit requirements
+      - "docs/design/canvas-net-layout/dagre/dagre-normalizer.md"  # unit design
+      - "docs/verification/canvas-net-layout/dagre/dagre-normalizer.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-layout/dagre/dagre-normalizer.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Layout/Dagre/DagreNormalizer.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.Layout.Tests/Dagre/DagreNormalizerTests.cs"  # unit tests
+
+  # CanvasNetLayout-Dagre-DagreOrdering Review (one per unit)
+  - id: CanvasNetLayout-Dagre-DagreOrdering
+    title: Review that CanvasNetLayout Dagre DagreOrdering Implementation is Correct
+    context:
+      - "docs/design/canvas-net-layout.md"
+      - "docs/reqstream/canvas-net-layout.yaml"
+      - "docs/design/canvas-net-layout/dagre.md"
+      - "docs/reqstream/canvas-net-layout/dagre.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-layout/dagre/dagre-ordering.yaml"  # unit requirements
+      - "docs/design/canvas-net-layout/dagre/dagre-ordering.md"  # unit design
+      - "docs/verification/canvas-net-layout/dagre/dagre-ordering.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-layout/dagre/dagre-ordering.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Layout/Dagre/DagreOrdering.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Layout/Dagre/DagreOrdering.Sort.cs"  # unit source (partial file)
+      - "src/DemaConsulting.CanvasNet.Layout/Dagre/DagreOrdering.CrossCount.cs"  # unit source (partial file)
+      - "src/DemaConsulting.CanvasNet.Layout/Dagre/DagreOrdering.Constraints.cs"  # unit source (partial file)
+      - "test/DemaConsulting.CanvasNet.Layout.Tests/Dagre/DagreOrderingTests.cs"  # unit tests
+
+  # CanvasNetLayout-Dagre-DagrePositioning Review (one per unit)
+  - id: CanvasNetLayout-Dagre-DagrePositioning
+    title: Review that CanvasNetLayout Dagre DagrePositioning Implementation is Correct
+    context:
+      - "docs/design/canvas-net-layout.md"
+      - "docs/reqstream/canvas-net-layout.yaml"
+      - "docs/design/canvas-net-layout/dagre.md"
+      - "docs/reqstream/canvas-net-layout/dagre.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-layout/dagre/dagre-positioning.yaml"  # unit requirements
+      - "docs/design/canvas-net-layout/dagre/dagre-positioning.md"  # unit design
+      - "docs/verification/canvas-net-layout/dagre/dagre-positioning.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-layout/dagre/dagre-positioning.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Layout/Dagre/DagrePositioning.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Layout/Dagre/DagrePositioning.BrandesKoepf.cs"  # unit source (partial file)
+      - "test/DemaConsulting.CanvasNet.Layout.Tests/Dagre/DagrePositioningTests.cs"  # unit tests
+
+  # CanvasNetLayout-Dagre-DagreCoordinateSystem Review (one per unit)
+  - id: CanvasNetLayout-Dagre-DagreCoordinateSystem
+    title: Review that CanvasNetLayout Dagre DagreCoordinateSystem Implementation is Correct
+    context:
+      - "docs/design/canvas-net-layout.md"
+      - "docs/reqstream/canvas-net-layout.yaml"
+      - "docs/design/canvas-net-layout/dagre.md"
+      - "docs/reqstream/canvas-net-layout/dagre.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-layout/dagre/dagre-coordinate-system.yaml"  # unit requirements
+      - "docs/design/canvas-net-layout/dagre/dagre-coordinate-system.md"  # unit design
+      - "docs/verification/canvas-net-layout/dagre/dagre-coordinate-system.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-layout/dagre/dagre-coordinate-system.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Layout/Dagre/DagreCoordinateSystem.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.Layout.Tests/Dagre/DagreCoordinateSystemTests.cs"  # unit tests
+
+  # CanvasNetLayout-Dagre-LayoutWorkMeter Review (one per unit)
+  - id: CanvasNetLayout-Dagre-LayoutWorkMeter
+    title: Review that CanvasNetLayout Dagre LayoutWorkMeter Implementation is Correct
+    context:
+      - "docs/design/canvas-net-layout.md"
+      - "docs/reqstream/canvas-net-layout.yaml"
+      - "docs/design/canvas-net-layout/dagre.md"
+      - "docs/reqstream/canvas-net-layout/dagre.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-layout/dagre/layout-work-meter.yaml"  # unit requirements
+      - "docs/design/canvas-net-layout/dagre/layout-work-meter.md"  # unit design
+      - "docs/verification/canvas-net-layout/dagre/layout-work-meter.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-layout/dagre/layout-work-meter.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Layout/Dagre/LayoutWorkMeter.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.Layout.Tests/Dagre/LayoutWorkMeterTests.cs"  # unit tests
+
+  # ---------------------------------------------------------------------------------------------
   # CanvasNetMermaid review-sets (static Mermaid renderer, derived with attribution)
   # Provenance check for every CanvasNetMermaid set: reviewers confirm that no source, test, example,
   # or documentation text of Mermaid, the Mermaid parser package, Langium, dagre, graphlib, d3, dayjs,
@@ -4002,6 +4284,7 @@ reviews:
       - "src/DemaConsulting.CanvasNet.Mermaid/MermaidUnsupportedFeatureException.cs"  # unit source
       - "src/DemaConsulting.CanvasNet.Mermaid/MermaidReportSink.cs"   # unit source (internal report sink)
       - "src/DemaConsulting.CanvasNet.Mermaid/MermaidImageSource.cs"  # unit source (image source)
+      - "src/DemaConsulting.CanvasNet.Mermaid/MermaidLayoutWorkMeter.cs"  # unit source (layout work meter)
       - "test/DemaConsulting.CanvasNet.Mermaid.Tests/MermaidDocumentTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Mermaid.Tests/MermaidRenderOptionsTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Mermaid.Tests/MermaidLimitsTests.cs"  # unit tests
@@ -4009,6 +4292,7 @@ reviews:
       - "test/DemaConsulting.CanvasNet.Mermaid.Tests/MermaidReportSinkTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Mermaid.Tests/MermaidImageSourceTests.cs"  # unit tests (image source)
       - "test/DemaConsulting.CanvasNet.Mermaid.Tests/MermaidDocumentPositionTests.cs"  # unit tests (positions)
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/MermaidLayoutWorkMeterTests.cs"  # unit tests (layout work meter)
   # CanvasNetMermaid-Syntax Review (one per subsystem)
   - id: CanvasNetMermaid-Syntax
     title: Review that CanvasNetMermaid Syntax Subsystem Implementation is Correct
@@ -4189,227 +4473,6 @@ reviews:
       - "docs/sysml2/model/canvas-net-mermaid/configuration/style-declarations.sysml"  # unit SysML2 model
       - "src/DemaConsulting.CanvasNet.Mermaid/Configuration/StyleDeclarations.cs"  # unit source
       - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Configuration/StyleDeclarationsTests.cs"  # unit tests
-
-  # CanvasNetMermaid-Graphlib Review (subsystem)
-  - id: CanvasNetMermaid-Graphlib
-    title: Review that CanvasNetMermaid Graphlib Subsystem Implementation is Correct
-    context:
-      - "docs/design/canvas-net-mermaid.md"
-      - "docs/reqstream/canvas-net-mermaid.yaml"
-    paths:
-      - "docs/reqstream/canvas-net-mermaid/graphlib.yaml"         # subsystem requirements
-      - "docs/design/canvas-net-mermaid/graphlib.md"              # subsystem design
-      - "docs/verification/canvas-net-mermaid/graphlib.md"        # subsystem verification
-      - "docs/sysml2/model/canvas-net-mermaid/graphlib.sysml"     # subsystem SysML2 model
-      - "src/DemaConsulting.CanvasNet.Mermaid/Graphlib/NamespaceDoc.cs"  # namespace documentation
-      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Graphlib/GraphlibTests.cs"  # subsystem tests
-
-  # CanvasNetMermaid-Graphlib-Graph Review (one per unit)
-  - id: CanvasNetMermaid-Graphlib-Graph
-    title: Review that CanvasNetMermaid Graphlib Graph Implementation is Correct
-    context:
-      - "docs/design/canvas-net-mermaid.md"
-      - "docs/reqstream/canvas-net-mermaid.yaml"
-      - "docs/design/canvas-net-mermaid/graphlib.md"
-      - "docs/reqstream/canvas-net-mermaid/graphlib.yaml"
-    paths:
-      - "docs/reqstream/canvas-net-mermaid/graphlib/graph.yaml"  # unit requirements
-      - "docs/design/canvas-net-mermaid/graphlib/graph.md"  # unit design
-      - "docs/verification/canvas-net-mermaid/graphlib/graph.md"  # unit verification
-      - "docs/sysml2/model/canvas-net-mermaid/graphlib/graph.sysml"  # unit SysML2 model
-      - "src/DemaConsulting.CanvasNet.Mermaid/Graphlib/Graph.cs"  # unit source
-      - "src/DemaConsulting.CanvasNet.Mermaid/Graphlib/GraphEdge.cs"  # unit source (edge identity)
-      - "src/DemaConsulting.CanvasNet.Mermaid/Graphlib/ObjectKeyMap.cs"  # unit source (JavaScript key order)
-      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Graphlib/GraphTests.cs"  # unit tests
-      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Graphlib/ObjectKeyMapTests.cs"  # unit tests (key order)
-
-  # CanvasNetMermaid-Graphlib-GraphAlgorithms Review (one per unit)
-  - id: CanvasNetMermaid-Graphlib-GraphAlgorithms
-    title: Review that CanvasNetMermaid Graphlib GraphAlgorithms Implementation is Correct
-    context:
-      - "docs/design/canvas-net-mermaid.md"
-      - "docs/reqstream/canvas-net-mermaid.yaml"
-      - "docs/design/canvas-net-mermaid/graphlib.md"
-      - "docs/reqstream/canvas-net-mermaid/graphlib.yaml"
-    paths:
-      - "docs/reqstream/canvas-net-mermaid/graphlib/graph-algorithms.yaml"  # unit requirements
-      - "docs/design/canvas-net-mermaid/graphlib/graph-algorithms.md"  # unit design
-      - "docs/verification/canvas-net-mermaid/graphlib/graph-algorithms.md"  # unit verification
-      - "docs/sysml2/model/canvas-net-mermaid/graphlib/graph-algorithms.sysml"  # unit SysML2 model
-      - "src/DemaConsulting.CanvasNet.Mermaid/Graphlib/GraphAlgorithms.cs"  # unit source
-      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Graphlib/GraphAlgorithmsTests.cs"  # unit tests
-
-  # CanvasNetMermaid-Dagre Review (one per subsystem)
-  - id: CanvasNetMermaid-Dagre
-    title: Review that CanvasNetMermaid Dagre Subsystem Implementation is Correct
-    context:
-      - "docs/design/canvas-net-mermaid.md"
-      - "docs/reqstream/canvas-net-mermaid.yaml"
-    paths:
-      - "docs/reqstream/canvas-net-mermaid/dagre.yaml"  # subsystem requirements
-      - "docs/design/canvas-net-mermaid/dagre.md"  # subsystem design
-      - "docs/verification/canvas-net-mermaid/dagre.md"  # subsystem verification
-      - "docs/sysml2/model/canvas-net-mermaid/dagre.sysml"  # subsystem SysML2 model
-      - "src/DemaConsulting.CanvasNet.Mermaid/Dagre/NamespaceDoc.cs"  # namespace documentation
-      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Dagre/DagreTests.cs"  # subsystem tests
-      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Dagre/DagreGoldens.cs"  # subsystem test helper (golden reader)
-      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Dagre/DagreTestGraphs.cs"  # test helper (meters, graph builders)
-      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/upstream-vectors/dagre-layouts.json"  # 224 dagre goldens
-
-  # CanvasNetMermaid-Dagre-DagreLayout Review (one per unit)
-  - id: CanvasNetMermaid-Dagre-DagreLayout
-    title: Review that CanvasNetMermaid Dagre DagreLayout Implementation is Correct
-    context:
-      - "docs/design/canvas-net-mermaid.md"
-      - "docs/reqstream/canvas-net-mermaid.yaml"
-      - "docs/design/canvas-net-mermaid/dagre.md"
-      - "docs/reqstream/canvas-net-mermaid/dagre.yaml"
-    paths:
-      - "docs/reqstream/canvas-net-mermaid/dagre/dagre-layout.yaml"  # unit requirements
-      - "docs/design/canvas-net-mermaid/dagre/dagre-layout.md"  # unit design
-      - "docs/verification/canvas-net-mermaid/dagre/dagre-layout.md"  # unit verification
-      - "docs/sysml2/model/canvas-net-mermaid/dagre/dagre-layout.sysml"  # unit SysML2 model
-      - "src/DemaConsulting.CanvasNet.Mermaid/Dagre/DagreLayout.cs"  # unit source
-      - "src/DemaConsulting.CanvasNet.Mermaid/Dagre/DagreLayout.Util.cs"  # unit source (util.js helpers)
-      - "src/DemaConsulting.CanvasNet.Mermaid/Dagre/DagreGraph.cs"  # unit source (input labels)
-      - "src/DemaConsulting.CanvasNet.Mermaid/Dagre/LayoutModel.cs"  # unit source (layout labels)
-      - "src/DemaConsulting.CanvasNet.Mermaid/Dagre/Lodash.cs"  # unit source (lodash and V8 sort semantics)
-      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Dagre/DagreLayoutTests.cs"  # unit tests
-      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Dagre/LodashTests.cs"  # unit tests (Lodash)
-
-  # CanvasNetMermaid-Dagre-DagreAcyclic Review (one per unit)
-  - id: CanvasNetMermaid-Dagre-DagreAcyclic
-    title: Review that CanvasNetMermaid Dagre DagreAcyclic Implementation is Correct
-    context:
-      - "docs/design/canvas-net-mermaid.md"
-      - "docs/reqstream/canvas-net-mermaid.yaml"
-      - "docs/design/canvas-net-mermaid/dagre.md"
-      - "docs/reqstream/canvas-net-mermaid/dagre.yaml"
-    paths:
-      - "docs/reqstream/canvas-net-mermaid/dagre/dagre-acyclic.yaml"  # unit requirements
-      - "docs/design/canvas-net-mermaid/dagre/dagre-acyclic.md"  # unit design
-      - "docs/verification/canvas-net-mermaid/dagre/dagre-acyclic.md"  # unit verification
-      - "docs/sysml2/model/canvas-net-mermaid/dagre/dagre-acyclic.sysml"  # unit SysML2 model
-      - "src/DemaConsulting.CanvasNet.Mermaid/Dagre/DagreAcyclic.cs"  # unit source
-      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Dagre/DagreAcyclicTests.cs"  # unit tests
-
-  # CanvasNetMermaid-Dagre-DagreRanker Review (one per unit)
-  - id: CanvasNetMermaid-Dagre-DagreRanker
-    title: Review that CanvasNetMermaid Dagre DagreRanker Implementation is Correct
-    context:
-      - "docs/design/canvas-net-mermaid.md"
-      - "docs/reqstream/canvas-net-mermaid.yaml"
-      - "docs/design/canvas-net-mermaid/dagre.md"
-      - "docs/reqstream/canvas-net-mermaid/dagre.yaml"
-    paths:
-      - "docs/reqstream/canvas-net-mermaid/dagre/dagre-ranker.yaml"  # unit requirements
-      - "docs/design/canvas-net-mermaid/dagre/dagre-ranker.md"  # unit design
-      - "docs/verification/canvas-net-mermaid/dagre/dagre-ranker.md"  # unit verification
-      - "docs/sysml2/model/canvas-net-mermaid/dagre/dagre-ranker.sysml"  # unit SysML2 model
-      - "src/DemaConsulting.CanvasNet.Mermaid/Dagre/DagreRanker.cs"  # unit source
-      - "src/DemaConsulting.CanvasNet.Mermaid/Dagre/DagreRanker.FeasibleTree.cs"  # unit source (partial file)
-      - "src/DemaConsulting.CanvasNet.Mermaid/Dagre/DagreRanker.NetworkSimplex.cs"  # unit source (partial file)
-      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Dagre/DagreRankerTests.cs"  # unit tests
-
-  # CanvasNetMermaid-Dagre-DagreNesting Review (one per unit)
-  - id: CanvasNetMermaid-Dagre-DagreNesting
-    title: Review that CanvasNetMermaid Dagre DagreNesting Implementation is Correct
-    context:
-      - "docs/design/canvas-net-mermaid.md"
-      - "docs/reqstream/canvas-net-mermaid.yaml"
-      - "docs/design/canvas-net-mermaid/dagre.md"
-      - "docs/reqstream/canvas-net-mermaid/dagre.yaml"
-    paths:
-      - "docs/reqstream/canvas-net-mermaid/dagre/dagre-nesting.yaml"  # unit requirements
-      - "docs/design/canvas-net-mermaid/dagre/dagre-nesting.md"  # unit design
-      - "docs/verification/canvas-net-mermaid/dagre/dagre-nesting.md"  # unit verification
-      - "docs/sysml2/model/canvas-net-mermaid/dagre/dagre-nesting.sysml"  # unit SysML2 model
-      - "src/DemaConsulting.CanvasNet.Mermaid/Dagre/DagreNesting.cs"  # unit source
-      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Dagre/DagreNestingTests.cs"  # unit tests
-
-  # CanvasNetMermaid-Dagre-DagreNormalizer Review (one per unit)
-  - id: CanvasNetMermaid-Dagre-DagreNormalizer
-    title: Review that CanvasNetMermaid Dagre DagreNormalizer Implementation is Correct
-    context:
-      - "docs/design/canvas-net-mermaid.md"
-      - "docs/reqstream/canvas-net-mermaid.yaml"
-      - "docs/design/canvas-net-mermaid/dagre.md"
-      - "docs/reqstream/canvas-net-mermaid/dagre.yaml"
-    paths:
-      - "docs/reqstream/canvas-net-mermaid/dagre/dagre-normalizer.yaml"  # unit requirements
-      - "docs/design/canvas-net-mermaid/dagre/dagre-normalizer.md"  # unit design
-      - "docs/verification/canvas-net-mermaid/dagre/dagre-normalizer.md"  # unit verification
-      - "docs/sysml2/model/canvas-net-mermaid/dagre/dagre-normalizer.sysml"  # unit SysML2 model
-      - "src/DemaConsulting.CanvasNet.Mermaid/Dagre/DagreNormalizer.cs"  # unit source
-      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Dagre/DagreNormalizerTests.cs"  # unit tests
-
-  # CanvasNetMermaid-Dagre-DagreOrdering Review (one per unit)
-  - id: CanvasNetMermaid-Dagre-DagreOrdering
-    title: Review that CanvasNetMermaid Dagre DagreOrdering Implementation is Correct
-    context:
-      - "docs/design/canvas-net-mermaid.md"
-      - "docs/reqstream/canvas-net-mermaid.yaml"
-      - "docs/design/canvas-net-mermaid/dagre.md"
-      - "docs/reqstream/canvas-net-mermaid/dagre.yaml"
-    paths:
-      - "docs/reqstream/canvas-net-mermaid/dagre/dagre-ordering.yaml"  # unit requirements
-      - "docs/design/canvas-net-mermaid/dagre/dagre-ordering.md"  # unit design
-      - "docs/verification/canvas-net-mermaid/dagre/dagre-ordering.md"  # unit verification
-      - "docs/sysml2/model/canvas-net-mermaid/dagre/dagre-ordering.sysml"  # unit SysML2 model
-      - "src/DemaConsulting.CanvasNet.Mermaid/Dagre/DagreOrdering.cs"  # unit source
-      - "src/DemaConsulting.CanvasNet.Mermaid/Dagre/DagreOrdering.Sort.cs"  # unit source (partial file)
-      - "src/DemaConsulting.CanvasNet.Mermaid/Dagre/DagreOrdering.CrossCount.cs"  # unit source (partial file)
-      - "src/DemaConsulting.CanvasNet.Mermaid/Dagre/DagreOrdering.Constraints.cs"  # unit source (partial file)
-      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Dagre/DagreOrderingTests.cs"  # unit tests
-
-  # CanvasNetMermaid-Dagre-DagrePositioning Review (one per unit)
-  - id: CanvasNetMermaid-Dagre-DagrePositioning
-    title: Review that CanvasNetMermaid Dagre DagrePositioning Implementation is Correct
-    context:
-      - "docs/design/canvas-net-mermaid.md"
-      - "docs/reqstream/canvas-net-mermaid.yaml"
-      - "docs/design/canvas-net-mermaid/dagre.md"
-      - "docs/reqstream/canvas-net-mermaid/dagre.yaml"
-    paths:
-      - "docs/reqstream/canvas-net-mermaid/dagre/dagre-positioning.yaml"  # unit requirements
-      - "docs/design/canvas-net-mermaid/dagre/dagre-positioning.md"  # unit design
-      - "docs/verification/canvas-net-mermaid/dagre/dagre-positioning.md"  # unit verification
-      - "docs/sysml2/model/canvas-net-mermaid/dagre/dagre-positioning.sysml"  # unit SysML2 model
-      - "src/DemaConsulting.CanvasNet.Mermaid/Dagre/DagrePositioning.cs"  # unit source
-      - "src/DemaConsulting.CanvasNet.Mermaid/Dagre/DagrePositioning.BrandesKoepf.cs"  # unit source (partial file)
-      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Dagre/DagrePositioningTests.cs"  # unit tests
-
-  # CanvasNetMermaid-Dagre-DagreCoordinateSystem Review (one per unit)
-  - id: CanvasNetMermaid-Dagre-DagreCoordinateSystem
-    title: Review that CanvasNetMermaid Dagre DagreCoordinateSystem Implementation is Correct
-    context:
-      - "docs/design/canvas-net-mermaid.md"
-      - "docs/reqstream/canvas-net-mermaid.yaml"
-      - "docs/design/canvas-net-mermaid/dagre.md"
-      - "docs/reqstream/canvas-net-mermaid/dagre.yaml"
-    paths:
-      - "docs/reqstream/canvas-net-mermaid/dagre/dagre-coordinate-system.yaml"  # unit requirements
-      - "docs/design/canvas-net-mermaid/dagre/dagre-coordinate-system.md"  # unit design
-      - "docs/verification/canvas-net-mermaid/dagre/dagre-coordinate-system.md"  # unit verification
-      - "docs/sysml2/model/canvas-net-mermaid/dagre/dagre-coordinate-system.sysml"  # unit SysML2 model
-      - "src/DemaConsulting.CanvasNet.Mermaid/Dagre/DagreCoordinateSystem.cs"  # unit source
-      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Dagre/DagreCoordinateSystemTests.cs"  # unit tests
-
-  # CanvasNetMermaid-Dagre-LayoutWorkMeter Review (one per unit)
-  - id: CanvasNetMermaid-Dagre-LayoutWorkMeter
-    title: Review that CanvasNetMermaid Dagre LayoutWorkMeter Implementation is Correct
-    context:
-      - "docs/design/canvas-net-mermaid.md"
-      - "docs/reqstream/canvas-net-mermaid.yaml"
-      - "docs/design/canvas-net-mermaid/dagre.md"
-      - "docs/reqstream/canvas-net-mermaid/dagre.yaml"
-    paths:
-      - "docs/reqstream/canvas-net-mermaid/dagre/layout-work-meter.yaml"  # unit requirements
-      - "docs/design/canvas-net-mermaid/dagre/layout-work-meter.md"  # unit design
-      - "docs/verification/canvas-net-mermaid/dagre/layout-work-meter.md"  # unit verification
-      - "docs/sysml2/model/canvas-net-mermaid/dagre/layout-work-meter.sysml"  # unit SysML2 model
-      - "src/DemaConsulting.CanvasNet.Mermaid/Dagre/LayoutWorkMeter.cs"  # unit source
-      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Dagre/LayoutWorkMeterTests.cs"  # unit tests
 
   # CanvasNetMermaid-Rendering Review (one per subsystem)
   - id: CanvasNetMermaid-Rendering
@@ -5258,11 +5321,15 @@ reviews:
       - "test/DemaConsulting.CanvasNet.PlantUml.Tests/PlantUmlUnsupportedDiagramTests.cs"  # unsupported diagram types
       - "test/DemaConsulting.CanvasNet.PlantUml.Tests/PlantUmlSequenceIntegrationTests.cs"  # sequence system tests
       - "test/DemaConsulting.CanvasNet.PlantUml.Tests/PlantUmlActivityIntegrationTests.cs"  # activity system tests
+      - "test/DemaConsulting.CanvasNet.PlantUml.Tests/PlantUmlClassIntegrationTests.cs"  # class and object system tests
+      - "test/DemaConsulting.CanvasNet.PlantUml.Tests/PlantUmlStateIntegrationTests.cs"  # state system tests
+      - "test/DemaConsulting.CanvasNet.PlantUml.Tests/PlantUmlDescriptionIntegrationTests.cs"  # description diagrams
       - "test/DemaConsulting.CanvasNet.PlantUml.Tests/PlantUmlIncludeTests.cs"  # include and image source system tests
       - "test/DemaConsulting.CanvasNet.PlantUml.Tests/PlantUmlHardeningTests.cs"  # limits and mutation fuzzer
       - "test/DemaConsulting.CanvasNet.PlantUml.Tests/PlantUmlGalleryTests.cs"  # documentation gallery tests
       - "docs/user_guide/examples/plantuml-*.puml"                    # documentation gallery diagrams
       - "test/DemaConsulting.CanvasNet.PlantUml.Tests/PlantUmlReferenceLayoutTests.cs"  # reference layout tests
+      - "test/DemaConsulting.CanvasNet.PlantUml.Tests/PlantUmlReferenceShapeTests*.cs"  # reference shape tests (graphs)
       - "test/DemaConsulting.CanvasNet.PlantUml.Tests/Fixtures/**"     # original fixtures and reference goldens
       - "tools/visual-diff/update-plantuml-goldens.ps1"               # golden generator (developer tool)
       - "test/DemaConsulting.CanvasNet.PlantUml.Tests/PlantUmlTestHelpers.cs"  # shared test helpers
@@ -5380,7 +5447,7 @@ reviews:
       - "docs/design/canvas-net-plant-uml/syntax/diagram-detector.md"  # unit design
       - "docs/verification/canvas-net-plant-uml/syntax/diagram-detector.md"  # unit verification
       - "docs/sysml2/model/canvas-net-plant-uml/syntax/diagram-detector.sysml"  # unit SysML2 model
-      - "src/DemaConsulting.CanvasNet.PlantUml/Syntax/DiagramDetector.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.PlantUml/Syntax/DiagramDetector*.cs"  # unit source (partial files)
       - "test/DemaConsulting.CanvasNet.PlantUml.Tests/Syntax/DiagramDetectorTests.cs"  # unit tests
   # CanvasNetPlantUml-Styling Review (one per subsystem)
   - id: CanvasNetPlantUml-Styling
@@ -5652,6 +5719,273 @@ reviews:
       - "docs/sysml2/model/canvas-net-plant-uml/activity/activity-renderer.sysml"  # unit SysML2 model
       - "src/DemaConsulting.CanvasNet.PlantUml/Activity/ActivityRenderer.cs"  # unit source
       - "test/DemaConsulting.CanvasNet.PlantUml.Tests/Activity/ActivityRendererTests.cs"  # unit tests
+  # CanvasNetPlantUml-Svek Review (one per subsystem)
+  - id: CanvasNetPlantUml-Svek
+    title: Review that CanvasNetPlantUml Svek Subsystem Implementation is Correct
+    context:
+      - "docs/design/canvas-net-plant-uml.md"
+      - "docs/reqstream/canvas-net-plant-uml.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-plant-uml/svek.yaml"  # subsystem requirements
+      - "docs/design/canvas-net-plant-uml/svek.md"  # subsystem design
+      - "docs/verification/canvas-net-plant-uml/svek.md"  # subsystem verification
+      - "docs/sysml2/model/canvas-net-plant-uml/svek.sysml"  # subsystem SysML2 model
+      - "src/DemaConsulting.CanvasNet.PlantUml/Svek/NamespaceDoc.cs"  # namespace documentation
+      - "test/DemaConsulting.CanvasNet.PlantUml.Tests/Svek/SvekTests.cs"  # subsystem tests
+      - "test/DemaConsulting.CanvasNet.PlantUml.Tests/Svek/SvekTestHelpers.cs"  # shared svek test helpers
+  # CanvasNetPlantUml-Svek-SvekModel Review (one per unit)
+  - id: CanvasNetPlantUml-Svek-SvekModel
+    title: Review that CanvasNetPlantUml Svek SvekModel Implementation is Correct
+    context:
+      - "docs/design/canvas-net-plant-uml.md"
+      - "docs/reqstream/canvas-net-plant-uml.yaml"
+      - "docs/design/canvas-net-plant-uml/svek.md"
+      - "docs/reqstream/canvas-net-plant-uml/svek.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-plant-uml/svek/svek-model.yaml"  # unit requirements
+      - "docs/design/canvas-net-plant-uml/svek/svek-model.md"  # unit design
+      - "docs/verification/canvas-net-plant-uml/svek/svek-model.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-plant-uml/svek/svek-model.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.PlantUml/Svek/SvekModel*.cs"  # unit source (partial files)
+      - "test/DemaConsulting.CanvasNet.PlantUml.Tests/Svek/SvekModelTests.cs"  # unit tests
+  # CanvasNetPlantUml-Svek-SvekSyntax Review (one per unit)
+  - id: CanvasNetPlantUml-Svek-SvekSyntax
+    title: Review that CanvasNetPlantUml Svek SvekSyntax Implementation is Correct
+    context:
+      - "docs/design/canvas-net-plant-uml.md"
+      - "docs/reqstream/canvas-net-plant-uml.yaml"
+      - "docs/design/canvas-net-plant-uml/svek.md"
+      - "docs/reqstream/canvas-net-plant-uml/svek.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-plant-uml/svek/svek-syntax.yaml"  # unit requirements
+      - "docs/design/canvas-net-plant-uml/svek/svek-syntax.md"  # unit design
+      - "docs/verification/canvas-net-plant-uml/svek/svek-syntax.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-plant-uml/svek/svek-syntax.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.PlantUml/Svek/SvekSyntax*.cs"  # unit source (partial files)
+      - "test/DemaConsulting.CanvasNet.PlantUml.Tests/Svek/SvekSyntaxTests.cs"  # unit tests
+  # CanvasNetPlantUml-Svek-SvekLayout Review (one per unit)
+  - id: CanvasNetPlantUml-Svek-SvekLayout
+    title: Review that CanvasNetPlantUml Svek SvekLayout Implementation is Correct
+    context:
+      - "docs/design/canvas-net-plant-uml.md"
+      - "docs/reqstream/canvas-net-plant-uml.yaml"
+      - "docs/design/canvas-net-plant-uml/svek.md"
+      - "docs/reqstream/canvas-net-plant-uml/svek.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-plant-uml/svek/svek-layout.yaml"  # unit requirements
+      - "docs/design/canvas-net-plant-uml/svek/svek-layout.md"  # unit design
+      - "docs/verification/canvas-net-plant-uml/svek/svek-layout.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-plant-uml/svek/svek-layout.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.PlantUml/Svek/SvekLayout*.cs"  # unit source (partial files)
+      - "src/DemaConsulting.CanvasNet.PlantUml/Svek/PlantUmlLayoutWorkMeter.cs"  # unit source (work meter)
+      - "test/DemaConsulting.CanvasNet.PlantUml.Tests/Svek/SvekLayoutTests.cs"  # unit tests
+  # CanvasNetPlantUml-Svek-SvekGeometry Review (one per unit)
+  - id: CanvasNetPlantUml-Svek-SvekGeometry
+    title: Review that CanvasNetPlantUml Svek SvekGeometry Implementation is Correct
+    context:
+      - "docs/design/canvas-net-plant-uml.md"
+      - "docs/reqstream/canvas-net-plant-uml.yaml"
+      - "docs/design/canvas-net-plant-uml/svek.md"
+      - "docs/reqstream/canvas-net-plant-uml/svek.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-plant-uml/svek/svek-geometry.yaml"  # unit requirements
+      - "docs/design/canvas-net-plant-uml/svek/svek-geometry.md"  # unit design
+      - "docs/verification/canvas-net-plant-uml/svek/svek-geometry.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-plant-uml/svek/svek-geometry.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.PlantUml/Svek/SvekGeometry*.cs"  # unit source (partial files)
+      - "test/DemaConsulting.CanvasNet.PlantUml.Tests/Svek/SvekGeometryTests.cs"  # unit tests
+  # CanvasNetPlantUml-Svek-SvekRenderer Review (one per unit)
+  - id: CanvasNetPlantUml-Svek-SvekRenderer
+    title: Review that CanvasNetPlantUml Svek SvekRenderer Implementation is Correct
+    context:
+      - "docs/design/canvas-net-plant-uml.md"
+      - "docs/reqstream/canvas-net-plant-uml.yaml"
+      - "docs/design/canvas-net-plant-uml/svek.md"
+      - "docs/reqstream/canvas-net-plant-uml/svek.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-plant-uml/svek/svek-renderer.yaml"  # unit requirements
+      - "docs/design/canvas-net-plant-uml/svek/svek-renderer.md"  # unit design
+      - "docs/verification/canvas-net-plant-uml/svek/svek-renderer.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-plant-uml/svek/svek-renderer.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.PlantUml/Svek/SvekRenderer*.cs"  # unit source (partial files)
+      - "test/DemaConsulting.CanvasNet.PlantUml.Tests/Svek/SvekRendererTests.cs"  # unit tests
+  # CanvasNetPlantUml-Class Review (one per subsystem)
+  - id: CanvasNetPlantUml-Class
+    title: Review that CanvasNetPlantUml Class Subsystem Implementation is Correct
+    context:
+      - "docs/design/canvas-net-plant-uml.md"
+      - "docs/reqstream/canvas-net-plant-uml.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-plant-uml/class.yaml"  # subsystem requirements
+      - "docs/design/canvas-net-plant-uml/class.md"  # subsystem design
+      - "docs/verification/canvas-net-plant-uml/class.md"  # subsystem verification
+      - "docs/sysml2/model/canvas-net-plant-uml/class.sysml"  # subsystem SysML2 model
+      - "src/DemaConsulting.CanvasNet.PlantUml/Class/NamespaceDoc.cs"  # namespace documentation
+      - "test/DemaConsulting.CanvasNet.PlantUml.Tests/Class/ClassTests.cs"  # subsystem tests
+      - "test/DemaConsulting.CanvasNet.PlantUml.Tests/Class/ClassTestHelpers.cs"  # shared class test helpers
+  # CanvasNetPlantUml-Class-ClassParser Review (one per unit)
+  - id: CanvasNetPlantUml-Class-ClassParser
+    title: Review that CanvasNetPlantUml Class ClassParser Implementation is Correct
+    context:
+      - "docs/design/canvas-net-plant-uml.md"
+      - "docs/reqstream/canvas-net-plant-uml.yaml"
+      - "docs/design/canvas-net-plant-uml/class.md"
+      - "docs/reqstream/canvas-net-plant-uml/class.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-plant-uml/class/class-parser.yaml"  # unit requirements
+      - "docs/design/canvas-net-plant-uml/class/class-parser.md"  # unit design
+      - "docs/verification/canvas-net-plant-uml/class/class-parser.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-plant-uml/class/class-parser.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.PlantUml/Class/ClassParser*.cs"  # unit source (partial files)
+      - "test/DemaConsulting.CanvasNet.PlantUml.Tests/Class/ClassParserTests.cs"  # unit tests
+  # CanvasNetPlantUml-Class-ClassModel Review (one per unit)
+  - id: CanvasNetPlantUml-Class-ClassModel
+    title: Review that CanvasNetPlantUml Class ClassModel Implementation is Correct
+    context:
+      - "docs/design/canvas-net-plant-uml.md"
+      - "docs/reqstream/canvas-net-plant-uml.yaml"
+      - "docs/design/canvas-net-plant-uml/class.md"
+      - "docs/reqstream/canvas-net-plant-uml/class.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-plant-uml/class/class-model.yaml"  # unit requirements
+      - "docs/design/canvas-net-plant-uml/class/class-model.md"  # unit design
+      - "docs/verification/canvas-net-plant-uml/class/class-model.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-plant-uml/class/class-model.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.PlantUml/Class/ClassModel*.cs"  # unit source (partial files)
+      - "test/DemaConsulting.CanvasNet.PlantUml.Tests/Class/ClassModelTests.cs"  # unit tests
+  # CanvasNetPlantUml-Class-ClassRenderer Review (one per unit)
+  - id: CanvasNetPlantUml-Class-ClassRenderer
+    title: Review that CanvasNetPlantUml Class ClassRenderer Implementation is Correct
+    context:
+      - "docs/design/canvas-net-plant-uml.md"
+      - "docs/reqstream/canvas-net-plant-uml.yaml"
+      - "docs/design/canvas-net-plant-uml/class.md"
+      - "docs/reqstream/canvas-net-plant-uml/class.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-plant-uml/class/class-renderer.yaml"  # unit requirements
+      - "docs/design/canvas-net-plant-uml/class/class-renderer.md"  # unit design
+      - "docs/verification/canvas-net-plant-uml/class/class-renderer.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-plant-uml/class/class-renderer.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.PlantUml/Class/ClassRenderer*.cs"  # unit source (partial files)
+      - "test/DemaConsulting.CanvasNet.PlantUml.Tests/Class/ClassRendererTests.cs"  # unit tests
+  # CanvasNetPlantUml-State Review (one per subsystem)
+  - id: CanvasNetPlantUml-State
+    title: Review that CanvasNetPlantUml State Subsystem Implementation is Correct
+    context:
+      - "docs/design/canvas-net-plant-uml.md"
+      - "docs/reqstream/canvas-net-plant-uml.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-plant-uml/state.yaml"  # subsystem requirements
+      - "docs/design/canvas-net-plant-uml/state.md"  # subsystem design
+      - "docs/verification/canvas-net-plant-uml/state.md"  # subsystem verification
+      - "docs/sysml2/model/canvas-net-plant-uml/state.sysml"  # subsystem SysML2 model
+      - "src/DemaConsulting.CanvasNet.PlantUml/State/NamespaceDoc.cs"  # namespace documentation
+      - "test/DemaConsulting.CanvasNet.PlantUml.Tests/State/StateTests.cs"  # subsystem tests
+      - "test/DemaConsulting.CanvasNet.PlantUml.Tests/State/StateTestHelpers.cs"  # shared state test helpers
+  # CanvasNetPlantUml-State-StateParser Review (one per unit)
+  - id: CanvasNetPlantUml-State-StateParser
+    title: Review that CanvasNetPlantUml State StateParser Implementation is Correct
+    context:
+      - "docs/design/canvas-net-plant-uml.md"
+      - "docs/reqstream/canvas-net-plant-uml.yaml"
+      - "docs/design/canvas-net-plant-uml/state.md"
+      - "docs/reqstream/canvas-net-plant-uml/state.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-plant-uml/state/state-parser.yaml"  # unit requirements
+      - "docs/design/canvas-net-plant-uml/state/state-parser.md"  # unit design
+      - "docs/verification/canvas-net-plant-uml/state/state-parser.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-plant-uml/state/state-parser.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.PlantUml/State/StateParser*.cs"  # unit source (partial files)
+      - "test/DemaConsulting.CanvasNet.PlantUml.Tests/State/StateParserTests.cs"  # unit tests
+  # CanvasNetPlantUml-State-StateModel Review (one per unit)
+  - id: CanvasNetPlantUml-State-StateModel
+    title: Review that CanvasNetPlantUml State StateModel Implementation is Correct
+    context:
+      - "docs/design/canvas-net-plant-uml.md"
+      - "docs/reqstream/canvas-net-plant-uml.yaml"
+      - "docs/design/canvas-net-plant-uml/state.md"
+      - "docs/reqstream/canvas-net-plant-uml/state.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-plant-uml/state/state-model.yaml"  # unit requirements
+      - "docs/design/canvas-net-plant-uml/state/state-model.md"  # unit design
+      - "docs/verification/canvas-net-plant-uml/state/state-model.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-plant-uml/state/state-model.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.PlantUml/State/StateModel*.cs"  # unit source (partial files)
+      - "test/DemaConsulting.CanvasNet.PlantUml.Tests/State/StateModelTests.cs"  # unit tests
+  # CanvasNetPlantUml-State-StateRenderer Review (one per unit)
+  - id: CanvasNetPlantUml-State-StateRenderer
+    title: Review that CanvasNetPlantUml State StateRenderer Implementation is Correct
+    context:
+      - "docs/design/canvas-net-plant-uml.md"
+      - "docs/reqstream/canvas-net-plant-uml.yaml"
+      - "docs/design/canvas-net-plant-uml/state.md"
+      - "docs/reqstream/canvas-net-plant-uml/state.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-plant-uml/state/state-renderer.yaml"  # unit requirements
+      - "docs/design/canvas-net-plant-uml/state/state-renderer.md"  # unit design
+      - "docs/verification/canvas-net-plant-uml/state/state-renderer.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-plant-uml/state/state-renderer.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.PlantUml/State/StateRenderer.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.PlantUml.Tests/State/StateRendererTests.cs"  # unit tests
+  # CanvasNetPlantUml-Description Review (one per subsystem)
+  - id: CanvasNetPlantUml-Description
+    title: Review that CanvasNetPlantUml Description Subsystem Implementation is Correct
+    context:
+      - "docs/design/canvas-net-plant-uml.md"
+      - "docs/reqstream/canvas-net-plant-uml.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-plant-uml/description.yaml"  # subsystem requirements
+      - "docs/design/canvas-net-plant-uml/description.md"  # subsystem design
+      - "docs/verification/canvas-net-plant-uml/description.md"  # subsystem verification
+      - "docs/sysml2/model/canvas-net-plant-uml/description.sysml"  # subsystem SysML2 model
+      - "src/DemaConsulting.CanvasNet.PlantUml/Description/NamespaceDoc.cs"  # namespace documentation
+      - "test/DemaConsulting.CanvasNet.PlantUml.Tests/Description/DescriptionTests.cs"  # subsystem tests
+      - "test/DemaConsulting.CanvasNet.PlantUml.Tests/Description/DescriptionTestHelpers.cs"  # shared test helpers
+  # CanvasNetPlantUml-Description-DescriptionParser Review (one per unit)
+  - id: CanvasNetPlantUml-Description-DescriptionParser
+    title: Review that CanvasNetPlantUml Description DescriptionParser Implementation is Correct
+    context:
+      - "docs/design/canvas-net-plant-uml.md"
+      - "docs/reqstream/canvas-net-plant-uml.yaml"
+      - "docs/design/canvas-net-plant-uml/description.md"
+      - "docs/reqstream/canvas-net-plant-uml/description.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-plant-uml/description/description-parser.yaml"  # unit requirements
+      - "docs/design/canvas-net-plant-uml/description/description-parser.md"  # unit design
+      - "docs/verification/canvas-net-plant-uml/description/description-parser.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-plant-uml/description/description-parser.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.PlantUml/Description/DescriptionParser*.cs"  # unit source (partial files)
+      - "test/DemaConsulting.CanvasNet.PlantUml.Tests/Description/DescriptionParserTests.cs"  # unit tests
+  # CanvasNetPlantUml-Description-DescriptionModel Review (one per unit)
+  - id: CanvasNetPlantUml-Description-DescriptionModel
+    title: Review that CanvasNetPlantUml Description DescriptionModel Implementation is Correct
+    context:
+      - "docs/design/canvas-net-plant-uml.md"
+      - "docs/reqstream/canvas-net-plant-uml.yaml"
+      - "docs/design/canvas-net-plant-uml/description.md"
+      - "docs/reqstream/canvas-net-plant-uml/description.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-plant-uml/description/description-model.yaml"  # unit requirements
+      - "docs/design/canvas-net-plant-uml/description/description-model.md"  # unit design
+      - "docs/verification/canvas-net-plant-uml/description/description-model.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-plant-uml/description/description-model.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.PlantUml/Description/DescriptionModel*.cs"  # unit source (partial files)
+      - "test/DemaConsulting.CanvasNet.PlantUml.Tests/Description/DescriptionModelTests.cs"  # unit tests
+  # CanvasNetPlantUml-Description-DescriptionRenderer Review (one per unit)
+  - id: CanvasNetPlantUml-Description-DescriptionRenderer
+    title: Review that CanvasNetPlantUml Description DescriptionRenderer Implementation is Correct
+    context:
+      - "docs/design/canvas-net-plant-uml.md"
+      - "docs/reqstream/canvas-net-plant-uml.yaml"
+      - "docs/design/canvas-net-plant-uml/description.md"
+      - "docs/reqstream/canvas-net-plant-uml/description.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-plant-uml/description/description-renderer.yaml"  # unit requirements
+      - "docs/design/canvas-net-plant-uml/description/description-renderer.md"  # unit design
+      - "docs/verification/canvas-net-plant-uml/description/description-renderer.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-plant-uml/description/description-renderer.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.PlantUml/Description/DescriptionRenderer*.cs"  # unit source (partial files)
+      - "test/DemaConsulting.CanvasNet.PlantUml.Tests/Description/DescriptionRendererTests.cs"  # unit tests
 
   # CanvasNetTool-Architecture Review (one per system)
   - id: CanvasNetTool-Architecture

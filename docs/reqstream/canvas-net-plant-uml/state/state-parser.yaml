@@ -1,0 +1,125 @@
+---
+# Software Unit Requirements for StateParser
+#
+# These requirements describe the design-level behavior of the StateParser unit of the State subsystem (internal
+# namespace DemaConsulting.CanvasNet.PlantUml.State): the reader of the statements of a state diagram. See
+# docs/verification/canvas-net-plant-uml/state/state-parser.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetPlantUml Requirements
+    sections:
+      - title: State Requirements
+        sections:
+          - title: StateParser Requirements
+            requirements:
+              - id: CanvasNetPlantUml-State-StateParser-Declarations
+                title: >-
+                  The StateParser unit shall read a state declaration with a name, a quoted display with an alias in
+                  either order, or a quoted name alone, its colors (`#back`, `##line`, `line:`), a description after a
+                  colon, and the descriptions written as Name : text, creating a state that a name refers to for the
+                  first time.
+                justification: |
+                  These are the ways PlantUML authors declare and describe states.
+                tests:
+                  - PlantUmlStateParser_Parse_Declarations_ReadNamesAndDisplays
+                  - PlantUmlStateParser_Parse_Descriptions_AddLines
+                  - PlantUmlStateParser_Parse_Colors_AreRead
+
+              - id: CanvasNetPlantUml-State-StateParser-Transitions
+                title: >-
+                  The StateParser unit shall read a transition with its length, direction hint, style in brackets,
+                  color, and label as written after its colon, a reverse arrow with the head at its first end, and an
+                  end that is a floating note.
+                justification: |
+                  The arrow decides the ranks and the look of a transition; PlantUML keeps a state label as written.
+                tests:
+                  - PlantUmlStateParser_Parse_Transitions_ReadTheirArrows
+                  - PlantUmlStateParser_Parse_Notes_AreAttached
+
+              - id: CanvasNetPlantUml-State-StateParser-PseudoStates
+                title: >-
+                  The StateParser unit shall make [*] the start of the current composite state as a source and its end
+                  as a target, [H] and [H*] its histories, X[H] and X[H*] the histories of the state X (made
+                  composite), each once per composite state with PlantUML's qualified id, and shall make a state a
+                  choice, fork, join, start, junction, end, or history from its stereotype.
+                justification: |
+                  Pseudo-states are scoped to their composite state in PlantUML, and the ids are how a diagram is
+                  compared with PlantUML's picture.
+                tests:
+                  - PlantUmlStateParser_Parse_PseudoStates_AreScoped
+                  - PlantUmlStateParser_Parse_Stereotypes_ChooseTheKind
+
+              - id: CanvasNetPlantUml-State-StateParser-Composites
+                title: >-
+                  The StateParser unit shall read composite states (state X { ... } and state X begin ... end state),
+                  nested, give their members the composite's id as a prefix, resolve a name in the current composite
+                  state, the composite states around it, or by a unique name, and start a concurrent region at -- or ||,
+                  numbered across the diagram as PlantUML numbers them.
+                justification: |
+                  Composite states and their regions structure a state diagram; names resolve as in PlantUML so that a
+                  transition reaches the state the author means.
+                tests:
+                  - PlantUmlStateParser_Parse_CompositeStates_NestAndResolve
+                  - PlantUmlStateParser_Parse_ConcurrentRegions_AreNumbered
+                  - PlantUmlStateParser_IsConcurrentSeparator_RecognizesDashesAndBars
+
+              - id: CanvasNetPlantUml-State-StateParser-Notes
+                title: >-
+                  The StateParser unit shall attach a note to a side of a state, to the last transition, or to the
+                  last state, keep a floating note with its alias, link a short name inside a composite state to the
+                  floating note whose alias the composite state qualifies (unless a state of that name is nearer), and
+                  draw a note on a composite state as a floating note of the composite's region, reported.
+                justification: |
+                  Notes explain states and transitions; the engine attaches notes to simple elements only. PlantUML
+                  resolves a short name inside a composite state to the note qualified with it.
+                tests:
+                  - PlantUmlStateParser_Parse_Notes_AreAttached
+                  - PlantUmlStateParser_Parse_ScopedNoteAlias_LinksTheNote
+
+              - id: CanvasNetPlantUml-State-StateParser-Common
+                title: >-
+                  The StateParser unit shall read hide empty description, the page texts, the direction, the scale,
+                  the layout skin parameters, and the state skin parameters.
+                justification: |
+                  These statements change the look and the layout of the diagram.
+                tests:
+                  - PlantUmlStateParser_Parse_CommonStatements_AreRead
+
+              - id: CanvasNetPlantUml-State-StateParser-Unsupported
+                title: >-
+                  The StateParser unit shall report as plantuml-statement-unsupported, at their lines, the border
+                  symbols (entry and exit points, pins, sdlreceive, drawn as states), a cross at the start of a
+                  transition, stereotypes of a transition, other hide forms, a concurrent separator outside a
+                  composite state, json and map blocks, and a transition that leaves the first region of a composite
+                  state with concurrent regions.
+                justification: |
+                  What is read but not drawn must be said, so that strict mode can refuse it.
+                tests:
+                  - PlantUmlStateParser_Parse_UnsupportedParts_AreReported
+                  - PlantUmlStateParser_Parse_Stereotypes_ChooseTheKind
+                  - PlantUmlStateParser_Parse_TransitionLeavingFirstRegion_IsReported
+
+              - id: CanvasNetPlantUml-State-StateParser-Errors
+                title: >-
+                  The StateParser unit shall refuse with a located plantuml-syntax-error and a hint an arrow that is
+                  not a transition arrow, an unclosed composite state, a closer without a composite state, a transition
+                  between two concurrent regions, a pseudo-state made composite, a state whose id is the alias of a
+                  floating note or a note whose alias is the id of a state, a statement of another diagram, a bad color,
+                  and a declaration without a name or with text after it.
+                justification: |
+                  A malformed diagram must fail where the author can fix it; PlantUML refuses a transition between
+                  concurrent regions too. PlantUML also refuses a floating note named like an existing state ("Note
+                  already created"); it accepts a state named like an existing note alias but draws no usable picture
+                  of it, so CanvasNet refuses that order too (a safe, documented deviation).
+                tests:
+                  - PlantUmlStateParser_Parse_Errors_AreLocated
+
+              - id: CanvasNetPlantUml-State-StateParser-Limits
+                title: >-
+                  The StateParser unit shall fail with a located plantuml-limit-exceeded error that names the limit at
+                  the statement that creates one state or note more than MaxNodes, one transition more than MaxEdges,
+                  a text longer than MaxLabelLength, or a composite state deeper than MaxNestingDepth.
+                justification: |
+                  The limits bound the work of untrusted text before the layout.
+                tests:
+                  - PlantUmlStateParser_Limits_FailClosedAtTheLine

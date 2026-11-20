@@ -3,7 +3,8 @@
 #
 # These requirements describe the design-level behavior of the DiagramDetector unit of the Syntax subsystem (internal
 # namespace DemaConsulting.CanvasNet.PlantUml.Syntax): the diagram type from the @start tag or from the statements in
-# PlantUML's order, the recognized types that are not drawn, and the errors. See
+# PlantUML's order (sequence, activity, class, legacy activity, description, state), the recognized types that are not
+# drawn, and the errors. See
 # docs/verification/canvas-net-plant-uml/syntax/diagram-detector.md for the test-evidence mapping.
 
 sections:
@@ -29,25 +30,56 @@ sections:
                 title: >-
                   The DiagramDetector unit shall detect a sequence diagram when every statement outside multi-line text
                   blocks (notes, legends, page texts, references, skin parameter blocks, and style blocks, each closed
-                  by its own end keyword written with or without a space) is a sequence statement, and otherwise an
-                  activity diagram of the new syntax when every statement is an activity statement.
+                  by its own end keyword written with or without a space) is a sequence statement (a message to or
+                  from the diagram border, written with [, ], or ? and an optional circle or cross at that end,
+                  included), and otherwise an activity diagram of the new syntax when every statement is an activity
+                  statement.
                 justification: |
                   PlantUML tries the sequence diagram first, so a text both types could read is a sequence diagram; the
-                  lines of a text block are text, not statements.
+                  lines of a text block are text, not statements. PlantUML reads a found or lost message as a sequence
+                  statement, so a diagram that uses one is a sequence diagram.
                 tests:
                   - PlantUmlDiagramDetector_Detect_SequenceStatements_IsSequence
                   - PlantUmlDiagramDetector_Detect_ActivityStatements_IsActivity
                   - PlantUmlDiagramDetector_BlockClosers_AreRecognized
+                  - PlantUmlDiagramDetector_Detect_BorderMessages_IsSequence
+                  - PlantUmlDiagramDetector_IsBorderMessage_ReadsTheBorderEnds
+
+              - id: CanvasNetPlantUml-Syntax-DiagramDetector-GraphFamilies
+                title: >-
+                  The DiagramDetector unit shall detect, after the sequence and activity diagrams and in PlantUML's
+                  factory order, a class diagram when every statement is a class statement (an object diagram when an
+                  object or a map is declared before any class), then a legacy activity diagram, then a description
+                  diagram (a use case diagram when any statement uses a use case construct, else a component diagram
+                  when any statement uses a component construct, else a deployment diagram), then a state diagram, and
+                  shall draw the class, object, state, use case, component, and deployment diagrams. A line :x whose
+                  action is never closed refuses the activity diagram when a graph family reads the text (it is a
+                  statement, such as the actor :Guest:), and is the activity diagram's unclosed action otherwise; the
+                  statements after an action that is never closed are found visiting each statement at most twice.
+                justification: |
+                  A text that several families could read must be the diagram PlantUML draws from it: a plain message is
+                  a sequence diagram, a class relationship a class diagram, a class mixed with an actor a class
+                  diagram whose parser refuses the actor, and an actor written :Guest: a use case diagram (PlantUML's
+                  multi-line action needs its ending ;). The work of reading untrusted text must grow linearly with it.
+                tests:
+                  - PlantUmlDiagramDetector_Detect_ClassFamily_IsDrawn
+                  - PlantUmlDiagramDetector_Detect_ComponentDiagram_IsDrawn
+                  - PlantUmlDiagramDetector_Detect_UseCaseDiagram_IsDrawn
+                  - PlantUmlDiagramDetector_Detect_DeploymentDiagram_IsDrawn
+                  - PlantUmlDiagramDetector_Detect_UnclosedActionOfActivity_IsActivity
+                  - PlantUmlDiagramDetector_Detect_GraphFamilies_FollowPlantUmlOrder
+                  - PlantUmlDiagramDetector_OuterStatements_ManyUnclosedActions_VisitEachAtMostTwice
 
               - id: CanvasNetPlantUml-Syntax-DiagramDetector-OtherTypes
                 title: >-
-                  The DiagramDetector unit shall name the type of a diagram that is neither from the first statement
-                  that only another type uses (class, object, use case, state, legacy activity, component, deployment,
-                  timing, gantt), as a type that is not drawn.
+                  The DiagramDetector unit shall name the type of a diagram that no drawn type reads from the first
+                  statement that only another type uses (legacy activity, timing, gantt), as a
+                  type that is not drawn, with a hint that lists the drawn types.
                 justification: |
                   A diagram of a type that is not drawn must be reported as such, not as a syntax error.
                 tests:
                   - PlantUmlDiagramDetector_Detect_OtherTypeKeyword_IsRecognized
+                  - PlantUmlDiagramDetector_UnsupportedHint_ListsDrawnTypes
 
               - id: CanvasNetPlantUml-Syntax-DiagramDetector-Errors
                 title: >-

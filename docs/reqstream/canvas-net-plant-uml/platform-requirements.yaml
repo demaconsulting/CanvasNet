@@ -33,6 +33,11 @@ sections:
         tests:
           # Tests link to "windows" to ensure results come from Windows platform
           - "windows@CanvasNetPlantUml_Sequence_DefaultSkin_PaintsPlantUmlColors"
+          - "windows@CanvasNetPlantUml_Class_DefaultSkin_PaintsPlantUmlColors"
+          - "windows@CanvasNetPlantUml_State_DefaultSkin_PaintsPlantUmlColors"
+          - "windows@CanvasNetPlantUml_Component_DefaultSkin_PaintsPlantUmlColors"
+          - "windows@CanvasNetPlantUml_UseCase_DefaultSkin_PaintsPlantUmlColors"
+          - "windows@CanvasNetPlantUml_Deployment_DefaultSkin_PaintsPlantUmlColors"
 
       - id: CanvasNetPlantUml-Platform-Linux
         title: The library shall build and run on Linux platforms.
@@ -42,6 +47,11 @@ sections:
         tests:
           # Tests link to "ubuntu" to ensure results come from Linux platform
           - "ubuntu@CanvasNetPlantUml_Sequence_DefaultSkin_PaintsPlantUmlColors"
+          - "ubuntu@CanvasNetPlantUml_Class_DefaultSkin_PaintsPlantUmlColors"
+          - "ubuntu@CanvasNetPlantUml_State_DefaultSkin_PaintsPlantUmlColors"
+          - "ubuntu@CanvasNetPlantUml_Component_DefaultSkin_PaintsPlantUmlColors"
+          - "ubuntu@CanvasNetPlantUml_UseCase_DefaultSkin_PaintsPlantUmlColors"
+          - "ubuntu@CanvasNetPlantUml_Deployment_DefaultSkin_PaintsPlantUmlColors"
 
       - id: CanvasNetPlantUml-Platform-MacOS
         title: The library shall build and run on macOS platforms.
@@ -51,6 +61,11 @@ sections:
         tests:
           # Tests link to "macos" to ensure results come from macOS platform
           - "macos@CanvasNetPlantUml_Sequence_DefaultSkin_PaintsPlantUmlColors"
+          - "macos@CanvasNetPlantUml_Class_DefaultSkin_PaintsPlantUmlColors"
+          - "macos@CanvasNetPlantUml_State_DefaultSkin_PaintsPlantUmlColors"
+          - "macos@CanvasNetPlantUml_Component_DefaultSkin_PaintsPlantUmlColors"
+          - "macos@CanvasNetPlantUml_UseCase_DefaultSkin_PaintsPlantUmlColors"
+          - "macos@CanvasNetPlantUml_Deployment_DefaultSkin_PaintsPlantUmlColors"
 
       - id: CanvasNetPlantUml-Platform-Net8
         title: The library shall support .NET 8 runtime.
@@ -62,6 +77,11 @@ sections:
           using it.
         tests:
           - "net8.0@CanvasNetPlantUml_Sequence_DefaultSkin_PaintsPlantUmlColors"
+          - "net8.0@CanvasNetPlantUml_Class_DefaultSkin_PaintsPlantUmlColors"
+          - "net8.0@CanvasNetPlantUml_State_DefaultSkin_PaintsPlantUmlColors"
+          - "net8.0@CanvasNetPlantUml_Component_DefaultSkin_PaintsPlantUmlColors"
+          - "net8.0@CanvasNetPlantUml_UseCase_DefaultSkin_PaintsPlantUmlColors"
+          - "net8.0@CanvasNetPlantUml_Deployment_DefaultSkin_PaintsPlantUmlColors"
 
       - id: CanvasNetPlantUml-Platform-Net9
         title: The library shall support .NET 9 runtime.
@@ -72,6 +92,11 @@ sections:
           newer release can keep using it.
         tests:
           - "net9.0@CanvasNetPlantUml_Sequence_DefaultSkin_PaintsPlantUmlColors"
+          - "net9.0@CanvasNetPlantUml_Class_DefaultSkin_PaintsPlantUmlColors"
+          - "net9.0@CanvasNetPlantUml_State_DefaultSkin_PaintsPlantUmlColors"
+          - "net9.0@CanvasNetPlantUml_Component_DefaultSkin_PaintsPlantUmlColors"
+          - "net9.0@CanvasNetPlantUml_UseCase_DefaultSkin_PaintsPlantUmlColors"
+          - "net9.0@CanvasNetPlantUml_Deployment_DefaultSkin_PaintsPlantUmlColors"
 
       - id: CanvasNetPlantUml-Platform-Net10
         title: The library shall support .NET 10 runtime.
@@ -81,6 +106,11 @@ sections:
           a stable, long-term supported target for users who prefer LTS releases.
         tests:
           - "net10.0@CanvasNetPlantUml_Sequence_DefaultSkin_PaintsPlantUmlColors"
+          - "net10.0@CanvasNetPlantUml_Class_DefaultSkin_PaintsPlantUmlColors"
+          - "net10.0@CanvasNetPlantUml_State_DefaultSkin_PaintsPlantUmlColors"
+          - "net10.0@CanvasNetPlantUml_Component_DefaultSkin_PaintsPlantUmlColors"
+          - "net10.0@CanvasNetPlantUml_UseCase_DefaultSkin_PaintsPlantUmlColors"
+          - "net10.0@CanvasNetPlantUml_Deployment_DefaultSkin_PaintsPlantUmlColors"
 
       - id: CanvasNetPlantUml-Platform-Net11
         title: The library shall support .NET 11 runtime.
@@ -90,3 +120,8 @@ sections:
           ensures the library works for users as they adopt the newest .NET version.
         tests:
           - "net11.0@CanvasNetPlantUml_Sequence_DefaultSkin_PaintsPlantUmlColors"
+          - "net11.0@CanvasNetPlantUml_Class_DefaultSkin_PaintsPlantUmlColors"
+          - "net11.0@CanvasNetPlantUml_State_DefaultSkin_PaintsPlantUmlColors"
+          - "net11.0@CanvasNetPlantUml_Component_DefaultSkin_PaintsPlantUmlColors"
+          - "net11.0@CanvasNetPlantUml_UseCase_DefaultSkin_PaintsPlantUmlColors"
+          - "net11.0@CanvasNetPlantUml_Deployment_DefaultSkin_PaintsPlantUmlColors"

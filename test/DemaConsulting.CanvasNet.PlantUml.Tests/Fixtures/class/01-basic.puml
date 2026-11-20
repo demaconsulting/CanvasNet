@@ -1,0 +1,5 @@
+@startuml
+class Invoice
+class Customer
+Customer --> Invoice
+@enduml

@@ -136,8 +136,9 @@ at any size, and `flatten` bakes the numbers in (`canvasnet help svg bindings`).
   a fuzz-tested renderer that fails only with documented, located errors, and pixel-identical output across runs
 - 🧜 **Mermaid Diagrams** - Render Mermaid flowcharts, sequence, class, state, and entity relationship diagrams, pie
   charts, gantt charts, mindmaps, packet diagrams, and git graphs with ports of Mermaid's own layouts
-- 🌱 **PlantUML Diagrams** - Render PlantUML sequence diagrams and activity diagrams with PlantUML's default look and
-  layout, local `!include` files, and no Java, Graphviz, or network; other PlantUML types are recognized and reported
+- 🌱 **PlantUML Diagrams** - Render PlantUML sequence, activity, class, object, state, use case, component, and
+  deployment diagrams with PlantUML's default look, local `!include` files, and no Java, Graphviz, or network; other
+  PlantUML types are recognized and reported
 - 🔍 **Header-Only Probing** - `GetInfo` reads headers without decoding pixels (GIF excepted)
 - 🖥️ **Command-Line Tool** - The script- and agent-friendly `canvasnet` dotnet tool, with photo clean-up
 - 📝 **Pandoc Filter** - Draw models, charts, diagrams, and pages in Pandoc documents, including `mermaid` and
@@ -197,8 +198,9 @@ the ones you need, the same way as above:
 | `DemaConsulting.CanvasNet.Render3D` | 3D mesh/scene rasterization |
 | `DemaConsulting.CanvasNet.Scad` | OpenSCAD-language model rendering |
 | `DemaConsulting.CanvasNet.VegaLite` | Vega-Lite static chart rendering |
+| `DemaConsulting.CanvasNet.Layout` | Shared graph layout (dagre); used by Mermaid and PlantUml, no public API |
 | `DemaConsulting.CanvasNet.Mermaid` | Mermaid diagrams, mindmaps, packets, git graphs |
-| `DemaConsulting.CanvasNet.PlantUml` | PlantUML sequence and activity diagrams |
+| `DemaConsulting.CanvasNet.PlantUml` | PlantUML sequence/activity/class/object/state/use case/component/deployment |
 | `DemaConsulting.CanvasNet.Viewer` | The `canvasnet` operations as library calls |
 | `DemaConsulting.CanvasNet.Tool` | The `canvasnet` command-line tool (dotnet tool) |
 
@@ -321,11 +323,11 @@ diagram with `<image href="flow.mmd" .../>`.
 
 A PlantUML diagram is read from a file named `.puml`, `.plantuml`, or `.pu` and is drawn with PlantUML's default look
 and layout at the size of PlantUML's SVG, for example `canvasnet render seq.puml -o seq.png --json`. This version
-draws sequence diagrams and activity diagrams (the new syntax); every other type is recognized, reported as
-`plantuml-diagram-unsupported`, and drawn as an empty picture. `!include` files are read from beside the diagram under
-`--file-access` and never from the network, themes are not supported (`!theme` is reported and the default look is
-drawn), and invalid text is the error `plantuml-error` with the file, line, column, and a hint (`canvasnet help
-plantuml`).
+draws sequence diagrams, activity diagrams (the new syntax), class and object diagrams, state diagrams, and use case,
+component, and deployment diagrams; every other type is recognized, reported as `plantuml-diagram-unsupported`, and
+drawn as an empty picture. `!include` files are read from beside the diagram under `--file-access` and never from the
+network, themes are not supported (`!theme` is reported and the default look is drawn), and invalid text is the error
+`plantuml-error` with the file, line, column, and a hint (`canvasnet help plantuml`).
 
 `compare <a> <b>` measures how much two images, drawings, document pages, or models differ: the mean absolute error,
 RMSE, PSNR, a structural similarity (SSIM), the share of pixels that differ by more than `--tolerance`, and the RMSE of
@@ -387,7 +389,8 @@ canvasnet render sales.vl.json --scale 2 -o sales.png --json
 canvasnet info flow.mmd --json
 canvasnet render flow.mmd --theme dark --scale 2 -o flow.png --json
 
-# 4f. Draw a PlantUML sequence or activity diagram (local !include files only, never the network)
+# 4f. Draw a PlantUML sequence, activity, class, object, state, use case, component, or deployment diagram
+#     (local !include files only, never the network)
 canvasnet info seq.puml --json
 canvasnet render seq.puml --scale 2 -o seq.png --json
 ```
@@ -682,10 +685,10 @@ Vega-Lite chart rendering, Mermaid and PlantUML diagram rendering, and SVG and J
 ## Architecture
 
 CanvasNet is a family of packages: a core canvas with image codecs, drawing, and fonts, a package for each format it
-reads, a Viewer that opens any of them, and the `canvasnet` tool that bundles them all. The diagram shows which
-package builds on which.
+reads, three shared building blocks (charts, 3D rendering, and graph layout), a Viewer that opens any of them, and the
+`canvasnet` tool that bundles them all. The diagram shows which package builds on which.
 
-![CanvasNet package architecture: applications use the Viewer and the canvasnet tool uses it too; the Viewer opens the seven format packages (PDF, SVG, PowerPoint, Visio, OpenSCAD, Vega-Lite, and Mermaid); PowerPoint also uses the SVG and Charts packages and OpenSCAD uses the Render3D package; every package builds on the DemaConsulting.CanvasNet core with its canvas, codecs, drawing, fonts, and file access](https://raw.githubusercontent.com/demaconsulting/CanvasNet/main/docs/images/architecture.png)
+![CanvasNet package architecture: applications use the Viewer and the canvasnet tool uses it too; the Viewer opens the eight format packages (PDF, SVG, PowerPoint, Visio, OpenSCAD, Vega-Lite, Mermaid, and PlantUML); PowerPoint also uses the SVG and Charts packages, OpenSCAD uses the Render3D package, and Mermaid and PlantUML use the Layout package (the shared graph layout, which needs only .NET); the format packages build on the DemaConsulting.CanvasNet core with its canvas, codecs, drawing, fonts, and file access](https://raw.githubusercontent.com/demaconsulting/CanvasNet/main/docs/images/architecture.png)
 
 ## Building
 
@@ -746,26 +749,35 @@ plasma (CC0, by Nathaniel J. Smith, Stefan van der Walt, and Eric Firing). The l
 license texts and the record of what was ported from where. The package is not affiliated with or endorsed by the
 Vega project, the Vega-Lite project, the d3 project, or the University of Washington Interactive Data Lab.
 
-The `DemaConsulting.CanvasNet.Mermaid` package (and the `canvasnet` tool, which bundles it) implements the Mermaid
-text language and contains code ported, with attribution, from mermaid (MIT, Copyright (c) 2014 - 2022 Knut
-Sveidqvist), dagre-d3-es and the dagre and graphlib libraries it derives from (MIT, Copyright (c) 2012-2014 Chris
-Pettitt and the dagre-es contributors), js-yaml (MIT, Copyright (C) 2011-2015 by Vitaly Puzrin), khroma (MIT,
-Copyright (c) 2019-present Fabio Spampinato, Andrew Maney), lodash (MIT, Copyright OpenJS Foundation and other
-contributors), marked (MIT, Copyright (c) 2018+, MarkedJS; Copyright (c) 2011-2018, Christopher Jeffrey),
-@mermaid-js/parser (MIT, Copyright (c) 2023 Yokozuna59), Langium (MIT, Copyright 2021 TypeFox GmbH), dayjs (MIT,
-Copyright (c) 2018-present, iamkun), sanitize-url (MIT, Copyright (c) 2017 Braintree), layout-base (MIT, Copyright (c)
-2019 iVis@Bilkent), cose-base (MIT, Copyright (c) 2019 - present, iVis@Bilkent), cytoscape (MIT, Copyright (c)
-2016-2026, The Cytoscape Consortium), cytoscape-cose-bilkent (MIT, Copyright (c) 2016-2018, The Cytoscape Consortium),
-and the d3 modules d3-shape, d3-path, d3-scale, d3-time, d3-time-format, d3-array, d3-interpolate, and d3-axis (ISC,
-Copyright 2010-2023 Mike Bostock). The license texts ship in the packages under `licenses/`; see
-[the third-party notice][link-mermaid-third-party] (`src/DemaConsulting.CanvasNet.Mermaid/third-party`) for the
-record of what was ported from where. The package is not affiliated with or endorsed by the Mermaid project or the
-authors of these libraries.
+The `DemaConsulting.CanvasNet.Mermaid` package (and the `canvasnet` tool, which bundles it) implements the Mermaid text
+language and contains code ported, with attribution, from mermaid (MIT, Copyright (c) 2014 - 2022 Knut Sveidqvist),
+dagre-d3 (MIT, Copyright (c) 2013 Chris Pettitt and the dagre-es contributors), js-yaml (MIT, Copyright (C) 2011-2015 by
+Vitaly Puzrin), khroma (MIT, Copyright (c) 2019-present Fabio Spampinato, Andrew Maney), lodash (MIT, Copyright OpenJS
+Foundation and other contributors), marked (MIT, Copyright (c) 2018+, MarkedJS; Copyright (c) 2011-2018, Christopher
+Jeffrey), @mermaid-js/parser (MIT, Copyright (c) 2023 Yokozuna59), Langium (MIT, Copyright 2021 TypeFox GmbH), dayjs
+(MIT, Copyright (c) 2018-present, iamkun), sanitize-url (MIT, Copyright (c) 2017 Braintree), layout-base (MIT,
+Copyright (c) 2019 iVis@Bilkent), cose-base (MIT, Copyright (c) 2019 - present, iVis@Bilkent), cytoscape (MIT,
+Copyright (c) 2016-2026, The Cytoscape Consortium), cytoscape-cose-bilkent (MIT, Copyright (c) 2016-2018, The Cytoscape
+Consortium), and the d3 modules d3-shape, d3-path, d3-scale, d3-time, d3-time-format, d3-array, d3-interpolate, and
+d3-axis (ISC, Copyright 2010-2023 Mike Bostock). The license texts ship in the packages under `licenses/`; see
+[the third-party notice][link-mermaid-third-party] (`src/DemaConsulting.CanvasNet.Mermaid/third-party`) for the record
+of what was ported from where. The package is not affiliated with or endorsed by the Mermaid project or the authors of
+these libraries.
+
+The `DemaConsulting.CanvasNet.Layout` package (installed with the Mermaid and PlantUml packages, and bundled in the
+`canvasnet` tool) is the shared graph layout of the diagram packages and contains code ported, with attribution, from
+dagre-d3-es and the dagre and graphlib libraries it derives from (MIT, Copyright (c) 2012-2014 Chris Pettitt and the
+dagre-es contributors) and from lodash (MIT, Copyright OpenJS Foundation and other contributors). The license texts ship
+in the package under `licenses/`; see [the third-party notice][link-layout-third-party]
+(`src/DemaConsulting.CanvasNet.Layout/third-party`) for the record of what was ported from where. The package is not
+affiliated with or endorsed by the authors of these libraries.
 
 The `DemaConsulting.CanvasNet.PlantUml` package (and the `canvasnet` tool, which bundles it) implements a subset of
 the PlantUML text language and is derived, with attribution, from the MIT-licensed distribution of PlantUML (MIT,
-Copyright (C) 2009-2024 Arnaud Roques): its default look and the layout geometry of its sequence and activity diagram
-engines are reimplemented in C#, and no Java runs. The license text ships in the packages under `licenses/`; see
+Copyright (C) 2009-2024 Arnaud Roques): its default look, the layout geometry of its sequence and activity diagram
+engines, and the spacing, symbols, and decorations of its class, object, state, use case, component, and deployment
+diagrams are reimplemented in C#; those graph diagrams are laid out by the shared Layout package instead of Graphviz,
+and no Java runs. The license text ships in the packages under `licenses/`; see
 [the third-party notice][link-plantuml-third-party] (`src/DemaConsulting.CanvasNet.PlantUml/third-party`) for the
 record of what was ported from where. The package is not affiliated with or endorsed by the PlantUML project.
 
@@ -797,6 +809,7 @@ record of what was ported from where. The package is not affiliated with or endo
 [link-releases]: https://github.com/demaconsulting/CanvasNet/releases
 [link-vegalite-third-party]: https://github.com/demaconsulting/CanvasNet/tree/main/src/DemaConsulting.CanvasNet.VegaLite/third-party
 [link-mermaid-third-party]: https://github.com/demaconsulting/CanvasNet/tree/main/src/DemaConsulting.CanvasNet.Mermaid/third-party
+[link-layout-third-party]: https://github.com/demaconsulting/CanvasNet/tree/main/src/DemaConsulting.CanvasNet.Layout/third-party
 [link-plantuml-third-party]: https://github.com/demaconsulting/CanvasNet/tree/main/src/DemaConsulting.CanvasNet.PlantUml/third-party
 [link-issues]: https://github.com/demaconsulting/CanvasNet/issues
 [link-discussions]: https://github.com/demaconsulting/CanvasNet/discussions

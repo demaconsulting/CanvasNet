@@ -16,8 +16,8 @@
   - every handled input is drawn and others are left alone, `param-NAME`, the cache (a picture is drawn once and found
     again; a changed source, include, data file, or attribute draws it again), Mermaid code blocks and pictures,
     including the diagram types the filter draws itself, a type the tool does not draw left as written with a warning,
-    PlantUML code blocks and `.puml` and `.plantuml` pictures (a changed `!include` file draws them again, and a `.pu`
-    class diagram is left as written with a warning), and the order of the defaults-file filters before a later
+    PlantUML code blocks and `.puml` and `.plantuml` pictures (a changed `!include` file draws them again, and a legacy
+    activity diagram is left as written with a warning), and the order of the defaults-file filters before a later
     command-line filter;
   - SVG pictures (plain ones left unchanged, composite ones flattened and cached, the scan rules, a link to a missing
     diagram, and WeasyPrint drawing the flattened diagram into a PDF);

@@ -1,0 +1,11 @@
+@startuml
+left to right direction
+actor Guest
+rectangle Shop {
+  (Browse)
+  (Buy)
+}
+Guest --> (Browse)
+Guest --> (Buy)
+(Buy) .> (Browse) : <<include>>
+@enduml

@@ -1,0 +1,61 @@
+---
+# Software Unit Requirements for SvekGeometry
+#
+# These requirements describe the design-level behavior of the SvekGeometry unit of the Svek subsystem (internal
+# namespace DemaConsulting.CanvasNet.PlantUml.Svek): the curves of the routes, the clipping to outlines and borders,
+# and the link decorations of PlantUML's svek/extremity classes. See
+# docs/verification/canvas-net-plant-uml/svek/svek-geometry.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetPlantUml Requirements
+    sections:
+      - title: Svek Requirements
+        sections:
+          - title: SvekGeometry Requirements
+            requirements:
+              - id: CanvasNetPlantUml-Svek-SvekGeometry-Spline
+                title: >-
+                  The SvekGeometry unit shall draw a route as a straight line for two points, as the quadratic curve of
+                  three points, and as the clamped uniform cubic B-spline of more points, starting and ending at the
+                  ends of the route, leaving them along the first and last legs, and smooth where its cubic pieces meet.
+                justification: |
+                  Graphviz draws PlantUML's links as splines; a smooth curve through the route looks like them.
+                tests:
+                  - PlantUmlSvekGeometry_Spline_TwoPoints_IsALine
+                  - PlantUmlSvekGeometry_Spline_ThreePoints_IsTheQuadraticCurve
+                  - PlantUmlSvekGeometry_Spline_FourPoints_IsTheBezierOfThePoints
+                  - PlantUmlSvekGeometry_Spline_LongRoute_IsSmoothAndClamped
+                  - PlantUmlSvekGeometry_Spline_OnePoint_Throws
+
+              - id: CanvasNetPlantUml-Svek-SvekGeometry-Clipping
+                title: >-
+                  The SvekGeometry unit shall find where a direction from the center of a rectangle, an ellipse, a
+                  circle, or a diamond leaves it, decide whether a point is inside such an outline, cut a route where it
+                  enters a box, move the ends of a route back along its end legs, and give the direction in which a
+                  route arrives at each end.
+                justification: |
+                  Links end on the shapes of their entities and on the borders of clusters, and the decorations follow
+                  the direction of the link.
+                tests:
+                  - PlantUmlSvekGeometry_Clip_EveryShape_EndsOnTheOutline
+                  - PlantUmlSvekGeometry_Contains_EveryShape
+                  - PlantUmlSvekGeometry_CutAtBox_BothEnds
+                  - PlantUmlSvekGeometry_Shorten_MovesEndsAlongTheirLegs
+                  - PlantUmlSvekGeometry_ArrivalAngle_BothEnds
+
+              - id: CanvasNetPlantUml-Svek-SvekGeometry-Extremities
+                title: >-
+                  The SvekGeometry unit shall build the link decorations with PlantUML's geometry, fills, strokes, and
+                  contact lengths (the arrow head, the extension and small triangles, the composition and aggregation
+                  diamonds, the non-navigable cross, the hollow and filled circles, the circle with a socket, the
+                  socket, the square, the circled plus, and the half arrows), turned to the direction of the link, and
+                  shall tell which decorations it does not draw.
+                justification: |
+                  The decorations carry the meaning of a relationship and must look like PlantUML's.
+                tests:
+                  - PlantUmlSvekGeometry_Extremity_Arrow_MatchesPlantUml
+                  - PlantUmlSvekGeometry_Extremity_Extends_MatchesPlantUml
+                  - PlantUmlSvekGeometry_Extremity_Diamonds_MatchPlantUml
+                  - PlantUmlSvekGeometry_Extremity_OtherShapes_HavePlantUmlSizes
+                  - PlantUmlSvekGeometry_IsDrawnAndMargin_FollowPlantUml
+                  - PlantUmlSvekGeometry_Arc_StaysOnTheCircle

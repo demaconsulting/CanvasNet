@@ -1,5 +1,5 @@
+using DemaConsulting.CanvasNet.Layout.Dagre;
 using DemaConsulting.CanvasNet.Mermaid.Cose;
-using DemaConsulting.CanvasNet.Mermaid.Dagre;
 
 namespace DemaConsulting.CanvasNet.Mermaid.Tests.Cose;
 
@@ -143,11 +143,11 @@ public class CoseTests
         source.Cancel();
 
         // Act
-        var limit = Assert.Throws<MermaidRenderException>(() => CoseLayout.Run(sizes, links, new LayoutWorkMeter(1_000, default, CancellationToken.None)));
+        var limit = Assert.Throws<MermaidRenderException>(() => CoseLayout.Run(sizes, links, new MermaidLayoutWorkMeter(1_000, default, CancellationToken.None)));
 
         // Assert
         Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, limit.Code);
-        Assert.Throws<OperationCanceledException>(() => CoseLayout.Run(sizes, links, new LayoutWorkMeter(long.MaxValue, default, source.Token)));
+        Assert.Throws<OperationCanceledException>(() => CoseLayout.Run(sizes, links, new MermaidLayoutWorkMeter(long.MaxValue, default, source.Token)));
     }
 
     /// <summary>
@@ -155,7 +155,7 @@ public class CoseTests
     /// </summary>
     /// <returns>The meter.</returns>
     private static LayoutWorkMeter Meter() =>
-        new(MermaidLimits.Default.MaxLayoutWork, default, CancellationToken.None);
+        new MermaidLayoutWorkMeter(MermaidLimits.Default.MaxLayoutWork, default, CancellationToken.None);
 
     /// <summary>
     ///     Creates a mindmap-like tree: nodes in pre-order, each hanging from one of the last few nodes, with sizes on

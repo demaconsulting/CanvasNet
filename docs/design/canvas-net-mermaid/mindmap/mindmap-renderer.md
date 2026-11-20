@@ -105,7 +105,8 @@ scene whose view box is the natural size, or an exception.
   `ContainsFontAwesome`).
 - **Cose subsystem** - `CoseLayout.Run` with `CoseSize`, `CoseLink`, `CosePoint`, and `CoseResult` (the layout).
 - **Syntax subsystem** - `HtmlSanitizer.Sanitize` (the label as `labelHelper` builds it).
-- **Dagre subsystem** - `LayoutWorkMeter`, the work budget and cancellation of a render.
+- **Dagre subsystem (CanvasNetLayout system)** - `LayoutWorkMeter` (created as the `MermaidLayoutWorkMeter` of the
+  MermaidDocument unit), the work budget and cancellation of a render.
 - **Scenegraph subsystem** - `Scene`, `SceneGroup`, `SceneItem`, and `SceneRect`, the drawing.
 - **System** - `DiagramRenderContext`, `MermaidReportSink`, `MermaidLimits`, `MermaidRenderException`, and
   `MermaidDiagnosticCodes`.

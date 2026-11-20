@@ -8,8 +8,9 @@ namespace DemaConsulting.CanvasNet.PlantUml;
 ///     <para>
 ///         <see cref="PlantUmlDocument"/> parses a text (<c>Parse</c>, <c>Open</c>), describes it without drawing it
 ///         (<see cref="PlantUmlDocument.DiagramType"/>, <see cref="PlantUmlDocument.IsSupported"/>, the title and the node,
-///         edge and subgraph counts), measures it and renders it. Sequence diagrams are drawn with PlantUML's default
-///         look; every other PlantUML diagram type is recognized and reported as
+///         edge and subgraph counts), measures it and renders it. Sequence diagrams, activity diagrams (the new syntax),
+///         class and object diagrams, state diagrams, and use case, component, and deployment diagrams are drawn with
+///         PlantUML's default look; every other PlantUML diagram type is recognized and reported as
 ///         <see cref="PlantUmlDiagnosticCodes.DiagramUnsupported"/>. Every construct that is recognized but not supported
 ///         is reported with a stable <c>plantuml-*</c> code and a location (<see cref="PlantUmlUnsupportedFeature"/>), and
 ///         strict mode (<see cref="PlantUmlRenderOptions.ThrowOnUnsupportedFeature"/>) turns the first one into an

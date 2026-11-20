@@ -1,0 +1,17 @@
+@startuml
+class Fleet
+class Truck
+class Engine
+class Route
+class Driver
+class Schedule
+class Depot
+Fleet <|-- Truck
+Truck *-- Engine
+Fleet o-- Depot
+Truck --> Route
+Driver ..> Schedule
+Route -- Schedule
+Depot .. Driver
+Engine ..|> Schedule
+@enduml

@@ -1,0 +1,16 @@
+@startuml
+' Gallery: actors, use cases, a business actor, include and extend, extension, and a note
+title Online shop
+left to right direction
+actor Customer
+actor :Shop Owner: as Owner
+actor/ Bank
+Customer --> (Browse catalog)
+Customer --> (Place order)
+(Place order) .> (Pay) : <<include>>
+(Apply voucher) .> (Place order) : <<extend>>
+(Pay) --> Bank
+Owner --> (Manage catalog)
+(Manage catalog) <|-- (Import prices)
+note right of Bank : external service
+@enduml

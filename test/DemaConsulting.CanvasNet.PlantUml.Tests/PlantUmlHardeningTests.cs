@@ -33,6 +33,26 @@ public class PlantUmlHardeningTests
         { "MaxNestingDepth", 1, "@startuml\nalt one\nalt two\nA -> B\nend\nend\n@enduml\n", 3 },
         { "MaxNestingDepth", 1, "@startuml\nstart\nif (a) then\nif (b) then\n:x;\nendif\nendif\n@enduml\n", 4 },
         { "MaxNestingDepth", 1, "@startuml\n!if 1\n!if 2\n!endif\n!endif\nA -> B\n@enduml\n", 3 },
+        { "MaxNodes", 2, "@startuml\nclass A\nclass B\nclass C\n@enduml\n", 4 },
+        { "MaxEdges", 1, "@startuml\nA <|-- B\nB *-- C\n@enduml\n", 3 },
+        { "MaxLabelLength", 10, "@startuml\nclass A {\n+ " + new string('x', 40) + "\n}\n@enduml\n", 3 },
+        { "MaxNestingDepth", 1, "@startuml\npackage p {\npackage q {\nclass A\n}\n}\n@enduml\n", 3 },
+        { "MaxNodes", 2, "@startuml\nstate A\nstate B\nstate C\n@enduml\n", 4 },
+        { "MaxEdges", 1, "@startuml\n[*] --> A\nA --> B\n@enduml\n", 3 },
+        { "MaxLabelLength", 10, "@startuml\nstate A : " + new string('x', 40) + "\n@enduml\n", 2 },
+        { "MaxNestingDepth", 1, "@startuml\nstate A {\nstate B {\nstate C\n}\n}\n@enduml\n", 3 },
+        { "MaxNodes", 2, "@startuml\n[A]\n[B]\n[C]\n@enduml\n", 4 },
+        { "MaxEdges", 1, "@startuml\n[A] --> [B]\n[B] ..> I\n@enduml\n", 3 },
+        { "MaxLabelLength", 10, "@startuml\ncomponent \"" + new string('x', 40) + "\" as C\n@enduml\n", 2 },
+        { "MaxNestingDepth", 1, "@startuml\nnode A {\nfolder B {\n[C]\n}\n}\n@enduml\n", 3 },
+        { "MaxNodes", 2, "@startuml\nactor A\n(U)\n:B:\n@enduml\n", 4 },
+        { "MaxEdges", 1, "@startuml\nA --> (U)\n(U) ..> (V) : <<include>>\n@enduml\n", 3 },
+        { "MaxLabelLength", 10, "@startuml\nusecase \"" + new string('x', 40) + "\" as U\n@enduml\n", 2 },
+        { "MaxNestingDepth", 1, "@startuml\nrectangle A {\npackage B {\n(U)\n}\n}\n@enduml\n", 3 },
+        { "MaxNodes", 2, "@startuml\nnode A\nartifact B\nqueue C\n@enduml\n", 4 },
+        { "MaxEdges", 1, "@startuml\nnode A\nA --> B\nB ..> C\n@enduml\n", 4 },
+        { "MaxLabelLength", 10, "@startuml\nstorage \"" + new string('x', 40) + "\" as S\n@enduml\n", 2 },
+        { "MaxNestingDepth", 1, "@startuml\nstack A {\nqueue B {\nfile C\n}\n}\n@enduml\n", 3 },
     };
 
     /// <summary>
@@ -137,6 +157,99 @@ public class PlantUmlHardeningTests
     }
 
     /// <summary>
+    ///     Validates that the layout work of a dense class diagram is bounded: a small budget fails closed with a located
+    ///     plantuml-limit-exceeded render error, and the default budget lays it out.
+    /// </summary>
+    [Fact]
+    public void CanvasNetPlantUml_Hardening_DenseClassGraph_LayoutWorkIsBounded()
+    {
+        // Arrange
+        var links = Enumerable.Range(0, 60).SelectMany(i => new[] { $"C{i} --> C{(i * 7 + 3) % 60}\n", $"C{i} ..> C{(i * 11 + 5) % 60}\n" });
+        var document = PlantUmlDocument.Parse("@startuml\npackage p {\nclass C0\n}\n" + string.Concat(links) + "@enduml\n");
+
+        // Act
+        var ex = Assert.Throws<PlantUmlRenderException>(() => document.Measure(new PlantUmlRenderOptions { Limits = new PlantUmlLimits { MaxLayoutWork = 1000 } }, TestContext.Current.CancellationToken));
+        var size = document.Measure(new PlantUmlRenderOptions { Scale = 0.1 }, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(PlantUmlDiagnosticCodes.LimitExceeded, ex.Code);
+        Assert.Equal(2, ex.Location.Line);
+        Assert.True(size.Width >= 1 && size.Height >= 1);
+    }
+
+    /// <summary>
+    ///     Validates that the layout work of a dense state diagram with nested composite states is bounded: a small budget
+    ///     fails closed with a located plantuml-limit-exceeded render error, and the default budget lays it out.
+    /// </summary>
+    [Fact]
+    public void CanvasNetPlantUml_Hardening_DenseStateGraph_LayoutWorkIsBounded()
+    {
+        // Arrange
+        var inner = string.Concat(Enumerable.Range(0, 30).Select(i => $"S{i} --> S{(i * 7 + 3) % 30} : e{i}\n"));
+        var document = PlantUmlDocument.Parse("@startuml\nstate Outer {\nstate Inner {\n[*] --> S0\n" + inner + "}\n--\n[*] --> T\n}\n[*] --> Outer\n@enduml\n");
+
+        // Act
+        var ex = Assert.Throws<PlantUmlRenderException>(() => document.Measure(new PlantUmlRenderOptions { Limits = new PlantUmlLimits { MaxLayoutWork = 1000 } }, TestContext.Current.CancellationToken));
+        var size = document.Measure(new PlantUmlRenderOptions { Scale = 0.1 }, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(PlantUmlDiagnosticCodes.LimitExceeded, ex.Code);
+        Assert.Equal(2, ex.Location.Line);
+        Assert.True(size.Width >= 1 && size.Height >= 1);
+    }
+
+    /// <summary>
+    ///     Validates that the layout work of a dense component diagram with nested containers is bounded: a small budget
+    ///     fails closed with a located plantuml-limit-exceeded render error, and the default budget lays it out.
+    /// </summary>
+    [Fact]
+    public void CanvasNetPlantUml_Hardening_DenseComponentGraph_LayoutWorkIsBounded()
+    {
+        // Arrange
+        var members = string.Concat(Enumerable.Range(0, 20).Select(i => $"[C{i}]\n"));
+        var links = string.Concat(Enumerable.Range(0, 40).Select(i => $"[C{i % 20}] --> I{(i * 7 + 3) % 25}\n"));
+        var document = PlantUmlDocument.Parse("@startuml\nnode Server {\nfolder Inner {\n" + members + "}\n}\n" + links + "@enduml\n");
+
+        // Act
+        var ex = Assert.Throws<PlantUmlRenderException>(() => document.Measure(new PlantUmlRenderOptions { Limits = new PlantUmlLimits { MaxLayoutWork = 1000 } }, TestContext.Current.CancellationToken));
+        var size = document.Measure(new PlantUmlRenderOptions { Scale = 0.1 }, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(PlantUmlDiagnosticCodes.LimitExceeded, ex.Code);
+        Assert.Equal(2, ex.Location.Line);
+        Assert.True(size.Width >= 1 && size.Height >= 1);
+    }
+
+    /// <summary>
+    ///     Validates that a use case diagram with many actors and use cases in a boundary is bounded: a small layout
+    ///     budget fails closed with a located plantuml-limit-exceeded render error, and the default budget lays it out,
+    ///     with the ellipse of a use case of more than a thousand lines (the longest text the default limits allow)
+    ///     holding every line.
+    /// </summary>
+    [Fact]
+    public void CanvasNetPlantUml_Hardening_DenseUseCaseGraph_LayoutWorkIsBounded()
+    {
+        // Arrange
+        var members = string.Concat(Enumerable.Range(0, 20).Select(i => $"usecase U{i}\n"));
+        var links = string.Concat(Enumerable.Range(0, 40).Select(i => $"A{(i * 7 + 3) % 15} --> U{i % 20}\n"));
+        var document = PlantUmlDocument.Parse("@startuml\nrectangle Shop {\n" + members + "}\n" + links + "@enduml\n");
+        var tall = PlantUmlDocument.Parse("@startuml\nusecase \"" + string.Concat(Enumerable.Repeat("a\\n", 1300)) + "\" as T\nactor A\nA --> T\n@enduml\n");
+
+        // Act
+        var ex = Assert.Throws<PlantUmlRenderException>(() => document.Measure(new PlantUmlRenderOptions { Limits = new PlantUmlLimits { MaxLayoutWork = 1000 } }, TestContext.Current.CancellationToken));
+        var size = document.Measure(new PlantUmlRenderOptions { Scale = 0.1 }, TestContext.Current.CancellationToken);
+        var tallSize = tall.Measure(new PlantUmlRenderOptions { Scale = 0.01 }, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(PlantUmlDiagnosticCodes.LimitExceeded, ex.Code);
+        Assert.Equal(2, ex.Location.Line);
+        Assert.True(size.Width >= 1 && size.Height >= 1);
+
+        // the ellipse holds all 1300 lines (14-pixel font at a scale of 0.01)
+        Assert.True(tallSize.Height >= 182, $"height {tallSize.Height}");
+    }
+
+    /// <summary>
     ///     Validates that large diagrams within the limits render: a long chain of actions, blocks nested at the
     ///     nesting limit, and many participants.
     /// </summary>
@@ -179,9 +292,20 @@ public class PlantUmlHardeningTests
             "endlegend\n", "title t\n", "skinparam activityBackgroundColor #00FF00\n", "skinparam {\n", "!define X Y\n",
             "!$v = \"w\"\n", "$v", "!if 1\n", "!endif\n", "!include x.iuml\n", "!include <C4/C4>\n", "@startuml\n", "@enduml\n",
             "\"", "'", "/'", "'/", "\\\n", "**bold**", "<color:red>", "\t", "\n\n", " ",
+            "<|--", "*--", "o--", "..>", "--|>", "-up->", "-[hidden]-", "\"1..*\"", "class X {\n", "interface I\n", "enum E {\n",
+            "object o {\n", "map m {\n", "k => v\n", "package P {\n", "namespace N {\n", "note left of A\n", "note on link\n",
+            "note \"n\" as N\n", "hide empty members\n", "show circle\n", "--\n", ".. t ..\n", "==\n", "+ x : int\n", "{static}", "<<S>>",
+            "<T>", "A : field\n", "left to right direction\n", "together {\n", "a.b.C", "::",
+            "[*]", "[H]", "[H*]", "X[H]", "state S {\n", "state \"L\" as S\n", "||\n", "<<choice>>", "<<fork>>", "<<end>>",
+            "hide empty description\n", "S : text\n", "end state\n", "-left->", "-[dashed]->",
+            "[C]", "() I", "(U)", ":A:", "component C [\n", "]\n", "node N {\n", "component K {\n", "port p\n", "--(", ")--",
+            "0)--", "-(0)-", "==>", "<<svc>>", "as \"x\"", "artifact X\n", "cloud C\n", "database D\n", "rectangle {\n",
+            "actor/ B\n", "usecase/ W\n", "(U)/", ":A:/", ": <<include>>", ": <<extend>>", "usecase \"a\\nb\" as M\n", ":Guest:\n",
+            "storage S {\n", "stack K {\n", "queue Q {\n", "hexagon H {\n", "file F {\n", "artifact A {\n", "person P\n", "boundary B\n",
+            "control C\n", "entity E\n", "collections C\n", "label L\n", "agent A\n", "circle O\n", "action X\n", "process P {\n",
         ];
         var random = new Random(20261118);
-        var folders = new[] { "sequence", "activity" };
+        var folders = new[] { "sequence", "activity", "class", "object", "state", "usecase", "component", "deployment" };
         var fixtures = folders
             .SelectMany(f => Directory.GetFiles(Path.Combine(AppContext.BaseDirectory, "Fixtures", f), "*.puml"))
             .Concat(Directory.GetFiles(Path.Combine(AppContext.BaseDirectory, "Gallery"), "plantuml-*.puml"))
@@ -205,7 +329,7 @@ public class PlantUmlHardeningTests
         }
 
         // Assert
-        Assert.True(fixtures.Count >= 28);
+        Assert.True(fixtures.Count >= 60);
         Assert.Empty(unexpected);
     }
 

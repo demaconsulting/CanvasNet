@@ -6,7 +6,7 @@ package CanvasNet {
         comment designRef /* Design: docs/design/canvas-net-mermaid/gantt.md */
         comment verificationRef /* Verification: docs/verification/canvas-net-mermaid/gantt.md */
         comment reqRef /* Requirements: docs/reqstream/canvas-net-mermaid/gantt.yaml */
-        comment /* Within the CanvasNetMermaid system the Gantt subsystem depends on the Syntax subsystem (scanner, mapped text, JavaScript trim, HTML sanitizing, and the link check), the Configuration subsystem (effective configuration with its gantt section and the gantt style sheet), the Rendering subsystem (text metrics of the label builder), the Dagre subsystem (layout work meter), the Graphlib subsystem (JavaScript object-key order), and the Scenegraph subsystem (scene types); it is called by the document pipeline of the system and takes the clock of a render from the render options. */
+        comment /* Within the CanvasNetMermaid system the Gantt subsystem depends on the Syntax subsystem (scanner, mapped text, JavaScript trim, HTML sanitizing, and the link check), the Configuration subsystem (effective configuration with its gantt section and the gantt style sheet), the Rendering subsystem (text metrics of the label builder), the Dagre subsystem of the CanvasNetLayout system (layout work meter), the Graphlib subsystem of the CanvasNetLayout system (JavaScript object-key order), and the Scenegraph subsystem (scene types); it is called by the document pipeline of the system and takes the clock of a render from the render options. */
 
         part ganttParser : GanttParser;
         part ganttModel : GanttModel;

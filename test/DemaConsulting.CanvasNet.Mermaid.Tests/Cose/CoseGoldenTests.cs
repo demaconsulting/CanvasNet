@@ -1,7 +1,6 @@
 using System.Globalization;
 using System.Text.Json.Nodes;
 using DemaConsulting.CanvasNet.Mermaid.Cose;
-using DemaConsulting.CanvasNet.Mermaid.Dagre;
 
 namespace DemaConsulting.CanvasNet.Mermaid.Tests.Cose;
 
@@ -29,7 +28,7 @@ public class CoseGoldenTests
         // Arrange: no work limit, so even the cases with millions of grid cells run to the end
         var golden = UpstreamVectors.CoseLayouts[index]!.AsObject();
         var (nodes, edges) = Input(golden);
-        var meter = new LayoutWorkMeter(long.MaxValue, default, CancellationToken.None);
+        var meter = new MermaidLayoutWorkMeter(long.MaxValue, default, CancellationToken.None);
 
         // Act / Assert: a case Chrome could not lay out fails as a render failure
         if (golden["error"] is not null)

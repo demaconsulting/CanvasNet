@@ -1,0 +1,17 @@
+@startuml
+actor Customer
+usecase Checkout
+(Pay)
+Customer --> Checkout
+Checkout ..> Pay : <<include>>
+note right of Customer : a registered\nshopper
+note left of Checkout
+  must be
+  logged in
+end note
+note "PCI scope" as N
+N .. Pay
+note bottom of (Pay) #LightGreen : card or wallet
+Customer --> Pay
+note on link : direct
+@enduml
