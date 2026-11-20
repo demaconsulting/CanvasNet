@@ -15,10 +15,10 @@ see-also:
   (every type but `flowchart`, `graph`, `sequenceDiagram`, `classDiagram`,
   `stateDiagram`, `erDiagram`, `pie`, `gantt`, `mindmap`, `packet`, and
   `gitGraph`); the picture is empty.
-- Every other diagram type is recognized: info reports it with "supported":
-  false, and render writes an empty picture of 16 by 16 pixels with the
-  diagnostic mermaid-diagram-unsupported (strict mode makes it an
-  unsupported-feature failure).
+- Every other diagram type is recognized: a probe reports it as not supported
+  (`DiagramFacts.Supported` is false), and a render draws an empty picture of 16
+  by 16 pixels with the diagnostic mermaid-diagram-unsupported (strict mode
+  makes it an unsupported-feature failure).
 - `mermaid-icon-unsupported`: An icon (`fa:fa-car` in a label, an `@{ icon: ...
   }` node, an `icon` in the `properties` of a sequence participant, an
   `::icon(...)` of a mindmap node); the node or participant keeps its shape and

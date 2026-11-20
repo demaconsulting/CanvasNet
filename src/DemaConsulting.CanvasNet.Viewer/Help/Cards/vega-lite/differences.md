@@ -19,4 +19,4 @@ encodings, transforms, params, layout, and composition.
   lack is drawn from the bundled Noto fonts, never from an installed font, so
   the result does not depend on the machine.
 - Compared with vega-embed: no actions menu, no signals, no renderer choice, and
-  no config or datasets injection from the command line.
+  no injection of config or datasets by the host.

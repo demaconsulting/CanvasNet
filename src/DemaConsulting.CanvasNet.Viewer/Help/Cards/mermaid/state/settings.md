@@ -33,8 +33,8 @@ directive, with Mermaid's precedence.
 - Mermaid's legacy state renderer is not ported: a stateDiagram with another
   state.defaultRenderer is drawn with the current renderer and reported as
   mermaid-layout-unsupported at the state key of the configuration.
-- The direction info reports for a state or entity relationship diagram is the
-  last top-level direction statement, the one the diagram is laid out in, where
-  Mermaid's getDirection gives the first.
+- The direction a probe reports for a state or entity relationship diagram is
+  the last top-level direction statement, the one the diagram is laid out in,
+  where Mermaid's getDirection gives the first.
 - The last concurrent region of a composite state has the id id-random-N where
   Mermaid's id holds a random number; the id is never drawn.

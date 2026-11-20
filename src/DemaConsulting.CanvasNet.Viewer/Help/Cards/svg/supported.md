@@ -73,7 +73,7 @@ examples:
   text. The text features rotate, textLength, vertical or rtl writing, and
   decoration are ignored (svg-text-unsupported).
 - A filter over its work budget is skipped: the element is drawn unfiltered.
-- Scripting, and image references the tool never follows: a network URL, a UNC
+- Scripting, and image references CanvasNet never follows: a network URL, a UNC
   path, and a file: URI with a host. Each is reported as svg-image-unresolved
   and not drawn.
 - A feImage filter primitive reads only a data: URI, never a file.

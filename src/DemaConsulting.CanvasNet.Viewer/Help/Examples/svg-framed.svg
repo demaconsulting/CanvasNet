@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1000" height="568" viewBox="0 0 1000 568">
-  <!-- anchors.scad sits beside this file. Each arrow ends on an anchor: its pixel in the JSON result
-       of the model rendered alone at the image size (440x300), plus the image x (280) and y (152) -->
+  <!-- anchors.scad sits beside this file. Each arrow ends on an anchor: its pixel as reported
+       for the model rendered alone at the image size (440x300), plus the image x (280) and y (152) -->
   <defs>
     <linearGradient id="band" x1="0" y1="0" x2="1" y2="0">
       <stop offset="0" stop-color="#1e3a8a"/>
