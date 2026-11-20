@@ -1,15 +1,15 @@
 @startuml
-skinparam ranksep 50
-skinparam nodesep 60
+skinparam defaultFontSize 18
+skinparam arrowFontSize 18
+skinparam nodesep 90
+skinparam ranksep 60
 [*] -right-> Draft
 Draft --> Review : submit
-Review --> Shipping : approved
-Review -left-> Rejected : declined
-state Shipping {
-  [*] -right-> Packed
-  Packed -right-> Moving : picked up
-  Moving -right-> Delivered : signed
+state Review {
+  [*] -right-> Checking
+  Checking -right-> Signed : ok
 }
-Rejected --> [*]
-Shipping --> [*]
+Review -right-> Rejected : decline
+Review --> Published : release
+Published -right-> [*]
 @enduml

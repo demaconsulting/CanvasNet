@@ -107,7 +107,7 @@ function New-Showcase {
     Invoke-ToolOrFail render "$sources/mesh-shading.pdf" --dpi 144 --resize 600x600 --pad '100,0,100,0' `
         --pad-color white -o "$Folder/4-pdf.png"
     Invoke-ToolOrFail render "$sources/slide.pptx" --page 1 --dpi 80 --resize 800x600 -o "$Folder/5-pptx.png"
-    Invoke-ToolOrFail render "$sources/checkout.puml" --strict --width 770 --pad '15,42,15,43' --pad-color white `
+    Invoke-ToolOrFail render "$sources/checkout.puml" --strict --width 770 --pad '15,40,15,41' --pad-color white `
         -o "$Folder/6-puml.png"
     Invoke-ToolOrFail render "$sources/flowchart.mmd" --strict --width 800 --pad '0,40,0,41' --pad-color white `
         -o "$Folder/7-mmd.png"
@@ -192,28 +192,12 @@ function New-MermaidGallery {
     Join-Path $Folder 'mermaid-gallery.png'
 }
 
-# docs/images/plantuml-gallery.png: six PlantUML diagram types (docs/images/plantuml, original diagrams), each drawn in
-# strict mode at twice its size and shown at 400x300 in the montage, like the Mermaid gallery. --labels prints the
-# input file name, so the diagrams are copied to extensionless files named after their labels first.
+# docs/images/plantuml-gallery.png: six PlantUML diagram types (docs/images/plantuml, original diagrams) on one SVG page,
+# plantuml/gallery.svg, which links each diagram with image href and draws it as vector at the size of its 800x600
+# cell, so the picture is sharp at twice the size of the other galleries (2496 pixels wide).
 function New-PlantUmlGallery {
     param([string]$Folder)
-    $sources = 'docs/images/plantuml'
-    $labeled = Join-Path $Folder 'labeled'
-    New-Item -ItemType Directory -Force -Path $labeled | Out-Null
-
-    $diagrams = [ordered]@{
-        'sequence' = 'Sequence'; 'activity' = 'Activity'; 'class' = 'Class'
-        'state' = 'State'; 'usecase' = 'Use case'; 'component' = 'Component'
-    }
-    foreach ($name in $diagrams.Keys) {
-        Invoke-ToolOrFail render "$sources/$name.puml" --strict --scale 2 --pad 12 --pad-color '#ffffff' `
-            -o "$Folder/$name.png"
-        Copy-Item (Join-Path $Folder "$name.png") (Join-Path $labeled $diagrams[$name])
-    }
-
-    $panels = $diagrams.Values | ForEach-Object { Join-Path $labeled $_ }
-    Invoke-ToolOrFail montage @panels --columns 3 --cell 400x300 --spacing 12 --padding 12 `
-        --background '#e5e7eb' --labels -o "$Folder/plantuml-gallery.png"
+    Invoke-ToolOrFail render 'docs/images/plantuml/gallery.svg' --strict -o "$Folder/plantuml-gallery.png"
     Join-Path $Folder 'plantuml-gallery.png'
 }
 

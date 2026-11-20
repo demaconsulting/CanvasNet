@@ -1,31 +1,25 @@
 @startuml
+skinparam nodesep 60
 skinparam ranksep 50
 abstract class Item {
   +title : String
   {abstract} +loanDays() : int
 }
-class Member {
-  +name : String
-  -fines : decimal
-}
 class Loan {
+  +borrower : Member
   +due : Date
   +renew()
 }
 class Book {
   +isbn : String
-}
-class Film {
-  +minutes : int
+  +loanDays() : int
 }
 enum LoanState {
   OPEN
   RETURNED
   OVERDUE
 }
-Member "1" *-- "0..*" Loan
-Item "1" <-- "0..*" Loan
+Loan "0..*" -right-> "1" Item
+Loan --> LoanState
 Item <|-- Book
-Item <|-- Film
-Loan -right-> LoanState
 @enduml

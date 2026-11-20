@@ -4,7 +4,7 @@
 skinparam backgroundColor transparent
 skinparam defaultFontName sans-serif
 skinparam shadowing false
-skinparam sequenceArrowThickness 4
+skinparam sequenceArrowThickness 3
 skinparam arrowColor #d9f99d
 skinparam arrowFontColor #ffffff
 skinparam arrowFontSize 30
@@ -16,9 +16,10 @@ skinparam participantBorderThickness 4
 skinparam participantFontColor #ffffff
 skinparam participantFontSize 30
 skinparam participantFontStyle bold
+skinparam sequenceMessageAlign center
 hide footbox
 participant App
-participant API
-App -> API : render
-API --> App : PNG
+participant Server
+App -> Server : draw
+Server --> App : PNG
 @enduml

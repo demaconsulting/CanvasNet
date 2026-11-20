@@ -1,4 +1,4 @@
-' The PlantUML panel of showcase.png: a sequence diagram with an actor, a database, an entity, activations, a group,
+' The PlantUML panel of showcase.png: a sequence diagram with an actor, a database, an entity, an activation, a group,
 ' and a note, restyled with skinparam colors.
 @startuml
 skinparam defaultFontName sans-serif
@@ -36,12 +36,12 @@ participant Payments
 entity Bank
 Shopper -> Shop ++ : check out
 Shop -> Stock : reserve items
-Shop -> Payments ++ : charge card
+Shop -> Payments : charge card
 group 3-D Secure
   Payments -> Bank : authorize
   Bank --> Payments : approved
   note right : asks the\nshopper's app
 end
-Payments --> Shop -- : receipt
+Payments --> Shop : receipt
 Shop --> Shopper -- : order confirmed
 @enduml

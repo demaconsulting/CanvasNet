@@ -1,20 +1,15 @@
 @startuml
-autonumber
 hide footbox
-actor User
-participant Browser
-control "Auth service" as Auth
-participant "Authenticator" as App
-User -> Browser : sign in
-Browser -> Auth ++ : password
-Auth --> Browser -- : ask for a code
-User -> App : open the app
-App --> User : 6-digit code
-note right : a new code\nevery 30 s
-Browser -> Auth : code
-alt code is valid
-  Auth --> Browser : session
-else expired
-  Auth --> Browser : try again
-end
+actor Shopper
+participant Shop
+participant Cart
+participant Payments
+database Orders
+Shopper -> Shop : check out
+Shop -> Cart ++ : list items
+Cart --> Shop -- : 2 books
+Shop -> Payments : charge
+Payments --> Shop : paid
+Shop -> Orders : save order
+Shop --> Shopper : thank you!
 @enduml

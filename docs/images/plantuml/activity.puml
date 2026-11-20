@@ -1,20 +1,20 @@
 @startuml
-|Barista|
+skinparam defaultFontSize 18
+skinparam activityFontSize 18
+skinparam activityDiamondFontSize 18
+skinparam arrowFontSize 18
 start
-:Grind the beans;
-:Tamp the grounds;
-|#EEF4FB|Machine|
-:Heat the water;
 fork
-  :Pull the shot;
+  :Pick the items;
 fork again
-  :Steam the milk;
+  :Print the label;
+fork again
+  :Send the invoice;
 end fork
-|Barista|
-if (Crema golden?) then (yes)
-  :Serve;
-else (no)
-  :Adjust the grind;
+if (Express?) then
+  :Send by courier;
+else
+  :Send by post;
 endif
 stop
 @enduml
