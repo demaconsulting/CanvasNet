@@ -4985,38 +4985,190 @@ public class SvgCodecTests
     }
 
     /// <summary>
-    ///     Regression test for a code-review finding: the filter-region degeneracy guard used to
-    ///     test the bare fill/centerline bounds (<c>localPath.GetBounds()</c>), which is zero-
-    ///     height for a horizontal <c>line</c> - incorrectly treating a valid filter on a stroked
-    ///     horizontal line as degenerate and silently skipping it. Proves the guard now uses the
-    ///     stroke-inflated ("actually-painted") bounds instead, so the filter is actually evaluated.
+    ///     Proves that a <c>filter</c>, a <c>mask</c> and an <c>objectBoundingBox</c> <c>clip-path</c> on a
+    ///     stroked horizontal <c>line</c> - whose object bounding box (the fill geometry, without stroke) has no
+    ///     height - draw nothing, as the SVG specification ("object bounding box units") and browsers do; the
+    ///     stroke never stands in for the box.
     /// </summary>
     [Fact]
-    public void SvgCodec_Load_FilterOnStrokedHorizontalLine_UsesStrokeAwareBoundsNotDegenerate()
+    public void SvgCodec_Load_ObjectBoundingBoxEffectsOnHorizontalLine_PaintNothing()
     {
-        // Arrange: a horizontal line's centerline bounds have zero height; only the stroke-
-        // inflated bounds (centerline +/- half the 10-unit stroke width) are non-degenerate
+        // Arrange: three stroked horizontal lines, each with one objectBoundingBox effect
         const string svg = """
-            <svg viewBox='0 0 100 100'>
-              <defs>
-                <filter id='f'>
-                  <feFlood flood-color='red'/>
-                </filter>
-              </defs>
+            <svg xmlns='http://www.w3.org/2000/svg' width='300' height='100'>
+              <filter id='f'><feFlood flood-color='red'/></filter>
+              <mask id='m'><rect width='300' height='100' fill='white'/></mask>
+              <clipPath id='c' clipPathUnits='objectBoundingBox'><rect width='1' height='1'/></clipPath>
               <line x1='20' y1='50' x2='80' y2='50' stroke='blue' stroke-width='10' filter='url(#f)'/>
+              <line x1='120' y1='50' x2='180' y2='50' stroke='blue' stroke-width='10' mask='url(#m)'/>
+              <line x1='220' y1='50' x2='280' y2='50' stroke='blue' stroke-width='10' clip-path='url(#c)'/>
             </svg>
             """;
 
         // Act
         using var stream = ToStream(svg);
-        var surface = SvgCodec.Load(stream, 100, 100);
+        var surface = SvgCodec.Load(stream, 300, 100);
 
-        // Assert: a point just above the raw stroke's own painted extent (stroke-width 10 with
-        // butt caps covers y in [45,55]) but within the stroke-aware expanded filter region is
-        // filled with the flood color - proving the filter was actually evaluated rather than
-        // degenerately skipped (an unfixed, skipped filter would leave this point transparent)
-        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[50, 44]);
+        // Assert: none of the three lines (nor the filter's flood) is drawn
+        Assert.Equal(0, surface[50, 50].A);
+        Assert.Equal(0, surface[150, 50].A);
+        Assert.Equal(0, surface[250, 50].A);
+        Assert.Equal(0, surface[50, 44].A);
     }
+
+    /// <summary>
+    ///     Proves that a <c>userSpaceOnUse</c> mask region and a <c>userSpaceOnUse</c> clip path do not need an
+    ///     object bounding box, so a stroked horizontal <c>line</c> is still drawn through them, while mask content
+    ///     in <c>objectBoundingBox</c> units cannot be mapped and draws nothing - as in browsers.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_UserSpaceOnUseEffectsOnHorizontalLine_AreDrawn()
+    {
+        // Arrange: a user-space mask, a user-space mask with box-relative content, and a user-space clip
+        const string svg = """
+            <svg xmlns='http://www.w3.org/2000/svg' width='300' height='100'>
+              <mask id='mu' maskUnits='userSpaceOnUse' x='0' y='0' width='300' height='100'><rect width='300' height='100' fill='white'/></mask>
+              <mask id='mc' maskUnits='userSpaceOnUse' maskContentUnits='objectBoundingBox' x='0' y='0' width='300' height='100'><rect width='1' height='1' fill='white'/></mask>
+              <clipPath id='cu'><rect width='300' height='100'/></clipPath>
+              <line x1='20' y1='50' x2='80' y2='50' stroke='blue' stroke-width='10' mask='url(#mu)'/>
+              <line x1='120' y1='50' x2='180' y2='50' stroke='blue' stroke-width='10' mask='url(#mc)'/>
+              <line x1='220' y1='50' x2='280' y2='50' stroke='blue' stroke-width='10' clip-path='url(#cu)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 300, 100);
+
+        // Assert: the user-space mask and clip keep the line; the box-relative mask content removes it
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[50, 50]);
+        Assert.Equal(0, surface[150, 50].A);
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[250, 50]);
+    }
+
+    /// <summary>
+    ///     Proves that a <c>mask</c> on a stroked shape lays both its default <c>objectBoundingBox</c> region and
+    ///     <c>maskContentUnits="objectBoundingBox"</c> content on the fill geometry box, not on the stroke-expanded
+    ///     painted box: the stroke outside the box is masked away, the stroke inside it stays.
+    /// </summary>
+    /// <param name="mask">The <c>mask</c> element: one whose region, or one whose content, is the left half of the box.</param>
+    [Theory]
+    [InlineData("<mask id='m' maskContentUnits='objectBoundingBox'><rect width='0.5' height='1' fill='white'/></mask>")]
+    [InlineData("<mask id='m' x='0' y='0' width='0.5' height='1'><rect width='200' height='100' fill='white'/></mask>")]
+    public void SvgCodec_Load_MaskObjectBoundingBoxOnStrokedShape_UsesGeometryBoundsNotStroke(string mask)
+    {
+        // Arrange: a 160x60 rect at (20,20) with a 20-wide stroke; its fill box is (20,20)-(180,80)
+        var svg = $"""
+            <svg xmlns='http://www.w3.org/2000/svg' width='200' height='100'>
+              {mask}
+              <rect x='20' y='20' width='160' height='60' fill='blue' stroke='red' stroke-width='20' mask='url(#m)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 200, 100);
+
+        // Assert: the stroke outside the fill box is masked away, the fill and the inner half of the stroke stay
+        Assert.Equal(0, surface[15, 50].A);
+        Assert.Equal(0, surface[50, 15].A);
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[50, 50]);
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[25, 50]);
+    }
+
+    /// <summary>
+    ///     Proves that a filter region on a stroked shape is laid out on the fill geometry box, not on the
+    ///     stroke-expanded painted box.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FilterRegionOnStrokedShape_UsesGeometryBoundsNotStroke()
+    {
+        // Arrange: the region is the left half of the 160x60 fill box at (20,20), flooded lime
+        const string svg = """
+            <svg xmlns='http://www.w3.org/2000/svg' width='200' height='100'>
+              <filter id='f' x='0' y='0' width='0.5' height='1'><feFlood flood-color='lime'/></filter>
+              <rect x='20' y='20' width='160' height='60' fill='blue' stroke='red' stroke-width='20' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 200, 100);
+
+        // Assert: the flood covers the fill box's left half only, not the stroke outside it
+        Assert.Equal(0, surface[15, 50].A);
+        Assert.Equal(0, surface[50, 15].A);
+        Assert.Equal(new Rgba32(0, 255, 0, 255), surface[50, 50]);
+        Assert.Equal(new Rgba32(0, 255, 0, 255), surface[25, 50]);
+    }
+
+    /// <summary>
+    ///     Proves that an <c>objectBoundingBox</c> <c>clip-path</c> on a stroked shape maps its unit square onto the
+    ///     fill geometry box, not onto the stroke-expanded painted box.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_ClipPathObjectBoundingBoxOnStrokedShape_UsesGeometryBoundsNotStroke()
+    {
+        // Arrange: the clip is the left half of the 160x60 fill box at (20,20)
+        const string svg = """
+            <svg xmlns='http://www.w3.org/2000/svg' width='200' height='100'>
+              <clipPath id='c' clipPathUnits='objectBoundingBox'><rect width='0.5' height='1'/></clipPath>
+              <rect x='20' y='20' width='160' height='60' fill='blue' stroke='red' stroke-width='20' clip-path='url(#c)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 200, 100);
+
+        // Assert: the stroke outside the fill box is clipped away, the fill and the inner half of the stroke stay
+        Assert.Equal(0, surface[15, 50].A);
+        Assert.Equal(0, surface[50, 15].A);
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[50, 50]);
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[25, 50]);
+    }
+
+    /// <summary>
+    ///     Proves that a <c>mask</c>, <c>filter</c> or <c>objectBoundingBox</c> <c>clip-path</c> on a group uses the
+    ///     union of its children's fill geometry as the object bounding box, without their stroke.
+    /// </summary>
+    /// <param name="effect">The effect attribute on the group.</param>
+    /// <param name="inside">The expected color inside the fill box at (50,50).</param>
+    /// <param name="edge">The expected color of the inner stroke at (25,50).</param>
+    [Theory]
+    [InlineData("mask='url(#m)'", 0xFF0000FFu, 0xFFFF0000u)]
+    [InlineData("filter='url(#f)'", 0xFF00FF00u, 0xFF00FF00u)]
+    [InlineData("clip-path='url(#c)'", 0xFF0000FFu, 0xFFFF0000u)]
+    public void SvgCodec_Load_EffectsOnStrokedGroup_UseGeometryBoundsNotStroke(string effect, uint inside, uint edge)
+    {
+        // Arrange: each effect keeps the left half of the group's 160x60 fill box at (20,20)
+        var svg = $"""
+            <svg xmlns='http://www.w3.org/2000/svg' width='200' height='100'>
+              <mask id='m' maskContentUnits='objectBoundingBox'><rect width='0.5' height='1' fill='white'/></mask>
+              <filter id='f' x='0' y='0' width='0.5' height='1'><feFlood flood-color='lime'/></filter>
+              <clipPath id='c' clipPathUnits='objectBoundingBox'><rect width='0.5' height='1'/></clipPath>
+              <g {effect}><rect x='20' y='20' width='160' height='60' fill='blue' stroke='red' stroke-width='20'/></g>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 200, 100);
+
+        // Assert: nothing outside the fill box; the expected colors inside it
+        Assert.Equal(0, surface[15, 50].A);
+        Assert.Equal(0, surface[50, 15].A);
+        Assert.Equal(ToRgba(inside), surface[50, 50]);
+        Assert.Equal(ToRgba(edge), surface[25, 50]);
+    }
+
+    /// <summary>
+    ///     Converts a packed <c>0xAARRGGBB</c> value to an <see cref="Rgba32"/>.
+    /// </summary>
+    /// <param name="argb">The packed color.</param>
+    /// <returns>The color.</returns>
+    private static Rgba32 ToRgba(uint argb) =>
+        new((byte)(argb >> 16), (byte)(argb >> 8), (byte)argb, (byte)(argb >> 24));
 
     /// <summary>
     ///     Proves that a pathologically large <c>feGaussianBlur</c> <c>stdDeviation</c> (many
@@ -5888,36 +6040,35 @@ public class SvgCodecTests
 
     /// <summary>
     ///     Regression test for a code-review finding: <c>ComputeSubtreeLocalBounds</c> (the
-    ///     bounds-only pre-pass <c>RenderFilteredGroup</c> uses to size a filtered group's own
-    ///     offscreen <c>SourceGraphic</c> buffer) used to exclude marker geometry entirely from a
+    ///     bounds-only pre-pass that sizes a group's own offscreen buffer when no region of a filter or
+    ///     mask applies, as for a <c>clip-path</c> alone) used to exclude marker geometry entirely from a
     ///     group's own painted-content bounds, even though the real render pass that follows it
     ///     (<c>RenderMarkers</c>, re-entered from inside the group's offscreen render) does paint
     ///     marker pixels. A marker commonly extends beyond its host shape's own stroke-expanded
     ///     outline (as this test's arrowhead-style marker deliberately does), so the too-small
-    ///     offscreen buffer silently clipped those marker pixels before the filter chain (or the
+    ///     offscreen buffer silently clipped those marker pixels before the clip (or the
     ///     final composite) ever saw them. Proves the marker's own content now survives a
-    ///     group-level filter unclipped.
+    ///     group-level clip unclipped.
     /// </summary>
     [Fact]
-    public void SvgCodec_Load_FilteredGroupWithLineMarkerExtendingBeyondLineBounds_MarkerPixelsSurviveFilter()
+    public void SvgCodec_Load_ClippedGroupWithLineMarkerExtendingBeyondLineBounds_MarkerPixelsSurviveClip()
     {
         // Arrange: a 20x20 marker (a solid lime square, centered on its refX/refY anchor) placed
         // at a tiny 5-unit-long line's own end vertex (55, 50) - the marker's own painted content
         // (45,40)-(65,60) extends far beyond the line's own stroke-expanded bounds (roughly
-        // 50-55 x, 49.5-50.5 y). The group's filter is a single identity feOffset (dx=0/dy=0,
-        // a pure data copy of SourceGraphic) so a passing test proves the marker pixels survived
-        // the filter round-trip unclipped, without the filter itself changing anything else
+        // 50-55 x, 49.5-50.5 y). The group's clip covers the whole canvas, so a passing test proves
+        // the marker pixels survived the offscreen round-trip, without the clip itself removing anything
         const string svg = """
             <svg viewBox='0 0 100 100'>
               <defs>
                 <marker id='arrow' markerWidth='20' markerHeight='20' refX='0' refY='0' orient='0' markerUnits='userSpaceOnUse'>
                   <rect x='-10' y='-10' width='20' height='20' fill='lime'/>
                 </marker>
-                <filter id='f'>
-                  <feOffset dx='0' dy='0'/>
-                </filter>
+                <clipPath id='c'>
+                  <rect width='100' height='100'/>
+                </clipPath>
               </defs>
-              <g filter='url(#f)'>
+              <g clip-path='url(#c)'>
                 <line x1='50' y1='50' x2='55' y2='50' stroke='black' stroke-width='1' marker-end='url(#arrow)'/>
               </g>
             </svg>
@@ -5927,39 +6078,74 @@ public class SvgCodecTests
         using var stream = ToStream(svg);
         var surface = SvgCodec.Load(stream, 100, 100);
 
-        // Assert: a point well inside the marker's own painted square, but well outside the
-        // line's own stroke-expanded bounds, shows the marker's lime fill - proving its pixels
-        // were not clipped by an offscreen buffer sized only from the line's own tiny bounds
-        Assert.Equal(new Rgba32(0, 255, 0, 255), surface[50, 45]);
+        // Assert: a point well inside the marker's own painted square (in the quadrant browsers also
+        // draw, since they clip marker content to its viewport), but well outside the line's own
+        // stroke-expanded bounds, shows the marker's lime fill - proving its pixels were not clipped
+        // by an offscreen buffer sized only from the line's own tiny bounds
+        Assert.Equal(new Rgba32(0, 255, 0, 255), surface[60, 55]);
     }
 
     /// <summary>
     ///     Regression test for a code-review finding: <c>ComputeSubtreeLocalBounds</c> (the
-    ///     bounds-only pre-pass <c>RenderFilteredGroup</c> uses to size a filtered group's own
-    ///     offscreen <c>SourceGraphic</c> buffer) used to union each descendant's own <em>raw</em>
+    ///     bounds-only pre-pass that sizes a group's own offscreen buffer when no region of a filter or
+    ///     mask applies, as for a <c>clip-path</c> alone) used to union each descendant's own <em>raw</em>
     ///     geometry bounds only, even when a descendant carried its own <c>filter</c> attribute
     ///     whose own filter region extends well beyond that descendant's raw geometry (for
     ///     example an enlarged filter <c>x</c>/<c>y</c>/<c>width</c>/<c>height</c> region, as this
     ///     test deliberately uses). Because the outer group's offscreen buffer was sized purely
     ///     from that too-small pre-pass return value, the real render pass then painted the inner
     ///     filtered descendant's actual (larger) output into the outer buffer, silently clipping
-    ///     every pixel outside the too-small outer bounds before the outer filter chain (here, an
-    ///     identity <c>feOffset</c> pass-through) or the final composite ever saw them. Proves the
-    ///     outer filtered composite now contains the inner filter's full expanded output, not just
-    ///     the portion that happened to fall within the (undersized) region around the inner
-    ///     shape's own tiny raw bounding box.
+    ///     every pixel outside the too-small outer bounds before the outer clip or the final composite
+    ///     ever saw them. Proves the outer clipped composite now contains the inner filter's full
+    ///     expanded output.
     /// </summary>
     [Fact]
-    public void SvgCodec_Load_GroupFilterWithNestedFilteredChildExpandingBeyondOwnBounds_PreservesFullNestedFilterOutput()
+    public void SvgCodec_Load_ClippedGroupWithNestedFilteredChildExpandingBeyondOwnBounds_PreservesFullNestedFilterOutput()
     {
         // Arrange: a tiny 4x4 blue rect (raw bounds (48,48)-(52,52)) carries its own "innerFlood"
-        // filter whose x/y/width/height region attributes are deliberately set far beyond its own
-        // objectBoundingBox (-1000%/-1000%/2100%/2100% of the rect's own 4x4 bbox expands the
-        // inner filter's own region to roughly (8,8)-(92,92) - nearly the whole 100x100 canvas).
-        // The rect is wrapped in an outer <g filter="url(#outerPassThrough)"> whose own filter is
-        // a dx=0/dy=0 feOffset - an identity pass-through that changes nothing, so any pixel
-        // missing from the final result can only be explained by the outer group's own offscreen
-        // buffer having clipped it away before the pass-through filter ever ran
+        // filter whose region (-1000%/-1000%/2100%/2100% of the rect's own 4x4 bbox) is roughly
+        // (8,8)-(92,92). The rect is wrapped in an outer group whose user-space clip covers the
+        // whole canvas, so any pixel missing from the final result can only be explained by the
+        // outer group's own offscreen buffer having clipped it away
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <filter id='innerFlood' x='-1000%' y='-1000%' width='2100%' height='2100%'>
+                  <feFlood flood-color='red'/>
+                </filter>
+                <clipPath id='c'>
+                  <rect width='100' height='100'/>
+                </clipPath>
+              </defs>
+              <g clip-path='url(#c)'>
+                <rect x='48' y='48' width='4' height='4' fill='blue' filter='url(#innerFlood)'/>
+              </g>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: points far outside the inner rect's own tiny box, but inside the inner filter's
+        // expanded region, show the inner feFlood's red output
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[10, 10]);
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[90, 90]);
+
+        // Assert: well outside even the inner filter's own expanded region, nothing was painted
+        Assert.Equal(0, surface[1, 1].A);
+    }
+
+    /// <summary>
+    ///     Proves that a group's own filter region is laid out on the group's object bounding box - the
+    ///     fill geometry of its children - and not on their painted bounds: a child's own, much larger
+    ///     filter region does not enlarge the group's region, so the group filter clips it, as in browsers.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_GroupFilterWithNestedFilteredChild_RegionUsesGroupGeometryBounds()
+    {
+        // Arrange: the inner flood covers roughly (8,8)-(92,92); the outer group's default region is
+        // -10%/120% of the 4x4 rect at (48,48), roughly (47.6,47.6)-(52.4,52.4)
         const string svg = """
             <svg viewBox='0 0 100 100'>
               <defs>
@@ -5980,18 +6166,10 @@ public class SvgCodecTests
         using var stream = ToStream(svg);
         var surface = SvgCodec.Load(stream, 100, 100);
 
-        // Assert: a point far outside the inner rect's own tiny raw bounding box (and far outside
-        // the too-small margin a bounds pre-pass ignoring the inner filter's own expanded region
-        // would have produced around it), but well inside the inner filter's actual expanded
-        // region, shows the inner feFlood's red output surviving all the way through the outer
-        // group's own filter and final composite
-        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[10, 10]);
-        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[90, 90]);
-
-        // Assert: well outside even the inner filter's own (already very generous) expanded
-        // region, nothing was painted - proving this is a genuine bounds fix, not merely an
-        // unconditional expand-to-fill-the-canvas regression
-        Assert.Equal(0, surface[1, 1].A);
+        // Assert: the flood survives inside the outer region and is clipped away outside it
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[50, 50]);
+        Assert.Equal(0, surface[54, 50].A);
+        Assert.Equal(0, surface[10, 10].A);
     }
 
     /// <summary>

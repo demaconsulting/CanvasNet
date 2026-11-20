@@ -1094,9 +1094,10 @@ sections:
               renderable shape or text element's filter presentation attribute, evaluating
               its feFlood/feGaussianBlur/feOffset/feComposite/feMerge primitive children in
               document order against that element's own SourceGraphic content, honoring the
-              filter region's default (-10%/-10%/120%/120% of the element's own bounding box)
-              or explicit x/y/width/height, and tolerating any other primitive type as a
-              no-op passthrough of its own input.
+              filter region's default (-10%/-10%/120%/120% of the element's own geometry
+              bounding box: its fill geometry, excluding stroke and markers) or explicit
+              x/y/width/height, drawing nothing when that box has no width or no height, and
+              tolerating any other primitive type as a no-op passthrough of its own input.
             justification: |
               Real-world SVG documents commonly use filter="url(#id)" for common effects
               such as a solid-color halo/background behind text labels (the reported
@@ -1120,7 +1121,8 @@ sections:
               - SvgCodec_Load_FeCompositeOperatorAtop_BlendsBothInputsWeightedByBothAlphas
               - SvgCodec_Load_FeCompositeOperatorXor_KeepsEachInputWhereTheOtherHasNoCoverage
               - SvgCodec_Load_FeCompositeOperatorXorWithHalfChannelValue_RoundsAwayFromZeroNotToEven
-              - SvgCodec_Load_FilterOnStrokedHorizontalLine_UsesStrokeAwareBoundsNotDegenerate
+              - SvgCodec_Load_FilterRegionOnStrokedShape_UsesGeometryBoundsNotStroke
+              - SvgCodec_Load_ObjectBoundingBoxEffectsOnHorizontalLine_PaintNothing
               - SvgCodec_Load_OpacityWithFeFloodFilter_AppliesOpacityToFilteredResultNotSource
               - SvgCodec_Load_FeCompositeOperatorArithmetic_MatchesHandComputedFormula
               - SvgCodec_Load_FeCompositeOperatorArithmeticAlpha_MatchesFormulaNotHardcodedOrDropped
@@ -1193,7 +1195,9 @@ sections:
               The SvgCodec class shall render a filter="url(#id)" attribute on a g/symbol
               reference or use element by evaluating the referenced filter's primitive chain
               against the whole resolved subtree's own combined rendered content, as a single
-              unit, honoring the same filter-region computation, opacity-applies-to-filtered-
+              unit, honoring the same filter-region computation (on the subtree's geometry
+              bounding box: the union of its fill geometry, excluding stroke, markers and
+              nested filter regions), opacity-applies-to-filtered-
               result-once ordering, and resource-safety budgets already used for a single
               filtered shape, while continuing to have no effect on a filter attribute placed
               on marker content; shall bound the total bounds-only pre-pass work performed
@@ -1273,8 +1277,10 @@ sections:
               - SvgCodec_Load_GroupFilterReferencedByManyUsesExceedingCumulativeBudget_FallsBackToUnfilteredForExcessUses
               - SvgCodec_Load_InkscapeFiltersFixture_ToleratesFiltersAndRendersFlowerContent
               - SvgCodec_Load_FilteredGroupNearTotalElementBudget_RendersWithoutThrowing
-              - SvgCodec_Load_FilteredGroupWithLineMarkerExtendingBeyondLineBounds_MarkerPixelsSurviveFilter
-              - SvgCodec_Load_GroupFilterWithNestedFilteredChildExpandingBeyondOwnBounds_PreservesFullNestedFilterOutput
+              - SvgCodec_Load_ClippedGroupWithLineMarkerExtendingBeyondLineBounds_MarkerPixelsSurviveClip
+              - SvgCodec_Load_ClippedGroupWithNestedFilteredChildExpandingBeyondOwnBounds_PreservesFullNestedFilterOutput
+              - SvgCodec_Load_GroupFilterWithNestedFilteredChild_RegionUsesGroupGeometryBounds
+              - SvgCodec_Load_EffectsOnStrokedGroup_UseGeometryBoundsNotStroke
               - SvgCodec_Load_DeeplyNestedFilteredGroupsExceedingCumulativeBoundsPrePassBudget_ThrowsInvalidDataException
               - SvgCodec_Load_ModestlyNestedFilteredGroups_RenderCorrectlyWithoutFalsePositiveFallback
               - SvgCodec_Load_OuterGroupFilterWithPathologicallyOversizedDescendantFilter_StillAppliesOuterFilter
@@ -1533,7 +1539,9 @@ sections:
               direct rect/circle/ellipse/polyline/polygon/path/text children, honoring
               clipPathUnits (userSpaceOnUse, the default, resolving children in the
               referencing element's own local space; objectBoundingBox, resolving children as
-              fractions of the referencing element's own bounding box) and each clip child's
+              fractions of the referencing element's own geometry bounding box, its fill
+              geometry excluding stroke and markers, and drawing nothing when that box has no
+              width or no height) and each clip child's
               own clip-rule (nonzero, the default, or evenodd), while tolerating a dangling or
               wrong-element-type clip-path reference as a no-op (rendering unclipped).
             justification: |
@@ -1554,6 +1562,10 @@ sections:
               - SvgCodec_Load_ClipPathChildClipRuleEvenOdd_ProducesHoleAtOverlap
               - SvgCodec_Load_ClipPathOnGroup_ClipsCombinedGroupContent
               - SvgCodec_Load_ClipPathReferencesNonClipPathElement_RendersUnclipped
+              - SvgCodec_Load_ClipPathObjectBoundingBoxOnStrokedShape_UsesGeometryBoundsNotStroke
+              - SvgCodec_Load_EffectsOnStrokedGroup_UseGeometryBoundsNotStroke
+              - SvgCodec_Load_ObjectBoundingBoxEffectsOnHorizontalLine_PaintNothing
+              - SvgCodec_Load_UserSpaceOnUseEffectsOnHorizontalLine_AreDrawn
 
           - id: CanvasNetSvg-SvgCodec-MaskRendering
             title: >-
@@ -1567,8 +1579,10 @@ sections:
               defaulting to objectBoundingBox) independently from maskContentUnits (the mask
               content's own coordinate system, defaulting to userSpaceOnUse), with an omitted
               x, y, width or height taking its -10%, -10%, 120% or 120% initial value against
-              the referencing element's bounding box under objectBoundingBox and against the
-              current viewport under userSpaceOnUse, while tolerating a dangling or
+              the referencing element's geometry bounding box (its fill geometry, excluding
+              stroke and markers) under objectBoundingBox and against the current viewport
+              under userSpaceOnUse, drawing nothing when an objectBoundingBox region or content
+              meets a box with no width or no height, while tolerating a dangling or
               wrong-element-type mask reference as a no-op (rendering unmasked).
             justification: |
               mask is SVG's standard mechanism for a soft, gradient-capable reveal/hide effect
@@ -1590,6 +1604,10 @@ sections:
               - SvgCodec_Load_MaskContentUnitsObjectBoundingBox_ScalesMaskContentToReferenceBounds
               - SvgCodec_Load_MaskOnUseElement_MasksResolvedTarget
               - SvgCodec_Load_MaskRegionUserSpaceOmittedAttribute_DefaultsAgainstViewport
+              - SvgCodec_Load_MaskObjectBoundingBoxOnStrokedShape_UsesGeometryBoundsNotStroke
+              - SvgCodec_Load_EffectsOnStrokedGroup_UseGeometryBoundsNotStroke
+              - SvgCodec_Load_ObjectBoundingBoxEffectsOnHorizontalLine_PaintNothing
+              - SvgCodec_Load_UserSpaceOnUseEffectsOnHorizontalLine_AreDrawn
 
           - id: CanvasNetSvg-SvgCodec-EffectOrdering
             title: >-

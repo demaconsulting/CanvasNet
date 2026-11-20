@@ -32,6 +32,9 @@ examples:
   such as a horizontal line, as in browsers: the fallback color is drawn, or
   nothing. A reference to a missing id, to an element that is not a gradient or
   pattern, or to another file draws the fallback color too, or nothing.
+- A filter, mask, or clip path in objectBoundingBox units uses the shape's fill
+  box, without stroke or markers, as in browsers; on a shape with no width or no
+  height (a stroked horizontal line) it draws nothing.
 - Filters: the fe* primitives blend, color matrix, component transfer,
   composite, convolve matrix, lighting, displacement map, drop shadow, flood,
   Gaussian blur, image, merge, morphology, offset, tile, and turbulence.

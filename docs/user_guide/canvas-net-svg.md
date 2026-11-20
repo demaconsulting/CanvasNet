@@ -166,6 +166,14 @@ names an element that is not a gradient or pattern, or points into another file 
 its fallback color, as SVG 2 and the browsers do, and nothing without one. A gradient without stops paints nothing,
 even with a fallback.
 
+**Effects use the fill box.** A `filter`, `mask` or `clip-path` in `objectBoundingBox` units (the default filter and
+mask region, `maskContentUnits="objectBoundingBox"` and `clipPathUnits="objectBoundingBox"`) is laid out on the
+element's fill geometry box, without its stroke, markers or nested filter effects, as SVG 2 and the browsers do: a
+filter region of `x="0" width="0.5"` on a stroked `rect` covers the left half of the fill, and the stroke outside the
+fill box is not drawn. On a group the box is the union of its children's fill geometry. On an element whose box has
+no width or no height, such as a stroked horizontal `line`, such an effect draws nothing; a `userSpaceOnUse` mask or
+clip path still draws it.
+
 `font-size` can be set by an attribute, a `style` attribute, a `style` element rule, or the `font`
 shorthand (for example `font: italic bold 12px/1.5 "Helvetica Neue", sans-serif`, which also resets
 the style, weight and line height it does not name; the `font` attribute ranks below every other

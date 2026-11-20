@@ -65,7 +65,10 @@ namespace DemaConsulting.CanvasNet.Svg;
 ///     offscreen buffer sized to
 ///     the filter region, with the <c>SourceGraphic</c> and <c>SourceAlpha</c> implicit inputs
 ///     supported; the filter region defaults to <c>objectBoundingBox</c>'s standard
-///     <c>-10% -10% 120% 120%</c> (each independently overridable via <c>x</c>/<c>y</c>/
+///     <c>-10% -10% 120% 120%</c> of the element's object bounding box (its fill geometry, without
+///     stroke or markers, the same box a mask, an <c>objectBoundingBox</c> clip path and a gradient use;
+///     an <c>objectBoundingBox</c> effect on a box with no width or no height draws nothing)
+///     (each independently overridable via <c>x</c>/<c>y</c>/
 ///     <c>width</c>/<c>height</c>) - see this class's <c>RenderFilteredShape</c>/
 ///     <c>EvaluateFilterChain</c> remarks for the documented simplifications; and
 ///     <c>text</c> (with <c>font-family</c> resolved first against a caller-supplied font

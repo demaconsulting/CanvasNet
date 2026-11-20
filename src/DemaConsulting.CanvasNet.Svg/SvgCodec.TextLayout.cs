@@ -248,6 +248,22 @@ public static partial class SvgCodec
     }
 
     /// <summary>
+    ///     Unions the local geometry bounds of laid-out runs, without stroke: the object bounding box of a text.
+    /// </summary>
+    /// <param name="runs">The runs.</param>
+    /// <returns>The union, or <see cref="Rect.Empty"/> for no runs.</returns>
+    private static Rect ComputeTextRunsGeometryBounds(IReadOnlyList<TextRun> runs)
+    {
+        var bounds = Rect.Empty;
+        foreach (var run in runs)
+        {
+            bounds = bounds.Union(run.Path.GetBounds());
+        }
+
+        return bounds;
+    }
+
+    /// <summary>
     ///     Collects the characters of one text content element and, recursively, of its <c>tspan</c>/<c>a</c> children.
     /// </summary>
     /// <param name="element">The <c>text</c>, <c>tspan</c> or <c>a</c> element.</param>

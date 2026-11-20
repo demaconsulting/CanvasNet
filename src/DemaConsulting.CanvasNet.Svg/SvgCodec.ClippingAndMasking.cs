@@ -160,7 +160,7 @@ public static partial class SvgCodec
     /// <param name="clipPathElement">The resolved <c>clipPath</c> element.</param>
     /// <param name="target">
     ///     The referencing shape/group's own pre-clip offscreen content buffer (mutated in place),
-    ///     its own local-space painted-content bounds (the <c>objectBoundingBox</c> reference
+    ///     its own local-space object bounding box (fill geometry without stroke; the <c>objectBoundingBox</c> reference
     ///     rectangle when <c>clipPathUnits="objectBoundingBox"</c>), the pixel-space origin the
     ///     buffer was allocated at, and the accumulated transform from the referencing element's
     ///     own local space into pixel space.
@@ -345,7 +345,7 @@ public static partial class SvgCodec
     /// <param name="maskElement">The resolved <c>mask</c> element.</param>
     /// <param name="target">
     ///     The referencing shape/group's own pre-mask offscreen content buffer (mutated in place),
-    ///     its own local-space painted-content bounds, the pixel-space origin the buffer was
+    ///     its own local-space object bounding box (fill geometry without stroke), the pixel-space origin the buffer was
     ///     allocated at, and the accumulated transform from the referencing element's own local
     ///     space into pixel space.
     /// </param>
@@ -454,11 +454,11 @@ public static partial class SvgCodec
     ///     respected.
     /// </summary>
     /// <param name="maskElement">The resolved <c>mask</c> element.</param>
-    /// <param name="bounds">The referencing element's already stroke-expanded local-space painted-content bounds.</param>
+    /// <param name="bounds">The referencing element's local-space object bounding box (fill geometry, no stroke).</param>
     /// <param name="state">The referencing element's cascaded state, resolving a CSS-unit literal under <c>userSpaceOnUse</c>.</param>
     /// <returns>
     ///     The local-space mask region, or <see langword="null"/> if <paramref name="bounds"/> is
-    ///     empty/degenerate or the region resolves to a non-finite or non-positive size.
+    ///     empty/degenerate under <c>objectBoundingBox</c> or the region resolves to a non-finite or non-positive size.
     /// </returns>
     /// <remarks>
     ///     <c>maskUnits</c> and <c>maskContentUnits</c> are two distinct, independently defaulted
@@ -484,13 +484,15 @@ public static partial class SvgCodec
     /// </remarks>
     private static Rect? ComputeMaskRegionLocalBounds(XElement maskElement, Rect bounds, RenderState state)
     {
-        if (bounds.IsEmpty || bounds.Width <= 0f || bounds.Height <= 0f)
+        var isUserSpaceOnUse = string.Equals(
+            (string?)maskElement.Attribute("maskUnits"), "userSpaceOnUse", StringComparison.Ordinal);
+
+        // Only an objectBoundingBox region needs a box with extent on both axes; a userSpaceOnUse
+        // region does not depend on the box at all
+        if (!isUserSpaceOnUse && (bounds.IsEmpty || bounds.Width <= 0f || bounds.Height <= 0f))
         {
             return null;
         }
-
-        var isUserSpaceOnUse = string.Equals(
-            (string?)maskElement.Attribute("maskUnits"), "userSpaceOnUse", StringComparison.Ordinal);
 
         // The initial values are -10%, -10%, 120% and 120% in either units mode (CSS Masking 1); a
         // coordinate is offset from the bounds' origin, an extent is not
@@ -561,7 +563,7 @@ public static partial class SvgCodec
     ///     exact pixel-space conversion/validation core (see <see cref="ConvertLocalRegionToPixelBounds"/>).
     /// </summary>
     /// <param name="maskElement">The resolved <c>mask</c> element.</param>
-    /// <param name="bounds">The referencing shape's own stroke-expanded local-space painted-content bounds.</param>
+    /// <param name="bounds">The referencing shape's own local-space object bounding box (fill geometry, no stroke).</param>
     /// <param name="transform">The accumulated transform from local space into pixel space.</param>
     /// <param name="state">The referencing element's cascaded state, used to resolve a CSS-unit region literal.</param>
     /// <returns>

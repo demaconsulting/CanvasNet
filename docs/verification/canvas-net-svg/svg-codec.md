@@ -1308,7 +1308,8 @@ for `filter`'s own dedicated coverage - it is no longer an out-of-scope construc
 `SvgCodec_Load_FeCompositeOperatorAtop_BlendsBothInputsWeightedByBothAlphas`,
 `SvgCodec_Load_FeCompositeOperatorXor_KeepsEachInputWhereTheOtherHasNoCoverage`,
 `SvgCodec_Load_FeCompositeOperatorXorWithHalfChannelValue_RoundsAwayFromZeroNotToEven`,
-`SvgCodec_Load_FilterOnStrokedHorizontalLine_UsesStrokeAwareBoundsNotDegenerate`,
+`SvgCodec_Load_FilterRegionOnStrokedShape_UsesGeometryBoundsNotStroke`,
+`SvgCodec_Load_ObjectBoundingBoxEffectsOnHorizontalLine_PaintNothing`,
 `SvgCodec_Load_OpacityWithFeFloodFilter_AppliesOpacityToFilteredResultNotSource`,
 `SvgCodec_Load_FeCompositeOperatorArithmetic_MatchesHandComputedFormula`,
 `SvgCodec_Load_FeCompositeOperatorArithmeticAlpha_MatchesFormulaNotHardcodedOrDropped`,
@@ -1331,8 +1332,10 @@ verified at pixels just inside and just outside each computed edge; asserts an e
 `x`/`y`/`width`/`height` overrides the default region computation; asserts
 `filterUnits="userSpaceOnUse"` tolerantly falls back to the same objectBoundingBox-relative region
 computation as the default, rather than being interpreted as literal absolute user-space
-coordinates; and asserts `feOffset` shifts its input by `dx`/`dy` prior to compositing back onto
-the canvas. Two real fixture files corroborate this end to end:
+coordinates; asserts the region on a stroked `rect` is laid out on its fill geometry box, so the
+stroke outside that box is not flooded, and that a filter on a stroked horizontal `line` (an object
+bounding box with no height) draws nothing, as in Edge; and asserts `feOffset` shifts its input by
+`dx`/`dy` prior to compositing back onto the canvas. Two real fixture files corroborate this end to end:
 `SvgFixtures/label-halo.svg` mirrors the reported real-world bug (a `filter="url(#label-bg)"`
 white halo behind a line's own midpoint label, previously invisible while `filter` was ignored),
 and the large, real, third-party `SvgFixtures/InkscapeFilters.svg` (see
@@ -1472,8 +1475,10 @@ million units, and the subregion chain test compares the 4-to-7 unit ratio.
 `SvgCodec_Load_GroupFilterReferencedByManyUsesExceedingCumulativeBudget_FallsBackToUnfilteredForExcessUses`,
 `SvgCodec_Load_InkscapeFiltersFixture_ToleratesFiltersAndRendersFlowerContent`,
 `SvgCodec_Load_FilteredGroupNearTotalElementBudget_RendersWithoutThrowing`,
-`SvgCodec_Load_FilteredGroupWithLineMarkerExtendingBeyondLineBounds_MarkerPixelsSurviveFilter`,
-`SvgCodec_Load_GroupFilterWithNestedFilteredChildExpandingBeyondOwnBounds_PreservesFullNestedFilterOutput`,
+`SvgCodec_Load_ClippedGroupWithLineMarkerExtendingBeyondLineBounds_MarkerPixelsSurviveClip`,
+`SvgCodec_Load_ClippedGroupWithNestedFilteredChildExpandingBeyondOwnBounds_PreservesFullNestedFilterOutput`,
+`SvgCodec_Load_GroupFilterWithNestedFilteredChild_RegionUsesGroupGeometryBounds`,
+`SvgCodec_Load_EffectsOnStrokedGroup_UseGeometryBoundsNotStroke`,
 `SvgCodec_Load_DeeplyNestedFilteredGroupsExceedingCumulativeBoundsPrePassBudget_ThrowsInvalidDataException`,
 `SvgCodec_Load_ModestlyNestedFilteredGroups_RenderCorrectlyWithoutFalsePositiveFallback`,
 `SvgCodec_Load_OuterGroupFilterWithPathologicallyOversizedDescendantFilter_StillAppliesOuterFilter`,
@@ -1532,24 +1537,31 @@ double-charge (once from the bounds pre-pass, once again from the real render pa
 it) - now renders successfully (its `feFlood` fills the whole canvas red) instead of throwing
 `InvalidDataException`, matching what an equivalent *unfiltered* document of the same size would
 have done all along. Second,
-`SvgCodec_Load_FilteredGroupWithLineMarkerExtendingBeyondLineBounds_MarkerPixelsSurviveFilter`
+`SvgCodec_Load_ClippedGroupWithLineMarkerExtendingBeyondLineBounds_MarkerPixelsSurviveClip`
 proves the pre-pass now folds a `line`'s own placed marker content into the group's combined
-bounds: a 20x20 arrowhead-style marker centered on the line's end vertex extends far beyond the
+painted bounds: a 20x20 arrowhead-style marker centered on the line's end vertex extends far beyond the
 line's own tiny stroke-expanded outline, and a point deep inside the marker's own painted square
-(but well outside the line's own bounds) shows the marker's fill color surviving an identity
-(`feOffset dx="0" dy="0"`) group filter - proving the offscreen `SourceGraphic` buffer was sized
-large enough to avoid silently clipping the marker's pixels before the filter/composite step ever
-saw them.
+(but well outside the line's own bounds) shows the marker's fill color surviving a group clip that
+covers the whole canvas - proving the offscreen buffer (sized from the painted box when only a clip
+applies) was sized large enough to avoid silently clipping the marker's pixels before the
+clip/composite step ever saw them. A filter or mask region on a group is laid out on the group's
+geometry box instead (the union of its children's fill geometry, without stroke, markers or nested
+filter regions): `SvgCodec_Load_EffectsOnStrokedGroup_UseGeometryBoundsNotStroke` asserts that a
+mask, a filter and an objectBoundingBox clip on a group around a stroked `rect` all keep the left
+half of the fill box and nothing outside it, and
+`SvgCodec_Load_GroupFilterWithNestedFilteredChild_RegionUsesGroupGeometryBounds` asserts a child's
+own, much larger filter region does not enlarge the group's region, so the group filter clips it.
+Edge headless draws all of these the same way.
 
 A third regression test closes a further code-review finding in the same bounds pre-pass: a
 descendant that itself carries its own `filter` attribute whose own filter region extends beyond
 its raw geometry (an `feFlood` combined with a deliberately enlarged filter
 `x`/`y`/`width`/`height` region, in
-`SvgCodec_Load_GroupFilterWithNestedFilteredChildExpandingBeyondOwnBounds_PreservesFullNestedFilterOutput`)
+`SvgCodec_Load_ClippedGroupWithNestedFilteredChildExpandingBeyondOwnBounds_PreservesFullNestedFilterOutput`)
 used to have only its raw geometry bounds folded into the pre-pass, not its own filter's actual
 (larger) output extent. A tiny 4x4 rect carries an `innerFlood` filter whose region is expanded to
-roughly cover the whole 100x100 canvas, wrapped in an outer `<g>` with an identity
-(`feOffset dx="0" dy="0"`) pass-through filter; points far outside the rect's own raw bounds but
+roughly cover the whole 100x100 canvas, wrapped in an outer `<g>` with a user-space clip covering
+the whole canvas; points far outside the rect's own raw bounds but
 inside the inner filter's actual expanded region now show the inner `feFlood`'s red output
 surviving the outer group's own offscreen round-trip, proving the outer group's buffer is sized
 from the inner filter's own expanded output rather than merely the inner shape's raw geometry -
@@ -1829,7 +1841,11 @@ primitive-specific checks plug into the same broader bounded-work model rather t
 `SvgCodec_Load_DanglingClipPathReference_RendersUnclipped`,
 `SvgCodec_Load_ClipPathChildClipRuleEvenOdd_ProducesHoleAtOverlap`,
 `SvgCodec_Load_ClipPathOnGroup_ClipsCombinedGroupContent`,
-`SvgCodec_Load_ClipPathReferencesNonClipPathElement_RendersUnclipped`
+`SvgCodec_Load_ClipPathReferencesNonClipPathElement_RendersUnclipped`,
+`SvgCodec_Load_ClipPathObjectBoundingBoxOnStrokedShape_UsesGeometryBoundsNotStroke`,
+`SvgCodec_Load_EffectsOnStrokedGroup_UseGeometryBoundsNotStroke`,
+`SvgCodec_Load_ObjectBoundingBoxEffectsOnHorizontalLine_PaintNothing`,
+`SvgCodec_Load_UserSpaceOnUseEffectsOnHorizontalLine_AreDrawn`
 
 Asserts a `clip-path="url(#id)"` referencing a `clipPath` with the default (`userSpaceOnUse`)
 `clipPathUnits` clips a rect's own fill to a circle positioned in the referencing element's own
@@ -1849,6 +1865,11 @@ combined rendered content of all of its children as a single unit, the same
 establishes for group-level `filter`; and asserts a `clip-path` reference that resolves to a
 well-formed element which is not literally a `clipPath` (a plain `rect`) is tolerated as a no-op,
 rendering unclipped, mirroring this codec's existing `filter`/marker wrong-element-type tolerance.
+The object bounding box is the fill geometry without stroke: an `objectBoundingBox` clip of the
+left half on a stroked `rect` (alone or inside a `g`) keeps the fill and the inner half of the
+stroke and removes the stroke outside the fill box; on a stroked horizontal `line`, whose box has
+no height, it draws nothing, while a `userSpaceOnUse` clip still draws the line. Edge headless
+draws each of these cases the same way.
 
 #### CanvasNetSvg-SvgCodec-MaskRendering: `mask` Luminance Semantics and Independent Unit Attributes
 
@@ -1857,7 +1878,11 @@ rendering unclipped, mirroring this codec's existing `filter`/marker wrong-eleme
 `SvgCodec_Load_MaskUnitsUserSpaceOnUse_ReadsRegionAsAbsoluteCoordinates`,
 `SvgCodec_Load_MaskContentUnitsObjectBoundingBox_ScalesMaskContentToReferenceBounds`,
 `SvgCodec_Load_MaskOnUseElement_MasksResolvedTarget`,
-`SvgCodec_Load_MaskRegionUserSpaceOmittedAttribute_DefaultsAgainstViewport`
+`SvgCodec_Load_MaskRegionUserSpaceOmittedAttribute_DefaultsAgainstViewport`,
+`SvgCodec_Load_MaskObjectBoundingBoxOnStrokedShape_UsesGeometryBoundsNotStroke`,
+`SvgCodec_Load_EffectsOnStrokedGroup_UseGeometryBoundsNotStroke`,
+`SvgCodec_Load_ObjectBoundingBoxEffectsOnHorizontalLine_PaintNothing`,
+`SvgCodec_Load_UserSpaceOnUseEffectsOnHorizontalLine_AreDrawn`
 
 Asserts a `mask="url(#id)"` referencing a `mask` element with a white rect over half the
 referencing element's own bounds and a black rect over the other half fully reveals the element
@@ -1881,6 +1906,12 @@ quarter of a 200x100 document, and asserts the render is pixel-identical to the 
 value of the initial percentage (`-20`, `-10`, `240` and `120`: `-10%` or `120%` of the viewport
 width or height) and differs from the bounding-box reading (`90`, `45`, `120` and `60`), which
 clips the shape differently (CSS Masking 1: the initial values are percentages in both modes).
+`SvgCodec_Load_MaskObjectBoundingBoxOnStrokedShape_UsesGeometryBoundsNotStroke` asserts that both an
+`objectBoundingBox` region and `objectBoundingBox` content on a stroked `rect` are laid out on its
+fill geometry box, so the stroke outside that box is masked away (the group form is covered by
+`SvgCodec_Load_EffectsOnStrokedGroup_UseGeometryBoundsNotStroke`); a mask on a stroked horizontal
+`line` draws nothing, unless both its region and its content are in `userSpaceOnUse`. Edge headless
+draws each of these cases the same way.
 
 #### CanvasNetSvg-SvgCodec-EffectOrdering: Clip/Mask-Before-Filter Ordering and Regression Coverage
 
