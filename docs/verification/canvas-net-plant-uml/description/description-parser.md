@@ -90,7 +90,7 @@ of `usecaseBorderColor`.
 `DescriptionParserTests.PlantUmlDescriptionParser_Parse_Notes_AreAttached`
 
 Asserts the reports, at their lines and with `plantuml-statement-unsupported`, of a port and a link to it (left out), a
-middle decoration, `together`, `hide`, `remove`, an artifact (drawn as a rectangle), an archimate element, a json
+middle decoration, `together`, `hide`, `remove`, a process (drawn as a rectangle), an archimate element, a json
 block, a URL, and a stereotype of a link, and the links that are kept.
 
 ##### CanvasNetPlantUml-Description-DescriptionParser-Errors: Located Errors

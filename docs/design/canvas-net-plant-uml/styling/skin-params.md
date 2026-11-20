@@ -25,8 +25,9 @@ silently ignored, so an author learns which settings were not applied. The unit'
   `classStereotype` and `objectStereotype` (the stereotypes), `classAttribute` (the members), `object` and `map`,
   `package`, `state` (the states and composite states), and `stateAttribute` (their descriptions); there `arrow` also
   styles the links (`SvekArrow`). The description prefixes, read only in description diagrams: `component`, `interface`,
-  `node`, `rectangle`, `folder`, `frame`, `cloud`, `card`, and `usecase` (with `database` and `actor`, shared with
-  sequence diagrams, styling the database and the actors of the description theme).
+  `node`, `rectangle`, `folder`, `frame`, `cloud`, `card`, `artifact`, `storage`, `file`, `stack`, `agent`, `hexagon`,
+  `person`, `label`, and `usecase` (with `database`, `actor`, `queue`, `boundary`, `control`, `entity`, and
+  `collections`, shared with sequence diagrams, styling those symbols of the description theme).
 - The property suffixes: `BackgroundColor`, `BorderColor` (also `Color` and `LineColor`), `FontColor`, `FontSize`,
   `FontName`, `FontStyle`, and `BorderThickness` (also `Thickness`).
 - The accepted ranges: font sizes from 1 to 500, line widths from 0 to 100, widths from 1 to 100,000.

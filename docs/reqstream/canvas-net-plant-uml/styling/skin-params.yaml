@@ -62,12 +62,13 @@ sections:
               - id: CanvasNetPlantUml-Styling-SkinParams-DescriptionSubset
                 title: >-
                   The SkinParams unit shall apply, in description diagrams only, the colors, fonts, and line widths of
-                  the component, interface, node, rectangle, folder, frame, cloud, card, and usecase symbols (and of the
-                  database and the actor, shared with sequence diagrams), and shall report the same symbol parameters
-                  as ignored in class and state diagrams.
+                  the component, interface, node, rectangle, folder, frame, cloud, card, artifact, storage, file, stack,
+                  agent, hexagon, person, label, and usecase symbols (and of the database, actor, queue, boundary,
+                  control, entity, and collections symbols, shared with sequence diagrams), and shall report the same
+                  symbol parameters as ignored in class and state diagrams.
                 justification: |
-                  Use case and component diagrams set their look with these parameters; a class diagram does not draw
-                  these symbols, so the parameters must not be silently accepted there.
+                  Use case, component, and deployment diagrams set their look with these parameters; a class diagram
+                  does not draw these symbols, so the parameters must not be silently accepted there.
                 tests:
                   - PlantUmlSkinParams_Apply_DescriptionSubset_OnlyInDescriptionDiagrams
 

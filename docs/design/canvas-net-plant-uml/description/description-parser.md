@@ -28,11 +28,11 @@ a quote, so these ids never take the id of an element or a floating note).
 #### Key Methods
 
 - `Parse(source, detected, limits)` - reads every statement (`ReadStatement`) and builds the model (`Build`): a name
-  only written in links becomes an actor when the diagram has a use case or an actor (not their business forms), else
-  an interface, as PlantUML's `makeDiagramReady` decides; every element whose symbol has no drawing of its own is
-  reported as drawn as a rectangle; the theme is the description theme (`SkinTheme.Description`) with the skin
-  parameters applied as a graph and description diagram (`SkinParams.Apply(..., graph: true, description: true)`); an
-  unclosed block is a located syntax error at its opening.
+  only written in links becomes an actor when the diagram has a use case or an actor (not their business forms), else an
+  interface, as PlantUML's `makeDiagramReady` decides; every element whose symbol has no drawing of its own (an action,
+  a process, an archimate element) is reported as drawn as a rectangle; the theme is the description theme
+  (`SkinTheme.Description`) with the skin parameters applied as a graph and description diagram
+  (`SkinParams.Apply(..., graph: true, description: true)`); an unclosed block is a located syntax error at its opening.
 - `ReadStatement(index)` - in order: skin parameters and style blocks, the closer `}`, page texts, the direction, links
   (`SvekSyntax.TryReadLink`, first, as PlantUML tries its link command before its declarations and notes), the keyword
   statements (the symbol keywords of `SymbolKeywords` followed by a name or a block opener, `port`, `portin`,

@@ -70,18 +70,51 @@ larger than theirs, and does not depend on their order, and the ratio's bounds.
 
 **Tests**: `DescriptionRendererTests.PlantUmlDescriptionRenderer_Image_Symbols_HavePlantUmlMargins`,
 `DescriptionRendererTests.PlantUmlDescriptionRenderer_Image_FolderAndPackage_HaveTheirTab`,
+`DescriptionRendererTests.PlantUmlDescriptionRenderer_Image_DeploymentOutlines_AreTheSymbols`,
 `DescriptionRendererTests.PlantUmlDescriptionRenderer_Image_SymbolWithoutDrawing_IsARectangle`
 
 Asserts the margins, the offset of the name, and the number of shapes of the node, rectangle, frame, cloud, database,
-and card; the folder's empty tab and the package's bold title in its tab; and an artifact drawn as a rectangle with
-margins of 10 in the `Description` style.
+card, artifact, storage, file, queue, stack, agent, collections, and label (no shape); the folder's empty tab and the
+package's bold title in its tab; a small storage's outline starting at half its width (an ellipse) and a long one's at
+35, a stack's filled box without an outline and its unfilled ledges from the top-left corner, a collections symbol's
+back box 4 to the right and below and 4 smaller, and an artifact's document icon of 12 by 14, 17 from the right and 5
+from the top; and an action drawn as a rectangle with margins of 10 in the `Description` style (a process container is
+not drawn either).
+
+##### CanvasNetPlantUml-Description-DescriptionRenderer-Hexagons: Hexagons
+
+**Tests**: `DescriptionRendererTests.PlantUmlDescriptionRenderer_Image_Hexagon_IsTwiceAsWideAsItsTexts`
+
+Asserts a hexagon box twice as wide as its name and 10 higher, the name a quarter of the width from the left and 5
+from the top, and an outline of six corners starting at the middle of the left side and turning at a quarter of the
+width on the top.
+
+##### CanvasNetPlantUml-Description-DescriptionRenderer-Persons: Persons
+
+**Tests**: `DescriptionRendererTests.PlantUmlDescriptionRenderer_Image_Person_HasAHeadOverItsBody`
+
+Asserts PlantUML's head of 20.663 for the name `Person` (0.42 times the square root of the body's area), the image as
+wide as the body and as high as the body and the head, the head centered at the top, the body below it, and the name
+10 from the left and 10 below the head.
+
+##### CanvasNetPlantUml-Description-DescriptionRenderer-SequenceSymbols: Boundaries, Controls, and Entities
+
+**Tests**: `DescriptionRendererTests.PlantUmlDescriptionRenderer_Image_SequenceSymbols_AreThoseOfSequenceDiagrams`
+
+Asserts, for a boundary, a control, and an entity, a box 49 or 32 wide and 32 plus the name high for a short name and
+as wide as a long name, the circle of 24 four from the top and centered (a boundary's 8.5 right of the middle), two
+paths, the name 32 from the top, and the mark outlined 0.5 wide (a control's arrow 1).
 
 ##### CanvasNetPlantUml-Description-DescriptionRenderer-Containers: Containers
 
 **Tests**: `DescriptionRendererTests.PlantUmlDescriptionRenderer_ContainerImage_Component_HasIconAndTitle`,
+`DescriptionRendererTests.PlantUmlDescriptionRenderer_ContainerImage_DeploymentSymbols_DrawTheirOutline`,
 `DescriptionRendererTests.PlantUmlDescriptionRenderer_ContainerImage_Symbols_UseClusterOutlines`
 
 Asserts the header and padding of a component container, its unfilled outline one pixel wide with the icon, the
-stereotype 13 from the top, and the bold centered title below it; asserts a node container as a Svek cluster image
+stereotype 13 from the top, and the bold centered title below it; asserts, for artifact, storage, file, queue, stack,
+and hexagon containers, the same header and padding, the number of shapes of the outline (4, 1, 2, 2, 2, 1), none
+filled, one pixel wide (a stack's box without an outline), the stereotype at 2 (5 for a storage, 13 for a stack), and
+the bold centered title below it (2 lower for a storage); asserts a node container as a Svek cluster image
 with a stereotype of 14 and the fill of `nodeBackgroundColor`, a component container's own fill, and no colors for a
 cloud without skin parameters.

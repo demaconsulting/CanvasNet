@@ -6,15 +6,16 @@ This document describes the subsystem-level verification strategy for the `Descr
 
 ### Verification Approach
 
-The subsystem is verified by reading small original component and use case diagram texts with `DescriptionParser` (after
-the `Preprocessor` unit of the Syntax subsystem, with a `component` detected type), laying them out with
-`DescriptionModel.Layout` (which lowers them to the Svek engine, used as is with the dagre layout of the CanvasNetLayout
-system), and asserting the model and the scene: the elements and their ids, the roles and texts of the scene items, the
-colors of the skin parameters, the reports, and that two layouts give the same scene. The Svek, Syntax, Styling, and
-Scenegraph subsystems are used as is. No mocking is required; the internal types are reached through the test assembly's
-`InternalsVisibleTo` access. Subsystem tests reside in `Description/DescriptionTests.cs`; the shared helpers (parsing a
-diagram body, the context of a layout call, drawing an element) are in `Description/DescriptionTestHelpers.cs`. The
-pictures of the original fixtures are compared with the PlantUML jar's in the system's reference shape tests.
+The subsystem is verified by reading small original component, use case, and deployment diagram texts with
+`DescriptionParser` (after the `Preprocessor` unit of the Syntax subsystem, with a `component` detected type), laying
+them out with `DescriptionModel.Layout` (which lowers them to the Svek engine, used as is with the dagre layout of the
+CanvasNetLayout system), and asserting the model and the scene: the elements and their ids, the roles and texts of the
+scene items, the colors of the skin parameters, the reports, and that two layouts give the same scene. The Svek, Syntax,
+Styling, and Scenegraph subsystems are used as is. No mocking is required; the internal types are reached through the
+test assembly's `InternalsVisibleTo` access. Subsystem tests reside in `Description/DescriptionTests.cs`; the shared
+helpers (parsing a diagram body, the context of a layout call, drawing an element) are in
+`Description/DescriptionTestHelpers.cs`. The pictures of the original fixtures are compared with the PlantUML jar's in
+the system's reference shape tests.
 
 ### Test Environment
 
@@ -38,13 +39,18 @@ that differs from the expected value constitutes a failure.
 Reads a diagram with a title, a component with a stereotype in a package, a component container in a node with a
 database, a cloud, an interface written `() HTTP`, a name only written in a link (an interface), a note, and labeled
 links, and asserts the facts (six leaves, five links, three containers) and no report. Reads a diagram with an
-artifact and a middle decoration and asserts the two reports at their lines, in text order.
+action and a middle decoration and asserts the two reports at their lines, in text order.
 
 **Tests**: `DescriptionTests.PlantUmlDescription_UseCase_DrawsActorsAndUseCases`
 
 Reads a use case diagram with an actor, a use case and a business use case in a boundary, a name only written in a
 link (an actor), and an `<<include>>` link, and asserts the facts (four leaves, three links, one boundary) and no
 report.
+
+**Tests**: `DescriptionTests.PlantUmlDescription_Deployment_DrawsSymbolsAndContainers`
+
+Reads a deployment diagram with an artifact in a node, a hexagon in a stack with a stereotype, a queue, a person, a
+label, and three links, and asserts the facts (five leaves, three links, two containers) and no report.
 
 #### CanvasNetPlantUml-Description-Layout: The Diagram Is Lowered And Laid Out
 
@@ -67,6 +73,12 @@ from `componentBackgroundColor`, `componentBorderColor`, and `interfaceFontColor
 Asserts the head of the actor named only in a link outlined in the color of `actorBorderColor`, the ellipse of a use
 case filled with `usecaseBackgroundColor`, the slash of the business use case, the `«include»` link label, and the
 boundary's title.
+
+**Tests**: `DescriptionTests.PlantUmlDescription_Deployment_DrawsSymbolsAndContainers`
+
+Asserts the artifact filled with `artifactBackgroundColor`, the queue outlined in the color of `queueBorderColor`, the
+outlines of the hexagon and the person, the label's name without an outline, the stack container's two shapes and
+stereotype, and the three links.
 
 #### CanvasNetPlantUml-Description-Limits: The Diagram Is Bounded
 

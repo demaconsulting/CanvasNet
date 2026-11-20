@@ -58,6 +58,7 @@ sections:
           - CanvasNetPlantUml_State_SyntaxErrors_AreLocated
           - CanvasNetPlantUml_Component_SyntaxErrors_AreLocated
           - CanvasNetPlantUml_UseCase_SyntaxErrors_AreLocated
+          - CanvasNetPlantUml_Deployment_SyntaxErrors_AreLocated
 
       - id: CanvasNetPlantUml-DiagramTypes
         title: >-
@@ -75,6 +76,7 @@ sections:
           - CanvasNetPlantUml_OtherDiagramTypes_AreRecognized
           - PlantUmlDiagramDetector_Detect_ComponentDiagram_IsDrawn
           - PlantUmlDiagramDetector_Detect_UseCaseDiagram_IsDrawn
+          - PlantUmlDiagramDetector_Detect_DeploymentDiagram_IsDrawn
 
       - id: CanvasNetPlantUml-Preprocessor
         title: >-
@@ -165,6 +167,7 @@ sections:
           - CanvasNetPlantUml_State_Render_ObservesCancellation
           - CanvasNetPlantUml_Component_Render_ObservesCancellation
           - CanvasNetPlantUml_UseCase_Render_ObservesCancellation
+          - CanvasNetPlantUml_Deployment_Render_ObservesCancellation
 
       - id: CanvasNetPlantUml-Sequence
         title: >-
@@ -338,6 +341,41 @@ sections:
           - CanvasNetPlantUml_UseCase_Facts_CountElementsLinksAndContainers
           - CanvasNetPlantUml_UseCase_BareNames_BecomeActors
 
+      - id: CanvasNetPlantUml-Deployment
+        title: >-
+          The library shall draw PlantUML deployment diagrams (nodes, artifacts, databases, clouds, folders, frames,
+          cards, rectangles, storages, files, queues, stacks, agents, hexagons, persons, boundaries, controls,
+          entities, collections, and labels, as elements and, for the symbols PlantUML allows, as nested containers;
+          display names, stereotypes, and colors; links with their decorations, styles, lengths, direction hints, and
+          labels; notes; page texts; the direction; and the supported skin parameters) with PlantUML's shapes, texts,
+          colors, and decorations, laid out in ranks so that no two elements overlap, so that every element,
+          container, and link of the reference fixtures has the size, texts, colors, and decorations of PlantUML's
+          (positions may differ), and shall count the elements as nodes, links as edges, and containers as
+          subgraphs.
+        tags: [system]
+        justification: |
+          Deployment diagrams show where software runs, and appear in architecture and operations documentation;
+          PlantUML lays them out with Graphviz, which this library does not use, so the symbols and containers must
+          look like PlantUML's while the layered layout places them. A hexagon is drawn with the outline that
+          PlantUML's Graphviz pipeline gives it (its Smetana layout leaves it out); an action and a process, rarely
+          used, are drawn as rectangles and reported.
+        children:
+          - CanvasNetPlantUml-Description-Reading
+          - CanvasNetPlantUml-Description-Layout
+          - CanvasNetPlantUml-Description-Drawing
+          - CanvasNetPlantUml-Svek-Reading
+          - CanvasNetPlantUml-Svek-Layout
+          - CanvasNetPlantUml-Svek-Drawing
+          - CanvasNetPlantUml-Syntax-Detection
+        tests:
+          - CanvasNetPlantUml_Graph_ReferenceGoldens_CoverEveryFixture
+          - CanvasNetPlantUml_Description_ReferenceElements_MatchPlantUml
+          - CanvasNetPlantUml_Description_ReferenceContainers_MatchPlantUml
+          - CanvasNetPlantUml_Description_ReferenceLinks_MatchPlantUml
+          - CanvasNetPlantUml_Deployment_Fixtures_RenderWithoutReports
+          - CanvasNetPlantUml_Deployment_Facts_CountElementsLinksAndContainers
+          - CanvasNetPlantUml_Deployment_Symbols_HaveTheirOwnDrawing
+
       - id: CanvasNetPlantUml-UnsupportedTypes
         title: >-
           The library shall render a recognized diagram type that this version does not draw as an empty, transparent
@@ -374,6 +412,7 @@ sections:
           - CanvasNetPlantUml_State_UnsupportedStatements_AreReported
           - CanvasNetPlantUml_Component_UnsupportedStatements_AreReported
           - CanvasNetPlantUml_UseCase_UnsupportedStatements_AreReported
+          - CanvasNetPlantUml_Deployment_UnsupportedStatements_AreReported
 
       - id: CanvasNetPlantUml-DefaultLook
         title: >-
@@ -400,6 +439,8 @@ sections:
           - CanvasNetPlantUml_Component_Render_IsDeterministicAndScaled
           - CanvasNetPlantUml_UseCase_DefaultSkin_PaintsPlantUmlColors
           - CanvasNetPlantUml_UseCase_Render_IsDeterministicAndScaled
+          - CanvasNetPlantUml_Deployment_DefaultSkin_PaintsPlantUmlColors
+          - CanvasNetPlantUml_Deployment_Render_IsDeterministicAndScaled
           - CanvasNetPlantUml_Gallery_HoldsEveryDrawnDiagramType
           - CanvasNetPlantUml_Gallery_RendersStrictWithoutWarnings
 

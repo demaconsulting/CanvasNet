@@ -88,4 +88,33 @@ public class DescriptionTests
         Assert.Contains(scene.Items, i => i is SceneText { Role: "cluster-title", Text: "Shop" });
         Assert.Empty(model.Reports);
     }
+
+    /// <summary>
+    ///     Validates the whole subsystem on a deployment diagram: the deployment symbols as elements and containers are
+    ///     read, laid out with their links, and drawn with their own outlines (a label without one) in the skin
+    ///     parameters of their symbols, with no report.
+    /// </summary>
+    [Fact]
+    public void PlantUmlDescription_Deployment_DrawsSymbolsAndContainers()
+    {
+        // Arrange
+        const string Body = "skinparam artifactBackgroundColor #FFF0F0\nskinparam queueBorderColor #006400\nnode Host {\nartifact App\n}\nstack Layers <<osi>> {\nhexagon Core\n}\nqueue Jobs\nperson Admin\nlabel Note\nAdmin --> App\nApp --> Jobs\nJobs --> Core";
+        var model = Parse(Body);
+
+        // Act
+        var scene = model.Layout(Context());
+
+        // Assert
+        Assert.Equal((5, 3, 2), (model.NodeCount, model.EdgeCount, model.SubgraphCount));
+        Assert.Empty(model.Reports);
+        Assert.Equal(new Canvas.Rgba32(0xFF, 0xF0, 0xF0, 255), scene.Items.OfType<ScenePath>().Single(p => p.Role == "description" && p.Id == "Host.App").Fill);
+        Assert.Equal(new Canvas.Rgba32(0, 0x64, 0, 255), scene.Items.OfType<ScenePath>().Single(p => p.Role == "description" && p.Id == "Jobs").Stroke!.Color);
+        Assert.Contains(scene.Items, i => i.Role == "description" && i.Id == "Layers.Core");
+        Assert.Contains(scene.Items, i => i.Role == "description" && i.Id == "Admin");
+        Assert.DoesNotContain(scene.Items, i => i.Role == "description" && i.Id == "Note");
+        Assert.Contains(scene.Items, i => i is SceneText { Role: "description-name", Id: "Note" });
+        Assert.Equal(2, scene.Items.Count(i => i is ScenePath && i.Role == "cluster" && i.Id == "Layers"));
+        Assert.Contains(scene.Items, i => i is SceneText { Role: "cluster-stereotype", Id: "Layers" });
+        Assert.Equal(3, scene.Items.Count(i => i.Role == "link" && i is ScenePath));
+    }
 }

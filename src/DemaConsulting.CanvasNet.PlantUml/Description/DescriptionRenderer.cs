@@ -38,7 +38,10 @@ internal sealed class DescriptionImage(double width, double height, SvekClip cli
 ///     (<c>svek/image/EntityImageDescription</c>, the small and large forms of <c>decoration/symbol/USymbolComponent2</c>,
 ///     <c>USymbolInterface</c> with <c>svek/CircleInterface2</c>, <c>USymbolNode</c>, <c>USymbolRectangle</c>,
 ///     <c>USymbolFolder</c>, <c>USymbolFrame</c>, <c>USymbolCloud</c>, <c>USymbolDatabase</c>, <c>USymbolCard</c>,
-///     <c>USymbolActor</c>, <c>USymbolActorBusiness</c>, and <c>USymbolUsecase</c>).
+///     <c>USymbolActor</c>, <c>USymbolActorBusiness</c>, <c>USymbolUsecase</c>, and the deployment symbols
+///     <c>USymbolArtifact</c>, <c>USymbolStorage</c>, <c>USymbolFile</c>, <c>USymbolQueue</c>, <c>USymbolStack</c>,
+///     <c>USymbolHexagon</c>, <c>USymbolPerson</c>, <c>USymbolBoundary</c>, <c>USymbolControl</c>,
+///     <c>USymbolEntityDomain</c>, <c>USymbolCollections</c>, and <c>USymbolLabel</c>).
 /// </summary>
 /// <remarks>
 ///     <para>
@@ -56,19 +59,23 @@ internal sealed class DescriptionImage(double width, double height, SvekClip cli
 ///         margins. <b>Actor.</b> The stick figure (head filled <c>#F1F1F1</c>) with the stereotypes above it and the
 ///         name below it; a business actor's head is crossed by a slash. <b>Use case.</b> The texts, centered, in the
 ///         smallest ellipse of their proportions that holds every line, grown by 6; links end on the ellipse; a
-///         business use case has a margin of 7 on each side of its texts and a slash across its lower right side. Every
-///         other symbol is drawn as a rectangle (and reported by the parser).
+///         business use case has a margin of 7 on each side of its texts and a slash across its lower right side.
+///         <b>Deployment symbols.</b> Artifact, storage, file, queue, stack, agent, hexagon, person, boundary, control,
+///         entity, collections, and label are drawn with their symbol's outline and margins (a label has none, a hexagon
+///         the outline Graphviz gives it); a circle is drawn as an interface. The action, the process, and archimate
+///         elements are drawn as rectangles (and reported by the parser).
 ///     </para>
 ///     <para>
 ///         <b>Containers.</b> A component container is a rectangle (corners of 5, <c>#181818</c> one pixel wide, not
 ///         filled) with the component icon at its top right, its stereotypes 13 from the top, and its bold title below
-///         them, centered; the other containers are the Svek cluster symbols (<see cref="SvekRenderer.ClusterImage"/>)
-///         with stereotypes of 14.
+///         them, centered; artifact, storage, file, queue, stack, and hexagon containers are their symbol's large form
+///         (<see cref="DescriptionContainerImage"/>); the other containers are the Svek cluster symbols
+///         (<see cref="SvekRenderer.ClusterImage"/>) with stereotypes of 14.
 ///     </para>
 ///     <para>
 ///         Every item of an element carries its id and one of the roles <c>description</c> (the outline),
 ///         <c>description-detail</c> (the other lines of an outline), <c>description-icon</c>,
-///         <c>description-stereotype</c>, and <c>description-name</c>; the items of a component container carry the
+///         <c>description-stereotype</c>, and <c>description-name</c>; the items of a container image carry the
 ///         roles <c>cluster</c>, <c>cluster-stereotype</c>, and <c>cluster-title</c>. The class is stateless and safe for
 ///         concurrent use.
 ///     </para>

@@ -53,9 +53,10 @@ the `#F1F1F1` fill and half-pixel line of choices and histories.
 
 **Tests**: `SkinThemeTests.PlantUmlSkinTheme_Description_HasPlantUmlComponentLook`
 
-Asserts that the ten description elements (the use case among them) are `#F1F1F1`, outlined `#181818` half a pixel
-wide with corners of 5 and text of 14 in the description theme, whose database and actor are `#F1F1F1` (the actor
-outlined `#181818` half a pixel wide) while the default theme's stay `#E2E2F0`.
+Asserts that the eighteen description elements (the use case and the deployment symbols among them) are `#F1F1F1`,
+outlined `#181818` half a pixel wide with corners of 5 and text of 14 in the description theme, whose database and
+actor are `#F1F1F1` (the actor outlined `#181818` half a pixel wide) and whose queue, boundary, control, entity, and
+collections are `#F1F1F1` with corners of 5, while the default theme's stay `#E2E2F0` (with square corners).
 
 ##### CanvasNetPlantUml-Styling-SkinTheme-Immutable: A Change Returns A Copy
 

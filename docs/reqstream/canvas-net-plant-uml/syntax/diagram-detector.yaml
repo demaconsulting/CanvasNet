@@ -47,9 +47,9 @@ sections:
                   object or a map is declared before any class), then a legacy activity diagram, then a description
                   diagram (a use case diagram when any statement uses a use case construct, else a component diagram
                   when any statement uses a component construct, else a deployment diagram), then a state diagram, and
-                  shall draw the class, object, state, use case, and component diagrams. A line :x whose action is
-                  never closed refuses the activity diagram when a graph family reads the text (it is a statement, such
-                  as the actor :Guest:), and is the activity diagram's unclosed action otherwise.
+                  shall draw the class, object, state, use case, component, and deployment diagrams. A line :x whose
+                  action is never closed refuses the activity diagram when a graph family reads the text (it is a
+                  statement, such as the actor :Guest:), and is the activity diagram's unclosed action otherwise.
                 justification: |
                   A text that several families could read must be the diagram PlantUML draws from it: a plain message is
                   a sequence diagram, a class relationship a class diagram, a class mixed with an actor a class
@@ -59,13 +59,14 @@ sections:
                   - PlantUmlDiagramDetector_Detect_ClassFamily_IsDrawn
                   - PlantUmlDiagramDetector_Detect_ComponentDiagram_IsDrawn
                   - PlantUmlDiagramDetector_Detect_UseCaseDiagram_IsDrawn
+                  - PlantUmlDiagramDetector_Detect_DeploymentDiagram_IsDrawn
                   - PlantUmlDiagramDetector_Detect_UnclosedActionOfActivity_IsActivity
                   - PlantUmlDiagramDetector_Detect_GraphFamilies_FollowPlantUmlOrder
 
               - id: CanvasNetPlantUml-Syntax-DiagramDetector-OtherTypes
                 title: >-
                   The DiagramDetector unit shall name the type of a diagram that no drawn type reads from the first
-                  statement that only another type uses (legacy activity, deployment, timing, gantt), as a
+                  statement that only another type uses (legacy activity, timing, gantt), as a
                   type that is not drawn, with a hint that lists the drawn types.
                 justification: |
                   A diagram of a type that is not drawn must be reported as such, not as a syntax error.

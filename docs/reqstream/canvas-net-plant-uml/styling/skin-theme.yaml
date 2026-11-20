@@ -57,10 +57,11 @@ sections:
               - id: CanvasNetPlantUml-Styling-SkinTheme-DescriptionLook
                 title: >-
                   The SkinTheme unit shall hold the values of PlantUML's default look for the elements of description
-                  diagrams (components, interfaces, nodes, rectangles, folders, frames, clouds, cards, use cases, and
-                  the other symbols): filled `#F1F1F1` and outlined `#181818` half a pixel wide with corners of 5 and
-                  text of 14 pixels, and a description theme whose database and actor are filled like them instead of
-                  like a sequence participant.
+                  diagrams (components, interfaces, nodes, rectangles, folders, frames, clouds, cards, artifacts,
+                  storages, files, stacks, agents, hexagons, persons, labels, use cases, and the other symbols): filled
+                  `#F1F1F1` and outlined `#181818` half a pixel wide with corners of 5 and text of 14 pixels, and a
+                  description theme whose database, actor, queue, boundary, control, entity, and collections symbols
+                  are filled like them instead of like a sequence participant (the last five with corners of 5).
                 justification: |
                   These are the values of PlantUML's componentDiagram element style, which a diagram without skin
                   parameters must match.

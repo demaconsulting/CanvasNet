@@ -11,9 +11,9 @@ namespace DemaConsulting.CanvasNet.PlantUml.Description;
 ///         The parser reads every statement of PlantUML's description diagrams (the elements of every symbol with their
 ///         names, stereotypes, and colors, the shorthands <c>[C]</c>, <c>() I</c>, <c>(U)</c>, and <c>:A:</c>,
 ///         containers with braces, links, notes, page texts, the direction, and the skin parameters). The renderer
-///         draws the components with their icon, the interface circles with their names below them, the leaf forms of
-///         the node, rectangle, folder, package, frame, cloud, database, and card symbols, and the component container;
-///         the other symbols are drawn as rectangles and reported.
+///         draws the components with their icon, the interface circles with their names below them, the actors and use
+///         cases, the leaf forms of every other symbol, and the large forms of the container symbols; the action, the
+///         process, and archimate elements are drawn as rectangles and reported.
 ///     </para>
 ///     <para>
 ///         The namespace is internal to the package; the model is immutable once parsed and the parser and the

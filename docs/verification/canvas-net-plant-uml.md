@@ -17,11 +17,12 @@ This document describes the system-level verification strategy for CanvasNetPlan
   `PlantUmlSequenceIntegrationTests` (sequence diagrams from text to pixels), `PlantUmlActivityIntegrationTests`
   (activity diagrams from text to pixels), `PlantUmlClassIntegrationTests` (class and object diagrams from text to
   pixels), `PlantUmlStateIntegrationTests` (state diagrams from text to pixels), `PlantUmlDescriptionIntegrationTests`
-  (use case and component diagrams from text to pixels), `PlantUmlReferenceLayoutTests` (the layout of the original
-  fixtures compared with the SVG goldens that PlantUML draws for them), `PlantUmlReferenceShapeTests` (the entity boxes,
-  clusters, and links of the class, object, state, use case, and component fixtures compared with the goldens, positions
-  aside), `PlantUmlIncludeTests` (include files and the image source of a linked diagram), `PlantUmlHardeningTests`
-  (every limit and a seeded mutation fuzzer), and `PlantUmlGalleryTests` (the diagrams of the user guide gallery).
+  (use case, component, and deployment diagrams from text to pixels), `PlantUmlReferenceLayoutTests` (the layout of the
+  original fixtures compared with the SVG goldens that PlantUML draws for them), `PlantUmlReferenceShapeTests` (the
+  entity boxes, clusters, and links of the class, object, state, use case, component, and deployment fixtures compared
+  with the goldens, positions aside), `PlantUmlIncludeTests` (include files and the image source of a linked diagram),
+  `PlantUmlHardeningTests` (every limit and a seeded mutation fuzzer), and `PlantUmlGalleryTests` (the diagrams of the
+  user guide gallery).
 - **Subsystem tests** exercise each internal subsystem through its own entry points (see the subsystem verification
   documents, for example *Syntax Subsystem Verification Design*).
 - **Unit tests** exercise each unit in isolation (see the unit verification documents).
@@ -92,6 +93,12 @@ hint; parses a use case diagram that declares an actor with the name of a use ca
 declaration with a message that the element is already defined; parses a use case diagram with a `class` statement
 and asserts the error at its line with the `allowmixing` hint.
 
+**Tests**: `PlantUmlDescriptionIntegrationTests.CanvasNetPlantUml_Deployment_SyntaxErrors_AreLocated`
+
+Parses a deployment diagram with a person that holds a node and asserts `plantuml-syntax-error` at the person with a
+hint; parses a deployment diagram with an unclosed stack and asserts the error at the line of its opening; parses a
+deployment diagram with a `class` statement and asserts the error at its line with the `allowmixing` hint.
+
 ### CanvasNetPlantUml-DiagramTypes: Every Type Is Recognized
 
 **Tests**: `PlantUmlSystemIntegrationTests.CanvasNetPlantUml_OtherDiagramTypes_AreRecognized`
@@ -109,6 +116,11 @@ in a node, and asserts the type `component` and that it is drawn.
 Detects texts with a use case keyword, a link between use cases in parentheses, actors written `:Guest:` and
 `:Account Owner: as AO`, and an actor with a boundary that holds a colored use case, and asserts the type `usecase` and
 that it is drawn.
+
+**Tests**: `DiagramDetectorTests.PlantUmlDiagramDetector_Detect_DeploymentDiagram_IsDrawn`
+
+Detects texts with a node, an artifact linked to a node, a queue before a storage that holds a file, and a person
+linked to a hexagon, and asserts the type `deployment` and that it is drawn.
 
 ### CanvasNetPlantUml-Preprocessor: The Subset Is Applied
 
@@ -153,23 +165,22 @@ measures the groups fixture under a layout work limit of 20 and asserts a `plant
 `PlantUmlHardeningTests.CanvasNetPlantUml_Hardening_MutatedFixtures_ThrowOnlyDocumentedExceptions`
 
 For `MaxNodes`, `MaxEdges`, `MaxLabelLength`, and `MaxNestingDepth`, in sequence, activity, class, state, use case,
-and component diagrams
-and in the preprocessor, asserts `plantuml-limit-exceeded` at the source name and line where the text crosses the limit,
-naming the limit, with a hint, and that the text opens under the defaults; asserts that a long text and a growing macro
-are refused under a size limit of 200; asserts that one include too many fails at the directive of the main file and one
-level too deep at the directive of the included file; asserts `plantuml-limit-exceeded` render errors under a layout
-work limit and a painted pixel limit, and two reports and one suppression notice under a diagnostics limit of two;
-renders a chain of 400 actions, 32 nested ifs, and 200 participants; asserts that a dense class diagram of 120 links
-fails under a layout work limit of 1000 with a render error at its first statement and is laid out under the default
-limit, that a dense state diagram with nested composite states and concurrent regions does the same at its first
-statement, that a dense component diagram with nested containers does the same at its first statement, and that a
-dense use case diagram with a boundary does the same at its first statement while a use case of 1300 lines is measured
-within 20 seconds; and opens,
-measures, and renders mutants of every sequence, activity, class, object, state, use case, component, and gallery
-fixture (truncated, deleted ranges, inserted tokens of the diagram languages and of the preprocessor, duplicated and
-swapped lines, flipped characters) with a fixed seed, asserting that only `PlantUmlSyntaxException` (with a documented
-code, the source name, a line, and a hint), a located `plantuml-limit-exceeded` `PlantUmlRenderException`, and
-`InvalidDataException` are thrown, and never a layout defect.
+component, and deployment diagrams and in the preprocessor, asserts `plantuml-limit-exceeded` at the source name and
+line where the text crosses the limit, naming the limit, with a hint, and that the text opens under the defaults;
+asserts that a long text and a growing macro are refused under a size limit of 200; asserts that one include too many
+fails at the directive of the main file and one level too deep at the directive of the included file; asserts
+`plantuml-limit-exceeded` render errors under a layout work limit and a painted pixel limit, and two reports and one
+suppression notice under a diagnostics limit of two; renders a chain of 400 actions, 32 nested ifs, and 200
+participants; asserts that a dense class diagram of 120 links fails under a layout work limit of 1000 with a render
+error at its first statement and is laid out under the default limit, that a dense state diagram with nested composite
+states and concurrent regions does the same at its first statement, that a dense component diagram with nested
+containers does the same at its first statement, and that a dense use case diagram with a boundary does the same at its
+first statement while a use case of 1300 lines is measured within 20 seconds; and opens, measures, and renders mutants
+of every sequence, activity, class, object, state, use case, component, deployment, and gallery fixture (truncated,
+deleted ranges, inserted tokens of the diagram languages and of the preprocessor, duplicated and swapped lines, flipped
+characters) with a fixed seed, asserting that only `PlantUmlSyntaxException` (with a documented code, the source name, a
+line, and a hint), a located `plantuml-limit-exceeded` `PlantUmlRenderException`, and `InvalidDataException` are thrown,
+and never a layout defect.
 
 ### CanvasNetPlantUml-Sequence: Sequence Diagrams Are Drawn As PlantUML Draws Them
 
@@ -291,6 +302,29 @@ golden; renders every fixture in strict mode with no report at its measured size
 subgraph counts of the basic, boundary, notes, and page fixtures; and asserts that a name only written in a link is an
 actor drawn as a stick figure and that a use case in a boundary is linked by its short name.
 
+### CanvasNetPlantUml-Deployment: Deployment Diagrams Are Drawn With PlantUML's Shapes
+
+**Tests**: `PlantUmlReferenceShapeTests.CanvasNetPlantUml_Graph_ReferenceGoldens_CoverEveryFixture`,
+`PlantUmlReferenceShapeTests.CanvasNetPlantUml_Description_ReferenceElements_MatchPlantUml`,
+`PlantUmlReferenceShapeTests.CanvasNetPlantUml_Description_ReferenceContainers_MatchPlantUml`,
+`PlantUmlReferenceShapeTests.CanvasNetPlantUml_Description_ReferenceLinks_MatchPlantUml`,
+`PlantUmlDescriptionIntegrationTests.CanvasNetPlantUml_Deployment_Fixtures_RenderWithoutReports`,
+`PlantUmlDescriptionIntegrationTests.CanvasNetPlantUml_Deployment_Facts_CountElementsLinksAndContainers`,
+`PlantUmlDescriptionIntegrationTests.CanvasNetPlantUml_Deployment_Symbols_HaveTheirOwnDrawing`
+
+For every original deployment fixture (nodes, artifacts, databases, and clouds; every leaf symbol; artifact, storage,
+file, queue, stack, hexagon, and node containers nested with stereotypes; links between nested elements with labels,
+styles, and a direction hint; boundary, control, and entity symbols; notes; colors and the artifact and queue skin
+parameters; left to right with a title), compares the picture with the SVG that PlantUML 1.2026.10 draws for it with
+its Smetana layout (`Fixtures/reference/deployment`), positions aside, as for the component fixtures: every element
+with the same number of shapes, size, colors, and text offsets (a boundary, control, entity, and person by its circle,
+a stack by its box without an outline; a label, which has no outline, and a hexagon, whose outline the Smetana layout
+leaves out and CanvasNet draws, by the offsets of their texts from each other), every container title and stereotype at
+the same offset, and every link with the same style, decorations, and labels; asserts that every fixture has a golden;
+renders every fixture in strict mode with no report at its measured size; asserts the title, node, edge, and subgraph
+counts of the nodes, containers, notes, and left-to-right fixtures; and asserts that every symbol of the symbols
+fixture has its own outline but the label, with no report, and that a circle is drawn as an interface circle.
+
 ### CanvasNetPlantUml-Render: Measuring Reports What Rendering Reports
 
 **Tests**: `PlantUmlUnsupportedDiagramTests.CanvasNetPlantUml_UnsupportedType_MeasureReportsAsRender`
@@ -312,6 +346,10 @@ Renders the containers component fixture with a canceled token and asserts an `O
 **Tests**: `PlantUmlDescriptionIntegrationTests.CanvasNetPlantUml_UseCase_Render_ObservesCancellation`
 
 Renders the boundary use case fixture with a canceled token and asserts an `OperationCanceledException`.
+
+**Tests**: `PlantUmlDescriptionIntegrationTests.CanvasNetPlantUml_Deployment_Render_ObservesCancellation`
+
+Renders the containers deployment fixture with a canceled token and asserts an `OperationCanceledException`.
 
 ### CanvasNetPlantUml-UnsupportedTypes: An Empty Picture And A Report
 
@@ -360,6 +398,12 @@ Renders a use case diagram with a stereotype of a link, a URL, and `hide`, asser
 `plantuml-statement-unsupported` reports at their lines, the `plantuml-skinparam-ignored` warning of `actorStyle`, and
 the drawn picture, and asserts that strict mode throws.
 
+**Tests**: `PlantUmlDescriptionIntegrationTests.CanvasNetPlantUml_Deployment_UnsupportedStatements_AreReported`
+
+Lays out a deployment diagram with an action and a process container, asserts the deployment type, their two
+`plantuml-statement-unsupported` reports at their lines saying they are drawn as rectangles, the action's outline, the
+process's cluster, and the links, and asserts that strict mode throws.
+
 ### CanvasNetPlantUml-DefaultLook: PlantUML's Colors, Identical Pixels
 
 **Tests**: `PlantUmlSequenceIntegrationTests.CanvasNetPlantUml_Sequence_DefaultSkin_PaintsPlantUmlColors`,
@@ -404,6 +448,13 @@ Renders a use case diagram and asserts the use case type, the white background, 
 actor's head and inside a use case ellipse; renders the boundary fixture twice and asserts identical pixels, and asserts
 that a `scale 2` doubles the measured size.
 
+**Tests**: `PlantUmlDescriptionIntegrationTests.CanvasNetPlantUml_Deployment_DefaultSkin_PaintsPlantUmlColors`,
+`PlantUmlDescriptionIntegrationTests.CanvasNetPlantUml_Deployment_Render_IsDeterministicAndScaled`
+
+Renders a deployment diagram and asserts the deployment type, that it is drawn, and the light gray `#F1F1F1` inside a
+node, a queue, and a boundary's circle; renders the containers fixture twice and asserts identical pixels, and asserts
+that a `scale 2` doubles the measured size.
+
 **Tests**: `PlantUmlGalleryTests.CanvasNetPlantUml_Gallery_HoldsEveryDrawnDiagramType`,
 `PlantUmlGalleryTests.CanvasNetPlantUml_Gallery_RendersStrictWithoutWarnings`
 
@@ -425,7 +476,8 @@ by 100 and asserts that it fits; asserts that the resolver claims `.puml`.
 `PlantUmlClassIntegrationTests.CanvasNetPlantUml_Class_DefaultSkin_PaintsPlantUmlColors`, and
 `PlantUmlStateIntegrationTests.CanvasNetPlantUml_State_DefaultSkin_PaintsPlantUmlColors`, and
 `PlantUmlDescriptionIntegrationTests.CanvasNetPlantUml_Component_DefaultSkin_PaintsPlantUmlColors`, and
-`PlantUmlDescriptionIntegrationTests.CanvasNetPlantUml_UseCase_DefaultSkin_PaintsPlantUmlColors` with the `windows@`,
+`PlantUmlDescriptionIntegrationTests.CanvasNetPlantUml_UseCase_DefaultSkin_PaintsPlantUmlColors`, and
+`PlantUmlDescriptionIntegrationTests.CanvasNetPlantUml_Deployment_DefaultSkin_PaintsPlantUmlColors` with the `windows@`,
 `ubuntu@`, `macos@`, `net8.0@`, `net9.0@`, `net10.0@`, and `net11.0@` source filters
 
 The representative test is evidence for each platform and runtime only from a test run on that platform or runtime.

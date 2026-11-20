@@ -188,7 +188,7 @@ internal sealed partial class DescriptionParser
         foreach (var element in _elements.Where(e => !DescriptionRenderer.IsDrawn(e.Symbol, e.IsContainer)))
         {
             var what = element.Symbol == DescriptionSymbol.Archimate ? "archimate element" : SymbolKeyword(element.Symbol) + " symbol";
-            Unsupported($"the {what} is not drawn yet; '{element.Id}' is drawn as a rectangle", element.Location);
+            Unsupported($"the {what} is not drawn; '{element.Id}' is drawn as a rectangle", element.Location);
         }
 
         var (nodeSep, rankSep) = SvekSyntax.TakeLayoutSettings(_skin, _reports);

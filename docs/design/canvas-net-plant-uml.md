@@ -283,8 +283,7 @@ of this repository, so the two diagram languages are bounded alike.
 - **Component diagrams** - every element (its outline, size, colors, and texts), container title, and link decoration of
   the reference fixtures agrees with PlantUML's within 1.5 pixels; the positions differ as in class diagrams. An
   interface reserves room for its name and stereotypes above and below its circle in the layout (PlantUML's shield does
-  the same, but drops it in some cases), so its circle is the center of its node. The deployment symbols other than
-  node, rectangle, folder, package, frame, cloud, database, and card are drawn as rectangles and reported; ports and
+  the same, but drops it in some cases), so its circle is the center of its node. Ports and
   their links, middle decorations of links (which the jar's Smetana layout does not draw either), roles, qualifiers, and
   stereotypes of links, `together`, `hide`, `show`, `remove`, `restore`, archimate elements, `json` and `map` blocks,
   URLs, and notes on containers (drawn floating) are reported as `plantuml-statement-unsupported`; an arrow body of `~`
@@ -301,6 +300,15 @@ of this repository, so the two diagram languages are bounded alike.
   as PlantUML writes them; double angle brackets in the name of an element (`(Check <<x>>)`) are drawn as written, where
   PlantUML writes guillemets in every text. `skinparam actorStyle` (the awesome and hollow actors) is reported as
   ignored; an actor or a use case that holds elements is a located `plantuml-syntax-error`, as in PlantUML.
+- **Deployment diagrams** - every element (its outline, size, colors, and texts), container title and stereotype, and
+  link decoration of the reference fixtures agrees with PlantUML's within 1.5 pixels; the positions differ as in class
+  diagrams, and the component diagrams' differences apply. A hexagon is drawn with the outline PlantUML's Graphviz
+  pipeline gives it (corners in the middles of its sides, the top and bottom spanning the middle half); the jar's
+  Smetana layout draws only its texts. A floating note with one link whose route is longer than a direct one is drawn
+  with a dashed link, where PlantUML draws the note's pointer. The action, the process, and archimate elements are
+  drawn as rectangles and reported as `plantuml-statement-unsupported`; a circle is drawn as an interface, as in
+  PlantUML. A person, a boundary, a control, an entity, a collections symbol, a label, an agent, or a circle that holds
+  elements is a located `plantuml-syntax-error`, as in PlantUML.
 
 ## Phase Plan
 
@@ -309,7 +317,7 @@ of this repository, so the two diagram languages are bounded alike.
   policy; the image source; the Viewer, tool, and Pandoc filter integration.
 - **Phase 2** - the diagram types that PlantUML lays out with Graphviz (class, component, use case, state, object, and
   deployment diagrams) are laid out by the shared Svek engine over the dagre layered layout of the `CanvasNetLayout`
-  package, which the Mermaid package shares (the engine is in place and draws class, object, state, use case, and
-  component diagrams; the other diagram types follow in steps). Themes,
+  package, which the Mermaid package shares (the engine is in place and draws class, object, state, use case,
+  component, and deployment diagrams). Themes,
   `<style>` blocks, feature positions, and the conditional and function directives of the preprocessor are candidates as
   well.
