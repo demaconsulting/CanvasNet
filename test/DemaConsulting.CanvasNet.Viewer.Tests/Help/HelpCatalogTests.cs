@@ -294,6 +294,37 @@ public partial class HelpCatalogTests
     }
 
     /// <summary>
+    ///     Test that a host formatting a link to a visible example whose link names a hidden card receives the owner of
+    ///     the example as the card, so it never names a hidden card.
+    /// </summary>
+    [Fact]
+    public void HelpCatalog_FormatMarkdown_ExampleLinkThroughAHiddenCard_NamesTheOwner()
+    {
+        // Arrange: a/b/deep links [[a/b#two]]; the design view hides a/b and shows a/b/deep, which owns two
+        var catalog = CreateTestCatalog();
+        var view = catalog.Filter([HelpTags.Design]);
+        HelpLink? full = null;
+        HelpLink? filtered = null;
+
+        // Act
+        catalog.FormatMarkdown(catalog.Find("a/b/deep")!, link =>
+        {
+            full = link;
+            return link.CardId!;
+        });
+        var text = view.FormatMarkdown(view.Find("a/b/deep")!, link =>
+        {
+            filtered = link;
+            return link.CardId!;
+        });
+
+        // Assert: the full catalog keeps the card as written, the view names the owner
+        Assert.Equal(("a/b", "two", "a/b/deep"), (full!.CardId, full.ExampleName, full.ExampleCardId));
+        Assert.Equal(("a/b/deep", "two", "a/b/deep"), (filtered!.CardId, filtered.ExampleName, filtered.ExampleCardId));
+        Assert.Equal("Deep a/b/deep.", text);
+    }
+
+    /// <summary>
     ///     Test that a card the view hides is rejected by the members that take a card.
     /// </summary>
     [Fact]

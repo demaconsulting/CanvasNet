@@ -272,7 +272,8 @@ public sealed partial class HelpCatalog
                 continue;
             }
 
-            // A link to a hidden card or example is plain text, so a reader is never sent where it cannot go
+            // A link to a hidden card or example is plain text, so a reader is never sent where it cannot go; a link to
+            // a visible example names its owner when the card it was written with is hidden
             var target = link.ExampleName == null ? link.CardId! : link.OwnerId!;
             if (!IsVisible(target))
             {
@@ -280,8 +281,9 @@ public sealed partial class HelpCatalog
                 continue;
             }
 
+            var cardId = link.CardId != null && !IsVisible(link.CardId) ? link.OwnerId : link.CardId;
             builder.Append(formatLink != null
-                ? formatLink(new HelpLink(link.CardId, link.ExampleName, link.OwnerId))
+                ? formatLink(new HelpLink(cardId, link.ExampleName, link.OwnerId))
                 : LibraryLinkText(link));
         }
 

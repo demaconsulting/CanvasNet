@@ -34,7 +34,8 @@ public sealed class HelpLink
     /// <summary>
     ///     Gets the identifier of the target card as written (<c>a/b</c> of <c>[[a/b]]</c> or <c>[[a/b#name]]</c>), or
     ///     <see langword="null"/> for <c>[[#name]]</c>, which names an example of the card holding the link or of a card
-    ///     below it.
+    ///     below it. In a view that hides the card written in an example link, it is the card that owns the example
+    ///     (<see cref="ExampleCardId"/>), so it never names a hidden card.
     /// </summary>
     public string? CardId { get; }
 
