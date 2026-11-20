@@ -138,15 +138,25 @@ public sealed partial class FileReferenceResolver
         _policy = options.FileAccess;
         _cancellation = cancellationToken;
         _hooks = hooks;
-        KeyComparer = UsesCallback ? StringComparer.Ordinal : RealPath.PathComparer;
+        KeyComparer = StringComparer.Ordinal;
         _outcomes = new Dictionary<string, Outcome?>(KeyComparer);
         _counted = new HashSet<string>(KeyComparer);
     }
 
     /// <summary>
-    ///     Gets the comparer under which two <see cref="FileReference.Key"/> values name the same path: ordinal for
-    ///     logical paths, and the platform's path comparison (case-insensitive on Windows and macOS) for full paths.
+    ///     Gets the comparer under which two <see cref="FileReference.Key"/> values name the same path:
+    ///     <see cref="StringComparer.Ordinal"/> in both modes, for logical paths and for full paths alike.
     /// </summary>
+    /// <remarks>
+    ///     Full paths are compared exactly, letter case included, on every platform, because a folder may be
+    ///     case-sensitive even on Windows (per-directory case sensitivity) and macOS (case-sensitive APFS), where
+    ///     <c>a.txt</c> and <c>A.txt</c> are two files; an ignore-case cache would answer one with the bytes of the other.
+    ///     On a case-insensitive volume two spellings of one file that differ in letter case are therefore two keys: each
+    ///     is opened, checked and counted against <see cref="FileReferenceOptions.MaxFiles"/> on its own, and a consumer
+    ///     that keys by <see cref="FileReference.Key"/> (an include-once list, a data cache) treats them as two files.
+    ///     That costs at most an extra read and fails safe. Earlier releases ignored letter case for full paths on Windows
+    ///     and macOS.
+    /// </remarks>
     public StringComparer KeyComparer { get; }
 
     /// <summary>

@@ -33,9 +33,9 @@ The unit's behavior is specified by the `CanvasNet-Files-RealPath-*` requirement
 #### Data Model
 
 **`HandleFacts`** (readonly record struct): `IsRegularFile` (`bool?`) and `FinalPath` (`string?`); `null` means the
-platform cannot tell. **`PathComparison`** / **`PathComparer`**: `OrdinalIgnoreCase` on Windows and macOS, `Ordinal`
-elsewhere; used only for paths as written (the lexical pre-check of a policy, the lexical confinement of the sandbox,
-Windows drive roots) and for cache keys, never for a decision about a real path. Real paths are always compared with
+platform cannot tell. **`PathComparison`**: `OrdinalIgnoreCase` on Windows and macOS, `Ordinal` elsewhere; used only
+for paths as written (the lexical pre-check of a policy, the lexical confinement of the sandbox, Windows drive roots),
+never for a decision about a real path and never for cache keys (the resolver caches use ordinal keys). Real paths are always compared with
 `StringComparison.Ordinal` (on macOS after both sides are brought into Unicode composed form), because Windows
 per-directory case sensitivity and case-sensitive APFS make two names that differ only in letter case two different
 folders. The unit is stateless except for one cached flag in `NativeMethods` that remembers

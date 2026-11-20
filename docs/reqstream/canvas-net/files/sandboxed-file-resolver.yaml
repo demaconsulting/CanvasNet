@@ -244,23 +244,27 @@ sections:
                   The SandboxedFileResolver class shall look up each distinct candidate (a file together
                   with the root it is confined to) at most once per instance, remembering a miss as well as
                   a hit and returning the same file instance for a file reached again under any spelling
-                  through the same root, shall never answer a request through one root from the result of
-                  another root (so the link checks of every root always run), and shall expose the key
-                  comparer under which two file keys name the same file (ordinal for logical paths, the
-                  platform's path comparison for full paths); in callback mode the callback shall be asked
+                  that is equal under the ordinal comparison through the same root, shall look up a spelling
+                  that differs only in letter case on its own rather than answer it from the cache, shall
+                  never answer a request through one root from the result of another root (so the link checks
+                  of every root always run), and shall expose the key comparer under which two file keys name
+                  the same file (ordinal in both modes); in callback mode the callback shall be asked
                   for each logical path at most once whichever root it is reached through, while each result
                   keeps the root it was found under.
                 justification: |
                   Repeated reads would multiply the cost of a hostile input and let a file change between
                   two reads of one operation; the link checks are relative to a root, so a file accepted
                   through a trusted, linked search path must not be accepted through another root by cache
-                  accident; callers need the comparer to detect cycles.
+                  accident; callers need the comparer to detect cycles. A folder may be case-sensitive on
+                  every platform, where two spellings that differ in letter case are two files, so an
+                  ignore-case cache could hand out the bytes or the link state of the wrong file.
                 tests:
                   - SandboxedFileResolver_Resolve_CacheRequestsEachCandidateOncePerResolver
                   - SandboxedFileResolver_Resolve_FileSystemFilesAreCachedPerResolver
                   - SandboxedFileResolver_Resolve_FileCachedUnderLinkedSearchRootIsCheckedAgainForAnotherRoot
                   - SandboxedFileResolver_Resolve_CallbackSeesALogicalPathOnceAcrossRoots
-                  - SandboxedFileResolver_KeyComparer_FollowsModeAndPlatform
+                  - SandboxedFileResolver_KeyComparer_IsOrdinalInBothModes
+                  - SandboxedFileResolver_Resolve_CaseVariantSpelling_IsNotAnsweredFromTheCache
 
               - id: CanvasNet-Files-SandboxedFileResolver-Cancellation
                 title: >-

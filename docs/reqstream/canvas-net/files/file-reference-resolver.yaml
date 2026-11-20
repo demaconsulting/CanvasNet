@@ -258,15 +258,20 @@ sections:
                 title: >-
                   The FileReferenceResolver class shall open each distinct path at most once per instance,
                   remembering a miss and a failure as well as a file, shall return the same file instance for every
-                  spelling of one path, shall not read a file again after it changed, and shall expose the comparer
-                  under which two keys name the same path (ordinal for logical paths, the platform's path comparison
-                  for full paths).
+                  spelling of one path that is equal under the ordinal comparison, shall open a spelling that differs
+                  only in letter case on its own rather than answer it from the cache, shall not read a file again
+                  after it changed, and shall expose the comparer under which two keys name the same path (ordinal in
+                  both modes).
                 justification: |
                   Repeated reads would multiply the cost of a hostile input and let a file change between two reads
-                  of one operation; callers need the comparer and the real path to detect cycles.
+                  of one operation; callers need the comparer and the real path to detect cycles. A folder may be
+                  case-sensitive on every platform, where two spellings that differ in letter case are two files, so
+                  an ignore-case cache could hand out the bytes of the wrong file; on a case-insensitive volume the
+                  ordinal comparison only costs an extra read of the same file, counted against the file limit.
                 tests:
                   - FileReferenceResolver_Resolve_SameFileTwice_IsOpenedOnceAndReturnsTheSameInstance
-                  - FileReferenceResolver_KeyComparer_FollowsModeAndPlatform
+                  - FileReferenceResolver_KeyComparer_IsOrdinalInBothModes
+                  - FileReferenceResolver_Resolve_CaseVariantSpelling_IsNotAnsweredFromTheCache
 
               - id: CanvasNet-Files-FileReferenceResolver-Callback
                 title: >-

@@ -2203,8 +2203,10 @@ Each distinct file is read **once per resolver** (per root it is reached through
 always run), and a miss or a too-large file is remembered too (it is not opened again), so a resolver serves one logical
 operation (one render, one document) and is then dropped. **An instance is not thread-safe**: use one per
 operation, or serialize access. `SandboxOptions` and the returned `SandboxedFile` are immutable and may be
-shared. Use `resolver.KeyComparer` to decide whether two `Key` values name the same file (it is ordinal for
-callback paths and case-insensitive for full paths on Windows and macOS).
+shared. Use `resolver.KeyComparer` to decide whether two `Key` values name the same file: it is ordinal in both
+modes (earlier releases ignored letter case for full paths on Windows and macOS). A folder may be case-sensitive on
+every system, so `a.txt` and `A.txt` are two keys; on a case-insensitive volume such spellings of one file are each
+checked, read, and counted against `MaxFiles` on their own, which costs an extra read and fails safe.
 
 **Security note.** The sandbox protects against path-based escapes and against a link swapped into the tree after
 its check: before a single byte is read, the **open file** is verified - its real path, asked of the operating
@@ -2419,6 +2421,14 @@ nothing the author of the document did not write and is safe to show to that aut
 written). Show the other properties only to trusted users. With a `FileResolver` callback, the file system and the
 policy are not used at all: the callback
 is the policy. An instance is not thread-safe (one per operation); options and policies are immutable and may be shared.
+
+Each distinct `Key` is opened once per resolver, and `resolver.KeyComparer`, under which two keys name the same path,
+is ordinal in both modes (earlier releases ignored letter case for full paths on Windows and macOS). A folder may be
+case-sensitive on every system, where `a.txt` and `A.txt` are two files, so a cache that ignored letter case could hand
+out the bytes of the wrong file. On a case-insensitive volume two spellings of one file that differ only in letter
+case are therefore two keys: each is opened, checked, and counted against `MaxFiles` on its own, and whatever keys by
+`Key` treats them as two files (a PlantUML `!include_once`, the Vega-Lite data cache, OpenSCAD includes). This costs an
+extra read and fails safe; spell each reference to one file the same way to read it once.
 
 ```csharp
 using System.Text;

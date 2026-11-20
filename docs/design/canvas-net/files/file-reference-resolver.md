@@ -182,15 +182,19 @@ it). Invalid options are `ArgumentNullException` / `ArgumentOutOfRangeException`
 (a restrictive policy fails closed with `RealPathUnavailable`); a SUBST or DFS path whose drive is local but whose
 target is remote is refused (fail closed); a file whose real path, in its on-disk letter case, cannot be confirmed to
 name the open file is denied (fail closed, see *FileAccessPolicy Unit Design*). The keys of the cache
-(`KeyComparer`) still compare written paths under the platform rule (case-insensitive on Windows and macOS); the policy
-is asked again on every cache hit with the confirmed real path of the cached file, so a key shared by two spellings
-never lets a file outside the policy through.
+(`KeyComparer`) use ordinal comparison in both modes, letter case included, because a folder may be case-sensitive on
+every platform: in such a folder `a.txt` and `A.txt` are two files, and an ignore-case cache would hand the bytes of
+one out for the other. On a case-insensitive volume two spellings of one file that differ in letter case are
+therefore two keys: each is opened, checked and counted against `MaxFiles` on its own, and a consumer that keys by
+`FileReference.Key` (the PlantUML `!include_once` list, the Vega-Lite data cache, the OpenSCAD include cache, the
+cycle check of `FolderImageResolver`) treats them as two files; this costs an extra read and fails safe. Earlier
+releases compared full-path keys ignoring letter case on Windows and macOS.
 
 #### Dependencies
 
 - **FileAccessPolicy** (same subsystem) - the policy that decides, including its lexical pre-check.
-- **RealPath** (same subsystem) - the open, the handle facts, the on-disk spelling of a real path and its confirmation
-  against the handle, and the platform path comparer (cache keys).
+- **RealPath** (same subsystem) - the open, the handle facts, and the on-disk spelling of a real path and its
+  confirmation against the handle.
 - **.NET base class library** - `System.IO` (`Path`, `FileStream`, `Directory`) and `System.Collections.Generic`.
 
 #### Callers

@@ -177,9 +177,13 @@ a cancellation or an argument error is a `SandboxException`.
   synchronized folder, are not rejected.
 - `ValidatePathText`, `TryDescribeInvalidPath`, `Candidates`, `Combine`, `CombineFileSystem`, `CombineLogical`,
   `IsUnder`, `EnsureRoots`, `FullRoot`, and `NormalizePrefix` - the path rules above.
-- `KeyComparer` - the comparer under which two keys name the same file: ordinal for logical paths, the platform's path
-  comparison for full paths. It is exposed so that callers can detect that two spellings reached one file (for example
-  an include cycle) without re-deriving the platform rule.
+- `KeyComparer` - the comparer under which two keys name the same file: `StringComparer.Ordinal` in both modes, for
+  logical and full paths alike, so the file cache, the read count and the link-probe cache never answer a spelling
+  that differs only in letter case from the result of another (in a case-sensitive folder, which may exist on every
+  platform, it is another file). On a case-insensitive volume each such spelling is checked, read and counted against
+  `MaxFiles` on its own, which fails safe. It is exposed so that callers can detect that two spellings reached one
+  file (for example an include cycle). Earlier releases compared full-path keys ignoring letter case on Windows and
+  macOS.
 
 **Preconditions and postconditions**: `path` is untrusted text; on return the file exists, is a regular file, is not
 behind a link (checked on the names before the open and on the open handle after it), is within the size limit, and

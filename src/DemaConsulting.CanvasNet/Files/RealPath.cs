@@ -65,17 +65,12 @@ internal static partial class RealPath
     /// </summary>
     /// <remarks>
     ///     Used only for written paths (the lexical pre-check of a policy, the lexical confinement of the sandbox, Windows
-    ///     drive roots) and for cache keys; never for a decision about a real path, which is compared exactly (see
-    ///     <see cref="IsUnder"/>), because a folder may be case-sensitive even on Windows and macOS.
+    ///     drive roots); never for a decision about a real path, which is compared exactly (see <see cref="IsUnder"/>),
+    ///     and never for cache keys, which are ordinal (two spellings that differ in letter case may name two files),
+    ///     because a folder may be case-sensitive even on Windows and macOS.
     /// </remarks>
     internal static StringComparison PathComparison { get; } =
         OperatingSystem.IsWindows() || OperatingSystem.IsMacOS() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
-
-    /// <summary>
-    ///     Gets the comparer that matches <see cref="PathComparison"/>, for cache keys of written paths only.
-    /// </summary>
-    internal static StringComparer PathComparer { get; } =
-        PathComparison == StringComparison.OrdinalIgnoreCase ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
 
     /// <summary>
     ///     Determines whether two real paths name the same location, comparing them exactly (letter case included); on

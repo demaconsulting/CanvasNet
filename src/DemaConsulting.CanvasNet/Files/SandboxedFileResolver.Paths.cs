@@ -39,13 +39,9 @@ namespace DemaConsulting.CanvasNet.Files;
 /// </remarks>
 public sealed partial class SandboxedFileResolver
 {
-    /// <summary>The comparison used to decide whether a path is under a root and to compare file keys on this platform.</summary>
+    /// <summary>The comparison used to decide whether a path as written is under a root (the lexical confinement) on this platform.</summary>
     private static readonly StringComparison PathComparison =
         OperatingSystem.IsWindows() || OperatingSystem.IsMacOS() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
-
-    /// <summary>The comparer for file keys in file-system mode.</summary>
-    private static readonly StringComparer PlatformKeyComparer =
-        PathComparison == StringComparison.OrdinalIgnoreCase ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
 
     /// <summary>The link probe: tells whether a full path is a symbolic link or junction.</summary>
     private readonly Func<string, bool> _isLink;

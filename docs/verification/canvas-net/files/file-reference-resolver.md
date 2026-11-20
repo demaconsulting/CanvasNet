@@ -266,11 +266,14 @@ the limit.
 ##### CanvasNet-Files-FileReferenceResolver-Cache: One Open per Path
 
 **Tests**: `FileReferenceResolver_Resolve_SameFileTwice_IsOpenedOnceAndReturnsTheSameInstance`,
-`FileReferenceResolver_KeyComparer_FollowsModeAndPlatform`
+`FileReferenceResolver_KeyComparer_IsOrdinalInBothModes`,
+`FileReferenceResolver_Resolve_CaseVariantSpelling_IsNotAnsweredFromTheCache`
 
 A file and a miss are opened once, the same instance is returned, and a change to the file after its first read is
-not seen; the key comparer is ordinal for logical paths and case-insensitive for full paths exactly on Windows and
-macOS.
+not seen; the key comparer is `StringComparer.Ordinal` in both modes, so `A.txt` and `a.txt` are two keys on every
+system. After `a.txt` was resolved, `A.txt` is opened on its own (the `Open` seam stands in for a case-sensitive
+folder by serving another file for it) and gives that file's bytes, never the cached bytes of `a.txt`; both keys are
+opened.
 
 ##### CanvasNet-Files-FileReferenceResolver-Callback: Callback Mode
 

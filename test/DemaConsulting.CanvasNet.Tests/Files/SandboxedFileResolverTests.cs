@@ -709,19 +709,55 @@ public class SandboxedFileResolverTests
     }
 
     /// <summary>
-    ///     Validates that the key comparer is ordinal for logical paths and follows the platform for full paths.
+    ///     Validates that the key comparer is <see cref="StringComparer.Ordinal"/> in both modes: two full paths that
+    ///     differ only in letter case are two keys on every platform, because a folder may be case-sensitive anywhere.
     /// </summary>
     [Fact]
-    public void SandboxedFileResolver_KeyComparer_FollowsModeAndPlatform()
+    public void SandboxedFileResolver_KeyComparer_IsOrdinalInBothModes()
     {
         // Arrange
         var logical = Create(new SandboxOptions { FileResolver = _ => null });
         var onDisk = Create(new SandboxOptions { BaseDirectory = Path.GetTempPath() });
-        var caseInsensitive = OperatingSystem.IsWindows() || OperatingSystem.IsMacOS();
 
         // Act / Assert
-        Assert.False(logical.KeyComparer.Equals("A/b.txt", "a/b.txt"));
-        Assert.Equal(caseInsensitive, onDisk.KeyComparer.Equals("A/b.txt", "a/b.txt"));
+        Assert.Same(StringComparer.Ordinal, logical.KeyComparer);
+        Assert.Same(StringComparer.Ordinal, onDisk.KeyComparer);
+        Assert.False(onDisk.KeyComparer.Equals("A/b.txt", "a/b.txt"));
+    }
+
+    /// <summary>
+    ///     Validates on every platform that a spelling that differs from a resolved one only in letter case is not
+    ///     answered from the cache: it is opened on its own (here the stream seam stands in for a case-sensitive folder,
+    ///     where <c>A.txt</c> is another file than <c>a.txt</c>), so it never gets the bytes of the other file.
+    /// </summary>
+    [Fact]
+    public void SandboxedFileResolver_Resolve_CaseVariantSpelling_IsNotAnsweredFromTheCache()
+    {
+        // Arrange: the stream seam serves "upper" for the key that ends in A.txt and "lower" for any other key
+        using var directory = new SandboxTempDirectory();
+        directory.Write("a.txt", "lower");
+        var opened = new List<string>();
+        var resolver = new SandboxedFileResolver(
+            new SandboxOptions { BaseDirectory = directory.Path },
+            Ct,
+            _ => false,
+            path =>
+            {
+                opened.Add(path);
+                var text = path.EndsWith("A.txt", StringComparison.Ordinal) ? "upper" : "lower";
+                return new MemoryStream(Encoding.UTF8.GetBytes(text));
+            });
+
+        // Act
+        var lower = resolver.Resolve("a.txt");
+        var variant = resolver.Resolve("A.txt");
+
+        // Assert
+        Assert.Equal("lower", Text(lower));
+        Assert.Equal("upper", Text(variant));
+        Assert.Equal(
+            [Path.GetFullPath(directory.Combine("a.txt")), Path.GetFullPath(directory.Combine("A.txt"))],
+            opened);
     }
 
     /// <summary>

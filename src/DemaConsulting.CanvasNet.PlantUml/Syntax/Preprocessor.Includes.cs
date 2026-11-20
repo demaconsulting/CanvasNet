@@ -313,7 +313,7 @@ internal sealed class IncludeResolver
     public bool HasSource => _engine.HasSource;
 
     /// <summary>
-    ///     Gets the comparer under which two file identities name the same file (the platform's path comparison).
+    ///     Gets the comparer under which two file identities name the same file (the resolver's, which is ordinal).
     /// </summary>
     public StringComparer KeyComparer => _engine.KeyComparer;
 
