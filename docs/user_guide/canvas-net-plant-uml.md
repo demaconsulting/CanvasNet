@@ -894,8 +894,8 @@ document shows its code, and the tool's message is a Pandoc warning.
 
 ### Example 73: The PlantUML Gallery
 
-The gallery is a set of small sequence, activity, class, object, state, use case, component, and deployment diagrams
-that together use the major features of the package.
+The gallery is a set of 18 small sequence, activity, class, object, state, use case, component, and deployment
+diagrams that together use the major features of the package.
 Every diagram is **original to this repository**, lies in `docs/user_guide/examples` as `plantuml-*.puml`, and is
 drawn below by the Pandoc filter, so the pictures are always those of the version of the library that built this
 guide. A test (`PlantUmlGalleryTests`) renders every file with `ThrowOnUnsupportedFeature = true` and fails on any

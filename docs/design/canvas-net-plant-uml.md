@@ -312,12 +312,14 @@ of this repository, so the two diagram languages are bounded alike.
 
 ## Phase Plan
 
-- **Phase 1** (this version, delivered in steps) - the package, the public API, and the syntax subsystem; sequence
-  diagrams and activity diagrams of the new syntax with PlantUML's default look; local includes under the file-access
-  policy; the image source; the Viewer, tool, and Pandoc filter integration.
-- **Phase 2** - the diagram types that PlantUML lays out with Graphviz (class, component, use case, state, object, and
-  deployment diagrams) are laid out by the shared Svek engine over the dagre layered layout of the `CanvasNetLayout`
-  package, which the Mermaid package shares (the engine is in place and draws class, object, state, use case,
-  component, and deployment diagrams). Themes,
-  `<style>` blocks, feature positions, and the conditional and function directives of the preprocessor are candidates as
-  well.
+- **Phase 1** (delivered) - the package, the public API, and the syntax subsystem; sequence diagrams and activity
+  diagrams of the new syntax with PlantUML's default look; local includes under the file-access policy; the image
+  source; the Viewer, tool, and Pandoc filter integration.
+- **Phase 2** (delivered) - the diagram types that PlantUML lays out with Graphviz (class, object, state, use case,
+  component, and deployment diagrams) are laid out by the shared Svek engine over the dagre layered layout of the
+  `CanvasNetLayout` package, which the Mermaid package shares, and drawn with PlantUML's default look; the Viewer,
+  tool, help, and gallery cover them.
+- **Candidates for a later phase** - themes (`!theme`), `<style>` blocks, the conditional and function directives of
+  the preprocessor (`!if`, `!function`, `!procedure`, `!foreach`), ports of components, `allowmixing` (elements of
+  several diagram families in one diagram), orthogonal and polyline links (`skinparam linetype`), archimate elements,
+  feature positions, and the diagram types that are recognized but not drawn.
