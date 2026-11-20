@@ -17,16 +17,16 @@ silently ignored, so an author learns which settings were not applied. The unit'
 
 - `SkinParamEntry(Name, Value, Location)` - the full parameter name (a block's name and the inner name joined), the
   value text, and the location of the statement.
-- The element prefixes and the elements each one styles: the eight participant kinds; `note`; `sequenceGroupHeader`
-  (the header tab), `sequenceGroup` (the frame and the tab); `sequenceBox`; `sequenceDivider`; `sequenceDelay`;
+- The element prefixes and the elements each one styles: the eight participant kinds; `note`; `sequenceGroupHeader` (the
+  header tab), `sequenceGroup` (the frame and the tab); `sequenceBox`; `sequenceDivider`; `sequenceDelay`;
   `sequenceLifeLine` and `lifeLine`; `arrow` (sequence and activity arrows); `activityDiamond`; `activity`;
-  `swimlaneTitle` and `swimlane`; `partition`; `title`; `header`; `footer`; `legend`; and `caption`. The graph
-  prefixes, read only in the diagrams PlantUML lays out with Graphviz (class, object, and state diagrams): `class`,
+  `swimlaneTitle` and `swimlane`; `partition`; `title`; `header`; `footer`; `legend`; and `caption`. The graph prefixes,
+  read only in the diagrams PlantUML lays out with Graphviz (class, object, and state diagrams): `class`,
   `classStereotype` and `objectStereotype` (the stereotypes), `classAttribute` (the members), `object` and `map`,
-  `package`, `state` (the states and composite states), and `stateAttribute` (their descriptions); there `arrow`
-  also styles the links (`SvekArrow`). The description prefixes, read only in description diagrams: `component`,
-  `interface`, `node`, `rectangle`, `folder`, `frame`, `cloud`, and `card` (with `database`, shared with sequence
-  diagrams, styling the database of the description theme).
+  `package`, `state` (the states and composite states), and `stateAttribute` (their descriptions); there `arrow` also
+  styles the links (`SvekArrow`). The description prefixes, read only in description diagrams: `component`, `interface`,
+  `node`, `rectangle`, `folder`, `frame`, `cloud`, `card`, and `usecase` (with `database` and `actor`, shared with
+  sequence diagrams, styling the database and the actors of the description theme).
 - The property suffixes: `BackgroundColor`, `BorderColor` (also `Color` and `LineColor`), `FontColor`, `FontSize`,
   `FontName`, `FontStyle`, and `BorderThickness` (also `Thickness`).
 - The accepted ranges: font sizes from 1 to 500, line widths from 0 to 100, widths from 1 to 100,000.

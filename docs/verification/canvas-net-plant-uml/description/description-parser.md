@@ -30,13 +30,16 @@ a line that differs from the expected value constitutes a failure.
 **Tests**: `DescriptionParserTests.PlantUmlDescriptionParser_Parse_Declarations_ReadNamesAndDisplays`,
 `DescriptionParserTests.PlantUmlDescriptionParser_Parse_Shorthands_GiveTheirSymbols`,
 `DescriptionParserTests.PlantUmlDescriptionParser_Parse_MultilineDescriptions_ReplaceTheName`,
-`DescriptionParserTests.PlantUmlDescriptionParser_Parse_StereotypesAndColors_AreRead`
+`DescriptionParserTests.PlantUmlDescriptionParser_Parse_StereotypesAndColors_AreRead`,
+`DescriptionParserTests.PlantUmlDescriptionParser_Parse_UseCaseForms_ReadNamesAndSymbols`
 
 Asserts the ids and texts of `component Web`, `"Payment Service" as PS`, `API as "Public API"`, `node Db as Store`,
 `[Data Access] as DA`, a stereotype before `as`, and a quoted database name; the symbols of `[C]`, `() I`,
 `() "Long I" as LI`, `(U)`, `(V)/`, `:A:`, `:B:/`, `"Disp" as X` (an actor), `actor/`, `usecase/`, and `node [N2]` (a
 component); the descriptions in brackets (with text on the opening and closing lines) and in quotes over several
-lines; and several stereotypes, a fill, a fill with line and text colors, a line color, and a named color.
+lines; several stereotypes, a fill, a fill with line and text colors, a line color, and a named color; and the use case
+forms `:Account Owner: as AO`, `:Manager:/ as M`, a quoted two-line actor, `actor/`, `(Open Ticket) as OT`,
+`(Archive)/ as AR`, `usecase Escalate as "..."`, and `usecase/` with their ids, texts, and symbols.
 
 ##### CanvasNetPlantUml-Description-DescriptionParser-Containers: Containers
 
@@ -56,11 +59,13 @@ are interfaces in a component diagram and actors in diagrams with an actor or a 
 
 ##### CanvasNetPlantUml-Description-DescriptionParser-Links: Links
 
-**Tests**: `DescriptionParserTests.PlantUmlDescriptionParser_Parse_Links_ReadTheirArrows`
+**Tests**: `DescriptionParserTests.PlantUmlDescriptionParser_Parse_Links_ReadTheirArrows`,
+`DescriptionParserTests.PlantUmlDescriptionParser_Parse_UseCaseForms_ReadNamesAndSymbols`
 
 Asserts the styles of `-->`, `..>`, `==>`, and `-[#red,dashed]->`, the decorations and end labels of `"1" o-- "many"`
 with a label and its direction mark, a `left` hint, the sockets `)--`, `--(`, and `0)--`, a hidden link, a link of
-length 1, the edge count, and no report.
+length 1, the edge count, and no report; asserts the `<<include>>` and `<< extend >>` labels of a use case diagram
+written `«include»` and `«extend»`, and a dashed `.>` of length 1.
 
 ##### CanvasNetPlantUml-Description-DescriptionParser-Notes: Notes
 
@@ -72,10 +77,12 @@ its line.
 
 ##### CanvasNetPlantUml-Description-DescriptionParser-Common: Common Statements
 
-**Tests**: `DescriptionParserTests.PlantUmlDescriptionParser_Parse_CommonStatements_AreRead`
+**Tests**: `DescriptionParserTests.PlantUmlDescriptionParser_Parse_CommonStatements_AreRead`,
+`DescriptionParserTests.PlantUmlDescriptionParser_Parse_UseCaseForms_ReadNamesAndSymbols`
 
 Asserts the title, the direction, the scale, `nodesep` and `ranksep`, and the component fill and node line of the
-description skin parameters, with no report.
+description skin parameters, with no report; asserts the actor fill of `actorBackgroundColor` and the use case line
+of `usecaseBorderColor`.
 
 ##### CanvasNetPlantUml-Description-DescriptionParser-Unsupported: Unsupported Parts
 
@@ -90,11 +97,11 @@ block, a URL, and a stereotype of a link, and the links that are kept.
 
 **Tests**: `DescriptionParserTests.PlantUmlDescriptionParser_Parse_Errors_AreLocated`
 
-Asserts a located `plantuml-syntax-error` with a hint, at the expected line, for a component declared again as a node,
-a name of a link declared as a component, an unclosed container, a stray `}`, a port at the top, `class` and `state`
+Asserts a located `plantuml-syntax-error` with a hint, at the expected line, for a component declared again as a node, a
+name of a link declared as a component, an unclosed container, a stray `}`, a port at the top, `class` and `state`
 statements, `[*]`, a description after a colon, a one-line description in brackets, a bad color, an interface with a
-block, a short name of elements in two containers, an unclosed multi-line description, a note alias that names an
-element, an unknown statement, and a container declared with the name of a component.
+block, an actor with a block, a short name of elements in two containers, an unclosed multi-line description, a note
+alias that names an element, an unknown statement, and a container declared with the name of a component.
 
 ##### CanvasNetPlantUml-Description-DescriptionParser-Limits: Limits
 

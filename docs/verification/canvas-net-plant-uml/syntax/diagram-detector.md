@@ -52,13 +52,19 @@ block for an aligned header with text, an aligned header as a common statement, 
 
 **Tests**: `DiagramDetectorTests.PlantUmlDiagramDetector_Detect_ClassFamily_IsDrawn`,
 `DiagramDetectorTests.PlantUmlDiagramDetector_Detect_ComponentDiagram_IsDrawn`,
+`DiagramDetectorTests.PlantUmlDiagramDetector_Detect_UseCaseDiagram_IsDrawn`,
+`DiagramDetectorTests.PlantUmlDiagramDetector_Detect_UnclosedActionOfActivity_IsActivity`,
 `DiagramDetectorTests.PlantUmlDiagramDetector_Detect_GraphFamilies_FollowPlantUmlOrder`
 
 Asserts that a class, an interface, an extension, a dependency, a member link, a member line, a package with a class,
 and a class with a body followed by a link are drawn class diagrams, that an object or a map is a drawn object diagram,
 and that a transition from the start, a state, a composite state with regions, and descriptions with links are drawn
 state diagrams; asserts that a link between two components, a component keyword, an interface written `() HTTP`, and a
-component in a node are drawn component diagrams; asserts that plain messages and a message with a circle are sequence
+component in a node are drawn component diagrams; asserts that a use case keyword, a link between use cases in
+parentheses, actors written `:Guest:` and `:Account Owner: as AO` (whose action is never closed), and an actor with a
+boundary holding a colored use case `(Pay) #back:white;line:green` are drawn use case diagrams, and that an activity
+diagram whose action is never closed (with text after it no graph family reads) stays an activity diagram; asserts
+that plain messages and a message with a circle are sequence
 diagrams, an extension a class diagram, links to use cases use case diagrams, links to components component diagrams,
 nodes and clouds a deployment diagram, a state with a link a state diagram, a class with an actor a class diagram, and
 `(*)` a legacy activity diagram.
@@ -68,9 +74,9 @@ nodes and clouds a deployment diagram, a state with a link a state diagram, a cl
 **Tests**: `DiagramDetectorTests.PlantUmlDiagramDetector_Detect_OtherTypeKeyword_IsRecognized`,
 `DiagramDetectorTests.PlantUmlDiagramDetector_UnsupportedHint_ListsDrawnTypes`
 
-Asserts the type of one-statement diagrams: use case (keyword and parentheses), legacy activity, deployment, timing, and
-gantt; none is drawn. Asserts that the hint of a legacy activity diagram names it and lists the activity, class,
-component, object, sequence, and state diagrams as drawn, and the joined lists of two and three types.
+Asserts the type of one-statement diagrams: legacy activity, deployment, timing, and gantt; none is drawn. Asserts that
+the hint of a legacy activity diagram names it and lists the activity, class, component, object, sequence, state, and
+usecase diagrams as drawn, and the joined lists of two and three types.
 
 ##### CanvasNetPlantUml-Syntax-DiagramDetector-Errors: Empty And Unknown Diagrams Fail Located
 

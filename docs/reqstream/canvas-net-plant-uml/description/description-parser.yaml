@@ -27,6 +27,7 @@ sections:
                   - PlantUmlDescriptionParser_Parse_Shorthands_GiveTheirSymbols
                   - PlantUmlDescriptionParser_Parse_MultilineDescriptions_ReplaceTheName
                   - PlantUmlDescriptionParser_Parse_StereotypesAndColors_AreRead
+                  - PlantUmlDescriptionParser_Parse_UseCaseForms_ReadNamesAndSymbols
 
               - id: CanvasNetPlantUml-Description-DescriptionParser-Containers
                 title: >-
@@ -57,11 +58,14 @@ sections:
                   The DescriptionParser unit shall read a link with its decorations at both ends (the sockets of
                   required and provided interfaces included), its length, direction hint, style in brackets, a body of
                   dots as dashed and of equal signs as bold, its color, its end labels, and its label with its
-                  direction mark.
+                  direction mark, whose parts written in double angle brackets (<<include>>, <<extend>>) are written
+                  with guillemets.
                 justification: |
-                  The arrow decides the ranks and the look of a link.
+                  The arrow decides the ranks and the look of a link; PlantUML writes the include and extend labels of
+                  a use case diagram with guillemets.
                 tests:
                   - PlantUmlDescriptionParser_Parse_Links_ReadTheirArrows
+                  - PlantUmlDescriptionParser_Parse_UseCaseForms_ReadNamesAndSymbols
 
               - id: CanvasNetPlantUml-Description-DescriptionParser-Notes
                 title: >-
@@ -76,11 +80,12 @@ sections:
               - id: CanvasNetPlantUml-Description-DescriptionParser-Common
                 title: >-
                   The DescriptionParser unit shall read the page texts, the direction, the scale, the layout skin
-                  parameters, and the skin parameters of the description symbols.
+                  parameters, and the skin parameters of the description symbols (actor and use case included).
                 justification: |
                   These statements change the look and the layout of the diagram.
                 tests:
                   - PlantUmlDescriptionParser_Parse_CommonStatements_AreRead
+                  - PlantUmlDescriptionParser_Parse_UseCaseForms_ReadNamesAndSymbols
 
               - id: CanvasNetPlantUml-Description-DescriptionParser-Unsupported
                 title: >-

@@ -42,6 +42,30 @@ the theme's on the box and the icon and on the text.
 Asserts an ellipse clip of 18 at the center of the image, a circle of 16, the name 8 below the clip box and centered,
 and the italic stereotype 8 above it.
 
+##### CanvasNetPlantUml-Description-DescriptionRenderer-Actors: Actors
+
+**Tests**: `DescriptionRendererTests.PlantUmlDescriptionRenderer_Image_Actor_IsAStickFigureWithItsNameBelow`,
+`DescriptionRendererTests.PlantUmlDescriptionRenderer_Image_BusinessActor_HasTheSlash`
+
+Asserts the size of an actor with a stereotype (the widest of the texts and the figure of 27, two lines and 60 high),
+a rectangle clip, the head of 16 centered 0.5 below the stereotype and filled `#F1F1F1` with the outline of the theme,
+the body, arms, and legs 26 wide and 42 high below the head, the name centered with its baseline 60 below the figure's
+top, and the italic stereotype centered with a margin of 1; asserts the three paths of a business actor and its slash
+from (-1.944, 7.760) to (7.761, -1.944) of the head's center, as PlantUML draws it.
+
+##### CanvasNetPlantUml-Description-DescriptionRenderer-UseCases: Use Cases
+
+**Tests**: `DescriptionRendererTests.PlantUmlDescriptionRenderer_Image_UseCase_HasPlantUmlEllipse`,
+`DescriptionRendererTests.PlantUmlDescriptionRenderer_Image_BusinessUseCase_HasTheSlash`,
+`DescriptionRendererTests.PlantUmlDescriptionRenderer_EnclosingCircle_IsTheSmallest`
+
+Asserts, against PlantUML's pictures, the size of the ellipse and the offsets of the first line of four use cases (a
+name, a business use case with its margins, stereotypes over a name, and lines of different widths), the ellipse clip,
+and the outline of the image's size; asserts the slash of a business use case at PlantUML's ends and none on a use
+case, and the style elements of the business forms; asserts the smallest enclosing circle of a rectangle's corners,
+of points on a line, of one point, and of no point, that the circle of 20 000 points on a circle holds them all, is no
+larger than theirs, and does not depend on their order, and the ratio's bounds.
+
 ##### CanvasNetPlantUml-Description-DescriptionRenderer-Symbols: Symbols
 
 **Tests**: `DescriptionRendererTests.PlantUmlDescriptionRenderer_Image_Symbols_HavePlantUmlMargins`,

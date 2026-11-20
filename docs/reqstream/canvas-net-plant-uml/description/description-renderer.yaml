@@ -37,6 +37,34 @@ sections:
                 tests:
                   - PlantUmlDescriptionRenderer_Image_Interface_IsACircleWithItsNameBelow
 
+              - id: CanvasNetPlantUml-Description-DescriptionRenderer-Actors
+                title: >-
+                  The DescriptionRenderer unit shall draw an actor as PlantUML's ActorStickMan draws it: its
+                  stereotypes in italic, centered, over a stick figure (a head of radius 8 filled  # F1F1F1, a body,
+                  arms 26 wide, and legs, 26 wide and 59 high plus twice the line width) over its name, whose lines are
+                  aligned left, all centered on each other, with the links ending on the box; a business actor's head
+                  is crossed by PlantUML's slash.
+                justification: |
+                  The stick figure is how a reader tells an actor from a use case.
+                tests:
+                  - PlantUmlDescriptionRenderer_Image_Actor_IsAStickFigureWithItsNameBelow
+                  - PlantUmlDescriptionRenderer_Image_BusinessActor_HasTheSlash
+
+              - id: CanvasNetPlantUml-Description-DescriptionRenderer-UseCases
+                title: >-
+                  The DescriptionRenderer unit shall draw a use case as PlantUML's USymbolUsecase draws it: its
+                  stereotypes (with a margin of 1 on each side) over its name, the lines centered, in the smallest
+                  ellipse whose ratio of height to width is that of the texts (between 0.2 and 0.8) around the corners
+                  of every line and of the stereotypes' margin box, grown by 6, with the links ending on the ellipse; a
+                  business use case has a margin of 7 on each side of its texts and PlantUML's slash across the lower
+                  right of its ellipse.
+                justification: |
+                  The ellipse of a use case is sized around its text as PlantUML sizes it, so that the pictures agree.
+                tests:
+                  - PlantUmlDescriptionRenderer_Image_UseCase_HasPlantUmlEllipse
+                  - PlantUmlDescriptionRenderer_Image_BusinessUseCase_HasTheSlash
+                  - PlantUmlDescriptionRenderer_EnclosingCircle_IsTheSmallest
+
               - id: CanvasNetPlantUml-Description-DescriptionRenderer-Symbols
                 title: >-
                   The DescriptionRenderer unit shall draw the node, rectangle, folder, package, frame, cloud, database,

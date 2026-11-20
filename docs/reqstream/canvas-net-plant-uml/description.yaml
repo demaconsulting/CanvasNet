@@ -22,8 +22,8 @@ sections:
               malformed statement, a redeclaration with another symbol, or a statement of another diagram with a
               located syntax error.
             justification: |
-              Component diagrams are a common graph diagram; their statements must be read as PlantUML reads them, and
-              what is not drawn must be said, not silently dropped. The parser is complete for the use case and
+              Use case and component diagrams are common graph diagrams; their statements must be read as PlantUML
+              reads them, and what is not drawn must be said, not silently dropped. The parser is complete for the
               deployment diagrams too, which share the statements.
             children:
               - CanvasNetPlantUml-Description-DescriptionParser-Declarations
@@ -37,6 +37,7 @@ sections:
             tests:
               - PlantUmlDescription_ReadLayoutRender_DrawsTheModel
               - PlantUmlDescription_SkinAndReports_ReachTheDrawing
+              - PlantUmlDescription_UseCase_DrawsActorsAndUseCases
 
           - id: CanvasNetPlantUml-Description-Layout
             title: >-
@@ -56,20 +57,23 @@ sections:
 
           - id: CanvasNetPlantUml-Description-Drawing
             title: >-
-              The Description subsystem shall draw a component, an interface, and the node, rectangle, folder, package,
-              frame, cloud, database, and card symbols with PlantUML's shapes and margins, every other symbol as a
-              rectangle, and the containers with PlantUML's container symbols, in the look of the diagram's skin
-              parameters.
+              The Description subsystem shall draw a component, an interface, an actor, a use case, their business
+              forms, and the node, rectangle, folder, package, frame, cloud, database, and card symbols with
+              PlantUML's shapes and margins, every other symbol as a rectangle, and the containers with PlantUML's
+              container symbols, in the look of the diagram's skin parameters.
             justification: |
-              The shapes are what makes a component diagram look like PlantUML's picture.
+              The shapes are what makes a use case or a component diagram look like PlantUML's picture.
             children:
               - CanvasNetPlantUml-Description-DescriptionRenderer-Components
               - CanvasNetPlantUml-Description-DescriptionRenderer-Interfaces
+              - CanvasNetPlantUml-Description-DescriptionRenderer-Actors
+              - CanvasNetPlantUml-Description-DescriptionRenderer-UseCases
               - CanvasNetPlantUml-Description-DescriptionRenderer-Symbols
               - CanvasNetPlantUml-Description-DescriptionRenderer-Containers
             tests:
               - PlantUmlDescription_ReadLayoutRender_DrawsTheModel
               - PlantUmlDescription_SkinAndReports_ReachTheDrawing
+              - PlantUmlDescription_UseCase_DrawsActorsAndUseCases
 
           - id: CanvasNetPlantUml-Description-Limits
             title: >-

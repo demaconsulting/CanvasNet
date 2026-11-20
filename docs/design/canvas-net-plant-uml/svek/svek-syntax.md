@@ -38,7 +38,9 @@ target or `OnLink`, the alias, the fill), and `SvekHideShow(Show, What, Location
   as PlantUML's regular expression backtracks (so `A-B` is a link of length 1; a name in brackets after the arrow is a
   qualifier only when a second end follows it, so `[A] --> [B]` links two components); once the statement matches, the
   style in brackets and the color are checked and the label is split (`SplitLabel`: quoted end labels around it when the
-  arrow has none, a `>` or `<` mark at its end or start).
+  arrow has none, a `>` or `<` mark at its end or start) and written with guillemets (`Guillemets`, PlantUML's
+  `Guillemet.manageGuillemet`: a part `<<`, at most one space, a text without angle brackets but sprites `<&name>`, at
+  most one space, `>>` on one line becomes `«text»`, so `<<include>>` is `«include»`).
 - `TryReadNote(statements, ref index, ...)` - `note left|right|top|bottom [of Name] [#color] [: text]`,
   `note [side] on link [#color] [: text]`, `note "text" as N [#color]`, and `note as N` with a block up to `end note`.
 - `TryReadPageText`, `TryReadDirection`, `ReadScale`, `TryReadHideShow`, `TakeLayoutSettings` - the page texts (as the

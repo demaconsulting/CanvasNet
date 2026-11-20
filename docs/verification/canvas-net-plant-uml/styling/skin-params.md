@@ -62,8 +62,9 @@ diagram and asserts seven `plantuml-skinparam-ignored` reports.
 
 Asserts the fill and border of `component`, the fill of `interface`, the font color of `node`, the border width of
 `rectangle`, the fill of `folder`, the font size of `frame`, the border of `cloud`, the fill of `card` and `database`,
-and the border of `package` (a graph prefix) applied in a description diagram without a report; asserts that a class
-diagram reports the nine description symbol parameters as ignored.
+the border of `package` (a graph prefix), the fill and font color of `usecase`, and the border of `actor` (a shared
+prefix) applied in a description diagram without a report; asserts that a class diagram reports the eleven description
+symbol parameters as ignored.
 
 ##### CanvasNetPlantUml-Styling-SkinParams-Colors: PlantUML's Color Forms
 

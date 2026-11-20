@@ -22,10 +22,10 @@ state diagram. The unit's behavior is specified by the
 - `DetectedDiagram(DiagramType, IsSupported, Keyword, Location)` - the public type name, whether this version draws
   it (whether it is in `SupportedTypes`), the construct it was recognized by (an `@start` tag or a statement's first
   word), and its location.
-- `SupportedTypes` - the drawn types (`sequence`, `activity`, `class`, `object`, `state`, `component`); `TagTypes` - the
-  `@start` tags other than `uml` with their types (`mindmap`, `gantt`, `wbs`, `json`, `yaml`, `salt`, `ditaa`, `dot`,
-  `math`, `latex`, `regex`, `ebnf`, `chen`, `files`, `chronology`, `board`, `creole`, `wire`, `nwdiag`, `chart`, `def`,
-  `git`, `project`, `flow`, `packetdiag`, `jcckit`).
+- `SupportedTypes` - the drawn types (`sequence`, `activity`, `class`, `object`, `state`, `usecase`, `component`);
+  `TagTypes` - the `@start` tags other than `uml` with their types (`mindmap`, `gantt`, `wbs`, `json`, `yaml`, `salt`,
+  `ditaa`, `dot`, `math`, `latex`, `regex`, `ebnf`, `chen`, `files`, `chronology`, `board`, `creole`, `wire`, `nwdiag`,
+  `chart`, `def`, `git`, `project`, `flow`, `packetdiag`, `jcckit`).
 - The keyword tables - the participant keywords and the keywords of the sequence diagram only, the keywords of the
   activity diagram only, the keywords both accept (titles, notes, styling, `else`, `end`, and an aligned header or
   footer such as `left header`), and the keywords of the
@@ -41,7 +41,9 @@ state diagram. The unit's behavior is specified by the
   statements are reduced to the ones outside multi-line text blocks (`OuterStatements`), and: a diagram whose
   statements are all common is an empty diagram (a syntax error); a diagram whose statements the sequence diagram all
   accepts is a sequence diagram; otherwise, when the activity diagram accepts them all and one is an activity
-  statement, an activity diagram; otherwise the first graph family that accepts every statement (`DetectGraph`)
+  statement, an activity diagram (unless an action is never closed and a graph family reads the text: PlantUML's
+  multi-line action needs its ending `;`, so `:Guest:` is an actor); otherwise the first graph family that accepts
+  every statement (`DetectGraph`)
   names the type; otherwise the first statement with a marker of another type names that type;
   otherwise a syntax error at the first statement the more likely type (by the number of its specific statements)
   refuses.
@@ -56,7 +58,8 @@ state diagram. The unit's behavior is specified by the
   (skipped as text by `ClassOuterStatements`), member lines `A : x`, packages, notes, hide and show, and links read by
   the `SvekSyntax` link reader whose ends are class names; the type is `object` when an object or a map is declared
   before any class, otherwise `class`. A text with `(*)` is then a legacy activity diagram; the description family
-  accepts its keywords, bracketed components, parenthesized use cases, interfaces written `() name`, and their links,
+  accepts its keywords, bracketed components, parenthesized use cases and actors written `:name:` (with what follows
+  them: an alias, stereotypes, a color), interfaces written `() name`, and their links,
   and is a use case diagram when any statement uses a use case construct (`actor`, `usecase`, `(name)`, `:name:`, or a
   link to one), else a component diagram when any statement uses a component construct (`component`, `interface`,
   ports, `[name]`, `() name`, or a link to one), else a deployment diagram; the state family accepts states, `[*]`, and
@@ -73,7 +76,9 @@ state diagram. The unit's behavior is specified by the
   are text and are skipped up to the closing statement; a closer that starts with `end` is also accepted with a space
   after `end` (`end legend` closes `legend` as `endlegend` does). An activity action that opens with `:` (after an
   optional color) and does not end with `;` (or one of the box-style endings) on its line is text up to the line that
-  ends it, which is skipped with it; a `floating note` opens a note block like `note`.
+  ends it, which is skipped with it; a `floating note` opens a note block like `note`. The graph families read the
+  statements with `openActionIsText` false: an action that is never closed is one statement and the lines after it
+  are statements (`EndsInOpenAction` tells whether the statements end inside an action).
 - `UnsupportedHint(detected)` and `EditDistance(a, b)` - the hint of a type that is not drawn, and the Levenshtein
   distance of two words.
 

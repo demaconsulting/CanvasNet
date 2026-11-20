@@ -55,4 +55,5 @@ The Styling subsystem (`SkinTheme`, `ElementStyle`), the Scenegraph subsystem (`
 
 #### Callers
 
-`SequenceModel.Layout`; the tests.
+`SequenceModel.Layout`; the Description subsystem's `DescriptionRenderer`, which draws the actors of use case
+diagrams with the internal `StickFigure`; the tests.

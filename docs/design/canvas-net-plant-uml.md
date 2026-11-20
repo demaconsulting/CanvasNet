@@ -54,8 +54,8 @@ The system is decomposed into one direct unit and internal subsystems:
   unit (the state boxes, the pseudo-states, and the composite states); see *State Subsystem Design*.
 - **Description** (subsystem) - the `DescriptionParser` unit (the statements of use case, component, and deployment
   diagrams), the `DescriptionModel` unit (the diagram with its elements and containers, lowered to the Svek engine),
-  and the `DescriptionRenderer` unit (the components, interfaces, symbols, and containers); see *Description Subsystem
-  Design*.
+  and the `DescriptionRenderer` unit (the actors, use cases, components, interfaces, symbols, and containers); see
+  *Description Subsystem Design*.
 
 The SysML2 model names the system `CanvasNetPlantUmlSystem` and prefixes the names of its subsystems and units with
 `PlantUml` (`PlantUmlSyntax`, `PlantUmlPreprocessor`, `PlantUmlDiagramDetector`, `PlantUmlStyling`, `PlantUmlSkinTheme`,
@@ -280,20 +280,27 @@ of this repository, so the two diagram languages are bounded alike.
   between two concurrent regions, and so does CanvasNet. A state declared with the alias of a floating note is a
   `plantuml-syntax-error`, where PlantUML accepts it and draws no usable picture (both refuse a floating note named
   like a state).
-- **Component diagrams** - every element (its outline, size, colors, and texts), container title, and link decoration
-  of the reference fixtures agrees with PlantUML's within 1.5 pixels; the positions differ as in class diagrams. An
-  interface reserves room for its name and stereotypes above and below its circle in the layout (PlantUML's shield
-  does the same, but drops it in some cases), so its circle is the center of its node. The use case symbols (actors and
-  use cases) and the deployment symbols other than node, rectangle, folder, package, frame, cloud, database, and card
-  are drawn as rectangles and reported; ports and their links, middle decorations of links (which the jar's Smetana
-  layout does not draw either), roles, qualifiers, and stereotypes of links, `together`, `hide`, `show`, `remove`,
-  `restore`, archimate elements, `json` and `map` blocks, URLs, and notes on containers (drawn floating) are reported
-  as `plantuml-statement-unsupported`; an arrow body of `~` is not read. Where PlantUML accepts a text but draws a
-  picture that does not show what was written, CanvasNet refuses it with a located `plantuml-syntax-error`: a stray
-  `}` and an unclosed container (PlantUML ignores them), a short name of elements in several containers (PlantUML links
-  one of them and drops the other's container), and a container declared with the name of an element (PlantUML
-  replaces the element). A qualified name such as `N.C` from outside its container names the element `N.C` (PlantUML
-  creates a second element with that name).
+- **Component diagrams** - every element (its outline, size, colors, and texts), container title, and link decoration of
+  the reference fixtures agrees with PlantUML's within 1.5 pixels; the positions differ as in class diagrams. An
+  interface reserves room for its name and stereotypes above and below its circle in the layout (PlantUML's shield does
+  the same, but drops it in some cases), so its circle is the center of its node. The deployment symbols other than
+  node, rectangle, folder, package, frame, cloud, database, and card are drawn as rectangles and reported; ports and
+  their links, middle decorations of links (which the jar's Smetana layout does not draw either), roles, qualifiers, and
+  stereotypes of links, `together`, `hide`, `show`, `remove`, `restore`, archimate elements, `json` and `map` blocks,
+  URLs, and notes on containers (drawn floating) are reported as `plantuml-statement-unsupported`; an arrow body of `~`
+  is not read. Where PlantUML accepts a text but draws a picture that does not show what was written, CanvasNet refuses
+  it with a located `plantuml-syntax-error`: a stray `}` and an unclosed container (PlantUML ignores them), a short name
+  of elements in several containers (PlantUML links one of them and drops the other's container), and a container
+  declared with the name of an element (PlantUML replaces the element). A qualified name such as `N.C` from outside its
+  container names the element `N.C` (PlantUML creates a second element with that name).
+- **Use case diagrams** - every actor (its stick figure, size, colors, and texts), use case (its ellipse, sized around
+  its texts as PlantUML sizes it), boundary title, and link decoration of the reference fixtures agrees with PlantUML's
+  within 1.5 pixels; the positions differ as in class diagrams, and the component diagrams' differences apply (the
+  description diagrams share their parser and engine). A name only written in links is an actor when the diagram has an
+  actor or a use case, as in PlantUML. The `<<include>>` and `<<extend>>` labels of links are written with guillemets,
+  as PlantUML writes them; double angle brackets in the name of an element (`(Check <<x>>)`) are drawn as written, where
+  PlantUML writes guillemets in every text. `skinparam actorStyle` (the awesome and hollow actors) is reported as
+  ignored; an actor or a use case that holds elements is a located `plantuml-syntax-error`, as in PlantUML.
 
 ## Phase Plan
 
@@ -302,7 +309,7 @@ of this repository, so the two diagram languages are bounded alike.
   policy; the image source; the Viewer, tool, and Pandoc filter integration.
 - **Phase 2** - the diagram types that PlantUML lays out with Graphviz (class, component, use case, state, object, and
   deployment diagrams) are laid out by the shared Svek engine over the dagre layered layout of the `CanvasNetLayout`
-  package, which the Mermaid package shares (the engine is in place and draws class, object, state, and component
-  diagrams; the other diagram types follow in steps). Themes,
+  package, which the Mermaid package shares (the engine is in place and draws class, object, state, use case, and
+  component diagrams; the other diagram types follow in steps). Themes,
   `<style>` blocks, feature positions, and the conditional and function directives of the preprocessor are candidates as
   well.
