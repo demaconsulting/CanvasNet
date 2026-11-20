@@ -418,6 +418,33 @@ public class FileAccessPolicyTests
     }
 
     /// <summary>
+    ///     Validates on Windows that the link match accepts a trusted folder and a real path on a volume without a drive
+    ///     letter (both in the <c>\\?\Volume{GUID}\</c> form): the real path that is the anchor followed by the path
+    ///     as written matches, and one in another folder of that volume does not.
+    /// </summary>
+    [Fact]
+    public void FileAccessPolicy_MatchesWithoutLinks_VolumeGuidAnchorAndRealPath_Match()
+    {
+        // Arrange
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Skip(FileTestSupport.WindowsOnly);
+        }
+
+        const string Volume = @"\\?\Volume{67589fd6-ee90-4e7d-9ad7-a17168a66d75}\";
+        const string Anchor = @"D:\mounted\base";
+        const string Requested = @"D:\mounted\base\sub\a.txt";
+
+        // Act
+        var same = FileAccessPolicy.MatchesWithoutLinks(Anchor, Volume + "base", Requested, Requested, Volume + @"base\sub\a.txt");
+        var elsewhere = FileAccessPolicy.MatchesWithoutLinks(Anchor, Volume + "base", Requested, Requested, Volume + @"other\a.txt");
+
+        // Assert
+        Assert.True(same);
+        Assert.False(elsewhere);
+    }
+
+    /// <summary>
     ///     Validates that a combination asks its parts in order, the first denial wins, names are joined with <c>+</c>,
     ///     nested combinations are flattened, a single policy is returned as it is, and the lexical pre-check and the
     ///     need for a real path come from the parts.

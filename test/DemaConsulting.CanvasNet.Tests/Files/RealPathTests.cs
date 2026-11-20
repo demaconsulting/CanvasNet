@@ -12,6 +12,56 @@ namespace DemaConsulting.CanvasNet.Tests.Files;
 public class RealPathTests
 {
     /// <summary>
+    ///     Validates the conversion of a final path as Windows reports it (pure text, so it runs on every system): the
+    ///     prefix of a drive path is stripped, an extended UNC path becomes a UNC path, a path on a volume without a drive
+    ///     letter keeps its volume GUID form (its bare root with a separator), and any other spelling is unknown.
+    /// </summary>
+    /// <param name="reported">The path as Windows reports it.</param>
+    /// <param name="expected">The canonical spelling, or <see langword="null"/> for unknown.</param>
+    [Theory]
+    [InlineData(@"\\?\C:\a", @"C:\a")]
+    [InlineData(@"\\?\UNC\srv\share\a", @"\\srv\share\a")]
+    [InlineData(@"\\?\Volume{67589fd6-ee90-4e7d-9ad7-a17168a66d75}\a\b", @"\\?\Volume{67589fd6-ee90-4e7d-9ad7-a17168a66d75}\a\b")]
+    [InlineData(@"\\?\Volume{67589fd6-ee90-4e7d-9ad7-a17168a66d75}", @"\\?\Volume{67589fd6-ee90-4e7d-9ad7-a17168a66d75}\")]
+    [InlineData(@"\\?\Volume{67589fd6-ee90-4e7d-9ad7-a17168a66d75}\a}", @"\\?\Volume{67589fd6-ee90-4e7d-9ad7-a17168a66d75}\a}")]
+    [InlineData(@"\\?\GLOBALROOT\Device\HarddiskVolume3\a", null)]
+    [InlineData(@"\\?\Volume{xyz}\a", null)]
+    [InlineData(@"\\?\pipe\x", null)]
+    public void RealPath_FromFinalPathName_KeepsVolumeGuidPathsAndStripsDrivePrefixes(string reported, string? expected)
+    {
+        // Act
+        var canonical = RealPath.FromFinalPathName(reported);
+
+        // Assert
+        Assert.Equal(expected, canonical);
+    }
+
+    /// <summary>
+    ///     Validates on Windows that real paths on a volume without a drive letter are compared exactly, like any other
+    ///     real path: a file below <c>\\?\Volume{GUID}\Docs</c> is under it and under the volume root, and not under
+    ///     <c>\\?\Volume{GUID}\docs</c> or another volume.
+    /// </summary>
+    [Fact]
+    public void RealPath_IsUnder_VolumeGuidPaths_ComparedExactly()
+    {
+        // Arrange
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Skip(FileTestSupport.WindowsOnly);
+        }
+
+        const string Volume = @"\\?\Volume{67589fd6-ee90-4e7d-9ad7-a17168a66d75}\";
+        const string Other = @"\\?\Volume{0f1e2d3c-4b5a-6978-8796-a5b4c3d2e1f0}\";
+        var file = Volume + @"Docs\a.txt";
+
+        // Act / Assert
+        Assert.True(RealPath.IsUnder(file, Volume + "Docs"));
+        Assert.True(RealPath.IsUnder(file, Volume));
+        Assert.False(RealPath.IsUnder(file, Volume + "docs"));
+        Assert.False(RealPath.IsUnder(file, Other + "Docs"));
+    }
+
+    /// <summary>
     ///     Validates that a plain file opened for reading is a regular file whose final path is its full path in the
     ///     real location of its folder.
     /// </summary>

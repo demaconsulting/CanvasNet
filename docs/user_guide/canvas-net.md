@@ -2382,17 +2382,17 @@ enabled) it is another folder. Every side of the comparison is in the letter cas
 each folder's real location in that case, and the resolver hands the policy the real path of the open file
 (`FileAccessRequest.RealPath`) in that case too, after confirming that this spelling names the opened file through no
 link (by its volume serial number and file identifier on Windows - the 128-bit identifier where the volume reports it,
-as ReFS does - and its device and inode on Linux and macOS). So on a
-case-insensitive volume (the default on Windows and macOS) a folder or a reference written in another letter case still
-works. The fail-closed cases: a file whose stored spelling cannot be confirmed to name the opened file - for example on
-a file system that reports the spelling a file was opened with and holds several names that differ only in letter case,
-or a spelling that reaches the file through a linked folder another process created meanwhile - is denied
-(`AccessDenied`, the letter case its real path has on disk cannot be confirmed to name the opened file); a folder whose
-entries cannot be listed keeps the name as written, which can only deny; and in a case-sensitive folder a name written
-in another letter case than a stored entry names no file, so it is kept as written (it is matched to the stored entry
-only when both spellings open the same entry, which is what a case-insensitive folder does). Only the check of the path as written before
-the open keeps the system's rule (case-insensitive on Windows and macOS). A policy you call yourself with `Check` must
-get `RealPath` in its on-disk letter case.
+as ReFS does - and its device and inode on Linux and macOS). So on a case-insensitive volume (the default on Windows and
+macOS) a folder or a reference written in another letter case still works. The fail-closed cases: a file whose stored
+spelling cannot be confirmed to name the opened file - for example on a file system that reports the spelling a file was
+opened with and holds several names that differ only in letter case, or a spelling that reaches the file through a
+linked folder another process created meanwhile - is denied (`AccessDenied`, the letter case its real path has on disk
+cannot be confirmed to name the opened file); a folder whose entries cannot be listed keeps the name as written, which
+can only deny; and in a case-sensitive folder a name written in another letter case than a stored entry names no file,
+so it is kept as written (it is matched to the stored entry only when both spellings open the same entry, which is what
+a case-insensitive folder does). Only the check of the path as written before the open keeps the system's rule
+(case-insensitive on Windows and macOS). A policy you call yourself with `Check` must get `RealPath` in its on-disk
+letter case.
 
 Under **every** policy the resolver refuses a referenced network path (`\\server\share`, `//host`) as `NetworkPath`, a
 device path
@@ -2402,7 +2402,9 @@ such as `NUL.txt`, trailing spaces or dots), or an alternate data stream (any co
 `InvalidPath`, a control
 character, and anything that is not a regular file (a directory, a device such as `/dev/zero`, a named pipe, which never
 blocks the open) as `NotARegularFile`, and it keeps `MaxFileBytes` and `MaxFiles`. A policy other than `AllowAll` needs
-the real path of the open file: Windows, Linux (with `/proc` mounted), and macOS provide it; elsewhere such a policy
+the real path of the open file: Windows, Linux (with `/proc` mounted), and macOS provide it (on Windows also on a volume
+mounted on a folder or without a drive letter, where the real paths of the roots and the files are in the
+`\\?\Volume{GUID}\` form and are compared like any other); elsewhere such a policy
 refuses every file with `RealPathUnavailable`. A policy that throws or returns no decision denies the file. These
 refusals are about the files a document references; the top-level file you name yourself is opened as given.
 

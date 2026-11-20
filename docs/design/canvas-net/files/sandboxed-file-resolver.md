@@ -141,7 +141,9 @@ a cancellation or an argument error is a `SandboxException`.
   (`RootLocation`), and the on-disk spelling of the candidate's path (`FileAccessPolicy.ExactSpelling`) before every
   walk and open; neither is resolved by name after the open, so a root renamed and replaced by a link in between is
   refused as `ThroughLink`. When the real location of the root could not be determined the file is `LinkCheckFailed`
-  (fail closed; a root the process may search but not read has a real location); when the real path differs the file is
+  (fail closed; a root the process may search but not read has a real location); on a volume without a drive letter the
+  real path and the root location are both in the volume GUID form (`\\?\Volume{GUID}\...`,
+  `RealPath.FromFinalPathName`) and are compared like any other; when the real path differs the file is
   `ThroughLink` with the root-relative path **of the file** as the detail (the handle cannot tell which component is the
   link). This repeats the walk's rule on the file that is actually read, so a component swapped for a link after the
   walk is refused. `ThroughLink` and `LinkCheckFailed` from this step are thrown like walk refusals: they are not cached

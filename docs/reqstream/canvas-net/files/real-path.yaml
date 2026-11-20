@@ -19,10 +19,14 @@ sections:
                 title: >-
                   The RealPath unit shall report, for an open file on Windows, Linux and macOS, the real path of the
                   file the handle refers to: the full path with symbolic links, junctions and (on Windows) short
-                  names resolved, and (on macOS) the real location of linked system folders.
+                  names resolved, and (on macOS) the real location of linked system folders; on Windows a drive path
+                  without its \\?\ prefix, a network path as a UNC path, a path on a volume without a drive letter in
+                  its volume GUID form (\\?\Volume{GUID}\...), and any other device-namespace spelling as unknown.
                 justification: |
                   A race-free decision needs the real path of the open file, which .NET does not provide; every
-                  supported operating system must supply it.
+                  supported operating system must supply it. A volume mounted on a folder, or not mounted at all, has
+                  no drive letter, so Windows reports its files by the volume GUID path; treating that as unknown
+                  would deny every file on it under a restrictive policy.
                 tests:
                   - "windows@RealPath_Inspect_PlainFile_ReportsItsCanonicalPathAndARegularFile"
                   - "ubuntu@RealPath_Inspect_PlainFile_ReportsItsCanonicalPathAndARegularFile"
@@ -32,6 +36,7 @@ sections:
                   - "macos@RealPath_Inspect_FileThroughADirectoryLink_ReportsTheTarget"
                   - "windows@RealPath_Inspect_ShortNameSpelling_IsExpanded"
                   - "macos@RealPath_Inspect_TempFileOnMacOS_ReportsThePrivateLocation"
+                  - RealPath_FromFinalPathName_KeepsVolumeGuidPathsAndStripsDrivePrefixes
 
               - id: CanvasNet-Files-RealPath-Unavailable
                 title: >-
@@ -119,6 +124,7 @@ sections:
                   - RealPath_IsUnder_BoundaryIsTheSeparator
                   - RealPath_IsUnder_ComparesLetterCaseExactly
                   - RealPath_CommonAncestor_ComparesComponentsExactly
+                  - "windows@RealPath_IsUnder_VolumeGuidPaths_ComparedExactly"
 
               - id: CanvasNet-Files-RealPath-ExactCase
                 title: >-

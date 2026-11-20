@@ -33,13 +33,13 @@ The unit's behavior is specified by the `CanvasNet-Files-RealPath-*` requirement
 #### Data Model
 
 **`HandleFacts`** (readonly record struct): `IsRegularFile` (`bool?`) and `FinalPath` (`string?`); `null` means the
-platform cannot tell. **`PathComparison`**: `OrdinalIgnoreCase` on Windows and macOS, `Ordinal` elsewhere; used only
-for paths as written (the lexical pre-check of a policy, the lexical confinement of the sandbox, Windows drive roots),
-never for a decision about a real path and never for cache keys (the resolver caches use ordinal keys). Real paths are always compared with
-`StringComparison.Ordinal` (on macOS after both sides are brought into Unicode composed form), because Windows
-per-directory case sensitivity and case-sensitive APFS make two names that differ only in letter case two different
-folders. The unit is stateless except for one cached flag in `NativeMethods` that remembers
-whether the C library exports `fstat`.
+platform cannot tell. **`PathComparison`**: `OrdinalIgnoreCase` on Windows and macOS, `Ordinal` elsewhere; used only for
+paths as written (the lexical pre-check of a policy, the lexical confinement of the sandbox, Windows drive roots), never
+for a decision about a real path and never for cache keys (the resolver caches use ordinal keys). Real paths are
+always compared with `StringComparison.Ordinal` (on macOS after both sides are brought into Unicode composed form),
+because Windows per-directory case sensitivity and case-sensitive APFS make two names that differ only in letter case
+two different folders. The unit is stateless except for one cached flag in `NativeMethods` that remembers whether the C
+library exports `fstat`.
 
 #### Key Methods
 
@@ -79,10 +79,19 @@ whether the C library exports `fstat`.
   (`DirectoryNotFoundException`) keeps the rest of the path as written; a folder that cannot be listed
   (`UnauthorizedAccessException`, `IOException`, `SecurityException`, `ArgumentException`, `NotSupportedException`)
   keeps that component as written and goes on with the next. Because entries are compared as plain names, `*` and `?`
-  in a name (legal on Linux and macOS) match only themselves. A trailing separator of the input is kept. The real
-  paths a deciding comparison sees never carry the `\\?\` prefix (it is stripped from every final path); a written
-  path that does (only used as the NoSymlinks expected spelling) keeps its root (`\\?\C:\`, `\\?\Volume{GUID}\`) and
-  has the components below it corrected.
+  in a name (legal on Linux and macOS) match only themselves. A trailing separator of the input is kept. A path with
+  the `\\?\` prefix keeps its root (`\\?\C:\`, `\\?\Volume{GUID}\`) and has the components below it corrected: a
+  written path that has it (only used as the NoSymlinks expected spelling), and a real path or folder location on a
+  volume without a drive letter, the only real paths that carry the prefix (`FromFinalPathName`).
+- `FromFinalPathName` - pure text, the same on every platform: converts a final path as Windows reports it into the
+  spelling real paths are compared in. `\\?\UNC\` (any letter case) becomes `\\`; an ordinary extended-length volume
+  path (`IsOrdinaryExtendedPath` with `Volume{`, the 36-character GUID form) is kept as reported, the bare volume root
+  `\\?\Volume{GUID}` with a trailing `\` added so a file below it is joined and compared as below a drive root; the
+  `\\?\` prefix is stripped from a drive path (`\\?\C:\x` to `C:\x`); anything else (`\\?\GLOBALROOT\`, `\\?\pipe\`, a
+  malformed GUID) is `null` (unknown, fail closed). The roots and the files on a volume without a drive letter both
+  get their real paths from it, so both carry the GUID as Windows spells it and `IsUnder`/`PathsEqual` compare them
+  exactly; `ExactRoot` keeps the volume root, `IsNetworkLocation` classifies it as local, and `CommonAncestor` takes
+  it as the root (`Path.GetPathRoot`).
 - `ExactRoot` - pure text: a drive letter (`c:\`, `\\?\c:\`) is upper-cased, as Windows reports it in a final path; a
   UNC root, a volume GUID root and `/` are kept as they are.
 - `IsSameEntry(writtenPath, storedPath)` - whether two spellings name the same directory entry, by identity, opening
@@ -122,8 +131,9 @@ whether the C library exports `fstat`.
 Per system:
 
 - **Windows**: the final path buffer starts at 512 characters and grows to the size the call asks for (at most 32,768);
-  `\\?\UNC\` becomes `\\` and the `\\?\` prefix is stripped from a drive path; any other spelling (which the
-  `VOLUME_NAME_DOS` flag should never yield) is no path (unknown, fail closed). The result resolves symbolic links,
+  `\\?\UNC\` becomes `\\`, the `\\?\` prefix is stripped from a drive path, and a path on a volume without a drive
+  letter (a volume mounted on a folder, or not mounted) keeps its `\\?\Volume{GUID}\` form (`FromFinalPathName`); any
+  other spelling is no path (unknown, fail closed). The result resolves symbolic links,
   junctions, substituted and mapped drives, and short (8.3) names. **Identity**: `CreateFileW` with
   `FILE_READ_ATTRIBUTES` (0x80), read, write and delete sharing, `OPEN_EXISTING`, and `FILE_FLAG_BACKUP_SEMANTICS |
   FILE_FLAG_OPEN_REPARSE_POINT` (0x02000000 | 0x00200000, so a link at the last component is opened itself); then

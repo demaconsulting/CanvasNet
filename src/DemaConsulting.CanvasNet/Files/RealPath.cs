@@ -219,6 +219,50 @@ internal static partial class RealPath
     }
 
     /// <summary>
+    ///     Converts a final path as Windows reports it (<c>GetFinalPathNameByHandleW</c> with <c>VOLUME_NAME_DOS</c>) into
+    ///     the spelling real paths are compared in: <c>\\?\C:\x</c> becomes <c>C:\x</c>, <c>\\?\UNC\server\share</c>
+    ///     becomes <c>\\server\share</c>, and a path on a volume without a drive letter keeps its volume GUID form
+    ///     (<c>\\?\Volume{GUID}\x</c>, the prefix and the GUID as reported; the bare volume root gets its separator).
+    ///     A pure text rule, the same on every platform.
+    /// </summary>
+    /// <remarks>
+    ///     A volume mounted on a folder, or not mounted at all, has no drive letter, so Windows reports its files by the
+    ///     volume GUID path. That spelling is canonical: the roots and the files on such a volume both come from the
+    ///     final path of a handle, so both carry it in the same spelling and are compared exactly
+    ///     (<see cref="IsUnder(string, string)"/>). The GUID form is the one <see cref="IsOrdinaryExtendedPath"/>
+    ///     accepts; any other spelling (<c>\\?\GLOBALROOT\</c>, <c>\\?\pipe\</c>, a malformed GUID) is no usable path,
+    ///     so it is reported as unknown and a restrictive policy fails closed.
+    /// </remarks>
+    /// <param name="reported">The path as Windows reported it.</param>
+    /// <returns>The canonical spelling, or <see langword="null"/> when the spelling is not a usable path.</returns>
+    internal static string? FromFinalPathName(string reported)
+    {
+        const string ExtendedPrefix = @"\\?\";
+        const string ExtendedUncPrefix = @"\\?\UNC\";
+        const string VolumePrefix = @"\\?\Volume{";
+        const int VolumeRootLength = 48; // \\?\Volume{ (11 characters), the GUID (36) and the closing brace
+
+        // A network file: \\?\UNC\server\share is the UNC path \\server\share
+        if (reported.StartsWith(ExtendedUncPrefix, StringComparison.OrdinalIgnoreCase))
+        {
+            return @"\\" + reported[ExtendedUncPrefix.Length..];
+        }
+
+        // A volume without a drive letter: the volume GUID path is kept as reported; the bare root gets its separator so
+        // that a file below it is joined and compared like below a drive root
+        if (IsOrdinaryExtendedPath(reported) && reported.StartsWith(VolumePrefix, StringComparison.OrdinalIgnoreCase))
+        {
+            return reported.Length == VolumeRootLength ? reported + @"\" : reported;
+        }
+
+        // A drive: \\?\C:\x is C:\x
+        var stripped = reported.StartsWith(ExtendedPrefix, StringComparison.Ordinal) ? reported[ExtendedPrefix.Length..] : reported;
+        return stripped.Length >= 3 && char.IsAsciiLetter(stripped[0]) && stripped[1] == ':' && stripped[2] == '\\'
+            ? stripped
+            : null;
+    }
+
+    /// <summary>
     ///     Gets the deepest folder that two full paths share, comparing whole components exactly (letter case included);
     ///     only the roots are compared under the platform rule (a Windows drive letter names the same drive in either
     ///     letter case).
@@ -378,7 +422,8 @@ internal static partial class RealPath
     ///         Once a folder does not exist, the rest of the path is kept as written; a folder that cannot be listed
     ///         keeps its component as written. Entries are compared as plain names, so a <c>*</c> or <c>?</c> in a
     ///         name never matches another entry. A <c>\\?\</c> path keeps its root and has the components below it
-    ///         corrected; a real path from <see cref="Inspect"/> never carries the prefix.
+    ///         corrected; a real path from <see cref="Inspect"/> carries the prefix only on a volume without a drive
+    ///         letter (<c>\\?\Volume{GUID}\</c>, see <see cref="FromFinalPathName"/>).
     ///     </para>
     ///     <para>
     ///         <b>Not a decision.</b> The spelling is found by name, so it says nothing about the opened file on its

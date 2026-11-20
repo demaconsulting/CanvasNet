@@ -61,12 +61,6 @@ internal static class NativeMethods
     /// <summary>The largest path Windows can report, in characters (including the terminating NUL).</summary>
     private const int WindowsMaxPathBuffer = 32768;
 
-    /// <summary>The prefix Windows puts in front of a final path (<c>\\?\</c>).</summary>
-    private const string WindowsExtendedPrefix = @"\\?\";
-
-    /// <summary>The prefix Windows puts in front of the final path of a network file (<c>\\?\UNC\</c>).</summary>
-    private const string WindowsExtendedUncPrefix = @"\\?\UNC\";
-
     /// <summary>The <c>errno</c> value <c>EPERM</c> (Linux and macOS).</summary>
     private const int ErrorNotPermitted = 1;
 
@@ -162,7 +156,11 @@ internal static class NativeMethods
     ///     short names resolved.
     /// </summary>
     /// <param name="handle">The open handle.</param>
-    /// <returns>The path (without the <c>\\?\</c> prefix; a network path starts with <c>\\</c>), or <see langword="null"/> when Windows cannot tell.</returns>
+    /// <returns>
+    ///     The path in the spelling of <see cref="RealPath.FromFinalPathName"/> (without the <c>\\?\</c> prefix, except a
+    ///     path on a volume without a drive letter, which keeps its <c>\\?\Volume{GUID}\</c> form; a network path starts
+    ///     with <c>\\</c>), or <see langword="null"/> when Windows cannot tell.
+    /// </returns>
     [SupportedOSPlatform("windows")]
     internal static string? TryGetFinalPathName(SafeFileHandle handle)
     {
@@ -178,7 +176,7 @@ internal static class NativeMethods
 
             if (length < buffer.Length)
             {
-                return StripExtendedPrefix(new string(buffer, 0, (int)length));
+                return RealPath.FromFinalPathName(new string(buffer, 0, (int)length));
             }
 
             buffer = new char[length + 1];
@@ -600,26 +598,6 @@ internal static class NativeMethods
     {
         var information = new byte[WindowsFileId.ByHandleInformationSize];
         return GetFileInformationByHandle(handle, information) ? WindowsFileId.FromByHandleInformation(information) : null;
-    }
-
-    /// <summary>
-    ///     Removes the <c>\\?\</c> prefix of a final path, mapping <c>\\?\UNC\server\share</c> to <c>\\server\share</c>
-    ///     and <c>\\?\C:\x</c> to <c>C:\x</c>. Any other spelling (a volume GUID or a device-namespace root, which the
-    ///     flags asked for should never yield) is no usable path, so it is reported as unknown (fail closed).
-    /// </summary>
-    /// <param name="path">The path as Windows reported it.</param>
-    /// <returns>The path in its usual spelling, or <see langword="null"/>.</returns>
-    private static string? StripExtendedPrefix(string path)
-    {
-        if (path.StartsWith(WindowsExtendedUncPrefix, StringComparison.OrdinalIgnoreCase))
-        {
-            return @"\\" + path[WindowsExtendedUncPrefix.Length..];
-        }
-
-        var stripped = path.StartsWith(WindowsExtendedPrefix, StringComparison.Ordinal) ? path[WindowsExtendedPrefix.Length..] : path;
-        return stripped.Length >= 3 && char.IsAsciiLetter(stripped[0]) && stripped[1] == ':' && stripped[2] == '\\'
-            ? stripped
-            : null;
     }
 
     /// <summary>The Windows <c>GetFinalPathNameByHandleW</c> function.</summary>

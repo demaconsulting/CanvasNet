@@ -178,6 +178,11 @@ it). Invalid options are `ArgumentNullException` / `ArgumentOutOfRangeException`
   (see the subsystem design for the `SymlinkEvaluation` advice). A key that is itself a network location (a UNC base
   directory or a mapped network drive) is exempt, so a host working on a share keeps working.
 
+**Volumes without a drive letter**: the real path of a file, and the real location of a trusted folder, on a volume
+mounted on a folder (or not mounted) is in its volume GUID form (`\\?\Volume{GUID}\...`, `RealPath.FromFinalPathName`),
+which the built-in policies compare exactly like any other real path, so such a volume works under every policy
+instead of failing closed as an unknown real path.
+
 **Known limits**: where Windows cannot tell the real path, the default policy reads the file without the network check
 (a restrictive policy fails closed with `RealPathUnavailable`); a SUBST or DFS path whose drive is local but whose
 target is remote is refused (fail closed); a file whose real path, in its on-disk letter case, cannot be confirmed to

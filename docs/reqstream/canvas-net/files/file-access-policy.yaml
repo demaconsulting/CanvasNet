@@ -79,6 +79,7 @@ sections:
                   - "macos@FileAccessPolicy_NoSymlinks_WrittenPathInAnotherLetterCase_IsAllowed"
                   - "ubuntu@FileAccessPolicy_NoSymlinks_LinkNamedLikeItsTargetInAnotherCase_IsDenied"
                   - "ubuntu@FileAccessPolicy_NoSymlinks_AnchorInAnotherLetterCaseThanTheBase_IsNotTrusted"
+                  - "windows@FileAccessPolicy_MatchesWithoutLinks_VolumeGuidAnchorAndRealPath_Match"
 
               - id: CanvasNet-Files-FileAccessPolicy-AnchoredAt
                 title: >-

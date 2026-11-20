@@ -1238,6 +1238,40 @@ public class FileReferenceResolverTests
     }
 
     /// <summary>
+    ///     Validates on Windows that a file on a volume without a drive letter, whose real path and whose starting folder
+    ///     Windows reports in the volume GUID form (<c>\\?\Volume{GUID}\...</c>, injected through the seams), is judged
+    ///     by the no-symlinks policy instead of failing closed as unknown: the real path below the folder as written is
+    ///     allowed, and one in another folder of the volume is denied.
+    /// </summary>
+    [Fact]
+    public void FileReferenceResolver_Resolve_RealPathOnAVolumeWithoutADriveLetter_IsJudgedByNoSymlinks()
+    {
+        // Arrange
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Skip(FileTestSupport.WindowsOnly);
+        }
+
+        const string Volume = @"\\?\Volume{67589fd6-ee90-4e7d-9ad7-a17168a66d75}\";
+        using var directory = new SandboxTempDirectory();
+        directory.Write("base/a.txt", "a");
+        var options = new FileReferenceOptions { BaseDirectory = directory.Combine("base"), FileAccess = FileAccessPolicy.NoSymlinks };
+        var inside = Create(options, new FileOpenHooks { DirectoryLocationOf = _ => Volume + "base", RealPathOf = _ => Volume + @"base\a.txt" });
+        var elsewhere = Create(options, new FileOpenHooks { DirectoryLocationOf = _ => Volume + "base", RealPathOf = _ => Volume + @"other\a.txt" });
+
+        // Act
+        var allowed = inside.Resolve("a.txt");
+        var denied = Assert.Throws<FileReferenceException>(() => elsewhere.Resolve("a.txt"));
+
+        // Assert
+        Assert.Equal("a", Text(allowed));
+        Assert.Equal(Volume + @"base\a.txt", allowed!.RealPath);
+        Assert.Equal(FileReferenceFailureKind.AccessDenied, denied.Kind);
+        Assert.Equal("no-symlinks", denied.PolicyName);
+        Assert.Equal(Volume + @"other\a.txt", denied.RealPath);
+    }
+
+    /// <summary>
     ///     Validates that the message of a denied absolute reference echoes the reference exactly as written, which the
     ///     author supplied, but never adds the real path of the opened file or the base directory; those stay in the
     ///     properties for trusted callers.

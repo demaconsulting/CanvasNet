@@ -186,7 +186,10 @@ verification (see the next scenario).
 macOS),
 `SandboxedFileResolverRaceTests.SandboxedFileResolver_Resolve_RootRealLocationUnavailable_FailsClosedAsLinkCheckFailed`,
 `SandboxedFileResolverRaceTests.SandboxedFileResolver_Resolve_ExecuteOnlyRoot_ReadsTheFile` (Linux, macOS),
-`SandboxedFileResolverRaceTests.SandboxedFileResolver_Resolve_CaseVariantLinkCreatedBeforeTheOpen_IsThroughLink` (Linux)
+`SandboxedFileResolverRaceTests.SandboxedFileResolver_Resolve_CaseVariantLinkCreatedBeforeTheOpen_IsThroughLink`
+(Linux),
+`SandboxedFileResolverRaceTests.SandboxedFileResolver_Resolve_RealPathOnAVolumeWithoutADriveLetter_IsJudgedByTheLinkRule`
+(Windows)
 
 The post-open verification is proven through the `FileOpenHooks` seams of the internal constructor, with no timing:
 inside `BeforeOpen` (after the link walk passed, before any handle exists, so Windows allows the rename) the folder of
@@ -208,6 +211,9 @@ because its real location needs no read permission; the test restores the mode a
 are not enforced (root). In a case-sensitive folder holding `target.txt`, a symbolic link `Target.txt` to it created
 inside `BeforeOpen` (after the on-disk spelling of `Target.txt` was captured and the walk passed) is `ThroughLink`: the
 written name named no entry when its spelling was captured, so it was kept as written and not mapped to `target.txt`.
+On Windows, with the root location and the real path of the file reported in the volume GUID form of a volume without a
+drive letter (injected through the `DirectoryLocationOf` and `RealPathOf` seams), the file whose real path is the root
+followed by the path below it is read, and one whose real path lies in another folder of the volume is `ThroughLink`.
 
 ##### CanvasNet-Files-SandboxedFileResolver-ResolverCallback: Callback Mode
 

@@ -117,7 +117,8 @@ through to it; "not found" from the open tries the next candidate; a resolver wi
 `FileReferenceResolver_Resolve_PolicyDenial_StopsTheSearch`,
 `FileReferenceResolver_Resolve_ThrowingOrNullPolicy_IsAccessDeniedAndCancellationPassesThrough`,
 `FileReferenceResolver_Resolve_CachedFile_IsReCheckedOnEveryResolveButReadOnce`,
-`FileReferenceResolver_Resolve_UnderRootsPreCheck_DeniesBeforeTheOpen`
+`FileReferenceResolver_Resolve_UnderRootsPreCheck_DeniesBeforeTheOpen`,
+`FileReferenceResolver_Resolve_RealPathOnAVolumeWithoutADriveLetter_IsJudgedByNoSymlinks` (Windows)
 
 The request carries the reference, the configured referrer (top level) or the referring file's key, the base directory
 (the chain origin, also for the nested reference), the requested path, and the real path (the real location of the
@@ -125,7 +126,10 @@ folder plus the file name); a denial carries the reason, hint, policy name and b
 policy but neither the temporary directory nor the reason; a denial ends the search; a throwing or `null`-returning
 policy denies and a cancellation passes through; a cached file is opened once while the policy is asked on every resolve
 and a later denial wins; a roots policy refuses a path written outside its roots before the open, which does not count
-against the file limit.
+against the file limit. On Windows, with the starting folder and the real path of the file reported in the volume GUID
+form of a volume without a drive letter (injected through the `DirectoryLocationOf` and `RealPathOf` seams), the
+no-symlinks policy reads the file whose real path is that folder followed by the path as written, and denies the one
+whose real path lies in another folder of the volume, with that real path.
 
 ##### CanvasNet-Files-FileReferenceResolver-ChainOrigin: The Policy's Base Directory Is the Chain Origin
 

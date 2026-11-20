@@ -78,20 +78,23 @@ sections:
                   The FileReferenceResolver class shall ask the configured file-access policy about every file it
                   opens, before reading it, with the reference as written, the referring file (or the configured
                   referrer path), the host-chosen directory the chain of references started from, the path that was
-                  opened and the real path of the opened file;
+                  opened and the real path of the opened file (on a volume without a drive letter in its volume GUID
+                  form, \\?\Volume{GUID}\..., which the built-in policies compare like any other real path);
                   shall read the file only when the policy allows it; shall end the search on a denial; shall treat a
                   policy that throws or returns no decision as a denial while letting a cancellation pass through;
                   shall ask the policy again whenever a cached file is resolved again; and shall let a policy refuse
                   a path as written before the file is opened.
                 justification: |
                   The policy is the host's rule; it must see the facts of the file that would actually be read, a
-                  failing policy must never allow, and a policy may depend on which document references the file.
+                  failing policy must never allow, and a policy may depend on which document references the file. A
+                  volume mounted on a folder or without a drive letter must not make every file on it unknown.
                 tests:
                   - FileReferenceResolver_Resolve_PolicyDenial_IsAccessDeniedWithFactsAndNothingRead
                   - FileReferenceResolver_Resolve_PolicyDenial_StopsTheSearch
                   - FileReferenceResolver_Resolve_ThrowingOrNullPolicy_IsAccessDeniedAndCancellationPassesThrough
                   - FileReferenceResolver_Resolve_CachedFile_IsReCheckedOnEveryResolveButReadOnce
                   - FileReferenceResolver_Resolve_UnderRootsPreCheck_DeniesBeforeTheOpen
+                  - "windows@FileReferenceResolver_Resolve_RealPathOnAVolumeWithoutADriveLetter_IsJudgedByNoSymlinks"
 
               - id: CanvasNet-Files-FileReferenceResolver-ChainOrigin
                 title: >-
