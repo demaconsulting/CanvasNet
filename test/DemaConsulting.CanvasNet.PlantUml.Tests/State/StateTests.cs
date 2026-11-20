@@ -11,7 +11,7 @@ public class StateTests
 {
     /// <summary>
     ///     Validates the whole subsystem on a small model: states with descriptions, pseudo-states, a composite state with
-    ///     concurrent regions, a history, notes, and labelled transitions are read, lowered, laid out, and drawn with
+    ///     concurrent regions, a history, notes, and labeled transitions are read, lowered, laid out, and drawn with
     ///     their roles and ids, and drawing twice gives the same scene.
     /// </summary>
     [Fact]

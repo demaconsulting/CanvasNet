@@ -927,8 +927,8 @@ their concurrent regions, the start, end, choice, fork, join, and history pseudo
 out the same way). `canvasnet help plantuml` lists a card for each (`canvasnet help plantuml sequence`, `canvasnet
 help plantuml activity`, `canvasnet help plantuml class`, `canvasnet help plantuml object`, `canvasnet help plantuml
 state`) and for the preprocessor, the styles, composition, the options, the diagnostics, and the known differences.
-Every other PlantUML diagram type (use case, component, a mindmap, a gantt chart, ...) is recognized: `info` reports it with
-`"supported": false`, and `render` writes an empty picture of 20 by 20 pixels with the diagnostic
+Every other PlantUML diagram type (use case, component, a mindmap, a gantt chart, ...) is recognized: `info` reports it
+with `"supported": false`, and `render` writes an empty picture of 20 by 20 pixels with the diagnostic
 `plantuml-diagram-unsupported` (`--strict` makes it an `unsupported-feature` failure).
 
 **Look.** The background is white, as PlantUML draws it (`skinparam backgroundColor transparent` or
@@ -2471,8 +2471,8 @@ A PlantUML diagram can be written in the document the same way, as a fenced code
 block. A `.puml`, `.plantuml`, or `.pu` picture is named in the cache by its text and by every file its `!include`,
 `!include_once`, and `!include_many` directives read (not a URL or the standard library), so a changed include draws
 it again; a block has no folder for its includes, so a diagram that includes files must be a file of its own. A block
-or a picture of a PlantUML type the tool does not draw (`plantuml-diagram-unsupported`: a use case diagram, a mindmap, and
-so on) is left as written, with a warning, exactly as a Mermaid one.
+or a picture of a PlantUML type the tool does not draw (`plantuml-diagram-unsupported`: a use case diagram, a mindmap,
+and so on) is left as written, with a warning, exactly as a Mermaid one.
 
 ````markdown
 ```{.plantuml caption="Order flow" width=60%}
@@ -2855,10 +2855,10 @@ pictures side by side.
   ignored), no network, pictures read relative to the folder of the diagram under the file-access mode, no clock (a
   gantt chart has no today line, and its
   dates are in UTC), and the other diagram types (journey, timeline, and so on) are recognized but drawn as an empty
-  picture with the diagnostic `mermaid-diagram-unsupported`. A PlantUML sequence, activity, class, object, or state diagram
-  is drawn with the default look only (no themes), a class, object, or state diagram is laid out with the dagre layered layout
-  instead of Graphviz, its includes are local files only, and the other PlantUML types are drawn as an empty picture
-  with the diagnostic `plantuml-diagram-unsupported`.
+  picture with the diagnostic `mermaid-diagram-unsupported`. A PlantUML sequence, activity, class, object, or state
+  diagram is drawn with the default look only (no themes), a class, object, or state diagram is laid out with the dagre
+  layered layout instead of Graphviz, its includes are local files only, and the other PlantUML types are drawn as an
+  empty picture with the diagnostic `plantuml-diagram-unsupported`.
 - **Models.** Only one view per command, and no animation. A model that needs `surface`, `import`, or other unsupported
   constructs is drawn without them.
 - **Rotation.** Any angle, clockwise, with nearest or bilinear sampling (the other `--filter` values mean bilinear

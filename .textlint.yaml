@@ -1339,6 +1339,13 @@ words:
   - Bodier
   - Playout
   - Temurin
+  # PlantUML's state diagram keywords and qualified names (endstate, sdlreceive, .deephistory.), the upstream name of
+  # its stereotype groups (Stereogroup), and a deliberately invalid color of the tests (notacolor)
+  - endstate
+  - sdlreceive
+  - deephistory
+  - Stereogroup
+  - notacolor
 # Percent-escapes in URL and file-name examples (such as "flow%2Emmd" for "flow.mmd"): the escape and the letters
 # glued to it are not words
 ignoreRegExpList:

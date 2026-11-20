@@ -7,10 +7,11 @@
 `PlantUmlDocument` (namespace `DemaConsulting.CanvasNet.PlantUml`) is distributed via the separate
 `DemaConsulting.CanvasNet.PlantUml` NuGet package, whose only dependency is the core `DemaConsulting.CanvasNet` package.
 It reads diagrams written in the PlantUML text language and draws **sequence diagrams**, **activity diagrams** (the new
-syntax), **class diagrams**, **object diagrams**, and **state diagrams** as static pictures with PlantUML's default look, using only managed
-code and the fonts bundled with the libraries: no Java, no Graphviz, and no network. Every other PlantUML diagram type
-is recognized and reported, never drawn wrongly. The package is derived with attribution from the MIT-licensed PlantUML
-sources and is **not affiliated with or endorsed by** the PlantUML project (see *PlantUML Third-Party Attribution*).
+syntax), **class diagrams**, **object diagrams**, and **state diagrams** as static pictures with PlantUML's default
+look, using only managed code and the fonts bundled with the libraries: no Java, no Graphviz, and no network. Every
+other PlantUML diagram type is recognized and reported, never drawn wrongly. The package is derived with attribution
+from the MIT-licensed PlantUML sources and is **not affiliated with or endorsed by** the PlantUML project (see *PlantUML
+Third-Party Attribution*).
 
 Install it next to the core package (see also the Installation section of the project README); the `canvasnet` tool and
 the `DemaConsulting.CanvasNet.Viewer` package already include it:
@@ -24,9 +25,9 @@ PlantUML lays out the new activity syntax with its tile ("ftile") composition, s
 decisions, and lanes land where PlantUML puts them. Neither needs Graphviz, in PlantUML or here. PlantUML lays out
 class, object, and state diagrams with Graphviz; this package lays them out with the dagre layered layout of the shared
 `DemaConsulting.CanvasNet.Layout` package instead, so the boxes, members, packages, states, notes, and arrows have
-PlantUML's shapes and look, but they are placed differently (see *Fonts, Determinism, and Known Differences*). A document is
-**immutable and thread-safe**: it is read and validated once and can then be measured and rendered any number of
-times, from several threads at once, each call giving the same result for the same options.
+PlantUML's shapes and look, but they are placed differently (see *Fonts, Determinism, and Known Differences*). A
+document is **immutable and thread-safe**: it is read and validated once and can then be measured and rendered any
+number of times, from several threads at once, each call giving the same result for the same options.
 
 ```csharp
 public sealed partial class PlantUmlDocument
@@ -495,7 +496,8 @@ relationship and transition. The known differences from PlantUML are:
   exit points and pins (drawn as states), `<<sdlreceive>>`, a cross at the start of a transition, stereotypes of a
   transition, `hide` forms other than `hide empty description`, and a transition that leaves the first region of a
   composite state with concurrent regions (drawn from its border) are reported as `plantuml-statement-unsupported`; a
-  transition between two concurrent regions is a `plantuml-syntax-error`, as PlantUML refuses it.- **Detection.** Statements are recognized by their leading keywords and arrows, in the order PlantUML tries its
+  transition between two concurrent regions is a `plantuml-syntax-error`, as PlantUML refuses it.
+- **Detection.** Statements are recognized by their leading keywords and arrows, in the order PlantUML tries its
   diagram types (sequence, class, the legacy activity syntax, the use case, component, and deployment family, state,
   and activity). In rare ambiguous cases a diagram of a type that is not drawn is named differently; that never changes
   whether it is drawn. A class diagram that also declares an element of another type (an actor, a use case, a
@@ -511,11 +513,11 @@ relationship and transition. The known differences from PlantUML are:
 Arnaud Roques), read from its MIT-licensed distribution `net.sourceforge.plantuml:plantuml-mit` 1.2026.10. To draw
 diagrams the way PlantUML draws them, the values of its default look (`skin/plantuml.skin`: colors, fonts, sizes, line
 widths, corners, and paddings), the framing and the supported preprocessor directives, the order of its diagram
-detection, the sequence statements and the geometry of its teoz engine and its element shapes, the statements of the
-new activity syntax and the geometry of its tile composition, the class, object, and state statements and the shapes of
-their boxes, members, icons, states, pseudo-states, links, packages, and notes, and the way Java measures text with its logical `SansSerif` font
-are reimplemented in C#. No source text, comment, test, example, or image of PlantUML is copied, no
-Java runs, and no PlantUML package is a dependency.
+detection, the sequence statements and the geometry of its teoz engine and its element shapes, the statements of the new
+activity syntax and the geometry of its tile composition, the class, object, and state statements and the shapes of
+their boxes, members, icons, states, pseudo-states, links, packages, and notes, and the way Java measures text with its
+logical `SansSerif` font are reimplemented in C#. No source text, comment, test, example, or image of PlantUML is
+copied, no Java runs, and no PlantUML package is a dependency.
 
 The license text ships in the NuGet package under `licenses/LICENSE-plantuml.txt` (also in the `canvasnet` tool, which
 bundles the assembly), and `src/DemaConsulting.CanvasNet.PlantUml/third-party/README.md` records what was ported, from
@@ -838,7 +840,7 @@ transition to the history of the composite state, and a note:
 *Concurrent regions.* A fork and a join, a composite state with two regions separated by `--`, and `left to right
 direction`:
 
-![Order fulfilment](examples/plantuml-state-regions.puml){scale=2 width=80%}
+![Order fulfillment](examples/plantuml-state-regions.puml){scale=2 width=80%}
 
 ### Example 74: Rendering a PlantUML Class Diagram
 
