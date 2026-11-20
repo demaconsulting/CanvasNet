@@ -885,8 +885,8 @@ public static partial class SvgCodec
     }
 
     /// <summary>
-    ///     Reads only an SVG file's root <c>svg</c> element and reports its resolved intrinsic
-    ///     size. See <see cref="GetInfo(Stream)"/> for the full contract.
+    ///     Reads an SVG file's root <c>svg</c> element (its start-tag, and the body only for a font-relative root
+    ///     size) and reports its resolved intrinsic size. See <see cref="GetInfo(Stream)"/> for the full contract.
     /// </summary>
     /// <param name="path">The path of the SVG file to inspect. Must not be null, empty, or whitespace.</param>
     /// <returns>The document's resolved intrinsic size.</returns>
@@ -902,7 +902,8 @@ public static partial class SvgCodec
     ///     unparseable <c>width</c>/<c>height</c> attribute is <b>not</b> included in this list:
     ///     per this class's GetInfo fallback policy remarks, such a value is treated as absent and
     ///     falls back to the next sizing tier (ultimately the 300x150 default size) rather than
-    ///     throwing.
+    ///     throwing. Also thrown when, for a font-relative root size, matching the document's stylesheet against the
+    ///     root exceeds the CSS matching budget.
     /// </exception>
     public static ImageInfo GetInfo(string path)
     {

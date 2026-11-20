@@ -82,7 +82,7 @@ public sealed class SvgImageSource : IImageSource
     /// <exception cref="OperationCanceledException">Thrown when the request is already canceled.</exception>
     /// <exception cref="UnsupportedImageFeatureException">
     ///     Thrown, after drawing, when <see cref="ImageSourceRequest.ThrowOnUnsupportedFeature"/> is set and the file uses
-    ///     a feature the library cannot draw; its feature is the <c>svg-text-*</c> code.
+    ///     a feature the library cannot draw; its feature is the <c>svg-text-*</c> or <c>svg-filter-unsupported</c> code.
     /// </exception>
     public ImageSourceResult Render(ImageSourceRequest request)
     {

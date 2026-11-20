@@ -2053,7 +2053,8 @@ Passing the **scoped resolver of the request** on is what makes nesting work wit
 elements of the nested file resolve against the folder of that file, and the depth, cycle, and count limits of the whole
 render apply. When the request has no resolver the nested file's external links are not drawn. The notes of the result
 are the position bindings of the file that were not resolved, as `svg` warnings with their codes, and the features the
-codec reports through `SvgLoadOptions.UnsupportedFeatureHandler`, as `Unsupported` notes with their `svg-text-*` codes;
+codec reports through `SvgLoadOptions.UnsupportedFeatureHandler`, as `Unsupported` notes with their `svg-text-*` or
+`svg-filter-unsupported` codes;
 when the request sets `ThrowOnUnsupportedFeature`, the first such feature disposes the surface and throws
 `UnsupportedImageFeatureException` with its code instead. Content
 that is not an SVG document is `InvalidDataException` (from `GetInfo`), a request without a file

@@ -568,9 +568,9 @@ public sealed class SvgImageSource : IImageSource   // Name "svg"; Extensions ["
 resolves the file's own `image` elements through the resolver of the request, so relative links inside the
 nested file resolve against its own folder and the limits of the whole render apply: SVG files that embed each
 other stop with a warning instead of recursing without end. A position binding of the nested file that is not resolved
-is a warning of the result with its `svg-binding-*` code, and text the nested file cannot draw is an `Unsupported` note
-with its `svg-text-*` code; with `ThrowOnUnsupportedFeature` set on the request, such text throws
-`UnsupportedImageFeatureException` instead.
+is a warning of the result with its `svg-binding-*` code, and text or a filter the nested file cannot draw as written is
+an `Unsupported` note with its `svg-text-*` or `svg-filter-unsupported` code; with `ThrowOnUnsupportedFeature` set on
+the request, such a feature throws `UnsupportedImageFeatureException` instead.
 
 ##### SvgCodec Default Fonts
 

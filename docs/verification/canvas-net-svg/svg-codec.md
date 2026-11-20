@@ -1378,13 +1378,8 @@ documented formula produces. `feOffset`'s own `dx`/`dy`-to-pixel conversion and
 away-from-zero (matching `Surface.CompositeOverSpanCore`'s established convention), not the
 `MathF.Round` default of banker's/round-to-even rounding: a `dx` that scales to exactly 0.5
 pixels rounds up to a full 1-pixel shift, and an `xor` composite chosen to produce a computed
-channel value of exactly 126.5 rounds up to 127, not down to 126. Asserts a horizontal, stroked
-`line` with a `feFlood` filter is
-evaluated (not skipped as degenerate) despite its zero-height centerline/fill bounds - a
-regression test for a defect where the filter-region degeneracy guard used the bare
-centerline/fill bounds instead of the actually-painted (stroke-expanded) bounds, incorrectly
-treating a valid stroked line's filter as degenerate and silently falling back to unfiltered
-rendering. Asserts a `rect` with `opacity="0.5"` and a filter whose entire chain is a single,
+channel value of exactly 126.5 rounds up to 127, not down to 126. Asserts a `rect` with
+`opacity="0.5"` and a filter whose entire chain is a single,
 fully-opaque `feFlood` renders the flood at approximately 50% alpha, not fully opaque - a
 regression test for a defect where `opacity` was applied while painting the pre-filter
 `SourceGraphic` (so the filter chain, and the final compositing step, both then operated on
