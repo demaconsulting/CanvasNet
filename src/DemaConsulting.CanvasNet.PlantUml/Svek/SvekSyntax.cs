@@ -55,6 +55,24 @@ internal readonly record struct SvekName(string Text, SvekNameKind Kind)
 }
 
 /// <summary>
+///     A candidate name at an index of a statement: where its text lies, how it is written, and the index after it.
+///     The name is only cut from the statement when <see cref="Name"/> is read.
+/// </summary>
+/// <param name="Source">The statement text.</param>
+/// <param name="TextStart">The index of the name's text (without quotes or brackets).</param>
+/// <param name="TextEnd">The exclusive end of the name's text.</param>
+/// <param name="Kind">How the name is written.</param>
+/// <param name="Business">Whether it is the business form (<c>(Pay)/</c>, <c>:Clerk:/</c>).</param>
+/// <param name="End">The index after the name as written.</param>
+internal readonly record struct SvekNameCandidate(string Source, int TextStart, int TextEnd, SvekNameKind Kind, bool Business, int End)
+{
+    /// <summary>
+    ///     Gets the name.
+    /// </summary>
+    public SvekName Name => new(Source[TextStart..TextEnd], Kind) { Business = Business };
+}
+
+/// <summary>
 ///     A <c>hide</c> or <c>show</c> statement: whether it shows, and what it names, in lower case with single spaces.
 /// </summary>
 /// <param name="Show">True for <c>show</c>, false for <c>hide</c>.</param>
@@ -129,11 +147,24 @@ internal static partial class SvekSyntax
     public static IReadOnlyList<int> IdentifierEnds(string text, int start)
     {
         ArgumentNullException.ThrowIfNull(text);
-        var ends = new List<int>();
-        var i = start;
+        return [.. IdentifierEndsLongestFirst(text, start, int.MaxValue)];
+    }
 
+    /// <summary>
+    ///     Enumerates the ends of <see cref="IdentifierEnds"/> without a list: one forward pass finds the longest end,
+    ///     and the shorter ends are found by walking back over the runs, so a caller that stops early pays nothing more.
+    /// </summary>
+    /// <param name="text">The text.</param>
+    /// <param name="start">The index.</param>
+    /// <param name="maxParts">The most parts; an identifier of more parts yields no end.</param>
+    /// <returns>The exclusive ends, longest first.</returns>
+    private static IEnumerable<int> IdentifierEndsLongestFirst(string text, int start, int maxParts)
+    {
         // An optional leading separator, then runs of letters joined by separators
-        i += SeparatorLength(text, i);
+        var chainStart = start + SeparatorLength(text, start);
+        var i = chainStart;
+        var last = -1;
+        var parts = 0;
         while (true)
         {
             var runStart = i;
@@ -147,7 +178,12 @@ internal static partial class SvekSyntax
                 break;
             }
 
-            ends.Add(i);
+            if (++parts > maxParts)
+            {
+                yield break;
+            }
+
+            last = i;
             var separator = SeparatorLength(text, i);
             if (separator == 0 || i + separator >= text.Length || !IsIdentifierChar(text[i + separator]))
             {
@@ -157,8 +193,24 @@ internal static partial class SvekSyntax
             i += separator;
         }
 
-        ends.Reverse();
-        return ends;
+        // Walk back: each run is preceded by a one-character separator or by "::" (a lone colon never separates)
+        var end = last;
+        while (end > chainStart)
+        {
+            yield return end;
+            var runStart = end;
+            while (runStart > chainStart && IsIdentifierChar(text[runStart - 1]))
+            {
+                runStart--;
+            }
+
+            if (runStart == chainStart)
+            {
+                yield break;
+            }
+
+            end = runStart - (text[runStart - 1] == ':' ? 2 : 1);
+        }
     }
 
     /// <summary>
@@ -173,36 +225,58 @@ internal static partial class SvekSyntax
     public static bool TryReadName(string text, ref int index, out SvekName name)
     {
         ArgumentNullException.ThrowIfNull(text);
-        var ends = NameEnds(text, index);
-        if (ends.Count == 0)
+        using var candidates = NameEnds(text, index).GetEnumerator();
+        if (!candidates.MoveNext())
         {
             name = default;
             return false;
         }
 
-        (name, index) = (ends[0].Name, ends[0].End);
+        (name, index) = (candidates.Current.Name, candidates.Current.End);
         return true;
     }
 
     /// <summary>
     ///     Gets the names that start at an index with their ends, longest first (the candidates of a link end).
     /// </summary>
+    /// <remarks>
+    ///     The candidates are produced lazily and a candidate's name text is only cut from the statement when its
+    ///     <see cref="SvekNameCandidate.Name"/> is read, so the link reader's backtracking over a long qualified
+    ///     identifier costs no copies of it.
+    /// </remarks>
     /// <param name="text">The text.</param>
     /// <param name="start">The index.</param>
     /// <returns>The candidates; empty when no name starts at the index.</returns>
-    public static IReadOnlyList<(SvekName Name, int End)> NameEnds(string text, int start)
+    public static IEnumerable<SvekNameCandidate> NameEnds(string text, int start)
     {
         ArgumentNullException.ThrowIfNull(text);
+        return NameEndsCore(text, start, int.MaxValue);
+    }
+
+    /// <summary>
+    ///     Produces the candidates of <see cref="NameEnds"/>.
+    /// </summary>
+    /// <param name="text">The text.</param>
+    /// <param name="start">The index.</param>
+    /// <param name="maxParts">The most parts of an identifier; one of more parts yields no candidate.</param>
+    /// <returns>The candidates.</returns>
+    private static IEnumerable<SvekNameCandidate> NameEndsCore(string text, int start, int maxParts)
+    {
         if (start >= text.Length)
         {
-            return [];
+            yield break;
         }
 
         var c = text[start];
         if (IsQuote(c))
         {
             var close = IndexOfQuote(text, start + 1);
-            return close > start + 1 ? [(new SvekName(text[(start + 1)..close], SvekNameKind.Quoted), close + 1)] : [];
+            if (close > start + 1)
+            {
+                yield return new SvekNameCandidate(text, start + 1, close, SvekNameKind.Quoted, false, close + 1);
+            }
+
+            yield break;
         }
 
         if (c == '[')
@@ -210,10 +284,10 @@ internal static partial class SvekSyntax
             var close = text.IndexOf(']', start + 1);
             if (close < 0 || close == start + 1)
             {
-                return [];
+                yield break;
             }
 
-            var inner = text[(start + 1)..close];
+            var inner = text.AsSpan((start + 1)..close);
             var kind = inner switch
             {
                 "*" => SvekNameKind.Star,
@@ -221,12 +295,20 @@ internal static partial class SvekSyntax
                 "H*" or "h*" => SvekNameKind.DeepHistory,
                 _ => SvekNameKind.Bracketed,
             };
-            return [(new SvekName(kind == SvekNameKind.Bracketed ? inner : string.Empty, kind), close + 1)];
+            yield return kind == SvekNameKind.Bracketed
+                ? new SvekNameCandidate(text, start + 1, close, kind, false, close + 1)
+                : new SvekNameCandidate(text, start, start, kind, false, close + 1);
+            yield break;
         }
 
         if (c == '(' && start + 1 < text.Length && text[start + 1] == ')')
         {
-            return InterfaceNameEnds(text, start + 2);
+            foreach (var candidate in InterfaceNameEnds(text, start + 2, maxParts))
+            {
+                yield return candidate;
+            }
+
+            yield break;
         }
 
         if (c is '(' or ':')
@@ -235,34 +317,33 @@ internal static partial class SvekSyntax
             var close = text.IndexOf(closer, start + 1);
             if (close <= start + 1)
             {
-                return [];
+                yield break;
             }
 
             // A slash right after the closer marks the business form (PlantUML's "(x)/" and ":x:/")
-            var name = new SvekName(text[(start + 1)..close], kind);
-            return close + 1 < text.Length && text[close + 1] == '/' && (close + 2 >= text.Length || text[close + 2] != '/')
-                ? [(name with { Business = true }, close + 2), (name, close + 1)]
-                : [(name, close + 1)];
+            if (close + 1 < text.Length && text[close + 1] == '/' && (close + 2 >= text.Length || text[close + 2] != '/'))
+            {
+                yield return new SvekNameCandidate(text, start + 1, close, kind, true, close + 2);
+            }
+
+            yield return new SvekNameCandidate(text, start + 1, close, kind, false, close + 1);
+            yield break;
         }
 
         // Identifiers, each possibly followed by a history mark
-        var result = new List<(SvekName, int)>();
-        foreach (var end in IdentifierEnds(text, start))
+        foreach (var end in IdentifierEndsLongestFirst(text, start, maxParts))
         {
-            var identifier = text[start..end];
             if (string.Compare(text, end, "[H*]", 0, 4, StringComparison.OrdinalIgnoreCase) == 0)
             {
-                result.Add((new SvekName(identifier, SvekNameKind.DeepHistory), end + 4));
+                yield return new SvekNameCandidate(text, start, end, SvekNameKind.DeepHistory, false, end + 4);
             }
             else if (string.Compare(text, end, "[H]", 0, 3, StringComparison.OrdinalIgnoreCase) == 0)
             {
-                result.Add((new SvekName(identifier, SvekNameKind.History), end + 3));
+                yield return new SvekNameCandidate(text, start, end, SvekNameKind.History, false, end + 3);
             }
 
-            result.Add((new SvekName(identifier, SvekNameKind.Plain), end));
+            yield return new SvekNameCandidate(text, start, end, SvekNameKind.Plain, false, end);
         }
-
-        return result;
     }
 
     /// <summary>
@@ -271,18 +352,27 @@ internal static partial class SvekSyntax
     /// </summary>
     /// <param name="text">The text.</param>
     /// <param name="start">The index after the parentheses.</param>
+    /// <param name="maxParts">The most parts of the identifier.</param>
     /// <returns>The candidates; empty when no name follows.</returns>
-    private static IReadOnlyList<(SvekName Name, int End)> InterfaceNameEnds(string text, int start)
+    private static IEnumerable<SvekNameCandidate> InterfaceNameEnds(string text, int start, int maxParts)
     {
         var i = start;
         SkipSpaces(text, ref i);
         if (i < text.Length && IsQuote(text[i]))
         {
             var close = IndexOfQuote(text, i + 1);
-            return close > i + 1 ? [(new SvekName(text[(i + 1)..close], SvekNameKind.Interface), close + 1)] : [];
+            if (close > i + 1)
+            {
+                yield return new SvekNameCandidate(text, i + 1, close, SvekNameKind.Interface, false, close + 1);
+            }
+
+            yield break;
         }
 
-        return IdentifierEnds(text, i).Select(end => (new SvekName(text[i..end], SvekNameKind.Interface), end)).ToList();
+        foreach (var end in IdentifierEndsLongestFirst(text, i, maxParts))
+        {
+            yield return new SvekNameCandidate(text, i, end, SvekNameKind.Interface, false, end);
+        }
     }
 
     /// <summary>

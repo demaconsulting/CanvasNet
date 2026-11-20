@@ -133,6 +133,13 @@ internal sealed record SvekLinkStatement(SvekName From, SvekName To, SvekArrow A
 internal static partial class SvekSyntax
 {
     /// <summary>
+    ///     The most parts (identifier runs joined by separators) that a link end may have. The ends are tried from the
+    ///     longest, so a name of many parts would make the reader try every split of it against every split of the
+    ///     other end; no real name comes near this bound, and a statement whose end would need more is not a link.
+    /// </summary>
+    public const int MaxLinkEndParts = 100;
+
+    /// <summary>
     ///     The decorations written before the body (PlantUML's <c>decors1</c>), longest first, as the alternation of
     ///     PlantUML's regular expression tries them.
     /// </summary>
@@ -248,9 +255,9 @@ internal static partial class SvekSyntax
             }
         }
 
-        foreach (var (from, fromEnd) in NameEnds(text, i))
+        foreach (var from in NameEndsCore(text, i, MaxLinkEndParts))
         {
-            if (TryReadLinkAfterFirstEnd(statement, from, fromEnd, out var found))
+            if (TryReadLinkAfterFirstEnd(statement, from, out var found))
             {
                 link = found with { Weight = weight };
                 return true;
@@ -424,16 +431,16 @@ internal static partial class SvekSyntax
     ///     Reads the rest of a link statement after a candidate first end.
     /// </summary>
     /// <param name="statement">The statement.</param>
-    /// <param name="from">The first end.</param>
-    /// <param name="index">The index after the first end.</param>
+    /// <param name="from">The candidate first end.</param>
     /// <param name="link">Receives the link.</param>
     /// <returns>True when the rest is a link.</returns>
-    private static bool TryReadLinkAfterFirstEnd(SourceStatement statement, SvekName from, int index, out SvekLinkStatement link)
+    private static bool TryReadLinkAfterFirstEnd(SourceStatement statement, SvekNameCandidate from, out SvekLinkStatement link)
     {
         var text = statement.Text;
         link = null!;
 
         // Before the arrow: a qualifier, a quoted label, and a role
+        var index = from.End;
         var i = index;
         SkipSpaces(text, ref i);
         var tailQualifier = ReadQualifier(text, index, ref i);
@@ -456,9 +463,9 @@ internal static partial class SvekSyntax
             foreach (var qualified in qualifier is null ? [false] : new[] { true, false })
             {
                 var headQualifier = qualified ? qualifier : null;
-                foreach (var (to, toEnd) in NameEnds(text, qualified ? j : beforeQualifier))
+                foreach (var to in NameEndsCore(text, qualified ? j : beforeQualifier, MaxLinkEndParts))
                 {
-                    if (!TryReadLinkTail(text, toEnd, out var tail))
+                    if (!TryReadLinkTail(text, to.End, out var tail))
                     {
                         continue;
                     }
@@ -469,7 +476,7 @@ internal static partial class SvekSyntax
                     var (label, labelArrow, splitTail, splitHead) = tail.Label is null
                         ? (null, LinkLabelArrow.None, null, null)
                         : SplitLabel(tail.Label, tailLabel is null && headLabel is null);
-                    link = new SvekLinkStatement(from, to, checkedArrow, statement.Location)
+                    link = new SvekLinkStatement(from.Name, to.Name, checkedArrow, statement.Location)
                     {
                         TailLabel = tailLabel ?? splitTail,
                         HeadLabel = headLabel ?? splitHead,

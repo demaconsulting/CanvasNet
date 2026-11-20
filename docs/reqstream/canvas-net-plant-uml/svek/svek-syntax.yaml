@@ -51,10 +51,12 @@ sections:
                   regular expression backtracks, its quoted end labels, roles, qualifiers, weight, color, URL,
                   stereotypes, and label, shall split the label as PlantUML does (quoted end labels around it and its
                   direction mark), shall write the parts of the label in double angle brackets with guillemets
-                  (<<include>> as «include»), and shall not take a statement without an arrow between two names for a
-                  link.
+                  (<<include>> as «include»), and shall not take a statement without an arrow between two names, or
+                  with an end of more than 100 parts, for a link.
                 justification: |
-                  A link must connect the elements PlantUML connects and carry the labels PlantUML draws.
+                  A link must connect the elements PlantUML connects and carry the labels PlantUML draws. Trying every
+                  split of both ends is cubic in the length of a statement, so the parts of an end are bounded far
+                  beyond any real name to keep the reading of untrusted text fast.
                 tests:
                   - PlantUmlSvekSyntax_TryReadLink_FullStatement_IsRead
                   - PlantUmlSvekSyntax_TryReadLink_Ends_AreReadWithBacktracking
@@ -62,6 +64,7 @@ sections:
                   - PlantUmlSvekSyntax_SplitLabel_EndLabelsAndMarks_AreTakenOut
                   - PlantUmlSvekSyntax_Guillemets_ReplaceStereotypeParts
                   - PlantUmlSvekSyntax_TryReadLink_NotALink_ReturnsFalse
+                  - PlantUmlSvekSyntax_TryReadLink_EndsOfManyParts_AreBounded
 
               - id: CanvasNetPlantUml-Svek-SvekSyntax-Notes
                 title: >-

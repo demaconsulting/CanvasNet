@@ -26,7 +26,8 @@ target or `OnLink`, the alias, the fill), and `SvekHideShow(Show, What, Location
 
 - `IdentifierEnds(text, start)` and `NameEnds(text, start)` - the identifiers (`sep? letters (sep letters)*`, the
   separator being any character that is not a letter, digit, white space, quote, or one of `_ $ # : { } < >`, or `::`)
-  and names that start at an index, longest first; `() name` and `() "Long name"` are interfaces, and `(x)/` and
+  and names (`SvekNameCandidate`: the text range, kind, business flag, and end, with the name cut on demand) that start
+  at an index, longest first; `() name` and `() "Long name"` are interfaces, and `(x)/` and
   `:x:/` are the business forms (offered before the forms without the slash).
 - `TryReadName`, `TryReadAlias`, `ReadStereotypes`, `ReadColor` - one name, `as Alias`, `<<a>> <<b>>`, `#color`.
 - `TryReadArrow(text, start, ...)` - PlantUML's arrow grammar: a decoration of PlantUML's `decors1` table (longest
@@ -56,8 +57,10 @@ brackets that is not a style, a color that is not a color, an unclosed block, a 
 unclosed quote, `note ... of` without a name, `note on` without `link`, and a note without text. `CheckLabel` refuses a
 text longer than the label limit of `PlantUmlLimits` with `plantuml-limit-exceeded`. `TakeLayoutSettings` reports
 `linetype` and a `nodesep` or `ranksep` that is not a number of pixels from 0 to 10000 as ignored skin parameters
-(warnings). No regular expression runs on the input; the backtracking of the link grammar is bounded by
-the few candidate ends, decorations, and direction words of a statement.
+(warnings). No regular expression runs on the input. The backtracking of the link grammar tries every split of both ends
+against the few decorations and direction words of a statement; `NameEnds` produces its candidates lazily and cuts a
+name from the statement only when its candidate is taken, and a link end has at most `MaxLinkEndParts` (100) parts, so a
+statement of thousands of parts (`a-a-a-...`) is refused at once instead of in time cubic in its length.
 
 #### Dependencies
 

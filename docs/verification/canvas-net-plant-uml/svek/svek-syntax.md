@@ -57,7 +57,8 @@ body when the diagram draws it bold, and solid otherwise.
 `SvekSyntaxTests.PlantUmlSvekSyntax_TryReadLink_RarelyUsedParts_AreRead`,
 `SvekSyntaxTests.PlantUmlSvekSyntax_SplitLabel_EndLabelsAndMarks_AreTakenOut`,
 `SvekSyntaxTests.PlantUmlSvekSyntax_Guillemets_ReplaceStereotypeParts`,
-`SvekSyntaxTests.PlantUmlSvekSyntax_TryReadLink_NotALink_ReturnsFalse`
+`SvekSyntaxTests.PlantUmlSvekSyntax_TryReadLink_NotALink_ReturnsFalse`,
+`SvekSyntaxTests.PlantUmlSvekSyntax_TryReadLink_EndsOfManyParts_AreBounded`
 
 Asserts the ends, the decoration, a quoted end label, the color, and a label with its direction mark of a full
 statement; asserts that `A-B` is a link of length 1 and that qualified and quoted names stay whole; asserts the weight,
@@ -66,7 +67,9 @@ label and the direction marks at its start or end; asserts the guillemets of `<<
 each side (taken away) or two (one kept), of a part after a third `<`, and of a part with a sprite, and none for a part
 over two lines, an empty part, a part with another bracket, or angle brackets that make no part, in the label too;
 asserts that a class declaration, a name, a note, an arrow without
-a second end, and a link followed by other words are not links.
+a second end, and a link followed by other words are not links; asserts that ends of 100 parts
+(`MaxLinkEndParts`) are read whole, that an end of 101 parts makes the statement no link, and that a statement of
+20,000 parts that is no link is refused within seconds.
 
 ##### CanvasNetPlantUml-Svek-SvekSyntax-Notes: Note Statements
 

@@ -311,6 +311,36 @@ public class SvekSyntaxTests
     }
 
     /// <summary>
+    ///     Validates that the backtracking over the ends of a link is bounded: an end of
+    ///     <see cref="SvekSyntax.MaxLinkEndParts"/> parts is read, an end of more parts makes the statement no link, and
+    ///     a statement of thousands of parts that is no link is refused at once (it was cubic in its length).
+    /// </summary>
+    [Fact]
+    public void PlantUmlSvekSyntax_TryReadLink_EndsOfManyParts_AreBounded()
+    {
+        // Arrange
+        static string Name(char letter, int parts) => string.Join('-', Enumerable.Repeat(letter.ToString(), parts));
+        var atBound = $"{Name('a', SvekSyntax.MaxLinkEndParts)} --> {Name('b', SvekSyntax.MaxLinkEndParts)}";
+        var overBound = $"{Name('a', SvekSyntax.MaxLinkEndParts + 1)} --> B";
+        var hostile = Name('a', 20_000) + " !";
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+
+        // Act
+        var readAtBound = SvekSyntax.TryReadLink(Statement(atBound), out var link);
+        var readOverBound = SvekSyntax.TryReadLink(Statement(overBound), out _);
+        var readHostile = SvekSyntax.TryReadLink(Statement(hostile), out _);
+        watch.Stop();
+
+        // Assert
+        Assert.True(readAtBound);
+        Assert.Equal(Name('a', SvekSyntax.MaxLinkEndParts), link.From.Text);
+        Assert.Equal(Name('b', SvekSyntax.MaxLinkEndParts), link.To.Text);
+        Assert.False(readOverBound);
+        Assert.False(readHostile);
+        Assert.True(watch.Elapsed < TimeSpan.FromSeconds(10), $"took {watch.Elapsed}");
+    }
+
+    /// <summary>
     ///     Validates the parts of a link that are read but not drawn: the weight, the roles, the qualifiers, the URL, the
     ///     stereotype, and the middle decoration.
     /// </summary>
