@@ -6,7 +6,8 @@ This document describes the system-level verification strategy for CanvasNetView
 
 The CanvasNetViewer system is verified through system-level integration tests that exercise the package as a whole from
 the perspective of a consumer, through its public API only (`ImageSources`, `Extensions`, `CreateImageResolver`,
-`Render`, the options and result types, and the `Imaging` operations with `ViewerException`). The tests use the real
+`Render`, the options and result types, the `Imaging` operations with `ViewerException`, and the help catalog). The
+tests use the real
 format packages (nothing is mocked): an SVG document
 that embeds a raster, a model, a chart, another SVG file, and a PDF page through the resolver of the viewer, and the
 custom image sources an application plugs in. The custom sources are real implementations of `IImageSource` that record
@@ -202,6 +203,19 @@ image origin, and is flattened into a copy that differs from the drawing only by
 binding attribute, and the namespace declaration. The other kinds, the warnings, the strict order, nested files, and
 the facade are verified by the binding scenarios of the `SourceLoader`, `SvgFlattener`, `CanvasNetViewer`, and
 `ViewerException` unit verification designs.
+
+### Integration: Help Filter, Resolve, And Read
+
+**Test**: `CanvasNetViewer_SystemIntegration_Help_FilterResolveAndRead`
+
+Verifies `CanvasNetViewer-Help`: takes the view of the library help catalog that an agent toolkit would give its agent
+(the cards tagged `mermaid`, without the cards tagged `hosting`), resolves the Gantt card by its path and by the alias
+`mmd gantt` (the same card), and writes its body with a host link writer. Asserts that the card carries the `mermaid`
+tag and not the `hosting` tag, that its Markdown is not empty and holds no command of the command-line tool, that its
+text starts with its title, that every link the host was asked to write names a card the view finds, that every
+visible card is a Mermaid card, and that the hosting card `mermaid/options` is not found. The tags, the hidden-card
+rules, the links, the extensions, the renderings, and the verified content are verified by the *Help Subsystem
+Verification Design* and the *HelpCatalog* and *HelpFrontMatter Unit Verification Design*.
 
 ### Integration: User Guide Examples Compile
 

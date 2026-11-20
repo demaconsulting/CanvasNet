@@ -230,6 +230,10 @@ package CanvasNet {
         expose Imaging::**;
     }
 
+    view HelpView : InterconnectionView {
+        expose Help::**;
+    }
+
     view ScadLanguageView : InterconnectionView {
         expose ScadLanguage::**;
     }

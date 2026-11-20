@@ -408,7 +408,8 @@ software items, specifically:
   (command line, command capture, output channels), `ArgumentReader` (command-line grammar and value parsers),
   `ResultWriter` (the JSON result documents), `Validation` (the `--validate` self-test and results
   output), and `PathHelpers` (safe path combination) - and two subsystems, `Commands` (the command contract, the
-  `CommandRegistry` unit, the `HelpTopics` unit with the tree of help cards and their examples, the
+  `CommandRegistry` unit, the `HelpTopics` unit with the command-line layer of the help cards (the tool's own cards
+  and its command-line sections over the help catalog of the Viewer), the
   `DiscoveryCommands` unit with the `formats` and `info` commands, and the
   `RenderCommand` unit with the `render` command, its alias `convert`, and the verb commands `crop`, `resize`,
   `rotate`, `flip`, and `pad` (and the `ImagePipelineParser` that reads the pipeline operations from the command line),
@@ -424,7 +425,7 @@ software items, specifically:
 
 - **CanvasNetViewer (System)** — A separate software system (packable as `DemaConsulting.CanvasNet.Viewer`) that
   aggregates the image sources of every format and is the library form of the `canvasnet` tool. It contains two direct
-  units and one subsystem. The direct unit `CanvasNetViewer` (with `ViewerRenderOptions` and `ViewerImage`) lists the
+  units and two subsystems. The direct unit `CanvasNetViewer` (with `ViewerRenderOptions` and `ViewerImage`) lists the
   built-in image sources (raster, SVG, PDF, PowerPoint, Visio, OpenSCAD, Vega-Lite, Mermaid, and PlantUML) and the
   extensions they claim, creates the `FolderImageResolver` of the core `ImageSources` subsystem for one render so that
   an SVG document can embed every format, renders any file by path or from a stream, returns the feature positions that
@@ -710,7 +711,10 @@ subsystem (namespace `DemaConsulting.CanvasNet.Viewer.Imaging`) holds the `Sourc
 (grid, and the ordered operations over the core library's flip, pad, trim, tone, rotation, and skew operations), turn
 pixels into files, check the comparison of two images against thresholds, and compose a contact sheet, and the
 `ImageRenderer`, `ImageInspector`, `ImageComparer`, `MontageBuilder`, and `SvgFlattener` units that chain them into the
-render, inspect, compare, montage, and flatten operations. It references the core package and the `CanvasNetSvg`,
+render, inspect, compare, montage, and flatten operations; and its `Help` subsystem (namespace
+`DemaConsulting.CanvasNet.Viewer.Help`) holds the `HelpCatalog` unit, the tag-filterable catalog of the embedded help
+cards about the formats that a host reads programmatically and extends with its own cards, and the `HelpFrontMatter`
+unit, the parser of a card's front matter. It references the core package and the `CanvasNetSvg`,
 `CanvasNetPdf`, `CanvasNetPptx`, `CanvasNetVsdx`, `CanvasNetScad`, `CanvasNetRender3D`, `CanvasNetVegaLite`,
 `CanvasNetMermaid`, and `CanvasNetPlantUml` packages; the tool references it. See the Folder Layout section below and
 *CanvasNetViewer System Design* (`canvas-net-viewer.md`).
@@ -1797,7 +1801,8 @@ Each sub-folder also holds a `NamespaceDoc.cs` with the namespace documentation.
 
 The `CanvasNetViewer` system lives in the `src/DemaConsulting.CanvasNet.Viewer/` project folder (the separate
 `DemaConsulting.CanvasNet.Viewer` package). Its two direct units, `CanvasNetViewer` and `ViewerException`, occupy the
-project root, and its `Imaging` subsystem occupies the `Imaging/` sub-folder, whose name equals its sub-namespace (see
+project root, and its `Imaging` and `Help` subsystems occupy the `Imaging/` and `Help/` sub-folders, whose names equal
+their sub-namespaces (see
 *CanvasNetViewer System Design*, `canvas-net-viewer.md`):
 
 ```text
@@ -1840,12 +1845,26 @@ src/DemaConsulting.CanvasNet.Viewer/
     ├── SvgFlattener.cs            — SvgFlattener: the flatten operation (records and orchestration)
     ├── SvgFlattener.Links.cs      — SvgFlattener: the link scanner, the rewrite, and the rebasing of links
     └── SvgFlattener.Recorder.cs   — SvgFlattener: the recording resolver that draws the links to replace
+└── Help/                          — Help subsystem
+    ├── NamespaceDoc.cs            — Help: namespace-level XML documentation
+    ├── HelpCatalog.cs             — HelpCatalog: the public API, Default, the views, and the lookup
+    ├── HelpCatalog.Load.cs        — HelpCatalog: card files, tags, tokens, tree validation, and extensions
+    ├── HelpCatalog.Links.cs       — HelpCatalog: the neutral links, code detection, and the body of a view
+    ├── HelpCatalog.Render.cs      — HelpCatalog: the text and JSON renderings and the wrapping
+    ├── HelpCard.cs                — HelpCatalog: the immutable card
+    ├── HelpExample.cs             — HelpCatalog: the immutable example and its kinds
+    ├── HelpLink.cs                — HelpCatalog: a visible link a host writes in its own words
+    ├── HelpTags.cs                — HelpCatalog: the closed tag vocabulary
+    ├── HelpFrontMatter.cs         — HelpFrontMatter: the strict parser of the YAML front matter of a card
+    ├── Cards/                     — HelpCatalog: the embedded library cards, one Markdown file each, in folders that
+    │                                mirror the tree (scad.md, mermaid.md, mermaid/gantt.md, style.md, ...)
+    └── Examples/                  — HelpCatalog: the embedded examples (SCAD, Vega-Lite, Mermaid, PlantUML, and SVG)
 ```
 
 `CanvasNetViewer` references the `CanvasNet` core package (its `ImageSources` subsystem) and the `CanvasNetSvg`,
 `CanvasNetPdf`, `CanvasNetPptx`, `CanvasNetVsdx`, `CanvasNetScad`, `CanvasNetRender3D`, `CanvasNetVegaLite`,
-`CanvasNetMermaid`, and `CanvasNetPlantUml` packages for the image source each one supplies and the operations of
-`Imaging`; no package references it except the tool.
+`CanvasNetMermaid`, and `CanvasNetPlantUml` packages for the image source each one supplies, the operations of
+`Imaging`, and the limits that the help cards quote; no package references it except the tool.
 
 The `CanvasNetTool` system lives in the `src/DemaConsulting.CanvasNet.Tool/` project folder (the separate
 `DemaConsulting.CanvasNet.Tool` dotnet tool package). The six direct units occupy the project root, and the
@@ -1868,14 +1887,11 @@ src/DemaConsulting.CanvasNet.Tool/
 │   ├── ICommand.cs                — CommandRegistry: ICommand contract and OptionSpec
 │   ├── CommandRegistry.cs         — CommandRegistry: command table, dispatch, and the unknown-command report
 │   ├── CommandRegistry.Help.cs    — CommandRegistry: the help command, its subjects, examples, and JSON documents
-│   ├── HelpTopics.cs              — HelpTopics: the card model, the embedded tree, its validation, tokens, and lookup
-│   ├── HelpTopics.FrontMatter.cs  — HelpTopics: the strict parser of the YAML front matter of a card
+│   ├── HelpTopics.cs              — HelpTopics: the command-line card, the catalog with the tool layer, and lookup
 │   ├── HelpTopics.Render.cs       — HelpTopics: the text and JSON renderings and the wrapping
-│   ├── Help/                      — HelpTopics: the embedded help cards, one Markdown file each, in folders that
-│   │   │                            mirror the tree (scad.md, mermaid.md, mermaid/gantt.md, style.md, ...)
-│   │   ├── positions.md, positions/ — HelpTopics: the positions topic and its cards (selectors.md, mermaid.md,
-│   │   │                            vega-lite.md, geometry.md)
-│   │   └── Examples/              — HelpTopics: the embedded examples (SCAD, Vega-Lite, Mermaid, PlantUML, and SVG)
+│   ├── Help/                      — HelpTopics: the embedded tool cards (json.md, json/, pandoc.md) and the overlays
+│   │                                of library cards (extends: <path>) with the command-line sections, in folders
+│   │                                that mirror the tree (svg/options.md, files.md, ...)
 │   ├── DiscoveryCommands.cs       — DiscoveryCommands: the formats and info commands and the format tables
 │   ├── RenderCommand.cs           — RenderCommand: the render command (alias convert), run and result
 │   ├── RenderCommand.Options.cs   — RenderCommand: the option table and the reading of the settings

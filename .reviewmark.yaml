@@ -1951,6 +1951,59 @@ reviews:
       - "src/DemaConsulting.CanvasNet.Viewer/Imaging/SvgFlattener*.cs"  # unit source
       - "test/DemaConsulting.CanvasNet.Viewer.Tests/Imaging/SvgFlattener*Tests.cs"  # unit tests
 
+  # CanvasNetViewer-Help Review (one per subsystem)
+  - id: CanvasNetViewer-Help
+    title: Review that CanvasNetViewer Help Subsystem Implementation is Correct
+    context:
+      - "docs/design/canvas-net-viewer.md"
+      - "docs/reqstream/canvas-net-viewer.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-viewer/help.yaml"                    # subsystem requirements
+      - "docs/design/canvas-net-viewer/help.md"                         # subsystem design
+      - "docs/verification/canvas-net-viewer/help.md"                   # subsystem verification
+      - "docs/sysml2/model/canvas-net-viewer/help.sysml"                # subsystem SysML2 model
+      - "src/DemaConsulting.CanvasNet.Viewer/Help/NamespaceDoc.cs"      # namespace documentation
+      - "test/DemaConsulting.CanvasNet.Viewer.Tests/Help/HelpSubsystemTests.cs"  # subsystem tests
+
+  # CanvasNetViewer-Help-HelpCatalog Review (one per unit)
+  - id: CanvasNetViewer-Help-HelpCatalog
+    title: Review that CanvasNetViewer Help HelpCatalog Implementation is Correct
+    context:
+      - "docs/design/canvas-net-viewer.md"
+      - "docs/reqstream/canvas-net-viewer.yaml"
+      - "docs/design/canvas-net-viewer/help.md"
+      - "docs/reqstream/canvas-net-viewer/help.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-viewer/help/help-catalog.yaml"       # unit requirements
+      - "docs/design/canvas-net-viewer/help/help-catalog.md"            # unit design
+      - "docs/verification/canvas-net-viewer/help/help-catalog.md"      # unit verification
+      - "docs/sysml2/model/canvas-net-viewer/help/help-catalog.sysml"   # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Viewer/Help/HelpCatalog*.cs"      # unit source
+      - "src/DemaConsulting.CanvasNet.Viewer/Help/HelpCard.cs"          # unit source (the card)
+      - "src/DemaConsulting.CanvasNet.Viewer/Help/HelpExample.cs"       # unit source (the example)
+      - "src/DemaConsulting.CanvasNet.Viewer/Help/HelpLink.cs"          # unit source (a link a host writes)
+      - "src/DemaConsulting.CanvasNet.Viewer/Help/HelpTags.cs"          # unit source (the tag vocabulary)
+      - "src/DemaConsulting.CanvasNet.Viewer/Help/Cards/**/*"           # shipped library help cards
+      - "src/DemaConsulting.CanvasNet.Viewer/Help/Examples/**/*"        # shipped library help examples
+      - "test/DemaConsulting.CanvasNet.Viewer.Tests/Help/HelpCatalogTests*.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Viewer.Tests/Help/HelpCardText.cs"  # unit test helper (reads the cards)
+
+  # CanvasNetViewer-Help-HelpFrontMatter Review (one per unit)
+  - id: CanvasNetViewer-Help-HelpFrontMatter
+    title: Review that CanvasNetViewer Help HelpFrontMatter Implementation is Correct
+    context:
+      - "docs/design/canvas-net-viewer.md"
+      - "docs/reqstream/canvas-net-viewer.yaml"
+      - "docs/design/canvas-net-viewer/help.md"
+      - "docs/reqstream/canvas-net-viewer/help.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-viewer/help/help-front-matter.yaml"  # unit requirements
+      - "docs/design/canvas-net-viewer/help/help-front-matter.md"       # unit design
+      - "docs/verification/canvas-net-viewer/help/help-front-matter.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-viewer/help/help-front-matter.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Viewer/Help/HelpFrontMatter.cs"   # unit source
+      - "test/DemaConsulting.CanvasNet.Viewer.Tests/Help/HelpFrontMatterTests.cs"  # unit tests
+
   # CanvasNetRender3D-Architecture Review (one per system)
   - id: CanvasNetRender3D-Architecture
     title: Review that CanvasNetRender3D Architecture Satisfies Requirements

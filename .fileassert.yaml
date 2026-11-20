@@ -791,6 +791,19 @@ tests:
           - query: "//*[local-name()='text']"
             min: 1
 
+  - name: SysML2Tools_HelpViewSvg
+    description: "HelpView diagram was rendered by SysML2Tools"
+    tags: [design]
+    files:
+      - pattern: "docs/design/generated/HelpView.svg"
+        count: 1
+        xml:
+          - query: "//*[local-name()='svg']"
+            count: 1
+          # A view that resolves to nothing still writes an <svg> root, so also require drawn text.
+          - query: "//*[local-name()='text']"
+            min: 1
+
   - name: SysML2Tools_ScadLanguageViewSvg
     description: "ScadLanguageView diagram was rendered by SysML2Tools"
     tags: [design]
