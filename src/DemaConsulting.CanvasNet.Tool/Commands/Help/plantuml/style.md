@@ -28,8 +28,9 @@ PNG.
   sequenceLifeLine, arrow, activity, activityDiamond, swimlane and
   swimlaneTitle, partition, title, header, footer, legend, and caption; in
   class and object diagrams also class, classStereotype, classAttribute (the
-  members), object, objectStereotype, map, and package, and arrow styles their
-  relationships.
+  members), object, objectStereotype, map, and package; in state diagrams also
+  state and stateAttribute (the descriptions); and arrow styles the links of
+  both.
 - Properties: BackgroundColor, BorderColor, FontColor, FontSize, FontName,
   FontStyle, and BorderThickness of each element.
 - Document: backgroundColor (transparent keeps the page), defaultFontName,
@@ -37,7 +38,8 @@ PNG.
   sequenceArrowThickness, sequenceMessageAlign, responseMessageBelowArrow,
   maxMessageSize, and footbox; in class and object diagrams also
   classAttributeIconSize (0 writes the visibility characters instead of
-  icons), circledCharacterRadius, nodesep, and ranksep.
+  icons) and circledCharacterRadius; in state diagrams also stateStartColor
+  and stateEndColor; and in both nodesep and ranksep.
 - Colors: HTML color names, #RRGGBB, #RRGGBBAA, #RGB, one hex digit for a gray
   (#8), and transparent; a gradient uses its first color.
 - Fonts: sans-serif, SansSerif, Arial, and any unknown name are Liberation

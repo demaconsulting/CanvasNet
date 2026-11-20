@@ -521,6 +521,7 @@ public partial class HelpTopicsTests
             ("activity", "### Supported Activity Syntax", 10),
             ("class", "### Supported Class Syntax", 10),
             ("object", "### Supported Object Syntax", 4),
+            ("state", "### Supported State Syntax", 8),
         ];
 
         // Act: the bullets that the items of the guide's lists promise, compared with the cards

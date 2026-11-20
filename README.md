@@ -136,7 +136,7 @@ at any size, and `flatten` bakes the numbers in (`canvasnet help svg bindings`).
   a fuzz-tested renderer that fails only with documented, located errors, and pixel-identical output across runs
 - 🧜 **Mermaid Diagrams** - Render Mermaid flowcharts, sequence, class, state, and entity relationship diagrams, pie
   charts, gantt charts, mindmaps, packet diagrams, and git graphs with ports of Mermaid's own layouts
-- 🌱 **PlantUML Diagrams** - Render PlantUML sequence, activity, class, and object diagrams with PlantUML's default
+- 🌱 **PlantUML Diagrams** - Render PlantUML sequence, activity, class, object, and state diagrams with PlantUML's default
   look, local `!include` files, and no Java, Graphviz, or network; other PlantUML types are recognized and reported
 - 🔍 **Header-Only Probing** - `GetInfo` reads headers without decoding pixels (GIF excepted)
 - 🖥️ **Command-Line Tool** - The script- and agent-friendly `canvasnet` dotnet tool, with photo clean-up
@@ -199,7 +199,7 @@ the ones you need, the same way as above:
 | `DemaConsulting.CanvasNet.VegaLite` | Vega-Lite static chart rendering |
 | `DemaConsulting.CanvasNet.Layout` | Shared graph layout (dagre); installed with Mermaid, no public API |
 | `DemaConsulting.CanvasNet.Mermaid` | Mermaid diagrams, mindmaps, packets, git graphs |
-| `DemaConsulting.CanvasNet.PlantUml` | PlantUML sequence, activity, class, and object diagrams |
+| `DemaConsulting.CanvasNet.PlantUml` | PlantUML sequence, activity, class, object, and state diagrams |
 | `DemaConsulting.CanvasNet.Viewer` | The `canvasnet` operations as library calls |
 | `DemaConsulting.CanvasNet.Tool` | The `canvasnet` command-line tool (dotnet tool) |
 
@@ -322,7 +322,7 @@ diagram with `<image href="flow.mmd" .../>`.
 
 A PlantUML diagram is read from a file named `.puml`, `.plantuml`, or `.pu` and is drawn with PlantUML's default look
 and layout at the size of PlantUML's SVG, for example `canvasnet render seq.puml -o seq.png --json`. This version
-draws sequence diagrams, activity diagrams (the new syntax), and class and object diagrams; every other type is
+draws sequence diagrams, activity diagrams (the new syntax), class and object diagrams, and state diagrams; every other type is
 recognized, reported as
 `plantuml-diagram-unsupported`, and drawn as an empty picture. `!include` files are read from beside the diagram under
 `--file-access` and never from the network, themes are not supported (`!theme` is reported and the default look is
@@ -389,7 +389,7 @@ canvasnet render sales.vl.json --scale 2 -o sales.png --json
 canvasnet info flow.mmd --json
 canvasnet render flow.mmd --theme dark --scale 2 -o flow.png --json
 
-# 4f. Draw a PlantUML sequence, activity, class, or object diagram (local !include files only, never the network)
+# 4f. Draw a PlantUML sequence, activity, class, object, or state diagram (local !include files only, never the network)
 canvasnet info seq.puml --json
 canvasnet render seq.puml --scale 2 -o seq.png --json
 ```

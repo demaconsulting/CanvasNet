@@ -9,10 +9,10 @@ see-also:
 ## Unsupported
 
 - `plantuml-diagram-unsupported`: The diagram type is not drawn by this version
-  (every type but sequence, activity, class, and object diagrams); the picture
-  is empty.
+  (every type but sequence, activity, class, object, and state diagrams); the
+  picture is empty.
 - Every other diagram type is recognized: usecase, component, deployment,
-  state, timing, the legacy activity syntax (activity-legacy), and the `@start`
+  timing, the legacy activity syntax (activity-legacy), and the `@start`
   tags of mindmap, gantt, wbs, json, yaml, salt, and the others.
   info reports it with "supported": false, and render writes an empty picture of
   20 by 20 pixels with the diagnostic plantuml-diagram-unsupported (--strict
@@ -30,6 +30,7 @@ see-also:
 - `plantuml-statement-unsupported`: A statement PlantUML defines that this
   version does not draw (`ref over`, `newpage`, `switch`, `goto`, a
   specification and description language box style, a role or a crow's foot
-  of a class relationship, `together`, ...); the rest of the diagram is drawn.
+  of a class relationship, `together`, an entry point of a state diagram,
+  ...); the rest of the diagram is drawn.
 - `plantuml-markup-unsupported`: Creole markup outside the subset (images,
   sprites, icons, tables, lists, headings); the markup is drawn as text.
