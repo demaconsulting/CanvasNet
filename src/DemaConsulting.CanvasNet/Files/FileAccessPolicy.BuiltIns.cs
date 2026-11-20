@@ -223,20 +223,22 @@ public abstract partial class FileAccessPolicy
         ///     file on its own.
         /// </summary>
         /// <param name="path">The full path as written.</param>
-        /// <param name="longPath">
-        ///     The path with short (8.3) names expanded (the on-disk spelling captured before the open);
-        ///     <see langword="null"/> to expand it now (before the open, or for a request built by other code).
+        /// <param name="exactPath">
+        ///     The on-disk spelling of the path captured before the open (short (8.3) names expanded, letter case as
+        ///     stored); <see langword="null"/> to expand its short names now (before the open, or for a request built by
+        ///     other code).
         /// </param>
         /// <returns><see langword="true"/> when the path is inside a root.</returns>
-        private bool IsWrittenPathInside(string path, string? longPath = null)
+        private bool IsWrittenPathInside(string path, string? exactPath = null)
         {
             if (Array.Exists(_roots, root => root.ContainsWrittenPath(path)))
             {
                 return true;
             }
 
-            // A path written with short (8.3) names is compared in its long spelling too (Windows only; identity elsewhere)
-            var expanded = longPath ?? LongSpelling(path);
+            // A path written with short (8.3) names or in another letter case is compared in its on-disk spelling too
+            // (short names exist on Windows only); without a captured spelling only the short names are expanded
+            var expanded = exactPath ?? LongSpelling(path);
             return !string.Equals(expanded, path, StringComparison.Ordinal)
                 && Array.Exists(_roots, root => root.ContainsWrittenPath(expanded));
         }
