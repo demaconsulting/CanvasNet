@@ -5881,13 +5881,14 @@ reviews:
       - "docs/reqstream/canvas-net-tool.yaml"
       - "docs/design/canvas-net-tool/commands.md"
       - "docs/reqstream/canvas-net-tool/commands.yaml"
+      - "docs/design/canvas-net-viewer/help.md"                       # the library help catalog this unit layers on
     paths:
       - "docs/reqstream/canvas-net-tool/commands/help-topics.yaml"    # unit requirements
       - "docs/design/canvas-net-tool/commands/help-topics.md"         # unit design
       - "docs/verification/canvas-net-tool/commands/help-topics.md"   # unit verification
       - "docs/sysml2/model/canvas-net-tool/commands/help-topics.sysml"  # unit SysML2 model
       - "src/DemaConsulting.CanvasNet.Tool/Commands/HelpTopics*.cs"   # unit source
-      - "src/DemaConsulting.CanvasNet.Tool/Commands/Help/**/*"        # shipped help cards and examples
+      - "src/DemaConsulting.CanvasNet.Tool/Commands/Help/**/*"        # shipped tool cards and overlays of library cards
       - "test/DemaConsulting.CanvasNet.Tool.Tests/Commands/HelpTopicsTests*.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Tool.Tests/Commands/HelpCardText.cs"  # unit test helper (reads the cards)
       - "test/DemaConsulting.CanvasNet.Tool.Tests/Commands/InputFragmentTests.cs"  # unit tests (input fragments)

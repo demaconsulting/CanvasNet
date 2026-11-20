@@ -60,5 +60,5 @@ and the .NET base class library (LINQ, `System.Globalization`).
 
 The `SourceLoader` unit of the `CanvasNetViewer` system creates one collector per load of a Mermaid diagram or a
 Vega-Lite chart, passes `Offer` as the `PositionHandler` and `IncludesKind` as the `PositionKindFilter` of the render
-options, and reads `Positions`, `Truncated`, and `GetUnmatchedSelectors()` after the render; the `HelpTopics` unit of
-the `CanvasNetTool` system reads `MaxPositions` for the `positionsMax` token of its help cards; and applications.
+options, and reads `Positions`, `Truncated`, and `GetUnmatchedSelectors()` after the render; the `HelpCatalog` unit of
+the `CanvasNetViewer` system reads `MaxPositions` for the `positionsMax` token of its help cards; and applications.

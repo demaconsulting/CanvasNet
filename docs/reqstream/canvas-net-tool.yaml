@@ -61,10 +61,15 @@ sections:
         justification: |
           An AI agent that has to draw or convert a file must learn what each format supports, and get a working
           example to start from, without leaving the tool or guessing; the content ships with the tool so that it
-          is offline, matches the installed version, and is machine-readable for agents.
+          is offline, matches the installed version, and is machine-readable for agents. The knowledge about the
+          formats is the help catalog of the Viewer library, shared with every program that uses the library, and the
+          tool adds its command-line sections to it.
         children:
           - CanvasNetTool-Commands-HelpTopics
           - CanvasNetTool-Program-HelpJson
+          - CanvasNetViewer-Help-Catalog
+          - CanvasNetViewer-Help-Extend
+          - CanvasNetViewer-Help-Content
         tests:
           - CanvasNetTool_HelpTopics_RunAsProcess_PrintTopicJsonAndRawExample
 
@@ -822,7 +827,7 @@ sections:
           - CanvasNetTool-Commands-DiscoveryCommands-Mermaid
           - CanvasNetTool-Commands-RenderCommand-Mermaid
           - CanvasNetTool-Commands-RenderCommand-Theme
-          - CanvasNetTool-Commands-HelpTopics-Mermaid
+          - CanvasNetViewer-Help-HelpCatalog-Mermaid
         tests:
           - CanvasNetTool_Mermaid_RenderAsProcess_DescribesAndWritesImage
           - CanvasNetTool_Mermaid_PieAndGanttAsProcess_AreDrawn
@@ -859,7 +864,7 @@ sections:
           - CanvasNetViewer-Imaging-SourceLoader-PlantUmlErrors
           - CanvasNetTool-Commands-DiscoveryCommands-PlantUml
           - CanvasNetTool-Commands-RenderCommand-PlantUml
-          - CanvasNetTool-Commands-HelpTopics-PlantUml
+          - CanvasNetViewer-Help-HelpCatalog-PlantUml
         tests:
           - CanvasNetTool_PlantUml_RenderAsProcess_DescribesAndWritesImage
           - CanvasNetTool_RenderPlantUml
@@ -1091,7 +1096,8 @@ sections:
           the command writes, and every mistake must be a clear error.
         children:
           - CanvasNetTool-Commands-RenderCommand-Positions
-          - CanvasNetTool-Commands-HelpTopics-Positions
+          - CanvasNetViewer-Help-HelpCatalog-Positions
+          - CanvasNetTool-Commands-HelpTopics-CommandLineGuidance
         tests:
           - CanvasNetTool_Positions_RenderAsProcess_ReportsFeaturePixels
 
@@ -1107,6 +1113,6 @@ sections:
           flattening for other SVG readers.
         children:
           - CanvasNetTool-Commands-FlattenCommand-Bindings
-          - CanvasNetTool-Commands-HelpTopics-Bindings
+          - CanvasNetViewer-Help-HelpCatalog-Bindings
         tests:
           - CanvasNetTool_Bindings_RenderAndFlattenAsProcess_ResolveTheBinding

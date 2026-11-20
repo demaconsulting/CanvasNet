@@ -1259,6 +1259,128 @@ sealed class StubSource : IImageSource
 }
 ```
 
+### HelpCatalog
+
+The namespace `DemaConsulting.CanvasNet.Viewer.Help` carries the help about the formats the Viewer reads, as data your
+program reads: short Markdown cards about what to write in a file (the syntax and what is supported), how to make a
+picture look good, how files compose (embedding, fragments, bindings, positions), the diagnostics and error codes, the
+limits, what the host controls (the render options and strict mode), and which files a document may read. The cards
+ship inside the package and are checked against the code by its tests, so they describe the version you use. They are
+the same cards that `canvasnet help` prints; the command-line tool adds its flags and commands to them.
+
+<!-- signature -->
+
+```csharp
+public sealed class HelpCatalog
+{
+    public static HelpCatalog Default { get; }          // the library cards; loaded once, immutable
+    public IReadOnlyList<HelpCard> Cards { get; }       // the visible cards, depth first
+    public IReadOnlyList<HelpCard> Roots { get; }       // the visible cards with no visible ancestor
+    public HelpCard? Find(string path);                 // "mermaid/gantt", "mmd gantt"; null if unknown or hidden
+    public IReadOnlyList<HelpCard> GetChildren(HelpCard card);
+    public IReadOnlyList<HelpCard> GetSeeAlso(HelpCard card);
+    public HelpCatalog Filter(IEnumerable<string>? include, IEnumerable<string>? exclude = null);
+    public string FormatMarkdown(HelpCard card, Func<HelpLink, string> formatLink);
+    public string RenderText(HelpCard card);
+    public string RenderJson(HelpCard card);
+    public string RenderIndexText();
+    public string RenderIndexJson();
+    public HelpCatalog Extend(Assembly assembly, string resourcePrefix, IReadOnlyDictionary<string, string>? tokens = null);
+}
+
+// A card: Id (its path), Name, ParentId, Title, Summary, Tags, Aliases, Markdown, ChildIds, SeeAlsoIds, Examples.
+// An example: Name, Kind ("source" or "snippet"), Language, FileName, Description, Content.
+// A link a host writes: CardId, ExampleName, ExampleCardId.
+```
+
+Every member is safe to call from several threads, and nothing changes a catalog once it is created.
+
+#### Help for agents
+
+The catalog is made for programs that give knowledge to an AI. Choose the cards your agent may read by their tags, then
+hand it the index, a card's Markdown, or a card as JSON. Every card has tags from a closed vocabulary, the constants of
+`HelpTags`:
+
+- **Format tags** (`HelpTags.FormatTags`): `svg`, `mermaid`, `plantuml`, `scad`, `vega-lite`, `pdf`, `pptx`, `vsdx`,
+  and `raster`. A card about one format has the tag of that format (and every card below the root card of a format
+  has it); a card without a format tag is general.
+- **Scope tags** (`HelpTags.ScopeTags`; every card has at least one): `authoring` (what to write in a file: syntax,
+  supported features, examples), `design` (making it look good: style, palettes, arrows, framed figures),
+  `composition` (files in files: embedding, fragments, bindings, positions), `diagnostics` (codes, diagnostics,
+  differences, unsupported lists), `limits` (resource limits), `hosting` (what the host application controls: render
+  options, sizes, strict mode), and `file-access` (file-access policies, roots, and links; the tag a host most often
+  leaves out).
+
+`Filter(include, exclude)` returns a view: a card is visible when it has any of the included tags (all cards when
+nothing is included) and none of the excluded tags. An unknown tag is an `ArgumentException`. A view of a view keeps
+only the cards visible in both. A view never points your agent at a card it hides:
+
+- Each card is visible or hidden by its own tags; a hidden card does not hide the cards below it. The visible cards
+  below a hidden card move up to its nearest visible ancestor, or become roots.
+- `Find` still walks the full path through hidden cards, so `mermaid/style` is found in a `design` view although
+  `mermaid` is hidden, but `Find` returns `null` for a hidden card.
+- A hidden card is left out of `ChildIds`, `SeeAlsoIds`, the footers of `RenderText`, and the JSON.
+- The text of a card links other cards; a link to a visible card reads "the card `a/b`" (or "the example `name` of the
+  card `a/b`"), and a link to a hidden card is the card's title as plain text (a hidden example: "an example").
+
+<!-- compile -->
+
+```csharp
+using DemaConsulting.CanvasNet.Viewer.Help;
+
+// The cards an agent that draws Mermaid diagrams may read, without what the host controls or which files it may read
+var view = HelpCatalog.Default.Filter(
+    [HelpTags.Mermaid, HelpTags.Design, HelpTags.Composition],
+    [HelpTags.Hosting, HelpTags.FileAccess]);
+
+// The index of the view, one line per card, so the agent can choose what to read
+Console.WriteLine(view.RenderIndexText());
+
+// One card by its path (or an alias such as "mmd gantt"); null when it does not exist or the view hides it
+var gantt = view.Find("mermaid/gantt");
+if (gantt != null)
+{
+    // The Markdown body, the whole card as text, and the card as JSON with the content of its examples
+    Console.WriteLine(gantt.Markdown);
+    Console.WriteLine(view.RenderText(gantt));
+    File.WriteAllText("gantt.json", view.RenderJson(gantt));
+
+    // The links in your own words, for example as the tool call your agent uses to read a card
+    Console.WriteLine(view.FormatMarkdown(gantt, link => $"read_help(\"{link.CardId ?? gantt.Id}\")"));
+
+    // The tiny examples, ready to save as files
+    foreach (var example in gantt.Examples)
+    {
+        File.WriteAllText(example.FileName ?? $"{example.Name}.txt", example.Content);
+    }
+}
+
+// Every card about one format: filter by its format tag
+foreach (var card in HelpCatalog.Default.Filter([HelpTags.Svg]).Cards)
+{
+    Console.WriteLine($"{card.Id} [{string.Join(", ", card.Tags)}]: {card.Summary}");
+}
+```
+
+A host can add its own cards with `Extend(assembly, resourcePrefix)`: Markdown files with the same front matter,
+embedded in the host's assembly as `<prefix>/<path>.md`. A file with `extends: <path>` at the path of a library card
+appends its body, related cards, and examples to that card (the command-line tool adds its flags this way); any other
+file is a new root card. Extend the unfiltered catalog, then filter it.
+
+<!-- compile -->
+
+```csharp
+using System.Reflection;
+using DemaConsulting.CanvasNet.Viewer.Help;
+
+// The library cards with this application's own cards and sections, embedded as "MyApp.Help/<path>.md"
+var catalog = HelpCatalog.Default.Extend(Assembly.GetExecutingAssembly(), "MyApp.Help");
+foreach (var root in catalog.Roots)
+{
+    Console.WriteLine($"{root.Id}: {root.Summary}");
+}
+```
+
 ## Examples
 
 ### Example 1: A Dashboard With a Model, a Chart, and a Picture

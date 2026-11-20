@@ -17,7 +17,8 @@ change; removing or renaming a key, or changing its meaning, increments it. The 
 Version 2 replaced the help `topic` document (its `topic` and `sections` keys) with the `card` and `topics`
 documents of the help cards, dropped the constant `topic` key of the help index, and made the help `examples` and
 `example` documents name the card by `id` (the `examples` document carries the card's own examples in full and the
-cards below it that have examples); the documents of the other commands are unchanged.
+cards below it that have examples); the documents of the other commands are unchanged. The `tags` of a card, added
+later to the help `card` and `topics` documents, are an added key and keep version 2.
 
 **Document layout**. Every document is a single JSON object on a single line:
 

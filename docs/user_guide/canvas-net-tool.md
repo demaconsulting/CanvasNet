@@ -2025,15 +2025,25 @@ A card is plain text in Markdown form: its title, its summary, and its body as w
 The footer lists the cards below it (`## Cards`), its examples (`## Examples`), and related cards (`## See also`).
 Every entry of the footer is the exact command that prints the card, with that card's summary, so a reader follows a
 link by running it. For example, `help mermaid gantt` leads to `help mermaid style`, which leads to `help mermaid
-composition` and the `style` and `composition` topics. Every card is at most 6,000 characters, and an index card at
-most 3,500.
+composition` and the `style` and `composition` topics. Every card is at most 7,000 characters, and an index card at
+most 4,000.
 
 The tree of a format has the same parts every time: what is **supported**, what is **unsupported**, the **options** that
 apply, the **diagnostics** it reports and how `--strict` treats them, and the **known differences** from the original
 program. Each drawing format (`scad`, `vega-lite`, `mermaid`, `plantuml`, and `svg`) also has a `style` card (how to
 make the picture look good) and a `composition` card (how to place it in, or combine it with, other pictures), linked to
 the `style` and `composition` topics. The cards are embedded in the tool, so they work offline and always describe the
-version that is installed. This guide stays the narrative; the cards are the quick reference, and they are tested
+version that is installed.
+
+The cards about the formats come from the CanvasNet Viewer library, which gives programs that use the library (for
+example agent toolkits) the same help as data (see *Help for agents* in the CanvasNet Viewer guide). The library card
+describes a subject in library terms, such as strict mode or the requested width, and the tool appends a
+`## Command line` section with the options, commands, and command examples of the subject, so a card reads first what
+holds for every host and then how to do it with `canvasnet`. The `json` and `pandoc` topics are the tool's own. Every
+card also has **tags** from a closed vocabulary, which the JSON documents carry: the format it is about (`svg`,
+`mermaid`, `plantuml`, `scad`, `vega-lite`, `pdf`, `pptx`, `vsdx`, or `raster`; none for a general card) and at least
+one scope (`authoring`, `design`, `composition`, `diagnostics`, `limits`, `hosting`, or `file-access`). This guide stays
+the narrative; the cards are the quick reference, and they are tested
 against the code (the options, the error codes, the diagnostic identifiers, the limits, and every example) and, for the
 style advice, against the renderer.
 
@@ -2227,8 +2237,9 @@ with no banner and no color codes, and a `kind` that tells which document it is:
 
 - **`index`** (for the tool): `usage`, `commands`, `topics` (each `{"name","aliases","summary"}`), `globalOptions`.
 - **`command`** (for a command): `topic` (the command), `aliases`, `summary`, `usage`, `options`, `globalOptions`.
-- **`topics`** (for `help topics`): `cards` (each `{"id","aliases","summary","command"}`, every card, depth first).
-- **`card`** (for a help card): `id`, `aliases`, `title`, `summary`, `body`, `children`, `seeAlso`, `examples`.
+- **`topics`** (for `help topics`): `cards` (each `{"id","aliases","tags","summary","command"}`, every card, depth
+  first).
+- **`card`** (for a help card): `id`, `aliases`, `tags`, `title`, `summary`, `body`, `children`, `seeAlso`, `examples`.
 - **`examples`** (for `help <topic> [<card> ...] --examples`): `id`, `examples` (the card's own, each
   `{"name","kind","language","fileName","description","content"}`), `cards` (each
   `{"id","summary","command","examples"}`, the cards below it that have examples).
@@ -2236,14 +2247,18 @@ with no banner and no color codes, and a `kind` that tells which document it is:
   belongs to).
 
 The `body` of a card is its Markdown text. Each entry of `children` and `seeAlso` is `{"id","summary","command"}`, where
-`command` is the exact command that prints that card. Each option is `{"name","aliases","takesValue","valueName",
+`command` is the exact command that prints that card. The `tags` of a card are its format tag, if any, and its scope
+tags (see *Help Cards*), in the order the card lists them; a program can keep only the cards it needs, for example the
+`authoring` cards of one format. Each option is `{"name","aliases","takesValue","valueName",
 "description"}`, and an example of a card carries its `content`, which is the source of a file or a command line
 (`fileName` only for a file). A mistake, such as an unknown subject or card, is the failure document of the `help`
 command.
 
 > **Schema version 2.** Version 2 replaced the help `topic` document (with its `topic` and `sections` keys) by the
 > `card` and `topics` documents, and dropped the constant `topic` key of the `index` document. Every other document is
-> unchanged; a reader of version 1 documents needs no change apart from the help documents.
+> unchanged; a reader of version 1 documents needs no change apart from the help documents. The `tags` key of the
+> `card` and `topics` documents was added later in version 2; adding a key is not a breaking change, so a reader that
+> ignores unknown keys needs no change.
 
 ### Failure Documents
 

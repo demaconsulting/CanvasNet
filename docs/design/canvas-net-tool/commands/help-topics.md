@@ -6,215 +6,98 @@
 
 `HelpTopics` is the tree of help cards that `canvasnet help <topic> [<card> ...]` prints. A card is a short Markdown
 text about one subject. The seventeen root cards (the help topics) are one per format the tool reads (`scad`,
-`vega-lite`,
-`mermaid`, `plantuml`, `svg`, `pdf`, `pptx`, `vsdx`, and `raster`), the two guidance hubs (`style` and `composition`),
-the
-feature-positions topic (`positions`: the `--positions` selectors and where the features of a diagram or a chart land),
-the cross-cutting subjects (`json`, `errors`, `limits`, and `files`), and the Pandoc filter (`pandoc`, alias `filter`:
-the `pandoc-filter` command and the Lua shim). A large topic is split into cards below its root, for example
-`mermaid gantt` and `mermaid gantt settings`, so an agent reads only the part it needs. The cards say what a format
-supports, what it does not, which options apply, which diagnostics can appear (and what `--strict` does with them),
-where the tool differs from the original program, how to make a picture look good, and how to compose pictures, and they
-carry tiny examples that an agent can print and run.
+`vega-lite`, `mermaid`, `plantuml`, `svg`, `pdf`, `pptx`, `vsdx`, and `raster`), the two guidance hubs (`style` and
+`composition`), the feature-positions topic (`positions`), the cross-cutting subjects (`json`, `errors`, `limits`, and
+`files`), and the Pandoc filter (`pandoc`, alias `filter`). A large topic is split into cards below its root, for
+example `mermaid gantt` and `mermaid gantt settings`, so an agent reads only the part it needs.
 
-The unit's single responsibility is to load that content, keep it consistent with itself and the code, resolve a card
-by its path, and render it as plain text or as JSON. The dispatch of the `help` command and the index of commands and
-topics belong to `CommandRegistry` (the file `CommandRegistry.Help.cs`), which calls this unit.
+The knowledge about the drawing and file formats is not owned here: it is the help catalog of the Viewer library
+(`HelpCatalog.Default`, see *Help Subsystem Design* and *HelpCatalog Unit Design* of the `CanvasNetViewer` system),
+which describes the formats in library terms so that any program that uses the library gets the same help. This unit
+is the **command-line layer** on that catalog. Its single responsibility is to:
 
-The unit is the internal static partial class `HelpTopics` in three files: `HelpTopics.cs` (the model, the loading and
-validation of the embedded cards, the token substitution, and the lookup), `HelpTopics.FrontMatter.cs` (the front-matter
-parser), and `HelpTopics.Render.cs` (the text and JSON renderings and the wrapping). The content is embedded in the tool
-assembly, so an installed tool needs no other file.
+- add the tool's own cards (the `json` tree of the result documents and the `pandoc` card of the Pandoc filter);
+- add the command-line sections of library cards as overlays (the flags, the `kind: command` examples, shell quoting,
+  and the `canvasnet` commands that render, inspect, compare, montage, and flatten);
+- keep the topics in their fixed order and resolve a card by its path, with the usage errors of the tool;
+- write every link of a card as the `canvasnet help` command that prints its target;
+- render a card, the tree, and the examples as plain text or as the help JSON documents of the tool.
+
+The dispatch of the `help` command and the index of commands and topics belong to `CommandRegistry` (the file
+`CommandRegistry.Help.cs`), which calls this unit.
+
+The unit is the internal static partial class `HelpTopics` in two files: `HelpTopics.cs` (the command-line card
+record, the combined catalog, the link writer, and the lookup) and `HelpTopics.Render.cs` (the text and JSON
+renderings and the wrapping). Its content is embedded in the tool assembly.
 
 #### Data Model
 
-**Model records** (`internal sealed record`, in `HelpTopics.cs`):
-
-- `HelpExample` holds `Name`, `Kind`, `Language`, `FileName`, `Description`, and `Content`.
-- `HelpCard` holds `Id`, `Aliases`, `Title`, `Summary`, `Body`, `ChildIds`, `SeeAlso`, and `Examples`. It also derives
-  `Name` (the last segment of the identifier), `RootId`, `ParentId`, `Depth`, `Path` (the identifier with spaces, for
-  example `mermaid gantt`), and `Command` (`canvasnet help mermaid gantt`).
-- `FrontMatterValue` (in `HelpTopics.FrontMatter.cs`) holds `Line` and one of `Scalar`, `Items`, or `Map`.
-- `FrontMatterDocument` holds the front-matter `Properties`, in order, and the `Body`.
-
-The records are immutable, so the catalog is safe to share between threads.
+**HelpCard** (`internal sealed record`, in `HelpTopics.cs`): the card as the command line shows it: `Id`, `Aliases`,
+`Tags`, `Title`, `Summary`, `Body` (the library card's body followed by the overlay's, with the tokens replaced and
+every link written by `FormatLink`), `ChildIds`, `SeeAlso`, and `Examples` (the library's `HelpExample` values, then the
+overlay's). It derives `Name`, `RootId`, `ParentId`, `Depth`, `Path` (the identifier with spaces, for example
+`mermaid gantt`), and `Command` (`canvasnet help mermaid gantt`). The library's `HelpCard` type is imported under the
+alias `LibraryCard`.
 
 **TopicNames**: the root card identifiers in the order they are listed: `scad`, `vega-lite`, `mermaid`, `plantuml`,
 `svg`, `pdf`, `pptx`, `vsdx`, `raster`, `style`, `composition`, `positions`, `json`, `errors`, `limits`, `files`, and
-`pandoc`. The loader requires the embedded root cards to be exactly this set. **FormatTopicNames** is the first nine,
-the topics that describe one format.
+`pandoc`. The loader requires the roots of the combined catalog to be exactly this set, so the tool keeps its own order
+and lists its topics among the library's. **FormatTopicNames** is the first nine, the topics that describe one format.
 
-**Catalog**: a `Lazy<CardCatalog>` that loads every embedded card on first use. It holds the cards depth first (each
-root of `TopicNames`, followed by the cards below it in the order of its `children`) and a dictionary by identifier.
-The catalog is read once and never changes afterwards.
+**Tokens**: the tool's own `{{name}}` tokens, passed to `HelpCatalog.Extend`: `schemaVersion`
+(`ResultWriter.SchemaVersion`). Every other token (the limits, `maxDpi`, the qualities) belongs to the library, which
+fills it in from the constants of the code; an extension may not redefine a library token.
 
-**Embedded resources**: the tool project embeds the content with two `EmbeddedResource` items. Both items set
-`WithCulture="false"`, so MSBuild never reads a dotted name as a satellite-resource culture.
+**Catalog**: a `Lazy<CardCatalog>` that, on first use, extends `HelpCatalog.Default` with the tool's resources, checks
+the roots against `TopicNames`, converts every card of the combined catalog to the command-line `HelpCard`, and lists
+them depth first from the roots in `TopicNames` order with a dictionary by identifier. The catalog is read once and
+never changes afterwards, so it is safe to share between threads.
+
+**Embedded resources**: the tool project embeds its card files with two `EmbeddedResource` items with
+`WithCulture="false"`:
 
 | Source file (under `Commands/Help/`) | Logical resource name |
 | --- | --- |
 | `<path>.md`, in folders that mirror the tree | `DemaConsulting.CanvasNet.Tool.Help/<path>.md` |
 | `Examples/<root>-<file name>` | `DemaConsulting.CanvasNet.Tool.Help.Examples.<root>-<file name>` |
 
-The card names come from `%(RecursiveDir)`, which separates folders with `\` on Windows and `/` elsewhere; the loader
-turns a `\` into `/`. The prefixes are the constants `CardResourcePrefix` and `ExampleResourcePrefix`, and
-`CardExtension` is `.md`.
+The prefixes are the constants `ResourcePrefix`, `CardResourcePrefix`, and `ExampleResourcePrefix`, and `CardExtension`
+is `.md`. The tool currently ships no example files of its own: its examples are command lines in the front matter.
 
-The example sources stay real files with the extension of their format, such as `scad-plate.scad`,
-`vega-lite-styled-chart.vl.json`, `mermaid-styled-flow.mmd`, and `svg-report.svg`. They can be edited and checked with
-ordinary tools. Every resource is read as text with LF line endings and without trailing line feeds.
+**Tool card files** (`Commands/Help/`): each file is one of two kinds, in the card file format of the library (see
+*HelpCatalog Unit Design*):
 
-**Card file** (`Commands/Help/<path>.md`): the identifier of a card is its path without `.md`, with `/` separators and
-segments of lower case letters and digits joined by single dashes. A card that has cards below it has a folder of the
-same name. The file starts with YAML front matter between two `---` lines, and the rest is the Markdown body.
+- **A tool card**: `json.md`, `json/results.md`, `json/diagnostics.md`, `json/help.md`, and `pandoc.md`, with `title`,
+  `summary`, `tags` (from the library's closed vocabulary), and the other keys of a card. Literal `canvasnet` text is
+  allowed in these cards.
+- **An overlay**: a file at the path of a library card whose front matter starts with `extends: <path>` (the same path).
+  It may give `title` and `summary` (which replace the library card's on the command line, so the CLI index can keep its
+  wording), `see-also` (appended without duplicates), and `examples` (appended; the `kind: command` examples live here).
+  Its body starts with `## Command line` and holds the flags, shell blocks, and commands of the subject (`files` and
+  `positions/selectors` add one more section after it, `## The Pandoc filter` and `## Quoting`). 58 library cards have
+  an overlay.
 
-The front matter has these keys:
+**Links**: the bodies use the library's neutral links (`[[a/b]]`, `[[a/b#name]]`, `[[#name]]`), validated by the library
+against the combined tree. `FormatLink` writes them for the command line.
 
-- `title` (required): the title shown at the top of the card.
-- `summary` (required): one line, shown in lists and in every See also entry that points to the card.
-- `aliases`: other names that select the card among its siblings (`openscad`, `vl`, `mmd`, `graph`, `scales`, and so
-  on).
-- `children`: the names of the cards below it, in order; the list must be exactly the card files of its folder.
-- `see-also`: the identifiers of related cards.
-- `examples`: a list of maps, each with `name`, `kind`, `language`, `description`, and either `file` or `content`.
+**Size budget** (a unit test): the rendered text of a card, with its command-line section, is at most 7,000 characters,
+and at most 4,000 for a root card that has cards below it; a summary is at most 60 characters for a root card and 100
+for any other card (the library budget of its own cards is 6,000 and 3,500). **TextWidth** is 78.
 
-The body is ordinary Markdown: `##` headings, bullets, and fenced code blocks with a language. It has no `#` heading,
-because the renderer prints the title as one, and no heading of the generated footer (`## Cards`, `## Examples`, and
-`## See also`). An item with a term starts with a code span or bold text followed by a colon and a space, as in
-``- `--strict`: ...``.
-
-**Examples**: an example `name` is unique below its root, so `--example` finds it from any card of the tree. The
-`kind` is one of these:
-
-- `source` (`SourceKind`): the content is the embedded file `Examples/<root>-<file>`, a file the tool can read on its
-  own, so the tests render every one with `--strict`.
-- `snippet` (`SnippetKind`): stored the same way, but its text links other files. Examples are the `embed` and
-  `embed-pages` drawings of `svg embedding` and `svg fragments`, the `pictures` diagram of `mermaid composition`, and
-  the `report` figure of `svg composition`. `SourceExamples()` skips a snippet, and a dedicated test renders each one
-  with its sibling files.
-- `command` (`CommandKind`): the inline `content` is a command line that starts with `canvasnet`.
-
-The `language` is `openscad`, `json`, `xml`, `mermaid`, `plantuml`, or `shell`.
-
-**Tokens**: the title, the summary, the body, an example description, and a command may use `{{name}}` tokens, which
-the loader replaces from the live constants of the code, so a documented number cannot drift from the real one.
-`Tokens` is the table; the values are formatted with the invariant culture and no thousands separator.
-
-| Token | Source |
-| --- | --- |
-| `schemaVersion` | `ResultWriter.SchemaVersion` |
-| `maxDimension` | `Surface.MaxDimension` |
-| `maxDpi` | `ArgumentReader.MaxDpi` |
-| `qualityMin` | `ImageWriter.MinQuality` |
-| `qualityMax` | `ImageWriter.MaxQuality` |
-| `qualityDefault` | `ImageWriter.DefaultQuality` |
-| `scadMaxTriangles` | `ScadLimits.Default.MaxTriangles` |
-| `vlMaxSourceLength` | `VegaLiteLimits.Default.MaxSourceLength` |
-| `vlMaxJsonDepth` | `VegaLiteLimits.Default.MaxJsonDepth` |
-| `vlMaxDataFiles` | `VegaLiteLimits.Default.MaxDataFiles` |
-| `vlMaxDataBytes` | `VegaLiteLimits.Default.MaxDataBytes` |
-| `vlMaxDataRows` | `VegaLiteLimits.Default.MaxDataRows` |
-| `vlMaxImages` | `VegaLiteLimits.Default.MaxImages` |
-| `vlMaxPaintedPixels` | `VegaLiteLimits.Default.MaxPaintedPixels` |
-| `mmdMaxTextSize` | `MermaidLimits.Default.MaxTextSize` |
-| `mmdMaxEdges` | `MermaidLimits.Default.MaxEdges` |
-| `mmdMaxNodes` | `MermaidLimits.Default.MaxNodes` |
-| `mmdMaxImages` | `MermaidLimits.Default.MaxImages` |
-| `pumlMaxTextSize` | `PlantUmlLimits.Default.MaxTextSize` |
-| `pumlMaxNodes` | `PlantUmlLimits.Default.MaxNodes` |
-| `pumlMaxEdges` | `PlantUmlLimits.Default.MaxEdges` |
-| `pumlMaxIncludes` | `PlantUmlLimits.Default.MaxIncludes` |
-| `pumlMaxIncludeDepth` | `PlantUmlLimits.Default.MaxIncludeDepth` |
-| `fragmentMaxLength` | `ImageFragment.MaxLength` |
-| `fragmentMaxParameters` | `ImageFragment.MaxParameters` |
-| `positionsMax` | `PositionCollector.MaxPositions` |
-| `positionsMaxSelectors` | `PositionSelection.MaxSelectors` |
-| `positionsMaxSelectorLength` | `PositionSelector.MaxSelectorLength` |
-| `positionsMaxPredicates` | `PositionSelector.MaxPredicates` |
-| `positionsMaxDataFields` | `ImagePosition.MaxDataFields` |
-
-Single braces such as `{page}` are literal text. A token the table does not know is a load error, so a literal pair of
-double braces cannot be written.
-
-**The tree.** Each format topic is an index card with the cards below it:
-
-- `mermaid` has a card for each of the ten diagram types, and each type with a settings table in the guide has a
-  `settings` card below it. It also has `style`, `composition`, `options`, `diagnostics`, `unsupported`, and
-  `differences`.
-- `plantuml` (alias `puml`) has `sequence`, `activity`, `preprocessor`, `style`, `composition`, `options`,
-  `diagnostics`, `unsupported`, and `differences`; its source examples are a sequence diagram, an activity diagram,
-  and a styled sequence diagram.
-- `svg` has `supported`, `embedding`, `fragments`, `units`, `flatten`, `style`, `composition`, `framed-figure`,
-  `arrows`, `options`, and `diagnostics`. The `svg arrows` card (aliases `markers` and `arrowheads`) teaches
-  arrowheads drawn with a `marker` that follows the connector, the final tangent of a curve, and a tip-anchored
-  `refX="10"`, with the source example `arrows` (the embedded `Examples/svg-arrows.svg`), whose rendered tips land
-  on the edges of their target boxes.
-- `vega-lite` has `data`, `marks`, `encodings`, `transforms`, `params`, `layout`, `style`, `composition`, `options`,
-  `unsupported`, `diagnostics`, `warnings`, and `differences`.
-- `scad` has `language`, `views`, `anchors`, `style`, `composition`, `options`, `diagnostics`, and `differences`.
-- `json` has `results`, `diagnostics`, and `help`, and `errors` has `codes` and `diagnostics`.
-- `positions` has `selectors` (the grammar, the matching rules, and the limits), `mermaid` and `vega-lite` (the kinds,
-  ids, and facts each renderer reports), and `geometry` (the box, the attach pixel, and how they follow the image
-  steps); the `svg framed-figure` card has the callout recipe on positions, with the snippet `framed-flow` (the
-  embedded `Examples/svg-framed-flow.svg`) and the command `read-positions`.
-- `pdf`, `pptx`, `vsdx`, `raster`, `limits`, `files`, `style`, and `composition` are single cards.
-
-The tree of each format holds the `##` headings `Supported`, `Unsupported`, `Options`, `Diagnostics`, and
-`Known differences`. The `style` and `composition` hubs link to the style and composition card of each drawing format,
-and those link back.
-
-Some bullets are compared word for word with the user guides:
-
-- The `## Syntax`, `## Relations`, and `## Tags` bullets of `mermaid <type>` and the `## Settings` bullets of
-  `mermaid <type> settings` follow the tables of the Mermaid user guide.
-- The bullets of `mermaid unsupported` and `mermaid diagnostics` carry the guide's code table.
-- The `## Supported` bullets of `plantuml sequence` and `plantuml activity` follow the supported syntax lists of the
-  PlantUML user guide, and the bullets of `plantuml unsupported` and `plantuml diagnostics` carry its code list.
-- The `## Reference` bullets of `svg flatten` follow the `#### Flatten Reference` table.
-- The bullets of `files` follow the `#### File Access Reference` table of the tool user guide.
-
-**Size budget**: the rendered text of a card is at most 6,000 characters, and at most 3,500 for a root card that has
-cards below it. A summary is at most 60 characters for a root card and 100 for any other card. The size budget is a
-unit test, not a load check.
-
-**TextWidth**: 78, the column at which generated lines are wrapped. Body lines are written at most 80 columns wide,
-and 120 inside a code block.
+**Help JSON documents**: schema version 2 (`ResultWriter.SchemaVersion`). The `tags` of a card were added to the `card`
+and `topics` documents as an added key, so the version did not change.
 
 #### Key Methods
 
-**ParseFrontMatter(text, fileName)** (`internal`): splits a card file into its front matter and body. It reads only
-this strict YAML subset:
+**LoadAll** (private): `HelpCatalog.Default.Extend(typeof(HelpTopics).Assembly, ResourcePrefix, Tokens)` (the library
+parses, validates, and merges the tool's cards and overlays: an overlay of an unknown card, a tool card in the tree of a
+library card, a link that resolves nowhere, or a malformed front matter fails with the file and the line), then requires
+the roots to be `TopicNames`, and converts each card with `ToToolCard` (its body from
+`catalog.FormatMarkdown(card, FormatLink)`).
 
-- `key: value` at column 0, where a key is lower case letters and dashes;
-- `key:` alone, followed by list items `- value` indented by two spaces;
-- a list item that is a map: `- key: value` indented by two spaces, followed by `key: value` lines indented by four;
-- plain, single-quoted (`''` escapes a quote), and double-quoted (only `\\` and `\"`) values on one line;
-- blank lines and full-line `#` comments.
-
-Anything else is an `InvalidOperationException` with the message `Help card '<file>', line <n>: <reason>.`: a tab, a
-flow sequence or mapping, a block scalar, an anchor, an alias, a tag, a trailing comment, an unclosed quote, an
-unsupported escape, a plain value that holds a colon followed by a space, a repeated key, a key without a value or
-items, deeper nesting, or a missing opening or closing fence. The body is the text after the closing fence, with LF line
-endings, without one leading blank line, and without trailing line feeds. No YAML package is used.
-
-**LoadCard(fileName, text)** (`internal`): checks the file name, parses the front matter, and reports these problems
-with the file and the line:
-
-- an unknown key, or a missing or non-text `title` or `summary`;
-- a list where text is expected, or text where a list is expected;
-- a badly formed alias;
-- an example with an unknown key or a missing key, or one that is not a source or snippet with a `file` or a command
-  with a `content`;
-- a command that does not start with `canvasnet`.
-
-It then reads the file of each source or snippet, replaces the tokens (an unknown token is an error naming the file),
-and returns the `HelpCard`.
-
-**LoadAll** (private): loads every resource that starts with `CardResourcePrefix` and validates the tree. The roots
-must be exactly `TopicNames`, and the `children` of every card must be exactly the card files of its folder, so every
-card is reachable. A card below another needs its parent card. Every See also entry must name another card, once.
-Names and aliases must be unique among siblings and among the roots, ignoring case, and example names unique below
-each root.
+**FormatLink(link)** (`internal`): writes a library `HelpLink` as the command that prints its target:
+`` `canvasnet help a b` `` for a card, `` `canvasnet help a b --example name` `` for an example of a card, and
+`` `--example name` `` for an example of the card being read (`[[#name]]`).
 
 **All**, **Roots**, **Get(id)**, **ChildrenOf(card)**, and **Subtree(card)**:
 
@@ -231,9 +114,9 @@ on later accesses.
 `null`. A unit test proves that no root name or alias equals a command, a command alias, `help`, or `topics`, so a
 subject is never ambiguous.
 
-**Resolve(path)**: splits every word of the path at `/`, finds the root with `Find`, and then each further word among
-the children of the previous card by name or alias, ignoring case. It returns `null` when the first word is not a
-root; an unknown further word is the `ToolException` described under *Error Handling*.
+**Resolve(path)**: splits every word of the path at `/` (`SplitPath`), finds the root with `Find`, and then each
+further word among the children of the previous card by name or alias, ignoring case. It returns `null` when the first
+word is not a root; an unknown further word is the `ToolException` described under *Error Handling*.
 
 **SourceExamples()**, **Snippets()**, **AllExamples()**, and **SubtreeExamples(card)**: enumerate the examples with
 their cards. **CardsBelowWithExamples(card)** enumerates the cards below a card that have examples of their own, depth
@@ -243,7 +126,8 @@ first. The unit tests and the `CanvasNetTool_HelpExamples` self-test render ever
 
 1. `# <title>`, a blank line, and the summary.
 2. `Also known as: <aliases>`, when the card has aliases.
-3. The body as written, after token substitution; the body is not rewrapped and no Markdown is converted.
+3. The body as written (the library body, then the overlay's), after token substitution and with the links written
+   as commands; the body is not rewrapped and no Markdown is converted.
 4. `## Cards`: for each card below it, a bullet with its exact command and, indented, its summary, followed by a pointer
    to `--examples` (`Find the cards below that have examples with: <command> --examples`) when cards below it have
    examples.
@@ -282,10 +166,10 @@ ignoring case. The content is what `help <path> --example <name>` prints, and no
 `RenderTopicsJson()`, are written with `ResultWriter.Success("help", ...)`. They have the common envelope
 (`schemaVersion`, `ok`, `command`), one line, the key order below, and ASCII-only escaping.
 
-- `kind` `card`: `id`, `aliases`, `title`, `summary`, `body`, `children` and `seeAlso` (each entry with `id`,
+- `kind` `card`: `id`, `aliases`, `tags`, `title`, `summary`, `body`, `children` and `seeAlso` (each entry with `id`,
   `summary`, and `command`), and `examples` (each with `name`, `kind`, `language`, `fileName` for a file,
   `description`, and `content`).
-- `kind` `topics`: `cards`, each with `id`, `aliases`, `summary`, and `command`.
+- `kind` `topics`: `cards`, each with `id`, `aliases`, `tags`, `summary`, and `command`.
 - `kind` `examples`: `id`, `examples` (the card's own examples, each as in the `card` document, with `content` and
   without a `card` key), and `cards` (the cards below it that have examples, each with `id`, `summary`, `command`, and
   `examples`, the names).
@@ -298,16 +182,30 @@ Version 2 has not been released, so the change of the `examples` document (the c
 **WriteStrings(writer, name, values)** (`internal`): writes a JSON array of strings; `CommandRegistry` uses it for the
 alias lists of its own documents.
 
-#### Position Bindings Card
+#### Overlays of the Library Cards
 
-The card `svg/bindings` (child of `svg`, alias `binding`) documents the namespace, the attributes, the value syntax, how
-a binding is resolved, the seven `svg-binding-*` codes as items, `svg-binding-failed`, flattening, and what is not
-supported yet, with the commands `render-bound` and `flatten-bound`. The `svg/framed-figure` card recommends a binding
-first, then `--positions` with the image x and y added by hand, then the grid probe; its `framed-flow` example binds
-each arrow tip with `cn:x2y2` (a level `polyline` leg and a bound `line` with the marker), with the numbers of the
-diagram at the size of its image as the fallback. `svg`, `svg/flatten`, `svg/diagnostics`, the composition cards,
-`positions`, `errors/codes`, and `json/results` link or name it. Requirement:
-`CanvasNetTool-Commands-HelpTopics-Bindings`.
+Every library card whose subject has a command-line side has an overlay. The library card keeps the knowledge in library
+terms (for example strict mode, the requested width, the file-access policy, `ViewerImage.Anchors`, `SvgFlattener`), and
+the overlay's `## Command line` section maps it to the tool:
+
+- the `options` cards of each format and `svg/options`, `pdf`, `pptx`, `vsdx`, and `raster`: every flag
+  (`--width`, `--size`, `--scale`, `--background`, `--page`, `--dpi`, `--strict`, `--file-access`, `--allow-root`, and
+  the format's own options such as `--theme`, `--param`, `-D`, and the view options of a model) and the command
+  examples;
+- the root card of each drawing format: the `render` command with `--json`;
+- the composition, style, framed-figure, anchors, arrows, and bindings cards: the commands that render, inspect a pixel,
+  read the positions, draw a grid, make a montage or a comparison, and flatten, with shell blocks and their quoting;
+- `svg/fragments` and `positions/selectors`: the fragment of an input path on the command line and the quoting of a
+  selector for bash, PowerShell, and cmd;
+- `errors` (which also replaces the title and summary), `errors/codes`, and `errors/diagnostics`: the exit codes,
+  standard error, the `--json` failure document, the codes only the tool reports (`operation-failed`,
+  `threshold-failed`, and `pandoc-filter-error`), and the meaning of `usage-error` on the command line;
+- `files`: the `--file-access` and `--allow-root` options and the Pandoc filter's variables;
+- `limits`: the flags that set or reach the limits and the `formats` listing.
+
+The CLI user therefore reads one card per topic, the library text first and the command line after it. The parity of
+the `svg/flatten` and `files` cards with the user guide compares the merged bullets (the library's, then the
+overlay's).
 
 #### Error Handling
 
@@ -322,35 +220,34 @@ These usage errors are `ToolException` with code `usage-error` and `Command` set
 
 Null arguments throw `ArgumentNullException`.
 
-Loading problems are `InvalidOperationException` whose message names the card file, and the line when there is one.
-They include a front matter outside the subset, an unknown key, a missing title, a malformed example, an unknown token,
-a missing example file, a repeated name or alias, an orphan card, and children or See also entries that do not
-resolve. They are defects in the shipped content, not user errors: the unit tests load every card, so a malformed card
-fails the build before it reaches a user. The consistency of the content with the code is proven by the unit tests
-(see *HelpTopics Unit Verification Design*):
+Loading problems are `InvalidOperationException` from `HelpCatalog.Extend` (or the check of `TopicNames`) whose
+message names the card file, and the line when there is one: a front matter outside the subset, an unknown key or a key
+an overlay may not have, a missing title or tags, a malformed example, an unknown token, an overlay of an unknown card
+or of another path, a tool card in the tree of a library card (the message says to move it to the library or make it an
+overlay), a link that resolves nowhere, and children or See also entries that do not resolve. They are defects in the
+shipped content, not user errors: the unit tests load every card, so a malformed card fails the build before it reaches
+a user. The consistency of the command-line content with the tool is proven by the unit tests (see *HelpTopics Unit
+Verification Design*):
 
 - the command lines (examples and code blocks) use known commands, options, and help cards;
-- the options listed exist in `render`, and the `errors codes` card lists every error code;
-- every cited diagnostic identifier is produced by a tiny model or chart or exists in the libraries;
-- every source example and snippet renders with `--strict` without a diagnostic;
-- every Mermaid theme the `mermaid style` card lists renders;
-- every config key of the styled Vega-Lite example changes the picture.
+- the options listed in an `## Options` or `## Command line` section exist in `render` or are global options;
+- the merged `errors codes` card lists every error code, the tool-only codes in its command-line section;
+- the tool's cards cite only diagnostic identifiers the library cards cite;
+- the commands of the framed-figure and selectors sections do what the cards say when they are run.
+
+The content of the library cards (the examples render, the advice holds, the cited identifiers exist, the guides
+agree) is proven by the tests of the library (see *HelpCatalog Unit Verification Design*).
 
 #### Dependencies
 
-- **ResultWriter** - the envelope, key order, and escaping of the JSON documents; `ResultWriter.SchemaVersion` for a
-  token.
+- **HelpCatalog** (the `Help` subsystem of the `CanvasNetViewer` system) - the library cards and examples, the
+  parsing and validation of the tool's card files, the merge of the overlays (`Extend`), the views, and the links
+  (`FormatMarkdown` with `HelpLink`); the library tokens (limits, `maxDpi`, qualities) are filled in there.
+- **ResultWriter** - the envelope, key order, and escaping of the JSON documents; `ResultWriter.SchemaVersion` for the
+  tool's token.
 - **ToolException** and **ErrorCodes** - the usage errors for an unknown example or card (documented in *Program Unit
   Design*).
 - **CommandRegistry** - `ClosestName`, for the suggestion of an unknown card.
-- **ArgumentReader** - `MaxDpi`, for a token.
-- **ImageWriter** (Imaging) and the core `Surface` - the quality and size constants for tokens.
-- **ScadLimits** (Scad), **VegaLiteLimits** (VegaLite), **MermaidLimits** (Mermaid), and **PlantUmlLimits** (PlantUml) -
-  the resource limits for
-  tokens.
-- **ImageFragment** (core ImageSources) - the fragment limits for tokens.
-- **PositionCollector**, **PositionSelection**, and **PositionSelector** (core Positions) - the position limits for
-  tokens.
 
 #### Callers
 
@@ -358,4 +255,4 @@ fails the build before it reaches a user. The consistency of the content with th
   `CardsBelowWithExamples`, and the renderings, for the `help` command, the index, the hint of an unknown command, and
   the examples of a card.
 - **Validation** - `SourceExamples`, `All`, `Get`, and `RenderExample`, for the `CanvasNetTool_HelpExamples` self-test.
-- Tests - load and check every card.
+- Tests - load and check every card and every command line.

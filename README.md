@@ -30,6 +30,8 @@ shows.
   and bindings landing arrows on embedded nodes at any size.
 - **Made for AI agents** - built-in help cards with worked examples, one JSON document per command, stable error
   codes, and `compare`, `montage`, `inspect`, and `--grid` so an agent can look at, measure, and check what it draws.
+  The same help about the formats is a tag-filterable library API (`HelpCatalog` in the Viewer) for agent toolkits
+  that give the knowledge to an AI from code.
 - **The same pixels everywhere** - bundled fonts, no network access, documented resource limits, and file-access
   policies for documents you do not trust.
 - **Documents that draw themselves** - the Pandoc filter turns `![Flow](flow.mmd)`, `![Part](part.scad)`, and
@@ -162,7 +164,8 @@ at any size, and `flatten` bakes the numbers in (`canvasnet help svg bindings`).
 - 🔭 **Viewer** - `CanvasNetViewer.Render` draws any file CanvasNet can read (any page, at any resolution),
   `CreateImageResolver` makes SVG
   documents embed all of them, and its `Imaging` operations do everything the `canvasnet` tool does (probe, render with
-  a transformation pipeline, inspect, compare, make a contact sheet, and flatten an SVG drawing) as library calls
+  a transformation pipeline, inspect, compare, make a contact sheet, and flatten an SVG drawing) as library calls;
+  its `HelpCatalog` holds the help cards about the formats, filterable by tags, for programs that brief an agent
 - 🎬 **Rendering** - Transform-aware canvas with text and shape drawing
 - 📦 **Package Reading** - `OpcPackage` and `SafeXml` read untrusted `.pptx`/`.vsdx` packages and XML safely
 - ⚡ **Span-Based** - Fast, allocation-conscious pixel and row access
@@ -199,7 +202,7 @@ the ones you need, the same way as above:
 | `DemaConsulting.CanvasNet.VegaLite` | Vega-Lite static chart rendering |
 | `DemaConsulting.CanvasNet.Mermaid` | Mermaid diagrams, mindmaps, packets, git graphs |
 | `DemaConsulting.CanvasNet.PlantUml` | PlantUML sequence and activity diagrams |
-| `DemaConsulting.CanvasNet.Viewer` | The `canvasnet` operations as library calls |
+| `DemaConsulting.CanvasNet.Viewer` | The `canvasnet` operations and the help cards as library calls |
 | `DemaConsulting.CanvasNet.Tool` | The `canvasnet` command-line tool (dotnet tool) |
 
 **Upgrading from an earlier version?** Linked files are no longer confined to the document's folder by default; see
@@ -226,7 +229,8 @@ The built-in help is a tree of short help cards: `canvasnet help mermaid` prints
 `canvasnet help mermaid gantt` one diagram type, and `canvasnet help topics` every card with its summary. Each card
 ends with the exact commands of related cards. `canvasnet help style` and `canvasnet help composition` explain how to
 make a picture look good and how to combine diagrams, charts, models, and pages in one figure, with worked examples
-that the tests render.
+that the tests render. The cards about the formats come from the Viewer package, where a program reads them with
+`HelpCatalog.Default` and keeps only the tags it wants (for example everything about Mermaid except `file-access`).
 
 The tool succeeds with exit code 0 and fails with exit code 1. An expected failure is reported as a one-line
 message on standard error with a stable error code (for example `Error: usage-error: Unknown command 'x'.`), and

@@ -50,9 +50,9 @@ consists of six direct units and two subsystems:
   command contract, the command registry, and the commands themselves. It is a subsystem, not a unit, because
   each family of commands is its own unit behind the shared command contract; it holds
   `CommandRegistry` (which also owns the built-in `help` command), `HelpTopics` (the tree of help cards with their
-  tiny examples, embedded in the tool assembly: the formats, style and composition, the feature positions, the JSON
-  documents, the errors, the
-  limits, and file access),
+  tiny examples: the help catalog of the Viewer library - the formats, style and composition, the feature positions,
+  the errors, the limits, and file access - with the tool's own cards, the JSON documents and the Pandoc filter, and
+  the command-line sections it adds to the library cards, embedded in the tool assembly),
   `DiscoveryCommands` (the `formats` and `info` commands), `RenderCommand` (the `render`
   command and its alias `convert`, and the verb commands `crop`, `resize`, `rotate`, `flip`, and `pad`; with
   `--positions` and `--json`, `render` reports where the features of a Mermaid diagram or a Vega-Lite chart land in the
@@ -317,7 +317,8 @@ command writes to standard output and the shim gives back to Pandoc.
   `crop`, and the `info` and `render` of a small Vega-Lite chart) so that the bundled libraries are proven to
   load on every platform.
 - Packaging: packed as a dotnet tool with the command name `canvasnet`; the sibling libraries are
-  bundled (see *Dependencies*). The help cards and their examples are embedded resources of the tool assembly, so
+  bundled (see *Dependencies*). The help cards and their examples are embedded resources of the Viewer assembly
+  (the library cards) and of the tool assembly (the tool's cards and command-line sections), so
   `canvasnet help <topic> [<card> ...]` needs no file beside the installed tool. The package readme is the repository
   README, so README links must be absolute URLs.
 - Threading: a console application with no shared mutable state between invocations. The pixel operations of the photo
