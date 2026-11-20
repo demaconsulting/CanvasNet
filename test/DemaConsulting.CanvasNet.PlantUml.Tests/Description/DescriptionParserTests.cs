@@ -99,13 +99,13 @@ public class DescriptionParserTests
 
     /// <summary>
     ///     Validates the stereotypes and colors of declarations: several stereotypes, a fill, a fill with line and text
-    ///     colors, and a line color.
+    ///     colors, and a line color (<c>#line:color</c>).
     /// </summary>
     [Fact]
     public void PlantUmlDescriptionParser_Parse_StereotypesAndColors_AreRead()
     {
         // Act
-        var model = Parse("component A <<s1>> <<s2>> #pink\ncomponent B #back:white;line:blue;text:green\nnode N ##red\n[C] #LightBlue");
+        var model = Parse("component A <<s1>> <<s2>> #pink\ncomponent B #back:white;line:blue;text:green\nnode N #line:red\n[C] #LightBlue");
 
         // Assert
         Assert.Equal(["s1", "s2"], ElementOf(model, "A").Stereotypes);
@@ -267,7 +267,8 @@ public class DescriptionParserTests
     ///     Validates the located syntax errors: an element declared again with another symbol (also after a link named
     ///     it), an unclosed container, a closing brace without a container, a port outside a container, statements of
     ///     class and state diagrams, a start of a state diagram, a description after a colon, a one-line description in
-    ///     brackets, a bad color, an interface that holds elements, an ambiguous short name, an unclosed multi-line
+    ///     brackets, a bad color, a line color or style written <c>##</c> (PlantUML refuses it in a description diagram),
+    ///     an interface that holds elements, an ambiguous short name, an unclosed multi-line
     ///     description, a note alias that names an element, and a statement no description diagram has.
     /// </summary>
     /// <param name="body">The diagram body.</param>
@@ -284,6 +285,9 @@ public class DescriptionParserTests
     [InlineData("component C3 : desc", 2)]
     [InlineData("component C2 [single]", 2)]
     [InlineData("component A #notacolor", 2)]
+    [InlineData("[A]\nnode N ##Blue", 3)]
+    [InlineData("[A]\nnode N ##[dashed]Blue {\n}", 3)]
+    [InlineData("[A]\nusecase U ##Blue", 3)]
     [InlineData("interface I {\n}", 2)]
     [InlineData("actor A {\n(U)\n}", 2)]
     [InlineData("node N {\n[B]\n}\nnode M {\n[B]\n}\n[B] --> [X]", 8)]

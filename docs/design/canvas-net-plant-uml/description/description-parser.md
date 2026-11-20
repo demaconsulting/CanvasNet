@@ -45,8 +45,9 @@ a quote, so these ids never take the id of an element or a floating note).
   `as` kept), where a name in brackets is a component, `() x` an interface, `(x)` a use case and `(x)/` a business use
   case, and `:x:` an actor and `:x:/` a business actor, overriding the keyword; a name and `as` alone is an actor (the
   actor style); `[H]` and `[H*]` are components named `H` and `H*`, as PlantUML's description names exclude only
-  `[*]`. Then the stereotypes, a URL (reported), the colors (`ReadColors`: `#back`, `#back;line:color;text:color`,
-  `##line`; a line style is reported), and the end: nothing, a block opener (a container of a symbol of
+  `[*]`. Then the stereotypes, a URL (reported), the colors (`ReadColors`: `#back`, `#back;line:color;text:color`;
+  `##line` and `##[style]` are refused, as PlantUML's description declarations take neither), and the end: nothing, a
+  block opener (a container of a symbol of
   `ContainerSymbols`; a keyword with a block opener alone is an anonymous container), the opener of a multi-line
   description (`[` after a keyword and a plain code, or an unclosed quote after `as`; `ReadMultiline` reads up to the
   line that ends with `]` or `"`, and the description replaces the name), or else a syntax error (a description after
@@ -77,7 +78,8 @@ a quote, so these ids never take the id of an element or a floating note).
 Every refusal is a located `PlantUmlSyntaxException`: `plantuml-syntax-error` with a hint for malformed declarations,
 a redeclaration with another symbol, unclosed or unopened containers, an unclosed multi-line description, a port
 outside a container, a container of a symbol that cannot hold elements, an ambiguous short name, a note alias that
-names an element, invalid colors, pseudo-states of a state diagram, and statements of other diagram types;
+names an element, invalid colors (also a line color or style written `##`), pseudo-states of a state diagram, and
+statements of other diagram types;
 `plantuml-limit-exceeded` naming the limit. Reports of statements that are read but not drawn use
 `plantuml-statement-unsupported`, and skin parameters that are not applied `plantuml-skinparam-ignored`.
 

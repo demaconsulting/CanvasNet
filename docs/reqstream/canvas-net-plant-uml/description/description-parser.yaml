@@ -17,7 +17,7 @@ sections:
                   The DescriptionParser unit shall read a declaration with a symbol keyword or without one ([C], () I,
                   (U), (U)/, :A:, :A:/, or a name with as), where the shape of a name overrides the keyword, with the
                   display forms "Display" as Code, Display as Code, and Code as "Display", stereotypes before and after
-                  as, colors (`#back`, `#back;line:color;text:color`, `##line`), and a multi-line description in
+                  as, colors (`#back`, `#back;line:color;text:color`), and a multi-line description in
                   brackets or quotes that replaces the name.
                 justification: |
                   These are the ways PlantUML authors declare description elements; the shape of a name chooses its
@@ -105,16 +105,16 @@ sections:
                   that changes the symbol of an element (also after a link named it), an unclosed container or
                   multi-line description, a closer without a container, a port outside a container, a statement of a
                   class or state diagram, a pseudo-state of a state diagram, a description after a colon or in
-                  brackets on one line, a bad color, a container of a symbol that cannot hold elements, a short name of
-                  elements in several containers, a note alias that names an element, and a statement no description
-                  diagram has.
+                  brackets on one line, a bad color or a line color or style written  ##, a container of a symbol that
+                  cannot hold elements, a short name of elements in several containers, a note alias that names an
+                  element, and a statement no description diagram has.
                 justification: |
                   A malformed diagram must fail where the author can fix it. PlantUML refuses a redeclaration with
                   another symbol ("This element is already defined"), a port at the top, a description after a colon,
-                  a one-line description in brackets, and statements of other diagrams without allowmixing; CanvasNet
-                  also refuses an unclosed container, a stray closer, an ambiguous short name, and an element that a
-                  later container declaration would replace, where PlantUML draws a picture that does not show what
-                  was written (safe, documented deviations).
+                  a one-line description in brackets, a  ## line color or style of an element, and statements of other
+                  diagrams without allowmixing; CanvasNet also refuses an unclosed container, a stray closer, an
+                  ambiguous short name, and an element that a later container declaration would replace, where
+                  PlantUML draws a picture that does not show what was written (safe, documented deviations).
                 tests:
                   - PlantUmlDescriptionParser_Parse_Errors_AreLocated
 

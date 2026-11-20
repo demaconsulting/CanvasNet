@@ -167,7 +167,7 @@ internal sealed class DescriptionElement(string id, string name, DescriptionSymb
     public Rgba32? Fill { get; set; }
 
     /// <summary>
-    ///     Gets or sets the line color (<c>##color</c>, <c>#back;line:color</c>), or null for the theme's.
+    ///     Gets or sets the line color (<c>#line:color</c>, <c>#back;line:color</c>), or null for the theme's.
     /// </summary>
     public Rgba32? Line { get; set; }
 

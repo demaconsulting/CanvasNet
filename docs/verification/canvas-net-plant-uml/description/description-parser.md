@@ -37,7 +37,8 @@ Asserts the ids and texts of `component Web`, `"Payment Service" as PS`, `API as
 `[Data Access] as DA`, a stereotype before `as`, and a quoted database name; the symbols of `[C]`, `() I`,
 `() "Long I" as LI`, `(U)`, `(V)/`, `:A:`, `:B:/`, `"Disp" as X` (an actor), `actor/`, `usecase/`, and `node [N2]` (a
 component); the descriptions in brackets (with text on the opening and closing lines) and in quotes over several
-lines; several stereotypes, a fill, a fill with line and text colors, a line color, and a named color; and the use case
+lines; several stereotypes, a fill, a fill with line and text colors, a line color (`#line:red`), and a named color;
+and the use case
 forms `:Account Owner: as AO`, `:Manager:/ as M`, a quoted two-line actor, `actor/`, `(Open Ticket) as OT`,
 `(Archive)/ as AR`, `usecase Escalate as "..."`, and `usecase/` with their ids, texts, and symbols.
 
@@ -99,7 +100,8 @@ block, a URL, and a stereotype of a link, and the links that are kept.
 
 Asserts a located `plantuml-syntax-error` with a hint, at the expected line, for a component declared again as a node, a
 name of a link declared as a component, an unclosed container, a stray `}`, a port at the top, `class` and `state`
-statements, `[*]`, a description after a colon, a one-line description in brackets, a bad color, an interface with a
+statements, `[*]`, a description after a colon, a one-line description in brackets, a bad color, a `##Blue` line color
+of a node and of a use case and a `##[dashed]` line style of a node (all refused by PlantUML), an interface with a
 block, an actor with a block, a short name of elements in two containers, an unclosed multi-line description, a note
 alias that names an element, an unknown statement, and a container declared with the name of a component.
 

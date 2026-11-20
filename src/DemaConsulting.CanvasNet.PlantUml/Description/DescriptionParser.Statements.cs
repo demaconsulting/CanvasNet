@@ -582,8 +582,8 @@ internal sealed partial class DescriptionParser
     }
 
     /// <summary>
-    ///     Reads the colors of a declaration: <c>#back</c>, <c>#back;line:color;text:color</c>, and <c>##line</c> (a line
-    ///     style in brackets, <c>##[dashed]</c>, is reported, not drawn).
+    ///     Reads the colors of a declaration: <c>#back</c> and <c>#back;line:color;text:color</c>; <c>##line</c> and
+    ///     <c>##[dashed]</c> are refused, as PlantUML refuses them in a description diagram.
     /// </summary>
     /// <param name="statement">The statement.</param>
     /// <param name="i">The index; advanced past the colors and the white space after them.</param>
@@ -604,41 +604,35 @@ internal sealed partial class DescriptionParser
             var token = text[start..end];
             if (token.StartsWith("##", StringComparison.Ordinal))
             {
-                var line = token[2..];
-                if (line.StartsWith('['))
+                // PlantUML's description declarations (CommandCreateElementFull) take no '##line' color or style
+                var wordEnd = start;
+                while (wordEnd < text.Length && !char.IsWhiteSpace(text[wordEnd]) && text[wordEnd] != '{')
                 {
-                    var close = line.IndexOf(']', StringComparison.Ordinal);
-                    Unsupported("the line style of an element is not drawn", statement.Locate(start));
-                    line = close < 0 ? string.Empty : line[(close + 1)..];
+                    wordEnd++;
                 }
 
-                if (line.Length > 0)
-                {
-                    element.Line = Color(line, statement, start);
-                }
+                throw Error($"'{text[start..wordEnd]}' is not a color of a description diagram element", statement.Locate(start), "write a line color as '#line:color' or '#back;line:color'");
             }
-            else
+
+            foreach (var part in token[1..].Split(';', StringSplitOptions.RemoveEmptyEntries))
             {
-                foreach (var part in token[1..].Split(';', StringSplitOptions.RemoveEmptyEntries))
+                var colon = part.IndexOf(':', StringComparison.Ordinal);
+                var key = colon < 0 ? "back" : part[..colon].ToLowerInvariant();
+                var value = colon < 0 ? part : part[(colon + 1)..];
+                switch (key)
                 {
-                    var colon = part.IndexOf(':', StringComparison.Ordinal);
-                    var key = colon < 0 ? "back" : part[..colon].ToLowerInvariant();
-                    var value = colon < 0 ? part : part[(colon + 1)..];
-                    switch (key)
-                    {
-                        case "back":
-                            element.Fill = Color(value, statement, start);
-                            break;
-                        case "line":
-                            element.Line = Color(value, statement, start);
-                            break;
-                        case "text":
-                            element.TextColor = Color(value, statement, start);
-                            break;
-                        default:
-                            Unsupported($"'{part}' is not drawn", statement.Locate(start));
-                            break;
-                    }
+                    case "back":
+                        element.Fill = Color(value, statement, start);
+                        break;
+                    case "line":
+                        element.Line = Color(value, statement, start);
+                        break;
+                    case "text":
+                        element.TextColor = Color(value, statement, start);
+                        break;
+                    default:
+                        Unsupported($"'{part}' is not drawn", statement.Locate(start));
+                        break;
                 }
             }
 
