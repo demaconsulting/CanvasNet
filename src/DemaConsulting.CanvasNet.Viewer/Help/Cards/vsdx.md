@@ -16,13 +16,13 @@ Each drawing page is a page, drawn as an image.
 
 ## Supported
 
-- Pages: --page N (from 1) and --all-pages; 'canvasnet info' lists the page
-  names. --dpi must be a whole number.
+- Pages: `Page` (from 1), and every page with `RenderRequest.AllPages` of the
+  Imaging namespace; a probe (`SourceLoader.Probe`) lists the page names in
+  `SourceInfo.Pages`. `Dpi` must be a whole number.
 - Embedding: `<image href="drawing.vsdx#page=2" .../>` in an SVG file draws page
   2 (page 1 without the fragment); a page that does not exist is
-  image-page-out-of-range. See [[svg]]. On the command line the
-  same fragment on the input chooses the page: canvasnet render
-  "drawing.vsdx#page=2" -o p2.png (it overrides --page).
+  image-page-out-of-range. See [[svg]]. The same fragment on an
+  input path chooses the page (it overrides `Page`).
 - Shape trees with Master and MasterShape and StyleSheet inheritance: fills,
   strokes, and text.
 - 1-D connectors with arrowheads and glue, and nested groups.
@@ -33,7 +33,7 @@ Each drawing page is a page, drawn as an image.
 ## Unsupported
 
 - These are left out or approximated and reported; the page is still drawn, and
-  --strict turns the first report into an unsupported-feature error:
+  strict mode turns the first report into an unsupported-feature error:
 - Embedded images and foreign shapes.
 - `vsdx-themed-color`: Theme Quick Style variation matrices: a themed color that
   cannot be resolved is drawn neutral gray.
@@ -45,23 +45,23 @@ Each drawing page is a page, drawn as an image.
 
 ## Options
 
-- `--page <N>`: The page to draw, counted from 1 (default 1).
-- `--all-pages`: Draw every page; for a drawing of more than one page the output
-  must contain {page} or be a directory.
-- `--dpi <D>`: Resolution in dots per inch (default 96, a whole number above 0
-  and at most {{maxDpi}}).
-- `--background <color>`: The color transparency is flattened over (white by
-  default).
-- `--strict`: Fail with unsupported-feature instead of drawing with an
-  approximation.
+The host chooses these when it renders a page: the properties of
+`ViewerRenderOptions` for `CanvasNetViewer.Render`, or of `SourceOptions` for
+the operations of the Imaging namespace.
+
+- `Page`: The page to draw, counted from 1 (default 1).
+- `Dpi`: Resolution in dots per inch (default 96, a whole number above 0 and at
+  most {{maxDpi}}).
+- `Background`: The color transparency is flattened over (`SourceOptions` uses
+  white by default).
+- `ThrowOnUnsupportedFeature`: Strict mode: fail with unsupported-feature
+  instead of drawing with an approximation.
 
 ## Diagnostics
 
-- Each report is listed in diagnostics[] as {source: vsdx, severity:
-  unsupported, code: <token>} (without --json, also as an
-  'Unsupported: <token>: <message>' line on standard error), once per distinct
-  feature per page. With --strict the first report fails with
-  unsupported-feature.
+- Each report is a diagnostic (`ViewerImage.Diagnostics`) with the source vsdx,
+  the severity unsupported, and the token as its code, once per distinct feature
+  per page. In strict mode the first report fails with unsupported-feature.
 - `vsdx-themed-color`: A themed color was drawn neutral gray.
 - `vsdx-geometry-spline-approximated`: A curve was approximated by a polyline.
 - `vsdx-geometry-row-<Type>`: A geometry row was skipped.

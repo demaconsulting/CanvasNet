@@ -22,3 +22,22 @@ examples:
     content: 'canvasnet info photo.jpg --json'
     description: Report the size, channels, and EXIF orientation without decoding the pixels.
 ---
+
+## Command line
+
+- `--scale <factor>`: Multiply the size by a factor; --width, --height, and
+  --size resample to a size.
+- `--filter <name>`: Resampling filter: auto (default), nearest, bilinear,
+  bicubic, lanczos3, or area.
+- `--background <color>`: The color transparency is flattened over, for example
+  for a JPEG output.
+- `--no-auto-orient`: Do not turn a JPEG upright by its EXIF orientation.
+- `--format <format>`: Output format (png, jpeg, jpg, bmp, tiff, or tif);
+  overrides the output extension.
+- `--quality <1-100>`: JPEG quality (default {{qualityDefault}}).
+- `--no-clobber`: Fail with output-exists instead of replacing an existing
+  output.
+- The pipeline operations --crop, --resize, --fit, --rotate, --flip, and --pad,
+  and the photo operations, are described by 'canvasnet help render'; 'canvasnet
+  info' reports the frame count of a GIF. --strict has no effect on a raster
+  image.

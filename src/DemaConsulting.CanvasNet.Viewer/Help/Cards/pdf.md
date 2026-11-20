@@ -15,14 +15,15 @@ channel.
 
 ## Supported
 
-- Pages: --page N (from 1) or --all-pages; the page rotation is applied.
+- Pages: one page per render (`Page`, from 1), or every page with
+  `RenderRequest.AllPages` of the Imaging namespace; the page rotation is
+  applied.
 - Embedding: `<image href="report.pdf#page=3" .../>` in an SVG file draws page 3
   (page 1 without the fragment); a page that does not exist is
-  image-page-out-of-range. See [[svg]]. On the command line the
-  same fragment on the input chooses the page: canvasnet render
-  "report.pdf#page=3" -o p3.png (it overrides --page; a page that does not exist
+  image-page-out-of-range. See [[svg]]. The same fragment on an
+  input path chooses the page (it overrides `Page`; a page that does not exist
   is page-out-of-range).
-- Resolution: --dpi, default 96, at most {{maxDpi}}.
+- Resolution: `Dpi`, default 96, at most {{maxDpi}}.
 - Paths, fills, strokes, clipping, and images (resampled once to the size they
   cover).
 - Color spaces Device, Cal, Lab, ICCBased (chosen by component count; the
@@ -34,40 +35,42 @@ channel.
 
 ## Unsupported
 
-- These make the page fail with unsupported-feature, with or without --strict,
-  and no partial picture is written: MMType1 fonts, function-based shadings
-  (type 1), transparency groups, Type 3 glyphs under a text clip mode, and
-  symbolic fonts that are not embedded and have no substitute.
+- These make the page fail with unsupported-feature, with or without strict
+  mode, and no partial picture is written: MMType1 fonts, function-based
+  shadings (type 1), transparency groups, Type 3 glyphs under a text clip mode,
+  and symbolic fonts that are not embedded and have no substitute.
 - `pdf-image-lab-decode`: An image in a Lab color space with a Decode array.
 - `pdf-image-tint-budget`: A DeviceN image with more distinct pixels than the
   tint-evaluation budget allows.
 - ICC profile data is ignored silently.
-- The tool has no option to supply a password, a font folder, or a page range
-  other than one page or all pages.
+- There is no option to supply a password, a font folder, or a page range other
+  than one page or all pages.
 
 ## Options
 
-- `--page <N>`: The page to draw, counted from 1 (default 1); a page beyond the
-  last is page-out-of-range.
-- `--all-pages`: Draw every page; for a document of more than one page the
-  output must contain {page} or be a directory.
-- `--dpi <D>`: Resolution in dots per inch (default 96, above 0 and at most
+The host chooses these when it renders a page: the properties of
+`ViewerRenderOptions` for `CanvasNetViewer.Render`, or of `SourceOptions` for
+the operations of the Imaging namespace.
+
+- `Page`: The page to draw, counted from 1 (default 1); a page beyond the last
+  is page-out-of-range. `ViewerImage.PageCount` tells how many pages there are.
+- `Dpi`: Resolution in dots per inch (default 96, above 0 and at most
   {{maxDpi}}). A 72 by 48 point page is 96 by 64 pixels at 96 dpi.
-- `--scale <factor>`: Multiply the natural size by a factor; --width, --height,
-  and --size also size the page.
-- `--background <color>`: The color the page is flattened over (white by
-  default).
-- `--strict`: Accepted, but PDF has no diagnostics channel, so it changes
-  nothing.
+- `Scale`: Multiply the natural size by a factor; a `Width` and a `Height` also
+  size the page, fitted inside the box and never stretched.
+- `Background`: The color the page is flattened over (`SourceOptions` uses white
+  by default).
+- `ThrowOnUnsupportedFeature`: Accepted, but PDF has no diagnostics channel, so
+  strict mode changes nothing.
 
 ## Diagnostics
 
-- None: the diagnostics[] list of a PDF is always empty and --strict has no
-  effect. A feature the renderer cannot draw is an error instead.
+- None: the diagnostics of a PDF are always empty and strict mode has no effect.
+  A feature the renderer cannot draw is an error instead.
 - `unsupported-feature`: Error code: the message names the feature, for example
   pdf-image-lab-decode or pdf-image-tint-budget.
 - `corrupt-input`: Error code: a damaged or truncated document.
-- `page-out-of-range`: Error code: --page is beyond the last page.
+- `page-out-of-range`: Error code: the page is beyond the last page.
 
 ## Known differences
 
