@@ -27,8 +27,8 @@ diagram in the page (16, 96). `render-images.ps1` draws it with `--strict` on a 
 access confined to its folder.
 
 Every file in `composition-explained/` is **original to this repository** (MIT): `composition-explained.svg`,
-`page.svg`, and `release.puml` were authored for it, `part.scad` is a copy of `showcase/explode.scad`, and `flow.mmd` and `chart.vl.json`
-are adapted from `showcase/pipeline.mmd` and `showcase/output.vl.json`.
+`page.svg`, and `release.puml` were authored for it, `part.scad` is a copy of `showcase/explode.scad`, and `flow.mmd`
+and `chart.vl.json` are adapted from `showcase/pipeline.mmd` and `showcase/output.vl.json`.
 
 ## showcase/composition.svg
 
