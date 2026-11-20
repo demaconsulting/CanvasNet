@@ -133,7 +133,8 @@ resolver's `svg-image-unresolved` already names the link. More pictures than the
 **So can a diagram.** The nodes of a Mermaid diagram (`A@{ img: "part.scad", w: 120, h: 120 }`, `<img src="logo.png">`
 in a label) load their pictures through the same resolver and file-access policy, from the folder of the diagram, or the
 resolver of the document that embeds the diagram. A link that is not drawn is `svg-image-unresolved`, the pictures that
-were drawn are listed in `Embedded`, and probing a diagram lays it out without loading any picture. A PlantUML diagram
+were drawn are listed in `Embedded` (each once per drawing, although the diagram measures a picture before it draws
+it), and probing a diagram lays it out without loading any picture. A PlantUML diagram
 reads its `!include` files from its own folder under the same file-access policy, so a denied include is
 `file-access-denied` (see the PlantUML user guide, *Preprocessor and Includes*).
 

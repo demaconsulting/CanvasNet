@@ -67,7 +67,11 @@ namespace DemaConsulting.CanvasNet.ImageSources;
 ///         <see cref="Diagnostics"/>, <see cref="Echo"/> and <see cref="Embedded"/>, and reads each file from disk once;
 ///         so create a new resolver for every top-level render (it is cheap), and do not reuse one across renders or
 ///         threads: it is <b>not thread-safe</b>. It never caches rendered pictures: every <see cref="Resolve(string, int, int)"/> call
-///         invokes the source again, so a live source (a video frame) yields a fresh picture each time.
+///         invokes the source again, so a live source (a video frame) yields a fresh picture each time. A renderer
+///         that loads a picture first only to measure it (the Mermaid library, for the natural size of the picture of a
+///         node) does so through an internal probe, which loads and counts the picture like any other load but, when it
+///         is drawn, leaves no entry in <see cref="Embedded"/>, <see cref="Requested"/>, <see cref="Echo"/> or
+///         <see cref="Diagnostics"/>; the picture is listed once, by the load that draws it.
 ///     </para>
 ///     <para>
 ///         <b>Nothing to dispose.</b> The resolver is not <see cref="IDisposable"/>: it holds no open files, streams, or
@@ -313,7 +317,9 @@ public sealed partial class FolderImageResolver : IImageNaturalSizeResolver, IIm
 
     /// <summary>
     ///     Gets one entry for every image that was loaded and handed to the renderer, in completion order (a nested image
-    ///     is listed before the image that embeds it; <see cref="EmbeddedImage.Depth"/> tells them apart).
+    ///     is listed before the image that embeds it; <see cref="EmbeddedImage.Depth"/> tells them apart). A load that a
+    ///     renderer makes only to measure a picture (the natural size of the picture of a Mermaid node) is not listed;
+    ///     the load that draws the picture is.
     /// </summary>
     public IReadOnlyList<EmbeddedImage> Embedded => _embedded.AsReadOnly();
 
@@ -322,7 +328,8 @@ public sealed partial class FolderImageResolver : IImageNaturalSizeResolver, IIm
     ///     not it was drawn: the link, the files that contain it (<see cref="RequestedImage.Origin"/>), and the name of the
     ///     picture when it was drawn. A link a document never shows (hidden, an unused definition, outside the canvas) is
     ///     never asked for, so it is not listed. A direct render (<see cref="Render(string, int?, int?)"/>) is not a link
-    ///     and is not listed either; the links of the file it draws are.
+    ///     and is not listed either; the links of the file it draws are. A link that a renderer only measured, and then
+    ///     drew, is listed once, for the draw.
     /// </summary>
     public IReadOnlyList<RequestedImage> Requested => _requested.AsReadOnly();
 
@@ -1210,7 +1217,7 @@ public sealed partial class FolderImageResolver : IImageNaturalSizeResolver, IIm
     ///     chain of files for the cycle and depth checks); the budget and the lists are shared through the owner, so
     ///     recursion is bounded without any state in the sources.
     /// </remarks>
-    private sealed class Scope : IImageNaturalSizeResolver, IImagePositionResolver
+    private sealed partial class Scope : IImageNaturalSizeResolver, IImagePositionResolver
     {
         /// <summary>
         ///     The resolver that owns the shared state.

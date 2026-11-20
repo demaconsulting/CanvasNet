@@ -444,7 +444,9 @@ its resolver to the library as
 document, or another diagram that the policy allows; a remote URL, a missing file, and a diagram that shows itself are
 the resolver's warning `svg-image-unresolved`, a file the policy denies is the warning `image-access-denied`, and
 none of them draws anything. The resolver is only given to the render: the probe measures without one. The
-library asks for every picture twice, once at a probe size to learn its natural size and once to draw it, so the loader
+library measures every picture once, at a probe size, through the internal probe of the resolver
+(`FolderImageResolver.IImageProbe`), which lists only the load that draws it; a link shown by several nodes is still
+drawn once per node, and a link that is not drawn may be reported by both loads, so the loader
 keeps one `embed` operation per link (`LastPerLink`: the last request, at the size that was drawn, in the order of those
 last requests) and each note of the resolver once (`Distinct`), and drops the library's own warning
 `mermaid-image-unresolved` for a link the resolver reported itself (`DropDuplicateUnresolved` with that detail, shared

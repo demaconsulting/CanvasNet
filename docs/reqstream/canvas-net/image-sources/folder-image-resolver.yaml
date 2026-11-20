@@ -393,6 +393,23 @@ sections:
                   - RequestedImage_Equals_ComparesOriginByEntries
                   - FolderImageResolver_Collections_AreReadOnly
 
+              - id: CanvasNet-ImageSources-FolderImageResolver-Probe
+                title: >-
+                  The FolderImageResolver class and the scope it gives every source shall offer, to the renderers of
+                  the CanvasNet family only, a probe that loads a picture exactly as a resolve does and returns it,
+                  but, when it returns a picture, removes what the load added (its embedded images, requested links,
+                  notes and printed text, those of the pictures it embeds included) from the lists of the render,
+                  while keeping everything when it returns none, and counting the load against the image limit and
+                  the pixel budget either way.
+                justification: |
+                  A renderer that must load a picture once to learn its natural size before it draws it (the Mermaid
+                  library) would otherwise list the picture twice; a link that is not drawn must keep its warning, and
+                  every load must stay bounded by the limits.
+                tests:
+                  - FolderImageResolver_Probe_DrawnPicture_LeavesNoEntryNoteOrRequest
+                  - FolderImageResolver_Probe_UnresolvedLink_KeepsItsWarning
+                  - FolderImageResolver_Probe_CountsAgainstMaxImages
+
               - id: CanvasNet-ImageSources-FolderImageResolver-Failures
                 title: >-
                   The FolderImageResolver class shall report a file that is found but cannot be drawn as an

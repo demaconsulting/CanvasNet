@@ -12,7 +12,9 @@ it is asked for and returns a surface of a fixed size (or nothing when the size 
 `MermaidReportSink` whose warnings are delivered to a list. The tests assert the resolver calls (how many, at which
 size), the sizes returned, the warnings with their codes and locations, and the limit failure. The test resolver is
 the only stand-in: it replaces the host's resolver so that the calls can be counted, which is the unit's contract; the
-internal type is reached through the test assembly's `InternalsVisibleTo` access.
+internal type is reached through the test assembly's `InternalsVisibleTo` access. One scenario uses a real
+`FolderImageResolver` with the core `RasterImageSource` over a PNG written to a temporary file, to prove that the
+measuring load goes through the resolver's probe and is not listed.
 
 Unit tests reside in `NodeImagesTests.cs` within the `DemaConsulting.CanvasNet.Mermaid.Tests` project, in the
 `Rendering` folder.
@@ -22,7 +24,8 @@ Unit tests reside in `NodeImagesTests.cs` within the `DemaConsulting.CanvasNet.M
 - **Framework**: xUnit v3 running under the .NET SDK
 - **Execution**: `dotnet test` invoked by `build.ps1` and the CI pipeline
 - **Mocking**: A counting test image resolver in place of the host's resolver
-- **Isolation**: Each test creates its own instance, resolver, and sink; no files are read
+- **Isolation**: Each test creates its own instance, resolver, and sink; only the probe scenario reads a file, a
+  temporary PNG it writes and deletes
 
 #### Acceptance Criteria
 
@@ -43,10 +46,13 @@ picture has no size and is reported.
 
 ##### CanvasNetMermaid-Rendering-NodeImages-NaturalSize: The Natural Size Is Asked For Once
 
-**Tests**: `NodeImagesTests.NodeImages_NaturalSize_Resolver_AsksOnce`
+**Tests**: `NodeImagesTests.NodeImages_NaturalSize_Resolver_AsksOnce`,
+`NodeImagesTests.NodeImages_NaturalSize_FolderImageResolver_ProbeIsNotListed`
 
 Asserts that the natural size is the size of the picture the resolver returns (40 by 30), that the resolver is asked
-once, at 256 by 256 pixels, and that a second question for the same link gives the same size without a call.
+once, at 256 by 256 pixels, and that a second question for the same link gives the same size without a call; and that,
+with a `FolderImageResolver`, measuring a 40 by 30 PNG and then drawing it makes two resolver calls but lists the
+picture once in `Embedded` and `Requested`, with nothing reported.
 
 ##### CanvasNetMermaid-Rendering-NodeImages-DeviceSize: Pictures Are Loaded At The Drawn Size
 

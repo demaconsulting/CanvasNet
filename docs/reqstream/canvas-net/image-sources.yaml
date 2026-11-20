@@ -162,6 +162,7 @@ sections:
               - CanvasNet-ImageSources-FolderImageResolver-Diagnostics
               - CanvasNet-ImageSources-FolderImageResolver-DiagnosticOrigin
               - CanvasNet-ImageSources-FolderImageResolver-Requested
+              - CanvasNet-ImageSources-FolderImageResolver-Probe
               - CanvasNet-ImageSources-FolderImageResolver-Failures
               - CanvasNet-ImageSources-FolderImageResolver-NoCaching
               - CanvasNet-ImageSources-FolderImageResolver-DirectRender

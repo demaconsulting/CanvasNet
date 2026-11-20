@@ -30,7 +30,11 @@ requirements in `docs/reqstream/canvas-net-mermaid/rendering/node-images.yaml`.
 - `NaturalSize(string href, MermaidLocation location)` - asks the resolver once per link for the picture at 256 by
   256 device pixels and takes the size of what it returns, disposing it: a raster comes back at its own size (the
   resolver's natural-size behavior), and a vector picture, which has no natural size, at the size it was drawn for. The
-  answer is kept for the rest of the rendering; null when there is no resolver or the resolver gives nothing.
+  answer is kept for the rest of the rendering; null when there is no resolver or the resolver gives nothing. When the
+  resolver is a `FolderImageResolver` or a scope of one (it implements the internal `FolderImageResolver.IImageProbe`,
+  reached through the core package's `InternalsVisibleTo`), the picture is asked for through its probe, so this
+  measuring load is not listed in `FolderImageResolver.Embedded` (nor its requests, notes, and printed text) and the
+  picture is listed once, by the load that draws it; any other resolver is asked as for a draw.
 - `Load(string href, int pixelWidth, int pixelHeight)` - the picture at the device size it is drawn at, for the
   painter, which disposes it; the size is clamped to 1 through `Surface.MaxDimension`.
 
@@ -52,7 +56,8 @@ layout (natural sizes) and the painting (loads), so the image limit counts both.
 - **Scenegraph subsystem** - `ISceneImageLoader`
 - **Package root** - `MermaidRenderException`, `MermaidDiagnosticCodes`, `MermaidReportSink`, `MermaidLocation`,
   `MermaidLimits`, `MermaidRenderOptions`
-- **Core `CanvasNet`** - `Surface` (`Canvas`) and `IImageResolver` (`ImageSources`)
+- **Core `CanvasNet`** - `Surface` (`Canvas`), `IImageResolver` and the internal
+  `FolderImageResolver.IImageProbe` (`ImageSources`)
 
 #### Callers
 

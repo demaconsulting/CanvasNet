@@ -10,6 +10,8 @@ It comprises these source files in the namespace `DemaConsulting.CanvasNet.Image
   `Render(path)`, `Render(Stream)`), the dispatch, the limits, the call of a source, and the private scope class
 - `FolderImageResolver.Href.cs` - the parsing of links: the cutting off of a query and a fragment (`SplitHref`),
   `file:` URIs, percent-encoding, and the description of a refusal of the file engine
+- `FolderImageResolver.Probe.cs` - the internal probe (`FolderImageResolver.IImageProbe`, implemented by the resolver
+  and its scope): a load that only measures a picture and, when it returns one, is not listed
 - `FolderImageResolverOptions.cs` - `FolderImageResolverOptions` (sealed record): the limits and switches
 - `RequestedImage.cs` - `RequestedImage` (sealed record): one link a document asked for, with the files that contain
   it and, when it was drawn, the name of the picture
@@ -25,7 +27,8 @@ the core package, instead of in each host. Everything format-specific is in the 
 The unit's behavior is specified by the `CanvasNet-ImageSources-FolderImageResolver-*` requirements (`FileAccess`,
 `PolicyPropagation`, `FileUri`, `UriReference`, `Dispatch`, `Precedence`, `Schemes`, `NestedScope`, `Limits`,
 `PixelBudget`, `Cancellation`,
-`Diagnostics`, `DiagnosticOrigin`, `Requested`, `Failures`, `NoCaching`, `DirectRender`, `Configuration`, `Fragment`,
+`Diagnostics`, `DiagnosticOrigin`, `Requested`, `Probe`, `Failures`, `NoCaching`, `DirectRender`, `Configuration`,
+`Fragment`,
 `FragmentDiagnostics`, and `PageRefusal`) in
 `docs/reqstream/canvas-net/image-sources/folder-image-resolver.yaml`.
 
@@ -194,6 +197,17 @@ picture embeds), the entry the picture adds to the origin of its own links. A li
 asked for, so a caller that knows the links of a file (the SVG flattener) finds the ones it did not show by comparing
 them with the entries of that origin. `RequestedImage` compares its origin by entries, as `ImageSourceDiagnostic` does.
 
+**Probe** (`IImageProbe.Probe`, `ProbeIn`; internal, reached by the Mermaid library through `InternalsVisibleTo`): a
+renderer that must load a picture once to learn its natural size before the layout, and again to draw it at the size
+the layout gave it, measures through the probe, which the resolver and every scope implement. `ProbeIn` notes the
+length of `Embedded`, `Requested`, `Echo`, and `Diagnostics`, calls `ResolveIn` exactly as a resolve does, and, when a
+surface is returned, cuts each list back to its noted length; the lists only grow during a load and the loads of the
+pictures it embeds run inside it (the resolver is not thread-safe), so the cut removes exactly what the probe and its
+nested pictures added. The picture is then listed once, by the load that draws it, which keeps the meaning of
+`Embedded` (one entry for every image that was loaded and handed to the renderer). When nothing is returned, nothing
+is removed, so a link that is not drawn keeps its warning and its request (and the strict policy of a host still sees
+it). The image count and the pixel budget are not given back: the picture was loaded.
+
 **`Render(path, w, h)`**: strict version for a top-level file: no folder is `InvalidOperationException`; the extension
 picks
 the source or `NotSupportedException` (listing the extensions); `FileReferenceResolver.ResolveTopLevel` reads the path
@@ -242,4 +256,5 @@ unit), and `Surface` of the `Canvas` subsystem. The sources it calls are injecte
 #### Callers
 
 The SVG codec (through `IImageResolver`, with `SvgLoadOptions.ImageResolver`), the `CanvasNetViewer` system (creates a
-resolver per render and calls `Render`), the command-line tool, and applications.
+resolver per render and calls `Render`), the Mermaid library (`NodeImages`, which measures the picture of a node
+through the internal probe), the command-line tool, and applications.

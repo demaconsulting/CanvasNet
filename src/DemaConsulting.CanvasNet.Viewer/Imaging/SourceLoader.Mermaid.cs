@@ -481,9 +481,10 @@ public static partial class SourceLoader
                     images.ThrowForUnresolved();
                 }
 
-                // The library asks for every picture twice, once at a probe size for its natural size and once to draw it: an
-                // embed operation is listed once per link, at the size it was drawn (the last request), and a note of the
-                // picture once
+                // The library measures every picture through the probe of the resolver, which lists only the draw, but a
+                // link shown by several nodes is drawn (and listed) once per node, and a link that is not drawn may be
+                // reported by both the measuring load and the draw: an embed operation is listed once per link, at the size
+                // it was drawn (the last request), and a note of the picture once
                 operations.AddRange(LastPerLink(images.Operations()));
                 notes.AddRange(images.Notes().Distinct());
                 return WithPositions(

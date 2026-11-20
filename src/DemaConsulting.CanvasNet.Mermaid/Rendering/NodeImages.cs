@@ -23,7 +23,9 @@ namespace DemaConsulting.CanvasNet.Mermaid.Rendering;
 ///         <see cref="ProbePixels"/> by <see cref="ProbePixels"/> device pixels, and the size of what it returns is the
 ///         natural size: a raster comes back at its own size (<see cref="IImageNaturalSizeResolver"/>), and a vector
 ///         picture, which has no natural size, at the size it was drawn for. The answer is kept for the rest of the
-///         rendering.
+///         rendering. When the resolver is a <see cref="FolderImageResolver"/> (or a scope of one), the picture is asked
+///         for through its probe (<see cref="FolderImageResolver.IImageProbe"/>), so the measuring load is not listed in
+///         <see cref="FolderImageResolver.Embedded"/> and the picture is listed once, by the load that draws it.
 ///     </para>
 ///     <para>
 ///         <b>Limit.</b> Every call of the resolver counts against <see cref="MermaidLimits.MaxImages"/>; the call that
@@ -103,7 +105,7 @@ internal sealed class NodeImages : ISceneImageLoader
         }
 
         (double Width, double Height)? size = null;
-        using (var picture = Resolve(href, ProbePixels, ProbePixels, location))
+        using (var picture = Resolve(href, ProbePixels, ProbePixels, location, probe: true))
         {
             if (picture is not null)
             {
@@ -127,7 +129,7 @@ internal sealed class NodeImages : ISceneImageLoader
     {
         ArgumentNullException.ThrowIfNull(href);
         var location = _locations.TryGetValue(href, out var known) ? known : default;
-        return Resolve(href, pixelWidth, pixelHeight, location);
+        return Resolve(href, pixelWidth, pixelHeight, location, probe: false);
     }
 
     /// <summary>
@@ -137,8 +139,13 @@ internal sealed class NodeImages : ISceneImageLoader
     /// <param name="pixelWidth">The width in device pixels.</param>
     /// <param name="pixelHeight">The height in device pixels.</param>
     /// <param name="location">The location for the report and the failure.</param>
+    /// <param name="probe">
+    ///     <see langword="true"/> when the picture is only measured: it is asked for through the probe of a
+    ///     <see cref="FolderImageResolver"/> (<see cref="FolderImageResolver.IImageProbe"/>), so the measuring load is not
+    ///     listed as an embedded image; any other resolver is asked as for a draw.
+    /// </param>
     /// <returns>The picture, or null.</returns>
-    private Surface? Resolve(string href, int pixelWidth, int pixelHeight, MermaidLocation location)
+    private Surface? Resolve(string href, int pixelWidth, int pixelHeight, MermaidLocation location, bool probe)
     {
         if (_resolver is null || href.Length == 0)
         {
@@ -159,7 +166,12 @@ internal sealed class NodeImages : ISceneImageLoader
         Surface? picture;
         try
         {
-            picture = _resolver.Resolve(href, Math.Clamp(pixelWidth, 1, Surface.MaxDimension), Math.Clamp(pixelHeight, 1, Surface.MaxDimension));
+            // A measuring load goes through the probe when the resolver offers one, so only the draw is listed
+            var width = Math.Clamp(pixelWidth, 1, Surface.MaxDimension);
+            var height = Math.Clamp(pixelHeight, 1, Surface.MaxDimension);
+            picture = probe && _resolver is FolderImageResolver.IImageProbe probing
+                ? probing.Probe(href, width, height)
+                : _resolver.Resolve(href, width, height);
         }
         catch (Exception ex)
         {

@@ -1,4 +1,5 @@
 using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Codecs;
 using DemaConsulting.CanvasNet.ImageSources;
 using DemaConsulting.CanvasNet.Mermaid.Rendering;
 
@@ -54,6 +55,48 @@ public sealed class NodeImagesTests
         Assert.Equal(first, second);
         Assert.Equal(1, resolver.Calls);
         Assert.Equal([(NodeImages.ProbePixels, NodeImages.ProbePixels)], resolver.Requests);
+    }
+
+    /// <summary>
+    ///     Checks that, with a <see cref="FolderImageResolver"/>, the load that measures the natural size goes through the
+    ///     probe of the resolver, so the picture is listed once in <see cref="FolderImageResolver.Embedded"/> and
+    ///     <see cref="FolderImageResolver.Requested"/>: by the load that draws it.
+    /// </summary>
+    [Fact]
+    public void NodeImages_NaturalSize_FolderImageResolver_ProbeIsNotListed()
+    {
+        // Arrange: a 40 by 30 PNG in a temporary file, served by a resolver over its folder
+        byte[] png;
+        using (var source = new Surface(40, 30))
+        using (var stream = new MemoryStream())
+        {
+            PngCodec.Save(source, stream);
+            png = stream.ToArray();
+        }
+
+        var path = MermaidTestHelpers.WriteTempFile(png, ".png");
+        try
+        {
+            var href = Path.GetFileName(path);
+            var resolver = new FolderImageResolver(Path.GetDirectoryName(path), [new RasterImageSource()]);
+            var images = new NodeImages(resolver, 10, new MermaidReportSink(100, false));
+
+            // Act: the layout measures the picture, then the painter draws it
+            var size = images.NaturalSize(href, default);
+            using var drawn = images.Load(href, 80, 60);
+
+            // Assert: both loads reached the resolver, and only the draw is listed
+            Assert.Equal((40.0, 30.0), size);
+            Assert.NotNull(drawn);
+            Assert.Equal(2, images.Calls);
+            Assert.Equal(href, Assert.Single(resolver.Embedded).Href);
+            Assert.Equal(href, Assert.Single(resolver.Requested).Href);
+            Assert.Empty(resolver.Diagnostics);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
     }
 
     /// <summary>
