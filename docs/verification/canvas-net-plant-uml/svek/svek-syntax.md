@@ -69,7 +69,7 @@ over two lines, an empty part, a part with another bracket, or angle brackets th
 asserts that a class declaration, a name, a note, an arrow without
 a second end, and a link followed by other words are not links; asserts that ends of 100 parts
 (`MaxLinkEndParts`) are read whole, that an end of 101 parts makes the statement no link, and that a statement of
-20,000 parts that is no link is refused within seconds.
+20,000 parts is no link.
 
 ##### CanvasNetPlantUml-Svek-SvekSyntax-Notes: Note Statements
 

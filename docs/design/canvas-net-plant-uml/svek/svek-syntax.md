@@ -60,7 +60,8 @@ text longer than the label limit of `PlantUmlLimits` with `plantuml-limit-exceed
 (warnings). No regular expression runs on the input. The backtracking of the link grammar tries every split of both ends
 against the few decorations and direction words of a statement; `NameEnds` produces its candidates lazily and cuts a
 name from the statement only when its candidate is taken, and a link end has at most `MaxLinkEndParts` (100) parts, so a
-statement of thousands of parts (`a-a-a-...`) is refused at once instead of in time cubic in its length.
+statement of thousands of parts (`a-a-a-...`) is refused after a bounded number of
+splits instead of a number cubic in its length.
 
 #### Dependencies
 

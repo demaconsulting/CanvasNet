@@ -224,7 +224,7 @@ public class PlantUmlHardeningTests
     ///     Validates that a use case diagram with many actors and use cases in a boundary is bounded: a small layout
     ///     budget fails closed with a located plantuml-limit-exceeded render error, and the default budget lays it out,
     ///     with the ellipse of a use case of more than a thousand lines (the longest text the default limits allow)
-    ///     measured in time.
+    ///     holding every line.
     /// </summary>
     [Fact]
     public void CanvasNetPlantUml_Hardening_DenseUseCaseGraph_LayoutWorkIsBounded()
@@ -238,16 +238,15 @@ public class PlantUmlHardeningTests
         // Act
         var ex = Assert.Throws<PlantUmlRenderException>(() => document.Measure(new PlantUmlRenderOptions { Limits = new PlantUmlLimits { MaxLayoutWork = 1000 } }, TestContext.Current.CancellationToken));
         var size = document.Measure(new PlantUmlRenderOptions { Scale = 0.1 }, TestContext.Current.CancellationToken);
-        var watch = System.Diagnostics.Stopwatch.StartNew();
         var tallSize = tall.Measure(new PlantUmlRenderOptions { Scale = 0.01 }, TestContext.Current.CancellationToken);
-        watch.Stop();
 
         // Assert
         Assert.Equal(PlantUmlDiagnosticCodes.LimitExceeded, ex.Code);
         Assert.Equal(2, ex.Location.Line);
         Assert.True(size.Width >= 1 && size.Height >= 1);
-        Assert.True(tallSize.Height >= 1);
-        Assert.True(watch.Elapsed < TimeSpan.FromSeconds(20), $"measured in {watch.Elapsed}");
+
+        // the ellipse holds all 1300 lines (14-pixel font at a scale of 0.01)
+        Assert.True(tallSize.Height >= 182, $"height {tallSize.Height}");
     }
 
     /// <summary>

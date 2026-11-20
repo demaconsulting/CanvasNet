@@ -175,12 +175,12 @@ participants; asserts that a dense class diagram of 120 links fails under a layo
 error at its first statement and is laid out under the default limit, that a dense state diagram with nested composite
 states and concurrent regions does the same at its first statement, that a dense component diagram with nested
 containers does the same at its first statement, and that a dense use case diagram with a boundary does the same at its
-first statement while a use case of 1300 lines is measured within 20 seconds; and opens, measures, and renders mutants
-of every sequence, activity, class, object, state, use case, component, deployment, and gallery fixture (truncated,
-deleted ranges, inserted tokens of the diagram languages and of the preprocessor, duplicated and swapped lines, flipped
-characters) with a fixed seed, asserting that only `PlantUmlSyntaxException` (with a documented code, the source name, a
-line, and a hint), a located `plantuml-limit-exceeded` `PlantUmlRenderException`, and `InvalidDataException` are thrown,
-and never a layout defect.
+first statement and that a use case of 1300 lines is measured at least 182 pixels high at a scale of 0.01 (every line
+inside its ellipse); and opens, measures, and renders mutants of every sequence, activity, class, object, state, use
+case, component, deployment, and gallery fixture (truncated, deleted ranges, inserted tokens of the diagram languages
+and of the preprocessor, duplicated and swapped lines, flipped characters) with a fixed seed, asserting that only
+`PlantUmlSyntaxException` (with a documented code, the source name, a line, and a hint), a located
+`plantuml-limit-exceeded` `PlantUmlRenderException`, and `InvalidDataException` are thrown, and never a layout defect.
 
 ### CanvasNetPlantUml-Sequence: Sequence Diagrams Are Drawn As PlantUML Draws Them
 

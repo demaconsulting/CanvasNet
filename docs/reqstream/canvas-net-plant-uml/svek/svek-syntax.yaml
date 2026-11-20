@@ -56,7 +56,7 @@ sections:
                 justification: |
                   A link must connect the elements PlantUML connects and carry the labels PlantUML draws. Trying every
                   split of both ends is cubic in the length of a statement, so the parts of an end are bounded far
-                  beyond any real name to keep the reading of untrusted text fast.
+                  beyond any real name to bound the work of reading untrusted text.
                 tests:
                   - PlantUmlSvekSyntax_TryReadLink_FullStatement_IsRead
                   - PlantUmlSvekSyntax_TryReadLink_Ends_AreReadWithBacktracking
