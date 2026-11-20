@@ -107,5 +107,5 @@ The CanvasNetLayout system (`Graph`, `DagreGraph`, `DagreNode`, `DagreEdge`, `Da
 
 #### Callers
 
-The diagram subsystems of the graph diagrams (the `ClassModel` unit of the Class subsystem and the `StateModel` unit
-of the State subsystem) and the tests.
+The diagram subsystems of the graph diagrams (the `ClassModel` unit of the Class subsystem, the `StateModel` unit of
+the State subsystem, and the `DescriptionModel` unit of the Description subsystem) and the tests.

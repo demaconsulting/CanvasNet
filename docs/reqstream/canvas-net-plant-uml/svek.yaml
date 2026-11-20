@@ -8,9 +8,10 @@
 # of the CanvasNetLayout system (SvekLayout), the curves, clipping, and link decorations (SvekGeometry), and the drawing
 # of links, clusters, and notes (SvekRenderer). Each requirement here links down to the unit requirements that
 # implement it. The diagram subsystems that lower their models to this engine add their own requirements (the Class
-# subsystem's class and object diagrams, the State subsystem's state diagrams), and the system's class and state
-# diagram requirements link down to these. See
-# docs/verification/canvas-net-plant-uml/svek.md for the test-evidence mapping.
+# subsystem's class and object diagrams, the State subsystem's state diagrams, and the Description subsystem's use
+# case, component, and deployment diagrams), and the system's class, state, use case, component, and deployment
+# diagram requirements link down to these. See docs/verification/canvas-net-plant-uml/svek.md for the test-evidence
+# mapping.
 
 sections:
   - title: CanvasNetPlantUml Requirements

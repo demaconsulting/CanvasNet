@@ -3,7 +3,7 @@
 #
 # These requirements describe the externally visible behavior of the DemaConsulting.CanvasNet.PlantUml package (root
 # namespace DemaConsulting.CanvasNet.PlantUml; internal subsystem namespaces Syntax, Styling, Scenegraph,
-# Sequence, Activity, Svek, Class, and State) from the perspective of its consumers, without specifying
+# Sequence, Activity, Svek, Class, State, and Description) from the perspective of its consumers, without specifying
 # implementation details.
 #
 # CanvasNetPlantUml is an independent software system distributed as its own NuGet package. It reads PlantUML diagram

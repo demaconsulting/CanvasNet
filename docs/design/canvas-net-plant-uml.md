@@ -146,18 +146,16 @@ PlantUML text is untrusted input. The design segregates the risk as follows:
 ## Data Flow
 
 The text is read (strict UTF-8 for streams and files), framed and preprocessed into statements that keep the original
-location of every character (the statements of an included file are located in that file), and classified into a
-diagram type. A supported type is parsed into its diagram model by
-the parser registered in `DiagramRegistry` (a sequence diagram by the Sequence subsystem, an activity diagram by the
-Activity subsystem, a class or object diagram by the Class subsystem, a state diagram by the State subsystem, and a
-component diagram by the Description subsystem); the
-reports found while
-reading (ignored directives, a second diagram, statements and skin parameters that are not drawn) are kept by the
-document and the diagram model as pending reports, in text order, so that every later call can deliver them. A measure
-or render call creates a report sink and a text layout, replays the pending reports, lays the diagram out into a scene
-(a type that is not drawn reports `plantuml-diagram-unsupported` and gets an empty, transparent scene of 20 by 20, twice
-PlantUML's document margin), and paints the scene over the background of the call or of the diagram (white by default).
-The reports are delivered once, on the calling thread, after the work.
+location of every character (the statements of an included file are located in that file), and classified into a diagram
+type. A supported type is parsed into its diagram model by the parser registered in `DiagramRegistry` (a sequence
+diagram by the Sequence subsystem, an activity diagram by the Activity subsystem, a class or object diagram by the Class
+subsystem, a state diagram by the State subsystem, and a use case, component, or deployment diagram by the Description
+subsystem); the reports found while reading (ignored directives, a second diagram, statements and skin parameters that
+are not drawn) are kept by the document and the diagram model as pending reports, in text order, so that every later
+call can deliver them. A measure or render call creates a report sink and a text layout, replays the pending reports,
+lays the diagram out into a scene (a type that is not drawn reports `plantuml-diagram-unsupported` and gets an empty,
+transparent scene of 20 by 20, twice PlantUML's document margin), and paints the scene over the background of the call
+or of the diagram (white by default). The reports are delivered once, on the calling thread, after the work.
 
 ## Design Constraints
 

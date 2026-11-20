@@ -56,5 +56,5 @@ The Scenegraph subsystem (`SceneItem`, `SceneRect`), the Styling subsystem (`Ski
 
 #### Callers
 
-The diagram subsystems that lower their models (the Class and State subsystems), `SvekLayout`, `SvekRenderer`, and the
-tests.
+The diagram subsystems that lower their models (the Class, State, and Description subsystems), `SvekLayout`,
+`SvekRenderer`, and the tests.

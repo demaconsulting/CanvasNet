@@ -200,7 +200,7 @@ the ones you need, the same way as above:
 | `DemaConsulting.CanvasNet.VegaLite` | Vega-Lite static chart rendering |
 | `DemaConsulting.CanvasNet.Layout` | Shared graph layout (dagre); used by Mermaid and PlantUml, no public API |
 | `DemaConsulting.CanvasNet.Mermaid` | Mermaid diagrams, mindmaps, packets, git graphs |
-| `DemaConsulting.CanvasNet.PlantUml` | PlantUML sequence, activity, class, state, use case, component, and more |
+| `DemaConsulting.CanvasNet.PlantUml` | PlantUML sequence/activity/class/object/state/use case/component/deployment |
 | `DemaConsulting.CanvasNet.Viewer` | The `canvasnet` operations as library calls |
 | `DemaConsulting.CanvasNet.Tool` | The `canvasnet` command-line tool (dotnet tool) |
 
