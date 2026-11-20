@@ -442,6 +442,11 @@ nodes, 1 edge, and no subgraph, and loaded in strict mode with more than 200 pix
 with the facts `state`, supported, 5 nodes, 5 edges, and 1 subgraph, and loaded in strict mode with more than 200
 pixels of the state fill, more than 50 pixels of the start and end color, and no note.
 
+**SourceLoader_Load_PlantUmlDescription_ReportsFactsAndDraws**: `usecase.puml`, `component.puml`, and
+`deployment.puml` are probed with the facts `usecase` (3 nodes, 3 edges), `component` (4 nodes, 3 edges), and
+`deployment` (3 nodes, 2 edges), each supported with 1 subgraph (its container), and loaded in strict mode with more
+than 200 pixels of the element fill, more than 100 dark pixels of the outlines and texts, and no note.
+
 **SourceLoader_Load_PlantUmlUnsupportedType_IsOneNoteThenStrictError**: `legacy.pu` is probed with the facts
 `activity-legacy`, not supported, and zero counts, is an empty 20 by 20 picture with exactly one located one-line note
 (source `plantuml`, severity `unsupported`, code `plantuml-diagram-unsupported`), and in strict mode is

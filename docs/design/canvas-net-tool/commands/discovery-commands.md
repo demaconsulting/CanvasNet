@@ -130,7 +130,9 @@ a title of several lines is joined with spaces). A PlantUML diagram is described
   `edges`, and `subgraphs` are the participants, messages, and boxes of a sequence diagram, the actions, start, stop,
   end, connector, and decision nodes, the arrows, and the swimlanes and partitions of an activity diagram, or the
   classes, objects, and maps, the relationships, and the packages of a class or object diagram, or the states and
-  pseudo-states, the transitions, and the composite states of a state diagram.
+  pseudo-states, the transitions, and the composite states of a state diagram, or the elements (actors, use cases,
+  components, interfaces, and the other symbols that hold nothing), the links, and the containers of a use case,
+  component, or deployment diagram.
 - **`model`**: for an OpenSCAD model, instead of `image`: object: `modules` and `functions` (arrays of the names defined
   at file scope, in source order, a repeated name kept) and `directives` (an array of objects: `kind` (`include` or
   `use`), `path` as written, and `line`).

@@ -1,0 +1,10 @@
+@startuml
+package Web {
+  [Front]
+  [Api]
+}
+database Store
+[Front] --> [Api]
+[Api] --> Store
+[Api] - HTTP
+@enduml

@@ -219,6 +219,38 @@ public class SourceLoaderPlantUmlTests
     }
 
     /// <summary>
+    ///     Test that a use case, a component, and a deployment diagram are probed as supported diagrams with their
+    ///     elements, links, and containers, and drawn with PlantUML's light grey elements and dark outlines without a
+    ///     note.
+    /// </summary>
+    /// <param name="name">The fixture file.</param>
+    /// <param name="type">The diagram type.</param>
+    /// <param name="nodes">The expected number of elements.</param>
+    /// <param name="edges">The expected number of links.</param>
+    [Theory]
+    [InlineData("usecase.puml", "usecase", 3, 3)]
+    [InlineData("component.puml", "component", 4, 3)]
+    [InlineData("deployment.puml", "deployment", 3, 2)]
+    public void SourceLoader_Load_PlantUmlDescription_ReportsFactsAndDraws(string name, string type, int nodes, int edges)
+    {
+        // Arrange
+        using var directory = new TempDirectory();
+        var path = CopyFixture(directory, name);
+
+        // Act
+        var info = SourceLoader.Probe(path);
+        using var loaded = SourceLoader.Load(path, new SourceOptions { Strict = true });
+
+        // Assert
+        Assert.Equal(new DiagramFacts(type, true, null, null, null, nodes, edges, 1), info.Diagram);
+        Assert.True(Count(loaded.Surface, new Rgba32(0xF1, 0xF1, 0xF1, 255)) > 200);
+        var dark = Enumerable.Range(0, loaded.Surface.Height)
+            .Sum(y => Enumerable.Range(0, loaded.Surface.Width).Count(x => loaded.Surface[x, y] is { R: < 0x40, G: < 0x40, B: < 0x40, A: 255 }));
+        Assert.True(dark > 100, $"Only {dark} dark pixels were drawn.");
+        Assert.Empty(loaded.Diagnostics);
+    }
+
+    /// <summary>
     ///     Test that a diagram of a type this version recognizes but does not draw (a legacy activity diagram, the
     ///     <c>.pu</c> extension) is an empty picture with one unsupported note, and that strict mode makes it an
     ///     <c>unsupported-feature</c> error.

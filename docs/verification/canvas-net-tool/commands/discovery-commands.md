@@ -234,6 +234,14 @@ with 2 nodes, 1 edge, and 1 subgraph and the text `class, 2 nodes, 1 edge`; and 
 a state diagram with a composite state (`.puml`) is described as `state`, supported, with 5 nodes (the states and
 the start and end circles), 4 edges, and 1 subgraph (the composite state), and the text `state, 5 nodes, 4 edges`.
 
+**DiscoveryCommands_Info_PlantUmlDescription_ReportsElementsLinksAndContainers** (`DiscoveryCommandsPlantUmlTests.cs`):
+a use case diagram (an actor and two use cases in a rectangle, three links, and a note) is described as `usecase`,
+supported, with 3 nodes, 3 edges (the note's link not counted), and 1 subgraph; a component diagram (two components
+in a package, a database, an interface named only by a link, and a hidden link) as `component` with 4 nodes, 4 edges
+(the hidden link counted), and 1 subgraph; and a deployment diagram (a node that holds an artifact, a database, and a
+cloud) as `deployment` with 3 nodes, 2 edges, and 1 subgraph; each with the text `<type>, <n> nodes, <m> edges, 1
+subgraph`.
+
 **InputFragment_TextResultAndInfo_NameTheFragment** (`InputFragmentTests.cs`): `info source.pdf#page=2 --all-pages
 --json` describes only page 2 (the fragment wins over `--all-pages`) and its `input` object has the `path` and the
 `fragment` `page=2`.

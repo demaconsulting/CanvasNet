@@ -38,6 +38,12 @@ with the CanvasNet codecs and write them to a temporary directory, so that no bi
   Written by hand for these tests.
 - **`plantuml/state.puml`**: A PlantUML state diagram with a start, a composite state of two states with its own start,
   labeled transitions, and an end. Written by hand for these tests.
+- **`plantuml/usecase.puml`**: A PlantUML use case diagram, left to right, with an actor, a rectangle boundary of two
+  use cases, two links, and an `<<include>>` link. Written by hand for these tests.
+- **`plantuml/component.puml`**: A PlantUML component diagram with a package of two components, a database, two links,
+  and an interface named only by a link. Written by hand for these tests.
+- **`plantuml/deployment.puml`**: A PlantUML deployment diagram with a node that holds an artifact, a database, a cloud,
+  and two links. Written by hand for these tests.
 - **`plantuml/legacy.pu`**: A PlantUML activity diagram of the legacy syntax (`(*) --> First`), a type this version
   recognizes but does not draw. Written by hand for these tests.
 - **`plantuml/included.puml`** and **`plantuml/parts/people.iuml`**: A PlantUML sequence diagram whose two participants

@@ -7,7 +7,8 @@ using DemaConsulting.CanvasNet.PlantUml;
 namespace DemaConsulting.CanvasNet.Viewer.Imaging;
 
 /// <summary>
-///     PlantUML sources of <see cref="SourceLoader"/>: a sequence, activity, class, object, or state diagram drawn from its text.
+///     PlantUML sources of <see cref="SourceLoader"/>: a sequence, activity, class, object, state, use case, component, or
+///     deployment diagram drawn from its text.
 /// </summary>
 /// <remarks>
 ///     <para>

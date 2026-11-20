@@ -6,7 +6,8 @@ namespace DemaConsulting.CanvasNet.Tool.Tests.Commands;
 
 /// <summary>
 ///     Unit tests for the DiscoveryCommands class with PlantUML diagrams: the listing of the format and the info
-///     description of a sequence diagram, an activity diagram, and a diagram type this version does not draw.
+///     description of a sequence diagram, an activity diagram, a class, a state, a use case, a component, and a
+///     deployment diagram, and a diagram type this version does not draw.
 /// </summary>
 [Collection("Sequential")]
 public class DiscoveryCommandsPlantUmlTests
@@ -152,5 +153,36 @@ public class DiscoveryCommandsPlantUmlTests
         Assert.Equal(("state", true), (diagram.GetProperty("type").GetString(), diagram.GetProperty("supported").GetBoolean()));
         Assert.Equal((5, 4, 1), (diagram.GetProperty("nodes").GetInt32(), diagram.GetProperty("edges").GetInt32(), diagram.GetProperty("subgraphs").GetInt32()));
         Assert.Contains("state, 5 nodes, 4 edges", text, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Test that info describes a use case, a component, and a deployment diagram with the counts of the library: its
+    ///     elements (actors, use cases, components, interfaces, and the other leaf symbols), its links (a hidden link
+    ///     counts, a link to a note does not), and its containers.
+    /// </summary>
+    /// <param name="type">The diagram type the text is detected as.</param>
+    /// <param name="body">The statements of the diagram.</param>
+    /// <param name="nodes">The expected number of elements.</param>
+    /// <param name="edges">The expected number of links.</param>
+    /// <param name="subgraphs">The expected number of containers.</param>
+    [Theory]
+    [InlineData("usecase", "left to right direction\nactor Guest\nrectangle Shop {\n(Browse)\n(Buy)\n}\nGuest --> (Browse)\nGuest --> (Buy)\n(Buy) .> (Browse) : <<include>>\nnote right of Guest : any visitor", 3, 3, 1)]
+    [InlineData("component", "package Web {\n[Front]\n[Api]\n}\ndatabase Store\n[Front] --> [Api]\n[Api] --> Store\n[Api] - HTTP\n[Front] -[hidden]- Store", 4, 4, 1)]
+    [InlineData("deployment", "node Server {\nartifact App\n}\ndatabase Db\ncloud Internet\nInternet --> Server\nServer --> Db", 3, 2, 1)]
+    public void DiscoveryCommands_Info_PlantUmlDescription_ReportsElementsLinksAndContainers(string type, string body, int nodes, int edges, int subgraphs)
+    {
+        // Arrange
+        using var directory = new TempDirectory();
+        var path = FixtureFactory.WriteText(directory.Path, $"{type}.puml", $"@startuml\n{body}\n@enduml\n");
+
+        // Act
+        using var document = JsonDocument.Parse(RunInfo(true, path));
+        var text = RunInfo(false, path);
+
+        // Assert
+        var diagram = document.RootElement.GetProperty("diagram");
+        Assert.Equal((type, true), (diagram.GetProperty("type").GetString(), diagram.GetProperty("supported").GetBoolean()));
+        Assert.Equal((nodes, edges, subgraphs), (diagram.GetProperty("nodes").GetInt32(), diagram.GetProperty("edges").GetInt32(), diagram.GetProperty("subgraphs").GetInt32()));
+        Assert.Contains($"{type}, {nodes} nodes, {edges} edges, {subgraphs} subgraph", text, StringComparison.Ordinal);
     }
 }

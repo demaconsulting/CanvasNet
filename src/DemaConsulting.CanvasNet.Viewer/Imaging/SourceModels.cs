@@ -377,7 +377,10 @@ public sealed record ChartFacts(
 ///     its swimlanes and partitions; the nodes of a class or object diagram are its classes, objects, and maps (notes not
 ///     counted), the edges its relationships (links to notes not counted), and the subgraphs its packages and namespaces
 ///     that hold something; the nodes of a state diagram are its states and pseudo-states, the edges its transitions, and
-///     the subgraphs its composite states. A PlantUML diagram has no direction and no accessible title.
+///     the subgraphs its composite states; the nodes of a use case, component, or deployment diagram are its elements
+///     (actors, use cases, components, interfaces, and the other symbols that hold nothing), the edges its links (links
+///     to notes not counted), and the subgraphs its containers. A PlantUML diagram has no direction and no accessible
+///     title.
 /// </remarks>
 /// <param name="Type">The diagram type, for example <c>flowchart</c> (a <c>graph</c> is a flowchart too), <c>sequence</c>, <c>class</c>, <c>pie</c>, <c>gantt</c>, <c>mindmap</c>, <c>packet</c> or <c>gitGraph</c>.</param>
 /// <param name="Supported">

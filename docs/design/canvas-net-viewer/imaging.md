@@ -117,9 +117,9 @@ systems) list and render the pages of a document; `ScadDocument` (from the Canva
 Render3D system) parses and draws a model; `VegaLiteDocument` (from the CanvasNet Vega-Lite system) parses, measures,
 and draws a chart; `MermaidDocument` (from the CanvasNet Mermaid system) parses, measures, and draws a diagram;
 `PlantUmlDocument` (from the CanvasNet PlantUML system) parses (with its local includes), measures, and draws a PlantUML
-sequence, activity, class, object, or state diagram. The core `Positions` subsystem (`PositionSelection`,
-`PositionCollector`, and `ImagePosition`) and the `PositionHandler` and `PositionKindFilter` of `MermaidRenderOptions`
-and `VegaLiteRenderOptions` are consumed for the feature positions.
+sequence, activity, class, object, state, use case, component, or deployment diagram. The core `Positions` subsystem
+(`PositionSelection`, `PositionCollector`, and `ImagePosition`) and the `PositionHandler` and `PositionKindFilter` of
+`MermaidRenderOptions` and `VegaLiteRenderOptions` are consumed for the feature positions.
 
 ### Design
 

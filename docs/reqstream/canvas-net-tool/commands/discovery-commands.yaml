@@ -188,11 +188,12 @@ sections:
           this version does not draw the type), its numbers of nodes, edges, and subgraphs (named participants,
           messages, and boxes for a sequence diagram), its title when it has one, and its size in bytes; and as the
           image object of the JSON document followed by the same diagram object as a Mermaid diagram with the type
-          (sequence, activity, class, object, state, or the name of a recognized type that is not drawn), supported,
-          the title, and the nodes, edges, and subgraphs (the actions, start, stop, end, connector, and decision nodes,
-          the arrows, and the swimlanes and partitions of an activity diagram; the classes, objects, and maps, the
-          relationships, and the packages of a class or object diagram; the states and pseudo-states, the
-          transitions, and the composite states of a state diagram), and no direction or accTitle.
+          (sequence, activity, class, object, state, usecase, component, deployment, or the name of a recognized type
+          that is not drawn), supported, the title, and the nodes, edges, and subgraphs (the actions, start, stop, end,
+          connector, and decision nodes, the arrows, and the swimlanes and partitions of an activity diagram; the
+          classes, objects, and maps, the relationships, and the packages of a class or object diagram; the states and
+          pseudo-states, the transitions, and the composite states of a state diagram; the elements, the links, and
+          the containers of a use case, component, or deployment diagram), and no direction or accTitle.
         justification: |
           An agent decides whether and how to render a diagram from what it declares; reusing the diagram object of a
           Mermaid diagram keeps the JSON contract stable, and the supported member tells the agent, before it renders,
@@ -202,6 +203,7 @@ sections:
           - DiscoveryCommands_Info_PlantUmlSequence_ReportsParticipantsAndMessages
           - DiscoveryCommands_Info_PlantUmlActivityClassAndLegacy_ReportTypeAndSupport
           - DiscoveryCommands_Info_PlantUmlState_ReportsStatesTransitionsAndComposites
+          - DiscoveryCommands_Info_PlantUmlDescription_ReportsElementsLinksAndContainers
           - DiscoveryCommands_Formats_JsonOutput_MatchesGoldenDocument
           - DiscoveryCommands_FormatTables_InputFormatsMatchSourceKinds
           - DiscoveryCommands_FormatTables_EveryListedInputFormatIsReadable
