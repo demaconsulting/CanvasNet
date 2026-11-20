@@ -9,7 +9,8 @@ command name or alias to a command, dispatch to it, and render help. The support
 `OptionSpec` (file `ICommand.cs`) are documented here rather than as units of their own. The unit is the partial class
 `CommandRegistry`: `CommandRegistry.cs` holds the registration, the lookup, the dispatch, and the unknown-command
 report, and `CommandRegistry.Help.cs` holds the built-in `help` command (the subjects, the `--example` and `--examples`
-options, and the plain-text and JSON help). The content of the help cards is the unit `HelpTopics`.
+options, and the plain-text and JSON help). The content of the help cards is the unit `HelpTopics` (the help catalog of
+the Viewer library with the tool's command-line layer).
 
 #### Data Model
 

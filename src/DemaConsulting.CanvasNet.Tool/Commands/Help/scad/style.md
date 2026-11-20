@@ -1,11 +1,5 @@
 ---
-title: Styling model pictures
-summary: Colors, translucent context, smooth curves, views, size, and background for good-looking models.
-see-also:
-  - style
-  - scad/composition
-  - scad/views
-  - scad/options
+extends: scad/style
 examples:
   - name: product-shot
     kind: command
@@ -14,35 +8,11 @@ examples:
     description: Draw a large picture in a soft blue-gray over a transparent background, ready to place on a page.
 ---
 
-Color the parts that matter, draw everything else in one quiet color, and pick
-the view that shows the feature. `canvasnet help scad --example hull-ghost`
-shows a colored part beside a translucent ghost.
+## Command line
 
-## Color
-
-- `color("SteelBlue")`, `color("#2f6db3")`, or `color([0.2, 0.4, 0.7])` colors
-  the children; an alpha below 1 (`color([0.5, 0.5, 0.5, 0.3])`) draws them
-  translucent, which shows context parts without hiding the part in front.
-- `--default-color` colors every surface the model does not color (gray by
-  default): a soft color such as `"#9fb7d0"` reads better than gray in a
-  document, and `--default-color black` makes a flat 2D drawing crisp.
-- Use one accent color for the feature the text talks about, and the default
-  color for the rest.
-
-## Shape and view
-
-- Round parts need enough facets in a close-up: set `$fn = 64` (or `$fa` and
-  `$fs`) on curved shapes; a low value looks faceted.
-- `iso` (the default) shows three faces and suits most parts; `front` and `top`
-  suit a dimension drawing; `--azimuth`, `--elevation`, and
-  `--projection perspective` give a free view (see `canvasnet help scad views`).
-
-## Size and background
-
-- `--size 1200x800` draws a large, sharp picture; the camera fits the model and
-  nothing is stretched (800x800 by default).
-- `--background transparent` keeps the picture clear for a page, a slide, or an
-  SVG figure (a model linked from an SVG drawing is always transparent); a dark
-  `--background` needs light model colors.
-- Pictures of several variants share one scale only with a fixed camera
-  (`-D '$vpd=300'`; see `canvasnet help scad composition`).
+- `--default-color` sets the default color (`--default-color black` for a crisp
+  2D drawing); `--azimuth`, `--elevation`, and `--projection perspective` give a
+  free view.
+- `--size 1200x800` draws a large, sharp picture; `--background transparent`
+  keeps it clear, and a dark `--background` needs light model colors.
+- A fixed camera for variants: `-D '$vpd=300'`.

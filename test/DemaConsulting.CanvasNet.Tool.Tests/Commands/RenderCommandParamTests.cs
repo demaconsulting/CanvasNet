@@ -277,8 +277,8 @@ public class RenderCommandParamTests
         // Assert: the prefixes in the svg and scad topics, with the codes
         Assert.Contains("def.<name>=<value>", variableFragment, StringComparison.Ordinal);
         Assert.Contains("param.<name>=<value>", variableFragment, StringComparison.Ordinal);
-        Assert.Contains("-D name=value", variableFragment, StringComparison.Ordinal);
-        Assert.Contains("--param", variableFragment, StringComparison.Ordinal);
+        Assert.Contains("-D name=value", TextOf("svg/fragments"), StringComparison.Ordinal);
+        Assert.Contains("--param", TextOf("svg/fragments"), StringComparison.Ordinal);
         Assert.Contains("vl-param-unknown", variableFragment, StringComparison.Ordinal);
         Assert.Contains("image-fragment-unknown-parameter", variableFragment, StringComparison.Ordinal);
         Assert.Contains("image-fragment-invalid", variableFragment, StringComparison.Ordinal);
@@ -290,7 +290,7 @@ public class RenderCommandParamTests
 
         // Assert: the cross-references of the vega-lite topic and the strict behavior
         Assert.Contains("chart.vl.json#param.cutoff=50", TextOf("vega-lite"), StringComparison.Ordinal);
-        Assert.Contains("vl-param-unknown stay warnings", HelpCardText.Item("svg/options", "--strict"), StringComparison.Ordinal);
+        Assert.Contains("vl-param-unknown stay warnings", HelpCardText.Item("svg/options", "ThrowOnUnsupportedFeature"), StringComparison.Ordinal);
     }
 
     /// <summary>

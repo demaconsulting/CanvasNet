@@ -16,10 +16,12 @@ options mixed in, error context, the unknown-command report, and help; and, with
 are registered, run, and are listed in the help, and that the help topics and the cards below them are shown by name, by
 alias, by path, and as JSON, their examples are printed, and an unknown help subject is reported. The shipped commands
 are verified by their own unit tests. The content of the help cards, which the help requirement of the subsystem takes
-from its `HelpTopics` children (among them the `mermaid` topic, and its parity with the Mermaid user guide: the same
-class, state, and entity relationship diagram syntax, relation or cardinality, and setting rows and the same
-unsupported-feature and warning codes, item by item and in order), is verified by the `HelpTopics` unit tests, the
-parity by `HelpTopics_MermaidTopic_DiagramSyntaxItems_MatchUserGuide`.
+from its `HelpTopics` children and from the `HelpCatalog` requirements of the Viewer library it names, is verified by
+the `HelpTopics` unit tests for the command-line layer (the tool's cards, the overlays, the command lines, and the
+renderings) and by the `HelpCatalog` unit tests of the Viewer for the library cards (among them the `mermaid` cards and
+their parity with the Mermaid user guide: the same syntax, relation or cardinality, and setting rows and the same
+unsupported-feature and warning codes, item by item and in order, by
+`HelpCatalog_MermaidCards_DiagramSyntaxItems_MatchUserGuide`; see *HelpCatalog Unit Verification Design*).
 
 ### Test Environment
 

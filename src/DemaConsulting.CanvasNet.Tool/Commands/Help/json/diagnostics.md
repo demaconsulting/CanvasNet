@@ -1,6 +1,9 @@
 ---
 title: Diagnostics entries
 summary: The fields of an entry of diagnostics[].
+tags:
+  - hosting
+  - diagnostics
 see-also:
   - errors/diagnostics
   - json/results

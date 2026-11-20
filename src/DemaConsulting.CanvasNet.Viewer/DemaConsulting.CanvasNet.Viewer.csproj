@@ -92,4 +92,14 @@
     <None Include="..\..\Icon.png" Pack="true" PackagePath="\" />
   </ItemGroup>
 
+  <!-- The help cards of the drawing and file formats (one Markdown file with YAML front matter per card, in folders that
+       mirror the help tree) and the tiny example sources they show, embedded so that HelpCatalog.Default works without
+       files. A card's logical name is its path under Help\Cards (the loader turns a '\' of RecursiveDir into '/'); the
+       example names are flat. WithCulture="false" keeps MSBuild from reading a dotted name as a satellite-resource
+       culture. -->
+  <ItemGroup>
+    <EmbeddedResource Include="Help\Cards\**\*.md" WithCulture="false" LogicalName="DemaConsulting.CanvasNet.Viewer.Help/%(RecursiveDir)%(Filename)%(Extension)" />
+    <EmbeddedResource Include="Help\Examples\*" WithCulture="false" LogicalName="DemaConsulting.CanvasNet.Viewer.Help.Examples.%(Filename)%(Extension)" />
+  </ItemGroup>
+
 </Project>

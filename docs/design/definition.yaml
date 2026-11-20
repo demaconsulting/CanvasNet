@@ -296,6 +296,9 @@ input-files:
   - docs/design/canvas-net-viewer/imaging/image-comparer.md
   - docs/design/canvas-net-viewer/imaging/montage-builder.md
   - docs/design/canvas-net-viewer/imaging/svg-flattener.md
+  - docs/design/canvas-net-viewer/help.md
+  - docs/design/canvas-net-viewer/help/help-catalog.md
+  - docs/design/canvas-net-viewer/help/help-front-matter.md
   - docs/design/canvas-net-tool.md
   - docs/design/canvas-net-tool/program.md
   - docs/design/canvas-net-tool/context.md

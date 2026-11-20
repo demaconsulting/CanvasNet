@@ -571,7 +571,8 @@ writes one `help` document of the kind `card` for `scad` with a body and the car
 `help vega-lite --example bar` exits 0 and writes only the chart source, which parses as JSON with the mark `bar`;
 `help mmd gantt` exits 0 and prints the gantt card with the command of its settings card; and `help nope` exits 1
 with `Error: usage-error: Unknown help subject 'nope'.` and the list of valid subjects. This proves that the card
-files and the example sources are embedded in the tool assembly.
+files and the example sources (the library's in the Viewer assembly and the tool's in the tool assembly) ship with the
+tool.
 
 **CanvasNetTool_Positions_RenderAsProcess_ReportsFeaturePixels** (`CanvasNetToolTests.Positions.cs`; the requirement
 `CanvasNetTool-System-DiagramChartPositions`): as real processes, a flowchart with a filled node is rendered with
@@ -580,12 +581,12 @@ position; the written PNG has the node's fill `#CCFFCC` in the column of the nod
 below its top (above the label), and the bar color `#4C78A8` at the bar's pixel; the flowchart rendered with
 `--positions node:Zed --strict` exits non-zero with `positions-unmatched` and writes no file. The JSON shape, the usage
 errors, the mapping through the pixel steps, and the help topic are verified in the _RenderCommand_ and _HelpTopics_
-unit verification designs.
+unit verification designs and the _HelpCatalog_ unit verification design of the Viewer.
 
 **CanvasNetTool_Bindings_RenderAndFlattenAsProcess_ResolveTheBinding** (`CanvasNetToolTests.Bindings.cs`; the
 requirement `CanvasNetTool-System-SvgPositionBindings`): as real processes, a 400 by 200 figure that places a two-node
 flowchart at 20,30 in a 300 by 120 box and binds a line to `node:B` renders with `--strict --json` and one `bind`
 operation inside the box; `flatten --strict --json` counts one resolved binding, and the copy has no CanvasNet attribute
 and the `x2` of the render; the figure bound to `node:Zed` rendered with `--strict` exits non-zero with
-`svg-binding-failed` and writes no file. The card, the example, and the JSON shape are verified in the _HelpTopics_ and
-_FlattenCommand_ unit verification designs.
+`svg-binding-failed` and writes no file. The card and the example are verified in the _HelpCatalog_ unit verification
+design of the Viewer, and the JSON shape in the _FlattenCommand_ unit verification design.

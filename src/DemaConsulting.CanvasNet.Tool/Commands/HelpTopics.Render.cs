@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using DemaConsulting.CanvasNet.Viewer;
+using DemaConsulting.CanvasNet.Viewer.Help;
 
 namespace DemaConsulting.CanvasNet.Tool.Commands;
 
@@ -130,6 +131,7 @@ internal static partial class HelpTopics
                 writer.WriteStartObject();
                 writer.WriteString("id", card.Id);
                 WriteStrings(writer, "aliases", card.Aliases);
+                WriteStrings(writer, "tags", card.Tags);
                 writer.WriteString("summary", card.Summary);
                 writer.WriteString("command", card.Command);
                 writer.WriteEndObject();
@@ -248,6 +250,7 @@ internal static partial class HelpTopics
             writer.WriteString("kind", "card");
             writer.WriteString("id", card.Id);
             WriteStrings(writer, "aliases", card.Aliases);
+            WriteStrings(writer, "tags", card.Tags);
             writer.WriteString("title", card.Title);
             writer.WriteString("summary", card.Summary);
             writer.WriteString("body", card.Body);

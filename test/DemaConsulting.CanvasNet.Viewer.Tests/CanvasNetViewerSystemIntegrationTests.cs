@@ -1,5 +1,6 @@
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.ImageSources;
+using DemaConsulting.CanvasNet.Viewer.Help;
 using DemaConsulting.CanvasNet.Viewer.Imaging;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -494,6 +495,40 @@ public class CanvasNetViewerSystemIntegrationTests
         Assert.Equal(ErrorCodes.InputNotFound, missing.Code);
         Assert.All([unsupported, missing], e => Assert.False(string.IsNullOrEmpty(e.Message)));
         Assert.IsAssignableFrom<InvalidOperationException>(unsupported);
+    }
+
+    /// <summary>
+    ///     Proves the help an agent toolkit reads through the public API: the library catalog filtered to the Mermaid
+    ///     cards without the hosting cards resolves the Gantt card, whose Markdown and text read without the command line
+    ///     and point only at cards of the view.
+    /// </summary>
+    [Fact]
+    public void CanvasNetViewer_SystemIntegration_Help_FilterResolveAndRead()
+    {
+        // Arrange: the Mermaid cards a host shows its agent, without what the host controls
+        var view = HelpCatalog.Default.Filter([HelpTags.Mermaid], [HelpTags.Hosting]);
+
+        // Act: resolve a card by path and by alias, and read it
+        var gantt = view.Find("mermaid/gantt");
+        var byAlias = view.Find("mmd gantt");
+        var linked = new List<string>();
+        var markdown = gantt == null ? string.Empty : view.FormatMarkdown(gantt, link =>
+        {
+            linked.Add(link.CardId ?? link.ExampleCardId ?? string.Empty);
+            return link.CardId ?? link.ExampleName ?? string.Empty;
+        });
+
+        // Assert: the card, its text, and only visible cards linked
+        Assert.NotNull(gantt);
+        Assert.Same(gantt, byAlias);
+        Assert.Contains(HelpTags.Mermaid, gantt.Tags);
+        Assert.DoesNotContain(HelpTags.Hosting, gantt.Tags);
+        Assert.False(string.IsNullOrWhiteSpace(markdown));
+        Assert.DoesNotContain("canvasnet ", gantt.Markdown, StringComparison.Ordinal);
+        Assert.StartsWith($"# {gantt.Title}\n", view.RenderText(gantt));
+        Assert.All(linked, id => Assert.NotNull(view.Find(id)));
+        Assert.All(view.Cards, card => Assert.Contains(HelpTags.Mermaid, card.Tags));
+        Assert.Null(view.Find("mermaid/options"));
     }
 
     /// <summary>

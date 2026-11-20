@@ -138,7 +138,8 @@ constituent software items, specifically:
   them, renders any file as a picture, and is the library form of the `canvasnet` tool, containing two direct units,
   `CanvasNetViewer` (with `ViewerRenderOptions` and `ViewerImage`) and `ViewerException` (with `ErrorCodes`), and an
   `Imaging` subsystem with the `SourceLoader`, `ImagePipeline`, `ImageWriter`, `ImageComparison`, `ContactSheet`,
-  `GridOverlay`, `ImageRenderer`, `ImageInspector`, `ImageComparer`, `MontageBuilder`, and `SvgFlattener` units — see
+  `GridOverlay`, `ImageRenderer`, `ImageInspector`, `ImageComparer`, `MontageBuilder`, and `SvgFlattener` units, and a
+  `Help` subsystem with the `HelpCatalog` and `HelpFrontMatter` units (the help cards about the formats) — see
   *CanvasNetViewer System Verification* (`canvas-net-viewer.md`)
 - **CanvasNetTool (System)** — A separate software system shipped as the `DemaConsulting.CanvasNet.Tool` dotnet
   tool package (command `canvasnet`), containing six direct units, `Program`, `Context`, `ArgumentReader`,

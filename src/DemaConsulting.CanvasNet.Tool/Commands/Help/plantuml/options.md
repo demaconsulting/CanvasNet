@@ -1,10 +1,6 @@
 ---
-title: Render options of a PlantUML diagram
+extends: plantuml/options
 summary: Size, background, --strict, file access, and what info reports for a PlantUML diagram.
-see-also:
-  - plantuml/diagnostics
-  - limits
-  - files
 examples:
   - name: render
     kind: command
@@ -18,33 +14,16 @@ examples:
     description: Report the type, title, and counts without drawing.
 ---
 
-## Options
+## Command line
 
-- `--scale`: The natural size is PlantUML's SVG size in pixels (times the
-  diagram's own scale); --scale, --width, and --height draw the diagram sharply
-  at another size (a diagram larger than {{maxDimension}} pixels on a side
-  needs one of them).
-- `--background`: The color under the diagram: the diagram's own background
-  (white, or its skinparam backgroundColor) by default; transparent gives a
-  transparent PNG.
-- `--strict`: Every unsupported construct, and a type that is not drawn,
-  becomes an unsupported-feature error.
-- `--file-access`: The mode the !include files are read under, with
-  --allow-root (see `canvasnet help files`).
+- `--scale`: Draws the diagram sharply at another size, as do --width and
+  --height.
+- `--background`: The color under the diagram; transparent gives a transparent
+  PNG.
+- `--strict`: Strict mode: every unsupported construct, and a type that is not
+  drawn, becomes an unsupported-feature error.
+- `--file-access`: The mode the !include files are read under, with --allow-root
+  (see [[files]]).
 - `--theme`: Not for a PlantUML diagram: --theme and --positions are a
   usage-error on a .puml input.
-
-## Supported
-
-- info reports the type (sequence, activity, class, object, state, usecase,
-  component, deployment, or the name of a type that is not drawn, such as
-  timing),
-  whether this version draws it,
-  the title, and the numbers of nodes, edges, and subgraphs: the participants,
-  messages, and boxes of a sequence diagram; the actions, start, stop, end,
-  connector, and decision nodes, the arrows, and the swimlanes and partitions
-  of an activity diagram; the classes, objects, and maps, the relationships,
-  and the packages that hold something of a class or object diagram; the
-  states and pseudo-states, the transitions, and the composite states of a
-  state diagram; the elements, the links, and the containers of a use case,
-  component, or deployment diagram. direction and accTitle are absent.
+- info reports what a probe reports (direction and accTitle are absent).

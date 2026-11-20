@@ -11,7 +11,8 @@ table of commands (`CommandRegistry`). It is a subsystem rather than a single un
 commands is its own unit behind the same contract and registry. It contains nine units:
 `CommandRegistry`, which also documents the supporting types `ICommand` and
 `OptionSpec`; `HelpTopics`, the tree of help cards (the formats, style and composition, the JSON documents, the errors,
-the limits, and file access) with their tiny examples, which the built-in `help` command of the registry prints;
+the limits, and file access) with their tiny examples, which the built-in `help` command of the registry prints: the
+help catalog of the Viewer library with the tool's own cards and command-line sections layered on it;
 `DiscoveryCommands`, which provides the `formats` and `info` commands; `RenderCommand`, which
 provides `render` and its alias `convert`, and the verb commands `crop`, `resize`, `rotate`, `flip`, and `pad`
 (the same class, constructed with a verb); `CompareCommand`, which provides `compare`; `MontageCommand`, which
@@ -37,7 +38,9 @@ card throws a `ToolException` (code `usage-error`) that lists the valid choices.
 
 **HelpTopics** (consumed by `CommandRegistry` and `Validation`): the tree of help cards (`All`, `Roots`, `Get`,
 `Find`, `Resolve`, `TopicNames`, `SourceExamples`) and the renderings of a card, the tree, and the examples as text
-and JSON. The content is embedded in the tool assembly as Markdown cards with YAML front matter.
+and JSON. The cards about the formats are the help catalog of the Viewer library (`HelpCatalog.Default`); the tool's
+own cards and its command-line sections are embedded in the tool assembly as Markdown cards with YAML front matter and
+layered on the catalog with `HelpCatalog.Extend`.
 
 **CommandRegistry.CreateDefault()** (provided to `Program`): creates the registry with every command the tool
 ships with (`formats`, `info`, `render` with its alias `convert`, the verbs `crop`,
@@ -88,8 +91,9 @@ so the global parser never needs to know any command's options, and a command ca
 Help is generated from the registered commands: the command list from each command's name, aliases, and summary, and a
 command's help from its usage text and its `OptionSpec` table, so the help cannot drift from the options a command
 declares. The help cards are a separate unit, `HelpTopics`, so that the registry stays the dispatcher: a help subject is
-a command, else a card path, and `HelpTopics` owns the embedded content, its consistency with the code (numbers are
-substituted from the constants of the code, and the unit tests check the cited options, error codes, and diagnostic
-identifiers and render every example), and its rendering. The registry is an instance rather than static state so that
+a command, else a card path, and `HelpTopics` owns the command-line layer of the content (the tool's cards and the
+overlays of library cards), its consistency with the tool (the unit tests check the command lines, the cited options,
+and the error codes; the library tests the cards it owns against the code and renders every example), and its
+rendering. The registry is an instance rather than static state so that
 tests can inject a purpose-made command - one that fails, or throws an unexpected exception - and prove the error policy
 of `Program` end to end without depending on a shipped command.

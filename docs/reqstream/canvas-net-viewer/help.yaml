@@ -1,0 +1,126 @@
+---
+# Help Subsystem Requirements
+#
+# PURPOSE:
+# - Define requirements for the CanvasNetViewer Help subsystem (namespace DemaConsulting.CanvasNet.Viewer.Help)
+# - The Help subsystem is the library form of the help about the drawing and file formats: short Markdown cards, shipped
+#   inside the library, about what to write in a file, how to make it look good, how files compose, what is reported,
+#   the limits, what the host application controls, and which files a document may read. An application (often an
+#   agent toolkit that gives the knowledge to an AI) reads the cards programmatically, keeps only the cards with the
+#   tags it wants, and renders a card as plain text or JSON. The canvasnet tool (CanvasNetTool) layers its command-line
+#   cards and sections on the same catalog, so the library cards describe the formats in library terms and carry no
+#   command-line text.
+# - The subsystem contains the HelpCatalog unit (the catalog, its cards, tags, links, views, extensions, and
+#   renderings) and the HelpFrontMatter unit (the strict parser of the front matter of a card file)
+# - Subsystem requirements describe the externally visible behavior of the catalog and are verified by the subsystem
+#   tests, which use the parser and the catalog together on the embedded library cards and on a host's extension cards
+
+sections:
+  - title: Help Subsystem Requirements
+    requirements:
+      - id: CanvasNetViewer-Help-Catalog
+        title: >-
+          The Help subsystem shall provide, from content shipped inside the library, a tree of help cards about the
+          drawing and file formats, each card with an identifier that is its path, a title, a one-line summary, tags,
+          aliases, a Markdown body, the cards below it, related cards, and examples, and shall resolve a card by a path
+          of names or aliases ignoring case.
+        justification: |
+          An application that uses the library, often an agent toolkit that gives the knowledge to an AI
+          programmatically, needs the help about the formats without the command-line tool, offline and in the version
+          it uses; a tree of short cards lets it read only the part it needs.
+        children:
+          - CanvasNetViewer-Help-HelpCatalog-Catalog
+          - CanvasNetViewer-Help-HelpCatalog-CardFormat
+          - CanvasNetViewer-Help-HelpCatalog-TreeIntegrity
+          - CanvasNetViewer-Help-HelpCatalog-SizeBudget
+          - CanvasNetViewer-Help-HelpCatalog-Examples
+          - CanvasNetViewer-Help-HelpCatalog-ThreadSafety
+          - CanvasNetViewer-Help-HelpFrontMatter-Subset
+          - CanvasNetViewer-Help-HelpFrontMatter-Errors
+        tests:
+          - HelpSubsystem_DefaultCatalog_EveryCardResolvesByItsPathAndRenders
+
+      - id: CanvasNetViewer-Help-Filter
+        title: >-
+          The Help subsystem shall tag every card from a closed vocabulary of format tags and scope tags, with at
+          least one scope tag, and shall give a view of the cards that have any of some tags and none of others, in
+          which a hidden card is not found, not listed among the cards, the cards below another, or the related cards,
+          and not linked from the text of a visible card.
+        justification: |
+          A host decides what its reader may learn, most often leaving out the cards about file access or about the
+          options the host controls; a reader that is pointed at a card it cannot read wastes its context and may
+          guess.
+        children:
+          - CanvasNetViewer-Help-HelpCatalog-Tags
+          - CanvasNetViewer-Help-HelpCatalog-Filter
+          - CanvasNetViewer-Help-HelpCatalog-HiddenCards
+        tests:
+          - HelpSubsystem_FilteredView_HidesExcludedCardsFromTreeLookupAndLinks
+
+      - id: CanvasNetViewer-Help-Links
+        title: >-
+          The Help subsystem shall write the links of a card body to other cards and to examples in library terms (the
+          card or the example by name) and shall let a host write each visible link in its own words, such as the
+          command that prints the target.
+        justification: |
+          The same card is read through the library and through the command-line tool; a link that names the target
+          neutrally reads correctly in both, and a host that has its own way to reach a card can say so.
+        children:
+          - CanvasNetViewer-Help-HelpCatalog-Links
+          - CanvasNetViewer-Help-HelpCatalog-HostLinks
+        tests:
+          - HelpSubsystem_Extend_HostCardsAreLayeredOnTheLibraryCards
+          - HelpSubsystem_FilteredView_HidesExcludedCardsFromTreeLookupAndLinks
+
+      - id: CanvasNetViewer-Help-Extend
+        title: >-
+          The Help subsystem shall let a host layer its own cards (new root cards) and its own sections of the library
+          cards (appended to the card at the same path) on the library catalog, without changing the library catalog,
+          and shall report a malformed host card with its file and line.
+        justification: |
+          A host adds what only it knows, such as its commands and options, to the same tree, so its reader sees one
+          card per subject; a host card that is wrong must fail where it is written.
+        children:
+          - CanvasNetViewer-Help-HelpCatalog-Extend
+          - CanvasNetViewer-Help-HelpFrontMatter-Errors
+        tests:
+          - HelpSubsystem_Extend_HostCardsAreLayeredOnTheLibraryCards
+          - HelpSubsystem_Extend_MalformedHostCard_FailsWithTheFileAndTheLine
+
+      - id: CanvasNetViewer-Help-Rendering
+        title: >-
+          The Help subsystem shall render a card, and the tree of the cards a view shows, as deterministic plain text
+          and as JSON.
+        justification: |
+          A host hands the card to a reader, usually an agent, as text in a prompt or as structured data; the same
+          input must give the same output on every machine.
+        children:
+          - CanvasNetViewer-Help-HelpCatalog-Rendering
+        tests:
+          - HelpSubsystem_DefaultCatalog_EveryCardResolvesByItsPathAndRenders
+
+      - id: CanvasNetViewer-Help-Content
+        title: >-
+          The Help subsystem shall state in the library cards only facts verified against the library: the formats,
+          their supported and unsupported features, the style, composition, positions, and bindings guidance, the error
+          codes, the diagnostics, the limits, and examples that render, in library terms and without command-line text.
+        justification: |
+          Help that disagrees with the library is worse than no help; checking the content against the code, the
+          renderer, and the user guides makes every statement of a card a tested statement.
+        children:
+          - CanvasNetViewer-Help-HelpCatalog-NoCommandLineText
+          - CanvasNetViewer-Help-HelpCatalog-FormatContent
+          - CanvasNetViewer-Help-HelpCatalog-StyleGuidance
+          - CanvasNetViewer-Help-HelpCatalog-CompositionGuidance
+          - CanvasNetViewer-Help-HelpCatalog-SvgArrows
+          - CanvasNetViewer-Help-HelpCatalog-SvgImageLinks
+          - CanvasNetViewer-Help-HelpCatalog-ViewAngles
+          - CanvasNetViewer-Help-HelpCatalog-Consistency
+          - CanvasNetViewer-Help-HelpCatalog-Mermaid
+          - CanvasNetViewer-Help-HelpCatalog-MermaidGuideParity
+          - CanvasNetViewer-Help-HelpCatalog-PlantUml
+          - CanvasNetViewer-Help-HelpCatalog-PlantUmlGuideParity
+          - CanvasNetViewer-Help-HelpCatalog-Positions
+          - CanvasNetViewer-Help-HelpCatalog-Bindings
+        tests:
+          - HelpSubsystem_DefaultCatalog_EveryCardResolvesByItsPathAndRenders

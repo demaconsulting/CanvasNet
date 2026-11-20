@@ -760,7 +760,7 @@ public class InputFragmentTests
     }
 
     /// <summary>
-    ///     Test that the help documents the fragment of an input path: the <c>input fragment</c> term of the <c>svg</c> topic
+    ///     Test that the help documents the fragment of an input path: the <c>input fragment</c> and <c>command-line input</c> terms of the <c>svg</c> topic
     ///     (the rule for the number sign, the quoting, the overrides, the codes), the fixed camera of the <c>scad</c> topic,
     ///     the error code in the <c>errors</c> topic, the page examples of the document topics, and the usage text of every
     ///     command that takes an input.
@@ -770,7 +770,7 @@ public class InputFragmentTests
     {
         // Arrange
         static string TextOf(string name) => HelpCardText.TextOf(name);
-        var term = HelpCardText.Item("svg/fragments", "input fragment");
+        var term = HelpCardText.Item("svg/fragments", "input fragment") + " " + HelpCardText.Item("svg/fragments", "command-line input");
         var registry = CommandRegistry.CreateDefault();
 
         // Assert: the rules of the svg topic

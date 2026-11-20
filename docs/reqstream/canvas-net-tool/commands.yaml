@@ -4,9 +4,9 @@
 # PURPOSE:
 # - Define requirements for the CanvasNetTool Commands subsystem
 # - The Commands subsystem spans the ICommand contract and the CommandRegistry unit (command
-#   table, resolution, dispatch, and help rendering), the HelpTopics unit (the tree of help cards for the
-#   input formats, style and composition, the result documents, errors, limits, and file access, with their
-#   verified examples), and the
+#   table, resolution, dispatch, and help rendering), the HelpTopics unit (the command-line layer of the help
+#   cards: the tool's own cards and command-line sections over the help catalog of the Viewer library, which holds
+#   the cards about the input formats, style and composition, errors, limits, and file access), and the
 #   command units DiscoveryCommands (formats and info), RenderCommand (render and convert, and the
 #   verbs crop, resize, rotate, flip, and pad), CompareCommand (compare), MontageCommand (montage),
 #   InspectCommand (inspect), FlattenCommand (flatten), and PandocFilterCommand (pandoc-filter)
@@ -52,7 +52,7 @@ sections:
         title: >-
           The Commands subsystem shall let the help command explain, besides each command, the input formats, how to
           make pictures look good and compose them, the result documents, errors, and limits as a tree of short help
-          cards shipped inside the tool and addressed by a path of names (canvasnet help mermaid gantt), each format
+          cards shipped with the tool and addressed by a path of names (canvasnet help mermaid gantt), each format
           with what is supported and what is not, the options, the diagnostics, the known differences, and tiny
           verified examples, each card ending with the cards below it and its See also links as exact commands with
           their summaries, shall print one example alone or every example of a card in full, shall write any help as
@@ -61,28 +61,32 @@ sections:
         justification: |
           People and AI agents must be able to learn what the tool supports, and to get a working first example, from
           the tool itself, offline and in the version installed; a format is not a command, so the help takes both,
-          and short linked cards let an agent read only what it needs.
+          and short linked cards let an agent read only what it needs. The cards about the formats are the help
+          catalog of the Viewer library; the tool adds its own cards and its command-line sections.
         children:
           - CanvasNetTool-Commands-HelpTopics-Catalog
-          - CanvasNetTool-Commands-HelpTopics-CardFormat
+          - CanvasNetTool-Commands-HelpTopics-Overlays
+          - CanvasNetTool-Commands-HelpTopics-CommandLineLinks
           - CanvasNetTool-Commands-HelpTopics-TreeIntegrity
           - CanvasNetTool-Commands-HelpTopics-SizeBudget
           - CanvasNetTool-Commands-HelpTopics-FormatContent
-          - CanvasNetTool-Commands-HelpTopics-StyleGuidance
-          - CanvasNetTool-Commands-HelpTopics-CompositionGuidance
-          - CanvasNetTool-Commands-HelpTopics-SvgArrows
           - CanvasNetTool-Commands-HelpTopics-Examples
           - CanvasNetTool-Commands-HelpTopics-Rendering
           - CanvasNetTool-Commands-HelpTopics-Consistency
-          - CanvasNetTool-Commands-HelpTopics-SvgImageLinks
           - CanvasNetTool-Commands-HelpTopics-ParamAndFragmentPrefixes
           - CanvasNetTool-Commands-HelpTopics-InputFragments
-          - CanvasNetTool-Commands-HelpTopics-Mermaid
-          - CanvasNetTool-Commands-HelpTopics-MermaidGuideParity
-          - CanvasNetTool-Commands-HelpTopics-PlantUml
-          - CanvasNetTool-Commands-HelpTopics-PlantUmlGuideParity
+          - CanvasNetTool-Commands-HelpTopics-CommandLineGuidance
           - CanvasNetTool-Commands-HelpTopics-FileAccess
           - CanvasNetTool-Commands-HelpTopics-FileAccessGuideParity
+          - CanvasNetViewer-Help-HelpCatalog-CardFormat
+          - CanvasNetViewer-Help-HelpCatalog-StyleGuidance
+          - CanvasNetViewer-Help-HelpCatalog-CompositionGuidance
+          - CanvasNetViewer-Help-HelpCatalog-SvgArrows
+          - CanvasNetViewer-Help-HelpCatalog-SvgImageLinks
+          - CanvasNetViewer-Help-HelpCatalog-Mermaid
+          - CanvasNetViewer-Help-HelpCatalog-MermaidGuideParity
+          - CanvasNetViewer-Help-HelpCatalog-PlantUml
+          - CanvasNetViewer-Help-HelpCatalog-PlantUmlGuideParity
           - CanvasNetTool-Commands-CommandRegistry-HelpSubjects
           - CanvasNetTool-Commands-CommandRegistry-HelpJson
         tests:

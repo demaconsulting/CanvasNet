@@ -14,8 +14,11 @@ referencing and
 wiring each format package itself. It is also the library form of the `canvasnet` command-line tool: everything the tool
 does with images - report the facts of a file, render it with an ordered pipeline of transformations, inspect its colors
 and pixels, compare two images, and compose a contact sheet - is a call of the `Imaging` subsystem, and the tool is a
-thin shell that parses a command line into the requests of those calls and prints their results. The system consists
-of two units and one subsystem:
+thin shell that parses a command line into the requests of those calls and prints their results. It also carries the
+help about the formats it reads: short help cards about what to write in a file, how to make it look good, how files
+compose, the diagnostics, the limits, and what the host controls, which an application (often an agent toolkit) reads
+programmatically and the tool prints with its command-line sections added. The system consists of two units and two
+subsystems:
 
 - **CanvasNetViewer** (unit; namespace `DemaConsulting.CanvasNet.Viewer`, folder `src/DemaConsulting.CanvasNet.Viewer/`,
   file `CanvasNetViewer.cs`): a static class that lists the built-in image sources and their extensions, creates the
@@ -31,6 +34,10 @@ of two units and one subsystem:
   `ImagePipeline`, `ImageWriter`, `ImageComparison`, `ContactSheet`, and `GridOverlay`, and the operation units
   `ImageRenderer`, `ImageInspector`, `ImageComparer`, `MontageBuilder`, and `SvgFlattener`. See *Imaging Subsystem
   Design* (`canvas-net-viewer/imaging.md`).
+- **Help** (subsystem; namespace `DemaConsulting.CanvasNet.Viewer.Help`, folder `Help/`): `HelpCatalog` (the
+  catalog of the embedded help cards, with its public types `HelpCard`, `HelpExample`, `HelpLink`, and `HelpTags`)
+  and `HelpFrontMatter` (the parser of the front matter of a card). See *Help Subsystem Design*
+  (`canvas-net-viewer/help.md`).
 
 `CanvasNetViewer` is modeled as its own top-level software system because it is distributed as its own NuGet package,
 per `software-items.md`'s rule that a software package contains exactly one software system. The `CanvasNetViewer` unit
@@ -38,7 +45,9 @@ and the `Imaging` subsystem are independent of each other in operation: the `Can
 for an application that wants a picture of it through the image sources, while the `Imaging` operations are the
 command-line parity path (pages, resolution, EXIF orientation, transformations, error codes). They meet in one place:
 the loader of an SVG document that embeds other files obtains its resolver from `CanvasNetViewer.CreateImageResolver`,
-so the embedding is the same for both.
+so the embedding is the same for both. The `Help` subsystem is independent of both in operation: it reads only its
+embedded cards and the constants of the code (the limits it quotes), and it renders nothing; its unit tests render the
+examples of the cards through the other two.
 
 The dependency direction is one-way. The core `ImageSources` subsystem defines the contract (`IImageSource`,
 `IImageResolver`) and the resolver; each format package ships a small source that references only the core package
@@ -88,6 +97,11 @@ The system exposes the following public API:
   `GridOverlay.Draw`. Each takes plain
   request values and returns plain result values; see *Imaging Subsystem Design* for the signatures.
 - **`ViewerException`** / **`ErrorCodes`**: the failure of an expected kind, with a stable code, a message, and a hint.
+- **The help catalog** (namespace `DemaConsulting.CanvasNet.Viewer.Help`): `HelpCatalog.Default` (the library cards),
+  `Cards`, `Roots`, `Find`, `GetChildren`, `GetSeeAlso`, `Filter` (a view of the cards with some tags of
+  `HelpTags` and without others), `FormatMarkdown` (the body with each visible link in the host's words),
+  `RenderText`, `RenderJson`, `RenderIndexText`, `RenderIndexJson`, and `Extend` (a host's cards and overlays
+  from the embedded resources of its assembly); see *Help Subsystem Design*.
 
 Each interface, with its direction and format, and its constraints:
 
@@ -100,9 +114,12 @@ Each interface, with its direction and format, and its constraints:
   claimed by a source.
 - **`ImageRenderer.Execute` and the other operations** (Inbound/Outbound; Method call / request and result records):
   Files read and written by path; failures are `ViewerException`.
+- **`HelpCatalog`** (Outbound; Method call / immutable `HelpCard` values and text or JSON strings): Read-only and
+  thread-safe; an unknown tag is `ArgumentException`; a malformed host card is `InvalidOperationException`.
 
 See *CanvasNetViewer Unit Design* (`canvas-net-viewer/canvas-net-viewer.md`) for the complete parameter, return, and
-exception detail of the render path, and *Imaging Subsystem Design* for the operations.
+exception detail of the render path, *Imaging Subsystem Design* for the operations, and *Help Subsystem Design* for
+the help catalog.
 
 ## Dependencies
 
@@ -124,7 +141,11 @@ format systems, each through a project reference from
   explicitly. `CanvasNetCharts` arrives transitively.
 
 No other system depends on `CanvasNetViewer` except `CanvasNetTool`, which is a command-line shell over the `Imaging`
-operations and creates the resolver for the SVG files it renders; a format package must never reference the viewer.
+operations, creates the resolver for the SVG files it renders, and layers its command-line help cards on the help
+catalog with `HelpCatalog.Extend`; a format package must never reference the viewer. The `Help` subsystem reads the
+limits it quotes from the constants of the core library and the format packages (`Surface.MaxDimension`,
+`ImageFragment`, the `Positions` limits, and `ScadLimits`, `VegaLiteLimits`, `MermaidLimits`, and
+`PlantUmlLimits`).
 
 ## Risk Control Measures
 
@@ -176,6 +197,15 @@ risk control inherently (IEC 62304 §5.3.3).
 4. **Output**: a `ViewerImage` that owns the `Surface` and carries the format, notes, text, embedded images, and feature
    positions
 
+**Help path** (`Help`):
+
+1. **Input**: a card path, or the tags a host includes and excludes; for an extension, a host assembly and the prefix
+   of its embedded card files
+2. **Processing**: the library cards are parsed and validated once, on first use (front matter, tags, tokens replaced
+   from the constants of the code, the tree, and the links); a view decides which cards are visible by their tags; a
+   card's body is written for the view, a link to a hidden card being plain text
+3. **Output**: immutable `HelpCard` values, and a card or the tree as plain text or JSON
+
 **Operation path** (`Imaging`):
 
 1. **Input**: a probed source (`SourceLoader.Probe`) and a request record (the page and the load options, the operations
@@ -202,6 +232,9 @@ risk control inherently (IEC 62304 §5.3.3).
   `ErrorCodes`; the codes are stable, because scripts and the results of the tool rely on them
 - **No command-line concerns**: the library knows nothing of a command line, a console, or a result document; the
   tool parses and prints. The text of some messages and hints still names the options of the tool
+- **Help without command-line text**: the library help cards describe the formats in library terms (options of
+  `ViewerRenderOptions` and its companions, strict mode, the file-access policy); the command-line tool adds its flags
+  and commands as overlays of its own
 - **Not a tool plug-in point**: the command-line tool wires the viewer in for its commands and offers no plug-in
   mechanism
 - **Documented examples compile**: the C# examples of the Viewer user guide are complete programs that are compiled

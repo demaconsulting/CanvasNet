@@ -1,9 +1,6 @@
 ---
-title: Render options of a drawing
+extends: svg/options
 summary: Size, scale, background, file access, and --strict for a drawing.
-see-also:
-  - files
-  - svg/diagnostics
 examples:
   - name: render-width
     kind: command
@@ -22,7 +19,7 @@ examples:
     description: Report the intrinsic size without drawing.
 ---
 
-## Options
+## Command line
 
 - `--width <pixels>`: Draw at this width, keeping the aspect ratio; --height
   does the same for the height. The drawing is sharp, never enlarged afterwards.
@@ -32,14 +29,7 @@ examples:
   default); transparent keeps alpha.
 - `--file-access <mode>`: Which local files the image elements may read: any
   (the default), roots, no-symlinks, or roots,no-symlinks; --allow-root names
-  the folders of roots. See 'canvasnet help files'.
-- `--strict`: An image that was not drawn (svg-image-unresolved,
-  svg-image-too-large, image-fragment-invalid, or image-page-out-of-range) is an
-  unsupported-feature error instead of a warning, image-access-denied is the
-  error file-access-denied, and an unsupported feature of an embedded model,
-  chart, or diagram is an unsupported-feature error too. The warnings
-  image-fragment-unknown-parameter, image-fragment-duplicate-parameter, and
-  vl-param-unknown stay warnings: the picture was drawn. So does
-  svg-arrowhead-shape, a hint about how an arrowhead is drawn. Text that is not
-  drawn or drawn without a feature (svg-text-not-drawn, svg-text-unsupported) is
-  an unsupported-feature error, also in an embedded SVG file.
+  the folders of roots. See [[files]].
+- `--strict`: Strict mode, as `ThrowOnUnsupportedFeature` above: an image that
+  was not drawn is an error, and the warnings that say the picture was drawn
+  stay warnings.

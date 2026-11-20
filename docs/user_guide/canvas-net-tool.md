@@ -1804,7 +1804,8 @@ declaration when nothing uses it any more; a binding that fails keeps its attrib
 
 #### Flatten Reference
 
-This list is also the *Reference* section of `canvasnet help svg flatten`; a test keeps the two the same.
+This list is also the *Reference* and *Command line* sections of `canvasnet help svg flatten`; a test keeps the two the
+same.
 
 - **replaced**: An `image` whose link names a file only CanvasNet draws: a Mermaid or PlantUML diagram, an OpenSCAD
   model, a Vega-Lite chart, or a page of a PDF, PPTX, or VSDX document, with or without a fragment (`#page=2`,
@@ -1813,25 +1814,32 @@ This list is also the *Reference* section of `canvasnet help svg flatten`; a tes
 - **kept**: Everything else, byte for byte: comments, formatting, line endings, a byte order mark, raster pictures, SVG
   files that link only rasters and SVG files, `data:` URIs (never followed), same-document `#` links, and network links.
 - **size**: Each picture is drawn at the size of its placement in the drawing at its natural size (through the `viewBox`
-  and every transform, as render draws it), times `--scale`; the SVG reader still fits it with `preserveAspectRatio`. A
-  link used twice is drawn once, at the larger placement.
+  and every transform, as a render draws it), times the scale factor (`FlattenRequest.Scale`, 1 by default); the SVG
+  reader still fits it with `preserveAspectRatio`. A link used twice is drawn once, at the larger placement.
 - **other folder**: When the copy is written to another folder, the relative links that are left are rewritten so they
   find their files from there; a drive letter or UNC path (`C:\x.png`, `\\server\share\x.png`) is left as written on
   every system. Links of other elements (an external `use`, a CSS `url()`) are not rewritten.
 - **bindings**: A position binding (cn:x2y2 and the others, see `canvasnet help svg bindings`) is baked with the numbers
   of the PNG picture that replaces the link; its `cn:` attribute is removed, and the namespace declaration too when
-  nothing uses it. The JSON document counts bindings.resolved and bindings.unresolved; a binding that fails keeps its
-  attribute and numbers.
-- **nothing to flatten**: When the drawing links no such picture, or shows none, nothing is written and the exit code is
-  0: the text says nothing to flatten and `flattened` is false in the JSON document.
-- **limits**: The links are drawn by the resolver of render, with its link rule, file-access mode, and limits (at most
+  nothing uses it. The result counts them (`FlattenResult.ResolvedBindings` and `UnresolvedBindings`); a binding that
+  fails keeps its attribute and numbers.
+- **nothing to flatten**: When the drawing links no such picture, or shows none, nothing is written and the result
+  replaces no picture; it is not a failure.
+- **limits**: The links are drawn by the resolver of a render, with its link rule, file-access mode, and limits (at most
   64 pictures, nested ones included, 4 levels, and the pixel budget). The copy is at most 64 MiB (`size-limit`), and the
   drawing must be UTF-8 (`unsupported-feature` for another declared encoding unless the file is plain ASCII).
-- **`--strict`**: A link that is not drawn (`svg-image-unresolved`, `svg-image-too-large`, `image-fragment-invalid`, or
-  `image-page-out-of-range`) is an `unsupported-feature` error, as for render, and so is text that a linked SVG file
-  does not draw or draws without a feature (`svg-text-not-drawn`, `svg-text-unsupported`); a link the file-access mode
-  denies (`image-access-denied`) is the error `file-access-denied`; a position binding that fails is the error
-  `svg-binding-failed`; `svg-flatten-image-not-drawn` stays a warning.
+- **strict mode**: With `FlattenRequest.Strict`, a link that is not drawn (`svg-image-unresolved`,
+  `svg-image-too-large`, `image-fragment-invalid`, or `image-page-out-of-range`) is an `unsupported-feature` error, as
+  for render, and so is text that a linked SVG file does not draw or draws without a feature (`svg-text-not-drawn`,
+  `svg-text-unsupported`); a link the file-access mode denies (`image-access-denied`) is the error `file-access-denied`;
+  a position binding that fails is the error `svg-binding-failed`; `svg-flatten-image-not-drawn` stays a warning.
+- **command**: Run `canvasnet flatten page.svg -o page.flat.svg` to write the copy; `--scale` multiplies the size of
+  every picture.
+- **JSON**: The JSON document counts bindings.resolved and bindings.unresolved, and `flattened` is false when nothing
+  was flattened.
+- **exit code**: When there is nothing to flatten, nothing is written and the exit code is 0; the text says nothing to
+  flatten.
+- **`--strict`**: Strict mode, as above.
 
 ### pandoc-filter
 
@@ -1922,43 +1930,56 @@ canvasnet flatten diagram.svg -o flat.svg --file-access roots --strict --json
 
 This list is also the `canvasnet help files` card, bullet by bullet; a test keeps the two the same.
 
-- **`any`**: The default. A document may reference every regular local file, as Pandoc reads them: a path relative to
-  the file that holds the link, a path with .., an absolute or drive path, a local file: URI, and a symbolic link or
-  junction.
-- **`roots`**: Only a file inside a folder named by --allow-root, or, without --allow-root, inside the current folder or
-  the folder of an input. Both the path as written and the real path of the opened file must be inside, so a link that
-  leads out is denied, and so is a path outside that links back in.
+- **`any`**: The default (`FileAccessPolicy.AllowAll`). A document may reference every regular local file, as Pandoc
+  reads them: a path relative to the file that holds the link, a path with .., an absolute or drive path, a local file:
+  URI, and a symbolic link or junction.
+- **`roots`**: Only a file inside one of the folders of the policy (`FileAccessPolicy.UnderRoots(folders)`). Both the
+  path as written and the real path of the opened file must be inside, so a link that leads out is denied, and so is a
+  path outside that links back in.
 - **`no-symlinks`**: A reference may not pass through a symbolic link or junction below the folder of the input it
-  starts from; that folder and the folders above it are trusted. A hard link cannot be detected.
-- **`roots,no-symlinks`**: Both rules. Exactly the confinement that earlier versions applied by default is --file-access
-  roots,no-symlinks --allow-root <folder of the input>; without --allow-root, roots also allows every file under the
-  current folder. For a document you do not trust, name its folder with --allow-root.
-- **`--file-access <mode>`**: Chooses the mode for render and its verbs, inspect, compare, montage, and flatten: any,
-  roots, no-symlinks, or roots,no-symlinks, in any letter case. Anything else is a usage-error that lists the modes.
-  info always measures under any.
-- **`--allow-root <folder>`**: A folder that referenced files may be in; repeatable. It implies --file-access roots and
-  replaces the default folders. A relative folder is taken from the current folder, and a folder that does not exist is
-  a usage-error. With --file-access any or no-symlinks it is a usage-error that names the conflict.
-- **`inputs`**: The files named on the command line are never judged by the mode, only the files they reference: images,
-  pictures, data files, includes, and linked pages, at every level.
+  starts from (`FileAccessPolicy.NoSymlinks`); that folder and the folders above it are trusted. A hard link cannot be
+  detected.
+- **`roots,no-symlinks`**: Both rules (`FileAccessPolicy.Combine` of `UnderRoots(folder)` and `NoSymlinks`, named
+  roots+no-symlinks). With the folder of the input as the root, it is exactly the confinement that earlier versions
+  applied by default. For a document you do not trust, confine it to its folder.
+- **`FileAccess`**: The policy of a render: `ViewerRenderOptions.FileAccess` for `CanvasNetViewer.Render`, or
+  `SourceOptions.FileAccess` for the operations of the Imaging namespace (probe with the policy you will render with: an
+  operation refuses the facts of a probe made under another one). The default is `AllowAll`.
+- **`FromDelegate`**: A host can add its own rule with `FileAccessPolicy.FromDelegate(name, check)`, alone or combined
+  with the built-in policies.
+- **`inputs`**: The file that is rendered is never judged by the policy, only the files it references: images, pictures,
+  data files, includes, and linked pages, at every level.
 - **`never read`**: A network URL (http:, https:, and other schemes), a UNC or network path, a file: URI with a host, a
   device path, an alternate data stream, and anything that is not a regular file are never read.
-- **`letter case`**: The real path of an opened file is compared letter for letter, in the case its folders and its
-  name have on disk, so a folder whose name differs from an allowed folder only in letter case is outside it. On a
-  case-insensitive volume a reference or --allow-root in any letter case still works. A file whose spelling on disk
+- **`letter case`**: The real path of an opened file is compared letter for letter, in the case its folders and its name
+  have on disk, so a folder whose name differs from an allowed folder only in letter case is outside it. On a
+  case-insensitive volume a reference or a root folder in any letter case still works. A file whose spelling on disk
   cannot be confirmed to name the opened file is denied.
 - **`limits`**: Every size and count limit holds in every mode; a mode decides which files may be read, never how much.
-  See 'canvasnet help limits'.
+  See `canvasnet help limits`.
 - **`image-access-denied`**: Warning: a picture (an SVG image, a Mermaid picture, a Vega-Lite image mark, or a linked
-  page) that the mode denies is not drawn, and the rest is; the message names the link, the mode, and why. With --strict
-  it is the error file-access-denied.
+  page) that the mode denies is not drawn, and the rest is; the message names the link, the mode, and why. In strict
+  mode it is the error file-access-denied.
 - **`file-access-denied`**: Error: an OpenSCAD include or use file, a PlantUML !include file, or a Vega-Lite data file
-  that the mode denies, or a denied picture with --strict; the message names the file as written and where it is
+  that the mode denies, or a denied picture in strict mode; the message names the file as written and where it is
   referenced. No output is written.
 - **`real path unavailable`**: A mode other than any needs the real path of every opened file. Where the system cannot
   tell it (Linux without /proc, for example), the file is denied, never read unchecked.
-- **`detail`**: In the JSON result, the detail of an image-access-denied note holds the reference, the requested and
-  real paths, and the mode. These are host paths: a service that shows notes to untrusted authors should remove them.
+- **`detail`**: The detail of an image-access-denied note (`Detail` of the diagnostic) holds the reference, the
+  requested and real paths, and the mode. These are host paths: a service that shows notes to untrusted authors should
+  remove them.
+- **`--file-access <mode>`**: Chooses the mode for render and its verbs, inspect, compare, montage, and flatten: any,
+  roots, no-symlinks, or roots,no-symlinks, in any letter case. Anything else is a usage-error that lists the modes.
+  info always measures under any. The files named on the command line are never judged by the mode.
+- **`--allow-root <folder>`**: A folder that referenced files may be in; repeatable. It implies --file-access roots and
+  replaces the default folders (without it, roots allows the current folder and the folder of an input). A relative
+  folder is taken from the current folder, and a folder that does not exist is a usage-error; with --file-access any or
+  no-symlinks it is a usage-error that names the conflict.
+- **`earlier versions`**: Exactly the confinement that earlier versions applied by default is --file-access
+  roots,no-symlinks --allow-root <folder of the input>. For a document you do not trust, name its folder with
+  --allow-root.
+- **`--strict`**: A denied picture is the error file-access-denied; the detail of an image-access-denied note is in the
+  JSON result.
 - **`default`**: The pandoc-filter command passes no mode, so a document reads its pictures, includes, and data as
   Pandoc reads its images.
 - **`CANVASNET_FILE_ACCESS`**: Set it to roots, no-symlinks, or roots,no-symlinks to pass --file-access to every render
@@ -2016,15 +2037,25 @@ A card is plain text in Markdown form: its title, its summary, and its body as w
 The footer lists the cards below it (`## Cards`), its examples (`## Examples`), and related cards (`## See also`).
 Every entry of the footer is the exact command that prints the card, with that card's summary, so a reader follows a
 link by running it. For example, `help mermaid gantt` leads to `help mermaid style`, which leads to `help mermaid
-composition` and the `style` and `composition` topics. Every card is at most 6,000 characters, and an index card at
-most 3,500.
+composition` and the `style` and `composition` topics. Every card is at most 7,000 characters, and an index card at
+most 4,000.
 
 The tree of a format has the same parts every time: what is **supported**, what is **unsupported**, the **options** that
 apply, the **diagnostics** it reports and how `--strict` treats them, and the **known differences** from the original
 program. Each drawing format (`scad`, `vega-lite`, `mermaid`, `plantuml`, and `svg`) also has a `style` card (how to
 make the picture look good) and a `composition` card (how to place it in, or combine it with, other pictures), linked to
 the `style` and `composition` topics. The cards are embedded in the tool, so they work offline and always describe the
-version that is installed. This guide stays the narrative; the cards are the quick reference, and they are tested
+version that is installed.
+
+The cards about the formats come from the CanvasNet Viewer library, which gives programs that use the library (for
+example agent toolkits) the same help as data (see *Help for agents* in the CanvasNet Viewer guide). The library card
+describes a subject in library terms, such as strict mode or the requested width, and the tool appends a
+`## Command line` section with the options, commands, and command examples of the subject, so a card reads first what
+holds for every host and then how to do it with `canvasnet`. The `json` and `pandoc` topics are the tool's own. Every
+card also has **tags** from a closed vocabulary, which the JSON documents carry: the format it is about (`svg`,
+`mermaid`, `plantuml`, `scad`, `vega-lite`, `pdf`, `pptx`, `vsdx`, or `raster`; none for a general card) and at least
+one scope (`authoring`, `design`, `composition`, `diagnostics`, `limits`, `hosting`, or `file-access`). This guide stays
+the narrative; the cards are the quick reference, and they are tested
 against the code (the options, the error codes, the diagnostic identifiers, the limits, and every example) and, for the
 style advice, against the renderer.
 
@@ -2220,8 +2251,9 @@ with no banner and no color codes, and a `kind` that tells which document it is:
 
 - **`index`** (for the tool): `usage`, `commands`, `topics` (each `{"name","aliases","summary"}`), `globalOptions`.
 - **`command`** (for a command): `topic` (the command), `aliases`, `summary`, `usage`, `options`, `globalOptions`.
-- **`topics`** (for `help topics`): `cards` (each `{"id","aliases","summary","command"}`, every card, depth first).
-- **`card`** (for a help card): `id`, `aliases`, `title`, `summary`, `body`, `children`, `seeAlso`, `examples`.
+- **`topics`** (for `help topics`): `cards` (each `{"id","aliases","tags","summary","command"}`, every card, depth
+  first).
+- **`card`** (for a help card): `id`, `aliases`, `tags`, `title`, `summary`, `body`, `children`, `seeAlso`, `examples`.
 - **`examples`** (for `help <topic> [<card> ...] --examples`): `id`, `examples` (the card's own, each
   `{"name","kind","language","fileName","description","content"}`), `cards` (each
   `{"id","summary","command","examples"}`, the cards below it that have examples).
@@ -2229,14 +2261,18 @@ with no banner and no color codes, and a `kind` that tells which document it is:
   belongs to).
 
 The `body` of a card is its Markdown text. Each entry of `children` and `seeAlso` is `{"id","summary","command"}`, where
-`command` is the exact command that prints that card. Each option is `{"name","aliases","takesValue","valueName",
+`command` is the exact command that prints that card. The `tags` of a card are its format tag, if any, and its scope
+tags (see *Help Cards*), in the order the card lists them; a program can keep only the cards it needs, for example the
+`authoring` cards of one format. Each option is `{"name","aliases","takesValue","valueName",
 "description"}`, and an example of a card carries its `content`, which is the source of a file or a command line
 (`fileName` only for a file). A mistake, such as an unknown subject or card, is the failure document of the `help`
 command.
 
 > **Schema version 2.** Version 2 replaced the help `topic` document (with its `topic` and `sections` keys) by the
 > `card` and `topics` documents, and dropped the constant `topic` key of the `index` document. Every other document is
-> unchanged; a reader of version 1 documents needs no change apart from the help documents.
+> unchanged; a reader of version 1 documents needs no change apart from the help documents. The `tags` key of the
+> `card` and `topics` documents was added later in version 2; adding a key is not a breaking change, so a reader that
+> ignores unknown keys needs no change.
 
 ### Failure Documents
 

@@ -1,9 +1,6 @@
 ---
-title: Render options of a model
+extends: scad/options
 summary: Variables from the command line, time, default color, triangle budget, background, and --strict.
-see-also:
-  - scad/views
-  - limits
 examples:
   - name: define-width
     kind: command
@@ -17,7 +14,7 @@ examples:
     description: Fail instead of leaving an unsupported construct out.
 ---
 
-## Options
+## Command line
 
 - `--define <name=value>`: Set a variable of the model; -D is the short form.
   Repeatable; the later definition wins. The value is a number, true, false,
@@ -25,9 +22,7 @@ examples:
   the input (part.scad#def.width=20) wins over it for that input.
 - `--time <T>`: The value of $t (default 0).
 - `--default-color <color>`: The color of surfaces the model does not color
-  (default gray); the alpha is ignored. A flat 2D drawing is gray by default, so
-  --default-color black gives a high-contrast drawing; a color() in the model
-  overrides it.
+  (default gray); --default-color black gives a high-contrast drawing.
 - `--max-triangles <N>`: The most triangles the model may produce (default
   {{scadMaxTriangles}}).
 - `--background <color>`: The color the picture is flattened over (default

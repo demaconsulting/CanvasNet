@@ -15,7 +15,8 @@
 #
 # The system also contains the Imaging subsystem (namespace DemaConsulting.CanvasNet.Viewer.Imaging), the library
 # form of everything the canvasnet command-line tool does with images (probe, render with transformations, inspect,
-# compare, montage), and the ViewerException unit with the stable ErrorCodes. The canvasnet tool (CanvasNetTool) is a
+# compare, montage), the Help subsystem (namespace DemaConsulting.CanvasNet.Viewer.Help, the help cards about the
+# formats), and the ViewerException unit with the stable ErrorCodes. The canvasnet tool (CanvasNetTool) is a
 # command-line shell over these types.
 
 sections:
@@ -267,3 +268,25 @@ sections:
         tests:
           - SourceLoader_Load_SvgBindingToMermaid_LandsOnTheNode
           - SvgFlattener_Execute_ResolvedBinding_IsBaked
+
+      - id: CanvasNetViewer-Help
+        title: >-
+          The library shall provide, as data an application reads without the command-line tool, help cards about the
+          formats it reads (what a file may contain, how to make it look good, how files compose, the diagnostics, the
+          limits, what the host application controls, and which files a document may read), each tagged from a closed
+          vocabulary, shall let the application keep only the cards with some tags or without others without pointing
+          its reader at a card it leaves out, render a card as plain text or JSON, and add its own cards and sections.
+        tags: [system]
+        justification: |
+          The library is used by other applications, often agent toolkits that give knowledge to an AI
+          programmatically; the knowledge about the formats belongs with the library that reads them, so such an
+          application gets the same verified help as a user of the command-line tool and decides what its reader sees.
+        children:
+          - CanvasNetViewer-Help-Catalog
+          - CanvasNetViewer-Help-Filter
+          - CanvasNetViewer-Help-Links
+          - CanvasNetViewer-Help-Extend
+          - CanvasNetViewer-Help-Rendering
+          - CanvasNetViewer-Help-Content
+        tests:
+          - CanvasNetViewer_SystemIntegration_Help_FilterResolveAndRead
