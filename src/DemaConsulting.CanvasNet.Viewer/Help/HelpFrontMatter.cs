@@ -423,6 +423,6 @@ internal static class HelpFrontMatter
     /// <returns>The body, without trailing line feeds.</returns>
     private static string ExtractBody(string[] lines, int start)
     {
-        return string.Join('\n', lines.Skip(start)).TrimEnd('\n', ' ');
+        return string.Join('\n', lines.Skip(start)).TrimEnd('\n');
     }
 }

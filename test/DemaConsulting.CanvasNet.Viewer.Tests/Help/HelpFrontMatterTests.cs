@@ -119,4 +119,18 @@ public class HelpFrontMatterTests
         Assert.StartsWith("Help card 'a.md', line 3: ", closing.Message);
         Assert.Contains("no closing '---'", closing.Message, StringComparison.Ordinal);
     }
+
+    /// <summary>
+    ///     Test that the body keeps the trailing spaces of its last line (a Markdown hard break or code-block text) and
+    ///     only loses the trailing line feeds.
+    /// </summary>
+    [Fact]
+    public void HelpFrontMatter_Parse_BodyEndingInSpaces_KeepsTheSpaces()
+    {
+        // Act
+        var document = HelpFrontMatter.Parse("---\ntitle: x\n---\n\nFirst line  \nlast line  \n\n", "a.md");
+
+        // Assert
+        Assert.Equal("First line  \nlast line  ", document.Body);
+    }
 }

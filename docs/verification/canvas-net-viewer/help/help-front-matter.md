@@ -34,3 +34,6 @@ without a value, a key without a value or items, and a key that is not lower cas
 
 **HelpFrontMatter_Parse_MissingFence_ThrowsWithFileAndLine**: a card that does not start with `---` fails at line 1
 ("opens the front matter"), and a card without a closing `---` fails at its last line ("no closing '---'").
+
+**HelpFrontMatter_Parse_BodyEndingInSpaces_KeepsTheSpaces**: a body whose lines end in two spaces keeps them, also on
+its last line, and loses only the trailing line feeds.

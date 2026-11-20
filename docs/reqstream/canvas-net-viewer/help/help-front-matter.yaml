@@ -14,13 +14,15 @@ sections:
           YAML (key: value entries at the start of a line, lists of two-space-indented items, list items that are maps
           of four-space-indented entries, plain, single-quoted, and double-quoted one-line values, blank lines, and
           full-line comments), keeping the keys and items in order with the line each starts on, and shall return the
-          body after the closing line with LF line endings, without one leading blank line and trailing line feeds,
-          and with the line the body starts on.
+          body after the closing line with LF line endings, without one leading blank line and trailing line feeds
+          (keeping trailing spaces, which can be a Markdown hard break or code-block text), and with the line the body
+          starts on.
         justification: |
           A card is edited as ordinary Markdown with a few keys; a small parser without a package dependency keeps the
           library lean, and the line numbers let every later error say where a card is wrong.
         tests:
           - HelpFrontMatter_Parse_SupportedSubset_ReadsEveryConstruct
+          - HelpFrontMatter_Parse_BodyEndingInSpaces_KeepsTheSpaces
 
       - id: CanvasNetViewer-Help-HelpFrontMatter-Errors
         title: >-
