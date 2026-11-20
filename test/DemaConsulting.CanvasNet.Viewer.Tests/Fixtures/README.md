@@ -36,6 +36,8 @@ with the CanvasNet codecs and write them to a temporary directory, so that no bi
   a stop; it uses the second extension. Written by hand for these tests.
 - **`plantuml/class.pu`**: A PlantUML class diagram of two classes and one composition; it uses the third extension.
   Written by hand for these tests.
+- **`plantuml/state.puml`**: A PlantUML state diagram with a start, a composite state of two states with its own start,
+  labelled transitions, and an end. Written by hand for these tests.
 - **`plantuml/legacy.pu`**: A PlantUML activity diagram of the legacy syntax (`(*) --> First`), a type this version
   recognizes but does not draw. Written by hand for these tests.
 - **`plantuml/included.puml`** and **`plantuml/parts/people.iuml`**: A PlantUML sequence diagram whose two participants

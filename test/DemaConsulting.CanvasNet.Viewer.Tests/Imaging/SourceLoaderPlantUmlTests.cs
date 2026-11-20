@@ -197,6 +197,28 @@ public class SourceLoaderPlantUmlTests
     }
 
     /// <summary>
+    ///     Test that a state diagram is probed as a supported diagram with its states and pseudo-states, transitions, and
+    ///     composite states, and drawn with PlantUML's light grey states and dark start circles without a note.
+    /// </summary>
+    [Fact]
+    public void SourceLoader_Load_PlantUmlState_ReportsFactsAndDraws()
+    {
+        // Arrange
+        using var directory = new TempDirectory();
+        var path = CopyFixture(directory, "state.puml");
+
+        // Act
+        var info = SourceLoader.Probe(path);
+        using var loaded = SourceLoader.Load(path, new SourceOptions { Strict = true });
+
+        // Assert
+        Assert.Equal(new DiagramFacts("state", true, null, null, null, 5, 5, 1), info.Diagram);
+        Assert.True(Count(loaded.Surface, new Rgba32(0xF1, 0xF1, 0xF1, 255)) > 200);
+        Assert.True(Count(loaded.Surface, new Rgba32(0x22, 0x22, 0x22, 255)) > 50);
+        Assert.Empty(loaded.Diagnostics);
+    }
+
+    /// <summary>
     ///     Test that a diagram of a type this version recognizes but does not draw (a legacy activity diagram, the
     ///     <c>.pu</c> extension) is an empty picture with one unsupported note, and that strict mode makes it an
     ///     <c>unsupported-feature</c> error.

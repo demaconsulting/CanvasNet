@@ -131,4 +131,26 @@ public class DiscoveryCommandsPlantUmlTests
         Assert.Equal(("activity-legacy", false, 0), (unsupported.GetProperty("type").GetString(), unsupported.GetProperty("supported").GetBoolean(), unsupported.GetProperty("nodes").GetInt32()));
         Assert.Contains("activity-legacy (not drawn by this version), 0 nodes", legacyText, StringComparison.Ordinal);
     }
+
+    /// <summary>
+    ///     Test that info describes a state diagram with the counts of the library: its states and pseudo-states,
+    ///     transitions, and composite states.
+    /// </summary>
+    [Fact]
+    public void DiscoveryCommands_Info_PlantUmlState_ReportsStatesTransitionsAndComposites()
+    {
+        // Arrange
+        using var directory = new TempDirectory();
+        var states = FixtureFactory.WriteText(directory.Path, "door.puml", "@startuml\n[*] --> Door\nstate Door {\n[*] --> Closed\nClosed --> Open : open\n}\nDoor --> [*]\n@enduml\n");
+
+        // Act
+        using var document = JsonDocument.Parse(RunInfo(true, states));
+        var text = RunInfo(false, states);
+
+        // Assert
+        var diagram = document.RootElement.GetProperty("diagram");
+        Assert.Equal(("state", true), (diagram.GetProperty("type").GetString(), diagram.GetProperty("supported").GetBoolean()));
+        Assert.Equal((5, 4, 1), (diagram.GetProperty("nodes").GetInt32(), diagram.GetProperty("edges").GetInt32(), diagram.GetProperty("subgraphs").GetInt32()));
+        Assert.Contains("state, 5 nodes, 4 edges", text, StringComparison.Ordinal);
+    }
 }

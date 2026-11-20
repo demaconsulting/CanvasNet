@@ -1,0 +1,9 @@
+@startuml
+[*] --> Door
+state Door {
+  [*] --> Closed
+  Closed --> Open : open
+  Open --> Closed : close
+}
+Door --> [*]
+@enduml

@@ -369,14 +369,15 @@ public sealed record ChartFacts(
 ///     What a Mermaid or PlantUML diagram declares, read by parsing it (the diagram is laid out for its size but not drawn).
 /// </summary>
 /// <remarks>
-///     For a PlantUML diagram the type is <c>sequence</c>, <c>activity</c>, <c>class</c>, <c>object</c>, or the name of a
-///     recognized type that is not drawn (for example <c>usecase</c>, <c>component</c>, <c>state</c>, or
+///     For a PlantUML diagram the type is <c>sequence</c>, <c>activity</c>, <c>class</c>, <c>object</c>, <c>state</c>, or the name of a
+///     recognized type that is not drawn (for example <c>usecase</c>, <c>component</c>, or
 ///     <c>activity-legacy</c>, with the unsupported note <c>plantuml-diagram-unsupported</c>). The nodes of a sequence
 ///     diagram are its participants, the edges its messages, and the subgraphs its boxes; the nodes of an activity
 ///     diagram are its actions, start, stop, end, connector, and decision nodes, the edges its arrows, and the subgraphs
 ///     its swimlanes and partitions; the nodes of a class or object diagram are its classes, objects, and maps (notes not
 ///     counted), the edges its relationships (links to notes not counted), and the subgraphs its packages and namespaces
-///     that hold something. A PlantUML diagram has no direction and no accessible title.
+///     that hold something; the nodes of a state diagram are its states and pseudo-states, the edges its transitions, and
+///     the subgraphs its composite states. A PlantUML diagram has no direction and no accessible title.
 /// </remarks>
 /// <param name="Type">The diagram type, for example <c>flowchart</c> (a <c>graph</c> is a flowchart too), <c>sequence</c>, <c>class</c>, <c>pie</c>, <c>gantt</c>, <c>mindmap</c>, <c>packet</c> or <c>gitGraph</c>.</param>
 /// <param name="Supported">

@@ -15,7 +15,7 @@
     <Version>0.0.0</Version>
     <Authors>DEMA Consulting</Authors>
     <Company>DEMA Consulting</Company>
-    <Description>DemaConsulting.CanvasNet.Tool is the canvasnet command-line tool: it inspects, renders, and transforms images and documents (PNG, JPEG, BMP, TIFF, GIF, JPEG 2000, SVG, PDF, PowerPoint, Visio, OpenSCAD models, Vega-Lite charts, Mermaid diagrams, and PlantUML sequence, activity, class, and object diagrams) using the CanvasNet libraries, with a stable machine-readable JSON contract so that scripts and AI agents can drive it.</Description>
+    <Description>DemaConsulting.CanvasNet.Tool is the canvasnet command-line tool: it inspects, renders, and transforms images and documents (PNG, JPEG, BMP, TIFF, GIF, JPEG 2000, SVG, PDF, PowerPoint, Visio, OpenSCAD models, Vega-Lite charts, Mermaid diagrams, and PlantUML sequence, activity, class, object, and state diagrams) using the CanvasNet libraries, with a stable machine-readable JSON contract so that scripts and AI agents can drive it.</Description>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/demaconsulting/CanvasNet</PackageProjectUrl>
     <RepositoryUrl>https://github.com/demaconsulting/CanvasNet</RepositoryUrl>

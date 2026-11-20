@@ -120,7 +120,7 @@ internal static class DiscoveryCommands
             + "(and whether this version draws it), direction, titles, and numbers of nodes, edges, and subgraphs" + Environment.NewLine
             + "('canvasnet help mermaid' says what each diagram type counts). A PlantUML diagram (.puml, .plantuml, or .pu)" + Environment.NewLine
             + "is parsed with its !include files and measured (not drawn) and reports the same object: its type (sequence," + Environment.NewLine
-            + "activity, class, object, or a type that is not drawn), title, and numbers of nodes, edges, and subgraphs" + Environment.NewLine
+            + "activity, class, object, state, or a type that is not drawn), title, and numbers of nodes, edges, and subgraphs" + Environment.NewLine
             + "('canvasnet help plantuml options' says what they count). The input may end in a" + Environment.NewLine
             + "fragment (report.pdf#page=2) as for 'render'; only the page is used here: the other parameters are checked" + Environment.NewLine
             + "(a value that cannot be used is an error) and otherwise ignored, and an unknown or repeated parameter is a" + Environment.NewLine
