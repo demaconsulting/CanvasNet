@@ -198,7 +198,7 @@ the ones you need, the same way as above:
 | `DemaConsulting.CanvasNet.Render3D` | 3D mesh/scene rasterization |
 | `DemaConsulting.CanvasNet.Scad` | OpenSCAD-language model rendering |
 | `DemaConsulting.CanvasNet.VegaLite` | Vega-Lite static chart rendering |
-| `DemaConsulting.CanvasNet.Layout` | Shared graph layout (dagre); installed with Mermaid, no public API |
+| `DemaConsulting.CanvasNet.Layout` | Shared graph layout (dagre); used by Mermaid and PlantUml, no public API |
 | `DemaConsulting.CanvasNet.Mermaid` | Mermaid diagrams, mindmaps, packets, git graphs |
 | `DemaConsulting.CanvasNet.PlantUml` | PlantUML sequence, activity, class, state, use case, component, and more |
 | `DemaConsulting.CanvasNet.Viewer` | The `canvasnet` operations as library calls |
@@ -688,7 +688,7 @@ CanvasNet is a family of packages: a core canvas with image codecs, drawing, and
 reads, three shared building blocks (charts, 3D rendering, and graph layout), a Viewer that opens any of them, and the
 `canvasnet` tool that bundles them all. The diagram shows which package builds on which.
 
-![CanvasNet package architecture: applications use the Viewer and the canvasnet tool uses it too; the Viewer opens the eight format packages (PDF, SVG, PowerPoint, Visio, OpenSCAD, Vega-Lite, Mermaid, and PlantUML); PowerPoint also uses the SVG and Charts packages, OpenSCAD uses the Render3D package, and Mermaid uses the Layout package (the shared graph layout, which needs only .NET); the format packages build on the DemaConsulting.CanvasNet core with its canvas, codecs, drawing, fonts, and file access](https://raw.githubusercontent.com/demaconsulting/CanvasNet/main/docs/images/architecture.png)
+![CanvasNet package architecture: applications use the Viewer and the canvasnet tool uses it too; the Viewer opens the eight format packages (PDF, SVG, PowerPoint, Visio, OpenSCAD, Vega-Lite, Mermaid, and PlantUML); PowerPoint also uses the SVG and Charts packages, OpenSCAD uses the Render3D package, and Mermaid and PlantUML use the Layout package (the shared graph layout, which needs only .NET); the format packages build on the DemaConsulting.CanvasNet core with its canvas, codecs, drawing, fonts, and file access](https://raw.githubusercontent.com/demaconsulting/CanvasNet/main/docs/images/architecture.png)
 
 ## Building
 
@@ -764,18 +764,20 @@ d3-axis (ISC, Copyright 2010-2023 Mike Bostock). The license texts ship in the p
 of what was ported from where. The package is not affiliated with or endorsed by the Mermaid project or the authors of
 these libraries.
 
-The `DemaConsulting.CanvasNet.Layout` package (installed with the Mermaid package, and bundled in the `canvasnet`
-tool) is the shared graph layout of the diagram packages and contains code ported, with attribution, from dagre-d3-es
-and the dagre and graphlib libraries it derives from (MIT, Copyright (c) 2012-2014 Chris Pettitt and the dagre-es
-contributors) and from lodash (MIT, Copyright OpenJS Foundation and other contributors). The license texts ship in the
-package under `licenses/`; see [the third-party notice][link-layout-third-party]
+The `DemaConsulting.CanvasNet.Layout` package (installed with the Mermaid and PlantUml packages, and bundled in the
+`canvasnet` tool) is the shared graph layout of the diagram packages and contains code ported, with attribution, from
+dagre-d3-es and the dagre and graphlib libraries it derives from (MIT, Copyright (c) 2012-2014 Chris Pettitt and the
+dagre-es contributors) and from lodash (MIT, Copyright OpenJS Foundation and other contributors). The license texts ship
+in the package under `licenses/`; see [the third-party notice][link-layout-third-party]
 (`src/DemaConsulting.CanvasNet.Layout/third-party`) for the record of what was ported from where. The package is not
 affiliated with or endorsed by the authors of these libraries.
 
 The `DemaConsulting.CanvasNet.PlantUml` package (and the `canvasnet` tool, which bundles it) implements a subset of
 the PlantUML text language and is derived, with attribution, from the MIT-licensed distribution of PlantUML (MIT,
-Copyright (C) 2009-2024 Arnaud Roques): its default look and the layout geometry of its sequence and activity diagram
-engines are reimplemented in C#, and no Java runs. The license text ships in the packages under `licenses/`; see
+Copyright (C) 2009-2024 Arnaud Roques): its default look, the layout geometry of its sequence and activity diagram
+engines, and the spacing, symbols, and decorations of its class, object, state, use case, component, and deployment
+diagrams are reimplemented in C#; those graph diagrams are laid out by the shared Layout package instead of Graphviz,
+and no Java runs. The license text ships in the packages under `licenses/`; see
 [the third-party notice][link-plantuml-third-party] (`src/DemaConsulting.CanvasNet.PlantUml/third-party`) for the
 record of what was ported from where. The package is not affiliated with or endorsed by the PlantUML project.
 

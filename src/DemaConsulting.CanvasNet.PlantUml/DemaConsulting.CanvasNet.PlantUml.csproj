@@ -11,13 +11,13 @@
     <Version>0.0.0</Version>
     <Authors>DEMA Consulting</Authors>
     <Company>DEMA Consulting</Company>
-    <Description>DemaConsulting.CanvasNet.PlantUml renders diagrams written in the PlantUML text language onto a CanvasNet Surface (PlantUmlDocument.Render): a bounded, deterministic, offline reader with file/line/column diagnostics, hints and resource limits. Sequence diagrams, activity diagrams (the new syntax), class and object diagrams, and state diagrams are drawn with PlantUML's default look using only managed code and the bundled fonts; every other PlantUML diagram type is recognized and reported as unsupported with a stable identifier, never silently skipped. Not affiliated with the PlantUML project.</Description>
+    <Description>DemaConsulting.CanvasNet.PlantUml renders diagrams written in the PlantUML text language onto a CanvasNet Surface (PlantUmlDocument.Render): a bounded, deterministic, offline reader with file/line/column diagnostics, hints and resource limits. Sequence diagrams, activity diagrams (the new syntax), class and object diagrams, state diagrams, use case diagrams, component diagrams, and deployment diagrams are drawn with PlantUML's default look using only managed code and the bundled fonts; every other PlantUML diagram type is recognized and reported as unsupported with a stable identifier, never silently skipped. Not affiliated with the PlantUML project.</Description>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/demaconsulting/CanvasNet</PackageProjectUrl>
     <RepositoryUrl>https://github.com/demaconsulting/CanvasNet</RepositoryUrl>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageIcon>Icon.png</PackageIcon>
-    <PackageTags>canvas;dotnet-library;plantuml;uml;sequence-diagram;activity-diagram;class-diagram;object-diagram;state-diagram;diagrams;rendering</PackageTags>
+    <PackageTags>canvas;dotnet-library;plantuml;uml;sequence-diagram;activity-diagram;class-diagram;object-diagram;state-diagram;use-case-diagram;component-diagram;deployment-diagram;diagrams;rendering</PackageTags>
     <Copyright>Copyright DEMA Consulting</Copyright>
     <Title>CanvasNet.PlantUml</Title>
     <Product>DemaConsulting.CanvasNet.PlantUml</Product>

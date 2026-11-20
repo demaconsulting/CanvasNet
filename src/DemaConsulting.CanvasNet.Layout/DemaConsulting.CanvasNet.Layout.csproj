@@ -11,7 +11,7 @@
     <Version>0.0.0</Version>
     <Authors>DEMA Consulting</Authors>
     <Company>DEMA Consulting</Company>
-    <Description>DemaConsulting.CanvasNet.Layout is the shared graph layout of the CanvasNet diagram packages: a port of graphlib and of the dagre layered layout of dagre-d3-es, which positions the nodes of a directed, possibly compound and cyclic graph in ranks and routes its edges, deterministically and within a work budget. It has no public API; it is installed as a dependency of DemaConsulting.CanvasNet.Mermaid. Not affiliated with the dagre, graphlib, dagre-d3-es or lodash projects.</Description>
+    <Description>DemaConsulting.CanvasNet.Layout is the shared graph layout of the CanvasNet diagram packages: a port of graphlib and of the dagre layered layout of dagre-d3-es, which positions the nodes of a directed, possibly compound and cyclic graph in ranks and routes its edges, deterministically and within a work budget. It has no public API; it is installed as a dependency of DemaConsulting.CanvasNet.Mermaid and DemaConsulting.CanvasNet.PlantUml. Not affiliated with the dagre, graphlib, dagre-d3-es or lodash projects.</Description>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/demaconsulting/CanvasNet</PackageProjectUrl>
     <RepositoryUrl>https://github.com/demaconsulting/CanvasNet</RepositoryUrl>

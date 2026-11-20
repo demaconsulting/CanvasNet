@@ -90,11 +90,12 @@
     <text x="506" y="416" font-size="14" font-family="Consolas, monospace" font-weight="600" fill="#9a3412" text-anchor="middle">.Render3D</text>
     <text x="506" y="438" font-size="12" fill="#9a3412" text-anchor="middle">3D renderer</text>
 
-    <!-- The shared graph layout uses only .NET, not the core -->
-    <line x1="700" y1="350" x2="700" y2="386" stroke="#475569" stroke-width="2" marker-end="url(#a)"/>
-    <rect x="640" y="390" width="100" height="66" rx="8" fill="#fff7ed" stroke="#ea580c" stroke-width="2"/>
-    <text x="690" y="416" font-size="14" font-family="Consolas, monospace" font-weight="600" fill="#9a3412" text-anchor="middle">.Layout</text>
-    <text x="690" y="438" font-size="12" fill="#9a3412" text-anchor="middle">graph layout</text>
+    <!-- The shared graph layout, used by Mermaid and PlantUml, uses only .NET, not the core -->
+    <line x1="762" y1="350" x2="762" y2="386" stroke="#475569" stroke-width="2" marker-end="url(#a)"/>
+    <line x1="818" y1="350" x2="818" y2="386" stroke="#475569" stroke-width="2" marker-end="url(#a)"/>
+    <rect x="740" y="390" width="100" height="66" rx="8" fill="#fff7ed" stroke="#ea580c" stroke-width="2"/>
+    <text x="790" y="416" font-size="14" font-family="Consolas, monospace" font-weight="600" fill="#9a3412" text-anchor="middle">.Layout</text>
+    <text x="790" y="438" font-size="12" fill="#9a3412" text-anchor="middle">graph layout</text>
 
     <!-- The format packages build on the core -->
     <line x1="50" y1="350" x2="50" y2="494" stroke="#475569" stroke-width="2" marker-end="url(#a)"/>
@@ -103,8 +104,8 @@
     <line x1="392" y1="350" x2="392" y2="494" stroke="#475569" stroke-width="2" marker-end="url(#a)"/>
     <line x1="506" y1="460" x2="506" y2="494" stroke="#475569" stroke-width="2" marker-end="url(#a)"/>
     <line x1="620" y1="350" x2="620" y2="494" stroke="#475569" stroke-width="2" marker-end="url(#a)"/>
-    <line x1="768" y1="350" x2="768" y2="494" stroke="#475569" stroke-width="2" marker-end="url(#a)"/>
-    <line x1="848" y1="350" x2="848" y2="494" stroke="#475569" stroke-width="2" marker-end="url(#a)"/>
+    <line x1="702" y1="350" x2="702" y2="494" stroke="#475569" stroke-width="2" marker-end="url(#a)"/>
+    <line x1="878" y1="350" x2="878" y2="494" stroke="#475569" stroke-width="2" marker-end="url(#a)"/>
 
     <!-- Core -->
     <rect x="0" y="498" width="900" height="134" rx="12" fill="#dcfce7" stroke="#16a34a" stroke-width="2"/>

@@ -11,9 +11,9 @@ alone for images and drawing, add the format packages you need, use the Viewer t
 
 ![CanvasNet package architecture: applications use the Viewer and the canvasnet tool uses it too; the Viewer opens
 the eight format packages (PDF, SVG, PowerPoint, Visio, OpenSCAD, Vega-Lite, Mermaid, and PlantUML); PowerPoint also
-uses the SVG and Charts packages, OpenSCAD uses the Render3D package, and Mermaid uses the Layout package (the shared
-graph layout, which needs only .NET); the format packages build on the DemaConsulting.CanvasNet core with its canvas,
-codecs, drawing, fonts, and file access](architecture.svg)
+uses the SVG and Charts packages, OpenSCAD uses the Render3D package, and Mermaid and PlantUML use the Layout package
+(the shared graph layout, which needs only .NET); the format packages build on the DemaConsulting.CanvasNet core with
+its canvas, codecs, drawing, fonts, and file access](architecture.svg)
 
 ## Scope
 
