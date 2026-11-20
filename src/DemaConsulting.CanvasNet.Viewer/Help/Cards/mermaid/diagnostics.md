@@ -49,7 +49,7 @@ see-also:
   node keeps its frame.
 - A link that is not drawn (a missing file, a network URL) is the warning
   svg-image-unresolved with the reason, a link the file-access mode denies is
-  image-access-denied, and --strict makes either a failure.
+  image-access-denied, and strict mode makes either a failure.
 - `mermaid-text-missing-glyph`: Warning: a character that no bundled font has
   (for example CJK); it is drawn as the missing-glyph box.
 - `mermaid-gantt-today-unavailable`: Warning: a gantt chart needs today (a

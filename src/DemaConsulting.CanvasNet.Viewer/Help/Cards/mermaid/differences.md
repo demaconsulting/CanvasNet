@@ -23,17 +23,18 @@ The differences of one diagram type are on its settings card, for example
   curves (a few hundredths of a pixel).
 - The picture is static: no interaction, and an animated edge is drawn as its
   first frame.
-- info lays the diagram out without the pictures of its nodes (it reads no other
-  file), so a picture node without w and h can make the drawn diagram a little
-  larger or smaller than the size info reports (with --width or --height it is
-  fitted into the box); give an @{ img } node its w and h (constraint on) so
-  that the layout does not depend on the picture. A render without --width and
-  --height reports the natural size of the diagram it drew (the natural size of
-  render --json); a library render of the diagram file without a size
-  (CanvasNetViewer.Render) also charges its pixel budget for that drawn size,
-  while a document that embeds the diagram always gives it a size.
-- A diagram is drawn over white unless --background says otherwise (Mermaid's
-  SVG is transparent); as a picture in an SVG file it stays transparent.
+- A probe lays the diagram out without the pictures of its nodes (it reads no
+  other file), so a picture node without w and h can make the drawn diagram a
+  little larger or smaller than the size the probe reports (with a width or a
+  height it is fitted into the box); give an @{ img } node its w and h
+  (constraint on) so that the layout does not depend on the picture. A render
+  without a width and a height reports the natural size of the diagram it drew;
+  a library render of the diagram file without a size (CanvasNetViewer.Render)
+  also charges its pixel budget for that drawn size, while a document that
+  embeds the diagram always gives it a size.
+- A diagram is drawn over white unless the render asks for another background
+  (Mermaid's SVG is transparent); as a picture in an SVG file it stays
+  transparent.
 - Mermaid crashes on some invalid graphs (a subgraph cycle, a link to a subgraph
   without an anchor, two composite states that contain each other, a note on a
   state that appears nowhere before it, a relationship to an entity named like a

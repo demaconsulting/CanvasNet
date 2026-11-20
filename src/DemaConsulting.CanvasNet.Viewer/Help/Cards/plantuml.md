@@ -30,8 +30,8 @@ recognized and reported (see [[plantuml/unsupported]]).
 
 Read the card of your diagram type, for example
 [[plantuml/sequence]]; each has a small source example
-([[#sequence]]). Render with
-`canvasnet render seq.puml -o seq.png --json` and look at the PNG.
+([[#sequence]]). Render it and look at
+the picture.
 
 For colors and fonts read [[plantuml/style]]; to place a diagram
 in a figure or a Mermaid node, [[plantuml/composition]].

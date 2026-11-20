@@ -17,18 +17,19 @@ examples:
     description: A finished flowchart - the base theme with theme variables, three node classes, a link style, and a title.
 ---
 
-Start from the `base` theme, set a few theme variables, and give each role of
-a node a `classDef`. Print a finished example with
-[[mermaid/style#styled]], render it with `--scale 2`,
-and look at the PNG.
+Start from the `base` theme, set a few theme variables, and give each role of a
+node a `classDef`. See a finished example in
+[[mermaid/style#styled]], render it at twice its natural
+size, and look at the picture.
 
 ## Themes
 
 - The themes are `default`, `base`, `dark`, `forest`, and `neutral`. Any other
   theme is not available: it is ignored with `mermaid-config-invalid`.
-- Choose one with `--theme dark`, with `#theme=dark` after the file name in a
-  link or an input path, or with `config.theme` in the YAML frontmatter. A
-  theme the diagram sets itself wins over `--theme`.
+- Choose one with the theme of the render options (`DiagramOptions.Theme`), with
+  `#theme=dark` after the file name in a link or an input path, or with
+  `config.theme` in the YAML frontmatter. A theme the diagram sets itself wins
+  over the option.
 - For your own colors use `theme: base` and set `themeVariables`:
   `primaryColor` (node fill), `primaryBorderColor`, `primaryTextColor`,
   `lineColor`, `edgeLabelBackground` (the box behind a link label; set it to
@@ -61,8 +62,9 @@ and look at the PNG.
 
 ## Size and background
 
-- The natural size is the size Mermaid lays out; draw with `--scale 2` (or
-  `--width`) for a sharp figure, never by resizing a small PNG.
-- A diagram is drawn over white unless `--background` says otherwise;
-  `--background transparent` keeps it clear for a slide or a colored page.
-  Inside an SVG drawing a diagram stays transparent.
+- The natural size is the size Mermaid lays out; draw it at twice that size (a
+  scale factor or a width) for a sharp figure, never by resizing a small
+  picture.
+- A diagram is drawn over the background color of the render (white unless the
+  host says otherwise); a transparent background keeps it clear for a slide or a
+  colored page. Inside an SVG drawing a diagram stays transparent.

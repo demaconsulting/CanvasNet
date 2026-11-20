@@ -21,19 +21,19 @@ examples:
 ---
 
 Show the thing itself in a node: a node can hold a model, a chart, another
-diagram, or a document page that lies beside the diagram. Print the pattern
-with [[mermaid/composition#pictures]].
+diagram, or a document page that lies beside the diagram. See the pattern in
+[[mermaid/composition#pictures]].
 
 ## Pictures in nodes
 
 - Write `id@{ img: "part.scad", label: "Part", w: 120, h: 120 }` in a
   flowchart. Give every picture node its `w` and `h`: they keep the layout
-  stable, and `info` lays the diagram out without the pictures.
+  stable, and a probe lays the diagram out without the pictures.
 - Pick the view or the variant per node with a fragment:
   `img: "part.scad#view=front"`, `img: "chart.vl.json#param.year=2024"`,
   `img: "report.pdf#page=2"` (see [[svg/fragments]]).
 - A picture that is not drawn keeps its frame and is reported
-  (`mermaid-image-unresolved`); add `--strict` to fail instead.
+  (`mermaid-image-unresolved`); in strict mode it fails instead.
 
 ## A diagram in a figure
 
@@ -42,18 +42,17 @@ with [[mermaid/composition#pictures]].
   drawn sharply at that size and stays transparent, so the page color shows.
   Choose a theme for this placement only with `href="flow.mmd#theme=neutral"`.
   See [[svg/composition]] for a complete figure.
-- Show variants side by side with montage, one cell per theme:
-
-```shell
-canvasnet montage "flow.mmd#theme=default" "flow.mmd#theme=neutral" --labels --cell 480x240 -o themes.png
-```
+- Show variants side by side, one per theme: place `flow.mmd#theme=default` and
+  `flow.mmd#theme=neutral` next to each other in a figure or a contact sheet
+  (`MontageBuilder` of the Imaging namespace).
 
 ## Point at a feature
 
-- Render the diagram alone at the size of its placement with `--positions`
-  and `--json`: `node:send` gives the box and center of that node,
-  `edge:@from=pack` the middle of each edge that leaves `pack`. Add the image
-  `x` and `y` for an arrow in a figure (see [[positions/mermaid]]).
+- Render the diagram alone at the size of its placement with position selectors
+  (`ViewerRenderOptions.Positions`): `node:send` gives the box and center of
+  that node, `edge:@from=pack` the middle of each edge that leaves `pack`. Add
+  the image `x` and `y` for an arrow in a figure (see
+  [[positions/mermaid]]).
 
 ## Supported
 
@@ -63,6 +62,6 @@ canvasnet montage "flow.mmd#theme=default" "flow.mmd#theme=neutral" --labels --c
   Vega-Lite chart, a page of a PDF, PPTX, or VSDX document, or another diagram
   that lies beside the diagram; a link takes the fragments of an SVG link
   (part.scad#def.width=20, flow.mmd#theme=dark; see [[svg]] and the
-  pictures example). Give a picture node its w and h, because info lays the
+  pictures example). Give a picture node its w and h, because a probe lays the
   diagram out without its pictures. At most {{mmdMaxImages}} picture loads: a
   picture counts when it is measured and again when it is drawn.

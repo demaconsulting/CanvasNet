@@ -15,9 +15,9 @@ see-also:
   (every type but sequence and activity diagrams); the picture is empty.
 - Every other diagram type is recognized: class, object, usecase, component,
   deployment, state, timing, the legacy activity syntax (activity-legacy), and
-  the `@start` tags of mindmap, gantt, wbs, json, yaml, salt, and the others.
-  info reports it with "supported": false, and render writes an empty picture of
-  20 by 20 pixels with the diagnostic plantuml-diagram-unsupported (--strict
+  the `@start` tags of mindmap, gantt, wbs, json, yaml, salt, and the others. A
+  probe reports it as not supported, and a render draws an empty picture of 20
+  by 20 pixels with the diagnostic plantuml-diagram-unsupported (strict mode
   makes it an unsupported-feature failure).
 - `plantuml-multiple-diagrams`: The text has more than one `@start` block; only
   the first one is drawn.

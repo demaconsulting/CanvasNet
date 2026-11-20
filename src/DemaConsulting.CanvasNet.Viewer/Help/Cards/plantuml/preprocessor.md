@@ -26,9 +26,9 @@ see-also:
 - Includes: !include, !include_once, and !include_many of a local file,
   relative to the file that names it; an .iuml fragment is read whole, and a
   file with @startuml blocks gives its first block.
-- File access: an included file is read under the file-access mode of
-  --file-access and --allow-root, as every other referenced file; a file the
-  mode denies is file-access-denied (see [[files]]).
+- File access: an included file is read under the file-access policy of the
+  render, as every other referenced file; a file the policy denies is
+  file-access-denied (see [[files]]).
 - Network: a URL, the standard library (!include <name>), !includeurl, and
   !includesub are never fetched (plantuml-include-unsupported).
 - Limits: at most {{pumlMaxIncludes}} include directives and

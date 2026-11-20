@@ -45,5 +45,5 @@ dark lines. Change it with skinparam, then render and look at the PNG.
 ## Unsupported
 
 - !theme is reported as plantuml-theme-unsupported and the default look is
-  drawn; there is no --theme for a PlantUML diagram.
+  drawn; there is no theme option for a PlantUML diagram.
 - <style> blocks are reported as plantuml-style-unsupported.

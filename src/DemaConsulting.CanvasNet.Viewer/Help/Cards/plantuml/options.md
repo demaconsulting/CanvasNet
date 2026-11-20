@@ -1,6 +1,6 @@
 ---
 title: Render options of a PlantUML diagram
-summary: Size, background, --strict, file access, and what info reports for a PlantUML diagram.
+summary: Size, background, strict mode, file access, and what a probe reports for a PlantUML diagram.
 tags:
   - plantuml
   - hosting
@@ -10,27 +10,33 @@ see-also:
   - files
 ---
 
+The host chooses these when it renders a diagram: the properties of
+`ViewerRenderOptions` for `CanvasNetViewer.Render`, or of `SourceOptions` for
+the operations of the Imaging namespace.
+
 ## Options
 
-- `--scale`: The natural size is PlantUML's SVG size in pixels (times the
-  diagram's own scale); --scale, --width, and --height draw the diagram sharply
-  at another size (a diagram larger than {{maxDimension}} pixels on a side
-  needs one of them).
-- `--background`: The color under the diagram: the diagram's own background
-  (white, or its skinparam backgroundColor) by default; transparent gives a
-  transparent PNG.
-- `--strict`: Every unsupported construct, and a type that is not drawn,
-  becomes an unsupported-feature error.
-- `--file-access`: The mode the !include files are read under, with
-  --allow-root (see [[files]]).
-- `--theme`: Not for a PlantUML diagram: --theme and --positions are a
-  usage-error on a .puml input.
+- `Scale`: The natural size is PlantUML's SVG size in pixels (times the
+  diagram's own scale); a scale factor, a `Width`, or a `Height` draws the
+  diagram sharply at another size (a diagram larger than {{maxDimension}} pixels
+  on a side needs one of them).
+- `Background`: The color under the diagram: the diagram's own background
+  (white, or its skinparam backgroundColor) by default; a transparent color
+  gives a transparent picture.
+- `ThrowOnUnsupportedFeature`: Strict mode (`SourceOptions.Strict`): every
+  unsupported construct, and a type that is not drawn, becomes an
+  unsupported-feature error.
+- `FileAccess`: The `FileAccessPolicy` the !include files are read under (see
+  [[files]]).
+- Theme and positions: A PlantUML diagram has neither; the Mermaid theme
+  (`DiagramOptions`) and the position selectors do not apply to it.
 
 ## Supported
 
-- info reports the type (sequence, activity, or the name of a type that is not
-  drawn, such as class or usecase), whether this version draws it, the title,
-  and the numbers of nodes, edges, and subgraphs: the participants, messages,
-  and boxes of a sequence diagram; the actions, start, stop, end, connector,
-  and decision nodes, the arrows, and the swimlanes and partitions of an
-  activity diagram. direction and accTitle are absent.
+- A probe (`SourceLoader.Probe`, its `SourceInfo.Diagram`) reports the type
+  (sequence, activity, or the name of a type that is not drawn, such as class or
+  usecase), whether this version draws it, the title, and the numbers of nodes,
+  edges, and subgraphs: the participants, messages, and boxes of a sequence
+  diagram; the actions, start, stop, end, connector, and decision nodes, the
+  arrows, and the swimlanes and partitions of an activity diagram. The direction
+  and the accessible title are absent.

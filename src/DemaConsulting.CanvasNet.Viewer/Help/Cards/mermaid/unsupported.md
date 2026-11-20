@@ -17,7 +17,7 @@ see-also:
   `gitGraph`); the picture is empty.
 - Every other diagram type is recognized: info reports it with "supported":
   false, and render writes an empty picture of 16 by 16 pixels with the
-  diagnostic mermaid-diagram-unsupported (--strict makes it an
+  diagnostic mermaid-diagram-unsupported (strict mode makes it an
   unsupported-feature failure).
 - `mermaid-icon-unsupported`: An icon (`fa:fa-car` in a label, an `@{ icon: ...
   }` node, an `icon` in the `properties` of a sequence participant, an

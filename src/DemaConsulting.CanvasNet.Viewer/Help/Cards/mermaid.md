@@ -38,8 +38,8 @@ bundled fonts. Every other diagram type is recognized and reported (see
 
 Read the card of your diagram type, for example [[mermaid/gantt]];
 each has a small source example
-([[#gantt]]). Render with
-`canvasnet render flow.mmd -o flow.png --json` and look at the PNG.
+([[#gantt]]). Render it and look at the
+picture.
 
 For a good-looking diagram read [[mermaid/style]]; to show pictures
 in nodes or place a diagram in a figure, [[mermaid/composition]].

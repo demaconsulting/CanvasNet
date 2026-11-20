@@ -42,7 +42,8 @@ directive, with Mermaid's precedence.
   MaxLabelLength also bounds the messages and tags that Mermaid composes for
   merges and cherry-picks, so a long chain of cherry-picks of cherry-picks fails
   with mermaid-limit-exceeded; a git graph of more than about 650 commits in one
-  direction needs --scale, --width, or --height to fit the largest picture.
+  direction needs a scale factor, a width, or a height to fit the largest
+  picture.
 - A git graph setting of the wrong type is mermaid-config-invalid and ignored. A
   site configuration that renames or reorders the main branch runs the
   statements again when the git graph is drawn, where an operation that then

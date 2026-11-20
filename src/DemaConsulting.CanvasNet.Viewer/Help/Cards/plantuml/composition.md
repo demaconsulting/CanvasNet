@@ -1,6 +1,6 @@
 ---
 title: PlantUML diagrams in figures, nodes, and documents
-summary: A PlantUML diagram placed in an SVG figure, a Mermaid node, a montage, or a Pandoc document.
+summary: A PlantUML diagram placed in an SVG figure, a Mermaid node, or a contact sheet.
 tags:
   - plantuml
   - composition
@@ -16,17 +16,15 @@ at the size of its placement and over a transparent background.
 
 ## Supported
 
-- SVG figure: `<image href="seq.puml" x="40" y="120" width="560"
-  height="420"/>` draws the diagram that lies beside the SVG file; read its
-  natural size with `canvasnet info seq.puml --json` and keep that aspect
-  ratio.
+- SVG figure: `<image href="seq.puml" x="40" y="120" width="560" height="420"/>`
+  draws the diagram that lies beside the SVG file; keep the aspect ratio of its
+  natural size (the size it is drawn at when no size is asked for).
 - Mermaid node: `p@{ img: "seq.puml", w: 240, h: 200 }` shows the diagram in
   a node of a Mermaid flowchart (see [[mermaid/composition]]).
-- Pandoc: a code block of class plantuml and a picture whose source ends in
-  .puml, .plantuml, or .pu are drawn by the filter (see `canvasnet help
-  pandoc`).
-- Montage and flatten: canvasnet montage takes .puml inputs, and canvasnet
-  flatten replaces a linked .puml with a PNG for other SVG readers.
+- Contact sheets and flattening: a contact sheet (`MontageBuilder` of the
+  Imaging namespace) takes .puml inputs, and flattening
+  ([[svg/flatten]]) replaces a linked .puml with a PNG for other
+  SVG readers.
 - Includes: an embedded diagram reads its !include files from its own folder
   under the same file-access mode.
 
@@ -35,5 +33,5 @@ at the size of its placement and over a transparent background.
 - A fragment on a .puml link (seq.puml#theme=dark) is drawn without it and
   reported as image-fragment-unknown-parameter: a PlantUML diagram takes no
   fragment parameter.
-- A PlantUML diagram reports no feature positions, so --positions and SVG
+- A PlantUML diagram reports no feature positions, so position selectors and SVG
   position bindings cannot point at its participants or actions.
