@@ -13,9 +13,10 @@ see-also:
 ---
 
 Decide the final size first, choose a small palette, and check every change in
-the rendered PNG. The style card of each format shows the syntax:
-[[mermaid/style]], `plantuml style`, `vega-lite style`, `svg
-style`, and `scad style`.
+the rendered picture. The style card of each format shows the syntax:
+[[mermaid/style]], [[plantuml/style]],
+[[vega-lite/style]], [[svg/style]], and
+[[scad/style]].
 
 ## Palette and contrast
 
@@ -30,14 +31,13 @@ style`, and `scad style`.
 
 ## Font sizes and output size
 
-- Text and lines scale with the picture: `--scale 2` doubles them, and
-  `--width` scales the picture to fit. Pick the final width (1200 pixels for a
-  figure across a page), then size the text for it: a title about twice the
-  body text, and no label below 12 pixels at the final size.
-- An embedded picture is drawn at the size of its placement, and its text
-  scales with it: place it near its natural size (`canvasnet info file --json`
-  reports `image.width` and `image.height`) so its text matches the text
-  around it.
+- Text and lines scale with the picture: a scale of 2 doubles them, and a width
+  scales the picture to fit. Pick the final width (1200 pixels for a figure
+  across a page), then size the text for it: a title about twice the body text,
+  and no label below 12 pixels at the final size.
+- An embedded picture is drawn at the size of its placement, and its text scales
+  with it: place it near its natural size (the size it is drawn at when no size
+  is asked for) so its text matches the text around it.
 - Mermaid, PlantUML, and Vega-Lite text is always drawn with the bundled fonts;
   in SVG use the generic families (`sans-serif`, `serif`, `monospace`), which
   are bundled too, because an installed family differs between machines.
@@ -51,26 +51,25 @@ style`, and `scad style`.
 
 ## Light and dark backgrounds
 
-- A drawing, chart, diagram, or model is drawn over white unless `--background`
-  says otherwise. `--background transparent` keeps it clear for a slide or a
-  colored page; JPEG has no transparency, so it is flattened over the
-  background.
-- For a dark page use a dark `--background` together with a dark design
-  (Mermaid `--theme dark`, light chart text and axes).
+- A drawing, chart, diagram, or model is drawn over the background color of the
+  render (white unless the host says otherwise). A transparent background keeps
+  it clear for a slide or a colored page; JPEG has no transparency, so it is
+  flattened over the background.
+- For a dark page use a dark background together with a dark design (the Mermaid
+  theme dark, light chart text and axes).
 - Inside an SVG figure a diagram and a model stay transparent, and a chart
   keeps its own background unless it sets `"background": "transparent"`.
 
 ## Resolution
 
-- Draw a vector source at the target size with `--width`, `--height`,
-  `--size`, or `--scale` instead of resizing a small PNG; for a high-density
-  screen draw at twice the display size. No side may exceed {{maxDimension}}
-  pixels.
+- Draw a vector source at the target size (a width, a height, a box, or a scale
+  factor) instead of resizing a small picture; for a high-density screen draw at
+  twice the display size. No side may exceed {{maxDimension}} pixels.
 
 ## Check the result
 
-- Render with `--strict --json`: a construct that is left out becomes an error,
-  and `diagnostics[]` lists the warnings that remain.
-- Look at the PNG after every change. `canvasnet inspect colors out.png` lists
-  its dominant colors, and `canvasnet compare old.png new.png` measures what an
-  edit changed.
+- Render in strict mode: a construct that is left out becomes an error, and the
+  diagnostics of the picture list the warnings that remain.
+- Look at the picture after every change. The dominant colors of the picture
+  (`ImageInspector` of the Imaging namespace) show its palette, and a comparison
+  with the previous picture (`ImageComparer`) measures what an edit changed.

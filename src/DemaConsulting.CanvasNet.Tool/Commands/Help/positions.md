@@ -14,3 +14,14 @@ examples:
     content: 'canvasnet render bar.vl.json --positions mark:x=B --positions axis -o bar.png --json'
     description: The bar of stall B and both axes of the bar chart example.
 ---
+
+## Command line
+
+- `--positions <selector>`: Render with `--positions <selector> --json`; it
+  needs `--json` and a diagram or chart; repeat it to ask for more
+  ([[#read-positions]], [[#read-marks]]). With `--strict` a
+  selector that matches nothing is the error positions-unmatched and nothing is
+  written.
+- In the JSON result each item of `positions[]` is {kind, id, ..., box: {x, y,
+  width, height}, pixel: [x, y], inside}, and positionsTruncated is true when
+  more matched.

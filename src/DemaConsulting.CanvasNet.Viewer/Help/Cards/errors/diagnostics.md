@@ -7,19 +7,12 @@ see-also:
   - errors
 ---
 
-- A diagnostic is a note in diagnostics[] of a successful result: the picture
-  was drawn without a feature (severity unsupported) or with a questionable
-  construct (severity warning). Read diagnostics even when ok is true.
-- Without --json each diagnostic is also written to standard error, one line
-  each: 'Unsupported: <code>: <message>' for severity unsupported and
-  'Warning: <code>: <message>' for severity warning, with the input and page (or
-  the side of a comparison) in parentheses at the end. The exit code stays 0 and
-  standard output keeps only the result. At most 20 are written, then '... and N
-  more diagnostics (use --json for all)'.
-- A SCAD model's echo output is written to standard error as the model printed
-  it ('ECHO: <text>'), at most 20 lines. --silent suppresses all of these lines;
-  with --json none are written (standard output is one JSON document and
-  diagnostics[] and echo[] carry the same notes).
+- A diagnostic is a note of a successful render (`ViewerImage.Diagnostics`, each
+  with its `Severity`, `Code`, `Message`, and `Detail`): the picture was drawn
+  without a feature (severity unsupported) or with a questionable construct
+  (severity warning). Read the diagnostics even when the render succeeded.
+- A SCAD model's echo output is kept as the model printed it ('ECHO: <text>',
+  `ViewerImage.Echo`).
 - Only SCAD models, Vega-Lite charts, Mermaid and PlantUML diagrams, PPTX
   documents (skipped EMF and WMF pictures), VSDX documents, and SVG files (an
   image that was not drawn, text that is not drawn or lacks a feature,
@@ -31,12 +24,12 @@ see-also:
   plantuml-warning for a PlantUML diagram (the plantuml-* code is in detail),
   svg-image-unresolved for an SVG image that was not drawn, svg-image-too-large
   for an SVG image whose picture is over the pixel budget,
-  image-access-denied for an image the file-access mode denies, and
+  image-access-denied for an image the file-access policy denies, and
   svg-arrowhead-shape for an arrowhead drawn by hand instead of with a marker
-  (it never fails a command, not even with --strict).
+  (it never fails a render, not even in strict mode).
 - The fragment of an input path (part.scad#def.width=20) adds three warning
   codes, the same as for an SVG link: image-fragment-unknown-parameter,
   image-fragment-duplicate-parameter, and vl-param-unknown (a chart). They never
-  fail a command, not even with --strict. A fragment value that cannot be used
+  fail a render, not even in strict mode. A fragment value that cannot be used
   is the error image-fragment-invalid, and a page the file does not have is
   page-out-of-range.

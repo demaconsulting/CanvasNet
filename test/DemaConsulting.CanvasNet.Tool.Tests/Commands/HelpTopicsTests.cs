@@ -607,7 +607,7 @@ public partial class HelpTopicsTests
         var pandocTerms = HelpCardText.Items("pandoc").Select(i => i.Term).ToList();
 
         // Assert: the headings and the terms
-        Assert.Equal(["Modes", "Options", "In every mode", "Diagnostics", "The Pandoc filter"], HelpCardText.Headings(card.Body));
+        Assert.Equal(["Modes", "Options", "In every mode", "Diagnostics", "Command line", "The Pandoc filter"], HelpCardText.Headings(card.Body));
         foreach (var term in new[] { "any", "roots", "no-symlinks", "roots,no-symlinks", "--file-access <mode>", "--allow-root <folder>", "inputs", "never read", "limits" })
         {
             Assert.Contains(term, terms);

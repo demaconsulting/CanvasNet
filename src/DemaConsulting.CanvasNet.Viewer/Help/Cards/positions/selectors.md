@@ -1,6 +1,6 @@
 ---
 title: Position selectors
-summary: The grammar of --positions - kinds, id globs, quoted ids, typed predicates - and shell quoting.
+summary: The grammar of position selectors - kinds, id globs, quoted ids, and typed predicates.
 tags:
   - mermaid
   - vega-lite
@@ -12,8 +12,8 @@ see-also:
   - limits
 ---
 
-Each `--positions` takes one selector; repeat the option for more. An item that
-any selector matches is listed once.
+A `PositionSelection` holds one or more selectors (`PositionSelection.Parse` of
+their texts); an item that any selector matches is listed once.
 
 ## Grammar
 
@@ -44,11 +44,11 @@ value       := json-string | bare    bare: true, false, null, a number, else tex
 - Prefer data fields for marks: `data` holds what the data says, `values`
   what the encoding made of it (a month time unit puts `x` in the year 2012;
   see [[positions/vega-lite]]).
-- A bare value reads as `--param` reads one, so `mark:x=3` is the number 3
-  (equal to 3.0) and `mark:x="3"` the text. A date in `values` is UTC ISO
-  text such as `"2025-01-01T00:00:00.000Z"`; a date in `data` is the text the
-  data gave. A missing name never matches; `x=null` matches a name that holds
-  null. An array or object is refused.
+- A bare value reads as the value of a chart param does, so `mark:x=3` is the
+  number 3 (equal to 3.0) and `mark:x="3"` the text. A date in `values` is UTC
+  ISO text such as `"2025-01-01T00:00:00.000Z"`; a date in `data` is the text
+  the data gave. A missing name never matches; `x=null` matches a name that
+  holds null. An array or object is refused.
 - `@id` is the exact id, `@view` the view path, `@from` and `@to` the ends of
   an edge or message, and `@index` its number among parallel ones:
   `edge:@from=A+@to=B+@index=0`, `axis:@id=x+@view="hconcat[1]"`.
@@ -58,14 +58,5 @@ value       := json-string | bare    bare: true, false, null, a number, else tex
 
 - At most {{positionsMaxSelectors}} selectors, each at most
   {{positionsMaxSelectorLength}} characters with at most
-  {{positionsMaxPredicates}} predicates; a malformed selector is usage-error.
-
-## Quoting
-
-Quote a selector that has `*`, `?`, `"`, a space, or `&`:
-
-- bash and zsh: single quotes, `'node:"my*odd id"'`.
-- PowerShell 7.3 or later: single quotes, as in bash. Windows PowerShell 5.1
-  drops the inner double quotes, so use 7.3 or later.
-- cmd: no single quotes; double quotes with `\"` inside,
-  `"node:\"my*odd id\""`.
+  {{positionsMaxPredicates}} predicates; `PositionSelection.Parse` refuses a
+  malformed selector with a `FormatException`.
