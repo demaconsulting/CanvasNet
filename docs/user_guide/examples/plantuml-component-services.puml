@@ -1,0 +1,20 @@
+@startuml
+' Gallery: components in nested containers, a database, a queue, link styles, and stereotypes
+title Order services
+package "Front end" {
+  [Web shop] as Web
+  [Mobile app] as Mobile
+}
+node "Application server" {
+  component Orders <<service>>
+  component Billing <<service>>
+  queue Events
+}
+database "Order store" as Store
+Web --> Orders : REST
+Mobile --> Orders : REST
+Orders ..> Events : publish
+Events ..> Billing : consume
+Orders --> Store
+Billing ==> Store : nightly
+@enduml

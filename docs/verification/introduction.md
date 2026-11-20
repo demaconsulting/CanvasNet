@@ -124,14 +124,14 @@ constituent software items, specifically:
   *CanvasNetMermaid System Verification* (`canvas-net-mermaid.md`)
 - **CanvasNetPlantUml (System)** — A separate software system providing a PlantUML diagram renderer that parses PlantUML
   text, draws sequence diagrams and activity diagrams (the new syntax) with PlantUML's own layout and look and class,
-  object, and state diagrams with PlantUML's shapes over a layered layout, recognizes every other PlantUML diagram type
-  and reports it as unsupported, containing a single direct unit, `PlantUmlDocument` (the public API and the image
-  source), and eight internal subsystems: `Syntax` (units `Preprocessor` and `DiagramDetector`), `Styling` (units
-  `SkinTheme` and `SkinParams`), `Scenegraph` (units `SceneModel`, `TextLayout`, and `ScenePainter`), `Sequence` (units
-  `SequenceParser`, `SequenceModel`, `SequenceLayout`, and `SequenceRenderer`), `Activity` (units `ActivityParser`,
-  `ActivityModel`, `ActivityLayout`, and `ActivityRenderer`), `Svek` (units `SvekModel`, `SvekSyntax`, `SvekLayout`,
-  `SvekGeometry`, and `SvekRenderer`), `Class` (units `ClassParser`, `ClassModel`, and `ClassRenderer`), and `State`
-  (units `StateParser`, `StateModel`, and `StateRenderer`) — see
+  object, state, use case, component, and deployment diagrams with PlantUML's shapes over a layered layout, recognizes
+  every other PlantUML diagram type and reports it as unsupported, containing a single direct unit, `PlantUmlDocument`
+  (the public API and the image source), and eight internal subsystems: `Syntax` (units `Preprocessor` and
+  `DiagramDetector`), `Styling` (units `SkinTheme` and `SkinParams`), `Scenegraph` (units `SceneModel`, `TextLayout`,
+  and `ScenePainter`), `Sequence` (units `SequenceParser`, `SequenceModel`, `SequenceLayout`, and `SequenceRenderer`),
+  `Activity` (units `ActivityParser`, `ActivityModel`, `ActivityLayout`, and `ActivityRenderer`), `Svek` (units
+  `SvekModel`, `SvekSyntax`, `SvekLayout`, `SvekGeometry`, and `SvekRenderer`), `Class` (units `ClassParser`,
+  `ClassModel`, and `ClassRenderer`), and `State` (units `StateParser`, `StateModel`, and `StateRenderer`) — see
   *CanvasNetPlantUml System Verification* (`canvas-net-plant-uml.md`)
 - **CanvasNetViewer (System)** — A separate software system, distributed as the `DemaConsulting.CanvasNet.Viewer`
   package, that lists the image sources of every format, creates the image resolver that lets an SVG document embed

@@ -29,8 +29,12 @@ PNG.
   swimlaneTitle, partition, title, header, footer, legend, and caption; in
   class and object diagrams also class, classStereotype, classAttribute (the
   members), object, objectStereotype, map, and package; in state diagrams also
-  state and stateAttribute (the descriptions); and arrow styles the links of
-  both.
+  state and stateAttribute (the descriptions); in use case, component, and
+  deployment diagrams also usecase, component, interface, node, rectangle,
+  folder, frame, cloud, card, artifact, storage, file, stack, agent, hexagon,
+  person, label, and package, and the participant kinds style their actors,
+  databases, queues, boundaries, controls, entities, and collections; and
+  arrow styles the links of all these diagrams.
 - Properties: BackgroundColor, BorderColor, FontColor, FontSize, FontName,
   FontStyle, and BorderThickness of each element.
 - Document: backgroundColor (transparent keeps the page), defaultFontName,
@@ -39,7 +43,8 @@ PNG.
   maxMessageSize, and footbox; in class and object diagrams also
   classAttributeIconSize (0 writes the visibility characters instead of
   icons) and circledCharacterRadius; in state diagrams also stateStartColor
-  and stateEndColor; and in both nodesep and ranksep.
+  and stateEndColor; and in class, object, state, use case, component, and
+  deployment diagrams nodesep and ranksep.
 - Colors: HTML color names, #RRGGBB, #RRGGBBAA, #RGB, one hex digit for a gray
   (#8), and transparent; a gradient uses its first color.
 - Fonts: sans-serif, SansSerif, Arial, and any unknown name are Liberation

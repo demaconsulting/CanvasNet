@@ -7,9 +7,10 @@
 `PlantUmlDocument` (namespace `DemaConsulting.CanvasNet.PlantUml`) is distributed via the separate
 `DemaConsulting.CanvasNet.PlantUml` NuGet package, whose only dependency is the core `DemaConsulting.CanvasNet` package.
 It reads diagrams written in the PlantUML text language and draws **sequence diagrams**, **activity diagrams** (the new
-syntax), **class diagrams**, **object diagrams**, and **state diagrams** as static pictures with PlantUML's default
-look, using only managed code and the fonts bundled with the libraries: no Java, no Graphviz, and no network. Every
-other PlantUML diagram type is recognized and reported, never drawn wrongly. The package is derived with attribution
+syntax), **class diagrams**, **object diagrams**, **state diagrams**, **use case diagrams**, **component diagrams**,
+and **deployment diagrams** as static pictures with PlantUML's default look, using only managed code and the fonts
+bundled with the libraries: no Java, no Graphviz, and no network. Every other PlantUML diagram type is recognized and
+reported, never drawn wrongly. The package is derived with attribution
 from the MIT-licensed PlantUML sources and is **not affiliated with or endorsed by** the PlantUML project (see *PlantUML
 Third-Party Attribution*).
 
@@ -23,9 +24,10 @@ dotnet add package DemaConsulting.CanvasNet.PlantUml
 A sequence diagram is laid out as PlantUML 1.2026.10 lays it out with its teoz engine, and an activity diagram as
 PlantUML lays out the new activity syntax with its tile ("ftile") composition, so the participants, messages, actions,
 decisions, and lanes land where PlantUML puts them. Neither needs Graphviz, in PlantUML or here. PlantUML lays out
-class, object, and state diagrams with Graphviz; this package lays them out with the dagre layered layout of the shared
-`DemaConsulting.CanvasNet.Layout` package instead, so the boxes, members, packages, states, notes, and arrows have
-PlantUML's shapes and look, but they are placed differently (see *Fonts, Determinism, and Known Differences*). A
+class, object, state, use case, component, and deployment diagrams with Graphviz; this package lays them out with the
+dagre layered layout of the shared `DemaConsulting.CanvasNet.Layout` package instead, so the boxes, members, packages,
+states, actors, use cases, components, nodes, notes, and arrows have PlantUML's shapes and look, but they are placed
+differently (see *Fonts, Determinism, and Known Differences*). A
 document is **immutable and thread-safe**: it is read and validated once and can then be measured and rendered any
 number of times, from several threads at once, each call giving the same result for the same options.
 
@@ -37,12 +39,12 @@ public sealed partial class PlantUmlDocument
     public static PlantUmlDocument Open(Stream stream, PlantUmlOpenOptions? options = null);
 
     public string? SourceName { get; }
-    public string DiagramType { get; }      // "sequence", "activity", "class", "object", "state", or a type not drawn
+    public string DiagramType { get; }      // "sequence", "activity", "class", "object", "state", "usecase", ...
     public bool IsSupported { get; }        // true when this version draws the type
     public string? Title { get; }           // the title statement
-    public int NodeCount { get; }           // participants; actions, start, stop, ...; classes, objects, maps; or states
-    public int EdgeCount { get; }           // messages, arrows, relationships, or transitions
-    public int SubgraphCount { get; }       // boxes, swimlanes and partitions, packages, or composite states
+    public int NodeCount { get; }           // participants; actions, ...; classes, objects, maps; states; or elements
+    public int EdgeCount { get; }           // messages, arrows, relationships, transitions, or links
+    public int SubgraphCount { get; }       // boxes, swimlanes and partitions, packages, composite states, containers
 
     public PlantUmlSize Measure(
         PlantUmlRenderOptions? options = null,
@@ -76,11 +78,14 @@ public sealed partial class PlantUmlDocument
   notes do not), and `SubgraphCount` the number of packages and namespaces that hold something. For a state diagram,
   `NodeCount` is the number of states and pseudo-states (start, end, choice, fork, join, junction, and history; notes do
   not count), `EdgeCount` the number of transitions (links to notes do not count), and `SubgraphCount` the number of
-  composite states. For a type that is not drawn, `IsSupported` is `false`, `Title` is `null`, and the counts are
-  zero. `DiagramType` is `sequence`, `activity`, `class`, `object` (a class diagram whose first declaration is an object
-  or a map), `state`, `usecase`, `component`, `deployment`, or the name of the type that is not drawn: `timing`,
-  `activity-legacy` (the old `(*) --> ...` syntax), or the type of another `@start` tag, such as `mindmap`, `gantt`,
-  `wbs`, `json`, `yaml`, or `salt`.
+  composite states. For a use case, component, or deployment diagram, `NodeCount` is the number of elements that hold
+  nothing (actors, use cases, components, interfaces, and the other symbols; notes and ports do not count), `EdgeCount`
+  the number of links (hidden ones count, links to notes do not), and `SubgraphCount` the number of containers. For a
+  type that is not drawn, `IsSupported` is `false`, `Title` is `null`, and the counts are zero. `DiagramType` is
+  `sequence`, `activity`, `class`, `object` (a class diagram whose first declaration is an object or a map), `state`,
+  `usecase`, `component`, `deployment`, or the name of the type that is not drawn: `timing`, `activity-legacy` (the
+  old `(*) --> ...` syntax), or the type of another `@start` tag, such as `mindmap`, `gantt`, `wbs`, `json`, `yaml`, or
+  `salt`.
 - `Measure` lays the diagram out and returns the size that `Render` produces for the same options, without drawing. It
   delivers the same reports as `Render`.
 - `Render()` draws the diagram onto a new `Surface` at its **natural size** (the size of PlantUML's SVG, rounded up to
@@ -169,16 +174,18 @@ The limits, with their defaults and what they bound:
   comments do not count but text that a macro or an include produces does. The whole text as supplied may be four times
   as long. Exceeding it throws `InvalidDataException`.
 - `MaxNodes` (default 2,000): the participants of a sequence diagram, the instructions and swimlanes of an activity
-  diagram, the classes, objects, maps, and notes of a class or object diagram, or the states, pseudo-states, and notes
-  of a state diagram.
+  diagram, the classes, objects, maps, and notes of a class or object diagram, the states, pseudo-states, and notes of a
+  state diagram, or the elements, notes, and ports of a use case, component, or deployment diagram.
 - `MaxEdges` (default 500): the messages of a sequence diagram, the arrows of an activity diagram, the relationships
-  of a class or object diagram, or the transitions of a state diagram.
+  of a class or object diagram, the transitions of a state diagram, or the links of a use case, component, or deployment
+  diagram.
 - `MaxLabelLength` (default 4,096): one text (a participant name, a message, an action, a condition, an arrow label, a
-  class name, a member, a state name or description, a note, a group header, a divider, a title, or a legend), in
+  class name, a member, a state name or description, an element name or description, a note, a group header, a divider,
+  a title, or a legend), in
   UTF-16 characters.
 - `MaxNestingDepth` (default 32, at most 256): groups inside groups, ifs, loops, forks, splits, and partitions inside
-  each other, packages inside packages (the packages of a dotted name count), or composite states inside composite
-  states.
+  each other, packages inside packages (the packages of a dotted name count), composite states inside composite states,
+  or containers inside containers.
 - `MaxIncludeDepth` (default 16, at most 64): an included file that includes another file, and so on.
 - `MaxIncludes` (default 64): the include directives followed for one diagram; every followed directive counts.
 - `MaxLayoutWork` (default 50,000,000): the metered steps of the layout.
@@ -234,15 +241,20 @@ at PlantUML's sizes (participants 14 pixels, messages 13, activity texts 12, tit
   `sequenceDelay`, `sequenceLifeLine`, `arrow`, `activity`, `activityDiamond`, `swimlane` and `swimlaneTitle`,
   `partition`, `title`, `header`, `footer`, `legend`, and `caption`; in class and object diagrams also `class`,
   `classStereotype`, `classAttribute` (the members), `object`, `objectStereotype`, `map`, and `package`; in state
-  diagrams also `state` and `stateAttribute` (the descriptions); and `arrow` styles the links of both.
+  diagrams also `state` and `stateAttribute` (the descriptions); in use case, component, and deployment diagrams also
+  `usecase`, `component`, `interface`, `node`, `rectangle`, `folder`, `frame`, `cloud`, `card`, `artifact`, `storage`,
+  `file`, `stack`, `agent`, `hexagon`, `person`, `label`, and `package`, and the participant kinds style their actors,
+  databases, queues, boundaries, controls, entities, and collections; and `arrow` styles the links of all these
+  diagrams.
 - Properties of each element: `BackgroundColor`, `BorderColor`, `FontColor`, `FontSize`, `FontName`, `FontStyle`, and
   `BorderThickness`.
 - Document settings: `backgroundColor` (`transparent` keeps the page clear), `defaultFontName`, `defaultFontSize`,
   `defaultFontColor`, `roundCorner`, `shadowing false`, `sequenceArrowThickness`, `sequenceMessageAlign`,
   `responseMessageBelowArrow`, `maxMessageSize`, and `footbox`; in class and object diagrams also
   `classAttributeIconSize` (0 writes the visibility characters instead of icons) and `circledCharacterRadius`; in state
-  diagrams also `stateStartColor` and `stateEndColor` (the start and end circles); and in both `nodesep` and
-  `ranksep` (the spaces between neighbors and between ranks of the layout).
+  diagrams also `stateStartColor` and `stateEndColor` (the start and end circles); and in class, object, state, use
+  case, component, and deployment diagrams `nodesep` and `ranksep` (the spaces between neighbors and between ranks of
+  the layout).
 - Colors: HTML color names, `#RRGGBB`, `#RRGGBBAA`, `#RGB`, one hexadecimal digit for a gray (`#8`), and `transparent`.
   A gradient (`#red/blue`) uses its first color.
 
@@ -383,6 +395,80 @@ This list is also the *Supported* section of `canvasnet help plantuml state`; a 
 - **Page texts**: `title`, `header`, `footer`, `caption`, and `legend` ... `endlegend`, `left to right direction` and
   `top to bottom direction`, and `scale N`.
 
+### Supported Use Case Syntax
+
+This list is also the *Supported* section of `canvasnet help plantuml usecase`; a test keeps the two the same.
+
+- **Use case diagrams**: a diagram of description elements and links is a use case diagram when a statement names an
+  actor or a use case (`actor`, `usecase`, `:Name:`, `(Name)`), recognized in the order PlantUML tries its diagram
+  types. It is drawn with PlantUML's shapes and look and laid out with the dagre layered layout instead of Graphviz.
+- **Actors**: `actor Name`, `:Name:`, `actor "Long name" as A` (or `actor A as "Long name"`), and `:Long name: as A`,
+  drawn as PlantUML's stick figure with the name below it; `actor/ Name` and `:Name:/` draw a business actor, with a
+  slash across the head.
+- **Use cases**: `usecase Name`, `(Name)`, `usecase "Long name" as U` (or `usecase U as "Long name"`), and
+  `(Long name) as U`, drawn as an ellipse sized around the name; `usecase/ Name` and `(Name)/` draw a business use
+  case, with a slash across the ellipse.
+- **Names**: `\n` breaks a line of a name, stereotypes (`<<name>>`, several) are written above it, and `#color` or
+  `#back;line:color;text:color` colors an element; a name used only by a link is an actor.
+- **Boundaries**: `rectangle Name { ... }`, `package Name { ... }`, and the other containers of a component diagram,
+  nested, with a quoted title, stereotypes, and a `#color`, around actors and use cases.
+- **Links**: `-->` and `..>` (dashed) with an arrowhead, `--` and `..` without one, extension `<|--` and `--|>`, in
+  either direction, a label after a colon, `<<include>>` and `<<extend>>` labels written with guillemets
+  (`«include»`), and the lengths, direction hints, and styles of the links of a component diagram.
+- **Notes**: `note left`, `right`, `top`, or `bottom of Name`, a note after a declaration (`note left : text`), `note on
+  link`, and floating notes (`note "text" as N`) linked with `..`, on one line or up to `end note`, with a color.
+- **Page texts**: `title`, `header`, `footer`, `caption`, and `legend` ... `endlegend`, `left to right direction` and
+  `top to bottom direction`, and `scale N`.
+
+### Supported Component Syntax
+
+This list is also the *Supported* section of `canvasnet help plantuml component`; a test keeps the two the same.
+
+- **Component diagrams**: a diagram of description elements and links without an actor or a use case is a component
+  diagram when a statement names a component, an interface, or a port (`component`, `interface`, `[Name]`, `() Name`),
+  recognized in the order PlantUML tries its diagram types. It is drawn with PlantUML's shapes and look and laid out
+  with the dagre layered layout instead of Graphviz.
+- **Components**: `component Name`, `[Name]`, `component "Long name" as C` (or `component C as "Long name"`), and
+  `[Long name] as C`, drawn as a box with PlantUML's component icon; a description in brackets over several lines
+  (`component C [` ... `]`) replaces the name.
+- **Interfaces**: `interface Name`, `() Name`, and `() "Long name" as I`, drawn as a small circle with the name below
+  it; a name used only by a link is an interface.
+- **Other elements**: `node`, `rectangle`, `folder`, `package`, `frame`, `cloud`, `database`, `card`, and every symbol
+  of a deployment diagram, each with a display name (`as`), stereotypes (`<<name>>`, several, written above the name),
+  and `#color` or `#back;line:color;text:color`.
+- **Containers**: `package`, `node`, `folder`, `frame`, `cloud`, `database`, `rectangle`, `card`, and `component` with
+  `{ ... }`, nested, named or not, with a quoted title, stereotypes, and a `#color`; an element inside a container is
+  found from outside by its short name when only one element has that name, and a link can start or end at a
+  container.
+- **Links**: `-->` and `..>` (dashed) with an arrowhead, `==>` (bold), `--` and `..` without one, the ends of the
+  relationships of a class diagram (`<|--`, `*--`, `o--`, ...), the sockets `)--`, `0)--`, `--(`, and `--(0`, a label
+  after a colon with its direction mark `<` or `>`, labels in quotes at both ends, the length of the arrow (one dash
+  keeps both ends side by side, each further dash adds a rank), `-up->`, `-down->`, `-left->`, and `-right->` (or
+  `-u->`, `-d->`, `-l->`, `-r->`), and the styles `-[hidden]->`, `-[#color]->`, `-[dashed]->`, `-[dotted]->`,
+  `-[bold]->`, and `-[thickness=N]->`.
+- **Notes**: `note left`, `right`, `top`, or `bottom of Name`, a note after a declaration (`note left : text`), `note on
+  link`, and floating notes (`note "text" as N`) linked with `..`, on one line or up to `end note`, with a color.
+- **Page texts**: `title`, `header`, `footer`, `caption`, and `legend` ... `endlegend`, `left to right direction` and
+  `top to bottom direction`, and `scale N`.
+
+### Supported Deployment Syntax
+
+This list is also the *Supported* section of `canvasnet help plantuml deployment`; a test keeps the two the same.
+
+- **Deployment diagrams**: a diagram of description elements and links without an actor, a use case, a component, an
+  interface, or a port is a deployment diagram (`node`, `artifact`, `database`, `cloud`, ...), recognized in the order
+  PlantUML tries its diagram types. It is drawn with PlantUML's shapes and look and laid out with the dagre layered
+  layout instead of Graphviz.
+- **Elements**: `node`, `artifact`, `database`, `cloud`, `folder`, `package`, `frame`, `rectangle`, `card`, `file`,
+  `storage`, `queue`, `stack`, `agent`, `hexagon`, `person`, `boundary`, `control`, `entity`, `collections`, and
+  `label`, each drawn with PlantUML's symbol, and `circle`, drawn as an interface, each with a display name (`as`),
+  stereotypes, and `#color` or `#back;line:color;text:color`.
+- **Containers**: every symbol but `person`, `boundary`, `control`, `entity`, `collections`, `label`, `agent`, and
+  `circle` holds elements with `{ ... }`, nested, drawn with its own outline, a quoted title, stereotypes, and a
+  `#color`.
+- **Links, notes, and page texts**: the links, notes, page texts, direction, and `scale` of a component diagram,
+  between elements and containers at any depth.
+
 ### PlantUML Unsupported Features and Strict Mode
 
 A construct that PlantUML defines but this package does not draw is reported as a `PlantUmlUnsupportedFeature` with a
@@ -403,7 +489,8 @@ The codes, with their kind and when each is reported:
 - **`plantuml-style-unsupported`**: Unsupported: A `<style>` block; it is skipped.
 - **`plantuml-statement-unsupported`**: Unsupported: A statement PlantUML defines that this version does not draw (`ref
   over`, `newpage`, `switch`, `goto`, a specification and description language box style, a role or a crow's foot of
-  a class relationship, `together`, an entry point of a state diagram, ...); the rest of the diagram is drawn.
+  a class relationship, `together`, an entry point of a state diagram, a port of a component diagram, ...); the rest of
+  the diagram is drawn.
 - **`plantuml-markup-unsupported`**: Unsupported: Creole markup outside the subset (images, sprites, icons, tables,
   lists, headings); the markup is drawn as text.
 - **`plantuml-syntax-error`**: Error (plantuml-error): a statement no parser of the diagram type accepts, an empty
@@ -458,11 +545,12 @@ The layout is checked against PlantUML itself: a set of original reference diagr
 PlantUML 1.2026.10 (`tools/visual-diff/update-plantuml-goldens.ps1` draws them again; it is never run by the build),
 and the size of each picture, the place of every text, and the boxes of the participants, messages, life lines,
 actions, circles, diamonds, and hexagons agree with PlantUML's SVG within 1.5 pixels (the size within 3%). For class,
-object, and state diagrams, which PlantUML lays out with Graphviz (the reference pictures use its built-in Smetana
-port), the shapes are checked instead of the places: the same classes, states, packages, and notes, the size and colors
-of every box, circle, and diamond, the place of every text inside its box (within 1.5 pixels), the icons, separators,
-and header lines, the titles of the packages and composite states, and the style, decorations, and labels of every
-relationship and transition. The known differences from PlantUML are:
+object, state, use case, component, and deployment diagrams, which PlantUML lays out with Graphviz (the reference
+pictures use its built-in Smetana port), the shapes are checked instead of the places: the same classes, states,
+actors, use cases, components, symbols, packages, containers, and notes, the size and colors of every box, circle,
+ellipse, and diamond, the place of every text inside its box (within 1.5 pixels), the icons, separators, and header
+lines, the titles of the packages, composite states, and containers, and the style, decorations, and labels of every
+relationship, transition, and link. The known differences from PlantUML are:
 
 - **Fonts.** PlantUML uses the fonts of the Java runtime, so its pictures differ from these where Arial is not the
   sans-serif font. The glyph shapes differ slightly from Arial; the positions do not.
@@ -498,6 +586,36 @@ relationship and transition. The known differences from PlantUML are:
   transition between two concurrent regions is a `plantuml-syntax-error`, as PlantUML refuses it. A state named like a
   floating note is a `plantuml-syntax-error`, where PlantUML accepts it; both refuse a floating note named like a
   state.
+- **Use case diagrams.** They are laid out with the dagre layered layout instead of Graphviz, like class diagrams, so
+  the actors, use cases, boundaries, and arrows have PlantUML's shapes and sizes (a use case's ellipse is sized around
+  its texts as PlantUML sizes it) but other places, and the differences of component diagrams below apply (the three
+  description diagrams share their reading and drawing). A name only written in links is an actor when the diagram
+  has an actor or a use case, as in PlantUML. The `<<include>>` and `<<extend>>` labels of links are written with
+  guillemets, as PlantUML writes them; double angle brackets in the name of an element (`(Check <<x>>)`) are drawn as
+  written, where PlantUML writes guillemets in every text. `skinparam actorStyle` (the awesome and hollow actors) is
+  reported as `plantuml-skinparam-ignored`; an actor or a use case that holds elements is a `plantuml-syntax-error`, as
+  in PlantUML.
+- **Component diagrams.** They are laid out with the dagre layered layout instead of Graphviz, like class diagrams, so
+  the components, interfaces, containers, and arrows have PlantUML's shapes and sizes but other places. An interface
+  reserves room for its name and stereotypes above and below its circle (PlantUML drops that room in some cases), so
+  its circle is the center of its node. Ports and their links, middle decorations of links (which the Smetana layout of
+  PlantUML does not draw either), roles, qualifiers, and stereotypes of links, `together`, `hide`, `show`, `remove`,
+  `restore`, archimate elements, `json` and `map` blocks, URLs, and notes on containers (drawn floating) are reported
+  as `plantuml-statement-unsupported`; an arrow body of `~` is not read. Where PlantUML accepts a text but draws a
+  picture that does not show what was written, CanvasNet refuses it with a `plantuml-syntax-error`: a stray `}` and an
+  unclosed container (PlantUML ignores them), a short name of elements in several containers (PlantUML links one of
+  them and drops the other's container), and a container declared with the name of an element (PlantUML replaces the
+  element). A qualified name such as `N.C` from outside its container names the element `N.C`, where PlantUML creates
+  a second element with that name. A line color or style written `##` (`node N ##blue`) is a `plantuml-syntax-error`,
+  as PlantUML refuses it in these diagrams; write `#line:blue`.
+- **Deployment diagrams.** They are laid out and drawn like component diagrams, and the differences of component
+  diagrams apply. A hexagon is drawn with the outline PlantUML's Graphviz pipeline gives it (corners in the middles of
+  its sides, the top and bottom spanning the middle half); the Smetana layout of PlantUML draws only its texts. A
+  floating note with one link whose route is longer than a direct one is drawn with a dashed link, where PlantUML draws
+  the note's pointer. The action, the process, and archimate elements are drawn as rectangles and reported as
+  `plantuml-statement-unsupported`; a circle is drawn as an interface, as in PlantUML. A person, a boundary, a control,
+  an entity, a collections symbol, a label, an agent, or a circle that holds elements is a `plantuml-syntax-error`, as
+  in PlantUML.
 - **Detection.** Statements are recognized by their leading keywords and arrows, in the order PlantUML tries its
   diagram types (sequence, class, the legacy activity syntax, the use case, component, and deployment family, state,
   and activity). In rare ambiguous cases a diagram of a type that is not drawn is named differently; that never changes
@@ -515,10 +633,11 @@ Arnaud Roques), read from its MIT-licensed distribution `net.sourceforge.plantum
 diagrams the way PlantUML draws them, the values of its default look (`skin/plantuml.skin`: colors, fonts, sizes, line
 widths, corners, and paddings), the framing and the supported preprocessor directives, the order of its diagram
 detection, the sequence statements and the geometry of its teoz engine and its element shapes, the statements of the new
-activity syntax and the geometry of its tile composition, the class, object, and state statements and the shapes of
-their boxes, members, icons, states, pseudo-states, links, packages, and notes, and the way Java measures text with its
-logical `SansSerif` font are reimplemented in C#. No source text, comment, test, example, or image of PlantUML is
-copied, no Java runs, and no PlantUML package is a dependency.
+activity syntax and the geometry of its tile composition, the class, object, state, use case, component, and deployment
+statements and the shapes of their boxes, members, icons, states, pseudo-states, actors, use cases, symbols, links,
+packages, containers, and notes, and the way Java measures text with its logical `SansSerif` font are reimplemented in
+C#. No source text, comment, test, example, or image of PlantUML is copied, no Java runs, and no PlantUML package is a
+dependency.
 
 The license text ships in the NuGet package under `licenses/LICENSE-plantuml.txt` (also in the `canvasnet` tool, which
 bundles the assembly), and `src/DemaConsulting.CanvasNet.PlantUml/third-party/README.md` records what was ported, from
@@ -775,8 +894,8 @@ document shows its code, and the tool's message is a Pandoc warning.
 
 ### Example 73: The PlantUML Gallery
 
-The gallery is a set of small sequence, activity, class, object, and state diagrams that together use the major
-features of the package.
+The gallery is a set of small sequence, activity, class, object, state, use case, component, and deployment diagrams
+that together use the major features of the package.
 Every diagram is **original to this repository**, lies in `docs/user_guide/examples` as `plantuml-*.puml`, and is
 drawn below by the Pandoc filter, so the pictures are always those of the version of the library that built this
 guide. A test (`PlantUmlGalleryTests`) renders every file with `ThrowOnUnsupportedFeature = true` and fails on any
@@ -842,6 +961,30 @@ transition to the history of the composite state, and a note:
 direction`:
 
 ![Order fulfillment](examples/plantuml-state-regions.puml){scale=2 width=80%}
+
+*Use cases.* Actors, a business actor, use cases named by links, `<<include>>` and `<<extend>>` links, an extension,
+`left to right direction`, and a note:
+
+![Online shop](examples/plantuml-usecase-shop.puml){scale=2 width=80%}
+
+*A system boundary.* A rectangle around use cases, a nested package with a business use case, a multi-line actor with
+a stereotype, a colored use case, and an `<<include>>` link:
+
+![Help desk](examples/plantuml-usecase-boundary.puml){scale=2 width=55%}
+
+*Services.* Components in a package and a node, a queue, a database, stereotypes, and dashed, plain, and bold links
+with labels:
+
+![Order services](examples/plantuml-component-services.puml){scale=2 width=45%}
+
+*Interfaces.* A component that holds components, interfaces declared and named only by a link, a socket of a required
+interface, and a note:
+
+![Payment gateway](examples/plantuml-component-interfaces.puml){scale=2 width=50%}
+
+*Deployment.* A cloud, nodes, an artifact, a stack that holds a file, a database, storage, and labeled links:
+
+![Deployment](examples/plantuml-deployment-nodes.puml){scale=2 width=45%}
 
 ### Example 74: Rendering a PlantUML Class Diagram
 
@@ -926,3 +1069,99 @@ PngCodec.Save(picture, "jobs.png");
 
 The tool draws and describes it in the same way: `canvasnet render jobs.puml --strict -o jobs.png`, and
 `canvasnet info jobs.puml` prints `state, 6 nodes, 7 edges, 1 subgraph`.
+
+### Example 76: Rendering a PlantUML Use Case Diagram
+
+A use case diagram is read and drawn like the other types; its facts count the actors and use cases, the links, and
+the boundaries:
+
+```csharp
+using DemaConsulting.CanvasNet.Codecs;
+using DemaConsulting.CanvasNet.PlantUml;
+
+var shop = PlantUmlDocument.Parse("""
+    @startuml
+    left to right direction
+    actor Customer
+    rectangle Shop {
+      (Browse) as B
+      (Buy) as Y
+      (Pay) as P
+    }
+    Customer --> B
+    Customer --> Y
+    Y .> P : <<include>>
+    Customer --> (Review)
+    note right of Customer : signed in
+    @enduml
+    """);
+
+Console.WriteLine($"{shop.DiagramType} {shop.IsSupported}");         // Output: usecase True
+Console.WriteLine($"{shop.NodeCount} elements, {shop.EdgeCount} links, {shop.SubgraphCount} boundary");
+                                                                      // Output: 5 elements, 4 links, 1 boundary
+
+// An actor that holds elements is refused, as PlantUML refuses it
+try
+{
+    PlantUmlDocument.Parse("@startuml\nactor A {\n(U)\n}\n@enduml\n");
+}
+catch (PlantUmlSyntaxException ex)
+{
+    Console.WriteLine(ex.Location.Line);                              // Output: 2
+}
+
+using var picture = shop.Render(new PlantUmlRenderOptions { Scale = 2 });
+PngCodec.Save(picture, "shop.png");
+```
+
+The tool draws and describes it in the same way: `canvasnet render shop.puml --strict -o shop.png`, and
+`canvasnet info shop.puml` prints `usecase, 5 nodes, 4 edges, 1 subgraph`.
+
+### Example 77: Rendering PlantUML Component and Deployment Diagrams
+
+A component diagram and a deployment diagram are read and drawn the same way; their facts count the elements, the
+links, and the containers. A diagram is a component diagram when it names a component, an interface, or a port and no
+actor or use case, and a deployment diagram when it names none of them:
+
+```csharp
+using DemaConsulting.CanvasNet.Codecs;
+using DemaConsulting.CanvasNet.PlantUml;
+
+var services = PlantUmlDocument.Parse("""
+    @startuml
+    package Web {
+      [Shop]
+    }
+    node Server {
+      [Orders]
+    }
+    database Store
+    interface API
+    [Shop] --( API
+    API - [Orders]
+    [Orders] --> Store
+    @enduml
+    """);
+var hosting = PlantUmlDocument.Parse("@startuml\nnode Host {\nartifact App\n}\ndatabase Db\nApp --> Db\n@enduml\n");
+
+Console.WriteLine($"{services.DiagramType} {services.NodeCount} {services.EdgeCount} {services.SubgraphCount}");
+                                                                      // Output: component 4 3 2
+Console.WriteLine($"{hosting.DiagramType} {hosting.NodeCount} {hosting.EdgeCount} {hosting.SubgraphCount}");
+                                                                      // Output: deployment 2 1 1
+
+// A line color written ## is refused, as PlantUML refuses it in these diagrams; write #line:blue
+try
+{
+    PlantUmlDocument.Parse("@startuml\nnode Host ##blue\n@enduml\n");
+}
+catch (PlantUmlSyntaxException ex)
+{
+    Console.WriteLine(ex.Location.Line);                              // Output: 2
+}
+
+using var picture = services.Render(new PlantUmlRenderOptions { Scale = 2 });
+PngCodec.Save(picture, "services.png");
+```
+
+The tool draws and describes them in the same way: `canvasnet render services.puml --strict -o services.png`, and
+`canvasnet info services.puml` prints `component, 4 nodes, 3 edges, 2 subgraphs`.

@@ -248,7 +248,7 @@ all of these commands too, and `inspect` accepts them as well.
 | OpenSCAD | `.scad` | A model, drawn from one viewpoint |
 | Vega-Lite | `.vl.json`, `.vl` | A chart, drawn at its laid-out size (also a `.json` file with a Vega-Lite `$schema`) |
 | Mermaid | `.mmd`, `.mermaid` | A flowchart, sequence, class, state, ER, pie, gantt, mindmap, packet, or git graph |
-| PlantUML | `.puml`, `.plantuml`, `.pu` | A sequence, activity, class, object, or state diagram |
+| PlantUML | `.puml`, `.plantuml`, `.pu` | Sequence, activity, class, object, state, use case, component, deployment |
 
 | Output | Extensions | Notes |
 | --- | --- | --- |
@@ -355,8 +355,8 @@ result has a `fragment` member (see *Fragments on Input Paths*).
   and the numbers of nodes, edges, and subgraphs (participants, messages, and boxes for a sequence diagram; actions,
   start, stop, end, connector, and decision nodes, arrows, and swimlanes and partitions for an activity diagram;
   classes, objects, and maps, relationships, and packages for a class or object diagram; states and pseudo-states,
-  transitions, and composite states for a state diagram). Its `!include` files are read to lay it out (see *PlantUML
-  Diagrams* below).
+  transitions, and composite states for a state diagram; elements, links, and containers for a use case, component, or
+  deployment diagram). Its `!include` files are read to lay it out (see *PlantUML Diagrams* below).
 
 ```text
 $ canvasnet info shapes.svg
@@ -925,9 +925,13 @@ diagrams** (PlantUML's class boxes with their circled characters, members, visib
 maps, relationships with their decorations and labels, packages, and notes, laid out with the dagre layered layout
 instead of Graphviz), and **state diagrams** (PlantUML's rounded states with their descriptions, composite states with
 their concurrent regions, the start, end, choice, fork, join, and history pseudo-states, transitions, and notes, laid
-out the same way). `canvasnet help plantuml` lists a card for each (`canvasnet help plantuml sequence`, `canvasnet
-help plantuml activity`, `canvasnet help plantuml class`, `canvasnet help plantuml object`, `canvasnet help plantuml
-state`) and for the preprocessor, the styles, composition, the options, the diagnostics, and the known differences.
+out the same way), and **use case, component, and deployment diagrams** (PlantUML's actors, use cases, components,
+interfaces, nodes, databases, artifacts, clouds, and the other symbols, as elements and as containers, with their
+links and notes, laid out the same way). `canvasnet help plantuml` lists a card for each (`canvasnet help plantuml
+sequence`, `canvasnet help plantuml activity`, `canvasnet help plantuml class`, `canvasnet help plantuml object`,
+`canvasnet help plantuml state`, `canvasnet help plantuml usecase`, `canvasnet help plantuml component`, `canvasnet
+help plantuml deployment`) and for the preprocessor, the styles, composition, the options, the diagnostics, and the
+known differences.
 Every other PlantUML diagram type (timing, a mindmap, a gantt chart, ...) is recognized: `info` reports it
 with `"supported": false`, and `render` writes an empty picture of 20 by 20 pixels with the diagnostic
 `plantuml-diagram-unsupported` (`--strict` makes it an `unsupported-feature` failure).
@@ -1979,7 +1983,7 @@ topic may be named by an alias.
 | `scad` | `openscad` | OpenSCAD models, drawn as one still picture from a named viewpoint |
 | `vega-lite` | `vegalite`, `vl` | Vega-Lite charts: the supported subset of Vega-Lite 5 and 6 |
 | `mermaid` | `mmd` | Mermaid flowchart, sequence, class, state, ER, pie, gantt, mindmap, packet, git graphs, themes |
-| `plantuml` | `puml` | PlantUML sequence, activity, class, object, and state diagrams, includes, and skin parameters |
+| `plantuml` | `puml` | PlantUML sequence, activity, class, object, state, use case, component, deployment diagrams |
 | `svg` | | SVG drawings: the supported subset, drawn sharply at the target size, and embedding with `<image href>` |
 | `pdf` | | PDF documents: a page is drawn as an image |
 | `pptx` | `powerpoint` | PowerPoint presentations: each slide is a page |
@@ -2121,9 +2125,9 @@ For a PlantUML diagram the `diagram` object has the same members without `direct
 `sequence`, `activity`, `class`, `object`, `state`, `usecase`, `component`, `deployment`, or a type that is not drawn
 (`timing`, `mindmap`, ..., with `supported` false and zero counts), `nodes` are the participants of a sequence diagram,
 the actions, start, stop, end, connector, and decision nodes of an activity diagram, the classes, objects, and maps of a
-class or object diagram, or the states and pseudo-states of a state diagram, `edges` its messages, arrows,
-relationships, or transitions, and `subgraphs` its boxes, its swimlanes and partitions, its packages, or its composite
-states:
+class or object diagram, the states and pseudo-states of a state diagram, or the elements of a use case, component, or
+deployment diagram, `edges` its messages, arrows, relationships, transitions, or links, and `subgraphs` its boxes, its
+swimlanes and partitions, its packages, its composite states, or its containers:
 
 ```json
 {"schemaVersion":2,"ok":true,"command":"info","input":{"path":"checkout.puml","format":"plantuml","bytes":200},"image":{"width":254,"height":354,"channels":4,"hasAlpha":true,"canDecode":true,"frameCount":1},"diagram":{"type":"sequence","supported":true,"title":"Checkout","nodes":3,"edges":4,"subgraphs":0}}
@@ -2857,10 +2861,11 @@ pictures side by side.
   ignored), no network, pictures read relative to the folder of the diagram under the file-access mode, no clock (a
   gantt chart has no today line, and its
   dates are in UTC), and the other diagram types (journey, timeline, and so on) are recognized but drawn as an empty
-  picture with the diagnostic `mermaid-diagram-unsupported`. A PlantUML sequence, activity, class, object, or state
-  diagram is drawn with the default look only (no themes), a class, object, or state diagram is laid out with the dagre
-  layered layout instead of Graphviz, its includes are local files only, and the other PlantUML types are drawn as an
-  empty picture with the diagnostic `plantuml-diagram-unsupported`.
+  picture with the diagnostic `mermaid-diagram-unsupported`. A PlantUML sequence, activity, class, object, state, use
+  case, component, or deployment diagram is drawn with the default look only (no themes), a class, object, state, use
+  case, component, or deployment diagram is laid out with the dagre layered layout instead of Graphviz, its includes
+  are local files only, and the other PlantUML types are drawn as an empty picture with the diagnostic
+  `plantuml-diagram-unsupported`.
 - **Models.** Only one view per command, and no animation. A model that needs `surface`, `import`, or other unsupported
   constructs is drawn without them.
 - **Rotation.** Any angle, clockwise, with nearest or bilinear sampling (the other `--filter` values mean bilinear

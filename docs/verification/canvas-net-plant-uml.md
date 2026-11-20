@@ -459,7 +459,8 @@ that a `scale 2` doubles the measured size.
 `PlantUmlGalleryTests.CanvasNetPlantUml_Gallery_RendersStrictWithoutWarnings`
 
 Opens every diagram of the user guide gallery (`docs/user_guide/examples/plantuml-*.puml`, at least eight) and asserts
-that each is a supported sequence, activity, class, object, or state diagram and that every drawn type is shown;
+that each is a supported sequence, activity, class, object, state, use case, component, or deployment diagram and that
+every drawn type is shown;
 renders each in strict mode and asserts no report, the measured size, and a picture that is not blank.
 
 ### CanvasNetPlantUml-ImageSource: A Linked Diagram Is Drawn

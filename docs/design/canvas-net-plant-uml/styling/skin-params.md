@@ -21,7 +21,8 @@ silently ignored, so an author learns which settings were not applied. The unit'
   header tab), `sequenceGroup` (the frame and the tab); `sequenceBox`; `sequenceDivider`; `sequenceDelay`;
   `sequenceLifeLine` and `lifeLine`; `arrow` (sequence and activity arrows); `activityDiamond`; `activity`;
   `swimlaneTitle` and `swimlane`; `partition`; `title`; `header`; `footer`; `legend`; and `caption`. The graph prefixes,
-  read only in the diagrams PlantUML lays out with Graphviz (class, object, and state diagrams): `class`,
+  read only in the diagrams PlantUML lays out with Graphviz (class, object, state, use case, component, and deployment
+  diagrams): `class`,
   `classStereotype` and `objectStereotype` (the stereotypes), `classAttribute` (the members), `object` and `map`,
   `package`, `state` (the states and composite states), and `stateAttribute` (their descriptions); there `arrow` also
   styles the links (`SvekArrow`). The description prefixes, read only in description diagrams: `component`, `interface`,

@@ -46,4 +46,5 @@ examples:
   of an activity diagram; the classes, objects, and maps, the relationships,
   and the packages that hold something of a class or object diagram; the
   states and pseudo-states, the transitions, and the composite states of a
-  state diagram. direction and accTitle are absent.
+  state diagram; the elements, the links, and the containers of a use case,
+  component, or deployment diagram. direction and accTitle are absent.

@@ -1,0 +1,13 @@
+@startuml
+title Hosting
+cloud Internet
+node "Web host" as Host {
+  artifact "site.zip" as Site
+  folder logs
+}
+database Data
+queue Jobs
+Internet --> Host
+Site --> Data : SQL
+Site ..> Jobs
+@enduml

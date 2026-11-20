@@ -52,7 +52,8 @@ specified by the `CanvasNetPlantUml-Scenegraph-SceneModel-*` requirements in
   values of another diagram type: `PageMetrics.Activity` adds 5 pixels above the header and the title, beside the
   aligned header and footer, and below the page, counts the body 5 pixels shorter (its own bottom margin), and keeps
   55 pixels beside the legend's text, as PlantUML frames an activity diagram. `PageMetrics.Svek` gives the values of
-  the diagrams PlantUML lays out with Graphviz (class, object, and state diagrams), measured from the jar's pictures:
+  the diagrams PlantUML lays out with Graphviz (class, object, state, use case, component, and deployment diagrams),
+  measured from the jar's pictures of class, object, and state diagrams:
   the header at the top (`HeaderTop` 0), the title 10 below it (`TitleTop`), the centered texts centered in the page
   width minus 6 (`CenterTrim`), 26 pixels kept beside the title (`TitleExtra`), 6 beside the header and footer
   (`SideExtra`), 8 beside the caption (`CaptionExtra`), 40 beside the legend's text, a left legend 12 from the edge

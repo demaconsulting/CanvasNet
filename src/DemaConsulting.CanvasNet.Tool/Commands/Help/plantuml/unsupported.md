@@ -30,7 +30,7 @@ see-also:
 - `plantuml-statement-unsupported`: A statement PlantUML defines that this
   version does not draw (`ref over`, `newpage`, `switch`, `goto`, a
   specification and description language box style, a role or a crow's foot
-  of a class relationship, `together`, an entry point of a state diagram,
-  ...); the rest of the diagram is drawn.
+  of a class relationship, `together`, an entry point of a state diagram, a
+  port of a component diagram, ...); the rest of the diagram is drawn.
 - `plantuml-markup-unsupported`: Creole markup outside the subset (images,
   sprites, icons, tables, lists, headings); the markup is drawn as text.

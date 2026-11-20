@@ -100,8 +100,8 @@ internal static partial class SkinParams
     ];
 
     /// <summary>
-    ///     The element prefixes that only the diagrams PlantUML lays out with Graphviz read (class, object, and state diagrams),
-    ///     with the elements each one styles; <c>arrow</c> also styles their links.
+    ///     The element prefixes that only the diagrams PlantUML lays out with Graphviz read (class, object, state, use case,
+    ///     component, and deployment diagrams), with the elements each one styles; <c>arrow</c> also styles their links.
     /// </summary>
     private static readonly (string Prefix, SkinElement[] Elements)[] GraphPrefixes =
     [

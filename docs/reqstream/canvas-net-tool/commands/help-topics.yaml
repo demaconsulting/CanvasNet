@@ -332,8 +332,9 @@ sections:
           The HelpTopics class shall provide the plantuml cards (alias puml) with what a diagram may use (sequence
           diagrams and their participants, messages, activations, notes, groups, boxes, numbers, and page texts;
           activity diagrams and their actions, decisions, loops, parallel branches, swimlanes, partitions, notes,
-          arrows, and connectors; class, object, and state diagrams and their elements, links, notes, and page
-          texts; the preprocessor subset and local includes under the file-access mode; the
+          arrows, and connectors; class, object, state, use case, component, and deployment diagrams and their
+          elements, links, notes, and page texts; the preprocessor subset and local includes under the file-access
+          mode; the
           supported skinparam settings, colors, and fonts; and the composition of a diagram in an SVG figure, a Mermaid
           node, a montage, and a Pandoc document), each diagram type and construct that is not drawn with the
           identifier of its diagnostic, the options that apply (--scale, --background, --strict, and --file-access)
@@ -361,9 +362,9 @@ sections:
 
       - id: CanvasNetTool-Commands-HelpTopics-PlantUmlGuideParity
         title: >-
-          The HelpTopics class shall give in the plantuml sequence, activity, class, object, and state cards, row for
-          row and in order, the same supported syntax rows, and in the plantuml unsupported and diagnostics cards the
-          same unsupported-feature,
+          The HelpTopics class shall give in the plantuml sequence, activity, class, object, state, usecase,
+          component, and deployment cards, row for row and in order, the same supported syntax rows, and in the
+          plantuml unsupported and diagnostics cards the same unsupported-feature,
           warning, and error codes as the PlantUML user guide, worded the same, code spans included.
         justification: |
           People read the guide and agents read the help; both must describe the same version, and a row added to

@@ -9,8 +9,10 @@ namespace DemaConsulting.CanvasNet.PlantUml.Tests;
 
 /// <summary>
 ///     Reference shape tests for the diagrams PlantUML lays out with Graphviz: CanvasNet's drawing of the original class,
-///     object, and state fixtures is compared with the SVG that PlantUML (plantuml-mit 1.2026.10, Smetana layout) draws
-///     for them (the goldens in <c>Fixtures/reference/class</c>, <c>object</c>, and <c>state</c>; see the README there).
+///     object, state, use case, component, and deployment fixtures is compared with the SVG that PlantUML (plantuml-mit
+///     1.2026.10, Smetana layout) draws for them (the goldens in <c>Fixtures/reference/class</c>, <c>object</c>,
+///     <c>state</c>, <c>usecase</c>, <c>component</c>, and <c>deployment</c>; see the README there; the description
+///     theories are in the partial file <c>PlantUmlReferenceShapeTests.Description.cs</c>).
 /// </summary>
 /// <remarks>
 ///     CanvasNet lays these diagrams out with dagre instead of Graphviz, so absolute positions and the picture size

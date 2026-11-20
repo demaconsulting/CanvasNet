@@ -22,9 +22,10 @@ The differences of one diagram type are on its card, for example
 - Only the default look and the supported skinparam settings are drawn: no
   themes, <style> blocks, shadows, gradients (the first color is used), or
   hand-written mode.
-- Class, object, and state diagrams, which PlantUML lays out with Graphviz,
-  are laid out with the dagre layered layout: the boxes have PlantUML's shapes
-  and sizes, but other places, and the picture another size.
+- Class, object, state, use case, component, and deployment diagrams, which
+  PlantUML lays out with Graphviz, are laid out with the dagre layered layout:
+  the boxes have PlantUML's shapes and sizes, but other places, and the picture
+  another size.
 - Statements are recognized by their leading keywords and arrows, in the order
   PlantUML tries its diagram types, so in rare ambiguous cases a diagram of a
   type that is not drawn is named differently; that never changes whether it is

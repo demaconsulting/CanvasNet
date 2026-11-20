@@ -1,0 +1,16 @@
+@startuml
+' Gallery: interfaces provided and required, sockets, an interface named by a link, a note, and a component container
+title Payment gateway
+component Gateway {
+  [Router]
+  [Fraud check] as Fraud
+}
+interface "Payments API" as API
+() Webhooks
+[Router] -up- API
+[Router] - Webhooks
+[Router] --> Fraud
+[Merchant] --( API
+Fraud --> Scoring
+note right of Fraud : scores every payment
+@enduml

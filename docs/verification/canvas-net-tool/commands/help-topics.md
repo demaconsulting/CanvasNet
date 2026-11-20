@@ -52,9 +52,9 @@ fails the build. The content is checked against the things it describes, so that
   mindmap, packet, and git graph tables of the Mermaid user guide, code spans included. Every row of the guide's table
   of unsupported features and warnings must be a bullet of `mermaid unsupported` or `mermaid diagnostics` (the **guide
   parity test**), so the help that agents read and the guide that people read describe the same version. The
-  `## Supported` bullets of `plantuml sequence`, `plantuml activity`, `plantuml class`, `plantuml object`, and
-  `plantuml state` and the code bullets of `plantuml unsupported` and `plantuml diagnostics` are compared the same
-  way with the PlantUML user guide.
+  `## Supported` bullets of `plantuml sequence`, `plantuml activity`, `plantuml class`, `plantuml object`,
+  `plantuml state`, `plantuml usecase`, `plantuml component`, and `plantuml deployment` and the code bullets of
+  `plantuml unsupported` and `plantuml diagnostics` are compared the same way with the PlantUML user guide.
 - The `## Reference` bullets of `svg flatten` and the bullets of `files` are compared, word for word and in order, with
   the `#### Flatten Reference` and `#### File Access Reference` tables of the tool user guide.
 - The **style advice** is checked against the renderer: each theme the `mermaid style` card lists draws the examples
@@ -164,11 +164,13 @@ and the first letter of each part before a colon and a space compared ignoring c
 bullet of `mermaid unsupported` or `mermaid diagnostics`.
 
 **HelpTopics_PlantUmlTopic_DiagramSyntaxItems_MatchUserGuide**: the items of the `### Supported Sequence Syntax`,
-`### Supported Activity Syntax`, `### Supported Class Syntax`, `### Supported Object Syntax`, and
-`### Supported State Syntax` lists of the PlantUML user guide (at least ten each, four for objects and eight for
-states) are, in order and with their code spans, the `## Supported` bullets of `plantuml sequence`,
-`plantuml activity`, `plantuml class`, `plantuml object`, and `plantuml state`, and every item of its code list (at
-least sixteen) is a bullet of `plantuml unsupported` or `plantuml diagnostics`.
+`### Supported Activity Syntax`, `### Supported Class Syntax`, `### Supported Object Syntax`,
+`### Supported State Syntax`, `### Supported Use Case Syntax`, `### Supported Component Syntax`, and
+`### Supported Deployment Syntax` lists of the PlantUML user guide (at least ten each, four for objects, eight for
+states, six for use cases and components, and four for deployments) are, in order and with their code spans, the
+`## Supported` bullets of `plantuml sequence`, `plantuml activity`, `plantuml class`, `plantuml object`,
+`plantuml state`, `plantuml usecase`, `plantuml component`, and `plantuml deployment`, and every item of its code list
+(at least sixteen) is a bullet of `plantuml unsupported` or `plantuml diagnostics`.
 
 **HelpTopics_SvgTopic_FlattenItems_MatchUserGuide** and **HelpTopics_FilesTopic_Items_MatchUserGuide**: the bullets
 are, word for word and in order, `<Term>: <Meaning>` of the rows of the guide's reference tables (at least 7 and 16
