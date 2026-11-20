@@ -2,47 +2,25 @@ using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
-using System.Xml.Linq;
-using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.ImageSources;
-using DemaConsulting.CanvasNet.Mermaid;
-using DemaConsulting.CanvasNet.Pdf;
-using DemaConsulting.CanvasNet.PlantUml;
-using DemaConsulting.CanvasNet.Pptx;
-using DemaConsulting.CanvasNet.Scad;
-using DemaConsulting.CanvasNet.Svg;
 using DemaConsulting.CanvasNet.Tool.Commands;
-using DemaConsulting.CanvasNet.VegaLite;
 using DemaConsulting.CanvasNet.Viewer;
-using DemaConsulting.CanvasNet.Viewer.Imaging;
-using DemaConsulting.CanvasNet.Vsdx;
 using HelpCatalog = DemaConsulting.CanvasNet.Viewer.Help.HelpCatalog;
-using HelpExample = DemaConsulting.CanvasNet.Viewer.Help.HelpExample;
 
 namespace DemaConsulting.CanvasNet.Tool.Tests.Commands;
 
 /// <summary>
-///     Unit tests for the HelpTopics class: the embedded cards, their consistency with the code, the libraries, and
-///     the user guides, the examples, and the text and JSON renderings.
+///     Unit tests for the HelpTopics class, the command-line layer over the library's help catalog: the merged cards,
+///     their consistency with the commands, the options, and the tool's user guide, the command examples, and the text
+///     and JSON renderings. The content of the library cards is tested with the library (Viewer.Tests).
 /// </summary>
 [Collection("Sequential")]
 public partial class HelpTopicsTests
 {
     /// <summary>
-    ///     The placeholder name of the identifier naming rule, which is a description and not an identifier.
-    /// </summary>
-    private const string NamingRule = "vl-<area>-<detail>";
-
-    /// <summary>
     ///     The prefix of the logical names of the library's embedded help example files (the Viewer assembly).
     /// </summary>
     private const string LibraryExamplePrefix = "DemaConsulting.CanvasNet.Viewer.Help.Examples.";
-
-    /// <summary>
-    ///     Matches the diagnostic identifiers a card may cite.
-    /// </summary>
-    private static readonly Regex IdentifierPattern =
-        new(@"\b(?:scad|vl|mermaid|plantuml|pptx|vsdx|pdf|svg|image-fragment|image-page|image-access)-[A-Za-z0-9<>-]+", RegexOptions.CultureInvariant, TimeSpan.FromSeconds(5));
 
     /// <summary>
     ///     Matches a file name extension (lower case, with the dot, and the two-part <c>.vl.json</c>) in a sentence.
@@ -60,12 +38,6 @@ public partial class HelpTopicsTests
     /// </summary>
     private static readonly string[] GlobalOptionNames =
         ["--json", "--silent", "--log", "--validate", "--results", "--result", "--depth", "--version", "--help", "-v", "-?", "-h"];
-
-    /// <summary>
-    ///     Gets the source examples as theory data: the card identifier and the example name.
-    /// </summary>
-    public static IEnumerable<object[]> SourceExampleData =>
-        HelpTopics.SourceExamples().Select(e => new object[] { e.Card.Id, e.Example.Name });
 
     /// <summary>
     ///     Gets the identifiers of every card as theory data.
@@ -169,30 +141,18 @@ public partial class HelpTopicsTests
     }
 
     /// <summary>
-    ///     Test that no text contains an unresolved token and that the numbers in the cards are the live constants.
+    ///     Test that no text of the merged cards contains an unresolved token and that the tool's token table holds the
+    ///     live schema version (the library's tokens and the limits they quote are tested with the library).
     /// </summary>
     [Fact]
     public void HelpTopics_Text_HasNoUnresolvedTokens()
     {
         // Arrange / Act: every string of every card
         var texts = HelpTopics.All.SelectMany(AllStrings).ToList();
-        var limits = HelpCardText.TextOf("limits");
 
-        // Assert: no token is left, the tool's table holds the live schema version (the library's tokens are tested with
-        // the library), and the limits card quotes the live values
+        // Assert: no token is left, and the tool's table holds the live schema version
         Assert.DoesNotContain(texts, t => t.Contains("{{", StringComparison.Ordinal));
         Assert.Equal(ResultWriter.SchemaVersion.ToString(System.Globalization.CultureInfo.InvariantCulture), HelpTopics.Tokens["schemaVersion"]);
-        Assert.Contains($"At most {VegaLiteLimits.Default.MaxPaintedPixels} device pixels painted", limits);
-        Assert.Contains($"{Surface.MaxDimension} pixels", limits);
-        Assert.Contains($"Default {ScadLimits.Default.MaxTriangles} triangles", limits);
-        Assert.Contains($"At most {VegaLiteLimits.Default.MaxDataFiles} files", limits);
-        Assert.Contains($"At most {MermaidLimits.Default.MaxNodes} nodes and {MermaidLimits.Default.MaxEdges} edges", limits);
-        Assert.Contains($"At most {MermaidLimits.Default.MaxTextSize} characters", limits);
-        Assert.Contains($"At most {MermaidLimits.Default.MaxImages} picture loads", limits);
-        Assert.Contains($"At most {PlantUmlLimits.Default.MaxNodes} nodes (participants or activity nodes)", limits);
-        Assert.Contains($"At most {PlantUmlLimits.Default.MaxTextSize} characters of statements", limits);
-        Assert.Contains($"At most {PlantUmlLimits.Default.MaxIncludes} !include directives", limits);
-        Assert.Contains($"{ImageWriter.MinQuality} to {ImageWriter.MaxQuality}, default {ImageWriter.DefaultQuality}", limits);
     }
 
     /// <summary>
@@ -218,35 +178,23 @@ public partial class HelpTopicsTests
     }
 
     /// <summary>
-    ///     Test that the examples have valid kinds and unique file names, that every example file is used by exactly one
-    ///     example, and that source examples have non-empty content with the file extension their format needs.
+    ///     Test that the merged examples have valid kinds and names unique in each root tree, that every command example
+    ///     is a <c>canvasnet</c> command line without a file name, and that every other example has a file name (the
+    ///     library's examples are tested with the library).
     /// </summary>
     [Fact]
     public void HelpTopics_Examples_NamesUniqueKindsValidAndSourcesNonEmpty()
     {
-        // Arrange: the extension each root's source examples must have, and the embedded example files
-        var extensions = new Dictionary<string, string>
-        {
-            ["scad"] = ".scad",
-            ["vega-lite"] = ".vl.json",
-            ["mermaid"] = ".mmd",
-            ["plantuml"] = ".puml",
-            ["svg"] = ".svg"
-        };
-        var files = typeof(HelpCatalog).Assembly.GetManifestResourceNames()
-            .Where(n => n.StartsWith(LibraryExamplePrefix, StringComparison.Ordinal))
-            .Select(n => n[LibraryExamplePrefix.Length..])
-            .Order(StringComparer.Ordinal)
-            .ToList();
-
-        // Act / Assert: the names are unique in each root tree, and the rules hold for every example
+        // Act / Assert: the names are unique in each root tree
         foreach (var root in HelpTopics.Roots)
         {
             var names = HelpTopics.SubtreeExamples(root).Select(e => e.Example.Name).ToList();
             Assert.Equal(names.Count, names.Distinct(StringComparer.OrdinalIgnoreCase).Count());
         }
 
-        foreach (var (card, example) in HelpTopics.AllExamples())
+        // Act / Assert: the rules hold for every example
+        Assert.Contains(HelpTopics.AllExamples(), e => e.Example.Kind == HelpTopics.CommandKind);
+        foreach (var (_, example) in HelpTopics.AllExamples())
         {
             Assert.False(string.IsNullOrWhiteSpace(example.Content));
             Assert.DoesNotContain('\r', example.Content);
@@ -260,296 +208,26 @@ public partial class HelpTopicsTests
 
             Assert.True(HelpTopics.SourceKind == example.Kind || HelpTopics.SnippetKind == example.Kind);
             Assert.NotNull(example.FileName);
-            if (extensions.TryGetValue(card.RootId, out var extension))
-            {
-                Assert.EndsWith(extension, example.FileName);
-            }
         }
-
-        // Assert: every example file belongs to exactly one example, and each drawing format has a source example
-        var used = HelpTopics.AllExamples().Where(e => e.Example.FileName != null)
-            .Select(e => $"{e.Card.RootId}-{e.Example.FileName}")
-            .Order(StringComparer.Ordinal)
-            .ToList();
-        Assert.Equal(files, used);
-        Assert.All(extensions.Keys, root => Assert.Contains(HelpTopics.SourceExamples(), e => e.Card.RootId == root));
-    }
-
-    /// <summary>
-    ///     Test that every source example (SCAD, Vega-Lite, Mermaid, SVG) renders through the real pipeline with
-    ///     <c>--strict</c> and reports no diagnostic.
-    /// </summary>
-    /// <param name="cardId">The card of the example.</param>
-    /// <param name="exampleName">The name of the example.</param>
-    [Theory]
-    [MemberData(nameof(SourceExampleData))]
-    public void HelpTopics_SourceExamples_RenderStrictWithoutDiagnostics(string cardId, string exampleName)
-    {
-        // Arrange: the example saved under its file name; a model is drawn small to stay fast
-        var (card, example) = HelpTopics.SourceExamples().First(e => e.Card.Id == cardId && e.Example.Name == exampleName);
-        using var directory = new TempDirectory();
-        var input = directory.Combine($"{card.RootId}-{example.FileName}");
-        var output = directory.Combine("out.png");
-        File.WriteAllText(input, example.Content);
-        string[] size = card.RootId == "scad" ? ["--size", "64x64"] : [];
-
-        // Act: render with --strict
-        var (exitCode, stdOut, stdErr) = ToolHost.Invoke(["render", input, "--strict", "--json", "-o", output, .. size]);
-
-        // Assert: it succeeded without a diagnostic and wrote the picture
-        Assert.True(exitCode == 0, stdErr + stdOut);
-        using var document = JsonDocument.Parse(stdOut);
-        Assert.True(document.RootElement.GetProperty("ok").GetBoolean());
-        Assert.Empty(document.RootElement.GetProperty("diagnostics").EnumerateArray());
-        Assert.True(File.Exists(output));
     }
 
     /// <summary>
     ///     Test that the file types the <c>svg embedding</c> card lists for <c>&lt;image href&gt;</c> are exactly the
-    ///     extensions the sources of <c>CanvasNetViewer</c> claim (both directions), that a plain <c>.json</c> file is not
-    ///     linkable, and that the <c>formats</c> command lists the same extensions.
+    ///     extensions the <c>formats</c> command lists, so the two tables cannot drift apart (the library tests that the
+    ///     card lists the extensions of <c>CanvasNetViewer</c>).
     /// </summary>
     [Fact]
-    public void HelpTopics_SvgTopic_ImageHrefFileTypes_MatchTheResolverExtensions()
+    public void HelpTopics_SvgTopic_ImageHrefFileTypes_MatchTheFormatsCommand()
     {
-        // Arrange: the extensions the card lists, and the ones the resolver supports
+        // Arrange: the extensions the card lists
         var text = HelpCardText.Item("svg/embedding", "href file types").Replace("`", string.Empty, StringComparison.Ordinal);
+
+        // Act: the extensions listed, and the ones the formats command lists
         var listed = ExtensionToken.Matches(text).Select(m => m.Value).ToList();
-        var supported = CanvasNetViewer.Extensions;
-        var registered = CanvasNetViewer.ImageSources.SelectMany(s => s.Extensions).ToList();
         var formatted = DiscoveryCommands.InputFormats.SelectMany(f => f.Extensions).ToList();
 
-        // Assert: the registered sources of the viewer are the ones the tool wires in, and a plain .json is not linkable
-        Assert.Equal(supported.Order(StringComparer.Ordinal), registered.Order(StringComparer.Ordinal));
-        Assert.DoesNotContain(".json", supported);
-        Assert.Contains(".vl.json", supported);
-
-        // Assert: nothing is listed twice, nothing is listed that is unsupported, and nothing supported is missing
-        Assert.Equal(listed.Count, listed.Distinct(StringComparer.Ordinal).Count());
-        Assert.Empty(listed.Except(supported, StringComparer.Ordinal));
-        Assert.Empty(supported.Except(listed, StringComparer.Ordinal));
-
-        // Assert: the formats command lists the same extensions, so the two tables cannot drift apart
+        // Assert: the same extensions
         Assert.Equal(formatted.Order(StringComparer.Ordinal), listed.Order(StringComparer.Ordinal));
-    }
-
-    /// <summary>
-    ///     Test that the <c>svg embedding</c> card states the size rule, the link rule (with the file-access mode), the
-    ///     diagnostic codes, and the example for a linked file.
-    /// </summary>
-    [Fact]
-    public void HelpTopics_SvgTopic_ImageLinksSection_StatesSizeLinkRuleDiagnosticAndExample()
-    {
-        // Arrange: the card, its items, and its text
-        var items = HelpCardText.Items("svg/embedding");
-        var text = HelpCardText.TextOf("svg/embedding");
-
-        // Assert: the rules, the code, and the example are there, and the example can be printed
-        Assert.Contains("size of the image element", text);
-        Assert.Contains("relative to the folder of the SVG file", text);
-        Assert.Contains("network URL", text);
-        Assert.Contains("absolute path", text);
-        Assert.Contains("--strict", text);
-        Assert.Contains(items, i => i.Term == "svg-image-unresolved");
-        Assert.Contains(items, i => i.Term == "svg-image-too-large");
-        Assert.Contains(items, i => i.Term == "link rule");
-        Assert.Contains(items, i => i.Term == FolderImageResolver.AccessDeniedCode);
-        Assert.Contains("--file-access", text);
-        Assert.Contains("<image href=\"part.scad\" x=\"10\" y=\"10\" width=\"120\" height=\"120\"/>", text);
-        Assert.Contains("canvasnet help svg --example embed", text);
-        Assert.Contains("<image href=\"part.scad\"", HelpTopics.RenderExample(HelpTopics.Get("svg"), "embed"));
-    }
-
-    /// <summary>
-    ///     Gets the card identifiers and names of every snippet example as theory data.
-    /// </summary>
-    public static IEnumerable<object[]> SnippetData =>
-        HelpTopics.Snippets().Select(e => new object[] { e.Card.Id, e.Example.Name });
-
-    /// <summary>
-    ///     Test that each snippet, which the render drift test skips because it refers to sibling files, is well formed,
-    ///     links only supported file types, and renders under <c>--strict</c> without a diagnostic once its sibling files
-    ///     exist (the source example with the same file name, else the first source example of that format, else the
-    ///     fixture document for a PDF, PPTX, or VSDX file), drawing one <c>embed</c> operation for each link, in order.
-    /// </summary>
-    /// <param name="cardId">The card of the snippet.</param>
-    /// <param name="snippetName">The name of the snippet.</param>
-    [Theory]
-    [MemberData(nameof(SnippetData))]
-    public void HelpTopics_Snippets_RenderStrictWithTheirSiblingFiles(string cardId, string snippetName)
-    {
-        // Arrange: the snippet, which is not a source example, and its links (a link may carry a fragment)
-        var snippet = HelpTopics.Snippets().Single(e => e.Card.Id == cardId && e.Example.Name == snippetName).Example;
-        Assert.DoesNotContain(HelpTopics.SourceExamples(), e => e.Example == snippet);
-        var links = SnippetLinks(snippet);
-        Assert.NotEmpty(links);
-
-        // Arrange: save the snippet and, for each distinct file, a sibling file
-        using var directory = new TempDirectory();
-        var input = directory.Combine(snippet.FileName!);
-        File.WriteAllText(input, snippet.Content);
-        foreach (var file in links.Select(href => href.Split('#')[0]).Distinct(StringComparer.Ordinal))
-        {
-            Assert.Contains(CanvasNetViewer.Extensions, e => file.EndsWith(e, StringComparison.OrdinalIgnoreCase));
-            WriteSibling(directory, file);
-        }
-
-        // Act: render with --strict
-        var output = directory.Combine("out.png");
-        var (exitCode, stdOut, stdErr) = ToolHost.Invoke("render", input, "--strict", "--json", "-o", output);
-
-        // Assert: it succeeded without a diagnostic, embedded each link once in order, and wrote the picture
-        Assert.True(exitCode == 0, stdErr + stdOut);
-        using var document = JsonDocument.Parse(stdOut);
-        Assert.True(document.RootElement.GetProperty("ok").GetBoolean());
-        Assert.Empty(document.RootElement.GetProperty("diagnostics").EnumerateArray());
-        var embeds = document.RootElement.GetProperty("operations").EnumerateArray()
-            .Where(o => o.GetProperty("op").GetString() == "embed")
-            .Select(o => o.GetProperty("href").GetString()!)
-            .ToList();
-        Assert.Equal(links, embeds);
-        Assert.True(File.Exists(output));
-    }
-
-    /// <summary>
-    ///     Test that the <c>pictures</c> snippet of the <c>mermaid composition</c> card renders under <c>--strict</c>
-    ///     without a diagnostic once its model and chart exist, and draws one <c>embed</c> operation for each picture.
-    /// </summary>
-    [Fact]
-    public void HelpTopics_MermaidTopic_PicturesSnippet_RendersStrictWithItsSiblingFiles()
-    {
-        // Arrange: the snippet, which is not a source example, and the model and the chart it shows
-        var card = HelpTopics.Get("mermaid/composition");
-        var snippet = Assert.Single(card.Examples, e => e.Name == "pictures");
-        Assert.Equal(HelpTopics.SnippetKind, snippet.Kind);
-        using var directory = new TempDirectory();
-        var input = directory.Combine(snippet.FileName!);
-        File.WriteAllText(input, snippet.Content);
-        File.WriteAllText(directory.Combine("part.scad"), HelpTopics.RenderExample(HelpTopics.Get("scad"), "plate"));
-        File.WriteAllText(directory.Combine("chart.vl.json"), HelpTopics.RenderExample(HelpTopics.Get("vega-lite"), "bar"));
-
-        // Act: render with --strict
-        var output = directory.Combine("out.png");
-        var (exitCode, stdOut, stdErr) = ToolHost.Invoke("render", input, "--strict", "--json", "-o", output);
-
-        // Assert: it succeeded without a diagnostic and listed each picture once
-        Assert.True(exitCode == 0, stdErr + stdOut);
-        using var document = JsonDocument.Parse(stdOut);
-        Assert.Empty(document.RootElement.GetProperty("diagnostics").EnumerateArray());
-        var embeds = document.RootElement.GetProperty("operations").EnumerateArray()
-            .Where(o => o.GetProperty("op").GetString() == "embed")
-            .Select(o => o.GetProperty("href").GetString())
-            .ToList();
-        Assert.Equal(["part.scad", "chart.vl.json"], embeds);
-        Assert.True(File.Exists(output));
-    }
-
-    /// <summary>
-    ///     Test that the Mermaid diagram cards say what the definition lists of the Mermaid user guide say, item for item
-    ///     and in order: the <c>## Syntax</c>, <c>## Relations</c>, and <c>## Tags</c> bullets of <c>mermaid &lt;type&gt;</c>
-    ///     are the guide's syntax, relation, and tag items, the <c>## Settings</c> bullets of
-    ///     <c>mermaid &lt;type&gt; settings</c> are the guide's setting items (<c>**key** (default value): meaning</c>), and
-    ///     every item of the guide's code list (<c>**code**: kind: reported when</c>) is a bullet of
-    ///     <c>mermaid unsupported</c> or <c>mermaid diagnostics</c>. Backticks are compared, and the first letter of each
-    ///     part before a <c>: </c> is compared ignoring case.
-    /// </summary>
-    [Fact]
-    public void HelpTopics_MermaidTopic_DiagramSyntaxItems_MatchUserGuide()
-    {
-        // Arrange: the guide and the diagrams
-        var guide = File.ReadAllLines(Path.Combine(FindRepositoryRoot(), "docs", "user_guide", "canvas-net-mermaid.md"));
-        (string Card, string Heading, int MinimumRows)[] diagrams =
-        [
-            ("class", "### Supported Class Syntax", 30),
-            ("state", "### Supported State Syntax", 18),
-            ("er", "### Supported Entity Relationship Syntax", 24),
-            ("pie", "### Supported Pie Syntax", 12),
-            ("gantt", "### Supported Gantt Syntax", 35),
-            ("mindmap", "### Supported Mindmap Syntax", 16),
-            ("packet", "### Supported Packet Syntax", 16),
-            ("gitgraph", "### Supported Git Graph Syntax", 21),
-        ];
-
-        // Act: the bullets that the items of the guide's lists promise, compared with the cards
-        var differences = new List<string>();
-        foreach (var (card, heading, minimumRows) in diagrams)
-        {
-            var items = GuideItems(guide, heading).ToList();
-            Assert.True(items.Count >= minimumRows, $"Only {items.Count} items were found in the {card} lists of the guide.");
-            var id = $"mermaid/{card}";
-            var sections = HelpCardText.Headings(HelpTopics.Get(id).Body).Where(h => h is "Syntax" or "Relations" or "Tags").ToList();
-            var syntax = items.Where(i => !IsSettingItem(i)).Select(i => i.Term + i.Tail).ToList();
-            var settings = items.Where(IsSettingItem).Select(i => i.Term + i.Tail).ToList();
-            CompareInOrder($"{id} ## {string.Join(", ", sections)}", syntax, sections.SelectMany(s => HelpCardText.Bullets(id, s)).ToList(), differences);
-            CompareInOrder($"{id}/settings ## Settings", settings, HelpCardText.Bullets($"{id}/settings", "Settings"), differences);
-        }
-
-        var codeItems = GuideItems(guide, "### Mermaid Unsupported Features and Strict Mode").ToList();
-        var unsupported = HelpCardText.Bullets("mermaid/unsupported").Select(CanonicalBullet).ToList();
-        var diagnostics = HelpCardText.Bullets("mermaid/diagnostics").Select(CanonicalBullet).ToList();
-        foreach (var (term, tail) in codeItems)
-        {
-            var parts = tail.Split(": ", 3);
-            Assert.True(parts.Length == 3 && parts[0].Length == 0, $"The code item '{term}' is not written as '**code**: kind: reported when'.");
-            var (bullets, expected) = parts[1] == "Unsupported"
-                ? (unsupported, $"{term}: {parts[2]}")
-                : (diagnostics, $"{term}: {parts[1]}: {parts[2]}");
-            if (!bullets.Contains(CanonicalBullet(expected)))
-            {
-                differences.Add($"bullet missing:{Environment.NewLine}  guide: {expected}");
-            }
-        }
-
-        // Assert: the code list has its items, and nothing differs
-        Assert.True(codeItems.Count >= 18, $"Only {codeItems.Count} items were found in the code list of the guide.");
-        Assert.True(differences.Count == 0, string.Join(Environment.NewLine, differences));
-    }
-
-    /// <summary>
-    ///     Test that the PlantUML diagram cards say what the lists of the PlantUML user guide say, item for item and in
-    ///     order: the <c>## Supported</c> bullets of <c>plantuml sequence</c> and <c>plantuml activity</c> are the items of
-    ///     the guide's supported sequence and activity syntax lists, and every item of the guide's code list
-    ///     (<c>**code**: kind: reported when</c>) is a bullet of <c>plantuml unsupported</c> or <c>plantuml diagnostics</c>.
-    /// </summary>
-    [Fact]
-    public void HelpTopics_PlantUmlTopic_DiagramSyntaxItems_MatchUserGuide()
-    {
-        // Arrange: the guide
-        var guide = File.ReadAllLines(Path.Combine(FindRepositoryRoot(), "docs", "user_guide", "canvas-net-plant-uml.md"));
-        (string Card, string Heading, int MinimumRows)[] diagrams =
-        [
-            ("sequence", "### Supported Sequence Syntax", 10),
-            ("activity", "### Supported Activity Syntax", 10),
-        ];
-
-        // Act: the bullets that the items of the guide's lists promise, compared with the cards
-        var differences = new List<string>();
-        foreach (var (card, heading, minimumRows) in diagrams)
-        {
-            var items = GuideItems(guide, heading).Select(i => i.Term + i.Tail).ToList();
-            Assert.True(items.Count >= minimumRows, $"Only {items.Count} items were found in the {card} list of the guide.");
-            CompareInOrder($"plantuml/{card} ## Supported", items, HelpCardText.Bullets($"plantuml/{card}", "Supported"), differences);
-        }
-
-        var codeItems = GuideItems(guide, "### PlantUML Unsupported Features and Strict Mode").ToList();
-        var unsupported = HelpCardText.Bullets("plantuml/unsupported").Select(CanonicalBullet).ToList();
-        var diagnostics = HelpCardText.Bullets("plantuml/diagnostics").Select(CanonicalBullet).ToList();
-        foreach (var (term, tail) in codeItems)
-        {
-            var parts = tail.Split(": ", 3);
-            Assert.True(parts.Length == 3 && parts[0].Length == 0, $"The code item '{term}' is not written as '**code**: kind: reported when'.");
-            var (bullets, expected) = parts[1] == "Unsupported"
-                ? (unsupported, $"{term}: {parts[2]}")
-                : (diagnostics, $"{term}: {parts[1]}: {parts[2]}");
-            if (!bullets.Contains(CanonicalBullet(expected)))
-            {
-                differences.Add($"bullet missing:{Environment.NewLine}  guide: {expected}");
-            }
-        }
-
-        // Assert: the code list has an item for every code of the library but the generic warning, and nothing differs
-        Assert.True(codeItems.Count >= 16, $"Only {codeItems.Count} items were found in the code list of the guide.");
-        Assert.True(differences.Count == 0, string.Join(Environment.NewLine, differences));
     }
 
     /// <summary>
@@ -632,73 +310,20 @@ public partial class HelpTopicsTests
     }
 
     /// <summary>
-    ///     Test that the <c>svg</c> cards document the page fragment: the grammar, the parameter of each format, the
-    ///     four diagnostic codes with their severity, the <c>--strict</c> behavior, the <c>&amp;amp;</c> note, the
-    ///     example, and that the limits quoted are the live ones.
+    ///     Test that the <c>json diagnostics</c> card documents <c>detail</c>, <c>location</c>, and <c>origin</c> (the
+    ///     library tests that the format cards document the page fragment and <c>limits</c> its limits).
     /// </summary>
     [Fact]
-    public void HelpTopics_SvgTopic_PageFragment_DocumentsGrammarPerFormatCodesAndStrict()
+    public void HelpTopics_JsonDiagnosticsCard_DocumentsDetailLocationAndOrigin()
     {
-        // Arrange: the fragment items, the diagnostics, and the options
-        var fragment = HelpCardText.Item("svg/fragments", "page fragment");
-        var example = HelpCardText.Item("svg/fragments", "page example");
-        var diagnostics = HelpCardText.Items("svg/diagnostics");
-        var strict = HelpCardText.Item("svg/options", "ThrowOnUnsupportedFeature");
-
-        // Assert: grammar and per-format parameters
-        Assert.Contains("name=value", fragment);
-        Assert.Contains("page=N", fragment);
-        Assert.Contains("slide=N", fragment);
-        Assert.Contains("view=", fragment);
-        Assert.Contains("azimuth=", fragment);
-        Assert.Contains("elevation=", fragment);
-        Assert.Contains("projection=", fragment);
-        Assert.Contains("counts from 1", fragment);
-        Assert.Contains(ImageFragment.MaxLength.ToString(System.Globalization.CultureInfo.InvariantCulture), fragment);
-        Assert.Contains(ImageFragment.MaxParameters.ToString(System.Globalization.CultureInfo.InvariantCulture), fragment);
-
-        // Assert: examples, and the &amp; note
-        Assert.Contains("report.pdf#page=2", example);
-        Assert.Contains("deck.pptx#slide=3", example);
-        Assert.Contains("&amp;", example);
-        Assert.Contains("canvasnet help svg --example embed-pages", example);
-        Assert.Contains("<image href=\"report.pdf#page=2\"", HelpTopics.RenderExample(HelpTopics.Get("svg"), "embed-pages"));
-
-        // Assert: each code is documented, and strict mode names the two that fail
-        foreach (var code in new[] { FolderImageResolver.FragmentUnknownParameterCode, FolderImageResolver.FragmentDuplicateParameterCode, FolderImageResolver.FragmentInvalidCode, FolderImageResolver.PageOutOfRangeCode })
-        {
-            Assert.Contains(diagnostics, i => i.Term == code);
-        }
-
-        Assert.Contains(FolderImageResolver.FragmentInvalidCode, strict);
-        Assert.Contains(FolderImageResolver.PageOutOfRangeCode, strict);
-        Assert.Contains("stay warnings", strict);
-    }
-
-    /// <summary>
-    ///     Test that the format cards point to the page fragment, the <c>scad</c> cards document <c>#view=</c>, the
-    ///     <c>json diagnostics</c> card documents <c>detail</c>, <c>location</c>, and <c>origin</c>, and <c>limits</c>
-    ///     documents the fragment limits.
-    /// </summary>
-    [Fact]
-    public void HelpTopics_FormatTopicsJsonAndLimits_DocumentFragmentsDetailLocationAndOrigin()
-    {
-        // Assert: the document cards show the embedding with their own parameter
-        Assert.Contains("report.pdf#page=3", HelpCardText.TextOf("pdf"));
-        Assert.Contains("deck.pptx#slide=3", HelpCardText.TextOf("pptx"));
-        Assert.Contains("drawing.vsdx#page=2", HelpCardText.TextOf("vsdx"));
-        Assert.Contains("part.scad#view=front", HelpCardText.TextOf("scad"));
-
-        // Assert: the json diagnostics card documents the three members, and the limits card the live fragment limits
+        // Act: the items of the card
         var json = HelpCardText.Items("json/diagnostics");
+
+        // Assert: the three members are documented
         foreach (var term in new[] { "detail", "location", "origin" })
         {
             Assert.Contains(json, i => i.Term == term);
         }
-
-        var limits = HelpCardText.TextOf("limits");
-        Assert.Contains(ImageFragment.MaxLength.ToString(System.Globalization.CultureInfo.InvariantCulture) + " characters", limits);
-        Assert.Contains(ImageFragment.MaxParameters.ToString(System.Globalization.CultureInfo.InvariantCulture) + " parameters", limits);
     }
 
     /// <summary>
@@ -797,43 +422,25 @@ public partial class HelpTopicsTests
     }
 
     /// <summary>
-    ///     Test that the <c>errors codes</c> card lists every error code of the tool, and nothing else as a code.
+    ///     Test that the merged <c>errors codes</c> card lists every error code, and nothing else as a code: the library's
+    ///     card lists the library's codes, and the tool's command-line section lists exactly the codes only the tool
+    ///     reports.
     /// </summary>
     [Fact]
     public void HelpTopics_ErrorsTopic_ListsEveryErrorCode()
     {
-        // Arrange: the codes of the code, and the terms of the card
+        // Arrange: the codes of the code, the codes only the tool reports, and the terms of the card
         var codes = ErrorCodeValues().ToList();
-        var terms = HelpCardText.Items("errors/codes").Select(i => i.Term).ToList();
+        string[] toolCodes = [ErrorCodes.OperationFailed, ErrorCodes.ThresholdFailed, ErrorCodes.PandocFilterError];
 
-        // Act / Assert: the same set
+        // Act: the terms of the merged card, and of the tool's section
+        var terms = HelpCardText.Items("errors/codes").Select(i => i.Term).ToList();
+        var toolTerms = HelpCardText.Items("errors/codes", "Command line").Select(i => i.Term).ToList();
+
+        // Assert: the same set, and the tool's section lists the tool's codes
         Assert.NotEmpty(codes);
         Assert.Equal(codes.Order(StringComparer.Ordinal), terms.Order(StringComparer.Ordinal));
-    }
-
-    /// <summary>
-    ///     Test that every diagnostic identifier a card cites exists: it is covered by the trigger table (which
-    ///     the trigger test proves), is an error code, is a warning code that a render test triggers
-    ///     (<c>svg-image-unresolved</c> and <c>svg-image-too-large</c> by <c>RenderCommandSvgEmbedTests</c>, and
-    ///     <c>svg-flatten-image-not-drawn</c> of the Viewer library by <c>FlattenCommandTests</c>), or is a literal in one of the libraries.
-    /// </summary>
-    [Fact]
-    public void HelpTopics_CitedDiagnosticIds_ExistInTheLibraries()
-    {
-        // Arrange: what a cited identifier may be, and the text of the libraries to search for literals
-        var allowed = Triggers.SelectMany(t => new[] { t.Cited, t.Code }).Concat(["scad-warning", "vega-lite-warning", "svg-image-unresolved", "svg-image-too-large", FolderImageResolver.FragmentUnknownParameterCode, FolderImageResolver.FragmentDuplicateParameterCode, FolderImageResolver.FragmentInvalidCode, FolderImageResolver.PageOutOfRangeCode, FolderImageResolver.AccessDeniedCode, SvgFlattener.ImageNotDrawnCode, NamingRule]).Concat(ErrorCodeValues()).ToHashSet(StringComparer.Ordinal);
-        var literals = LibraryAssemblies.Select(a => File.ReadAllBytes(a.Location)).ToList();
-        var cited = HelpTopics.All.SelectMany(AllStrings).SelectMany(s => IdentifierPattern.Matches(s).Select(m => m.Value)).Distinct().Order(StringComparer.Ordinal).ToList();
-
-        // Act / Assert: each cited identifier is allowed, or its literal (the part before a '<' placeholder) is in a library
-        Assert.NotEmpty(cited);
-        foreach (var token in cited)
-        {
-            var literal = token.Contains('<') ? token[..token.IndexOf('<')] : token;
-            var needle = Encoding.Unicode.GetBytes(literal);
-            var found = allowed.Contains(token) || literals.Any(bytes => bytes.AsSpan().IndexOf(needle) >= 0);
-            Assert.True(found, $"The identifier '{token}' is cited by a help card but is neither triggered by a test nor a literal of a library.");
-        }
+        Assert.Equal(toolCodes.Order(StringComparer.Ordinal), toolTerms.Order(StringComparer.Ordinal));
     }
 
     /// <summary>
@@ -1196,95 +803,6 @@ public partial class HelpTopicsTests
     }
 
     /// <summary>
-    ///     Gets whether a definition item of a guide is a setting, written <c>**key** (default value): meaning</c>.
-    /// </summary>
-    /// <param name="item">The term and the tail of the item.</param>
-    /// <returns><c>true</c> for a setting.</returns>
-    private static bool IsSettingItem((string Term, string Tail) item)
-    {
-        return item.Tail.StartsWith(" (default ", StringComparison.Ordinal);
-    }
-    /// <summary>
-    ///     Compares the bullets of a card with the bullets the guide promises, in order, and records each difference.
-    /// </summary>
-    /// <param name="where">The card and heading, for the message.</param>
-    /// <param name="expected">The bullets the guide promises.</param>
-    /// <param name="actual">The bullets of the card.</param>
-    /// <param name="differences">The list to add each difference to.</param>
-    private static void CompareInOrder(string where, IReadOnlyList<string> expected, IReadOnlyList<string> actual, List<string> differences)
-    {
-        for (var i = 0; i < Math.Max(expected.Count, actual.Count); i++)
-        {
-            var guide = i < expected.Count ? expected[i] : "(nothing)";
-            var help = i < actual.Count ? actual[i] : "(nothing)";
-            if (CanonicalBullet(guide) != CanonicalBullet(help))
-            {
-                differences.Add($"{where} bullet {i + 1}:{Environment.NewLine}  guide: {guide}{Environment.NewLine}  help:  {help}");
-            }
-        }
-    }
-
-    /// <summary>
-    ///     Gets the canonical form of a bullet for the guide comparison: the first letter of each of its first three parts
-    ///     separated by <c>: </c> in lower case.
-    /// </summary>
-    /// <param name="bullet">The bullet.</param>
-    /// <returns>The canonical form.</returns>
-    private static string CanonicalBullet(string bullet)
-    {
-        var parts = bullet.Split(": ", 3);
-        return string.Join(": ", parts.Select(p => p.Length == 0 ? p : char.ToLowerInvariant(p[0]) + p[1..]));
-    }
-
-    /// <summary>
-    ///     Gets the files a snippet links, in order: the <c>href</c> of each SVG <c>image</c>, or the <c>img</c> of each
-    ///     Mermaid node and the <c>src</c> of each <c>&lt;img&gt;</c> of a Mermaid label.
-    /// </summary>
-    /// <param name="snippet">The snippet.</param>
-    /// <returns>The links, with their fragments.</returns>
-    private static List<string> SnippetLinks(HelpExample snippet)
-    {
-        if (snippet.FileName!.EndsWith(".svg", StringComparison.Ordinal))
-        {
-            return XDocument.Parse(snippet.Content).Descendants()
-                .Where(e => e.Name.LocalName == "image")
-                .Select(e => (string)e.Attribute("href")!)
-                .ToList();
-        }
-
-        return Regex.Matches(snippet.Content, "(?:img: \"|<img src=\")([^\"]+)\"", RegexOptions.None, TimeSpan.FromSeconds(5))
-            .Select(m => m.Groups[1].Value)
-            .ToList();
-    }
-
-    /// <summary>
-    ///     Writes the file a snippet links: the source example with that file name, else the first source example with
-    ///     its extension, else the fixture document of a PDF, PPTX, or VSDX file.
-    /// </summary>
-    /// <param name="directory">The folder of the snippet.</param>
-    /// <param name="file">The file name the snippet links.</param>
-    private static void WriteSibling(TempDirectory directory, string file)
-    {
-        var documents = new Dictionary<string, Func<byte[]>>
-        {
-            [".pdf"] = () => FixtureFactory.CreatePdf(),
-            [".pptx"] = () => FixtureFactory.CreatePptx(),
-            [".vsdx"] = () => FixtureFactory.CreateVsdx()
-        };
-        var sources = HelpTopics.SourceExamples().Select(e => e.Example).ToList();
-        var source = sources.FirstOrDefault(e => e.FileName == file)
-                     ?? sources.FirstOrDefault(e => file.EndsWith(e.FileName![e.FileName!.IndexOf('.')..], StringComparison.OrdinalIgnoreCase));
-        if (source != null)
-        {
-            File.WriteAllText(directory.Combine(file), source.Content);
-            return;
-        }
-
-        var fixture = documents.First(p => file.EndsWith(p.Key, StringComparison.OrdinalIgnoreCase));
-        File.WriteAllBytes(directory.Combine(file), fixture.Value());
-    }
-
-    /// <summary>
     ///     Gets the lines of the fenced code blocks of a body that start with <c>canvasnet </c>.
     /// </summary>
     /// <param name="body">The body.</param>
@@ -1338,19 +856,4 @@ public partial class HelpTopicsTests
         }
     }
 
-    /// <summary>
-    ///     Gets the library assemblies whose string literals may define a diagnostic identifier.
-    /// </summary>
-    private static IEnumerable<Assembly> LibraryAssemblies =>
-    [
-        typeof(ScadDocument).Assembly,
-        typeof(VegaLiteDocument).Assembly,
-        typeof(MermaidDocument).Assembly,
-        typeof(PlantUmlDocument).Assembly,
-        typeof(PdfDocument).Assembly,
-        typeof(PptxDocument).Assembly,
-        typeof(VsdxDocument).Assembly,
-        typeof(SvgCodec).Assembly,
-        typeof(Surface).Assembly
-    ];
 }

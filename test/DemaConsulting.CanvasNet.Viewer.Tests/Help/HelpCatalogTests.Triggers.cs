@@ -1,18 +1,19 @@
-using System.Text.Json;
+using DemaConsulting.CanvasNet.ImageSources;
+using DemaConsulting.CanvasNet.Viewer.Imaging;
 
-namespace DemaConsulting.CanvasNet.Tool.Tests.Commands;
+namespace DemaConsulting.CanvasNet.Viewer.Tests.Help;
 
 /// <summary>
-///     The trigger table of the HelpTopics tests: for every diagnostic identifier a topic cites, a tiny source that
-///     makes the real pipeline report it.
+///     The trigger table of the HelpCatalog tests: for every diagnostic identifier a library card cites, a tiny source
+///     that makes the real pipeline report it.
 /// </summary>
-public partial class HelpTopicsTests
+public partial class HelpCatalogTests
 {
     /// <summary>
-    ///     A diagnostic identifier cited by a topic and a source that triggers it.
+    ///     A diagnostic identifier cited by a card and a source that triggers it.
     /// </summary>
-    /// <param name="Cited">The identifier as a topic writes it (a family such as <c>vl-mark-&lt;type&gt;</c> or a single identifier).</param>
-    /// <param name="Code">The identifier the tool reports for <paramref name="Source"/>.</param>
+    /// <param name="Cited">The identifier as a card writes it (a family such as <c>vl-mark-&lt;type&gt;</c> or a single identifier).</param>
+    /// <param name="Code">The identifier the library reports for <paramref name="Source"/>.</param>
     /// <param name="IsVegaLite"><see langword="true"/> for a chart, <see langword="false"/> for a model.</param>
     /// <param name="Source">The text of the model or chart.</param>
     /// <param name="IsWarning"><see langword="true"/> for a Vega-Lite warning, whose identifier is in the message.</param>
@@ -71,7 +72,7 @@ public partial class HelpTopicsTests
     /// <summary>
     ///     Gets the cited identifiers of the trigger table as theory data.
     /// </summary>
-    public static IEnumerable<object[]> TriggerData => Triggers.Select(t => new object[] { t.Cited });
+    public static TheoryData<string> TriggerData => [.. Triggers.Select(t => t.Cited)];
 
     /// <summary>
     ///     Test that every cited identifier of the trigger table is reported by the real pipeline for its source: a
@@ -81,44 +82,41 @@ public partial class HelpTopicsTests
     /// <param name="cited">The cited identifier.</param>
     [Theory]
     [MemberData(nameof(TriggerData))]
-    public void HelpTopics_DiagnosticTriggers_ProduceTheCitedIds(string cited)
+    public void HelpCatalog_DiagnosticTriggers_ProduceTheCitedIds(string cited)
     {
-        // Arrange: the source of the trigger saved with the extension of its format
+        // Arrange: the source of the trigger saved with the extension of its format; a model is drawn small
         var trigger = Triggers.First(t => t.Cited == cited);
         using var directory = new TempDirectory();
         var input = directory.Combine(trigger.IsVegaLite ? "trigger.vl.json" : "trigger.scad");
         File.WriteAllText(input, trigger.Source);
-        string[] size = trigger.IsVegaLite ? [] : ["--size", "64x64"];
+        var size = trigger.IsVegaLite ? (int?)null : 64;
 
-        // Act: render without --strict
-        var (exitCode, stdOut, stdErr) = ToolHost.Invoke(["render", input, "--json", "-o", directory.Combine("out.png"), .. size]);
+        // Act: render without strict mode
+        using var image = CanvasNetViewer.Render(input, new ViewerRenderOptions { Width = size, Height = size });
 
-        // Assert: it succeeded and the diagnostics carry the identifier
-        Assert.True(exitCode == 0, stdErr + stdOut);
-        using var document = JsonDocument.Parse(stdOut);
-        var diagnostics = document.RootElement.GetProperty("diagnostics").EnumerateArray().ToList();
+        // Assert: the diagnostics carry the identifier
         var expectedCode = trigger.IsWarning ? "vega-lite-warning" : trigger.Code;
         Assert.Contains(
-            diagnostics,
-            d => d.GetProperty("code").GetString() == expectedCode
-                 && (!trigger.IsWarning || d.GetProperty("message").GetString()!.Contains($"{trigger.Code}:", StringComparison.Ordinal)));
+            image.Diagnostics,
+            d => d.Code == expectedCode
+                 && (!trigger.IsWarning || d.Message.Contains($"{trigger.Code}:", StringComparison.Ordinal)));
     }
 
     /// <summary>
-    ///     Test that each image-link code the <c>svg</c> topic cites is reported by the real pipeline for a link that
-    ///     causes it, with the severity the topic states, and that <c>--strict</c> fails exactly for the two that
-    ///     leave the image out.
+    ///     Test that each image-link code the <c>svg</c> cards cite is reported by the real pipeline for a link that
+    ///     causes it, with the severity the cards state, and that strict mode fails exactly for the two that leave the
+    ///     image out.
     /// </summary>
     /// <param name="href">The href of the link, written as XML attribute text (so <c>&amp;amp;</c> separates parameters).</param>
     /// <param name="code">The code the pipeline reports.</param>
     /// <param name="severity">The severity of the report.</param>
-    /// <param name="strictFails">Whether <c>--strict</c> turns the report into an error.</param>
+    /// <param name="strictFails">Whether strict mode turns the report into an error.</param>
     [Theory]
-    [InlineData("report.pdf#pag=2", "image-fragment-unknown-parameter", "warning", false)]
-    [InlineData("report.pdf#page=1&amp;page=2", "image-fragment-duplicate-parameter", "warning", false)]
-    [InlineData("report.pdf#page=0", "image-fragment-invalid", "unsupported", true)]
-    [InlineData("report.pdf#page=9", "image-page-out-of-range", "unsupported", true)]
-    public void HelpTopics_DiagnosticTriggers_ImageFragmentCodes_AreReportedWithTheirSeverity(string href, string code, string severity, bool strictFails)
+    [InlineData("report.pdf#pag=2", "image-fragment-unknown-parameter", ImageDiagnosticSeverity.Warning, false)]
+    [InlineData("report.pdf#page=1&amp;page=2", "image-fragment-duplicate-parameter", ImageDiagnosticSeverity.Warning, false)]
+    [InlineData("report.pdf#page=0", "image-fragment-invalid", ImageDiagnosticSeverity.Unsupported, true)]
+    [InlineData("report.pdf#page=9", "image-page-out-of-range", ImageDiagnosticSeverity.Unsupported, true)]
+    public void HelpCatalog_DiagnosticTriggers_ImageFragmentCodes_AreReportedWithTheirSeverity(string href, string code, ImageDiagnosticSeverity severity, bool strictFails)
     {
         // Arrange: a diagram linking a two-page PDF
         using var directory = new TempDirectory();
@@ -128,43 +126,40 @@ public partial class HelpTopicsTests
             "diagram.svg",
             $"<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40' width='40' height='40'><image href='{href}' x='0' y='0' width='40' height='40'/></svg>");
 
-        // Act: render without and with --strict
-        var plain = ToolHost.Invoke("render", input, "--json", "-o", directory.Combine("out.png"));
-        var strict = ToolHost.Invoke("render", input, "--strict", "--json", "-o", directory.Combine("strict.png"));
+        // Act: render without and with strict mode
+        using var plain = CanvasNetViewer.Render(input);
+        var strict = Record.Exception(() => CanvasNetViewer.Render(input, new ViewerRenderOptions { ThrowOnUnsupportedFeature = true }).Dispose());
 
-        // Assert: the code and severity are reported, and --strict fails only for an image that was not drawn
-        Assert.True(plain.ExitCode == 0, plain.StdErr + plain.StdOut);
-        using var document = JsonDocument.Parse(plain.StdOut);
-        var diagnostic = Assert.Single(document.RootElement.GetProperty("diagnostics").EnumerateArray());
-        Assert.Equal(code, diagnostic.GetProperty("code").GetString());
-        Assert.Equal(severity, diagnostic.GetProperty("severity").GetString());
-        Assert.Equal(strictFails ? 1 : 0, strict.ExitCode);
+        // Assert: the code and severity are reported, and strict mode fails only for an image that was not drawn
+        var diagnostic = Assert.Single(plain.Diagnostics);
+        Assert.Equal(code, diagnostic.Code);
+        Assert.Equal(severity, diagnostic.Severity);
+        Assert.Equal(strictFails, strict is ViewerException);
+        Assert.True(strictFails || strict == null, strict?.ToString());
     }
 
     /// <summary>
-    ///     Test that <c>--strict</c> turns the reports of a model and of a chart into the <c>unsupported-feature</c> error.
+    ///     Test that strict mode turns the reports of a model and of a chart into the <c>unsupported-feature</c> error.
     /// </summary>
-    /// <param name="cited">The cited identifier whose source is run with <c>--strict</c>.</param>
+    /// <param name="cited">The cited identifier whose source is rendered in strict mode.</param>
     [Theory]
     [InlineData("scad-module-offset")]
     [InlineData("vl-mark-<type>")]
-    public void HelpTopics_DiagnosticTriggers_Strict_FailsWithUnsupportedFeature(string cited)
+    public void HelpCatalog_DiagnosticTriggers_Strict_FailsWithUnsupportedFeature(string cited)
     {
         // Arrange: the source of an unsupported-feature trigger
         var trigger = Triggers.First(t => t.Cited == cited);
         using var directory = new TempDirectory();
         var input = directory.Combine(trigger.IsVegaLite ? "trigger.vl.json" : "trigger.scad");
         File.WriteAllText(input, trigger.Source);
-        string[] size = trigger.IsVegaLite ? [] : ["--size", "64x64"];
+        var size = trigger.IsVegaLite ? (int?)null : 64;
 
-        // Act: render with --strict
-        var (exitCode, stdOut, _) = ToolHost.Invoke(["render", input, "--strict", "--json", "-o", directory.Combine("out.png"), .. size]);
+        // Act: load in strict mode
+        var exception = Assert.Throws<ViewerException>(
+            () => SourceLoader.Load(input, new SourceOptions { Strict = true, Width = size, Height = size }).Dispose());
 
-        // Assert: the failure document carries the code
-        Assert.Equal(1, exitCode);
-        using var document = JsonDocument.Parse(stdOut);
-        Assert.Equal(ErrorCodes.UnsupportedFeature, document.RootElement.GetProperty("error").GetProperty("code").GetString());
-        Assert.False(File.Exists(directory.Combine("out.png")));
+        // Assert: the error carries the code
+        Assert.Equal(ErrorCodes.UnsupportedFeature, exception.Code);
     }
 
     /// <summary>

@@ -1,6 +1,6 @@
 ---
 title: Referenced files and the file-access modes
-summary: 'Which referenced files a document may read: the file-access policy.'
+summary: 'Which files a document may read: the file-access policy.'
 tags:
   - file-access
   - hosting
