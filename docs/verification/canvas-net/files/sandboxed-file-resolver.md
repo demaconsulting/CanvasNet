@@ -185,7 +185,8 @@ verification (see the next scenario).
 `SandboxedFileResolverRaceTests.SandboxedFileResolver_Resolve_RootRenamedAfterTheOpen_IsRejectedAsThroughLink` (Linux,
 macOS),
 `SandboxedFileResolverRaceTests.SandboxedFileResolver_Resolve_RootRealLocationUnavailable_FailsClosedAsLinkCheckFailed`,
-`SandboxedFileResolverRaceTests.SandboxedFileResolver_Resolve_ExecuteOnlyRoot_ReadsTheFile` (Linux, macOS)
+`SandboxedFileResolverRaceTests.SandboxedFileResolver_Resolve_ExecuteOnlyRoot_ReadsTheFile` (Linux, macOS),
+`SandboxedFileResolverRaceTests.SandboxedFileResolver_Resolve_CaseVariantLinkCreatedBeforeTheOpen_IsThroughLink` (Linux)
 
 The post-open verification is proven through the `FileOpenHooks` seams of the internal constructor, with no timing:
 inside `BeforeOpen` (after the link walk passed, before any handle exists, so Windows allows the rename) the folder of
@@ -204,7 +205,9 @@ handle is no longer below the captured root location; Windows does not allow ren
 the scenario does not exist there. A root whose real location could not be captured (the `DirectoryLocationOf` seam
 reports none) is `LinkCheckFailed`, not `ThroughLink`. A root made execute-only (mode 0100) still serves its file,
 because its real location needs no read permission; the test restores the mode afterwards and skips when permissions
-are not enforced (root).
+are not enforced (root). In a case-sensitive folder holding `target.txt`, a symbolic link `Target.txt` to it created
+inside `BeforeOpen` (after the on-disk spelling of `Target.txt` was captured and the walk passed) is `ThroughLink`: the
+written name named no entry when its spelling was captured, so it was kept as written and not mapped to `target.txt`.
 
 ##### CanvasNet-Files-SandboxedFileResolver-ResolverCallback: Callback Mode
 

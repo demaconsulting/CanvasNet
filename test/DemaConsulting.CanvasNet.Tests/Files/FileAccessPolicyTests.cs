@@ -350,14 +350,16 @@ public class FileAccessPolicyTests
     }
 
     /// <summary>
-    ///     Validates that a path written in another letter case than the one stored on disk is compared in its on-disk
-    ///     spelling, so it is not mistaken for a link.
+    ///     Validates in a folder that ignores letter case that a path written in another letter case than the one stored
+    ///     on disk is compared in its on-disk spelling, so it is not mistaken for a link. Skips where the temporary folder
+    ///     compares letter case (there the written path names no file, so the case variant is kept as written).
     /// </summary>
     [Fact]
     public void FileAccessPolicy_NoSymlinks_WrittenPathInAnotherLetterCase_IsAllowed()
     {
         // Arrange: stored as sub/a.txt, written as SUB/A.TXT
         using var directory = new SandboxTempDirectory();
+        FileTestSupport.RequireCaseInsensitive(directory.Path);
         var baseDirectory = Directory.CreateDirectory(directory.Combine("base")).FullName;
         directory.Write("base/sub/a.txt", "a");
 

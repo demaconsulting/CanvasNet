@@ -134,6 +134,29 @@ internal static partial class RealPath
     }
 
     /// <summary>
+    ///     Determines on Windows whether two paths name the same directory entry: both are opened with
+    ///     <c>FILE_FLAG_OPEN_REPARSE_POINT</c> (a link at the last component is opened itself, not followed) and their
+    ///     volume serial numbers and file identifiers are compared.
+    /// </summary>
+    /// <param name="writtenPath">The full path as written.</param>
+    /// <param name="storedPath">The full path of an entry as stored.</param>
+    /// <returns>The answer, or <see langword="null"/> when a path cannot be opened or an identity cannot be read.</returns>
+    [SupportedOSPlatform("windows")]
+    private static bool? IsSameEntryWindows(string writtenPath, string storedPath)
+    {
+        using var written = NativeMethods.OpenForIdentity(writtenPath);
+        using var stored = NativeMethods.OpenForIdentity(storedPath);
+        if (written.IsInvalid || stored.IsInvalid)
+        {
+            return null;
+        }
+
+        return NativeMethods.TryGetWindowsFileIds(written, stored) is { } identities
+            ? identities.First == identities.Second
+            : null;
+    }
+
+    /// <summary>
     ///     Determines whether a full path is a network location on Windows: a UNC path (<c>\\server\share</c> or
     ///     <c>\\?\UNC\server\share</c>), or a path on a mapped network drive (also as <c>\\?\Z:\</c>). A mapped network
     ///     drive is a network location, so a host working on <c>Z:\</c> keeps working when its files are compared with

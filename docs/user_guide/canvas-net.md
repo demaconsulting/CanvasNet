@@ -2386,7 +2386,9 @@ works. The fail-closed cases: a file whose stored spelling cannot be confirmed t
 a file system that reports the spelling a file was opened with and holds several names that differ only in letter case,
 or a spelling that reaches the file through a linked folder another process created meanwhile - is denied
 (`AccessDenied`, the letter case its real path has on disk cannot be confirmed to name the opened file); a folder whose
-entries cannot be listed keeps the name as written, which can only deny. Only the check of the path as written before
+entries cannot be listed keeps the name as written, which can only deny; and in a case-sensitive folder a name written
+in another letter case than a stored entry names no file, so it is kept as written (it is matched to the stored entry
+only when both spellings open the same entry, which is what a case-insensitive folder does). Only the check of the path as written before
 the open keeps the system's rule (case-insensitive on Windows and macOS). A policy you call yourself with `Check` must
 get `RealPath` in its on-disk letter case.
 

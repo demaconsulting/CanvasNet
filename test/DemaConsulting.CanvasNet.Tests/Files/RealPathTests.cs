@@ -492,14 +492,16 @@ public class RealPathTests
     }
 
     /// <summary>
-    ///     Validates that a folder and a file written in another letter case are given in the case stored on disk (the
-    ///     single entry that matches ignoring case), on every platform.
+    ///     Validates in a folder that ignores letter case that a folder and a file written in another letter case are
+    ///     given in the case stored on disk (the single entry that matches ignoring case, which is the same entry as the
+    ///     name as written). Skips where the temporary folder compares letter case.
     /// </summary>
     [Fact]
     public void RealPath_GetExactPathName_FolderAndFileInAnotherCase_GiveTheStoredCase()
     {
         // Arrange
         using var directory = new SandboxTempDirectory();
+        FileTestSupport.RequireCaseInsensitive(directory.Path);
         directory.Write("Docs/Readme.txt", "r");
         var folder = RealPath.GetExactPathName(Path.GetFullPath(directory.Path));
 
@@ -511,8 +513,7 @@ public class RealPathTests
     }
 
     /// <summary>
-    ///     Validates that the part of a path that does not exist is kept as written, while the existing part is given in
-    ///     its stored letter case.
+    ///     Validates that the part of a path below a folder that does not exist is kept as written, on every platform.
     /// </summary>
     [Fact]
     public void RealPath_GetExactPathName_MissingTail_IsKeptAsWritten()
@@ -523,10 +524,101 @@ public class RealPathTests
         var folder = RealPath.GetExactPathName(Path.GetFullPath(directory.Path));
 
         // Act
-        var exact = RealPath.GetExactPathName(Path.Join(folder, "docs", "Missing", "Sub.txt"));
+        var exact = RealPath.GetExactPathName(Path.Join(folder, "Docs", "Missing", "Sub.txt"));
 
         // Assert
         Assert.Equal(Path.Join(folder, "Docs", "Missing", "Sub.txt"), exact);
+    }
+
+    /// <summary>
+    ///     Validates in a folder that compares letter case, holding only <c>target.txt</c>, that <c>TARGET.txt</c> is
+    ///     kept as written: it names no entry there, so mapping it to the case variant would let a link created later
+    ///     under the written name pass as the stored entry. Skips where the temporary folder ignores letter case.
+    /// </summary>
+    [Fact]
+    public void RealPath_GetExactPathName_CaseVariantOfAnEntryInACaseSensitiveFolder_KeepsTheNameAsWritten()
+    {
+        // Arrange
+        using var directory = new SandboxTempDirectory();
+        var folder = RealPath.GetExactPathName(Path.GetFullPath(directory.Path));
+        FileTestSupport.RequireCaseSensitive(folder);
+        File.WriteAllText(Path.Join(folder, "target.txt"), "target");
+
+        // Act
+        var exact = RealPath.GetExactPathName(Path.Join(folder, "TARGET.txt"));
+
+        // Assert
+        Assert.Equal(Path.Join(folder, "TARGET.txt"), exact);
+    }
+
+    /// <summary>
+    ///     Validates the identity check of two directory entries on every platform: an entry is the same entry as
+    ///     itself, another file is not, and a name that does not exist is unknown.
+    /// </summary>
+    [Fact]
+    public void RealPath_IsSameEntry_SameEntryOtherFileAndMissingName_AreTold()
+    {
+        // Arrange
+        using var directory = new SandboxTempDirectory();
+        var folder = RealPath.GetExactPathName(Path.GetFullPath(directory.Path));
+        File.WriteAllText(Path.Join(folder, "a.txt"), "a");
+        File.WriteAllText(Path.Join(folder, "b.txt"), "b");
+
+        // Act
+        var itself = RealPath.IsSameEntry(Path.Join(folder, "a.txt"), Path.Join(folder, "a.txt"));
+        var other = RealPath.IsSameEntry(Path.Join(folder, "a.txt"), Path.Join(folder, "b.txt"));
+        var missing = RealPath.IsSameEntry(Path.Join(folder, "missing.txt"), Path.Join(folder, "a.txt"));
+
+        // Assert
+        Assert.True(itself);
+        Assert.False(other);
+        Assert.Null(missing);
+    }
+
+    /// <summary>
+    ///     Validates in a folder that ignores letter case that a name written in another letter case is the same entry
+    ///     as the stored one. Skips where the temporary folder compares letter case.
+    /// </summary>
+    [Fact]
+    public void RealPath_IsSameEntry_CaseVariantInACaseInsensitiveFolder_IsTheSameEntry()
+    {
+        // Arrange
+        using var directory = new SandboxTempDirectory();
+        FileTestSupport.RequireCaseInsensitive(directory.Path);
+        var folder = RealPath.GetExactPathName(Path.GetFullPath(directory.Path));
+        File.WriteAllText(Path.Join(folder, "target.txt"), "target");
+
+        // Act
+        var same = RealPath.IsSameEntry(Path.Join(folder, "TARGET.txt"), Path.Join(folder, "target.txt"));
+
+        // Assert
+        Assert.True(same);
+    }
+
+    /// <summary>
+    ///     Validates that a symbolic link to an entry is not the same entry: the link at the last component is opened
+    ///     itself (Linux, Windows) or refuses the open (macOS), never followed. File links need a privilege on Windows,
+    ///     so the test skips there when the host cannot create one.
+    /// </summary>
+    [Fact]
+    public void RealPath_IsSameEntry_LinkToAnEntry_IsNotTheSameEntryOrCapabilitySkipped()
+    {
+        // Arrange
+        using var directory = new SandboxTempDirectory();
+        var folder = RealPath.GetExactPathName(Path.GetFullPath(directory.Path));
+        var target = Path.Join(folder, "target.txt");
+        File.WriteAllText(target, "target");
+        var link = Path.Join(folder, "link.txt");
+        if (!SandboxLinkSupport.TryCreateFileLink(link, target, out var reason))
+        {
+            Assert.Skip("File symbolic links need Developer Mode or SeCreateSymbolicLinkPrivilege on Windows: " + reason);
+        }
+
+        // Act
+        var same = RealPath.IsSameEntry(link, target);
+
+        // Assert
+        Assert.NotEqual(true, same);
     }
 
     /// <summary>
@@ -554,9 +646,10 @@ public class RealPathTests
     }
 
     /// <summary>
-    ///     Validates on Linux and macOS, where a name may hold <c>*</c> and <c>?</c>, that such characters match only
-    ///     themselves: <c>A*B</c> gives the stored <c>a*b</c>, never <c>aXb</c>, and <c>X?</c> gives <c>x?</c>, never
-    ///     <c>xy</c>.
+    ///     Validates on macOS (a folder that ignores letter case, where a name may hold <c>*</c> and <c>?</c>) that such
+    ///     characters match only themselves: <c>A*B</c> gives the stored <c>a*b</c>, never <c>aXb</c>, and <c>X?</c>
+    ///     gives <c>x?</c>, never <c>xy</c>. Skips where the temporary folder compares letter case, where a name in
+    ///     another letter case is kept as written whatever it matches.
     /// </summary>
     [Fact]
     public void RealPath_GetExactPathName_WildcardCharactersInAName_MatchOnlyThatName()
@@ -568,6 +661,7 @@ public class RealPathTests
         }
 
         using var directory = new SandboxTempDirectory();
+        FileTestSupport.RequireCaseInsensitive(directory.Path);
         var folder = RealPath.GetExactPathName(Path.GetFullPath(directory.Path));
         directory.Write("a*b", "1");
         directory.Write("aXb", "2");

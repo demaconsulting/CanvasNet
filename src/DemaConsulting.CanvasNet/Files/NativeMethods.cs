@@ -110,6 +110,13 @@ internal static class NativeMethods
     /// </summary>
     private const int MacNoFollowAny = 0x20000000;
 
+    /// <summary>
+    ///     The macOS <c>open</c> flag <c>O_NOFOLLOW</c>: only a link at the last component refuses the open
+    ///     (<c>ELOOP</c>); links in the folders of the path are followed. Never passed together with
+    ///     <see cref="MacNoFollowAny"/>.
+    /// </summary>
+    private const int MacNoFollowLast = 0x100;
+
     /// <summary>The size of the buffer handed to <c>fstat</c>; larger than <c>struct stat</c> on every Linux architecture.</summary>
     private const int LinuxStatBufferSize = 256;
 
@@ -298,7 +305,13 @@ internal static class NativeMethods
     ///     <see langword="true"/> to read the identity of a name itself: on Linux a link at the last component is not
     ///     followed (<c>O_NOFOLLOW</c>; with <c>O_PATH</c> Linux opens the link itself), and on macOS a link at any
     ///     component, the last one included, refuses the open (<c>O_NOFOLLOW_ANY</c> alone, an
-    ///     <see cref="IOException"/> for <c>ELOOP</c>).
+    ///     <see cref="IOException"/> for <c>ELOOP</c>), or only one at the last component with
+    ///     <paramref name="lastComponentOnly"/>.
+    /// </param>
+    /// <param name="lastComponentOnly">
+    ///     With <paramref name="noFollow"/> on macOS, <see langword="true"/> to refuse only a link at the last component
+    ///     (<c>O_NOFOLLOW</c> instead of <c>O_NOFOLLOW_ANY</c>), so a path below a linked system folder (<c>/var</c>)
+    ///     can still be opened. Linux always refuses only the last component, so it is ignored there.
     /// </param>
     /// <returns>The handle, which owns the descriptor.</returns>
     /// <exception cref="FileNotFoundException">Thrown when the file does not exist.</exception>
@@ -311,7 +324,7 @@ internal static class NativeMethods
     /// </exception>
     [SupportedOSPlatform("linux")]
     [SupportedOSPlatform("macos")]
-    internal static SafeFileHandle OpenNonBlocking(string path, bool pathOnly, bool noFollow = false)
+    internal static SafeFileHandle OpenNonBlocking(string path, bool pathOnly, bool noFollow = false, bool lastComponentOnly = false)
     {
         // The variadic mode argument of open is only read with O_CREAT, which is never passed, so the two fixed
         // arguments are all the call needs on every ABI (Arm64 macOS included)
@@ -319,8 +332,10 @@ internal static class NativeMethods
         if (OperatingSystem.IsMacOS())
         {
             // O_NOFOLLOW_ANY alone: it refuses a link at every component, the last one included, and the kernel
-            // rejects it combined with O_NOFOLLOW (vn_open_auth returns EINVAL for the pair)
-            flags = MacOpenReadNonBlocking | (noFollow ? MacNoFollowAny : 0);
+            // rejects it combined with O_NOFOLLOW (vn_open_auth returns EINVAL for the pair); O_NOFOLLOW alone refuses
+            // only a link at the last component
+            var noFollowFlag = lastComponentOnly ? MacNoFollowLast : MacNoFollowAny;
+            flags = MacOpenReadNonBlocking | (noFollow ? noFollowFlag : 0);
         }
         else
         {

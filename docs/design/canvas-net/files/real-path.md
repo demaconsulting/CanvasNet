@@ -70,8 +70,12 @@ whether the C library exports `fstat`.
   `FileSystemEnumerable` (options: `MatchCasing.CaseInsensitive`, `MatchType.Simple`, `IgnoreInaccessible`, no
   attribute skipped, no recursion) without a search pattern, keeping only the entries whose name equals the component
   under `OrdinalIgnoreCase` (on macOS both in Unicode composed form). An entry spelled exactly as written wins (the
-  component is kept); otherwise the single matching entry gives the stored name; with no match or several matches
-  (`Docs` and `docs` in a case-sensitive folder) the component is kept as written. A missing parent folder
+  component is kept); otherwise the single matching entry gives the stored name, but only when `IsSameEntry` confirms
+  that the name as written and that entry are the same directory entry (the folder ignores letter case); with no match,
+  several matches (`Docs` and `docs` in a case-sensitive folder), or a single match that is not provably the same
+  entry (`docs` alone in a case-sensitive folder, asked for `Docs`), the component is kept as written. Mapping a
+  name to a case variant in a case-sensitive folder would let a link created later under the written name (`Docs` to
+  `docs`) pass the no-symlinks match as the stored entry. A missing parent folder
   (`DirectoryNotFoundException`) keeps the rest of the path as written; a folder that cannot be listed
   (`UnauthorizedAccessException`, `IOException`, `SecurityException`, `ArgumentException`, `NotSupportedException`)
   keeps that component as written and goes on with the next. Because entries are compared as plain names, `*` and `?`
@@ -81,6 +85,14 @@ whether the C library exports `fstat`.
   has the components below it corrected.
 - `ExactRoot` - pure text: a drive letter (`c:\`, `\\?\c:\`) is upper-cased, as Windows reports it in a final path; a
   UNC root, a volume GUID root and `/` are kept as they are.
+- `IsSameEntry(writtenPath, storedPath)` - whether two spellings name the same directory entry, by identity, opening
+  both without following a link at their last component: Windows `CreateFileW` as for `IsSameFile` and the
+  `TryGetWindowsFileIds` identities; Linux `O_PATH | O_CLOEXEC | O_NOFOLLOW` and `st_dev`/`st_ino`; macOS
+  `O_NOFOLLOW` (0x100, last component only, so the `/var` link of the temporary folder is followed alike for both;
+  a link at the last component fails with `ELOOP`) and `vst_dev`/`vst_ino`. A name that does not exist (the written
+  name in a case-sensitive folder), a link at the last component on macOS, or an identity that cannot be read is
+  `null` (unknown), and `GetExactPathName` then keeps the name as written. Two hard links to one file count as the same
+  entry (neither is a link). Never throws.
 - `TryGetExactCanonicalDirectory` - `TryGetCanonicalDirectory`, then `GetExactPathName`: the spelling a trusted folder
   (a root or an anchor) is compared in; a missing folder has no location.
 - `TryConfirmExactPath(handle, realPath, exactPath)` - returns `realPath` when the two are equal under `Ordinal` (no
@@ -154,7 +166,8 @@ Per system:
   `vst_nlink`) from `proc_pidfdinfo` for both descriptors; the path is opened with `O_NOFOLLOW_ANY` (0x20000000,
   macOS 11 and later) alone, so a link at any component, the last one included, fails with `ELOOP` (unknown,
   unconfirmed). `O_NOFOLLOW` (0x100) is not added: the kernel refuses the two flags together with `EINVAL`
-  (`vn_open_auth`), which would leave every spelling unconfirmed.
+  (`vn_open_auth`), which would leave every spelling unconfirmed. `OpenNonBlocking` passes `O_NOFOLLOW` alone instead
+  when asked to refuse only a link at the last component (`IsSameEntry`).
 - **Other systems**: `File.OpenHandle` (blocking) and unknown facts; a restrictive policy then fails closed.
 - `NativeMethods.WithDescriptor` is the one place that reads the raw descriptor of a handle (for the C calls and the
   `/proc` link), inside `DangerousAddRef`/`DangerousRelease`, so the descriptor cannot be closed and reused meanwhile.
@@ -167,7 +180,8 @@ Strings for the C library are passed as NUL-terminated UTF-8 byte arrays; no uns
 #### Error Handling
 
 `OpenForRead` throws the framework's file exceptions so callers tell a missing file from an unreadable one. `Inspect`,
-`TryGetCanonicalDirectory`, `ExpandShortNames`, `GetExactPathName`, `IsSameFile` and `TryConfirmExactPath` never throw
+`TryGetCanonicalDirectory`, `ExpandShortNames`, `GetExactPathName`, `IsSameEntry`, `IsSameFile` and
+`TryConfirmExactPath` never throw
 for a platform failure: a failing or missing native call (`IOException`, `UnauthorizedAccessException`,
 `ExternalException`, `DllNotFoundException`, `EntryPointNotFoundException`) yields unknown facts, no location, the name
 as written, or an unconfirmed spelling, and the caller decides (fail closed for a restrictive policy). An unknown

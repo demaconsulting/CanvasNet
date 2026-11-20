@@ -124,20 +124,30 @@ sections:
                 title: >-
                   The RealPath unit shall give a full path in the letter case its folders and its name have on disk:
                   each existing component in the spelling of the folder entry spelled exactly as written, else of the
-                  single entry that matches it ignoring letter case, else as written (no entry, or several); the part
-                  below a missing folder and a component of a folder that cannot be listed as written; a wildcard
-                  character matching only itself; a drive letter in upper case and any other root unchanged; and
-                  shall give the real location of a folder in that letter case.
+                  single entry that matches it ignoring letter case and is the same directory entry as the name as
+                  written (by identity, without following a link at its last component), else as written (no entry,
+                  several, or a single one that is not provably the same entry); the part below a missing folder and
+                  a component of a folder that cannot be listed as written; a wildcard character matching only
+                  itself; a drive letter in upper case and any other root unchanged; and shall give the real location
+                  of a folder in that letter case.
                 justification: |
                   Real paths are compared exactly, so a real path and the real location of a root must both be in
                   the spelling stored on disk; otherwise a root or a reference written in another letter case on a
                   case-insensitive volume, or a file system that reports the spelling used to open a file, would deny
                   files that are inside. Where the spelling is ambiguous it is kept as written, which can only deny.
+                  In a case-sensitive folder a name in another letter case names no entry, and mapping it to the case
+                  variant would let a link created later under the written name pass as the stored entry.
                 tests:
-                  - RealPath_GetExactPathName_FolderAndFileInAnotherCase_GiveTheStoredCase
+                  - "windows@RealPath_GetExactPathName_FolderAndFileInAnotherCase_GiveTheStoredCase"
+                  - "macos@RealPath_GetExactPathName_FolderAndFileInAnotherCase_GiveTheStoredCase"
                   - RealPath_GetExactPathName_MissingTail_IsKeptAsWritten
                   - "ubuntu@RealPath_GetExactPathName_BothCaseVariantsExist_PrefersTheExactNameAndKeepsAnAmbiguousOne"
-                  - "ubuntu@RealPath_GetExactPathName_WildcardCharactersInAName_MatchOnlyThatName"
+                  - "ubuntu@RealPath_GetExactPathName_CaseVariantOfAnEntryInACaseSensitiveFolder_KeepsTheNameAsWritten"
+                  - RealPath_IsSameEntry_SameEntryOtherFileAndMissingName_AreTold
+                  - "windows@RealPath_IsSameEntry_CaseVariantInACaseInsensitiveFolder_IsTheSameEntry"
+                  - "macos@RealPath_IsSameEntry_CaseVariantInACaseInsensitiveFolder_IsTheSameEntry"
+                  - "ubuntu@RealPath_IsSameEntry_LinkToAnEntry_IsNotTheSameEntryOrCapabilitySkipped"
+                  - "macos@RealPath_IsSameEntry_LinkToAnEntry_IsNotTheSameEntryOrCapabilitySkipped"
                   - "macos@RealPath_GetExactPathName_WildcardCharactersInAName_MatchOnlyThatName"
                   - "windows@RealPath_GetExactPathName_DriveLetter_IsUpperCase"
                   - RealPath_ExactRoot_DriveRootsUpperCasedAndOtherRootsKept

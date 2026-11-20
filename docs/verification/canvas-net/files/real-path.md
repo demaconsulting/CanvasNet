@@ -24,8 +24,10 @@ runs each of them, and the requirements link them with source filters, so only r
 | Windows file identity structures decoded (pure bytes) | runs | runs | runs |
 | A file symbolic link to the opened file | runs (or skips without the link privilege) | skips | skips |
 | Case-insensitive temporary folder: stored letter case, same file in another case | runs | skips | runs |
-| Case-sensitive temporary folder: both case variants exist | skips | runs | skips |
-| Names with `*` and `?`; a symbolic link to the opened file | skips | runs | runs |
+| Case-sensitive temporary folder: both case variants exist; a lone case variant is kept | skips | runs | skips |
+| Same entry by identity: itself, another file, a missing name | runs | runs | runs |
+| Names with `*` and `?` | skips | skips | runs |
+| A symbolic link to the opened file or to an entry | skips | runs | runs |
 | Drive letter upper-cased | runs | skips | skips |
 
 Whether the temporary folder ignores letter case is probed by creating a file and looking for it in upper case; no
@@ -126,19 +128,27 @@ the same root.
 
 ##### CanvasNet-Files-RealPath-ExactCase: The Letter Case Stored on Disk
 
-**Tests**: `RealPath_GetExactPathName_FolderAndFileInAnotherCase_GiveTheStoredCase`,
+**Tests**: `RealPath_GetExactPathName_FolderAndFileInAnotherCase_GiveTheStoredCase` (Windows, macOS),
 `RealPath_GetExactPathName_MissingTail_IsKeptAsWritten`,
 `RealPath_GetExactPathName_BothCaseVariantsExist_PrefersTheExactNameAndKeepsAnAmbiguousOne` (Linux),
-`RealPath_GetExactPathName_WildcardCharactersInAName_MatchOnlyThatName` (Linux, macOS),
+`RealPath_GetExactPathName_CaseVariantOfAnEntryInACaseSensitiveFolder_KeepsTheNameAsWritten` (Linux),
+`RealPath_IsSameEntry_SameEntryOtherFileAndMissingName_AreTold`,
+`RealPath_IsSameEntry_CaseVariantInACaseInsensitiveFolder_IsTheSameEntry` (Windows, macOS),
+`RealPath_IsSameEntry_LinkToAnEntry_IsNotTheSameEntryOrCapabilitySkipped` (Linux, macOS),
+`RealPath_GetExactPathName_WildcardCharactersInAName_MatchOnlyThatName` (macOS),
 `RealPath_GetExactPathName_DriveLetter_IsUpperCase` (Windows),
 `RealPath_ExactRoot_DriveRootsUpperCasedAndOtherRootsKept`,
 `RealPath_TryGetExactCanonicalDirectory_FolderWrittenInAnotherCase_GivesTheStoredCase` (Windows, macOS)
 
-A temporary `Docs/Readme.txt` asked as `docs/README.txt` is given as `Docs/Readme.txt` (the single entry that matches
-ignoring case, on every system); `docs/Missing/Sub.txt` keeps the missing tail as written after `Docs`. In a
-case-sensitive folder holding `Docs` and `docs`, `docs` is kept (the exact entry wins) and `DOCS` is kept as written
-(several matches). `A*B` next to `a*b` and `aXb` gives `a*b`, and `X?` next to `x?` and `xy` gives `x?` (wildcards match
-only themselves). A lower-case drive letter is upper-cased. The root rule (pure text) upper-cases `c:\` and `\\?\c:\`
+In a case-insensitive folder a temporary `Docs/Readme.txt` asked as `docs/README.txt` is given as `Docs/Readme.txt`
+(the single entry that matches ignoring case, which is the same entry as the name as written);
+`Docs/Missing/Sub.txt` keeps the missing tail as written after `Docs`, on every system. In a case-sensitive folder
+holding `Docs` and `docs`, `docs` is kept (the exact entry wins) and `DOCS` is kept as written (several matches); in a
+case-sensitive folder holding only `target.txt`, `TARGET.txt` is kept as written (it names no entry, so it is not
+provably the same entry). An entry is the same entry as itself, another file is not, and a missing name is unknown, on
+every system; in a case-insensitive folder `TARGET.txt` and `target.txt` are the same entry; a symbolic link to an
+entry is not (Linux opens the link itself, macOS refuses to open it). In a case-insensitive folder `A*B` next to `a*b`
+and `aXb` gives `a*b`, and `X?` next to `x?` and `xy` gives `x?` (wildcards match only themselves). A lower-case drive letter is upper-cased. The root rule (pure text) upper-cases `c:\` and `\\?\c:\`
 and keeps `\\server\share`, `\\?\Volume{GUID}\` and `/`. The real location of a folder `Stored` asked as `STORED` ends
 with `Stored`.
 

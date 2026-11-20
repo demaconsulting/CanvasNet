@@ -190,7 +190,8 @@ local path on every platform.
 `FileReferenceResolver_Resolve_InjectedOutsideRealPath_IsAccessDenied`,
 `FileReferenceResolver_Resolve_InjectedRealPath_IsTheOneInTheRequestAndTheResult`,
 `FileReferenceResolver_Resolve_RootReplacedByOutsideLinkBeforeTheOpen_IsAccessDenied` (Windows, Linux, macOS),
-`FileReferenceResolver_Resolve_AnchorLocationNotCaptured_IsAccessDeniedUnderNoSymlinks`
+`FileReferenceResolver_Resolve_AnchorLocationNotCaptured_IsAccessDeniedUnderNoSymlinks`,
+`FileReferenceResolver_Resolve_CaseVariantLinkCreatedBeforeTheOpen_IsDeniedUnderNoSymlinks` (Linux)
 
 After the open, the inside file is moved and its folder replaced by a link to the outside: the file is allowed, its
 original bytes are returned, its real path follows the moved file, and by name the path now reads the outside file.
@@ -201,7 +202,10 @@ root rename-and-replace race, the root itself is renamed away inside the `Before
 replaced by a junction or symbolic link to an outside folder, so the open reaches the outside file: under `UnderRoots`
 (whose root location was captured when the policy was created) and under `NoSymlinks` (whose starting folder was
 captured before the open) the file is denied with the outside real path. A starting folder whose location could not be
-captured (the `DirectoryLocationOf` seam reports none) is denied under `NoSymlinks`.
+captured (the `DirectoryLocationOf` seam reports none) is denied under `NoSymlinks`. In a case-sensitive folder holding
+`target.txt`, a symbolic link `Target.txt` to it created inside `BeforeOpen` (after the on-disk spelling of the written
+path was captured) is denied under `NoSymlinks`: `Target.txt` named no entry when its spelling was captured, so it was
+kept as written and the file the open reached through the link does not match it.
 
 ##### CanvasNet-Files-FileReferenceResolver-ExactCase: The Real Path in Its On-Disk Letter Case
 

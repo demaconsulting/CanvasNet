@@ -393,4 +393,30 @@ public class SandboxedFileResolverRaceTests
         // Assert
         Assert.Equal(SandboxFailureKind.CannotRead, ex.Kind);
     }
+
+    /// <summary>
+    ///     Validates in a folder that compares letter case that a link named like a file in another letter case
+    ///     (<c>Target.txt</c> to <c>target.txt</c>), created after the link walk and before the open, is refused as a
+    ///     link: the written name named no entry when its on-disk spelling was captured, so it was kept as written, and
+    ///     the real path the open reached does not match it. Skips where the temporary folder ignores letter case.
+    /// </summary>
+    [Fact]
+    public void SandboxedFileResolver_Resolve_CaseVariantLinkCreatedBeforeTheOpen_IsThroughLink()
+    {
+        // Arrange
+        using var directory = new SandboxTempDirectory();
+        FileTestSupport.RequireCaseSensitive(directory.Path);
+        directory.Write("root/target.txt", "target");
+        var root = Path.GetFullPath(directory.Combine("root"));
+        var resolver = Create(
+            root,
+            new FileOpenHooks { BeforeOpen = _ => File.CreateSymbolicLink(Path.Join(root, "Target.txt"), "target.txt") });
+
+        // Act
+        var ex = Assert.Throws<SandboxException>(() => resolver.Resolve("Target.txt"));
+
+        // Assert
+        Assert.Equal(SandboxFailureKind.ThroughLink, ex.Kind);
+        Assert.Equal("Target.txt", ex.Detail);
+    }
 }
