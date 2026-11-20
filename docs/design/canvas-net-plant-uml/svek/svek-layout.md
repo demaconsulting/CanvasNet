@@ -29,8 +29,9 @@ specified by the `CanvasNetPlantUml-Svek-SvekLayout-*` requirements in
   the scope of every link, and the spacing. Inside a scope: the units (an entity with its attached notes, a floating
   note, or a cluster laid out on its own), the rows, the compound clusters, and the edges.
 - The constants of the engine: `MinNodeSep` 35 and `MinRankSep` 60 (PlantUML's `DotStringFactory`), `EdgeSep` 10,
-  `NoteGap` 18 (measured from the reference pictures), `NoteStackGap` 10, `LabelMargin` 1 (PlantUML's
-  `marginLabel`), `LabelOffset` 2, the note margins 6, 15, and 5 (PlantUML's `Opale`), and `RegionPadding` 10.
+  `NoteGap` 18 (measured from the reference pictures), `NoteStackGap` 10, `LabelMargin` 1 (PlantUML's `marginLabel`),
+  `LabelOffset` 2, the note margins 6, 15, and 5 (PlantUML's `Opale`), `RegionPadding` 10, `SeparatorInset` 5 (the space
+  between the sides of a cluster and the ends of its region separators), and `ParallelArcStep` 50.
 
 #### Key Methods
 
@@ -61,20 +62,24 @@ specified by the `CanvasNetPlantUml-Svek-SvekLayout-*` requirements in
 - `ClusterUnit` - lays a cluster out on its own (`LayoutScope`) and frames it: width `max(content + 2 padding,
   MinWidth)`, height `content + 2 padding + header`, content centered.
 - `ArrangeRegions` - lays out every region on its own and stacks them (or puts them side by side) across the widest
-  (tallest), with the boundaries that become the dashed separators; a link between two regions is left unrouted.
+  (tallest), with the boundaries that become the dashed separators (`SeparatorInset` inside the sides of the cluster,
+  starting below its header); a link between two regions is left unrouted.
 - `TightenCompounds` and `InsertBands` - the box of a compound cluster is made the union of its members and anchor with
   its padding, innermost first; then, from the top down, a header band is inserted below the top of every compound
   cluster (everything whose center or start is below the line moves down by the header, the clusters the line crosses
   grow), and a band at the right of a cluster narrower than its title. Nothing overlaps by construction.
 - `RouteEdges` - for every edge: the route of a link in a row (straight between the centers), a loop at the right of a
   node for a link to itself (each further loop wider), or dagre's route turned back for a reversed edge; a straight
-  route that crosses another unit becomes an arc over it; the end of a route at a unit of a row moves in front of
-  that unit on the row's border and continues to its center (`SnapRowEnds`: dagre aims at the center of the row,
-  which may be over an attached note); a link to a compound cluster goes to a
-  hidden 1-by-1 anchor inside it and its route is cut at the cluster's border; the ends are moved onto the outline of
-  the entity's clip (aiming at the centers for a straight route); the label slot is placed at dagre's label center, or
-  above the middle of the route; end labels go beside the line just off the end and are moved along the line until they
-  overlap no entity.
+  route that crosses another unit becomes an arc over it; further links in a row between the same two units become arcs
+  below and above in turn, each pair `ParallelArcStep` further out (`SpreadParallel`); the end of a route at a unit of a
+  row moves in front of that unit on the row's border and continues to its center (`SnapRowEnds`: dagre aims at the
+  center of the row, which may be over an attached note); a link to a compound cluster goes to a hidden 1-by-1 anchor
+  inside it and its route is cut at the cluster's border; the ends are moved onto the outline of the entity's clip
+  (aiming at the centers for a straight route); the label slot is placed at dagre's label center, or beside the middle
+  of the route (`BesideMiddle`: above a route that runs across, right of one that runs down, at the middle of the curve
+  of an arc), and a label center that dagre puts inside a compound cluster the link leaves is replaced by the place
+  beside the middle of the route outside it; end labels go beside the line just off the end and are moved along the line
+  until they overlap no entity.
 - `BuildFrame` and `PointNotes` - the placements of the units (entities, attached notes with the pointer from the side
   of the note that faces the entity - the side with the widest gap between the two boxes, the note's own position on a
   tie - to the entity's border, floating notes, clusters with their content and separators), of the compound
@@ -102,4 +107,5 @@ The CanvasNetLayout system (`Graph`, `DagreGraph`, `DagreNode`, `DagreEdge`, `Da
 
 #### Callers
 
-The diagram subsystems of the graph diagrams (the `ClassModel` unit of the Class subsystem) and the tests.
+The diagram subsystems of the graph diagrams (the `ClassModel` unit of the Class subsystem and the `StateModel` unit
+of the State subsystem) and the tests.

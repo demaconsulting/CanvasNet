@@ -22,10 +22,12 @@ sections:
             children:
               - CanvasNetPlantUml-Styling-SkinTheme-DefaultLook
               - CanvasNetPlantUml-Styling-SkinTheme-ClassLook
+              - CanvasNetPlantUml-Styling-SkinTheme-StateLook
               - CanvasNetPlantUml-Styling-SkinTheme-Immutable
               - CanvasNetPlantUml-Styling-SkinParams-Forms
               - CanvasNetPlantUml-Styling-SkinParams-Subset
               - CanvasNetPlantUml-Styling-SkinParams-GraphSubset
+              - CanvasNetPlantUml-Styling-SkinParams-StateSubset
               - CanvasNetPlantUml-Styling-SkinParams-Colors
               - CanvasNetPlantUml-Styling-SkinParams-Ignored
             tests:

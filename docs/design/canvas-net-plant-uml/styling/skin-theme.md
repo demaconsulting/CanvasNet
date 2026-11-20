@@ -22,7 +22,9 @@ unit's behavior is specified by the `CanvasNetPlantUml-Styling-SkinTheme-*` requ
   and the elements of the diagrams that PlantUML lays out with Graphviz, drawn by the Svek subsystem: `SvekArrow` (a
   link and its labels), `Package` (a package cluster), and `Container` (the other container clusters), and the class
   diagram elements `Class` (a class box and its name), `ClassStereotype`, `ClassAttribute` (the members), and `Object`
-  (an object or a map).
+  (an object or a map), and the state diagram elements `State` (a state box, a composite state, and its name),
+  `StateAttribute` (the descriptions), `StateStart` and `StateEnd` (the start and end circles), and `StatePseudo`
+  (the choice diamond and the history circles).
 - `ElementStyle(FontFamily, FontSize, FontColor, Bold, Fill, Line, LineWidth, RoundCorner, Padding)` with `Italic` and
   `Dash` - a null fill or line draws none; `RoundCorner` is PlantUML's diameter (an SVG radius of half of it).
 - `SkinTheme` - the styles by element, `Background` (white; null for transparent), `Shadowing` (false),
@@ -40,7 +42,9 @@ unit's behavior is specified by the `CanvasNetPlantUml-Styling-SkinTheme-*` requ
   have 11-pixel text; circles are `#222222`; bars are `#555555`; swimlane titles are 18 pixels with black lines 1.5
   wide; graph links have 13-pixel labels; package clusters are black, 1.5 pixels wide, and container clusters
   `#181818`, one pixel wide, both unfilled with corners of 5 and bold titles; classes and objects are `#F1F1F1`,
-  outlined half a pixel wide with corners of 5, stereotypes italic 12, and members black 14.
+  outlined half a pixel wide with corners of 5, stereotypes italic 12, and members black 14; states are `#F1F1F1`,
+  outlined half a pixel wide with corners of 25, with names and descriptions of 14; the start and end circles are
+  `#222222`, outlined one pixel wide; choices and histories are `#F1F1F1`, outlined half a pixel wide.
 
 #### Key Methods
 

@@ -41,6 +41,14 @@ titles of the graph diagrams.
 Asserts the fill, line, line width, corners, and font size of classes and objects, the italic 12 of stereotypes, the
 size and color of members, and the icon size of 10 and the circle radius of 11.
 
+##### CanvasNetPlantUml-Styling-SkinTheme-StateLook: The State Shapes
+
+**Tests**: `SkinThemeTests.PlantUmlSkinTheme_Default_HasPlantUmlStateLook`
+
+Asserts the `#F1F1F1` fill, the `#181818` line half a pixel wide, the corners of 25, and the size 14 of states; the
+size 14 and the black of descriptions; the `#222222` fill and line one pixel wide of the start and end circles; and
+the `#F1F1F1` fill and half-pixel line of choices and histories.
+
 ##### CanvasNetPlantUml-Styling-SkinTheme-Immutable: A Change Returns A Copy
 
 **Tests**: `SkinThemeTests.PlantUmlSkinTheme_With_ReturnsChangedCopy`

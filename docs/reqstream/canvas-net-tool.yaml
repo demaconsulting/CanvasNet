@@ -833,11 +833,11 @@ sections:
 
       - id: CanvasNetTool-System-PlantUml
         title: >-
-          The tool shall render a PlantUML sequence, activity, class, or object diagram (a `.puml`, `.plantuml`, or
-          `.pu` file) at the size the size options ask for (the size PlantUML lays it out at by default), over the
-          diagram's own background (white by default) unless `--background` says otherwise, with only the fonts
-          bundled with the tool, with no Java, no Graphviz, and nothing read from the network, giving the same picture
-          every time; shall read its
+          The tool shall render a PlantUML sequence, activity, class, object, or state diagram (a `.puml`,
+          `.plantuml`, or `.pu` file) at the size the size options ask for (the size PlantUML lays it out at by
+          default), over the diagram's own background (white by default) unless `--background` says otherwise, with
+          only the fonts bundled with the tool, with no Java, no Graphviz, and nothing read from the network, giving
+          the same picture every time; shall read its
           `!include` files relative to the file that names them under the file-access mode of `--file-access`; shall
           describe a diagram with the `info` command (its laid-out size and, in the same `diagram` object as a Mermaid
           diagram, its type, whether this version draws it, its title, and its numbers of nodes, edges, and subgraphs),

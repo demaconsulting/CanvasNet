@@ -3,8 +3,8 @@
 #
 # These requirements describe the externally visible behavior of the DemaConsulting.CanvasNet.PlantUml package (root
 # namespace DemaConsulting.CanvasNet.PlantUml; internal subsystem namespaces Syntax, Styling, Scenegraph,
-# Sequence, Activity, Svek, and Class) from the perspective of its consumers, without specifying implementation
-# details.
+# Sequence, Activity, Svek, Class, and State) from the perspective of its consumers, without specifying
+# implementation details.
 #
 # CanvasNetPlantUml is an independent software system distributed as its own NuGet package. It reads PlantUML diagram
 # text and renders a static, deterministic picture onto a CanvasNet Surface using only managed code, the public
@@ -55,6 +55,7 @@ sections:
           - CanvasNetPlantUml_Open_InvalidText_FailsLocated
           - CanvasNetPlantUml_Activity_SyntaxError_IsLocated
           - CanvasNetPlantUml_Class_SyntaxErrors_AreLocated
+          - CanvasNetPlantUml_State_SyntaxErrors_AreLocated
 
       - id: CanvasNetPlantUml-DiagramTypes
         title: >-
@@ -123,6 +124,7 @@ sections:
           - CanvasNetPlantUml-Activity-ActivityLayout-Limits
           - CanvasNetPlantUml-Svek-Limits
           - CanvasNetPlantUml-Class-Limits
+          - CanvasNetPlantUml-State-Limits
         tests:
           - CanvasNetPlantUml_Limits_OversizedText_IsRefused
           - CanvasNetPlantUml_Sequence_LayoutWorkLimit_Fails
@@ -132,6 +134,7 @@ sections:
           - CanvasNetPlantUml_Hardening_RenderLimits_FailClosed
           - CanvasNetPlantUml_Hardening_LargeDiagramsWithinTheLimits_Render
           - CanvasNetPlantUml_Hardening_DenseClassGraph_LayoutWorkIsBounded
+          - CanvasNetPlantUml_Hardening_DenseStateGraph_LayoutWorkIsBounded
           - CanvasNetPlantUml_Hardening_MutatedFixtures_ThrowOnlyDocumentedExceptions
 
       - id: CanvasNetPlantUml-Render
@@ -152,6 +155,7 @@ sections:
         tests:
           - CanvasNetPlantUml_UnsupportedType_MeasureReportsAsRender
           - CanvasNetPlantUml_Class_Render_ObservesCancellation
+          - CanvasNetPlantUml_State_Render_ObservesCancellation
 
       - id: CanvasNetPlantUml-Sequence
         title: >-
@@ -230,6 +234,36 @@ sections:
           - CanvasNetPlantUml_Class_Facts_CountEntitiesLinksAndPackages
           - CanvasNetPlantUml_Object_MapAndObject_AreDrawn
 
+      - id: CanvasNetPlantUml-State
+        title: >-
+          The library shall draw PlantUML state diagrams (states with descriptions, stereotypes, and colors;
+          transitions with their lengths, direction hints, styles, and labels; the start, end, and history
+          pseudo-states of every composite state; choices, forks, joins, and junctions; composite states with
+          concurrent regions; notes; hide empty description; page texts; the direction; and the supported skin
+          parameters) with PlantUML's shapes, texts, colors, and decorations, laid out in ranks so that no two
+          elements overlap, so that every state, circle, diamond, and composite state of the reference fixtures has
+          the size, texts, and colors of PlantUML's (positions may differ), and shall count states and pseudo-states
+          as nodes, transitions as edges, and composite states as subgraphs.
+        tags: [system]
+        justification: |
+          State diagrams are a common PlantUML diagram; PlantUML lays them out with Graphviz, which this library does
+          not use, so the states and transitions must look like PlantUML's while the layered layout places them.
+        children:
+          - CanvasNetPlantUml-State-Reading
+          - CanvasNetPlantUml-State-Layout
+          - CanvasNetPlantUml-State-Drawing
+          - CanvasNetPlantUml-Svek-Reading
+          - CanvasNetPlantUml-Svek-Layout
+          - CanvasNetPlantUml-Svek-Drawing
+          - CanvasNetPlantUml-Syntax-Detection
+        tests:
+          - CanvasNetPlantUml_Graph_ReferenceGoldens_CoverEveryFixture
+          - CanvasNetPlantUml_State_ReferenceElements_MatchPlantUml
+          - CanvasNetPlantUml_State_ReferenceLinks_MatchPlantUml
+          - CanvasNetPlantUml_State_Fixtures_RenderWithoutReports
+          - CanvasNetPlantUml_State_Facts_CountStatesTransitionsAndComposites
+          - CanvasNetPlantUml_State_ConcurrentRegions_DrawDashedSeparators
+
       - id: CanvasNetPlantUml-UnsupportedTypes
         title: >-
           The library shall render a recognized diagram type that this version does not draw as an empty, transparent
@@ -256,11 +290,13 @@ sections:
           - CanvasNetPlantUml-Sequence-SequenceParser-Unsupported
           - CanvasNetPlantUml-Activity-ActivityParser-Unsupported
           - CanvasNetPlantUml-Class-ClassParser-Unsupported
+          - CanvasNetPlantUml-State-StateParser-Unsupported
         tests:
           - CanvasNetPlantUml_UnsupportedType_StrictThrows
           - CanvasNetPlantUml_Sequence_UnsupportedStatements_AreReported
           - CanvasNetPlantUml_Activity_UnsupportedStatements_AreReported
           - CanvasNetPlantUml_Class_UnsupportedStatements_AreReported
+          - CanvasNetPlantUml_State_UnsupportedStatements_AreReported
 
       - id: CanvasNetPlantUml-DefaultLook
         title: >-
@@ -281,6 +317,8 @@ sections:
           - CanvasNetPlantUml_Activity_Render_IsDeterministicAndScaled
           - CanvasNetPlantUml_Class_DefaultSkin_PaintsPlantUmlColors
           - CanvasNetPlantUml_Class_Render_IsDeterministicAndScaled
+          - CanvasNetPlantUml_State_DefaultSkin_PaintsPlantUmlColors
+          - CanvasNetPlantUml_State_Render_IsDeterministicAndScaled
           - CanvasNetPlantUml_Gallery_HoldsEveryDrawnDiagramType
           - CanvasNetPlantUml_Gallery_RendersStrictWithoutWarnings
 

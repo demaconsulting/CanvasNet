@@ -43,7 +43,9 @@ sections:
                 title: >-
                   The SvekLayout unit shall keep the ends of a link of length 1 in one rank, side by side with the
                   first end of the edge first, drawn straight between them with the label above the middle, or as an
-                  arc over a node or note that the straight line would cross.
+                  arc over a node or note that the straight line would cross, and shall draw the further links in a row
+                  between the same two ends as arcs below and above in turn, each with its label at the middle of its
+                  curve.
                 justification: |
                   A single dash puts two elements side by side in PlantUML; the layered layout cannot route such a link
                   itself.
@@ -51,14 +53,16 @@ sections:
                   - PlantUmlSvekLayout_Run_LengthOne_SameRankStraightWithLabelAbove
                   - PlantUmlSvekLayout_Run_LengthOne_ChainAndCycle_OrderedRows
                   - PlantUmlSvekLayout_Run_LinkInOneRankAcrossANode_IsAnArc
+                  - PlantUmlSvekLayout_Run_ParallelLinksInARow_AreSpreadApart
 
               - id: CanvasNetPlantUml-Svek-SvekLayout-Clusters
                 title: >-
                   The SvekLayout unit shall lay a cluster that no link crosses out on its own and place it as one node
                   with its padding, header, and title width, shall make a cluster that links cross tight around its
                   members with its padding and a header band that overlaps nothing, end a link to such a cluster at
-                  its border, and arrange the regions of a cluster with concurrent regions stacked or side by side with
-                  separators, leaving a link between two regions unrouted.
+                  its border (its label outside the cluster), and arrange the regions of a cluster with concurrent
+                  regions stacked or side by side with separators 5 inside its sides and below its header, leaving a
+                  link between two regions unrouted.
                 justification: |
                   Packages, containers, and composite states must enclose their members, show their titles, and never
                   cover other elements.
@@ -67,6 +71,7 @@ sections:
                   - PlantUmlSvekLayout_Run_CompoundCluster_HeaderBandAndCutLinks
                   - PlantUmlSvekLayout_Run_NestedCompoundClusters_NoOverlaps
                   - PlantUmlSvekLayout_Run_ConcurrentRegions_ArrangedWithSeparators
+                  - PlantUmlSvekLayout_Run_LabelOfLinkFromCompoundCluster_StaysOutside
 
               - id: CanvasNetPlantUml-Svek-SvekLayout-Notes
                 title: >-

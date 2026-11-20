@@ -270,6 +270,10 @@ input-files:
   - docs/verification/canvas-net-plant-uml/class/class-parser.md
   - docs/verification/canvas-net-plant-uml/class/class-model.md
   - docs/verification/canvas-net-plant-uml/class/class-renderer.md
+  - docs/verification/canvas-net-plant-uml/state.md
+  - docs/verification/canvas-net-plant-uml/state/state-parser.md
+  - docs/verification/canvas-net-plant-uml/state/state-model.md
+  - docs/verification/canvas-net-plant-uml/state/state-renderer.md
   - docs/verification/canvas-net-viewer.md
   - docs/verification/canvas-net-viewer/canvas-net-viewer.md
   - docs/verification/canvas-net-viewer/viewer-exception.md

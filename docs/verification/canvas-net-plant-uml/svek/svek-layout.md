@@ -48,25 +48,30 @@ left and right keep both ends in one rank; asserts that a hidden link gives its 
 
 **Tests**: `SvekLayoutTests.PlantUmlSvekLayout_Run_LengthOne_SameRankStraightWithLabelAbove`,
 `SvekLayoutTests.PlantUmlSvekLayout_Run_LengthOne_ChainAndCycle_OrderedRows`,
-`SvekLayoutTests.PlantUmlSvekLayout_Run_LinkInOneRankAcrossANode_IsAnArc`
+`SvekLayoutTests.PlantUmlSvekLayout_Run_LinkInOneRankAcrossANode_IsAnArc`,
+`SvekLayoutTests.PlantUmlSvekLayout_Run_ParallelLinksInARow_AreSpreadApart`
 
 Asserts that a link of length 1 keeps its ends in one rank, the first end left of the second, with a straight route
 between their borders and its label above the middle of the line; asserts that a chain of one-rank links written out of
 order keeps every first end left of its second at least 35 apart and that a cycle of one-rank links gives one row
-without overlaps; asserts that a link in one rank that would cross another node is an arc over it.
+without overlaps; asserts that a link in one rank that would cross another node is an arc over it; asserts that of three
+links in a row between the same two nodes the first is straight, the second an arc at least `ParallelArcStep` below, and
+the third an arc at least `ParallelArcStep` above, with the label of the second just above the middle of its curve.
 
 ##### CanvasNetPlantUml-Svek-SvekLayout-Clusters: Clusters And Regions
 
 **Tests**: `SvekLayoutTests.PlantUmlSvekLayout_Run_ClusterWithoutCrossingLinks_LaidOutOnItsOwn`,
 `SvekLayoutTests.PlantUmlSvekLayout_Run_CompoundCluster_HeaderBandAndCutLinks`,
 `SvekLayoutTests.PlantUmlSvekLayout_Run_NestedCompoundClusters_NoOverlaps`,
-`SvekLayoutTests.PlantUmlSvekLayout_Run_ConcurrentRegions_ArrangedWithSeparators`
+`SvekLayoutTests.PlantUmlSvekLayout_Run_ConcurrentRegions_ArrangedWithSeparators`,
+`SvekLayoutTests.PlantUmlSvekLayout_Run_LabelOfLinkFromCompoundCluster_StaysOutside`
 
 Asserts that a cluster that no link crosses encloses its members with its padding and header and that a link to it
 ends on its border; asserts that a cluster that links cross is tight around its members with its padding and header
 band, overlaps nothing outside it, and cuts a link to it at its border; asserts the header bands of nested clusters
 and that no two entities overlap; asserts stacked regions with horizontal separators, regions side by side with
-vertical separators, and a link between two regions left unrouted.
+vertical separators, and a link between two regions left unrouted; asserts that the label of a link that leaves a
+cluster that links cross does not overlap the cluster.
 
 ##### CanvasNetPlantUml-Svek-SvekLayout-Notes: Notes
 

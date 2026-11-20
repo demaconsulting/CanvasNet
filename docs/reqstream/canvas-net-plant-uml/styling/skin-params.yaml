@@ -47,6 +47,18 @@ sections:
                 tests:
                   - PlantUmlSkinParams_Apply_GraphSubset_OnlyInGraphDiagrams
 
+              - id: CanvasNetPlantUml-Styling-SkinParams-StateSubset
+                title: >-
+                  The SkinParams unit shall apply, in the diagrams that PlantUML lays out with Graphviz only, the
+                  colors, fonts, and line widths of states and of their descriptions, and stateStartColor and
+                  stateEndColor to both the fill and the line of the start and end circles, and shall report the same
+                  parameters as ignored in sequence and activity diagrams.
+                justification: |
+                  State diagrams set their look with these parameters; a sequence diagram does not draw states, so the
+                  parameters must not be silently accepted there.
+                tests:
+                  - PlantUmlSkinParams_Apply_StateSubset_OnlyInGraphDiagrams
+
               - id: CanvasNetPlantUml-Styling-SkinParams-Colors
                 title: >-
                   The SkinParams unit shall read PlantUML's colors: HTML color names with or without a hash,

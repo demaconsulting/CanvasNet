@@ -63,10 +63,10 @@ diagram is drawn (a flowchart, sequence, class, state, or entity relationship di
 packet diagram, or git graph at the size Mermaid lays it out at, with the bundled fonts, in the theme `--theme` sets
 unless the text sets one; a diagram type that is not drawn (journey, timeline, and so on) is an empty picture with the
 note `mermaid-diagram-unsupported`, and `canvasnet help mermaid` says what is supported; an example draws
-`flow.mmd --theme dark --scale 2`), how a PlantUML sequence, activity, class, or object diagram is drawn (at the size
-PlantUML lays it out at, with its default look and the bundled fonts, its `!include` files read relative to the file
-that names them; a type that is not drawn is an empty picture with the note `plantuml-diagram-unsupported`, `--theme`
-and `--positions` do not apply, and `canvasnet help plantuml` says what is supported; an example draws
+`flow.mmd --theme dark --scale 2`), how a PlantUML sequence, activity, class, object, or state diagram is drawn (at
+the size PlantUML lays it out at, with its default look and the bundled fonts, its `!include` files read relative to
+the file that names them; a type that is not drawn is an empty picture with the note `plantuml-diagram-unsupported`,
+`--theme` and `--positions` do not apply, and `canvasnet help plantuml` says what is supported; an example draws
 `seq.puml --scale 2`), and how `--positions <selector>` (a diagram or a chart, with `--json`, repeatable) reports the
 box and attach pixel of the features it matches in the written image, with an example
 `flow.mmd --positions node:send --positions edge -o flow.png --json`. A verb has no alias, and its usage text is

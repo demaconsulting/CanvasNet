@@ -67,4 +67,5 @@ Styling subsystem (`SkinTheme`, `SkinElement`, `ElementStyle`), the Scenegraph s
 
 #### Callers
 
-The diagram subsystems of the graph diagrams (the `ClassModel` unit of the Class subsystem) and the tests.
+The diagram subsystems of the graph diagrams (the `ClassModel` unit of the Class subsystem and the
+`StateModel` unit of the State subsystem) and the tests.

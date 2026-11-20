@@ -47,6 +47,15 @@ arrow color, an icon size of 0, and a circle radius of 9 to a graph diagram and 
 report, including the arrow color on the links; applies them to a sequence diagram and asserts seven
 `plantuml-skinparam-ignored` reports and the arrow color applied to its messages.
 
+##### CanvasNetPlantUml-Styling-SkinParams-StateSubset: The State Parameters In Graph Diagrams Only
+
+**Tests**: `SkinParamsTests.PlantUmlSkinParams_Apply_StateSubset_OnlyInGraphDiagrams`
+
+Applies a state background, border color, and font size, a description color, a start color, an end color, and an end
+color that is not a color to a graph diagram and asserts the state fill, line, and size, the description color, the
+start and end circles filled and outlined in their colors, and one report for the bad color; applies them to a sequence
+diagram and asserts seven `plantuml-skinparam-ignored` reports.
+
 ##### CanvasNetPlantUml-Styling-SkinParams-Colors: PlantUML's Color Forms
 
 **Tests**: `SkinParamsTests.PlantUmlSkinParams_TryParseColor_ReadsPlantUmlForms`

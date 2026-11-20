@@ -284,6 +284,10 @@ includes:
   - docs/reqstream/canvas-net-plant-uml/class/class-parser.yaml
   - docs/reqstream/canvas-net-plant-uml/class/class-model.yaml
   - docs/reqstream/canvas-net-plant-uml/class/class-renderer.yaml
+  - docs/reqstream/canvas-net-plant-uml/state.yaml
+  - docs/reqstream/canvas-net-plant-uml/state/state-parser.yaml
+  - docs/reqstream/canvas-net-plant-uml/state/state-model.yaml
+  - docs/reqstream/canvas-net-plant-uml/state/state-renderer.yaml
   - docs/reqstream/canvas-net-viewer.yaml
   - docs/reqstream/canvas-net-viewer/canvas-net-viewer.yaml
   - docs/reqstream/canvas-net-viewer/platform-requirements.yaml

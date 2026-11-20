@@ -5322,6 +5322,7 @@ reviews:
       - "test/DemaConsulting.CanvasNet.PlantUml.Tests/PlantUmlSequenceIntegrationTests.cs"  # sequence system tests
       - "test/DemaConsulting.CanvasNet.PlantUml.Tests/PlantUmlActivityIntegrationTests.cs"  # activity system tests
       - "test/DemaConsulting.CanvasNet.PlantUml.Tests/PlantUmlClassIntegrationTests.cs"  # class and object system tests
+      - "test/DemaConsulting.CanvasNet.PlantUml.Tests/PlantUmlStateIntegrationTests.cs"  # state system tests
       - "test/DemaConsulting.CanvasNet.PlantUml.Tests/PlantUmlIncludeTests.cs"  # include and image source system tests
       - "test/DemaConsulting.CanvasNet.PlantUml.Tests/PlantUmlHardeningTests.cs"  # limits and mutation fuzzer
       - "test/DemaConsulting.CanvasNet.PlantUml.Tests/PlantUmlGalleryTests.cs"  # documentation gallery tests
@@ -5866,6 +5867,65 @@ reviews:
       - "docs/sysml2/model/canvas-net-plant-uml/class/class-renderer.sysml"  # unit SysML2 model
       - "src/DemaConsulting.CanvasNet.PlantUml/Class/ClassRenderer*.cs"  # unit source (partial files)
       - "test/DemaConsulting.CanvasNet.PlantUml.Tests/Class/ClassRendererTests.cs"  # unit tests
+  # CanvasNetPlantUml-State Review (one per subsystem)
+  - id: CanvasNetPlantUml-State
+    title: Review that CanvasNetPlantUml State Subsystem Implementation is Correct
+    context:
+      - "docs/design/canvas-net-plant-uml.md"
+      - "docs/reqstream/canvas-net-plant-uml.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-plant-uml/state.yaml"  # subsystem requirements
+      - "docs/design/canvas-net-plant-uml/state.md"  # subsystem design
+      - "docs/verification/canvas-net-plant-uml/state.md"  # subsystem verification
+      - "docs/sysml2/model/canvas-net-plant-uml/state.sysml"  # subsystem SysML2 model
+      - "src/DemaConsulting.CanvasNet.PlantUml/State/NamespaceDoc.cs"  # namespace documentation
+      - "test/DemaConsulting.CanvasNet.PlantUml.Tests/State/StateTests.cs"  # subsystem tests
+      - "test/DemaConsulting.CanvasNet.PlantUml.Tests/State/StateTestHelpers.cs"  # shared state test helpers
+  # CanvasNetPlantUml-State-StateParser Review (one per unit)
+  - id: CanvasNetPlantUml-State-StateParser
+    title: Review that CanvasNetPlantUml State StateParser Implementation is Correct
+    context:
+      - "docs/design/canvas-net-plant-uml.md"
+      - "docs/reqstream/canvas-net-plant-uml.yaml"
+      - "docs/design/canvas-net-plant-uml/state.md"
+      - "docs/reqstream/canvas-net-plant-uml/state.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-plant-uml/state/state-parser.yaml"  # unit requirements
+      - "docs/design/canvas-net-plant-uml/state/state-parser.md"  # unit design
+      - "docs/verification/canvas-net-plant-uml/state/state-parser.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-plant-uml/state/state-parser.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.PlantUml/State/StateParser*.cs"  # unit source (partial files)
+      - "test/DemaConsulting.CanvasNet.PlantUml.Tests/State/StateParserTests.cs"  # unit tests
+  # CanvasNetPlantUml-State-StateModel Review (one per unit)
+  - id: CanvasNetPlantUml-State-StateModel
+    title: Review that CanvasNetPlantUml State StateModel Implementation is Correct
+    context:
+      - "docs/design/canvas-net-plant-uml.md"
+      - "docs/reqstream/canvas-net-plant-uml.yaml"
+      - "docs/design/canvas-net-plant-uml/state.md"
+      - "docs/reqstream/canvas-net-plant-uml/state.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-plant-uml/state/state-model.yaml"  # unit requirements
+      - "docs/design/canvas-net-plant-uml/state/state-model.md"  # unit design
+      - "docs/verification/canvas-net-plant-uml/state/state-model.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-plant-uml/state/state-model.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.PlantUml/State/StateModel*.cs"  # unit source (partial files)
+      - "test/DemaConsulting.CanvasNet.PlantUml.Tests/State/StateModelTests.cs"  # unit tests
+  # CanvasNetPlantUml-State-StateRenderer Review (one per unit)
+  - id: CanvasNetPlantUml-State-StateRenderer
+    title: Review that CanvasNetPlantUml State StateRenderer Implementation is Correct
+    context:
+      - "docs/design/canvas-net-plant-uml.md"
+      - "docs/reqstream/canvas-net-plant-uml.yaml"
+      - "docs/design/canvas-net-plant-uml/state.md"
+      - "docs/reqstream/canvas-net-plant-uml/state.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-plant-uml/state/state-renderer.yaml"  # unit requirements
+      - "docs/design/canvas-net-plant-uml/state/state-renderer.md"  # unit design
+      - "docs/verification/canvas-net-plant-uml/state/state-renderer.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-plant-uml/state/state-renderer.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.PlantUml/State/StateRenderer.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.PlantUml.Tests/State/StateRendererTests.cs"  # unit tests
 
   # CanvasNetTool-Architecture Review (one per system)
   - id: CanvasNetTool-Architecture

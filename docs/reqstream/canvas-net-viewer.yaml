@@ -85,9 +85,9 @@ sections:
 
       - id: CanvasNetViewer-PlantUmlDiagrams
         title: >-
-          The library shall render a PlantUML sequence, activity, class, or object diagram (a .puml, .plantuml, or .pu
-          file) directly, at the size PlantUML lays it out at and with the fonts bundled with the library, and as a
-          picture of an SVG
+          The library shall render a PlantUML sequence, activity, class, object, or state diagram (a .puml, .plantuml,
+          or .pu file) directly, at the size PlantUML lays it out at and with the fonts bundled with the library, and
+          as a picture of an SVG
           document or of a Mermaid node, with its !include files read under the same file-access policy as every other
           referenced file; shall report what a diagram declares (its type, whether this version draws it, its title,
           and its numbers of nodes, edges, and subgraphs) without drawing it; and shall draw a recognized diagram type

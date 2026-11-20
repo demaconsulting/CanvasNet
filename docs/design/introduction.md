@@ -402,8 +402,9 @@ software items, specifically:
   (`SequenceParser`, `SequenceModel`, `SequenceLayout`, and `SequenceRenderer`), `Activity` (`ActivityParser`,
   `ActivityModel`, `ActivityLayout`, and `ActivityRenderer`), `Svek` (`SvekModel`, `SvekSyntax`, `SvekLayout`,
   `SvekGeometry`, and `SvekRenderer`: the shared engine of the diagrams that PlantUML lays out with Graphviz), and
-  `Class` (`ClassParser`, `ClassModel`, and `ClassRenderer`). Sequence diagrams, activity diagrams (the new syntax),
-  and class and object diagrams are drawn; every PlantUML diagram type is recognized; the types
+  `Class` (`ClassParser`, `ClassModel`, and `ClassRenderer`), and `State` (`StateParser`, `StateModel`, and
+  `StateRenderer`). Sequence diagrams, activity diagrams (the new syntax), class and object diagrams, and state
+  diagrams are drawn; every PlantUML diagram type is recognized; the types
   this version does not draw are reported as unsupported — see *CanvasNetPlantUml System Design*
   (`canvas-net-plant-uml.md`) for the known differences from PlantUML and its Phase Plan. `CanvasNetPlantUml` depends
   on the `CanvasNet` system's `Canvas`, `Geometry`, `Drawing`, `Fonts`, `Rendering`, `Files`, and `ImageSources`
@@ -710,8 +711,9 @@ the image source; its internal `Syntax` subsystem holds the `Preprocessor` and `
 `SequenceModel`, `SequenceLayout`, and `SequenceRenderer` units, its internal `Activity` subsystem holds the
 `ActivityParser`, `ActivityModel`, `ActivityLayout`, and `ActivityRenderer` units, its internal `Svek` subsystem
 (the shared engine of the diagrams that PlantUML lays out with Graphviz) holds the `SvekModel`, `SvekSyntax`,
-`SvekLayout`, `SvekGeometry`, and `SvekRenderer` units, and its internal `Class` subsystem holds the `ClassParser`,
-`ClassModel`, and `ClassRenderer` units (each in the sub-namespace and the sub-folder of its name). In
+`SvekLayout`, `SvekGeometry`, and `SvekRenderer` units, its internal `Class` subsystem holds the `ClassParser`,
+`ClassModel`, and `ClassRenderer` units, and its internal `State` subsystem holds the `StateParser`, `StateModel`,
+and `StateRenderer` units (each in the sub-namespace and the sub-folder of its name). In
 the SysML2 model the system is `CanvasNetPlantUmlSystem` and its subsystem and unit `part def` names carry the prefix
 `PlantUml` (`PlantUmlSyntax`, `PlantUmlPreprocessor`, `PlantUmlDiagramDetector`, `PlantUmlStyling`, `PlantUmlSkinTheme`,
 `PlantUmlSkinParams`, `PlantUmlScenegraph`, `PlantUmlSceneModel`, `PlantUmlTextLayout`, `PlantUmlScenePainter`,
@@ -719,7 +721,8 @@ the SysML2 model the system is `CanvasNetPlantUmlSystem` and its subsystem and u
 `PlantUmlSequenceRenderer`, `PlantUmlActivity`, `PlantUmlActivityParser`, `PlantUmlActivityModel`,
 `PlantUmlActivityLayout`, `PlantUmlActivityRenderer`, `PlantUmlSvek`, `PlantUmlSvekModel`, `PlantUmlSvekSyntax`,
 `PlantUmlSvekLayout`, `PlantUmlSvekGeometry`, `PlantUmlSvekRenderer`, `PlantUmlClass`, `PlantUmlClassParser`,
-`PlantUmlClassModel`, and `PlantUmlClassRenderer`), because the model package is shared by every
+`PlantUmlClassModel`, `PlantUmlClassRenderer`, `PlantUmlState`, `PlantUmlStateParser`, `PlantUmlStateModel`, and
+`PlantUmlStateRenderer`), because the model package is shared by every
 system and the Mermaid system already uses the short names. It depends on the `CanvasNet` system's `Canvas`, `Geometry`,
 `Drawing`, `Fonts`, `Rendering`, `Files`, and `ImageSources` subsystems through their public API, and on the
 `CanvasNetLayout` system (its graph layout and work meter) through internal friend access. See the Folder Layout section
@@ -1839,10 +1842,14 @@ src/DemaConsulting.CanvasNet.PlantUml/
 │   ├── PlantUmlLayoutWorkMeter.cs — SvekLayout: the work meter with PlantUML's located failures
 │   ├── SvekGeometry*.cs           — SvekGeometry: curves, clipping, and the link decorations
 │   └── SvekRenderer*.cs           — SvekRenderer: links, container symbols, and notes as scene items
-└── Class/                         — Class subsystem (class and object diagrams)
-    ├── ClassParser*.cs            — ClassParser: the class and object statements, names, and packages
-    ├── ClassModel*.cs             — ClassModel: entities, packages, notes, links, rules, and the lowering
-    └── ClassRenderer*.cs          — ClassRenderer: the class, object, and map boxes
+├── Class/                         — Class subsystem (class and object diagrams)
+│   ├── ClassParser*.cs            — ClassParser: the class and object statements, names, and packages
+│   ├── ClassModel*.cs             — ClassModel: entities, packages, notes, links, rules, and the lowering
+│   └── ClassRenderer*.cs          — ClassRenderer: the class, object, and map boxes
+└── State/                         — State subsystem (state diagrams)
+    ├── StateParser*.cs            — StateParser: the state statements, names, pseudo-states, and regions
+    ├── StateModel*.cs             — StateModel: states, regions, notes, transitions, and the lowering
+    └── StateRenderer.cs           — StateRenderer: the state boxes, pseudo-states, and composite states
 ```
 
 Each sub-folder also holds a `NamespaceDoc.cs` with the namespace documentation. `CanvasNetPlantUml` uses the
@@ -2145,9 +2152,11 @@ subsystem: requirements `docs/reqstream/canvas-net-plant-uml/syntax/preprocessor
 (`docs/design/canvas-net-plant-uml/plant-uml-document.md`), and the system itself is
 `docs/design/canvas-net-plant-uml.md` with `docs/sysml2/model/canvas-net-plant-uml.sysml`; its system tests are
 `PlantUmlSystemIntegrationTests.cs`, `PlantUmlUnsupportedDiagramTests.cs`, `PlantUmlSequenceIntegrationTests.cs`,
-`PlantUmlActivityIntegrationTests.cs`, `PlantUmlReferenceLayoutTests.cs`, `PlantUmlIncludeTests.cs`,
+`PlantUmlActivityIntegrationTests.cs`, `PlantUmlClassIntegrationTests.cs`, `PlantUmlStateIntegrationTests.cs`,
+`PlantUmlReferenceLayoutTests.cs`, `PlantUmlReferenceShapeTests.cs`, `PlantUmlIncludeTests.cs`,
 `PlantUmlHardeningTests.cs`, and `PlantUmlGalleryTests.cs` in the root of its test project. The original fixtures are
-in `Fixtures/sequence/`, `Fixtures/activity/`, and `Fixtures/include/` of the test project (the inputs of the
+in `Fixtures/sequence/`, `Fixtures/activity/`, `Fixtures/class/`, `Fixtures/object/`, `Fixtures/state/`, and
+`Fixtures/include/` of the test project (the inputs of the
 unsupported diagram types are written inline in the tests, through `PlantUmlTestHelpers`),
 and the PlantUML reference layouts with their provenance README are in `Fixtures/reference/`; they are generated by
 `tools/visual-diff/update-plantuml-goldens.ps1` (run by hand, never in CI). The attribution record and license text

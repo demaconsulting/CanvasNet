@@ -290,6 +290,38 @@ public class StateParserTests
     }
 
     /// <summary>
+    ///     Validates that the limits fail closed at the statement that crosses them: the states and notes, the
+    ///     transitions, a text length, and the nesting of composite states.
+    /// </summary>
+    /// <param name="limit">The limit.</param>
+    /// <param name="body">The diagram body.</param>
+    /// <param name="line">The line that crosses the limit.</param>
+    [Theory]
+    [InlineData("MaxNodes", "state A\nstate B\nnote \"n\" as N", 4)]
+    [InlineData("MaxEdges", "A --> B\nB --> A\nA --> A", 4)]
+    [InlineData("MaxLabelLength", "state A\nA : a description far too long", 3)]
+    [InlineData("MaxNestingDepth", "state A {\nstate B {\nstate C {\n}\n}\n}", 4)]
+    public void PlantUmlStateParser_Limits_FailClosedAtTheLine(string limit, string body, int line)
+    {
+        // Arrange
+        var limits = limit switch
+        {
+            "MaxNodes" => new PlantUmlLimits { MaxNodes = 2 },
+            "MaxEdges" => new PlantUmlLimits { MaxEdges = 2 },
+            "MaxLabelLength" => new PlantUmlLimits { MaxLabelLength = 10 },
+            _ => new PlantUmlLimits { MaxNestingDepth = 2 },
+        };
+
+        // Act
+        var ex = Assert.Throws<PlantUmlSyntaxException>(() => Parse(body, limits));
+
+        // Assert
+        Assert.Equal(PlantUmlDiagnosticCodes.LimitExceeded, ex.Code);
+        Assert.Equal(line, ex.Location.Line);
+        Assert.Contains(limit, ex.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     ///     Validates the concurrent separator test: two or more dashes or bars, nothing else.
     /// </summary>
     [Fact]

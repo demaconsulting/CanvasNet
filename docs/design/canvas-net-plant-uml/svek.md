@@ -28,9 +28,9 @@ the names `Graph` (a type of the graph library) and `Layout` (the namespace of t
 
 The subsystem's namespace documentation is in `Svek/NamespaceDoc.cs`. Its behavior is specified by the
 `CanvasNetPlantUml-Svek-*` requirements in `docs/reqstream/canvas-net-plant-uml/svek.yaml`. The SysML2 model names the
-subsystem `PlantUmlSvek`. The Class subsystem lowers its class and object diagrams to it; the state and description
-subsystems are planned for the next steps of phase 2. The subsystem changes no picture of the sequence and activity
-diagrams.
+subsystem `PlantUmlSvek`. The Class subsystem lowers its class and object diagrams to it, and the State subsystem its
+state diagrams; the description subsystem is planned for the next step of phase 2. The subsystem changes no picture of
+the sequence and activity diagrams.
 
 ### Interfaces
 
@@ -50,7 +50,7 @@ of `DiagramDetector`); the Styling subsystem (`SkinTheme`, `SkinParams`); the Sc
 `PlantUmlLimits`, `PlantUmlLocation`, `PlantUmlDiagnosticCodes`, `PlantUmlPendingReport`, `PlantUmlSyntaxException`,
 `PlantUmlRenderException`, and `DiagramRenderContext`.
 
-**Consumers**: the diagram subsystems of the graph diagrams (the Class subsystem in this step); the tests.
+**Consumers**: the diagram subsystems of the graph diagrams (the Class and State subsystems in this step); the tests.
 
 ### Design
 

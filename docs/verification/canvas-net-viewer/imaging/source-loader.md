@@ -438,6 +438,10 @@ participants still drawn and the background in the `render` operation.
 **SourceLoader_Load_PlantUmlClass_ReportsFactsAndDraws**: `class.pu` is probed with the facts `class`, supported, 2
 nodes, 1 edge, and no subgraph, and loaded in strict mode with more than 200 pixels of the class fill and no note.
 
+**SourceLoader_Load_PlantUmlState_ReportsFactsAndDraws**: `state.puml` (a composite state with its own start) is probed
+with the facts `state`, supported, 5 nodes, 5 edges, and 1 subgraph, and loaded in strict mode with more than 200
+pixels of the state fill, more than 50 pixels of the start and end color, and no note.
+
 **SourceLoader_Load_PlantUmlUnsupportedType_IsOneNoteThenStrictError**: `legacy.pu` is probed with the facts
 `activity-legacy`, not supported, and zero counts, is an empty 20 by 20 picture with exactly one located one-line note
 (source `plantuml`, severity `unsupported`, code `plantuml-diagram-unsupported`), and in strict mode is

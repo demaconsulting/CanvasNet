@@ -230,6 +230,10 @@ subgraph counts of the library (at least five nodes); a class diagram with a pac
 with 2 nodes, 1 edge, and 1 subgraph and the text `class, 2 nodes, 1 edge`; and a legacy activity diagram (`.puml`) as
 `activity-legacy`, not supported, with zero nodes and the text `activity-legacy (not drawn by this version), 0 nodes`.
 
+**DiscoveryCommands_Info_PlantUmlState_ReportsStatesTransitionsAndComposites** (`DiscoveryCommandsPlantUmlTests.cs`):
+a state diagram with a composite state (`.puml`) is described as `state`, supported, with 5 nodes (the states and
+the start and end circles), 4 edges, and 1 subgraph (the composite state), and the text `state, 5 nodes, 4 edges`.
+
 **InputFragment_TextResultAndInfo_NameTheFragment** (`InputFragmentTests.cs`): `info source.pdf#page=2 --all-pages
 --json` describes only page 2 (the fragment wins over `--all-pages`) and its `input` object has the `path` and the
 `fragment` `page=2`.

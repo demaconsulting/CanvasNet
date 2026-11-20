@@ -1,0 +1,54 @@
+---
+# Software Unit Requirements for StateRenderer
+#
+# These requirements describe the design-level behavior of the StateRenderer unit of the State subsystem (internal
+# namespace DemaConsulting.CanvasNet.PlantUml.State): the images of the states, pseudo-states, and composite states.
+# See docs/verification/canvas-net-plant-uml/state/state-renderer.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetPlantUml Requirements
+    sections:
+      - title: State Requirements
+        sections:
+          - title: StateRenderer Requirements
+            requirements:
+              - id: CanvasNetPlantUml-State-StateRenderer-States
+                title: >-
+                  The StateRenderer unit shall draw a state as PlantUML's EntityImageState draws it: a box with corners
+                  of 25 at least 50 by 50, filled `#F1F1F1` and outlined `#181818` half a pixel wide, the name centered
+                  5 below the top, a line 5 below the name, the descriptions 5 from the left and 5 below the line, a
+                  rule for a line of four or more dashes, the colors of the declaration, and, after hide empty
+                  description, a box at least 50 by 40 with its name centered and no line.
+                justification: |
+                  The state box is the most visible shape of a state diagram.
+                tests:
+                  - PlantUmlStateRenderer_Image_SimpleState_HasPlantUmlBox
+                  - PlantUmlStateRenderer_Image_Descriptions_AreDrawnBelowTheLine
+                  - PlantUmlStateRenderer_Image_HideEmptyDescription_DropsTheLine
+                  - PlantUmlStateRenderer_Image_Colors_ReplaceTheTheme
+                  - PlantUmlStateRenderer_Helpers_RuleAndRoundedTop
+
+              - id: CanvasNetPlantUml-State-StateRenderer-PseudoStates
+                title: >-
+                  The StateRenderer unit shall draw the start as a circle of 20 filled and outlined `#222222`, the end
+                  as a ring of 22 around a filled circle of 12, a junction as a filled circle of 12, a choice as a
+                  diamond of 24, a fork or a join as a `#555555` bar of 80 by 8 (8 by 80 left to right), and a history
+                  as a circle of 22 with H or H*, each with the outline its transitions end on.
+                justification: |
+                  The pseudo-states are recognized by their shapes, which PlantUML fixes.
+                tests:
+                  - PlantUmlStateRenderer_Image_PseudoStates_HavePlantUmlShapes
+                  - PlantUmlStateRenderer_Image_StartAndEnd_HavePlantUmlColors
+                  - PlantUmlStateRenderer_Image_ForkBar_LiesAcrossTheRanks
+                  - PlantUmlStateRenderer_Image_History_HasItsMark
+
+              - id: CanvasNetPlantUml-State-StateRenderer-Composites
+                title: >-
+                  The StateRenderer unit shall give a composite state an image with a header as tall as its name with
+                  margins of 5 (and its descriptions below), at least as wide as its name with margins of 10, padded 10,
+                  drawn as a filled header band with rounded top corners, a rounded outline (filled whole when the state
+                  has its own color), a line under the name, and the title centered 5 below the top.
+                justification: |
+                  A composite state is drawn like PlantUML's rounded container around its members.
+                tests:
+                  - PlantUmlStateRenderer_CompositeImage_HasHeaderAndOutline

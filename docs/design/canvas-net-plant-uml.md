@@ -49,6 +49,9 @@ The system is decomposed into one direct unit and internal subsystems:
 - **Class** (subsystem) - the `ClassParser` unit (the statements of class and object diagrams), the `ClassModel` unit
   (the diagram with its hide and show rules, lowered to the Svek engine), and the `ClassRenderer` unit (the class,
   object, and map boxes); see *Class Subsystem Design*.
+- **State** (subsystem) - the `StateParser` unit (the statements of state diagrams), the `StateModel` unit (the
+  diagram with its composite states and concurrent regions, lowered to the Svek engine), and the `StateRenderer`
+  unit (the state boxes, the pseudo-states, and the composite states); see *State Subsystem Design*.
 
 The SysML2 model names the system `CanvasNetPlantUmlSystem` and prefixes the names of its subsystems and units with
 `PlantUml` (`PlantUmlSyntax`, `PlantUmlPreprocessor`, `PlantUmlDiagramDetector`, `PlantUmlStyling`, `PlantUmlSkinTheme`,
@@ -57,7 +60,8 @@ The SysML2 model names the system `CanvasNetPlantUmlSystem` and prefixes the nam
 `PlantUmlSequenceRenderer`, `PlantUmlActivity`, `PlantUmlActivityParser`, `PlantUmlActivityModel`,
 `PlantUmlActivityLayout`, `PlantUmlActivityRenderer`, `PlantUmlSvek`, `PlantUmlSvekModel`, `PlantUmlSvekSyntax`,
 `PlantUmlSvekLayout`, `PlantUmlSvekGeometry`, `PlantUmlSvekRenderer`, `PlantUmlClass`, `PlantUmlClassParser`,
-`PlantUmlClassModel`, `PlantUmlClassRenderer`), because
+`PlantUmlClassModel`, `PlantUmlClassRenderer`, `PlantUmlState`, `PlantUmlStateParser`, `PlantUmlStateModel`,
+`PlantUmlStateRenderer`), because
 the `CanvasNet` package of the model already holds the units of the Mermaid system with the same short names. The test
 methods of the units use the same prefix (`PlantUmlPreprocessor_...`), so that the requirements trace never mixes the
 evidence of two systems.
@@ -140,7 +144,8 @@ The text is read (strict UTF-8 for streams and files), framed and preprocessed i
 location of every character (the statements of an included file are located in that file), and classified into a
 diagram type. A supported type is parsed into its diagram model by
 the parser registered in `DiagramRegistry` (a sequence diagram by the Sequence subsystem, an activity diagram by the
-Activity subsystem, and a class or object diagram by the Class subsystem); the reports found while
+Activity subsystem, a class or object diagram by the Class subsystem, and a state diagram by the State subsystem); the
+reports found while
 reading (ignored directives, a second diagram, statements and skin parameters that are not drawn) are kept by the
 document and the diagram model as pending reports, in text order, so that every later call can deliver them. A measure
 or render call creates a report sink and a text layout, replays the pending reports, lays the diagram out into a scene
@@ -172,7 +177,9 @@ connections, the swimlanes, and the compression of the drawing), and the shapes,
 diagrams that PlantUML lays out with Graphviz (the "svek" engine: the link grammar, the link decorations, the container
 symbols, the notes and their pointers, and the cluster margins of the Smetana pipeline), and the boxes of class and
 object diagrams (the class header with its circled character, the member compartments with their visibility icons and
-separators, and the object and map tables) follow the MIT-licensed
+separators, and the object and map tables), and the shapes of state diagrams (the state boxes with their descriptions,
+the start, end, choice, fork, join, and history pseudo-states, and the composite states with their regions) follow the
+MIT-licensed
 distribution of PlantUML (`plantuml-mit`, whose files carry the MIT header "(C) Copyright 2009-2024, Arnaud Roques").
 Only the MIT-licensed distribution was read; no source text, comment, test, example, or image of PlantUML is copied: the
 ported items are values and rules, reimplemented in C#. The license text and the provenance table (which upstream file
@@ -252,6 +259,17 @@ of this repository, so the two diagram languages are bounded alike.
   `restore`, `allowmixing`, `skin`, `json` blocks, `circle` and `diamond` elements (drawn as classes), the visibility of
   a class, line styles of a class (`##[dashed]`), hiding a single element or by visibility, links from map entries
   (drawn from the map), and notes on packages (drawn floating) are reported as `plantuml-statement-unsupported`.
+- **State diagrams** - every state box, description, pseudo-state, composite header, and region separator of the
+  reference fixtures agrees with PlantUML's within 1.5 pixels; the positions differ as in class diagrams. A composite
+  state is always drawn with the header of PlantUML's autonomous composite (its title 5 lower than PlantUML draws a
+  composite that Graphviz lays out as a cluster); a transition with a one-dash arrow or a `left` or `right` hint is
+  kept in one rank, where Graphviz may place its ends in two; a transition to or from a composite state is drawn from
+  or to its border. The border symbols (`<<entryPoint>>`, `<<exitPoint>>`, the pins, the expansion nodes, and
+  `<<sdlreceive>>`, drawn as states), line styles of a state (`##[dashed]`), a cross at the start of a transition,
+  link stereotypes, hide and show forms other than `hide empty description`, `json` and `map` blocks, notes on
+  composite states (drawn floating), and transitions that leave the first region of a composite state with concurrent
+  regions (drawn from its border) are reported as `plantuml-statement-unsupported`; PlantUML refuses a transition
+  between two concurrent regions, and so does CanvasNet.
 
 ## Phase Plan
 
@@ -260,7 +278,7 @@ of this repository, so the two diagram languages are bounded alike.
   policy; the image source; the Viewer, tool, and Pandoc filter integration.
 - **Phase 2** - the diagram types that PlantUML lays out with Graphviz (class, component, use case, state, object, and
   deployment diagrams) are laid out by the shared Svek engine over the dagre layered layout of the `CanvasNetLayout`
-  package, which the Mermaid package shares (the engine is in place and draws class and object diagrams; the other
-  diagram types follow in steps). Themes,
+  package, which the Mermaid package shares (the engine is in place and draws class, object, and state diagrams; the
+  other diagram types follow in steps). Themes,
   `<style>` blocks, feature positions, and the conditional and function directives of the preprocessor are candidates as
   well.

@@ -42,6 +42,18 @@ sections:
                 tests:
                   - PlantUmlSkinTheme_Default_HasPlantUmlClassLook
 
+              - id: CanvasNetPlantUml-Styling-SkinTheme-StateLook
+                title: >-
+                  The SkinTheme unit shall hold the values of PlantUML's default look for state diagrams: states filled
+                  `#F1F1F1` and outlined `#181818` half a pixel wide with corners of 25 and names and descriptions of 14
+                  pixels, start and end circles filled and outlined `#222222` one pixel wide, and choices and histories
+                  filled `#F1F1F1` and outlined half a pixel wide.
+                justification: |
+                  These are the values of PlantUML's own default skin for state diagrams, which a diagram without skin
+                  parameters must match.
+                tests:
+                  - PlantUmlSkinTheme_Default_HasPlantUmlStateLook
+
               - id: CanvasNetPlantUml-Styling-SkinTheme-Immutable
                 title: >-
                   The SkinTheme unit shall change the style of an element by returning a new theme, leaving the
