@@ -9,7 +9,7 @@ The `Help` subsystem (namespace `DemaConsulting.CanvasNet.Viewer.Help`, folder
 data that an application reads programmatically. The library is used by other applications, often agent toolkits that
 give knowledge to an AI, and the knowledge about what to write in a file, how to make it look good, how files compose,
 what is reported, the limits, what the host controls, and which files a document may read belongs with the library that
-reads the files. The subsystem therefore ships short Markdown help cards (87 cards under 15 root cards) and tiny example
+reads the files. The subsystem therefore ships short Markdown help cards (93 cards under 15 root cards) and tiny example
 files as embedded resources of the Viewer assembly, and exposes them through a small, immutable, thread-safe public API.
 
 The subsystem is free of command-line concerns: the library cards describe the formats in library terms (the options of

@@ -29,7 +29,7 @@
     Mermaid diagrams are drawn from code blocks and from .mmd/.mermaid pictures (the pictures of their nodes are
     hashed), sequence, class, state, ER, pie, gantt, mindmap, packet, and git graph diagrams are drawn by the filter itself,
     PlantUML diagrams are drawn from code blocks and from .puml/.plantuml pictures (their !include files are hashed, so a
-    changed include draws them again), a PlantUML type the tool does not draw (a .pu class diagram) is left as written, a diagram
+    changed include draws them again), a PlantUML type the tool does not draw (a .pu legacy activity diagram) is left as written, a diagram
     type the tool does not draw is left as written (shown as code) with a warning, and the defaults-file filters run
     before a later command-line filter, which sees only the blocks left as written. An SVG picture that links no file only the tool draws is left
     unchanged (the tool decides); one that links a diagram (directly or through a nested SVG file) points at a flattened copy whose
@@ -601,11 +601,11 @@ journey
 
     # --- PlantUML diagrams: code blocks, .puml/.plantuml/.pu pictures with includes, and the types not drawn ----
     # A plantuml code block becomes the picture (a figure with a caption); .puml and .plantuml pictures are drawn and
-    # their !include files are hashed, so a changed include draws them again; a .pu class diagram is left as written.
+    # their !include files are hashed, so a changed include draws them again; a .pu legacy activity diagram is left as written.
     Set-Content (Join-Path $guide 'talk.puml') -Value "@startuml`n!include people.iuml`nAlice -> Bob : Hello`n@enduml"
     Set-Content (Join-Path $guide 'people.iuml') -Value "participant Alice`nparticipant Bob"
     Copy-Item (Join-Path $guide 'talk.puml') (Join-Path $guide 'same.plantuml')
-    Set-Content (Join-Path $guide 'cars.pu') -Value "@startuml`nclass Car`n@enduml"
+    Set-Content (Join-Path $guide 'cars.pu') -Value "@startuml`n(*) --> First`nFirst --> Second`n@enduml"
     $plantUml = @'
 ```{.plantuml #talk caption="The talk" width=60%}
 Alice -> Bob : Hello
@@ -624,10 +624,10 @@ Bob --> Alice : Hi
         $puml.Html -match 'generated/canvasnet/plantuml-' -and $puml.Html -match 'generated/canvasnet/talk-' -and
         $puml.Html -match 'generated/canvasnet/same-' -and $puml.Html -match 'src="cars\.pu"' -and
         @(Get-Pictures).Count -eq $pumlBefore + 3) `
-        'a plantuml block and .puml and .plantuml pictures are drawn; a .pu class diagram is left as written' "$($puml.Log)`n$($puml.Html)"
+        'a plantuml block and .puml and .plantuml pictures are drawn; a .pu legacy activity diagram is left as written' "$($puml.Log)`n$($puml.Html)"
     Write-Result (@(Get-ChildItem -LiteralPath $cache -Filter '*.puml').Count -ge 1 -and
         $puml.Log.Contains('canvasnet.lua: cars.pu: ') -and $puml.Log -match 'it is left as written and not drawn') `
-        'the text of a plantuml block is written to the cache folder, and a class diagram is a warning' $puml.Log
+        'the text of a plantuml block is written to the cache folder, and a legacy activity diagram is a warning' $puml.Log
     $pumlStamp = Get-Stamp
     $pumlAgain = Invoke-Filter 'plantuml' $plantUml
     Write-Result ($pumlAgain.ExitCode -eq 0 -and (Get-Stamp) -eq $pumlStamp) 'a second run draws no PlantUML diagram again' $pumlAgain.Log

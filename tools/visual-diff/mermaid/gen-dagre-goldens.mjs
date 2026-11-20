@@ -1,5 +1,5 @@
 // gen-dagre-goldens.mjs - records the layouts that the pinned dagre-d3-es computes on generated graphs, as the stage
-// goldens of the CanvasNet.Mermaid dagre port.
+// goldens of the dagre port in CanvasNet.Layout (the shared graph layout that CanvasNet.Mermaid uses).
 //
 // Developer tooling of tools/visual-diff; see the README there. Usage:
 //
@@ -7,7 +7,7 @@
 //
 // <modules> is a folder that holds node_modules/dagre-d3-es and node_modules/lodash-es (default: the repository root).
 // <out> is the golden file (default:
-// test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/upstream-vectors/dagre-layouts.json). dagre-d3-es is pure
+// test/DemaConsulting.CanvasNet.Layout.Tests/Fixtures/upstream-vectors/dagre-layouts.json). dagre-d3-es is pure
 // JavaScript, so it runs directly in Node. Every graph comes from a seeded generator (seeded random DAGs, cyclic
 // graphs, compound graphs with nested clusters, labeled edges, self loops, parallel named edges, numeric node names,
 // every rank direction, ranker and alignment), so the inputs are original and the file is reproducible. For each graph
@@ -26,7 +26,7 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 // Read the two optional arguments
 const args = process.argv.slice(2);
 let modules = root;
-let out = join(root, 'test', 'DemaConsulting.CanvasNet.Mermaid.Tests', 'Fixtures', 'upstream-vectors', 'dagre-layouts.json');
+let out = join(root, 'test', 'DemaConsulting.CanvasNet.Layout.Tests', 'Fixtures', 'upstream-vectors', 'dagre-layouts.json');
 for (let i = 0; i < args.length; i++) {
   if (args[i] === '--modules' && i + 1 < args.length) {
     modules = resolve(args[++i]);

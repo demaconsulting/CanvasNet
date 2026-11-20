@@ -1,0 +1,18 @@
+@startuml
+' Gallery: a system boundary, a nested package, business use cases, stereotypes, colors, and multi-line names
+title Help desk
+actor Caller
+actor "Support\nAgent" as Agent <<staff>>
+rectangle "Ticket system" {
+  usecase "Open\nticket" as Open
+  (Track ticket) as Track #LightYellow
+  package Escalation {
+    (Escalate)/ as Esc
+  }
+}
+Caller --> Open
+Caller --> Track
+Agent --> Track
+Agent --> Esc
+Open ..> Track : <<include>>
+@enduml

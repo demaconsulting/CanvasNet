@@ -1,0 +1,17 @@
+@startuml
+title Shop
+package "Front end" {
+  [Web] as Web
+}
+node Server {
+  component Orders <<service>>
+  [Payments]
+}
+interface "Orders API" as API
+database Store
+Web --( API
+API - Orders
+Orders --> Payments : charge
+Orders ..> Store
+note right of Payments : external provider
+@enduml

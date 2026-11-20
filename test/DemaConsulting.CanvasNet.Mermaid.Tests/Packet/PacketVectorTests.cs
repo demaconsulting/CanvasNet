@@ -1,7 +1,6 @@
 using System.Globalization;
 using System.Text.Json.Nodes;
 using DemaConsulting.CanvasNet.Mermaid.Configuration;
-using DemaConsulting.CanvasNet.Mermaid.Dagre;
 using DemaConsulting.CanvasNet.Mermaid.Packet;
 using DemaConsulting.CanvasNet.Mermaid.Syntax;
 
@@ -66,7 +65,7 @@ public sealed class PacketVectorTests
         try
         {
             var diagram = PacketParser.Parse(source, DiagramDetector.Detect(source.Code, DetectorSettings.Default), MermaidLimits.Default);
-            var rows = diagram.Rows(config.Packet.BitsPerRow, Unbounded, new LayoutWorkMeter(long.MaxValue, diagram.KeywordLocation, CancellationToken.None));
+            var rows = diagram.Rows(config.Packet.BitsPerRow, Unbounded, new MermaidLayoutWorkMeter(long.MaxValue, diagram.KeywordLocation, CancellationToken.None));
             actual = Facts(diagram, config.Packet, rows);
         }
         catch (MermaidSyntaxException exception)

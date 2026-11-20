@@ -176,9 +176,10 @@ golden change is reviewed like code.
 ### Upstream Vector Generators
 
 The scripts in `mermaid/` record what the pinned packages compute. Their output is the upstream vectors under
-`test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/upstream-vectors/`. Each takes `--modules <folder>` (the
-folder that holds `node_modules`; default: the repository root). The generators also take `--out <file>`: the default
-is their vector file.
+`test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/upstream-vectors/` (the dagre goldens under
+`test/DemaConsulting.CanvasNet.Layout.Tests/Fixtures/upstream-vectors/`, beside the shared graph layout they check).
+Each takes `--modules <folder>` (the folder that holds `node_modules`; default: the repository root). The generators
+also take `--out <file>`: the default is their vector file.
 
 - `extract-sources.mjs` writes the original sources of mermaid (from `dist/mermaid.js.map`) to `artifacts/mermaid-src`,
   which git ignores, for reading the code the port follows.

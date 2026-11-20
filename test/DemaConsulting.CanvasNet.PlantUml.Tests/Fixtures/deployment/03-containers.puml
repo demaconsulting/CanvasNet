@@ -1,0 +1,27 @@
+@startuml
+artifact Bundle {
+  file Config
+}
+storage Disk <<ssd>> {
+  file Data
+}
+file Archive {
+  agent Unpacker
+}
+queue Bus <<amqp>> {
+  label Message
+}
+stack Layers <<osi>> {
+  hexagon Core {
+    person Owner
+  }
+}
+node Host {
+  storage Volume {
+    collections Logs
+  }
+}
+Config --> Data
+Unpacker --> Message
+Owner --> Logs
+@enduml

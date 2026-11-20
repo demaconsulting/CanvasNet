@@ -74,12 +74,13 @@ The body is Markdown with `##` headings, bullets, and fenced code blocks with a 
 heading of the generated footer (`## Cards`, `## Examples`, `## See also`; `FooterHeadings`).
 
 **The tree**: each format root has the cards of its subjects below it - `mermaid` one card per diagram type (with a
-`settings` card below each type that has settings), `plantuml` the sequence and activity cards and the preprocessor,
-`svg` the supported, embedding, fragments, units, flatten, bindings, arrows, and framed-figure cards, `vega-lite` the
-data, marks, encodings, transforms, params, layout, and warnings cards, and `scad` the language, views, and anchors
-cards; each drawing format also has `style`, `composition`, `options`, and `diagnostics` cards, and `differences` and
-`unsupported` cards where its lists are long. `positions` has `selectors`, `mermaid`, `vega-lite`, and `geometry`, and
-`errors` has `codes` and `diagnostics`. `pdf`, `pptx`, `vsdx`, `raster`, `style`, `composition`, `limits`, and `files`
+`settings` card below each type that has settings), `plantuml` the sequence, activity, class, object, state, usecase,
+component, and deployment cards and the preprocessor, `svg` the supported, embedding, fragments, units, flatten,
+bindings, arrows, and framed-figure cards, `vega-lite` the data, marks, encodings, transforms, params, layout, and
+warnings cards, and `scad` the language, views, and anchors cards; each drawing format also has `style`,
+`composition`, `options`, and `diagnostics` cards, and `differences` and `unsupported` cards where its lists are long.
+`positions` has `selectors`, `mermaid`, `vega-lite`, and `geometry`, and `errors` has `codes` and `diagnostics`. `pdf`,
+`pptx`, `vsdx`, `raster`, `style`, `composition`, `limits`, and `files`
 are single cards. The tree of each format holds the `##` headings `Supported`, `Unsupported`, `Options` (the library
 options), `Diagnostics`, and `Known differences`, and the `style` and `composition` hubs link to the style and
 composition card of each drawing format, which link back.

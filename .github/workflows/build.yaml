@@ -393,6 +393,7 @@ jobs:
               'DemaConsulting.CanvasNet.Render3D.dll',
               'DemaConsulting.CanvasNet.Scad.dll',
               'DemaConsulting.CanvasNet.VegaLite.dll',
+              'DemaConsulting.CanvasNet.Layout.dll',
               'DemaConsulting.CanvasNet.Mermaid.dll',
               'DemaConsulting.CanvasNet.PlantUml.dll',
               'DemaConsulting.CanvasNet.Viewer.dll',
@@ -408,9 +409,10 @@ jobs:
               }
             }
             # The third-party notices of the bundled Vega-Lite library (BSD-3-Clause and ISC), of the
-            # bundled Mermaid library (MIT and ISC), and of the bundled PlantUML library (MIT) must
-            # accompany the binaries, so they travel in the package's licenses folder (Mermaid's d3
-            # notice under its own name).
+            # bundled Mermaid library (MIT and ISC), of the bundled shared graph layout (MIT; its
+            # dagre and lodash notices are the same files as Mermaid's), and of the bundled PlantUML
+            # library (MIT) must accompany the binaries, so they travel in the package's licenses
+            # folder (Mermaid's d3 notice under its own name).
             $notices = @(
               'licenses/LICENSE-vega.txt',
               'licenses/LICENSE-d3.txt',
@@ -429,6 +431,7 @@ jobs:
               'licenses/LICENSE-cytoscape.txt',
               'licenses/Mermaid-LICENSE-d3.txt',
               'licenses/Mermaid-third-party-README.md',
+              'licenses/Layout-third-party-README.md',
               'licenses/LICENSE-plantuml.txt',
               'licenses/PlantUml-third-party-README.md'
             )

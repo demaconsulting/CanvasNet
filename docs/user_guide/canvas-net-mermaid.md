@@ -5,8 +5,9 @@
 ### MermaidDocument
 
 `MermaidDocument` (namespace `DemaConsulting.CanvasNet.Mermaid`) is distributed via the separate
-`DemaConsulting.CanvasNet.Mermaid` NuGet package, whose only dependency is the core `DemaConsulting.CanvasNet`
-package - see the Installation section of the project README. It reads diagrams written in the Mermaid v11 text
+`DemaConsulting.CanvasNet.Mermaid` NuGet package, whose dependencies are the core `DemaConsulting.CanvasNet` package
+and the shared graph layout `DemaConsulting.CanvasNet.Layout` (installed with it; it has no public API) - see the
+Installation section of the project README. It reads diagrams written in the Mermaid v11 text
 language and draws them as **static pictures** with Mermaid's own layout: a flowchart, a class diagram, a state
 diagram, and an entity relationship diagram are laid out by a port of the dagre layout that Mermaid uses, a sequence
 diagram by a port of Mermaid's sequence renderer, a pie chart and a gantt chart by ports of Mermaid's pie and gantt
@@ -1202,14 +1203,16 @@ ports of these projects (all MIT unless stated):
 - **Langium** (Copyright 2021 TypeFox GmbH): the token order and the string and number conversion of the pie, packet,
   and git graph parsers;
 - **dagre-d3-es**, derived from **dagre** and **graphlib** (Copyright (c) 2012-2014 Chris Pettitt and the dagre-es
-  contributors): the graph and the layered layout;
+  contributors): the graph and the layered layout (in the `DemaConsulting.CanvasNet.Layout` package that this package
+  uses) and the node intersections;
 - **layout-base** (Copyright (c) 2019 iVis@Bilkent) and **cose-base** (Copyright (c) 2019 - present, iVis@Bilkent):
   the force-directed layout of mindmaps;
 - **cytoscape-cose-bilkent** (Copyright (c) 2016-2018, The Cytoscape Consortium) and **cytoscape** (Copyright (c)
   2016-2026, The Cytoscape Consortium): the layout options of mindmaps and the points of their edges;
 - **js-yaml** (Copyright (C) 2011-2015 by Vitaly Puzrin): the YAML reader of the frontmatter and shape data;
 - **khroma** (Copyright (c) 2019-present Fabio Spampinato, Andrew Maney): the color functions of the themes;
-- **lodash** (Copyright OpenJS Foundation and other contributors): the sort and extremum rules the layout depends on;
+- **lodash** (Copyright OpenJS Foundation and other contributors): the sort and extremum rules the layout depends on
+  (in the `DemaConsulting.CanvasNet.Layout` package) and the merge of the configuration;
 - **marked** (Copyright (c) 2018+, MarkedJS; Copyright (c) 2011-2018, Christopher Jeffrey): the Markdown of labels;
 - **dayjs** (Copyright (c) 2018-present, iamkun): the date parsing, formatting, and arithmetic of gantt charts;
 - **d3** (ISC, Copyright 2010-2023 Mike Bostock): d3-shape and d3-path for the edge curves and the pie slices,
@@ -1219,9 +1222,10 @@ ports of these projects (all MIT unless stated):
   sequence, state, and gantt diagrams keep, which are never drawn.
 
 The license texts ship in the NuGet packages under `licenses/` (also for the `canvasnet` tool, which bundles the
-assembly), and `src/DemaConsulting.CanvasNet.Mermaid/third-party/README.md` records what was ported, from which
-version, and by which unit. The package is **not affiliated with, endorsed by, or promoted by** the Mermaid project or
-the authors of these libraries; the names are used only to describe the language that is implemented.
+assembly), and `src/DemaConsulting.CanvasNet.Mermaid/third-party/README.md` records what was ported, from which version,
+and by which unit (for the graph and the layered layout, `src/DemaConsulting.CanvasNet.Layout/third-party/README.md`).
+The package is **not affiliated with, endorsed by, or promoted by** the Mermaid project or the authors of these
+libraries; the names are used only to describe the language that is implemented.
 
 ### Using As An Embedded Image
 

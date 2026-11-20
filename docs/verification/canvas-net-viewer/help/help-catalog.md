@@ -188,7 +188,13 @@ and strict mode turns the reports of a model and a chart into `unsupported-featu
 pixel, and the card's `themeCSS` rules recolor the grid lines and resize the tick labels.
 **HelpCatalog_MermaidCards_DiagramSyntaxItems_MatchUserGuide** and
 **HelpCatalog_PlantUmlCards_DiagramSyntaxItems_MatchUserGuide**: the syntax, relation, tag, setting, and supported
-bullets, and the code lists, equal the user guides item for item and in order, code spans included.
+bullets, and the code lists, equal the user guides item for item and in order, code spans included. For PlantUML the
+`### Supported Sequence Syntax`, `### Supported Activity Syntax`, `### Supported Class Syntax`,
+`### Supported Object Syntax`, `### Supported State Syntax`, `### Supported Use Case Syntax`,
+`### Supported Component Syntax`, and `### Supported Deployment Syntax` lists (at least ten each, four for objects,
+eight for states, six for use cases and components, and four for deployments) are the `## Supported` bullets of
+`plantuml/sequence`, `plantuml/activity`, `plantuml/class`, `plantuml/object`, `plantuml/state`, `plantuml/usecase`,
+`plantuml/component`, and `plantuml/deployment`.
 
 **Positions and bindings.** **HelpCatalog_PositionsCard_IsInTheTreeAndLinked**,
 **HelpCatalog_PositionsLimits_AreTheLimitsOfTheCode**,

@@ -34,6 +34,44 @@ sections:
                 tests:
                   - PlantUmlSkinParams_Apply_SupportedSubset_ChangesTheme
 
+              - id: CanvasNetPlantUml-Styling-SkinParams-GraphSubset
+                title: >-
+                  The SkinParams unit shall apply, in the diagrams that PlantUML lays out with Graphviz only, the
+                  colors, fonts, and line widths of classes, their stereotypes and members, objects, maps, and
+                  packages, the class settings classAttributeIconSize and circledCharacterRadius, and the arrow
+                  settings to their links, and shall report the same parameters as ignored in sequence and activity
+                  diagrams.
+                justification: |
+                  Class diagrams set their look with these parameters; a sequence diagram does not draw classes, so the
+                  parameters must not be silently accepted there.
+                tests:
+                  - PlantUmlSkinParams_Apply_GraphSubset_OnlyInGraphDiagrams
+
+              - id: CanvasNetPlantUml-Styling-SkinParams-StateSubset
+                title: >-
+                  The SkinParams unit shall apply, in the diagrams that PlantUML lays out with Graphviz only, the
+                  colors, fonts, and line widths of states and of their descriptions, and stateStartColor and
+                  stateEndColor to both the fill and the line of the start and end circles, and shall report the same
+                  parameters as ignored in sequence and activity diagrams.
+                justification: |
+                  State diagrams set their look with these parameters; a sequence diagram does not draw states, so the
+                  parameters must not be silently accepted there.
+                tests:
+                  - PlantUmlSkinParams_Apply_StateSubset_OnlyInGraphDiagrams
+
+              - id: CanvasNetPlantUml-Styling-SkinParams-DescriptionSubset
+                title: >-
+                  The SkinParams unit shall apply, in description diagrams only, the colors, fonts, and line widths of
+                  the component, interface, node, rectangle, folder, frame, cloud, card, artifact, storage, file, stack,
+                  agent, hexagon, person, label, and usecase symbols (and of the database, actor, queue, boundary,
+                  control, entity, and collections symbols, shared with sequence diagrams), and shall report the same
+                  symbol parameters as ignored in class and state diagrams.
+                justification: |
+                  Use case, component, and deployment diagrams set their look with these parameters; a class diagram
+                  does not draw these symbols, so the parameters must not be silently accepted there.
+                tests:
+                  - PlantUmlSkinParams_Apply_DescriptionSubset_OnlyInDescriptionDiagrams
+
               - id: CanvasNetPlantUml-Styling-SkinParams-Colors
                 title: >-
                   The SkinParams unit shall read PlantUML's colors: HTML color names with or without a hash,

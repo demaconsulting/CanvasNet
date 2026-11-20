@@ -98,11 +98,14 @@ Asserts the hidden foot box, the scale 3/2, and a participant background from a 
 
 ##### CanvasNetPlantUml-Sequence-SequenceParser-Unsupported: Statements That Are Not Drawn
 
-**Tests**: `SequenceParserTests.PlantUmlSequenceParser_UnsupportedStatements_AreReported`
+**Tests**: `SequenceParserTests.PlantUmlSequenceParser_UnsupportedStatements_AreReported`,
+`SequenceParserTests.PlantUmlSequenceParser_BorderMessages_AreReported`
 
 Asserts nine `plantuml-statement-unsupported` reports (a stereotype, `**`, a one-line and a block reference,
 `newpage`, a border message, `hide unlinked`, `scale 200 width`, and a parallel message) and the three messages that are
-still read.
+still read. Asserts that five border messages (`[o->`, `->x]` with a label, `->?` and `->o?` with labels, and `?o->`)
+are reported at lines 3 to 7, and that a message whose label holds `[-x]` and `x->]` is read as the second message with
+that label.
 
 ##### CanvasNetPlantUml-Sequence-SequenceParser-Errors: Located Syntax Errors
 

@@ -143,6 +143,43 @@ public class SceneModelTests
     }
 
     /// <summary>
+    ///     Validates the spacing of the page of a graph diagram (class and object diagrams), measured from the
+    ///     pictures PlantUML draws: the header at the top, the title 10 below it, the centered texts centered 6 left of
+    ///     the middle, a legend on the left 12 from the edge and 6 below the body, and the narrower page margins.
+    /// </summary>
+    [Fact]
+    public void PlantUmlSceneModel_ScenePage_SvekSpacing()
+    {
+        // Arrange
+        var body = new Scene(new SceneRect(0, 0, 265, 76), [new ScenePath(SceneShapes.Rect(6, 12, 244, 48)) { Role = "body" }]);
+        var page = new PageTexts
+        {
+            Header = new PageText("Head", TextAlign.Right, default),
+            Title = new PageText("T", TextAlign.Center, default),
+            Legend = new PageText("short", TextAlign.Left, default),
+            Caption = new PageText("Cap", TextAlign.Center, default),
+            Footer = new PageText("Foot", TextAlign.Center, default),
+        };
+        var text = new TextLayout(TextLayout.CreateFontResolver());
+
+        // Act
+        var scene = ScenePage.Decorate(body, page, SkinTheme.Default, text, null, PageMetrics.Svek);
+
+        // Assert
+        SceneText Text(string role) => scene.Items.OfType<SceneText>().Single(t => t.Role == role);
+        Assert.Equal(10.381, Text("header").Baseline, 2);
+        Assert.Equal(259, Text("header").X + Text("header").Box.Width, 2);
+        Assert.Equal(38.111, Text("title").Baseline, 2);
+        Assert.Equal(129.5, Text("title").X + (Text("title").Box.Width / 2), 2);
+        Assert.Equal(129.5, Text("caption").X + (Text("caption").Box.Width / 2), 2);
+        Assert.Equal(129.5, Text("footer").X + (Text("footer").Box.Width / 2), 2);
+        var legend = Scene.BoundsOf(scene.Items.Where(i => i.Role == "legend" && i is ScenePath))!.Value;
+        Assert.Equal((12.0, 134.188), (Math.Round(legend.X, 3), Math.Round(legend.Y, 3)));
+        var moved = Scene.BoundsOf(scene.Items.Where(i => i.Role == "body"))!.Value;
+        Assert.Equal(64.188, moved.Y, 3);
+    }
+
+    /// <summary>
     ///     Validates that a body without page texts is returned unchanged, and that translation moves paths and texts
     ///     and leaves other items alone.
     /// </summary>

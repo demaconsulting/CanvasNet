@@ -26,11 +26,37 @@ constitutes a failure.
 ##### CanvasNetPlantUml-Styling-SkinTheme-DefaultLook: The Values Of PlantUML's Default Skin
 
 **Tests**: `SkinThemeTests.PlantUmlSkinTheme_Default_HasPlantUmlSequenceLook`,
-`SkinThemeTests.PlantUmlSkinTheme_Default_HasPlantUmlActivityLook`
+`SkinThemeTests.PlantUmlSkinTheme_Default_HasPlantUmlActivityLook`,
+`SkinThemeTests.PlantUmlSkinTheme_Default_HasPlantUmlGraphLook`
 
 Asserts the participant font, fill, line, width, corners, and padding, the square actor, the note, arrow, group, life
-line, header, and title styles, the white background, the foot box, and the arrow thickness; and the activity, swimlane,
-and bar styles.
+line, header, and title styles, the white background, the foot box, and the arrow thickness; the activity, swimlane,
+and bar styles; and the link label size and line, and the package and container outlines, corners, fills, and bold
+titles of the graph diagrams.
+
+##### CanvasNetPlantUml-Styling-SkinTheme-ClassLook: The Class And Object Boxes
+
+**Tests**: `SkinThemeTests.PlantUmlSkinTheme_Default_HasPlantUmlClassLook`
+
+Asserts the fill, line, line width, corners, and font size of classes and objects, the italic 12 of stereotypes, the
+size and color of members, and the icon size of 10 and the circle radius of 11.
+
+##### CanvasNetPlantUml-Styling-SkinTheme-StateLook: The State Shapes
+
+**Tests**: `SkinThemeTests.PlantUmlSkinTheme_Default_HasPlantUmlStateLook`
+
+Asserts the `#F1F1F1` fill, the `#181818` line half a pixel wide, the corners of 25, and the size 14 of states; the
+size 14 and the black of descriptions; the `#222222` fill and line one pixel wide of the start and end circles; and
+the `#F1F1F1` fill and half-pixel line of choices and histories.
+
+##### CanvasNetPlantUml-Styling-SkinTheme-DescriptionLook: The Description Elements
+
+**Tests**: `SkinThemeTests.PlantUmlSkinTheme_Description_HasPlantUmlComponentLook`
+
+Asserts that the eighteen description elements (the use case and the deployment symbols among them) are `#F1F1F1`,
+outlined `#181818` half a pixel wide with corners of 5 and text of 14 in the description theme, whose database and
+actor are `#F1F1F1` (the actor outlined `#181818` half a pixel wide) and whose queue, boundary, control, entity, and
+collections are `#F1F1F1` with corners of 5, while the default theme's stay `#E2E2F0` (with square corners).
 
 ##### CanvasNetPlantUml-Styling-SkinTheme-Immutable: A Change Returns A Copy
 

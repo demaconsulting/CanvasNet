@@ -1,0 +1,18 @@
+@startuml
+:Guest:
+:Account Owner: as AO
+actor/ Auditor
+:Manager:/ as M
+actor "Support\nAgent" as SA
+usecase/ Approve
+(Archive)/ as AR
+usecase "Reset\nPassword" as RP
+(Open Ticket) as OT
+usecase Escalate as "Escalate\nto Tier 2"
+Guest --> OT
+AO --> RP
+SA --> OT
+SA --> Escalate
+Auditor --> Approve
+M --> AR
+@enduml

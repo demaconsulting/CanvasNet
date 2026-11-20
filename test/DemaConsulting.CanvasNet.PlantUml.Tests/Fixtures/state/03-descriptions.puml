@@ -1,0 +1,10 @@
+@startuml
+state Heating : the element is on
+Heating : keeps 21 degrees
+state Cooling
+Cooling : the fan runs
+Cooling : at full speed
+[*] --> Heating
+Heating --> Cooling : too warm
+Cooling --> Heating : too cold
+@enduml

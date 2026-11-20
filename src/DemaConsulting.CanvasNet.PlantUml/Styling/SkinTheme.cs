@@ -97,6 +97,96 @@ internal enum SkinElement
 
     /// <summary>A partition frame of an activity diagram.</summary>
     Partition,
+
+    /// <summary>A link of a diagram that PlantUML lays out with Graphviz (class, state, use case, ...) and its labels.</summary>
+    SvekArrow,
+
+    /// <summary>A package cluster (its folder outline and bold title) of such a diagram.</summary>
+    Package,
+
+    /// <summary>A container cluster (rectangle, node, frame, cloud, database, card) of such a diagram.</summary>
+    Container,
+
+    /// <summary>A class box of a class diagram: its outline, its fill, its name, and its members.</summary>
+    Class,
+
+    /// <summary>The stereotypes and the generic parameters of a class or an object.</summary>
+    ClassStereotype,
+
+    /// <summary>The members (fields and methods) of a class or an object, and the titles of its separators.</summary>
+    ClassAttribute,
+
+    /// <summary>An object or a map box of an object diagram: its outline, its fill, its name, and its fields.</summary>
+    Object,
+
+    /// <summary>A state box and a composite state of a state diagram: its outline, its fill, and its name.</summary>
+    State,
+
+    /// <summary>The description lines of a state.</summary>
+    StateAttribute,
+
+    /// <summary>The start circle of a state diagram (<c>[*]</c> as a source).</summary>
+    StateStart,
+
+    /// <summary>The end circle of a state diagram (<c>[*]</c> as a target, <c>&lt;&lt;end&gt;&gt;</c>).</summary>
+    StateEnd,
+
+    /// <summary>The choice diamond and the history circles of a state diagram.</summary>
+    StatePseudo,
+
+    /// <summary>A component of a description diagram (<c>component</c>, <c>[x]</c>): its box, icon, and texts.</summary>
+    Component,
+
+    /// <summary>An interface circle of a description diagram (<c>interface</c>, <c>() x</c>) and its name.</summary>
+    Interface,
+
+    /// <summary>A node symbol of a description diagram drawn as an element (not as a container).</summary>
+    Node,
+
+    /// <summary>A rectangle symbol of a description diagram drawn as an element.</summary>
+    Rectangle,
+
+    /// <summary>A folder (or package) symbol of a description diagram drawn as an element.</summary>
+    Folder,
+
+    /// <summary>A frame symbol of a description diagram drawn as an element.</summary>
+    Frame,
+
+    /// <summary>A cloud symbol of a description diagram drawn as an element.</summary>
+    Cloud,
+
+    /// <summary>A card symbol of a description diagram drawn as an element.</summary>
+    Card,
+
+    /// <summary>An artifact symbol of a description diagram: its box, its document icon, and its texts.</summary>
+    Artifact,
+
+    /// <summary>A storage symbol of a description diagram (a box with fully rounded corners).</summary>
+    Storage,
+
+    /// <summary>A file symbol of a description diagram (a box with a folded corner).</summary>
+    File,
+
+    /// <summary>A stack symbol of a description diagram (a box between two ledges).</summary>
+    Stack,
+
+    /// <summary>An agent symbol of a description diagram (a box).</summary>
+    Agent,
+
+    /// <summary>A hexagon symbol of a description diagram.</summary>
+    Hexagon,
+
+    /// <summary>A person symbol of a description diagram (a head over a rounded body).</summary>
+    Person,
+
+    /// <summary>A label of a description diagram (its texts without an outline).</summary>
+    Label,
+
+    /// <summary>A use case ellipse of a description diagram (<c>usecase</c>, <c>(x)</c>) and its texts.</summary>
+    UseCase,
+
+    /// <summary>The other elements of a description diagram (action, process, and archimate, drawn as rectangles).</summary>
+    Description,
 }
 
 /// <summary>
@@ -143,7 +233,9 @@ internal sealed record ElementStyle(
 ///         "rose" look): a white document, <c>SansSerif</c> text (drawn with the bundled Liberation Sans, which has the
 ///         metrics of Arial, Java's <c>SansSerif</c> on Windows) of 14 pixels, participants filled with <c>#E2E2F0</c>
 ///         and outlined with <c>#181818</c> half a pixel wide, notes filled with <c>#FEFFDD</c>, group frames black and
-///         1.5 pixels wide, and the sizes and paddings of each element.
+///         1.5 pixels wide, the links of the graph diagrams with labels of 13 pixels, their package clusters (corners of 5) outlined in
+///         black 1.5 pixels wide and their container clusters in `#181818` one pixel wide with corners of 5, both with bold
+///         titles, and the sizes and paddings of each element.
 ///     </para>
 ///     <para>
 ///         A theme is immutable: <see cref="With(SkinElement, Func{ElementStyle, ElementStyle})"/> and the
@@ -193,9 +285,39 @@ internal sealed record SkinTheme
     ];
 
     /// <summary>
+    ///     Gets the elements of description diagrams (use case, component, and deployment), which share the defaults of
+    ///     PlantUML's <c>componentDiagram</c> elements: the common background, an outline half a pixel wide, and corners
+    ///     of 5.
+    /// </summary>
+    public static IReadOnlyList<SkinElement> DescriptionElements { get; } =
+    [
+        SkinElement.Component, SkinElement.Interface, SkinElement.Node, SkinElement.Rectangle, SkinElement.Folder,
+        SkinElement.Frame, SkinElement.Cloud, SkinElement.Card, SkinElement.Artifact, SkinElement.Storage,
+        SkinElement.File, SkinElement.Stack, SkinElement.Agent, SkinElement.Hexagon, SkinElement.Person,
+        SkinElement.Label, SkinElement.UseCase, SkinElement.Description,
+    ];
+
+    /// <summary>
     ///     Gets PlantUML's default look.
     /// </summary>
     public static SkinTheme Default { get; } = CreateDefault();
+
+    /// <summary>
+    ///     Gets the default look of description diagrams: <see cref="Default"/>, with the symbols that sequence diagrams
+    ///     share (<c>database</c>, <c>actor</c>, <c>queue</c>, <c>boundary</c>, <c>control</c>, <c>entity</c>, and
+    ///     <c>collections</c>) filled with the common background, as PlantUML's <c>componentDiagram</c> element style
+    ///     fills them, with corners of 5 (the boxes of <c>collections</c>).
+    /// </summary>
+    public static SkinTheme Description { get; } = new[]
+    {
+        SkinElement.Database, SkinElement.Actor, SkinElement.Queue, SkinElement.Boundary, SkinElement.Control,
+        SkinElement.Entity, SkinElement.Collections,
+    }.Aggregate(Default, (theme, element) => theme.With(element, s => s with
+    {
+        Fill = CommonBackground,
+        Padding = 0,
+        RoundCorner = element is SkinElement.Database or SkinElement.Actor ? s.RoundCorner : 5,
+    }));
 
     /// <summary>
     ///     Gets the background of the document, or null for a transparent document; white by default.
@@ -235,6 +357,17 @@ internal sealed record SkinTheme
     ///     Gets the line width of message arrows (<c>sequenceArrowThickness</c>); 1 by default.
     /// </summary>
     public double ArrowThickness { get; init; } = 1;
+
+    /// <summary>
+    ///     Gets the size of the visibility icons of class members (<c>classAttributeIconSize</c>); 10 by default, 0 to
+    ///     write the visibility characters instead of drawing icons.
+    /// </summary>
+    public double ClassAttributeIconSize { get; init; } = 10;
+
+    /// <summary>
+    ///     Gets the radius of the circle of a class header (<c>circledCharacterRadius</c>); 11 by default.
+    /// </summary>
+    public double CircledCharacterRadius { get; init; } = 11;
 
     /// <summary>
     ///     Gets the style of an element.
@@ -305,7 +438,25 @@ internal sealed record SkinTheme
             [SkinElement.ActivityBar] = root with { Fill = Rgb(0x55, 0x55, 0x55), LineWidth = 0.5 },
             [SkinElement.Swimlane] = root with { FontSize = 18, Line = Black, LineWidth = 1.5 },
             [SkinElement.Partition] = root with { Line = Black, LineWidth = 1.5 },
+            [SkinElement.SvekArrow] = root with { FontSize = 13 },
+            [SkinElement.Package] = root with { Bold = true, Line = Black, LineWidth = 1.5, RoundCorner = 5 },
+            [SkinElement.Container] = root with { Bold = true, LineWidth = 1, RoundCorner = 5 },
+            [SkinElement.Class] = root with { Fill = CommonBackground, LineWidth = 0.5, RoundCorner = 5 },
+            [SkinElement.ClassStereotype] = root with { FontSize = 12, Italic = true },
+            [SkinElement.ClassAttribute] = root,
+            [SkinElement.Object] = root with { Fill = CommonBackground, LineWidth = 0.5, RoundCorner = 5 },
+            [SkinElement.State] = root with { Fill = CommonBackground, LineWidth = 0.5, RoundCorner = 25 },
+            [SkinElement.StateAttribute] = root,
+            [SkinElement.StateStart] = root with { Fill = Rgb(0x22, 0x22, 0x22), Line = Rgb(0x22, 0x22, 0x22) },
+            [SkinElement.StateEnd] = root with { Fill = Rgb(0x22, 0x22, 0x22), Line = Rgb(0x22, 0x22, 0x22) },
+            [SkinElement.StatePseudo] = root with { Fill = CommonBackground, LineWidth = 0.5 },
         };
+
+        // The elements of description diagrams: the common background, outlined half a pixel wide, corners of 5
+        foreach (var element in DescriptionElements)
+        {
+            styles[element] = root with { Fill = CommonBackground, LineWidth = 0.5, RoundCorner = 5 };
+        }
 
         // Participants and their kin: grey-blue, outlined half a pixel wide, padded 7; a participant has corners of 5
         foreach (var element in ParticipantElements)

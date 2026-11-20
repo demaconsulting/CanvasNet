@@ -15,7 +15,7 @@
     <Version>0.0.0</Version>
     <Authors>DEMA Consulting</Authors>
     <Company>DEMA Consulting</Company>
-    <Description>DemaConsulting.CanvasNet.Tool is the canvasnet command-line tool: it inspects, renders, and transforms images and documents (PNG, JPEG, BMP, TIFF, GIF, JPEG 2000, SVG, PDF, PowerPoint, Visio, OpenSCAD models, Vega-Lite charts, Mermaid diagrams, and PlantUML sequence and activity diagrams) using the CanvasNet libraries, with a stable machine-readable JSON contract so that scripts and AI agents can drive it.</Description>
+    <Description>DemaConsulting.CanvasNet.Tool is the canvasnet command-line tool: it inspects, renders, and transforms images and documents (PNG, JPEG, BMP, TIFF, GIF, JPEG 2000, SVG, PDF, PowerPoint, Visio, OpenSCAD models, Vega-Lite charts, Mermaid diagrams, and PlantUML sequence, activity, class, object, state, use case, component, and deployment diagrams) using the CanvasNet libraries, with a stable machine-readable JSON contract so that scripts and AI agents can drive it.</Description>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/demaconsulting/CanvasNet</PackageProjectUrl>
     <RepositoryUrl>https://github.com/demaconsulting/CanvasNet</RepositoryUrl>
@@ -144,6 +144,15 @@
     <None Include="..\DemaConsulting.CanvasNet.Mermaid\third-party\LICENSE-*.txt" Exclude="..\DemaConsulting.CanvasNet.Mermaid\third-party\LICENSE-d3.txt" Pack="true" PackagePath="licenses\" />
     <None Include="..\DemaConsulting.CanvasNet.Mermaid\third-party\LICENSE-d3.txt" Pack="true" PackagePath="licenses\Mermaid-LICENSE-d3.txt" />
     <None Include="..\DemaConsulting.CanvasNet.Mermaid\third-party\README.md" Pack="true" PackagePath="licenses\Mermaid-third-party-README.md" />
+  </ItemGroup>
+
+  <!-- Third-party provenance of the bundled shared graph layout (DemaConsulting.CanvasNet.Layout, which the Mermaid
+       library references): its MIT notices (dagre-d3-es with graphlib, and lodash) are byte-identical to the
+       LICENSE-dagre.txt and LICENSE-lodash.txt that the Mermaid item group above already places in licenses\ (a second
+       item with the same package path would be a duplicate, NU5118), so only its provenance README is added, under a
+       Layout prefix. -->
+  <ItemGroup>
+    <None Include="..\DemaConsulting.CanvasNet.Layout\third-party\README.md" Pack="true" PackagePath="licenses\Layout-third-party-README.md" />
   </ItemGroup>
 
   <!-- Third-party license notice of the bundled PlantUML library: the MIT license of PlantUML (whose default look and

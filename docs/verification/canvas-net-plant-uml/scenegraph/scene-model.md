@@ -41,7 +41,8 @@ Asserts the union of a rectangle and a text box, no bounds for no items, and the
 
 **Tests**: `SceneModelTests.PlantUmlSceneModel_ScenePage_PlacesPageTexts`,
 `SceneModelTests.PlantUmlSceneModel_ScenePage_NoTextsAndTranslate`,
-`SceneModelTests.PlantUmlSceneModel_ScenePage_ActivitySpacing`
+`SceneModelTests.PlantUmlSceneModel_ScenePage_ActivitySpacing`,
+`SceneModelTests.PlantUmlSceneModel_ScenePage_SvekSpacing`
 
 Places a header, a title, a legend, a caption, and a footer around a body of 78.167 by 133.57 and asserts the page
 size and the positions PlantUML gives them (the header at 54.871, the title at 15 and its baseline at 43.111, the body
@@ -49,4 +50,7 @@ moved to 12.475 and 62.188, and the baselines of the legend, caption, and footer
 texts is returned as it is, and that translation moves a text line and a path and returns an item unchanged for a zero
 offset; places a header, a title, and a legend with the spacing of an activity diagram and asserts the header 5 pixels
 further right and lower, the title 5 pixels lower, the same page height (the body counted 5 pixels shorter and the
-page 5 pixels higher), and the spacing of a sequence diagram.
+page 5 pixels higher), and the spacing of a sequence diagram; places a right header, a title, a left legend, a caption,
+and a footer with the spacing of a graph diagram and asserts the header at the top ending 6 from the right edge, the
+title, caption, and footer centered 6 left of the middle, the title's baseline, the legend 12 from the left edge, and
+the body moved below the title.

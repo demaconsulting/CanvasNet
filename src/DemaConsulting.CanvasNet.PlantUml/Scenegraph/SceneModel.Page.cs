@@ -57,6 +57,60 @@ internal sealed record PageMetrics(double Inset, double BodyTrim, double LegendW
     ///     Gets the spacing of an activity diagram.
     /// </summary>
     public static PageMetrics Activity { get; } = new(5, 5, 55);
+
+    /// <summary>
+    ///     Gets the spacing of a diagram that PlantUML lays out with Graphviz (class, object, state, and description
+    ///     diagrams): the header is
+    ///     at the very top, the title 10 below the header, the centered texts are centered 6 left of the middle of the
+    ///     page (the body ends with a wider margin on the right), and the legend follows the body 6 below it (measured
+    ///     from the pictures the jar draws).
+    /// </summary>
+    public static PageMetrics Svek { get; } = new(0, 1, 40)
+    {
+        HeaderTop = 0,
+        TitleTop = 10,
+        CenterTrim = 6,
+        TitleExtra = 26,
+        SideExtra = 6,
+        CaptionExtra = 8,
+        LegendLeft = 12,
+    };
+
+    /// <summary>
+    ///     Gets the space above the header (before <see cref="Inset"/>); 5 by default.
+    /// </summary>
+    public double HeaderTop { get; init; } = 5;
+
+    /// <summary>
+    ///     Gets the space between the header (or the top) and the title (before <see cref="Inset"/>); 15 by default.
+    /// </summary>
+    public double TitleTop { get; init; } = 15;
+
+    /// <summary>
+    ///     Gets the width that the centered texts are centered without: they are centered in the page width minus it;
+    ///     1 by default.
+    /// </summary>
+    public double CenterTrim { get; init; } = 1;
+
+    /// <summary>
+    ///     Gets the space the page keeps beside the title; 31 by default.
+    /// </summary>
+    public double TitleExtra { get; init; } = 31;
+
+    /// <summary>
+    ///     Gets the space the page keeps beside the header and the footer; 12 by default.
+    /// </summary>
+    public double SideExtra { get; init; } = 12;
+
+    /// <summary>
+    ///     Gets the space the page keeps beside the caption; 12 by default.
+    /// </summary>
+    public double CaptionExtra { get; init; } = 12;
+
+    /// <summary>
+    ///     Gets the left edge of a legend aligned left; 17 by default.
+    /// </summary>
+    public double LegendLeft { get; init; } = 17;
 }
 
 /// <summary>
@@ -107,23 +161,24 @@ internal static class ScenePage
 
         // The page is as wide as its widest part
         var width = body.ViewBox.Width;
-        width = Math.Max(width, (title?.Width ?? 0) + 31);
-        width = Math.Max(width, (header?.Width ?? 0) + 12);
-        width = Math.Max(width, (footer?.Width ?? 0) + 12);
-        width = Math.Max(width, (caption?.Width ?? 0) + 12);
+        width = Math.Max(width, (title?.Width ?? 0) + spacing.TitleExtra);
+        width = Math.Max(width, (header?.Width ?? 0) + spacing.SideExtra);
+        width = Math.Max(width, (footer?.Width ?? 0) + spacing.SideExtra);
+        width = Math.Max(width, (caption?.Width ?? 0) + spacing.CaptionExtra);
         width = Math.Max(width, (legend?.Width ?? 0) + spacing.LegendWidth);
+        var trim = spacing.CenterTrim;
 
         var items = new List<SceneItem>();
         double y = 0;
         if (header is not null)
         {
-            items.AddRange(header.Draw(AlignedX(page.Header!.Align, width, header.Width, spacing.Inset), 5 + spacing.Inset, TextAlign.Left, "header", page.Header.Location));
+            items.AddRange(header.Draw(AlignedX(page.Header!.Align, width, header.Width, spacing.Inset, trim), spacing.HeaderTop + spacing.Inset, TextAlign.Left, "header", page.Header.Location));
             y += header.Height + 1;
         }
 
         if (title is not null)
         {
-            items.AddRange(title.Draw((width - 1 - title.Width) / 2, y + 15 + spacing.Inset, TextAlign.Center, "title", page.Title!.Location));
+            items.AddRange(title.Draw((width - trim - title.Width) / 2, y + spacing.TitleTop + spacing.Inset, TextAlign.Center, "title", page.Title!.Location));
             y += title.Height + 21;
         }
 
@@ -138,9 +193,9 @@ internal static class ScenePage
             var (boxWidth, boxHeight) = (legend.Width + (2 * style.Padding), legend.Height + (2 * style.Padding));
             var boxX = page.Legend!.Align switch
             {
-                TextAlign.Left => 17,
+                TextAlign.Left => spacing.LegendLeft,
                 TextAlign.Right => width - 18 - boxWidth,
-                _ => (width - 1 - boxWidth) / 2,
+                _ => (width - trim - boxWidth) / 2,
             };
             items.Add(new ScenePath(SceneShapes.Rect(boxX, y + 7, boxWidth, boxHeight, style.RoundCorner / 2))
             {
@@ -155,13 +210,13 @@ internal static class ScenePage
 
         if (caption is not null)
         {
-            items.AddRange(caption.Draw((width - 1 - caption.Width) / 2, y - 4, TextAlign.Center, "caption", page.Caption!.Location));
+            items.AddRange(caption.Draw((width - trim - caption.Width) / 2, y - 4, TextAlign.Center, "caption", page.Caption!.Location));
             y += caption.Height + 3;
         }
 
         if (footer is not null)
         {
-            items.AddRange(footer.Draw(AlignedX(page.Footer!.Align, width, footer.Width, spacing.Inset), y - 5, TextAlign.Left, "footer", page.Footer.Location));
+            items.AddRange(footer.Draw(AlignedX(page.Footer!.Align, width, footer.Width, spacing.Inset, trim), y - 5, TextAlign.Left, "footer", page.Footer.Location));
             y += footer.Height + 1;
         }
 
@@ -225,14 +280,15 @@ internal static class ScenePage
     /// <param name="width">The page width.</param>
     /// <param name="textWidth">The text width.</param>
     /// <param name="inset">The extra space from the side.</param>
+    /// <param name="trim">The width the centered texts are centered without.</param>
     /// <returns>The x.</returns>
-    private static double AlignedX(TextAlign align, double width, double textWidth, double inset)
+    private static double AlignedX(TextAlign align, double width, double textWidth, double inset, double trim)
     {
         return align switch
         {
             TextAlign.Left => 6 + inset,
             TextAlign.Right => width - 6 - inset - textWidth,
-            _ => (width - 1 - textWidth) / 2,
+            _ => (width - trim - textWidth) / 2,
         };
     }
 }

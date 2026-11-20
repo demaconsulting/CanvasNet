@@ -125,7 +125,7 @@ public class RenderCommandPlantUmlTests
     {
         // Arrange
         using var directory = new TempDirectory();
-        var input = FixtureFactory.WriteText(directory.Path, "cars.puml", "@startuml\nclass Car\n@enduml\n");
+        var input = FixtureFactory.WriteText(directory.Path, "cars.puml", "@startuml\n(*) --> First\n@enduml\n");
 
         // Act
         using var document = RunJson(input, "-o", directory.Combine("cars.png"));

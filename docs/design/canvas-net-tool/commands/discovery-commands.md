@@ -118,18 +118,21 @@ a title of several lines is joined with spaces). A PlantUML diagram is described
   `sequence`), `url` as written for a `url` source, `rows` when the text gives the row count, and `line` of the `data`
   object), and `parameters` (an array of the declared parameter names).
 - **`diagram`**: for a Mermaid or PlantUML diagram, after `image` (which gives the laid-out `width` and `height`, 4
-  `channels`,
-  `hasAlpha` true, `canDecode` true, and `frameCount` 1), written by `WriteDiagram`: object: `type` (for example
-  `flowchart`, `sequence`, or `mindmap`), `supported` (false for a type that is recognized but not drawn, such as a user
-  journey, which `render` draws as an empty picture with the diagnostic `mermaid-diagram-unsupported`), `direction`,
-  `title`, and `accTitle` only when the diagram has them, and `nodes`, `edges`, and `subgraphs` (for a mindmap its
-  nodes, one edge fewer than its nodes, and 0 subgraphs; for a packet diagram its blocks as written, 0 edges, and 0
-  subgraphs; for a git graph its commits, the links to their parents as edges, and 0 subgraphs; 0 for a type that is not
-  drawn). For a PlantUML diagram the `type` is `sequence`, `activity`, or a recognized type that is not drawn (`class`,
-  `usecase`, `component`, `state`, `activity-legacy`, and so on, with the diagnostic `plantuml-diagram-unsupported`),
-  `direction` and `accTitle` are never written, and `nodes`, `edges`, and `subgraphs` are the participants, messages,
-  and boxes of a sequence diagram, or the actions, start, stop, end, connector, and decision nodes, the arrows, and the
-  swimlanes and partitions of an activity diagram.
+  `channels`, `hasAlpha` true, `canDecode` true, and `frameCount` 1), written by `WriteDiagram`: object: `type` (for
+  example `flowchart`, `sequence`, or `mindmap`), `supported` (false for a type that is recognized but not drawn, such
+  as a user journey, which `render` draws as an empty picture with the diagnostic `mermaid-diagram-unsupported`),
+  `direction`, `title`, and `accTitle` only when the diagram has them, and `nodes`, `edges`, and `subgraphs` (for a
+  mindmap its nodes, one edge fewer than its nodes, and 0 subgraphs; for a packet diagram its blocks as written, 0
+  edges, and 0 subgraphs; for a git graph its commits, the links to their parents as edges, and 0 subgraphs; 0 for a
+  type that is not drawn). For a PlantUML diagram the `type` is `sequence`, `activity`, `class`, `object`, `state`,
+  `usecase`, `component`, `deployment`, or a recognized type that is not drawn (`timing`, `activity-legacy`, and so on,
+  with the diagnostic `plantuml-diagram-unsupported`), `direction` and `accTitle` are never written, and `nodes`,
+  `edges`, and `subgraphs` are the participants, messages, and boxes of a sequence diagram, the actions, start, stop,
+  end, connector, and decision nodes, the arrows, and the swimlanes and partitions of an activity diagram, or the
+  classes, objects, and maps, the relationships, and the packages of a class or object diagram, or the states and
+  pseudo-states, the transitions, and the composite states of a state diagram, or the elements (actors, use cases,
+  components, interfaces, and the other symbols that hold nothing), the links, and the containers of a use case,
+  component, or deployment diagram.
 - **`model`**: for an OpenSCAD model, instead of `image`: object: `modules` and `functions` (arrays of the names defined
   at file scope, in source order, a repeated name kept) and `directives` (an array of objects: `kind` (`include` or
   `use`), `path` as written, and `line`).

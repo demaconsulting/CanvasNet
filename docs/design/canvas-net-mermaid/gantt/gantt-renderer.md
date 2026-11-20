@@ -178,8 +178,9 @@ items carry the location of their task, of the `todayMarker` statement, of the t
   `CollapseSvgWhiteSpace`, and `DecodeEntities`).
 - **Syntax subsystem** - `HtmlSanitizer.DecodeReferences` (the character references of a placeholder) and
   `YamlSubsetParser.FormatJsNumber` (JavaScript's `String(number)`).
-- **Graphlib subsystem** - `ObjectKeyMap`, the order of a JavaScript object's keys.
-- **Dagre subsystem** - `LayoutWorkMeter`, the work budget and cancellation of a render.
+- **Graphlib subsystem (CanvasNetLayout system)** - `ObjectKeyMap`, the order of a JavaScript object's keys.
+- **Dagre subsystem (CanvasNetLayout system)** - `LayoutWorkMeter` (created as the `MermaidLayoutWorkMeter` of the
+  MermaidDocument unit), the work budget and cancellation of a render.
 - **Scenegraph subsystem** - `Scene`, `SceneItem`, `SceneGroup`, `ScenePath`, `SceneSegment`, `SceneText`,
   `SceneTextRun`, `SceneFont`, `SceneRect`, and `SceneStroke`, the drawing.
 - **Core `CanvasNet`** - `Rgba32` (the `Canvas` subsystem), through the public API.

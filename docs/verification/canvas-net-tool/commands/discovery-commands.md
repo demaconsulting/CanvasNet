@@ -224,11 +224,23 @@ diagram titled `Talk` with a box around one of two participants and two messages
 `subgraphs` (no `direction` or `accTitle`), `sequence`, true, `Talk`, 2, 2, and 1, and as the one text line
 `{path}: plantuml, {w}x{h} px (laid out), sequence, 2 participants, 2 messages, 1 box, title "Talk", {bytes} bytes`.
 
-**DiscoveryCommands_Info_PlantUmlActivityAndClass_ReportTypeAndSupport** (`DiscoveryCommandsPlantUmlTests.cs`): an
-activity
-diagram with a decision (`.plantuml`) is described as `activity`, supported, with the node, edge, and subgraph counts of
-the library (at least five nodes), and a class diagram (`.pu`) as `class`, not supported, with zero nodes and the text
-`class (not drawn by this version), 0 nodes`.
+**DiscoveryCommands_Info_PlantUmlActivityClassAndLegacy_ReportTypeAndSupport** (`DiscoveryCommandsPlantUmlTests.cs`):
+an activity diagram with a decision (`.plantuml`) is described as `activity`, supported, with the node, edge, and
+subgraph counts of the library (at least five nodes); a class diagram with a package (`.pu`) as `class`, supported,
+with 2 nodes, 1 edge, and 1 subgraph and the text `class, 2 nodes, 1 edge`; and a legacy activity diagram (`.puml`) as
+`activity-legacy`, not supported, with zero nodes and the text `activity-legacy (not drawn by this version), 0 nodes`.
+
+**DiscoveryCommands_Info_PlantUmlState_ReportsStatesTransitionsAndComposites** (`DiscoveryCommandsPlantUmlTests.cs`):
+a state diagram with a composite state (`.puml`) is described as `state`, supported, with 5 nodes (the states and
+the start and end circles), 4 edges, and 1 subgraph (the composite state), and the text `state, 5 nodes, 4 edges`.
+
+**DiscoveryCommands_Info_PlantUmlDescription_ReportsElementsLinksAndContainers** (`DiscoveryCommandsPlantUmlTests.cs`):
+a use case diagram (an actor and two use cases in a rectangle, three links, and a note) is described as `usecase`,
+supported, with 3 nodes, 3 edges (the note's link not counted), and 1 subgraph; a component diagram (two components
+in a package, a database, an interface named only by a link, and a hidden link) as `component` with 4 nodes, 4 edges
+(the hidden link counted), and 1 subgraph; and a deployment diagram (a node that holds an artifact, a database, and a
+cloud) as `deployment` with 3 nodes, 2 edges, and 1 subgraph; each with the text `<type>, <n> nodes, <m> edges, 1
+subgraph`.
 
 **InputFragment_TextResultAndInfo_NameTheFragment** (`InputFragmentTests.cs`): `info source.pdf#page=2 --all-pages
 --json` describes only page 2 (the fragment wins over `--all-pages`) and its `input` object has the `path` and the

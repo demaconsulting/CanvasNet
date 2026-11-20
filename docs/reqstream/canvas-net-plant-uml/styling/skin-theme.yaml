@@ -18,13 +18,55 @@ sections:
                   activity diagrams: a white document, SansSerif text of 14 pixels, participants filled `#E2E2F0` and
                   outlined `#181818` half a pixel wide with a padding of 7, notes filled `#FEFFDD`, black group frames
                   1.5 pixels wide, dashed life lines, gray header and footer text of 10 pixels, a bold title, activities
-                  filled `#F1F1F1` with round corners, and swimlane titles of 18 pixels.
+                  filled `#F1F1F1` with round corners, and swimlane titles of 18 pixels; and for the links and clusters
+                  of the diagrams that PlantUML lays out with Graphviz: link labels of 13 pixels with `#181818` lines
+                  one pixel wide, package outlines black and 1.5 pixels wide, and container outlines `#181818` and one
+                  pixel wide, both unfilled with corners of 5 and bold titles.
                 justification: |
                   These are the values of PlantUML's own default skin, which a diagram without skin parameters must
                   match.
                 tests:
                   - PlantUmlSkinTheme_Default_HasPlantUmlSequenceLook
                   - PlantUmlSkinTheme_Default_HasPlantUmlActivityLook
+                  - PlantUmlSkinTheme_Default_HasPlantUmlGraphLook
+
+              - id: CanvasNetPlantUml-Styling-SkinTheme-ClassLook
+                title: >-
+                  The SkinTheme unit shall hold the values of PlantUML's default look for class and object boxes: filled
+                  `#F1F1F1` and outlined `#181818` half a pixel wide with corners of 5 and names of 14 pixels,
+                  stereotypes in italic 12, black members of 14 pixels, visibility icons of 10 pixels, and circled
+                  characters of radius 11.
+                justification: |
+                  These are the values of PlantUML's own default skin for class diagrams, which a diagram without skin
+                  parameters must match.
+                tests:
+                  - PlantUmlSkinTheme_Default_HasPlantUmlClassLook
+
+              - id: CanvasNetPlantUml-Styling-SkinTheme-StateLook
+                title: >-
+                  The SkinTheme unit shall hold the values of PlantUML's default look for state diagrams: states filled
+                  `#F1F1F1` and outlined `#181818` half a pixel wide with corners of 25 and names and descriptions of 14
+                  pixels, start and end circles filled and outlined `#222222` one pixel wide, and choices and histories
+                  filled `#F1F1F1` and outlined half a pixel wide.
+                justification: |
+                  These are the values of PlantUML's own default skin for state diagrams, which a diagram without skin
+                  parameters must match.
+                tests:
+                  - PlantUmlSkinTheme_Default_HasPlantUmlStateLook
+
+              - id: CanvasNetPlantUml-Styling-SkinTheme-DescriptionLook
+                title: >-
+                  The SkinTheme unit shall hold the values of PlantUML's default look for the elements of description
+                  diagrams (components, interfaces, nodes, rectangles, folders, frames, clouds, cards, artifacts,
+                  storages, files, stacks, agents, hexagons, persons, labels, use cases, and the other symbols): filled
+                  `#F1F1F1` and outlined `#181818` half a pixel wide with corners of 5 and text of 14 pixels, and a
+                  description theme whose database, actor, queue, boundary, control, entity, and collections symbols
+                  are filled like them instead of like a sequence participant (the last five with corners of 5).
+                justification: |
+                  These are the values of PlantUML's componentDiagram element style, which a diagram without skin
+                  parameters must match.
+                tests:
+                  - PlantUmlSkinTheme_Description_HasPlantUmlComponentLook
 
               - id: CanvasNetPlantUml-Styling-SkinTheme-Immutable
                 title: >-

@@ -92,7 +92,7 @@ public class PlantUmlImageSourceTests
         // Act
         var result = source.Render(Request(noisy));
         using var surface = result.Surface;
-        var unsupported = source.Render(Request("@startuml\nclass Car\n@enduml\n", 32, 24));
+        var unsupported = source.Render(Request("@startuml\n(*) --> First\n@enduml\n", 32, 24));
         using var empty = unsupported.Surface;
         var ex = Assert.Throws<PlantUmlUnsupportedFeatureException>(() => source.Render(Request(noisy, strict: true)));
 

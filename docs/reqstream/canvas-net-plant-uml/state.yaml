@@ -1,0 +1,82 @@
+---
+# Software Subsystem Requirements for State
+#
+# These requirements decompose the CanvasNetPlantUml system's state diagrams into the State subsystem (internal
+# namespace DemaConsulting.CanvasNet.PlantUml.State): the reader of the statements (StateParser), the diagram with its
+# composite states, regions, and pseudo-states and its lowering to the Svek engine (StateModel), and the drawing of the
+# states, pseudo-states, and composite states (StateRenderer). Each requirement here links down to the unit
+# requirements that implement it. See docs/verification/canvas-net-plant-uml/state.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetPlantUml Requirements
+    sections:
+      - title: State Requirements
+        requirements:
+          - id: CanvasNetPlantUml-State-Reading
+            title: >-
+              The State subsystem shall read the statements of a state diagram (states with display names,
+              descriptions, stereotypes, and colors; transitions; the start, end, and history pseudo-states of the
+              current composite state; choices, forks, joins, and junctions; composite states with concurrent
+              regions; notes; hide empty description; the page texts, the direction, the scale, and the skin
+              parameters) into a model, report the statements it reads but does not draw, and refuse a malformed
+              statement or a transition between concurrent regions with a located syntax error.
+            justification: |
+              State diagrams are a common graph diagram; their statements must be read as PlantUML reads them, and
+              what is not drawn must be said, not silently dropped.
+            children:
+              - CanvasNetPlantUml-State-StateParser-Declarations
+              - CanvasNetPlantUml-State-StateParser-Transitions
+              - CanvasNetPlantUml-State-StateParser-PseudoStates
+              - CanvasNetPlantUml-State-StateParser-Composites
+              - CanvasNetPlantUml-State-StateParser-Notes
+              - CanvasNetPlantUml-State-StateParser-Common
+              - CanvasNetPlantUml-State-StateParser-Unsupported
+              - CanvasNetPlantUml-State-StateParser-Errors
+            tests:
+              - PlantUmlState_ReadLayoutRender_DrawsTheModel
+              - PlantUmlState_SkinAndReports_ReachTheDrawing
+
+          - id: CanvasNetPlantUml-State-Layout
+            title: >-
+              The State subsystem shall lower the diagram to the Svek engine (composite states as clusters with their
+              images, concurrent regions as clusters stacked or side by side, states and pseudo-states with their
+              images, notes, and transitions with their settings), lay it out, and decorate it with its page texts at
+              its own scale, and shall count its states and pseudo-states, transitions, and composite states for the
+              document's facts.
+            justification: |
+              The model is what the document measures, renders, and reports; the shared engine places it like the
+              other graph diagrams.
+            children:
+              - CanvasNetPlantUml-State-StateModel-Facts
+              - CanvasNetPlantUml-State-StateModel-Lowering
+              - CanvasNetPlantUml-State-StateModel-Layout
+            tests:
+              - PlantUmlState_ReadLayoutRender_DrawsTheModel
+
+          - id: CanvasNetPlantUml-State-Drawing
+            title: >-
+              The State subsystem shall draw a state as PlantUML's rounded box with its name above a line and its
+              descriptions below it (without the line after hide empty description), the start, end, junction, choice,
+              fork and join, and history pseudo-states with PlantUML's shapes, and a composite state with its header
+              band, outline, line, and title, in the look of the diagram's skin parameters.
+            justification: |
+              The shapes are what makes a state diagram look like PlantUML's picture.
+            children:
+              - CanvasNetPlantUml-State-StateRenderer-States
+              - CanvasNetPlantUml-State-StateRenderer-PseudoStates
+              - CanvasNetPlantUml-State-StateRenderer-Composites
+            tests:
+              - PlantUmlState_ReadLayoutRender_DrawsTheModel
+              - PlantUmlState_SkinAndReports_ReachTheDrawing
+
+          - id: CanvasNetPlantUml-State-Limits
+            title: >-
+              The State subsystem shall bound a diagram by the node, edge, label length, and nesting limits while
+              reading it, failing at the statement that crosses a limit with a located plantuml-limit-exceeded error
+              that names the limit.
+            justification: |
+              State diagrams come from untrusted text; a huge diagram must fail closed before it is laid out.
+            children:
+              - CanvasNetPlantUml-State-StateParser-Limits
+            tests:
+              - PlantUmlStateParser_Limits_FailClosedAtTheLine

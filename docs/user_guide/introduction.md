@@ -10,9 +10,10 @@ alone for images and drawing, add the format packages you need, use the Viewer t
 `canvasnet` command-line tool, which bundles all of them.
 
 ![CanvasNet package architecture: applications use the Viewer and the canvasnet tool uses it too; the Viewer opens
-the seven format packages (PDF, SVG, PowerPoint, Visio, OpenSCAD, Vega-Lite, and Mermaid); PowerPoint also uses the
-SVG and Charts packages and OpenSCAD uses the Render3D package; every package builds on the DemaConsulting.CanvasNet
-core with its canvas, codecs, drawing, fonts, and file access](architecture.svg)
+the eight format packages (PDF, SVG, PowerPoint, Visio, OpenSCAD, Vega-Lite, Mermaid, and PlantUML); PowerPoint also
+uses the SVG and Charts packages, OpenSCAD uses the Render3D package, and Mermaid and PlantUML use the Layout package
+(the shared graph layout, which needs only .NET); the format packages build on the DemaConsulting.CanvasNet core with
+its canvas, codecs, drawing, fonts, and file access](architecture.svg)
 
 ## Scope
 
@@ -24,8 +25,9 @@ This user guide covers:
 - Rendering Mermaid flowcharts, sequence diagrams, class diagrams, state diagrams, entity relationship diagrams, pie
   charts, gantt charts, mindmaps, packet diagrams, and git graphs (`DemaConsulting.CanvasNet.Mermaid`), with a gallery
   of original diagrams
-- Rendering PlantUML sequence diagrams and activity diagrams (`DemaConsulting.CanvasNet.PlantUml`) with PlantUML's
-  default look, local `!include` files, and a gallery of original diagrams
+- Rendering PlantUML sequence, activity, class, object, state, use case, component, and deployment diagrams
+  (`DemaConsulting.CanvasNet.PlantUml`) with
+  PlantUML's default look, local `!include` files, and a gallery of original diagrams
 - The `canvasnet` command-line tool: its commands, options, JSON output, error codes, and self-validation
 
 ## References

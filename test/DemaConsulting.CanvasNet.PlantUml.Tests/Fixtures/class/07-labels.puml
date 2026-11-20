@@ -1,0 +1,9 @@
+@startuml
+class Library
+class Book
+class Member
+class Loan
+Library "1" *-- "many" Book : holds >
+Member "0..1" -- "0..*" Loan : < takes
+Loan --> Book : for
+@enduml

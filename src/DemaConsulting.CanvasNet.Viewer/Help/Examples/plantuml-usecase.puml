@@ -1,0 +1,18 @@
+@startuml
+title Library
+left to right direction
+actor Member
+actor :Librarian: as Staff
+rectangle Library {
+  (Borrow book) as Borrow
+  (Return book) as Return
+  (Check account) as Check
+  (Renew loan)/ as Renew
+}
+Member --> Borrow
+Member --> Return
+Staff --> Check
+Borrow .> Check : <<include>>
+Renew .> Borrow : <<extend>>
+note right of Staff : at the desk
+@enduml

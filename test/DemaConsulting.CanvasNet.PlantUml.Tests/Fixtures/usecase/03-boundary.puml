@@ -1,0 +1,20 @@
+@startuml
+actor Shopper
+actor Admin #pink;line:red;text:blue
+rectangle "Online Shop" {
+  usecase Search
+  usecase Order #LightBlue
+  package Payments {
+    (Card)
+    (Voucher) #back:white;line:green
+  }
+}
+rectangle Back {
+  (Report)
+}
+Shopper --> Search
+Shopper --> Order
+Order --> Card
+Order --> Voucher
+Admin --> Report
+@enduml

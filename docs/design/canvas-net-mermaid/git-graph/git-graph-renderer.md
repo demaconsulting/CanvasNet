@@ -162,7 +162,8 @@ and commit items at the statement that made the commit.
   `VerticalMetrics`, `CollapseSvgWhiteSpace`, `DecodeEntities`, and `MatchBreakTag`).
 - **Syntax subsystem** - `Preprocessor.TrimJs` (JavaScript's `trim`) and `HtmlSanitizer.DecodeReferences` (the
   character references of a placeholder).
-- **Dagre subsystem** - `LayoutWorkMeter`, the work budget and cancellation of a render.
+- **Dagre subsystem (CanvasNetLayout system)** - `LayoutWorkMeter` (created as the `MermaidLayoutWorkMeter` of the
+  MermaidDocument unit), the work budget and cancellation of a render.
 - **Scenegraph subsystem** - `Scene`, `SceneItem`, `SceneGroup`, `ScenePath`, `SceneSegment`, `SceneText`,
   `SceneRotation`, `SceneTextAnchor`, `SceneTextRun`, `SceneFont`, `SceneRect`, `SceneStroke`, and `SceneShadow`, the
   drawing.

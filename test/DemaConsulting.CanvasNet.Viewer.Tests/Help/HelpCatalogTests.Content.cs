@@ -766,8 +766,10 @@ public partial class HelpCatalogTests
 
     /// <summary>
     ///     Test that the PlantUML diagram cards say what the lists of the PlantUML user guide say, item for item and in
-    ///     order: the <c>## Supported</c> bullets of <c>plantuml/sequence</c> and <c>plantuml/activity</c> are the items of
-    ///     the guide's supported sequence and activity syntax lists, and every item of the guide's code list
+    ///     order: the <c>## Supported</c> bullets of <c>plantuml/sequence</c>, <c>plantuml/activity</c>,
+    ///     <c>plantuml/class</c>, <c>plantuml/object</c>, <c>plantuml/state</c>, <c>plantuml/usecase</c>,
+    ///     <c>plantuml/component</c>, and <c>plantuml/deployment</c> are the items of the guide's
+    ///     supported syntax lists of those types, and every item of the guide's code list
     ///     (<c>**code**: kind: reported when</c>) is a bullet of <c>plantuml/unsupported</c> or <c>plantuml/diagnostics</c>.
     /// </summary>
     [Fact]
@@ -779,6 +781,12 @@ public partial class HelpCatalogTests
         [
             ("sequence", "### Supported Sequence Syntax", 10),
             ("activity", "### Supported Activity Syntax", 10),
+            ("class", "### Supported Class Syntax", 10),
+            ("object", "### Supported Object Syntax", 4),
+            ("state", "### Supported State Syntax", 8),
+            ("usecase", "### Supported Use Case Syntax", 6),
+            ("component", "### Supported Component Syntax", 6),
+            ("deployment", "### Supported Deployment Syntax", 4),
         ];
 
         // Act: the bullets that the items of the guide's lists promise, compared with the cards

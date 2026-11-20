@@ -1,0 +1,12 @@
+@startuml
+title Billing model
+header draft
+footer page 1
+caption The billing classes
+legend right
+  C: class
+endlegend
+class Bill
+class Line
+Bill *-- Line
+@enduml

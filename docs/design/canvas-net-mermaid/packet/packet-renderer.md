@@ -93,7 +93,8 @@ location of the block statement; and the title text (`title`). The view box star
   `VerticalMetrics`, the x-height `XHeight`, `CollapseSvgWhiteSpace`, and `DecodeEntities`).
 - **Syntax subsystem** - `HtmlSanitizer.DecodeReferences` (the character references of a placeholder) and
   `YamlSubsetParser.FormatJsNumber` (JavaScript's `String(number)`).
-- **Dagre subsystem** - `LayoutWorkMeter`, the work budget and cancellation of a render.
+- **Dagre subsystem (CanvasNetLayout system)** - `LayoutWorkMeter` (created as the `MermaidLayoutWorkMeter` of the
+  MermaidDocument unit), the work budget and cancellation of a render.
 - **Scenegraph subsystem** - `Scene`, `SceneItem`, `SceneGroup`, `ScenePath`, `SceneSegment`, `SceneText`,
   `SceneTextAnchor`, `SceneTextRun`, `SceneFont`, `SceneRect`, and `SceneStroke`, the drawing.
 - **System** - `DiagramRenderContext`, `MermaidLimits`, `MermaidLocation`, and `MermaidRenderException`.

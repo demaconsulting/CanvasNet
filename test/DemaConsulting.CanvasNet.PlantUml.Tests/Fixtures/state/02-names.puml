@@ -1,0 +1,9 @@
+@startuml
+state Ready
+state "Waiting for input" as Waiting
+state Done as "All done"
+[*] --> Ready
+Ready --> Waiting : prompt
+Waiting --> Done
+Done --> [*]
+@enduml

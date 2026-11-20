@@ -20,8 +20,8 @@ angle the layout cases used), `Math.log` of 5,002 values, and `Math.pow` of the 
 only in Chrome, never in Node, whose math differs. The unit tests then verify each rule on small inputs, with the
 expected values stated in the tests as literals.
 
-No mocking or stubbing is used; the meter is the real `LayoutWorkMeter`, created with the limit, location, and token
-each test needs. The internal types are reached through the test assembly's `InternalsVisibleTo` access.
+No mocking or stubbing is used; the meter is the real `MermaidLayoutWorkMeter`, created with the limit, location, and
+token each test needs. The internal types are reached through the test assembly's `InternalsVisibleTo` access.
 
 Unit tests reside in `CoseLayoutTests.cs` and `CoseGoldenTests.cs` within the `DemaConsulting.CanvasNet.Mermaid.Tests`
 project, in the `Cose` folder.

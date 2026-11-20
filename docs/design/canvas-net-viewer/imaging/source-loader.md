@@ -467,11 +467,11 @@ given, and `null` without one, so the diagram keeps its own background (white, a
 only when one was given (as for a chart). `ThrowOnUnsupportedFeature` is `Strict`; a warning becomes the note
 (`plantuml`, `warning`, `plantuml-warning` (`PlantUmlImageSource.WarningCode`), the one-line text, the specific
 `plantuml-*` code as `Detail`, the location as `Location`), and an unsupported construct a note (`plantuml`,
-`unsupported`, the feature code, `file:line:column: message (hint)`, `DescribePlantUmlUnsupported`); a diagram type
-that is recognized but not drawn (a class diagram, for example) is one such note, `plantuml-diagram-unsupported`, and an
-empty 20 by 20 picture. There is no theme (a `#theme=` fragment is the unknown-parameter warning of the input selection,
-because the PlantUML source declares no fragment parameter), no picture resolver (PlantUML phase 1 draws no linked
-picture), and no feature positions (the tool refuses `--theme` and `--positions` for a PlantUML diagram). An
+`unsupported`, the feature code, `file:line:column: message (hint)`, `DescribePlantUmlUnsupported`); a diagram type that
+is recognized but not drawn (a legacy activity diagram, for example) is one such note, `plantuml-diagram-unsupported`,
+and an empty 20 by 20 picture. There is no theme (a `#theme=` fragment is the unknown-parameter warning of the input
+selection, because the PlantUML source declares no fragment parameter), no picture resolver (PlantUML phase 1 draws no
+linked picture), and no feature positions (the tool refuses `--theme` and `--positions` for a PlantUML diagram). An
 `ArgumentException` of the render (the target size was validated before) is `plantuml-error`. The tests are in
 `SourceLoaderPlantUmlTests.cs`.
 

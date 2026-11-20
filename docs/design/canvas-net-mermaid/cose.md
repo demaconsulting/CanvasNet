@@ -38,10 +38,10 @@ of the edges, and the number of iterations), or throws. For tests and for the ve
 correctly rounded `Sin`, `Cos`, `Log`, and `Pow` with `RoundCorrectly` and `RoundToDouble`, `StraightEdgePoints`,
 `FindCenterOfTree`, `CoolingStart`, and `ParseInt`.
 
-**Consumed**: from the `Dagre` subsystem the `LayoutWorkMeter` of the diagram (`Charge`, `Failure`, `LimitExceeded`,
-and the cancellation token it observes); from the system the public `MermaidRenderException` and
-`MermaidDiagnosticCodes`; and from the .NET base class library `System.Numerics.BigInteger`, collections, and the exact
-operations of `System.Math` (`Abs`, `Floor`, `Ceiling`, `Max`, and `Sqrt`, which IEEE 754 defines exactly).
+**Consumed**: from the `Dagre` subsystem of the CanvasNetLayout system the `LayoutWorkMeter` of the diagram (`Charge`,
+`Failure`, `LimitExceeded`, and the cancellation token it observes); from the system the public `MermaidRenderException`
+and `MermaidDiagnosticCodes`; and from the .NET base class library `System.Numerics.BigInteger`, collections, and the
+exact operations of `System.Math` (`Abs`, `Floor`, `Ceiling`, `Max`, and `Sqrt`, which IEEE 754 defines exactly).
 
 **Consumers**: the `Mindmap` subsystem: `MindmapRenderer` calls `Run` once per render with the node sizes, the edges of
 the tree, and the meter of the render.

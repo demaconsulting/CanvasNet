@@ -54,15 +54,14 @@ layout input), `ReportUnsupported(MermaidConfig, MermaidReportSink)`, and the st
 **Consumed**: from the `Syntax` subsystem the preprocessed text and its map to the original text (`PreprocessedSource`,
 `MappedText`), the detected diagram (`DetectedDiagram`), the scanner and token cursor (`SourceScanner`, `ScanRule`,
 `ScanToken`, `TokenCursor`), the character classes of `ScanPatterns` (including the `UNICODE_TEXT` letters that the
-class and flowchart lexers share), JavaScript's `trim` (`Preprocessor.TrimJs`), the text sanitizer
-(`HtmlSanitizer`), and the link check (`UrlSanitizer`); from `Configuration` the effective `MermaidConfig` with its
-`ClassConfig` section (which carries the spacing and title margin that Mermaid's class renderer reads from the state
-section), the font settings, and the style sheet `ClassStyles`; from `Rendering` the layout input types (`LayoutData`,
-`LayoutNode`, `LayoutEdge`,
-`LayoutClassBox`, `LayoutClassMember`) and the drawing (`ClusterLayout.RenderDiagram`, `ShapeContext`, `LabelBuilder`,
-`NodeImages`); from `Dagre` the `LayoutWorkMeter`; from `Scenegraph` the `Scene`; and from the system the
-`IMermaidDiagram` contract, `DiagramRenderContext`, and the public `MermaidLimits`, `MermaidLocation`,
-`MermaidSyntaxException`, `MermaidDiagnosticCodes`, and `MermaidReportSink`.
+class and flowchart lexers share), JavaScript's `trim` (`Preprocessor.TrimJs`), the text sanitizer (`HtmlSanitizer`),
+and the link check (`UrlSanitizer`); from `Configuration` the effective `MermaidConfig` with its `ClassConfig` section
+(which carries the spacing and title margin that Mermaid's class renderer reads from the state section), the font
+settings, and the style sheet `ClassStyles`; from `Rendering` the layout input types (`LayoutData`, `LayoutNode`,
+`LayoutEdge`, `LayoutClassBox`, `LayoutClassMember`) and the drawing (`ClusterLayout.RenderDiagram`, `ShapeContext`,
+`LabelBuilder`, `NodeImages`); from `Dagre` (CanvasNetLayout) the `LayoutWorkMeter`; from `Scenegraph` the `Scene`; and
+from the system the `IMermaidDiagram` contract, `DiagramRenderContext`, and the public `MermaidLimits`,
+`MermaidLocation`, `MermaidSyntaxException`, `MermaidDiagnosticCodes`, and `MermaidReportSink`.
 
 **Consumers**: the document pipeline of the system (`MermaidDocument.Pipeline.cs`): its `DiagramRegistry` calls the
 parser for a detected class diagram with the `class.hierarchicalNamespaces` setting of the configuration that the text

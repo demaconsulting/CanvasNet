@@ -1,0 +1,18 @@
+@startuml
+skinparam state {
+  BackgroundColor #E0F0FF
+  BorderColor #3060A0
+  FontColor #102040
+}
+skinparam arrow {
+  Color #405060
+  FontColor #803000
+}
+state Normal
+state Alert #FFDDDD
+state Ok #lightgreen
+[*] --> Normal
+Normal --> Alert : alarm
+Alert --> Ok : reset
+Ok --> [*]
+@enduml

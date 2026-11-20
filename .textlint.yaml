@@ -1314,6 +1314,42 @@ words:
   - Opale
   - Marged
   - Hline
+  # PlantUML's graph engine ("svek") and the upstream names of its classes, folders, and terms (CucaDiagramFileMaker,
+  # isOpalisable, classdiagram, descdiagram, dzeta, norank), and the Liang-Barsky clipping of its routes
+  - svek
+  - Cuca
+  - Opalisable
+  - classdiagram
+  - descdiagram
+  - dzeta
+  - norank
+  - unrouted
+  - guillemets
+  - nocolor
+  - Liang
+  - Barsky
+  # PlantUML's class diagram keywords and the upstream names of its folders and classes (allowmixing, dataclass,
+  # namespaceSeparator, objectdiagram, cucadiagram, Bodier), and the layout option and Java build of the goldens
+  # (-Playout=smetana, Temurin)
+  - allowmixing
+  - dataclass
+  - namespaceseparator
+  - objectdiagram
+  - cucadiagram
+  - Bodier
+  - Playout
+  - Temurin
+  # PlantUML's state diagram keywords and qualified names (endstate, sdlreceive, .deephistory.), the upstream name of
+  # its stereotype groups (Stereogroup), and a deliberately invalid color of the tests (notacolor)
+  - endstate
+  - sdlreceive
+  - deephistory
+  - Stereogroup
+  - notacolor
+  # PlantUML's description diagram keyword of its enterprise architecture elements (archimate) and the upstream
+  # name of its multi-line element command (CommandCreateElementMultilines)
+  - archimate
+  - Multilines
 # Percent-escapes in URL and file-name examples (such as "flow%2Emmd" for "flow.mmd"): the escape and the letters
 # glued to it are not words
 ignoreRegExpList:

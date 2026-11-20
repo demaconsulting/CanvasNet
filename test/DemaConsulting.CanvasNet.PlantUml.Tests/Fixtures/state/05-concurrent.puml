@@ -1,0 +1,17 @@
+@startuml
+[*] --> Running
+state Running {
+  [*] --> Counting
+  Counting --> Counting : tick
+  --
+  [*] --> Listening
+  Listening --> Echoing : key
+  Echoing --> Listening
+}
+state Panel {
+  [*] --> Left
+  ||
+  [*] --> Right
+}
+Running --> Panel
+@enduml

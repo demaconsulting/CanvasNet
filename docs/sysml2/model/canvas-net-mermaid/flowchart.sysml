@@ -6,7 +6,7 @@ package CanvasNet {
         comment designRef /* Design: docs/design/canvas-net-mermaid/flowchart.md */
         comment verificationRef /* Verification: docs/verification/canvas-net-mermaid/flowchart.md */
         comment reqRef /* Requirements: docs/reqstream/canvas-net-mermaid/flowchart.yaml */
-        comment /* Within the CanvasNetMermaid system the Flowchart subsystem depends on the Syntax subsystem (scanner, mapped text, YAML subset reader, HTML sanitizer), the Configuration subsystem (effective configuration and style sheet), the Rendering subsystem (layout input, shape names, cluster layout, labels, node images), the Dagre subsystem (layout work meter), the Scenegraph subsystem (scene types), and the Graphlib subsystem (the JavaScript array-index rule); it is called by the document pipeline of the system. */
+        comment /* Within the CanvasNetMermaid system the Flowchart subsystem depends on the Syntax subsystem (scanner, mapped text, YAML subset reader, HTML sanitizer), the Configuration subsystem (effective configuration and style sheet), the Rendering subsystem (layout input, shape names, cluster layout, labels, node images), the Dagre subsystem of the CanvasNetLayout system (layout work meter), the Scenegraph subsystem (scene types), and the Graphlib subsystem of the CanvasNetLayout system (the JavaScript array-index rule); it is called by the document pipeline of the system. */
 
         part flowchartParser : FlowchartParser;
         part flowchartModel : FlowchartModel;

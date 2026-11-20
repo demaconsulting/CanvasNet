@@ -38,6 +38,36 @@ size, the foot box, the response below arrow, the message alignment, a participa
 background, the note border thickness, the arrow color, the life line background, and the title font style) and
 asserts each effect with no report.
 
+##### CanvasNetPlantUml-Styling-SkinParams-GraphSubset: The Class Parameters In Graph Diagrams Only
+
+**Tests**: `SkinParamsTests.PlantUmlSkinParams_Apply_GraphSubset_OnlyInGraphDiagrams`
+
+Applies a class background, a class stereotype size, a member color, an object border, a package border width, an
+arrow color, an icon size of 0, and a circle radius of 9 to a graph diagram and asserts each value on the theme with no
+report, including the arrow color on the links; applies them to a sequence diagram and asserts seven
+`plantuml-skinparam-ignored` reports and the arrow color applied to its messages.
+
+##### CanvasNetPlantUml-Styling-SkinParams-StateSubset: The State Parameters In Graph Diagrams Only
+
+**Tests**: `SkinParamsTests.PlantUmlSkinParams_Apply_StateSubset_OnlyInGraphDiagrams`
+
+Applies a state background, border color, and font size, a description color, a start color, an end color, and an end
+color that is not a color to a graph diagram and asserts the state fill, line, and size, the description color, the
+start and end circles filled and outlined in their colors, and one report for the bad color; applies them to a sequence
+diagram and asserts seven `plantuml-skinparam-ignored` reports.
+
+##### CanvasNetPlantUml-Styling-SkinParams-DescriptionSubset: The Symbol Parameters In Description Diagrams Only
+
+**Tests**: `SkinParamsTests.PlantUmlSkinParams_Apply_DescriptionSubset_OnlyInDescriptionDiagrams`
+
+Asserts the fill and border of `component`, the fill of `interface`, the font color of `node`, the border width of
+`rectangle`, the fill of `folder`, the font size of `frame`, the border of `cloud`, the fill of `card` and `database`,
+the border of `package` (a graph prefix), the fill and font color of `usecase`, the border of `actor` (a shared
+prefix), the fill of `artifact`, the border of `storage`, the font color of `file`, the fill of `stack`, the border
+width of `agent`, the fill of `hexagon`, the font size of `person`, the font color of `label`, and the border of
+`queue` (a shared prefix, whose fill stays the description theme's) applied in a description diagram without a report;
+asserts that a class diagram reports the nineteen description symbol parameters as ignored.
+
 ##### CanvasNetPlantUml-Styling-SkinParams-Colors: PlantUML's Color Forms
 
 **Tests**: `SkinParamsTests.PlantUmlSkinParams_TryParseColor_ReadsPlantUmlForms`

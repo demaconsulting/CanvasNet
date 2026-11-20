@@ -1,6 +1,6 @@
 // Portions derived from mermaid (MIT); see third-party/README.md
+using DemaConsulting.CanvasNet.Layout.Dagre;
 using DemaConsulting.CanvasNet.Mermaid.Configuration;
-using DemaConsulting.CanvasNet.Mermaid.Dagre;
 using DemaConsulting.CanvasNet.Mermaid.Rendering;
 using DemaConsulting.CanvasNet.Mermaid.Scenegraph;
 using DemaConsulting.CanvasNet.Mermaid.Syntax;
@@ -94,7 +94,7 @@ internal sealed partial class SequenceLayout
         _model = model;
         _context = context;
         _conf = context.Config.Sequence;
-        _meter = new LayoutWorkMeter(context.Options.Limits.MaxLayoutWork, model.KeywordLocation, context.CancellationToken);
+        _meter = new MermaidLayoutWorkMeter(context.Options.Limits.MaxLayoutWork, model.KeywordLocation, context.CancellationToken);
         _labels = new LabelBuilder(context.Fonts, context.Sink, null) { Meter = _meter };
         _bounds = new SequenceBounds(_conf.BoxMargin, _meter);
         _renderer = new SequenceRenderer(_conf, SequenceStyles.Create(context.Config, context.Sink), _labels, context.Config);

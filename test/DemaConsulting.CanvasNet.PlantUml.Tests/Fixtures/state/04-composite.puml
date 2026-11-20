@@ -1,0 +1,15 @@
+@startuml
+[*] --> Active
+state Active {
+  [*] --> Connecting
+  Connecting --> Online : connected
+  state Online {
+    [*] --> Idle
+    Idle --> Busy : request
+    Busy --> Idle : reply
+  }
+  Online --> [*] : logout
+}
+Active --> Closed : shutdown
+Closed --> [*]
+@enduml

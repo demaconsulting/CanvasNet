@@ -1,6 +1,7 @@
 // Portions derived from mermaid (MIT); see third-party/README.md
 using System.Globalization;
 using System.Text;
+using DemaConsulting.CanvasNet.Layout.Graphlib;
 using DemaConsulting.CanvasNet.Mermaid.Rendering;
 using DemaConsulting.CanvasNet.Mermaid.Scenegraph;
 using DemaConsulting.CanvasNet.Mermaid.Syntax;
@@ -937,7 +938,7 @@ internal sealed partial class FlowchartModel : IMermaidDiagram
     /// <exception cref="MermaidSyntaxException">Thrown, located, when the index names no edge.</exception>
     private FlowEdge EdgeAt(string position, MermaidLocation location)
     {
-        if (Graphlib.ObjectKeyMap<string>.IsArrayIndex(position, out var index) && index < (uint)_edges.Count)
+        if (ObjectKeyMap<string>.IsArrayIndex(position, out var index) && index < (uint)_edges.Count)
         {
             return _edges[(int)index];
         }

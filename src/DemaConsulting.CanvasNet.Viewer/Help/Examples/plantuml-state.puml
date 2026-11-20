@@ -1,0 +1,20 @@
+@startuml
+title Door
+[*] --> Closed
+state Closed : the latch is down
+state Open
+state Locked {
+  [*] --> Bolted
+  Bolted --> Alarmed : force
+  Alarmed --> [H] : reset
+}
+state check <<choice>>
+Closed --> Open : open
+Open --> Closed : close
+Closed --> check : lock
+check --> Locked : [key]
+check --> Closed : [no key]
+Locked --> Closed : unlock
+note right of Open : no draft
+Open --> [*]
+@enduml

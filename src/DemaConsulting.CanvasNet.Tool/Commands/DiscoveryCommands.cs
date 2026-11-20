@@ -120,8 +120,8 @@ internal static class DiscoveryCommands
             + "(and whether this version draws it), direction, titles, and numbers of nodes, edges, and subgraphs" + Environment.NewLine
             + "('canvasnet help mermaid' says what each diagram type counts). A PlantUML diagram (.puml, .plantuml, or .pu)" + Environment.NewLine
             + "is parsed with its !include files and measured (not drawn) and reports the same object: its type (sequence," + Environment.NewLine
-            + "activity, or a type that is not drawn), title, and numbers of nodes, edges, and subgraphs ('canvasnet help" + Environment.NewLine
-            + "plantuml options' says what they count). The input may end in a" + Environment.NewLine
+            + "activity, class, object, state, usecase, component, deployment, or a type that is not drawn), title, and numbers" + Environment.NewLine
+            + "of nodes, edges, and subgraphs ('canvasnet help plantuml options' says what they count). The input may end in a" + Environment.NewLine
             + "fragment (report.pdf#page=2) as for 'render'; only the page is used here: the other parameters are checked" + Environment.NewLine
             + "(a value that cannot be used is an error) and otherwise ignored, and an unknown or repeated parameter is a" + Environment.NewLine
             + "warning on standard error." + Environment.NewLine
@@ -236,8 +236,9 @@ internal static class DiscoveryCommands
         ///     draws it (<c>supported</c>; a type that is not drawn is an empty picture with the note
         ///     <c>mermaid-diagram-unsupported</c>), and the numbers of <c>nodes</c>, <c>edges</c>, and <c>subgraphs</c> (the
         ///     participants, messages, and boxes of a sequence diagram; for a PlantUML activity diagram the actions, start,
-        ///     stop, end, connector, and decision nodes, the arrows, and the swimlanes and partitions, and for a PlantUML type
-        ///     that is not drawn <c>plantuml-diagram-unsupported</c> and zero counts); the
+        ///     stop, end, connector, and decision nodes, the arrows, and the swimlanes and partitions, for a PlantUML class or
+        ///     object diagram the classes, objects, and maps, the relationships, and the packages that hold something, and
+        ///     for a PlantUML type that is not drawn <c>plantuml-diagram-unsupported</c> and zero counts); the
         ///     <c>direction</c>, the <c>title</c>, and the accessible title <c>accTitle</c> are present when the diagram has
         ///     them. The diagram is parsed and measured but not drawn, and no picture of it is loaded.
         /// </remarks>

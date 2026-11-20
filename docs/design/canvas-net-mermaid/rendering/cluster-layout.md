@@ -185,8 +185,9 @@ data, the configuration, and the label measurement.
 - **Rendering subsystem** - `ShapeLibrary` (node shapes, subgraph rectangles, and state clusters), `EdgeBuilder`
   (edges, edge labels, and terminal labels), `LabelBuilder` (the glyph box and vertical metrics of the diagram title,
   through `SvgLineExtent` and `VerticalMetrics`)
-- **Dagre subsystem** - `DagreLayout.Run`, `DagreGraph`, `DagreNode`, `DagreEdge`, `DagrePoint`, `LayoutWorkMeter`
-- **Graphlib subsystem** - `Graph` (compound multigraphs)
+- **Dagre subsystem (CanvasNetLayout system)** - `DagreLayout.Run`, `DagreGraph`, `DagreNode`, `DagreEdge`,
+  `DagrePoint`, `LayoutWorkMeter`
+- **Graphlib subsystem (CanvasNetLayout system)** - `Graph` (compound multigraphs)
 - **Scenegraph subsystem** - `Scene`, `SceneGroup`, `SceneText`, `SceneTextRun`, `SceneFont`, `SceneTextAnchor`,
   `SceneItem`, `SceneRect`
 - **Configuration subsystem** - `MermaidConfig` (spacing and title margins), `UnifiedStyles` (the title rule)

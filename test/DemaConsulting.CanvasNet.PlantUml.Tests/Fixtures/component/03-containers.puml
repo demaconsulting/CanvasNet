@@ -1,0 +1,32 @@
+@startuml
+package "Front End" {
+  [Web]
+  folder Assets {
+    [Images]
+  }
+}
+node Server {
+  frame Services {
+    component API
+  }
+  database Store {
+    [Tables]
+  }
+}
+cloud Internet {
+  [CDN]
+}
+rectangle Ops {
+  component Monitor {
+    [Probe]
+  }
+  card Runbook {
+    [Steps]
+  }
+}
+Web --> API
+Images --> CDN
+API --> Tables
+Probe ..> API
+Steps --> Probe
+@enduml

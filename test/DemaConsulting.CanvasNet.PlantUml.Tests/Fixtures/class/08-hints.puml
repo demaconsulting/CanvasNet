@@ -1,0 +1,14 @@
+@startuml
+class Hub
+class North
+class South
+class East
+class West
+class Far
+Hub -up-> North
+Hub -down-> South
+Hub -right-> East
+Hub -l-> West
+Hub ---> Far
+Far -[hidden]- South
+@enduml

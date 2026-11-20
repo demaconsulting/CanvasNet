@@ -1,0 +1,15 @@
+@startuml
+class Sensor
+class Reader
+note left of Sensor : polls every\nsecond
+note right of Reader
+  reads the sensor
+  and logs it
+end note
+note top of Sensor : top note
+note bottom of Reader : bottom note
+Reader --> Sensor
+note on link : sampling
+note "shared\nconfig" as Cfg
+Cfg .. Reader
+@enduml

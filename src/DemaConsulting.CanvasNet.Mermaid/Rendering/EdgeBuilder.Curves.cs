@@ -1,6 +1,6 @@
 // Portions derived from d3-shape (ISC); see third-party/README.md
 using System.Text;
-using DemaConsulting.CanvasNet.Mermaid.Dagre;
+using DemaConsulting.CanvasNet.Layout.Dagre;
 using DemaConsulting.CanvasNet.Mermaid.Scenegraph;
 using DemaConsulting.CanvasNet.Mermaid.Syntax;
 

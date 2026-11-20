@@ -3,7 +3,6 @@ using System.Text.Json.Nodes;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Mermaid.Configuration;
 using DemaConsulting.CanvasNet.Mermaid.Cose;
-using DemaConsulting.CanvasNet.Mermaid.Dagre;
 using DemaConsulting.CanvasNet.Mermaid.Mindmap;
 using DemaConsulting.CanvasNet.Mermaid.Scenegraph;
 using DemaConsulting.CanvasNet.Mermaid.Syntax;
@@ -141,7 +140,7 @@ public class MermaidMindmapReferenceLayoutTests
         var sizes = nodes.Select(node => Numbers(node!["size"])).Select(size => new CoseSize(size[0], size[1])).ToList();
         var links = edges.Select(edge => ((string)edge!["id"]!).Split('_')).Select(parts =>
             new CoseLink(int.Parse(parts[1], CultureInfo.InvariantCulture), int.Parse(parts[2], CultureInfo.InvariantCulture))).ToList();
-        var meter = new LayoutWorkMeter(long.MaxValue, default, TestContext.Current.CancellationToken);
+        var meter = new MermaidLayoutWorkMeter(long.MaxValue, default, TestContext.Current.CancellationToken);
 
         // Act
         var layout = CoseLayout.Run(sizes, links, meter);

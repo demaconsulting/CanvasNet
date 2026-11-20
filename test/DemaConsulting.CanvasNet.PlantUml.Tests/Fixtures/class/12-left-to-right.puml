@@ -1,0 +1,8 @@
+@startuml
+left to right direction
+class Source
+class Filter
+class Sink
+Source --> Filter : raw
+Filter --> Sink : clean
+@enduml

@@ -192,15 +192,15 @@ public class PandocFilterEngineTests
     [Fact]
     public void PandocFilterEngine_Run_PlantUmlBlocks_BecomeFigureOrAreLeftAsWritten()
     {
-        // Arrange: a captioned sequence block, and a class diagram the tool reports as not drawn
+        // Arrange: a captioned sequence block, and a legacy activity diagram the tool reports as not drawn
         using var tree = new FilterTree();
         var captioned = PandocDoc.CodeBlock("fig-s", ["plantuml", "wide"], "@startuml\nAlice -> Bob\n@enduml", ("caption", "The talk"), ("scale", "2"));
-        var unsupported = PandocDoc.CodeBlock("", ["plantuml"], "@startuml\nclass Car\n@enduml");
-        var classFile = Path.GetFileName(PictureCache.BlockSourceFile("cache", "@startuml\nclass Car\n@enduml\n", PictureAttributes.PlantUml));
+        var unsupported = PandocDoc.CodeBlock("", ["plantuml"], "@startuml\n(*) --> First\n@enduml");
+        var legacyFile = Path.GetFileName(PictureCache.BlockSourceFile("cache", "@startuml\n(*) --> First\n@enduml\n", PictureAttributes.PlantUml));
         var reporting = new StubDrawer
         {
-            Report = name => name == classFile
-                ? new PictureDrawing(true, [new("plantuml-diagram-unsupported", "class diagrams are not drawn", false)], [])
+            Report = name => name == legacyFile
+                ? new PictureDrawing(true, [new("plantuml-diagram-unsupported", "activity-legacy diagrams are not drawn", false)], [])
                 : new PictureDrawing(true, [], [])
         };
 
@@ -214,7 +214,7 @@ public class PandocFilterEngineTests
         var image = blocks[0].GetProperty("c")[2][0].GetProperty("c")[0];
         Assert.Equal("""["",["wide"],[]]""", image.GetProperty("c")[0].GetRawText());
         Assert.Equal("CodeBlock", blocks[1].GetProperty("t").GetString());
-        Assert.Equal(["plantuml block (@startuml): class diagrams are not drawn; it is left as written and not drawn"], PandocDoc.Warnings(output));
+        Assert.Equal(["plantuml block (@startuml): activity-legacy diagrams are not drawn; it is left as written and not drawn"], PandocDoc.Warnings(output));
         Assert.Equal(2, tree.CacheFiles().Count(name => name.EndsWith(".puml", StringComparison.Ordinal)));
         Assert.Single(tree.CacheFiles(), name => name.EndsWith(".unsupported", StringComparison.Ordinal));
         Assert.Equal(2, reporting.Calls.Count);

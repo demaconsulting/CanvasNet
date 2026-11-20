@@ -13,8 +13,8 @@ document systems in this repository. It reads PlantUML text and **parses** it in
 subgraph counts), **measures** the size it renders at, and **renders** it onto a `Surface` (the core `CanvasNet` pixel
 buffer) at its natural size multiplied by a scale or fitted inside an exact size. Rendering is static, deterministic
 (pixel-identical surfaces on every run, thread, and platform, because only the bundled fonts are used), and offline (no
-network, no Java runtime, no Graphviz), and uses only the .NET base class library and the public API of the core
-`CanvasNet` package.
+network, no Java runtime, no Graphviz), and uses only the .NET base class library, the public API of the core
+`CanvasNet` package, and the internal graph layout of the `CanvasNetLayout` package.
 
 The goal is **fidelity to PlantUML**: a diagram must look like the picture that PlantUML draws with its default look.
 The package is therefore derived, with attribution, from the MIT-licensed distribution of PlantUML (see *Third-Party
@@ -41,13 +41,32 @@ The system is decomposed into one direct unit and internal subsystems:
 - **Activity** (subsystem) - the `ActivityParser` unit (the activity statements of the new syntax), the
   `ActivityModel` unit (the tree of instructions), the `ActivityLayout` unit (the tile composition and compression of
   PlantUML's activity engine), and the `ActivityRenderer` unit (the scene items); see *Activity Subsystem Design*.
+- **Svek** (subsystem) - the shared engine of the diagrams that PlantUML lays out with Graphviz: the `SvekModel` unit
+  (the diagram lowered to entities with their images, clusters, notes, and links), the `SvekSyntax` unit (the
+  statements those diagrams share), the `SvekLayout` unit (the layout over the dagre layered layout of
+  `CanvasNetLayout`), the `SvekGeometry` unit (curves, clipping, and the link decorations), and the `SvekRenderer`
+  unit (links, container symbols, and notes); see *Svek Subsystem Design*.
+- **Class** (subsystem) - the `ClassParser` unit (the statements of class and object diagrams), the `ClassModel` unit
+  (the diagram with its hide and show rules, lowered to the Svek engine), and the `ClassRenderer` unit (the class,
+  object, and map boxes); see *Class Subsystem Design*.
+- **State** (subsystem) - the `StateParser` unit (the statements of state diagrams), the `StateModel` unit (the
+  diagram with its composite states and concurrent regions, lowered to the Svek engine), and the `StateRenderer`
+  unit (the state boxes, the pseudo-states, and the composite states); see *State Subsystem Design*.
+- **Description** (subsystem) - the `DescriptionParser` unit (the statements of use case, component, and deployment
+  diagrams), the `DescriptionModel` unit (the diagram with its elements and containers, lowered to the Svek engine),
+  and the `DescriptionRenderer` unit (the actors, use cases, components, interfaces, symbols, and containers); see
+  *Description Subsystem Design*.
 
 The SysML2 model names the system `CanvasNetPlantUmlSystem` and prefixes the names of its subsystems and units with
 `PlantUml` (`PlantUmlSyntax`, `PlantUmlPreprocessor`, `PlantUmlDiagramDetector`, `PlantUmlStyling`, `PlantUmlSkinTheme`,
 `PlantUmlSkinParams`, `PlantUmlScenegraph`, `PlantUmlSceneModel`, `PlantUmlTextLayout`, `PlantUmlScenePainter`,
 `PlantUmlSequence`, `PlantUmlSequenceParser`, `PlantUmlSequenceModel`, `PlantUmlSequenceLayout`,
 `PlantUmlSequenceRenderer`, `PlantUmlActivity`, `PlantUmlActivityParser`, `PlantUmlActivityModel`,
-`PlantUmlActivityLayout`, `PlantUmlActivityRenderer`), because
+`PlantUmlActivityLayout`, `PlantUmlActivityRenderer`, `PlantUmlSvek`, `PlantUmlSvekModel`, `PlantUmlSvekSyntax`,
+`PlantUmlSvekLayout`, `PlantUmlSvekGeometry`, `PlantUmlSvekRenderer`, `PlantUmlClass`, `PlantUmlClassParser`,
+`PlantUmlClassModel`, `PlantUmlClassRenderer`, `PlantUmlState`, `PlantUmlStateParser`, `PlantUmlStateModel`,
+`PlantUmlStateRenderer`, `PlantUmlDescription`, `PlantUmlDescriptionParser`, `PlantUmlDescriptionModel`,
+`PlantUmlDescriptionRenderer`), because
 the `CanvasNet` package of the model already holds the units of the Mermaid system with the same short names. The test
 methods of the units use the same prefix (`PlantUmlPreprocessor_...`), so that the requirements trace never mixes the
 evidence of two systems.
@@ -94,12 +113,16 @@ flowchart LR
 
 ## Dependencies
 
-CanvasNetPlantUml references the sibling `CanvasNet` system only, through its public API: its `Canvas` subsystem
+CanvasNetPlantUml references the sibling `CanvasNetLayout` system (the graph library and the dagre layered layout,
+through internal friend access: `Graph`, `DagreLayout.Run`, and the abstract `LayoutWorkMeter`, whose PlantUML failures
+`PlantUmlLayoutWorkMeter` creates) for the diagrams that PlantUML lays out with Graphviz, and the sibling `CanvasNet`
+system through its public API: its `Canvas` subsystem
 (`Surface`, `Rgba32`, `CssColor`), `Geometry` (paths), `Drawing` (path filling and stroking), `Fonts` (the bundled fonts
 through a font resolver with no system fonts), `Rendering` (text measuring and text paths), `Files` (the file reference
 resolver and the file-access policy of the include files), and `ImageSources` (the image source interface). It has no
 OTS runtime dependency and references no other format package of the repository (not the Mermaid package, whose scene
-graph it does not share). See *CanvasNet System Design* for the referenced subsystems.
+graph it does not share). See *CanvasNet System Design* and *CanvasNetLayout System Design* for the referenced
+subsystems.
 
 ## Risk Control Measures
 
@@ -123,15 +146,16 @@ PlantUML text is untrusted input. The design segregates the risk as follows:
 ## Data Flow
 
 The text is read (strict UTF-8 for streams and files), framed and preprocessed into statements that keep the original
-location of every character (the statements of an included file are located in that file), and classified into a
-diagram type. A supported type is parsed into its diagram model by
-the parser registered in `DiagramRegistry` (a sequence diagram by the Sequence subsystem); the reports found while
-reading (ignored directives, a second diagram, statements and skin parameters that are not drawn) are kept by the
-document and the diagram model as pending reports, in text order, so that every later call can deliver them. A measure
-or render call creates a report sink and a text layout, replays the pending reports, lays the diagram out into a scene
-(a type that is not drawn reports `plantuml-diagram-unsupported` and gets an empty, transparent scene of 20 by 20, twice
-PlantUML's document margin), and paints the scene over the background of the call or of the diagram (white by default).
-The reports are delivered once, on the calling thread, after the work.
+location of every character (the statements of an included file are located in that file), and classified into a diagram
+type. A supported type is parsed into its diagram model by the parser registered in `DiagramRegistry` (a sequence
+diagram by the Sequence subsystem, an activity diagram by the Activity subsystem, a class or object diagram by the Class
+subsystem, a state diagram by the State subsystem, and a use case, component, or deployment diagram by the Description
+subsystem); the reports found while reading (ignored directives, a second diagram, statements and skin parameters that
+are not drawn) are kept by the document and the diagram model as pending reports, in text order, so that every later
+call can deliver them. A measure or render call creates a report sink and a text layout, replays the pending reports,
+lays the diagram out into a scene (a type that is not drawn reports `plantuml-diagram-unsupported` and gets an empty,
+transparent scene of 20 by 20, twice PlantUML's document margin), and paints the scene over the background of the call
+or of the diagram (white by default). The reports are delivered once, on the calling thread, after the work.
 
 ## Design Constraints
 
@@ -151,14 +175,22 @@ of Arial, Java's `SansSerif` on Windows), as PlantUML measures it with Java's lo
 
 CanvasNetPlantUml is derived with attribution, not clean-room. Its framing of a text, the meaning of the supported
 preprocessor directives, the order in which the diagram types are tried, the values of its default look
-(`plantuml.skin`), the way it measures text, the geometry of the sequence engine ("teoz": the column constraints,
-row heights, and shapes), and the tile composition of the activity engine ("ftile": the tiles, their assembly and
-connections, the swimlanes, and the compression of the drawing) follow the MIT-licensed distribution of
-PlantUML (`plantuml-mit`, whose files carry the MIT header "(C) Copyright 2009-2024, Arnaud Roques"). Only the
-MIT-licensed distribution was read; no source text, comment, test, example, or image of PlantUML is copied: the
-ported items are values and rules, reimplemented in C#. The license text and the provenance table (which upstream
-file informed which unit) ship in `src/DemaConsulting.CanvasNet.PlantUml/third-party/`, the license text is packed in
-the package's `licenses\` folder, and every source file with ported logic starts with the header
+(`plantuml.skin`), the way it measures text, the geometry of the sequence engine ("teoz": the column constraints, row
+heights, and shapes), and the tile composition of the activity engine ("ftile": the tiles, their assembly and
+connections, the swimlanes, and the compression of the drawing), and the shapes, decorations, and spacing of the
+diagrams that PlantUML lays out with Graphviz (the "svek" engine: the link grammar, the link decorations, the container
+symbols, the notes and their pointers, and the cluster margins of the Smetana pipeline), and the boxes of class and
+object diagrams (the class header with its circled character, the member compartments with their visibility icons and
+separators, and the object and map tables), and the shapes of state diagrams (the state boxes with their descriptions,
+the start, end, choice, fork, join, and history pseudo-states, and the composite states with their regions), and the
+statements and symbols of description diagrams (the shapes of names that choose a symbol, the containers, the
+component with its icon, the interface circle, and the margins and outlines of the leaf symbols) follow the
+MIT-licensed
+distribution of PlantUML (`plantuml-mit`, whose files carry the MIT header "(C) Copyright 2009-2024, Arnaud Roques").
+Only the MIT-licensed distribution was read; no source text, comment, test, example, or image of PlantUML is copied: the
+ported items are values and rules, reimplemented in C#. The license text and the provenance table (which upstream file
+informed which unit) ship in `src/DemaConsulting.CanvasNet.PlantUml/third-party/`, the license text is packed in the
+package's `licenses\` folder, and every source file with ported logic starts with the header
 `// Portions derived from PlantUML (MIT); see third-party/README.md`. The package is not affiliated with the PlantUML
 project. No code of the GPL-licensed distributions is used.
 
@@ -190,9 +222,11 @@ of this repository, so the two diagram languages are bounded alike.
   without, as Java measures it, so a glyph can move by a fraction of a pixel.
 - **Creole** - only the subset of bold, italic, monospace, underline, strike, color, size, font, and Unicode characters
   is drawn; images, sprites, icons, tables, lists, headings, rules, and backgrounds are drawn as text and reported.
-- **Detection** - statements are recognized by their leading keywords and arrows, so a text that PlantUML reads as a
-  diagram of a type that is not drawn can, in rare ambiguous cases, be named differently; the type of such a diagram
-  never changes whether it is drawn.
+- **Detection** - statements are recognized by their leading keywords and arrows, in PlantUML's order (sequence,
+  activity, class, legacy activity, description, state), so a text that PlantUML reads as a diagram of a type that is
+  not drawn can, in rare ambiguous cases, be named differently. A text that both a sequence and a class diagram could
+  read (`A --> B`) is a sequence diagram, as in PlantUML; a class diagram that mixes in an actor, a use case, or a
+  component is refused with the `allowmixing` hint, and `allowmixing` itself is reported, not applied.
 - **Sequence engine** - PlantUML 1.2026.10 lays every sequence diagram out with its "teoz" engine (the older "puma"
   engine is gone), so CanvasNet follows teoz and `!pragma teoz` is only reported as ignored. The size, texts,
   participants, life lines, and message lines of the reference fixtures agree with PlantUML's SVG within 1.5 pixels;
@@ -215,13 +249,75 @@ of this repository, so the two diagram languages are bounded alike.
   and a style are reported as `plantuml-statement-unsupported`. An arrow with several colors is drawn with its first
   color; a repeat loop whose back arrow crosses swimlanes is drawn with the simple back arrow; the legacy activity
   syntax (`(*)`) is a type that is not drawn.
+- **Graph engine** - PlantUML lays class, object, state, use case, component, and deployment diagrams out with Graphviz
+  (or its Smetana port); the shared Svek engine places them with the dagre layered layout of `CanvasNetLayout` and
+  draws their links as cubic B-splines through dagre's routes, so the shapes, texts, and decorations follow PlantUML
+  while the positions of the elements and the curves of the links differ. Links of length 1 are kept in one rank as
+  rows (dagre's ranking cannot), a cluster with a title band is made tight around its members, and the crow's foot
+  decorations, the redefinition triangles, roles, qualifiers, the middle decorations, and `norank` are read but not
+  drawn. The jar's Smetana layout does not draw the direction triangle of a link label (`: label >`); the engine draws
+  it, as PlantUML does with Graphviz.
+- **Class and object diagrams** - every entity box (its size, colors, texts, circled character, icons, and separators),
+  cluster title, and link decoration of the reference fixtures agrees with PlantUML's within 1.5 pixels; the positions
+  differ (unlinked classes are placed in one row where Graphviz makes a grid, and dagre orders the nodes of a rank its
+  own way; attached notes are nodes beside their entities, as PlantUML makes them). Link stereotypes, links to members
+  (`A::x`, drawn from the class), association classes, `together` groups (their members are drawn), `remove` and
+  `restore`, `allowmixing`, `skin`, `json` blocks, `circle` and `diamond` elements (drawn as classes), the visibility of
+  a class, line styles of a class (`##[dashed]`), hiding a single element or by visibility, links from map entries
+  (drawn from the map), and notes on packages (drawn floating) are reported as `plantuml-statement-unsupported`.
+- **State diagrams** - every state box, description, pseudo-state, composite header, and region separator of the
+  reference fixtures agrees with PlantUML's within 1.5 pixels; the positions differ as in class diagrams. A composite
+  state is always drawn with the header of PlantUML's autonomous composite (its title 5 lower than PlantUML draws a
+  composite that Graphviz lays out as a cluster); a transition with a one-dash arrow or a `left` or `right` hint is
+  kept in one rank, where Graphviz may place its ends in two; a transition to or from a composite state is drawn from
+  or to its border. The border symbols (`<<entryPoint>>`, `<<exitPoint>>`, the pins, the expansion nodes, and
+  `<<sdlreceive>>`, drawn as states), line styles of a state (`##[dashed]`), a cross at the start of a transition,
+  link stereotypes, hide and show forms other than `hide empty description`, `json` and `map` blocks, notes on
+  composite states (drawn floating), and transitions that leave the first region of a composite state with concurrent
+  regions (drawn from its border) are reported as `plantuml-statement-unsupported`; PlantUML refuses a transition
+  between two concurrent regions, and so does CanvasNet. A state declared with the alias of a floating note is a
+  `plantuml-syntax-error`, where PlantUML accepts it and draws no usable picture (both refuse a floating note named
+  like a state).
+- **Component diagrams** - every element (its outline, size, colors, and texts), container title, and link decoration of
+  the reference fixtures agrees with PlantUML's within 1.5 pixels; the positions differ as in class diagrams. An
+  interface reserves room for its name and stereotypes above and below its circle in the layout (PlantUML's shield does
+  the same, but drops it in some cases), so its circle is the center of its node. Ports and
+  their links, middle decorations of links (which the jar's Smetana layout does not draw either), roles, qualifiers, and
+  stereotypes of links, `together`, `hide`, `show`, `remove`, `restore`, archimate elements, `json` and `map` blocks,
+  URLs, and notes on containers (drawn floating) are reported as `plantuml-statement-unsupported`; an arrow body of `~`
+  is not read. Where PlantUML accepts a text but draws a picture that does not show what was written, CanvasNet refuses
+  it with a located `plantuml-syntax-error`: a stray `}` and an unclosed container (PlantUML ignores them), a short name
+  of elements in several containers (PlantUML links one of them and drops the other's container), and a container
+  declared with the name of an element (PlantUML replaces the element). A qualified name such as `N.C` from outside its
+  container names the element `N.C` (PlantUML creates a second element with that name).
+- **Use case diagrams** - every actor (its stick figure, size, colors, and texts), use case (its ellipse, sized around
+  its texts as PlantUML sizes it), boundary title, and link decoration of the reference fixtures agrees with PlantUML's
+  within 1.5 pixels; the positions differ as in class diagrams, and the component diagrams' differences apply (the
+  description diagrams share their parser and engine). A name only written in links is an actor when the diagram has an
+  actor or a use case, as in PlantUML. The `<<include>>` and `<<extend>>` labels of links are written with guillemets,
+  as PlantUML writes them; double angle brackets in the name of an element (`(Check <<x>>)`) are drawn as written, where
+  PlantUML writes guillemets in every text. `skinparam actorStyle` (the awesome and hollow actors) is reported as
+  ignored; an actor or a use case that holds elements is a located `plantuml-syntax-error`, as in PlantUML.
+- **Deployment diagrams** - every element (its outline, size, colors, and texts), container title and stereotype, and
+  link decoration of the reference fixtures agrees with PlantUML's within 1.5 pixels; the positions differ as in class
+  diagrams, and the component diagrams' differences apply. A hexagon is drawn with the outline PlantUML's Graphviz
+  pipeline gives it (corners in the middles of its sides, the top and bottom spanning the middle half); the jar's
+  Smetana layout draws only its texts. A floating note with one link whose route is longer than a direct one is drawn
+  with a dashed link, where PlantUML draws the note's pointer. The action, the process, and archimate elements are
+  drawn as rectangles and reported as `plantuml-statement-unsupported`; a circle is drawn as an interface, as in
+  PlantUML. A person, a boundary, a control, an entity, a collections symbol, a label, an agent, or a circle that holds
+  elements is a located `plantuml-syntax-error`, as in PlantUML.
 
 ## Phase Plan
 
-- **Phase 1** (this version, delivered in steps) - the package, the public API, and the syntax subsystem; sequence
-  diagrams and activity diagrams of the new syntax with PlantUML's default look; local includes under the file-access
-  policy; the image source; the Viewer, tool, and Pandoc filter integration.
-- **Phase 2** - the diagram types that PlantUML lays out with Graphviz (class, component, use case, state, object, and
-  deployment diagrams) need a graph layout: either a shared port of the dagre layout that the Mermaid package holds,
-  or a port of PlantUML's own Smetana layout; the decision is deferred. Themes, `<style>` blocks, feature positions,
-  and the conditional and function directives of the preprocessor are candidates as well.
+- **Phase 1** (delivered) - the package, the public API, and the syntax subsystem; sequence diagrams and activity
+  diagrams of the new syntax with PlantUML's default look; local includes under the file-access policy; the image
+  source; the Viewer, tool, and Pandoc filter integration.
+- **Phase 2** (delivered) - the diagram types that PlantUML lays out with Graphviz (class, object, state, use case,
+  component, and deployment diagrams) are laid out by the shared Svek engine over the dagre layered layout of the
+  `CanvasNetLayout` package, which the Mermaid package shares, and drawn with PlantUML's default look; the Viewer,
+  tool, help, and gallery cover them.
+- **Candidates for a later phase** - themes (`!theme`), `<style>` blocks, the conditional and function directives of
+  the preprocessor (`!if`, `!function`, `!procedure`, `!foreach`), ports of components, `allowmixing` (elements of
+  several diagram families in one diagram), orthogonal and polyline links (`skinparam linetype`), archimate elements,
+  feature positions, and the diagram types that are recognized but not drawn.

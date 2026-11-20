@@ -1,4 +1,4 @@
-using DemaConsulting.CanvasNet.Mermaid.Dagre;
+using DemaConsulting.CanvasNet.Layout.Dagre;
 using DemaConsulting.CanvasNet.Mermaid.Gantt;
 
 namespace DemaConsulting.CanvasNet.Mermaid.Tests.Gantt;
@@ -306,7 +306,7 @@ public sealed class GanttModelTests
     {
         // Arrange
         var model = GanttParserTests.Parse("gantt\ndateFormat YYYY-MM-DD\nexcludes weekends\nA :a, 2024-01-01, 2000y\n");
-        var meter = new LayoutWorkMeter(100_000, model.KeywordLocation, CancellationToken.None);
+        var meter = new MermaidLayoutWorkMeter(100_000, model.KeywordLocation, CancellationToken.None);
 
         // Act
         var exception = Assert.Throws<MermaidRenderException>(() => model.Compile(new GanttClock(null, null), meter));
@@ -399,8 +399,8 @@ public sealed class GanttModelTests
     {
         // Arrange
         var date = JsDate.FromComponents(2024, 0, 5, 9, 7, 3, 45);
-        var small = new LayoutWorkMeter(1_000_000, default, CancellationToken.None);
-        var large = new LayoutWorkMeter(1_000_000, default, CancellationToken.None);
+        var small = new MermaidLayoutWorkMeter(1_000_000, default, CancellationToken.None);
+        var large = new MermaidLayoutWorkMeter(1_000_000, default, CancellationToken.None);
 
         // Act
         var texts = new[] { "[a[b]c] [YYYY] [[ YYYY", "[[[[]", "[[[[ YYYY", "YYYY []] [", "[[x]YYYY-MM-DD" }
@@ -454,8 +454,8 @@ public sealed class GanttModelTests
         // Arrange
         var now = JsDate.FromComponents(2024, 5, 12, 10, 30);
         var usedNow = false;
-        var small = new LayoutWorkMeter(1_000_000, default, CancellationToken.None);
-        var large = new LayoutWorkMeter(MermaidLimits.Default.MaxLayoutWork, default, CancellationToken.None);
+        var small = new MermaidLayoutWorkMeter(1_000_000, default, CancellationToken.None);
+        var large = new MermaidLayoutWorkMeter(MermaidLimits.Default.MaxLayoutWork, default, CancellationToken.None);
         var text = new string('1', 2600) + string.Concat(Enumerable.Repeat(" x", 600));
 
         // Act
@@ -524,5 +524,5 @@ public sealed class GanttModelTests
     /// <param name="model">The model.</param>
     /// <returns>The meter.</returns>
     private static LayoutWorkMeter Meter(GanttModel model) =>
-        new(MermaidLimits.Default.MaxLayoutWork, model.KeywordLocation, CancellationToken.None);
+        new MermaidLayoutWorkMeter(MermaidLimits.Default.MaxLayoutWork, model.KeywordLocation, CancellationToken.None);
 }

@@ -234,14 +234,17 @@ mapping.
   libraries it uses are always released together. The integration-test job of the build workflow guards
   both properties: it fails if the package's nuspec declares any dependency (a tool package must carry
   everything it needs, including the third-party `DemaConsulting.TestResults` and `System.Numerics.Tensors`
-  libraries and the transitively used `CanvasNetCharts` assembly), if it is not a `DotnetTool` package, or if a
-  library assembly (the `CanvasNetVegaLite`, `CanvasNetMermaid`, and `CanvasNetPlantUml` assemblies included), the
+  libraries and the transitively used `CanvasNetCharts` and `CanvasNetLayout` assemblies), if it is not a `DotnetTool`
+  package, or if a library assembly (the `CanvasNetVegaLite`, `CanvasNetLayout`, `CanvasNetMermaid`, and
+  `CanvasNetPlantUml` assemblies included), the
   tool's dependency manifest
   (`.deps.json`) or runtime configuration file, or `DotnetToolSettings.xml` is missing from the package for any target
   framework. The package also carries the third-party license notices of the `CanvasNetVegaLite` system (the
   BSD-3-Clause texts of Vega and Vega-Lite and the ISC text of d3, with the notice README) and of the `CanvasNetMermaid`
   system (the notices of Mermaid and of the libraries it was ported from, with its notice README; its d3 text is packed
-  as `Mermaid-LICENSE-d3.txt` because the chart notices already use `LICENSE-d3.txt`) and of the `CanvasNetPlantUml`
+  as `Mermaid-LICENSE-d3.txt` because the chart notices already use `LICENSE-d3.txt`), of the `CanvasNetLayout` system
+  (its provenance README as `Layout-third-party-README.md`; its dagre and lodash texts are the same files as Mermaid's
+  `LICENSE-dagre.txt` and `LICENSE-lodash.txt`, so they are packed once) and of the `CanvasNetPlantUml`
   system (the MIT notice of PlantUML as `LICENSE-plantuml.txt`, with its provenance README as
   `PlantUml-third-party-README.md`) in its `licenses` folder, because
   binary distributions must reproduce them, and the same job checks that they are present. The test

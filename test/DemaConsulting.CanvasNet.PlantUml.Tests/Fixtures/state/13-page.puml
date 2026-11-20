@@ -1,0 +1,12 @@
+@startuml
+title Door states
+header draft
+footer page 1
+caption A small machine
+legend right
+  the door locks itself
+endlegend
+[*] --> Closed
+Closed --> Open : open
+Open --> Closed : close
+@enduml

@@ -1,0 +1,11 @@
+@startuml
+component Web
+[Data Access] as DA
+component "Payment Service" as PS
+component API as "Public API"
+[Mailer]
+Web --> API
+API --> DA
+API ..> PS : charge
+PS --> Mailer : receipt
+@enduml

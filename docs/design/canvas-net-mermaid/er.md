@@ -57,9 +57,10 @@ JavaScript's `trim` (`Preprocessor.TrimJs`), and the text sanitizer (`HtmlSaniti
 effective `MermaidConfig` with its `ErConfig` section (the spacing and the title margin), the look, the layout, the font
 settings (`MermaidFontConfig`, `ConfigScalar`), and the style sheet `ErStyles`; from `Rendering` the layout input types
 (`LayoutData`, `LayoutNode`, `LayoutEdge`, `LayoutErBox`, `LayoutErAttribute`) and the drawing
-(`ClusterLayout.RenderDiagram`, `ShapeContext`, `LabelBuilder`, `NodeImages`); from `Dagre` the `LayoutWorkMeter`; from
-`Scenegraph` the `Scene`; and from the system the `IMermaidDiagram` contract, `DiagramRenderContext`, and the public
-`MermaidLimits`, `MermaidLocation`, `MermaidSyntaxException`, `MermaidDiagnosticCodes`, and `MermaidReportSink`.
+(`ClusterLayout.RenderDiagram`, `ShapeContext`, `LabelBuilder`, `NodeImages`); from `Dagre` (CanvasNetLayout) the
+`LayoutWorkMeter`; from `Scenegraph` the `Scene`; and from the system the `IMermaidDiagram` contract,
+`DiagramRenderContext`, and the public `MermaidLimits`, `MermaidLocation`, `MermaidSyntaxException`,
+`MermaidDiagnosticCodes`, and `MermaidReportSink`.
 
 **Consumers**: the document pipeline of the system (`MermaidDocument.Pipeline.cs`): its `DiagramRegistry` calls the
 parser for a detected `er` diagram with the limits of the open call, keeps the model as the document's diagram, reads

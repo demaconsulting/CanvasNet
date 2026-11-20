@@ -1,6 +1,6 @@
 // Portions derived from layout-base and cose-base (MIT); see third-party/README.md
 using System.Runtime.CompilerServices;
-using DemaConsulting.CanvasNet.Mermaid.Dagre;
+using DemaConsulting.CanvasNet.Layout.Dagre;
 
 namespace DemaConsulting.CanvasNet.Mermaid.Cose;
 

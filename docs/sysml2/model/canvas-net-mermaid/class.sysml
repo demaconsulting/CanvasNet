@@ -6,7 +6,7 @@ package CanvasNet {
         comment designRef /* Design: docs/design/canvas-net-mermaid/class.md */
         comment verificationRef /* Verification: docs/verification/canvas-net-mermaid/class.md */
         comment reqRef /* Requirements: docs/reqstream/canvas-net-mermaid/class.yaml */
-        comment /* Within the CanvasNetMermaid system the Class subsystem depends on the Syntax subsystem (scanner, mapped text, and the shared UNICODE_TEXT letters), the Configuration subsystem (effective configuration with its class section and the state spacing, and the class style sheet), the Rendering subsystem (layout data, cluster layout, label builder, and node images), the Dagre subsystem (layout work meter), and the Scenegraph subsystem (scene types); it is called by the document pipeline of the system. */
+        comment /* Within the CanvasNetMermaid system the Class subsystem depends on the Syntax subsystem (scanner, mapped text, and the shared UNICODE_TEXT letters), the Configuration subsystem (effective configuration with its class section and the state spacing, and the class style sheet), the Rendering subsystem (layout data, cluster layout, label builder, and node images), the Dagre subsystem of the CanvasNetLayout system (layout work meter), and the Scenegraph subsystem (scene types); it is called by the document pipeline of the system. */
 
         part classParser : ClassParser;
         part classModel : ClassModel;

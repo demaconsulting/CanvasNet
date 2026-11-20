@@ -1,0 +1,22 @@
+@startuml
+left to right direction
+[Order] --> [Payment]
+[Payment] --> [Shipping]
+[Order] --> Catalog
+node Warehouse
+rectangle Rack
+folder Docs
+package Kit
+frame Panel
+cloud Sky
+database Ledger
+card Note
+[Shipping] --> Warehouse
+Warehouse --> Rack
+Rack --> Docs
+Docs --> Kit
+Kit --> Panel
+Panel --> Sky
+Sky --> Ledger
+Ledger --> Note
+@enduml

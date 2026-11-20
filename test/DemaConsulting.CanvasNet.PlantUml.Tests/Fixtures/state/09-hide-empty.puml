@@ -1,0 +1,7 @@
+@startuml
+hide empty description
+[*] --> Off
+Off --> On : power
+On --> Off : power
+On : the lamp is lit
+@enduml

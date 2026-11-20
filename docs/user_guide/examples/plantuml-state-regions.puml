@@ -1,0 +1,21 @@
+@startuml
+' Gallery: concurrent regions, a fork and a join, and a left to right layout
+left to right direction
+title Order fulfillment
+state split <<fork>>
+state merge <<join>>
+[*] --> Received
+Received --> split : accepted
+split --> Packing
+split --> Billing
+state Packing {
+  [*] --> Picking
+  Picking --> Boxed
+  --
+  [*] --> Labeling
+}
+Packing --> merge
+Billing --> merge
+merge --> Shipped
+Shipped --> [*]
+@enduml

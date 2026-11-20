@@ -6,7 +6,8 @@ namespace DemaConsulting.CanvasNet.Tool.Tests.Commands;
 
 /// <summary>
 ///     Unit tests for the DiscoveryCommands class with PlantUML diagrams: the listing of the format and the info
-///     description of a sequence diagram, an activity diagram, and a diagram type this version does not draw.
+///     description of a sequence diagram, an activity diagram, a class, a state, a use case, a component, and a
+///     deployment diagram, and a diagram type this version does not draw.
 /// </summary>
 [Collection("Sequential")]
 public class DiscoveryCommandsPlantUmlTests
@@ -92,22 +93,25 @@ public class DiscoveryCommandsPlantUmlTests
     }
 
     /// <summary>
-    ///     Test that info describes an activity diagram with the counts of the library, and a type this version does not draw
-    ///     with <c>supported</c> false and zero counts.
+    ///     Test that info describes an activity and a class diagram with the counts of the library, and a type this
+    ///     version does not draw with <c>supported</c> false and zero counts.
     /// </summary>
     [Fact]
-    public void DiscoveryCommands_Info_PlantUmlActivityAndClass_ReportTypeAndSupport()
+    public void DiscoveryCommands_Info_PlantUmlActivityClassAndLegacy_ReportTypeAndSupport()
     {
         // Arrange
         using var directory = new TempDirectory();
         var activity = FixtureFactory.WriteText(directory.Path, "flow.plantuml", Activity);
-        var classes = FixtureFactory.WriteText(directory.Path, "cars.pu", "@startuml\nclass Car\nclass Wheel\nCar *-- Wheel\n@enduml\n");
+        var classes = FixtureFactory.WriteText(directory.Path, "cars.pu", "@startuml\npackage garage {\nclass Car\n}\nclass Wheel\nCar *-- Wheel\n@enduml\n");
+        var legacy = FixtureFactory.WriteText(directory.Path, "legacy.puml", "@startuml\n(*) --> First\nFirst --> Second\n@enduml\n");
         var expected = PlantUmlDocument.Open(activity);
 
         // Act
         using var activityDocument = JsonDocument.Parse(RunInfo(true, activity));
         using var classDocument = JsonDocument.Parse(RunInfo(true, classes));
+        using var legacyDocument = JsonDocument.Parse(RunInfo(true, legacy));
         var classText = RunInfo(false, classes);
+        var legacyText = RunInfo(false, legacy);
 
         // Assert: the activity diagram and its counts
         var diagram = activityDocument.RootElement.GetProperty("diagram");
@@ -117,9 +121,68 @@ public class DiscoveryCommandsPlantUmlTests
             (diagram.GetProperty("nodes").GetInt32(), diagram.GetProperty("edges").GetInt32(), diagram.GetProperty("subgraphs").GetInt32()));
         Assert.True(expected.NodeCount >= 5);
 
-        // Assert: the class diagram is recognized and not drawn
-        var unsupported = classDocument.RootElement.GetProperty("diagram");
-        Assert.Equal(("class", false, 0), (unsupported.GetProperty("type").GetString(), unsupported.GetProperty("supported").GetBoolean(), unsupported.GetProperty("nodes").GetInt32()));
-        Assert.Contains("class (not drawn by this version), 0 nodes", classText, StringComparison.Ordinal);
+        // Assert: the class diagram is drawn: its classes, relationships, and packages
+        var classDiagram = classDocument.RootElement.GetProperty("diagram");
+        Assert.Equal(("class", true), (classDiagram.GetProperty("type").GetString(), classDiagram.GetProperty("supported").GetBoolean()));
+        Assert.Equal((2, 1, 1), (classDiagram.GetProperty("nodes").GetInt32(), classDiagram.GetProperty("edges").GetInt32(), classDiagram.GetProperty("subgraphs").GetInt32()));
+        Assert.Contains("class, 2 nodes, 1 edge", classText, StringComparison.Ordinal);
+
+        // Assert: the legacy activity diagram is recognized and not drawn
+        var unsupported = legacyDocument.RootElement.GetProperty("diagram");
+        Assert.Equal(("activity-legacy", false, 0), (unsupported.GetProperty("type").GetString(), unsupported.GetProperty("supported").GetBoolean(), unsupported.GetProperty("nodes").GetInt32()));
+        Assert.Contains("activity-legacy (not drawn by this version), 0 nodes", legacyText, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Test that info describes a state diagram with the counts of the library: its states and pseudo-states,
+    ///     transitions, and composite states.
+    /// </summary>
+    [Fact]
+    public void DiscoveryCommands_Info_PlantUmlState_ReportsStatesTransitionsAndComposites()
+    {
+        // Arrange
+        using var directory = new TempDirectory();
+        var states = FixtureFactory.WriteText(directory.Path, "door.puml", "@startuml\n[*] --> Door\nstate Door {\n[*] --> Closed\nClosed --> Open : open\n}\nDoor --> [*]\n@enduml\n");
+
+        // Act
+        using var document = JsonDocument.Parse(RunInfo(true, states));
+        var text = RunInfo(false, states);
+
+        // Assert
+        var diagram = document.RootElement.GetProperty("diagram");
+        Assert.Equal(("state", true), (diagram.GetProperty("type").GetString(), diagram.GetProperty("supported").GetBoolean()));
+        Assert.Equal((5, 4, 1), (diagram.GetProperty("nodes").GetInt32(), diagram.GetProperty("edges").GetInt32(), diagram.GetProperty("subgraphs").GetInt32()));
+        Assert.Contains("state, 5 nodes, 4 edges", text, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Test that info describes a use case, a component, and a deployment diagram with the counts of the library: its
+    ///     elements (actors, use cases, components, interfaces, and the other leaf symbols), its links (a hidden link
+    ///     counts, a link to a note does not), and its containers.
+    /// </summary>
+    /// <param name="type">The diagram type the text is detected as.</param>
+    /// <param name="body">The statements of the diagram.</param>
+    /// <param name="nodes">The expected number of elements.</param>
+    /// <param name="edges">The expected number of links.</param>
+    /// <param name="subgraphs">The expected number of containers.</param>
+    [Theory]
+    [InlineData("usecase", "left to right direction\nactor Guest\nrectangle Shop {\n(Browse)\n(Buy)\n}\nGuest --> (Browse)\nGuest --> (Buy)\n(Buy) .> (Browse) : <<include>>\nnote right of Guest : any visitor", 3, 3, 1)]
+    [InlineData("component", "package Web {\n[Front]\n[Api]\n}\ndatabase Store\n[Front] --> [Api]\n[Api] --> Store\n[Api] - HTTP\n[Front] -[hidden]- Store", 4, 4, 1)]
+    [InlineData("deployment", "node Server {\nartifact App\n}\ndatabase Db\ncloud Internet\nInternet --> Server\nServer --> Db", 3, 2, 1)]
+    public void DiscoveryCommands_Info_PlantUmlDescription_ReportsElementsLinksAndContainers(string type, string body, int nodes, int edges, int subgraphs)
+    {
+        // Arrange
+        using var directory = new TempDirectory();
+        var path = FixtureFactory.WriteText(directory.Path, $"{type}.puml", $"@startuml\n{body}\n@enduml\n");
+
+        // Act
+        using var document = JsonDocument.Parse(RunInfo(true, path));
+        var text = RunInfo(false, path);
+
+        // Assert
+        var diagram = document.RootElement.GetProperty("diagram");
+        Assert.Equal((type, true), (diagram.GetProperty("type").GetString(), diagram.GetProperty("supported").GetBoolean()));
+        Assert.Equal((nodes, edges, subgraphs), (diagram.GetProperty("nodes").GetInt32(), diagram.GetProperty("edges").GetInt32(), diagram.GetProperty("subgraphs").GetInt32()));
+        Assert.Contains($"{type}, {nodes} nodes, {edges} edges, {subgraphs} subgraph", text, StringComparison.Ordinal);
     }
 }

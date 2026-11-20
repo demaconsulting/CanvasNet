@@ -16,8 +16,9 @@ have: the margin, the edge points between the centers, finite and distinct posit
 the documented failures, limits, and cancellation. The layout of whole mindmaps against Mermaid's goldens is verified
 at the system level by the mindmap reference layout tests.
 
-The scenarios use no mocking or stubbing: the meter is the real `LayoutWorkMeter` of the `Dagre` subsystem. The
-subsystem is internal, so its tests reach it through the test assembly's `InternalsVisibleTo` access.
+The scenarios use no mocking or stubbing: the meter is the real `MermaidLayoutWorkMeter`, which derives the
+`LayoutWorkMeter` of the `Dagre` subsystem of the CanvasNetLayout system. The subsystem is internal, so its tests reach
+it through the test assembly's `InternalsVisibleTo` access.
 
 ### Test Environment
 

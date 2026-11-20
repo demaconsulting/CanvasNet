@@ -1,5 +1,4 @@
 using System.Text.Json.Nodes;
-using DemaConsulting.CanvasNet.Mermaid.Dagre;
 using DemaConsulting.CanvasNet.Mermaid.Gantt;
 using DemaConsulting.CanvasNet.Mermaid.Syntax;
 
@@ -110,7 +109,7 @@ public sealed class GanttVectorTests
     /// <param name="model">The model.</param>
     /// <returns>The tasks.</returns>
     internal static List<GanttTask> Compile(GanttModel model) =>
-        model.Compile(new GanttClock(VectorNow, null), new LayoutWorkMeter(MermaidLimits.Default.MaxLayoutWork, model.KeywordLocation, CancellationToken.None));
+        model.Compile(new GanttClock(VectorNow, null), new MermaidLayoutWorkMeter(MermaidLimits.Default.MaxLayoutWork, model.KeywordLocation, CancellationToken.None));
 
     /// <summary>
     ///     Asserts that the task dates are Mermaid's, or that the compilation fails where Mermaid fails or would draw

@@ -1,0 +1,9 @@
+@startuml
+node Server {
+  artifact App
+}
+database Db
+cloud Internet
+Internet --> Server
+Server --> Db
+@enduml

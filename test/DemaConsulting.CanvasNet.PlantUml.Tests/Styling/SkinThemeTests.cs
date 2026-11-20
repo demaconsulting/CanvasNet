@@ -52,6 +52,96 @@ public class SkinThemeTests
     }
 
     /// <summary>
+    ///     Validates the default look of the links and clusters of the diagrams that PlantUML lays out with Graphviz.
+    /// </summary>
+    [Fact]
+    public void PlantUmlSkinTheme_Default_HasPlantUmlGraphLook()
+    {
+        // Arrange
+        var theme = SkinTheme.Default;
+
+        // Act / Assert
+        Assert.Equal((13.0, SkinTheme.LineColor, 1.0), (theme[SkinElement.SvekArrow].FontSize, theme[SkinElement.SvekArrow].Line!.Value, theme[SkinElement.SvekArrow].LineWidth));
+        Assert.Equal((SkinTheme.Black, 1.5, 5.0, true), (theme[SkinElement.Package].Line!.Value, theme[SkinElement.Package].LineWidth, theme[SkinElement.Package].RoundCorner, theme[SkinElement.Package].Bold));
+        Assert.Equal((SkinTheme.LineColor, 1.0, 5.0, true), (theme[SkinElement.Container].Line!.Value, theme[SkinElement.Container].LineWidth, theme[SkinElement.Container].RoundCorner, theme[SkinElement.Container].Bold));
+        Assert.Null(theme[SkinElement.Package].Fill);
+        Assert.Null(theme[SkinElement.Container].Fill);
+    }
+
+    /// <summary>
+    ///     Validates the default look of the class and object boxes: light grey, outlined half a pixel wide with corners
+    ///     of 5, stereotypes in italic 12, members in black 14, visibility icons of 10, and circles of radius 11.
+    /// </summary>
+    [Fact]
+    public void PlantUmlSkinTheme_Default_HasPlantUmlClassLook()
+    {
+        // Arrange
+        var theme = SkinTheme.Default;
+
+        // Act / Assert
+        foreach (var element in new[] { SkinElement.Class, SkinElement.Object })
+        {
+            Assert.Equal((SkinTheme.CommonBackground, SkinTheme.LineColor, 0.5, 5.0, 14.0), (theme[element].Fill!.Value, theme[element].Line!.Value, theme[element].LineWidth, theme[element].RoundCorner, theme[element].FontSize));
+        }
+
+        Assert.Equal((12.0, true), (theme[SkinElement.ClassStereotype].FontSize, theme[SkinElement.ClassStereotype].Italic));
+        Assert.Equal((14.0, SkinTheme.Black), (theme[SkinElement.ClassAttribute].FontSize, theme[SkinElement.ClassAttribute].FontColor));
+        Assert.Equal((10.0, 11.0), (theme.ClassAttributeIconSize, theme.CircledCharacterRadius));
+    }
+
+    /// <summary>
+    ///     Validates the default look of state diagrams: light grey states outlined half a pixel wide with corners of 25,
+    ///     black 14 descriptions, dark start and end circles one pixel wide, and light grey pseudo-states.
+    /// </summary>
+    [Fact]
+    public void PlantUmlSkinTheme_Default_HasPlantUmlStateLook()
+    {
+        // Arrange
+        var theme = SkinTheme.Default;
+        var dark = new Rgba32(0x22, 0x22, 0x22, 255);
+
+        // Act / Assert
+        Assert.Equal((SkinTheme.CommonBackground, SkinTheme.LineColor, 0.5, 25.0, 14.0), (theme[SkinElement.State].Fill!.Value, theme[SkinElement.State].Line!.Value, theme[SkinElement.State].LineWidth, theme[SkinElement.State].RoundCorner, theme[SkinElement.State].FontSize));
+        Assert.Equal((14.0, SkinTheme.Black), (theme[SkinElement.StateAttribute].FontSize, theme[SkinElement.StateAttribute].FontColor));
+        foreach (var element in new[] { SkinElement.StateStart, SkinElement.StateEnd })
+        {
+            Assert.Equal((dark, dark, 1.0), (theme[element].Fill!.Value, theme[element].Line!.Value, theme[element].LineWidth));
+        }
+
+        Assert.Equal((SkinTheme.CommonBackground, 0.5), (theme[SkinElement.StatePseudo].Fill!.Value, theme[SkinElement.StatePseudo].LineWidth));
+    }
+
+    /// <summary>
+    ///     Validates the default look of description diagrams (PlantUML's componentDiagram elements): light grey
+    ///     elements outlined `#181818` half a pixel wide with corners of 5 and text of 14 (use cases and the deployment
+    ///     symbols too), and a database, an actor, a queue, a boundary, a control, an entity, and a collections symbol
+    ///     filled like them instead of like a sequence participant (the last five with corners of 5).
+    /// </summary>
+    [Fact]
+    public void PlantUmlSkinTheme_Description_HasPlantUmlComponentLook()
+    {
+        // Arrange
+        var theme = SkinTheme.Description;
+
+        // Act / Assert
+        Assert.Equal(18, SkinTheme.DescriptionElements.Count);
+        foreach (var element in SkinTheme.DescriptionElements)
+        {
+            Assert.Equal((SkinTheme.CommonBackground, SkinTheme.LineColor, 0.5, 5.0, 14.0), (theme[element].Fill!.Value, theme[element].Line!.Value, theme[element].LineWidth, theme[element].RoundCorner, theme[element].FontSize));
+        }
+
+        Assert.Equal(SkinTheme.CommonBackground, theme[SkinElement.Database].Fill);
+        Assert.Equal(SkinTheme.GreyBlue, SkinTheme.Default[SkinElement.Database].Fill);
+        Assert.Equal((SkinTheme.CommonBackground, SkinTheme.LineColor, 0.5), (theme[SkinElement.Actor].Fill!.Value, theme[SkinElement.Actor].Line!.Value, theme[SkinElement.Actor].LineWidth));
+        Assert.Equal(SkinTheme.GreyBlue, SkinTheme.Default[SkinElement.Actor].Fill);
+        foreach (var shared in new[] { SkinElement.Queue, SkinElement.Boundary, SkinElement.Control, SkinElement.Entity, SkinElement.Collections })
+        {
+            Assert.Equal((SkinTheme.CommonBackground, 5.0), (theme[shared].Fill!.Value, theme[shared].RoundCorner));
+            Assert.Equal((SkinTheme.GreyBlue, 0.0), (SkinTheme.Default[shared].Fill!.Value, SkinTheme.Default[shared].RoundCorner));
+        }
+    }
+
+    /// <summary>
     ///     Validates that a change returns a new theme and leaves the default unchanged.
     /// </summary>
     [Fact]

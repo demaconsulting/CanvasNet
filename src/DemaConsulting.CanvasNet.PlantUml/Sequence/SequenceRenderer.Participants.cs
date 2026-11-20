@@ -73,14 +73,16 @@ internal static partial class SequenceRenderer
     }
 
     /// <summary>
-    ///     Builds an actor's stick figure: a head of radius 8, a body, arms 26 wide, and legs.
+    ///     Builds an actor's stick figure (PlantUML's <c>ActorStickMan</c> drawn with a line half a pixel wide): a head of
+    ///     radius 8, a body, arms 26 wide, and legs; the figure is 60 high. The description diagrams draw their actors
+    ///     with it too.
     /// </summary>
-    /// <param name="c">The x of the life line.</param>
+    /// <param name="c">The x of the life line (the middle of the figure).</param>
     /// <param name="top">The top of the figure.</param>
     /// <param name="fill">The fill of the head.</param>
     /// <param name="stroke">The stroke.</param>
-    /// <returns>The paths.</returns>
-    private static IEnumerable<ScenePath> StickFigure(double c, double top, Rgba32? fill, SceneStroke? stroke)
+    /// <returns>The paths: the head, then the body, arms, and legs.</returns>
+    internal static IEnumerable<ScenePath> StickFigure(double c, double top, Rgba32? fill, SceneStroke? stroke)
     {
         yield return new ScenePath(SceneShapes.Ellipse(c, top + 8.5, 8, 8)) { Role = "participant", Fill = fill, Stroke = stroke };
         var neck = top + 16.5;
@@ -99,7 +101,8 @@ internal static partial class SequenceRenderer
     }
 
     /// <summary>
-    ///     Builds a boundary, control, or entity symbol: a circle of radius 12 with its mark.
+    ///     Builds a boundary, control, or entity symbol: a circle of radius 12 with its mark. The description diagrams
+    ///     draw their boundaries, controls, and entities with it too.
     /// </summary>
     /// <param name="kind">The kind.</param>
     /// <param name="c">The x of the life line.</param>
@@ -107,7 +110,7 @@ internal static partial class SequenceRenderer
     /// <param name="fill">The fill.</param>
     /// <param name="stroke">The stroke.</param>
     /// <returns>The paths.</returns>
-    private static IEnumerable<ScenePath> Symbol(ParticipantKind kind, double c, double top, Rgba32? fill, SceneStroke? stroke)
+    internal static IEnumerable<ScenePath> Symbol(ParticipantKind kind, double c, double top, Rgba32? fill, SceneStroke? stroke)
     {
         var cy = top + 12;
         if (kind == ParticipantKind.Boundary)
@@ -177,7 +180,7 @@ internal static partial class SequenceRenderer
     }
 
     /// <summary>
-    ///     Builds a queue: a horizontal cylinder around the text.
+    ///     Builds a queue: a horizontal cylinder around the text. The description diagrams draw their queues with it too.
     /// </summary>
     /// <param name="x">The left of the column.</param>
     /// <param name="top">The top of the queue.</param>
@@ -186,7 +189,7 @@ internal static partial class SequenceRenderer
     /// <param name="fill">The fill.</param>
     /// <param name="stroke">The stroke.</param>
     /// <returns>The paths.</returns>
-    private static IEnumerable<ScenePath> Queue(double x, double top, double width, double height, Rgba32? fill, SceneStroke? stroke)
+    internal static IEnumerable<ScenePath> Queue(double x, double top, double width, double height, Rgba32? fill, SceneStroke? stroke)
     {
         var (left, right, middle, bottom) = (x + 5, x + 5 + width, top + (height / 2), top + height);
         yield return new ScenePath(

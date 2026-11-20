@@ -126,7 +126,8 @@ labels, and the legend items carry the section label as their id and the locatio
   `CollapseSvgWhiteSpace`, and `DecodeEntities`) and `CurvePath.Round` (the 3 digits of d3-path).
 - **Syntax subsystem** - `HtmlSanitizer.DecodeReferences` (the character references of a placeholder) and
   `YamlSubsetParser.FormatJsNumber` (JavaScript's `String(number)`).
-- **Dagre subsystem** - `LayoutWorkMeter`, the work budget and cancellation of a render.
+- **Dagre subsystem (CanvasNetLayout system)** - `LayoutWorkMeter` (created as the `MermaidLayoutWorkMeter` of the
+  MermaidDocument unit), the work budget and cancellation of a render.
 - **Scenegraph subsystem** - `Scene`, `SceneGroup`, `ScenePath`, `SceneSegment`, `SceneText`, `SceneTextRun`,
   `SceneFont`, `SceneRect`, and `SceneStroke`, the drawing.
 - **Core `CanvasNet`** - `Rgba32` (the `Canvas` subsystem), through the public API.

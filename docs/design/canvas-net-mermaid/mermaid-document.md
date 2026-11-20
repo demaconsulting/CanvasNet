@@ -9,7 +9,8 @@ pipeline), `MermaidDocument.Pipeline.cs` (the internal seam `IMermaidDiagram`, `
 `DiagramRegistry`), `MermaidOpenOptions.cs`, `MermaidRenderOptions.cs`, `MermaidLimits.cs`, `MermaidLocation.cs`,
 `MermaidDiagnostic.cs`, `MermaidUnsupportedFeature.cs`, `MermaidSize.cs`, `MermaidDiagnosticCodes.cs`,
 `MermaidSyntaxException.cs`, `MermaidRenderException.cs`, `MermaidUnsupportedFeatureException.cs`,
-`MermaidReportSink.cs` (internal), `MermaidImageSource.cs`, and `NamespaceDoc.cs`.
+`MermaidReportSink.cs` (internal), `MermaidImageSource.cs`, `MermaidLayoutWorkMeter.cs` (internal), and
+`NamespaceDoc.cs`.
 
 ### Purpose
 
@@ -72,6 +73,9 @@ lays out the diagram.
   exact de-duplication, the cap (`MaxDiagnostics`), the strict flag, and whether the suppression notice was added.
 - **`MermaidImageSource`**: stateless; `Extensions` `.mmd` and `.mermaid`, no schemes, `FragmentParameters`
   `theme`, `WarningCode` `mermaid-warning`.
+- **`MermaidLayoutWorkMeter`** (internal, sealed, one per render): derives the abstract `LayoutWorkMeter` of the
+  CanvasNetLayout system (with its `MaxWork`, `Used`, cancellation token, and unique-id counter) and adds the
+  `MermaidLocation` its failures are reported at (the diagram keyword).
 
 ### Key Methods
 
@@ -133,6 +137,16 @@ lays out the diagram.
   at most `Surface.MaxDimension`, the diagram fitted and centered) over a transparent background with the request's
   resolver, strict flag, and token, and maps warnings to `mermaid-warning` diagnostics (`Detail` is the specific code)
   and unsupported features to unsupported diagnostics with their location.
+- **`MermaidLayoutWorkMeter(maxWork, location, cancellationToken)`**: the meter every renderer of a render creates
+  from `MermaidLimits.MaxLayoutWork`, the keyword location, and the call's token, and passes to the shared layout
+  (`DagreLayout.Run`) and to its own metered loops. Its `Failure(description)` creates a `MermaidRenderException`
+  with the code `mermaid-render-failed`, the message "the layout failed: " and the description, at its location;
+  `LimitExceeded()` creates one with the code `mermaid-limit-exceeded`, a message that names the limit and
+  `MermaidLimits.MaxLayoutWork`, its location, and the hint "simplify the diagram, or raise
+  MermaidLimits.MaxLayoutWork"; and `IsFailure(exception)` is true for every `MermaidRenderException`, so a Mermaid
+  failure raised inside a dagre layout passes through it unchanged. These are the messages, codes, and hints the
+  layout reported when it was part of this package, so the errors a caller sees do not depend on where the layout
+  lives.
 - **`MermaidReportSink.Warn`/`Unsupported`/`Deliver`**: record a report unless it is an exact duplicate, add one
   `mermaid-diagnostics-suppressed` notice at the cap, throw `MermaidUnsupportedFeatureException` after recording in
   strict mode, and deliver in order.
@@ -178,6 +192,8 @@ lays out the diagram.
 - **GitGraph**: through `DiagramRegistry` (`GitGraphParser`, whose `GitGraphDiagram` implements `IMermaidDiagram`).
 - **Scenegraph**: `Scene`, `ScenePlacement`, `ScenePainter` (and `ScenePainter.CreateFontResolver`), and
   `ScenePositions` (the feature positions).
+- **CanvasNetLayout (sibling system)**: the abstract `LayoutWorkMeter` of its `Dagre` subsystem, which
+  `MermaidLayoutWorkMeter` derives (through `InternalsVisibleTo`).
 - **Core CanvasNet**: `Surface`, `Rgba32` (Canvas), `IImageResolver`, `IImageSource`, `IFragmentImageSource`,
   `ImageFragment`, `ImageSourceRequest`, `ImageSourceResult`, `ImageDiagnostic` (ImageSources), and `ImagePosition`
   (Positions, the type of the position handler).
@@ -189,5 +205,7 @@ lays out the diagram.
 Library callers and hosts: the Viewer library (`SourceLoader.Mermaid.cs` opens, measures, and renders documents,
 passing the `Offer` and `IncludesKind` of a `PositionCollector` as the position options when positions are asked for,
 and `CanvasNetViewer` registers `MermaidImageSource` as a built-in source), and through it the `canvasnet` tool and the
-documentation filter. Inside the system nothing calls the unit; it calls the subsystems. The unit tests reach the
-internal sink through `InternalsVisibleTo`.
+documentation filter. Inside the system nothing calls the unit except `MermaidLayoutWorkMeter`, which the
+flowchart, class, state, and ER models, `SequenceLayout`, and the pie, gantt, mindmap, packet, and git graph renderers
+create for their render; otherwise the unit calls the subsystems. The unit tests reach the internal sink and meter
+through `InternalsVisibleTo`.

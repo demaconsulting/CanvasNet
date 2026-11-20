@@ -176,6 +176,21 @@ includes:
   - docs/reqstream/canvas-net-vega-lite/scenegraph/arc-geometry.yaml
   - docs/reqstream/canvas-net-vega-lite/scenegraph/symbol-path-parser.yaml
   - docs/reqstream/canvas-net-vega-lite/scenegraph/css-paint.yaml
+  - docs/reqstream/canvas-net-layout.yaml
+  - docs/reqstream/canvas-net-layout/platform-requirements.yaml
+  - docs/reqstream/canvas-net-layout/graphlib.yaml
+  - docs/reqstream/canvas-net-layout/graphlib/graph.yaml
+  - docs/reqstream/canvas-net-layout/graphlib/graph-algorithms.yaml
+  - docs/reqstream/canvas-net-layout/dagre.yaml
+  - docs/reqstream/canvas-net-layout/dagre/dagre-layout.yaml
+  - docs/reqstream/canvas-net-layout/dagre/dagre-acyclic.yaml
+  - docs/reqstream/canvas-net-layout/dagre/dagre-ranker.yaml
+  - docs/reqstream/canvas-net-layout/dagre/dagre-nesting.yaml
+  - docs/reqstream/canvas-net-layout/dagre/dagre-normalizer.yaml
+  - docs/reqstream/canvas-net-layout/dagre/dagre-ordering.yaml
+  - docs/reqstream/canvas-net-layout/dagre/dagre-positioning.yaml
+  - docs/reqstream/canvas-net-layout/dagre/dagre-coordinate-system.yaml
+  - docs/reqstream/canvas-net-layout/dagre/layout-work-meter.yaml
   - docs/reqstream/canvas-net-mermaid.yaml
   - docs/reqstream/canvas-net-mermaid/platform-requirements.yaml
   - docs/reqstream/canvas-net-mermaid/mermaid-document.yaml
@@ -190,19 +205,6 @@ includes:
   - docs/reqstream/canvas-net-mermaid/configuration/theme-resolver.yaml
   - docs/reqstream/canvas-net-mermaid/configuration/color-math.yaml
   - docs/reqstream/canvas-net-mermaid/configuration/style-declarations.yaml
-  - docs/reqstream/canvas-net-mermaid/graphlib.yaml
-  - docs/reqstream/canvas-net-mermaid/graphlib/graph.yaml
-  - docs/reqstream/canvas-net-mermaid/graphlib/graph-algorithms.yaml
-  - docs/reqstream/canvas-net-mermaid/dagre.yaml
-  - docs/reqstream/canvas-net-mermaid/dagre/dagre-layout.yaml
-  - docs/reqstream/canvas-net-mermaid/dagre/dagre-acyclic.yaml
-  - docs/reqstream/canvas-net-mermaid/dagre/dagre-ranker.yaml
-  - docs/reqstream/canvas-net-mermaid/dagre/dagre-nesting.yaml
-  - docs/reqstream/canvas-net-mermaid/dagre/dagre-normalizer.yaml
-  - docs/reqstream/canvas-net-mermaid/dagre/dagre-ordering.yaml
-  - docs/reqstream/canvas-net-mermaid/dagre/dagre-positioning.yaml
-  - docs/reqstream/canvas-net-mermaid/dagre/dagre-coordinate-system.yaml
-  - docs/reqstream/canvas-net-mermaid/dagre/layout-work-meter.yaml
   - docs/reqstream/canvas-net-mermaid/rendering.yaml
   - docs/reqstream/canvas-net-mermaid/rendering/cluster-layout.yaml
   - docs/reqstream/canvas-net-mermaid/rendering/shape-library.yaml
@@ -272,6 +274,24 @@ includes:
   - docs/reqstream/canvas-net-plant-uml/activity/activity-model.yaml
   - docs/reqstream/canvas-net-plant-uml/activity/activity-layout.yaml
   - docs/reqstream/canvas-net-plant-uml/activity/activity-renderer.yaml
+  - docs/reqstream/canvas-net-plant-uml/svek.yaml
+  - docs/reqstream/canvas-net-plant-uml/svek/svek-model.yaml
+  - docs/reqstream/canvas-net-plant-uml/svek/svek-syntax.yaml
+  - docs/reqstream/canvas-net-plant-uml/svek/svek-layout.yaml
+  - docs/reqstream/canvas-net-plant-uml/svek/svek-geometry.yaml
+  - docs/reqstream/canvas-net-plant-uml/svek/svek-renderer.yaml
+  - docs/reqstream/canvas-net-plant-uml/class.yaml
+  - docs/reqstream/canvas-net-plant-uml/class/class-parser.yaml
+  - docs/reqstream/canvas-net-plant-uml/class/class-model.yaml
+  - docs/reqstream/canvas-net-plant-uml/class/class-renderer.yaml
+  - docs/reqstream/canvas-net-plant-uml/state.yaml
+  - docs/reqstream/canvas-net-plant-uml/state/state-parser.yaml
+  - docs/reqstream/canvas-net-plant-uml/state/state-model.yaml
+  - docs/reqstream/canvas-net-plant-uml/state/state-renderer.yaml
+  - docs/reqstream/canvas-net-plant-uml/description.yaml
+  - docs/reqstream/canvas-net-plant-uml/description/description-parser.yaml
+  - docs/reqstream/canvas-net-plant-uml/description/description-model.yaml
+  - docs/reqstream/canvas-net-plant-uml/description/description-renderer.yaml
   - docs/reqstream/canvas-net-viewer.yaml
   - docs/reqstream/canvas-net-viewer/canvas-net-viewer.yaml
   - docs/reqstream/canvas-net-viewer/platform-requirements.yaml

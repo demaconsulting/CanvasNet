@@ -6,7 +6,8 @@
 # with its Parse and Open entry points, metadata, Measure and Render; the validated MermaidOpenOptions,
 # MermaidRenderOptions, and MermaidLimits; the MermaidLocation, MermaidDiagnostic, MermaidUnsupportedFeature, and
 # MermaidSize records; the MermaidDiagnosticCodes constants; the MermaidSyntaxException, MermaidRenderException, and
-# MermaidUnsupportedFeatureException types; the internal report sink; and the MermaidImageSource.
+# MermaidUnsupportedFeatureException types; the internal report sink; the MermaidImageSource; and the
+# MermaidLayoutWorkMeter that gives the shared layout's failures Mermaid's codes and locations.
 # See docs/verification/canvas-net-mermaid/mermaid-document.md for the test-evidence mapping.
 
 sections:
@@ -128,6 +129,32 @@ sections:
               - MermaidLimits_Default_HasDocumentedValues
               - MermaidLimits_Init_BelowOne_Throws
               - MermaidLimits_Init_DepthOutsideRange_Throws
+
+          - id: CanvasNetMermaid-MermaidDocument-LayoutLimit
+            title: >-
+              The MermaidDocument unit shall report a layout that needs more work than MermaidLimits.MaxLayoutWork
+              (or nests deeper than the stack allows) as a MermaidRenderException with the code
+              mermaid-limit-exceeded, located at the construct the layout was made for, naming
+              MermaidLimits.MaxLayoutWork and giving a hint.
+            justification: |
+              The shared layout package reports its limit failures through the meter its consumer gives it; Mermaid's
+              meter (MermaidLayoutWorkMeter) must keep the documented Mermaid error, so a host sees the same code,
+              location, and fix whichever layout reached the limit.
+            tests:
+              - MermaidLayoutWorkMeter_Charge_PastLimit_ThrowsLocatedLimitExceeded
+
+          - id: CanvasNetMermaid-MermaidDocument-LayoutFailure
+            title: >-
+              The MermaidDocument unit shall report a layout that dagre itself cannot complete as a
+              MermaidRenderException with the code mermaid-render-failed, located at the construct the layout was
+              made for and carrying the description of the failure.
+            justification: |
+              A graph that the shared layout rejects must reach the caller as Mermaid's documented render failure
+              with a location, not as an internal exception of the layout package.
+            tests:
+              - MermaidLayoutWorkMeter_Failure_Description_RenderFailedAtLocation
+              - MermaidLayoutWorkMeter_IsFailure_MermaidRenderException_ReturnsTrue
+              - MermaidLayoutWorkMeter_IsFailure_InvalidOperationException_ReturnsFalse
 
           - id: CanvasNetMermaid-MermaidDocument-Reports
             title: >-

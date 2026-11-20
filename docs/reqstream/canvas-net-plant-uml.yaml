@@ -3,7 +3,8 @@
 #
 # These requirements describe the externally visible behavior of the DemaConsulting.CanvasNet.PlantUml package (root
 # namespace DemaConsulting.CanvasNet.PlantUml; internal subsystem namespaces Syntax, Styling, Scenegraph,
-# Sequence, and Activity) from the perspective of its consumers, without specifying implementation details.
+# Sequence, Activity, Svek, Class, State, and Description) from the perspective of its consumers, without specifying
+# implementation details.
 #
 # CanvasNetPlantUml is an independent software system distributed as its own NuGet package. It reads PlantUML diagram
 # text and renders a static, deterministic picture onto a CanvasNet Surface using only managed code, the public
@@ -53,6 +54,11 @@ sections:
         tests:
           - CanvasNetPlantUml_Open_InvalidText_FailsLocated
           - CanvasNetPlantUml_Activity_SyntaxError_IsLocated
+          - CanvasNetPlantUml_Class_SyntaxErrors_AreLocated
+          - CanvasNetPlantUml_State_SyntaxErrors_AreLocated
+          - CanvasNetPlantUml_Component_SyntaxErrors_AreLocated
+          - CanvasNetPlantUml_UseCase_SyntaxErrors_AreLocated
+          - CanvasNetPlantUml_Deployment_SyntaxErrors_AreLocated
 
       - id: CanvasNetPlantUml-DiagramTypes
         title: >-
@@ -68,6 +74,10 @@ sections:
           - CanvasNetPlantUml-PlantUmlDocument-Metadata
         tests:
           - CanvasNetPlantUml_OtherDiagramTypes_AreRecognized
+          - PlantUmlDiagramDetector_Detect_ComponentDiagram_IsDrawn
+          - PlantUmlDiagramDetector_Detect_UseCaseDiagram_IsDrawn
+          - PlantUmlDiagramDetector_Detect_DeploymentDiagram_IsDrawn
+          - CanvasNetPlantUml_Sequence_BorderMessages_AreReported
 
       - id: CanvasNetPlantUml-Preprocessor
         title: >-
@@ -119,6 +129,10 @@ sections:
           - CanvasNetPlantUml-Sequence-SequenceLayout-Limits
           - CanvasNetPlantUml-Activity-ActivityParser-Limits
           - CanvasNetPlantUml-Activity-ActivityLayout-Limits
+          - CanvasNetPlantUml-Svek-Limits
+          - CanvasNetPlantUml-Class-Limits
+          - CanvasNetPlantUml-State-Limits
+          - CanvasNetPlantUml-Description-Limits
         tests:
           - CanvasNetPlantUml_Limits_OversizedText_IsRefused
           - CanvasNetPlantUml_Sequence_LayoutWorkLimit_Fails
@@ -127,6 +141,10 @@ sections:
           - CanvasNetPlantUml_Hardening_IncludeLimits_AreLocated
           - CanvasNetPlantUml_Hardening_RenderLimits_FailClosed
           - CanvasNetPlantUml_Hardening_LargeDiagramsWithinTheLimits_Render
+          - CanvasNetPlantUml_Hardening_DenseClassGraph_LayoutWorkIsBounded
+          - CanvasNetPlantUml_Hardening_DenseStateGraph_LayoutWorkIsBounded
+          - CanvasNetPlantUml_Hardening_DenseComponentGraph_LayoutWorkIsBounded
+          - CanvasNetPlantUml_Hardening_DenseUseCaseGraph_LayoutWorkIsBounded
           - CanvasNetPlantUml_Hardening_MutatedFixtures_ThrowOnlyDocumentedExceptions
 
       - id: CanvasNetPlantUml-Render
@@ -146,6 +164,11 @@ sections:
           - CanvasNetPlantUml-Scenegraph-Drawing
         tests:
           - CanvasNetPlantUml_UnsupportedType_MeasureReportsAsRender
+          - CanvasNetPlantUml_Class_Render_ObservesCancellation
+          - CanvasNetPlantUml_State_Render_ObservesCancellation
+          - CanvasNetPlantUml_Component_Render_ObservesCancellation
+          - CanvasNetPlantUml_UseCase_Render_ObservesCancellation
+          - CanvasNetPlantUml_Deployment_Render_ObservesCancellation
 
       - id: CanvasNetPlantUml-Sequence
         title: >-
@@ -191,6 +214,169 @@ sections:
           - CanvasNetPlantUml_Activity_Fixtures_RenderWithoutReports
           - CanvasNetPlantUml_Activity_Facts_CountNodesArrowsAndGroups
 
+      - id: CanvasNetPlantUml-Class
+        title: >-
+          The library shall draw PlantUML class and object diagrams (classes, abstract classes, interfaces, enums,
+          annotations, entities, and their kin with stereotypes, generic parameters, and members with their visibility
+          icons, modifiers, and separators; objects with fields; maps; relationships with their decorations, styles,
+          lengths, direction hints, and labels; packages and namespaces; notes; hide and show; page texts; the
+          direction; and the supported skin parameters) with PlantUML's shapes, texts, colors, and decorations, laid
+          out in ranks so that no two elements overlap, so that every entity box of the reference fixtures has the
+          size, texts, and colors of PlantUML's (positions may differ), and shall count entities as nodes, links as
+          edges, and packages as subgraphs.
+        tags: [system]
+        justification: |
+          Class diagrams are the most used PlantUML diagrams after sequence diagrams; PlantUML lays them out with
+          Graphviz, which this library does not use, so the boxes and links must look like PlantUML's while the
+          layered layout places them.
+        children:
+          - CanvasNetPlantUml-Class-Reading
+          - CanvasNetPlantUml-Class-Layout
+          - CanvasNetPlantUml-Class-Drawing
+          - CanvasNetPlantUml-Svek-Reading
+          - CanvasNetPlantUml-Svek-Layout
+          - CanvasNetPlantUml-Svek-Drawing
+          - CanvasNetPlantUml-Syntax-Detection
+        tests:
+          - CanvasNetPlantUml_Graph_ReferenceGoldens_CoverEveryFixture
+          - CanvasNetPlantUml_Graph_ReferenceEntities_MatchPlantUml
+          - CanvasNetPlantUml_Graph_ReferenceClusters_MatchPlantUml
+          - CanvasNetPlantUml_Graph_ReferenceLinks_MatchPlantUml
+          - CanvasNetPlantUml_Class_Fixtures_RenderWithoutReports
+          - CanvasNetPlantUml_Object_Fixtures_RenderWithoutReports
+          - CanvasNetPlantUml_Class_Facts_CountEntitiesLinksAndPackages
+          - CanvasNetPlantUml_Object_MapAndObject_AreDrawn
+
+      - id: CanvasNetPlantUml-State
+        title: >-
+          The library shall draw PlantUML state diagrams (states with descriptions, stereotypes, and colors;
+          transitions with their lengths, direction hints, styles, and labels; the start, end, and history
+          pseudo-states of every composite state; choices, forks, joins, and junctions; composite states with
+          concurrent regions; notes; hide empty description; page texts; the direction; and the supported skin
+          parameters) with PlantUML's shapes, texts, colors, and decorations, laid out in ranks so that no two
+          elements overlap, so that every state, circle, diamond, and composite state of the reference fixtures has
+          the size, texts, and colors of PlantUML's (positions may differ), and shall count states and pseudo-states
+          as nodes, transitions as edges, and composite states as subgraphs.
+        tags: [system]
+        justification: |
+          State diagrams are a common PlantUML diagram; PlantUML lays them out with Graphviz, which this library does
+          not use, so the states and transitions must look like PlantUML's while the layered layout places them.
+        children:
+          - CanvasNetPlantUml-State-Reading
+          - CanvasNetPlantUml-State-Layout
+          - CanvasNetPlantUml-State-Drawing
+          - CanvasNetPlantUml-Svek-Reading
+          - CanvasNetPlantUml-Svek-Layout
+          - CanvasNetPlantUml-Svek-Drawing
+          - CanvasNetPlantUml-Syntax-Detection
+        tests:
+          - CanvasNetPlantUml_Graph_ReferenceGoldens_CoverEveryFixture
+          - CanvasNetPlantUml_State_ReferenceElements_MatchPlantUml
+          - CanvasNetPlantUml_State_ReferenceLinks_MatchPlantUml
+          - CanvasNetPlantUml_State_Fixtures_RenderWithoutReports
+          - CanvasNetPlantUml_State_Facts_CountStatesTransitionsAndComposites
+          - CanvasNetPlantUml_State_ConcurrentRegions_DrawDashedSeparators
+
+      - id: CanvasNetPlantUml-Component
+        title: >-
+          The library shall draw PlantUML component diagrams (components, interfaces, and the other symbols of the
+          description diagrams with display names, stereotypes, colors, and multi-line descriptions; containers of
+          every container symbol, nested; links with their decorations (the sockets of required and provided
+          interfaces included), styles, lengths, direction hints, and labels; notes; page texts; the direction; and
+          the supported skin parameters) with PlantUML's shapes, texts, colors, and decorations, laid out in ranks so
+          that no two elements overlap, so that every element, container, and link of the reference fixtures has the
+          size, texts, colors, and decorations of PlantUML's (positions may differ), and shall count leaf elements as
+          nodes, links as edges, and containers as subgraphs.
+        tags: [system]
+        justification: |
+          Component diagrams document the structure of software; PlantUML lays them out with Graphviz, which this
+          library does not use, so the components, interfaces, and containers must look like PlantUML's while the
+          layered layout places them.
+        children:
+          - CanvasNetPlantUml-Description-Reading
+          - CanvasNetPlantUml-Description-Layout
+          - CanvasNetPlantUml-Description-Drawing
+          - CanvasNetPlantUml-Svek-Reading
+          - CanvasNetPlantUml-Svek-Layout
+          - CanvasNetPlantUml-Svek-Drawing
+          - CanvasNetPlantUml-Syntax-Detection
+        tests:
+          - CanvasNetPlantUml_Graph_ReferenceGoldens_CoverEveryFixture
+          - CanvasNetPlantUml_Description_ReferenceElements_MatchPlantUml
+          - CanvasNetPlantUml_Description_ReferenceContainers_MatchPlantUml
+          - CanvasNetPlantUml_Description_ReferenceLinks_MatchPlantUml
+          - CanvasNetPlantUml_Component_Fixtures_RenderWithoutReports
+          - CanvasNetPlantUml_Component_Facts_CountElementsLinksAndContainers
+          - CanvasNetPlantUml_Component_Names_ResolveAsPlantUml
+
+      - id: CanvasNetPlantUml-UseCase
+        title: >-
+          The library shall draw PlantUML use case diagrams (actors and business actors as stick figures, use cases
+          and business use cases as ellipses around their texts, in every declaration form with display names,
+          stereotypes, colors, and multi-line names; names only written in links as actors; boundaries of every
+          container symbol, nested; links with their decorations, styles, lengths, direction hints, and labels, the
+          «include» and «extend» labels and generalizations included; notes; page texts; the direction; and the
+          supported skin parameters) with PlantUML's shapes, texts, colors, and decorations, laid out in ranks so
+          that no two elements overlap, so that every actor, use case, boundary, and link of the reference fixtures
+          has the size, texts, colors, and decorations of PlantUML's (positions may differ), and shall count actors
+          and use cases as nodes, links as edges, and boundaries as subgraphs.
+        tags: [system]
+        justification: |
+          Use case diagrams state who uses a system for what, and appear in requirements and user documentation;
+          PlantUML lays them out with Graphviz, which this library does not use, so the actors, use cases, and
+          boundaries must look like PlantUML's while the layered layout places them.
+        children:
+          - CanvasNetPlantUml-Description-Reading
+          - CanvasNetPlantUml-Description-Layout
+          - CanvasNetPlantUml-Description-Drawing
+          - CanvasNetPlantUml-Svek-Reading
+          - CanvasNetPlantUml-Svek-Layout
+          - CanvasNetPlantUml-Svek-Drawing
+          - CanvasNetPlantUml-Syntax-Detection
+        tests:
+          - CanvasNetPlantUml_Graph_ReferenceGoldens_CoverEveryFixture
+          - CanvasNetPlantUml_Description_ReferenceElements_MatchPlantUml
+          - CanvasNetPlantUml_Description_ReferenceContainers_MatchPlantUml
+          - CanvasNetPlantUml_Description_ReferenceLinks_MatchPlantUml
+          - CanvasNetPlantUml_UseCase_Fixtures_RenderWithoutReports
+          - CanvasNetPlantUml_UseCase_Facts_CountElementsLinksAndContainers
+          - CanvasNetPlantUml_UseCase_BareNames_BecomeActors
+
+      - id: CanvasNetPlantUml-Deployment
+        title: >-
+          The library shall draw PlantUML deployment diagrams (nodes, artifacts, databases, clouds, folders, frames,
+          cards, rectangles, storages, files, queues, stacks, agents, hexagons, persons, boundaries, controls,
+          entities, collections, and labels, as elements and, for the symbols PlantUML allows, as nested containers;
+          display names, stereotypes, and colors; links with their decorations, styles, lengths, direction hints, and
+          labels; notes; page texts; the direction; and the supported skin parameters) with PlantUML's shapes, texts,
+          colors, and decorations, laid out in ranks so that no two elements overlap, so that every element,
+          container, and link of the reference fixtures has the size, texts, colors, and decorations of PlantUML's
+          (positions may differ), and shall count the elements as nodes, links as edges, and containers as
+          subgraphs.
+        tags: [system]
+        justification: |
+          Deployment diagrams show where software runs, and appear in architecture and operations documentation;
+          PlantUML lays them out with Graphviz, which this library does not use, so the symbols and containers must
+          look like PlantUML's while the layered layout places them. A hexagon is drawn with the outline that
+          PlantUML's Graphviz pipeline gives it (its Smetana layout leaves it out); an action and a process, rarely
+          used, are drawn as rectangles and reported.
+        children:
+          - CanvasNetPlantUml-Description-Reading
+          - CanvasNetPlantUml-Description-Layout
+          - CanvasNetPlantUml-Description-Drawing
+          - CanvasNetPlantUml-Svek-Reading
+          - CanvasNetPlantUml-Svek-Layout
+          - CanvasNetPlantUml-Svek-Drawing
+          - CanvasNetPlantUml-Syntax-Detection
+        tests:
+          - CanvasNetPlantUml_Graph_ReferenceGoldens_CoverEveryFixture
+          - CanvasNetPlantUml_Description_ReferenceElements_MatchPlantUml
+          - CanvasNetPlantUml_Description_ReferenceContainers_MatchPlantUml
+          - CanvasNetPlantUml_Description_ReferenceLinks_MatchPlantUml
+          - CanvasNetPlantUml_Deployment_Fixtures_RenderWithoutReports
+          - CanvasNetPlantUml_Deployment_Facts_CountElementsLinksAndContainers
+          - CanvasNetPlantUml_Deployment_Symbols_HaveTheirOwnDrawing
+
       - id: CanvasNetPlantUml-UnsupportedTypes
         title: >-
           The library shall render a recognized diagram type that this version does not draw as an empty, transparent
@@ -216,10 +402,18 @@ sections:
           - CanvasNetPlantUml-PlantUmlDocument-Reports
           - CanvasNetPlantUml-Sequence-SequenceParser-Unsupported
           - CanvasNetPlantUml-Activity-ActivityParser-Unsupported
+          - CanvasNetPlantUml-Class-ClassParser-Unsupported
+          - CanvasNetPlantUml-State-StateParser-Unsupported
+          - CanvasNetPlantUml-Description-DescriptionParser-Unsupported
         tests:
           - CanvasNetPlantUml_UnsupportedType_StrictThrows
           - CanvasNetPlantUml_Sequence_UnsupportedStatements_AreReported
           - CanvasNetPlantUml_Activity_UnsupportedStatements_AreReported
+          - CanvasNetPlantUml_Class_UnsupportedStatements_AreReported
+          - CanvasNetPlantUml_State_UnsupportedStatements_AreReported
+          - CanvasNetPlantUml_Component_UnsupportedStatements_AreReported
+          - CanvasNetPlantUml_UseCase_UnsupportedStatements_AreReported
+          - CanvasNetPlantUml_Deployment_UnsupportedStatements_AreReported
 
       - id: CanvasNetPlantUml-DefaultLook
         title: >-
@@ -238,6 +432,16 @@ sections:
           - CanvasNetPlantUml_Sequence_Render_IsDeterministicAndScaled
           - CanvasNetPlantUml_Activity_DefaultSkin_PaintsPlantUmlColors
           - CanvasNetPlantUml_Activity_Render_IsDeterministicAndScaled
+          - CanvasNetPlantUml_Class_DefaultSkin_PaintsPlantUmlColors
+          - CanvasNetPlantUml_Class_Render_IsDeterministicAndScaled
+          - CanvasNetPlantUml_State_DefaultSkin_PaintsPlantUmlColors
+          - CanvasNetPlantUml_State_Render_IsDeterministicAndScaled
+          - CanvasNetPlantUml_Component_DefaultSkin_PaintsPlantUmlColors
+          - CanvasNetPlantUml_Component_Render_IsDeterministicAndScaled
+          - CanvasNetPlantUml_UseCase_DefaultSkin_PaintsPlantUmlColors
+          - CanvasNetPlantUml_UseCase_Render_IsDeterministicAndScaled
+          - CanvasNetPlantUml_Deployment_DefaultSkin_PaintsPlantUmlColors
+          - CanvasNetPlantUml_Deployment_Render_IsDeterministicAndScaled
           - CanvasNetPlantUml_Gallery_HoldsEveryDrawnDiagramType
           - CanvasNetPlantUml_Gallery_RendersStrictWithoutWarnings
 

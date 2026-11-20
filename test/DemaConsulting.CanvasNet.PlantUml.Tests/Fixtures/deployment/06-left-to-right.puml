@@ -1,0 +1,15 @@
+@startuml
+left to right direction
+title Deployment
+person User
+cloud CDN
+node Edge {
+  file "index.html" as Index
+}
+database Store
+collections Replicas
+User --> CDN
+CDN --> Index
+Index --> Store
+Store --> Replicas
+@enduml

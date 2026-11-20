@@ -1,0 +1,10 @@
+@startuml
+usecase "Place Order" as PO
+usecase Ship <<core>>
+actor Ops <<team>> <<oncall>>
+Customer --> PO
+Warehouse --> Ship
+PO ..> Ship : <<include>>
+Courier --> Ship
+Ops --> Ship
+@enduml

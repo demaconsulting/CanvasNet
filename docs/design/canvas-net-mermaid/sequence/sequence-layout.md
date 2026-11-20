@@ -114,7 +114,8 @@ is Mermaid's and whose items are in Mermaid's paint order. The layout does not c
 - **Configuration subsystem** - `SequenceConfig` (every setting of the layout) and `SequenceStyles.Create` (the style
   sheet of the render).
 - **Rendering subsystem** - `LabelBuilder` (`CalculateTextDimensions` and `WrapLabel`).
-- **Dagre subsystem** - `LayoutWorkMeter` (the work budget and cancellation of the render).
+- **Dagre subsystem (CanvasNetLayout system)** - `LayoutWorkMeter` (the work budget and cancellation of the render,
+  created as the `MermaidLayoutWorkMeter` of the MermaidDocument unit).
 - **Syntax subsystem** - `HtmlSanitizer` (the frontmatter title).
 - **Scenegraph subsystem** - `Scene` and `SceneRect`.
 - **System** - `DiagramRenderContext`, `MermaidLocation`, `MermaidRenderException`, and `MermaidDiagnosticCodes`.

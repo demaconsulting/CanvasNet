@@ -55,10 +55,10 @@ the vectors the diagram also exposes its state (`Nodes`, `Edges`, `Root`, and `K
 (`ShapeLibrary.Draw` with `ShapeContext`, `ShapeResult`, `LayoutNode`, and `LayoutEdge`), the edges (`EdgeBuilder.Draw`
 with `EdgeRoute`, `EdgeEnd`, `NodeBox`, and `ShapePoint`), and the labels (`LabelBuilder` with `DecodeEntities` and
 `ContainsFontAwesome`); from `Cose` the layout (`CoseLayout.Run` with `CoseSize`, `CoseLink`, `CosePoint`, and
-`CoseResult`); from `Dagre` the `LayoutWorkMeter`; from `Scenegraph` the `Scene`, `SceneGroup`, `SceneItem`, and
-`SceneRect`; and from the system the `IMermaidDiagram` contract, `DiagramRenderContext`, `MermaidReportSink`, and the
-public `MermaidLimits`, `MermaidLocation`, `MermaidSyntaxException`, `MermaidRenderException`, and
-`MermaidDiagnosticCodes`.
+`CoseResult`); from `Dagre` (CanvasNetLayout) the `LayoutWorkMeter`; from `Scenegraph` the `Scene`, `SceneGroup`,
+`SceneItem`, and `SceneRect`; and from the system the `IMermaidDiagram` contract, `DiagramRenderContext`,
+`MermaidReportSink`, and the public `MermaidLimits`, `MermaidLocation`, `MermaidSyntaxException`,
+`MermaidRenderException`, and `MermaidDiagnosticCodes`.
 
 **Consumers**: the document pipeline of the system (`MermaidDocument.Pipeline.cs`): its `DiagramRegistry` calls the
 parser for a detected `mindmap` diagram with the limits of the open call, keeps the diagram as the document's diagram,

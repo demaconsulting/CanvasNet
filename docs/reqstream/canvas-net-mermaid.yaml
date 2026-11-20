@@ -2,9 +2,12 @@
 # Software System Requirements for CanvasNetMermaid
 #
 # These requirements describe the externally visible behavior of the DemaConsulting.CanvasNet.Mermaid package (root
-# namespace DemaConsulting.CanvasNet.Mermaid; internal subsystem namespaces Syntax, Configuration, Graphlib, Dagre,
-# Rendering, Scenegraph, Flowchart, Sequence, Class, State, Er, Pie, Gantt, Mindmap, Cose, Packet, and GitGraph) from
-# the perspective of its consumers, without specifying implementation details.
+# namespace DemaConsulting.CanvasNet.Mermaid; internal subsystem namespaces Syntax, Configuration, Rendering,
+# Scenegraph, Flowchart, Sequence, Class, State, Er, Pie, Gantt, Mindmap, Cose, Packet, and GitGraph) from the
+# perspective of its consumers, without specifying implementation details. The graph library and the dagre layered
+# layout it draws flowcharts, class, state, and ER diagrams with are the CanvasNetLayout system
+# (docs/reqstream/canvas-net-layout.yaml, a package dependency); the requirements below link to its Graphlib and
+# Dagre requirements as children.
 #
 # CanvasNetMermaid is an independent software system distributed as its own NuGet package. It reads Mermaid diagram text
 # and renders a static, deterministic picture onto a CanvasNet Surface using only managed code and the public CanvasNet
@@ -22,9 +25,11 @@
 # Mermaid's git graph database and renderer; every other Mermaid diagram type is
 # recognized and reported as unsupported with a stable mermaid-* identifier instead of failing or drawing a guess (see
 # docs/design/canvas-net-mermaid.md, Fidelity and Known Differences, and the Phase Plan). The ported behavior of
-# Mermaid, the Mermaid parser package and Langium, dagre, graphlib, d3, dayjs, cytoscape, cytoscape-cose-bilkent,
-# cose-base, layout-base, khroma, js-yaml, lodash, marked, and sanitize-url is attributed in the package's third-party
-# notices (src/DemaConsulting.CanvasNet.Mermaid/third-party).
+# Mermaid, the Mermaid parser package and Langium, d3, dayjs, cytoscape, cytoscape-cose-bilkent, cose-base,
+# layout-base, khroma, js-yaml, lodash, marked, sanitize-url, and dagre-d3's intersect functions is attributed in the
+# package's third-party notices (src/DemaConsulting.CanvasNet.Mermaid/third-party); the ported dagre, graphlib, and
+# lodash behavior of the layout is attributed in the notices of the layout package
+# (src/DemaConsulting.CanvasNet.Layout/third-party).
 #
 # Every requirement below links down to the subsystem and unit requirements that implement it; the test evidence is
 # described in docs/verification/canvas-net-mermaid.md.
@@ -237,8 +242,8 @@ sections:
           - CanvasNetMermaid-Syntax-UntrustedInput
           - CanvasNetMermaid-Configuration-StyleSheet
           - CanvasNetMermaid-Configuration-Declarations
-          - CanvasNetMermaid-Graphlib-GraphStructure
-          - CanvasNetMermaid-Dagre-Layout
+          - CanvasNetLayout-Graphlib-GraphStructure
+          - CanvasNetLayout-Dagre-Layout
           - CanvasNetMermaid-Rendering-Layout
           - CanvasNetMermaid-Rendering-NodeShapes
           - CanvasNetMermaid-Rendering-Edges
@@ -299,7 +304,7 @@ sections:
           - CanvasNetMermaid-Configuration-Precedence
           - CanvasNetMermaid-Configuration-StyleSheet
           - CanvasNetMermaid-Configuration-Declarations
-          - CanvasNetMermaid-Dagre-Layout
+          - CanvasNetLayout-Dagre-Layout
           - CanvasNetMermaid-Rendering-Layout
           - CanvasNetMermaid-Rendering-NodeShapes
           - CanvasNetMermaid-Rendering-Edges
@@ -337,7 +342,7 @@ sections:
           - CanvasNetMermaid-Configuration-Precedence
           - CanvasNetMermaid-Configuration-StyleSheet
           - CanvasNetMermaid-Configuration-Declarations
-          - CanvasNetMermaid-Dagre-Layout
+          - CanvasNetLayout-Dagre-Layout
           - CanvasNetMermaid-Rendering-Layout
           - CanvasNetMermaid-Rendering-NodeShapes
           - CanvasNetMermaid-Rendering-Edges
@@ -376,7 +381,7 @@ sections:
           - CanvasNetMermaid-Configuration-Precedence
           - CanvasNetMermaid-Configuration-StyleSheet
           - CanvasNetMermaid-Configuration-Declarations
-          - CanvasNetMermaid-Dagre-Layout
+          - CanvasNetLayout-Dagre-Layout
           - CanvasNetMermaid-Rendering-Layout
           - CanvasNetMermaid-Rendering-NodeShapes
           - CanvasNetMermaid-Rendering-Edges
@@ -592,12 +597,12 @@ sections:
           intent (crossing links, moved groups); comparing against Mermaid's own output is the only objective
           measure of fidelity.
         children:
-          - CanvasNetMermaid-Graphlib-GraphStructure
-          - CanvasNetMermaid-Graphlib-KeyOrder
-          - CanvasNetMermaid-Graphlib-Traversals
-          - CanvasNetMermaid-Graphlib-Consistency
-          - CanvasNetMermaid-Dagre-Layout
-          - CanvasNetMermaid-Dagre-TieBreaking
+          - CanvasNetLayout-Graphlib-GraphStructure
+          - CanvasNetLayout-Graphlib-KeyOrder
+          - CanvasNetLayout-Graphlib-Traversals
+          - CanvasNetLayout-Graphlib-Consistency
+          - CanvasNetLayout-Dagre-Layout
+          - CanvasNetLayout-Dagre-TieBreaking
           - CanvasNetMermaid-Rendering-Layout
           - CanvasNetMermaid-Rendering-NodeShapes
           - CanvasNetMermaid-Rendering-Edges
@@ -770,11 +775,13 @@ sections:
           complete graph, a deep nesting) must not stop a build or a service.
         children:
           - CanvasNetMermaid-MermaidDocument-Limits
+          - CanvasNetMermaid-MermaidDocument-LayoutLimit
+          - CanvasNetMermaid-MermaidDocument-LayoutFailure
           - CanvasNetMermaid-MermaidDocument-DefectNet
           - CanvasNetMermaid-Syntax-UntrustedInput
           - CanvasNetMermaid-Configuration-Reports
           - CanvasNetMermaid-Configuration-Themes
-          - CanvasNetMermaid-Dagre-Limits
+          - CanvasNetLayout-Dagre-Limits
           - CanvasNetMermaid-Rendering-Layout
           - CanvasNetMermaid-Rendering-NodeShapes
           - CanvasNetMermaid-Scenegraph-BoundedPainting
@@ -909,10 +916,10 @@ sections:
           fonts, or the thread would break caching and reviews.
         children:
           - CanvasNetMermaid-Configuration-Themes
-          - CanvasNetMermaid-Graphlib-KeyOrder
-          - CanvasNetMermaid-Graphlib-Consistency
-          - CanvasNetMermaid-Dagre-TieBreaking
-          - CanvasNetMermaid-Dagre-Determinism
+          - CanvasNetLayout-Graphlib-KeyOrder
+          - CanvasNetLayout-Graphlib-Consistency
+          - CanvasNetLayout-Dagre-TieBreaking
+          - CanvasNetLayout-Dagre-Determinism
           - CanvasNetMermaid-Rendering-Labels
           - CanvasNetMermaid-Scenegraph-Determinism
           - CanvasNetMermaid-Gantt-Clock
@@ -950,7 +957,7 @@ sections:
           A large diagram can take noticeable time to lay out; an interactive host or a build must be able to stop
           it.
         children:
-          - CanvasNetMermaid-Dagre-Cancellation
+          - CanvasNetLayout-Dagre-Cancellation
           - CanvasNetMermaid-Cose-Limits
           - CanvasNetMermaid-Rendering-Layout
           - CanvasNetMermaid-Scenegraph-BoundedPainting
