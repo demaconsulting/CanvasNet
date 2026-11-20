@@ -200,6 +200,67 @@ public class SvekLayoutTests
     }
 
     /// <summary>
+    ///     Validates that links drawn in a row between the same two units are kept apart: the first straight, the
+    ///     second an arc below, the third an arc above, and the label of an arc at the middle of its curve, beside it.
+    /// </summary>
+    [Fact]
+    public void PlantUmlSvekLayout_Run_ParallelLinksInARow_AreSpreadApart()
+    {
+        // Arrange
+        var (a, b) = (Entity("A"), Entity("B"));
+        var diagram = new SvekDiagram
+        {
+            Entities = [a, b],
+            Links =
+            [
+                new SvekLink("first", a, b) { Length = 1 },
+                new SvekLink("second", a, b) { Length = 1, Label = "below" },
+                new SvekLink("third", b, a) { Length = 1, Direction = LinkDirection.Left },
+            ],
+        };
+
+        // Act
+        var placement = Place(diagram);
+
+        // Assert
+        var middle = BoxOf(placement, "A").Y + (BoxOf(placement, "A").Height / 2);
+        Assert.Equal(2, LinkOf(placement, "first").Route.Count);
+        var second = LinkOf(placement, "second");
+        var third = LinkOf(placement, "third");
+        Assert.True(second.Route[1].Y > middle + SvekLayout.ParallelArcStep - 1e-6);
+        Assert.True(third.Route[1].Y < middle - SvekLayout.ParallelArcStep + 1e-6);
+        var apex = (second.Route[0].Y + (2 * second.Route[1].Y) + second.Route[2].Y) / 4;
+        var label = second.Label!.Box;
+        Assert.True(label.Bottom <= apex + 1e-6 && label.Bottom >= apex - SvekLayout.LabelOffset - 2);
+    }
+
+    /// <summary>
+    ///     Validates that the label of a link from a cluster that links cross, which dagre centers inside the cluster,
+    ///     is placed beside the part of the route outside the cluster.
+    /// </summary>
+    [Fact]
+    public void PlantUmlSvekLayout_Run_LabelOfLinkFromCompoundCluster_StaysOutside()
+    {
+        // Arrange
+        var cluster = new SvekCluster("P") { Image = new TestClusterImage(20, 10, 0) };
+        var (inside, outside, target) = (Entity("In", parent: cluster), Entity("Out"), Entity("T"));
+        var diagram = new SvekDiagram
+        {
+            Entities = [inside, outside, target],
+            Clusters = [cluster],
+            Links = [new SvekLink("cross", outside, inside), new SvekLink("away", cluster, target) { Label = "leave" }],
+        };
+
+        // Act
+        var placement = Place(diagram);
+
+        // Assert
+        var box = placement.Clusters[0].Box;
+        var label = LinkOf(placement, "away").Label!.Box;
+        Assert.False(Overlap(box, label));
+    }
+
+    /// <summary>
     ///     Validates the notes attached to each side of an entity: left and right ones in its rank, 18 from the entity
     ///     and centered on it, top and bottom ones a rank before and after it, each with a pointer from the side facing
     ///     the entity to the entity's border.
@@ -567,13 +628,13 @@ public class SvekLayoutTests
         var (regionA, regionC) = (placement.Clusters[1].Box, placement.Clusters[2].Box);
         if (concurrency == ClusterConcurrency.Stacked)
         {
-            Assert.Equal((box.X, box.Right), (separator.From.X, separator.To.X));
+            Assert.Equal((box.X + SvekLayout.SeparatorInset, box.Right - SvekLayout.SeparatorInset), (separator.From.X, separator.To.X));
             Assert.Equal(regionA.Bottom, separator.From.Y, 6);
             Assert.True(BoxOf(placement, "C").Y > BoxOf(placement, "B").Bottom);
         }
         else
         {
-            Assert.Equal((box.Y, box.Bottom), (separator.From.Y, separator.To.Y));
+            Assert.Equal((box.Y + 20 + SvekLayout.SeparatorInset, box.Bottom - SvekLayout.SeparatorInset), (separator.From.Y, separator.To.Y));
             Assert.Equal(regionA.Right, separator.From.X, 6);
             Assert.True(BoxOf(placement, "C").X > BoxOf(placement, "B").Right);
         }

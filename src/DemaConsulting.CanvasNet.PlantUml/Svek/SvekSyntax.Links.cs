@@ -727,7 +727,13 @@ internal static partial class SvekSyntax
             return null;
         }
 
+        // [*], [H], and [H*] are the pseudo-states of a state diagram, not qualifiers
         var qualifier = text[(index + 1)..close];
+        if (qualifier.ToUpperInvariant() is "*" or "H" or "H*")
+        {
+            return null;
+        }
+
         index = close + 1;
         SkipSpaces(text, ref index);
         return qualifier;

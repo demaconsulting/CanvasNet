@@ -442,7 +442,7 @@ internal sealed partial class SvekLayout
                 case SvekCluster cluster:
                     var inner = unit.Inner!;
                     inner.Translate(main.X + unit.InnerX, main.Y + unit.InnerY);
-                    frame.Clusters.Add(new WCluster(cluster, main) { Separators = SeparatorsOf(inner, main) });
+                    frame.Clusters.Add(new WCluster(cluster, main) { Separators = SeparatorsOf(inner, main, cluster.Image?.HeaderHeight ?? 0) });
                     frame.Merge(inner);
                     break;
             }
@@ -467,17 +467,18 @@ internal sealed partial class SvekLayout
     }
 
     /// <summary>
-    ///     Turns the boundaries between the regions of a content into the separators of its cluster, from border to
-    ///     border.
+    ///     Turns the boundaries between the regions of a content into the separators of its cluster: across the cluster
+    ///     <see cref="SeparatorInset"/> inside its sides, below its header (PlantUML's <c>ConcurrentStates</c>).
     /// </summary>
     /// <param name="inner">The content, already moved into the cluster.</param>
     /// <param name="box">The box of the cluster.</param>
+    /// <param name="header">The height of the cluster's header.</param>
     /// <returns>The separators.</returns>
-    private static List<(SvekPoint From, SvekPoint To)> SeparatorsOf(Frame inner, SceneRect box) =>
+    private static List<(SvekPoint From, SvekPoint To)> SeparatorsOf(Frame inner, SceneRect box, double header) =>
         inner.Boundaries
             .Select(b => inner.BoundariesHorizontal
-                ? (new SvekPoint(box.X, inner.OriginY + b), new SvekPoint(box.Right, inner.OriginY + b))
-                : (new SvekPoint(inner.OriginX + b, box.Y), new SvekPoint(inner.OriginX + b, box.Bottom)))
+                ? (new SvekPoint(box.X + SeparatorInset, inner.OriginY + b), new SvekPoint(box.Right - SeparatorInset, inner.OriginY + b))
+                : (new SvekPoint(inner.OriginX + b, box.Y + header + SeparatorInset), new SvekPoint(inner.OriginX + b, box.Bottom - SeparatorInset)))
             .ToList();
 
     /// <summary>
@@ -535,6 +536,9 @@ internal sealed partial class SvekLayout
 
         /// <summary>Gets the rows of units kept in one rank by links of length 1.</summary>
         public List<Row> Rows { get; } = [];
+
+        /// <summary>Gets the number of links drawn so far in a row between each two units (by their graph ids).</summary>
+        public Dictionary<(string, string), int> RowPairs { get; } = [];
 
         /// <summary>Gets the number of loops routed so far at each unit.</summary>
         public Dictionary<Unit, int> Loops { get; } = new(ReferenceEqualityComparer.Instance);

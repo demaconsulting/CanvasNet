@@ -173,7 +173,7 @@ public class SvekSyntaxTests
     }
 
     /// <summary>
-    ///     Validates the shorthand ends of the description and state diagrams.
+    ///     Validates the shorthand ends of the description and state diagrams, also before a label (a pseudo-state in brackets is not a qualifier).
     /// </summary>
     /// <param name="text">The statement.</param>
     /// <param name="fromKind">The expected kind of the first end.</param>
@@ -186,6 +186,9 @@ public class SvekSyntaxTests
     [InlineData("[*] --> Idle", "Star", "", "Plain", "Idle")]
     [InlineData("A[H] --> [H*]", "History", "A", "DeepHistory", "")]
     [InlineData("A --> B[H*]", "Plain", "A", "DeepHistory", "B")]
+    [InlineData("Online --> [*] : logout", "Plain", "Online", "Star", "")]
+    [InlineData("Paused --> [H] : resume", "Plain", "Paused", "History", "")]
+    [InlineData("[H*] --> Editor : back", "DeepHistory", "", "Plain", "Editor")]
     public void PlantUmlSvekSyntax_TryReadLink_ShorthandEnds_AreRead(string text, string fromKind, string from, string toKind, string to)
     {
         // Act

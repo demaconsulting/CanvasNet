@@ -418,21 +418,29 @@ internal sealed partial class SvekLayout
                 points = AvoidUnits(work, edge, points);
             }
 
+            if (edge.InRow && !self)
+            {
+                points = SpreadParallel(work, edge, points);
+            }
+
             if (!edge.InRow && !self)
             {
                 SnapRowEnds(work, edge, points);
             }
 
-            // A link to a compound cluster ends at its border
+            // A link to a compound cluster ends at its border; a label that dagre placed inside the cluster moves to
+            // the part of the route outside it
             IReadOnlyList<SvekPoint> route = points;
             if (edge.FromCompound is { } fromCompound)
             {
                 route = SvekGeometry.CutAtBox(route, fromCompound.Box, atEnd: false);
+                edge.LabelCenter = edge.LabelCenter is { } c && SvekGeometry.Contains(ClipShape.Rectangle, fromCompound.Box, c) ? null : edge.LabelCenter;
             }
 
             if (edge.ToCompound is { } toCompound)
             {
                 route = SvekGeometry.CutAtBox(route, toCompound.Box, atEnd: true);
+                edge.LabelCenter = edge.LabelCenter is { } c && SvekGeometry.Contains(ClipShape.Rectangle, toCompound.Box, c) ? null : edge.LabelCenter;
             }
 
             points = route.ToList();
@@ -491,30 +499,101 @@ internal sealed partial class SvekLayout
     private List<SvekPoint> AvoidUnits(ScopeWork work, EdgeWork edge, List<SvekPoint> points)
     {
         var (a, b) = (points[0], points[1]);
-        var obstacles = work.Units
-            .Where(u => !ReferenceEquals(u.Node, edge.RepFrom) && !ReferenceEquals(u.Node, edge.RepTo))
-            .Select(u => u.Box);
-        var crossed = obstacles.Where(r => SegmentHitsRect(a, b, r)).ToList();
+        var crossed = Crossed(work, edge, a, b);
         if (crossed.Count == 0)
         {
             return points;
         }
 
         // The arc bulges up (left in a left to right diagram) far enough to clear the boxes it crossed
+        var normal = UpNormal(a, b);
+        var mid = new SvekPoint((a.X + b.X) / 2, (a.Y + b.Y) / 2);
+        var offset = Clearance(crossed, mid, normal);
+        return [a, new SvekPoint(mid.X + (offset * normal.X), mid.Y + (offset * normal.Y)), b];
+    }
+
+    /// <summary>
+    ///     Gets the boxes of the units of a scope (but the ends of an edge) that a straight segment crosses.
+    /// </summary>
+    /// <param name="work">The scope's work.</param>
+    /// <param name="edge">The edge.</param>
+    /// <param name="a">The start of the segment.</param>
+    /// <param name="b">The end of the segment.</param>
+    /// <returns>The boxes.</returns>
+    private static List<SceneRect> Crossed(ScopeWork work, EdgeWork edge, SvekPoint a, SvekPoint b) =>
+        work.Units
+            .Where(u => !ReferenceEquals(u.Node, edge.RepFrom) && !ReferenceEquals(u.Node, edge.RepTo))
+            .Select(u => u.Box)
+            .Where(r => SegmentHitsRect(a, b, r))
+            .ToList();
+
+    /// <summary>
+    ///     Gets how far from the middle of a segment the control point of an arc must be, along a normal, for the arc to
+    ///     clear boxes (twice the distance of their farthest corner plus a quarter of the rank space, as the curve reaches
+    ///     half way to its control point).
+    /// </summary>
+    /// <param name="crossed">The boxes; none gives zero.</param>
+    /// <param name="mid">The middle of the segment.</param>
+    /// <param name="normal">The side the arc bulges to.</param>
+    /// <returns>The distance of the control point.</returns>
+    private double Clearance(List<SceneRect> crossed, SvekPoint mid, SvekPoint normal)
+    {
+        if (crossed.Count == 0)
+        {
+            return 0;
+        }
+
+        var reach = crossed
+            .SelectMany(r => new[] { (r.X, r.Y), (r.Right, r.Y), (r.X, r.Bottom), (r.Right, r.Bottom) })
+            .Max(c => ((c.Item1 - mid.X) * normal.X) + ((c.Item2 - mid.Y) * normal.Y));
+        return 2 * (Math.Max(0, reach) + (RankSep / 4));
+    }
+
+    /// <summary>
+    ///     Gets the unit normal of a segment that points up (left in a left to right diagram), the side the arcs of a row
+    ///     bulge to.
+    /// </summary>
+    /// <param name="a">The start.</param>
+    /// <param name="b">The end.</param>
+    /// <returns>The normal.</returns>
+    private SvekPoint UpNormal(SvekPoint a, SvekPoint b)
+    {
         var (dx, dy) = (b.X - a.X, b.Y - a.Y);
         var length = Math.Sqrt((dx * dx) + (dy * dy));
         var normal = length == 0 ? new SvekPoint(0, -1) : new SvekPoint(-dy / length, dx / length);
-        if (_diagram.RankDir == SvekRankDir.LeftToRight ? normal.X > 0 : normal.Y > 0)
+        var down = _diagram.RankDir == SvekRankDir.LeftToRight ? normal.X > 0 : normal.Y > 0;
+        return down ? new SvekPoint(-normal.X, -normal.Y) : normal;
+    }
+
+    /// <summary>
+    ///     Keeps the links drawn in a row between the same two units apart: the first keeps its route, the further ones
+    ///     are arcs below and above it in turn, each pair <see cref="ParallelArcStep"/> further out (dagre does not route
+    ///     links in a row).
+    /// </summary>
+    /// <param name="work">The scope's work.</param>
+    /// <param name="edge">The edge, drawn in a row.</param>
+    /// <param name="points">Its route: two points, or the ends with the control point of an arc.</param>
+    /// <returns>The route.</returns>
+    private List<SvekPoint> SpreadParallel(ScopeWork work, EdgeWork edge, List<SvekPoint> points)
+    {
+        var (from, to) = (work.UnitsByNode[edge.RepFrom], work.UnitsByNode[edge.RepTo]);
+        var key = string.CompareOrdinal(from.Id, to.Id) <= 0 ? (from.Id, to.Id) : (to.Id, from.Id);
+        var count = work.RowPairs.GetValueOrDefault(key);
+        work.RowPairs[key] = count + 1;
+        if (count == 0)
         {
-            normal = new SvekPoint(-normal.X, -normal.Y);
+            return points;
         }
 
+        // Every second one bulges down (right in a left to right diagram), each pair a step further out, clear of the
+        // units the straight line would cross on its side
+        var (a, b) = (points[0], points[^1]);
+        var side = count % 2 == 1 ? -1 : 1;
+        var up = UpNormal(a, b);
+        var normal = new SvekPoint(side * up.X, side * up.Y);
         var mid = new SvekPoint((a.X + b.X) / 2, (a.Y + b.Y) / 2);
-        var clearance = crossed
-            .SelectMany(r => new[] { (r.X, r.Y), (r.Right, r.Y), (r.X, r.Bottom), (r.Right, r.Bottom) })
-            .Max(c => ((c.Item1 - mid.X) * normal.X) + ((c.Item2 - mid.Y) * normal.Y)) + (RankSep / 4);
-        var control = new SvekPoint(mid.X + (2 * clearance * normal.X), mid.Y + (2 * clearance * normal.Y));
-        return [a, control, b];
+        var offset = Clearance(Crossed(work, edge, a, b), mid, normal) + (((count + 1) / 2) * ParallelArcStep);
+        return [a, new SvekPoint(mid.X + (offset * normal.X), mid.Y + (offset * normal.Y)), b];
     }
 
     /// <summary>
@@ -671,7 +750,7 @@ internal sealed partial class SvekLayout
             return;
         }
 
-        var center = edge.LabelCenter ?? AboveMiddle(placed.Route, slot.Height);
+        var center = edge.LabelCenter ?? BesideMiddle(placed.Route, slot.Width, slot.Height);
         var (x, y) = (center.X - (slot.Width / 2), center.Y - (slot.Height / 2));
         if (slot.Text is { } text)
         {
@@ -693,37 +772,54 @@ internal sealed partial class SvekLayout
     }
 
     /// <summary>
-    ///     Gets the center of a label above the middle of a route.
+    ///     Gets the center of a label beside the middle of a route: above a route that runs across, right of one that
+    ///     runs down (the middle of a three-point route is the middle of its curve, not its control point).
     /// </summary>
     /// <param name="route">The route.</param>
+    /// <param name="width">The width of the label.</param>
     /// <param name="height">The height of the label.</param>
     /// <returns>The center.</returns>
-    private static SvekPoint AboveMiddle(List<SvekPoint> route, double height)
+    private static SvekPoint BesideMiddle(List<SvekPoint> route, double width, double height)
     {
-        // The point halfway along the route
-        var total = 0.0;
-        for (var k = 1; k < route.Count; k++)
+        SvekPoint mid;
+        double dx;
+        double dy;
+        if (route.Count == 3)
         {
-            total += Distance(route[k - 1], route[k]);
+            // The quadratic curve at its middle: (a + 2c + b) / 4, running along b - a
+            mid = new SvekPoint((route[0].X + (2 * route[1].X) + route[2].X) / 4, (route[0].Y + (2 * route[1].Y) + route[2].Y) / 4);
+            (dx, dy) = (route[2].X - route[0].X, route[2].Y - route[0].Y);
         }
-
-        var half = total / 2;
-        var mid = route[0];
-        for (var k = 1; k < route.Count; k++)
+        else
         {
-            var leg = Distance(route[k - 1], route[k]);
-            if (half <= leg && leg > 0)
+            // The point halfway along the polyline, and the direction of its leg
+            var total = 0.0;
+            for (var k = 1; k < route.Count; k++)
             {
-                var t = half / leg;
-                mid = new SvekPoint(route[k - 1].X + (t * (route[k].X - route[k - 1].X)), route[k - 1].Y + (t * (route[k].Y - route[k - 1].Y)));
-                break;
+                total += Distance(route[k - 1], route[k]);
             }
 
-            half -= leg;
-            mid = route[k];
+            var half = total / 2;
+            (mid, dx, dy) = (route[0], route[^1].X - route[0].X, route[^1].Y - route[0].Y);
+            for (var k = 1; k < route.Count; k++)
+            {
+                var leg = Distance(route[k - 1], route[k]);
+                if (half <= leg && leg > 0)
+                {
+                    var t = half / leg;
+                    mid = new SvekPoint(route[k - 1].X + (t * (route[k].X - route[k - 1].X)), route[k - 1].Y + (t * (route[k].Y - route[k - 1].Y)));
+                    (dx, dy) = (route[k].X - route[k - 1].X, route[k].Y - route[k - 1].Y);
+                    break;
+                }
+
+                half -= leg;
+                mid = route[k];
+            }
         }
 
-        return new SvekPoint(mid.X, mid.Y - (height / 2) - LabelOffset);
+        return Math.Abs(dy) > Math.Abs(dx)
+            ? new SvekPoint(mid.X + (width / 2) + LabelOffset, mid.Y)
+            : new SvekPoint(mid.X, mid.Y - (height / 2) - LabelOffset);
     }
 
     /// <summary>

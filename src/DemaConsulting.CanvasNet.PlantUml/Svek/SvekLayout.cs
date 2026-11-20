@@ -158,6 +158,9 @@ internal sealed partial class SvekLayout
     /// <summary>The smallest space between ranks (PlantUML's <c>getMinRankSep</c>).</summary>
     public const double MinRankSep = 60;
 
+    /// <summary>How much further out each further link drawn in a row between the same two units bulges (at its control point).</summary>
+    public const double ParallelArcStep = 50;
+
     /// <summary>The space between edges in a rank.</summary>
     public const double EdgeSep = 10;
 
@@ -169,6 +172,9 @@ internal sealed partial class SvekLayout
 
     /// <summary>The space around the members of a region of a cluster with concurrent regions that has no image.</summary>
     public const double RegionPadding = 10;
+
+    /// <summary>The space between the sides of a cluster and the ends of the dashed separators of its regions.</summary>
+    public const double SeparatorInset = 5;
 
     /// <summary>The margin around the text of a link label (PlantUML's <c>marginLabel</c>).</summary>
     public const double LabelMargin = 1;
