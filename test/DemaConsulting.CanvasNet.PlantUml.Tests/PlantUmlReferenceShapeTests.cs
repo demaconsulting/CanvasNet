@@ -3,13 +3,14 @@ using System.Xml.Linq;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.PlantUml.Class;
 using DemaConsulting.CanvasNet.PlantUml.Scenegraph;
+using DemaConsulting.CanvasNet.PlantUml.State;
 
 namespace DemaConsulting.CanvasNet.PlantUml.Tests;
 
 /// <summary>
-///     Reference shape tests for the diagrams PlantUML lays out with Graphviz: CanvasNet's drawing of the original class
-///     and object fixtures is compared with the SVG that PlantUML (plantuml-mit 1.2026.10, Smetana layout) draws for
-///     them (the goldens in <c>Fixtures/reference/class</c> and <c>Fixtures/reference/object</c>; see the README there).
+///     Reference shape tests for the diagrams PlantUML lays out with Graphviz: CanvasNet's drawing of the original class,
+///     object, and state fixtures is compared with the SVG that PlantUML (plantuml-mit 1.2026.10, Smetana layout) draws
+///     for them (the goldens in <c>Fixtures/reference/class</c>, <c>object</c>, and <c>state</c>; see the README there).
 /// </summary>
 /// <remarks>
 ///     CanvasNet lays these diagrams out with dagre instead of Graphviz, so absolute positions and the picture size
@@ -70,6 +71,7 @@ public class PlantUmlReferenceShapeTests
     [Theory]
     [InlineData("class", 12)]
     [InlineData("object", 4)]
+    [InlineData("state", 10)]
     public void CanvasNetPlantUml_Graph_ReferenceGoldens_CoverEveryFixture(string type, int minimum)
     {
         // Arrange
@@ -180,6 +182,250 @@ public class PlantUmlReferenceShapeTests
             unmatched.Remove(match);
             AssertLink(link, scene, match.Id);
         }
+    }
+
+    /// <summary>
+    ///     Validates that the states, pseudo-states, composite states, and notes of a state fixture are PlantUML's, and
+    ///     that each has PlantUML's shape: the size, colors, line, and text offsets of a state box; the header line,
+    ///     title offset, and region separators of a composite state; the radii and colors of the start and end circles;
+    ///     and the size and colors of a choice diamond.
+    /// </summary>
+    /// <param name="name">The fixture name.</param>
+    [Theory]
+    [MemberData(nameof(StateFixtures))]
+    public void CanvasNetPlantUml_State_ReferenceElements_MatchPlantUml(string name)
+    {
+        // Arrange
+        var (golden, scene, model) = LoadState(name);
+        var groups = StateGroups(golden).ToList();
+        var notes = groups.Where(IsNote).SelectMany(n => n.Elements(Svg + "text"))
+            .Concat(Groups(golden, "link").SelectMany(LinkNoteTexts))
+            .Select(t => t.Value)
+            .Order(StringComparer.Ordinal)
+            .ToList();
+
+        // Act
+        var noteTexts = scene.Items.OfType<SceneText>().Where(t => t.Role == "note-text").Select(TextOf).Order(StringComparer.Ordinal).ToList();
+        var grouped = groups.Where(g => !IsNote(g)).Select(QualifiedName).ToHashSet(StringComparer.Ordinal);
+
+        // Assert: PlantUML's elements are drawn, and the others are those PlantUML draws without a group
+        Assert.Equal(notes, noteTexts);
+        Assert.All(grouped, id => Assert.Contains(model.Elements, e => e.Id == id));
+        Assert.All(
+            model.Elements.Where(e => !grouped.Contains(e.Id)),
+            e => Assert.True(
+                e.Kind is StateKind.History or StateKind.DeepHistory or StateKind.ForkJoin || (model.HideEmptyDescription && e.Kind == StateKind.State && e.Descriptions.Count == 0 && !e.IsComposite),
+                $"{e.Id} has no group in PlantUML's picture"));
+        foreach (var group in groups.Where(g => !IsNote(g)))
+        {
+            var id = QualifiedName(group);
+            var element = model.Elements.Single(e => e.Id == id);
+            if (element.IsComposite)
+            {
+                AssertComposite(group, scene, id);
+                continue;
+            }
+
+            switch ((string?)group.Attribute("class"))
+            {
+                case "start_entity":
+                    AssertCircles(group, scene, id, "state-start");
+                    break;
+                case "end_entity":
+                    AssertCircles(group, scene, id, "state-end");
+                    break;
+                default:
+                    if (FirstShape(group)!.Name.LocalName == "polygon")
+                    {
+                        AssertChoice(group, scene, id);
+                    }
+                    else
+                    {
+                        AssertState(group, scene, id);
+                    }
+
+                    break;
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Validates that the transitions of a state fixture have PlantUML's line styles, arrow heads, and labels: the
+    ///     transitions between elements that PlantUML groups are matched by their ends.
+    /// </summary>
+    /// <param name="name">The fixture name.</param>
+    [Theory]
+    [MemberData(nameof(StateFixtures))]
+    public void CanvasNetPlantUml_State_ReferenceLinks_MatchPlantUml(string name)
+    {
+        // Arrange
+        var (golden, scene, model) = LoadState(name);
+        var names = StateGroups(golden).Where(g => g.Attribute("id") is not null).ToDictionary(g => (string)g.Attribute("id")!, QualifiedName, StringComparer.Ordinal);
+        var links = Groups(golden, "link").ToList();
+
+        // Act
+        var drawn = model.Transitions.Where(t => scene.Items.Any(i => i.Role == "link" && i.Id == t.Id)).ToList();
+
+        // Assert: one drawn transition per golden link; those between grouped elements matched by their ends
+        Assert.Equal(links.Count, drawn.Count);
+        var unmatched = drawn.ToList();
+        foreach (var link in links)
+        {
+            if (!names.TryGetValue((string)link.Attribute("data-entity-1")!, out var from) || !names.TryGetValue((string)link.Attribute("data-entity-2")!, out var to))
+            {
+                continue;
+            }
+
+            var match = unmatched.FirstOrDefault(t => t.From.Id == from && t.To.Id == to) ?? unmatched.FirstOrDefault(t => t.From.Id == to && t.To.Id == from);
+            Assert.True(match is not null, $"no transition from {from} to {to}");
+            unmatched.Remove(match);
+            AssertLink(link, scene, match.Id);
+        }
+    }
+
+    /// <summary>
+    ///     Gets the state fixtures.
+    /// </summary>
+    /// <returns>The names.</returns>
+    public static TheoryData<string> StateFixtures() => FixturesOf("state");
+
+    /// <summary>
+    ///     Loads a state fixture, its golden, and CanvasNet's scene and model.
+    /// </summary>
+    /// <param name="name">The fixture name.</param>
+    /// <returns>The golden, the scene, and the model.</returns>
+    private static (XDocument Golden, Scene Scene, StateModel Model) LoadState(string name)
+    {
+        var text = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", "state", name + ".puml"));
+        var golden = XDocument.Load(Path.Combine(AppContext.BaseDirectory, "Fixtures", "reference", "state", name + ".svg"));
+        var document = PlantUmlDocument.Parse(text);
+        var scene = document.LayoutScene(cancellationToken: TestContext.Current.CancellationToken);
+        return (golden, scene, Assert.IsType<StateModel>(document.Diagram));
+    }
+
+    /// <summary>
+    ///     Gets the groups of the elements of a state golden: entities (states, notes, composite states laid out on
+    ///     their own), clusters (composite states that transitions cross), and the start and end circles.
+    /// </summary>
+    /// <param name="golden">The golden.</param>
+    /// <returns>The groups.</returns>
+    private static IEnumerable<XElement> StateGroups(XDocument golden) =>
+        golden.Descendants(Svg + "g").Where(g => (string?)g.Attribute("class") is "entity" or "cluster" or "start_entity" or "end_entity");
+
+    /// <summary>
+    ///     Decides whether a golden group is a note (its outline is filled with the note color).
+    /// </summary>
+    /// <param name="group">The group.</param>
+    /// <returns>True when it is.</returns>
+    private static bool IsNote(XElement group) =>
+        FirstShape(group) is { Name.LocalName: "path" } path && string.Equals((string?)path.Attribute("fill"), "#FEFFDD", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    ///     Compares a state box with PlantUML's: size, colors, the line under the name, and the text offsets.
+    /// </summary>
+    /// <param name="group">The golden group.</param>
+    /// <param name="scene">The scene.</param>
+    /// <param name="id">The state id.</param>
+    private static void AssertState(XElement group, Scene scene, string id)
+    {
+        var rect = group.Element(Svg + "rect")!;
+        var items = scene.Items.Where(i => i.Id == id).ToList();
+        var box = items.OfType<ScenePath>().Single(p => p.Role == "state");
+        var bounds = Scene.BoundsOf([box])!.Value;
+        var (x, y) = (Number(rect, "x"), Number(rect, "y"));
+        AssertSize(Number(rect, "width"), bounds.Width, $"{id} width");
+        AssertSize(Number(rect, "height"), bounds.Height, $"{id} height");
+        Assert.Equal(Color((string)rect.Attribute("fill")!), box.Fill);
+        Assert.Equal(Color(StyleOf(rect, "stroke")!), box.Stroke!.Color);
+        Assert.Equal(double.Parse(StyleOf(rect, "stroke-width")!, CultureInfo.InvariantCulture), box.Stroke.Width);
+        Assert.Equal(group.Elements(Svg + "line").Count(), items.Count(i => i.Role is "state-separator" or "state-rule"));
+        if (group.Element(Svg + "line") is { } line)
+        {
+            var drawn = Scene.BoundsOf([items.First(i => i.Role == "state-separator")])!.Value;
+            AssertClose(Number(line, "y1") - y, drawn.Y - bounds.Y, $"{id} line y");
+        }
+
+        var texts = items.OfType<SceneText>().ToList();
+        foreach (var expected in group.Elements(Svg + "text"))
+        {
+            var match = texts.FirstOrDefault(t => TextOf(t) == expected.Value);
+            Assert.True(match is not null, $"{id}: no text '{expected.Value}'");
+            texts.Remove(match);
+            AssertClose(Number(expected, "x") - x, match.X - bounds.X, $"{id} '{expected.Value}' x");
+            AssertClose(Number(expected, "y") - y, match.Baseline - bounds.Y, $"{id} '{expected.Value}' y");
+        }
+
+        Assert.Empty(texts);
+    }
+
+    /// <summary>
+    ///     Compares a composite state with PlantUML's: the header line under the name, the title offset from the middle
+    ///     and the top, the outline colors, and the number of region separators.
+    /// </summary>
+    /// <param name="group">The golden group.</param>
+    /// <param name="scene">The scene.</param>
+    /// <param name="id">The composite state id.</param>
+    private static void AssertComposite(XElement group, Scene scene, string id)
+    {
+        var rect = group.Element(Svg + "rect")!;
+        var (y, width) = (Number(rect, "y"), Number(rect, "width"));
+        var shapes = scene.Items.OfType<ScenePath>().Where(p => p.Role == "cluster" && p.Id == id).ToList();
+        var outline = Scene.BoundsOf([shapes[1]])!.Value;
+
+        // PlantUML draws a composite state that transitions cross (a "cluster" group) with its title at the top and the
+        // line 5 higher than one laid out on its own; CanvasNet draws both like the latter
+        var autonomous = (string?)group.Attribute("class") == "entity";
+        var header = group.Elements(Svg + "line").First(l => StyleOf(l, "stroke-dasharray") is null);
+        AssertClose(Number(header, "y1") - y + (autonomous ? 0 : StateRenderer.Margin), Scene.BoundsOf([shapes[2]])!.Value.Y - outline.Y, $"{id} header line");
+        Assert.Equal(Color(StyleOf(rect, "stroke")!), shapes[1].Stroke!.Color);
+        Assert.Equal(double.Parse(StyleOf(rect, "stroke-width")!, CultureInfo.InvariantCulture), shapes[1].Stroke!.Width);
+        var title = group.Elements(Svg + "text").First();
+        var drawn = scene.Items.OfType<SceneText>().Single(t => t.Role == "cluster-title" && t.Id == id);
+        Assert.Equal(title.Value, TextOf(drawn));
+        AssertTitleX(Number(title, "x") - Number(rect, "x"), width, drawn, outline, id);
+        AssertClose(Number(title, "y") - y + (autonomous ? 0 : StateRenderer.Margin), drawn.Baseline - outline.Y, $"{id} title y");
+        Assert.Equal(
+            group.Elements(Svg + "line").Count(l => StyleOf(l, "stroke-dasharray") is not null),
+            scene.Items.Count(i => i.Role == "cluster-separator" && i.Id == id));
+    }
+
+    /// <summary>
+    ///     Compares the circles of a start or an end with PlantUML's: the same number, radii, and colors.
+    /// </summary>
+    /// <param name="group">The golden group.</param>
+    /// <param name="scene">The scene.</param>
+    /// <param name="id">The id.</param>
+    /// <param name="role">The role of the circles.</param>
+    private static void AssertCircles(XElement group, Scene scene, string id, string role)
+    {
+        var expected = group.Elements(Svg + "ellipse").ToList();
+        var drawn = scene.Items.OfType<ScenePath>().Where(p => p.Role == role && p.Id == id).ToList();
+        Assert.Equal(expected.Count, drawn.Count);
+        for (var k = 0; k < expected.Count; k++)
+        {
+            AssertClose(Number(expected[k], "rx") * 2, Scene.BoundsOf([drawn[k]])!.Value.Width, $"{id} circle {k}");
+            var fill = (string)expected[k].Attribute("fill")!;
+            Assert.Equal(fill == "none" ? null : Color(fill), drawn[k].Fill);
+            Assert.Equal(Color(StyleOf(expected[k], "stroke")!), drawn[k].Stroke!.Color);
+        }
+    }
+
+    /// <summary>
+    ///     Compares a choice diamond with PlantUML's: its size and colors.
+    /// </summary>
+    /// <param name="group">The golden group.</param>
+    /// <param name="scene">The scene.</param>
+    /// <param name="id">The id.</param>
+    private static void AssertChoice(XElement group, Scene scene, string id)
+    {
+        var polygon = group.Element(Svg + "polygon")!;
+        var points = Points((string)polygon.Attribute("points")!);
+        var drawn = scene.Items.OfType<ScenePath>().Single(p => p.Role == "state-choice" && p.Id == id);
+        var bounds = Scene.BoundsOf([drawn])!.Value;
+        AssertSize(points.Max(p => p.X) - points.Min(p => p.X), bounds.Width, $"{id} width");
+        AssertSize(points.Max(p => p.Y) - points.Min(p => p.Y), bounds.Height, $"{id} height");
+        Assert.Equal(Color((string)polygon.Attribute("fill")!), drawn.Fill);
+        Assert.Equal(Color(StyleOf(polygon, "stroke")!), drawn.Stroke!.Color);
     }
 
     /// <summary>

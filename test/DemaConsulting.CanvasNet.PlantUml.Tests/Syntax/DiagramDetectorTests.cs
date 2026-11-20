@@ -58,8 +58,6 @@ public class DiagramDetectorTests
     [Theory]
     [InlineData("usecase Buy", "usecase")]
     [InlineData("(Buy) --> (Pay)", "usecase")]
-    [InlineData("[*] --> Idle", "state")]
-    [InlineData("state Idle", "state")]
     [InlineData("(*) --> First", "activity-legacy")]
     [InlineData("[Web] --> [Db]", "component")]
     [InlineData("component Web", "component")]
@@ -77,8 +75,9 @@ public class DiagramDetectorTests
     }
 
     /// <summary>
-    ///     Validates that the class family is detected and drawn: a class, an interface, or a class relationship is a
-    ///     class diagram, and an object or a map declared first is an object diagram.
+    ///     Validates that the class family and the state diagram are detected and drawn: a class, an interface, or a
+    ///     class relationship is a class diagram, an object or a map declared first is an object diagram, and a state, a
+    ///     composite state with regions, or a transition from the start is a state diagram.
     /// </summary>
     /// <param name="text">The statements.</param>
     /// <param name="type">The expected type.</param>
@@ -93,6 +92,10 @@ public class DiagramDetectorTests
     [InlineData("object order", "object")]
     [InlineData("map M {\nk => v\n}", "object")]
     [InlineData("class C {\n+ field : int\n--\n}\nC --> D", "class")]
+    [InlineData("[*] --> Idle", "state")]
+    [InlineData("state Idle", "state")]
+    [InlineData("state A {\n[*] --> B\n--\n[*] --> C\n}", "state")]
+    [InlineData("A --> B\nA : entered\n[*] --> A", "state")]
     public void PlantUmlDiagramDetector_Detect_ClassFamily_IsDrawn(string text, string type)
     {
         // Arrange / Act
@@ -146,7 +149,7 @@ public class DiagramDetectorTests
         var hint = DiagramDetector.UnsupportedHint(detected);
 
         // Assert
-        Assert.Contains("only activity, class, object, and sequence diagrams", hint, StringComparison.Ordinal);
+        Assert.Contains("only activity, class, object, sequence, and state diagrams", hint, StringComparison.Ordinal);
         Assert.Contains("activity-legacy", hint, StringComparison.Ordinal);
         Assert.Equal("a, b, and c", DiagramDetector.JoinTypes(["a", "b", "c"]));
         Assert.Equal("a and b", DiagramDetector.JoinTypes(["a", "b"]));

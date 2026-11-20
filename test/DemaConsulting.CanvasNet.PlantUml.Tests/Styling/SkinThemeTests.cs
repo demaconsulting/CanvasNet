@@ -90,6 +90,28 @@ public class SkinThemeTests
     }
 
     /// <summary>
+    ///     Validates the default look of state diagrams: light grey states outlined half a pixel wide with corners of 25,
+    ///     black 14 descriptions, dark start and end circles one pixel wide, and light grey pseudo-states.
+    /// </summary>
+    [Fact]
+    public void PlantUmlSkinTheme_Default_HasPlantUmlStateLook()
+    {
+        // Arrange
+        var theme = SkinTheme.Default;
+        var dark = new Rgba32(0x22, 0x22, 0x22, 255);
+
+        // Act / Assert
+        Assert.Equal((SkinTheme.CommonBackground, SkinTheme.LineColor, 0.5, 25.0, 14.0), (theme[SkinElement.State].Fill!.Value, theme[SkinElement.State].Line!.Value, theme[SkinElement.State].LineWidth, theme[SkinElement.State].RoundCorner, theme[SkinElement.State].FontSize));
+        Assert.Equal((14.0, SkinTheme.Black), (theme[SkinElement.StateAttribute].FontSize, theme[SkinElement.StateAttribute].FontColor));
+        foreach (var element in new[] { SkinElement.StateStart, SkinElement.StateEnd })
+        {
+            Assert.Equal((dark, dark, 1.0), (theme[element].Fill!.Value, theme[element].Line!.Value, theme[element].LineWidth));
+        }
+
+        Assert.Equal((SkinTheme.CommonBackground, 0.5), (theme[SkinElement.StatePseudo].Fill!.Value, theme[SkinElement.StatePseudo].LineWidth));
+    }
+
+    /// <summary>
     ///     Validates that a change returns a new theme and leaves the default unchanged.
     /// </summary>
     [Fact]

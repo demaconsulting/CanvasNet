@@ -179,6 +179,40 @@ public class SkinParamsTests
     }
 
     /// <summary>
+    ///     Validates the state subset of the graph diagrams: the state and state attribute prefixes, and the start and
+    ///     end colors (one color for the fill and the line); a sequence diagram reports them as ignored.
+    /// </summary>
+    [Fact]
+    public void PlantUmlSkinParams_Apply_StateSubset_OnlyInGraphDiagrams()
+    {
+        // Arrange
+        var entries = new List<SkinParamEntry>
+        {
+            new("stateBackgroundColor", "#E0F0FF", default),
+            new("stateBorderColor", "#3060A0", default),
+            new("stateFontSize", "12", default),
+            new("stateAttributeFontColor", "blue", default),
+            new("stateStartColor", "green", default),
+            new("stateEndColor", "#FF0000", default),
+            new("stateEndColor", "notacolor", default),
+        };
+        var graphReports = new List<DemaConsulting.CanvasNet.PlantUml.PlantUmlPendingReport>();
+        var sequenceReports = new List<DemaConsulting.CanvasNet.PlantUml.PlantUmlPendingReport>();
+
+        // Act
+        var graph = SkinParams.Apply(SkinTheme.Default, entries, graphReports, graph: true);
+        SkinParams.Apply(SkinTheme.Default, entries, sequenceReports);
+
+        // Assert
+        Assert.Equal((new Rgba32(0xE0, 0xF0, 0xFF, 255), new Rgba32(0x30, 0x60, 0xA0, 255), 12.0), (graph[SkinElement.State].Fill!.Value, graph[SkinElement.State].Line!.Value, graph[SkinElement.State].FontSize));
+        Assert.Equal(new Rgba32(0, 0, 0xFF, 255), graph[SkinElement.StateAttribute].FontColor);
+        Assert.Equal((new Rgba32(0, 0x80, 0, 255), new Rgba32(0, 0x80, 0, 255)), (graph[SkinElement.StateStart].Fill!.Value, graph[SkinElement.StateStart].Line!.Value));
+        Assert.Equal((new Rgba32(0xFF, 0, 0, 255), new Rgba32(0xFF, 0, 0, 255)), (graph[SkinElement.StateEnd].Fill!.Value, graph[SkinElement.StateEnd].Line!.Value));
+        Assert.Single(graphReports);
+        Assert.Equal(7, sequenceReports.Count);
+    }
+
+    /// <summary>
     ///     Validates that a style block is reported once and skipped to its end.
     /// </summary>
     [Fact]
