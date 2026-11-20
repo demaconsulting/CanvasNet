@@ -1,0 +1,15 @@
+@startuml
+skinparam ranksep 50
+skinparam nodesep 60
+[*] -right-> Draft
+Draft --> Review : submit
+Review --> Shipping : approved
+Review -left-> Rejected : declined
+state Shipping {
+  [*] -right-> Packed
+  Packed -right-> Moving : picked up
+  Moving -right-> Delivered : signed
+}
+Rejected --> [*]
+Shipping --> [*]
+@enduml

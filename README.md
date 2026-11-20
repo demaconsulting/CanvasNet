@@ -76,6 +76,11 @@ specification and is rendered, in strict mode, by a test.*
 *Six of the ten Mermaid diagram types CanvasNet draws (sequence, class, state, gantt, mindmap, and git graph), each
 from the examples of the user guide, rendered in strict mode with ports of Mermaid's own layouts.*
 
+![Six PlantUML diagram types: a sequence diagram of a two-factor sign-in, an activity diagram with swimlanes and a fork, a class diagram of a small library, a state diagram with a composite state, a use case diagram of a smart home, and a component diagram of a web backend, all rendered by CanvasNet](https://raw.githubusercontent.com/demaconsulting/CanvasNet/main/docs/images/plantuml-gallery.png)
+
+*Six of the eight PlantUML diagram types CanvasNet draws (sequence, activity, class, state, use case, and component),
+in PlantUML's default look, rendered in strict mode in pure .NET with no Java, Graphviz, or network.*
+
 ![A product sheet for a planetary gearbox drawn by CanvasNet from a single OpenSCAD file. A large view shows the assembled gearbox: an orange sun gear and three blue herringbone planet gears inside a ring gear cut into a gray housing with a rounded flange, screws and engraved lettering. Callouts name the OpenSCAD construct behind each feature: linear_extrude with twist, polygon with a list comprehension, difference, a for loop, minkowski, text and rotate_extrude. A round inset shows the gears meshing from above. Two side panels show the same file as an exploded view (#def.explode=1), with the hull-shaped carrier and the bearing balls labeled, and as a cutaway (#def.cutaway=1), with the cut faces painted red](https://raw.githubusercontent.com/demaconsulting/CanvasNet/main/docs/images/gearbox.png)
 
 *One OpenSCAD file, four views: CanvasNet runs the model with its own OpenSCAD interpreter, CSG engine, and 3D

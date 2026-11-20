@@ -4,9 +4,9 @@
 
 .DESCRIPTION
     The images in this folder are pictures the canvasnet tool draws from architecture.svg, the sources in
-    docs/images/showcase, docs/images/hero, docs/images/gears, and docs/images/composition-explained, the
-    examples of the user guide (docs/user_guide/examples), and one fixture in the test folder. This script is the one
-    place that knows how.
+    docs/images/showcase, docs/images/hero, docs/images/gears, docs/images/plantuml, and
+    docs/images/composition-explained, the examples of the user guide (docs/user_guide/examples), and one fixture in
+    the test folder. This script is the one place that knows how.
 
     Without -Check it draws every image into a temporary folder and copies the result over the committed file.
     Commit the changed images with the change that made them differ.
@@ -193,6 +193,31 @@ function New-MermaidGallery {
     Join-Path $Folder 'mermaid-gallery.png'
 }
 
+# docs/images/plantuml-gallery.png: six PlantUML diagram types (docs/images/plantuml, original diagrams), each drawn in
+# strict mode at twice its size and shown at 400x300 in the montage, like the Mermaid gallery. --labels prints the
+# input file name, so the diagrams are copied to extensionless files named after their labels first.
+function New-PlantUmlGallery {
+    param([string]$Folder)
+    $sources = 'docs/images/plantuml'
+    $labeled = Join-Path $Folder 'labeled'
+    New-Item -ItemType Directory -Force -Path $labeled | Out-Null
+
+    $diagrams = [ordered]@{
+        'sequence' = 'Sequence'; 'activity' = 'Activity'; 'class' = 'Class'
+        'state' = 'State'; 'usecase' = 'Use case'; 'component' = 'Component'
+    }
+    foreach ($name in $diagrams.Keys) {
+        Invoke-ToolOrFail render "$sources/$name.puml" --strict --scale 2 --pad 12 --pad-color '#ffffff' `
+            -o "$Folder/$name.png"
+        Copy-Item (Join-Path $Folder "$name.png") (Join-Path $labeled $diagrams[$name])
+    }
+
+    $panels = $diagrams.Values | ForEach-Object { Join-Path $labeled $_ }
+    Invoke-ToolOrFail montage @panels --columns 3 --cell 400x300 --spacing 12 --padding 12 `
+        --background '#e5e7eb' --labels -o "$Folder/plantuml-gallery.png"
+    Join-Path $Folder 'plantuml-gallery.png'
+}
+
 # docs/images/architecture.png: the package architecture diagram (architecture.svg, original), drawn at 1800 pixels
 # wide on a transparent background so that its rounded card reads well on light and dark pages.
 function New-Architecture {
@@ -238,6 +263,7 @@ $images = @(
     @{ Path = 'docs/images/montage-explode.png'; Build = ${function:New-MontageExplode} }
     @{ Path = 'docs/images/vegalite-gallery.png'; Build = ${function:New-VegaLiteGallery} }
     @{ Path = 'docs/images/mermaid-gallery.png'; Build = ${function:New-MermaidGallery} }
+    @{ Path = 'docs/images/plantuml-gallery.png'; Build = ${function:New-PlantUmlGallery} }
 )
 
 # --- Run --------------------------------------------------------------------------------------------------------

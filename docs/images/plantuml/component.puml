@@ -1,0 +1,21 @@
+@startuml
+left to right direction
+skinparam ranksep 40
+package "Clients" {
+  [Web app] as Web
+  [Mobile app] as Mobile
+}
+node "Backend" {
+  [API gateway] as Gateway
+  [Orders]
+  [Payments]
+}
+database "Orders DB" as Db
+cloud "Card network" as Cards
+Web --> Gateway
+Mobile --> Gateway
+Gateway --> Orders
+Gateway --> Payments
+Orders --> Db
+Payments --> Cards
+@enduml

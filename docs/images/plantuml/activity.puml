@@ -1,0 +1,20 @@
+@startuml
+|Barista|
+start
+:Grind the beans;
+:Tamp the grounds;
+|#EEF4FB|Machine|
+:Heat the water;
+fork
+  :Pull the shot;
+fork again
+  :Steam the milk;
+end fork
+|Barista|
+if (Crema golden?) then (yes)
+  :Serve;
+else (no)
+  :Adjust the grind;
+endif
+stop
+@enduml

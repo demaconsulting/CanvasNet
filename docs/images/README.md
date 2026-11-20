@@ -83,6 +83,16 @@ user guide examples `mermaid-sequence-arrows.mmd`, `mermaid-class-relations.mmd`
 `mermaid-gantt.mmd`, `mermaid-mindmap.mmd`, and `mermaid-gitgraph.mmd` in `docs/user_guide/examples`, which are
 **original to this repository** (MIT). `render-images.ps1` draws and checks the montage like the other images.
 
+## plantuml-gallery.png
+
+`plantuml-gallery.png` (1248x680) is a montage of six PlantUML diagram types (a sequence diagram, an activity diagram,
+a class diagram, a state diagram, a use case diagram, and a component diagram), built like `mermaid-gallery.png`:
+each is drawn by `canvasnet render --strict` at twice its size and shown at 400x300. It is referenced from the README
+by an absolute URL. The diagrams are `sequence.puml`, `activity.puml`, `class.puml`, `state.puml`, `usecase.puml`,
+and `component.puml` in `docs/images/plantuml`, authored for the gallery so that each fills a 4:3 cell (the user
+guide examples are mostly tall); they are **original to this repository** (MIT). `render-images.ps1` draws and checks
+the montage like the other images.
+
 ## montage-explode.png
 
 `montage-explode.png` (888x366) is the picture of the `canvasnet montage` example of the tool user guide: the

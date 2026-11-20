@@ -1,0 +1,19 @@
+@startuml
+left to right direction
+actor Resident
+actor Guest
+rectangle "Home hub" {
+  usecase "Unlock the door" as Unlock
+  usecase "Scan a fingerprint" as Scan
+  usecase "Set the heating" as Heat
+  usecase "Plan a schedule" as Plan
+  usecase "Get alerts" as Alerts
+}
+Guest --> Unlock
+Resident --> Unlock
+Resident --> Heat
+Resident --> Alerts
+Unlock ..> Scan : <<include>>
+Heat <.. Plan : <<extend>>
+note right of Alerts : by phone\nor e-mail
+@enduml
