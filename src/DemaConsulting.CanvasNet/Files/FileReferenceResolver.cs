@@ -26,7 +26,7 @@ namespace DemaConsulting.CanvasNet.Files;
 ///     <para>
 ///         <b>Exact letter case.</b> A policy that needs the real path receives it in the letter case its folders and
 ///         its name have on disk, and only once that spelling is confirmed to name the open file (by its volume serial
-///         number and file index on Windows, its device and inode on Linux and macOS); the built-in policies compare it
+///         number and file identifier on Windows, its device and inode on Linux and macOS); the built-in policies compare it
 ///         exactly. A file whose spelling cannot be confirmed is denied (<see cref="FileReferenceFailureKind.AccessDenied"/>).
 ///     </para>
 ///     <para>

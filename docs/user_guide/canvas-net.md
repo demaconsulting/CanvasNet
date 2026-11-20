@@ -2379,7 +2379,8 @@ case-sensitive volume or directory (Linux, case-sensitive APFS on macOS, a Windo
 enabled) it is another folder. Every side of the comparison is in the letter case stored on disk: `UnderRoots` captures
 each folder's real location in that case, and the resolver hands the policy the real path of the open file
 (`FileAccessRequest.RealPath`) in that case too, after confirming that this spelling names the opened file through no
-link (by its volume serial number and file index on Windows, its device and inode on Linux and macOS). So on a
+link (by its volume serial number and file identifier on Windows - the 128-bit identifier where the volume reports it,
+as ReFS does - and its device and inode on Linux and macOS). So on a
 case-insensitive volume (the default on Windows and macOS) a folder or a reference written in another letter case still
 works. The fail-closed cases: a file whose stored spelling cannot be confirmed to name the opened file - for example on
 a file system that reports the spelling a file was opened with and holds several names that differ only in letter case,

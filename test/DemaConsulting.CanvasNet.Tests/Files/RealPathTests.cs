@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using DemaConsulting.CanvasNet.Files;
 
 namespace DemaConsulting.CanvasNet.Tests.Files;
@@ -750,5 +751,93 @@ public class RealPathTests
 
         // Assert
         Assert.Null(confirmed);
+    }
+
+    /// <summary>
+    ///     Validates on Windows that a file symbolic link to the open file is not confirmed as its spelling: the link is
+    ///     opened itself, so its identity (read through <c>FileIdInfo</c> where the volume reports it) is that of
+    ///     another file. File links need a privilege on Windows, so the test skips when the host cannot create one.
+    /// </summary>
+    [Fact]
+    public void RealPath_TryConfirmExactPath_WindowsFileSymbolicLink_IsUnconfirmedOrCapabilitySkipped()
+    {
+        // Arrange
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Skip(FileTestSupport.WindowsOnly);
+        }
+
+        using var directory = new SandboxTempDirectory();
+        var path = Path.GetFullPath(directory.Write("a.txt", "a"));
+        if (!SandboxLinkSupport.TryCreateFileLink(directory.Combine("link.txt"), path, out var linkFailure))
+        {
+            Assert.Skip("File symbolic links need Developer Mode or SeCreateSymbolicLinkPrivilege on Windows: " + linkFailure);
+        }
+
+        using var handle = RealPath.OpenForRead(path);
+        var realPath = RealPath.Inspect(handle).FinalPath!;
+        var link = Path.Join(Path.GetDirectoryName(realPath), "link.txt");
+
+        // Act
+        var confirmed = RealPath.TryConfirmExactPath(handle, realPath, link);
+        var same = RealPath.IsSameFile(handle, link, out var reason);
+
+        // Assert
+        Assert.Null(confirmed);
+        Assert.True(same is not null, $"The identity of the link is unknown: {reason}");
+        Assert.False(same);
+        Assert.Contains("another file", reason, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates the decoding of <c>FILE_ID_INFO</c> (pure bytes, so it runs on every system): two files on one
+    ///     volume whose 128-bit identifiers differ only in their high 64 bits have different identities, as on ReFS, where
+    ///     the low 64 bits alone do not name one file.
+    /// </summary>
+    [Fact]
+    public void RealPath_WindowsFileId_IdsDifferingOnlyInTheHigh64Bits_AreDifferent()
+    {
+        // Arrange: the same 64-bit volume serial number and the same low 64 bits of the identifier
+        var first = new byte[WindowsFileId.FileIdInfoSize];
+        var second = new byte[WindowsFileId.FileIdInfoSize];
+        BinaryPrimitives.WriteUInt64LittleEndian(first.AsSpan(0), 0x1122334455667788UL);
+        BinaryPrimitives.WriteUInt64LittleEndian(second.AsSpan(0), 0x1122334455667788UL);
+        BinaryPrimitives.WriteUInt64LittleEndian(first.AsSpan(8), 0x0000000000000042UL);
+        BinaryPrimitives.WriteUInt64LittleEndian(second.AsSpan(8), 0x0000000000000042UL);
+        BinaryPrimitives.WriteUInt64LittleEndian(first.AsSpan(16), 0x0000000000000001UL);
+        BinaryPrimitives.WriteUInt64LittleEndian(second.AsSpan(16), 0x0000000000000002UL);
+
+        // Act
+        var firstId = WindowsFileId.FromFileIdInfo(first);
+        var secondId = WindowsFileId.FromFileIdInfo(second);
+
+        // Assert
+        Assert.Equal(0x1122334455667788UL, firstId.Volume);
+        Assert.Equal(new UInt128(1, 0x42), firstId.Id);
+        Assert.True(firstId.Extended);
+        Assert.NotEqual(firstId, secondId);
+    }
+
+    /// <summary>
+    ///     Validates the decoding of <c>BY_HANDLE_FILE_INFORMATION</c> (pure bytes, so it runs on every system): the
+    ///     32-bit volume serial number at offset 28 and the 64-bit file index from its high (offset 44) and low (offset
+    ///     48) halves.
+    /// </summary>
+    [Fact]
+    public void RealPath_WindowsFileId_ByHandleInformation_DecodesSerialAndIndex()
+    {
+        // Arrange
+        var information = new byte[WindowsFileId.ByHandleInformationSize];
+        BinaryPrimitives.WriteUInt32LittleEndian(information.AsSpan(28), 0xCAFEF00DU);
+        BinaryPrimitives.WriteUInt32LittleEndian(information.AsSpan(44), 0x00000007U);
+        BinaryPrimitives.WriteUInt32LittleEndian(information.AsSpan(48), 0x89ABCDEFU);
+
+        // Act
+        var id = WindowsFileId.FromByHandleInformation(information);
+
+        // Assert
+        Assert.Equal(0xCAFEF00DUL, id.Volume);
+        Assert.Equal((UInt128)0x0000000789ABCDEFUL, id.Id);
+        Assert.False(id.Extended);
     }
 }

@@ -455,7 +455,7 @@ internal static partial class RealPath
     /// <remarks>
     ///     When the spelling equals the reported real path exactly, it needs no confirmation. Otherwise the spelling must
     ///     name the open file <b>through no link</b> (<see cref="IsSameFile(SafeFileHandle, string)"/>): the same volume
-    ///     serial number and file index on Windows, device and inode on Linux and macOS, with no link at its last
+    ///     serial number and file identifier on Windows, device and inode on Linux and macOS, with no link at its last
     ///     component and no junction or link in one of its folders. A spelling that names another file, a link, a file
     ///     reached through a linked folder (which would place the file where it is not), or a file whose identity cannot
     ///     be read is not confirmed (fail closed). Never throws.
@@ -495,7 +495,8 @@ internal static partial class RealPath
 
     /// <summary>
     ///     Determines whether a path names the same file as an open handle through no link, by identity: the volume
-    ///     serial number and the file index on Windows, the device and the inode on Linux and macOS. The last component
+    ///     serial number and the file identifier on Windows (128-bit where the volume reports it), the device and the
+    ///     inode on Linux and macOS. The last component
     ///     of the path is not followed when it is a link, so a link to the file is a different file; and the path must
     ///     reach the file through no linked folder (Windows and Linux: the final path of the file opened by the path is
     ///     the path itself; macOS: the path is opened with <c>O_NOFOLLOW_ANY</c>). Never throws.

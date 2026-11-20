@@ -21,6 +21,8 @@ runs each of them, and the requirements link them with source filters, so only r
 | Device and directory are not regular files | null device; folder refused | `/dev/null`, folder | `/dev/null`, folder |
 | Named pipe opens without blocking (pins the mode offset) | skips | runs | runs |
 | Identity of an open file and of another spelling (pins the identity offsets) | runs | runs | runs |
+| Windows file identity structures decoded (pure bytes) | runs | runs | runs |
+| A file symbolic link to the opened file | runs (or skips without the link privilege) | skips | skips |
 | Case-insensitive temporary folder: stored letter case, same file in another case | runs | skips | runs |
 | Case-sensitive temporary folder: both case variants exist | skips | runs | skips |
 | Names with `*` and `?`; a symbolic link to the opened file | skips | runs | runs |
@@ -145,7 +147,10 @@ with `Stored`.
 **Tests**: `RealPath_TryConfirmExactPath_SpellingOfAnotherFile_IsUnconfirmed` (Windows, Linux, macOS),
 `RealPath_TryConfirmExactPath_StoredSpellingOfARealPathInAnotherCase_IsConfirmed` (Windows, macOS),
 `RealPath_TryConfirmExactPath_SpellingThroughALinkedFolder_IsUnconfirmed` (Windows, Linux, macOS),
-`RealPath_TryConfirmExactPath_LinkToTheOpenedFile_IsUnconfirmed` (Linux, macOS)
+`RealPath_TryConfirmExactPath_LinkToTheOpenedFile_IsUnconfirmed` (Linux, macOS),
+`RealPath_TryConfirmExactPath_WindowsFileSymbolicLink_IsUnconfirmedOrCapabilitySkipped` (Windows),
+`RealPath_WindowsFileId_IdsDifferingOnlyInTheHigh64Bits_AreDifferent`,
+`RealPath_WindowsFileId_ByHandleInformation_DecodesSerialAndIndex`
 
 With `a.txt` open, the path of `b.txt`, spelled through the real folder of `a.txt` (so the spelling has no link in it;
 on macOS the temporary folder is otherwise reached through the `/var` link), is not confirmed and `IsSameFile` is
@@ -156,4 +161,10 @@ which pins the identity fields and the open flags on each system; when it is not
 A spelling that reaches the open `target/a.txt` through a directory link (a junction on Windows) `link/a.txt` is not
 confirmed, although it is the same file, because a spelling must reach the file through no linked folder; a symbolic
 link to the open file is not confirmed either, because the spelling is opened without following a link at its last
-component.
+component. On Windows a file symbolic link to the open file is not confirmed and `IsSameFile` is false with a reason
+that names another file, which exercises the `FileIdInfo` identity on a real link; file links need Developer Mode or
+`SeCreateSymbolicLinkPrivilege` there, so the test skips with that reason when the host cannot create one. The Windows
+identity structures are decoded as pure bytes on every system: two `FILE_ID_INFO` structures with the same 64-bit
+volume serial number and the same low 64 bits of the identifier, differing only in its high 64 bits (as on ReFS), are
+different identities; a `BY_HANDLE_FILE_INFORMATION` gives the 32-bit serial number at offset 28 and the 64-bit file
+index from its high (44) and low (48) halves.

@@ -147,8 +147,10 @@ sections:
               - id: CanvasNet-Files-RealPath-Identity
                 title: >-
                   The RealPath unit shall confirm the on-disk spelling of the real path of an open file only when it
-                  equals the reported real path or names the same file as the open handle (the volume serial number
-                  and file index on Windows, the device and inode on Linux and macOS) through no link (no link at its
+                  equals the reported real path or names the same file as the open handle (on Windows the 64-bit
+                  volume serial number and 128-bit file identifier when both volumes report them, else the 32-bit
+                  volume serial number and 64-bit file index of both, always compared like with like; the device and
+                  inode on Linux and macOS) through no link (no link at its
                   last component, and no junction or link in one of its folders: on Windows and Linux the final path of
                   the file opened by that spelling is the spelling itself, on macOS it is opened with O_NOFOLLOW_ANY),
                   and shall report it unconfirmed when it names another file, a link, a file reached through a linked
@@ -157,7 +159,8 @@ sections:
                   The on-disk spelling is found by name, after the open; another process could make it name another
                   file, or reach the open file through a linked folder from a place it is not. Confirming it against
                   the open handle, through no link, keeps the decision about the place of the file that is read, and an
-                  unconfirmed spelling lets the caller fail closed.
+                  unconfirmed spelling lets the caller fail closed. On ReFS the 64-bit file index does not name one
+                  file, so the 128-bit identifier is compared where it is reported.
                 tests:
                   - "windows@RealPath_TryConfirmExactPath_SpellingOfAnotherFile_IsUnconfirmed"
                   - "ubuntu@RealPath_TryConfirmExactPath_SpellingOfAnotherFile_IsUnconfirmed"
@@ -169,3 +172,6 @@ sections:
                   - "macos@RealPath_TryConfirmExactPath_SpellingThroughALinkedFolder_IsUnconfirmed"
                   - "ubuntu@RealPath_TryConfirmExactPath_LinkToTheOpenedFile_IsUnconfirmed"
                   - "macos@RealPath_TryConfirmExactPath_LinkToTheOpenedFile_IsUnconfirmed"
+                  - "windows@RealPath_TryConfirmExactPath_WindowsFileSymbolicLink_IsUnconfirmedOrCapabilitySkipped"
+                  - RealPath_WindowsFileId_IdsDifferingOnlyInTheHigh64Bits_AreDifferent
+                  - RealPath_WindowsFileId_ByHandleInformation_DecodesSerialAndIndex

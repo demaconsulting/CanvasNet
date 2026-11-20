@@ -118,15 +118,16 @@ file; with `MaxFiles` set, no more than that many distinct keys are opened or re
   whose type the platform cannot tell) is `NotARegularFile` under every policy (fail closed). When the policy needs the
   real path and it is known, `ConfirmRealPath` gives it in the letter case stored on disk (`RealPath.GetExactPathName`,
   or the `ExactPathOf` hook) and confirms that spelling against the open handle (`RealPath.TryConfirmExactPath`: equal
-  to the reported path, or the same volume serial and file index / device and inode, without following a link at the
-  last component). A spelling that cannot be confirmed is a denial (`AccessDenied`, reason `the letter case its real
-  path has on disk cannot be confirmed to name the opened file`, hint `reference the file in the letter case it has
-  on disk`, no host path in the text), thrown before anything is read and not remembered (the file counts); for the
-  exempt top-level file it is remembered on the outcome (`RealPathUnconfirmed`) and `CheckExemptFile` raises the same
-  denial when a reference reaches the file (a top-level file that leads to a network location is refused there anyway,
-  so its spelling is not looked up). The confirmed spelling replaces the real path for the policy, the result
-  (`FileReference.RealPath`) and every later cache re-check. When the policy needs the real path and it is unknown,
-  `RealPathUnavailable` (fail closed); otherwise `CheckPolicy` runs and the file is read from the same handle (`Read`).
+  to the reported path, or the same volume serial and file identifier / device and inode, without following a link at
+  the last component). A spelling that cannot be confirmed is a denial (`AccessDenied`, reason
+  `the letter case its real path has on disk cannot be confirmed to name the opened file`, hint
+  `reference the file in the letter case it has on disk`, no host path in the text), thrown before anything is read and
+  not remembered (the file counts); for the exempt top-level file it is remembered on the outcome
+  (`RealPathUnconfirmed`) and `CheckExemptFile` raises the same denial when a reference reaches the file (a top-level
+  file that leads to a network location is refused there anyway, so its spelling is not looked up). The confirmed
+  spelling replaces the real path for the policy, the result (`FileReference.RealPath`) and every later cache re-check.
+  When the policy needs the real path and it is unknown, `RealPathUnavailable` (fail closed); otherwise `CheckPolicy`
+  runs and the file is read from the same handle (`Read`).
 - `CaptureBeforeOpen` - for a policy that needs the real path, captures before every open the real location of each
   folder the policy names (`AnchorsOf`) in its on-disk letter case (`RealPath.TryGetExactCanonicalDirectory`, or the
   `DirectoryLocationOf` hook), once per resolver in a dictionary keyed exactly (`StringComparer.Ordinal`: on a

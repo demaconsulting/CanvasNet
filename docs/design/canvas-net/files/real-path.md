@@ -8,7 +8,8 @@ five internal source files in the `DemaConsulting.CanvasNet.Files` namespace:
 - `RealPath.cs` - `RealPath` (internal static partial class): the dispatch per operating system, the open, the handle
   facts (`HandleFacts`), the real location of a folder, short-name expansion, the on-disk letter case of a path and
   its confirmation against an open handle, and the path comparison rules
-- `RealPath.Windows.cs` - the Windows facts and identity of an open handle, and whether a path is a network location
+- `RealPath.Windows.cs` - the Windows facts and identity of an open handle (with `WindowsFileId`, the internal readonly
+  record struct of a Windows file identity and its pure decoders), and whether a path is a network location
 - `RealPath.Unix.cs` - the Linux facts of an open handle, and the Linux and macOS identity of a file
 - `NativeMethods.cs` - `NativeMethods` (internal static class): the private `DllImport` declarations and the wrappers
   that add buffer growth, prefix stripping, error translation, and structure offsets
@@ -114,9 +115,15 @@ Per system:
   junctions, substituted and mapped drives, and short (8.3) names. **Identity**: `CreateFileW` with
   `FILE_READ_ATTRIBUTES` (0x80), read, write and delete sharing, `OPEN_EXISTING`, and `FILE_FLAG_BACKUP_SEMANTICS |
   FILE_FLAG_OPEN_REPARSE_POINT` (0x02000000 | 0x00200000, so a link at the last component is opened itself); then
-  `GetFileInformationByHandle` for both handles into a 52-byte `BY_HANDLE_FILE_INFORMATION`, comparing
-  `dwVolumeSerialNumber` (offset 28) and the 64-bit file index `nFileIndexHigh` (44) and `nFileIndexLow` (48); the final
-  path of the identity handle must equal the spelling exactly (a junction or link in a folder changes it).
+  `NativeMethods.TryGetWindowsFileIds` reads both handles the same way, so the identities are always compared like
+  with like: `GetFileInformationByHandleEx(FileIdInfo = 18)` into a 24-byte `FILE_ID_INFO` (the 64-bit
+  `VolumeSerialNumber` at offset 0 and the 128-bit `FILE_ID_128` at offset 8) when it succeeds for both handles, else
+  `GetFileInformationByHandle` for both into a 52-byte `BY_HANDLE_FILE_INFORMATION` (`dwVolumeSerialNumber` at offset
+  28 and the 64-bit file index `nFileIndexHigh` (44) and `nFileIndexLow` (48)). The 128-bit identifier is preferred
+  because on ReFS the 64-bit index does not name one file; a volume that does not report it (FAT, some shares)
+  falls back. `WindowsFileId.FromFileIdInfo` and `FromByHandleInformation` decode the little-endian structures as pure
+  functions, so their layout is tested on every system. The final path of the identity handle must equal the spelling
+  exactly (a junction or link in a folder changes it).
 - **Linux**: `open` is imported without its optional mode argument, which is only read with `O_CREAT` (never passed),
   so the call is correct on every ABI; `EINTR` is retried. `errno` maps to the framework's exceptions (`ENOENT` to
   `FileNotFoundException`, `ENOTDIR` to `DirectoryNotFoundException`, `EACCES`/`EPERM` to
