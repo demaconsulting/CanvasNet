@@ -167,8 +167,9 @@ public static partial class SvgCodec
     /// </param>
     /// <returns>
     ///     <see langword="true"/> when the declaration sets a value; <see langword="false"/> for an
-    ///     invalid value, a negative value, <c>inherit</c>/<c>unset</c> (both inherit) or
-    ///     <c>revert</c>, meaning "keep the parent's line height". Never throws.
+    ///     invalid value, a negative literal value, <c>inherit</c>/<c>unset</c> (both inherit) or
+    ///     <c>revert</c>, meaning "keep the parent's line height". A negative math result
+    ///     (<c>calc(10px - 20px)</c>) is clamped to 0, as CSS does. Never throws.
     /// </returns>
     private static bool TryParseLineHeight(string raw, RenderState state, out LineHeightSpec? computed)
     {
@@ -199,13 +200,17 @@ public static partial class SvgCodec
 
         // A number-typed math result (calc(1 + 1)) is a multiplier like a bare number; a length or
         // percentage result is an absolute length (CSS Values 4, "Type Checking", which singles out
-        // line-height for this); the two are told apart by the type the evaluator preserved
-        if (!TryResolveLengthOrNumber(text, state, PercentageAxis.FontSize, out var length, out var isNumber, out _) || length < 0f)
+        // line-height for this); the two are told apart by the type the evaluator preserved. A
+        // negative literal is invalid, but a negative math result is clamped to 0 (CSS Values 4,
+        // "Range Checking": a math function's out-of-range result is clamped, not rejected)
+        var isMath = StartsWithMathFunction(text);
+        if (!TryResolveLengthOrNumber(text, state, PercentageAxis.FontSize, out var length, out var isNumber, out _) ||
+            (length < 0f && !isMath))
         {
             return false;
         }
 
-        computed = new LineHeightSpec(length, IsMultiplier: isNumber);
+        computed = new LineHeightSpec(MathF.Max(length, 0f), IsMultiplier: isNumber);
         return true;
     }
 

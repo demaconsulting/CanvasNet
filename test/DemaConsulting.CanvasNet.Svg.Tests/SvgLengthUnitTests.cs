@@ -853,6 +853,50 @@ public class SvgLengthUnitTests
         Assert.Equal(expected, measured, Tolerance);
     }
 
+    /// <summary>
+    ///     Proves a negative math <c>line-height</c> - a length or a number result, as a longhand or in the
+    ///     <c>font</c> shorthand - is clamped to 0 (CSS Values 4 range checking), as in browsers, rather than dropped.
+    /// </summary>
+    /// <param name="declaration">The declaration on the wrapping group (font size 10).</param>
+    [Theory]
+    [InlineData("line-height: calc(10px - 20px)")]
+    [InlineData("line-height: calc(1 - 2)")]
+    [InlineData("line-height: min(-1px, 2px)")]
+    [InlineData("font: 10px/calc(1px - 5px) serif")]
+    public void SvgCodec_Load_NegativeLineHeightMath_ClampsToZero(string declaration)
+    {
+        // Arrange: the child group changes the font size to 50 and measures 1lh plus 30px
+        var svg =
+            $"<svg viewBox='0 0 400 40'><g style='{declaration}' font-size='10'><g font-size='50'><rect width='calc(1lh + 30px)' height='10' fill='black'/></g></g></svg>";
+
+        // Act
+        var measured = SvgLengthTestSupport.RowCoverage(SvgLengthTestSupport.Render(svg, 400, 40), 5);
+
+        // Assert: a line height of 0 leaves only the 30px (a dropped declaration would give 1.2 * 50 + 30)
+        Assert.Equal(30.0, measured, Tolerance);
+    }
+
+    /// <summary>
+    ///     Proves a negative literal <c>line-height</c> - a length or a number - stays invalid and is ignored, so the
+    ///     line height stays <c>normal</c>.
+    /// </summary>
+    /// <param name="declaration">The <c>line-height</c> declaration.</param>
+    [Theory]
+    [InlineData("line-height: -5px")]
+    [InlineData("line-height: -2")]
+    public void SvgCodec_Load_NegativeLiteralLineHeight_IsIgnored(string declaration)
+    {
+        // Arrange: the child group changes the font size to 50 and measures 1lh plus 30px
+        var svg =
+            $"<svg viewBox='0 0 400 40'><g style='{declaration}' font-size='10'><g font-size='50'><rect width='calc(1lh + 30px)' height='10' fill='black'/></g></g></svg>";
+
+        // Act
+        var measured = SvgLengthTestSupport.RowCoverage(SvgLengthTestSupport.Render(svg, 400, 40), 5);
+
+        // Assert: the normal line height of 1.2 * 50, plus 30
+        Assert.Equal(90.0, measured, Tolerance);
+    }
+
     // ================================================================================================
     // objectBoundingBox mask regions evaluate math on the fraction axis
     // ================================================================================================

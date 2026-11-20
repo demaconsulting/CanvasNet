@@ -962,7 +962,9 @@ sections:
               units, like a literal number, wherever SVG 2 allows a number (stroke-width,
               stroke-dasharray entries and stroke-dashoffset, and every length presentation
               attribute including the font-size attribute), shall be a multiplier for
-              line-height, and shall be ignored for a font-size declared in CSS (an inline style,
+              line-height (a negative math line-height, number or length, being clamped to 0,
+              while a negative literal line-height stays invalid), and shall be ignored for a
+              font-size declared in CSS (an inline style,
               a stylesheet, or the font shorthand or attribute), a mixed expression (a number
               combined with a length or percentage, for example calc(1 + 1px) or calc(10% + 1))
               being invalid everywhere.
@@ -976,8 +978,10 @@ sections:
               4.2 (Attribute syntax) inserts number into length and length-percentage for
               presentation attributes, so a number-typed result is user units there; CSS Fonts 4
               font-size and the font shorthand have no number, and line-height names a number as
-              a multiplier. Browser behavior for a number-typed math function in an SVG attribute
-              has not been verified.
+              a multiplier. CSS Values 4 (Range Checking) clamps a math function whose result is
+              out of the property's range instead of rejecting it, so calc(10px - 20px) is a
+              line-height of 0 (Edge agrees), while a literal -5px is invalid. Browser behavior for
+              a number-typed math function in an SVG attribute has not been verified.
             tests:
               - SvgCodec_Load_MathFunction_Evaluates
               - SvgCodec_Load_DashArrayEntryMathFunction_IsOneEntry
@@ -988,6 +992,7 @@ sections:
               - SvgCodec_Load_MathResultIsLengthOrLiteralNumber_StillAccepted
               - SvgCodec_Load_LineHeightNumberMath_IsMultiplier
               - SvgCodec_Load_LineHeightLengthMathAndTypeMix_FollowsType
+              - SvgCodec_Load_NegativeLineHeightMath_ClampsToZero
               - SvgCodec_Load_MaskRegionBoundingBoxMath_UsesFractionBasis
               - SvgCodec_Load_MaskRegionBoundingBoxMixedPercentAndNumber_FallsBackToDefault
               - SvgCodec_Load_GradientBoundingBoxNumberMath_IsAccepted
@@ -1022,6 +1027,7 @@ sections:
               - SvgCodec_GetInfo_RootSize_ConvertsUnitsOrFallsBack
               - SvgCodec_Load_MalformedFontSize_IsIgnoredAndInherited
               - SvgCodec_Load_MalformedLineHeight_IsIgnored
+              - SvgCodec_Load_NegativeLiteralLineHeight_IsIgnored
               - SvgCodec_Load_NonPositiveFontSize_RendersNoText
               - SvgCodec_Load_MalformedTextDxDy_IsIgnored
               - SvgCodec_Load_InvalidFontShorthand_IsDropped

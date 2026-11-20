@@ -22,7 +22,9 @@ see-also:
   length attribute, including the font-size attribute), a mixed result such as
   calc(1 + 1px) or calc(10% + 1) is always invalid, a plain-number result in a
   font-size from a style declaration, stylesheet, or font shorthand is ignored,
-  and line-height treats it as a multiplier.
+  and line-height treats it as a multiplier. A negative math line-height (such
+  as calc(10px - 20px)) is clamped to 0, as in browsers; a negative literal
+  (-5px) is invalid.
 - font-size from an attribute, a style attribute, a style element, or the font
   shorthand (style, weight, size, / line-height, family): lengths, percent, the
   keywords xx-small to xxx-large (9, 10, 13, 16, 18, 24, 32, and 48 pixels),

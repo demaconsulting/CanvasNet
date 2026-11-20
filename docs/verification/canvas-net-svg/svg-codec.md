@@ -1184,6 +1184,7 @@ presentation attribute, an inline style and a stylesheet rule.
 `SvgCodec_Load_MathResultIsLengthOrLiteralNumber_StillAccepted`,
 `SvgCodec_Load_LineHeightNumberMath_IsMultiplier`,
 `SvgCodec_Load_LineHeightLengthMathAndTypeMix_FollowsType`,
+`SvgCodec_Load_NegativeLineHeightMath_ClampsToZero`,
 `SvgCodec_Load_MaskRegionBoundingBoxMath_UsesFractionBasis`,
 `SvgCodec_Load_MaskRegionBoundingBoxMixedPercentAndNumber_FallsBackToDefault`,
 `SvgCodec_Load_GradientBoundingBoxNumberMath_IsAccepted`,
@@ -1210,7 +1211,10 @@ and a dash offset, while a literal `10`, `calc(2 * 10px)` and `max(10px, 2em)` s
 `min(2, 3)`, `max(1, 2)` and `font: 10px/calc(1 + 1) serif`) are asserted to be multipliers
 re-multiplied by a descendant's font size (`1lh` is 100 under a child `font-size` of 50, not a fixed
 2), a length result (`calc(1px + 1px)`, `calc(20% + 1px)`) stays a fixed length, and the invalid mix
-`calc(10% + 1)` is ignored. For an `objectBoundingBox` mask region on a non-square document,
+`calc(10% + 1)` is ignored. A negative math result (`calc(10px - 20px)`, `calc(1 - 2)`,
+`min(-1px, 2px)` and `font: 10px/calc(1px - 5px) serif`) is asserted to be clamped to 0, so a
+`calc(1lh + 30px)` bar under a child `font-size` of 50 measures 30 (Edge headless measures 30 too).
+For an `objectBoundingBox` mask region on a non-square document,
 `calc(10% + 5%)`, `calc(100% / 4)`, `min(10%, 20%)`, `calc(50% + 0px)` and `calc(0.1 + 0.2)` are
 asserted pixel-identical to `15%`, `25%`, `10%`, `50%` and `0.3` (and different from the default
 region), while `calc(10% + 0.1)` - a percentage mixed with a number - is asserted identical to the
@@ -1226,6 +1230,7 @@ default region; a number-typed `calc(0.5 + 0.25)` is accepted as a gradient's `x
 `SvgCodec_GetInfo_RootSize_ConvertsUnitsOrFallsBack`,
 `SvgCodec_Load_MalformedFontSize_IsIgnoredAndInherited`,
 `SvgCodec_Load_MalformedLineHeight_IsIgnored`,
+`SvgCodec_Load_NegativeLiteralLineHeight_IsIgnored`,
 `SvgCodec_Load_NonPositiveFontSize_RendersNoText`,
 `SvgCodec_Load_MalformedTextDxDy_IsIgnored`,
 `SvgCodec_Load_InvalidFontShorthand_IsDropped`,
@@ -1250,7 +1255,8 @@ Class T: a malformed gradient coordinate falls back to the default as if absent,
 mask-region value falls back to the default region, and a root size with an unknown unit or no
 basis counts as absent. Class F: a malformed `font-size` (attribute and inline style) is dropped
 and the next lower source applies, else the parent's size is inherited (see the fall-through tests
-under the font-size requirement); a malformed `line-height` and `dx`/`dy` are ignored, an invalid
+under the font-size requirement); a malformed `line-height` and `dx`/`dy` are ignored (a negative
+literal `line-height` of `-5px` or `-2` leaves the `calc(1lh + 30px)` bar at the normal 90), an invalid
 shorthand is dropped whole, and a zero or negative size still renders no text (existing behavior).
 A number-typed math result is user units where SVG 2 allows a number, so only a mixed expression is
 malformed there: `calc(1 + 1px)`, `calc(10% + 1)`, `calc(1px * 1px)` and `min(1, 1px)` are asserted to

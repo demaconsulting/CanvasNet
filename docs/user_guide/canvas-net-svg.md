@@ -134,7 +134,9 @@ A mixed expression (`calc(1 + 1px)`, `calc(10% + 1)`) is always invalid. The one
 `font-size` declared in CSS (a `style` attribute, a `style` element rule, or the `font` shorthand or
 attribute), whose grammar has no number: a number-typed result there is ignored and the inherited
 size stays. `line-height` keeps treating a number-typed result as a multiplier like a bare number
-(`line-height: calc(1 + 1)` is twice each element's own font size). This follows the specification
+(`line-height: calc(1 + 1)` is twice each element's own font size). A negative math `line-height`
+(`calc(10px - 20px)`, `calc(1 - 2)`) is clamped to 0, as CSS and the browsers do, while a negative literal (`-5px`,
+`-2`) is invalid and dropped. This follows the specification
 text; browser behavior for a number-typed math function in an SVG attribute has not been verified.
 
 **Percentages in gradient, pattern and mask coordinates.** A plain percentage and a percentage

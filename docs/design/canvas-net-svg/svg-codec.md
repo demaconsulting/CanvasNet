@@ -459,7 +459,10 @@ separate pre-existing limitation.
 `TryResolveLengthOrNumber`: a literal number or a number-typed math result (`calc(1 + 1)`) is a
 multiplier re-applied by each descendant's font size, a length/percentage result is an absolute
 length fixed at the declaring element, and a mixed expression (`calc(10% + 1)`) is invalid and
-ignored. `IsValidLineHeightSyntax` (the shorthand's `/ line-height` check) uses the same rule, so
+ignored. A negative literal (`-5px`, `-2`) is invalid and ignored, but a negative math result
+(`calc(10px - 20px)`, `calc(1 - 2)`) is clamped to 0, because CSS Values 4 (Range Checking) clamps an
+out-of-range math function instead of rejecting it, as Edge does.
+`IsValidLineHeightSyntax` (the shorthand's `/ line-height` check) uses the same rule, so
 `font: 10px/calc(1 + 1) Family` is accepted. `ResolveComputedLineHeight` picks the first valid of
 CSS and the `font` attribute, else inherits, and is shared by the element cascade and
 `ReadRootLineHeight`. Inside `line-height` itself `lh` resolves against the parent's line height and
