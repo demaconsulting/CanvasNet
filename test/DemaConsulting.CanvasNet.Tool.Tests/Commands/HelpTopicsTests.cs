@@ -553,15 +553,16 @@ public partial class HelpTopicsTests
     }
 
     /// <summary>
-    ///     Test that the <c>## Reference</c> bullets of the <c>svg flatten</c> card are, word for word and in order, the
-    ///     items of the flatten reference list of the tool's user guide.
+    ///     Test that the <c>## Reference</c> bullets of the <c>svg flatten</c> card (the library's) and then its
+    ///     <c>## Command line</c> bullets (the tool's) are, word for word and in order, the items of the flatten reference
+    ///     list of the tool's user guide.
     /// </summary>
     [Fact]
     public void HelpTopics_SvgTopic_FlattenItems_MatchUserGuide()
     {
         // Arrange: the guide and the card
         var guide = File.ReadAllLines(Path.Combine(FindRepositoryRoot(), "docs", "user_guide", "canvas-net-tool.md"));
-        var bullets = HelpCardText.Bullets("svg/flatten", "Reference");
+        var bullets = HelpCardText.Bullets("svg/flatten", "Reference").Concat(HelpCardText.Bullets("svg/flatten", "Command line")).ToList();
 
         // Act: the bullets the items of the guide's list promise
         var items = GuideItems(guide, "#### Flatten Reference").ToList();
@@ -642,7 +643,7 @@ public partial class HelpTopicsTests
         var fragment = HelpCardText.Item("svg/fragments", "page fragment");
         var example = HelpCardText.Item("svg/fragments", "page example");
         var diagnostics = HelpCardText.Items("svg/diagnostics");
-        var strict = HelpCardText.Item("svg/options", "--strict");
+        var strict = HelpCardText.Item("svg/options", "ThrowOnUnsupportedFeature");
 
         // Assert: grammar and per-format parameters
         Assert.Contains("name=value", fragment);
@@ -663,7 +664,7 @@ public partial class HelpTopicsTests
         Assert.Contains("canvasnet help svg --example embed-pages", example);
         Assert.Contains("<image href=\"report.pdf#page=2\"", HelpTopics.RenderExample(HelpTopics.Get("svg"), "embed-pages"));
 
-        // Assert: each code is documented, and --strict names the two that fail
+        // Assert: each code is documented, and strict mode names the two that fail
         foreach (var code in new[] { FolderImageResolver.FragmentUnknownParameterCode, FolderImageResolver.FragmentDuplicateParameterCode, FolderImageResolver.FragmentInvalidCode, FolderImageResolver.PageOutOfRangeCode })
         {
             Assert.Contains(diagnostics, i => i.Term == code);
@@ -771,8 +772,8 @@ public partial class HelpTopicsTests
     }
 
     /// <summary>
-    ///     Test that every option an <c>## Options</c> section lists as a term is an option of <c>render</c> or a global
-    ///     option.
+    ///     Test that every option an <c>## Options</c> section or a <c>## Command line</c> section (the tool's additions to
+    ///     a library card) lists as a term is an option of <c>render</c> or a global option.
     /// </summary>
     [Fact]
     public void HelpTopics_OptionTerms_ExistInTheRenderOptionTable()
@@ -784,7 +785,7 @@ public partial class HelpTopicsTests
         var checkedTerms = 0;
         foreach (var card in HelpTopics.All)
         {
-            foreach (var (term, _) in HelpCardText.Items(card.Id, "Options").Where(i => i.Term.StartsWith('-')))
+            foreach (var (term, _) in HelpCardText.Items(card.Id, "Options").Concat(HelpCardText.Items(card.Id, "Command line")).Where(i => i.Term.StartsWith('-')))
             {
                 var name = term.Split(' ')[0];
                 Assert.True(known.Contains(name), $"Card '{card.Id}' lists the unknown option '{name}'.");

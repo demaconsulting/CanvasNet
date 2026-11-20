@@ -66,13 +66,13 @@ below.
 - Make the `viewBox` the layout units and give `width` and `height` the same
   numbers; keep margins of 24 to 64 units and one gap between every picture and
   its caption.
-- Render at the final size with `--width 1200` (or `--size`, `--scale`): the
+- Render at the final size (a width of 1200, a box, or a scale factor): the
   drawing is drawn sharply at that size, not enlarged from a small picture.
 
 ## Contrast and background
 
 - Use dark text on a light fill (`#0f172a` on `#ffffff`), and a darker stroke
   of the same hue around a colored shape.
-- Where nothing is drawn the picture shows the `--background`, white by
-  default: draw a full-size `<rect>` for a page color, or keep the drawing
-  clear with `--background transparent`.
+- Where nothing is drawn the picture shows the background color of the render:
+  draw a full-size `<rect>` for a page color, or keep the drawing clear with a
+  transparent background.

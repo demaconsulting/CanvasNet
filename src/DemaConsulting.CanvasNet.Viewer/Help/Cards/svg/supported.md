@@ -77,13 +77,13 @@ examples:
   path, and a file: URI with a host. Each is reported as svg-image-unresolved
   and not drawn.
 - A feImage filter primitive reads only a data: URI, never a file.
-- An embedded file is not shown with the options of the outer command: a model
+- An embedded file is not shown with the options of the outer render: a model
   uses the view the library chooses for it (its own $vp* variables are honored,
   or the view= of its href), a document page is the one its href names (page 1
-  by default), and --page, --dpi, -D, and --param apply to the SVG file only (an
-  embedded model or chart takes its values from the def. and param. parameters
-  of its href, and an embedded Mermaid diagram its theme from theme=; --theme is
-  refused for an SVG input).
+  by default), and the page, the resolution, the model variables, and the chart
+  parameters of the render options apply to the SVG file only (an embedded model
+  or chart takes its values from the def. and param. parameters of its href, and
+  an embedded Mermaid diagram its theme from theme=).
 - At most 64 files are embedded in one render, SVG files nest 4 levels deep, an
   SVG file that embeds itself stops at once, and the pictures of one render may
   use at most 64 million pixels in all.
@@ -93,9 +93,10 @@ examples:
 ## Known differences
 
 - No scripting, animation, or network resources; images are read relative to the
-  folder of the SVG file (any local file, as in Pandoc, unless --file-access
-  says otherwise), and only by the command line tool (the library opts in with
-  SvgLoadOptions.ImageResolver).
+  folder of the SVG file (any local file, as in Pandoc, unless the file-access
+  policy says otherwise), and only through an image resolver:
+  `CanvasNetViewer.Render` uses one, and `SvgCodec.Load` opts in with
+  SvgLoadOptions.ImageResolver.
 - Text is best effort without shaping. An installed family is used, so text can
   differ between machines; generic and unknown families use the bundled
   Liberation fonts. A character those lack (such as U+221D) is taken from the

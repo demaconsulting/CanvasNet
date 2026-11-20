@@ -12,3 +12,10 @@ examples:
     content: 'canvasnet flatten framed-flow.svg -o framed-flat.svg --strict --json'
     description: Write a copy for other SVG readers with the bound numbers baked in and the cn attributes removed.
 ---
+
+## Command line
+
+- The selector of a binding is a `--positions` selector.
+- With `--strict` a binding that fails is the error `svg-binding-failed`.
+- `canvasnet flatten` bakes the resolved bindings; its JSON result counts
+  `bindings.resolved` and `bindings.unresolved`.

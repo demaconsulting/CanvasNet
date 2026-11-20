@@ -10,14 +10,15 @@ namespace DemaConsulting.CanvasNet.Tool.Tests.Commands;
 public partial class HelpTopicsTests
 {
     /// <summary>
-    ///     The most characters the text of a card may have.
+    ///     The most characters the text of a card may have: the library's card (at most 6,000 characters there) plus the
+    ///     tool's command-line additions.
     /// </summary>
-    private const int CardBudget = 6000;
+    private const int CardBudget = 7000;
 
     /// <summary>
-    ///     The most characters the text of a root card that has cards below it may have.
+    ///     The most characters the text of a root card that has cards below it may have (at most 3,500 in the library).
     /// </summary>
-    private const int RootIndexBudget = 3500;
+    private const int RootIndexBudget = 4000;
 
     /// <summary>
     ///     Test that every child and every See also entry of every card names a card, that every card is reachable from
@@ -93,7 +94,7 @@ public partial class HelpTopicsTests
     }
 
     /// <summary>
-    ///     Test that every card fits the size budget: at most 6,000 characters of text, at most 3,500 for a root card
+    ///     Test that every card fits the size budget: at most 7,000 characters of text, at most 4,000 for a root card
     ///     that has cards below it, and a one-line summary of at most 60 characters for a root and 100 for any other card.
     /// </summary>
     [Fact]

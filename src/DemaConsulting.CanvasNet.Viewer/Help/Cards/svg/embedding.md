@@ -43,30 +43,30 @@ examples:
   in Pandoc, an absolute path, a drive letter, a path that leaves the folder
   with .., a local file: URI, and a symbolic link are followed; a network URL, a
   UNC path, and a file: URI with a host are never followed. Which local files
-  may be read is chosen with --file-access and --allow-root (any regular local
-  file by default); see [[files]].
+  may be read is chosen by the file-access policy of the render (any regular
+  local file by default); see [[files]].
 - **unknown parameter**: A parameter the linked file does not use is not an
   error: the picture is drawn without it and the warning
   image-fragment-unknown-parameter is reported. This includes a fragment on a
   file that takes none, such as logo.png#anything or other.svg#top; such a link
   used to be ignored without a word.
 - **embedded model includes**: A model linked from an image element follows the
-  same rule as canvasnet render: a missing include or use file, an include that
-  cannot be read, or a circular include is a scad-error, so the image is not
-  drawn and the render fails, naming the link. Earlier versions only warned and
-  drew the model without the file; this is a deliberate change, because a
-  picture drawn without a file it asked for would be silently wrong.
+  same rule as a model that is rendered itself: a missing include or use file,
+  an include that cannot be read, or a circular include is a scad-error, so the
+  image is not drawn and the render fails, naming the link. Earlier versions
+  only warned and drew the model without the file; this is a deliberate change,
+  because a picture drawn without a file it asked for would be silently wrong.
 - `svg-image-unresolved`: The warning for an href that was not drawn (missing, a
   network URL, a file type that is not listed here, a cycle, or a limit); it
-  names the href and the reason, and --strict makes it an error.
+  names the href and the reason, and strict mode makes it an error.
 - `svg-image-too-large`: The warning for an image whose picture is too large for
   the pixel budget of the render (64 million pixels in all, counted before
   anything is allocated, so a huge raster in a tiny box is refused, not
-  decoded); nothing is drawn, and --strict makes it an error.
+  decoded); nothing is drawn, and strict mode makes it an error.
 - `image-access-denied`: The warning for an href whose file the file-access mode
   denies: the image is not drawn, and the message names the href, the mode, and
-  why; with --strict it is the error file-access-denied.
+  why; in strict mode it is the error file-access-denied.
 - **example**:
   `<image href="part.scad" x="10" y="10" width="120" height="120"/>` draws the
-  model part.scad, which sits beside the SVG file, in a 120 by 120 box. Print a
-  whole diagram with: [[svg#embed]]
+  model part.scad, which sits beside the SVG file, in a 120 by 120 box. See a
+  whole diagram in [[svg#embed]].

@@ -41,8 +41,8 @@ The complete figure is
 - cn:xy: the first `x` and `y` of a `<text>`; `dx`, `dy`, `text-anchor`, and
   `rotate` still apply.
 - value: `#imageId selector`: the id of an `<image>` of the same file, white
-  space, and one `--positions` selector (see
-  [[positions/selectors]]), which must match exactly one feature.
+  space, and one position selector (see [[positions/selectors]]),
+  which must match exactly one feature.
 - features: a Mermaid diagram and a Vega-Lite chart report the features
   [[positions]] lists; an OpenSCAD model reports its anchors as
   the kind `anchor` (`anchor:tip`). Rasters, documents, and SVG files report
@@ -60,10 +60,10 @@ The complete figure is
 
 ## Failures
 
-A binding that fails keeps the written numbers and is a warning; with
-`--strict` it is the error `svg-binding-failed` and nothing is written. A
-picture that was not drawn is reported first, so a denied file
-(`image-access-denied`) is still `file-access-denied` under `--strict`.
+A binding that fails keeps the written numbers and is a warning; in strict mode
+it is the error `svg-binding-failed` and nothing is written. A picture that was
+not drawn is reported first, so a denied file (`image-access-denied`) is still
+`file-access-denied` in strict mode.
 
 - `svg-binding-malformed`: The value is not `#imageId selector`, or the selector
   is not valid.
@@ -82,13 +82,13 @@ picture that was not drawn is reported first, so a denied file
 
 ## Flatten
 
-`canvasnet flatten` bakes each resolved binding into the copy with the numbers
-of the PNG picture that replaces the link, removes its `cn:` attribute, and
-removes the namespace declaration when nothing uses it any more; the JSON
-result counts `bindings.resolved` and `bindings.unresolved`. A binding that
-fails keeps its attribute and numbers. A nested SVG file is replaced as one
-picture, with its own bindings drawn into it; one that is kept as a link is
-not rewritten.
+Flattening ([[svg/flatten]]) bakes each resolved binding into the
+copy with the numbers of the PNG picture that replaces the link, removes its
+`cn:` attribute, and removes the namespace declaration when nothing uses it any
+more; the result counts `ResolvedBindings` and `UnresolvedBindings`. A binding
+that fails keeps its attribute and numbers. A nested SVG file is replaced as one
+picture, with its own bindings drawn into it; one that is kept as a link is not
+rewritten.
 
 ## Not yet
 

@@ -54,10 +54,9 @@ Draw the layers in this order; each covers the one before:
 
 ## Size the picture
 
-- Give the `<image>` the aspect ratio of the picture: `canvasnet info file
-  --json` reports the natural size of a diagram, chart, or SVG file
-  (`image.width`, `image.height`). A model has no natural aspect; it is fitted
-  to the box it gets.
+- Give the `<image>` the aspect ratio of the picture: the natural size of a
+  diagram, chart, or SVG file is the size it is drawn at when no size is asked
+  for. A model has no natural aspect; it is fitted to the box it gets.
 - A diagram, chart, or model is drawn into the box, scaled to fit with its own
   aspect ratio and centered; the `preserveAspectRatio` of the `<image>` does
   not move it, and an SVG file follows the `preserveAspectRatio` of its own
@@ -85,24 +84,19 @@ Draw the layers in this order; each covers the one before:
   `cn:x2y2="#id selector"` on the `<line>` that ends the arrow; the tip follows
   the picture at any size ([[#framed-flow]],
   [[svg/bindings]]), and a model binds its anchors (`anchor:tip`).
-- Without a binding, render the picture alone at the size of its image with
-  `--json` and add the image `x` and `y` to each pixel: a model reports
-  `anchors[].pixel` (`--example read-anchors`; same `view=` and `def.` values),
-  a diagram or chart `positions[].pixel` for what `--positions` selects
-  (`--example read-positions`).
-- For a point no selector names, draw a labeled grid at the box size (see
-  `canvasnet render --help`), read x,y off it, and confirm with `inspect pixel`
-  (the Send node of [[mermaid/flowchart#flowchart]]):
-
-```shell
-canvasnet render flowchart.mmd --size 430x280 --grid 50 -o grid.png
-canvasnet inspect pixel flowchart.mmd 380,125 --size 430x280 --radius 2
-```
-
+- Without a binding, render the picture alone at the size of its image and add
+  the image `x` and `y` to each pixel: a model reports its anchors
+  (`ViewerImage.Anchors`; use the same `view=` and `def.` values), a diagram or
+  chart the positions its selectors choose (`ViewerRenderOptions.Positions` and
+  `ViewerImage.Positions`; see [[positions]]).
+- For a point no selector names, draw a labeled grid over the picture at the box
+  size, read x,y off it, and confirm it with the color of that pixel (the Send
+  node of [[mermaid/flowchart#flowchart]] is at 380,125
+  in a box of 430x280).
 - Measure an unbound tip again after a change to the source or the box; keep
   the box size in viewBox units so the picture and the callouts scale together.
 
 ## Check
 
-- Render with `--strict` and look at the PNG; to see a tip land, draw the
-  figure at a larger `--width` with `--crop` around the feature.
+- Render in strict mode and look at the picture; to see a tip land, draw the
+  figure larger and crop around the feature.

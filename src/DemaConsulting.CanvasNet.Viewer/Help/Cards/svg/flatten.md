@@ -1,6 +1,6 @@
 ---
 title: Flattening for other SVG readers
-summary: 'canvasnet flatten: a copy of a drawing that browsers and other SVG readers can show.'
+summary: Flattening - a copy of a drawing that browsers and other SVG readers can show.
 tags:
   - svg
   - composition
@@ -12,8 +12,9 @@ see-also:
 ---
 
 A browser or WeasyPrint cannot draw a linked `.mmd`, `.puml`, `.scad`,
-`.vl.json`, or document page. Run `canvasnet flatten page.svg -o page.flat.svg`
-to replace each such link with a PNG drawn at its placement.
+`.vl.json`, or document page. Flattening (`SvgFlattener.Execute` of the Imaging
+namespace) writes a copy of the drawing that replaces each such link with a PNG
+drawn at its placement.
 
 ## Reference
 
@@ -28,9 +29,10 @@ to replace each such link with a PNG drawn at its placement.
   files, `data:` URIs (never followed), same-document `#` links, and network
   links.
 - size: Each picture is drawn at the size of its placement in the drawing at its
-  natural size (through the `viewBox` and every transform, as render draws it),
-  times `--scale`; the SVG reader still fits it with `preserveAspectRatio`. A
-  link used twice is drawn once, at the larger placement.
+  natural size (through the `viewBox` and every transform, as a render draws
+  it), times the scale factor (`FlattenRequest.Scale`, 1 by default); the SVG
+  reader still fits it with `preserveAspectRatio`. A link used twice is drawn
+  once, at the larger placement.
 - other folder: When the copy is written to another folder, the relative links
   that are left are rewritten so they find their files from there; a drive
   letter or UNC path (`C:\x.png`, `\\server\share\x.png`) is left as written on
@@ -39,22 +41,21 @@ to replace each such link with a PNG drawn at its placement.
 - bindings: A position binding (cn:x2y2 and the others, see
   [[svg/bindings]]) is baked with the numbers of the PNG picture
   that replaces the link; its `cn:` attribute is removed, and the namespace
-  declaration too when nothing uses it. The JSON document counts
-  bindings.resolved and bindings.unresolved; a binding that fails keeps its
-  attribute and numbers.
+  declaration too when nothing uses it. The result counts them
+  (`FlattenResult.ResolvedBindings` and `UnresolvedBindings`); a binding that
+  fails keeps its attribute and numbers.
 - nothing to flatten: When the drawing links no such picture, or shows none,
-  nothing is written and the exit code is 0: the text says nothing to flatten
-  and `flattened` is false in the JSON document.
-- limits: The links are drawn by the resolver of render, with its link rule,
+  nothing is written and the result replaces no picture; it is not a failure.
+- limits: The links are drawn by the resolver of a render, with its link rule,
   file-access mode, and limits (at most 64 pictures, nested ones included, 4
   levels, and the pixel budget). The copy is at most 64 MiB (`size-limit`), and
   the drawing must be UTF-8 (`unsupported-feature` for another declared encoding
   unless the file is plain ASCII).
-- `--strict`: A link that is not drawn (`svg-image-unresolved`,
-  `svg-image-too-large`, `image-fragment-invalid`, or `image-page-out-of-range`)
-  is an `unsupported-feature` error, as for render, and so is text that a linked
-  SVG file does not draw or draws without a feature (`svg-text-not-drawn`,
-  `svg-text-unsupported`); a link the file-access mode denies
-  (`image-access-denied`) is the error `file-access-denied`; a position binding
-  that fails is the error `svg-binding-failed`; `svg-flatten-image-not-drawn`
-  stays a warning.
+- strict mode: With `FlattenRequest.Strict`, a link that is not drawn
+  (`svg-image-unresolved`, `svg-image-too-large`, `image-fragment-invalid`, or
+  `image-page-out-of-range`) is an `unsupported-feature` error, as for render,
+  and so is text that a linked SVG file does not draw or draws without a feature
+  (`svg-text-not-drawn`, `svg-text-unsupported`); a link the file-access mode
+  denies (`image-access-denied`) is the error `file-access-denied`; a position
+  binding that fails is the error `svg-binding-failed`;
+  `svg-flatten-image-not-drawn` stays a warning.

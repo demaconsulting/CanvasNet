@@ -77,8 +77,8 @@ with [[svg/arrows#arrows]].
 
 ## Check
 
-- Render with `--strict` and look at the PNG; draw it at a larger `--width`
-  with `--crop` around a tip to see it land.
+- Render in strict mode and look at the picture; draw it larger and crop around
+  a tip to see it land.
 - To land a tip on a node of an embedded diagram, chart, or model at any size,
   end the arrow with a `<line>` and bind its end with `cn:x2y2`
   ([[svg/bindings]]).

@@ -34,12 +34,11 @@ and [[vega-lite/style#styled]] (`styled-chart.vl.json`).
   Mermaid or PlantUML diagram, a chart, a model, another SVG file, or a document
   page is drawn at the size of the placement, so it stays sharp at any output
   size.
-- Size each placement from the picture's natural size
-  (`canvasnet info styled-flow.mmd --json` reports `image.width` and
-  `image.height`): keep its aspect ratio, and stay near its natural size so its
-  text matches the text of the page; a placement twice as large draws its text
-  twice as large. A diagram, chart, or model keeps its own aspect ratio in any
-  box and is centered in it.
+- Size each placement from the picture's natural size (the size it is drawn at
+  when no size is asked for): keep its aspect ratio, and stay near its natural
+  size so its text matches the text of the page; a placement twice as large
+  draws its text twice as large. A diagram, chart, or model keeps its own aspect
+  ratio in any box and is centered in it.
 - An href is relative to the folder of the SVG file; write `&amp;` between the
   parameters of a fragment (`part.scad#view=front&amp;def.width=20`).
 
@@ -48,8 +47,8 @@ and [[vega-lite/style#styled]] (`styled-chart.vl.json`).
 - A fragment after the file name sets the options of that placement only:
   `flow.mmd#theme=neutral`, `part.scad#view=top`, `chart.vl.json#param.t=5`,
   `report.pdf#page=2`, `deck.pptx#slide=3`, `drawing.vsdx#page=2` (see
-  [[svg/fragments]]). The options of the command line do not reach
-  an embedded file.
+  [[svg/fragments]]). The options of the render do not reach an
+  embedded file.
 
 ## Titles, captions, and backgrounds
 
@@ -66,17 +65,17 @@ and [[vega-lite/style#styled]] (`styled-chart.vl.json`).
   caption) with arrows that point at its features, see
   [[svg/framed-figure]]: the layers, `<marker>` arrows, and how
   to find where a feature is.
-- On a model, the arrows end on its anchors: render the model alone at the
-  size of its image with `--json`, and add the image `x` and `y` to each
-  `anchors[].pixel` (see [[scad/composition]]).
+- On a model, the arrows end on its anchors: render the model alone at the size
+  of its image, and add the image `x` and `y` to the pixel of each anchor
+  (`ViewerImage.Anchors`; see [[scad/composition]]).
 
 ## Check and publish
 
-- Render with `--strict`: a picture that is not drawn (a missing file, a page
+- Render in strict mode: a picture that is not drawn (a missing file, a page
   that does not exist) is then an error instead of an empty frame. Look at the
-  PNG.
+  picture.
 - At most 64 files are embedded in one render and SVG files nest 4 levels deep
-  (see [[limits]]); links may read any local file unless
-  `--file-access` says otherwise (see [[files]]).
-- For a browser, WeasyPrint, or any other SVG reader, write a copy whose links
-  are PNG pictures: `canvasnet flatten report.svg -o report.flat.svg`.
+  (see [[limits]]); links may read any local file unless the
+  file-access policy says otherwise (see [[files]]).
+- For a browser, WeasyPrint, or any other SVG reader, write a flattened copy
+  whose links are PNG pictures (see [[svg/flatten]]).

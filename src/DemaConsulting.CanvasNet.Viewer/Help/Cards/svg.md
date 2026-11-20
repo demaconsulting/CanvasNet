@@ -31,8 +31,8 @@ document page, named relative to the SVG file.
 Use an SVG file as the layout of a page: draw titles, captions, and frames in
 SVG, and place every diagram, chart, model, or document page with
 `<image href="file" x="..." y="..." width="..." height="..."/>` (see
-[[svg/embedding]]). Render with
-`canvasnet render page.svg --width 1200 -o page.png --json` and look at the PNG.
+[[svg/embedding]]). Render it at its final width and look at the
+picture.
 
 For good-looking figures read [[svg/style]] and
 [[svg/composition]]
