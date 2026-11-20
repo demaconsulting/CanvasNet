@@ -27,13 +27,16 @@ sections:
                   The StateModel unit shall lower the diagram for every call: every composite state to a cluster under
                   its parent with its image (and, with concurrent regions, the arrangement of its first separator and a
                   cluster without image per region), every simple state and pseudo-state to an entity with its image
-                  and cluster, the notes in text order, and the transitions with their settings.
+                  and cluster, the notes in text order, and the transitions with their settings, with ids of its own
+                  (of the notes without an alias and of the regions) that never take the id of a state or a floating
+                  note.
                 justification: |
                   The Svek engine lays out and draws what the model lowers; nothing may be lost on the way.
                 tests:
                   - PlantUmlStateModel_Lower_CompositeStates_BecomeClusters
                   - PlantUmlStateModel_Lower_ConcurrentRegions_BecomeRegionClusters
                   - PlantUmlStateModel_Lower_ObservesCancellation
+                  - PlantUmlStateModel_Lower_GeneratedIds_NeverCollide
 
               - id: CanvasNetPlantUml-State-StateModel-Layout
                 title: >-

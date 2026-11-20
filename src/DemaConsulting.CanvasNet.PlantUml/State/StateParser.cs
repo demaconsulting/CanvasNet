@@ -342,6 +342,32 @@ internal sealed partial class StateParser
     }
 
     /// <summary>
+    ///     Finds the floating note a short name identifies inside a composite state: the note whose alias joins the
+    ///     prefix of the current region or of a region around it with the name, unless a state of that name is
+    ///     nearer (PlantUML links <c>N</c> inside <c>A</c> to the note <c>A.N</c>).
+    /// </summary>
+    /// <param name="name">The name.</param>
+    /// <returns>The note, or null.</returns>
+    private StateNote? FindScopedNote(string name)
+    {
+        for (var region = CurrentRegion; region is not null; region = region.Owner.Region)
+        {
+            var id = Join(region, name);
+            if (_byId.ContainsKey(id))
+            {
+                return null;
+            }
+
+            if (_noteByAlias.TryGetValue(id, out var note))
+            {
+                return note;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
     ///     Finds the state a name identifies, or creates it in the current region.
     /// </summary>
     /// <param name="name">The name.</param>
@@ -374,6 +400,11 @@ internal sealed partial class StateParser
     /// <returns>The element.</returns>
     private StateElement Create(string id, string name, string display, StateKind kind, PlantUmlLocation location)
     {
+        if (_noteByAlias.ContainsKey(id))
+        {
+            throw Error($"the name '{id}' is already used by a note", location, "give the state or the note another name");
+        }
+
         CheckLabel(name, location);
         CountNode(location);
         var element = new StateElement(id, display, kind, location) { Region = CurrentRegion };
@@ -417,6 +448,11 @@ internal sealed partial class StateParser
             return existing;
         }
 
+        if (_noteByAlias.ContainsKey(id))
+        {
+            throw Error($"the name '{id}' of a pseudo-state is already used by a note", location, "give the note another name");
+        }
+
         CountNode(location);
         var element = new StateElement(id, string.Empty, kind, location) { Region = region };
         _elements.Add(element);
@@ -456,8 +492,9 @@ internal sealed partial class StateParser
     }
 
     /// <summary>
-    ///     Gets the id of the next note without an alias.
+    ///     Gets the id of the next note without an alias: <c>note"k</c>, with a quote that no name or alias can hold, so
+    ///     that it never takes the id of a state or of a floating note.
     /// </summary>
     /// <returns>The id.</returns>
-    private string NextNoteId() => "note#" + (++_noteCount).ToString(CultureInfo.InvariantCulture);
+    private string NextNoteId() => "note\"" + (++_noteCount).ToString(CultureInfo.InvariantCulture);
 }

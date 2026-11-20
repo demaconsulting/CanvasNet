@@ -65,10 +65,13 @@ arrangement chosen by the first separator; asserts that two or more dashes or ba
 
 ##### CanvasNetPlantUml-State-StateParser-Notes: Notes
 
-**Tests**: `StateParserTests.PlantUmlStateParser_Parse_Notes_AreAttached`
+**Tests**: `StateParserTests.PlantUmlStateParser_Parse_Notes_AreAttached`,
+`StateParserTests.PlantUmlStateParser_Parse_ScopedNoteAlias_LinksTheNote`
 
 Asserts the notes on each side of a state, on the last transition, floating with an alias and linked, on the last
-element, and on a composite state (reported and drawn floating in its region).
+element, and on a composite state (reported and drawn floating in its region); asserts that inside a composite state
+`A` the short name `N` links the floating note `A.N`, that a state `N` of a nested composite state is nearer than the
+note, and that the diagram lays out.
 
 ##### CanvasNetPlantUml-State-StateParser-Common: Common Statements
 
@@ -94,7 +97,8 @@ border).
 
 Asserts a located `plantuml-syntax-error` with a hint at the expected line for an arrow that is not a transition, an
 unclosed composite state, a closing brace without a composite state, a transition between concurrent regions, a
-pseudo-state made composite, a statement of another diagram, a bad color, and a state without a name.
+pseudo-state made composite, a statement of another diagram, a bad color, a state without a name, a state declared with
+the alias of a floating note, and a floating note with the alias of a state.
 
 ##### CanvasNetPlantUml-State-StateParser-Limits: Limits
 

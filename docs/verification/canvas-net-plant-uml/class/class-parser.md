@@ -58,10 +58,12 @@ direction mark, the color, and the links of `extends` and `implements`.
 
 ##### CanvasNetPlantUml-Class-ClassParser-Notes: Notes Attach Or Float
 
-**Tests**: `ClassParserTests.PlantUmlClassParser_Notes_AttachToEntitiesLinksOrFloat`
+**Tests**: `ClassParserTests.PlantUmlClassParser_Notes_AttachToEntitiesLinksOrFloat`,
+`ClassParserTests.PlantUmlClassParser_Notes_GeneratedIdsNeverCollide`
 
 Asserts notes on a side of a named entity, of the last declared entity, on the last link, and floating with an alias
-that links connect.
+that links connect; asserts that with a class named `note#1` and a floating note aliased `note#2` beside notes without
+an alias, every entity and note of the lowered diagram has an id of its own and the layout draws.
 
 ##### CanvasNetPlantUml-Class-ClassParser-HideShow: Hide And Show Rules
 

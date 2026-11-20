@@ -208,6 +208,27 @@ public class StateParserTests
     }
 
     /// <summary>
+    ///     Validates that a short name inside a composite state finds the floating note whose alias is qualified with
+    ///     the composite state (as PlantUML links it), unless a state of that name is nearer, and that the diagram
+    ///     lays out.
+    /// </summary>
+    [Fact]
+    public void PlantUmlStateParser_Parse_ScopedNoteAlias_LinksTheNote()
+    {
+        // Act
+        var model = Parse("state A {\nnote \"x\" as A.N\nN --> B\nstate C {\nstate N\nN --> D\n}\n}");
+        var scene = model.Layout(Context());
+
+        // Assert
+        var note = Assert.Single(model.Notes);
+        Assert.Equal("A.N", note.Id);
+        Assert.Same(note, model.Transitions[0].From);
+        Assert.Equal("A.B", model.Transitions[0].To.Id);
+        Assert.Equal("A.C.N", model.Transitions[1].From.Id);
+        Assert.NotEmpty(scene.Items);
+    }
+
+    /// <summary>
     ///     Validates the common statements: <c>hide empty description</c> (other <c>hide</c> forms are reported), page
     ///     texts, the direction, <c>scale</c>, the layout skin parameters, and the state skin parameters.
     /// </summary>
@@ -246,7 +267,8 @@ public class StateParserTests
     /// <summary>
     ///     Validates the located syntax errors: an arrow that is not a transition, an unclosed composite state, a
     ///     closing brace without a composite state, a transition between concurrent regions, a pseudo-state made
-    ///     composite, a statement of another diagram, a bad color, and a state without a name.
+    ///     composite, a statement of another diagram, a bad color, a state without a name, a state named like a
+    ///     floating note, and a floating note named like a state.
     /// </summary>
     /// <param name="body">The diagram body.</param>
     /// <param name="line">The line of the error.</param>
@@ -263,6 +285,8 @@ public class StateParserTests
     [InlineData("state \nA --> B", 2)]
     [InlineData("state A {\n}\nstate A <<choice>>", 4)]
     [InlineData("A --> B\nstate A junk", 3)]
+    [InlineData("note \"x\" as N\nstate N", 3)]
+    [InlineData("state A\nnote \"x\" as A\nnote \"y\" as A", 3)]
     public void PlantUmlStateParser_Parse_Errors_AreLocated(string body, int line)
     {
         // Act

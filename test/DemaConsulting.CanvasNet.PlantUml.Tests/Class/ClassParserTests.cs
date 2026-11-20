@@ -199,6 +199,27 @@ public class ClassParserTests
     }
 
     /// <summary>
+    ///     Validates that the ids the parser makes up for notes without an alias never take the id of an entity or of
+    ///     a floating note, whatever names the diagram uses, so the diagram lowers and draws.
+    /// </summary>
+    [Fact]
+    public void PlantUmlClassParser_Notes_GeneratedIdsNeverCollide()
+    {
+        // Arrange
+        var model = Parse("class \"note#1\"\nclass B\nnote left of B : hello\nnote \"x\" as \"note#2\"\nnote right of B : again");
+
+        // Act
+        var diagram = model.Lower(Context());
+        var scene = model.Layout(Context());
+
+        // Assert
+        var ids = diagram.Entities.Select(e => e.Id).Concat(diagram.Notes.Select(n => n.Id)).ToList();
+        Assert.Equal(5, ids.Count);
+        Assert.Equal(ids.Count, ids.Distinct(StringComparer.Ordinal).Count());
+        Assert.Contains(scene.Items, i => i.Id == "note#1");
+    }
+
+    /// <summary>
     ///     Validates hide and show: the rules are kept in order with their gender and the empty flag, and the forms
     ///     that are not applied are reported.
     /// </summary>

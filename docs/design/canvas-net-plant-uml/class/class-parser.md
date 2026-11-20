@@ -20,7 +20,8 @@ short name, the packages by id, the notes (floating notes by alias), the links, 
 parameters, the page texts, the direction, the scale, the name separator (`.` by default, `set namespaceSeparator`),
 the open blocks (packages, namespaces, and `together` groups), the entity declared last and the link read last (the
 targets of a note without `of` and of `note on link`), and the reports. Link ids are `link#k`, ids of notes without an
-alias `note#k`.
+alias `note"k` (with a quote, which no name or alias can hold, so that they never take the id of an entity or a
+floating note).
 
 #### Key Methods
 

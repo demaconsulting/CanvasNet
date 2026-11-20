@@ -119,11 +119,11 @@ internal sealed class StateModel : IPlantUmlDiagram
     ///     Gets the id of the cluster that stands for a region of a composite state with concurrent regions.
     /// </summary>
     /// <param name="region">The region.</param>
-    /// <returns>The id (never a qualified name of an element: it holds a <c>#</c>).</returns>
+    /// <returns>The id (never the id of an element or a note: it holds a quote, which no name can hold).</returns>
     public static string RegionClusterId(StateRegion region)
     {
         ArgumentNullException.ThrowIfNull(region);
-        return region.Owner.Id + "#region" + region.Index.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        return region.Owner.Id + "\"region" + region.Index.ToString(System.Globalization.CultureInfo.InvariantCulture);
     }
 
     /// <summary>

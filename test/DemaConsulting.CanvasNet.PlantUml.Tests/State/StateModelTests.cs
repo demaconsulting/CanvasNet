@@ -68,11 +68,11 @@ public class StateModelTests
         // Assert
         var composite = diagram.Clusters[0];
         Assert.Equal(ClusterConcurrency.SideBySide, composite.Concurrency);
-        Assert.Equal(["P", "P#region0", "P#region1"], diagram.Clusters.Select(c => c.Id));
+        Assert.Equal(["P", "P\"region0", "P\"region1"], diagram.Clusters.Select(c => c.Id));
         Assert.All(diagram.Clusters.Skip(1), c => Assert.Same(composite, c.Parent));
         Assert.All(diagram.Clusters.Skip(1), c => Assert.Null(c.Image));
         Assert.Same(diagram.Clusters[2], diagram.Entities.Single(e => e.Id == "P.CONC1.R").Parent);
-        Assert.Equal("P#region1", StateModel.RegionClusterId(ElementOf(model, "P").Regions[1]));
+        Assert.Equal("P\"region1", StateModel.RegionClusterId(ElementOf(model, "P").Regions[1]));
         diagram.Validate();
     }
 
@@ -116,5 +116,25 @@ public class StateModelTests
 
         // Act / Assert
         Assert.ThrowsAny<OperationCanceledException>(() => model.Lower(context));
+    }
+
+    /// <summary>
+    ///     Validates that the ids the model makes up (of the notes without an alias and of the regions) never take the
+    ///     id of a state or of a floating note, whatever names the diagram uses.
+    /// </summary>
+    [Fact]
+    public void PlantUmlStateModel_Lower_GeneratedIds_NeverCollide()
+    {
+        // Arrange
+        var model = Parse("state \"note#1\"\nstate \"A#region1\"\nnote \"x\" as \"note#2\"\nstate A {\nstate X\n--\nstate Y\n}\nnote right of A.X : y\nnote left of A.Y : z");
+
+        // Act
+        var diagram = model.Lower(Context());
+        var scene = model.Layout(Context());
+
+        // Assert
+        var ids = diagram.Entities.Select(e => e.Id).Concat(diagram.Clusters.Select(c => c.Id)).Concat(diagram.Notes.Select(n => n.Id)).ToList();
+        Assert.Equal(ids.Count, ids.Distinct(StringComparer.Ordinal).Count());
+        Assert.Contains(scene.Items, i => i.Role == "state" && i.Id == "A#region1");
     }
 }

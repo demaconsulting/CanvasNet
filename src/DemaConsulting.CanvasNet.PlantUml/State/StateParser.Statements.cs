@@ -612,6 +612,11 @@ internal sealed partial class StateParser
                     return note;
                 }
 
+                if (FindScopedNote(name.Text) is { } scoped)
+                {
+                    return scoped;
+                }
+
                 return Resolve(name.Text, location);
             default:
                 throw Error($"'{name.Text}' is not a state", location, "write a state name, [*], [H], or [H*]");
@@ -636,7 +641,7 @@ internal sealed partial class StateParser
         if (read.IsFloating)
         {
             var alias = read.Alias ?? NextNoteId();
-            if (_noteByAlias.ContainsKey(alias) || Find(alias) is not null)
+            if (_noteByAlias.ContainsKey(alias) || _byId.ContainsKey(alias) || Find(alias) is not null)
             {
                 throw Error($"the name '{alias}' is already used", statement.Location, "give the note another name");
             }

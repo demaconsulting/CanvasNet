@@ -496,7 +496,9 @@ relationship and transition. The known differences from PlantUML are:
   exit points and pins (drawn as states), `<<sdlreceive>>`, a cross at the start of a transition, stereotypes of a
   transition, `hide` forms other than `hide empty description`, and a transition that leaves the first region of a
   composite state with concurrent regions (drawn from its border) are reported as `plantuml-statement-unsupported`; a
-  transition between two concurrent regions is a `plantuml-syntax-error`, as PlantUML refuses it.
+  transition between two concurrent regions is a `plantuml-syntax-error`, as PlantUML refuses it. A state named like a
+  floating note is a `plantuml-syntax-error`, where PlantUML accepts it; both refuse a floating note named like a
+  state.
 - **Detection.** Statements are recognized by their leading keywords and arrows, in the order PlantUML tries its
   diagram types (sequence, class, the legacy activity syntax, the use case, component, and deployment family, state,
   and activity). In rare ambiguous cases a diagram of a type that is not drawn is named differently; that never changes

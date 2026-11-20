@@ -269,7 +269,9 @@ of this repository, so the two diagram languages are bounded alike.
   link stereotypes, hide and show forms other than `hide empty description`, `json` and `map` blocks, notes on
   composite states (drawn floating), and transitions that leave the first region of a composite state with concurrent
   regions (drawn from its border) are reported as `plantuml-statement-unsupported`; PlantUML refuses a transition
-  between two concurrent regions, and so does CanvasNet.
+  between two concurrent regions, and so does CanvasNet. A state declared with the alias of a floating note is a
+  `plantuml-syntax-error`, where PlantUML accepts it and draws no usable picture (both refuse a floating note named
+  like a state).
 
 ## Phase Plan
 

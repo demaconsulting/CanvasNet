@@ -67,3 +67,5 @@ examples:
   are reported as plantuml-statement-unsupported.
 - A transition between two concurrent regions is a plantuml-syntax-error, as
   PlantUML refuses it.
+- A state named like a floating note is a plantuml-syntax-error, where
+  PlantUML accepts it; both refuse a floating note named like a state.

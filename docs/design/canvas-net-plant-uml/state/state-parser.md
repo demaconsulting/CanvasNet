@@ -20,7 +20,8 @@ name, the floating notes by alias, the notes, the transitions, the skin paramete
 scale, `hide empty description`, the open composite states with the locations of their openers, the number of
 concurrent regions read so far (PlantUML numbers them `CONC1`, `CONC2`, ... across the diagram), the element and the
 transition read last (the targets of a note without `of` and of `note on link`), and the reports. Transition ids are
-`link#k`, ids of notes without an alias `note#k`.
+`link#k`, ids of notes without an alias `note"k` (with a quote, which no name or alias can hold, so that they never
+take the id of a state or a floating note).
 
 #### Key Methods
 
@@ -49,10 +50,13 @@ transition read last (the targets of a note without `of` and of `note on link`),
 - `ReadConcurrentSeparator`, `Close` - a separator adds a region to the innermost composite state (the first separator
   decides stacked or side by side); a separator outside a composite state is reported; a closer without an open
   composite state is a syntax error.
-- `ReadTransition`, `ResolveEnd`, `RawLabel` - the ends (`[*]` is the start as a source and the end as a target, `[H]`
-  and `[H*]` the histories of the current composite state, `X[H]` and `X[H*]` those of `X`), the decorations, the
-  style, the thickness, the color, the length, the direction, and the label as written after its colon; arrows that are
-  not transition arrows are syntax errors, and a cross at the start and link stereotypes are reported.
+- `ReadTransition`, `ResolveEnd`, `FindScopedNote`, `RawLabel` - the ends (`[*]` is the start as a source and the end
+  as a target, `[H]` and `[H*]` the histories of the current composite state, `X[H]` and `X[H*]` those of `X`, a
+  floating note by its alias, or inside a composite state by a short name that the prefix of the current region or of
+  a region around it qualifies into a note's alias, as PlantUML links it, unless a state of that name is nearer), the
+  decorations, the style, the thickness, the color, the length, the direction, and the label as written after its
+  colon; arrows that are not transition arrows are syntax errors, and a cross at the start and link stereotypes are
+  reported.
 - `CheckConcurrentTransitions` - a transition between two different concurrent regions is a syntax error (PlantUML
   refuses it); one that leaves the first region of a composite state with concurrent regions is reported, as the Svek
   engine draws it from the border.
@@ -65,8 +69,9 @@ transition read last (the targets of a note without `of` and of `note on link`),
 #### Error Handling
 
 Every refusal is a located `PlantUmlSyntaxException`: `plantuml-syntax-error` with a hint for malformed statements,
-unclosed or unopened composite states, transitions between concurrent regions, pseudo-states made composite, invalid
-colors, and statements of other diagram types; `plantuml-limit-exceeded` naming the limit. Reports of statements that
+unclosed or unopened composite states, transitions between concurrent regions, pseudo-states made composite, a state
+or a pseudo-state whose id is the alias of a floating note (and the reverse), invalid colors, and statements of other
+diagram types; `plantuml-limit-exceeded` naming the limit. Reports of statements that
 are read but not drawn use `plantuml-statement-unsupported`, and skin parameters that are not applied
 `plantuml-skinparam-ignored`.
 

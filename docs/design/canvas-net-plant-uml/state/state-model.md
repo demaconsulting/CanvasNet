@@ -34,11 +34,11 @@ behavior is specified by the `CanvasNetPlantUml-State-StateModel-*` requirements
 
 - `Lower(context)` - builds a `SvekDiagram` for one call: a `SvekCluster` per composite state, parents first, with the
   image of `StateRenderer.CompositeImage` and, when it has more than one region, the arrangement of its regions and a
-  cluster without image per region (id `RegionClusterId`: the composite's id, `#region`, and the index); a
-  `SvekEntity` per simple state and pseudo-state with the image of `StateRenderer.Image` in the cluster of its region;
-  the floating notes; the transitions with every setting; the notes attached to states or transitions; notes kept in
-  text order; the direction, the layout settings, the theme, and the location. Cancellation is observed between
-  elements.
+  cluster without image per region (id `RegionClusterId`: the composite's id, `"region`, and the index, never the id of
+  an element or a note, as no name holds a quote); a `SvekEntity` per simple state and pseudo-state with the image of
+  `StateRenderer.Image` in the cluster of its region; the floating notes; the transitions with every setting; the
+  notes attached to states or transitions; notes kept in text order; the direction, the layout settings, the theme,
+  and the location. Cancellation is observed between elements.
 - `Layout(context)` - lowers, runs `SvekLayout.Run`, draws with `SvekRenderer.Render`, and decorates with the page
   texts (`ScenePage.Decorate` with `PageMetrics.Svek`), over the theme's background at the diagram's scale.
 

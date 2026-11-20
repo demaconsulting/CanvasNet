@@ -66,12 +66,15 @@ sections:
               - id: CanvasNetPlantUml-State-StateParser-Notes
                 title: >-
                   The StateParser unit shall attach a note to a side of a state, to the last transition, or to the
-                  last state, keep a floating note with its alias, and draw a note on a composite state as a floating
-                  note of the composite's region, reported.
+                  last state, keep a floating note with its alias, link a short name inside a composite state to the
+                  floating note whose alias the composite state qualifies (unless a state of that name is nearer), and
+                  draw a note on a composite state as a floating note of the composite's region, reported.
                 justification: |
-                  Notes explain states and transitions; the engine attaches notes to simple elements only.
+                  Notes explain states and transitions; the engine attaches notes to simple elements only. PlantUML
+                  resolves a short name inside a composite state to the note qualified with it.
                 tests:
                   - PlantUmlStateParser_Parse_Notes_AreAttached
+                  - PlantUmlStateParser_Parse_ScopedNoteAlias_LinksTheNote
 
               - id: CanvasNetPlantUml-State-StateParser-Common
                 title: >-
@@ -100,11 +103,14 @@ sections:
                 title: >-
                   The StateParser unit shall refuse with a located plantuml-syntax-error and a hint an arrow that is
                   not a transition arrow, an unclosed composite state, a closer without a composite state, a transition
-                  between two concurrent regions, a pseudo-state made composite, a statement of another diagram, a bad
-                  color, and a declaration without a name or with text after it.
+                  between two concurrent regions, a pseudo-state made composite, a state whose id is the alias of a
+                  floating note or a note whose alias is the id of a state, a statement of another diagram, a bad color,
+                  and a declaration without a name or with text after it.
                 justification: |
                   A malformed diagram must fail where the author can fix it; PlantUML refuses a transition between
-                  concurrent regions too.
+                  concurrent regions too. PlantUML also refuses a floating note named like an existing state ("Note
+                  already created"); it accepts a state named like an existing note alias but draws no usable picture
+                  of it, so CanvasNet refuses that order too (a safe, documented deviation).
                 tests:
                   - PlantUmlStateParser_Parse_Errors_AreLocated
 

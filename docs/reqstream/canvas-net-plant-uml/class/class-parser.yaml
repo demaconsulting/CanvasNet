@@ -61,11 +61,14 @@ sections:
               - id: CanvasNetPlantUml-Class-ClassParser-Notes
                 title: >-
                   The ClassParser unit shall read notes on a side of a named entity or of the last declared entity, on
-                  the last link, and floating with an alias that links connect, written on one line or up to end note.
+                  the last link, and floating with an alias that links connect, written on one line or up to end note,
+                  giving a note without an alias an id that never takes the id of an entity or a floating note.
                 justification: |
-                  Notes explain a diagram and must be attached to what they explain.
+                  Notes explain a diagram and must be attached to what they explain; a made-up note id that equals a
+                  name the author chose would make the layout fail.
                 tests:
                   - PlantUmlClassParser_Notes_AttachToEntitiesLinksOrFloat
+                  - PlantUmlClassParser_Notes_GeneratedIdsNeverCollide
 
               - id: CanvasNetPlantUml-Class-ClassParser-HideShow
                 title: >-

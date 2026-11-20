@@ -727,10 +727,11 @@ internal sealed partial class ClassParser
     private string NextLinkId() => "link#" + (++_linkCount).ToString(CultureInfo.InvariantCulture);
 
     /// <summary>
-    ///     Gets the id of the next note without an alias.
+    ///     Gets the id of the next note without an alias: <c>note"k</c>, with a quote that no name or alias can hold, so
+    ///     that it never takes the id of an element or of a floating note.
     /// </summary>
     /// <returns>The id.</returns>
-    private string NextNoteId() => "note#" + (++_noteCount).ToString(CultureInfo.InvariantCulture);
+    private string NextNoteId() => "note\"" + (++_noteCount).ToString(CultureInfo.InvariantCulture);
 
     /// <summary>
     ///     An open block: a package or namespace, or a <c>together</c> group (no package).

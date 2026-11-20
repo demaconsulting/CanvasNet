@@ -33,12 +33,15 @@ not touch a note as edges.
 
 **Tests**: `StateModelTests.PlantUmlStateModel_Lower_CompositeStates_BecomeClusters`,
 `StateModelTests.PlantUmlStateModel_Lower_ConcurrentRegions_BecomeRegionClusters`,
-`StateModelTests.PlantUmlStateModel_Lower_ObservesCancellation`
+`StateModelTests.PlantUmlStateModel_Lower_ObservesCancellation`,
+`StateModelTests.PlantUmlStateModel_Lower_GeneratedIds_NeverCollide`
 
 Asserts the simple elements as entities in the cluster of their composite state, the composite states as clusters with
 their images, and the links and notes in text order; asserts a composite state with concurrent regions as a cluster
 with the arrangement of its first separator and one cluster without image per region holding the region's elements;
-asserts that a canceled call stops with `OperationCanceledException`.
+asserts that a canceled call stops with `OperationCanceledException`; asserts that with states named `note#1` and
+`A#region1` and a floating note aliased `note#2` beside notes without an alias and a composite state with two
+regions, every entity, cluster, and note of the lowered diagram has an id of its own and the layout draws.
 
 ##### CanvasNetPlantUml-State-StateModel-Layout: The Scene Of A Call
 
