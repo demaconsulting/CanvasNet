@@ -207,6 +207,64 @@ public class DiagramDetectorTests
     }
 
     /// <summary>
+    ///     Validates that a diagram with messages to or from the diagram border (found and lost messages, with a circle,
+    ///     a cross, a reversed arrow, or a color at the border end) is a sequence diagram, as in PlantUML.
+    /// </summary>
+    /// <param name="text">The statements.</param>
+    [Theory]
+    [InlineData("participant A\n[-> A : in\nA ->] : out")]
+    [InlineData("A -> B\n[o-> A")]
+    [InlineData("A ->] : out")]
+    [InlineData("[x-> A : x\nA ->x] : y\nA ->o] : z")]
+    [InlineData("?-> A : q\nA ->? : r\nA ->o? : s\n?o-> A")]
+    [InlineData("A -> B\nA o->o] : k\n[<- A\nA <-] : u\n[<-> A")]
+    [InlineData("A -> B\nA -[#red]>] : c")]
+    public void PlantUmlDiagramDetector_Detect_BorderMessages_IsSequence(string text)
+    {
+        // Arrange / Act
+        var detected = Detect($"@startuml\n{text}\n@enduml\n");
+
+        // Assert
+        Assert.Equal("sequence", detected.DiagramType);
+        Assert.True(detected.IsSupported);
+    }
+
+    /// <summary>
+    ///     Validates which statements are messages to or from the diagram border: the border end is read from the part
+    ///     before the label only, so a label with brackets and arrows, a cross head, a color, a component, and a state
+    ///     pseudo-state are not border ends.
+    /// </summary>
+    /// <param name="text">The statement.</param>
+    /// <param name="expected">Whether it is a border message.</param>
+    [Theory]
+    [InlineData("[-> A : in", true)]
+    [InlineData("[o-> A", true)]
+    [InlineData("]-> A", true)]
+    [InlineData("?o-> A", true)]
+    [InlineData("A ->] : out", true)]
+    [InlineData("A ->x] : y", true)]
+    [InlineData("A ->o? : r", true)]
+    [InlineData("A ->? : r", true)]
+    [InlineData("A <-] : u", true)]
+    [InlineData("A -[#red]>] : c", true)]
+    [InlineData("A ->]++", true)]
+    [InlineData("A -> B", false)]
+    [InlineData("A -> B : see [-x] and x->]", false)]
+    [InlineData("A ->x B", false)]
+    [InlineData("A -[#red]-> B", false)]
+    [InlineData("[A] --> [B]", false)]
+    [InlineData("A --> [*]", false)]
+    [InlineData("A -[#red]", false)]
+    public void PlantUmlDiagramDetector_IsBorderMessage_ReadsTheBorderEnds(string text, bool expected)
+    {
+        // Act
+        var isBorder = DiagramDetector.IsBorderMessage(text);
+
+        // Assert
+        Assert.Equal(expected, isBorder);
+    }
+
+    /// <summary>
     ///     Validates the hint of a type that is not drawn: it lists the drawn types.
     /// </summary>
     [Fact]

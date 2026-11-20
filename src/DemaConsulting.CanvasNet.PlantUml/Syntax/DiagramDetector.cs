@@ -699,27 +699,96 @@ internal static partial class DiagramDetector
         text.StartsWith("||", StringComparison.Ordinal);
 
     /// <summary>
-    ///     Decides whether a statement is a sequence message: a participant (or <c>[</c>, <c>]</c>, <c>?</c>), an arrow
-    ///     and a participant.
+    ///     Decides whether a statement is a sequence message: a participant (or an end on the diagram border), an arrow
+    ///     and a participant (or an end on the diagram border).
     /// </summary>
     /// <param name="text">The statement text.</param>
     /// <returns>True for a message.</returns>
-    internal static bool IsSequenceArrow(string text)
+    internal static bool IsSequenceArrow(string text) =>
+        TryFindMessageArrow(text, out var left, out var run, out var right)
+        && (IsParticipantEnd(left, isLeft: true) || IsBorderStart(left))
+        && (IsParticipantEnd(right, isLeft: false) || IsBorderEnd(run, right));
+
+    /// <summary>
+    ///     Decides whether a statement is a message to or from the diagram border (a found or a lost message): the
+    ///     left forms <c>[-></c>, <c>[o-></c>, <c>[x-></c>, <c>]-></c>, <c>?-></c>, <c>?o-></c> and the right forms
+    ///     <c>-&gt;]</c>, <c>-&gt;o]</c>, <c>-&gt;x]</c>, <c>-&gt;?</c>, <c>-&gt;o?</c>, with any body, head, or color
+    ///     (PlantUML's <c>CommandExoArrowLeft</c> and <c>CommandExoArrowRight</c>); only the part before the label is
+    ///     read, so a label may hold brackets and arrows.
+    /// </summary>
+    /// <param name="text">The statement text.</param>
+    /// <returns>True for a message with an end on the border.</returns>
+    internal static bool IsBorderMessage(string text) =>
+        TryFindMessageArrow(text, out var left, out var run, out var right)
+        && ((IsBorderStart(left) && IsParticipantEnd(right, isLeft: false))
+            || (IsParticipantEnd(left, isLeft: true) && IsBorderEnd(run, right)));
+
+    /// <summary>
+    ///     Finds the arrow of a message before its label: the first run of arrow characters that holds a dash or a
+    ///     dot and a head or a dash pair.
+    /// </summary>
+    /// <param name="text">The statement text.</param>
+    /// <param name="left">Receives the trimmed text before the arrow.</param>
+    /// <param name="run">Receives the arrow.</param>
+    /// <param name="right">Receives the trimmed text after the arrow, up to the label.</param>
+    /// <returns>True when the statement has an arrow before its label.</returns>
+    private static bool TryFindMessageArrow(string text, out string left, out string run, out string right)
     {
-        // The arrow is before the label: a run of arrow characters that holds a dash or a dot and a head or a dash pair
         var colon = text.IndexOf(':', StringComparison.Ordinal);
         var head = colon >= 0 ? text[..colon] : text;
         for (var i = 0; i < head.Length; i++)
         {
             if (head[i] is '-' or '.' && IsArrowRun(head, i, out var runStart, out var runEnd))
             {
-                var left = head[..runStart].Trim();
-                var right = head[runEnd..].Trim();
-                return IsParticipantEnd(left, true) && IsParticipantEnd(right, false);
+                left = head[..runStart].Trim();
+                run = head[runStart..runEnd];
+                right = head[runEnd..].Trim();
+                return true;
             }
         }
 
+        left = run = right = string.Empty;
         return false;
+    }
+
+    /// <summary>
+    ///     Decides whether the end before an arrow is on the diagram border: <c>[</c>, <c>]</c>, or <c>?</c>, optionally
+    ///     followed by a circle <c>o</c> or a cross <c>x</c>.
+    /// </summary>
+    /// <param name="end">The trimmed text before the arrow.</param>
+    /// <returns>True for a border end.</returns>
+    private static bool IsBorderStart(string end) =>
+        end.Length is 1 or 2 && end[0] is '[' or ']' or '?' && (end.Length == 1 || end[1] is 'o' or 'x');
+
+    /// <summary>
+    ///     Decides whether the end after an arrow is on the diagram border: a <c>?</c> (or a lone bracket) after the
+    ///     arrow, or an arrow that ends with <c>]</c> after its head or body (a circle or a cross between them),
+    ///     followed only by the activation shorthands.
+    /// </summary>
+    /// <param name="run">The arrow.</param>
+    /// <param name="right">The trimmed text after the arrow, up to the label.</param>
+    /// <returns>True for a border end.</returns>
+    private static bool IsBorderEnd(string run, string right)
+    {
+        var rest = right.TrimEnd('+', '-', '*', '!', ' ');
+        if (rest is "?" or "]" or "[")
+        {
+            return true;
+        }
+
+        if (rest.Length > 0 || !run.EndsWith(']'))
+        {
+            return false;
+        }
+
+        // The ']' must follow the head or the body (not close a color, as in -[#red])
+        var body = run[..^1];
+        if (body.Length > 0 && body[^1] is 'o' or 'x')
+        {
+            body = body[..^1];
+        }
+
+        return body.Length > 0 && body[^1] is '>' or '-' or '<' or '/' or '\\';
     }
 
     /// <summary>
@@ -767,8 +836,8 @@ internal static partial class DiagramDetector
     }
 
     /// <summary>
-    ///     Decides whether one end of a message can be a sequence participant: a name (not one in brackets or
-    ///     parentheses, which belong to other types), or the found and lost ends <c>[</c>, <c>]</c> and <c>?</c>.
+    ///     Decides whether one end of a message can be a sequence participant: a name not in brackets or parentheses
+    ///     (which belong to other types).
     /// </summary>
     /// <param name="end">The trimmed text of the end.</param>
     /// <param name="isLeft">Whether it is the end before the arrow.</param>
@@ -778,11 +847,6 @@ internal static partial class DiagramDetector
         if (end.Length == 0)
         {
             return false;
-        }
-
-        if (end is "[" or "]" or "?")
-        {
-            return true;
         }
 
         // The end after the arrow may carry the activation shorthands (++, --, **, !!) and a color

@@ -121,13 +121,16 @@ sections:
                 title: >-
                   The SequenceParser unit shall report the statements PlantUML accepts that this version does not draw
                   (references, page breaks, participant creation, the main frame, messages to or from the diagram
-                  border, parallel statements, stereotypes, links, other hide and show statements, and other scale
-                  forms) as
-                  plantuml-statement-unsupported at their lines, and draw the diagram without them.
+                  border with any arrow and a circle or a cross at the border, parallel statements, stereotypes, links,
+                  other hide and show statements, and other scale forms) as plantuml-statement-unsupported at their
+                  lines, and draw the diagram without them; a message is a border message by the part before its label
+                  only.
                 justification: |
                   A diagram that uses such a statement must still be drawn, and its author must learn what is missing.
+                  A label may hold any characters, brackets and arrows included, as in PlantUML.
                 tests:
                   - PlantUmlSequenceParser_UnsupportedStatements_AreReported
+                  - PlantUmlSequenceParser_BorderMessages_AreReported
 
               - id: CanvasNetPlantUml-Sequence-SequenceParser-Errors
                 title: >-

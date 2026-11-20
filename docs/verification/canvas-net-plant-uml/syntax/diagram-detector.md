@@ -40,13 +40,20 @@ error at its line whose hint names `@startmindmap`, and the edit distance of equ
 
 **Tests**: `DiagramDetectorTests.PlantUmlDiagramDetector_Detect_SequenceStatements_IsSequence`,
 `DiagramDetectorTests.PlantUmlDiagramDetector_Detect_ActivityStatements_IsActivity`,
-`DiagramDetectorTests.PlantUmlDiagramDetector_BlockClosers_AreRecognized`
+`DiagramDetectorTests.PlantUmlDiagramDetector_BlockClosers_AreRecognized`,
+`DiagramDetectorTests.PlantUmlDiagramDetector_Detect_BorderMessages_IsSequence`,
+`DiagramDetectorTests.PlantUmlDiagramDetector_IsBorderMessage_ReadsTheBorderEnds`
 
 Asserts that a diagram with a title, an actor, messages, a group, a multi-line note whose text starts with `class`, a
 divider, a delay, and a space is a sequence diagram recognized by `actor` at line 3, and that a diagram with start, an
 action, a condition, a connector, and stop is an activity diagram; asserts the closer of a legend with an alignment,
 `end legend` and `endlegend` closing it and `end legends` not, the block of an aligned footer alone on its line, no
 block for an aligned header with text, an aligned header as a common statement, and `endbox` as a sequence statement.
+Asserts that diagrams with messages from and to the border (`[->`, `[o->`, `[x->`, `->]`, `->x]`, `->o]`, `?->`,
+`->?`, `->o?`, `?o->`, `<-]`, `[<->`, and a colored `-[#red]>]`) are drawn sequence diagrams, and which statements are
+border messages: the left and right border forms with a circle, a cross, a reversed arrow, a color, or an activation
+are; plain messages, a message whose label holds `[-x]` and `x->]`, a cross head, a colored arrow, a link between
+components, a link to `[*]`, and a color without a head are not.
 
 ##### CanvasNetPlantUml-Syntax-DiagramDetector-GraphFamilies: Graph Families In PlantUML's Order
 

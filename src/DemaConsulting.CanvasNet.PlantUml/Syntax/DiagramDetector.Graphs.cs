@@ -93,14 +93,16 @@ internal static partial class DiagramDetector
     ///     Decides whether a statement is a relationship that only the class family draws (so a sequence diagram
     ///     refuses it, as PlantUML's message grammar does): a link whose arrow has a dotted or doubled body, a direction
     ///     word, or a decoration that no message has (an extension, a composition, a circle, ...), or whose ends are not
-    ///     participant names.
+    ///     participant names; a message to or from the diagram border never is.
     /// </summary>
     /// <param name="statement">The statement.</param>
     /// <returns>True when it is.</returns>
     internal static bool IsClassOnlyLink(SourceStatement statement)
     {
         ArgumentNullException.ThrowIfNull(statement);
-        if (!SvekSyntax.TryReadLink(statement, out var link))
+
+        // A message to or from the border is a sequence statement ('?o-> A' reads as a link with the end '?o')
+        if (IsBorderMessage(statement.Text) || !SvekSyntax.TryReadLink(statement, out var link))
         {
             return false;
         }

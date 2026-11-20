@@ -307,6 +307,26 @@ public class SequenceParserTests
     }
 
     /// <summary>
+    ///     Validates that messages to or from the diagram border are reported at their lines in every form (a circle or
+    ///     a cross at the border, a lost message to '?' with a label), and that a message whose label holds brackets and
+    ///     arrows is drawn.
+    /// </summary>
+    [Fact]
+    public void PlantUmlSequenceParser_BorderMessages_AreReported()
+    {
+        // Act
+        var model = SequenceTestHelpers.Parse("A -> B\n[o-> A\nA ->x] : y\nA ->? : r\nA ->o? : s\n?o-> A\nA -> B : see [-x] and x->]");
+
+        // Assert
+        Assert.Equal(
+            [3, 4, 5, 6, 7],
+            model.Reports.Where(r => r.Code == PlantUmlDiagnosticCodes.StatementUnsupported).Select(r => r.Location.Line));
+        var messages = model.Events.OfType<SequenceMessage>().ToList();
+        Assert.Equal(2, messages.Count);
+        Assert.Equal("see [-x] and x->]", messages[1].Label);
+    }
+
+    /// <summary>
     ///     Validates that invalid statements fail at their statements with a hint: an unknown statement, a message
     ///     without a receiver or with text after it, incomplete declarations, and invalid or unclosed notes.
     /// </summary>

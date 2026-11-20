@@ -125,6 +125,32 @@ public class PlantUmlSequenceIntegrationTests
     }
 
     /// <summary>
+    ///     Validates that a diagram with messages to or from the diagram border is a sequence diagram whose border
+    ///     messages are reported at their lines and whose other statements are drawn.
+    /// </summary>
+    /// <param name="body">The statements.</param>
+    /// <param name="lines">The expected lines of the reports.</param>
+    [Theory]
+    [InlineData("participant A\n[-> A : in\nA ->] : out", new[] { 3, 4 })]
+    [InlineData("A -> B\n[o-> A", new[] { 3 })]
+    [InlineData("A ->] : out", new[] { 2 })]
+    public void CanvasNetPlantUml_Sequence_BorderMessages_AreReported(string body, int[] lines)
+    {
+        // Arrange
+        var document = PlantUmlDocument.Parse($"@startuml\n{body}\n@enduml\n");
+        var (options, _, unsupported) = PlantUmlTestHelpers.Collecting();
+
+        // Act
+        using var surface = document.Render(options, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal("sequence", document.DiagramType);
+        Assert.Equal(lines, unsupported.Select(u => u.Location.Line));
+        Assert.All(unsupported, u => Assert.Equal(PlantUmlDiagnosticCodes.StatementUnsupported, u.Feature));
+        Assert.True(surface.Width >= 1);
+    }
+
+    /// <summary>
     ///     Validates that a layout over the work limit fails with plantuml-limit-exceeded.
     /// </summary>
     [Fact]

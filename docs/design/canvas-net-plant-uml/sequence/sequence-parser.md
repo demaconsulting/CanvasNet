@@ -63,9 +63,10 @@ or unclosed box, an unclosed group, `return` with nothing to return to, and a sp
 participants or boxes than `MaxNodes`, more messages than `MaxEdges`, a text longer than `MaxLabelLength`, and groups
 nested deeper than `MaxNestingDepth` throw `plantuml-limit-exceeded`. The statements PlantUML accepts that are not
 drawn - `ref over` (with its block), `newpage`, `create`, `**`, `mainframe`, `autoactivate`, `ignore newpage`, `skin`,
-`also`, `par2`, messages to or from the border (`[->`, `->]`, `?->`, `->?`), parallel statements (`& A -> B`, read and
-drawn on their own row), stereotypes and links of participants, `hide` and `show` other than the foot box, other `scale`
-forms, and `autonumber` options other than a start, a step, and a format - are reported as
+`also`, `par2`, messages to or from the border (`[->`, `->]`, `?->`, `->?`, with a circle or a cross at the border end,
+recognized by `DiagramDetector.IsBorderMessage` from the part before the label), parallel statements (`& A -> B`, read
+and drawn on their own row), stereotypes and links of participants, `hide` and `show` other than the foot box, other
+`scale` forms, and `autonumber` options other than a start, a step, and a format - are reported as
 `plantuml-statement-unsupported` and skipped (or drawn without that part).
 
 #### Dependencies

@@ -53,7 +53,13 @@ state diagram. The unit's behavior is specified by the
   sequence statement.
 - `IsSequenceArrow(text)` - finds a run of arrow characters (dashes, dots, heads, slashes, `x`, `o`, and a bracketed
   color) before the label that holds a head, a dash pair, or a half head, with a participant on each side (a name not
-  in brackets or parentheses, or the found and lost ends `[`, `]`, and `?`).
+  in brackets or parentheses) or an end on the diagram border, read as PlantUML's `CommandExoArrowLeft` and
+  `CommandExoArrowRight` read it: before the arrow `[`, `]`, or `?` with an optional circle `o` or cross `x`; after it
+  `?` (or a lone bracket), or an arrow that ends with `]` after its head or body (`->]`, `->o]`, `->x]`, `-[#red]>]`),
+  followed only by the activation shorthands.
+- `IsBorderMessage(text)` - a message with one participant and one end on the diagram border (`[->`, `[o->`, `?o->`,
+  `->]`, `->x]`, `->?`, `->o?`, ...), read from the part before the label only, so a label may hold brackets and
+  arrows; the `SequenceParser` reports these messages.
 - `DetectGraph(statements)` - tries the families in PlantUML's order: the class family accepts declarations, bodies
   (skipped as text by `ClassOuterStatements`), member lines `A : x`, packages, notes, hide and show, and links read by
   the `SvekSyntax` link reader whose ends are class names; the type is `object` when an object or a map is declared
@@ -66,7 +72,8 @@ state diagram. The unit's behavior is specified by the
   their links.
 - `IsClassOnlyLink(statement)` - a link that the sequence diagram reads but PlantUML's sequence diagram refuses (a
   dotted or doubled body, a direction word, a decoration the sequence diagram does not draw, or an end name with
-  characters outside letters, digits, `_`, `.`, and `@`), so that the text falls through to the class family.
+  characters outside letters, digits, `_`, `.`, and `@`), so that the text falls through to the class family; a
+  message to or from the border never is (`?o-> A` reads as a link with the end `?o`).
 - `JoinTypes(types)` - joins type names as `a, b, and c` for the hint.
 - `OtherType(text)` - `[*]` is a state, `(*)` a legacy activity, a bracketed name followed by a gantt verb a gantt
   chart, another bracketed name a component, a parenthesized name a use case, and the keyword table names the rest; a

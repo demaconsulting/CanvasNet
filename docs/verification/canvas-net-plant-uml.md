@@ -122,6 +122,12 @@ that it is drawn.
 Detects texts with a node, an artifact linked to a node, a queue before a storage that holds a file, and a person
 linked to a hexagon, and asserts the type `deployment` and that it is drawn.
 
+**Tests**: `PlantUmlSequenceIntegrationTests.CanvasNetPlantUml_Sequence_BorderMessages_AreReported`
+
+Opens and renders diagrams with messages to and from the diagram border (`[->` and `->]` after a declaration, `[o->`
+after a message, and `->]` alone), and asserts the type `sequence`, the `plantuml-statement-unsupported` reports at the
+lines of the border messages, and a drawn surface.
+
 ### CanvasNetPlantUml-Preprocessor: The Subset Is Applied
 
 **Tests**: `PlantUmlSystemIntegrationTests.CanvasNetPlantUml_Preprocessor_SubsetIsApplied`

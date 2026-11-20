@@ -301,8 +301,8 @@ internal sealed partial class SequenceParser
             return index;
         }
 
-        if (text.StartsWith('[') || text.StartsWith('?') || text.EndsWith('?') || text.Contains("[-", StringComparison.Ordinal) ||
-            text.Contains("-]", StringComparison.Ordinal) || text.Contains(">]", StringComparison.Ordinal))
+        // A message to or from the border is read from the part before its label
+        if (DiagramDetector.IsBorderMessage(text))
         {
             Unsupported("messages from or to the diagram border ([->, ->], ?->) are not drawn", statement.Location);
             return index;
@@ -328,7 +328,7 @@ internal sealed partial class SequenceParser
     }
 
     /// <summary>
-    ///     Decides whether a statement is a message.
+    ///     Decides whether a statement is a message between participants.
     /// </summary>
     /// <param name="text">The statement.</param>
     /// <param name="word">The first word in lower case.</param>
@@ -342,10 +342,9 @@ internal sealed partial class SequenceParser
             return false;
         }
 
-        return DiagramDetector.IsSequenceArrow(text) && !text.StartsWith('[') && !text.StartsWith('?') &&
-               !text.Contains("[-", StringComparison.Ordinal) && !text.Contains("-]", StringComparison.Ordinal) &&
-               !text.Contains(">]", StringComparison.Ordinal) && !text.Contains("->?", StringComparison.Ordinal) &&
-               !text.Contains("?<-", StringComparison.Ordinal);
+        // A message to or from the diagram border is not drawn (the part before the label decides, so a label may
+        // hold brackets and arrows)
+        return DiagramDetector.IsSequenceArrow(text) && !DiagramDetector.IsBorderMessage(text);
     }
 
     /// <summary>
