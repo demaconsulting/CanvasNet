@@ -1,0 +1,24 @@
+' The PlantUML card of hero.svg: a two-step sequence diagram in the banner's dark colors, kept small so that it
+' still reads as a sequence diagram when the banner is shown about 900 pixels wide.
+@startuml
+skinparam backgroundColor transparent
+skinparam defaultFontName sans-serif
+skinparam shadowing false
+skinparam sequenceArrowThickness 4
+skinparam arrowColor #d9f99d
+skinparam arrowFontColor #ffffff
+skinparam arrowFontSize 30
+skinparam arrowFontStyle bold
+skinparam sequenceLifeLineBorderColor #a3e635
+skinparam participantBackgroundColor #365314
+skinparam participantBorderColor #a3e635
+skinparam participantBorderThickness 4
+skinparam participantFontColor #ffffff
+skinparam participantFontSize 30
+skinparam participantFontStyle bold
+hide footbox
+participant App
+participant API
+App -> API : render
+API --> App : PNG
+@enduml

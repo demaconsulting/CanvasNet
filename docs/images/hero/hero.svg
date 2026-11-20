@@ -1,8 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" xmlns:cn="https://demaconsulting.com/canvasnet" width="1600" height="640" viewBox="0 0 1600 640">
   <!-- The README hero banner. Every picture in it is a live file of this folder that CanvasNet draws while it
-       draws this page: a Mermaid diagram, an OpenSCAD model, a Vega-Lite chart, an SVG file, a PDF page, a
-       PowerPoint slide, and a Visio page flow into the canvasnet engine, and come out as a composed figure, a
-       comparison, a montage, and a Pandoc document. -->
+       draws this page: a Mermaid diagram, a PlantUML diagram, an OpenSCAD model, a Vega-Lite chart, an SVG
+       file, a PDF page, a PowerPoint slide, and a Visio page flow into the canvasnet engine, and come out as a
+       composed figure, a comparison, a montage, and a Pandoc document. -->
   <defs>
     <style>
       .word { font: bold 92px sans-serif; fill: #ffffff; }
@@ -76,6 +76,9 @@
     <marker id="headPink" viewBox="0 0 10 10" refX="2.5" refY="5" markerWidth="4" markerHeight="4" orient="auto">
       <path d="M0,0 L10,5 L0,10 L2.5,5 z" fill="#f472b6"/>
     </marker>
+    <marker id="headLime" viewBox="0 0 10 10" refX="2.5" refY="5" markerWidth="4" markerHeight="4" orient="auto">
+      <path d="M0,0 L10,5 L0,10 L2.5,5 z" fill="#a3e635"/>
+    </marker>
     <marker id="headAmber" viewBox="0 0 10 10" refX="2.5" refY="5" markerWidth="4" markerHeight="4" orient="auto">
       <path d="M0,0 L10,5 L0,10 L2.5,5 z" fill="#fbbf24"/>
     </marker>
@@ -92,6 +95,9 @@
       <path d="M0,0 L10,5 L0,10 L2.5,5 z" fill="#5eead4"/>
     </marker>
 
+    <clipPath id="svgPanel">
+      <rect x="1208" y="48" width="84" height="112" rx="10"/>
+    </clipPath>
     <clipPath id="leftHalf">
       <rect x="897" y="398" width="102" height="152"/>
     </clipPath>
@@ -115,71 +121,80 @@
   <rect x="58" y="200" width="132" height="6" rx="3" fill="url(#brand)"/>
   <text class="tag" x="56" y="266">Every format in.</text>
   <text class="tag brandText" x="56" y="316">Crisp pictures out.</text>
-  <text class="body" x="58" y="368">One pure .NET engine draws SVG, PDF,</text>
-  <text class="body" x="58" y="402">PowerPoint, Visio, OpenSCAD, Vega-Lite</text>
-  <text class="body" x="58" y="436">and Mermaid, for people and AI agents.</text>
-  <rect x="56" y="468" width="452" height="54" rx="12" fill="#0a1022" fill-opacity="0.8" stroke="#a78bfa" stroke-opacity="0.45" stroke-width="1.5"/>
-  <text class="cmd prompt" x="78" y="503">$</text>
-  <text class="cmd" x="108" y="503">canvasnet render</text>
-  <text class="cmd file" x="363" y="503">hero.svg</text>
-  <text class="note" x="58" y="568">This banner is that one SVG file.</text>
+  <text class="body" x="58" y="362">One pure .NET engine draws SVG, PDF,</text>
+  <text class="body" x="58" y="394">PowerPoint, Visio, OpenSCAD, Vega-Lite,</text>
+  <text class="body" x="58" y="426">Mermaid and PlantUML.</text>
+  <text class="body" x="58" y="458">Built for people and AI agents.</text>
+  <rect x="56" y="482" width="452" height="54" rx="12" fill="#0a1022" fill-opacity="0.8" stroke="#a78bfa" stroke-opacity="0.45" stroke-width="1.5"/>
+  <text class="cmd prompt" x="78" y="517">$</text>
+  <text class="cmd" x="108" y="517">canvasnet render</text>
+  <text class="cmd file" x="363" y="517">hero.svg</text>
+  <text class="note" x="58" y="584">This banner is that one SVG file.</text>
 
   <!-- Input cards -->
   <g>
-    <rect class="card" x="580" y="40" width="167" height="160" rx="16"/>
-    <rect x="607.5" y="40" width="112" height="3" rx="1.5" fill="#f472b6"/>
-    <rect class="panel" x="588" y="48" width="151" height="112" rx="10"/>
-    <image href="flow.mmd" x="590" y="50" width="147" height="108"/>
-    <text class="label" x="663.5" y="190">Mermaid</text>
+    <rect class="card" x="580" y="40" width="140" height="160" rx="16"/>
+    <rect x="603" y="40" width="94" height="3" rx="1.5" fill="#f472b6"/>
+    <rect class="panel" x="588" y="48" width="124" height="112" rx="10"/>
+    <image href="flow.mmd" x="590" y="50" width="120" height="108"/>
+    <text class="label" x="650" y="190">Mermaid</text>
 
-    <rect class="card" x="759" y="40" width="167" height="160" rx="16"/>
-    <rect x="786.5" y="40" width="112" height="3" rx="1.5" fill="#fbbf24"/>
-    <rect class="panel" x="767" y="48" width="151" height="112" rx="10"/>
-    <image href="bearing.scad" x="767" y="48" width="151" height="112"/>
-    <text class="label" x="842.5" y="190">OpenSCAD</text>
+    <rect class="card" x="730" y="40" width="140" height="160" rx="16"/>
+    <rect x="753" y="40" width="94" height="3" rx="1.5" fill="#a3e635"/>
+    <rect class="panel" x="738" y="48" width="124" height="112" rx="10"/>
+    <image href="sequence.puml" x="742" y="54" width="116" height="100"/>
+    <text class="label" x="800" y="190">PlantUML</text>
 
-    <rect class="card" x="938" y="40" width="167" height="160" rx="16"/>
-    <rect x="965.5" y="40" width="112" height="3" rx="1.5" fill="#22d3ee"/>
-    <rect class="panel" x="946" y="48" width="151" height="112" rx="10"/>
-    <image href="chart.vl.json" x="948" y="52" width="147" height="104"/>
-    <text class="label" x="1021.5" y="190">Vega-Lite</text>
+    <rect class="card" x="880" y="40" width="160" height="160" rx="16"/>
+    <rect x="907" y="40" width="106" height="3" rx="1.5" fill="#fbbf24"/>
+    <rect class="panel" x="888" y="48" width="144" height="112" rx="10"/>
+    <image href="bearing.scad" x="888" y="48" width="144" height="112"/>
+    <text class="label" x="960" y="190">OpenSCAD</text>
 
-    <rect class="card" x="1117" y="40" width="167" height="160" rx="16"/>
-    <rect x="1144.5" y="40" width="112" height="3" rx="1.5" fill="#a78bfa"/>
-    <rect class="panel" x="1125" y="48" width="151" height="112" rx="10"/>
-    <image href="vector.svg" x="1127" y="51" width="147" height="106"/>
-    <text class="label" x="1200.5" y="190">SVG</text>
+    <rect class="card" x="1050" y="40" width="140" height="160" rx="16"/>
+    <rect x="1073" y="40" width="94" height="3" rx="1.5" fill="#22d3ee"/>
+    <rect class="panel" x="1058" y="48" width="124" height="112" rx="10"/>
+    <image href="chart.vl.json" x="1060" y="52" width="120" height="104"/>
+    <text class="label" x="1120" y="190">Vega-Lite</text>
 
-    <rect class="card" x="1296" y="40" width="264" height="160" rx="16"/>
-    <rect x="1348" y="40" width="160" height="3" rx="1.5" fill="#60a5fa"/>
-    <rect class="panel" x="1304" y="48" width="248" height="112" rx="10"/>
-    <g transform="rotate(-9 1354 104)">
-      <rect class="page" x="1318" y="68" width="72" height="72"/>
-      <image href="mesh-shading.pdf" x="1318" y="68" width="72" height="72"/>
+    <rect class="card" x="1200" y="40" width="100" height="160" rx="16"/>
+    <rect x="1217" y="40" width="66" height="3" rx="1.5" fill="#a78bfa"/>
+    <rect class="panel" x="1208" y="48" width="84" height="112" rx="10"/>
+    <image href="vector.svg" x="1208" y="48" width="84" height="112" preserveAspectRatio="xMidYMid slice" clip-path="url(#svgPanel)"/>
+    <text class="label" x="1250" y="190">SVG</text>
+
+    <rect class="card" x="1310" y="40" width="250" height="160" rx="16"/>
+    <rect x="1355" y="40" width="160" height="3" rx="1.5" fill="#60a5fa"/>
+    <rect class="panel" x="1318" y="48" width="234" height="112" rx="10"/>
+    <g transform="rotate(-9 1368 104)">
+      <rect class="page" x="1332" y="68" width="72" height="72"/>
+      <image href="mesh-shading.pdf" x="1332" y="68" width="72" height="72"/>
     </g>
-    <g transform="rotate(8 1500 104)">
-      <rect class="page" x="1462" y="76" width="76" height="57"/>
-      <image href="slide.pptx" x="1462" y="76" width="76" height="57"/>
+    <g transform="rotate(8 1502 104)">
+      <rect class="page" x="1464" y="76" width="76" height="57"/>
+      <image href="slide.pptx" x="1464" y="76" width="76" height="57"/>
     </g>
-    <rect class="page" x="1380" y="70" width="96" height="64"/>
-    <image href="drawing.vsdx" x="1380" y="70" width="96" height="64"/>
-    <text class="label" x="1428" y="190">PDF · PPTX · VSDX</text>
+    <rect class="page" x="1388" y="70" width="96" height="64"/>
+    <image href="drawing.vsdx" x="1388" y="70" width="96" height="64"/>
+    <text class="label" x="1435" y="190">PDF · PPTX · VSDX</text>
   </g>
 
   <!-- Flows into the engine -->
   <g class="flow">
-    <path d="M663.5,206 C663.5,236 930,226 930,253" stroke="#f472b6" marker-end="url(#headPink)"/>
-    <path d="M842.5,206 C842.5,236 1000,226 1000,253" stroke="#fbbf24" marker-end="url(#headAmber)"/>
-    <path d="M1021.5,206 C1021.5,236 1070,226 1070,253" stroke="#22d3ee" marker-end="url(#headCyan)"/>
-    <path d="M1200.5,206 C1200.5,236 1140,226 1140,253" stroke="#a78bfa" marker-end="url(#headViolet)"/>
-    <path d="M1428,206 C1428,236 1210,226 1210,253" stroke="#60a5fa" marker-end="url(#headBlue)"/>
+    <path d="M650,206 C650,236 920,226 920,253" stroke="#f472b6" marker-end="url(#headPink)"/>
+    <path d="M800,206 C800,236 980,226 980,253" stroke="#a3e635" marker-end="url(#headLime)"/>
+    <path d="M960,206 C960,236 1040,226 1040,253" stroke="#fbbf24" marker-end="url(#headAmber)"/>
+    <path d="M1120,206 C1120,236 1100,226 1100,253" stroke="#22d3ee" marker-end="url(#headCyan)"/>
+    <path d="M1250,206 C1250,236 1160,226 1160,253" stroke="#a78bfa" marker-end="url(#headViolet)"/>
+    <path d="M1435,206 C1435,236 1220,226 1220,253" stroke="#60a5fa" marker-end="url(#headBlue)"/>
   </g>
   <g stroke="#0a1022" stroke-width="2">
-    <circle cx="663.5" cy="206" r="5" fill="#f472b6"/>
-    <circle cx="842.5" cy="206" r="5" fill="#fbbf24"/>
-    <circle cx="1021.5" cy="206" r="5" fill="#22d3ee"/>
-    <circle cx="1200.5" cy="206" r="5" fill="#a78bfa"/>
-    <circle cx="1428" cy="206" r="5" fill="#60a5fa"/>
+    <circle cx="650" cy="206" r="5" fill="#f472b6"/>
+    <circle cx="800" cy="206" r="5" fill="#a3e635"/>
+    <circle cx="960" cy="206" r="5" fill="#fbbf24"/>
+    <circle cx="1120" cy="206" r="5" fill="#22d3ee"/>
+    <circle cx="1250" cy="206" r="5" fill="#a78bfa"/>
+    <circle cx="1435" cy="206" r="5" fill="#60a5fa"/>
   </g>
   <!-- The engine -->
   <rect x="860" y="262" width="420" height="64" rx="32" fill="url(#brand)" opacity="0.55" filter="url(#blur)"/>

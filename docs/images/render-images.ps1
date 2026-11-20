@@ -228,7 +228,8 @@ function New-Architecture {
 }
 
 # docs/images/hero.png: the README banner (hero/hero.svg, original), one SVG page whose input cards and output tiles
-# are live drawings of the files beside it (Mermaid, OpenSCAD, Vega-Lite, SVG, PDF, PowerPoint, and Visio).
+# are live drawings of the files beside it (Mermaid, PlantUML, OpenSCAD, Vega-Lite, SVG, PDF, PowerPoint, and
+# Visio).
 function New-Hero {
     param([string]$Folder)
     Invoke-ToolOrFail render 'docs/images/hero/hero.svg' --strict --width 1600 -o "$Folder/hero.png"

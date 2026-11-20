@@ -66,7 +66,8 @@ the files beside it, so the banner is itself one composite SVG drawn by CanvasNe
 README by an absolute URL. Every file in `hero/` is licensed under this repository's MIT license, and none comes from a
 third party:
 
-- authored for the banner: `hero.svg`, `figure.svg`, `flow.mmd`, `bearing.scad`, `chart.vl.json`, and `vector.svg`;
+- authored for the banner: `hero.svg`, `figure.svg`, `flow.mmd`, `sequence.puml`, `bearing.scad`, `chart.vl.json`, and
+  `vector.svg`;
 - `dc-logo-dark.svg`: the DEMA Consulting "DC" monogram of the repository's `Icon.png`, redrawn as vector paths in
   colors for a dark background;
 - generated: `drawing.vsdx`, by `make-drawing.py` (Python standard library only; run `python make-drawing.py` in
