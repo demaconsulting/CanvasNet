@@ -6,9 +6,9 @@ using DemaConsulting.CanvasNet.PlantUml.Scenegraph;
 namespace DemaConsulting.CanvasNet.PlantUml.Tests;
 
 /// <summary>
-///     The reference shape tests of the description diagrams: CanvasNet's drawing of the original use case and
-///     component fixtures is compared with the SVG that PlantUML draws for them (the goldens in
-///     <c>Fixtures/reference/usecase</c> and <c>Fixtures/reference/component</c>).
+///     The reference shape tests of the description diagrams: CanvasNet's drawing of the original use case,
+///     component, and deployment fixtures is compared with the SVG that PlantUML draws for them (the goldens in
+///     <c>Fixtures/reference/usecase</c>, <c>Fixtures/reference/component</c>, and <c>Fixtures/reference/deployment</c>).
 /// </summary>
 /// <remarks>
 ///     As for the class diagrams, absolute positions and the picture size are not compared. Per element: the outline
@@ -25,7 +25,7 @@ public partial class PlantUmlReferenceShapeTests
     public static TheoryData<string, string> DescriptionFixtures()
     {
         var data = new TheoryData<string, string>();
-        foreach (var type in new[] { "usecase", "component" })
+        foreach (var type in new[] { "usecase", "component", "deployment" })
         {
             foreach (var name in FixturesOf(type))
             {
@@ -41,6 +41,11 @@ public partial class PlantUmlReferenceShapeTests
     ///     an element of the model is a note), and that every element has PlantUML's outline (the same number of
     ///     shapes), size, colors, and text offsets.
     /// </summary>
+    /// <remarks>
+    ///     A label has no outline in either drawing. PlantUML's Smetana layout leaves the outline of a hexagon out (it
+    ///     takes it from Graphviz), CanvasNet draws it; for both, only the texts and their offsets from each other are
+    ///     compared.
+    /// </remarks>
     /// <param name="type">The type folder.</param>
     /// <param name="name">The fixture name.</param>
     [Theory]
@@ -62,13 +67,23 @@ public partial class PlantUmlReferenceShapeTests
         var outlines = scene.Items.OfType<ScenePath>().Where(p => p.Role == "description").ToList();
         var noteTexts = scene.Items.OfType<SceneText>().Where(t => t.Role == "note-text").Select(TextOf).Order(StringComparer.Ordinal).ToList();
 
-        // Assert: the same elements and notes, each with PlantUML's shape
-        Assert.Equal(elements.Select(QualifiedName).Order(StringComparer.Ordinal), outlines.Select(o => o.Id!).Order(StringComparer.Ordinal));
-        Assert.Equal(model.Elements.Count(e => !e.IsContainer), outlines.Count);
+        // Assert: the same elements and notes, each with PlantUML's shape (a hexagon with its outline, a label without)
+        var hexagons = model.Elements.Where(e => e.Symbol == DescriptionSymbol.Hexagon && !e.IsContainer).Select(e => e.Id).ToHashSet(StringComparer.Ordinal);
+        var shaped = elements.Where(g => FirstShape(g) is not null || g.Element(Svg + "ellipse") is not null).Select(QualifiedName);
+        Assert.Equal(shaped.Concat(hexagons).Order(StringComparer.Ordinal), outlines.Select(o => o.Id!).Order(StringComparer.Ordinal));
+        Assert.Equal(model.Elements.Count(e => !e.IsContainer && e.Symbol != DescriptionSymbol.Label), outlines.Count);
         Assert.True(notes.SequenceEqual(noteTexts), $"notes: PlantUML {string.Join(" | ", notes)}, CanvasNet {string.Join(" | ", noteTexts)}");
         foreach (var group in elements)
         {
-            AssertDescriptionElement(group, scene, QualifiedName(group));
+            var id = QualifiedName(group);
+            if (FirstShape(group) is null && group.Element(Svg + "ellipse") is null)
+            {
+                AssertShapelessElement(group, scene, id, hexagons.Contains(id));
+            }
+            else
+            {
+                AssertDescriptionElement(group, scene, id);
+            }
         }
     }
 
@@ -129,7 +144,7 @@ public partial class PlantUmlReferenceShapeTests
         var drawn = model.Links.Where(l => scene.Items.Any(i => i.Role == "link" && i.Id == l.Id)).ToList();
 
         // Assert: one drawn link per golden link, matched by its ends (PlantUML writes an up or left link reversed)
-        Assert.Equal(links.Count, drawn.Count);
+        Assert.True(links.Count == drawn.Count, $"PlantUML draws {links.Count} links, CanvasNet {drawn.Count}: {string.Join(", ", drawn.Select(l => l.From.Id + "-" + l.To.Id))}");
         var unmatched = drawn.ToList();
         foreach (var link in links)
         {
@@ -181,8 +196,16 @@ public partial class PlantUmlReferenceShapeTests
         AssertSize(expected.Width, actual.Width, $"{id} width");
         AssertSize(expected.Height, actual.Height, $"{id} height");
         Assert.Equal(Color((string)shape.Attribute("fill")!), outline.Fill);
-        Assert.Equal(Color(StyleOf(shape, "stroke")!), outline.Stroke!.Color);
-        Assert.Equal(double.Parse(StyleOf(shape, "stroke-width")!, CultureInfo.InvariantCulture), outline.Stroke.Width);
+        if (StyleOf(shape, "stroke") is "none")
+        {
+            // A stack's box is filled without an outline (its ledges are the line)
+            Assert.Null(outline.Stroke);
+        }
+        else
+        {
+            Assert.Equal(Color(StyleOf(shape, "stroke")!), outline.Stroke!.Color);
+            Assert.Equal(double.Parse(StyleOf(shape, "stroke-width")!, CultureInfo.InvariantCulture), outline.Stroke.Width);
+        }
 
         // Every text at its offset from the outline, matched by content in order
         var texts = items.OfType<SceneText>().ToList();
@@ -196,6 +219,31 @@ public partial class PlantUmlReferenceShapeTests
         }
 
         Assert.Empty(texts);
+    }
+
+    /// <summary>
+    ///     Compares an element that PlantUML draws without a shape (a label, and a hexagon, whose outline Smetana leaves
+    ///     out) with CanvasNet's: the same texts, each at the same offset from the first one; a hexagon has its outline
+    ///     and nothing else, a label nothing but its texts.
+    /// </summary>
+    /// <param name="group">The golden group of the element.</param>
+    /// <param name="scene">The scene.</param>
+    /// <param name="id">The element id.</param>
+    /// <param name="hexagon">Whether the element is a hexagon.</param>
+    private static void AssertShapelessElement(XElement group, Scene scene, string id, bool hexagon)
+    {
+        var items = scene.Items.Where(i => i.Id == id).ToList();
+        Assert.Equal(hexagon ? 1 : 0, items.Count(i => i is ScenePath));
+        var texts = items.OfType<SceneText>().ToList();
+        var expected = group.Elements(Svg + "text").ToList();
+        Assert.Equal(expected.Count, texts.Count);
+        var first = texts.Single(t => TextOf(t) == expected[0].Value);
+        foreach (var text in expected.Skip(1))
+        {
+            var match = texts.Single(t => TextOf(t) == text.Value);
+            AssertClose(Number(text, "x") - Number(expected[0], "x"), match.X - first.X, $"{id} '{text.Value}' x");
+            AssertClose(Number(text, "y") - Number(expected[0], "y"), match.Baseline - first.Baseline, $"{id} '{text.Value}' y");
+        }
     }
 
     /// <summary>

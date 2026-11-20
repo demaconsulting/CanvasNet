@@ -49,6 +49,10 @@ public class PlantUmlHardeningTests
         { "MaxEdges", 1, "@startuml\nA --> (U)\n(U) ..> (V) : <<include>>\n@enduml\n", 3 },
         { "MaxLabelLength", 10, "@startuml\nusecase \"" + new string('x', 40) + "\" as U\n@enduml\n", 2 },
         { "MaxNestingDepth", 1, "@startuml\nrectangle A {\npackage B {\n(U)\n}\n}\n@enduml\n", 3 },
+        { "MaxNodes", 2, "@startuml\nnode A\nartifact B\nqueue C\n@enduml\n", 4 },
+        { "MaxEdges", 1, "@startuml\nnode A\nA --> B\nB ..> C\n@enduml\n", 4 },
+        { "MaxLabelLength", 10, "@startuml\nstorage \"" + new string('x', 40) + "\" as S\n@enduml\n", 2 },
+        { "MaxNestingDepth", 1, "@startuml\nstack A {\nqueue B {\nfile C\n}\n}\n@enduml\n", 3 },
     };
 
     /// <summary>
@@ -298,9 +302,11 @@ public class PlantUmlHardeningTests
             "[C]", "() I", "(U)", ":A:", "component C [\n", "]\n", "node N {\n", "component K {\n", "port p\n", "--(", ")--",
             "0)--", "-(0)-", "==>", "<<svc>>", "as \"x\"", "artifact X\n", "cloud C\n", "database D\n", "rectangle {\n",
             "actor/ B\n", "usecase/ W\n", "(U)/", ":A:/", ": <<include>>", ": <<extend>>", "usecase \"a\\nb\" as M\n", ":Guest:\n",
+            "storage S {\n", "stack K {\n", "queue Q {\n", "hexagon H {\n", "file F {\n", "artifact A {\n", "person P\n", "boundary B\n",
+            "control C\n", "entity E\n", "collections C\n", "label L\n", "agent A\n", "circle O\n", "action X\n", "process P {\n",
         ];
         var random = new Random(20261118);
-        var folders = new[] { "sequence", "activity", "class", "object", "state", "usecase", "component" };
+        var folders = new[] { "sequence", "activity", "class", "object", "state", "usecase", "component", "deployment" };
         var fixtures = folders
             .SelectMany(f => Directory.GetFiles(Path.Combine(AppContext.BaseDirectory, "Fixtures", f), "*.puml"))
             .Concat(Directory.GetFiles(Path.Combine(AppContext.BaseDirectory, "Gallery"), "plantuml-*.puml"))

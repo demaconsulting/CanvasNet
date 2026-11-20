@@ -57,7 +57,6 @@ public class DiagramDetectorTests
     /// <param name="type">The expected type.</param>
     [Theory]
     [InlineData("(*) --> First", "activity-legacy")]
-    [InlineData("node Server", "deployment")]
     [InlineData("robust \"Web\" as W", "timing")]
     [InlineData("[Design] lasts 5 days", "gantt")]
     public void PlantUmlDiagramDetector_Detect_OtherTypeKeyword_IsRecognized(string statement, string type)
@@ -144,6 +143,26 @@ public class DiagramDetectorTests
     }
 
     /// <summary>
+    ///     Validates that a deployment diagram (a description diagram without a use case or component construct) is
+    ///     detected and drawn: nodes, artifacts, and the other deployment symbols, also as containers, and a queue
+    ///     before a symbol that no sequence diagram has.
+    /// </summary>
+    /// <param name="text">The statements.</param>
+    [Theory]
+    [InlineData("node Server")]
+    [InlineData("artifact App\nnode Host\nApp --> Host")]
+    [InlineData("queue Jobs\nstorage Disk {\nfile Data\n}\nJobs --> Data")]
+    [InlineData("person P\nhexagon H\nP --> H")]
+    public void PlantUmlDiagramDetector_Detect_DeploymentDiagram_IsDrawn(string text)
+    {
+        // Arrange / Act
+        var detected = Detect($"@startuml\n{text}\n@enduml\n");
+
+        // Assert
+        Assert.Equal("deployment", detected.DiagramType);
+        Assert.True(detected.IsSupported);
+    }
+    /// <summary>
     ///     Validates that an activity diagram whose action is never closed stays an activity diagram when no graph
     ///     family reads its text, so the activity parser locates the unclosed action.
     /// </summary>
@@ -200,7 +219,7 @@ public class DiagramDetectorTests
         var hint = DiagramDetector.UnsupportedHint(detected);
 
         // Assert
-        Assert.Contains("only activity, class, component, object, sequence, state, and usecase diagrams", hint, StringComparison.Ordinal);
+        Assert.Contains("only activity, class, component, deployment, object, sequence, state, and usecase diagrams", hint, StringComparison.Ordinal);
         Assert.Contains("activity-legacy", hint, StringComparison.Ordinal);
         Assert.Equal("a, b, and c", DiagramDetector.JoinTypes(["a", "b", "c"]));
         Assert.Equal("a and b", DiagramDetector.JoinTypes(["a", "b"]));

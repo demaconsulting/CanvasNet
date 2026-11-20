@@ -4,7 +4,7 @@ using DemaConsulting.CanvasNet.PlantUml.Scenegraph;
 namespace DemaConsulting.CanvasNet.PlantUml.Tests;
 
 /// <summary>
-///     System integration tests for use case and component diagrams: the public API from text to pixels.
+///     System integration tests for use case, component, and deployment diagrams: the public API from text to pixels.
 /// </summary>
 public class PlantUmlDescriptionIntegrationTests
 {
@@ -19,6 +19,12 @@ public class PlantUmlDescriptionIntegrationTests
     /// </summary>
     /// <returns>The names, without extension.</returns>
     public static TheoryData<string> UseCaseFixtures() => PlantUmlReferenceShapeTests.FixturesOf("usecase");
+
+    /// <summary>
+    ///     Gets the names of the deployment fixtures.
+    /// </summary>
+    /// <returns>The names, without extension.</returns>
+    public static TheoryData<string> DeploymentFixtures() => PlantUmlReferenceShapeTests.FixturesOf("deployment");
 
     /// <summary>
     ///     Validates that a use case diagram is painted with PlantUML's default colors: a white background, a light grey
@@ -293,7 +299,7 @@ public class PlantUmlDescriptionIntegrationTests
     public void CanvasNetPlantUml_Component_UnsupportedStatements_AreReported()
     {
         // Arrange
-        var document = PlantUmlDocument.Parse("@startuml\ncomponent N {\nport p\n}\n[A] -(0)- [B]\nartifact X\n@enduml\n");
+        var document = PlantUmlDocument.Parse("@startuml\ncomponent N {\nport p\n}\n[A] -(0)- [B]\naction X\n@enduml\n");
         var (options, _, unsupported) = PlantUmlTestHelpers.Collecting();
         var (strict, _, _) = PlantUmlTestHelpers.Collecting(strict: true);
 
@@ -363,5 +369,187 @@ public class PlantUmlDescriptionIntegrationTests
         Assert.Equal(("N.C", "D"), (model.Links[0].From.Id, model.Links[0].To.Id));
         Assert.Equal(DescriptionSymbol.Interface, model.Elements.Single(e => e.Id == "D").Symbol);
         Assert.Contains(scene.Items, i => i.Role == "description" && i.Id == "N.C");
+    }
+
+    /// <summary>
+    ///     Validates that a deployment diagram is painted with PlantUML's default colors: a white background and light
+    ///     grey nodes, queues, and boundaries (the symbols the sequence diagrams fill grey-blue are light grey here).
+    /// </summary>
+    [Fact]
+    public void CanvasNetPlantUml_Deployment_DefaultSkin_PaintsPlantUmlColors()
+    {
+        // Arrange
+        var document = PlantUmlDocument.Parse("@startuml\nnode Server\nqueue Jobs\nboundary Edge\nServer --> Jobs\nEdge --> Server\n@enduml\n");
+        var scene = document.LayoutScene(cancellationToken: TestContext.Current.CancellationToken);
+        var boxes = new[] { "Server", "Jobs", "Edge" }.Select(id => Scene.BoundsOf([scene.Items.OfType<ScenePath>().First(p => p.Role == "description" && p.Id == id)])!.Value).ToList();
+
+        // Act
+        using var surface = document.Render(cancellationToken: TestContext.Current.CancellationToken);
+        var (node, queue, boundary) = (Middle(boxes[0], 0), Middle(boxes[1], 0), Middle(boxes[2], 6));
+        Canvas.Rgba32 Middle(SceneRect box, int dx) => surface.GetRowSpan((int)(box.Y + (box.Height / 2)))[(int)(box.X + (box.Width / 2)) + dx];
+
+        // Assert
+        Assert.Equal("deployment", document.DiagramType);
+        Assert.True(document.IsSupported);
+        Assert.Equal(new Canvas.Rgba32(0xF1, 0xF1, 0xF1, 255), node);
+        Assert.Equal(new Canvas.Rgba32(0xF1, 0xF1, 0xF1, 255), queue);
+        Assert.Equal(new Canvas.Rgba32(0xF1, 0xF1, 0xF1, 255), boundary);
+    }
+
+    /// <summary>
+    ///     Validates that every original deployment fixture renders with the features it uses drawn: no unsupported
+    ///     feature, no warning, a picture of its natural size.
+    /// </summary>
+    /// <param name="name">The fixture name.</param>
+    [Theory]
+    [MemberData(nameof(DeploymentFixtures))]
+    public void CanvasNetPlantUml_Deployment_Fixtures_RenderWithoutReports(string name)
+    {
+        // Arrange
+        var document = PlantUmlDocument.Open(Path.Combine(AppContext.BaseDirectory, "Fixtures", "deployment", name + ".puml"));
+        var (options, warnings, unsupported) = PlantUmlTestHelpers.Collecting(strict: true);
+
+        // Act
+        var size = document.Measure(options, TestContext.Current.CancellationToken);
+        using var surface = document.Render(options, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal("deployment", document.DiagramType);
+        Assert.True(document.IsSupported);
+        Assert.Empty(warnings);
+        Assert.Empty(unsupported);
+        Assert.Equal((size.Width, size.Height), (surface.Width, surface.Height));
+    }
+
+    /// <summary>
+    ///     Validates the facts of deployment diagrams: the leaf elements (notes not counted), the links, the containers,
+    ///     and the title.
+    /// </summary>
+    [Fact]
+    public void CanvasNetPlantUml_Deployment_Facts_CountElementsLinksAndContainers()
+    {
+        // Act
+        var nodes = PlantUmlDocument.Open(Path.Combine(AppContext.BaseDirectory, "Fixtures", "deployment", "01-nodes.puml"));
+        var containers = PlantUmlDocument.Open(Path.Combine(AppContext.BaseDirectory, "Fixtures", "deployment", "03-containers.puml"));
+        var notes = PlantUmlDocument.Open(Path.Combine(AppContext.BaseDirectory, "Fixtures", "deployment", "05-notes-colors.puml"));
+        var page = PlantUmlDocument.Open(Path.Combine(AppContext.BaseDirectory, "Fixtures", "deployment", "06-left-to-right.puml"));
+
+        // Assert
+        Assert.Equal((4, 3, 0), (nodes.NodeCount, nodes.EdgeCount, nodes.SubgraphCount));
+        Assert.Equal((6, 3, 8), (containers.NodeCount, containers.EdgeCount, containers.SubgraphCount));
+        Assert.Equal((10, 5, 1), (notes.NodeCount, notes.EdgeCount, notes.SubgraphCount));
+        Assert.Equal((5, 4, 1), (page.NodeCount, page.EdgeCount, page.SubgraphCount));
+        Assert.Equal("Deployment", page.Title);
+    }
+
+    /// <summary>
+    ///     Validates that two renders of the same deployment document have identical pixels, and that the diagram's
+    ///     scale multiplies the scale of the call.
+    /// </summary>
+    [Fact]
+    public void CanvasNetPlantUml_Deployment_Render_IsDeterministicAndScaled()
+    {
+        // Arrange
+        var text = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", "deployment", "03-containers.puml"));
+        var document = PlantUmlDocument.Parse(text);
+        var scaled = PlantUmlDocument.Parse(text.Replace("@startuml\n", "@startuml\nscale 2\n", StringComparison.Ordinal));
+
+        // Act
+        using var first = document.Render(cancellationToken: TestContext.Current.CancellationToken);
+        using var second = document.Render(cancellationToken: TestContext.Current.CancellationToken);
+        var size = scaled.Measure(cancellationToken: TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.True(PlantUmlTestHelpers.PixelsEqual(first, second));
+        Assert.Equal((first.Width * 2, first.Height * 2), (size.Width, size.Height));
+    }
+
+    /// <summary>
+    ///     Validates that the parts of a deployment diagram that are read but not drawn are reported at their lines with
+    ///     a stable code, drawn without them (an action and a process container as rectangles), and fail in strict
+    ///     mode: an action and a process (a port would make it a component diagram).
+    /// </summary>
+    [Fact]
+    public void CanvasNetPlantUml_Deployment_UnsupportedStatements_AreReported()
+    {
+        // Arrange
+        var document = PlantUmlDocument.Parse("@startuml\nnode N\naction A\nprocess P {\nartifact X\n}\nA --> X\nN --> P\n@enduml\n");
+        var (options, _, unsupported) = PlantUmlTestHelpers.Collecting();
+        var (strict, _, _) = PlantUmlTestHelpers.Collecting(strict: true);
+
+        // Act
+        var scene = document.LayoutScene(options, TestContext.Current.CancellationToken);
+        var ex = Assert.Throws<PlantUmlUnsupportedFeatureException>(() => document.Render(strict, TestContext.Current.CancellationToken));
+
+        // Assert
+        Assert.Equal("deployment", document.DiagramType);
+        Assert.Equal([3, 4], unsupported.Select(u => u.Location.Line));
+        Assert.All(unsupported, u => Assert.Equal(PlantUmlDiagnosticCodes.StatementUnsupported, u.Feature));
+        Assert.All(unsupported, u => Assert.Contains("drawn as a rectangle", u.Message, StringComparison.Ordinal));
+        Assert.Equal(PlantUmlDiagnosticCodes.StatementUnsupported, ex.Feature);
+        Assert.Contains(scene.Items, i => i.Role == "description" && i.Id == "A");
+        Assert.Contains(scene.Items, i => i.Role == "cluster" && i.Id == "P");
+        Assert.Contains(scene.Items, i => i.Role == "link");
+    }
+
+    /// <summary>
+    ///     Validates that a malformed deployment diagram fails with a located syntax error naming the line and a hint:
+    ///     a person that holds elements (PlantUML refuses it too), an unclosed container, and a statement of a class
+    ///     diagram.
+    /// </summary>
+    [Fact]
+    public void CanvasNetPlantUml_Deployment_SyntaxErrors_AreLocated()
+    {
+        // Act
+        var holder = Assert.Throws<PlantUmlSyntaxException>(() => PlantUmlDocument.Parse("@startuml\nnode N\nperson P {\nnode Q\n}\n@enduml\n"));
+        var unclosed = Assert.Throws<PlantUmlSyntaxException>(() => PlantUmlDocument.Parse("@startuml\nnode N\nstack S {\nnode Q\n@enduml\n"));
+        var mixing = Assert.Throws<PlantUmlSyntaxException>(() => PlantUmlDocument.Parse("@startuml\nnode N\nclass C\n@enduml\n"));
+
+        // Assert
+        Assert.Equal((PlantUmlDiagnosticCodes.SyntaxError, 3), (holder.Code, holder.Location.Line));
+        Assert.False(string.IsNullOrEmpty(holder.Hint));
+        Assert.Equal((PlantUmlDiagnosticCodes.SyntaxError, 3), (unclosed.Code, unclosed.Location.Line));
+        Assert.Equal((PlantUmlDiagnosticCodes.SyntaxError, 3), (mixing.Code, mixing.Location.Line));
+        Assert.Contains("allowmixing", mixing.Hint, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates that a canceled render of a deployment diagram stops with an <see cref="OperationCanceledException"/>.
+    /// </summary>
+    [Fact]
+    public void CanvasNetPlantUml_Deployment_Render_ObservesCancellation()
+    {
+        // Arrange
+        var document = PlantUmlDocument.Open(Path.Combine(AppContext.BaseDirectory, "Fixtures", "deployment", "03-containers.puml"));
+        using var source = new CancellationTokenSource();
+        source.Cancel();
+
+        // Act / Assert
+        Assert.ThrowsAny<OperationCanceledException>(() => document.Render(cancellationToken: source.Token));
+    }
+
+    /// <summary>
+    ///     Validates that every deployment symbol has its own drawing: an outline for each element but a label (a hexagon
+    ///     with the outline PlantUML's Graphviz pipeline draws), no report, and a circle drawn as an interface.
+    /// </summary>
+    [Fact]
+    public void CanvasNetPlantUml_Deployment_Symbols_HaveTheirOwnDrawing()
+    {
+        // Arrange
+        var document = PlantUmlDocument.Open(Path.Combine(AppContext.BaseDirectory, "Fixtures", "deployment", "02-symbols.puml"));
+        var circle = PlantUmlDocument.Parse("@startuml\nnode N\ncircle C\nN --> C\n@enduml\n");
+
+        // Act
+        var scene = document.LayoutScene(cancellationToken: TestContext.Current.CancellationToken);
+        var circleScene = circle.LayoutScene(cancellationToken: TestContext.Current.CancellationToken);
+        var model = Assert.IsType<DescriptionModel>(document.Diagram);
+
+        // Assert
+        Assert.Empty(model.Reports);
+        var outlined = scene.Items.Where(i => i.Role == "description").Select(i => i.Id!).Order(StringComparer.Ordinal).ToList();
+        Assert.Equal(model.Elements.Where(e => e.Symbol != DescriptionSymbol.Label).Select(e => e.Id).Order(StringComparer.Ordinal), outlined);
+        Assert.Contains(scene.Items, i => i is SceneText { Role: "description-name", Id: "Label" });
+        var ring = circleScene.Items.OfType<ScenePath>().Single(p => p.Role == "description" && p.Id == "C");
+        Assert.Equal(2 * DescriptionRenderer.InterfaceRadius, Scene.BoundsOf([ring])!.Value.Width, 3);
     }
 }

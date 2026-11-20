@@ -66,7 +66,7 @@ public sealed partial class PlantUmlDocument
 
     /// <summary>
     ///     Gets the diagram type: <c>sequence</c>, <c>activity</c>, <c>class</c>, <c>object</c>, <c>state</c>, <c>usecase</c>,
-    ///     <c>component</c>, or the name of another PlantUML type such as <c>deployment</c>,
+    ///     <c>component</c>, <c>deployment</c>, or the name of another PlantUML type such as
     ///     <c>timing</c>, <c>activity-legacy</c>, <c>mindmap</c>, <c>gantt</c>, <c>wbs</c>, <c>json</c>, <c>yaml</c> or
     ///     <c>salt</c>.
     /// </summary>

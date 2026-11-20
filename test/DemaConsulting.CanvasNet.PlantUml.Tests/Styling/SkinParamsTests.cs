@@ -180,8 +180,9 @@ public class SkinParamsTests
 
     /// <summary>
     ///     Validates the description subset: the prefixes of the description symbols (component, interface, node,
-    ///     rectangle, folder, frame, cloud, card, usecase) style their elements in a description diagram, the shared
-    ///     actor prefix styles its actors, a graph prefix of the same diagram still applies, and a class diagram reports
+    ///     rectangle, folder, frame, cloud, card, artifact, storage, file, stack, agent, hexagon, person, label, usecase)
+    ///     style their elements in a description diagram, the shared actor and queue prefixes style its actors and
+    ///     queues, a graph prefix of the same diagram still applies, and a class diagram reports
     ///     the description prefixes as ignored.
     /// </summary>
     [Fact]
@@ -204,6 +205,15 @@ public class SkinParamsTests
             new("usecaseBackgroundColor", "#DDEEFF", default),
             new("usecaseFontColor", "#003366", default),
             new("actorBorderColor", "#885500", default),
+            new("artifactBackgroundColor", "#FFF0F0", default),
+            new("storageBorderColor", "#AA0000", default),
+            new("fileFontColor", "#00AA00", default),
+            new("stackBackgroundColor", "#F0FFF0", default),
+            new("agentBorderThickness", "3", default),
+            new("hexagonBackgroundColor", "#FFFF00", default),
+            new("personFontSize", "16", default),
+            new("labelFontColor", "#0000AA", default),
+            new("queueBorderColor", "#006400", default),
         };
         var descriptionReports = new List<DemaConsulting.CanvasNet.PlantUml.PlantUmlPendingReport>();
         var classReports = new List<DemaConsulting.CanvasNet.PlantUml.PlantUmlPendingReport>();
@@ -225,8 +235,17 @@ public class SkinParamsTests
         Assert.Equal(new Rgba32(0, 0x80, 0, 255), description[SkinElement.Package].Line);
         Assert.Equal((new Rgba32(0xDD, 0xEE, 0xFF, 255), new Rgba32(0, 0x33, 0x66, 255)), (description[SkinElement.UseCase].Fill!.Value, description[SkinElement.UseCase].FontColor));
         Assert.Equal(new Rgba32(0x88, 0x55, 0x00, 255), description[SkinElement.Actor].Line);
+        Assert.Equal(new Rgba32(0xFF, 0xF0, 0xF0, 255), description[SkinElement.Artifact].Fill);
+        Assert.Equal(new Rgba32(0xAA, 0, 0, 255), description[SkinElement.Storage].Line);
+        Assert.Equal(new Rgba32(0, 0xAA, 0, 255), description[SkinElement.File].FontColor);
+        Assert.Equal(new Rgba32(0xF0, 0xFF, 0xF0, 255), description[SkinElement.Stack].Fill);
+        Assert.Equal(3, description[SkinElement.Agent].LineWidth);
+        Assert.Equal(new Rgba32(0xFF, 0xFF, 0, 255), description[SkinElement.Hexagon].Fill);
+        Assert.Equal(16, description[SkinElement.Person].FontSize);
+        Assert.Equal(new Rgba32(0, 0, 0xAA, 255), description[SkinElement.Label].FontColor);
+        Assert.Equal((new Rgba32(0, 0x64, 0, 255), SkinTheme.CommonBackground), (description[SkinElement.Queue].Line!.Value, description[SkinElement.Queue].Fill!.Value));
         Assert.Empty(descriptionReports);
-        Assert.Equal(11, classReports.Count);
+        Assert.Equal(19, classReports.Count);
     }
 
     /// <summary>

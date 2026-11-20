@@ -9,9 +9,9 @@ see-also:
 ## Unsupported
 
 - `plantuml-diagram-unsupported`: The diagram type is not drawn by this version
-  (every type but sequence, activity, class, object, state, use case, and
-  component diagrams); the picture is empty.
-- Every other diagram type is recognized: deployment,
+  (every type but sequence, activity, class, object, state, use case,
+  component, and deployment diagrams); the picture is empty.
+- Every other diagram type is recognized:
   timing, the legacy activity syntax (activity-legacy), and the `@start`
   tags of mindmap, gantt, wbs, json, yaml, salt, and the others.
   info reports it with "supported": false, and render writes an empty picture of

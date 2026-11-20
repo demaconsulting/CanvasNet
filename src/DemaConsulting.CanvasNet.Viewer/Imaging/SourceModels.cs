@@ -370,7 +370,7 @@ public sealed record ChartFacts(
 /// </summary>
 /// <remarks>
 ///     For a PlantUML diagram the type is <c>sequence</c>, <c>activity</c>, <c>class</c>, <c>object</c>, <c>state</c>, <c>usecase</c>,
-///     <c>component</c>, or the name of a recognized type that is not drawn (for example <c>deployment</c>, <c>timing</c>, or
+///     <c>component</c>, <c>deployment</c>, or the name of a recognized type that is not drawn (for example <c>timing</c> or
 ///     <c>activity-legacy</c>, with the unsupported note <c>plantuml-diagram-unsupported</c>). The nodes of a sequence
 ///     diagram are its participants, the edges its messages, and the subgraphs its boxes; the nodes of an activity
 ///     diagram are its actions, start, stop, end, connector, and decision nodes, the edges its arrows, and the subgraphs

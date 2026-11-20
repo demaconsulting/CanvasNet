@@ -1,0 +1,20 @@
+@startuml
+node Cluster {
+  node Worker1
+  node Worker2
+}
+database DB
+queue Jobs
+storage Cache
+Worker1 --> DB : SQL
+Worker2 ..> Jobs : poll
+Jobs -right-> Cache
+Worker1 -- Worker2
+Cache <-- DB : warm
+boundary Gateway
+control Router
+entity Record
+Gateway --> Router
+Router --> Record
+Record --> DB
+@enduml

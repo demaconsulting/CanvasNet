@@ -113,8 +113,9 @@ public class SkinThemeTests
 
     /// <summary>
     ///     Validates the default look of description diagrams (PlantUML's componentDiagram elements): light grey
-    ///     elements outlined `#181818` half a pixel wide with corners of 5 and text of 14 (use cases too), and a
-    ///     database and an actor filled like them instead of like a sequence participant.
+    ///     elements outlined `#181818` half a pixel wide with corners of 5 and text of 14 (use cases and the deployment
+    ///     symbols too), and a database, an actor, a queue, a boundary, a control, an entity, and a collections symbol
+    ///     filled like them instead of like a sequence participant (the last five with corners of 5).
     /// </summary>
     [Fact]
     public void PlantUmlSkinTheme_Description_HasPlantUmlComponentLook()
@@ -123,7 +124,7 @@ public class SkinThemeTests
         var theme = SkinTheme.Description;
 
         // Act / Assert
-        Assert.Equal(10, SkinTheme.DescriptionElements.Count);
+        Assert.Equal(18, SkinTheme.DescriptionElements.Count);
         foreach (var element in SkinTheme.DescriptionElements)
         {
             Assert.Equal((SkinTheme.CommonBackground, SkinTheme.LineColor, 0.5, 5.0, 14.0), (theme[element].Fill!.Value, theme[element].Line!.Value, theme[element].LineWidth, theme[element].RoundCorner, theme[element].FontSize));
@@ -133,6 +134,11 @@ public class SkinThemeTests
         Assert.Equal(SkinTheme.GreyBlue, SkinTheme.Default[SkinElement.Database].Fill);
         Assert.Equal((SkinTheme.CommonBackground, SkinTheme.LineColor, 0.5), (theme[SkinElement.Actor].Fill!.Value, theme[SkinElement.Actor].Line!.Value, theme[SkinElement.Actor].LineWidth));
         Assert.Equal(SkinTheme.GreyBlue, SkinTheme.Default[SkinElement.Actor].Fill);
+        foreach (var shared in new[] { SkinElement.Queue, SkinElement.Boundary, SkinElement.Control, SkinElement.Entity, SkinElement.Collections })
+        {
+            Assert.Equal((SkinTheme.CommonBackground, 5.0), (theme[shared].Fill!.Value, theme[shared].RoundCorner));
+            Assert.Equal((SkinTheme.GreyBlue, 0.0), (SkinTheme.Default[shared].Fill!.Value, SkinTheme.Default[shared].RoundCorner));
+        }
     }
 
     /// <summary>

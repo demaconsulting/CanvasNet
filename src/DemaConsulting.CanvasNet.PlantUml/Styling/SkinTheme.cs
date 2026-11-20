@@ -158,10 +158,34 @@ internal enum SkinElement
     /// <summary>A card symbol of a description diagram drawn as an element.</summary>
     Card,
 
+    /// <summary>An artifact symbol of a description diagram: its box, its document icon, and its texts.</summary>
+    Artifact,
+
+    /// <summary>A storage symbol of a description diagram (a box with fully rounded corners).</summary>
+    Storage,
+
+    /// <summary>A file symbol of a description diagram (a box with a folded corner).</summary>
+    File,
+
+    /// <summary>A stack symbol of a description diagram (a box between two ledges).</summary>
+    Stack,
+
+    /// <summary>An agent symbol of a description diagram (a box).</summary>
+    Agent,
+
+    /// <summary>A hexagon symbol of a description diagram.</summary>
+    Hexagon,
+
+    /// <summary>A person symbol of a description diagram (a head over a rounded body).</summary>
+    Person,
+
+    /// <summary>A label of a description diagram (its texts without an outline).</summary>
+    Label,
+
     /// <summary>A use case ellipse of a description diagram (<c>usecase</c>, <c>(x)</c>) and its texts.</summary>
     UseCase,
 
-    /// <summary>The other elements of a description diagram (the symbols that have no style of their own yet).</summary>
+    /// <summary>The other elements of a description diagram (action, process, and archimate, drawn as rectangles).</summary>
     Description,
 }
 
@@ -268,7 +292,9 @@ internal sealed record SkinTheme
     public static IReadOnlyList<SkinElement> DescriptionElements { get; } =
     [
         SkinElement.Component, SkinElement.Interface, SkinElement.Node, SkinElement.Rectangle, SkinElement.Folder,
-        SkinElement.Frame, SkinElement.Cloud, SkinElement.Card, SkinElement.UseCase, SkinElement.Description,
+        SkinElement.Frame, SkinElement.Cloud, SkinElement.Card, SkinElement.Artifact, SkinElement.Storage,
+        SkinElement.File, SkinElement.Stack, SkinElement.Agent, SkinElement.Hexagon, SkinElement.Person,
+        SkinElement.Label, SkinElement.UseCase, SkinElement.Description,
     ];
 
     /// <summary>
@@ -278,12 +304,20 @@ internal sealed record SkinTheme
 
     /// <summary>
     ///     Gets the default look of description diagrams: <see cref="Default"/>, with the symbols that sequence diagrams
-    ///     share (a <c>database</c> and an <c>actor</c>) filled with the common background, as PlantUML's
-    ///     <c>componentDiagram</c> element style fills them.
+    ///     share (<c>database</c>, <c>actor</c>, <c>queue</c>, <c>boundary</c>, <c>control</c>, <c>entity</c>, and
+    ///     <c>collections</c>) filled with the common background, as PlantUML's <c>componentDiagram</c> element style
+    ///     fills them, with corners of 5 (the boxes of <c>collections</c>).
     /// </summary>
-    public static SkinTheme Description { get; } = Default
-        .With(SkinElement.Database, s => s with { Fill = CommonBackground, Padding = 0 })
-        .With(SkinElement.Actor, s => s with { Fill = CommonBackground, Padding = 0 });
+    public static SkinTheme Description { get; } = new[]
+    {
+        SkinElement.Database, SkinElement.Actor, SkinElement.Queue, SkinElement.Boundary, SkinElement.Control,
+        SkinElement.Entity, SkinElement.Collections,
+    }.Aggregate(Default, (theme, element) => theme.With(element, s => s with
+    {
+        Fill = CommonBackground,
+        Padding = 0,
+        RoundCorner = element is SkinElement.Database or SkinElement.Actor ? s.RoundCorner : 5,
+    }));
 
     /// <summary>
     ///     Gets the background of the document, or null for a transparent document; white by default.

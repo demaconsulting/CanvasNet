@@ -265,6 +265,14 @@ public class DescriptionRendererTests
     [InlineData("cloud", 30, 30, 15, 15, 1)]
     [InlineData("database", 20, 29, 10, 24, 2)]
     [InlineData("card", 20, 6, 10, 3, 1)]
+    [InlineData("artifact", 30, 23, 10, 13, 4)]
+    [InlineData("storage", 20, 20, 10, 10, 1)]
+    [InlineData("file", 20, 20, 10, 10, 2)]
+    [InlineData("queue", 20, 10, 5, 5, 2)]
+    [InlineData("stack", 50, 20, 25, 10, 2)]
+    [InlineData("agent", 20, 20, 10, 10, 1)]
+    [InlineData("collections", 20, 20, 8, 8, 2)]
+    [InlineData("label", 20, 20, 10, 10, 0)]
     public void PlantUmlDescriptionRenderer_Image_Symbols_HavePlantUmlMargins(string keyword, double extraWidth, double extraHeight, double left, double top, int shapes)
     {
         // Arrange
@@ -314,15 +322,16 @@ public class DescriptionRendererTests
     public void PlantUmlDescriptionRenderer_Image_SymbolWithoutDrawing_IsARectangle()
     {
         // Arrange
-        var model = Parse("artifact Art");
+        var model = Parse("action Act");
 
         // Act
-        var (image, items) = Draw(model, "Art");
+        var (image, items) = Draw(model, "Act");
 
         // Assert
-        Assert.False(DescriptionRenderer.IsDrawn(DescriptionSymbol.Artifact, container: false));
+        Assert.False(DescriptionRenderer.IsDrawn(DescriptionSymbol.Action, container: false));
+        Assert.False(DescriptionRenderer.IsDrawn(DescriptionSymbol.Process, container: true));
         Assert.True(DescriptionRenderer.IsDrawn(DescriptionSymbol.Component, container: true));
-        Assert.Equal(SkinElement.Description, DescriptionRenderer.StyleOf(DescriptionSymbol.Artifact));
+        Assert.Equal(SkinElement.Description, DescriptionRenderer.StyleOf(DescriptionSymbol.Action));
         var name = items.OfType<SceneText>().Single();
         Assert.Equal(name.Box.Width + 20, image.Width, 3);
         Assert.Single(items.OfType<ScenePath>());
@@ -362,7 +371,7 @@ public class DescriptionRendererTests
         var items = image.Draw(new SceneRect(0, 0, 100, 120));
 
         // Assert
-        Assert.IsType<DescriptionComponentContainerImage>(image);
+        Assert.IsType<DescriptionContainerImage>(image);
         Assert.Equal((Math.Floor(2 * LineHeight) + 11, 16.0), (image.HeaderHeight, image.Padding));
         var outline = items.OfType<ScenePath>().First();
         Assert.Equal((null, 1.0), (outline.Fill, outline.Stroke!.Width));
@@ -395,5 +404,166 @@ public class DescriptionRendererTests
         Assert.Equal(new Canvas.Rgba32(0xFF, 0xEE, 0xDD, 255), items.OfType<ScenePath>().First().Fill);
         Assert.Equal((new Canvas.Rgba32(0xFF, 0xC0, 0xCB, 255), (Canvas.Rgba32?)null), DescriptionRenderer.ContainerColors(ElementOf(model, "K"), model.Theme));
         Assert.Equal(((Canvas.Rgba32?)null, (Canvas.Rgba32?)null), DescriptionRenderer.ContainerColors(ElementOf(model, "C"), model.Theme));
+    }
+
+    /// <summary>
+    ///     Validates the shapes of the deployment symbols that are more than a box: a storage's corners of 35, cut to
+    ///     half the side (an ellipse when the storage is small); a stack's box filled without an outline between its
+    ///     ledges; a collections symbol's back box 4 to the right and below; an artifact's document icon.
+    /// </summary>
+    [Fact]
+    public void PlantUmlDescriptionRenderer_Image_DeploymentOutlines_AreTheSymbols()
+    {
+        // Arrange
+        var model = Parse("storage S\nstorage \"A very long storage name\" as L\nstack K\ncollections C\nartifact A");
+
+        // Act
+        var (small, smallItems) = Draw(model, "S");
+        var (_, longItems) = Draw(model, "L");
+        var (_, stackItems) = Draw(model, "K");
+        var (collections, collectionsItems) = Draw(model, "C");
+        var (artifact, artifactItems) = Draw(model, "A");
+
+        // Assert
+        var outline = smallItems.OfType<ScenePath>().Single();
+        Assert.Equal((small.Width / 2, 0.0), (outline.Segments[0].X, outline.Segments[0].Y));
+        Assert.Equal((35.0, 0.0), (longItems.OfType<ScenePath>().Single().Segments[0].X, longItems.OfType<ScenePath>().Single().Segments[0].Y));
+        var box = stackItems.OfType<ScenePath>().Single(p => p.Role == "description");
+        var ledges = stackItems.OfType<ScenePath>().Single(p => p.Role == "description-detail");
+        Assert.Equal((SkinTheme.CommonBackground, (SceneStroke?)null), (box.Fill!.Value, box.Stroke));
+        Assert.Equal(((Canvas.Rgba32?)null, 0.5), (ledges.Fill, ledges.Stroke!.Width));
+        Assert.Equal((0.0, 0.0), (ledges.Segments[0].X, ledges.Segments[0].Y));
+        var back = Scene.BoundsOf([collectionsItems.OfType<ScenePath>().Single(p => p.Role == "description")])!.Value;
+        var front = Scene.BoundsOf([collectionsItems.OfType<ScenePath>().Single(p => p.Role == "description-detail")])!.Value;
+        Assert.Equal((4.0, 4.0, collections.Width - 4, collections.Height - 4), (back.X, back.Y, back.Width, back.Height));
+        Assert.Equal((0.0, 0.0), (front.X, front.Y));
+        var sheet = Scene.BoundsOf([artifactItems.OfType<ScenePath>().First(p => p.Role == "description-icon")])!.Value;
+        Assert.Equal((artifact.Width - 17, 5.0, 12.0, 14.0), (sheet.X, sheet.Y, sheet.Width, sheet.Height));
+    }
+
+    /// <summary>
+    ///     Validates the hexagon: the texts 5 from the top and a quarter of the width from the left, in a box twice as
+    ///     wide as them and 10 higher, outlined by a hexagon with corners in the middles of its sides.
+    /// </summary>
+    [Fact]
+    public void PlantUmlDescriptionRenderer_Image_Hexagon_IsTwiceAsWideAsItsTexts()
+    {
+        // Arrange
+        var model = Parse("hexagon \"Port Adapter\" as H");
+
+        // Act
+        var (image, items) = Draw(model, "H");
+
+        // Assert
+        var name = items.OfType<SceneText>().Single();
+        Assert.Equal((2 * name.Box.Width, LineHeight + 10), (image.Width, Math.Round(image.Height, 3)));
+        Assert.Equal((image.Width / 4, 5.0), (name.X, name.Box.Y));
+        var outline = items.OfType<ScenePath>().Single(p => p.Role == "description");
+        Assert.Equal(7, outline.Segments.Count);
+        Assert.Equal((0.0, image.Height / 2), (outline.Segments[0].X, outline.Segments[0].Y));
+        Assert.Equal((image.Width / 4, 0.0), (outline.Segments[1].X, outline.Segments[1].Y));
+    }
+
+    /// <summary>
+    ///     Validates the person: a head 0.42 times the square root of the body's area, centered over a body with margins
+    ///     of 10 and corners as round as the head.
+    /// </summary>
+    [Fact]
+    public void PlantUmlDescriptionRenderer_Image_Person_HasAHeadOverItsBody()
+    {
+        // Arrange
+        var model = Parse("person Person");
+
+        // Act
+        var (image, items) = Draw(model, "Person");
+
+        // Assert
+        var name = items.OfType<SceneText>().Single();
+        var (bodyWidth, bodyHeight) = (name.Box.Width + 20, name.Box.Height + 20);
+        var head = Math.Sqrt(bodyWidth * bodyHeight) * 0.42;
+        Assert.Equal(20.663, head, 3);
+        Assert.Equal(bodyWidth, image.Width, 3);
+        Assert.Equal(bodyHeight + head, image.Height, 3);
+        var ring = Scene.BoundsOf([items.OfType<ScenePath>().Single(p => p.Role == "description")])!.Value;
+        Assert.Equal((bodyWidth - head) / 2, ring.X, 3);
+        Assert.Equal((0.0, Math.Round(head, 3)), (ring.Y, Math.Round(ring.Width, 3)));
+        var body = Scene.BoundsOf([items.OfType<ScenePath>().Single(p => p.Role == "description-detail")])!.Value;
+        Assert.Equal(head, body.Y, 3);
+        Assert.Equal(10.0, name.X, 3);
+        Assert.Equal(head + 10, name.Box.Y, 3);
+    }
+
+    /// <summary>
+    ///     Validates the boundary, control, and entity: the sequence diagram's symbols (a circle of radius 12 with its
+    ///     mark, 4 from the sides of a box of 49 or 32), the name below the box, centered; a control's arrow is outlined
+    ///     one pixel wide.
+    /// </summary>
+    /// <param name="keyword">The keyword.</param>
+    /// <param name="symbolWidth">The width of the symbol's box.</param>
+    /// <param name="circleX">The center of the circle from the middle of the element.</param>
+    [Theory]
+    [InlineData("boundary", 49, 8.5)]
+    [InlineData("control", 32, 0)]
+    [InlineData("entity", 32, 0)]
+    public void PlantUmlDescriptionRenderer_Image_SequenceSymbols_AreThoseOfSequenceDiagrams(string keyword, double symbolWidth, double circleX)
+    {
+        // Arrange
+        var model = Parse(keyword + " X\n" + keyword + " \"A long symbol name\" as L");
+
+        // Act
+        var (small, smallItems) = Draw(model, "X");
+        var (large, largeItems) = Draw(model, "L");
+
+        // Assert
+        Assert.Equal((symbolWidth, 32 + LineHeight), (small.Width, Math.Round(small.Height, 3)));
+        Assert.Equal(largeItems.OfType<SceneText>().Single().Box.Width, large.Width, 3);
+        var circle = Scene.BoundsOf([largeItems.OfType<ScenePath>().Single(p => p.Role == "description")])!.Value;
+        Assert.Equal((24.0, 4.0), (circle.Width, circle.Y));
+        Assert.Equal((large.Width / 2) + circleX, circle.X + 12, 3);
+        Assert.Equal(2, smallItems.Count(i => i is ScenePath));
+        Assert.Equal(32.0, largeItems.OfType<SceneText>().Single().Box.Y, 3);
+        var mark = smallItems.OfType<ScenePath>().Single(p => p.Role == "description-detail");
+        Assert.Equal(keyword == "control" ? 1.0 : 0.5, mark.Stroke!.Width);
+    }
+
+    /// <summary>
+    ///     Validates the containers of the deployment symbols: a rectangle cluster's header and padding, the symbol's
+    ///     outline unfilled and one pixel wide (a stack's box without an outline), and the stereotypes and the bold
+    ///     title centered at the symbol's offsets.
+    /// </summary>
+    /// <param name="keyword">The keyword.</param>
+    /// <param name="stereoTop">The top of the stereotypes.</param>
+    /// <param name="gap">The space between the stereotypes and the title.</param>
+    /// <param name="shapes">The number of shapes of the outline.</param>
+    [Theory]
+    [InlineData("artifact", 2, 0, 4)]
+    [InlineData("storage", 5, 2, 1)]
+    [InlineData("file", 2, 0, 2)]
+    [InlineData("queue", 2, 0, 2)]
+    [InlineData("stack", 13, 0, 2)]
+    [InlineData("hexagon", 2, 0, 1)]
+    public void PlantUmlDescriptionRenderer_ContainerImage_DeploymentSymbols_DrawTheirOutline(string keyword, double stereoTop, double gap, int shapes)
+    {
+        // Arrange
+        var model = Parse(keyword + " K <<k>> {\nnode A\n}");
+        var text = new TextLayout(TextLayout.CreateFontResolver());
+
+        // Act
+        var image = DescriptionRenderer.ContainerImage(ElementOf(model, "K"), model.Theme, text, null);
+        var items = image.Draw(new SceneRect(0, 0, 100, 120));
+
+        // Assert
+        Assert.IsType<DescriptionContainerImage>(image);
+        Assert.True(DescriptionRenderer.IsDrawn(ElementOf(model, "K").Symbol, container: true));
+        Assert.Equal((Math.Floor(2 * LineHeight) + 11, 16.0), (image.HeaderHeight, image.Padding));
+        var paths = items.OfType<ScenePath>().ToList();
+        Assert.Equal(shapes, paths.Count);
+        Assert.All(paths, p => Assert.Null(p.Fill));
+        Assert.Equal(keyword == "stack" ? null : 1.0, paths[0].Stroke?.Width);
+        var stereo = items.OfType<SceneText>().Single(t => t.Role == "cluster-stereotype");
+        var title = items.OfType<SceneText>().Single(t => t.Role == "cluster-title");
+        Assert.Equal((stereoTop, stereoTop + gap + LineHeight), (stereo.Box.Y, Math.Round(title.Box.Y, 3)));
+        Assert.True(title.Runs[0].Font.Bold);
+        Assert.Equal(50, title.Box.X + (title.Box.Width / 2), 3);
     }
 }

@@ -74,6 +74,7 @@ public partial class PlantUmlReferenceShapeTests
     [InlineData("state", 10)]
     [InlineData("usecase", 7)]
     [InlineData("component", 8)]
+    [InlineData("deployment", 6)]
     public void CanvasNetPlantUml_Graph_ReferenceGoldens_CoverEveryFixture(string type, int minimum)
     {
         // Arrange

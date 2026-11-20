@@ -254,7 +254,7 @@ public class DescriptionParserTests
     public void PlantUmlDescriptionParser_Parse_UnsupportedParts_AreReported()
     {
         // Act
-        var model = Parse("node N {\nport p1\n}\np1 --> [X]\n[A] -(0)- [B]\ntogether {\n[T]\n}\nhide stereotype\nremove [A]\nartifact Art\narchimate #Business \"Biz\" as biz\njson J {\n\"a\": 1\n}\n[U] [[http://x]]\n[A] --> [B] <<uses>>");
+        var model = Parse("node N {\nport p1\n}\np1 --> [X]\n[A] -(0)- [B]\ntogether {\n[T]\n}\nhide stereotype\nremove [A]\nprocess Art\narchimate #Business \"Biz\" as biz\njson J {\n\"a\": 1\n}\n[U] [[http://x]]\n[A] --> [B] <<uses>>");
 
         // Assert
         Assert.Equal([3, 5, 6, 7, 10, 11, 12, 13, 14, 17, 18], model.Reports.Select(r => r.Location.Line));

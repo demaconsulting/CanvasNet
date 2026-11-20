@@ -43,7 +43,7 @@ public class DescriptionModelTests
         Assert.Equal(["P", "P.K"], diagram.Clusters.Select(c => c.Id));
         Assert.Same(diagram.Clusters[0], diagram.Clusters[1].Parent);
         Assert.IsType<SvekClusterImage>(diagram.Clusters[0].Image);
-        Assert.IsType<DescriptionComponentContainerImage>(diagram.Clusters[1].Image);
+        Assert.IsType<DescriptionContainerImage>(diagram.Clusters[1].Image);
         Assert.Equal(["P.K.A", "I", "B"], diagram.Entities.Select(e => e.Id));
         Assert.Same(diagram.Clusters[1], diagram.Entities[0].Parent);
         Assert.Same(diagram.Clusters[1], diagram.Links[1].To);

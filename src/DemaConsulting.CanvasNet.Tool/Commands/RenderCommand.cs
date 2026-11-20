@@ -93,9 +93,9 @@ internal sealed partial class RenderCommand : ICommand
         + "sets its theme (default, base, dark, forest, or neutral) unless the text sets one. A gantt chart has no today line" + Environment.NewLine
         + "(the tool sets no clock). A diagram type that is not drawn (journey, timeline, and so on) is an empty picture with" + Environment.NewLine
         + "the note mermaid-diagram-unsupported; run 'canvasnet help mermaid' for what is supported." + Environment.NewLine
-        + "A PlantUML sequence, activity, class, object, state, use case, or component diagram is drawn at the size PlantUML lays it out at," + Environment.NewLine
+        + "A PlantUML sequence, activity, class, object, state, use case, component, or deployment diagram is drawn at the size PlantUML lays it out at," + Environment.NewLine
         + "with its default look and the bundled fonts; its !include files are read relative to the file that names them. Another" + Environment.NewLine
-        + "diagram type (deployment, a mindmap, and so on) is an empty picture with the note plantuml-diagram-unsupported; --theme and --positions do" + Environment.NewLine
+        + "diagram type (timing, a mindmap, and so on) is an empty picture with the note plantuml-diagram-unsupported; --theme and --positions do" + Environment.NewLine
         + "not apply; run 'canvasnet help plantuml' for what is supported." + Environment.NewLine
         + "An SVG drawing can embed a picture, model, chart, Mermaid or PlantUML diagram, SVG file, or document page that sits" + Environment.NewLine
         + "beside it with <image href=\"part.scad\" .../> (report.pdf#page=2 chooses a page; part.scad#def.width=20" + Environment.NewLine

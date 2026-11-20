@@ -101,7 +101,8 @@ internal static partial class SequenceRenderer
     }
 
     /// <summary>
-    ///     Builds a boundary, control, or entity symbol: a circle of radius 12 with its mark.
+    ///     Builds a boundary, control, or entity symbol: a circle of radius 12 with its mark. The description diagrams
+    ///     draw their boundaries, controls, and entities with it too.
     /// </summary>
     /// <param name="kind">The kind.</param>
     /// <param name="c">The x of the life line.</param>
@@ -109,7 +110,7 @@ internal static partial class SequenceRenderer
     /// <param name="fill">The fill.</param>
     /// <param name="stroke">The stroke.</param>
     /// <returns>The paths.</returns>
-    private static IEnumerable<ScenePath> Symbol(ParticipantKind kind, double c, double top, Rgba32? fill, SceneStroke? stroke)
+    internal static IEnumerable<ScenePath> Symbol(ParticipantKind kind, double c, double top, Rgba32? fill, SceneStroke? stroke)
     {
         var cy = top + 12;
         if (kind == ParticipantKind.Boundary)
@@ -179,7 +180,7 @@ internal static partial class SequenceRenderer
     }
 
     /// <summary>
-    ///     Builds a queue: a horizontal cylinder around the text.
+    ///     Builds a queue: a horizontal cylinder around the text. The description diagrams draw their queues with it too.
     /// </summary>
     /// <param name="x">The left of the column.</param>
     /// <param name="top">The top of the queue.</param>
@@ -188,7 +189,7 @@ internal static partial class SequenceRenderer
     /// <param name="fill">The fill.</param>
     /// <param name="stroke">The stroke.</param>
     /// <returns>The paths.</returns>
-    private static IEnumerable<ScenePath> Queue(double x, double top, double width, double height, Rgba32? fill, SceneStroke? stroke)
+    internal static IEnumerable<ScenePath> Queue(double x, double top, double width, double height, Rgba32? fill, SceneStroke? stroke)
     {
         var (left, right, middle, bottom) = (x + 5, x + 5 + width, top + (height / 2), top + height);
         yield return new ScenePath(

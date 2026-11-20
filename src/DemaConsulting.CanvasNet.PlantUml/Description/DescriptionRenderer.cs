@@ -1,6 +1,7 @@
 // Portions derived from PlantUML (MIT); see third-party/README.md
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.PlantUml.Scenegraph;
+using DemaConsulting.CanvasNet.PlantUml.Sequence;
 using DemaConsulting.CanvasNet.PlantUml.Styling;
 using DemaConsulting.CanvasNet.PlantUml.Svek;
 
@@ -89,7 +90,10 @@ internal static partial class DescriptionRenderer
         DescriptionSymbol.Component, DescriptionSymbol.Interface, DescriptionSymbol.Node, DescriptionSymbol.Rectangle,
         DescriptionSymbol.Folder, DescriptionSymbol.Package, DescriptionSymbol.Frame, DescriptionSymbol.Cloud,
         DescriptionSymbol.Database, DescriptionSymbol.Card, DescriptionSymbol.Actor, DescriptionSymbol.BusinessActor,
-        DescriptionSymbol.UseCase, DescriptionSymbol.BusinessUseCase,
+        DescriptionSymbol.UseCase, DescriptionSymbol.BusinessUseCase, DescriptionSymbol.Artifact, DescriptionSymbol.Storage,
+        DescriptionSymbol.File, DescriptionSymbol.Queue, DescriptionSymbol.Stack, DescriptionSymbol.Agent,
+        DescriptionSymbol.Hexagon, DescriptionSymbol.Person, DescriptionSymbol.Boundary, DescriptionSymbol.Control,
+        DescriptionSymbol.Entity, DescriptionSymbol.Collections, DescriptionSymbol.Label, DescriptionSymbol.Circle,
     ];
 
     /// <summary>The container symbols that have their own drawing.</summary>
@@ -97,7 +101,8 @@ internal static partial class DescriptionRenderer
     [
         DescriptionSymbol.Component, DescriptionSymbol.Package, DescriptionSymbol.Folder, DescriptionSymbol.Rectangle,
         DescriptionSymbol.Node, DescriptionSymbol.Frame, DescriptionSymbol.Cloud, DescriptionSymbol.Database,
-        DescriptionSymbol.Card,
+        DescriptionSymbol.Card, DescriptionSymbol.Artifact, DescriptionSymbol.Storage, DescriptionSymbol.File,
+        DescriptionSymbol.Queue, DescriptionSymbol.Stack, DescriptionSymbol.Hexagon,
     ];
 
     /// <summary>
@@ -117,7 +122,7 @@ internal static partial class DescriptionRenderer
     public static SkinElement StyleOf(DescriptionSymbol symbol) => symbol switch
     {
         DescriptionSymbol.Component => SkinElement.Component,
-        DescriptionSymbol.Interface => SkinElement.Interface,
+        DescriptionSymbol.Interface or DescriptionSymbol.Circle => SkinElement.Interface,
         DescriptionSymbol.Node => SkinElement.Node,
         DescriptionSymbol.Rectangle => SkinElement.Rectangle,
         DescriptionSymbol.Folder or DescriptionSymbol.Package => SkinElement.Folder,
@@ -127,6 +132,19 @@ internal static partial class DescriptionRenderer
         DescriptionSymbol.Card => SkinElement.Card,
         DescriptionSymbol.Actor or DescriptionSymbol.BusinessActor => SkinElement.Actor,
         DescriptionSymbol.UseCase or DescriptionSymbol.BusinessUseCase => SkinElement.UseCase,
+        DescriptionSymbol.Artifact => SkinElement.Artifact,
+        DescriptionSymbol.Storage => SkinElement.Storage,
+        DescriptionSymbol.File => SkinElement.File,
+        DescriptionSymbol.Queue => SkinElement.Queue,
+        DescriptionSymbol.Stack => SkinElement.Stack,
+        DescriptionSymbol.Agent => SkinElement.Agent,
+        DescriptionSymbol.Hexagon => SkinElement.Hexagon,
+        DescriptionSymbol.Person => SkinElement.Person,
+        DescriptionSymbol.Boundary => SkinElement.Boundary,
+        DescriptionSymbol.Control => SkinElement.Control,
+        DescriptionSymbol.Entity => SkinElement.Entity,
+        DescriptionSymbol.Collections => SkinElement.Collections,
+        DescriptionSymbol.Label => SkinElement.Label,
         _ => SkinElement.Description,
     };
 
@@ -147,7 +165,7 @@ internal static partial class DescriptionRenderer
         return element.Symbol switch
         {
             DescriptionSymbol.Component => ComponentImage(painter),
-            DescriptionSymbol.Interface => InterfaceImage(painter),
+            DescriptionSymbol.Interface or DescriptionSymbol.Circle => InterfaceImage(painter),
             DescriptionSymbol.Node => NodeImage(painter),
             DescriptionSymbol.Folder => FolderImage(painter, packageTitle: false),
             DescriptionSymbol.Package => FolderImage(painter, packageTitle: true),
@@ -159,6 +177,18 @@ internal static partial class DescriptionRenderer
             DescriptionSymbol.BusinessActor => ActorImage(painter, business: true),
             DescriptionSymbol.UseCase => UseCaseImage(painter, business: false),
             DescriptionSymbol.BusinessUseCase => UseCaseImage(painter, business: true),
+            DescriptionSymbol.Artifact => ArtifactImage(painter),
+            DescriptionSymbol.Storage => StorageImage(painter),
+            DescriptionSymbol.File => FileImage(painter),
+            DescriptionSymbol.Queue => QueueImage(painter),
+            DescriptionSymbol.Stack => StackImage(painter),
+            DescriptionSymbol.Hexagon => HexagonImage(painter),
+            DescriptionSymbol.Person => PersonImage(painter),
+            DescriptionSymbol.Boundary => SymbolImage(painter, ParticipantKind.Boundary),
+            DescriptionSymbol.Control => SymbolImage(painter, ParticipantKind.Control),
+            DescriptionSymbol.Entity => SymbolImage(painter, ParticipantKind.Entity),
+            DescriptionSymbol.Collections => CollectionsImage(painter),
+            DescriptionSymbol.Label => LabelImage(painter),
             _ => RectangleImage(painter),
         };
     }
@@ -178,9 +208,10 @@ internal static partial class DescriptionRenderer
         ArgumentNullException.ThrowIfNull(text);
         var title = element.Text.Length == 0 ? null : element.Text;
         var (fill, line) = ContainerColors(element, theme);
-        if (element.Symbol == DescriptionSymbol.Component)
+        if (element.Symbol is DescriptionSymbol.Component or DescriptionSymbol.Artifact or DescriptionSymbol.Storage or DescriptionSymbol.File
+            or DescriptionSymbol.Queue or DescriptionSymbol.Stack or DescriptionSymbol.Hexagon)
         {
-            return new DescriptionComponentContainerImage(element, title, fill, line, theme, text, sink);
+            return new DescriptionContainerImage(element, title, fill, line, theme, text, sink);
         }
 
         var symbol = element.Symbol switch

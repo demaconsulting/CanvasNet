@@ -1,21 +1,33 @@
 // Portions derived from PlantUML (MIT); see third-party/README.md
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.PlantUml.Scenegraph;
+using DemaConsulting.CanvasNet.PlantUml.Sequence;
 using DemaConsulting.CanvasNet.PlantUml.Styling;
 using DemaConsulting.CanvasNet.PlantUml.Svek;
 
 namespace DemaConsulting.CanvasNet.PlantUml.Description;
 
 /// <summary>
-///     The image of a component container (the large form of PlantUML's <c>USymbolComponent2</c>): a rectangle with the
-///     component icon at its top right, its stereotypes 13 from the top, and its bold title below them, both centered.
+///     The image of a container that PlantUML draws with the large form of its own symbol (<c>asBig</c> of
+///     <c>USymbolComponent2</c>, <c>USymbolArtifact</c>, <c>USymbolStorage</c>, <c>USymbolFile</c>, <c>USymbolQueue</c>,
+///     <c>USymbolStack</c>, and <c>USymbolHexagon</c>): the symbol's outline around the members, and its stereotypes and
+///     bold title centered at the top.
 /// </summary>
 /// <remarks>
-///     The header, the narrowest width, and the space around the members are a rectangle cluster's
-///     (<see cref="SvekClusterImage"/>), as PlantUML's Smetana pipeline reserves them for every container. An image is
-///     immutable and safe for concurrent use.
+///     <para>
+///         A component is a rectangle with the component icon at its top right, the texts 13 from the top; an artifact
+///         a rectangle with the document icon at its top right, the texts 2 from the top; a storage a rectangle with
+///         corners of 70, the stereotypes 5 and the title 7 from the top; a file a sheet with a folded corner, a queue a
+///         horizontal cylinder, and a hexagon a hexagon whose top and bottom corners are an eighth of the width from the
+///         sides, the texts 2 from the top; a stack a filled box between two ledges of 15, the texts 13 from the top.
+///     </para>
+///     <para>
+///         The header, the narrowest width, and the space around the members are a rectangle cluster's
+///         (<see cref="SvekClusterImage"/>), as PlantUML's Smetana pipeline reserves them for every container. An image
+///         is immutable and safe for concurrent use.
+///     </para>
 /// </remarks>
-internal sealed class DescriptionComponentContainerImage : ISvekClusterImage
+internal sealed class DescriptionContainerImage : ISvekClusterImage
 {
     /// <summary>The container.</summary>
     private readonly DescriptionElement _element;
@@ -48,7 +60,7 @@ internal sealed class DescriptionComponentContainerImage : ISvekClusterImage
     /// <param name="theme">The look.</param>
     /// <param name="text">The text layout of the call.</param>
     /// <param name="sink">The report sink of the call, or null.</param>
-    public DescriptionComponentContainerImage(DescriptionElement element, string? title, Rgba32? fill, Rgba32? line, SkinTheme theme, TextLayout text, PlantUmlReportSink? sink)
+    public DescriptionContainerImage(DescriptionElement element, string? title, Rgba32? fill, Rgba32? line, SkinTheme theme, TextLayout text, PlantUmlReportSink? sink)
     {
         _element = element;
         var style = theme[SkinElement.Container];
@@ -80,20 +92,53 @@ internal sealed class DescriptionComponentContainerImage : ISvekClusterImage
         var (x, y, w, h) = (box.X, box.Y, box.Width, box.Height);
         var id = _element.Id;
         var location = _element.Location;
-        SceneItem Shape(IReadOnlyList<SceneSegment> segments, bool filled) =>
-            new ScenePath(segments) { Role = "cluster", Id = id, Location = location, Fill = filled ? _fill : null, Stroke = _stroke };
+        ScenePath Shape(IReadOnlyList<SceneSegment> segments, bool filled = true, bool stroked = true) =>
+            new(segments) { Role = "cluster", Id = id, Location = location, Fill = filled ? _fill : null, Stroke = stroked ? _stroke : null };
 
-        var items = new List<SceneItem> { Shape(SceneShapes.Rect(x, y, w, h, _radius), filled: true) };
-        DescriptionRenderer.ComponentIcon(items, x + w, y, (segments, _) => Shape(segments, filled: false));
+        // The outline, and the top of the stereotypes and of the title below them
+        var items = new List<SceneItem>();
+        var (stereoTop, titleGap) = (2.0, 0.0);
+        switch (_element.Symbol)
+        {
+            case DescriptionSymbol.Component:
+                items.Add(Shape(SceneShapes.Rect(x, y, w, h, _radius)));
+                DescriptionRenderer.ComponentIcon(items, x + w, y, (segments, _) => Shape(segments, filled: false));
+                stereoTop = 13;
+                break;
+            case DescriptionSymbol.Artifact:
+                items.Add(Shape(SceneShapes.Rect(x, y, w, h, _radius)));
+                DescriptionRenderer.ArtifactIcon(items, x + w, y, (segments, _) => Shape(segments));
+                break;
+            case DescriptionSymbol.Storage:
+                items.Add(Shape(DescriptionRenderer.StorageOutline(x, y, w, h)));
+                (stereoTop, titleGap) = (5, 2);
+                break;
+            case DescriptionSymbol.File:
+                items.Add(Shape(DescriptionRenderer.FileOutline(x, y, w, h, _radius)));
+                items.Add(Shape(DescriptionRenderer.FileFold(x, y, w, _radius)));
+                break;
+            case DescriptionSymbol.Queue:
+                items.AddRange(SequenceRenderer.Queue(x, y, w - 10, h, _fill, _stroke).Select(p => p with { Role = "cluster", Id = id, Location = location }));
+                break;
+            case DescriptionSymbol.Stack:
+                items.Add(Shape(SceneShapes.Rect(x + 15, y, w - 30, h, _radius), stroked: false));
+                items.Add(Shape(DescriptionRenderer.StackLedges(x, y, w, h, _radius), filled: false));
+                stereoTop = 13;
+                break;
+            default:
+                items.Add(Shape(DescriptionRenderer.HexagonOutline(x, y, w, h, w / 8)));
+                break;
+        }
+
         var stereoHeight = _stereotype?.Height ?? 0;
         if (_stereotype is not null)
         {
-            items.AddRange(_stereotype.Draw(x + ((w - _stereotype.Width) / 2), y + 13, TextAlign.Center, "cluster-stereotype", location).Select(t => t with { Id = id }));
+            items.AddRange(_stereotype.Draw(x + ((w - _stereotype.Width) / 2), y + stereoTop, TextAlign.Center, "cluster-stereotype", location).Select(t => t with { Id = id }));
         }
 
         if (_title is not null)
         {
-            items.AddRange(_title.Draw(x + ((w - _title.Width) / 2), y + 13 + stereoHeight, TextAlign.Center, "cluster-title", location).Select(t => t with { Id = id }));
+            items.AddRange(_title.Draw(x + ((w - _title.Width) / 2), y + stereoTop + titleGap + stereoHeight, TextAlign.Center, "cluster-title", location).Select(t => t with { Id = id }));
         }
 
         return items;

@@ -50,7 +50,7 @@ public class DescriptionTests
     public void PlantUmlDescription_SkinAndReports_ReachTheDrawing()
     {
         // Arrange
-        var model = Parse("skinparam componentBackgroundColor #FFEEDD\nskinparam componentBorderColor #884422\nskinparam interfaceFontColor #0000FF\n[A] --> I\nartifact X\n[A] -(0)- [B]");
+        var model = Parse("skinparam componentBackgroundColor #FFEEDD\nskinparam componentBorderColor #884422\nskinparam interfaceFontColor #0000FF\n[A] --> I\naction X\n[A] -(0)- [B]");
 
         // Act
         var scene = model.Layout(Context());

@@ -7,7 +7,7 @@ namespace DemaConsulting.CanvasNet.PlantUml.Syntax;
 /// </summary>
 /// <param name="DiagramType">
 ///     The public type name: <c>sequence</c>, <c>activity</c>, <c>class</c>, <c>object</c>, <c>state</c>,
-///     <c>usecase</c>, <c>component</c>, or a recognized type that is not drawn (<c>deployment</c>, <c>timing</c>,
+///     <c>usecase</c>, <c>component</c>, <c>deployment</c>, or a recognized type that is not drawn (<c>timing</c>,
 ///     <c>activity-legacy</c>, <c>mindmap</c>, <c>gantt</c>, <c>wbs</c>, <c>json</c>, <c>yaml</c>, <c>salt</c>, ...).
 /// </param>
 /// <param name="IsSupported">Whether this version draws the type.</param>
@@ -39,7 +39,7 @@ internal sealed record DetectedDiagram(string DiagramType, bool IsSupported, str
 internal static partial class DiagramDetector
 {
     /// <summary>The types this version draws.</summary>
-    internal static readonly IReadOnlySet<string> SupportedTypes = new HashSet<string>(StringComparer.Ordinal) { "sequence", "activity", "class", "object", "state", "usecase", "component" };
+    internal static readonly IReadOnlySet<string> SupportedTypes = new HashSet<string>(StringComparer.Ordinal) { "sequence", "activity", "class", "object", "state", "usecase", "component", "deployment" };
 
     /// <summary>The closer of a multi-line action (<c>:text</c> up to a line that ends with <c>;</c>).</summary>
     internal const string ActionCloser = ";";

@@ -37,7 +37,8 @@ examples:
 ## Supported
 
 - info reports the type (sequence, activity, class, object, state, usecase,
-  component, or the name of a type that is not drawn, such as deployment),
+  component, deployment, or the name of a type that is not drawn, such as
+  timing),
   whether this version draws it,
   the title, and the numbers of nodes, edges, and subgraphs: the participants,
   messages, and boxes of a sequence diagram; the actions, start, stop, end,
