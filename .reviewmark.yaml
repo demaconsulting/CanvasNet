@@ -5323,7 +5323,7 @@ reviews:
       - "test/DemaConsulting.CanvasNet.PlantUml.Tests/PlantUmlActivityIntegrationTests.cs"  # activity system tests
       - "test/DemaConsulting.CanvasNet.PlantUml.Tests/PlantUmlClassIntegrationTests.cs"  # class and object system tests
       - "test/DemaConsulting.CanvasNet.PlantUml.Tests/PlantUmlStateIntegrationTests.cs"  # state system tests
-      - "test/DemaConsulting.CanvasNet.PlantUml.Tests/PlantUmlDescriptionIntegrationTests.cs"  # component system tests
+      - "test/DemaConsulting.CanvasNet.PlantUml.Tests/PlantUmlDescriptionIntegrationTests.cs"  # description diagrams
       - "test/DemaConsulting.CanvasNet.PlantUml.Tests/PlantUmlIncludeTests.cs"  # include and image source system tests
       - "test/DemaConsulting.CanvasNet.PlantUml.Tests/PlantUmlHardeningTests.cs"  # limits and mutation fuzzer
       - "test/DemaConsulting.CanvasNet.PlantUml.Tests/PlantUmlGalleryTests.cs"  # documentation gallery tests
