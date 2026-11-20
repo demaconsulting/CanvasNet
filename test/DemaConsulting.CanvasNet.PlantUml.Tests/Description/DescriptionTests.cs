@@ -61,4 +61,31 @@ public class DescriptionTests
         Assert.Equal(new Canvas.Rgba32(0, 0, 0xFF, 255), scene.Items.OfType<SceneText>().Single(t => t.Role == "description-name" && t.Id == "I").Runs[0].Color);
         Assert.Equal([6, 7], model.Reports.Select(r => r.Location.Line));
     }
+
+    /// <summary>
+    ///     Validates the whole subsystem on a use case diagram: actors (a name only written in a link among them) and use
+    ///     cases in a boundary are read, laid out with links that end on the ellipses, and drawn as stick figures and
+    ///     ellipses with an «include» label and the actor and use case skin parameters.
+    /// </summary>
+    [Fact]
+    public void PlantUmlDescription_UseCase_DrawsActorsAndUseCases()
+    {
+        // Arrange
+        const string Body = "skinparam usecaseBackgroundColor #DDEEFF\nskinparam actorBorderColor #885500\nactor Customer\nrectangle Shop {\nusecase Checkout\n(Pay)/\n}\nCustomer --> Checkout\nClerk --> Pay\nCheckout ..> Pay : <<include>>";
+        var model = Parse(Body);
+
+        // Act
+        var scene = model.Layout(Context());
+
+        // Assert
+        Assert.Equal((4, 3, 1), (model.NodeCount, model.EdgeCount, model.SubgraphCount));
+        var head = scene.Items.OfType<ScenePath>().Single(p => p.Role == "description" && p.Id == "Clerk");
+        Assert.Equal(new Canvas.Rgba32(0x88, 0x55, 0x00, 255), head.Stroke!.Color);
+        var ellipse = scene.Items.OfType<ScenePath>().Single(p => p.Role == "description" && p.Id == "Shop.Checkout");
+        Assert.Equal(new Canvas.Rgba32(0xDD, 0xEE, 0xFF, 255), ellipse.Fill);
+        Assert.Contains(scene.Items, i => i.Role == "description-detail" && i.Id == "Shop.Pay");
+        Assert.Contains(scene.Items, i => i is SceneText { Role: "link-label", Text: "\u00ABinclude\u00BB" });
+        Assert.Contains(scene.Items, i => i is SceneText { Role: "cluster-title", Text: "Shop" });
+        Assert.Empty(model.Reports);
+    }
 }

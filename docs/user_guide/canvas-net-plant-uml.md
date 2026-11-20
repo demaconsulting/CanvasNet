@@ -78,7 +78,7 @@ public sealed partial class PlantUmlDocument
   not count), `EdgeCount` the number of transitions (links to notes do not count), and `SubgraphCount` the number of
   composite states. For a type that is not drawn, `IsSupported` is `false`, `Title` is `null`, and the counts are
   zero. `DiagramType` is `sequence`, `activity`, `class`, `object` (a class diagram whose first declaration is an object
-  or a map), `state`, or the name of the type that is not drawn: `usecase`, `component`, `deployment`, `timing`,
+  or a map), `state`, `usecase`, `component`, or the name of the type that is not drawn: `deployment`, `timing`,
   `activity-legacy` (the old `(*) --> ...` syntax), or the type of another `@start` tag, such as `mindmap`, `gantt`,
   `wbs`, `json`, `yaml`, or `salt`.
 - `Measure` lays the diagram out and returns the size that `Render` produces for the same options, without drawing. It
@@ -393,7 +393,7 @@ stable `Feature` code, a message, a location, and a hint, and the rest of the di
 The codes, with their kind and when each is reported:
 
 - **`plantuml-diagram-unsupported`**: Unsupported: The diagram type is not drawn by this version (every type but
-  sequence, activity, class, object, state, and component diagrams); the picture is empty.
+  sequence, activity, class, object, state, use case, and component diagrams); the picture is empty.
 - **`plantuml-multiple-diagrams`**: Unsupported: The text has more than one `@start` block; only the first one is drawn.
 - **`plantuml-preprocessor-unsupported`**: Unsupported: A preprocessor directive outside the subset (`!if`, `!function`,
   `!procedure`, `!foreach`, built-in `%functions`, `!define` with parameters); it is dropped with the block it opens.
@@ -432,8 +432,8 @@ specific code being in its `detail`.
 **Unsupported diagram types.** Every diagram type that PlantUML knows is recognized, so a diagram that this version
 cannot draw is named, not misread:
 
-- inside `@startuml`: use case (`usecase`, `(name)`), deployment (`node`, `artifact`, `cloud`, ...), timing (`robust`,
-  `concise`), and the legacy activity syntax (`(*) --> ...`, reported as `activity-legacy`);
+- inside `@startuml`: deployment (`node`, `artifact`, `cloud`, ...), timing (`robust`, `concise`), and the legacy
+  activity syntax (`(*) --> ...`, reported as `activity-legacy`);
 - the other `@start` tags: `@startmindmap`, `@startgantt`, `@startwbs`, `@startjson`, `@startyaml`, `@startsalt`,
   `@startditaa`, `@startdot`, `@startmath`, `@startlatex`, `@startregex`, `@startebnf`, `@startchen`, `@startfiles`,
   `@startchronology`, `@startboard`, `@startcreole`, `@startwire`, and `@startnwdiag`.
@@ -770,7 +770,7 @@ stop
 A plain ` ```plantuml ` block works the same way, without a caption. The text of a block is written to the filter's
 cache folder and drawn from there, so a diagram that includes files must be a `.puml` file of its own, used as a
 picture; the filter then hashes its `!include` files too, so a changed include draws the picture again. A block or a
-picture of a type that this version does not draw (a use case diagram, a mindmap, ...) is left as written, so the
+picture of a type that this version does not draw (a deployment diagram, a mindmap, ...) is left as written, so the
 document shows its code, and the tool's message is a Pandoc warning.
 
 ### Example 73: The PlantUML Gallery

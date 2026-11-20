@@ -36,8 +36,8 @@ internal sealed class DescriptionImage(double width, double height, SvekClip cli
 ///     Measures and paints the elements and containers of description diagrams as PlantUML does
 ///     (<c>svek/image/EntityImageDescription</c>, the small and large forms of <c>decoration/symbol/USymbolComponent2</c>,
 ///     <c>USymbolInterface</c> with <c>svek/CircleInterface2</c>, <c>USymbolNode</c>, <c>USymbolRectangle</c>,
-///     <c>USymbolFolder</c>, <c>USymbolFrame</c>, <c>USymbolCloud</c>, <c>USymbolDatabase</c>, and
-///     <c>USymbolCard</c>).
+///     <c>USymbolFolder</c>, <c>USymbolFrame</c>, <c>USymbolCloud</c>, <c>USymbolDatabase</c>, <c>USymbolCard</c>,
+///     <c>USymbolActor</c>, <c>USymbolActorBusiness</c>, and <c>USymbolUsecase</c>).
 /// </summary>
 /// <remarks>
 ///     <para>
@@ -52,7 +52,11 @@ internal sealed class DescriptionImage(double width, double height, SvekClip cli
 ///         left side. <b>Interface.</b> A circle of radius 8 (in a box of 18), the name 8 below it and the stereotypes 8
 ///         above it; links end on the circle. <b>Node</b>, <b>rectangle</b>, <b>folder</b>, <b>package</b>,
 ///         <b>frame</b>, <b>cloud</b>, <b>database</b>, and <b>card</b> are drawn with their symbol's outline and
-///         margins; every other symbol is drawn as a rectangle (and reported by the parser).
+///         margins. <b>Actor.</b> The stick figure (head filled <c>#F1F1F1</c>) with the stereotypes above it and the
+///         name below it; a business actor's head is crossed by a slash. <b>Use case.</b> The texts, centered, in the
+///         smallest ellipse of their proportions that holds every line, grown by 6; links end on the ellipse; a
+///         business use case has a margin of 7 on each side of its texts and a slash across its lower right side. Every
+///         other symbol is drawn as a rectangle (and reported by the parser).
 ///     </para>
 ///     <para>
 ///         <b>Containers.</b> A component container is a rectangle (corners of 5, <c>#181818</c> one pixel wide, not
@@ -84,7 +88,8 @@ internal static partial class DescriptionRenderer
     [
         DescriptionSymbol.Component, DescriptionSymbol.Interface, DescriptionSymbol.Node, DescriptionSymbol.Rectangle,
         DescriptionSymbol.Folder, DescriptionSymbol.Package, DescriptionSymbol.Frame, DescriptionSymbol.Cloud,
-        DescriptionSymbol.Database, DescriptionSymbol.Card,
+        DescriptionSymbol.Database, DescriptionSymbol.Card, DescriptionSymbol.Actor, DescriptionSymbol.BusinessActor,
+        DescriptionSymbol.UseCase, DescriptionSymbol.BusinessUseCase,
     ];
 
     /// <summary>The container symbols that have their own drawing.</summary>
@@ -120,6 +125,8 @@ internal static partial class DescriptionRenderer
         DescriptionSymbol.Cloud => SkinElement.Cloud,
         DescriptionSymbol.Database => SkinElement.Database,
         DescriptionSymbol.Card => SkinElement.Card,
+        DescriptionSymbol.Actor or DescriptionSymbol.BusinessActor => SkinElement.Actor,
+        DescriptionSymbol.UseCase or DescriptionSymbol.BusinessUseCase => SkinElement.UseCase,
         _ => SkinElement.Description,
     };
 
@@ -148,6 +155,10 @@ internal static partial class DescriptionRenderer
             DescriptionSymbol.Cloud => CloudImage(painter),
             DescriptionSymbol.Database => DatabaseImage(painter),
             DescriptionSymbol.Card => CardImage(painter),
+            DescriptionSymbol.Actor => ActorImage(painter, business: false),
+            DescriptionSymbol.BusinessActor => ActorImage(painter, business: true),
+            DescriptionSymbol.UseCase => UseCaseImage(painter, business: false),
+            DescriptionSymbol.BusinessUseCase => UseCaseImage(painter, business: true),
             _ => RectangleImage(painter),
         };
     }
@@ -327,6 +338,12 @@ internal static partial class DescriptionRenderer
         /// <summary>Gets the corner radius of the outline.</summary>
         public double Radius { get; }
 
+        /// <summary>Gets the fill, or null.</summary>
+        public Rgba32? Fill => _fill;
+
+        /// <summary>Gets the stroke, or null.</summary>
+        public SceneStroke? Stroke => _stroke;
+
         /// <summary>Gets the laid-out name or description.</summary>
         public TextBlock Name { get; }
 
@@ -372,6 +389,14 @@ internal static partial class DescriptionRenderer
         /// <returns>The item.</returns>
         public ScenePath Path(IReadOnlyList<SceneSegment> segments, string role, bool filled = true) =>
             new(segments) { Role = role, Id = _element.Id, Location = _element.Location, Fill = filled ? _fill : null, Stroke = _stroke };
+
+        /// <summary>
+        ///     Gives a path built elsewhere (a stick figure) a role and the element's id and location.
+        /// </summary>
+        /// <param name="path">The path.</param>
+        /// <param name="role">The role.</param>
+        /// <returns>The item.</returns>
+        public ScenePath Own(ScenePath path, string role) => path with { Role = role, Id = _element.Id, Location = _element.Location };
 
         /// <summary>
         ///     Draws a block with its items carrying the element's id.

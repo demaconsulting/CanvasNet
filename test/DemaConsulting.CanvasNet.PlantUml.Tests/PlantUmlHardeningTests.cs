@@ -45,6 +45,10 @@ public class PlantUmlHardeningTests
         { "MaxEdges", 1, "@startuml\n[A] --> [B]\n[B] ..> I\n@enduml\n", 3 },
         { "MaxLabelLength", 10, "@startuml\ncomponent \"" + new string('x', 40) + "\" as C\n@enduml\n", 2 },
         { "MaxNestingDepth", 1, "@startuml\nnode A {\nfolder B {\n[C]\n}\n}\n@enduml\n", 3 },
+        { "MaxNodes", 2, "@startuml\nactor A\n(U)\n:B:\n@enduml\n", 4 },
+        { "MaxEdges", 1, "@startuml\nA --> (U)\n(U) ..> (V) : <<include>>\n@enduml\n", 3 },
+        { "MaxLabelLength", 10, "@startuml\nusecase \"" + new string('x', 40) + "\" as U\n@enduml\n", 2 },
+        { "MaxNestingDepth", 1, "@startuml\nrectangle A {\npackage B {\n(U)\n}\n}\n@enduml\n", 3 },
     };
 
     /// <summary>
@@ -213,6 +217,36 @@ public class PlantUmlHardeningTests
     }
 
     /// <summary>
+    ///     Validates that a use case diagram with many actors and use cases in a boundary is bounded: a small layout
+    ///     budget fails closed with a located plantuml-limit-exceeded render error, and the default budget lays it out,
+    ///     with the ellipse of a use case of more than a thousand lines (the longest text the default limits allow)
+    ///     measured in time.
+    /// </summary>
+    [Fact]
+    public void CanvasNetPlantUml_Hardening_DenseUseCaseGraph_LayoutWorkIsBounded()
+    {
+        // Arrange
+        var members = string.Concat(Enumerable.Range(0, 20).Select(i => $"usecase U{i}\n"));
+        var links = string.Concat(Enumerable.Range(0, 40).Select(i => $"A{(i * 7 + 3) % 15} --> U{i % 20}\n"));
+        var document = PlantUmlDocument.Parse("@startuml\nrectangle Shop {\n" + members + "}\n" + links + "@enduml\n");
+        var tall = PlantUmlDocument.Parse("@startuml\nusecase \"" + string.Concat(Enumerable.Repeat("a\\n", 1300)) + "\" as T\nactor A\nA --> T\n@enduml\n");
+
+        // Act
+        var ex = Assert.Throws<PlantUmlRenderException>(() => document.Measure(new PlantUmlRenderOptions { Limits = new PlantUmlLimits { MaxLayoutWork = 1000 } }, TestContext.Current.CancellationToken));
+        var size = document.Measure(new PlantUmlRenderOptions { Scale = 0.1 }, TestContext.Current.CancellationToken);
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+        var tallSize = tall.Measure(new PlantUmlRenderOptions { Scale = 0.01 }, TestContext.Current.CancellationToken);
+        watch.Stop();
+
+        // Assert
+        Assert.Equal(PlantUmlDiagnosticCodes.LimitExceeded, ex.Code);
+        Assert.Equal(2, ex.Location.Line);
+        Assert.True(size.Width >= 1 && size.Height >= 1);
+        Assert.True(tallSize.Height >= 1);
+        Assert.True(watch.Elapsed < TimeSpan.FromSeconds(20), $"measured in {watch.Elapsed}");
+    }
+
+    /// <summary>
     ///     Validates that large diagrams within the limits render: a long chain of actions, blocks nested at the
     ///     nesting limit, and many participants.
     /// </summary>
@@ -263,9 +297,10 @@ public class PlantUmlHardeningTests
             "hide empty description\n", "S : text\n", "end state\n", "-left->", "-[dashed]->",
             "[C]", "() I", "(U)", ":A:", "component C [\n", "]\n", "node N {\n", "component K {\n", "port p\n", "--(", ")--",
             "0)--", "-(0)-", "==>", "<<svc>>", "as \"x\"", "artifact X\n", "cloud C\n", "database D\n", "rectangle {\n",
+            "actor/ B\n", "usecase/ W\n", "(U)/", ":A:/", ": <<include>>", ": <<extend>>", "usecase \"a\\nb\" as M\n", ":Guest:\n",
         ];
         var random = new Random(20261118);
-        var folders = new[] { "sequence", "activity", "class", "object", "state", "component" };
+        var folders = new[] { "sequence", "activity", "class", "object", "state", "usecase", "component" };
         var fixtures = folders
             .SelectMany(f => Directory.GetFiles(Path.Combine(AppContext.BaseDirectory, "Fixtures", f), "*.puml"))
             .Concat(Directory.GetFiles(Path.Combine(AppContext.BaseDirectory, "Gallery"), "plantuml-*.puml"))

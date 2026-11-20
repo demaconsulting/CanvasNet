@@ -350,8 +350,9 @@ result has a `fragment` member (see *Fragments on Input Paths*).
   git graph as nodes and the links to their parents as edges). The diagram is laid out without the pictures of its
   nodes, so no other file is read (see *Mermaid Diagrams* below).
 - A **PlantUML diagram** reports the size it is laid out at (the size of PlantUML's SVG), 4 channels with transparency,
-  and what the text declares: the diagram type (`sequence`, `activity`, `class`, `object`, `state`, or a type that is
-  not drawn, such as `usecase`), whether this version draws it, the title, and the numbers of nodes, edges, and
+  and what the text declares: the diagram type (`sequence`, `activity`, `class`, `object`, `state`, `usecase`,
+  `component`, or a type that is not drawn, such as `deployment`), whether this version draws it, the title, and the
+  numbers of nodes, edges, and
   subgraphs (participants, messages, and boxes for a sequence diagram; actions, start, stop, end, connector, and
   decision nodes, arrows, and swimlanes and partitions for an activity diagram; classes, objects, and maps,
   relationships, and packages for a class or object diagram; states and pseudo-states, transitions, and composite
@@ -927,7 +928,7 @@ their concurrent regions, the start, end, choice, fork, join, and history pseudo
 out the same way). `canvasnet help plantuml` lists a card for each (`canvasnet help plantuml sequence`, `canvasnet
 help plantuml activity`, `canvasnet help plantuml class`, `canvasnet help plantuml object`, `canvasnet help plantuml
 state`) and for the preprocessor, the styles, composition, the options, the diagnostics, and the known differences.
-Every other PlantUML diagram type (use case, deployment, a mindmap, a gantt chart, ...) is recognized: `info` reports it
+Every other PlantUML diagram type (deployment, timing, a mindmap, a gantt chart, ...) is recognized: `info` reports it
 with `"supported": false`, and `render` writes an empty picture of 20 by 20 pixels with the diagnostic
 `plantuml-diagram-unsupported` (`--strict` makes it an `unsupported-feature` failure).
 
@@ -2117,7 +2118,7 @@ objects:
 ```
 
 For a PlantUML diagram the `diagram` object has the same members without `direction` and `accTitle`: `type` is
-`sequence`, `activity`, `class`, `object`, `state`, `component`, or a type that is not drawn (`usecase`, `deployment`,
+`sequence`, `activity`, `class`, `object`, `state`, `usecase`, `component`, or a type that is not drawn (`deployment`,
 `mindmap`, ..., with `supported` false and zero counts), `nodes` are the participants of a sequence diagram, the
 actions, start, stop, end, connector, and decision nodes of an activity diagram, the classes, objects, and maps of a
 class or object diagram, or the states and pseudo-states of a state diagram, `edges` its messages, arrows,
@@ -2472,7 +2473,7 @@ A PlantUML diagram can be written in the document the same way, as a fenced code
 block. A `.puml`, `.plantuml`, or `.pu` picture is named in the cache by its text and by every file its `!include`,
 `!include_once`, and `!include_many` directives read (not a URL or the standard library), so a changed include draws
 it again; a block has no folder for its includes, so a diagram that includes files must be a file of its own. A block
-or a picture of a PlantUML type the tool does not draw (`plantuml-diagram-unsupported`: a use case diagram, a mindmap,
+or a picture of a PlantUML type the tool does not draw (`plantuml-diagram-unsupported`: a deployment diagram, a mindmap,
 and so on) is left as written, with a warning, exactly as a Mermaid one.
 
 ````markdown

@@ -62,8 +62,8 @@ see-also:
   count the commits of a git graph and the links from each commit to its
   parents, subgraphs is 0, and direction is LR, TB, or BT; direction, title, and
   accTitle are present when the diagram has them. For a PlantUML diagram type is
-  sequence, activity, class, object, state, component, or a type that is not
-  drawn (usecase, deployment, and so on, with the diagnostic
+  sequence, activity, class, object, state, usecase, component, or a type that
+  is not drawn (deployment, mindmap, and so on, with the diagnostic
   plantuml-diagram-unsupported); nodes, edges, and subgraphs count the
   participants, messages, and boxes of a sequence diagram, the actions, start,
   stop, end, connector, and decision nodes, the arrows, and the swimlanes and

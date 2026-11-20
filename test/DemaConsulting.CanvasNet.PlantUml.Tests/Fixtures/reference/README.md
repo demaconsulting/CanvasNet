@@ -28,12 +28,12 @@ the links.
   `../component/`, written for this repository; no input comes from PlantUML's documentation or tests.
 - **Generator**: `pwsh tools/visual-diff/update-plantuml-goldens.ps1 -Java <java> -Jar <jar> [-Diagram <types>]`
   (developer machine, not CI). The script turns Graphviz off, so only the engines that do not need it run, as in
-  CanvasNet; the graph diagrams (class, object, state, and component) are drawn with `-Playout=smetana`, PlantUML's own
-  Java port of Graphviz's layout.
+  CanvasNet; the graph diagrams (class, object, state, use case, and component) are drawn with `-Playout=smetana`,
+  PlantUML's own Java port of Graphviz's layout.
 - **Versions**: `plantuml-mit-1.2026.10.jar` (the MIT-licensed distribution of PlantUML, whose sequence engine is "teoz"
   and whose activity engine is the "ftile" composition of the new syntax) on Java 25.0.3 (OpenJDK, headless) on Windows;
-  the class, object, state, and component goldens on Java 25.0.5 (Eclipse Temurin, headless). Each file names the
-  PlantUML version in its `<?plantuml ...?>` instruction.
+  the class, object, state, use case, and component goldens on Java 25.0.5 (Eclipse Temurin, headless). Each file names
+  the PlantUML version in its `<?plantuml ...?>` instruction.
 - **Fonts**: Java's logical `SansSerif` font on Windows is Arial, whose metrics CanvasNet's bundled Liberation Sans
   shares, so the texts are measured alike.
 - **Ownership**: the pictures are PlantUML's output for inputs of this repository; they contain no PlantUML source.

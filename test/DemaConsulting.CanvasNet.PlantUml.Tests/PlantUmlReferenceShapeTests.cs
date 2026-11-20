@@ -72,6 +72,7 @@ public partial class PlantUmlReferenceShapeTests
     [InlineData("class", 12)]
     [InlineData("object", 4)]
     [InlineData("state", 10)]
+    [InlineData("usecase", 7)]
     [InlineData("component", 8)]
     public void CanvasNetPlantUml_Graph_ReferenceGoldens_CoverEveryFixture(string type, int minimum)
     {

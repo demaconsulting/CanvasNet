@@ -180,8 +180,9 @@ public class SkinParamsTests
 
     /// <summary>
     ///     Validates the description subset: the prefixes of the description symbols (component, interface, node,
-    ///     rectangle, folder, frame, cloud, card) style their elements in a description diagram, a graph prefix of the same
-    ///     diagram still applies, and a class diagram reports the description prefixes as ignored.
+    ///     rectangle, folder, frame, cloud, card, usecase) style their elements in a description diagram, the shared
+    ///     actor prefix styles its actors, a graph prefix of the same diagram still applies, and a class diagram reports
+    ///     the description prefixes as ignored.
     /// </summary>
     [Fact]
     public void PlantUmlSkinParams_Apply_DescriptionSubset_OnlyInDescriptionDiagrams()
@@ -200,6 +201,9 @@ public class SkinParamsTests
             new("cardBackgroundColor", "white", default),
             new("databaseBackgroundColor", "#ABCDEF", default),
             new("packageBorderColor", "green", default),
+            new("usecaseBackgroundColor", "#DDEEFF", default),
+            new("usecaseFontColor", "#003366", default),
+            new("actorBorderColor", "#885500", default),
         };
         var descriptionReports = new List<DemaConsulting.CanvasNet.PlantUml.PlantUmlPendingReport>();
         var classReports = new List<DemaConsulting.CanvasNet.PlantUml.PlantUmlPendingReport>();
@@ -219,8 +223,10 @@ public class SkinParamsTests
         Assert.Equal(SkinTheme.White, description[SkinElement.Card].Fill);
         Assert.Equal(new Rgba32(0xAB, 0xCD, 0xEF, 255), description[SkinElement.Database].Fill);
         Assert.Equal(new Rgba32(0, 0x80, 0, 255), description[SkinElement.Package].Line);
+        Assert.Equal((new Rgba32(0xDD, 0xEE, 0xFF, 255), new Rgba32(0, 0x33, 0x66, 255)), (description[SkinElement.UseCase].Fill!.Value, description[SkinElement.UseCase].FontColor));
+        Assert.Equal(new Rgba32(0x88, 0x55, 0x00, 255), description[SkinElement.Actor].Line);
         Assert.Empty(descriptionReports);
-        Assert.Equal(9, classReports.Count);
+        Assert.Equal(11, classReports.Count);
     }
 
     /// <summary>

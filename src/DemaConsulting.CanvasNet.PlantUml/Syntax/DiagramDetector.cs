@@ -6,8 +6,8 @@ namespace DemaConsulting.CanvasNet.PlantUml.Syntax;
 ///     The detected type of a diagram.
 /// </summary>
 /// <param name="DiagramType">
-///     The public type name: <c>sequence</c>, <c>activity</c>, <c>class</c>, <c>object</c>, or a recognized type that
-///     is not drawn (<c>usecase</c>, <c>component</c>, <c>deployment</c>, <c>state</c>, <c>timing</c>,
+///     The public type name: <c>sequence</c>, <c>activity</c>, <c>class</c>, <c>object</c>, <c>state</c>,
+///     <c>usecase</c>, <c>component</c>, or a recognized type that is not drawn (<c>deployment</c>, <c>timing</c>,
 ///     <c>activity-legacy</c>, <c>mindmap</c>, <c>gantt</c>, <c>wbs</c>, <c>json</c>, <c>yaml</c>, <c>salt</c>, ...).
 /// </param>
 /// <param name="IsSupported">Whether this version draws the type.</param>
@@ -27,7 +27,7 @@ internal sealed record DetectedDiagram(string DiagramType, bool IsSupported, str
 ///         sequence diagram first: when every statement is a sequence statement, the diagram is a sequence diagram;
 ///         else, when every statement is an activity statement of the new syntax, it is an activity diagram; else the
 ///         first statement with a keyword that only another type uses (<c>class</c>, <c>usecase</c>, <c>[*]</c>,
-///         <c>(*)</c>, <c>component</c>, <c>node</c>, ...) names that type, which is recognized but not drawn; else the
+///         <c>(*)</c>, <c>component</c>, <c>node</c>, ...) names that type, which is drawn or only recognized; else the
 ///         text is a syntax error at the first statement that the more likely of the two drawn types does not accept.
 ///     </para>
 ///     <para>
@@ -39,7 +39,7 @@ internal sealed record DetectedDiagram(string DiagramType, bool IsSupported, str
 internal static partial class DiagramDetector
 {
     /// <summary>The types this version draws.</summary>
-    internal static readonly IReadOnlySet<string> SupportedTypes = new HashSet<string>(StringComparer.Ordinal) { "sequence", "activity", "class", "object", "state", "component" };
+    internal static readonly IReadOnlySet<string> SupportedTypes = new HashSet<string>(StringComparer.Ordinal) { "sequence", "activity", "class", "object", "state", "usecase", "component" };
 
     /// <summary>The closer of a multi-line action (<c>:text</c> up to a line that ends with <c>;</c>).</summary>
     internal const string ActionCloser = ";";
@@ -211,8 +211,11 @@ internal static partial class DiagramDetector
             return new DetectedDiagram("sequence", SupportedTypes.Contains("sequence"), FirstWord(first.Text), first.Location);
         }
 
+        // (an action that is never closed refuses the activity diagram when a graph family accepts the text, as
+        // PlantUML's multi-line action needs its end: ':Guest:' declares an actor)
         var activityReject = outer.FirstOrDefault(s => !AcceptsActivity(s.Text));
-        if (activityReject is null && outer.Any(s => Classify(s.Text) == StatementFamily.Activity))
+        if (activityReject is null && outer.Any(s => Classify(s.Text) == StatementFamily.Activity)
+            && !(EndsInOpenAction(statements) && DetectGraph(statements) is not null))
         {
             var first = outer.First(s => Classify(s.Text) != StatementFamily.Common);
             return new DetectedDiagram("activity", SupportedTypes.Contains("activity"), FirstWord(first.Text), first.Location);
@@ -255,12 +258,51 @@ internal static partial class DiagramDetector
     /// </summary>
     /// <param name="statements">The statements.</param>
     /// <returns>The outer statements, block openers and closers included.</returns>
-    internal static List<SourceStatement> OuterStatements(IReadOnlyList<SourceStatement> statements)
+    internal static List<SourceStatement> OuterStatements(IReadOnlyList<SourceStatement> statements) =>
+        OuterStatements(statements, openActionIsText: true);
+
+    /// <summary>
+    ///     Decides whether the statements end inside a multi-line action (<c>:text</c> whose ending <c>;</c> never
+    ///     comes).
+    /// </summary>
+    /// <param name="statements">The statements.</param>
+    /// <returns>True when they do.</returns>
+    internal static bool EndsInOpenAction(IReadOnlyList<SourceStatement> statements)
+    {
+        string? closer = null;
+        foreach (var text in statements.Select(s => s.Text))
+        {
+            if (closer is null)
+            {
+                closer = BlockCloser(text);
+            }
+            else if (IsCloser(text, closer))
+            {
+                closer = null;
+            }
+        }
+
+        return closer == ActionCloser;
+    }
+
+    /// <summary>
+    ///     Gets the statements outside multi-line text blocks.
+    /// </summary>
+    /// <param name="statements">The statements.</param>
+    /// <param name="openActionIsText">
+    ///     Whether the lines after an action that is never closed are its text (false: the unclosed action is one
+    ///     statement and the lines after it are statements).
+    /// </param>
+    /// <returns>The outer statements, block openers and closers included.</returns>
+    private static List<SourceStatement> OuterStatements(IReadOnlyList<SourceStatement> statements, bool openActionIsText)
     {
         var outer = new List<SourceStatement>();
         string? closer = null;
-        foreach (var statement in statements)
+        var opener = -1;
+        var i = -1;
+        while (++i < statements.Count)
         {
+            var statement = statements[i];
             var text = statement.Text;
             if (closer is not null)
             {
@@ -274,12 +316,19 @@ internal static partial class DiagramDetector
 
                     closer = null;
                 }
+                else if (i == statements.Count - 1 && closer == ActionCloser && !openActionIsText)
+                {
+                    // The action is never closed: it is one statement and the lines after it are statements
+                    closer = null;
+                    i = opener;
+                }
 
                 continue;
             }
 
             outer.Add(statement);
             closer = BlockCloser(text);
+            opener = i;
         }
 
         return outer;

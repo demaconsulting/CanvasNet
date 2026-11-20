@@ -54,8 +54,9 @@ internal static partial class DiagramDetector
             return new DetectedDiagram(type, SupportedTypes.Contains(type), FirstWord(first.Text), first.Location);
         }
 
-        // The legacy activity diagram: a statement with (*)
-        var outer = OuterStatements(statements);
+        // The legacy activity diagram: a statement with (*) (the graph families have no multi-line action: a line
+        // ':x' that is never closed is a statement)
+        var outer = OuterStatements(statements, openActionIsText: false);
         if (outer.FirstOrDefault(s => s.Text.Contains("(*)", StringComparison.Ordinal)) is { } legacy)
         {
             return new DetectedDiagram("activity-legacy", SupportedTypes.Contains("activity-legacy"), FirstWord(legacy.Text), legacy.Location);
@@ -123,7 +124,7 @@ internal static partial class DiagramDetector
     {
         var outer = new List<SourceStatement>();
         var inBody = false;
-        foreach (var statement in OuterStatements(statements))
+        foreach (var statement in OuterStatements(statements, openActionIsText: false))
         {
             var text = statement.Text;
             if (inBody)
@@ -185,7 +186,8 @@ internal static partial class DiagramDetector
     /// <summary>
     ///     Decides whether a description diagram accepts a statement: a common statement, a declaration of an element or
     ///     a container, a closing brace, a direction, a use case <c>(x)</c>, a component <c>[x]</c>, an interface
-    ///     <c>() x</c>, or a link between such elements.
+    ///     <c>() x</c>, an actor <c>:x:</c> (each with what follows it: an alias, stereotypes, a color), or a link
+    ///     between such elements.
     /// </summary>
     /// <param name="statement">The statement.</param>
     /// <returns>True when it does.</returns>
@@ -203,7 +205,7 @@ internal static partial class DiagramDetector
                 && link.To.Kind is not (SvekNameKind.Star or SvekNameKind.History or SvekNameKind.DeepHistory);
         }
 
-        return text.StartsWith("()", StringComparison.Ordinal) || (text.StartsWith('(') && text.EndsWith(')'))
+        return text.StartsWith("()", StringComparison.Ordinal) || (text.StartsWith('(') && text.IndexOf(')', 1) > 1)
             || (text.StartsWith('[') && text.Contains(']', StringComparison.Ordinal) && !IsGantt(text)) || (text.StartsWith(':') && text.IndexOf(':', 1) > 1);
     }
 

@@ -93,7 +93,7 @@ public class PlantUmlSystemIntegrationTests
         var texts = new Dictionary<string, string>
         {
             ["activity-legacy"] = "@startuml\n(*) --> A\n@enduml\n",
-            ["usecase"] = "@startuml\nusecase U\n@enduml\n",
+            ["timing"] = "@startuml\nrobust \"Web\" as W\n@enduml\n",
             ["mindmap"] = "@startmindmap\n* a\n@endmindmap\n",
             ["gantt"] = "@startgantt\n[T] lasts 1 day\n@endgantt\n",
             ["json"] = "@startjson\n{}\n@endjson\n",

@@ -36,8 +36,9 @@ examples:
 
 ## Supported
 
-- info reports the type (sequence, activity, class, object, state, or the name
-  of a type that is not drawn, such as usecase), whether this version draws it,
+- info reports the type (sequence, activity, class, object, state, usecase,
+  component, or the name of a type that is not drawn, such as deployment),
+  whether this version draws it,
   the title, and the numbers of nodes, edges, and subgraphs: the participants,
   messages, and boxes of a sequence diagram; the actions, start, stop, end,
   connector, and decision nodes, the arrows, and the swimlanes and partitions

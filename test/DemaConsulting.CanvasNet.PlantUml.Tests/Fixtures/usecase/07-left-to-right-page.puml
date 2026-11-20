@@ -1,0 +1,28 @@
+@startuml
+left to right direction
+title Use Case Page
+header draft
+footer page 1
+caption figure 1
+legend right
+  use cases only
+end legend
+skinparam actorBackgroundColor #FFEEAA
+skinparam actorBorderColor #885500
+skinparam usecaseBackgroundColor #DDEEFF
+skinparam usecaseBorderColor #336699
+skinparam usecaseFontColor #003366
+skinparam nodesep 40
+skinparam ranksep 50
+actor Buyer
+actor Seller <<company>>
+rectangle Market {
+  usecase Bid
+  usecase "List Item" as LI <<core>>
+  usecase/ Settle
+}
+Buyer --> Bid
+Seller --> LI
+Bid --> Settle
+LI --> Settle
+@enduml

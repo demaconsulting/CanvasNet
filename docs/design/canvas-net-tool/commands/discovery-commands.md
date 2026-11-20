@@ -125,8 +125,8 @@ a title of several lines is joined with spaces). A PlantUML diagram is described
   `title`, and `accTitle` only when the diagram has them, and `nodes`, `edges`, and `subgraphs` (for a mindmap its
   nodes, one edge fewer than its nodes, and 0 subgraphs; for a packet diagram its blocks as written, 0 edges, and 0
   subgraphs; for a git graph its commits, the links to their parents as edges, and 0 subgraphs; 0 for a type that is not
-  drawn). For a PlantUML diagram the `type` is `sequence`, `activity`, `class`, `object`, `state`, or a recognized
-  type that is not drawn (`usecase`, `component`, `activity-legacy`, and so on, with the diagnostic
+  drawn). For a PlantUML diagram the `type` is `sequence`, `activity`, `class`, `object`, `state`, `usecase`,
+  `component`, or a recognized type that is not drawn (`deployment`, `activity-legacy`, and so on, with the diagnostic
   `plantuml-diagram-unsupported`), `direction` and `accTitle` are never written, and `nodes`, `edges`, and `subgraphs`
   are the participants, messages, and boxes of a sequence diagram, the actions, start, stop, end, connector, and
   decision nodes, the arrows, and the swimlanes and partitions of an activity diagram, or the classes, objects, and

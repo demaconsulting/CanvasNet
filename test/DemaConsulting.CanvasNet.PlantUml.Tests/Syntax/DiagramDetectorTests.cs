@@ -56,8 +56,6 @@ public class DiagramDetectorTests
     /// <param name="statement">The statement.</param>
     /// <param name="type">The expected type.</param>
     [Theory]
-    [InlineData("usecase Buy", "usecase")]
-    [InlineData("(Buy) --> (Pay)", "usecase")]
     [InlineData("(*) --> First", "activity-legacy")]
     [InlineData("node Server", "deployment")]
     [InlineData("robust \"Web\" as W", "timing")]
@@ -125,6 +123,41 @@ public class DiagramDetectorTests
     }
 
     /// <summary>
+    ///     Validates that a use case diagram is detected and drawn: a use case declared with its keyword or in
+    ///     parentheses (with what follows it), an actor written <c>:name:</c> (which opens no multi-line action, as its
+    ///     ending <c>;</c> never comes), or a use case in a boundary.
+    /// </summary>
+    /// <param name="text">The statements.</param>
+    [Theory]
+    [InlineData("usecase Buy")]
+    [InlineData("(Buy) --> (Pay)")]
+    [InlineData(":Guest:\n:Account Owner: as AO\nGuest --> (Pay)")]
+    [InlineData("actor A\nrectangle R {\n(Pay) #back:white;line:green\n}")]
+    public void PlantUmlDiagramDetector_Detect_UseCaseDiagram_IsDrawn(string text)
+    {
+        // Arrange / Act
+        var detected = Detect($"@startuml\n{text}\n@enduml\n");
+
+        // Assert
+        Assert.Equal("usecase", detected.DiagramType);
+        Assert.True(detected.IsSupported);
+    }
+
+    /// <summary>
+    ///     Validates that an activity diagram whose action is never closed stays an activity diagram when no graph
+    ///     family reads its text, so the activity parser locates the unclosed action.
+    /// </summary>
+    [Fact]
+    public void PlantUmlDiagramDetector_Detect_UnclosedActionOfActivity_IsActivity()
+    {
+        // Arrange / Act
+        var detected = Detect("@startuml\nstart\n:never closed\nstill text\n@enduml\n");
+
+        // Assert
+        Assert.Equal("activity", detected.DiagramType);
+    }
+
+    /// <summary>
     ///     Validates PlantUML's factory order for texts that several families could read: a plain message is a sequence
     ///     diagram, a class relationship a class diagram, a link to a use case or a component a description diagram, a
     ///     state declaration a state diagram, and a class mixed with an actor is still a class diagram (whose parser
@@ -167,7 +200,7 @@ public class DiagramDetectorTests
         var hint = DiagramDetector.UnsupportedHint(detected);
 
         // Assert
-        Assert.Contains("only activity, class, component, object, sequence, and state diagrams", hint, StringComparison.Ordinal);
+        Assert.Contains("only activity, class, component, object, sequence, state, and usecase diagrams", hint, StringComparison.Ordinal);
         Assert.Contains("activity-legacy", hint, StringComparison.Ordinal);
         Assert.Equal("a, b, and c", DiagramDetector.JoinTypes(["a", "b", "c"]));
         Assert.Equal("a and b", DiagramDetector.JoinTypes(["a", "b"]));

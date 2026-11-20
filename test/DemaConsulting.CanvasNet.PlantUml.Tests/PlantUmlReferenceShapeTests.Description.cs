@@ -6,8 +6,9 @@ using DemaConsulting.CanvasNet.PlantUml.Scenegraph;
 namespace DemaConsulting.CanvasNet.PlantUml.Tests;
 
 /// <summary>
-///     The reference shape tests of the description diagrams: CanvasNet's drawing of the original component fixtures is
-///     compared with the SVG that PlantUML draws for them (the goldens in <c>Fixtures/reference/component</c>).
+///     The reference shape tests of the description diagrams: CanvasNet's drawing of the original use case and
+///     component fixtures is compared with the SVG that PlantUML draws for them (the goldens in
+///     <c>Fixtures/reference/usecase</c> and <c>Fixtures/reference/component</c>).
 /// </summary>
 /// <remarks>
 ///     As for the class diagrams, absolute positions and the picture size are not compared. Per element: the outline
@@ -24,7 +25,7 @@ public partial class PlantUmlReferenceShapeTests
     public static TheoryData<string, string> DescriptionFixtures()
     {
         var data = new TheoryData<string, string>();
-        foreach (var type in new[] { "component" })
+        foreach (var type in new[] { "usecase", "component" })
         {
             foreach (var name in FixturesOf(type))
             {
@@ -160,12 +161,16 @@ public partial class PlantUmlReferenceShapeTests
     ///     Compares one element of a description diagram with PlantUML's: the number of shapes of its outline, the size
     ///     of its outline, its fill, outline color and width, and the offset of every text from the outline's corner.
     /// </summary>
+    /// <remarks>
+    ///     The outline is the element's ellipse when it has one (an interface's circle, a use case's ellipse, an actor's
+    ///     head, whose body is a path), else its first rectangle, path, or polygon.
+    /// </remarks>
     /// <param name="group">The golden group of the element.</param>
     /// <param name="scene">The scene.</param>
     /// <param name="id">The element id.</param>
     private static void AssertDescriptionElement(XElement group, Scene scene, string id)
     {
-        var shape = FirstShape(group) ?? group.Element(Svg + "ellipse")!;
+        var shape = group.Element(Svg + "ellipse") ?? FirstShape(group)!;
         var items = scene.Items.Where(i => i.Id == id).ToList();
         var outline = items.OfType<ScenePath>().Single(p => p.Role == "description");
         var (expected, actual) = (ShapeBounds(shape), Bounds(outline));

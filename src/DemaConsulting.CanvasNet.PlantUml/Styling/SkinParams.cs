@@ -33,7 +33,8 @@ internal sealed record SkinParamEntry(string Name, string Value, PlantUmlLocatio
 ///         <c>objectStereotype</c>, <c>map</c>, <c>package</c>, <c>state</c>, and <c>stateAttribute</c>, apply <c>arrow</c>
 ///         to their links, and read <c>classAttributeIconSize</c>, <c>circledCharacterRadius</c>, <c>stateStartColor</c>,
 ///         and <c>stateEndColor</c>; description diagrams also read <c>component</c>, <c>interface</c>, <c>node</c>,
-///         <c>rectangle</c>, <c>folder</c>, <c>frame</c>, <c>cloud</c>, and <c>card</c>. Every other parameter, a stereotyped parameter, and a value that cannot be
+///         <c>rectangle</c>, <c>folder</c>, <c>frame</c>, <c>cloud</c>, <c>card</c>, and <c>usecase</c> (and draw their
+///         actors with <c>actor</c>). Every other parameter, a stereotyped parameter, and a value that cannot be
 ///         read is reported as the warning <see cref="PlantUmlDiagnosticCodes.SkinParamIgnored"/> and has no effect. A
 ///         <c>&lt;style&gt;</c> block is reported as <see cref="PlantUmlDiagnosticCodes.StyleUnsupported"/> and skipped.
 ///     </para>
@@ -92,7 +93,7 @@ internal static partial class SkinParams
         SkinElement.Class, SkinElement.ClassAttribute, SkinElement.Object, SkinElement.Package, SkinElement.Container,
         SkinElement.State, SkinElement.StateAttribute, SkinElement.StatePseudo, SkinElement.Component, SkinElement.Interface,
         SkinElement.Node, SkinElement.Rectangle, SkinElement.Folder, SkinElement.Frame, SkinElement.Cloud, SkinElement.Card,
-        SkinElement.Description,
+        SkinElement.UseCase, SkinElement.Description,
     ];
 
     /// <summary>
@@ -127,6 +128,7 @@ internal static partial class SkinParams
         ("frame", [SkinElement.Frame]),
         ("cloud", [SkinElement.Cloud]),
         ("card", [SkinElement.Card]),
+        ("usecase", [SkinElement.UseCase]),
     ];
 
     /// <summary>

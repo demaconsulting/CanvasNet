@@ -1,5 +1,6 @@
 // Portions derived from PlantUML (MIT); see third-party/README.md
 using System.Globalization;
+using System.Text;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.PlantUml.Styling;
 using DemaConsulting.CanvasNet.PlantUml.Syntax;
@@ -322,7 +323,101 @@ internal static partial class SvekSyntax
             label = label[..^2].Trim();
         }
 
-        return (label.Length == 0 ? null : label, arrow, tail, head);
+        return (label.Length == 0 ? null : Guillemets(label), arrow, tail, head);
+    }
+
+    /// <summary>
+    ///     Writes the stereotype-like parts of a link label with guillemets, as PlantUML's <c>LinkArg</c> does
+    ///     (<c>Guillemet.manageGuillemet</c>): <c>&lt;&lt;include&gt;&gt;</c> becomes <c>«include»</c>. A part is
+    ///     <c>&lt;&lt;</c>, at most one space, a text without angle brackets (a sprite <c>&lt;&amp;name&gt;</c> may
+    ///     appear), at most one space, and <c>&gt;&gt;</c>, on one line of the label.
+    /// </summary>
+    /// <param name="text">The label.</param>
+    /// <returns>The label with guillemets.</returns>
+    public static string Guillemets(string text)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+        if (!text.Contains("<<", StringComparison.Ordinal))
+        {
+            return text;
+        }
+
+        var result = new StringBuilder(text.Length);
+        var i = 0;
+        while (i < text.Length)
+        {
+            if (string.CompareOrdinal(text, i, "<<", 0, 2) == 0 && TryReadGuillemet(text, i + 2, out var inner, out var end))
+            {
+                result.Append('\u00AB').Append(inner).Append('\u00BB');
+                i = end;
+                continue;
+            }
+
+            result.Append(text[i]);
+            i++;
+        }
+
+        return result.ToString();
+    }
+
+    /// <summary>
+    ///     Reads the inside of a guillemet part after its <c>&lt;&lt;</c>.
+    /// </summary>
+    /// <param name="text">The text.</param>
+    /// <param name="start">The index after <c>&lt;&lt;</c>.</param>
+    /// <param name="inner">Receives the inside, without its surrounding space.</param>
+    /// <param name="end">Receives the index after the closing <c>&gt;&gt;</c>.</param>
+    /// <returns>True when a part ends there.</returns>
+    private static bool TryReadGuillemet(string text, int start, out string inner, out int end)
+    {
+        (inner, end) = (string.Empty, start);
+        var j = start;
+        while (j < text.Length && text[j] != '>' && !(text[j] == '\\' && j + 1 < text.Length && text[j + 1] == 'n'))
+        {
+            if (text[j] == '<')
+            {
+                // A sprite <&name> is the only bracket allowed inside
+                var k = j + 2;
+                while (k < text.Length && (char.IsLetterOrDigit(text[k]) || text[k] == '_'))
+                {
+                    k++;
+                }
+
+                if (j + 1 >= text.Length || text[j + 1] != '&' || k == j + 2 || k >= text.Length || text[k] != '>')
+                {
+                    return false;
+                }
+
+                j = k + 1;
+                continue;
+            }
+
+            j++;
+        }
+
+        if (string.CompareOrdinal(text, j, ">>", 0, 2) != 0)
+        {
+            return false;
+        }
+
+        var (from, to) = (start, j);
+        if (to - from > 1 && char.IsWhiteSpace(text[from]))
+        {
+            from++;
+        }
+
+        if (to - from > 1 && char.IsWhiteSpace(text[to - 1]))
+        {
+            to--;
+        }
+
+        if (to == from)
+        {
+            return false;
+        }
+
+        (inner, end) = (text[from..to], j + 2);
+        return true;
     }
 
     /// <summary>

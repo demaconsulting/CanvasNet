@@ -54,6 +54,33 @@ public class DescriptionParserTests
     }
 
     /// <summary>
+    ///     Validates the use case forms: actors written <c>:name:</c> with an alias and as business actors, quoted
+    ///     multi-line displays, use cases in parentheses with an alias and as business use cases, a display after
+    ///     <c>as</c>, the <c>&lt;&lt;include&gt;&gt;</c> labels written with guillemets, and the actor and use case skin
+    ///     parameters; every symbol is drawn, so nothing is reported.
+    /// </summary>
+    [Fact]
+    public void PlantUmlDescriptionParser_Parse_UseCaseForms_ReadNamesAndSymbols()
+    {
+        // Act
+        var model = Parse(":Account Owner: as AO\n:Manager:/ as M\nactor \"Support\\nAgent\" as SA\nactor/ Auditor\n(Open Ticket) as OT\n(Archive)/ as AR\nusecase Escalate as \"Escalate\\nto Tier 2\"\nusecase/ Approve\nAO --> OT\nOT ..> Escalate : <<include>>\nApprove .> AR : << extend >>\nskinparam actorBackgroundColor #FFEEAA\nskinparam usecaseBorderColor #336699");
+
+        // Assert
+        Assert.Equal(["AO", "M", "SA", "Auditor", "OT", "AR", "Escalate", "Approve"], model.Elements.Select(e => e.Id));
+        Assert.Equal(["Account Owner", "Manager", "Support\\nAgent", "Auditor", "Open Ticket", "Archive", "Escalate\\nto Tier 2", "Approve"], model.Elements.Select(e => e.Text));
+        Assert.Equal(
+            [
+                DescriptionSymbol.Actor, DescriptionSymbol.BusinessActor, DescriptionSymbol.Actor, DescriptionSymbol.BusinessActor,
+                DescriptionSymbol.UseCase, DescriptionSymbol.BusinessUseCase, DescriptionSymbol.UseCase, DescriptionSymbol.BusinessUseCase,
+            ],
+            model.Elements.Select(e => e.Symbol));
+        Assert.Equal(["\u00ABinclude\u00BB", "\u00ABextend\u00BB"], model.Links.Skip(1).Select(l => l.Label));
+        Assert.Equal((LinkStyle.Dashed, 1), (model.Links[2].Style, model.Links[2].Length));
+        Assert.Equal(new Canvas.Rgba32(0xFF, 0xEE, 0xAA, 255), model.Theme[SkinElement.Actor].Fill);
+        Assert.Equal(new Canvas.Rgba32(0x33, 0x66, 0x99, 255), model.Theme[SkinElement.UseCase].Line);
+        Assert.Empty(model.Reports);
+    }
+    /// <summary>
     ///     Validates the multi-line descriptions: lines in brackets after a component, with text on the opening and the
     ///     closing lines, and a quoted display continued on the next lines; the description replaces the name.
     /// </summary>
@@ -258,6 +285,7 @@ public class DescriptionParserTests
     [InlineData("component C2 [single]", 2)]
     [InlineData("component A #notacolor", 2)]
     [InlineData("interface I {\n}", 2)]
+    [InlineData("actor A {\n(U)\n}", 2)]
     [InlineData("node N {\n[B]\n}\nnode M {\n[B]\n}\n[B] --> [X]", 8)]
     [InlineData("component C [\nline", 2)]
     [InlineData("component A\nnote \"x\" as A", 3)]

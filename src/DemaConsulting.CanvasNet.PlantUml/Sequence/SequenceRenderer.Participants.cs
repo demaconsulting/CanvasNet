@@ -73,14 +73,16 @@ internal static partial class SequenceRenderer
     }
 
     /// <summary>
-    ///     Builds an actor's stick figure: a head of radius 8, a body, arms 26 wide, and legs.
+    ///     Builds an actor's stick figure (PlantUML's <c>ActorStickMan</c> drawn with a line half a pixel wide): a head of
+    ///     radius 8, a body, arms 26 wide, and legs; the figure is 60 high. The description diagrams draw their actors
+    ///     with it too.
     /// </summary>
-    /// <param name="c">The x of the life line.</param>
+    /// <param name="c">The x of the life line (the middle of the figure).</param>
     /// <param name="top">The top of the figure.</param>
     /// <param name="fill">The fill of the head.</param>
     /// <param name="stroke">The stroke.</param>
-    /// <returns>The paths.</returns>
-    private static IEnumerable<ScenePath> StickFigure(double c, double top, Rgba32? fill, SceneStroke? stroke)
+    /// <returns>The paths: the head, then the body, arms, and legs.</returns>
+    internal static IEnumerable<ScenePath> StickFigure(double c, double top, Rgba32? fill, SceneStroke? stroke)
     {
         yield return new ScenePath(SceneShapes.Ellipse(c, top + 8.5, 8, 8)) { Role = "participant", Fill = fill, Stroke = stroke };
         var neck = top + 16.5;

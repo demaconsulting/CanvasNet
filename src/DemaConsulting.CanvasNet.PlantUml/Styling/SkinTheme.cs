@@ -158,6 +158,9 @@ internal enum SkinElement
     /// <summary>A card symbol of a description diagram drawn as an element.</summary>
     Card,
 
+    /// <summary>A use case ellipse of a description diagram (<c>usecase</c>, <c>(x)</c>) and its texts.</summary>
+    UseCase,
+
     /// <summary>The other elements of a description diagram (the symbols that have no style of their own yet).</summary>
     Description,
 }
@@ -265,7 +268,7 @@ internal sealed record SkinTheme
     public static IReadOnlyList<SkinElement> DescriptionElements { get; } =
     [
         SkinElement.Component, SkinElement.Interface, SkinElement.Node, SkinElement.Rectangle, SkinElement.Folder,
-        SkinElement.Frame, SkinElement.Cloud, SkinElement.Card, SkinElement.Description,
+        SkinElement.Frame, SkinElement.Cloud, SkinElement.Card, SkinElement.UseCase, SkinElement.Description,
     ];
 
     /// <summary>
@@ -275,10 +278,12 @@ internal sealed record SkinTheme
 
     /// <summary>
     ///     Gets the default look of description diagrams: <see cref="Default"/>, with the symbols that sequence diagrams
-    ///     share (a <c>database</c>) filled with the common background, as PlantUML's <c>componentDiagram</c> element
-    ///     style fills them.
+    ///     share (a <c>database</c> and an <c>actor</c>) filled with the common background, as PlantUML's
+    ///     <c>componentDiagram</c> element style fills them.
     /// </summary>
-    public static SkinTheme Description { get; } = Default.With(SkinElement.Database, s => s with { Fill = CommonBackground, Padding = 0 });
+    public static SkinTheme Description { get; } = Default
+        .With(SkinElement.Database, s => s with { Fill = CommonBackground, Padding = 0 })
+        .With(SkinElement.Actor, s => s with { Fill = CommonBackground, Padding = 0 });
 
     /// <summary>
     ///     Gets the background of the document, or null for a transparent document; white by default.

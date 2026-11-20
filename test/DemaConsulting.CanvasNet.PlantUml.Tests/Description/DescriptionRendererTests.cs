@@ -98,6 +98,157 @@ public class DescriptionRendererTests
     }
 
     /// <summary>
+    ///     Validates the actor: the stereotypes over the stick figure (a head of radius 8 filled like the other
+    ///     elements, arms 26 wide, 60 high with its line of half a pixel) over the name, all centered, as PlantUML draws
+    ///     <c>«human»</c> and <c>Customer</c>; links end on the box.
+    /// </summary>
+    [Fact]
+    public void PlantUmlDescriptionRenderer_Image_Actor_IsAStickFigureWithItsNameBelow()
+    {
+        // Arrange
+        var model = Parse("actor Customer <<human>>");
+
+        // Act
+        var (image, items) = Draw(model, "Customer");
+
+        // Assert
+        var name = items.OfType<SceneText>().Single(t => t.Role == "description-name");
+        var stereo = items.OfType<SceneText>().Single(t => t.Role == "description-stereotype");
+        var w = Math.Max(Math.Max(name.Box.Width, stereo.Box.Width + 2), 27);
+        Assert.Equal(w, image.Width, 3);
+        Assert.Equal((2 * LineHeight) + 60, image.Height, 0.002);
+        Assert.Equal(ClipShape.Rectangle, image.Clip.Shape);
+        var head = items.OfType<ScenePath>().Single(p => p.Role == "description");
+        var headBox = Scene.BoundsOf([head])!.Value;
+        Assert.Equal((w / 2) - 8, headBox.X, 3);
+        Assert.Equal((LineHeight + 0.5, 16.0, 16.0), (Math.Round(headBox.Y, 3), Math.Round(headBox.Width, 3), Math.Round(headBox.Height, 3)));
+        Assert.Equal((SkinTheme.CommonBackground, SkinTheme.LineColor, 0.5), (head.Fill!.Value, head.Stroke!.Color, head.Stroke.Width));
+        var body = Scene.BoundsOf([items.Single(i => i.Role == "description-detail")])!.Value;
+        Assert.Equal((w / 2) - 13, body.X, 0.002);
+        Assert.Equal((LineHeight + 16.5, 26.0, 42.0), (Math.Round(body.Y, 3), Math.Round(body.Width, 3), Math.Round(body.Height, 3)));
+        Assert.Equal((w - name.Box.Width) / 2, name.X, 3);
+        Assert.Equal(LineHeight + 60 + Ascent, name.Baseline, 0.002);
+        Assert.Equal(((w - stereo.Box.Width - 2) / 2) + 1, stereo.X, 3);
+        Assert.Equal(Ascent, stereo.Baseline, 3);
+        Assert.True(stereo.Runs[0].Font.Italic);
+    }
+
+    /// <summary>
+    ///     Validates the business actor: the stick figure with the slash across its head that PlantUML draws, from
+    ///     (-1.944, 7.760) to (7.761, -1.944) of the head's center.
+    /// </summary>
+    [Fact]
+    public void PlantUmlDescriptionRenderer_Image_BusinessActor_HasTheSlash()
+    {
+        // Arrange
+        var model = Parse("actor/ Clerk");
+
+        // Act
+        var (image, items) = Draw(model, "Clerk");
+
+        // Assert
+        Assert.Equal(3, items.OfType<ScenePath>().Count());
+        var slash = items.OfType<ScenePath>().Where(p => p.Role == "description-detail").First(p => p.Segments.Count == 2);
+        var (cx, cy) = (image.Width / 2, 8.5);
+        Assert.Equal(-1.944, slash.Segments[0].X - cx, 0.002);
+        Assert.Equal(7.760, slash.Segments[0].Y - cy, 0.002);
+        Assert.Equal(7.761, slash.Segments[1].X - cx, 0.002);
+        Assert.Equal(-1.944, slash.Segments[1].Y - cy, 0.002);
+        Assert.Null(slash.Fill);
+    }
+
+    /// <summary>
+    ///     Validates the use case ellipses against PlantUML's pictures: the size of the smallest ellipse of the texts'
+    ///     proportions around every line, grown by 6, and the offset of each line, for a name (<c>Browse</c>), a business
+    ///     use case (<c>Audit</c>, margins of 7), stereotypes over a name (<c>«main»</c>, <c>U1</c>), and lines of
+    ///     different widths, centered.
+    /// </summary>
+    /// <param name="body">The declaration.</param>
+    /// <param name="id">The element id.</param>
+    /// <param name="width">PlantUML's width.</param>
+    /// <param name="height">PlantUML's height.</param>
+    /// <param name="text">The text of the first line.</param>
+    /// <param name="x">PlantUML's offset of the first line from the left.</param>
+    /// <param name="baseline">PlantUML's offset of the first line's baseline from the top.</param>
+    [Theory]
+    [InlineData("usecase Browse", "Browse", 72.020, 30.904, "Browse", 12.668, 20.756)]
+    [InlineData("usecase/ Audit", "Audit", 70.926, 30.904, "Audit", 19.508, 19.180)]
+    [InlineData("usecase U1 <<main>>", "U1", 65.978, 50.084, "\u00ABmain\u00BB", 10.031, 24.970)]
+    [InlineData("usecase \"line one\\nsecond line is longer\\n3\" as M", "M", 141.100, 61.918, "line one", 46.030, 19.016)]
+    public void PlantUmlDescriptionRenderer_Image_UseCase_HasPlantUmlEllipse(string body, string id, double width, double height, string text, double x, double baseline)
+    {
+        // Arrange
+        var model = Parse(body);
+
+        // Act
+        var (image, items) = Draw(model, id);
+
+        // Assert
+        Assert.Equal(width, image.Width, 1);
+        Assert.Equal(height, image.Height, 1);
+        Assert.Equal((ClipShape.Ellipse, image.Width, image.Height), (image.Clip.Shape, image.Clip.Box.Width, image.Clip.Box.Height));
+        var outline = Scene.BoundsOf([items.Single(i => i.Role == "description")])!.Value;
+        Assert.Equal(image.Width, outline.Width, 0.001);
+        Assert.Equal(image.Height, outline.Height, 0.001);
+        var first = items.OfType<SceneText>().First(t => TextOf(t) == text);
+        Assert.Equal(x, first.X, 1);
+        Assert.Equal(baseline, first.Baseline, 1);
+    }
+
+    /// <summary>
+    ///     Validates the slash of a business use case: the chord PlantUML draws across the lower right of
+    ///     <c>Audit</c>'s ellipse, and none on a use case.
+    /// </summary>
+    [Fact]
+    public void PlantUmlDescriptionRenderer_Image_BusinessUseCase_HasTheSlash()
+    {
+        // Arrange
+        var model = Parse("usecase/ Audit\nusecase Plain");
+
+        // Act
+        var (_, items) = Draw(model, "Audit");
+        var (_, plain) = Draw(model, "Plain");
+
+        // Assert
+        var slash = items.OfType<ScenePath>().Single(p => p.Role == "description-detail");
+        Assert.Equal((68.1, 10.07), (Math.Round(slash.Segments[0].X, 1), Math.Round(slash.Segments[0].Y, 2)));
+        Assert.Equal((48.78, 29.39), (Math.Round(slash.Segments[1].X, 2), Math.Round(slash.Segments[1].Y, 2)));
+        Assert.DoesNotContain(plain, i => i.Role == "description-detail");
+        Assert.Equal(SkinElement.UseCase, DescriptionRenderer.StyleOf(DescriptionSymbol.BusinessUseCase));
+        Assert.Equal(SkinElement.Actor, DescriptionRenderer.StyleOf(DescriptionSymbol.BusinessActor));
+        Assert.True(DescriptionRenderer.IsDrawn(DescriptionSymbol.UseCase, container: false));
+    }
+
+    /// <summary>
+    ///     Validates the smallest enclosing circle: the circle of a rectangle's corners, of points on a line, of one
+    ///     point, of no point, and of many points (every point inside, the same circle in any order).
+    /// </summary>
+    [Fact]
+    public void PlantUmlDescriptionRenderer_EnclosingCircle_IsTheSmallest()
+    {
+        // Arrange
+        var ring = Enumerable.Range(0, 20_000).Select(i => (X: 50 + (40 * Math.Cos(i * 0.001)), Y: 20 + (40 * Math.Sin(i * 0.001)))).ToList();
+        var reversed = Enumerable.Reverse(ring).ToList();
+
+        // Act
+        var square = DescriptionRenderer.EnclosingCircle([(0, 0), (6, 0), (0, 8), (6, 8), (3, 4)]);
+        var line = DescriptionRenderer.EnclosingCircle([(0, 0), (1, 1), (4, 4)]);
+        var single = DescriptionRenderer.EnclosingCircle([(2, 3)]);
+        var none = DescriptionRenderer.EnclosingCircle([]);
+        var many = DescriptionRenderer.EnclosingCircle(ring);
+        var again = DescriptionRenderer.EnclosingCircle(reversed);
+
+        // Assert
+        Assert.Equal((3.0, 4.0, 5.0), (Math.Round(square.X, 9), Math.Round(square.Y, 9), Math.Round(square.Radius, 9)));
+        Assert.Equal((2.0, 2.0, Math.Round(Math.Sqrt(8), 9)), (Math.Round(line.X, 9), Math.Round(line.Y, 9), Math.Round(line.Radius, 9)));
+        Assert.Equal((2.0, 3.0, 0.0), single);
+        Assert.Equal((0.0, 0.0, 0.0), none);
+        Assert.All(ring, p => Assert.True(Math.Sqrt(((p.X - many.X) * (p.X - many.X)) + ((p.Y - many.Y) * (p.Y - many.Y))) <= many.Radius + 1e-6));
+        Assert.True(many.Radius <= 40 + 1e-6);
+        Assert.Equal(Math.Round(many.Radius, 6), Math.Round(again.Radius, 6));
+        Assert.Equal((0.2, 0.8, 1.0, 0.8), (DescriptionRenderer.EllipseRatio(100, 1), DescriptionRenderer.EllipseRatio(10, 100), DescriptionRenderer.EllipseRatio(0, 0), DescriptionRenderer.EllipseRatio(0, 5)));
+    }
+    /// <summary>
     ///     Validates the margins of the leaf symbols around their name (PlantUML's <c>USymbol</c> margins) and the
     ///     number of shapes of their outline.
     /// </summary>

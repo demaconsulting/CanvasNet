@@ -355,6 +355,34 @@ public class SvekSyntaxTests
     }
 
     /// <summary>
+    ///     Validates that the stereotype-like parts of a label are written with guillemets as PlantUML writes them:
+    ///     <c>&lt;&lt;include&gt;&gt;</c> and <c>&lt;&lt; extend &gt;&gt;</c> (one space taken away on each side), a
+    ///     part with a sprite, and not a part over two lines, an empty part, or a part with another bracket.
+    /// </summary>
+    /// <param name="text">The label.</param>
+    /// <param name="expected">The label with guillemets.</param>
+    [Theory]
+    [InlineData("<<include>>", "\u00ABinclude\u00BB")]
+    [InlineData("calls << extend >> later", "calls \u00ABextend\u00BB later")]
+    [InlineData("<<  two>>", "\u00AB two\u00BB")]
+    [InlineData("<<<a>>", "<\u00ABa\u00BB")]
+    [InlineData("<<x <&key> y>>", "\u00ABx <&key> y\u00BB")]
+    [InlineData("<<a\\nb>>", "<<a\\nb>>")]
+    [InlineData("<<>>", "<<>>")]
+    [InlineData("<<a<b>>", "<<a<b>>")]
+    [InlineData("a < b >> c", "a < b >> c")]
+    public void PlantUmlSvekSyntax_Guillemets_ReplaceStereotypeParts(string text, string expected)
+    {
+        // Act
+        var result = SvekSyntax.Guillemets(text);
+        var (label, _, _, _) = SvekSyntax.SplitLabel(text, true);
+
+        // Assert
+        Assert.Equal(expected, result);
+        Assert.Equal(expected.Trim(), label);
+    }
+
+    /// <summary>
     ///     Validates the identifier grammar: the ends of the identifiers at an index, longest first.
     /// </summary>
     [Fact]
