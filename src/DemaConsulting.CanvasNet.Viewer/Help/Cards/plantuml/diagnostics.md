@@ -1,6 +1,9 @@
 ---
 title: Diagnostics of a PlantUML diagram
 summary: The plantuml-* warnings and errors of a diagram.
+tags:
+  - plantuml
+  - diagnostics
 see-also:
   - plantuml/unsupported
   - errors
@@ -21,7 +24,7 @@ see-also:
   file-access-denied instead.
 - `plantuml-limit-exceeded`: Error (budget-exceeded): a limit of the library
   (nodes, edges, includes, nesting, label length, layout work, painted pixels);
-  see 'canvasnet help limits'.
+  see [[limits]].
 - `plantuml-render-failed`: Error (plantuml-error): the diagram cannot be laid
   out; please report it.
 - `plantuml-skinparam-ignored`: Warning: a `skinparam` setting outside the

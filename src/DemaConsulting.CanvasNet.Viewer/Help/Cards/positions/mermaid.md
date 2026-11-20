@@ -1,6 +1,9 @@
 ---
 title: Positions of Mermaid diagrams
 summary: The kinds, ids, and attach points of the features of each diagram type.
+tags:
+  - mermaid
+  - composition
 see-also:
   - positions/selectors
   - positions/geometry

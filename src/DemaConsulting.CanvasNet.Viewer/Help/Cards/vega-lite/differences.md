@@ -1,6 +1,9 @@
 ---
 title: Known differences from Vega-Lite
 summary: General differences from Vega-Lite and vega-embed.
+tags:
+  - vega-lite
+  - diagnostics
 see-also:
   - vega-lite/data
   - vega-lite/layout

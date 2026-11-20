@@ -1,6 +1,9 @@
 ---
 title: SVG as the layout of a figure
 summary: Place diagrams, charts, models, and pages with image href, add titles and captions, and publish.
+tags:
+  - svg
+  - composition
 see-also:
   - svg/bindings
   - composition
@@ -16,19 +19,14 @@ examples:
     language: xml
     file: report.svg
     description: A finished figure - a card with a title and a lead line, a styled Mermaid flowchart and a styled Vega-Lite chart, each with a caption.
-  - name: render-report
-    kind: command
-    language: shell
-    content: 'canvasnet render report.svg --width 1200 -o report.png --strict --json'
-    description: Draw the figure 1200 pixels wide and fail if a picture is not drawn.
 ---
 
 Make one SVG file the page, and place each picture with `<image href>`: the
 SVG draws the frame, the titles, and the captions, and each linked file draws
 itself sharply at its placement. Print a complete figure with
-`canvasnet help svg composition --example report`; it links the files of
-`canvasnet help mermaid style --example styled` (save it as `styled-flow.mmd`)
-and `canvasnet help vega-lite style --example styled` (`styled-chart.vl.json`).
+[[svg/composition#report]]; it links the files of
+[[mermaid/style#styled]] (save it as `styled-flow.mmd`)
+and [[vega-lite/style#styled]] (`styled-chart.vl.json`).
 
 ## Placing pictures
 
@@ -50,7 +48,7 @@ and `canvasnet help vega-lite style --example styled` (`styled-chart.vl.json`).
 - A fragment after the file name sets the options of that placement only:
   `flow.mmd#theme=neutral`, `part.scad#view=top`, `chart.vl.json#param.t=5`,
   `report.pdf#page=2`, `deck.pptx#slide=3`, `drawing.vsdx#page=2` (see
-  `canvasnet help svg fragments`). The options of the command line do not reach
+  [[svg/fragments]]). The options of the command line do not reach
   an embedded file.
 
 ## Titles, captions, and backgrounds
@@ -66,11 +64,11 @@ and `canvasnet help vega-lite style --example styled` (`styled-chart.vl.json`).
 
 - To present one picture in a designed frame (a title band, accents, a
   caption) with arrows that point at its features, see
-  `canvasnet help svg framed-figure`: the layers, `<marker>` arrows, and how
+  [[svg/framed-figure]]: the layers, `<marker>` arrows, and how
   to find where a feature is.
 - On a model, the arrows end on its anchors: render the model alone at the
   size of its image with `--json`, and add the image `x` and `y` to each
-  `anchors[].pixel` (see `canvasnet help scad composition`).
+  `anchors[].pixel` (see [[scad/composition]]).
 
 ## Check and publish
 
@@ -78,7 +76,7 @@ and `canvasnet help vega-lite style --example styled` (`styled-chart.vl.json`).
   that does not exist) is then an error instead of an empty frame. Look at the
   PNG.
 - At most 64 files are embedded in one render and SVG files nest 4 levels deep
-  (see `canvasnet help limits`); links may read any local file unless
-  `--file-access` says otherwise (see `canvasnet help files`).
+  (see [[limits]]); links may read any local file unless
+  `--file-access` says otherwise (see [[files]]).
 - For a browser, WeasyPrint, or any other SVG reader, write a copy whose links
   are PNG pictures: `canvasnet flatten report.svg -o report.flat.svg`.

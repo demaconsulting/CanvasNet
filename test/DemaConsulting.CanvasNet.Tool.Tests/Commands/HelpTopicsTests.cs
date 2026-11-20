@@ -16,6 +16,8 @@ using DemaConsulting.CanvasNet.VegaLite;
 using DemaConsulting.CanvasNet.Viewer;
 using DemaConsulting.CanvasNet.Viewer.Imaging;
 using DemaConsulting.CanvasNet.Vsdx;
+using HelpCatalog = DemaConsulting.CanvasNet.Viewer.Help.HelpCatalog;
+using HelpExample = DemaConsulting.CanvasNet.Viewer.Help.HelpExample;
 
 namespace DemaConsulting.CanvasNet.Tool.Tests.Commands;
 
@@ -30,6 +32,11 @@ public partial class HelpTopicsTests
     ///     The placeholder name of the identifier naming rule, which is a description and not an identifier.
     /// </summary>
     private const string NamingRule = "vl-<area>-<detail>";
+
+    /// <summary>
+    ///     The prefix of the logical names of the library's embedded help example files (the Viewer assembly).
+    /// </summary>
+    private const string LibraryExamplePrefix = "DemaConsulting.CanvasNet.Viewer.Help.Examples.";
 
     /// <summary>
     ///     Matches the diagnostic identifiers a card may cite.
@@ -171,22 +178,17 @@ public partial class HelpTopicsTests
         var texts = HelpTopics.All.SelectMany(AllStrings).ToList();
         var limits = HelpCardText.TextOf("limits");
 
-        // Assert: no token is left, the table holds the live values, and the limits card quotes them
+        // Assert: no token is left, the tool's table holds the live schema version (the library's tokens are tested with
+        // the library), and the limits card quotes the live values
         Assert.DoesNotContain(texts, t => t.Contains("{{", StringComparison.Ordinal));
-        Assert.Equal(Surface.MaxDimension.ToString(System.Globalization.CultureInfo.InvariantCulture), HelpTopics.Tokens["maxDimension"]);
-        Assert.Equal(ScadLimits.Default.MaxTriangles.ToString(System.Globalization.CultureInfo.InvariantCulture), HelpTopics.Tokens["scadMaxTriangles"]);
-        Assert.Equal(ArgumentReader.MaxDpi.ToString(System.Globalization.CultureInfo.InvariantCulture), HelpTopics.Tokens["maxDpi"]);
         Assert.Equal(ResultWriter.SchemaVersion.ToString(System.Globalization.CultureInfo.InvariantCulture), HelpTopics.Tokens["schemaVersion"]);
-        Assert.Equal(VegaLiteLimits.Default.MaxPaintedPixels.ToString(System.Globalization.CultureInfo.InvariantCulture), HelpTopics.Tokens["vlMaxPaintedPixels"]);
         Assert.Contains($"At most {VegaLiteLimits.Default.MaxPaintedPixels} device pixels painted", limits);
         Assert.Contains($"{Surface.MaxDimension} pixels", limits);
         Assert.Contains($"Default {ScadLimits.Default.MaxTriangles} triangles", limits);
         Assert.Contains($"At most {VegaLiteLimits.Default.MaxDataFiles} files", limits);
-        Assert.Equal(MermaidLimits.Default.MaxEdges.ToString(System.Globalization.CultureInfo.InvariantCulture), HelpTopics.Tokens["mmdMaxEdges"]);
         Assert.Contains($"At most {MermaidLimits.Default.MaxNodes} nodes and {MermaidLimits.Default.MaxEdges} edges", limits);
         Assert.Contains($"At most {MermaidLimits.Default.MaxTextSize} characters", limits);
         Assert.Contains($"At most {MermaidLimits.Default.MaxImages} picture loads", limits);
-        Assert.Equal(PlantUmlLimits.Default.MaxIncludes.ToString(System.Globalization.CultureInfo.InvariantCulture), HelpTopics.Tokens["pumlMaxIncludes"]);
         Assert.Contains($"At most {PlantUmlLimits.Default.MaxNodes} nodes (participants or activity nodes)", limits);
         Assert.Contains($"At most {PlantUmlLimits.Default.MaxTextSize} characters of statements", limits);
         Assert.Contains($"At most {PlantUmlLimits.Default.MaxIncludes} !include directives", limits);
@@ -231,9 +233,9 @@ public partial class HelpTopicsTests
             ["plantuml"] = ".puml",
             ["svg"] = ".svg"
         };
-        var files = typeof(HelpTopics).Assembly.GetManifestResourceNames()
-            .Where(n => n.StartsWith(HelpTopics.ExampleResourcePrefix, StringComparison.Ordinal))
-            .Select(n => n[HelpTopics.ExampleResourcePrefix.Length..])
+        var files = typeof(HelpCatalog).Assembly.GetManifestResourceNames()
+            .Where(n => n.StartsWith(LibraryExamplePrefix, StringComparison.Ordinal))
+            .Select(n => n[LibraryExamplePrefix.Length..])
             .Order(StringComparer.Ordinal)
             .ToList();
 
@@ -917,7 +919,7 @@ public partial class HelpTopicsTests
         Assert.DoesNotContain('\n', json);
         Assert.All(json, c => Assert.True(c < 0x80));
         Assert.Equal(
-            ["schemaVersion", "ok", "command", "kind", "id", "aliases", "title", "summary", "body", "children", "seeAlso", "examples"],
+            ["schemaVersion", "ok", "command", "kind", "id", "aliases", "tags", "title", "summary", "body", "children", "seeAlso", "examples"],
             root.EnumerateObject().Select(p => p.Name));
         Assert.Equal(2, root.GetProperty("schemaVersion").GetInt32());
         Assert.True(root.GetProperty("ok").GetBoolean());
@@ -976,7 +978,7 @@ public partial class HelpTopicsTests
     {
         // Arrange: the plate example and the embedded resource it comes from
         var card = HelpTopics.Get("scad");
-        using var stream = typeof(HelpTopics).Assembly.GetManifestResourceStream($"{HelpTopics.ExampleResourcePrefix}scad-plate.scad")!;
+        using var stream = typeof(HelpCatalog).Assembly.GetManifestResourceStream($"{LibraryExamplePrefix}scad-plate.scad")!;
         using var reader = new StreamReader(stream);
         var expected = reader.ReadToEnd().Replace("\r\n", "\n", StringComparison.Ordinal).TrimEnd('\n');
 

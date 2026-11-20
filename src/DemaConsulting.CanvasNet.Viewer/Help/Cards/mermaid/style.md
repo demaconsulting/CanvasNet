@@ -1,6 +1,9 @@
 ---
 title: Styling Mermaid diagrams
 summary: Themes, theme variables, classDef, style, linkStyle, spacing, and size for good-looking diagrams.
+tags:
+  - mermaid
+  - design
 see-also:
   - style
   - mermaid/composition
@@ -12,16 +15,11 @@ examples:
     language: mermaid
     file: styled-flow.mmd
     description: A finished flowchart - the base theme with theme variables, three node classes, a link style, and a title.
-  - name: theme
-    kind: command
-    language: shell
-    content: 'canvasnet render flowchart.mmd --theme dark --scale 2 --background transparent -o flowchart-dark.png'
-    description: Draw at twice the size in the dark theme over a transparent background.
 ---
 
 Start from the `base` theme, set a few theme variables, and give each role of
 a node a `classDef`. Print a finished example with
-`canvasnet help mermaid style --example styled`, render it with `--scale 2`,
+[[mermaid/style#styled]], render it with `--scale 2`,
 and look at the PNG.
 
 ## Themes
@@ -50,7 +48,7 @@ and look at the PNG.
   `font-family`, and `opacity`. Anything else, `rx` and `ry` included, is left
   out with `mermaid-style-ignored`.
 - Pair each light fill with a darker stroke and text of the same hue, and keep
-  one accent color for what matters (see `canvasnet help style`).
+  one accent color for what matters (see [[style]]).
 
 ## Layout and text
 

@@ -1,6 +1,8 @@
 ---
 title: The --json result documents
 summary: The --json result documents and their fields.
+tags:
+  - hosting
 children:
   - results
   - diagnostics
@@ -38,7 +40,7 @@ standard output.
 ## Failure documents
 
 - `error`: {code, message, hint}: code is one of the stable codes of the errors
-  topic ('canvasnet help errors'); hint is omitted when there is none. The
+  topic ([[errors]]); hint is omitted when there is none. The
   document has no exit-code field: the exit code of every failure is 1.
 - A failure document is written only when --json is given and --silent is not. A
   failed compare gate also carries the fields of the comparison.

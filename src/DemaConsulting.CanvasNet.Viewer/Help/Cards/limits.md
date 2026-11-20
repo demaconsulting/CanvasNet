@@ -1,20 +1,11 @@
 ---
 title: Size and resource limits
 summary: Size and resource limits and the errors they produce.
+tags:
+  - limits
 see-also:
   - errors
   - files
-examples:
-  - name: formats
-    kind: command
-    language: shell
-    content: 'canvasnet formats --json'
-    description: Print the limits of the installed tool as JSON.
-  - name: too-large
-    kind: command
-    language: shell
-    content: 'canvasnet render big.svg --width 9000 -o big.png'
-    description: A width above the limit fails with size-limit before any pixels are allocated.
 ---
 
 The largest sizes and budgets the tool accepts, and the error each one produces.
@@ -107,4 +98,4 @@ The largest sizes and budgets the tool accepts, and the error each one produces.
   {{positionsMaxPredicates}} predicates each.
 - **File access**: Every limit here holds in every file-access mode
   (--file-access): a mode decides which files may be read, never how much. See
-  'canvasnet help files'.
+  [[files]].

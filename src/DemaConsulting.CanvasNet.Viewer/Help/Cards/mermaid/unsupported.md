@@ -1,6 +1,9 @@
 ---
 title: Unsupported Mermaid
 summary: The diagram types and constructs that are reported and not drawn.
+tags:
+  - mermaid
+  - diagnostics
 see-also:
   - mermaid/diagnostics
   - mermaid/differences

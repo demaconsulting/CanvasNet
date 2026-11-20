@@ -1,6 +1,9 @@
 ---
 title: Packet diagrams
 summary: Blocks, labels, rows, bit numbers, titles, and colors of a packet diagram.
+tags:
+  - mermaid
+  - authoring
 children:
   - settings
 see-also:
@@ -18,7 +21,7 @@ examples:
 Packet diagrams: a packet diagram starts with packet or packet-beta. It is drawn
 by a port of Mermaid's packet renderer, so the blocks, the bit numbers, and the
 title land where Mermaid 11 puts them; its syntax and settings are listed below
-and on the settings card (`canvasnet help mermaid packet settings`).
+and on the settings card ([[mermaid/packet/settings]]).
 
 ## Syntax
 

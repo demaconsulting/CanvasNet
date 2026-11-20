@@ -1,6 +1,8 @@
 ---
 title: Making pictures look good
 summary: 'Make pictures look good: palette, fonts, size, background.'
+tags:
+  - design
 see-also:
   - mermaid/style
   - plantuml/style
@@ -8,22 +10,11 @@ see-also:
   - svg/style
   - scad/style
   - composition
-examples:
-  - name: check
-    kind: command
-    language: shell
-    content: 'canvasnet render chart.vl.json --scale 2 -o chart.png --strict --json'
-    description: Draw at twice the natural size, fail if anything is left out, and print the result to check.
-  - name: colors
-    kind: command
-    language: shell
-    content: 'canvasnet inspect colors chart.png --count 6'
-    description: List the dominant colors of a rendered picture, to check its palette and background.
 ---
 
 Decide the final size first, choose a small palette, and check every change in
 the rendered PNG. The style card of each format shows the syntax:
-`canvasnet help mermaid style`, `plantuml style`, `vega-lite style`, `svg
+[[mermaid/style]], `plantuml style`, `vega-lite style`, `svg
 style`, and `scad style`.
 
 ## Palette and contrast

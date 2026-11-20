@@ -1,6 +1,9 @@
 ---
 title: Gantt charts
 summary: Tasks, dates, sections, excluded days, the axis, compact mode, and tags of a gantt chart.
+tags:
+  - mermaid
+  - authoring
 children:
   - settings
 see-also:
@@ -19,7 +22,7 @@ Gantt charts: a gantt chart starts with gantt. It is drawn by a port of
 Mermaid's gantt renderer, with the time scale and the axis of d3, so the bars,
 the texts, the section rows, and the ticks land where Mermaid 11 puts them, with
 the dates in UTC; its syntax, tags, and settings are listed below and on the
-settings card (`canvasnet help mermaid gantt settings`).
+settings card ([[mermaid/gantt/settings]]).
 
 ## Syntax
 

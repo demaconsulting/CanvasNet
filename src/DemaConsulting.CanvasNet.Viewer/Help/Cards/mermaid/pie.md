@@ -1,6 +1,9 @@
 ---
 title: Pie charts
 summary: Slices, the legend, titles, and colors of a pie chart.
+tags:
+  - mermaid
+  - authoring
 children:
   - settings
 see-also:
@@ -18,7 +21,7 @@ examples:
 Pie charts: a pie chart starts with pie. It is drawn by a port of Mermaid's pie
 renderer, so the slices, the percentage labels, the legend, and the title land
 where Mermaid 11 puts them; its syntax and settings are listed below and on the
-settings card (`canvasnet help mermaid pie settings`).
+settings card ([[mermaid/pie/settings]]).
 
 ## Syntax
 

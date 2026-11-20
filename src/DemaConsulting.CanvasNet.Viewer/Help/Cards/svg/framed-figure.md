@@ -1,6 +1,10 @@
 ---
 title: Framed figures with callouts
 summary: A picture in a designed frame - title band, accents, caption - with callout arrows on its features.
+tags:
+  - svg
+  - design
+  - composition
 aliases:
   - framed
   - callouts
@@ -24,27 +28,12 @@ examples:
     language: xml
     file: framed-flow.svg
     description: 'The same frame around flowchart.mmd; each arrow tip is bound with cn:x2y2 to a position of the diagram.'
-  - name: read-anchors
-    kind: command
-    language: shell
-    content: 'canvasnet render anchors.scad --size 440x300 -o slot.png --json'
-    description: Read the anchors of the model at the size of its image; add the image x and y to each anchors[].pixel.
-  - name: read-positions
-    kind: command
-    language: shell
-    content: 'canvasnet render flowchart.mmd --size 430x280 --positions node:send --positions node:stock -o slot.png --json'
-    description: Read the positions of two nodes of the diagram at the size of its image; add the image x and y.
-  - name: render-framed
-    kind: command
-    language: shell
-    content: 'canvasnet render framed.svg --width 1200 -o framed.png --strict --json'
-    description: Draw the framed figure 1200 pixels wide and fail if the model is not drawn.
 ---
 
 A framed figure shows one picture - a model, a diagram, or a chart - in a
 designed card, with labeled arrows that point at its features. Print a complete
-one with `canvasnet help svg framed-figure --example framed`, and save
-`canvasnet help scad anchors --example anchors` beside it as `anchors.scad`.
+one with [[svg/framed-figure#framed]], and save
+[[scad/anchors#anchors]] beside it as `anchors.scad`.
 
 ## Layers of the frame
 
@@ -88,14 +77,14 @@ Draw the layers in this order; each covers the one before:
 ```
 
 - A short level leg before the slanted one keeps the labels in tidy columns.
-  Curves and start arrows: `canvasnet help svg arrows`.
+  Curves and start arrows: [[svg/arrows]].
 
 ## Find where a feature is
 
 - Bind the arrow first: give the `<image>` an id and put
   `cn:x2y2="#id selector"` on the `<line>` that ends the arrow; the tip follows
-  the picture at any size (`--example framed-flow`, `canvasnet help svg
-  bindings`), and a model binds its anchors (`anchor:tip`).
+  the picture at any size ([[#framed-flow]],
+  [[svg/bindings]]), and a model binds its anchors (`anchor:tip`).
 - Without a binding, render the picture alone at the size of its image with
   `--json` and add the image `x` and `y` to each pixel: a model reports
   `anchors[].pixel` (`--example read-anchors`; same `view=` and `def.` values),
@@ -103,7 +92,7 @@ Draw the layers in this order; each covers the one before:
   (`--example read-positions`).
 - For a point no selector names, draw a labeled grid at the box size (see
   `canvasnet render --help`), read x,y off it, and confirm with `inspect pixel`
-  (the Send node of `canvasnet help mermaid flowchart --example flowchart`):
+  (the Send node of [[mermaid/flowchart#flowchart]]):
 
 ```shell
 canvasnet render flowchart.mmd --size 430x280 --grid 50 -o grid.png

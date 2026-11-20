@@ -1,6 +1,9 @@
 ---
 title: Diagnostics of a model
 summary: The scad-* identifiers, echo output, warnings, and the errors of a model.
+tags:
+  - scad
+  - diagnostics
 see-also:
   - errors
   - scad/language

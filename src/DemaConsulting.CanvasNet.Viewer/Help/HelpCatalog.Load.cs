@@ -288,7 +288,9 @@ public sealed partial class HelpCatalog
             throw HelpFrontMatter.Error(
                 fileName,
                 unknown.Value.Line,
-                $"the key '{unknown.Key}' is not allowed in {(isOverlay ? "an overlay" : "a card")}; it has {string.Join(", ", allowed.Where(k => k != ExtendsKey || isOverlay))}");
+                isOverlay
+                    ? $"the key '{unknown.Key}' is not allowed in an overlay; an overlay has {string.Join(", ", allowed)}"
+                    : $"the key '{unknown.Key}' is unknown; a card has {string.Join(", ", allowed.Where(k => k != ExtendsKey))}");
         }
 
         string Replace(string value) => ReplaceTokens(value, fileName, tokens);

@@ -1,6 +1,9 @@
 ---
 title: 'Pie charts: settings and known differences'
 summary: The pie settings and the known differences of a pie chart.
+tags:
+  - mermaid
+  - authoring
 see-also:
   - mermaid/pie
   - mermaid/differences

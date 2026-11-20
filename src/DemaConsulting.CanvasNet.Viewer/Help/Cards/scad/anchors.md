@@ -1,23 +1,20 @@
 ---
 title: Anchors (callout points)
 summary: Named points of a model and where they land in the picture, for callouts and labels.
+tags:
+  - scad
+  - composition
 see-also:
   - scad/composition
   - svg/framed-figure
   - positions
   - scad/views
-  - json/results
 examples:
   - name: anchors
     kind: source
     language: openscad
     file: anchors.scad
     description: A plate with a hole and three callout anchors, one of them inside translate and rotate.
-  - name: render-anchors
-    kind: command
-    language: shell
-    content: 'canvasnet render anchors.scad --view top --size 600x400 -o anchors.png --json'
-    description: Draw anchors.scad from above and list its anchors with their pixel positions in the JSON result.
 ---
 
 Declare a point with `echo("anchor", "name", [x, y, z]);` and render with

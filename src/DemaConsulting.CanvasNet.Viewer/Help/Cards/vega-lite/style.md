@@ -1,6 +1,9 @@
 ---
 title: Styling Vega-Lite charts
 summary: Config for titles, axes, legends, colors, and the frame, plus size and background of a chart.
+tags:
+  - vega-lite
+  - design
 see-also:
   - style
   - vega-lite/composition
@@ -15,7 +18,7 @@ examples:
 ---
 
 Put the look in `config`, not in each encoding, so every chart of a document
-matches: copy the `config` of `canvasnet help vega-lite style --example styled`
+matches: copy the `config` of [[vega-lite/style#styled]]
 into each chart, render with `--scale 2`, and look at the PNG.
 
 ## Config that changes the picture

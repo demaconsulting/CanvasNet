@@ -1,6 +1,9 @@
 ---
 title: 'Entity relationship diagrams: settings and known differences'
 summary: The entity relationship settings and the known differences of an entity relationship diagram.
+tags:
+  - mermaid
+  - authoring
 see-also:
   - mermaid/er
   - mermaid/differences

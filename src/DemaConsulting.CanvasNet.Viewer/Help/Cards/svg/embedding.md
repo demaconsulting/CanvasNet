@@ -1,6 +1,10 @@
 ---
 title: Embedding files with image href
 summary: Which files an image element may link, how they are sized, the link rule, and the diagnostics.
+tags:
+  - svg
+  - composition
+  - file-access
 aliases:
   - links
   - image-links
@@ -14,11 +18,6 @@ examples:
     language: xml
     file: diagram.svg
     description: 'A diagram whose image elements link a model, a chart, and another SVG file that sit in the same folder (a snippet: it needs those files, so it is not rendered alone).'
-  - name: render-embed
-    kind: command
-    language: shell
-    content: 'canvasnet render diagram.svg -o diagram.png'
-    description: Draw that diagram.
 ---
 
 - **href file types**: An image element may link a file whose name ends in .png,
@@ -45,7 +44,7 @@ examples:
   with .., a local file: URI, and a symbolic link are followed; a network URL, a
   UNC path, and a file: URI with a host are never followed. Which local files
   may be read is chosen with --file-access and --allow-root (any regular local
-  file by default); see 'canvasnet help files'.
+  file by default); see [[files]].
 - **unknown parameter**: A parameter the linked file does not use is not an
   error: the picture is drawn without it and the warning
   image-fragment-unknown-parameter is reported. This includes a fragment on a
@@ -67,7 +66,7 @@ examples:
 - `image-access-denied`: The warning for an href whose file the file-access mode
   denies: the image is not drawn, and the message names the href, the mode, and
   why; with --strict it is the error file-access-denied.
-- **example**: `<image href="part.scad" x="10" y="10" width="120"
-  height="120"/>` draws the model part.scad, which sits beside the SVG file, in
-  a 120 by 120 box. Print a whole diagram with: canvasnet help svg --example
-  embed
+- **example**:
+  `<image href="part.scad" x="10" y="10" width="120" height="120"/>` draws the
+  model part.scad, which sits beside the SVG file, in a 120 by 120 box. Print a
+  whole diagram with: [[svg#embed]]

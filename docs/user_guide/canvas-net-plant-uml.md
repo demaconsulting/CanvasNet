@@ -318,7 +318,7 @@ The codes, with their kind and when each is reported:
 - **`plantuml-include-failed`**: Error (plantuml-error): an `!include` file that is missing or cannot be read; a file
   the file-access mode denies is file-access-denied instead.
 - **`plantuml-limit-exceeded`**: Error (budget-exceeded): a limit of the library (nodes, edges, includes, nesting, label
-  length, layout work, painted pixels); see 'canvasnet help limits'.
+  length, layout work, painted pixels); see `canvasnet help limits`.
 - **`plantuml-render-failed`**: Error (plantuml-error): the diagram cannot be laid out; please report it.
 - **`plantuml-skinparam-ignored`**: Warning: a `skinparam` setting outside the supported subset, or with a value that
   cannot be used; the message says why.

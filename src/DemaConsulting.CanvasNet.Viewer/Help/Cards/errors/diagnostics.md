@@ -1,8 +1,9 @@
 ---
 title: Diagnostics are not errors
 summary: Notes about a picture that was still written, and how they are reported.
+tags:
+  - diagnostics
 see-also:
-  - json/diagnostics
   - errors
 ---
 

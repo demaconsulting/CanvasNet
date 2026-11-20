@@ -1,6 +1,10 @@
 ---
 title: Boxes, pixels, and image steps
 summary: What box, pixel, and inside mean, and how positions follow the size and the pixel steps.
+tags:
+  - mermaid
+  - vega-lite
+  - composition
 see-also:
   - scad/anchors
   - svg/framed-figure

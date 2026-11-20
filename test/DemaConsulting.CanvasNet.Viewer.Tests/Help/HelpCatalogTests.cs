@@ -488,6 +488,100 @@ public partial class HelpCatalogTests
     }
 
     /// <summary>
+    ///     Test that a card whose front matter is well formed but wrong is an error that names the file and the line: an
+    ///     unknown key, a missing title, a list where text is expected, an example of an unknown kind, an example without
+    ///     a name, and an unknown example key.
+    /// </summary>
+    /// <param name="frontMatter">The front-matter lines, separated by <c>~</c>.</param>
+    /// <param name="line">The line the error must name.</param>
+    /// <param name="reason">A part of the reason the error must give.</param>
+    [Theory]
+    [InlineData("title: T~summary: S~flavor: red", 4, "the key 'flavor' is unknown")]
+    [InlineData("summary: S", 1, "lacks the key 'title'")]
+    [InlineData("title:~  - T~summary: S", 2, "must be one line of text")]
+    [InlineData("title: T~summary: S~aliases: x", 4, "must be a list")]
+    [InlineData("title: T~summary: S~aliases:~  - Bad_Alias", 5, "the alias 'Bad_Alias'")]
+    [InlineData("title: T~summary: S~examples:~  - name: a~    kind: movie~    language: x~    description: d", 5, "must be a source or a snippet")]
+    [InlineData("title: T~summary: S~examples:~  - kind: command~    language: x~    description: d~    content: 'x'", 5, "lacks the key 'name'")]
+    [InlineData("title: T~summary: S~examples:~  - name: A_b~    kind: command~    language: x~    description: d~    content: 'x'", 5, "the example name 'A_b'")]
+    [InlineData("title: T~summary: S~examples:~  - name: a~    flavor: red", 6, "the example key 'flavor' is unknown")]
+    public void HelpCatalog_Create_SemanticErrors_ThrowWithFileAndLine(string frontMatter, int line, string reason)
+    {
+        // Arrange: a card with the front matter
+        var text = $"---\n{frontMatter.Replace('~', '\n')}\n---\nBody.";
+
+        // Act
+        var exception = Assert.Throws<InvalidOperationException>(
+            () => HelpCatalog.Create([("a.md", text)], TestExamples, ["a"]));
+
+        // Assert: the message names the file, the line, and the reason
+        Assert.StartsWith($"Help card 'a.md', line {line}: ", exception.Message);
+        Assert.Contains(reason, exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Test that the library tokens are the live constants of the code.
+    /// </summary>
+    [Fact]
+    public void HelpCatalog_LibraryTokens_AreTheCodeConstants()
+    {
+        // Act
+        var tokens = HelpCatalog.LibraryTokens;
+
+        // Assert
+        static string Text(IFormattable value) => value.ToString(null, System.Globalization.CultureInfo.InvariantCulture);
+        Assert.Equal(Text(global::DemaConsulting.CanvasNet.Canvas.Surface.MaxDimension), tokens["maxDimension"]);
+        Assert.Equal(Text(global::DemaConsulting.CanvasNet.Scad.ScadLimits.Default.MaxTriangles), tokens["scadMaxTriangles"]);
+        Assert.Equal(Text(global::DemaConsulting.CanvasNet.Viewer.Imaging.SourceLoader.MaxDpi), tokens["maxDpi"]);
+        Assert.Equal(Text(global::DemaConsulting.CanvasNet.VegaLite.VegaLiteLimits.Default.MaxPaintedPixels), tokens["vlMaxPaintedPixels"]);
+        Assert.Equal(Text(global::DemaConsulting.CanvasNet.Mermaid.MermaidLimits.Default.MaxEdges), tokens["mmdMaxEdges"]);
+        Assert.Equal(Text(global::DemaConsulting.CanvasNet.PlantUml.PlantUmlLimits.Default.MaxIncludes), tokens["pumlMaxIncludes"]);
+        Assert.False(tokens.ContainsKey("schemaVersion"));
+    }
+
+    /// <summary>
+    ///     Test that the library catalog loads once, the same instance on every thread.
+    /// </summary>
+    [Fact]
+    public void HelpCatalog_Default_IsThreadSafe_AndReturnsTheSameInstance()
+    {
+        // Act: read the catalog from several threads at once
+        var catalogs = new HelpCatalog[8];
+        Parallel.For(0, catalogs.Length, i => catalogs[i] = HelpCatalog.Default);
+
+        // Assert
+        Assert.All(catalogs, c => Assert.Same(HelpCatalog.Default, c));
+    }
+
+    /// <summary>
+    ///     Test that the library catalog has the library roots in order, every card tagged with a scope tag, each format
+    ///     tree tagged with its format alone, and no command-line example.
+    /// </summary>
+    [Fact]
+    public void HelpCatalog_Default_HasTheLibraryRootsTagsAndNoCommandExamples()
+    {
+        // Act
+        var catalog = HelpCatalog.Default;
+
+        // Assert: the roots, and every format tag names a root
+        Assert.Equal(HelpCatalog.LibraryRootOrder, catalog.Roots.Select(c => c.Id));
+        Assert.All(HelpTags.FormatTags, tag => Assert.NotNull(catalog.Find(tag)));
+
+        // Assert: tags and examples of every card
+        foreach (var card in catalog.Cards)
+        {
+            Assert.Contains(card.Tags, HelpTags.ScopeTags.Contains);
+            var root = card.Id.Split('/')[0];
+            if (HelpTags.FormatTags.Contains(root))
+            {
+                Assert.Equal([root], card.Tags.Where(HelpTags.FormatTags.Contains));
+            }
+
+            Assert.DoesNotContain(card.Examples, e => e.Kind == HelpExample.CommandKind);
+        }
+    }
+
+    /// <summary>
     ///     Creates the test catalog.
     /// </summary>
     /// <returns>The catalog.</returns>

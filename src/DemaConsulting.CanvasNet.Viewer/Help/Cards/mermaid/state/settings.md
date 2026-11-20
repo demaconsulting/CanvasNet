@@ -1,6 +1,9 @@
 ---
 title: 'State diagrams: settings and known differences'
 summary: The state settings and the known differences of a state diagram.
+tags:
+  - mermaid
+  - authoring
 see-also:
   - mermaid/state
   - mermaid/differences

@@ -1,6 +1,9 @@
 ---
 title: Position bindings (cn:)
 summary: Bind an arrow tip, a dot, or a label to a feature of an embedded diagram, chart, or model.
+tags:
+  - svg
+  - composition
 aliases:
   - binding
 see-also:
@@ -10,17 +13,6 @@ see-also:
   - scad/anchors
   - svg/flatten
   - errors/codes
-examples:
-  - name: render-bound
-    kind: command
-    language: shell
-    content: 'canvasnet render framed-flow.svg --width 1200 -o framed.png --strict --json'
-    description: Draw the framed flowchart; each resolved binding is a bind operation with the numbers it wrote, and a binding that fails is an error.
-  - name: flatten-bound
-    kind: command
-    language: shell
-    content: 'canvasnet flatten framed-flow.svg -o framed-flat.svg --strict --json'
-    description: Write a copy for other SVG readers with the bound numbers baked in and the cn attributes removed.
 ---
 
 A binding moves a point of a shape onto a feature of a picture that the same
@@ -35,8 +27,8 @@ show the numbers written in the file.
 </svg>
 ```
 
-The complete figure is `canvasnet help svg framed-figure --example
-framed-flow`.
+The complete figure is
+[[svg/framed-figure#framed-flow]].
 
 ## Attributes
 
@@ -49,10 +41,10 @@ framed-flow`.
 - cn:xy: the first `x` and `y` of a `<text>`; `dx`, `dy`, `text-anchor`, and
   `rotate` still apply.
 - value: `#imageId selector`: the id of an `<image>` of the same file, white
-  space, and one `--positions` selector (see `canvasnet help positions
-  selectors`), which must match exactly one feature.
+  space, and one `--positions` selector (see
+  [[positions/selectors]]), which must match exactly one feature.
 - features: a Mermaid diagram and a Vega-Lite chart report the features
-  `canvasnet help positions` lists; an OpenSCAD model reports its anchors as
+  [[positions]] lists; an OpenSCAD model reports its anchors as
   the kind `anchor` (`anchor:tip`). Rasters, documents, and SVG files report
   none.
 

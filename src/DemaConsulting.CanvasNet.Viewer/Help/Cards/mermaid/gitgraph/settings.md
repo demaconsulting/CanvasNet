@@ -1,6 +1,9 @@
 ---
 title: 'Git graphs: settings and known differences'
 summary: The git graph settings and the known differences of a git graph.
+tags:
+  - mermaid
+  - authoring
 see-also:
   - mermaid/gitgraph
   - mermaid/differences

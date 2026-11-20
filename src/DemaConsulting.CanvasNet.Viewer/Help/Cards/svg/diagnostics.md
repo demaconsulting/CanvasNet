@@ -1,6 +1,9 @@
 ---
 title: Diagnostics of a drawing
 summary: Images and text that were not drawn, the fragment codes, and the errors of a drawing.
+tags:
+  - svg
+  - diagnostics
 see-also:
   - svg/embedding
   - svg/bindings
@@ -22,12 +25,12 @@ see-also:
   file-access-denied.
 - `svg-binding-*`: Warning: a position binding (cn:x2y2 and the others) was not
   resolved and keeps the numbers written in the file; the code says why (see
-  'canvasnet help svg bindings'). --strict makes it the error
+  [[svg/bindings]]). --strict makes it the error
   svg-binding-failed.
 - `svg-arrowhead-shape`: Warning: a filled triangle (or notched arrow shape)
   is drawn by hand on the end of a line or path that has no marker there, so it
   does not follow the connector. One per drawing; the message counts them and
-  names the first. Draw it with a marker (see 'canvasnet help svg arrows').
+  names the first. Draw it with a marker (see [[svg/arrows]]).
   --strict does not fail on it.
 - `svg-text-not-drawn`: Unsupported: text that is not drawn: text on a
   textPath, an unknown element inside a text, the HTML of a foreignObject, a

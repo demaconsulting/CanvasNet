@@ -1,6 +1,9 @@
 ---
 title: Styling SVG drawings
 summary: Typography, cards, gradients, spacing, viewBox sizing, and contrast for good-looking SVG figures.
+tags:
+  - svg
+  - design
 see-also:
   - style
   - svg/composition
@@ -14,16 +17,11 @@ examples:
     language: xml
     file: gradient.svg
     description: A rounded rectangle filled with a linear gradient.
-  - name: render-page
-    kind: command
-    language: shell
-    content: 'canvasnet render page.svg --width 1200 -o page.png --strict --json'
-    description: Draw a drawing 1200 pixels wide, sharply, and fail if a linked picture is not drawn.
 ---
 
 Treat the SVG file as the page: lay it out in a `viewBox` of round units, keep
 the type in one `<style>` element, and render it at its final width. The
-`canvasnet help svg composition --example report` drawing uses every rule
+[[svg/composition#report]] drawing uses every rule
 below.
 
 ## Typography
@@ -48,7 +46,7 @@ below.
   stroke="#e2e8f0" stroke-width="2"/>` on a light page (`#f1f5f9`); a thin
   `<line>` of the same gray separates a header from the content.
 - Keep a gradient subtle: two close colors of one hue
-  (`canvasnet help svg style --example gradient`).
+  ([[svg/style#gradient]]).
 
 ## Title bands, accents, and arrows
 
@@ -58,10 +56,10 @@ below.
 - Accents: one warm color (`#f59e0b`) for a thin stripe under the band and a
   short bar beside each callout label; chevrons are white `<polyline>` strokes
   with `stroke-linecap: round` at rising opacity.
-- Arrows: a `<marker>` with `orient="auto"` on `marker-end`, in one strong
-  color (`#ea580c`) with a `stroke-width` of 2 to 3; `canvasnet help svg
-  arrows` places the tip and curves the connector.
-- `canvasnet help svg framed-figure --example framed` uses every rule here.
+- Arrows: a `<marker>` with `orient="auto"` on `marker-end`, in one strong color
+  (`#ea580c`) with a `stroke-width` of 2 to 3; [[svg/arrows]]
+  places the tip and curves the connector.
+- [[svg/framed-figure#framed]] uses every rule here.
 
 ## Spacing and size
 

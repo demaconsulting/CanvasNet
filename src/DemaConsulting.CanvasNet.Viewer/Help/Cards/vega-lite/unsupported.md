@@ -1,6 +1,9 @@
 ---
 title: Unsupported Vega-Lite
 summary: 'What a chart cannot use: geographic charts, remote data, interaction, and more.'
+tags:
+  - vega-lite
+  - diagnostics
 see-also:
   - vega-lite/diagnostics
 ---

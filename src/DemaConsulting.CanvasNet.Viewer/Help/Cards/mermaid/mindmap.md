@@ -1,6 +1,9 @@
 ---
 title: Mindmaps
 summary: Nodes, shapes, texts, sections, edges, and the layout of a mindmap.
+tags:
+  - mermaid
+  - authoring
 children:
   - settings
 see-also:
@@ -19,7 +22,7 @@ Mindmaps: a mindmap starts with mindmap. It is drawn by a port of Mermaid's
 mindmap renderer and laid out with a port of cose-bilkent, the force-directed
 layout Mermaid uses for a mindmap, so the nodes and the branches land where
 Mermaid 11 puts them; its syntax and settings are listed below and on the
-settings card (`canvasnet help mermaid mindmap settings`).
+settings card ([[mermaid/mindmap/settings]]).
 
 ## Syntax
 

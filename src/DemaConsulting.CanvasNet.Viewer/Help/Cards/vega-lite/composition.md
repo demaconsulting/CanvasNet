@@ -1,6 +1,9 @@
 ---
 title: Pictures in charts and charts in drawings
 summary: Charts in SVG figures, several charts in one specification, and pictures shown by the image mark.
+tags:
+  - vega-lite
+  - composition
 see-also:
   - svg/bindings
   - composition
@@ -20,7 +23,7 @@ pages, and text.
 
 - Several views of one data set belong in one specification: `layer` to share
   the axes, `hconcat` or `vconcat` to align charts, and `facet` or `repeat` for
-  small multiples (see `canvasnet help vega-lite layout`). One `config` then
+  small multiples (see [[vega-lite/layout]]). One `config` then
   styles them all.
 
 ## A chart in a figure
@@ -44,7 +47,7 @@ pages, and text.
   ("report.pdf#page=2"), a Mermaid diagram, or another chart. Files are named
   relative to the folder of the chart, and nothing is fetched from the network.
   The position, width, height, aspect (true by default), align, baseline,
-  smooth, and opacity of the mark follow Vega-Lite; see 'canvasnet help svg' for
+  smooth, and opacity of the mark follow Vega-Lite; see [[svg]] for
   the links the pictures accept.
 
 ## Point at a feature
@@ -52,12 +55,12 @@ pages, and text.
 - Render the chart alone at the size of its placement with `--positions` and
   `--json`: `mark:x=B` gives the box and center of that bar, `axis:@id=y` the
   y axis, each with the path of its view. Add the image `x` and `y` for an
-  arrow in a figure (see `canvasnet help positions vega-lite`).
+  arrow in a figure (see [[positions/vega-lite]]).
 
 ## Known differences
 
 - A chart can be drawn inside an SVG diagram with `<image href="chart.vl.json"
-  .../>` (see 'canvasnet help svg'); it keeps its own background there,
+  .../>` (see [[svg]]); it keeps its own background there,
   and #param.<name>=<value> in the href sets a param of the chart the way
   --param does.
 - Pictures of an image mark are loaded when the chart is drawn, relative to the

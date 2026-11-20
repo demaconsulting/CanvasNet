@@ -1,16 +1,14 @@
 ---
 title: Preprocessor and includes
 summary: Comments, line continuation, !define, variables, and local !include files of a diagram.
+tags:
+  - plantuml
+  - authoring
+  - file-access
 see-also:
   - plantuml/unsupported
   - files
   - limits
-examples:
-  - name: include
-    kind: command
-    language: shell
-    content: 'canvasnet render main.puml -o main.png --file-access roots --allow-root . --json'
-    description: Draw a diagram whose !include files must lie under the current folder.
 ---
 
 ## Supported
@@ -30,11 +28,11 @@ examples:
   file with @startuml blocks gives its first block.
 - File access: an included file is read under the file-access mode of
   --file-access and --allow-root, as every other referenced file; a file the
-  mode denies is file-access-denied (see `canvasnet help files`).
+  mode denies is file-access-denied (see [[files]]).
 - Network: a URL, the standard library (!include <name>), !includeurl, and
   !includesub are never fetched (plantuml-include-unsupported).
 - Limits: at most {{pumlMaxIncludes}} include directives and
-  {{pumlMaxIncludeDepth}} levels of nesting (see `canvasnet help limits`).
+  {{pumlMaxIncludeDepth}} levels of nesting (see [[limits]]).
 
 ## Unsupported
 

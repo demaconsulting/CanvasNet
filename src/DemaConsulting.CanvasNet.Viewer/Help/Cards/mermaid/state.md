@@ -1,6 +1,9 @@
 ---
 title: State diagrams
 summary: States, transitions, composite states, concurrency, pseudo-states, notes, and styles.
+tags:
+  - mermaid
+  - authoring
 children:
   - settings
 see-also:
@@ -20,7 +23,7 @@ State diagrams: a state diagram starts with stateDiagram-v2 or stateDiagram. It
 is laid out with the same port of Mermaid's dagre layout as a flowchart, so the
 states, transitions, composite states, and notes land where Mermaid 11 puts
 them; its syntax and settings are listed below and on the settings card
-(`canvasnet help mermaid state settings`).
+([[mermaid/state/settings]]).
 
 ## Syntax
 

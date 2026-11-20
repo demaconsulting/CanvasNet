@@ -1,6 +1,9 @@
 ---
 title: Positions of Vega-Lite charts
 summary: The views, axes, legends, titles, and marks of a chart, with view paths and values.
+tags:
+  - vega-lite
+  - composition
 see-also:
   - positions/selectors
   - positions/geometry

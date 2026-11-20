@@ -1,6 +1,9 @@
 ---
 title: 'Class diagrams: settings and known differences'
 summary: The class settings and the known differences of a class diagram.
+tags:
+  - mermaid
+  - authoring
 see-also:
   - mermaid/class
   - mermaid/differences

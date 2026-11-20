@@ -1,6 +1,9 @@
 ---
 title: Entity relationship diagrams
 summary: Entities, attributes, relationships, cardinalities, subgraphs, and styles.
+tags:
+  - mermaid
+  - authoring
 children:
   - settings
 see-also:
@@ -20,7 +23,7 @@ Entity relationship diagrams: an entity relationship diagram starts with
 erDiagram. It is laid out with the same port of Mermaid's dagre layout as a
 flowchart, so the entities, relationships, and subgraphs land where Mermaid 11
 puts them; its syntax, cardinalities, and settings are listed below and on the
-settings card (`canvasnet help mermaid er settings`).
+settings card ([[mermaid/er/settings]]).
 
 ## Syntax
 

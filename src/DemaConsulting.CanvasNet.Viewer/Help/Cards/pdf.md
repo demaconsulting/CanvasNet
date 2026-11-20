@@ -1,25 +1,13 @@
 ---
 title: PDF documents (.pdf)
 summary: 'PDF documents: a page drawn as an image.'
+tags:
+  - pdf
+  - hosting
+  - diagnostics
 see-also:
   - svg/fragments
   - limits
-examples:
-  - name: info-pages
-    kind: command
-    language: shell
-    content: 'canvasnet info report.pdf --all-pages --json'
-    description: List every page with its size and rotation as JSON.
-  - name: render-page
-    kind: command
-    language: shell
-    content: 'canvasnet render report.pdf --page 2 --dpi 150 -o page2.png --json'
-    description: Draw page 2 at 150 dpi and print the JSON result.
-  - name: overview
-    kind: command
-    language: shell
-    content: 'canvasnet montage report.pdf --all-pages --labels -o overview.png'
-    description: Compose every page into one labeled contact sheet.
 ---
 
 Multi-page documents; a page is drawn as an image. There is no diagnostics
@@ -30,7 +18,7 @@ channel.
 - Pages: --page N (from 1) or --all-pages; the page rotation is applied.
 - Embedding: `<image href="report.pdf#page=3" .../>` in an SVG file draws page 3
   (page 1 without the fragment); a page that does not exist is
-  image-page-out-of-range. See 'canvasnet help svg'. On the command line the
+  image-page-out-of-range. See [[svg]]. On the command line the
   same fragment on the input chooses the page: canvasnet render
   "report.pdf#page=3" -o p3.png (it overrides --page; a page that does not exist
   is page-out-of-range).

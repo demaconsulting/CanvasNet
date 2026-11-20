@@ -1,6 +1,9 @@
 ---
 title: Class diagrams
 summary: Classes, members, generics, annotations, relations, namespaces, notes, and styles.
+tags:
+  - mermaid
+  - authoring
 children:
   - settings
 see-also:
@@ -19,8 +22,8 @@ examples:
 Class diagrams: a class diagram starts with classDiagram. It is laid out with
 the same port of Mermaid's dagre layout as a flowchart, so the class boxes,
 relations, namespaces, and notes land where Mermaid 11 puts them; its syntax,
-relations, and settings are listed below and on the settings card (`canvasnet
-help mermaid class settings`).
+relations, and settings are listed below and on the settings card
+([[mermaid/class/settings]]).
 
 ## Syntax
 

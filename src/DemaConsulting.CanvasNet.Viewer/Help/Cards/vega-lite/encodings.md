@@ -1,6 +1,9 @@
 ---
 title: Channels, field types, and scales
 summary: Encoding channels, field types and their defaults, scales, and color schemes.
+tags:
+  - vega-lite
+  - authoring
 aliases:
   - scales
   - channels

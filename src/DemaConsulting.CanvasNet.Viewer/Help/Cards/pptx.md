@@ -1,22 +1,15 @@
 ---
 title: PowerPoint presentations (.pptx)
 summary: 'PowerPoint presentations: each slide drawn as an image.'
+tags:
+  - pptx
+  - hosting
+  - diagnostics
 aliases:
   - powerpoint
 see-also:
   - svg/fragments
   - limits
-examples:
-  - name: all-slides
-    kind: command
-    language: shell
-    content: 'canvasnet render slides.pptx --all-pages -o out/slide-{page}.png'
-    description: Draw every slide into the folder out, one file per slide.
-  - name: one-slide-strict
-    kind: command
-    language: shell
-    content: 'canvasnet render slides.pptx --page 3 --dpi 150 --strict -o slide3.png --json'
-    description: Draw slide 3 at 150 dpi and fail if a picture would be skipped.
 ---
 
 Each slide is a page, drawn as an image.
@@ -26,7 +19,7 @@ Each slide is a page, drawn as an image.
 - Slides as pages: --page N (from 1), --all-pages, and --dpi.
 - Embedding: `<image href="deck.pptx#slide=3" .../>` in an SVG file draws slide
   3 (#page=3 means the same; slide 1 without the fragment); a slide that does
-  not exist is image-page-out-of-range. See 'canvasnet help svg'. On the command
+  not exist is image-page-out-of-range. See [[svg]]. On the command
   line the same fragment on the input chooses the slide: canvasnet render
   "deck.pptx#slide=3" -o s3.png (it overrides --page).
 - The shape tree including nested groups; preset and custom geometry with solid,

@@ -1,6 +1,9 @@
 ---
 title: 'Link fragments: pages, views, variables, params, and themes'
 summary: '#page=, #view=, #azimuth=, #elevation=, #projection=, #theme=, def., param. in a link or input.'
+tags:
+  - svg
+  - composition
 see-also:
   - svg/embedding
   - limits
@@ -10,11 +13,6 @@ examples:
     language: xml
     file: pages.svg
     description: 'A diagram that places pages of a PDF, PPTX, and VSDX document side by side, chosen with #page=N and #slide=N (a snippet: it needs those files, so it is not rendered alone).'
-  - name: render-embed-pages
-    kind: command
-    language: shell
-    content: 'canvasnet render pages.svg --strict -o pages.png'
-    description: Draw that diagram and fail if a page does not exist.
 ---
 
 - **page fragment**: A fragment after the file name is a list of name=value
@@ -43,7 +41,7 @@ examples:
   quote). The viewport variables work too: def.$vpd=300 fixes the camera
   distance (and with it the scale), def.$vpt=[x,y,z] the target,
   def.$vpr=[90-elevation,0,azimuth] the view angles (def.$vpr=[70,0,45] is
-  azimuth 45, elevation 20; see canvasnet help scad views), and def.$vpf the
+  azimuth 45, elevation 20; see [[scad/views]]), and def.$vpf the
   field of view, so several links of one model can share a scale. A chart:
   param.<name>=<value> sets the param <name> of the chart like --param, with
   the value true, false, null, a number, text, or JSON (a selection takes its
@@ -81,8 +79,8 @@ examples:
   montage show the fragment.
 - **page example**: `<image href="report.pdf#page=2" .../>` draws the second
   page of the PDF file; `<image href="deck.pptx#slide=3" .../>` draws the third
-  slide; `<image href="drawing.vsdx#page=2" .../>` the second page; `<image
-  href="part.scad#view=front" .../>` the front view of a model. Inside an XML
-  attribute a second parameter is written with &amp;, for example
-  report.pdf#page=2&amp;page=3. Print a whole diagram with: canvasnet help svg
-  --example embed-pages
+  slide; `<image href="drawing.vsdx#page=2" .../>` the second page;
+  `<image href="part.scad#view=front" .../>` the front view of a model. Inside
+  an XML attribute a second parameter is written with &amp;, for example
+  report.pdf#page=2&amp;page=3. Print a whole diagram with:
+  [[svg#embed-pages]]

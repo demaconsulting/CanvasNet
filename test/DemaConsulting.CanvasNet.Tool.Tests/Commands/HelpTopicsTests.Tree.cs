@@ -56,11 +56,11 @@ public partial class HelpTopicsTests
     }
 
     /// <summary>
-    ///     Test that the embedded card files are exactly the cards (no orphan file and no missing file), whatever path
-    ///     separator the build put in the logical names.
+    ///     Test that the tool's embedded card files are exactly its own cards (the json and pandoc trees) plus overlays of
+    ///     library cards, whatever path separator the build put in the logical names.
     /// </summary>
     [Fact]
-    public void HelpTopics_Tree_ResourcesAreExactlyTheCards()
+    public void HelpTopics_Tree_ResourcesAreExactlyTheToolCardsAndOverlays()
     {
         // Arrange: the embedded card files, by their path
         var files = typeof(HelpTopics).Assembly.GetManifestResourceNames()
@@ -68,10 +68,12 @@ public partial class HelpTopicsTests
             .Select(n => n[HelpTopics.CardResourcePrefix.Length..].Replace('\\', '/'))
             .Order(StringComparer.Ordinal)
             .ToList();
+        var toolCards = HelpTopics.All.Where(c => c.RootId is "json" or "pandoc").Select(c => c.Id + HelpTopics.CardExtension);
 
-        // Assert: each file is a card, and each card is a file
+        // Assert: each file is a card of the tree, and each tool card is a file
         Assert.All(files, f => Assert.EndsWith(HelpTopics.CardExtension, f));
-        Assert.Equal(HelpTopics.All.Select(c => c.Id + HelpTopics.CardExtension).Order(StringComparer.Ordinal), files);
+        Assert.All(files, f => Assert.Contains(f[..^HelpTopics.CardExtension.Length], HelpTopics.All.Select(c => c.Id)));
+        Assert.All(toolCards, c => Assert.Contains(c, files));
     }
 
     /// <summary>
@@ -217,60 +219,5 @@ public partial class HelpTopicsTests
 
             Assert.True(fences % 2 == 0, $"A code block of '{card.Id}' is not closed.");
         }
-    }
-
-    /// <summary>
-    ///     Test that a card whose front matter is well formed but wrong is an error that names the file and the line: an
-    ///     unknown key, a missing title, a list where text is expected, an example of an unknown kind, an example without
-    ///     a name, a command that is not the tool's, an unknown token, and a bad file name.
-    /// </summary>
-    /// <param name="frontMatter">The front-matter lines, separated by <c>~</c>.</param>
-    /// <param name="line">The line the error must name.</param>
-    /// <param name="reason">A part of the reason the error must give.</param>
-    [Theory]
-    [InlineData("title: T~summary: S~flavor: red", 4, "the key 'flavor' is unknown")]
-    [InlineData("summary: S", 1, "lacks the key 'title'")]
-    [InlineData("title:~  - T~summary: S", 2, "must be one line of text")]
-    [InlineData("title: T~summary: S~aliases: x", 4, "must be a list")]
-    [InlineData("title: T~summary: S~aliases:~  - Bad_Alias", 5, "the alias 'Bad_Alias'")]
-    [InlineData("title: T~summary: S~examples:~  - name: a~    kind: movie~    language: x~    description: d", 5, "must be a source or a snippet")]
-    [InlineData("title: T~summary: S~examples:~  - kind: command~    language: x~    description: d~    content: 'canvasnet x'", 5, "lacks the key 'name'")]
-    [InlineData("title: T~summary: S~examples:~  - name: a~    kind: command~    language: x~    description: d~    content: 'ls x'", 5, "must start with 'canvasnet '")]
-    [InlineData("title: T~summary: S~examples:~  - name: a~    flavor: red", 6, "the example key 'flavor' is unknown")]
-    public void HelpTopics_LoadCard_SemanticErrors_ThrowWithFileAndLine(string frontMatter, int line, string reason)
-    {
-        // Arrange: a card with the front matter
-        var text = $"---\n{frontMatter.Replace('~', '\n')}\n---\nBody.";
-
-        // Act
-        var exception = Assert.Throws<InvalidOperationException>(() => HelpTopics.LoadCard("scad/test.md", text));
-
-        // Assert: the message names the file, the line, and the reason
-        Assert.StartsWith($"Help card 'scad/test.md', line {line}: ", exception.Message);
-        Assert.Contains(reason, exception.Message, StringComparison.Ordinal);
-    }
-
-    /// <summary>
-    ///     Test that an unknown token and a bad file name are errors that name the file, and that a good card loads with
-    ///     its identifier, children, and tokens.
-    /// </summary>
-    [Fact]
-    public void HelpTopics_LoadCard_TokensAndFileNames_AreChecked()
-    {
-        // Act
-        var token = Assert.Throws<InvalidOperationException>(() => HelpTopics.LoadCard("scad/test.md", "---\ntitle: T\nsummary: S\n---\nAt most {{nothing}}."));
-        var name = Assert.Throws<InvalidOperationException>(() => HelpTopics.LoadCard("scad/Test Card.md", "---\ntitle: T\nsummary: S\n---\nBody."));
-        var card = HelpTopics.LoadCard("scad/test.md", "---\ntitle: T\nsummary: S\nchildren:\n  - more\n---\n\nAt most {{maxDimension}} pixels.\n");
-
-        // Assert
-        Assert.Equal("Help card 'scad/test.md' uses the unknown token '{{nothing}}'.", token.Message);
-        Assert.StartsWith("Help card 'scad/Test Card.md' must be named", name.Message);
-        Assert.Equal("scad/test", card.Id);
-        Assert.Equal("test", card.Name);
-        Assert.Equal("scad", card.RootId);
-        Assert.Equal("scad test", card.Path);
-        Assert.Equal("canvasnet help scad test", card.Command);
-        Assert.Equal(["scad/test/more"], card.ChildIds);
-        Assert.Equal($"At most {HelpTopics.Tokens["maxDimension"]} pixels.", card.Body);
     }
 }

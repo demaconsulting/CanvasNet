@@ -1,6 +1,8 @@
 ---
 title: Fields of the result documents
 summary: The fields of render, convert, the verbs, info, formats, flatten, and the other commands.
+tags:
+  - hosting
 see-also:
   - json
   - json/diagnostics
@@ -20,7 +22,7 @@ see-also:
   operation also carries its page. The verbs are crop, resize, rotate, flip, and
   pad. A bind is an SVG position binding that was resolved: {element, id when
   the element has one, attribute, image, selector, x, y}, the numbers written in
-  user units (see 'canvasnet help svg bindings').
+  user units (see [[svg/bindings]]).
 - `outputs`: One entry per file written: {path, format, width, height, bytes}
   and page for a document.
 - `diagnostics`: The features that were left out of the picture; see the
@@ -29,13 +31,13 @@ see-also:
 - `anchors`: Only for an OpenSCAD model: the points it declared with
   echo("anchor", "name", [x, y, z]), in echo order, each {name, point: [x, y,
   z], pixel: [x, y] or null, inside}. pixel is the position in the written
-  picture, from its top-left corner, after the pixel steps; see 'canvasnet help
-  scad'.
+  picture, from its top-left corner, after the pixel steps; see
+  [[scad]].
 - `positions`: Only with --positions (a diagram or a chart): the features the
   selectors matched, in the order of the picture, each {kind, id, then text,
   line, view, name, mark, from, to, index, values and data when it has them,
   box: {x, y, width, height}, pixel: [x, y], inside}; box and pixel are null
-  when a pixel step lost them. See 'canvasnet help positions'.
+  when a pixel step lost them. See [[positions]].
 - `positionsTruncated`: Only with --positions: true when more features matched
   than positions holds.
 
@@ -83,4 +85,4 @@ see-also:
   bindings), outputs[] ({path, format, bytes}; empty when nothing was written),
   diagnostics, and echo.
 - `help`: kind is index, command, topics, card, examples, or example; see
-  `canvasnet help json help`.
+  [[json/help]].

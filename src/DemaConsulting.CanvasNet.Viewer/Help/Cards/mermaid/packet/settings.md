@@ -1,6 +1,9 @@
 ---
 title: 'Packet diagrams: settings and known differences'
 summary: The packet settings and the known differences of a packet diagram.
+tags:
+  - mermaid
+  - authoring
 see-also:
   - mermaid/packet
   - mermaid/differences

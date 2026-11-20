@@ -1,6 +1,9 @@
 ---
 title: Styling a PlantUML diagram
 summary: The default look, the supported skinparam settings, and colors, for a good-looking diagram.
+tags:
+  - plantuml
+  - design
 see-also:
   - style
   - plantuml/composition

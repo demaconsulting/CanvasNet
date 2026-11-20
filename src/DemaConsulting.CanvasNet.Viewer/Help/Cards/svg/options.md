@@ -1,25 +1,12 @@
 ---
 title: Render options of a drawing
 summary: Size, scale, background, file access, and --strict for a drawing.
+tags:
+  - svg
+  - hosting
 see-also:
   - files
   - svg/diagnostics
-examples:
-  - name: render-width
-    kind: command
-    language: shell
-    content: 'canvasnet render shapes.svg --width 480 -o shapes.png'
-    description: Draw shapes.svg 480 pixels wide.
-  - name: transparent
-    kind: command
-    language: shell
-    content: 'canvasnet render shapes.svg --background transparent -o shapes-alpha.png'
-    description: Keep the transparency of the drawing.
-  - name: info
-    kind: command
-    language: shell
-    content: 'canvasnet info shapes.svg --json'
-    description: Report the intrinsic size without drawing.
 ---
 
 ## Options
@@ -32,7 +19,7 @@ examples:
   default); transparent keeps alpha.
 - `--file-access <mode>`: Which local files the image elements may read: any
   (the default), roots, no-symlinks, or roots,no-symlinks; --allow-root names
-  the folders of roots. See 'canvasnet help files'.
+  the folders of roots. See [[files]].
 - `--strict`: An image that was not drawn (svg-image-unresolved,
   svg-image-too-large, image-fragment-invalid, or image-page-out-of-range) is an
   unsupported-feature error instead of a warning, image-access-denied is the

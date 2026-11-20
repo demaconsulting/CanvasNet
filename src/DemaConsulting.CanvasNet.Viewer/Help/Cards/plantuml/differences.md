@@ -1,13 +1,16 @@
 ---
 title: Known differences from PlantUML
 summary: Fonts, framing, includes, the sequence and activity engines, and other general differences.
+tags:
+  - plantuml
+  - diagnostics
 see-also:
   - plantuml/unsupported
   - plantuml/style
 ---
 
 The differences of one diagram type are on its card, for example
-`canvasnet help plantuml sequence`.
+[[plantuml/sequence]].
 
 ## Known differences
 

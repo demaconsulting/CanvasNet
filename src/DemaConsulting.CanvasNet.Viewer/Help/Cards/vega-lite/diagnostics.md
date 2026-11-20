@@ -1,6 +1,9 @@
 ---
 title: Diagnostics of a chart
 summary: The vl-* identifiers of what is not drawn.
+tags:
+  - vega-lite
+  - diagnostics
 see-also:
   - vega-lite/warnings
   - errors

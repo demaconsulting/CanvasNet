@@ -1936,7 +1936,7 @@ This list is also the `canvasnet help files` card, bullet by bullet; a test keep
   case-insensitive volume a reference or --allow-root in any letter case still works. A file whose spelling on disk
   cannot be confirmed to name the opened file is denied.
 - **`limits`**: Every size and count limit holds in every mode; a mode decides which files may be read, never how much.
-  See 'canvasnet help limits'.
+  See `canvasnet help limits`.
 - **`image-access-denied`**: Warning: a picture (an SVG image, a Mermaid picture, a Vega-Lite image mark, or a linked
   page) that the mode denies is not drawn, and the rest is; the message names the link, the mode, and why. With --strict
   it is the error file-access-denied.

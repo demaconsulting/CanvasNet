@@ -1,6 +1,9 @@
 ---
 title: Lengths, units, and font sizes
 summary: CSS length units, font-size, and how invalid lengths are handled.
+tags:
+  - svg
+  - authoring
 see-also:
   - svg/supported
 ---

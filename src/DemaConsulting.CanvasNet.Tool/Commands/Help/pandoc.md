@@ -1,6 +1,10 @@
 ---
 title: The Pandoc filter (pandoc-filter)
 summary: Pictures in Pandoc documents (docs/filters/canvasnet.lua).
+tags:
+  - hosting
+  - composition
+  - file-access
 aliases:
   - filter
 see-also:
@@ -92,7 +96,7 @@ Lua shim docs/filters/canvasnet.lua, which sends the whole document to
 - `CANVASNET_FILE_ACCESS`: roots, no-symlinks, or roots,no-symlinks; a picture
   the mode denies stops the build. The files a picture references are read
   for its cache name under the same mode, so a file the mode denies (a link
-  included) is never read. See 'canvasnet help files'.
+  included) is never read. See [[files]].
 - `CANVASNET_ROOTS`: Folders separated like PATH, each passed as --allow-root.
 - `CANVASNET_JOBS`: How many pictures are drawn at once, 1 to 64 (default: the
   number of processors, at most 4). --jobs wins over it.

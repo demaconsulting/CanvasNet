@@ -1,6 +1,9 @@
 ---
 title: Arrows on connectors
 summary: Arrowheads that follow their connector - markers, direction, final tangent, and tip placement.
+tags:
+  - svg
+  - design
 aliases:
   - markers
   - arrowheads
@@ -16,16 +19,11 @@ examples:
     language: xml
     file: arrows.svg
     description: Two S-curve connectors, one horizontal and one vertical, each with a marker whose tip lands on the edge of its target box.
-  - name: render-arrows
-    kind: command
-    language: shell
-    content: 'canvasnet render arrows.svg --width 1200 -o arrows.png --strict --json'
-    description: Draw the figure 1200 pixels wide; look at every tip in the PNG.
 ---
 
 An arrowhead is part of its connector: draw it with a `<marker>`, never as a
 separate shape, so it turns and moves with the line. Print a complete figure
-with `canvasnet help svg arrows --example arrows`.
+with [[svg/arrows#arrows]].
 
 ## Use a marker
 
@@ -83,4 +81,4 @@ with `canvasnet help svg arrows --example arrows`.
   with `--crop` around a tip to see it land.
 - To land a tip on a node of an embedded diagram, chart, or model at any size,
   end the arrow with a `<line>` and bind its end with `cn:x2y2`
-  (`canvasnet help svg bindings`).
+  ([[svg/bindings]]).

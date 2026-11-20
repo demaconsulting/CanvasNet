@@ -1,6 +1,9 @@
 ---
 title: Supported SVG
 summary: The SVG elements, attributes, and CSS that are drawn, and what is not.
+tags:
+  - svg
+  - authoring
 see-also:
   - svg/style
   - svg/units

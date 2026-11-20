@@ -1,6 +1,9 @@
 ---
 title: Warnings of a chart
 summary: 'The vl-* warnings: a chart that is drawn, but maybe not as meant.'
+tags:
+  - vega-lite
+  - diagnostics
 see-also:
   - vega-lite/diagnostics
   - errors

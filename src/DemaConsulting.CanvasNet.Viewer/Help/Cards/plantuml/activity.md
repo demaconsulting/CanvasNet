@@ -1,6 +1,9 @@
 ---
 title: Activity diagrams
 summary: Actions, decisions, loops, forks, swimlanes, partitions, notes, and arrows of an activity diagram.
+tags:
+  - plantuml
+  - authoring
 see-also:
   - plantuml/style
   - plantuml/options

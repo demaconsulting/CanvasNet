@@ -1,6 +1,9 @@
 ---
 title: Layers, concatenation, facets, and repeats
 summary: Views that combine charts, and what a composed view keeps.
+tags:
+  - vega-lite
+  - authoring
 aliases:
   - layer
   - concat

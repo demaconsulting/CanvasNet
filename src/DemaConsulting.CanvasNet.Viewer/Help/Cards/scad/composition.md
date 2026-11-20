@@ -1,6 +1,9 @@
 ---
 title: Models in figures
 summary: Labels and leader lines from anchors, models in SVG figures and Mermaid nodes, and variants.
+tags:
+  - scad
+  - composition
 see-also:
   - composition
   - scad/anchors
@@ -8,12 +11,6 @@ see-also:
   - svg/composition
   - svg/framed-figure
   - mermaid/composition
-examples:
-  - name: montage-variants
-    kind: command
-    language: shell
-    content: 'canvasnet montage "posts.scad#def.width=10" "posts.scad#def.width=20" "posts.scad#def.width=30" -D ''$vpd=400'' --labels -o variants.png'
-    description: Three versions of posts.scad side by side, chosen with the fragment of each input and drawn from one fixed camera (quote each input; the labels show the fragments).
 ---
 
 A model rarely stands alone in a document: label its features, place it in a
@@ -23,7 +20,7 @@ figure, or show its variants at one scale.
 
 1. Declare the points to label in the model:
    `echo("anchor", "hole-center", [15, 10, 5]);`
-   (`canvasnet help scad --example anchors` declares three).
+   ([[scad#anchors]] declares three).
 2. Render the picture you will show, with `--json`:
    `canvasnet render part.scad --size 600x400 --background transparent
    -o part.png --json`. Each entry of `anchors[]` gives the `pixel` [x, y] of a
@@ -42,18 +39,18 @@ figure, or show its variants at one scale.
 
 - The pixels belong to that picture, its size, and its view. Steps such as
   `--crop` and `--trim` move the anchors with the picture (see
-  `canvasnet help scad anchors`).
+  [[scad/anchors]]).
 - Or link the model itself in an image of the same size and view: it is drawn
   with the same camera, so the same pixels plus the image `x` and `y` land on
-  the points (`canvasnet help svg framed-figure --example framed`).
+  the points ([[svg/framed-figure#framed]]).
 
 ## A model in a figure
 
 - `<image href="part.scad#view=front&amp;def.width=20" .../>` places a view of a
   variant in an SVG figure, over a transparent background (see
-  `canvasnet help svg composition`).
+  [[svg/composition]]).
 - `part@{ img: "part.scad", label: "Part", w: 120, h: 120 }` shows it in a
-  Mermaid node (see `canvasnet help mermaid composition`).
+  Mermaid node (see [[mermaid/composition]]).
 
 ## Variants side by side
 

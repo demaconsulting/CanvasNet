@@ -1,22 +1,15 @@
 ---
 title: Visio drawings (.vsdx)
 summary: 'Visio drawings: each page drawn as an image.'
+tags:
+  - vsdx
+  - hosting
+  - diagnostics
 aliases:
   - visio
 see-also:
   - svg/fragments
   - limits
-examples:
-  - name: render
-    kind: command
-    language: shell
-    content: 'canvasnet render diagram.vsdx --dpi 150 -o diagram.png --json'
-    description: Draw the first page at 150 dpi and print the JSON result.
-  - name: info-pages
-    kind: command
-    language: shell
-    content: 'canvasnet info diagram.vsdx --all-pages --json'
-    description: List every page with its name and size as JSON.
 ---
 
 Each drawing page is a page, drawn as an image.
@@ -27,7 +20,7 @@ Each drawing page is a page, drawn as an image.
   names. --dpi must be a whole number.
 - Embedding: `<image href="drawing.vsdx#page=2" .../>` in an SVG file draws page
   2 (page 1 without the fragment); a page that does not exist is
-  image-page-out-of-range. See 'canvasnet help svg'. On the command line the
+  image-page-out-of-range. See [[svg]]. On the command line the
   same fragment on the input chooses the page: canvasnet render
   "drawing.vsdx#page=2" -o p2.png (it overrides --page).
 - Shape trees with Master and MasterShape and StyleSheet inheritance: fills,

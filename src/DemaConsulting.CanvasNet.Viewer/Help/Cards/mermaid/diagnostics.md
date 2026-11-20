@@ -1,6 +1,9 @@
 ---
 title: Diagnostics of a diagram
 summary: The mermaid-* warnings and errors of a diagram.
+tags:
+  - mermaid
+  - diagnostics
 see-also:
   - mermaid/unsupported
   - errors
@@ -22,7 +25,7 @@ see-also:
   (mermaid-yaml-unsupported).
 - `mermaid-limit-exceeded`: Error (budget-exceeded): a limit of the library
   (nodes, edges, nesting, label length, layout work, pictures, painted pixels);
-  see 'canvasnet help limits'.
+  see [[limits]].
 - `mermaid-render-failed`: Error (mermaid-error): the diagram cannot be laid
   out, for example a subgraph that contains itself, an empty sequence block, two
   composite states that contain each other, or a gantt task whose date is

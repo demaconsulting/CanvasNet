@@ -1,19 +1,19 @@
-using DemaConsulting.CanvasNet.Tool.Commands;
+using DemaConsulting.CanvasNet.Viewer.Help;
 
-namespace DemaConsulting.CanvasNet.Tool.Tests.Commands;
+namespace DemaConsulting.CanvasNet.Viewer.Tests.Help;
 
 /// <summary>
-///     Unit tests for the front-matter parser of the help cards: the supported YAML subset, the body, and a clear error
+///     Unit tests for the HelpFrontMatter unit, the front-matter parser of the help cards: the supported YAML subset, the body, and a clear error
 ///     with the file and the line for everything outside the subset.
 /// </summary>
-public partial class HelpTopicsTests
+public class HelpFrontMatterTests
 {
     /// <summary>
     ///     Test that the parser reads plain, single-quoted, and double-quoted scalars, a list of scalars, a list of maps,
     ///     comments, and blank lines, and that the body follows the closing fence.
     /// </summary>
     [Fact]
-    public void HelpTopics_ParseFrontMatter_SupportedSubset_ReadsEveryConstruct()
+    public void HelpFrontMatter_Parse_SupportedSubset_ReadsEveryConstruct()
     {
         // Arrange: a card that uses every construct of the subset, with CRLF line endings
         var text = string.Join(
@@ -41,7 +41,7 @@ public partial class HelpTopicsTests
             "");
 
         // Act
-        var document = HelpTopics.ParseFrontMatter(text, "mermaid/gantt.md");
+        var document = HelpFrontMatter.Parse(text, "mermaid/gantt.md");
 
         // Assert: the keys in order, with their values and lines
         Assert.Equal(["title", "summary", "aliases", "examples"], document.Properties.Select(p => p.Key));
@@ -57,6 +57,7 @@ public partial class HelpTopicsTests
         Assert.Equal("source", examples[0].Map![1].Value.Scalar);
         Assert.Equal("canvasnet render gantt.mmd -o gantt.png", examples[1].Map![1].Value.Scalar);
         Assert.Equal("Body line one.\n\n- a bullet", document.Body);
+        Assert.Equal(17, document.BodyLine);
     }
 
     /// <summary>
@@ -89,13 +90,13 @@ public partial class HelpTopicsTests
     [InlineData("examples:~  - name:", 3, "needs a value")]
     [InlineData("aliases:~title: x", 2, "neither a value nor list items")]
     [InlineData("Title: x", 2, "lower case")]
-    public void HelpTopics_ParseFrontMatter_OutsideTheSubset_ThrowsWithFileAndLine(string frontMatter, int line, string reason)
+    public void HelpFrontMatter_Parse_OutsideTheSubset_ThrowsWithFileAndLine(string frontMatter, int line, string reason)
     {
         // Arrange: a card whose front matter holds the construct
         var text = $"---\n{frontMatter.Replace('~', '\n')}\n---\nBody.";
 
         // Act
-        var exception = Assert.Throws<InvalidOperationException>(() => HelpTopics.ParseFrontMatter(text, "mermaid/gantt.md"));
+        var exception = Assert.Throws<InvalidOperationException>(() => HelpFrontMatter.Parse(text, "mermaid/gantt.md"));
 
         // Assert: the message names the file, the line, and the reason
         Assert.StartsWith($"Help card 'mermaid/gantt.md', line {line}: ", exception.Message);
@@ -106,11 +107,11 @@ public partial class HelpTopicsTests
     ///     Test that a card without an opening or a closing fence is an error that names the file and the line.
     /// </summary>
     [Fact]
-    public void HelpTopics_ParseFrontMatter_MissingFence_ThrowsWithFileAndLine()
+    public void HelpFrontMatter_Parse_MissingFence_ThrowsWithFileAndLine()
     {
         // Act
-        var opening = Assert.Throws<InvalidOperationException>(() => HelpTopics.ParseFrontMatter("title: x\n---\nBody.", "a.md"));
-        var closing = Assert.Throws<InvalidOperationException>(() => HelpTopics.ParseFrontMatter("---\ntitle: x\nBody.", "a.md"));
+        var opening = Assert.Throws<InvalidOperationException>(() => HelpFrontMatter.Parse("title: x\n---\nBody.", "a.md"));
+        var closing = Assert.Throws<InvalidOperationException>(() => HelpFrontMatter.Parse("---\ntitle: x\nBody.", "a.md"));
 
         // Assert
         Assert.StartsWith("Help card 'a.md', line 1: ", opening.Message);

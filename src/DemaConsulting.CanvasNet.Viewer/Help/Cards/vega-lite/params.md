@@ -1,6 +1,10 @@
 ---
 title: Params and selections
 summary: Selection and variable params in a still picture, and setting a param from outside.
+tags:
+  - vega-lite
+  - authoring
+  - hosting
 aliases:
   - selections
 see-also:

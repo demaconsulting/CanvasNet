@@ -1,6 +1,9 @@
 ---
 title: 'Mindmaps: settings and known differences'
 summary: 'The mindmap settings and the known differences of a mindmap: layout, icons, and depth.'
+tags:
+  - mermaid
+  - authoring
 see-also:
   - mermaid/mindmap
   - mermaid/differences

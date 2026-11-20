@@ -1,6 +1,9 @@
 ---
 title: Sequence diagrams
 summary: Participants, messages, activations, notes, groups, boxes, and numbers of a sequence diagram.
+tags:
+  - plantuml
+  - authoring
 see-also:
   - plantuml/style
   - plantuml/options

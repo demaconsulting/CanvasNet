@@ -1,16 +1,14 @@
 ---
 title: Flattening for other SVG readers
 summary: 'canvasnet flatten: a copy of a drawing that browsers and other SVG readers can show.'
+tags:
+  - svg
+  - composition
+  - hosting
 see-also:
   - svg/embedding
   - svg/bindings
   - svg/diagnostics
-examples:
-  - name: flatten
-    kind: command
-    language: shell
-    content: 'canvasnet flatten dashboard.svg -o dashboard-flat.svg --scale 2 --json'
-    description: Write a copy of a drawing whose linked diagrams, models, charts, and document pages are PNG pictures twice their placement size, for an SVG reader that cannot draw them.
 ---
 
 A browser or WeasyPrint cannot draw a linked `.mmd`, `.puml`, `.scad`,
@@ -38,11 +36,12 @@ to replace each such link with a PNG drawn at its placement.
   letter or UNC path (`C:\x.png`, `\\server\share\x.png`) is left as written on
   every system. Links of other elements (an external `use`, a CSS `url()`) are
   not rewritten.
-- bindings: A position binding (cn:x2y2 and the others, see `canvasnet help
-  svg bindings`) is baked with the numbers of the PNG picture that replaces the
-  link; its `cn:` attribute is removed, and the namespace declaration too when
-  nothing uses it. The JSON document counts bindings.resolved and
-  bindings.unresolved; a binding that fails keeps its attribute and numbers.
+- bindings: A position binding (cn:x2y2 and the others, see
+  [[svg/bindings]]) is baked with the numbers of the PNG picture
+  that replaces the link; its `cn:` attribute is removed, and the namespace
+  declaration too when nothing uses it. The JSON document counts
+  bindings.resolved and bindings.unresolved; a binding that fails keeps its
+  attribute and numbers.
 - nothing to flatten: When the drawing links no such picture, or shows none,
   nothing is written and the exit code is 0: the text says nothing to flatten
   and `flattened` is false in the JSON document.

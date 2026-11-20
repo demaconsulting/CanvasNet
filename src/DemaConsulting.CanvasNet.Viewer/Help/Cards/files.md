@@ -1,29 +1,15 @@
 ---
 title: Referenced files and the file-access modes
 summary: Which referenced files a document may read (--file-access).
+tags:
+  - file-access
+  - hosting
 aliases:
   - file-access
   - links
 see-also:
   - svg/embedding
   - errors
-  - pandoc
-examples:
-  - name: confine
-    kind: command
-    language: shell
-    content: 'canvasnet render docs/diagram.svg --allow-root docs --allow-root assets -o diagram.png --json'
-    description: Render a drawing whose links must stay in the docs and assets folders.
-  - name: no-links
-    kind: command
-    language: shell
-    content: 'canvasnet render docs/diagram.svg --file-access roots,no-symlinks --allow-root docs -o diagram.png'
-    description: 'Exactly the folder confinement of earlier versions: the folder of the input and below it, and no symbolic links.'
-  - name: strict
-    kind: command
-    language: shell
-    content: 'canvasnet flatten diagram.svg -o flat.svg --file-access roots --strict --json'
-    description: Fail instead of leaving out a picture the mode denies.
 ---
 
 Which files a document may reference, the --file-access and --allow-root
@@ -75,7 +61,7 @@ options, the diagnostics of a denial, and the Pandoc filter.
   works. A file whose spelling on disk cannot be confirmed to name the opened
   file is denied.
 - `limits`: Every size and count limit holds in every mode; a mode decides which
-  files may be read, never how much. See 'canvasnet help limits'.
+  files may be read, never how much. See [[limits]].
 
 ## Diagnostics
 

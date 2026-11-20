@@ -1,22 +1,20 @@
 ---
 title: Styling model pictures
 summary: Colors, translucent context, smooth curves, views, size, and background for good-looking models.
+tags:
+  - scad
+  - design
 see-also:
   - style
   - scad/composition
   - scad/views
   - scad/options
-examples:
-  - name: product-shot
-    kind: command
-    language: shell
-    content: 'canvasnet render part.scad --size 1200x800 --default-color "#9fb7d0" --background transparent -o part.png'
-    description: Draw a large picture in a soft blue-gray over a transparent background, ready to place on a page.
 ---
 
 Color the parts that matter, draw everything else in one quiet color, and pick
-the view that shows the feature. `canvasnet help scad --example hull-ghost`
-shows a colored part beside a translucent ghost.
+the view that shows the feature.
+[[scad#hull-ghost]] shows a colored part beside
+a translucent ghost.
 
 ## Color
 
@@ -35,7 +33,7 @@ shows a colored part beside a translucent ghost.
   `$fs`) on curved shapes; a low value looks faceted.
 - `iso` (the default) shows three faces and suits most parts; `front` and `top`
   suit a dimension drawing; `--azimuth`, `--elevation`, and
-  `--projection perspective` give a free view (see `canvasnet help scad views`).
+  `--projection perspective` give a free view (see [[scad/views]]).
 
 ## Size and background
 
@@ -45,4 +43,4 @@ shows a colored part beside a translucent ghost.
   SVG figure (a model linked from an SVG drawing is always transparent); a dark
   `--background` needs light model colors.
 - Pictures of several variants share one scale only with a fixed camera
-  (`-D '$vpd=300'`; see `canvasnet help scad composition`).
+  (`-D '$vpd=300'`; see [[scad/composition]]).

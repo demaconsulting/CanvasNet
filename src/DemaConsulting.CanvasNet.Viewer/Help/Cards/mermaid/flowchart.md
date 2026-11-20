@@ -1,6 +1,9 @@
 ---
 title: Flowcharts
 summary: Nodes, shapes, links, subgraphs, labels, styles, and settings of a flowchart.
+tags:
+  - mermaid
+  - authoring
 aliases:
   - graph
 see-also:

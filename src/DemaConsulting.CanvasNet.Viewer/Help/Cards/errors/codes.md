@@ -1,6 +1,8 @@
 ---
 title: Error codes
 summary: Every stable error code and what to do about it.
+tags:
+  - diagnostics
 see-also:
   - errors
 ---
@@ -61,7 +63,7 @@ see-also:
   --strict a linked picture) was denied by the file-access mode chosen with
   --file-access and --allow-root, or the mode could not be applied; the message
   names the file as written, the mode, and why. The default mode, any, reads
-  every regular local file; see 'canvasnet help files'.
+  every regular local file; see [[files]].
 - `budget-exceeded`: A model exceeds a rendering limit such as --max-triangles,
   or a chart or diagram exceeds a limit of its library (mermaid-limit-exceeded
   or plantuml-limit-exceeded for a diagram). Raise the limit (a model) or
@@ -72,12 +74,12 @@ see-also:
   --threshold limit; the result and the pictures were still written.
 - `positions-unmatched`: With --strict, a --positions selector matched no
   feature of the diagram or chart; nothing was written. Without --strict it is
-  a warning with the same code. See 'canvasnet help positions selectors'.
+  a warning with the same code. See [[positions/selectors]].
 - `svg-binding-failed`: With --strict, an SVG position binding (cn:x2y2 and the
   others) was not resolved; nothing was written. The message names the warning
   code (svg-binding-unmatched, svg-binding-ambiguous, and so on), the element,
   and the value. Without --strict the binding keeps the numbers written in the
-  file. See 'canvasnet help svg bindings'.
+  file. See [[svg/bindings]].
 - `pandoc-filter-error`: The pandoc-filter command cannot draw the pictures of
   a Pandoc document: an attribute of a picture is not valid, a source is not in
   the resource path, a model, chart, diagram, or drawing has too many files or

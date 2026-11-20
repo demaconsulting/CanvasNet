@@ -1,13 +1,16 @@
 ---
 title: Known differences from Mermaid
 summary: Fonts, text widths, the background, static pictures, and other general differences.
+tags:
+  - mermaid
+  - diagnostics
 see-also:
   - mermaid/unsupported
   - mermaid/options
 ---
 
 The differences of one diagram type are on its settings card, for example
-`canvasnet help mermaid gantt settings`.
+[[mermaid/gantt/settings]].
 
 ## Known differences
 

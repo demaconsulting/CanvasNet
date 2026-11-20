@@ -1,6 +1,9 @@
 ---
 title: Git graphs
 summary: Commits, branches, checkouts, merges, cherry-picks, titles, and colors of a git graph.
+tags:
+  - mermaid
+  - authoring
 aliases:
   - git
 children:
@@ -20,8 +23,8 @@ examples:
 Git graphs: a git graph starts with gitGraph. It is drawn by a port of Mermaid's
 git graph renderer, so the commits, the branch lines and labels, the arrows, the
 commit ids, the tags, and the title land where Mermaid 11 puts them; its syntax
-and settings are listed below and on the settings card (`canvasnet help mermaid
-gitgraph settings`).
+and settings are listed below and on the settings card
+([[mermaid/gitgraph/settings]]).
 
 ## Syntax
 

@@ -1,6 +1,8 @@
 ---
 title: Help documents
 summary: 'The documents of canvasnet help --json: index, command, topics, card, examples.'
+tags:
+  - hosting
 see-also:
   - json
 examples:

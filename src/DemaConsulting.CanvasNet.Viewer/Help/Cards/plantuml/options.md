@@ -1,21 +1,13 @@
 ---
 title: Render options of a PlantUML diagram
 summary: Size, background, --strict, file access, and what info reports for a PlantUML diagram.
+tags:
+  - plantuml
+  - hosting
 see-also:
   - plantuml/diagnostics
   - limits
   - files
-examples:
-  - name: render
-    kind: command
-    language: shell
-    content: 'canvasnet render sequence.puml -o sequence.png --json'
-    description: Draw sequence.puml and print the JSON result.
-  - name: info
-    kind: command
-    language: shell
-    content: 'canvasnet info sequence.puml --json'
-    description: Report the type, title, and counts without drawing.
 ---
 
 ## Options
@@ -30,7 +22,7 @@ examples:
 - `--strict`: Every unsupported construct, and a type that is not drawn,
   becomes an unsupported-feature error.
 - `--file-access`: The mode the !include files are read under, with
-  --allow-root (see `canvasnet help files`).
+  --allow-root (see [[files]]).
 - `--theme`: Not for a PlantUML diagram: --theme and --positions are a
   usage-error on a .puml input.
 

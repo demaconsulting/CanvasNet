@@ -1,6 +1,9 @@
 ---
 title: The OpenSCAD language subset
 summary: Primitives, transforms, booleans, extrusions, modifiers, and what is left out.
+tags:
+  - scad
+  - authoring
 see-also:
   - scad/style
   - scad/diagnostics
@@ -60,7 +63,7 @@ construct in Unsupported is left out and reported, or fails with `--strict`.
   text, or a vector as a JSON array (-D "$vpt=[0,0,20]"); in an SVG link,
   def.name=value in the fragment does the same, and so does the fragment of an
   input path of the command line: canvasnet render "part.scad#def.width=20" -o
-  part.png (see 'canvasnet help svg').
+  part.png (see [[svg]]).
 - text() uses the bundled Liberation Sans unless the model names another font; a
   character the font lacks (such as U+221D) is taken from the bundled Noto
   fonts, and one that no font covers draws the missing-glyph box and gives one

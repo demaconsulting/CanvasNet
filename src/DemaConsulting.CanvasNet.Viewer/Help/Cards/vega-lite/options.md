@@ -1,30 +1,12 @@
 ---
 title: Render options of a chart
 summary: Size, background, page, params, and --strict for a chart.
+tags:
+  - vega-lite
+  - hosting
 see-also:
   - vega-lite/params
   - limits
-examples:
-  - name: render
-    kind: command
-    language: shell
-    content: 'canvasnet render bar.vl.json -o bar.png --json'
-    description: Draw bar.vl.json and print the JSON result.
-  - name: scale-background
-    kind: command
-    language: shell
-    content: 'canvasnet render bar.vl.json --scale 2 --background "#f4f4f4" -o bar-large.png'
-    description: Draw at twice the size over a light gray background.
-  - name: info
-    kind: command
-    language: shell
-    content: 'canvasnet info bar.vl.json --json'
-    description: Report the laid-out size, marks, and data references without drawing.
-  - name: strict-check
-    kind: command
-    language: shell
-    content: 'canvasnet render bar.vl.json --strict -o bar.png'
-    description: Fail instead of leaving an unsupported construct out.
 ---
 
 ## Options
@@ -47,7 +29,7 @@ examples:
   is laid out again with the values, so its size can change; only a chart takes
   it (a usage-error for any other input). An SVG file sets the params of a chart
   it embeds with the fragment of the link: `<image
-  href="chart.vl.json#param.cutoff=50" .../>` (see 'canvasnet help svg'), and so
+  href="chart.vl.json#param.cutoff=50" .../>` (see [[svg]]), and so
   does an input path of the command line: canvasnet render
   "chart.vl.json#param.cutoff=50" -o c.png (the fragment wins over --param for
   that input; a name the chart does not declare is then the warning

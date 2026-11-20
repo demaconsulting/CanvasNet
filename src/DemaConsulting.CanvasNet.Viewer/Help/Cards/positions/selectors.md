@@ -1,16 +1,15 @@
 ---
 title: Position selectors
 summary: The grammar of --positions - kinds, id globs, quoted ids, typed predicates - and shell quoting.
+tags:
+  - mermaid
+  - vega-lite
+  - composition
+  - hosting
 see-also:
   - positions/mermaid
   - positions/vega-lite
   - limits
-examples:
-  - name: union
-    kind: command
-    language: shell
-    content: "canvasnet render flowchart.mmd --positions node:send --positions 'edge:@from=stock' -o flow.png --json"
-    description: The Send node and every edge that leaves the stock check, in one list.
 ---
 
 Each `--positions` takes one selector; repeat the option for more. An item that
@@ -44,7 +43,7 @@ value       := json-string | bare    bare: true, false, null, a number, else tex
   and `_` that starts with a letter.
 - Prefer data fields for marks: `data` holds what the data says, `values`
   what the encoding made of it (a month time unit puts `x` in the year 2012;
-  see 'canvasnet help positions vega-lite').
+  see [[positions/vega-lite]]).
 - A bare value reads as `--param` reads one, so `mark:x=3` is the number 3
   (equal to 3.0) and `mark:x="3"` the text. A date in `values` is UTC ISO
   text such as `"2025-01-01T00:00:00.000Z"`; a date in `data` is the text the

@@ -1,6 +1,10 @@
 ---
 title: Files, data, and dates
 summary: The file names a chart may have, inline and local data, dates in UTC, and fonts.
+tags:
+  - vega-lite
+  - authoring
+  - file-access
 see-also:
   - files
   - limits

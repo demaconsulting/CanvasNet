@@ -1,6 +1,9 @@
 ---
 title: Unsupported PlantUML
 summary: The diagram types and constructs that are reported and not drawn.
+tags:
+  - plantuml
+  - diagnostics
 see-also:
   - plantuml/diagnostics
   - plantuml/differences

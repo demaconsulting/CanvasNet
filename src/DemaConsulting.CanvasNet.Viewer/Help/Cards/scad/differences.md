@@ -1,6 +1,9 @@
 ---
 title: Known differences from OpenSCAD
 summary: Where the dialect differs from OpenSCAD, and how a model is placed in an SVG drawing.
+tags:
+  - scad
+  - diagnostics
 see-also:
   - scad/views
   - svg/fragments
@@ -12,10 +15,10 @@ see-also:
   not pixel-identical to OpenSCAD and no parity is claimed.
 - include and use are read relative to the folder of the file that names them
   (any local file, as in OpenSCAD, unless --file-access says otherwise; see
-  'canvasnet help files'), a missing include is an error here, and an include
+  [[files]]), a missing include is an error here, and an include
   the mode denies is the error file-access-denied.
 - A model can be drawn inside an SVG diagram with `<image href="part.scad"
-  .../>` (see 'canvasnet help svg'), with the view the library chooses for it
+  .../>` (see [[svg]]), with the view the library chooses for it
   (isometric for a 3D model, top-down for a flat 2D model, or the model's own
   $vp* variables) over a transparent background. `<image
   href="part.scad#view=front" .../>` chooses a named view instead (iso, front,

@@ -1,6 +1,9 @@
 ---
 title: 'Gantt charts: settings and known differences'
 summary: 'The gantt settings and the known differences of a gantt chart: dates, today, and width.'
+tags:
+  - mermaid
+  - authoring
 see-also:
   - mermaid/gantt
   - mermaid/differences

@@ -1,6 +1,9 @@
 ---
 title: Transforms and expressions
 summary: Data transforms, the expression language, and the statistical transforms.
+tags:
+  - vega-lite
+  - authoring
 see-also:
   - vega-lite/encodings
   - vega-lite/diagnostics
