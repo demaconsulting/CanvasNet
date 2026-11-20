@@ -24,7 +24,7 @@ internal static partial class DiagramDetector
         "actor", "usecase", "component", "interface", "node", "artifact", "cloud", "folder", "frame", "storage",
         "rectangle", "card", "file", "stack", "agent", "hexagon", "person", "boundary", "control", "entity",
         "collections", "queue", "database", "label", "port", "portin", "portout", "package", "together", "action",
-        "process", "allowmixing", "allow_mixing", "set", "remove", "restore",
+        "process", "archimate", "allowmixing", "allow_mixing", "set", "remove", "restore",
     };
 
     /// <summary>The keywords that name a use case diagram among the description family.</summary>

@@ -144,8 +144,8 @@ public class DiagramDetectorTests
 
     /// <summary>
     ///     Validates that a deployment diagram (a description diagram without a use case or component construct) is
-    ///     detected and drawn: nodes, artifacts, and the other deployment symbols, also as containers, and a queue
-    ///     before a symbol that no sequence diagram has.
+    ///     detected and drawn: nodes, artifacts, and the other deployment symbols, also as containers, a queue
+    ///     before a symbol that no sequence diagram has, and an archimate element (drawn as a reported rectangle).
     /// </summary>
     /// <param name="text">The statements.</param>
     [Theory]
@@ -153,6 +153,8 @@ public class DiagramDetectorTests
     [InlineData("artifact App\nnode Host\nApp --> Host")]
     [InlineData("queue Jobs\nstorage Disk {\nfile Data\n}\nJobs --> Data")]
     [InlineData("person P\nhexagon H\nP --> H")]
+    [InlineData("archimate #Business \"Biz\" as biz")]
+    [InlineData("node Host\narchimate #Technology \"Tech\" as tech\ntech --> Host")]
     public void PlantUmlDiagramDetector_Detect_DeploymentDiagram_IsDrawn(string text)
     {
         // Arrange / Act
