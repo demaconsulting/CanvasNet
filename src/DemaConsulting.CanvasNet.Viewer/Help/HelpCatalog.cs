@@ -77,12 +77,12 @@ public sealed partial class HelpCatalog
                 node.Id,
                 node.Title,
                 node.Summary,
-                node.Tags,
-                node.Aliases,
+                AsReadOnly(node.Tags),
+                AsReadOnly(node.Aliases),
                 WriteBody(node, null),
                 AsReadOnly(VisibleBelow(node.ChildIds)),
                 AsReadOnly(node.SeeAlso.Where(IsVisible)),
-                node.Examples);
+                AsReadOnly(node.Examples));
             cards.Add(card);
             _byId.Add(card.Id, card);
         }

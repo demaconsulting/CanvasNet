@@ -66,6 +66,11 @@ public partial class HelpCatalogTests
         var example = Assert.Single(a.Examples);
         Assert.Equal(("one", HelpExample.SourceKind, "xml", "one.svg", "<svg/>"), (example.Name, example.Kind, example.Language, example.FileName, example.Content));
         Assert.Equal(["dee"], catalog.Cards[4].Aliases);
+
+        // Assert: the lists cannot be changed through a cast
+        Assert.False(a.Tags is List<string>);
+        Assert.False(a.Examples is List<HelpExample>);
+        Assert.False(catalog.Cards[4].Aliases is List<string>);
     }
 
     /// <summary>
