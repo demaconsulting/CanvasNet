@@ -261,10 +261,9 @@ sections:
           concurrent regions; notes; hide empty description; page texts; the direction; and the supported skin
           parameters) with PlantUML's shapes, texts, colors, and decorations, laid out in ranks so that no two
           elements overlap, transitions between the same two states are drawn apart, and the transition labels keep
-          clear of the lines and the states, so that every state,
-          circle, diamond, and composite state of the reference fixtures has
-          the size, texts, and colors of PlantUML's (positions may differ), and shall count states and pseudo-states
-          as nodes, transitions as edges, and composite states as subgraphs.
+          clear of the lines and the states, so that every state, circle, diamond, and composite state of the reference
+          fixtures has the size, texts, and colors of PlantUML's (positions may differ), and shall count states and
+          pseudo-states as nodes, transitions as edges, and composite states as subgraphs.
         tags: [system]
         justification: |
           State diagrams are a common PlantUML diagram; PlantUML lays them out with Graphviz, which this library does
