@@ -329,6 +329,12 @@ internal sealed partial class SequenceLayout
     private SkinTheme Theme => _model.Theme;
 
     /// <summary>
+    ///     Gets the extra space between a message text and its arrow for a thick arrow: half the width the line has
+    ///     beyond 1 pixel, so that a thick line does not touch its label (0 at the default thickness).
+    /// </summary>
+    private double ArrowClearance => Math.Max(0, (Theme.ArrowThickness - 1) / 2);
+
+    /// <summary>
     ///     Lays a sequence diagram out.
     /// </summary>
     /// <param name="model">The model.</param>
@@ -562,7 +568,8 @@ internal sealed partial class SequenceLayout
         info.Number = message.Number is null ? null : Text(message.Number, style, message.Location);
         var numberWidth = info.Number is null ? 0 : info.Number.Width + 4;
         info.TextWidth = numberWidth + info.Label.Width;
-        info.TextHeight = Math.Max(info.Label.Height, info.Number?.Height ?? 0) + 2;
+        // (a thick arrow keeps its label clear: the row grows by the clearance between the text and the line)
+        info.TextHeight = Math.Max(info.Label.Height, info.Number?.Height ?? 0) + 2 + ArrowClearance;
         // An activation on the arrow already counts at both ends; a deactivation only after the arrow
         var activatesTo = message.Changes.Any(c => c.Participant == message.To && c.Action == LifeAction.Activate);
         var activatesFrom = !message.IsSelf && message.Changes.Any(c => c.Participant == message.From && c.Action == LifeAction.Activate);

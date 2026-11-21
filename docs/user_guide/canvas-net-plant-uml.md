@@ -571,7 +571,8 @@ relationship, transition, and link. The known differences from PlantUML are:
   shadows, gradients (the first color is used), or hand-written mode.
 - **Sequence diagrams.** `ref over`, `newpage`, `create`, `mainframe`, `autoactivate`, messages to or from the border
   (`[->`, `->]`, `?->`), parallel messages (`&`), and stereotypes of participants are reported as
-  `plantuml-statement-unsupported` and not drawn.
+  `plantuml-statement-unsupported` and not drawn. With `sequenceArrowThickness` above 1, a message label is moved half
+  the extra thickness further from its arrow, where PlantUML lets the thick line touch the label.
 - **Activity diagrams.** `switch` blocks, `goto` and `label`, `break`, the specification and description language box
   styles (`:text|`, `:text<`, `:text>`, `:text/`, `:text]`, `:text}`, drawn as a plain box), and the frames of
   `package`, `rectangle`, and `card` groups are reported as `plantuml-statement-unsupported`. An arrow with several

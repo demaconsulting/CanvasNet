@@ -95,7 +95,11 @@ internal static partial class SequenceRenderer
         }
 
         var tip = x + (inward * gap);
+
+        // The line and an open head have the arrow's width; a filled or half head keeps a thin outline, as in PlantUML,
+        // so that a thick arrow does not grow its head over the label
         var stroke = new SceneStroke(color, thickness);
+        var outline = new SceneStroke(color, 1);
         var back = tip + (inward * HeadLength);
         switch (head)
         {
@@ -104,7 +108,7 @@ internal static partial class SequenceRenderer
                 {
                     Role = "message-head",
                     Fill = color,
-                    Stroke = stroke,
+                    Stroke = outline,
                 });
                 return tip + (inward * 4);
             case ArrowHead.Open:
@@ -115,10 +119,10 @@ internal static partial class SequenceRenderer
                 });
                 return tip - inward;
             case ArrowHead.HalfTop:
-                items.Add(new ScenePath(SceneShapes.Polygon((back, y - HeadHalf), (tip, y), (back, y))) { Role = "message-head", Fill = color, Stroke = stroke });
+                items.Add(new ScenePath(SceneShapes.Polygon((back, y - HeadHalf), (tip, y), (back, y))) { Role = "message-head", Fill = color, Stroke = outline });
                 return tip - inward;
             case ArrowHead.HalfBottom:
-                items.Add(new ScenePath(SceneShapes.Polygon((back, y), (tip, y), (back, y + HeadHalf))) { Role = "message-head", Fill = color, Stroke = stroke });
+                items.Add(new ScenePath(SceneShapes.Polygon((back, y), (tip, y), (back, y + HeadHalf))) { Role = "message-head", Fill = color, Stroke = outline });
                 return tip - inward;
             case ArrowHead.Cross:
                 var center = x + (inward * 13);

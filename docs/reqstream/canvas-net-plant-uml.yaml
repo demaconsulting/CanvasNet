@@ -176,7 +176,8 @@ sections:
           activations, returns, numbering, notes, groups, boxes, dividers, delays, spaces, page texts, and the
           supported skin parameters) with the layout of PlantUML's sequence engine, so that the size, the texts, the
           participants, the life lines, and the message lines of the reference fixtures agree with PlantUML's within
-          1.5 pixels, and shall count participants as nodes, messages as edges, and boxes as subgraphs.
+          1.5 pixels, shall keep message labels clear of their arrows at any arrow thickness and font size, and shall
+          count participants as nodes, messages as edges, and boxes as subgraphs.
         tags: [system]
         justification: |
           Sequence diagrams are the most used PlantUML diagrams in documentation; a picture must look like the one
@@ -190,6 +191,7 @@ sections:
           - CanvasNetPlantUml_Sequence_ReferenceGoldens_CoverEveryFixture
           - CanvasNetPlantUml_Sequence_Fixtures_RenderWithoutReports
           - CanvasNetPlantUml_Sequence_Facts_CountParticipantsMessagesAndBoxes
+          - CanvasNetPlantUml_Sequence_ThickArrowsAndLargeLabels_LabelsClearTheArrows
 
       - id: CanvasNetPlantUml-Activity
         title: >-

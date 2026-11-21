@@ -202,6 +202,12 @@ text, the boxes of the participant heads and tails, the life lines, and the mess
 that every fixture has a golden; renders every fixture in strict mode with no report at its measured size; and asserts
 the title, node, edge, and subgraph counts of the page fixture.
 
+**Tests**: `PlantUmlSequenceIntegrationTests.CanvasNetPlantUml_Sequence_ThickArrowsAndLargeLabels_LabelsClearTheArrows`
+
+Lays out two messages with `sequenceArrowThickness 4` and `arrowFontSize 30`, with the response label above and
+below its arrow, and asserts that no label box comes within 1 pixel of a message line's band or an arrow head's box,
+each grown by half its stroke width.
+
 ### CanvasNetPlantUml-Activity: Activity Diagrams Are Drawn As PlantUML Draws Them
 
 **Tests**: `PlantUmlReferenceLayoutTests.CanvasNetPlantUml_Activity_ReferenceLayout_MatchesPlantUml`,

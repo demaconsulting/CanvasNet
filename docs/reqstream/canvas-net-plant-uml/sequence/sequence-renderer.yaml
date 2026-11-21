@@ -35,12 +35,15 @@ sections:
                 title: >-
                   The SequenceRenderer unit shall draw a message as a solid or dotted line in its color with its heads
                   (filled, open, half, cross, circle) at their ends, a self message as a loop with its head, and the
-                  number and the label of a message.
+                  number and the label of a message. The line and an open head shall have the arrow thickness, and a
+                  filled or half head a 1 pixel outline.
                 justification: |
-                  These are PlantUML's message arrows.
+                  These are PlantUML's message arrows; PlantUML keeps the outline of a filled head thin, so that a thick
+                  arrow's head does not grow over its label.
                 tests:
                   - PlantUmlSequenceRenderer_Messages_DrawHeadsAndBodies
                   - PlantUmlSequenceRenderer_SelfMessage_LoopNumberAndLabel
+                  - PlantUmlSequenceRenderer_ThickArrow_HeadsKeepAThinOutline
 
               - id: CanvasNetPlantUml-Sequence-SequenceRenderer-Notes
                 title: >-

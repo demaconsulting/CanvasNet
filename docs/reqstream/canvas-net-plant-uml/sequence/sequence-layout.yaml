@@ -29,11 +29,15 @@ sections:
                 title: >-
                   The SequenceLayout unit shall align the heads at their bottom, start the first row 8 pixels below the
                   life line start, stack a row per event with PlantUML's heights (a message as tall as its text plus 14
-                  pixels, a self message plus 27), and end the life lines 10 pixels below the last row.
+                  pixels, a self message plus 27), and end the life lines 10 pixels below the last row. For an arrow
+                  thicker than 1 pixel, it shall add half the extra thickness between a message's text and its arrow
+                  (and to the row's height).
                 justification: |
-                  These are the vertical rules of PlantUML's sequence engine.
+                  These are the vertical rules of PlantUML's sequence engine. A thick line drawn at PlantUML's distance
+                  touches its label, so the label keeps half the extra thickness of space.
                 tests:
                   - PlantUmlSequenceLayout_Rows_StackMessagesBelowHeads
+                  - PlantUmlSequenceLayout_ThickArrow_LeavesTheLabelsClearOfTheLine
 
               - id: CanvasNetPlantUml-Sequence-SequenceLayout-Activations
                 title: >-

@@ -39,10 +39,13 @@ Asserts dashed (5, 5) and dotted (1, 4) life line parts and a white activation b
 ##### CanvasNetPlantUml-Sequence-SequenceRenderer-Messages: Arrows And Self Messages
 
 **Tests**: `SequenceRendererTests.PlantUmlSequenceRenderer_Messages_DrawHeadsAndBodies`,
-`SequenceRendererTests.PlantUmlSequenceRenderer_SelfMessage_LoopNumberAndLabel`
+`SequenceRendererTests.PlantUmlSequenceRenderer_SelfMessage_LoopNumberAndLabel`,
+`SequenceRendererTests.PlantUmlSequenceRenderer_ThickArrow_HeadsKeepAThinOutline`
 
 Asserts nine heads for seven arrows (two of them unfilled: the open head and the cross), seven lines with only the
-dotted one dashed; asserts the three lines and one head of a self message, its bold number, and its label.
+dotted one dashed; asserts the three lines and one head of a self message, its bold number, and its label. With
+`sequenceArrowThickness 4`, asserts that the filled and both half heads are filled with a 1 pixel outline, that the
+open head is drawn with width 4, and that every line is 4 wide.
 
 ##### CanvasNetPlantUml-Sequence-SequenceRenderer-Notes: Note Shapes
 

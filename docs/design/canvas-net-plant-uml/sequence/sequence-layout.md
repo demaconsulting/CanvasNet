@@ -56,6 +56,10 @@ requirements in `docs/reqstream/canvas-net-plant-uml/sequence/sequence-layout.ya
   there, and the first row starts 8 pixels lower. A message row is its text height plus 12, with the arrow 4 pixels
   below the text; the arrow meets the right edge of the innermost activation box on the left (the life line plus 5
   per level) and its left edge on the right; the text starts 7 pixels right of the left end (17 when a head is there).
+  For an arrow thicker than 1 pixel (`sequenceArrowThickness`), the text height of a message gains half the extra
+  thickness (`ArrowClearance`), which moves the arrow (and a self message's loop) that much further from a label above
+  it and grows the row; a label below a response arrow (`responseMessageBelowArrow`) moves down by as much. At the
+  default thickness the clearance is 0 and the rows are PlantUML's.
   A self message row is its text plus 25: the loop leaves at the life line plus 5 per level before the arrow, measures
   from the level after it, runs 42 pixels right, 13 down, and back. A note's layout box is its text width plus 31 (a
   hexagon plus 34, a rectangle plus 18) and its text height plus 20 (plus 18): left of a life line it ends there, right
