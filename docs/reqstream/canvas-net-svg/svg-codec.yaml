@@ -606,16 +606,14 @@ sections:
               for text drawn without a feature it uses (rotate, textLength, a vertical
               writing-mode, direction rtl, dominant-baseline,
               alignment-baseline, text-decoration, an unsupported baseline-shift, or a character no
-              font covers), and shall not report svg-filter-unsupported (its features,
-              primitiveUnits="objectBoundingBox" and primitive subregions, are drawn); it shall
-              cover all drawn content, report nothing for content that is not drawn by design, skip
-              the checks when no handler is set, and never change the pixels or fail the render.
+              font covers), and no other code; it shall cover all drawn content, report nothing for content
+              that is not drawn by design, skip the checks when no handler is set, and never change the
+              pixels or fail the render.
             justification: |
               Text that silently disappears or loses its layout is the hardest rendering defect
               for a reader to notice; a report lets a host tell the author, or fail a strict
-              build, while the rest of the document is still drawn. A filter that uses
-              primitiveUnits or a primitive subregion is now drawn as a browser draws it, so
-              reporting it would make a strict build fail for a document that renders correctly.
+              build, while the rest of the document is still drawn. A filter, primitive units and
+              subregions included, is drawn as specified and reports nothing.
             tests:
               - SvgCodec_UnsupportedFeatureHandler_TextPath_ReportsTextNotDrawn
               - SvgCodec_UnsupportedFeatureHandler_RotateTextLengthAndWritingMode_ReportsOneUnsupportedWithEveryFeature

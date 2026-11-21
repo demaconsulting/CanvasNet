@@ -148,8 +148,7 @@ sections:
       - id: CanvasNetViewer-Imaging-SourceLoader-SvgUnsupportedText
         title: >-
           The SourceLoader class shall report each feature the SVG library reports as not drawn or not supported
-          (svg-text-not-drawn, svg-text-unsupported) as an svg note of severity unsupported with
-          that code, for the SVG
+          (svg-text-not-drawn, svg-text-unsupported) as an svg note of severity unsupported with that code, for the SVG
           file it renders and for a nested SVG file it renders for an embedding document, and under
           SourceOptions.Strict shall fail with unsupported-feature.
         justification: |

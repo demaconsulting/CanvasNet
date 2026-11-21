@@ -9,8 +9,7 @@ namespace DemaConsulting.CanvasNet.Svg;
 //
 // Text is the content a reader misses most when it silently disappears, so every way a text (or a part of one) is
 // dropped reports svg-text-not-drawn, and every feature a drawn text uses but the codec ignores reports
-// svg-text-unsupported. (svg-filter-unsupported is no longer reported: filters now draw primitiveUnits and primitive
-// subregions as specified.) Detection never changes what is painted: the painter does exactly what it did before, and the
+// svg-text-unsupported. Detection never changes what is painted: the painter does exactly what it did before, and the
 // collector only records. The collector is created only when a handler is set, and the bounds and position-binding
 // pre-passes never report, so a document is reported once, for what is painted.
 public static partial class SvgCodec
@@ -63,11 +62,7 @@ public static partial class SvgCodec
     private sealed class UnsupportedFeatureCollector(Action<SvgUnsupportedFeature> handler)
     {
         /// <summary>The codes in report order.</summary>
-        private static readonly string[] CodeOrder =
-        [
-            SvgUnsupportedFeature.TextNotDrawnCode,
-            SvgUnsupportedFeature.TextUnsupportedCode
-        ];
+        private static readonly string[] CodeOrder = [SvgUnsupportedFeature.TextNotDrawnCode, SvgUnsupportedFeature.TextUnsupportedCode];
 
         /// <summary>The collected entries per code.</summary>
         private readonly Dictionary<string, Entry> _entries = new(StringComparer.Ordinal);
@@ -85,9 +80,7 @@ public static partial class SvgCodec
         /// <summary>
         ///     Records one feature or reason for an element.
         /// </summary>
-        /// <param name="code">
-        ///     The code: <see cref="SvgUnsupportedFeature.TextNotDrawnCode"/> or <see cref="SvgUnsupportedFeature.TextUnsupportedCode"/>.
-        /// </param>
+        /// <param name="code">The code, <see cref="SvgUnsupportedFeature.TextNotDrawnCode"/> or <see cref="SvgUnsupportedFeature.TextUnsupportedCode"/>.</param>
         /// <param name="feature">The feature or reason, for example <c>"rotate"</c> or <c>"textPath"</c>.</param>
         /// <param name="element">The element the report is about (counted once however often it is recorded).</param>
         public void Add(string code, string feature, XElement element)

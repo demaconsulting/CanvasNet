@@ -37,7 +37,7 @@ examples:
 - Filters: the fe* primitives blend, color matrix, component transfer,
   composite, convolve matrix, lighting, displacement map, drop shadow, flood,
   Gaussian blur, image, merge, morphology, offset, tile, and turbulence;
-  filterUnits, primitiveUnits, and primitive subregions (x, y, width, height).
+  filterUnits, primitiveUnits, and primitive subregions.
 - image elements with a base64 data: URI in a supported raster format (an SVG
   given as a data: URI is not drawn); image-rendering selects smooth or
   pixelated drawing.
@@ -56,7 +56,8 @@ examples:
   through; an embedded chart keeps its own background (white unless it names
   another).
 - text, best effort, with weight and style: an installed family is used; the
-  generic and unknown families use the bundled Liberation fonts.
+  generic families and unknown families use the bundled Liberation Sans, Serif,
+  and Mono.
 - tspan and a in text, as in browsers: a style per run, x, y, dx, and dy lists,
   a new chunk at an absolute x or y, text-anchor per chunk, baseline-shift,
   letter-spacing and word-spacing, and white space collapsed
@@ -65,8 +66,8 @@ examples:
   percent lengths.
 - CSS in a style element (type, class, id, universal, and compound selectors;
   descendant and child combinators; specificity) and inline style.
-- The intrinsic size is the viewBox, else width and height (in user units),
-  else 300x150.
+- The intrinsic size is the viewBox, else width and height (converted from their
+  units to user units), else 300x150.
 
 ## Unsupported
 

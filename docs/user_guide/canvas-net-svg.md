@@ -131,21 +131,24 @@ a mix). A length can be combined with a percentage or a font-relative unit (`cal
 division by zero, a product of two lengths and a sum of a number and a length are invalid, and an
 expression is limited to 1,024 characters and 16 levels of nesting.
 
-A math expression keeps its type, as in CSS (Values 4, "Type Checking"): `calc(2 * 10px)` is a length, while
-`calc(1 + 1)` or `min(1, 2)` is a plain *number*. A number-typed result is accepted wherever SVG 2 allows a number, and
-is then user units exactly like a literal `width="10"`: in `stroke-width`, each `stroke-dasharray` entry and
-`stroke-dashoffset` (SVG 2 Painting: `<length-percentage> | <number>`), and in every length attribute (SVG 2 "Attribute
-syntax" inserts `<number>` into `<length>` and `<length-percentage>` for presentation attributes) - shape, text, `use`,
-`image` and `marker` geometry, text `dx`/`dy`, gradient, pattern and mask coordinates, the root `width`/`height` and the
-`font-size` attribute - so `width="calc(1 + 1)"` is 2 user units. A mixed expression (`calc(1 + 1px)`, `calc(10% + 1)`)
-is always invalid. The one exception is a `font-size` declared in CSS (a `style` attribute, a `style` element rule, or
-the `font` shorthand or attribute), whose grammar has no number: a number-typed result there is ignored and the
-inherited size stays. `line-height` keeps treating a number-typed result as a multiplier like a bare number
-(`line-height: calc(1 + 1)` is twice each element's own font size). A negative math `line-height` (`calc(10px - 20px)`,
-`calc(1 - 2)`) is clamped to 0, as CSS and the browsers do, while a negative literal (`-5px`, `-2`) is invalid and
-dropped. In the `font` shorthand a negative literal line height makes the whole declaration invalid, so
-`font: 10px/-5px serif` is ignored and its size and family do not apply either. This follows the specification text;
-browser behavior for a number-typed math function in an SVG attribute has not been verified.
+A math expression keeps its type, as in CSS (Values 4, "Type Checking"): `calc(2 * 10px)` is a
+length, while `calc(1 + 1)` or `min(1, 2)` is a plain *number*. A number-typed result is accepted
+wherever SVG 2 allows a number, and is then user units exactly like a literal `width="10"`: in
+`stroke-width`, each `stroke-dasharray` entry and `stroke-dashoffset` (SVG 2 Painting:
+`<length-percentage> | <number>`), and in every length attribute (SVG 2 "Attribute syntax"
+inserts `<number>` into `<length>` and `<length-percentage>` for presentation attributes) - shape,
+text, `use`, `image` and `marker` geometry, text `dx`/`dy`, gradient, pattern and mask coordinates,
+the root `width`/`height` and the `font-size` attribute - so `width="calc(1 + 1)"` is 2 user units.
+A mixed expression (`calc(1 + 1px)`, `calc(10% + 1)`) is always invalid. The one exception is a
+`font-size` declared in CSS (a `style` attribute, a `style` element rule, or the `font` shorthand or
+attribute), whose grammar has no number: a number-typed result there is ignored and the inherited
+size stays. `line-height` keeps treating a number-typed result as a multiplier like a bare number
+(`line-height: calc(1 + 1)` is twice each element's own font size). A negative math `line-height`
+(`calc(10px - 20px)`, `calc(1 - 2)`) is clamped to 0, as CSS and the browsers do, while a negative literal (`-5px`,
+`-2`) is invalid and dropped. In the `font` shorthand a negative literal line height makes the whole declaration
+invalid, so `font: 10px/-5px serif` is ignored and its size and family do not apply either. This follows the
+specification
+text; browser behavior for a number-typed math function in an SVG attribute has not been verified.
 
 **Percentages in gradient, pattern and mask coordinates.** A plain percentage and a percentage
 inside `calc()` always agree. Under the default
@@ -544,9 +547,6 @@ set. Content drawn through `use`, `marker`, `pattern`, `mask`, and `clipPath` re
   `textLength`, a vertical `writing-mode`, `direction: rtl`, `dominant-baseline`,
   `alignment-baseline`, `text-decoration`, an unsupported `baseline-shift`, and a character that no font has a glyph
   for (drawn as the missing-glyph box, named by its code point).
-- `svg-filter-unsupported` (`SvgUnsupportedFeature.FilterUnsupportedCode`): no longer reported. Filters draw
-  `primitiveUnits="objectBoundingBox"` and primitive subregions (`x`, `y`, `width` and `height` on an `fe*`
-  primitive) as specified; the constant is kept so code that names it still compiles.
 
 ```csharp
 var unsupported = new List<SvgUnsupportedFeature>();
@@ -569,9 +569,9 @@ public sealed class SvgImageSource : IImageSource   // Name "svg"; Extensions ["
 resolves the file's own `image` elements through the resolver of the request, so relative links inside the
 nested file resolve against its own folder and the limits of the whole render apply: SVG files that embed each
 other stop with a warning instead of recursing without end. A position binding of the nested file that is not resolved
-is a warning of the result with its `svg-binding-*` code, and text the nested file cannot draw as written is
-an `Unsupported` note with its `svg-text-*` code; with `ThrowOnUnsupportedFeature` set on
-the request, such a feature throws `UnsupportedImageFeatureException` instead.
+is a warning of the result with its `svg-binding-*` code, and text the nested file cannot draw is an `Unsupported` note
+with its `svg-text-*` code; with `ThrowOnUnsupportedFeature` set on the request, such text throws
+`UnsupportedImageFeatureException` instead.
 
 ##### SvgCodec Default Fonts
 
