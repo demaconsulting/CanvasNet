@@ -96,39 +96,18 @@ sections:
                   The SvekLayout unit shall route every link from its first end to its second, ending on the outline
                   that the entity's image gives, loop a link from an element to itself at its right, keep parallel
                   links apart, and place the label of a link beside its route with the direction of its triangle and
-                  its end labels near their ends, off the entities, the decorations of the other links, and the labels
-                  placed before them. A route that arrives at a rectangle across the ranks shall end on the side that
-                  faces the ranks, 10 pixels from its corners, or a quarter of the side when that is less, the ends of
-                  different links on one such side shall be at least 12 pixels apart, or spread evenly over the side
-                  when it is too short for that, and a link without a label between neighboring ranks shall be drawn
-                  straight between the facing sides of its ends when that line crosses no other element, keeps 10
-                  pixels from the label slots of the other links, and no other link joins the same two ends. The label
-                  of a link shall keep at least 4 pixels from every line drawn in its scope (the curves and decorations
-                  of its own link and of the other links) and overlap no unit and no label placed before it, moved by
-                  at most 32 pixels; with no such position within 32 pixels it shall take the position away from its
-                  link, off the units and the labels, that keeps the most room to the lines, and stay where it was
-                  placed when there is none.
+                  its end labels near their ends, off the entities. The label of a link shall keep at least 4 pixels
+                  from the drawn curve and the decorations of its link and overlap no unit, moved away from them by at
+                  most 32 pixels, and shall stay where it was placed when no such position is within 32 pixels.
                 justification: |
-                  Links must touch the shapes they connect and their labels must be readable. Graphviz ends PlantUML's
-                  links on the side they cross; a link that ends at a corner, with its multiplicity far from its head,
-                  does not show which box it reaches. Two links between the same two elements drawn on one line read as
-                  one link. Two heads drawn on one point, or a multiplicity drawn on another link's head, hide which
-                  link they belong to. A label on or touching its line cannot be read; PlantUML leaves about 4 pixels.
-                  A label crossed by another link's line reads as that link's label, and two multiplicities drawn
-                  together read as one (1 and 2 as 12).
+                  Links must touch the shapes they connect and their labels must be readable. A label on or touching
+                  its line cannot be read; PlantUML leaves about 4 pixels.
                 tests:
                   - PlantUmlSvekLayout_Run_SelfAndParallelLinks_AreRouted
                   - PlantUmlSvekLayout_Run_ClipOutlines_RoutesEndOnThem
                   - PlantUmlSvekLayout_Run_Labels_PlacedBesideTheRoute
-                  - PlantUmlSvekLayout_Run_LinksFromBelow_EndOnTheSidesNotTheCorners
                   - PlantUmlSvekLayout_Run_LabelOfLinkIntoARow_ClearOfTheDrawnCurve
-                  - PlantUmlSvekLayout_Run_UnlabeledLinksBetweenTheSameTwoNodes_AreKeptApart
                   - PlantUmlSvekLayout_Run_LabelWithNoClearPlace_StaysWhereItWasPlaced
-                  - PlantUmlSvekLayout_Run_LinksCrowdingOneSide_EndApartWithTheMultiplicityClear
-                  - PlantUmlSvekLayout_Run_EndLabelBetweenTwoHeads_OverlapsNoHead
-                  - PlantUmlSvekLayout_Run_LeftToRightLinksBothWays_EndApartOnOneSide
-                  - PlantUmlSvekLayout_Run_FanOutWithOneLabel_LabelClearOfEveryLine
-                  - PlantUmlSvekLayout_Run_EndLabelsAtOneNode_OverlapNoOtherLabelOrHead
 
               - id: CanvasNetPlantUml-Svek-SvekLayout-Limits
                 title: >-

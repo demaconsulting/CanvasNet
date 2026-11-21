@@ -45,15 +45,12 @@ to the last, the middle step at the middle of the quadratic curve), and an `Argu
 `SvekGeometryTests.PlantUmlSvekGeometry_Contains_EveryShape`,
 `SvekGeometryTests.PlantUmlSvekGeometry_CutAtBox_BothEnds`,
 `SvekGeometryTests.PlantUmlSvekGeometry_Shorten_MovesEndsAlongTheirLegs`,
-`SvekGeometryTests.PlantUmlSvekGeometry_ArrivalAngle_BothEnds`,
-`SvekGeometryTests.PlantUmlSvekGeometry_ClipToFacingSide_EndsOnTheFacingSide`
+`SvekGeometryTests.PlantUmlSvekGeometry_ArrivalAngle_BothEnds`
 
 Asserts where directions from the center leave a rectangle, an ellipse, a circle, and a diamond; asserts points inside
 and outside each outline; asserts a route cut where it enters a box at either end and kept when it never enters it;
 asserts the ends moved back along their legs and never past the next point; asserts the arrival direction at each end,
-skipping legs without length. Asserts the end on the facing side of a rectangle for points below, above, right, and
-left of it: in line with the point, or 10 pixels from the corner (a quarter of a short side when that is less); and
-none for a point beside the box along the ranks, an ellipse, or a diamond.
+skipping legs without length.
 
 ##### CanvasNetPlantUml-Svek-SvekGeometry-Extremities: Link Decorations
 

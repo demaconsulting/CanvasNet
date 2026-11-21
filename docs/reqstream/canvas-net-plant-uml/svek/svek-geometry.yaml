@@ -34,20 +34,17 @@ sections:
                 title: >-
                   The SvekGeometry unit shall find where a direction from the center of a rectangle, an ellipse, a
                   circle, or a diamond leaves it, decide whether a point is inside such an outline, cut a route where it
-                  enters a box, move the ends of a route back along its end legs, give the direction in which a
-                  route arrives at each end, and find the end on the side of a rectangle that faces a point beyond it
-                  across the ranks, in line with the point and 10 pixels from the corners, or a quarter of the side when
-                  that is less.
+                  enters a box, move the ends of a route back along its end legs, and give the direction in which a
+                  route arrives at each end.
                 justification: |
                   Links end on the shapes of their entities and on the borders of clusters, and the decorations follow
-                  the direction of the link; a link from another rank ends on the side it crosses, not at a corner.
+                  the direction of the link.
                 tests:
                   - PlantUmlSvekGeometry_Clip_EveryShape_EndsOnTheOutline
                   - PlantUmlSvekGeometry_Contains_EveryShape
                   - PlantUmlSvekGeometry_CutAtBox_BothEnds
                   - PlantUmlSvekGeometry_Shorten_MovesEndsAlongTheirLegs
                   - PlantUmlSvekGeometry_ArrivalAngle_BothEnds
-                  - PlantUmlSvekGeometry_ClipToFacingSide_EndsOnTheFacingSide
 
               - id: CanvasNetPlantUml-Svek-SvekGeometry-Extremities
                 title: >-

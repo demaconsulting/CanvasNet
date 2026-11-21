@@ -189,12 +189,6 @@ internal sealed partial class SvekLayout
     public const double LabelClearance = 4;
 
     /// <summary>
-    ///     The least distance between the ends of two links on one side of a box that faces the ranks: the width of the
-    ///     widest decoration (the extension triangle and the circles are 12 pixels across).
-    /// </summary>
-    public const double EndSpacing = 12;
-
-    /// <summary>
     ///     The space a label between two neighbors of a row leaves to them, together (PlantUML leaves about 10 pixels
     ///     on each side).
     /// </summary>

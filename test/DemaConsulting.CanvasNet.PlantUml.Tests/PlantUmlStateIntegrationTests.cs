@@ -223,63 +223,6 @@ public class PlantUmlStateIntegrationTests
     }
 
     /// <summary>
-    ///     Validates that transitions between the same two states (two one way and one back) are drawn apart: halfway
-    ///     between the states the three lines are at least 4 pixels apart.
-    /// </summary>
-    [Fact]
-    public void CanvasNetPlantUml_State_TransitionsBetweenTheSameStates_AreDrawnApart()
-    {
-        // Arrange
-        var document = PlantUmlDocument.Parse("@startuml\n[*] --> Idle\nIdle --> Busy\nBusy --> Idle\nIdle --> Busy\n@enduml\n");
-
-        // Act
-        var scene = document.LayoutScene(cancellationToken: TestContext.Current.CancellationToken);
-
-        // Assert
-        var states = scene.Items.OfType<ScenePath>().Where(p => p.Role == "state").ToDictionary(p => p.Id!, p => Scene.BoundsOf([p])!.Value);
-        var (idle, busy) = (states["Idle"], states["Busy"]);
-        var (top, bottom) = idle.Y < busy.Y ? (idle.Bottom, busy.Y) : (busy.Bottom, idle.Y);
-        var half = (top + bottom) / 2;
-        var lines = scene.Items.OfType<ScenePath>().Where(p => p.Role == "link").Select(PointsAlong)
-            .Where(points => points.Any(p => p.Y > top + 1 && p.Y < bottom - 1)).ToList();
-        Assert.Equal(3, lines.Count);
-        var across = lines.Select(points => points.MinBy(p => Math.Abs(p.Y - half)).X).ToList();
-        for (var i = 0; i < across.Count; i++)
-        {
-            for (var j = i + 1; j < across.Count; j++)
-            {
-                Assert.True(Math.Abs(across[i] - across[j]) >= 4, $"lines {i} and {j} are at {across[i]} and {across[j]}");
-            }
-        }
-    }
-
-    /// <summary>
-    ///     Validates that the label of one transition of a fan-out (Hub to A, B, C with the label "uses", and D) keeps
-    ///     clear of every drawn line: at least 3 pixels from the lines and arrowheads of all four transitions, so that no
-    ///     neighboring transition is drawn through it.
-    /// </summary>
-    [Fact]
-    public void CanvasNetPlantUml_State_FanOutLabel_ClearOfEveryTransition()
-    {
-        // Arrange
-        var document = PlantUmlDocument.Parse("@startuml\nstate Hub\nHub --> A\nHub --> B\nHub --> C : uses\nHub --> D\n@enduml\n");
-
-        // Act
-        var scene = document.LayoutScene(cancellationToken: TestContext.Current.CancellationToken);
-
-        // Assert
-        var label = scene.Items.OfType<SceneText>().Single(t => t.Role == "link-label");
-        Assert.Equal("uses", label.Text);
-        var links = scene.Items.OfType<ScenePath>().Where(p => p.Role is "link" or "link-head").ToList();
-        Assert.Equal(4, links.Select(p => p.Id).Distinct().Count());
-        foreach (var link in links)
-        {
-            var nearest = PointsAlong(link).Min(p => DistanceTo(label.Box, p));
-            Assert.True(nearest >= 3, $"'uses' is {nearest} from the {link.Role} of {link.Id}");
-        }
-    }
-
-    /// <summary>
     ///     Gets points along a path: its ends and 64 points along each of its lines and cubic curves.
     /// </summary>
     /// <param name="path">The path.</param>

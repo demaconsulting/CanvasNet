@@ -246,20 +246,6 @@ labels; asserts that every fixture has a golden; renders every fixture in strict
 size; asserts the title, node, edge, and subgraph counts of class and object diagrams; and asserts that an object
 diagram draws its objects without spots and its map as a table.
 
-**Tests**: `PlantUmlClassIntegrationTests.CanvasNetPlantUml_Class_ArrowEnds_LandOnTheBoxSidesNotTheCorners`,
-`PlantUmlClassIntegrationTests.CanvasNetPlantUml_Class_ArrowEndsOnOneSide_KeepApart`,
-`PlantUmlClassIntegrationTests.CanvasNetPlantUml_Class_MultiplicitiesAtOneClass_DoNotRunTogether`
-
-Lays out a class above three classes spread wider than it, linked by an association with the multiplicity 1 and two
-extensions, and asserts that every arrowhead tip lies on the bottom side of the upper class at least 5 pixels from its
-corners, that every line ends on the top side of a lower class at least 5 pixels from its corners, and that the
-multiplicity is within 12 pixels of its arrowhead tip. Lays out a class above four classes, linked by an association
-with the multiplicity 1 and three extensions, and asserts that the four arrowhead tips lie on the bottom side of the
-upper class at least 5 pixels from its corners and at least 10 pixels apart, and that the multiplicity is within 12
-pixels of its own tip and overlaps no other arrowhead. Lays out a class linked to four classes by a composition, an
-aggregation, an association with a label, and an extension, with multiplicities at both ends, and asserts that no two
-multiplicities overlap and that none overlaps the label or an arrowhead of another link.
-
 ### CanvasNetPlantUml-State: State Diagrams Are Drawn With PlantUML's Shapes
 
 **Tests**: `PlantUmlReferenceShapeTests.CanvasNetPlantUml_Graph_ReferenceGoldens_CoverEveryFixture`,
@@ -289,16 +275,6 @@ the composite, concurrent, notes, and page fixtures; and asserts that the separa
 Lays out a state diagram with a labeled transition into a state beside another, a labeled transition between two
 states of a row, and a labeled transition between two states of a composite state, and asserts that every transition
 label is at least 3 pixels from every drawn transition line and arrowhead and at least 8 pixels from every state.
-
-**Tests**: `PlantUmlStateIntegrationTests.CanvasNetPlantUml_State_TransitionsBetweenTheSameStates_AreDrawnApart`
-
-Lays out a state diagram with two transitions from one state to another and one back, and asserts that halfway
-between the two states the three transition lines are at least 4 pixels apart.
-
-**Tests**: `PlantUmlStateIntegrationTests.CanvasNetPlantUml_State_FanOutLabel_ClearOfEveryTransition`
-
-Lays out a state with transitions to four states, the third labeled, and asserts that the label is at least 3 pixels
-from every drawn transition line and arrowhead.
 
 ### CanvasNetPlantUml-Component: Component Diagrams Are Drawn With PlantUML's Shapes
 

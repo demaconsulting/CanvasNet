@@ -22,9 +22,6 @@ namespace DemaConsulting.CanvasNet.PlantUml.Svek;
 /// </remarks>
 internal static partial class SvekGeometry
 {
-    /// <summary>The distance an end on the facing side of a rectangle keeps from its corners: 10 pixels, or a quarter of the side when that is less.</summary>
-    public const double EndInset = 10;
-
     /// <summary>The degree of the spline.</summary>
     private const int Degree = 3;
 
@@ -147,48 +144,6 @@ internal static partial class SvekGeometry
         }
 
         return new SvekPoint(cx + (t * dx), cy + (t * dy));
-    }
-
-    /// <summary>
-    ///     Finds where a route that arrives across the ranks ends on the side of a rectangle that faces the point it
-    ///     comes from: on the bottom or top side (left or right in a left to right diagram), in line with that point and
-    ///     kept <see cref="EndInset"/> from the corners, as Graphviz ends an edge on the side it crosses.
-    /// </summary>
-    /// <remarks>
-    ///     The ray from the center toward a point that lies far to the side leaves a rectangle through a corner or its
-    ///     side, so that a link from a lower rank would end at a corner of the box; this end stays on the side that faces
-    ///     the ranks. An ellipse and a diamond have no corner a route should avoid, so they keep <see cref="Clip"/>.
-    /// </remarks>
-    /// <param name="shape">The kind of outline.</param>
-    /// <param name="box">The box of the outline.</param>
-    /// <param name="outside">The neighboring point of the route.</param>
-    /// <param name="leftToRight">Whether the ranks run from left to right (else from top to bottom).</param>
-    /// <returns>The end on the facing side, or null when the outline is not a rectangle or the point is not beyond one of the sides that face the ranks.</returns>
-    public static SvekPoint? ClipToFacingSide(ClipShape shape, SceneRect box, SvekPoint outside, bool leftToRight)
-    {
-        if (shape != ClipShape.Rectangle || box.Width <= 0 || box.Height <= 0)
-        {
-            return null;
-        }
-
-        if (leftToRight)
-        {
-            if (outside.X > box.X && outside.X < box.Right)
-            {
-                return null;
-            }
-
-            var inset = Math.Min(EndInset, box.Height / 4);
-            return new SvekPoint(outside.X <= box.X ? box.X : box.Right, Math.Clamp(outside.Y, box.Y + inset, box.Bottom - inset));
-        }
-
-        if (outside.Y > box.Y && outside.Y < box.Bottom)
-        {
-            return null;
-        }
-
-        var across = Math.Min(EndInset, box.Width / 4);
-        return new SvekPoint(Math.Clamp(outside.X, box.X + across, box.Right - across), outside.Y <= box.Y ? box.Y : box.Bottom);
     }
 
     /// <summary>
