@@ -693,8 +693,8 @@ group requiring the `Extensibility` feature draws the next child only, not the o
 `SvgCodec_UnsupportedFeatureHandler_SeveralElements_ReportsOnceWithTheCount`,
 `SvgCodec_UnsupportedFeatureHandler_PlainAndStyledText_ReportsNothing`,
 `SvgCodec_UnsupportedFeatureHandler_DoesNotChangeThePixels`, `SvgCodec_UnsupportedFeatureHandler_DefaultIsNull`,
-`SvgCodec_UnsupportedFeatureHandler_FilterPrimitiveUnitsObjectBoundingBox_ReportsFilterUnsupported`,
-`SvgCodec_UnsupportedFeatureHandler_FilterPrimitiveSubregion_ReportsFilterUnsupported`
+`SvgCodec_UnsupportedFeatureHandler_FilterPrimitiveUnitsObjectBoundingBox_ReportsNothing`,
+`SvgCodec_UnsupportedFeatureHandler_FilterPrimitiveSubregion_ReportsNothing`
 
 Asserts that a `textPath` is one `svg-text-not-drawn` report naming `textPath` and the text; that `rotate`,
 `textLength`, a vertical `writing-mode`, `dominant-baseline`, `text-decoration`, an unknown `baseline-shift` and
@@ -708,10 +708,9 @@ not-drawn one first, with the count (a text drawn twice through `use` counts onc
 plain and styled text, letter and word spacing, an `x` list, a `switch` fallback, `title`, `defs` content and
 white-space-only text report
 nothing; that a render with a handler draws the same pixels as one without; and that the handler is `null` by default.
-A filter in `primitiveUnits="objectBoundingBox"` applied by two rects is one `svg-filter-unsupported` report with a
-count of 1, starting "filter is drawn without: primitiveUnits="objectBoundingBox"" and naming `<filter id="f">`, with
-the same pixels as a render without a handler; a filter with a primitive subregion is one such report naming the
-primitive subregion, while a `filterUnits="userSpaceOnUse"` filter without either reports nothing.
+A filter in `primitiveUnits="objectBoundingBox"` applied by two rects, which is now drawn as specified, reports
+nothing, with the same pixels as a render without a handler; a filter with a primitive subregion and a
+`filterUnits="userSpaceOnUse"` filter without either report nothing too.
 
 #### CanvasNetSvg-SvgCodec-ImageSourceUnsupportedNotes: Unsupported Notes Of A Linked SVG File
 
@@ -1346,82 +1345,81 @@ for `filter`'s own dedicated coverage - it is no longer an out-of-scope construc
 `SvgCodec_Load_FilterRegionOnStrokedShape_UsesGeometryBoundsNotStroke`,
 `SvgCodec_Load_ObjectBoundingBoxEffectsOnHorizontalLine_PaintNothing`,
 `SvgCodec_Load_OpacityWithFeFloodFilter_AppliesOpacityToFilteredResultNotSource`,
+`SvgCodec_Load_FePrimitiveSubregionUserSpace_ReadsUserLengths`,
+`SvgCodec_Load_FePrimitiveSubregionOmittedAttributes_DefaultToTheInputUnion`,
+`SvgCodec_Load_FilterPrimitiveUnitsObjectBoundingBox_ScalesOffsetByTheBox`,
+`SvgCodec_Load_FilterPrimitiveUnitsObjectBoundingBox_ReadsSubregionFractions`,
+`SvgCodec_Load_FilterPrimitiveUnitsObjectBoundingBox_BlurScalesPerAxis`,
 `SvgCodec_Load_FeCompositeOperatorArithmetic_MatchesHandComputedFormula`,
 `SvgCodec_Load_FeCompositeOperatorArithmeticAlpha_MatchesFormulaNotHardcodedOrDropped`,
 `SvgCodec_Load_FeCompositeOperatorArithmeticOutOfRangeResult_ClampsToValidByteRange`,
 `SvgCodec_Load_FeCompositeArithmeticWithDiffuseLighting_TracksSourceAlphaSilhouette`
 
-Asserts a bare `feFlood` primitive's flood color entirely replaces the referencing element's own
-content, filling the (default, bounding-box-relative) filter region including the area behind the
-element's own shape, since a lone `feFlood` never references `SourceGraphic`; asserts `feMerge`
-layers a `feFlood` result behind a `SourceGraphic` layer in document order, so the flood is visible
-outside the element's own bounds while the element's own fill remains visible on top at its own
-location; asserts a conventional `feFlood` → `feComposite(operator="out")` → `feGaussianBlur` →
-`feMerge` halo/glow recipe produces a genuinely softened (partially transparent, not hard-edged)
-flood color just outside the element's own edge - proving the blur actually ran - while the
-element's own fill remains fully opaque and unaffected at its center; asserts a genuinely
-unrecognized filter primitive name (`feBogusPrimitive`) is treated as a no-op passthrough of its own
-input rather than throwing or blanking the element's content; asserts the filter region's default
-computation expands the referencing element's own bounding box by exactly -10%/-10%/120%/120%,
-verified at pixels just inside and just outside each computed edge; asserts an explicit `filter`
-`x`/`y`/`width`/`height` overrides the default region computation; asserts
-`filterUnits="userSpaceOnUse"` reads the region as absolute user-space coordinates (a 0,0 30x30 region floods
-only that corner, not the rect at 40,40), resolves a percentage against the viewport (10%/10%/20%/20% of 200x100 is
-20,10 40x20) and an omitted attribute as its initial value of the viewport (the whole canvas), and applies on a
-stroked horizontal `line` because the region does not need the object bounding box - each matching Edge headless;
-asserts the region on a stroked `rect` is laid out on its fill geometry box, so the
-stroke outside that box is not flooded, and that a filter on a stroked horizontal `line` (an object
-bounding box with no height) draws nothing, as in Edge; and asserts `feOffset` shifts its input by
-`dx`/`dy` prior to compositing back onto the canvas. Two real fixture files corroborate this end to end:
-`SvgFixtures/label-halo.svg` mirrors the reported real-world bug (a `filter="url(#label-bg)"`
-white halo behind a line's own midpoint label, previously invisible while `filter` was ignored),
-and the large, real, third-party `SvgFixtures/InkscapeFilters.svg` (see
-`CanvasNetSvg-SvgCodec-UnsupportedConstructsIgnored`'s predecessor coverage of this same
-fixture) proves this genuinely-evaluated filter-chain support, including its own
-`feSpecularLighting`/`feDiffuseLighting`/arithmetic-mode `feComposite` chains (all fully
-implemented and separately covered by their own dedicated requirements below), holds at real-world
-scale and complexity, not only for small synthetic documents. `feComposite`'s `in`, `atop`, and `xor`
-Porter-Duff operators (`over`/`out` were already covered above) are each additionally verified
-deterministically and synthetically, against two full-region, semi-transparent `feFlood` inputs
-that isolate the operator's own per-pixel formula from any shape-geometry/filter-region overlap
-concern: `in` keeps the "in" input's own color weighted by the "in2" input's own alpha; `atop`
-blends both inputs' own colors weighted by (`in2`'s alpha, `1 - in`'s alpha); and `xor` keeps each
-input only where the other has no coverage - each asserting the exact expected pixel value the
-documented formula produces. `feOffset`'s own `dx`/`dy`-to-pixel conversion and
-`feComposite`'s own per-channel output are each additionally verified to round
-away-from-zero (matching `Surface.CompositeOverSpanCore`'s established convention), not the
-`MathF.Round` default of banker's/round-to-even rounding: a `dx` that scales to exactly 0.5
-pixels rounds up to a full 1-pixel shift, and an `xor` composite chosen to produce a computed
-channel value of exactly 126.5 rounds up to 127, not down to 126. Asserts a `rect` with
-`opacity="0.5"` and a filter whose entire chain is a single,
-fully-opaque `feFlood` renders the flood at approximately 50% alpha, not fully opaque - a
-regression test for a defect where `opacity` was applied while painting the pre-filter
-`SourceGraphic` (so the filter chain, and the final compositing step, both then operated on
-already-attenuated content with no further opacity ever applied) instead of being applied exactly
-once, afterward, to the filter's own final output, per SVG's "opacity applies to the filtered
-result as a whole" semantics. `feComposite`'s `arithmetic` operator - the one Porter-Duff-family
-operator defined by the spec to operate on premultiplied color values rather than straight ones -
-is verified against its own `k1*i1*i2 + k2*i1 + k3*i2 + k4` formula (applied identically to color
-and alpha), computed by hand: a plain color-formula test with non-trivial `k1`/`k2`/`k3` values and
-fully-opaque inputs; a second test isolating the alpha channel specifically (using only `k1` and
-`k3`, both non-zero, against two different flood opacities) to prove alpha is computed via the same
-formula rather than being hardcoded to `1` or silently dropped; and a third test verifying results
-outside `[0,1]` are clamped rather than wrapping or throwing. A fourth, regression test reproduces
-the exact structural pattern of `InkscapeFilters.svg`'s `filter50` (`feGaussianBlur` →
-`feDiffuseLighting` - whose output alpha is always fully opaque per spec, regardless of its input's
-own alpha - → `feComposite operator="arithmetic"` combining the always-opaque lighting result with
-itself, then again with `SourceGraphic`) against a simple circle: prior to this operator being
-implemented, the previously-unimplemented `arithmetic` case fell through to a no-op passthrough of
-its first input, so the always-opaque `feDiffuseLighting` alpha propagated unchanged through the
-entire chain, producing an opaque rectangular blob covering the whole filter region regardless of
-the source shape's own silhouette; with `arithmetic` correctly implemented, the final composite's
-alpha algebraically reduces (for `filter50`'s own `k1`/`k3` values) to `min(2 * sourceAlpha, 1)`,
-so the test asserts a point outside the circle's geometry (but inside the oversized filter region)
-renders fully transparent, while a point well inside the circle renders fully opaque - proving the
-fix restores the source shape's own silhouette rather than a filter-region-shaped blob. This same
-fix is additionally corroborated end to end by `SvgCodec_Load_InkscapeFiltersFixture_...`'s own
-hand-recomputed pixel expectations, since `InkscapeFilters.svg`'s `filter48` also relies on this
-operator.
+Asserts a bare `feFlood` primitive's flood color entirely replaces the referencing element's own content, filling the
+(default, bounding-box-relative) filter region including the area behind the element's own shape, since a lone `feFlood`
+never references `SourceGraphic`; asserts `feMerge` layers a `feFlood` result behind a `SourceGraphic` layer in document
+order, so the flood is visible outside the element's own bounds while the element's own fill remains visible on top at
+its own location; asserts a conventional `feFlood` → `feComposite(operator="out")` → `feGaussianBlur` → `feMerge`
+halo/glow recipe produces a genuinely softened (partially transparent, not hard-edged) flood color just outside the
+element's own edge - proving the blur actually ran - while the element's own fill remains fully opaque and unaffected at
+its center; asserts a genuinely unrecognized filter primitive name (`feBogusPrimitive`) is treated as a no-op
+passthrough of its own input rather than throwing or blanking the element's content; asserts the filter region's default
+computation expands the referencing element's own bounding box by exactly -10%/-10%/120%/120%, verified at pixels just
+inside and just outside each computed edge; asserts an explicit `filter` `x`/`y`/`width`/`height` overrides the default
+region computation; asserts `filterUnits="userSpaceOnUse"` reads the region as absolute user-space coordinates (a 0,0
+30x30 region floods only that corner, not the rect at 40,40), resolves a percentage against the viewport
+(10%/10%/20%/20% of 200x100 is 20,10 40x20) and an omitted attribute as its initial value of the viewport (the whole
+canvas), and applies on a stroked horizontal `line` because the region does not need the object bounding box - each
+matching Edge headless; asserts the region on a stroked `rect` is laid out on its fill geometry box, so the stroke
+outside that box is not flooded, and that a filter on a stroked horizontal `line` (an object bounding box with no
+height) draws nothing, as in Edge; and asserts `feOffset` shifts its input by `dx`/`dy` prior to compositing back onto
+the canvas. Primitive units and subregions: under the default `primitiveUnits="userSpaceOnUse"` a flood subregion
+`x="5" width="5"` (or `50%` of the viewport) on a 10-unit user space drawn at 20 pixels floods pixel columns 10 to 19;
+an `feOffset` with no subregion of a flood confined to x 2 to 8 is clipped to that span (the shifted flood shows from 6
+to 8), and with `width="8"` alone its x still defaults to 2; under `primitiveUnits="objectBoundingBox"` an `feOffset`
+`dx="0.5"` shifts a 10-unit box by 5 units, a flood subregion `x="0.5" width="0.5"` (or `50%`) floods the right half of
+a 20x10 box, and `stdDeviation="0.1"` on a 40x10 box blurs 4 units across but 1 unit down (the blur shows 6 units beside
+the box and not 6 units above it). Every expected pixel of these tests was checked against an Edge headless render of
+the same document. Two real fixture files corroborate this end to end: `SvgFixtures/label-halo.svg` mirrors the reported
+real-world bug (a `filter="url(#label-bg)"` white halo behind a line's own midpoint label, previously invisible while
+`filter` was ignored), and the large, real, third-party `SvgFixtures/InkscapeFilters.svg` (see
+`CanvasNetSvg-SvgCodec-UnsupportedConstructsIgnored`'s predecessor coverage of this same fixture) proves this
+genuinely-evaluated filter-chain support, including its own `feSpecularLighting`/`feDiffuseLighting`/arithmetic-mode
+`feComposite` chains (all fully implemented and separately covered by their own dedicated requirements below), holds at
+real-world scale and complexity, not only for small synthetic documents. `feComposite`'s `in`, `atop`, and `xor`
+Porter-Duff operators (`over`/`out` were already covered above) are each additionally verified deterministically and
+synthetically, against two full-region, semi-transparent `feFlood` inputs that isolate the operator's own per-pixel
+formula from any shape-geometry/filter-region overlap concern: `in` keeps the "in" input's own color weighted by the
+"in2" input's own alpha; `atop` blends both inputs' own colors weighted by (`in2`'s alpha, `1 - in`'s alpha); and `xor`
+keeps each input only where the other has no coverage - each asserting the exact expected pixel value the documented
+formula produces. `feOffset`'s own `dx`/`dy`-to-pixel conversion and `feComposite`'s own per-channel output are each
+additionally verified to round away-from-zero (matching `Surface.CompositeOverSpanCore`'s established convention), not
+the `MathF.Round` default of banker's/round-to-even rounding: a `dx` that scales to exactly 0.5 pixels rounds up to a
+full 1-pixel shift, and an `xor` composite chosen to produce a computed channel value of exactly 126.5 rounds up to 127,
+not down to 126. Asserts a `rect` with `opacity="0.5"` and a filter whose entire chain is a single, fully-opaque
+`feFlood` renders the flood at approximately 50% alpha, not fully opaque - a regression test for a defect where
+`opacity` was applied while painting the pre-filter `SourceGraphic` (so the filter chain, and the final compositing
+step, both then operated on already-attenuated content with no further opacity ever applied) instead of being applied
+exactly once, afterward, to the filter's own final output, per SVG's "opacity applies to the filtered result as a whole"
+semantics. `feComposite`'s `arithmetic` operator - the one Porter-Duff-family operator defined by the spec to operate on
+premultiplied color values rather than straight ones - is verified against its own `k1*i1*i2 + k2*i1 + k3*i2 + k4`
+formula (applied identically to color and alpha), computed by hand: a plain color-formula test with non-trivial
+`k1`/`k2`/`k3` values and fully-opaque inputs; a second test isolating the alpha channel specifically (using only `k1`
+and `k3`, both non-zero, against two different flood opacities) to prove alpha is computed via the same formula rather
+than being hardcoded to `1` or silently dropped; and a third test verifying results outside `[0,1]` are clamped rather
+than wrapping or throwing. A fourth, regression test reproduces the exact structural pattern of `InkscapeFilters.svg`'s
+`filter50` (`feGaussianBlur` → `feDiffuseLighting` - whose output alpha is always fully opaque per spec, regardless of
+its input's own alpha - → `feComposite operator="arithmetic"` combining the always-opaque lighting result with itself,
+then again with `SourceGraphic`) against a simple circle: prior to this operator being implemented, the
+previously-unimplemented `arithmetic` case fell through to a no-op passthrough of its first input, so the always-opaque
+`feDiffuseLighting` alpha propagated unchanged through the entire chain, producing an opaque rectangular blob covering
+the whole filter region regardless of the source shape's own silhouette; with `arithmetic` correctly implemented, the
+final composite's alpha algebraically reduces (for `filter50`'s own `k1`/`k3` values) to `min(2 * sourceAlpha, 1)`, so
+the test asserts a point outside the circle's geometry (but inside the oversized filter region) renders fully
+transparent, while a point well inside the circle renders fully opaque - proving the fix restores the source shape's own
+silhouette rather than a filter-region-shaped blob. This same fix is additionally corroborated end to end by
+`SvgCodec_Load_InkscapeFiltersFixture_...`'s own hand-recomputed pixel expectations, since `InkscapeFilters.svg`'s
+`filter48` also relies on this operator.
 
 #### CanvasNetSvg-SvgCodec-FilterResourceSafety: Filter Dangling Reference and Resource-Bound Tolerance
 
@@ -1729,11 +1727,11 @@ reduces cleanly to identity when authored to do so.
 `SvgCodec_Load_FePrimitiveWithSubregion_ClipsOutputToDeclaredXYWidthHeight`,
 `SvgCodec_Load_FePrimitiveWithoutSubregion_UnaffectedByNewMechanism`
 
-Asserts a primitive that declares its own `x`/`y`/`width`/`height` is clipped to that subregion
-and that a downstream `feTile` repeats exactly that clipped tile across the broader filter
-region. The companion regressions prove the new subregion mechanism remains opt-in: when no
-primitive subregion is declared, existing whole-region behavior remains unchanged and `feTile`
-degenerates to an identity repeat of the full input.
+Asserts a primitive that declares its own `x`/`y`/`width`/`height` is clipped to that subregion, read in user units
+(a flood at `x="5" width="5"` of a 10-unit box fills its right half, as Edge draws it), and that a downstream `feTile`
+repeats exactly that clipped tile (a 2-unit square) across the broader filter region. The companion regressions prove
+that when no primitive subregion is declared and the inputs are standard inputs, existing whole-region behavior remains
+unchanged and `feTile` degenerates to an identity repeat of the full input.
 
 #### CanvasNetSvg-SvgCodec-FeDropShadow: `feDropShadow` Expansion of Existing Primitives
 
@@ -1752,10 +1750,10 @@ shadow offset behavior rather than leaving the shadow without that shift.
 `SvgCodec_Load_FeImageElementReferenceHrefExceedingMaxUseDepth_TolerantlyRendersEmpty`,
 `SvgCodec_Load_FeImageDanglingElementReference_RendersEmptyWithoutThrowing`
 
-Asserts a raster/data-URI `href` is decoded and sampled into the primitive subregion with the
-expected fitted output; asserts an `href="#id"` reference renders the resolved SVG element into an
-offscreen primitive surface and exposes that result to later primitives; asserts the reused
-`MaxUseDepth` recursion guard tolerantly produces no nested output once reached; and asserts a
+Asserts a raster/data-URI `href` is decoded and sampled into the primitive subregion (`x="5" width="5"` in user units,
+the right half of a 10-unit box, as Edge draws it) with the expected fitted output; asserts an `href="#id"` reference
+renders the resolved SVG element into an offscreen primitive surface and exposes that result to later primitives;
+asserts the reused `MaxUseDepth` recursion guard tolerantly produces no nested output once reached; and asserts a
 reference to a missing id is ignored without throwing.
 
 #### CanvasNetSvg-SvgCodec-FeDiffuseLighting: `feDiffuseLighting` Lambertian Surface Lighting

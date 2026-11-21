@@ -1218,10 +1218,9 @@ draws the model and the chart into their rectangles. The result lists each embed
   `unsupported` report **`svg-text-not-drawn`** (text on a `textPath`, the HTML of a `foreignObject`, a `text` inside a
   nested `svg` or an unknown element, a negative `font-size`), and text drawn without a feature it uses is
   **`svg-text-unsupported`** (`rotate`, `textLength`, vertical writing,
-  right-to-left `direction`, `dominant-baseline`, `text-decoration`, or a character no font has), and a filter
-  drawn without a feature it uses is **`svg-filter-unsupported`** (`primitiveUnits="objectBoundingBox"` or a
-  primitive subregion); each is reported once per file with the number of elements, and `--strict` fails on each
-  with `unsupported-feature`.
+  right-to-left `direction`, `dominant-baseline`, `text-decoration`, or a character no font has); each is reported
+  once per file with the number of elements, and `--strict` fails on each with `unsupported-feature`. Filters draw
+  `primitiveUnits` and primitive subregions as specified, so `svg-filter-unsupported` is no longer reported.
 - **A file that is found but broken** (a corrupt picture, a model with a syntax error, a chart with an invalid
   specification) fails the render with its own error code (`corrupt-input`, `scad-error`, `vega-lite-error`, ...), and
   the message names both the embedding file (the SVG file you named, or the embedded SVG file that contains the link)
@@ -1249,8 +1248,8 @@ writes no output. PDF and raster images have no such report: whatever the librar
 fragment that cannot be used, or `image-page-out-of-range` for a page that does not exist, which `--strict` fails on;
 the fragment warnings do not; and `image-access-denied` for a link the file-access mode denies, which `--strict` turns
 into the error `file-access-denied`), a hand-drawn arrowhead (`svg-arrowhead-shape`, a warning `--strict` never fails
-on), text it does not draw or draws without a feature (`svg-text-not-drawn` and `svg-text-unsupported`) and a filter
-it draws without a feature (`svg-filter-unsupported`), which `--strict` fails on, and the notes of the files it embeds;
+on), text it does not draw or draws without a feature (`svg-text-not-drawn` and `svg-text-unsupported`), which
+`--strict` fails on, and the notes of the files it embeds;
 what else the SVG library cannot draw in the file itself
 (animation, an unknown filter primitive) is simply not drawn.
 
@@ -1834,7 +1833,7 @@ same.
 - **strict mode**: With `FlattenRequest.Strict`, a link that is not drawn (`svg-image-unresolved`,
   `svg-image-too-large`, `image-fragment-invalid`, or `image-page-out-of-range`) is an `unsupported-feature` error, as
   for render, and so is text that a linked SVG file does not draw or draws without a feature (`svg-text-not-drawn`,
-  `svg-text-unsupported`) and a filter it draws without a feature (`svg-filter-unsupported`); a link the
+  `svg-text-unsupported`); a link the
   file-access mode denies (`image-access-denied`) is the error `file-access-denied`;
   a position binding that fails is the error `svg-binding-failed`; `svg-flatten-image-not-drawn` stays a warning.
 - **command**: Run `canvasnet flatten page.svg -o page.flat.svg` to write the copy; `--scale` multiplies the size of
@@ -2188,8 +2187,8 @@ swimlanes and partitions, its packages, its composite states, or its containers:
   diagram library, or `svg-image-unresolved`, `svg-image-too-large`,
   `image-fragment-invalid`, `image-page-out-of-range`, `image-fragment-unknown-parameter`, or
   `image-fragment-duplicate-parameter` for an SVG `image` link, `svg-arrowhead-shape` for an arrowhead drawn by hand
-  instead of with a marker, `svg-text-not-drawn` and `svg-text-unsupported` for SVG text that is not drawn or drawn
-  without a feature, or `svg-filter-unsupported` for an SVG filter drawn without a feature).
+  instead of with a marker, or `svg-text-not-drawn` and `svg-text-unsupported` for SVG text that is not drawn or drawn
+  without a feature).
   `detail` is the finer identifier when `code` is a
   generic one (`scad-anchor-invalid` for a `scad-warning`, `vl-unknown-property` for a `vega-lite-warning`,
   `mermaid-config-unknown-key` for a `mermaid-warning`); `location` is `{"file","line","column"}` (a chart adds

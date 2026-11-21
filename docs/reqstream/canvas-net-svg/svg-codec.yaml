@@ -606,17 +606,16 @@ sections:
               for text drawn without a feature it uses (rotate, textLength, a vertical
               writing-mode, direction rtl, dominant-baseline,
               alignment-baseline, text-decoration, an unsupported baseline-shift, or a character no
-              font covers), and svg-filter-unsupported for a filter applied with
-              primitiveUnits="objectBoundingBox" or a primitive subregion (x, y, width or height on
-              an fe* primitive); it shall cover all drawn content, report nothing for content that is
-              not drawn by design, skip the checks when no handler is set, and never change the
-              pixels or fail the render.
+              font covers), and shall not report svg-filter-unsupported (its features,
+              primitiveUnits="objectBoundingBox" and primitive subregions, are drawn); it shall
+              cover all drawn content, report nothing for content that is not drawn by design, skip
+              the checks when no handler is set, and never change the pixels or fail the render.
             justification: |
               Text that silently disappears or loses its layout is the hardest rendering defect
               for a reader to notice; a report lets a host tell the author, or fail a strict
-              build, while the rest of the document is still drawn. The codec does not implement
-              primitiveUnits and reads a primitive subregion as a fraction of the filter region,
-              so a filter that uses either is drawn differently from a browser; the report says so.
+              build, while the rest of the document is still drawn. A filter that uses
+              primitiveUnits or a primitive subregion is now drawn as a browser draws it, so
+              reporting it would make a strict build fail for a document that renders correctly.
             tests:
               - SvgCodec_UnsupportedFeatureHandler_TextPath_ReportsTextNotDrawn
               - SvgCodec_UnsupportedFeatureHandler_RotateTextLengthAndWritingMode_ReportsOneUnsupportedWithEveryFeature
@@ -627,8 +626,8 @@ sections:
               - SvgCodec_UnsupportedFeatureHandler_PlainAndStyledText_ReportsNothing
               - SvgCodec_UnsupportedFeatureHandler_DoesNotChangeThePixels
               - SvgCodec_UnsupportedFeatureHandler_DefaultIsNull
-              - SvgCodec_UnsupportedFeatureHandler_FilterPrimitiveUnitsObjectBoundingBox_ReportsFilterUnsupported
-              - SvgCodec_UnsupportedFeatureHandler_FilterPrimitiveSubregion_ReportsFilterUnsupported
+              - SvgCodec_UnsupportedFeatureHandler_FilterPrimitiveUnitsObjectBoundingBox_ReportsNothing
+              - SvgCodec_UnsupportedFeatureHandler_FilterPrimitiveSubregion_ReportsNothing
 
           - id: CanvasNetSvg-SvgCodec-FontWeightStyleCascade
             title: >-
@@ -1143,15 +1142,25 @@ sections:
               x/y/width/height, drawing nothing when that box has no width or no height, and
               honoring filterUnits (under userSpaceOnUse the region is in absolute user units,
               a percentage or an omitted attribute's initial value being of the viewport, and an
-              empty box drawing the filter normally), and tolerating any other primitive type as
-              a no-op passthrough of its own input.
+              empty box drawing the filter normally), honoring primitiveUnits (under
+              objectBoundingBox the primitive lengths stdDeviation, dx/dy, radius, the
+              displacement scale and the light positions, and the primitive subregions, being
+              fractions of the box, each length scaled on its own axis), clipping each
+              primitive's result to its subregion (x/y/width/height in primitive units, a
+              userSpaceOnUse percentage being of the viewport, each omitted one taken from the
+              default subregion: the union of the input subregions, or the filter region for a
+              primitive without inputs, with a standard input, or for feTile), and tolerating any
+              other primitive type as a no-op passthrough of its own input.
             justification: |
               Real-world SVG documents commonly use filter="url(#id)" for common effects
               such as a solid-color halo/background behind text labels (the reported
               real-world bug this feature fixes: SvgRenderer's own midpoint line labels use
               exactly this pattern, and previously lost their halo entirely, causing label
               text to overlap the line beneath it); callers relying on this common pattern
-              need it to actually render rather than silently vanish.
+              need it to actually render rather than silently vanish. Filter Effects 1 defines
+              primitiveUnits and the filter primitive subregion; drawing them as Edge does keeps
+              authored shadows and tiles in place (Edge headless renders confirm the expected
+              pixels of the tests).
             tests:
               - SvgCodec_Load_FeFloodFilter_RendersSolidColorBehindElement
               - SvgCodec_Load_FeFloodFeMergeFilter_RendersFloodBehindSourceGraphic
@@ -1173,6 +1182,11 @@ sections:
               - SvgCodec_Load_FilterRegionOnStrokedShape_UsesGeometryBoundsNotStroke
               - SvgCodec_Load_ObjectBoundingBoxEffectsOnHorizontalLine_PaintNothing
               - SvgCodec_Load_OpacityWithFeFloodFilter_AppliesOpacityToFilteredResultNotSource
+              - SvgCodec_Load_FePrimitiveSubregionUserSpace_ReadsUserLengths
+              - SvgCodec_Load_FePrimitiveSubregionOmittedAttributes_DefaultToTheInputUnion
+              - SvgCodec_Load_FilterPrimitiveUnitsObjectBoundingBox_ScalesOffsetByTheBox
+              - SvgCodec_Load_FilterPrimitiveUnitsObjectBoundingBox_ReadsSubregionFractions
+              - SvgCodec_Load_FilterPrimitiveUnitsObjectBoundingBox_BlurScalesPerAxis
               - SvgCodec_Load_FeCompositeOperatorArithmetic_MatchesHandComputedFormula
               - SvgCodec_Load_FeCompositeOperatorArithmeticAlpha_MatchesFormulaNotHardcodedOrDropped
               - SvgCodec_Load_FeCompositeOperatorArithmeticOutOfRangeResult_ClampsToValidByteRange
@@ -1425,7 +1439,8 @@ sections:
             title: >-
               The SvgCodec class shall evaluate feTile primitives by repeating the resolved
               upstream primitive subregion across the filter region, while leaving primitives
-              with no declared subregion unaffected by the new subregion mechanism.
+              whose inputs and own subregion cover the whole filter region unaffected by the
+              subregion mechanism.
             justification: |
               Tiling a prior primitive's own subregion is the core purpose of feTile and is
               required by authored patterns that intentionally generate one small filtered
@@ -2185,8 +2200,7 @@ sections:
           - id: CanvasNetSvg-SvgCodec-ImageSourceUnsupportedNotes
             title: >-
               The Svg package's image source shall return each feature of the linked SVG file that the
-              codec reports as not supported (svg-text-not-drawn, svg-text-unsupported,
-              svg-filter-unsupported) as an
+              codec reports as not supported (svg-text-not-drawn, svg-text-unsupported) as an
               Unsupported note of the result with that code, and, when the request asks to throw on an
               unsupported feature, shall fail with UnsupportedImageFeatureException naming the first code.
             justification: |

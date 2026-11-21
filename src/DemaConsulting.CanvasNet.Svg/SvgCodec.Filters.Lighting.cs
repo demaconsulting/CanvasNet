@@ -85,10 +85,11 @@ public static partial class SvgCodec
     /// </summary>
     /// <param name="element">The <c>feDiffuseLighting</c> element.</param>
     /// <param name="input">The already-resolved input buffer, whose alpha channel is the bump map.</param>
-    /// <param name="scale">The local-space-to-pixel-space scale factor (see <see cref="EstimateUniformScale"/>).</param>
-    /// <param name="transform">The referencing element's accumulated transform.</param>
-    /// <param name="regionPixelX">The enclosing filter region's absolute pixel-space X origin.</param>
-    /// <param name="regionPixelY">The enclosing filter region's absolute pixel-space Y origin.</param>
+    /// <param name="chain">
+    ///     The enclosing filter: <c>surfaceScale</c> is scaled by its user-space <see cref="FilterChain.Scale"/>, and the
+    ///     light position through <see cref="FilterChain.PrimitiveToPixel"/> (its <c>z</c> by
+    ///     <see cref="FilterChain.LengthScale"/>), so the light follows <c>primitiveUnits</c>.
+    /// </param>
     /// <returns>
     ///     A new, independent, fully opaque output buffer (per spec, <c>feDiffuseLighting</c>'s
     ///     alpha is always <c>1.0</c>).
@@ -100,12 +101,12 @@ public static partial class SvgCodec
     ///     <c>feDistantLight</c>/<c>fePointLight</c>/<c>feSpotLight</c> child, this is a tolerant
     ///     "no light" fallback: every pixel is fully opaque black.
     /// </remarks>
-    private static Surface ApplyFeDiffuseLighting(XElement element, Surface input, float scale, Matrix3x2 transform, int regionPixelX, int regionPixelY)
+    private static Surface ApplyFeDiffuseLighting(XElement element, Surface input, FilterChain chain)
     {
-        var surfaceScalePixel = (ParseFirstNumberToken((string?)element.Attribute("surfaceScale")) ?? 1f) * scale;
+        var surfaceScalePixel = (ParseFirstNumberToken((string?)element.Attribute("surfaceScale")) ?? 1f) * chain.Scale;
         var diffuseConstant = ParseFirstNumberToken((string?)element.Attribute("diffuseConstant")) ?? 1f;
         var lightingColor = ResolveLightingColor(element);
-        var light = ResolveLightSource(element, transform, regionPixelX, regionPixelY, scale, lightingColor);
+        var light = ResolveLightSource(element, chain.PrimitiveToPixel, chain.RegionPixelX, chain.RegionPixelY, chain.LengthScale, lightingColor);
 
         var width = input.Width;
         var height = input.Height;
@@ -139,10 +140,11 @@ public static partial class SvgCodec
     /// </summary>
     /// <param name="element">The <c>feSpecularLighting</c> element.</param>
     /// <param name="input">The already-resolved input buffer, whose alpha channel is the bump map.</param>
-    /// <param name="scale">The local-space-to-pixel-space scale factor (see <see cref="EstimateUniformScale"/>).</param>
-    /// <param name="transform">The referencing element's accumulated transform.</param>
-    /// <param name="regionPixelX">The enclosing filter region's absolute pixel-space X origin.</param>
-    /// <param name="regionPixelY">The enclosing filter region's absolute pixel-space Y origin.</param>
+    /// <param name="chain">
+    ///     The enclosing filter: <c>surfaceScale</c> is scaled by its user-space <see cref="FilterChain.Scale"/>, and the
+    ///     light position through <see cref="FilterChain.PrimitiveToPixel"/> (its <c>z</c> by
+    ///     <see cref="FilterChain.LengthScale"/>), so the light follows <c>primitiveUnits</c>.
+    /// </param>
     /// <returns>A new, independent output buffer.</returns>
     /// <remarks>
     ///     Per spec, the output alpha is <c>max(R, G, B)</c> of the computed specular color - it is
@@ -156,13 +158,13 @@ public static partial class SvgCodec
     ///     <c>feDistantLight</c>/<c>fePointLight</c>/<c>feSpotLight</c> child, this is a tolerant
     ///     "no light" fallback: every pixel is fully transparent black.
     /// </remarks>
-    private static Surface ApplyFeSpecularLighting(XElement element, Surface input, float scale, Matrix3x2 transform, int regionPixelX, int regionPixelY)
+    private static Surface ApplyFeSpecularLighting(XElement element, Surface input, FilterChain chain)
     {
-        var surfaceScalePixel = (ParseFirstNumberToken((string?)element.Attribute("surfaceScale")) ?? 1f) * scale;
+        var surfaceScalePixel = (ParseFirstNumberToken((string?)element.Attribute("surfaceScale")) ?? 1f) * chain.Scale;
         var specularConstant = ParseFirstNumberToken((string?)element.Attribute("specularConstant")) ?? 1f;
         var specularExponent = ParseFirstNumberToken((string?)element.Attribute("specularExponent")) ?? 1f;
         var lightingColor = ResolveLightingColor(element);
-        var light = ResolveLightSource(element, transform, regionPixelX, regionPixelY, scale, lightingColor);
+        var light = ResolveLightSource(element, chain.PrimitiveToPixel, chain.RegionPixelX, chain.RegionPixelY, chain.LengthScale, lightingColor);
 
         const float viewerZ = 1f;
         var eye = new Vector3(0f, 0f, viewerZ);
@@ -326,10 +328,10 @@ public static partial class SvgCodec
     ///     attributes are already mapped into pixel space.
     /// </summary>
     /// <param name="element">The <c>feDiffuseLighting</c> or <c>feSpecularLighting</c> element.</param>
-    /// <param name="transform">The referencing element's accumulated transform.</param>
+    /// <param name="transform">The transform from primitive units into pixel space (see <see cref="FilterChain.PrimitiveToPixel"/>).</param>
     /// <param name="regionPixelX">The enclosing filter region's absolute pixel-space X origin.</param>
     /// <param name="regionPixelY">The enclosing filter region's absolute pixel-space Y origin.</param>
-    /// <param name="scale">The local-space-to-pixel-space scale factor.</param>
+    /// <param name="scale">The pixel length of one primitive unit along <c>z</c> (see <see cref="FilterChain.LengthScale"/>).</param>
     /// <param name="color">The already-resolved <c>lighting-color</c>.</param>
     /// <returns>
     ///     The resolved light, or <see langword="null"/> when no recognized light-source child is

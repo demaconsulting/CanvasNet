@@ -1461,9 +1461,8 @@ public static partial class SvgCodec
     ///     initial <c>-10%</c>/<c>-10%</c>/<c>120%</c>/<c>120%</c> of an omitted attribute - is of the current
     ///     viewport on that attribute's axis, read by the same <see cref="ReadEffectRegionValue"/> the mask region
     ///     uses (Filter Effects 1, <c>filterUnits</c>); such a region does not depend on the box, so an empty box is
-    ///     not rejected. <c>primitiveUnits</c> is not read: primitive subregions keep their existing reading as
-    ///     fractions of the filter region, and a document that needs either is reported as
-    ///     <see cref="SvgUnsupportedFeature.FilterUnsupportedCode"/> (see <see cref="ReportFilterUnsupportedFeatures"/>).
+    ///     not rejected. Primitive subregions and lengths follow <c>primitiveUnits</c> instead (see
+    ///     <see cref="ResolvePrimitiveSubregionPixelBounds"/> and <see cref="FilterChain"/>).
     /// </remarks>
     private static Rect? ComputeFilterRegionLocalBounds(XElement filterElement, Rect bounds, RenderState state)
     {
@@ -1691,50 +1690,108 @@ public static partial class SvgCodec
         primitive.Attribute("height") != null;
 
     /// <summary>
-    ///     Resolves one primitive's own <c>x</c>/<c>y</c>/<c>width</c>/<c>height</c> rectangle into
-    ///     filter-buffer-local pixel coordinates, clamped to the enclosing filter region.
+    ///     Resolves a primitive's declared <c>x</c>/<c>y</c>/<c>width</c>/<c>height</c> into its subregion in
+    ///     filter-buffer-local pixel coordinates, clamped to the filter region.
     /// </summary>
     /// <param name="primitive">The primitive whose own subregion is being resolved.</param>
-    /// <param name="filterRegionPixelBounds">The enclosing filter region in absolute pixel coordinates.</param>
-    /// <param name="regionPixelX">The enclosing filter region's absolute pixel-space X origin.</param>
-    /// <param name="regionPixelY">The enclosing filter region's absolute pixel-space Y origin.</param>
-    /// <param name="transform">
-    ///     The accumulated transform from the referencing element's local space into pixel space.
-    ///     Present for parity with the effects-pipeline call sites; primitive subregions reuse the
-    ///     filter region's own objectBoundingBox-relative convention and therefore need only the
-    ///     already-resolved pixel-space filter region itself.
-    /// </param>
+    /// <param name="chain">The mutable evaluation state of the enclosing filter.</param>
+    /// <param name="defaultSubregion">The primitive's default subregion (see <see cref="ResolveDefaultPrimitiveSubregion"/>).</param>
     /// <returns>The clamped, filter-buffer-local primitive rectangle.</returns>
-    private static PixelRect ResolvePrimitiveSubregionPixelBounds(
-        XElement primitive,
-        (int X, int Y, int Width, int Height) filterRegionPixelBounds,
-        int regionPixelX,
-        int regionPixelY,
-        Matrix3x2 transform)
+    /// <remarks>
+    ///     The values are in the filter's <c>primitiveUnits</c> (Filter Effects 1): user lengths under the default
+    ///     <c>userSpaceOnUse</c> (a percentage of the current viewport, units converted), fractions or
+    ///     percentages of the object bounding box under <c>objectBoundingBox</c>. An omitted or unparseable
+    ///     attribute takes that value of the default subregion, mapped back into primitive units. The rectangle
+    ///     is mapped through <see cref="FilterChain.PrimitiveToPixel"/> and its pixel bounds are taken, rounded
+    ///     outward (a value within 1e-3 of a whole pixel snaps to it, so the round trip of a default edge does
+    ///     not grow the rectangle); under a rotation this is the bounding box, as the filter region itself is.
+    ///     A zero or negative width or height gives an empty subregion: the primitive's result is transparent.
+    /// </remarks>
+    private static PixelRect ResolvePrimitiveSubregionPixelBounds(XElement primitive, FilterChain chain, PixelRect defaultSubregion)
     {
-        _ = transform;
+        var primitiveToBuffer = chain.PrimitiveToPixel * Matrix3x2.CreateTranslation(-chain.RegionPixelX, -chain.RegionPixelY);
+        if (!Matrix3x2.Invert(primitiveToBuffer, out var bufferToPrimitive))
+        {
+            return defaultSubregion;
+        }
 
-        var xFraction = ParseFilterRegionFraction(primitive, "x", 0f);
-        var yFraction = ParseFilterRegionFraction(primitive, "y", 0f);
-        var widthFraction = ParseFilterRegionFraction(primitive, "width", 1f);
-        var heightFraction = ParseFilterRegionFraction(primitive, "height", 1f);
+        var defaultOrigin = Vector2.Transform(new Vector2(defaultSubregion.X, defaultSubregion.Y), bufferToPrimitive);
+        var fallback = defaultSubregion.IsEmpty
+            ? new Rect(defaultOrigin.X, defaultOrigin.Y, 0f, 0f)
+            : new Rect(defaultSubregion.X, defaultSubregion.Y, defaultSubregion.Width, defaultSubregion.Height).Transform(bufferToPrimitive);
+        var x = ReadPrimitiveSubregionValue(primitive, "x", fallback.X, chain, PercentageAxis.Horizontal);
+        var y = ReadPrimitiveSubregionValue(primitive, "y", fallback.Y, chain, PercentageAxis.Vertical);
+        var width = ReadPrimitiveSubregionValue(primitive, "width", fallback.Width, chain, PercentageAxis.Horizontal);
+        var height = ReadPrimitiveSubregionValue(primitive, "height", fallback.Height, chain, PercentageAxis.Vertical);
+        if (!float.IsFinite(x) || !float.IsFinite(y) || !float.IsFinite(width) || !float.IsFinite(height) ||
+            width <= 0f || height <= 0f)
+        {
+            return new PixelRect(0, 0, 0, 0);
+        }
 
-        var absoluteX = filterRegionPixelBounds.X + (xFraction * filterRegionPixelBounds.Width);
-        var absoluteY = filterRegionPixelBounds.Y + (yFraction * filterRegionPixelBounds.Height);
-        var absoluteWidth = widthFraction * filterRegionPixelBounds.Width;
-        var absoluteHeight = heightFraction * filterRegionPixelBounds.Height;
+        const float Snap = 1e-3f;
+        var pixel = new Rect(x, y, width, height).Transform(primitiveToBuffer);
+        if (!float.IsFinite(pixel.X) || !float.IsFinite(pixel.Y) || !float.IsFinite(pixel.Right) || !float.IsFinite(pixel.Bottom))
+        {
+            return new PixelRect(0, 0, 0, 0);
+        }
 
-        var unclampedMinX = (int)MathF.Floor(absoluteX) - regionPixelX;
-        var unclampedMinY = (int)MathF.Floor(absoluteY) - regionPixelY;
-        var unclampedMaxX = (int)MathF.Ceiling(absoluteX + absoluteWidth) - regionPixelX;
-        var unclampedMaxY = (int)MathF.Ceiling(absoluteY + absoluteHeight) - regionPixelY;
-
-        var minX = Math.Clamp(unclampedMinX, 0, filterRegionPixelBounds.Width);
-        var minY = Math.Clamp(unclampedMinY, 0, filterRegionPixelBounds.Height);
-        var maxX = Math.Clamp(unclampedMaxX, 0, filterRegionPixelBounds.Width);
-        var maxY = Math.Clamp(unclampedMaxY, 0, filterRegionPixelBounds.Height);
+        var regionWidth = chain.FullRegion.Width;
+        var regionHeight = chain.FullRegion.Height;
+        var minX = (int)Math.Clamp(MathF.Floor(pixel.X + Snap), 0f, regionWidth);
+        var minY = (int)Math.Clamp(MathF.Floor(pixel.Y + Snap), 0f, regionHeight);
+        var maxX = (int)Math.Clamp(MathF.Ceiling(pixel.Right - Snap), 0f, regionWidth);
+        var maxY = (int)Math.Clamp(MathF.Ceiling(pixel.Bottom - Snap), 0f, regionHeight);
 
         return new PixelRect(minX, minY, Math.Max(0, maxX - minX), Math.Max(0, maxY - minY));
+    }
+
+    /// <summary>
+    ///     Reads one of a primitive's <c>x</c>/<c>y</c>/<c>width</c>/<c>height</c> in the filter's primitive units.
+    /// </summary>
+    /// <param name="primitive">The primitive element.</param>
+    /// <param name="attributeName">The attribute name.</param>
+    /// <param name="fallback">The value, in primitive units, when the attribute is absent or does not parse.</param>
+    /// <param name="chain">The mutable evaluation state of the enclosing filter.</param>
+    /// <param name="axis">The viewport axis a <c>userSpaceOnUse</c> percentage resolves against.</param>
+    /// <returns>The value in primitive units.</returns>
+    private static float ReadPrimitiveSubregionValue(XElement primitive, string attributeName, float fallback, FilterChain chain, PercentageAxis axis)
+    {
+        var raw = (string?)primitive.Attribute(attributeName);
+        if (raw == null)
+        {
+            return fallback;
+        }
+
+        if (chain.PrimitiveUnitsObjectBoundingBox)
+        {
+            return TryResolveLength(raw, chain.State, PercentageAxis.Fraction, out var fraction, out _, enforceMagnitude: false) ? fraction : fallback;
+        }
+
+        return TryResolveLength(raw, chain.State, axis, out var length, out _) ? length : fallback;
+    }
+
+    /// <summary>
+    ///     Clears, in place, every pixel of <paramref name="output"/> outside <paramref name="subregion"/>: the
+    ///     subregion clip of a primitive's own new output buffer, which needs no copy.
+    /// </summary>
+    /// <param name="output">The primitive's own new output buffer.</param>
+    /// <param name="subregion">The primitive's resolved, filter-buffer-local subregion.</param>
+    private static void ClearOutsideSubregion(Surface output, PixelRect subregion)
+    {
+        var right = subregion.IsEmpty ? 0 : subregion.X + subregion.Width;
+        for (var row = 0; row < output.Height; row++)
+        {
+            var span = output.GetRowSpan(row);
+            if (subregion.IsEmpty || row < subregion.Y || row >= subregion.Y + subregion.Height)
+            {
+                span.Clear();
+                continue;
+            }
+
+            span[..subregion.X].Clear();
+            span[right..].Clear();
+        }
     }
 
     /// <summary>
@@ -1872,8 +1929,7 @@ public static partial class SvgCodec
         RenderScope scope,
         ref int totalElements)
     {
-        ReportFilterUnsupportedFeatures(filterElement, context);
-        var chain = new FilterChain(target, state, context, scope);
+        var chain = new FilterChain(filterElement, target, state, context, scope);
         foreach (var primitive in filterElement.Elements())
         {
             EvaluatePrimitive(primitive, chain, ref totalElements);
@@ -1883,31 +1939,36 @@ public static partial class SvgCodec
     }
 
     /// <summary>
-    ///     Evaluates one <c>fe*</c> primitive against <paramref name="chain"/>, applies its optional
-    ///     subregion clip, records its named result, and makes it the chain's previous result.
+    ///     Evaluates one <c>fe*</c> primitive against <paramref name="chain"/>, clips its output to its
+    ///     subregion, records its named result, and makes it the chain's previous result.
     /// </summary>
     /// <param name="primitive">The primitive element.</param>
     /// <param name="chain">The mutable evaluation state of the enclosing filter.</param>
     /// <param name="totalElements">The running total-rendered-elements count.</param>
+    /// <remarks>
+    ///     The subregion is the default subregion (see <see cref="ResolveDefaultPrimitiveSubregion"/>) with any
+    ///     declared <c>x</c>/<c>y</c>/<c>width</c>/<c>height</c> applied (see
+    ///     <see cref="ResolvePrimitiveSubregionPixelBounds"/>). A primitive that declares one gets a clipped copy
+    ///     (charged by <see cref="CountFilterPrimitiveWorkUnits"/>); otherwise a new output smaller than the filter
+    ///     region is cleared outside its subregion in place, and a pass-through output (its own input, already
+    ///     inside that subregion) is left as it is.
+    /// </remarks>
     private static void EvaluatePrimitive(XElement primitive, FilterChain chain, ref int totalElements)
     {
         var sourceGraphic = chain.SourceGraphic;
+        var defaultSubregion = ResolveDefaultPrimitiveSubregion(primitive, chain);
         var primitiveHasSubregion = PrimitiveDeclaresSubregion(primitive);
         var primitiveSubregion = primitiveHasSubregion
-            ? ResolvePrimitiveSubregionPixelBounds(
-                primitive,
-                (X: chain.RegionPixelX, Y: chain.RegionPixelY, Width: sourceGraphic.Width, Height: sourceGraphic.Height),
-                chain.RegionPixelX,
-                chain.RegionPixelY,
-                chain.Transform)
-            : chain.FullRegion;
+            ? ResolvePrimitiveSubregionPixelBounds(primitive, chain, defaultSubregion)
+            : defaultSubregion;
 
         var input = chain.ResolveInput((string?)primitive.Attribute("in"), out var inputSubregion);
-        var output = ApplyPrimitive(primitive, chain, input, inputSubregion, primitiveSubregion, ref totalElements, out var outputSubregion);
+        var output = ApplyPrimitive(primitive, chain, input, inputSubregion, primitiveSubregion, ref totalElements);
 
         // Every primitive that produces a new buffer allocates one region-sized surface;
         // a pass-through (the unrecognized-primitive default) allocates nothing.
-        if (!ReferenceEquals(output, input))
+        var isNewBuffer = !ReferenceEquals(output, input);
+        if (isNewBuffer)
         {
             chain.Scope.FilterWorkBudget.RecordSurfaceAllocated(sourceGraphic.Width, sourceGraphic.Height);
         }
@@ -1916,18 +1977,62 @@ public static partial class SvgCodec
         {
             chain.Scope.FilterWorkBudget.RecordSurfaceAllocated(sourceGraphic.Width, sourceGraphic.Height);
             output = ClipPrimitiveOutputToSubregion(output, primitiveSubregion);
-            outputSubregion = primitiveSubregion;
+        }
+        else if (isNewBuffer && primitiveSubregion != chain.FullRegion)
+        {
+            ClearOutsideSubregion(output, primitiveSubregion);
         }
 
         var resultName = (string?)primitive.Attribute("result");
         if (!string.IsNullOrEmpty(resultName))
         {
             chain.Results[resultName] = output;
-            chain.ResultSubregions[resultName] = outputSubregion;
+            chain.ResultSubregions[resultName] = primitiveSubregion;
         }
 
         chain.PreviousResult = output;
-        chain.PreviousSubregion = outputSubregion;
+        chain.PreviousSubregion = primitiveSubregion;
+    }
+
+    /// <summary>
+    ///     Resolves a primitive's default subregion (Filter Effects 1, filter primitive subregion): the union of
+    ///     the subregions of the inputs it references, or the whole filter region when it has no input
+    ///     (<c>feFlood</c>, <c>feImage</c>, <c>feTurbulence</c>, an <c>feMerge</c> with no node), when an input
+    ///     is a standard input (<c>SourceGraphic</c>, <c>SourceAlpha</c>, or a name that falls back to the source
+    ///     graphic, whose subregion is the filter region), or for <c>feTile</c>, which fills the filter region.
+    /// </summary>
+    /// <param name="primitive">The primitive element.</param>
+    /// <param name="chain">The mutable evaluation state of the enclosing filter.</param>
+    /// <returns>The default subregion, in filter-buffer-local pixels.</returns>
+    private static PixelRect ResolveDefaultPrimitiveSubregion(XElement primitive, FilterChain chain)
+    {
+        switch (primitive.Name.LocalName)
+        {
+            case "feFlood":
+            case "feImage":
+            case "feTurbulence":
+            case "feTile":
+                return chain.FullRegion;
+
+            case "feMerge":
+                {
+                    var nodes = primitive.Elements().Where(node => node.Name.LocalName == "feMergeNode").ToList();
+                    return nodes.Count == 0
+                        ? chain.FullRegion
+                        : nodes.Aggregate(new PixelRect(0, 0, 0, 0), (union, node) =>
+                            UnionPrimitiveSubregions(union, chain.SubregionOf((string?)node.Attribute("in"))));
+                }
+
+            case "feComposite":
+            case "feBlend":
+            case "feDisplacementMap":
+                return UnionPrimitiveSubregions(
+                    chain.SubregionOf((string?)primitive.Attribute("in")),
+                    chain.SubregionOf((string?)primitive.Attribute("in2")));
+
+            default:
+                return chain.SubregionOf((string?)primitive.Attribute("in"));
+        }
     }
 
     /// <summary>
@@ -1939,21 +2044,26 @@ public static partial class SvgCodec
     /// <param name="inputSubregion">The subregion of <paramref name="input"/>.</param>
     /// <param name="primitiveSubregion">The primitive's own resolved subregion.</param>
     /// <param name="totalElements">The running total-rendered-elements count.</param>
-    /// <param name="outputSubregion">The subregion the output occupies before any explicit subregion clip.</param>
     /// <returns>The primitive's output buffer; <paramref name="input"/> itself for an unrecognized primitive.</returns>
+    /// <remarks>
+    ///     Lengths with an axis (<c>stdDeviation</c>, <c>dx</c>/<c>dy</c>, <c>radius</c>, the displacement
+    ///     <c>scale</c>) are converted to pixels per axis with <see cref="FilterChain.ScaleX"/> and
+    ///     <see cref="FilterChain.ScaleY"/>, and light positions through <see cref="FilterChain.PrimitiveToPixel"/>,
+    ///     so they follow <c>primitiveUnits</c>. <c>surfaceScale</c> and <c>feTurbulence</c>'s
+    ///     <c>baseFrequency</c> stay in user space (<see cref="FilterChain.Scale"/>), as browsers draw them.
+    /// </remarks>
     private static Surface ApplyPrimitive(
         XElement primitive,
         FilterChain chain,
         Surface input,
         PixelRect inputSubregion,
         PixelRect primitiveSubregion,
-        ref int totalElements,
-        out PixelRect outputSubregion)
+        ref int totalElements)
     {
         var width = chain.SourceGraphic.Width;
         var height = chain.SourceGraphic.Height;
-        var scale = chain.Scale;
-        outputSubregion = chain.FullRegion;
+        var scaleX = chain.ScaleX;
+        var scaleY = chain.ScaleY;
 
         switch (primitive.Name.LocalName)
         {
@@ -1961,68 +2071,54 @@ public static partial class SvgCodec
                 return ApplyFeFlood(primitive, width, height);
 
             case "feGaussianBlur":
-                return ApplyFeGaussianBlur(primitive, input, scale);
+                return ApplyFeGaussianBlur(primitive, input, scaleX, scaleY);
 
             case "feOffset":
-                return ApplyFeOffset(primitive, input, scale);
+                return ApplyFeOffset(primitive, input, scaleX, scaleY);
 
             case "feComposite":
-                {
-                    var input2 = chain.ResolveInput((string?)primitive.Attribute("in2"), out var input2Subregion);
-                    outputSubregion = UnionPrimitiveSubregions(inputSubregion, input2Subregion);
-                    return ApplyFeComposite(primitive, input, input2);
-                }
+                return ApplyFeComposite(primitive, input, chain.ResolveInput((string?)primitive.Attribute("in2"), out _));
 
             case "feBlend":
-                {
-                    var blendInput2 = chain.ResolveInput((string?)primitive.Attribute("in2"), out var blendInput2Subregion);
-                    outputSubregion = UnionPrimitiveSubregions(inputSubregion, blendInput2Subregion);
-                    return ApplyFeBlend(primitive, input, blendInput2);
-                }
+                return ApplyFeBlend(primitive, input, chain.ResolveInput((string?)primitive.Attribute("in2"), out _));
 
             case "feMerge":
                 return ApplyFeMerge(primitive, width, height, name => chain.ResolveInput(name, out _));
 
             case "feColorMatrix":
-                outputSubregion = inputSubregion;
                 return ApplyFeColorMatrix(primitive, input);
 
             case "feComponentTransfer":
-                outputSubregion = inputSubregion;
                 return ApplyFeComponentTransfer(primitive, input);
 
             case "feMorphology":
-                return ApplyFeMorphology(primitive, input, scale);
+                return ApplyFeMorphology(primitive, input, scaleX, scaleY);
 
             case "feConvolveMatrix":
                 return ApplyFeConvolveMatrix(primitive, input);
 
             case "feDisplacementMap":
-                return ApplyFeDisplacementMap(primitive, input, chain.ResolveInput((string?)primitive.Attribute("in2"), out _), scale);
+                return ApplyFeDisplacementMap(primitive, input, chain.ResolveInput((string?)primitive.Attribute("in2"), out _), scaleX, scaleY);
 
             case "feTile":
                 return ApplyFeTile(input, inputSubregion);
 
             case "feDropShadow":
-                return ApplyFeDropShadow(primitive, input, scale);
+                return ApplyFeDropShadow(primitive, input, scaleX, scaleY);
 
             case "feImage":
-                outputSubregion = primitiveSubregion;
                 return ApplyFeImage(primitive, chain, primitiveSubregion, ref totalElements);
 
             case "feDiffuseLighting":
-                outputSubregion = inputSubregion;
-                return ApplyFeDiffuseLighting(primitive, input, scale, chain.Transform, chain.RegionPixelX, chain.RegionPixelY);
+                return ApplyFeDiffuseLighting(primitive, input, chain);
 
             case "feSpecularLighting":
-                outputSubregion = inputSubregion;
-                return ApplyFeSpecularLighting(primitive, input, scale, chain.Transform, chain.RegionPixelX, chain.RegionPixelY);
+                return ApplyFeSpecularLighting(primitive, input, chain);
 
             case "feTurbulence":
-                return ApplyFeTurbulence(primitive, width, height, scale, chain.RegionPixelX, chain.RegionPixelY);
+                return ApplyFeTurbulence(primitive, width, height, chain.Scale, chain.RegionPixelX, chain.RegionPixelY);
 
             default:
-                outputSubregion = inputSubregion;
                 return input;
         }
     }
@@ -2039,11 +2135,20 @@ public static partial class SvgCodec
         /// <summary>
         ///     Initializes a new instance of the <see cref="FilterChain"/> class.
         /// </summary>
+        /// <param name="filterElement">The resolved <c>filter</c> element, whose <c>primitiveUnits</c> is read.</param>
         /// <param name="target">The already-rendered <c>SourceGraphic</c> buffer and its geometry.</param>
         /// <param name="state">The referencing element's own cascaded render state.</param>
         /// <param name="context">The fixed per-document render context.</param>
         /// <param name="scope">The recursion depths and shared work budgets.</param>
-        public FilterChain(EffectsTarget target, RenderState state, RenderContext context, RenderScope scope)
+        /// <remarks>
+        ///     Under <c>primitiveUnits="objectBoundingBox"</c> the primitive lengths and subregions are fractions of
+        ///     the referencing element's object bounding box (<see cref="EffectsTarget.ReferenceBounds"/>), so
+        ///     <see cref="PrimitiveToPixel"/> prepends the bounding-box map to <see cref="Transform"/> and the two axes
+        ///     scale separately (<see cref="ScaleX"/>, <see cref="ScaleY"/>). Under the default
+        ///     <c>userSpaceOnUse</c> the primitive space is user space, and both axes keep the uniform
+        ///     <see cref="Scale"/> as before.
+        /// </remarks>
+        public FilterChain(XElement filterElement, EffectsTarget target, RenderState state, RenderContext context, RenderScope scope)
         {
             SourceGraphic = target.Content;
             Transform = target.Transform;
@@ -2053,6 +2158,23 @@ public static partial class SvgCodec
             Context = context;
             Scope = scope;
             Scale = EstimateUniformScale(target.Transform);
+            PrimitiveUnitsObjectBoundingBox = string.Equals(
+                (string?)filterElement.Attribute("primitiveUnits"), "objectBoundingBox", StringComparison.Ordinal);
+            if (PrimitiveUnitsObjectBoundingBox)
+            {
+                PrimitiveToPixel = ComputeObjectBoundingBoxMap(target.ReferenceBounds) * target.Transform;
+                ScaleX = new Vector2(PrimitiveToPixel.M11, PrimitiveToPixel.M12).Length();
+                ScaleY = new Vector2(PrimitiveToPixel.M21, PrimitiveToPixel.M22).Length();
+                LengthScale = MathF.Sqrt(((ScaleX * ScaleX) + (ScaleY * ScaleY)) / 2f);
+            }
+            else
+            {
+                PrimitiveToPixel = target.Transform;
+                ScaleX = Scale;
+                ScaleY = Scale;
+                LengthScale = Scale;
+            }
+
             FullRegion = new PixelRect(0, 0, target.Content.Width, target.Content.Height);
             PreviousSubregion = FullRegion;
         }
@@ -2062,6 +2184,24 @@ public static partial class SvgCodec
 
         /// <summary>Gets the referencing element's own accumulated transform.</summary>
         public Matrix3x2 Transform { get; }
+
+        /// <summary>Gets a value indicating whether the filter's <c>primitiveUnits</c> is <c>objectBoundingBox</c>.</summary>
+        public bool PrimitiveUnitsObjectBoundingBox { get; }
+
+        /// <summary>Gets the transform from primitive units (user space, or the bounding-box unit square) into pixel space.</summary>
+        public Matrix3x2 PrimitiveToPixel { get; }
+
+        /// <summary>Gets the pixel length of one horizontal primitive unit.</summary>
+        public float ScaleX { get; }
+
+        /// <summary>Gets the pixel length of one vertical primitive unit.</summary>
+        public float ScaleY { get; }
+
+        /// <summary>
+        ///     Gets the pixel length of one primitive unit that has no axis (a light's <c>z</c>): the uniform scale, or
+        ///     under <c>objectBoundingBox</c> the normalized diagonal <c>sqrt((ScaleX^2 + ScaleY^2) / 2)</c>.
+        /// </summary>
+        public float LengthScale { get; }
 
         /// <summary>Gets the filter region's absolute pixel-space X origin.</summary>
         public int RegionPixelX { get; }
@@ -2078,7 +2218,11 @@ public static partial class SvgCodec
         /// <summary>Gets the recursion depths and shared work budgets.</summary>
         public RenderScope Scope { get; }
 
-        /// <summary>Gets the uniform scale estimate of <see cref="Transform"/>.</summary>
+        /// <summary>
+        ///     Gets the uniform scale estimate of <see cref="Transform"/>: the pixel length of one user unit, used for
+        ///     the values that stay in user space (<c>surfaceScale</c>, <c>baseFrequency</c>) and, under
+        ///     <c>userSpaceOnUse</c>, for every primitive length.
+        /// </summary>
         public float Scale { get; }
 
         /// <summary>Gets the full-region subregion.</summary>
@@ -2106,32 +2250,44 @@ public static partial class SvgCodec
         /// <returns>The resolved input buffer.</returns>
         public Surface ResolveInput(string? name, out PixelRect subregion)
         {
+            subregion = SubregionOf(name);
             if (string.IsNullOrEmpty(name))
             {
-                subregion = PreviousResult == null ? FullRegion : PreviousSubregion;
                 return PreviousResult ?? SourceGraphic;
             }
 
             if (string.Equals(name, "SourceGraphic", StringComparison.Ordinal))
             {
-                subregion = FullRegion;
                 return SourceGraphic;
             }
 
             if (string.Equals(name, "SourceAlpha", StringComparison.Ordinal))
             {
-                subregion = FullRegion;
                 return _sourceAlpha ??= BuildTrackedSourceAlpha();
             }
 
-            if (Results.TryGetValue(name, out var namedResult))
+            return Results.TryGetValue(name, out var namedResult) ? namedResult : SourceGraphic;
+        }
+
+        /// <summary>
+        ///     Gets the subregion of the input an <c>in</c>/<c>in2</c> name resolves to, without resolving the input
+        ///     itself: the preceding primitive's subregion (blank name), the full filter region for a standard input
+        ///     (<c>SourceGraphic</c>, <c>SourceAlpha</c>) or an unknown name, else the named result's subregion.
+        /// </summary>
+        /// <param name="name">The input name, possibly <see langword="null"/>/empty.</param>
+        /// <returns>The subregion, in filter-buffer-local pixels.</returns>
+        public PixelRect SubregionOf(string? name)
+        {
+            if (string.IsNullOrEmpty(name))
             {
-                subregion = ResultSubregions.TryGetValue(name, out var namedSubregion) ? namedSubregion : FullRegion;
-                return namedResult;
+                return PreviousResult == null ? FullRegion : PreviousSubregion;
             }
 
-            subregion = FullRegion;
-            return SourceGraphic;
+            return ResultSubregions.TryGetValue(name, out var namedSubregion) &&
+                   !string.Equals(name, "SourceGraphic", StringComparison.Ordinal) &&
+                   !string.Equals(name, "SourceAlpha", StringComparison.Ordinal)
+                ? namedSubregion
+                : FullRegion;
         }
 
         private Surface BuildTrackedSourceAlpha()
@@ -2194,43 +2350,32 @@ public static partial class SvgCodec
     /// </summary>
     /// <param name="element">The <c>feGaussianBlur</c> primitive element.</param>
     /// <param name="input">The already-resolved input buffer.</param>
-    /// <param name="scale">
-    ///     The pixel-space scale factor (see <see cref="EstimateUniformScale"/>) used to convert
-    ///     the local-space <c>stdDeviation</c> into an effective pixel-space value.
-    /// </param>
+    /// <param name="scaleX">The pixel length of one horizontal primitive unit.</param>
+    /// <param name="scaleY">The pixel length of one vertical primitive unit.</param>
     /// <returns>
     ///     A new, independent, blurred buffer - or an independent copy, not blurred, of
-    ///     <paramref name="input"/> if the effective <c>stdDeviation</c> clamps to zero or below
+    ///     <paramref name="input"/> if both effective <c>stdDeviation</c> values clamp to zero or below
     ///     (an absent/zero/invalid value, or a non-finite scaled result).
     /// </returns>
     /// <remarks>
-    ///     Only the first whitespace/comma-separated token of <c>stdDeviation</c> is read (a
-    ///     separate x/y pair, a rarely-used form, is tolerated by treating the value as isotropic -
-    ///     a documented simplification). The effective pixel-space <c>stdDeviation</c> is clamped
-    ///     to <see cref="MaxFilterBlurStdDeviationPixels"/> (see that constant's remarks). The
+    ///     <c>stdDeviation</c> is one number for both axes or an x/y pair; each is scaled to pixels on its own
+    ///     axis, so under <c>primitiveUnits="objectBoundingBox"</c> a non-square box blurs more along its longer
+    ///     side. Each effective pixel-space <c>stdDeviation</c> is clamped
+    ///     to <see cref="MaxFilterBlurStdDeviationPixels"/> (see that constant's remarks). Each
     ///     box radius is <c>floor(stdDeviation * 3 * sqrt(2*pi) / 4 + 0.5)</c>, applied as three
     ///     successive horizontal-then-vertical box-blur passes (see <see cref="BoxBlurHorizontal"/>/
     ///     <see cref="BoxBlurVertical"/>) over <paramref name="input"/>'s <see cref="Surface.PremultiplyAlpha"/>-converted
     ///     copy, reusing that already-tested method (and its <see cref="Surface.UnpremultiplyAlpha"/>
-    ///     inverse) rather than re-deriving premultiplication.
+    ///     inverse) rather than re-deriving premultiplication; an axis whose radius is zero is not blurred.
     /// </remarks>
-    private static Surface ApplyFeGaussianBlur(XElement element, Surface input, float scale)
+    private static Surface ApplyFeGaussianBlur(XElement element, Surface input, float scaleX, float scaleY)
     {
-        var rawStdDeviation = ParseFirstNumberToken((string?)element.Attribute("stdDeviation")) ?? 0f;
-        var stdDeviation = rawStdDeviation * scale;
-        if (!float.IsFinite(stdDeviation))
-        {
-            stdDeviation = 0f;
-        }
-
-        stdDeviation = Math.Clamp(stdDeviation, 0f, MaxFilterBlurStdDeviationPixels);
-
-        var radius = stdDeviation > 0f
-            ? (int)MathF.Floor((stdDeviation * 3f * MathF.Sqrt(2f * MathF.PI) / 4f) + 0.5f)
-            : 0;
+        var (rawX, rawY) = ParseNumberPair((string?)element.Attribute("stdDeviation"));
+        var radiusX = ComputeBoxBlurRadius(rawX * scaleX);
+        var radiusY = ComputeBoxBlurRadius(rawY * scaleY);
 
         var working = input.Crop(0, 0, input.Width, input.Height);
-        if (radius <= 0)
+        if (radiusX <= 0 && radiusY <= 0)
         {
             return working;
         }
@@ -2238,12 +2383,55 @@ public static partial class SvgCodec
         working.PremultiplyAlpha();
         for (var pass = 0; pass < 3; pass++)
         {
-            BoxBlurHorizontal(working, radius);
-            BoxBlurVertical(working, radius);
+            if (radiusX > 0)
+            {
+                BoxBlurHorizontal(working, radiusX);
+            }
+
+            if (radiusY > 0)
+            {
+                BoxBlurVertical(working, radiusY);
+            }
         }
 
         working.UnpremultiplyAlpha();
         return working;
+    }
+
+    /// <summary>
+    ///     Converts a pixel-space <c>stdDeviation</c> into the box-blur radius of the three-pass approximation.
+    /// </summary>
+    /// <param name="stdDeviation">The pixel-space standard deviation.</param>
+    /// <returns>The box radius, 0 for a non-finite, zero or negative value.</returns>
+    private static int ComputeBoxBlurRadius(float stdDeviation)
+    {
+        if (!float.IsFinite(stdDeviation))
+        {
+            stdDeviation = 0f;
+        }
+
+        stdDeviation = Math.Clamp(stdDeviation, 0f, MaxFilterBlurStdDeviationPixels);
+        return stdDeviation > 0f
+            ? (int)MathF.Floor((stdDeviation * 3f * MathF.Sqrt(2f * MathF.PI) / 4f) + 0.5f)
+            : 0;
+    }
+
+    /// <summary>
+    ///     Parses a one- or two-number attribute (<c>stdDeviation</c>): one number applies to both axes.
+    /// </summary>
+    /// <param name="raw">The raw attribute text, or <see langword="null"/> if absent.</param>
+    /// <returns>The x and y values; 0 for an absent or unparseable first number.</returns>
+    private static (float X, float Y) ParseNumberPair(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return (0f, 0f);
+        }
+
+        var tokens = raw.Split([' ', '\t', '\n', '\r', ','], StringSplitOptions.RemoveEmptyEntries);
+        var x = tokens.Length == 0 ? 0f : ParsePercentOrNumber(tokens[0], 1f) ?? 0f;
+        var y = tokens.Length > 1 ? ParsePercentOrNumber(tokens[1], 1f) ?? x : x;
+        return (x, y);
     }
 
     /// <summary>
@@ -2391,20 +2579,21 @@ public static partial class SvgCodec
 
     /// <summary>
     ///     Evaluates a <c>feOffset</c> primitive: shifts <paramref name="input"/>'s pixel content
-    ///     by <c>dx</c>/<c>dy</c> (scaled to pixel space by <paramref name="scale"/>) via a clipped
+    ///     by <c>dx</c>/<c>dy</c> (scaled to pixel space by <paramref name="scaleX"/>/<paramref name="scaleY"/>) via a clipped
     ///     row-copy loop - a pure data copy, not blending math.
     /// </summary>
     /// <param name="element">The <c>feOffset</c> primitive element.</param>
     /// <param name="input">The already-resolved input buffer.</param>
-    /// <param name="scale">The pixel-space scale factor (see <see cref="EstimateUniformScale"/>).</param>
+    /// <param name="scaleX">The pixel length of one horizontal primitive unit, applied to <c>dx</c>.</param>
+    /// <param name="scaleY">The pixel length of one vertical primitive unit, applied to <c>dy</c>.</param>
     /// <returns>A new, same-size buffer with <paramref name="input"/>'s content shifted; pixels shifted off the edge are lost, and newly exposed pixels are fully transparent.</returns>
-    private static Surface ApplyFeOffset(XElement element, Surface input, float scale)
+    private static Surface ApplyFeOffset(XElement element, Surface input, float scaleX, float scaleY)
     {
         var dx = ParsePercentOrNumber((string?)element.Attribute("dx") ?? string.Empty, 1f) ?? 0f;
         var dy = ParsePercentOrNumber((string?)element.Attribute("dy") ?? string.Empty, 1f) ?? 0f;
 
-        var pixelDx = (int)MathF.Round(dx * scale, MidpointRounding.AwayFromZero);
-        var pixelDy = (int)MathF.Round(dy * scale, MidpointRounding.AwayFromZero);
+        var pixelDx = (int)MathF.Round(dx * scaleX, MidpointRounding.AwayFromZero);
+        var pixelDy = (int)MathF.Round(dy * scaleY, MidpointRounding.AwayFromZero);
 
         var width = input.Width;
         var height = input.Height;

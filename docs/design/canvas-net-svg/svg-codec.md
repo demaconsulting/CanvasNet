@@ -136,28 +136,26 @@ engine (see *CSS `<style>` Element and Selector-Based Styling* below), sibling (
 `@media`/other at-rules, and `!important` are explicitly out of scope - see that section for the per-construct rationale
 and failure-mode. Within the supported `marker` feature itself, `markerContentUnits` (a rarely-used SVG 2 attribute) is
 explicitly out of scope; marker content is clipped to its `markerWidth`/`markerHeight` viewport per `overflow` (see
-*Marker viewport clipping* below). Within the supported `filter` feature itself, `primitiveUnits` (not read: primitive
-values stay in user units) and the user-space reading of a primitive subregion (`x`/`y`/`width`/`height` on an `fe*`
-primitive is read as a fraction of the filter region), both reported as `svg-filter-unsupported` (see
-*Unsupported-Feature Reports*), a `filter` on a shape's own `marker` content (has no effect - `marker` content is never
-recursed into by the ordinary element walk, so a group-level filter on a `<g>` inside a `marker` is never reached) are
-explicitly out of scope. Encountering a genuinely unrecognized `fe*` primitive name (any type this codec does not
-recognize by name) tolerantly passes through its resolved input rather than rejecting or skipping the whole filter.
-`feImage` is now supported in both its raster-href and element-reference forms; because the element-reference form can
-recurse back into the ordinary element walk, filter evaluation now reuses the existing `MaxUseDepth` guard that already
-bounds `use`/marker reference depth, declining the nested render once that limit is reached. Within the supported `text`
-feature itself, the `font-weight` relative keywords `bolder`/`lighter` (which resolve to a value relative to the
-inherited weight rather than an absolute one) are not implemented - encountering either keyword tolerantly falls back to
-the inherited weight - and the `font-style` keyword `oblique` is folded into the same `SvgFontStyle.Italic` value as
-`italic` rather than being distinguished as a third style (see `SvgFontStyle`'s remarks in the source for the
-rationale). Within the supported `clipPath`/`mask` features themselves, the following are explicitly out of scope (see
-*Clipping and Masking* below for the full rationale behind each): a nested `clip-path`/`mask`/`filter` applied to a
-`clipPath` element's own children (clip children are rasterized directly, not walked through the ordinary
-element-rendering recursion that resolves those attributes elsewhere); a `clip-path`/`mask`/ `filter` attribute placed
-on the `clipPath`/`mask` element itself (both are `NonRenderingElements` never reached by the top-down walk, so any such
-attribute is inert); `<use>`/`<g>`/`<line>` children of a `clipPath` (only
-`rect`/`circle`/`ellipse`/`polyline`/`polygon`/`path`/`text` clip children are supported - `<line>` is excluded because
-a zero-area centerline contributes nothing to a union clip, matching the SVG specification);
+*Marker viewport clipping* below). Within the supported `filter` feature itself, `primitiveUnits` and primitive
+subregions are drawn as specified (see *Primitive units and subregions*), while a `filter` on a shape's own `marker`
+content (has no effect - `marker` content is never recursed into by the ordinary element walk, so a group-level filter
+on a `<g>` inside a `marker` is never reached) is explicitly out of scope. Encountering a genuinely unrecognized `fe*`
+primitive name (any type this codec does not recognize by name) tolerantly passes through its resolved input rather than
+rejecting or skipping the whole filter. `feImage` is now supported in both its raster-href and element-reference forms;
+because the element-reference form can recurse back into the ordinary element walk, filter evaluation now reuses the
+existing `MaxUseDepth` guard that already bounds `use`/marker reference depth, declining the nested render once that
+limit is reached. Within the supported `text` feature itself, the `font-weight` relative keywords `bolder`/`lighter`
+(which resolve to a value relative to the inherited weight rather than an absolute one) are not implemented -
+encountering either keyword tolerantly falls back to the inherited weight - and the `font-style` keyword `oblique` is
+folded into the same `SvgFontStyle.Italic` value as `italic` rather than being distinguished as a third style (see
+`SvgFontStyle`'s remarks in the source for the rationale). Within the supported `clipPath`/`mask` features themselves,
+the following are explicitly out of scope (see *Clipping and Masking* below for the full rationale behind each): a
+nested `clip-path`/`mask`/`filter` applied to a `clipPath` element's own children (clip children are rasterized
+directly, not walked through the ordinary element-rendering recursion that resolves those attributes elsewhere); a
+`clip-path`/`mask`/ `filter` attribute placed on the `clipPath`/`mask` element itself (both are `NonRenderingElements`
+never reached by the top-down walk, so any such attribute is inert); `<use>`/`<g>`/`<line>` children of a `clipPath`
+(only `rect`/`circle`/`ellipse`/`polyline`/`polygon`/`path`/`text` clip children are supported - `<line>` is excluded
+because a zero-area centerline contributes nothing to a union clip, matching the SVG specification);
 `mask-type`/`mask-mode: alpha` (only luminance mask semantics are implemented; an alpha-mode request tolerantly falls
 back to luminance); and a `clipPath`/`mask` `href`/`xlink:href` template-inheritance chain (mirroring the gradient
 chain-walk pattern) - an empty `clipPath`/`mask` with only an `href` resolves to "no children." Within the supported
@@ -347,8 +345,9 @@ with `isRoot` so its own font size is the `rem` basis for the rest of its proper
 | F, font | `font-size`, `line-height`, `font-family`, `font-weight`, `font-style`, the `font` shorthand; text `dx`/`dy` | the declaration is dropped: the next lower source applies (inline style, then stylesheet, then the presentation attribute, then the `font` attribute), and the value is inherited only when none is valid (no offset for `dx`/`dy`) |
 
 Not lengths, and unchanged: `viewBox`, `transform` arguments, path data, `points`,
-`stroke-miterlimit`, filter primitive parameters, `stdDeviation`, and the filter region and
-primitive subregion fractions.
+`stroke-miterlimit`, filter primitive parameters, `stdDeviation`, and the filter region fractions. A primitive
+subregion is a length under `primitiveUnits="userSpaceOnUse"` and a fraction under `objectBoundingBox` (see *Primitive
+units and subregions*).
 
 **Root width/height.** `ParseLength` resolves them with a throwaway state (`CreateRootSizeState`): a
 percentage or a viewport unit resolves against NaN and so counts as absent, `ex`/`ch` use their
@@ -1052,8 +1051,9 @@ always exactly the temporary surface's own dimensions - this invariant is what l
 `feMerge` both reuse `Surface.CompositeOver(Surface)` (which requires equal-size surfaces) unchanged, with no new
 per-pixel blending math. `feFlood` fills a buffer with a solid, alpha-scaled color (`flood-color`/`flood-opacity`).
 `feGaussianBlur` approximates a Gaussian blur with three passes of a sliding-window box blur (cost independent of the
-requested radius, unlike a naive per-pixel-kernel blur), reading only the first (isotropic) component of `stdDeviation`
-and clamping it to a fixed `MaxFilterBlurStdDeviationPixels` bound so a pathologically large requested radius cannot
+requested radius, unlike a naive per-pixel-kernel blur), reading `stdDeviation` as one number for both axes or an x/y
+pair (a box radius per axis; an axis whose radius is zero is not blurred)
+and clamping each to a fixed `MaxFilterBlurStdDeviationPixels` bound so a pathologically large requested radius cannot
 translate into unbounded per-pixel work. `feOffset` shifts a buffer's content by `dx`/`dy` (scaled by the element's own
 transform). `feComposite` implements Porter-Duff `over` by delegating to `Surface.CompositeOver`, implements
 `in`/`out`/`atop`/`xor` via one small, dedicated per-pixel premultiplied-alpha helper, and implements `arithmetic` via a
@@ -1103,16 +1103,36 @@ malformed kernel sizes tolerate by passing the input through unchanged, while an
 `xChannelSelector`/`yChannelSelector`, scaling displacement by the primitive's `scale` and the
 current transform just as `feOffset` and `feMorphology` already convert authored SVG lengths to
 pixels. `feTile` now has meaningful behavior because filter evaluation records each primitive's
-own declared `x`/`y`/`width`/`height` subregion: when a primitive declares at least one of those
-attributes, its computed output is clipped to that subregion once, generically, after the
-primitive-specific work finishes, and `feTile` repeats exactly that clipped upstream subregion
-across the full filter region. Because every pre-existing primitive in this repository's fixtures
-omitted primitive subregion attributes entirely, the default path remains the full filter region
-and therefore preserves all prior behavior unchanged. `feDropShadow` is expressed in terms of the
+subregion (see *Primitive units and subregions*): each computed output is clipped to its subregion once,
+generically, after the primitive-specific work finishes, and `feTile` repeats exactly that clipped upstream subregion
+across the full filter region. A primitive whose inputs are standard inputs and that declares no subregion keeps the
+full filter region, so filters without subregions draw exactly as before. `feDropShadow` is expressed in terms of the
 existing primitives' own semantics - blur the alpha-only source, offset it, flood it with the
 requested color/opacity, then composite the source graphic over that shadow - so it reuses the
 same blur, offset, flood, and compositing behavior the simpler primitives had already
 established.
+
+**Primitive units and subregions.** `FilterChain` reads the filter's `primitiveUnits` once. Under the default
+`userSpaceOnUse` the primitive space is user space: `PrimitiveToPixel` is the referencing element's transform and both
+axes use the uniform `Scale` (`EstimateUniformScale`), exactly as before. Under `objectBoundingBox`, `PrimitiveToPixel`
+prepends `ComputeObjectBoundingBoxMap(ReferenceBounds)` (the fill box), and `ScaleX`/`ScaleY` are the pixel lengths of
+one unit on each axis, so `stdDeviation` (one number or an x/y pair, now read per axis in both modes), `dx`/`dy`,
+`radius` and the displacement `scale` are fractions of the box on their own axis, and a light's `x`/`y`/`pointsAt` map
+through `PrimitiveToPixel` with `z` scaled by `LengthScale` (`sqrt((ScaleX^2 + ScaleY^2) / 2)`, the normalized diagonal,
+as Chromium resolves it). `surfaceScale` and `feTurbulence`'s `baseFrequency` stay in user space, as Edge draws them.
+Each primitive gets a subregion (Filter Effects 1, filter primitive subregion): `ResolveDefaultPrimitiveSubregion` takes
+the union of the subregions of the inputs it references (`FilterChain.SubregionOf`), the filter region for a standard
+input (`SourceGraphic`, `SourceAlpha`, or an unknown name that falls back to the source), and the filter region for
+`feFlood`, `feImage`, `feTurbulence`, an `feMerge` with no node, and `feTile`. `ResolvePrimitiveSubregionPixelBounds`
+applies the declared `x`/`y`/`width`/`height` in primitive units (a user length, a percentage of the viewport under
+`userSpaceOnUse`; a fraction or percentage of the box under `objectBoundingBox`), each omitted or unparseable one taken
+from the default subregion mapped back into primitive units, maps the rectangle through `PrimitiveToPixel`, and takes
+its pixel bounds rounded outward (a value within 1e-3 of a whole pixel snaps to it) and clamped to the filter region; a
+zero or negative size gives an empty subregion. A primitive that declares a subregion gets a clipped copy
+(`ClipPrimitiveOutputToSubregion`, charged one work unit in `CountFilterPrimitiveWorkUnits`); a new output whose default
+subregion is smaller than the filter region is cleared outside it in place (`ClearOutsideSubregion`, no allocation), and
+a pass-through keeps its input. Under a rotation the subregion is its bounding box, as the filter region is.
+`svg-filter-unsupported` is no longer reported.
 
 `feImage` supports both forms SVG uses in practice. A raster/data-URI `href` reuses the same
 image-decoding helpers already introduced for Phase 4's standalone `<image>` element support: the
@@ -2054,8 +2074,8 @@ Passing the **scoped resolver of the request** on is what makes nesting work wit
 elements of the nested file resolve against the folder of that file, and the depth, cycle, and count limits of the whole
 render apply. When the request has no resolver the nested file's external links are not drawn. The notes of the result
 are the position bindings of the file that were not resolved, as `svg` warnings with their codes, and the features the
-codec reports through `SvgLoadOptions.UnsupportedFeatureHandler`, as `Unsupported` notes with their `svg-text-*` or
-`svg-filter-unsupported` codes;
+codec reports through `SvgLoadOptions.UnsupportedFeatureHandler`, as `Unsupported` notes with their `svg-text-*`
+codes;
 when the request sets `ThrowOnUnsupportedFeature`, the first such feature disposes the surface and throws
 `UnsupportedImageFeatureException` with its code instead. Content
 that is not an SVG document is `InvalidDataException` (from `GetInfo`), a request without a file
@@ -2173,14 +2193,13 @@ the first 24 characters of its text), the distinct elements (the count), and up 
   `direction: rtl`, a `dominant-baseline` and a `text-decoration` on a text
   content element or an ancestor of the `text`; and each code point that `GlyphFallback.FindMissing` finds no font
   for.
-- `svg-filter-unsupported` (`SvgUnsupportedFeature.FilterUnsupportedCode`): a `filter` that is applied (from
-  `EvaluateFilterChain`, through `ReportFilterUnsupportedFeatures`) with `primitiveUnits="objectBoundingBox"`,
-  which the codec does not read, or with a primitive subregion (`x`, `y`, `width` or `height` on a direct
-  `fe*` child), which it reads as a fraction of the filter region instead of in the primitive units; the element
-  counted is the `filter`, and the message reads "filter is drawn without: ...".
+- `svg-filter-unsupported` (`SvgUnsupportedFeature.FilterUnsupportedCode`): no longer reported. The features it covered,
+  `primitiveUnits="objectBoundingBox"` and primitive subregions, are drawn as specified (see *Primitive units and
+  subregions*); the public constant is kept so code that names it still compiles, and the collector's code order no
+  longer lists it.
 
 **Reporting.** After the document is painted, `RenderDocument` calls `Report`, which calls the handler once per code,
-`svg-text-not-drawn` first, then `svg-text-unsupported` and `svg-filter-unsupported`, with the count and the message.
+`svg-text-not-drawn` first, then `svg-text-unsupported`, with the count and the message.
 Content that is not drawn by design (inside `defs`, a
 `switch` child that is not chosen, `title`/`desc`) reports nothing; content drawn through `use`, `marker`, `pattern`,
 `mask` and `clipPath` reports like any other.

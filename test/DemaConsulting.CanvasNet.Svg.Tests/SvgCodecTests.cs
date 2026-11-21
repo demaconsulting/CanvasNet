@@ -3276,10 +3276,10 @@ public class SvgCodecTests
 
     /// <summary>
     ///     Regression test: <c>stdDeviation="2&#x9;3"</c> (tab-separated x/y radii) must still
-    ///     tokenize on the tab and parse the first radius as <c>2</c>, producing the same softened
-    ///     halo as the equivalent space-separated <c>stdDeviation="2"</c> case above - rather than
-    ///     treating the whole value as one unparseable token (which would silently fall back to a
-    ///     zero radius, disabling the blur).
+    ///     tokenize on the tab and read the x radius as <c>2</c> and the y radius as <c>3</c>, producing
+    ///     a softened halo like the space-separated <c>stdDeviation="2"</c> case above (slightly
+    ///     stronger, from the taller vertical blur) - rather than treating the whole value as one
+    ///     unparseable token (which would silently fall back to a zero radius, disabling the blur).
     /// </summary>
     [Fact]
     public void SvgCodec_Load_FeGaussianBlurStdDeviationTabSeparated_RendersBlurredHaloBehindContent()
@@ -3309,9 +3309,9 @@ public class SvgCodecTests
         Assert.Equal(new Rgba32(0, 128, 0, 255), surface[50, 50]);
 
         // Assert: just outside the rect's own edge, a softened (partially transparent, not
-        // hard-edged) orange halo is visible - proving the first token ("2") was actually parsed
-        // and used as the blur radius, rather than falling back to zero
-        Assert.Equal(new Rgba32(255, 161, 0, 19), surface[61, 50]);
+        // hard-edged) orange halo is visible - proving the tokens ("2" and "3") were actually parsed
+        // and used as the blur radii, rather than falling back to zero
+        Assert.Equal(new Rgba32(255, 158, 0, 21), surface[61, 50]);
 
         // Assert: a couple of pixels further out, past the blur's influence, nothing remains
         Assert.Equal(0, surface[62, 50].A);
@@ -4723,7 +4723,7 @@ public class SvgCodecTests
             <svg viewBox='0 0 4 4'>
               <defs>
                 <filter id='f' x='0' y='0' width='1' height='1'>
-                  <feFlood flood-color='red' x='0' y='0' width='0.5' height='0.5' result='seed'/>
+                  <feFlood flood-color='red' x='0' y='0' width='2' height='2' result='seed'/>
                   <feTile in='seed'/>
                 </filter>
               </defs>
@@ -4848,12 +4848,12 @@ public class SvgCodecTests
     [Fact]
     public void SvgCodec_Load_FePrimitiveWithSubregion_ClipsOutputToDeclaredXYWidthHeight()
     {
-        // Arrange
+        // Arrange: a 5-unit subregion in user space (the default primitiveUnits), the right half
         const string svg = """
             <svg viewBox='0 0 10 10'>
               <defs>
                 <filter id='f' x='0' y='0' width='1' height='1'>
-                  <feFlood flood-color='red' x='0.5' y='0' width='0.5' height='1'/>
+                  <feFlood flood-color='red' x='5' y='0' width='5' height='10'/>
                 </filter>
               </defs>
               <rect x='0' y='0' width='10' height='10' fill='blue' filter='url(#f)'/>
@@ -4867,6 +4867,171 @@ public class SvgCodecTests
         // Assert
         Assert.Equal(0, surface[2, 5].A);
         Assert.Equal(new Rgba32(255, 0, 0, 255), surface[7, 5]);
+    }
+
+    /// <summary>
+    ///     Proves a primitive subregion under the default <c>primitiveUnits="userSpaceOnUse"</c> is read in user
+    ///     units (a percentage of the viewport), not as a fraction of the filter region: on a 10x10 user space
+    ///     drawn at 20x20 pixels, <c>x="5" width="5"</c> (or <c>50%</c>) floods pixel columns 10 to 19. Edge
+    ///     (headless) floods the same columns.
+    /// </summary>
+    /// <param name="subregion">The subregion attributes of the flood.</param>
+    [Theory]
+    [InlineData("x='5' y='0' width='5' height='10'")]
+    [InlineData("x='50%' width='50%'")]
+    public void SvgCodec_Load_FePrimitiveSubregionUserSpace_ReadsUserLengths(string subregion)
+    {
+        // Arrange
+        var svg = $"""
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feFlood flood-color='red' {subregion}/>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='10' height='10' fill='blue' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 20, 20);
+
+        // Assert: columns 0 to 9 are empty, 10 to 19 flooded
+        Assert.Equal(0, surface[9, 10].A);
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[10, 10]);
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[19, 19]);
+    }
+
+    /// <summary>
+    ///     Proves a primitive's omitted subregion attributes default to the union of its inputs' subregions
+    ///     (Filter Effects 1): an <c>feOffset</c> of a flood confined to x 2 to 8 is clipped to that same span,
+    ///     so the shifted flood shows only from 6 to 8; with <c>width="8"</c> alone, x still defaults to 2, so
+    ///     it shows from 6 to 10. Edge (headless) draws the same spans.
+    /// </summary>
+    /// <param name="offsetAttributes">Extra attributes for the <c>feOffset</c>.</param>
+    /// <param name="redColumn">A pixel column that is red.</param>
+    /// <param name="clearColumn">A pixel column the shifted flood would cover without the subregion, which is clear.</param>
+    [Theory]
+    [InlineData("", 7, 9)]
+    [InlineData("width='8'", 9, 11)]
+    public void SvgCodec_Load_FePrimitiveSubregionOmittedAttributes_DefaultToTheInputUnion(string offsetAttributes, int redColumn, int clearColumn)
+    {
+        // Arrange: the flood covers x 2 to 8; the offset moves it 4 to the right
+        var svg = $"""
+            <svg viewBox='0 0 20 10'>
+              <defs>
+                <filter id='f' filterUnits='userSpaceOnUse' x='0' y='0' width='20' height='10'>
+                  <feFlood flood-color='red' x='2' y='0' width='6' height='10' result='a'/>
+                  <feOffset in='a' dx='4' {offsetAttributes}/>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='20' height='10' fill='blue' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 20, 10);
+
+        // Assert: the flood moved off its start, shows inside the subregion, and is clipped after it
+        Assert.Equal(0, surface[3, 5].A);
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[redColumn, 5]);
+        Assert.Equal(0, surface[clearColumn, 5].A);
+    }
+
+    /// <summary>
+    ///     Proves <c>primitiveUnits="objectBoundingBox"</c> reads <c>feOffset</c>'s <c>dx</c> as a fraction of the
+    ///     box width: <c>dx="0.5"</c> on a 10-unit box shifts it 5 units (not half a unit). Edge (headless) shifts it
+    ///     the same.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FilterPrimitiveUnitsObjectBoundingBox_ScalesOffsetByTheBox()
+    {
+        // Arrange: a 10x10 box at (10,10); the filter region is twice the box wide
+        const string svg = """
+            <svg viewBox='0 0 40 40'>
+              <defs>
+                <filter id='f' x='0' y='0' width='2' height='1' primitiveUnits='objectBoundingBox'>
+                  <feOffset dx='0.5'/>
+                </filter>
+              </defs>
+              <rect x='10' y='10' width='10' height='10' fill='blue' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 40, 40);
+
+        // Assert: the box now spans x 15 to 25
+        Assert.Equal(0, surface[13, 15].A);
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[15, 15]);
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[24, 15]);
+        Assert.Equal(0, surface[25, 15].A);
+    }
+
+    /// <summary>
+    ///     Proves <c>primitiveUnits="objectBoundingBox"</c> reads a primitive subregion as fractions (or
+    ///     percentages) of the box: <c>x="0.5" width="0.5"</c> on a 20x10 box at (10,10) floods only its right
+    ///     half, x 20 to 30. Edge (headless) floods the same half.
+    /// </summary>
+    /// <param name="subregion">The subregion attributes of the flood.</param>
+    [Theory]
+    [InlineData("x='0.5' width='0.5'")]
+    [InlineData("x='50%' y='0%' width='50%' height='100%'")]
+    public void SvgCodec_Load_FilterPrimitiveUnitsObjectBoundingBox_ReadsSubregionFractions(string subregion)
+    {
+        // Arrange
+        var svg = $"""
+            <svg viewBox='0 0 40 40'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1' primitiveUnits='objectBoundingBox'>
+                  <feFlood flood-color='red' {subregion}/>
+                </filter>
+              </defs>
+              <rect x='10' y='10' width='20' height='10' fill='blue' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 40, 40);
+
+        // Assert: the left half is empty, the right half flooded
+        Assert.Equal(0, surface[15, 15].A);
+        Assert.Equal(0, surface[19, 15].A);
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[20, 15]);
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[29, 19]);
+    }
+
+    /// <summary>
+    ///     Proves <c>primitiveUnits="objectBoundingBox"</c> scales <c>stdDeviation</c> per axis by the box: on a
+    ///     40x10 box, <c>stdDeviation="0.1"</c> is 4 units across and 1 unit down, so 6 units beside the box the
+    ///     blur still shows while 6 units above it nothing does. Edge (headless) blurs the same way.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FilterPrimitiveUnitsObjectBoundingBox_BlurScalesPerAxis()
+    {
+        // Arrange: a 40x10 box at (20,30), with a filter region large enough for both spreads
+        const string svg = """
+            <svg viewBox='0 0 80 70'>
+              <defs>
+                <filter id='f' x='-0.5' y='-2' width='2' height='5' primitiveUnits='objectBoundingBox'>
+                  <feGaussianBlur stdDeviation='0.1'/>
+                </filter>
+              </defs>
+              <rect x='20' y='30' width='40' height='10' fill='black' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 80, 70);
+
+        // Assert: 6 units left of the box the blur shows, 6 units above it nothing does
+        Assert.True(surface[14, 35].A > 10, $"Expected the horizontal blur 6 units out, got {surface[14, 35]}.");
+        Assert.Equal(0, surface[40, 23].A);
     }
 
     /// <summary>
@@ -11821,7 +11986,7 @@ public class SvgCodecTests
             <svg viewBox='0 0 10 10'>
               <defs>
                 <filter id='f' x='0' y='0' width='1' height='1'>
-                  <feImage href='{dataUri}' x='0.5' y='0' width='0.5' height='1' preserveAspectRatio='none'/>
+                  <feImage href='{dataUri}' x='5' y='0' width='5' height='10' preserveAspectRatio='none'/>
                 </filter>
               </defs>
               <rect x='0' y='0' width='10' height='10' fill='black' filter='url(#f)'/>

@@ -55,8 +55,7 @@ drawn at its placement.
   (`svg-image-unresolved`, `svg-image-too-large`, `image-fragment-invalid`, or
   `image-page-out-of-range`) is an `unsupported-feature` error, as for render,
   and so is text that a linked SVG file does not draw or draws without a feature
-  (`svg-text-not-drawn`, `svg-text-unsupported`) and a filter it draws without
-  a feature (`svg-filter-unsupported`); a link the file-access mode
+  (`svg-text-not-drawn`, `svg-text-unsupported`); a link the file-access mode
   denies (`image-access-denied`) is the error `file-access-denied`; a position
   binding that fails is the error `svg-binding-failed`;
   `svg-flatten-image-not-drawn` stays a warning.

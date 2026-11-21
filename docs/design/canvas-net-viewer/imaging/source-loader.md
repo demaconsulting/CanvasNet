@@ -683,7 +683,7 @@ hints. Requirement: `CanvasNetViewer-Imaging-SourceLoader-SvgArrowheadHint`.
 
 `LoadSvg` and `LoadScopedSvg` (a nested SVG file) both set `SvgLoadOptions.UnsupportedFeatureHandler`, and
 `UnsupportedNotes` turns each `SvgUnsupportedFeature` into an `svg` note of severity `unsupported` with its code
-(`svg-text-not-drawn`, `svg-text-unsupported` or `svg-filter-unsupported`), so the CLI prints it as
+(`svg-text-not-drawn` or `svg-text-unsupported`), so the CLI prints it as
 `Unsupported: <code>: <message>`. Under
 `SourceOptions.Strict`, `ThrowForUnsupported` throws `unsupported-feature` for the first report ("'<file>' uses an SVG
 feature that is not supported (<code>): <message>", hint "Without --strict the file is drawn as far as possible and the

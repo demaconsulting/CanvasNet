@@ -33,19 +33,19 @@ public static partial class SvgCodec
     ///         frequency-adjustment/wraparound bookkeeping - a documented, intentional scope
     ///         boundary (no occurrence of <c>stitchTiles="stitch"</c> exists anywhere in this
     ///         repository's fixture corpus), consistent with this codec's existing tolerant-fallback
-    ///         philosophy for out-of-scope attribute values (e.g. <c>kernelUnitLength</c>,
-    ///         <c>primitiveUnits="objectBoundingBox"</c>).
+    ///         philosophy for out-of-scope attribute values (e.g. <c>kernelUnitLength</c>).
     ///     </para>
     ///     <para>
     ///         The pixel-to-local-space point mapping used to feed the reference algorithm's
     ///         <c>point[]</c> is this codec's own necessary design decision (the spec's <c>point[]</c>
-    ///         is otherwise abstract, and this codec has no <c>filterRes</c>/<c>primitiveUnits</c>
-    ///         support to anchor it precisely): <c>point.x = (regionPixelX + pixelX) / scale</c>, and
+    ///         is otherwise abstract, and this codec has no <c>filterRes</c> support to anchor it
+    ///         precisely): <c>point.x = (regionPixelX + pixelX) / scale</c>, and
     ///         symmetrically for <c>y</c> - i.e. each pixel's own absolute pixel-space position,
     ///         converted back to local units by the same <paramref name="scale"/> factor
     ///         <c>surfaceScale</c>/light-<c>z</c> use in <see cref="ApplyFeDiffuseLighting"/>/
     ///         <see cref="ApplyFeSpecularLighting"/>. <c>baseFrequency</c> itself is used exactly as
-    ///         authored (already expressed in local/user units per spec).
+    ///         authored, in user units also under <c>primitiveUnits="objectBoundingBox"</c>, as browsers
+    ///         draw it.
     ///     </para>
     /// </remarks>
     private static Surface ApplyFeTurbulence(XElement element, int width, int height, float scale, int regionPixelX, int regionPixelY)

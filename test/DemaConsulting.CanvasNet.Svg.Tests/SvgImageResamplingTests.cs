@@ -98,7 +98,7 @@ public class SvgImageResamplingTests
     {
         var svg = $"<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 {width} {height}'>" +
                   "<defs><filter id='f' x='0' y='0' width='1' height='1'>" +
-                  $"<feImage href='{uri}' x='0' y='0' width='1' height='1' preserveAspectRatio='none'/></filter></defs>" +
+                  $"<feImage href='{uri}' x='0' y='0' width='{width}' height='{height}' preserveAspectRatio='none'/></filter></defs>" +
                   $"<rect x='0' y='0' width='{width}' height='{height}' fill='black' filter='url(#f)'/></svg>";
         using var stream = new MemoryStream(Encoding.UTF8.GetBytes(svg));
         return SvgCodec.Load(stream, width, height);
