@@ -128,22 +128,21 @@ a mix). A length can be combined with a percentage or a font-relative unit (`cal
 division by zero, a product of two lengths and a sum of a number and a length are invalid, and an
 expression is limited to 1,024 characters and 16 levels of nesting.
 
-A math expression keeps its type, as in CSS (Values 4, "Type Checking"): `calc(2 * 10px)` is a
-length, while `calc(1 + 1)` or `min(1, 2)` is a plain *number*. A number-typed result is accepted
-wherever SVG 2 allows a number, and is then user units exactly like a literal `width="10"`: in
-`stroke-width`, each `stroke-dasharray` entry and `stroke-dashoffset` (SVG 2 Painting:
-`<length-percentage> | <number>`), and in every length attribute (SVG 2 "Attribute syntax"
-inserts `<number>` into `<length>` and `<length-percentage>` for presentation attributes) - shape,
-text, `use`, `image` and `marker` geometry, text `dx`/`dy`, gradient, pattern and mask coordinates,
-the root `width`/`height` and the `font-size` attribute - so `width="calc(1 + 1)"` is 2 user units.
-A mixed expression (`calc(1 + 1px)`, `calc(10% + 1)`) is always invalid. The one exception is a
-`font-size` declared in CSS (a `style` attribute, a `style` element rule, or the `font` shorthand or
-attribute), whose grammar has no number: a number-typed result there is ignored and the inherited
-size stays. `line-height` keeps treating a number-typed result as a multiplier like a bare number
-(`line-height: calc(1 + 1)` is twice each element's own font size). A negative math `line-height`
-(`calc(10px - 20px)`, `calc(1 - 2)`) is clamped to 0, as CSS and the browsers do, while a negative literal (`-5px`,
-`-2`) is invalid and dropped. This follows the specification
-text; browser behavior for a number-typed math function in an SVG attribute has not been verified.
+A math expression keeps its type, as in CSS (Values 4, "Type Checking"): `calc(2 * 10px)` is a length, while
+`calc(1 + 1)` or `min(1, 2)` is a plain *number*. A number-typed result is accepted wherever SVG 2 allows a number, and
+is then user units exactly like a literal `width="10"`: in `stroke-width`, each `stroke-dasharray` entry and
+`stroke-dashoffset` (SVG 2 Painting: `<length-percentage> | <number>`), and in every length attribute (SVG 2 "Attribute
+syntax" inserts `<number>` into `<length>` and `<length-percentage>` for presentation attributes) - shape, text, `use`,
+`image` and `marker` geometry, text `dx`/`dy`, gradient, pattern and mask coordinates, the root `width`/`height` and the
+`font-size` attribute - so `width="calc(1 + 1)"` is 2 user units. A mixed expression (`calc(1 + 1px)`, `calc(10% + 1)`)
+is always invalid. The one exception is a `font-size` declared in CSS (a `style` attribute, a `style` element rule, or
+the `font` shorthand or attribute), whose grammar has no number: a number-typed result there is ignored and the
+inherited size stays. `line-height` keeps treating a number-typed result as a multiplier like a bare number
+(`line-height: calc(1 + 1)` is twice each element's own font size). A negative math `line-height` (`calc(10px - 20px)`,
+`calc(1 - 2)`) is clamped to 0, as CSS and the browsers do, while a negative literal (`-5px`, `-2`) is invalid and
+dropped. In the `font` shorthand a negative literal line height makes the whole declaration invalid, so
+`font: 10px/-5px serif` is ignored and its size and family do not apply either. This follows the specification text;
+browser behavior for a number-typed math function in an SVG attribute has not been verified.
 
 **Percentages in gradient, pattern and mask coordinates.** A plain percentage and a percentage
 inside `calc()` always agree. Under the default

@@ -1247,6 +1247,7 @@ default region; a number-typed `calc(0.5 + 0.25)` is accepted as a gradient's `x
 `SvgCodec_Load_NonPositiveFontSize_RendersNoText`,
 `SvgCodec_Load_MalformedTextDxDy_IsIgnored`,
 `SvgCodec_Load_InvalidFontShorthand_IsDropped`,
+`SvgCodec_Load_FontShorthandNegativeLineHeight_DropsTheWholeDeclaration`,
 `SvgCodec_Load_MathTypeMix_StillThrowsInvalidDataException`,
 `SvgCodec_GetInfo_RootSizeNumberMath_ResolvesToUserUnits`,
 `SvgCodec_GetInfo_RootSizeMixedTypeMath_FallsBackTo300x150`,
@@ -1270,7 +1271,9 @@ basis counts as absent. Class F: a malformed `font-size` (attribute and inline s
 and the next lower source applies, else the parent's size is inherited (see the fall-through tests
 under the font-size requirement); a malformed `line-height` and `dx`/`dy` are ignored (a negative
 literal `line-height` of `-5px` or `-2` leaves the `calc(1lh + 30px)` bar at the normal 90), an invalid
-shorthand is dropped whole, and a zero or negative size still renders no text (existing behavior).
+shorthand is dropped whole (a negative literal line height such as `font: 10px/-5px serif` included: the group's
+`font-size` of 20 stays in effect, so a `calc(1em + 30px)` bar is 50 wide, as Edge draws it, against 40 for the valid
+`font: 10px/5px serif`), and a zero or negative size still renders no text (existing behavior).
 A number-typed math result is user units where SVG 2 allows a number, so only a mixed expression is
 malformed there: `calc(1 + 1px)`, `calc(10% + 1)`, `calc(1px * 1px)` and `min(1, 1px)` are asserted to
 throw `InvalidDataException` in a geometry length, `stroke-width`, a dash entry and a dash offset

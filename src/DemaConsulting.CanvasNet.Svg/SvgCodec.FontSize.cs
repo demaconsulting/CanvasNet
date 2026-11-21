@@ -650,13 +650,23 @@ public static partial class SvgCodec
                  position == token.Length && unit == LengthUnit.None && number != 0);
     }
 
-    /// <summary>Validates that a <c>font</c> shorthand line-height token is <c>normal</c>, a number or a well-formed length.</summary>
+    /// <summary>
+    ///     Validates that a <c>font</c> shorthand line-height token is <c>normal</c>, a non-negative
+    ///     number or a well-formed non-negative length.
+    /// </summary>
+    /// <remarks>
+    ///     The <c>line-height</c> grammar rejects a negative literal (<c>-5px</c>, <c>-2</c>,
+    ///     <c>-10%</c>), and a shorthand with an invalid component is invalid as a whole, so the
+    ///     entire <c>font</c> declaration is ignored, as browsers do. A math function whose result
+    ///     is negative stays valid: its value is clamped to zero when the longhand is parsed.
+    /// </remarks>
     /// <param name="token">The line-height token.</param>
     /// <returns><see langword="true"/> when the token is acceptable as a <c>line-height</c>.</returns>
     private static bool IsValidLineHeightSyntax(string token) =>
         token.Equals("normal", StringComparison.OrdinalIgnoreCase) ||
         (float.TryParse(token, NumberStyles.Float, CultureInfo.InvariantCulture, out var number) && float.IsFinite(number) && number >= 0f) ||
-        TryResolveLengthOrNumber(token, RenderState.Initial, PercentageAxis.FontSize, out _, out _, out _);
+        (TryResolveLengthOrNumber(token, RenderState.Initial, PercentageAxis.FontSize, out var length, out _, out _) &&
+         (length >= 0f || StartsWithMathFunction(token.Trim())));
 
     /// <summary>
     ///     Expands an element's <c>font</c> presentation attribute into longhand values, the lowest

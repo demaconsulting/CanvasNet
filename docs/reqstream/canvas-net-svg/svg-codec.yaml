@@ -1038,13 +1038,16 @@ sections:
               treated as absent so the default applies; and on font-size, line-height, the
               other font properties and the font shorthand, and on the text dx and dy, it shall be
               dropped so the next lower source applies, else the inherited
-              value remains.
+              value remains, a font shorthand whose line-height is a negative literal (such as
+              font: 10px/-5px serif) being invalid and dropped as a whole.
             justification: |
               Geometry keeps its strict InvalidDataException behavior because existing callers and
               tests rely on it, and a missing geometry value cannot be defaulted meaningfully.
               Optional and presentation-level values follow the CSS invalid-declaration rule so a
               document with one bad value still renders, as it does in a browser. Stating the
-              classes explicitly lets a caller predict the outcome of any malformed value.
+              classes explicitly lets a caller predict the outcome of any malformed value. A
+              shorthand with an invalid component is invalid as a whole (CSS Cascade 4), and Edge
+              ignores font: 10px/-5px serif entirely, its font size included.
             tests:
               - SvgCodec_Load_MalformedGeometryLength_ThrowsInvalidDataException
               - SvgCodec_Load_MalformedStrokeLength_ThrowsInvalidDataException
@@ -1058,6 +1061,7 @@ sections:
               - SvgCodec_Load_NonPositiveFontSize_RendersNoText
               - SvgCodec_Load_MalformedTextDxDy_IsIgnored
               - SvgCodec_Load_InvalidFontShorthand_IsDropped
+              - SvgCodec_Load_FontShorthandNegativeLineHeight_DropsTheWholeDeclaration
               - SvgCodec_Load_MathTypeMix_StillThrowsInvalidDataException
               - SvgCodec_GetInfo_RootSizeNumberMath_ResolvesToUserUnits
               - SvgCodec_GetInfo_RootSizeMixedTypeMath_FallsBackTo300x150

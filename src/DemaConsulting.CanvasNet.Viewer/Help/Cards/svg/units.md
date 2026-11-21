@@ -24,7 +24,8 @@ see-also:
   font-size from a style declaration, stylesheet, or font shorthand is ignored,
   and line-height treats it as a multiplier. A negative math line-height (such
   as calc(10px - 20px)) is clamped to 0, as in browsers; a negative literal
-  (-5px) is invalid.
+  (-5px) is invalid, and in the font shorthand (font: 10px/-5px serif) it
+  makes the whole declaration invalid, so its size and family are ignored too.
 - font-size from an attribute, a style attribute, a style element, or the font
   shorthand (style, weight, size, / line-height, family): lengths, percent, the
   keywords xx-small to xxx-large (9, 10, 13, 16, 18, 24, 32, and 48 pixels),

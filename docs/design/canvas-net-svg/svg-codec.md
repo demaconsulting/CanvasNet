@@ -472,7 +472,9 @@ ignored. A negative literal (`-5px`, `-2`) is invalid and ignored, but a negativ
 (`calc(10px - 20px)`, `calc(1 - 2)`) is clamped to 0, because CSS Values 4 (Range Checking) clamps an
 out-of-range math function instead of rejecting it, as Edge does.
 `IsValidLineHeightSyntax` (the shorthand's `/ line-height` check) uses the same rule, so
-`font: 10px/calc(1 + 1) Family` is accepted. `ResolveComputedLineHeight` picks the first valid of
+`font: 10px/calc(1 + 1) Family` is accepted, `font: 10px/calc(1px - 5px) Family` sets a line height of 0, and a
+negative literal (`font: 10px/-5px Family`, `font: 10px/-2 Family`) makes the whole shorthand invalid: the
+declaration is ignored, its size and family included, as Edge does. `ResolveComputedLineHeight` picks the first valid of
 CSS and the `font` attribute, else inherits, and is shared by the element cascade and
 `ReadRootLineHeight`. Inside `line-height` itself `lh` resolves against the parent's line height and
 font size, and `rlh` on the root against the initial values (CSS Values 4, font-relative lengths):

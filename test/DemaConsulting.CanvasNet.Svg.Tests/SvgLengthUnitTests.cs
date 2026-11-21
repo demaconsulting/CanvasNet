@@ -897,6 +897,31 @@ public class SvgLengthUnitTests
         Assert.Equal(90.0, measured, Tolerance);
     }
 
+    /// <summary>
+    ///     Proves a <c>font</c> shorthand with a negative literal <c>line-height</c> is invalid as a whole and
+    ///     ignored, so its font size does not apply either: the group keeps its <c>font-size</c> of 20 and
+    ///     <c>calc(1em + 30px)</c> is 50. The control with a valid line height applies the shorthand's 10px
+    ///     size (40). Edge (headless) draws the same 50 and 40 unit bars.
+    /// </summary>
+    /// <param name="declaration">The <c>font</c> shorthand declaration.</param>
+    /// <param name="expected">The expected bar width.</param>
+    [Theory]
+    [InlineData("font: 10px/-5px serif", 50.0)]
+    [InlineData("font: 10px/-2 serif", 50.0)]
+    [InlineData("font: 10px/5px serif", 40.0)]
+    public void SvgCodec_Load_FontShorthandNegativeLineHeight_DropsTheWholeDeclaration(string declaration, double expected)
+    {
+        // Arrange: the shorthand sits on the same group as a font-size presentation attribute of 20
+        var svg =
+            $"<svg viewBox='0 0 400 40'><g style='{declaration}' font-size='20'><rect width='calc(1em + 30px)' height='10' fill='black'/></g></svg>";
+
+        // Act
+        var measured = SvgLengthTestSupport.RowCoverage(SvgLengthTestSupport.Render(svg, 400, 40), 5);
+
+        // Assert: a negative line height drops the declaration, so the size stays 20
+        Assert.Equal(expected, measured, Tolerance);
+    }
+
     // ================================================================================================
     // objectBoundingBox mask regions evaluate math on the fraction axis
     // ================================================================================================
