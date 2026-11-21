@@ -146,9 +146,9 @@ public class SvekGeometryTests
 
     /// <summary>
     ///     Validates the end of a route that arrives across the ranks on the side of a rectangle that faces its
-    ///     neighboring point: in line with the point, kept 10 pixels (a quarter of a short side) from the corners, on the
-    ///     bottom or top side top to bottom and on the left or right side left to right; none for a point beside the box
-    ///     along the ranks or for an outline that is not a rectangle.
+    ///     neighboring point: in line with the point, kept 10 pixels from the corners (a quarter of the side when that is
+    ///     less), on the bottom or top side top to bottom and on the left or right side left to right; none for a point
+    ///     beside the box along the ranks or for an outline that is not a rectangle.
     /// </summary>
     [Fact]
     public void PlantUmlSvekGeometry_ClipToFacingSide_EndsOnTheFacingSide()

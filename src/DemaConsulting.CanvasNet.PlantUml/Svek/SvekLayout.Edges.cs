@@ -704,10 +704,11 @@ internal sealed partial class SvekLayout
         var leftToRight = _diagram.RankDir == SvekRankDir.LeftToRight;
 
         // A route across one label rank with no label is drawn straight between the facing sides of its ends (as
-        // Graphviz draws a short edge), when that line crosses no other unit: dagre puts the point in the label rank in
-        // line with one end, which makes the other end arrive almost level
+        // Graphviz draws a short edge), when that line crosses no other unit and no other link joins the same two ends
+        // (their straight lines would be drawn on top of each other; dagre keeps their routes apart): dagre puts the
+        // point in the label rank in line with one end, which makes the other end arrive almost level
         if (points.Count == 3 && !self && edge.Slot is null && edge.FromCompound is null && edge.ToCompound is null
-            && fromShape is { } fromOutline && toShape is { } toOutline)
+            && fromShape is { } fromOutline && toShape is { } toOutline && !SharesEnds(work, edge))
         {
             var (fromAim, toAim) = StraightAims(fromOutline.Box, toOutline.Box, leftToRight);
             if (SvekGeometry.ClipToFacingSide(fromOutline.Shape, fromOutline.Box, fromAim, leftToRight) is { } a
@@ -735,6 +736,22 @@ internal sealed partial class SvekLayout
         {
             points[^1] = End(to, towardTo);
         }
+    }
+
+    /// <summary>
+    ///     Gets whether another link of the scope (not a note's link to its owner, which is never drawn) joins the same
+    ///     two nodes as an edge, in either direction: the straight lines of such links between neighboring ranks would
+    ///     coincide, so they keep the routes dagre keeps apart.
+    /// </summary>
+    /// <param name="work">The scope's work.</param>
+    /// <param name="edge">The edge.</param>
+    /// <returns>True when another link joins the same two nodes.</returns>
+    private bool SharesEnds(ScopeWork work, EdgeWork edge)
+    {
+        _meter.Charge(work.Edges.Count);
+        return work.Edges.Any(e => !ReferenceEquals(e, edge) && !e.Synthetic
+            && ((ReferenceEquals(e.RepFrom, edge.RepFrom) && ReferenceEquals(e.RepTo, edge.RepTo))
+                || (ReferenceEquals(e.RepFrom, edge.RepTo) && ReferenceEquals(e.RepTo, edge.RepFrom))));
     }
 
     /// <summary>
@@ -858,7 +875,8 @@ internal sealed partial class SvekLayout
 
     /// <summary>
     ///     Gets how far a label must move, away from the lines its link draws, to keep <see cref="LabelClearance"/> from
-    ///     them and overlap no unit: one pixel at a time, at most <see cref="LabelClearSteps"/> pixels.
+    ///     them and overlap no unit: one pixel at a time, at most <see cref="LabelClearSteps"/> pixels; a label with no
+    ///     clear place within that distance stays where it was placed.
     /// </summary>
     /// <param name="work">The scope's work.</param>
     /// <param name="lines">The lines of the link (<see cref="DrawnLines"/>); the first is its curve.</param>
@@ -893,19 +911,20 @@ internal sealed partial class SvekLayout
 
         (ax, ay) = (ax / length, ay / length);
         var points = lines.Sum(l => l.Count);
-        var shift = 0;
-        for (; shift < LabelClearSteps; shift++)
+        for (var shift = 0; shift <= LabelClearSteps; shift++)
         {
             _meter.Charge(points + work.Units.Count + 1);
             var moved = new SceneRect(box.X + (ax * shift), box.Y + (ay * shift), box.Width, box.Height);
             if (lines.All(l => DistanceToCurve(l, moved) >= LabelClearance - 1e-9) && !work.Units.Any(u => Overlaps(u.Box, moved)))
             {
-                break;
+                return new SvekPoint(ax * shift, ay * shift);
             }
         }
 
-        return new SvekPoint(ax * shift, ay * shift);
+        // No place within reach is clear: the label stays where it was placed
+        return new SvekPoint(0, 0);
     }
+
     /// <summary>
     ///     Gets the distance from a rectangle to a polyline (zero when they touch or cross).
     /// </summary>

@@ -82,15 +82,18 @@ specified by the `CanvasNetPlantUml-Svek-SvekLayout-*` requirements in
   that the next point lies beyond across the ranks, on the side facing the ranks in line with that point
   (`ClipToFacingSide`), never at a corner; a route across one label rank with no label, which dagre bends through a
   point in line with one end, is drawn straight between the facing sides of its two rectangles when that line crosses
-  no other unit, as Graphviz draws a short edge (`StraightAims`: straight across the ranks at the middle of the narrower
-  box where the two boxes face each other off their corners, else each end in line with the other box); the label slot
+  no other unit and no other link joins the same two ends, as Graphviz draws a short edge (`SharesEnds`: the straight
+  lines of links between the same two ends would coincide, so they keep dagre's routes, which dagre keeps apart;
+  `StraightAims`: straight across the ranks at the middle of the narrower box where the two boxes face each other off
+  their corners, else each end in line with the other box); the label slot
   is placed at dagre's label center, or beside the middle of the route (`BesideMiddle`: `LabelClearance` above a
   route that runs across, right of one that runs down, at the middle of the curve of an arc), and a label center that
   dagre puts inside a compound cluster the link leaves is replaced by the place beside the middle of the route outside
   it; the label is then moved away from the lines its link draws (`DrawnLines`: the curve of the route measured at 16
   points per cubic piece, and the outlines of its decorations) until it keeps `LabelClearance` from them and overlaps
   no unit (`ClearOfLink`: one pixel at a time, at most 32, away from the nearest point of the lines, each step
-  charging the meter), since dagre placed it beside its own route, which the drawn curve does not follow exactly; end
+  charging the meter; a label with no clear position within 32 pixels stays where it was placed), since dagre placed
+  it beside its own route, which the drawn curve does not follow exactly; end
   labels go beside the line just off the end and are moved along the line until they overlap no entity.
 - `BuildFrame` and `PointNotes` - the placements of the units (entities, attached notes with the pointer from the side
   of the note that faces the entity - the side with the widest gap between the two boxes, the note's own position on a

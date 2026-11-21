@@ -310,6 +310,68 @@ public class SvekLayoutTests
     }
 
     /// <summary>
+    ///     Validates that unlabeled links between the same two units in neighboring ranks (two one way and one back) are
+    ///     not all drawn on one straight line: their routes differ, the middles of their curves are at least 5 pixels
+    ///     apart, and every route starts and ends on the borders.
+    /// </summary>
+    [Fact]
+    public void PlantUmlSvekLayout_Run_UnlabeledLinksBetweenTheSameTwoNodes_AreKeptApart()
+    {
+        // Arrange
+        var (a, b) = (Entity("A"), Entity("B"));
+        var diagram = new SvekDiagram
+        {
+            Entities = [a, b],
+            Links = [new SvekLink("ab1", a, b), new SvekLink("ab2", a, b), new SvekLink("ba", b, a)],
+        };
+
+        // Act
+        var placement = Place(diagram);
+
+        // Assert
+        var (boxA, boxB) = (BoxOf(placement, "A"), BoxOf(placement, "B"));
+        var routes = new[] { "ab1", "ab2", "ba" }.Select(id => LinkOf(placement, id).Route).ToList();
+        var middles = routes.Select(r => SvekGeometry.Flatten(r, 16)).Select(c => c[c.Count / 2]).ToList();
+        for (var i = 0; i < routes.Count; i++)
+        {
+            var (first, last) = i < 2 ? (boxA, boxB) : (boxB, boxA);
+            Assert.True(OnBorder(first, routes[i][0]) && OnBorder(last, routes[i][^1]), $"route {i} ends off the borders");
+            for (var j = i + 1; j < routes.Count; j++)
+            {
+                Assert.NotEqual(routes[i], routes[j]);
+                var gap = Math.Sqrt(Math.Pow(middles[i].X - middles[j].X, 2) + Math.Pow(middles[i].Y - middles[j].Y, 2));
+                Assert.True(gap >= 5, $"the middles of routes {i} and {j} are {gap} apart");
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Validates that a label with no clear place within 32 pixels (the label of a loop on a small entity, right of
+    ///     which stands a large entity of its row) stays where it was placed: right of the loop, at the middle of the
+    ///     entity.
+    /// </summary>
+    [Fact]
+    public void PlantUmlSvekLayout_Run_LabelWithNoClearPlace_StaysWhereItWasPlaced()
+    {
+        // Arrange
+        var (a, b) = (Entity("A", 40, 40), Entity("B", 200, 200));
+        var diagram = new SvekDiagram
+        {
+            Entities = [a, b],
+            Links = [new SvekLink("row", a, b) { Length = 1 }, new SvekLink("loop", a, a) { Label = "loop label" }],
+        };
+
+        // Act
+        var placement = Place(diagram);
+
+        // Assert
+        var boxA = BoxOf(placement, "A");
+        var label = LinkOf(placement, "loop").Label!.Box;
+        Assert.Equal(boxA.Right + 18 + 8 + SvekLayout.LabelOffset, label.X, 6);
+        Assert.Equal(boxA.Y + (boxA.Height / 2), label.Y + (label.Height / 2), 6);
+    }
+
+    /// <summary>
     ///     Validates that the label of a link from a cluster that links cross, which dagre centers inside the cluster,
     ///     is placed beside the part of the route outside the cluster.
     /// </summary>

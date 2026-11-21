@@ -283,6 +283,11 @@ Lays out a state diagram with a labeled transition into a state beside another, 
 states of a row, and a labeled transition between two states of a composite state, and asserts that every transition
 label is at least 3 pixels from every drawn transition line and arrowhead and at least 8 pixels from every state.
 
+**Tests**: `PlantUmlStateIntegrationTests.CanvasNetPlantUml_State_TransitionsBetweenTheSameStates_AreDrawnApart`
+
+Lays out a state diagram with two transitions from one state to another and one back, and asserts that halfway
+between the two states the three transition lines are at least 4 pixels apart.
+
 ### CanvasNetPlantUml-Component: Component Diagrams Are Drawn With PlantUML's Shapes
 
 **Tests**: `PlantUmlReferenceShapeTests.CanvasNetPlantUml_Graph_ReferenceGoldens_CoverEveryFixture`,

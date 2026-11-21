@@ -35,8 +35,9 @@ The unit holds no state. It returns scene segments and `SvekExtremity(Decor, Par
   |dy|/ry)`); `Contains(shape, box, point)`.
 - `ClipToFacingSide(shape, box, outside, leftToRight)` - the end of a route on the side of a rectangle that faces a
   point beyond it across the ranks (the bottom or top side top to bottom, the right or left side left to right), in
-  line with the point and kept `EndInset` (10 pixels, at most a quarter of the side) from the corners; null for an
-  ellipse or a diamond, which have no corner a route should avoid, and for a point beside the box along the ranks.
+  line with the point and kept `EndInset` from the corners (10 pixels, or a quarter of the side when that is less);
+  null for an ellipse or a diamond, which have no corner a route should avoid, and for a point beside the box along
+  the ranks.
 - `CutAtBox(route, box, atEnd)` - drops the part of a route inside a box, from the first segment that enters it.
 - `Shorten(route, atStart, atEnd)` - moves the ends back along their legs (never past the next point).
 - `ArrivalAngle(route, atEnd)` - the direction of the last (first) leg with a length, arriving at the end.

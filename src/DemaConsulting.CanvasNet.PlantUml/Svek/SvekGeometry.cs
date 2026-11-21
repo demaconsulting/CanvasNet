@@ -22,7 +22,7 @@ namespace DemaConsulting.CanvasNet.PlantUml.Svek;
 /// </remarks>
 internal static partial class SvekGeometry
 {
-    /// <summary>The distance an end on the facing side of a rectangle keeps from its corners (at most a quarter of the side).</summary>
+    /// <summary>The distance an end on the facing side of a rectangle keeps from its corners: 10 pixels, or a quarter of the side when that is less.</summary>
     public const double EndInset = 10;
 
     /// <summary>The degree of the spline.</summary>
