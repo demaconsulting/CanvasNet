@@ -444,7 +444,9 @@ its resolver to the library as
 document, or another diagram that the policy allows; a remote URL, a missing file, and a diagram that shows itself are
 the resolver's warning `svg-image-unresolved`, a file the policy denies is the warning `image-access-denied`, and
 none of them draws anything. The resolver is only given to the render: the probe measures without one. The
-library asks for every picture twice, once at a probe size to learn its natural size and once to draw it, so the loader
+library measures every picture once, at a probe size, through the internal probe of the resolver
+(`FolderImageResolver.IImageProbe`), which lists only the load that draws it; a link shown by several nodes is still
+drawn once per node, and a link that is not drawn may be reported by both loads, so the loader
 keeps one `embed` operation per link (`LastPerLink`: the last request, at the size that was drawn, in the order of those
 last requests) and each note of the resolver once (`Distinct`), and drops the library's own warning
 `mermaid-image-unresolved` for a link the resolver reported itself (`DropDuplicateUnresolved` with that detail, shared
@@ -681,10 +683,11 @@ hints. Requirement: `CanvasNetViewer-Imaging-SourceLoader-SvgArrowheadHint`.
 
 `LoadSvg` and `LoadScopedSvg` (a nested SVG file) both set `SvgLoadOptions.UnsupportedFeatureHandler`, and
 `UnsupportedNotes` turns each `SvgUnsupportedFeature` into an `svg` note of severity `unsupported` with its code
-(`svg-text-not-drawn` or `svg-text-unsupported`), so the CLI prints it as `Unsupported: <code>: <message>`. Under
+(`svg-text-not-drawn`, `svg-text-unsupported` or `svg-filter-unsupported`), so the CLI prints it as
+`Unsupported: <code>: <message>`. Under
 `SourceOptions.Strict`, `ThrowForUnsupported` throws `unsupported-feature` for the first report ("'<file>' uses an SVG
-feature that is not supported (<code>): <message>", hint "Without --strict the text is drawn as far as possible and
-reported in the diagnostics."), after the picture and binding checks of `LoadSvg`; its inner exception is an
+feature that is not supported (<code>): <message>", hint "Without --strict the file is drawn as far as possible and the
+feature is reported in the diagnostics."), after the picture and binding checks of `LoadSvg`; its inner exception is an
 `UnsupportedImageFeatureException`, so the resolver of an embedding document reports a nested file's failure as an
 unsupported image. Requirement: `CanvasNetViewer-Imaging-SourceLoader-SvgUnsupportedText`.
 

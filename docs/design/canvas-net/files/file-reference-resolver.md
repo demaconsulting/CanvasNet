@@ -118,15 +118,16 @@ file; with `MaxFiles` set, no more than that many distinct keys are opened or re
   whose type the platform cannot tell) is `NotARegularFile` under every policy (fail closed). When the policy needs the
   real path and it is known, `ConfirmRealPath` gives it in the letter case stored on disk (`RealPath.GetExactPathName`,
   or the `ExactPathOf` hook) and confirms that spelling against the open handle (`RealPath.TryConfirmExactPath`: equal
-  to the reported path, or the same volume serial and file index / device and inode, without following a link at the
-  last component). A spelling that cannot be confirmed is a denial (`AccessDenied`, reason `the letter case its real
-  path has on disk cannot be confirmed to name the opened file`, hint `reference the file in the letter case it has
-  on disk`, no host path in the text), thrown before anything is read and not remembered (the file counts); for the
-  exempt top-level file it is remembered on the outcome (`RealPathUnconfirmed`) and `CheckExemptFile` raises the same
-  denial when a reference reaches the file (a top-level file that leads to a network location is refused there anyway,
-  so its spelling is not looked up). The confirmed spelling replaces the real path for the policy, the result
-  (`FileReference.RealPath`) and every later cache re-check. When the policy needs the real path and it is unknown,
-  `RealPathUnavailable` (fail closed); otherwise `CheckPolicy` runs and the file is read from the same handle (`Read`).
+  to the reported path, or the same volume serial and file identifier / device and inode, without following a link at
+  the last component). A spelling that cannot be confirmed is a denial (`AccessDenied`, reason
+  `the letter case its real path has on disk cannot be confirmed to name the opened file`, hint
+  `reference the file in the letter case it has on disk`, no host path in the text), thrown before anything is read and
+  not remembered (the file counts); for the exempt top-level file it is remembered on the outcome
+  (`RealPathUnconfirmed`) and `CheckExemptFile` raises the same denial when a reference reaches the file (a top-level
+  file that leads to a network location is refused there anyway, so its spelling is not looked up). The confirmed
+  spelling replaces the real path for the policy, the result (`FileReference.RealPath`) and every later cache re-check.
+  When the policy needs the real path and it is unknown, `RealPathUnavailable` (fail closed); otherwise `CheckPolicy`
+  runs and the file is read from the same handle (`Read`).
 - `CaptureBeforeOpen` - for a policy that needs the real path, captures before every open the real location of each
   folder the policy names (`AnchorsOf`) in its on-disk letter case (`RealPath.TryGetExactCanonicalDirectory`, or the
   `DirectoryLocationOf` hook), once per resolver in a dictionary keyed exactly (`StringComparer.Ordinal`: on a
@@ -177,19 +178,28 @@ it). Invalid options are `ArgumentNullException` / `ArgumentOutOfRangeException`
   (see the subsystem design for the `SymlinkEvaluation` advice). A key that is itself a network location (a UNC base
   directory or a mapped network drive) is exempt, so a host working on a share keeps working.
 
+**Volumes without a drive letter**: the real path of a file, and the real location of a trusted folder, on a volume
+mounted on a folder (or not mounted) is in its volume GUID form (`\\?\Volume{GUID}\...`, `RealPath.FromFinalPathName`),
+which the built-in policies compare exactly like any other real path, so such a volume works under every policy
+instead of failing closed as an unknown real path.
+
 **Known limits**: where Windows cannot tell the real path, the default policy reads the file without the network check
 (a restrictive policy fails closed with `RealPathUnavailable`); a SUBST or DFS path whose drive is local but whose
 target is remote is refused (fail closed); a file whose real path, in its on-disk letter case, cannot be confirmed to
 name the open file is denied (fail closed, see *FileAccessPolicy Unit Design*). The keys of the cache
-(`KeyComparer`) still compare written paths under the platform rule (case-insensitive on Windows and macOS); the policy
-is asked again on every cache hit with the confirmed real path of the cached file, so a key shared by two spellings
-never lets a file outside the policy through.
+(`KeyComparer`) use ordinal comparison in both modes, letter case included, because a folder may be case-sensitive on
+every platform: in such a folder `a.txt` and `A.txt` are two files, and an ignore-case cache would hand the bytes of
+one out for the other. On a case-insensitive volume two spellings of one file that differ in letter case are
+therefore two keys: each is opened, checked and counted against `MaxFiles` on its own, and a consumer that keys by
+`FileReference.Key` (the PlantUML `!include_once` list, the Vega-Lite data cache, the OpenSCAD include cache, the
+cycle check of `FolderImageResolver`) treats them as two files; this costs an extra read and fails safe. Earlier
+releases compared full-path keys ignoring letter case on Windows and macOS.
 
 #### Dependencies
 
 - **FileAccessPolicy** (same subsystem) - the policy that decides, including its lexical pre-check.
-- **RealPath** (same subsystem) - the open, the handle facts, the on-disk spelling of a real path and its confirmation
-  against the handle, and the platform path comparer (cache keys).
+- **RealPath** (same subsystem) - the open, the handle facts, and the on-disk spelling of a real path and its
+  confirmation against the handle.
 - **.NET base class library** - `System.IO` (`Path`, `FileStream`, `Directory`) and `System.Collections.Generic`.
 
 #### Callers

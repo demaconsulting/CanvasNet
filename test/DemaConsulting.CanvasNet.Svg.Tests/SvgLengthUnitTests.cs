@@ -853,6 +853,50 @@ public class SvgLengthUnitTests
         Assert.Equal(expected, measured, Tolerance);
     }
 
+    /// <summary>
+    ///     Proves a negative math <c>line-height</c> - a length or a number result, as a longhand or in the
+    ///     <c>font</c> shorthand - is clamped to 0 (CSS Values 4 range checking), as in browsers, rather than dropped.
+    /// </summary>
+    /// <param name="declaration">The declaration on the wrapping group (font size 10).</param>
+    [Theory]
+    [InlineData("line-height: calc(10px - 20px)")]
+    [InlineData("line-height: calc(1 - 2)")]
+    [InlineData("line-height: min(-1px, 2px)")]
+    [InlineData("font: 10px/calc(1px - 5px) serif")]
+    public void SvgCodec_Load_NegativeLineHeightMath_ClampsToZero(string declaration)
+    {
+        // Arrange: the child group changes the font size to 50 and measures 1lh plus 30px
+        var svg =
+            $"<svg viewBox='0 0 400 40'><g style='{declaration}' font-size='10'><g font-size='50'><rect width='calc(1lh + 30px)' height='10' fill='black'/></g></g></svg>";
+
+        // Act
+        var measured = SvgLengthTestSupport.RowCoverage(SvgLengthTestSupport.Render(svg, 400, 40), 5);
+
+        // Assert: a line height of 0 leaves only the 30px (a dropped declaration would give 1.2 * 50 + 30)
+        Assert.Equal(30.0, measured, Tolerance);
+    }
+
+    /// <summary>
+    ///     Proves a negative literal <c>line-height</c> - a length or a number - stays invalid and is ignored, so the
+    ///     line height stays <c>normal</c>.
+    /// </summary>
+    /// <param name="declaration">The <c>line-height</c> declaration.</param>
+    [Theory]
+    [InlineData("line-height: -5px")]
+    [InlineData("line-height: -2")]
+    public void SvgCodec_Load_NegativeLiteralLineHeight_IsIgnored(string declaration)
+    {
+        // Arrange: the child group changes the font size to 50 and measures 1lh plus 30px
+        var svg =
+            $"<svg viewBox='0 0 400 40'><g style='{declaration}' font-size='10'><g font-size='50'><rect width='calc(1lh + 30px)' height='10' fill='black'/></g></g></svg>";
+
+        // Act
+        var measured = SvgLengthTestSupport.RowCoverage(SvgLengthTestSupport.Render(svg, 400, 40), 5);
+
+        // Assert: the normal line height of 1.2 * 50, plus 30
+        Assert.Equal(90.0, measured, Tolerance);
+    }
+
     // ================================================================================================
     // objectBoundingBox mask regions evaluate math on the fraction axis
     // ================================================================================================
@@ -1281,7 +1325,8 @@ public class SvgLengthUnitTests
     ///     <c>line-height</c> (from its inline style, the <c>font</c> shorthand or the <c>font</c>
     ///     attribute; a number, any length or <c>normal</c>) resolved with the root's own font size,
     ///     and that <c>lh</c>/<c>rlh</c> inside the root's <c>line-height</c> resolve against the
-    ///     initial values (1.2 x 16 = 19.2) rather than cycling.
+    ///     initial values (1.2 x 16 = 19.2) rather than cycling. A root <c>line-height</c> or <c>font-size</c> in
+    ///     viewport units leaves a size that depends on it absent (the 300x150 fallback).
     /// </summary>
     /// <param name="attributes">The root attributes.</param>
     /// <param name="expectedWidth">The expected reported width.</param>
@@ -1299,9 +1344,73 @@ public class SvgLengthUnitTests
     [InlineData("width='10lh' height='5rlh' font-size='10'", 120, 60)]
     [InlineData("width='1lh' height='1rlh' font-size='10' style='line-height:5lh'", 96, 96)]
     [InlineData("width='1lh' height='1rlh' font-size='10' style='line-height:5rlh'", 96, 96)]
-    [InlineData("width='10lh' height='10lh' font-size='10' style='line-height:10vw'", 120, 120)]
+    [InlineData("width='10lh' height='10lh' font-size='10' style='line-height:10vw'", 300, 150)]
+    [InlineData("width='10em' height='5em' style='font-size:5vw'", 300, 150)]
     public void SvgCodec_GetInfo_RootSizeInLineHeightUnits_UsesRootLineHeight(string attributes, int expectedWidth, int expectedHeight) =>
         AssertRootSize(attributes, expectedWidth, expectedHeight);
+
+    /// <summary>
+    ///     Proves a root <c>width</c>/<c>height</c> in <c>lh</c> uses a <c>line-height</c> from a stylesheet rule, as the
+    ///     root is drawn and as browsers size it.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_GetInfo_RootSizeInLineHeightUnitsFromStylesheet_UsesRule()
+    {
+        // Arrange: line-height 2 at font-size 10 makes 1lh 20, so 10lh x 5lh is 200x100 (normal would give 120x60)
+        using var stream = SvgLengthTestSupport.ToStream(
+            "<svg xmlns='http://www.w3.org/2000/svg' width='10lh' height='5lh' font-size='10'>" +
+            "<style>svg { line-height: 2 }</style><rect width='10' height='10'/></svg>");
+
+        // Act
+        var info = SvgCodec.GetInfo(stream);
+
+        // Assert
+        Assert.Equal(200, info.Width);
+        Assert.Equal(100, info.Height);
+    }
+
+    /// <summary>
+    ///     Proves a root sized by a viewport-relative root <c>line-height</c> has no size of its own, so <c>GetInfo</c>
+    ///     reports the 300x150 fallback and <c>Load</c> draws <c>1lh</c> as that line height of the same 300x150
+    ///     viewport: the two agree.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_GetInfoAndLoad_RootSizeFromViewportRelativeLineHeight_FallsBackAndAgrees()
+    {
+        // Arrange: line-height 20vw; a 1lh bar
+        const string Svg =
+            "<svg xmlns='http://www.w3.org/2000/svg' width='10lh' height='5lh' font-size='10' style='line-height:20vw'>" +
+            "<rect width='1lh' height='10' fill='black'/></svg>";
+        using var infoStream = SvgLengthTestSupport.ToStream(Svg);
+
+        // Act
+        var info = SvgCodec.GetInfo(infoStream);
+        var measured = SvgLengthTestSupport.RowCoverage(SvgLengthTestSupport.Render(Svg, info.Width, info.Height), 5);
+
+        // Assert: the fallback size, and 1lh = 20% of its 300 width
+        Assert.Equal(300, info.Width);
+        Assert.Equal(150, info.Height);
+        Assert.Equal(60.0, measured, Tolerance);
+    }
+
+    /// <summary>
+    ///     Proves <c>GetInfo</c> reads past the root start tag only for a font-relative root size, and that a malformed
+    ///     body then falls back to the start-tag-only size instead of failing.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_GetInfo_FontRelativeRootSizeWithMalformedBody_UsesStartTagOnly()
+    {
+        // Arrange: the stylesheet would make 1em 20, but the body is not well-formed
+        using var stream = SvgLengthTestSupport.ToStream(
+            "<svg xmlns='http://www.w3.org/2000/svg' width='10em' height='5em'><style>svg { font-size: 20px }</style><g></svg>");
+
+        // Act
+        var info = SvgCodec.GetInfo(stream);
+
+        // Assert: sized from the start tag alone, with the initial 16
+        Assert.Equal(160, info.Width);
+        Assert.Equal(80, info.Height);
+    }
 
     /// <summary>Proves <see cref="SvgCodec.Load(Stream, int, int, IReadOnlyDictionary{string, TrueTypeFont}?)"/> sizes a root in <c>lh</c>/<c>rlh</c> exactly as <see cref="SvgCodec.GetInfo(Stream)"/> reports it.</summary>
     [Fact]

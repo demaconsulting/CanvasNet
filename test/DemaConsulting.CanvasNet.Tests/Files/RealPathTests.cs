@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using DemaConsulting.CanvasNet.Files;
 
 namespace DemaConsulting.CanvasNet.Tests.Files;
@@ -10,6 +11,56 @@ namespace DemaConsulting.CanvasNet.Tests.Files;
 /// </summary>
 public class RealPathTests
 {
+    /// <summary>
+    ///     Validates the conversion of a final path as Windows reports it (pure text, so it runs on every system): the
+    ///     prefix of a drive path is stripped, an extended UNC path becomes a UNC path, a path on a volume without a drive
+    ///     letter keeps its volume GUID form (its bare root with a separator), and any other spelling is unknown.
+    /// </summary>
+    /// <param name="reported">The path as Windows reports it.</param>
+    /// <param name="expected">The canonical spelling, or <see langword="null"/> for unknown.</param>
+    [Theory]
+    [InlineData(@"\\?\C:\a", @"C:\a")]
+    [InlineData(@"\\?\UNC\srv\share\a", @"\\srv\share\a")]
+    [InlineData(@"\\?\Volume{67589fd6-ee90-4e7d-9ad7-a17168a66d75}\a\b", @"\\?\Volume{67589fd6-ee90-4e7d-9ad7-a17168a66d75}\a\b")]
+    [InlineData(@"\\?\Volume{67589fd6-ee90-4e7d-9ad7-a17168a66d75}", @"\\?\Volume{67589fd6-ee90-4e7d-9ad7-a17168a66d75}\")]
+    [InlineData(@"\\?\Volume{67589fd6-ee90-4e7d-9ad7-a17168a66d75}\a}", @"\\?\Volume{67589fd6-ee90-4e7d-9ad7-a17168a66d75}\a}")]
+    [InlineData(@"\\?\GLOBALROOT\Device\HarddiskVolume3\a", null)]
+    [InlineData(@"\\?\Volume{xyz}\a", null)]
+    [InlineData(@"\\?\pipe\x", null)]
+    public void RealPath_FromFinalPathName_KeepsVolumeGuidPathsAndStripsDrivePrefixes(string reported, string? expected)
+    {
+        // Act
+        var canonical = RealPath.FromFinalPathName(reported);
+
+        // Assert
+        Assert.Equal(expected, canonical);
+    }
+
+    /// <summary>
+    ///     Validates on Windows that real paths on a volume without a drive letter are compared exactly, like any other
+    ///     real path: a file below <c>\\?\Volume{GUID}\Docs</c> is under it and under the volume root, and not under
+    ///     <c>\\?\Volume{GUID}\docs</c> or another volume.
+    /// </summary>
+    [Fact]
+    public void RealPath_IsUnder_VolumeGuidPaths_ComparedExactly()
+    {
+        // Arrange
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Skip(FileTestSupport.WindowsOnly);
+        }
+
+        const string Volume = @"\\?\Volume{67589fd6-ee90-4e7d-9ad7-a17168a66d75}\";
+        const string Other = @"\\?\Volume{0f1e2d3c-4b5a-6978-8796-a5b4c3d2e1f0}\";
+        var file = Volume + @"Docs\a.txt";
+
+        // Act / Assert
+        Assert.True(RealPath.IsUnder(file, Volume + "Docs"));
+        Assert.True(RealPath.IsUnder(file, Volume));
+        Assert.False(RealPath.IsUnder(file, Volume + "docs"));
+        Assert.False(RealPath.IsUnder(file, Other + "Docs"));
+    }
+
     /// <summary>
     ///     Validates that a plain file opened for reading is a regular file whose final path is its full path in the
     ///     real location of its folder.
@@ -491,14 +542,16 @@ public class RealPathTests
     }
 
     /// <summary>
-    ///     Validates that a folder and a file written in another letter case are given in the case stored on disk (the
-    ///     single entry that matches ignoring case), on every platform.
+    ///     Validates in a folder that ignores letter case that a folder and a file written in another letter case are
+    ///     given in the case stored on disk (the single entry that matches ignoring case, which is the same entry as the
+    ///     name as written). Skips where the temporary folder compares letter case.
     /// </summary>
     [Fact]
     public void RealPath_GetExactPathName_FolderAndFileInAnotherCase_GiveTheStoredCase()
     {
         // Arrange
         using var directory = new SandboxTempDirectory();
+        FileTestSupport.RequireCaseInsensitive(directory.Path);
         directory.Write("Docs/Readme.txt", "r");
         var folder = RealPath.GetExactPathName(Path.GetFullPath(directory.Path));
 
@@ -510,8 +563,7 @@ public class RealPathTests
     }
 
     /// <summary>
-    ///     Validates that the part of a path that does not exist is kept as written, while the existing part is given in
-    ///     its stored letter case.
+    ///     Validates that the part of a path below a folder that does not exist is kept as written, on every platform.
     /// </summary>
     [Fact]
     public void RealPath_GetExactPathName_MissingTail_IsKeptAsWritten()
@@ -522,10 +574,101 @@ public class RealPathTests
         var folder = RealPath.GetExactPathName(Path.GetFullPath(directory.Path));
 
         // Act
-        var exact = RealPath.GetExactPathName(Path.Join(folder, "docs", "Missing", "Sub.txt"));
+        var exact = RealPath.GetExactPathName(Path.Join(folder, "Docs", "Missing", "Sub.txt"));
 
         // Assert
         Assert.Equal(Path.Join(folder, "Docs", "Missing", "Sub.txt"), exact);
+    }
+
+    /// <summary>
+    ///     Validates in a folder that compares letter case, holding only <c>target.txt</c>, that <c>TARGET.txt</c> is
+    ///     kept as written: it names no entry there, so mapping it to the case variant would let a link created later
+    ///     under the written name pass as the stored entry. Skips where the temporary folder ignores letter case.
+    /// </summary>
+    [Fact]
+    public void RealPath_GetExactPathName_CaseVariantOfAnEntryInACaseSensitiveFolder_KeepsTheNameAsWritten()
+    {
+        // Arrange
+        using var directory = new SandboxTempDirectory();
+        var folder = RealPath.GetExactPathName(Path.GetFullPath(directory.Path));
+        FileTestSupport.RequireCaseSensitive(folder);
+        File.WriteAllText(Path.Join(folder, "target.txt"), "target");
+
+        // Act
+        var exact = RealPath.GetExactPathName(Path.Join(folder, "TARGET.txt"));
+
+        // Assert
+        Assert.Equal(Path.Join(folder, "TARGET.txt"), exact);
+    }
+
+    /// <summary>
+    ///     Validates the identity check of two directory entries on every platform: an entry is the same entry as
+    ///     itself, another file is not, and a name that does not exist is unknown.
+    /// </summary>
+    [Fact]
+    public void RealPath_IsSameEntry_SameEntryOtherFileAndMissingName_AreTold()
+    {
+        // Arrange
+        using var directory = new SandboxTempDirectory();
+        var folder = RealPath.GetExactPathName(Path.GetFullPath(directory.Path));
+        File.WriteAllText(Path.Join(folder, "a.txt"), "a");
+        File.WriteAllText(Path.Join(folder, "b.txt"), "b");
+
+        // Act
+        var itself = RealPath.IsSameEntry(Path.Join(folder, "a.txt"), Path.Join(folder, "a.txt"));
+        var other = RealPath.IsSameEntry(Path.Join(folder, "a.txt"), Path.Join(folder, "b.txt"));
+        var missing = RealPath.IsSameEntry(Path.Join(folder, "missing.txt"), Path.Join(folder, "a.txt"));
+
+        // Assert
+        Assert.True(itself);
+        Assert.False(other);
+        Assert.Null(missing);
+    }
+
+    /// <summary>
+    ///     Validates in a folder that ignores letter case that a name written in another letter case is the same entry
+    ///     as the stored one. Skips where the temporary folder compares letter case.
+    /// </summary>
+    [Fact]
+    public void RealPath_IsSameEntry_CaseVariantInACaseInsensitiveFolder_IsTheSameEntry()
+    {
+        // Arrange
+        using var directory = new SandboxTempDirectory();
+        FileTestSupport.RequireCaseInsensitive(directory.Path);
+        var folder = RealPath.GetExactPathName(Path.GetFullPath(directory.Path));
+        File.WriteAllText(Path.Join(folder, "target.txt"), "target");
+
+        // Act
+        var same = RealPath.IsSameEntry(Path.Join(folder, "TARGET.txt"), Path.Join(folder, "target.txt"));
+
+        // Assert
+        Assert.True(same);
+    }
+
+    /// <summary>
+    ///     Validates that a symbolic link to an entry is not the same entry: the link at the last component is opened
+    ///     itself (Linux, Windows) or refuses the open (macOS), never followed. File links need a privilege on Windows,
+    ///     so the test skips there when the host cannot create one.
+    /// </summary>
+    [Fact]
+    public void RealPath_IsSameEntry_LinkToAnEntry_IsNotTheSameEntryOrCapabilitySkipped()
+    {
+        // Arrange
+        using var directory = new SandboxTempDirectory();
+        var folder = RealPath.GetExactPathName(Path.GetFullPath(directory.Path));
+        var target = Path.Join(folder, "target.txt");
+        File.WriteAllText(target, "target");
+        var link = Path.Join(folder, "link.txt");
+        if (!SandboxLinkSupport.TryCreateFileLink(link, target, out var reason))
+        {
+            Assert.Skip("File symbolic links need Developer Mode or SeCreateSymbolicLinkPrivilege on Windows: " + reason);
+        }
+
+        // Act
+        var same = RealPath.IsSameEntry(link, target);
+
+        // Assert
+        Assert.NotEqual(true, same);
     }
 
     /// <summary>
@@ -553,9 +696,10 @@ public class RealPathTests
     }
 
     /// <summary>
-    ///     Validates on Linux and macOS, where a name may hold <c>*</c> and <c>?</c>, that such characters match only
-    ///     themselves: <c>A*B</c> gives the stored <c>a*b</c>, never <c>aXb</c>, and <c>X?</c> gives <c>x?</c>, never
-    ///     <c>xy</c>.
+    ///     Validates on macOS (a folder that ignores letter case, where a name may hold <c>*</c> and <c>?</c>) that such
+    ///     characters match only themselves: <c>A*B</c> gives the stored <c>a*b</c>, never <c>aXb</c>, and <c>X?</c>
+    ///     gives <c>x?</c>, never <c>xy</c>. Skips where the temporary folder compares letter case, where a name in
+    ///     another letter case is kept as written whatever it matches.
     /// </summary>
     [Fact]
     public void RealPath_GetExactPathName_WildcardCharactersInAName_MatchOnlyThatName()
@@ -567,6 +711,7 @@ public class RealPathTests
         }
 
         using var directory = new SandboxTempDirectory();
+        FileTestSupport.RequireCaseInsensitive(directory.Path);
         var folder = RealPath.GetExactPathName(Path.GetFullPath(directory.Path));
         directory.Write("a*b", "1");
         directory.Write("aXb", "2");
@@ -750,5 +895,93 @@ public class RealPathTests
 
         // Assert
         Assert.Null(confirmed);
+    }
+
+    /// <summary>
+    ///     Validates on Windows that a file symbolic link to the open file is not confirmed as its spelling: the link is
+    ///     opened itself, so its identity (read through <c>FileIdInfo</c> where the volume reports it) is that of
+    ///     another file. File links need a privilege on Windows, so the test skips when the host cannot create one.
+    /// </summary>
+    [Fact]
+    public void RealPath_TryConfirmExactPath_WindowsFileSymbolicLink_IsUnconfirmedOrCapabilitySkipped()
+    {
+        // Arrange
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Skip(FileTestSupport.WindowsOnly);
+        }
+
+        using var directory = new SandboxTempDirectory();
+        var path = Path.GetFullPath(directory.Write("a.txt", "a"));
+        if (!SandboxLinkSupport.TryCreateFileLink(directory.Combine("link.txt"), path, out var linkFailure))
+        {
+            Assert.Skip("File symbolic links need Developer Mode or SeCreateSymbolicLinkPrivilege on Windows: " + linkFailure);
+        }
+
+        using var handle = RealPath.OpenForRead(path);
+        var realPath = RealPath.Inspect(handle).FinalPath!;
+        var link = Path.Join(Path.GetDirectoryName(realPath), "link.txt");
+
+        // Act
+        var confirmed = RealPath.TryConfirmExactPath(handle, realPath, link);
+        var same = RealPath.IsSameFile(handle, link, out var reason);
+
+        // Assert
+        Assert.Null(confirmed);
+        Assert.True(same is not null, $"The identity of the link is unknown: {reason}");
+        Assert.False(same);
+        Assert.Contains("another file", reason, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates the decoding of <c>FILE_ID_INFO</c> (pure bytes, so it runs on every system): two files on one
+    ///     volume whose 128-bit identifiers differ only in their high 64 bits have different identities, as on ReFS, where
+    ///     the low 64 bits alone do not name one file.
+    /// </summary>
+    [Fact]
+    public void RealPath_WindowsFileId_IdsDifferingOnlyInTheHigh64Bits_AreDifferent()
+    {
+        // Arrange: the same 64-bit volume serial number and the same low 64 bits of the identifier
+        var first = new byte[WindowsFileId.FileIdInfoSize];
+        var second = new byte[WindowsFileId.FileIdInfoSize];
+        BinaryPrimitives.WriteUInt64LittleEndian(first.AsSpan(0), 0x1122334455667788UL);
+        BinaryPrimitives.WriteUInt64LittleEndian(second.AsSpan(0), 0x1122334455667788UL);
+        BinaryPrimitives.WriteUInt64LittleEndian(first.AsSpan(8), 0x0000000000000042UL);
+        BinaryPrimitives.WriteUInt64LittleEndian(second.AsSpan(8), 0x0000000000000042UL);
+        BinaryPrimitives.WriteUInt64LittleEndian(first.AsSpan(16), 0x0000000000000001UL);
+        BinaryPrimitives.WriteUInt64LittleEndian(second.AsSpan(16), 0x0000000000000002UL);
+
+        // Act
+        var firstId = WindowsFileId.FromFileIdInfo(first);
+        var secondId = WindowsFileId.FromFileIdInfo(second);
+
+        // Assert
+        Assert.Equal(0x1122334455667788UL, firstId.Volume);
+        Assert.Equal(new UInt128(1, 0x42), firstId.Id);
+        Assert.True(firstId.Extended);
+        Assert.NotEqual(firstId, secondId);
+    }
+
+    /// <summary>
+    ///     Validates the decoding of <c>BY_HANDLE_FILE_INFORMATION</c> (pure bytes, so it runs on every system): the
+    ///     32-bit volume serial number at offset 28 and the 64-bit file index from its high (offset 44) and low (offset
+    ///     48) halves.
+    /// </summary>
+    [Fact]
+    public void RealPath_WindowsFileId_ByHandleInformation_DecodesSerialAndIndex()
+    {
+        // Arrange
+        var information = new byte[WindowsFileId.ByHandleInformationSize];
+        BinaryPrimitives.WriteUInt32LittleEndian(information.AsSpan(28), 0xCAFEF00DU);
+        BinaryPrimitives.WriteUInt32LittleEndian(information.AsSpan(44), 0x00000007U);
+        BinaryPrimitives.WriteUInt32LittleEndian(information.AsSpan(48), 0x89ABCDEFU);
+
+        // Act
+        var id = WindowsFileId.FromByHandleInformation(information);
+
+        // Assert
+        Assert.Equal(0xCAFEF00DUL, id.Volume);
+        Assert.Equal((UInt128)0x0000000789ABCDEFUL, id.Id);
+        Assert.False(id.Extended);
     }
 }

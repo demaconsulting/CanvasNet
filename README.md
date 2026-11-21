@@ -12,7 +12,7 @@
 [![Security][badge-security]][link-security]
 [![NuGet][badge-nuget]][link-nuget]
 
-![CanvasNet banner: the CanvasNet name with the tagline 'Every format in. Crisp pictures out.' and the command 'canvasnet render hero.svg'. Live renders of a Mermaid flowchart, an OpenSCAD bearing housing, a Vega-Lite bar chart, an SVG landscape, and PDF, PowerPoint and Visio pages flow on curved arrows into the canvasnet engine and its .NET API, and arrows lead out to a composed PNG figure, an image comparison that highlights a changed bar, a montage of an exploded 3D assembly, and a Pandoc document page. The banner is itself one SVG file drawn by CanvasNet from those source files](https://raw.githubusercontent.com/demaconsulting/CanvasNet/main/docs/images/hero.png)
+![CanvasNet banner: the CanvasNet name with the tagline 'Every format in. Crisp pictures out.' and the command 'canvasnet render hero.svg'. Live renders of a Mermaid flowchart, a PlantUML sequence diagram, an OpenSCAD bearing housing, a Vega-Lite bar chart, an SVG landscape, and PDF, PowerPoint and Visio pages flow on curved arrows into the canvasnet engine and its .NET API, and arrows lead out to a composed PNG figure, an image comparison that highlights a changed bar, a montage of an exploded 3D assembly, and a Pandoc document page. The banner is itself one SVG file drawn by CanvasNet from those source files](https://raw.githubusercontent.com/demaconsulting/CanvasNet/main/docs/images/hero.png)
 
 ## Overview
 
@@ -60,9 +60,9 @@ PngCodec.Save(image.Surface, "overview.png");
 
 ## Gallery
 
-![CanvasNet showcase: an SVG dashboard, an OpenSCAD 3D model, a Vega-Lite bar chart, a Mermaid flowchart, a PDF page with mesh shadings, a PowerPoint slide with a chart, a Visio diagram, and an SVG page that composes several of them, all rendered by CanvasNet](https://raw.githubusercontent.com/demaconsulting/CanvasNet/main/docs/images/showcase.png)
+![CanvasNet showcase: an SVG dashboard, an OpenSCAD 3D model, a Vega-Lite bar chart, a Mermaid flowchart, a PDF page with mesh shadings, a PowerPoint slide with a chart, a PlantUML sequence diagram, and an SVG page that composes several of them, all rendered by CanvasNet](https://raw.githubusercontent.com/demaconsulting/CanvasNet/main/docs/images/showcase.png)
 
-*Rendered with the `canvasnet` tool: SVG, OpenSCAD 3D, Vega-Lite, Mermaid, PDF, PowerPoint, Visio, and a composition
+*Rendered with the `canvasnet` tool: SVG, OpenSCAD 3D, Vega-Lite, Mermaid, PDF, PowerPoint, PlantUML, and a composition
 of them (see the Composition section below). See
 [how the image was made](https://github.com/demaconsulting/CanvasNet/blob/main/docs/images/README.md).*
 
@@ -75,6 +75,11 @@ specification and is rendered, in strict mode, by a test.*
 
 *Six of the ten Mermaid diagram types CanvasNet draws (sequence, class, state, gantt, mindmap, and git graph), each
 from the examples of the user guide, rendered in strict mode with ports of Mermaid's own layouts.*
+
+![Six PlantUML diagram types: a sequence diagram of a web shop checkout, an activity diagram with a three-way fork and a decision, a class diagram of library loans, a state diagram with a composite state, a use case diagram of a smart home, and a component diagram of a web backend, all rendered by CanvasNet](https://raw.githubusercontent.com/demaconsulting/CanvasNet/main/docs/images/plantuml-gallery.png)
+
+*Six of the eight PlantUML diagram types CanvasNet draws (sequence, activity, class, state, use case, and component),
+in PlantUML's default look, rendered in strict mode in pure .NET with no Java, Graphviz, or network.*
 
 ![A product sheet for a planetary gearbox drawn by CanvasNet from a single OpenSCAD file. A large view shows the assembled gearbox: an orange sun gear and three blue herringbone planet gears inside a ring gear cut into a gray housing with a rounded flange, screws and engraved lettering. Callouts name the OpenSCAD construct behind each feature: linear_extrude with twist, polygon with a list comprehension, difference, a for loop, minkowski, text and rotate_extrude. A round inset shows the gears meshing from above. Two side panels show the same file as an exploded view (#def.explode=1), with the hull-shaped carrier and the bearing balls labeled, and as a cutaway (#def.cutaway=1), with the cut faces painted red](https://raw.githubusercontent.com/demaconsulting/CanvasNet/main/docs/images/gearbox.png)
 
@@ -93,7 +98,7 @@ passes options to the linked file: `#page=` or `#slide=` (PDF, PowerPoint, Visio
 parameters), and `#theme=` (Mermaid); join several with
 `&amp;` in XML.
 
-![How CanvasNet composition works. On the left, an exploded view stacks three layers: the SVG page page.svg on top, the Mermaid diagram flow.mmd it embeds in the middle, and an OpenSCAD model and a Vega-Lite chart that the diagram's nodes embed at the bottom. Dashed lines show where each picture lands one layer up, and a pink line shows an annotation arrow of the page bound to a node of the diagram. Numbered cards show the markup behind each link: an SVG image href with #theme=dark, a cn:x2y2 binding, and Mermaid picture nodes with #def.explode=1 and #param.goal=180, plus the same link in Markdown through the Pandoc filter. A curved arrow labeled renders to points to the finished page, and a card lists fragments such as #page=2, #view=front, #theme=dark and #param.goal=180](https://raw.githubusercontent.com/demaconsulting/CanvasNet/main/docs/images/composition-explained.png)
+![How CanvasNet composition works. On the left, an exploded view stacks three layers: the SVG page page.svg on top, the Mermaid diagram flow.mmd it embeds in the middle, and a PlantUML state diagram, an OpenSCAD model, and a Vega-Lite chart that the diagram's nodes embed at the bottom. Dashed lines show where each picture lands one layer up, and a pink line shows an annotation arrow of the page bound to a node of the diagram. Numbered cards show the markup behind each link: an SVG image href with #theme=dark, a cn:x2y2 binding, and Mermaid picture nodes that link release.puml, part.scad#def.explode=1, and chart.vl.json#param.goal=180, plus the same link in Markdown through the Pandoc filter. A curved arrow labeled renders to points to the finished page, and a card lists fragments such as #page=2, #view=front, #theme=dark and #param.goal=180](https://raw.githubusercontent.com/demaconsulting/CanvasNet/main/docs/images/composition-explained.png)
 
 ```xml
 <svg xmlns="http://www.w3.org/2000/svg" width="960" height="720">

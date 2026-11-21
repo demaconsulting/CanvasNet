@@ -117,7 +117,8 @@ through to it; "not found" from the open tries the next candidate; a resolver wi
 `FileReferenceResolver_Resolve_PolicyDenial_StopsTheSearch`,
 `FileReferenceResolver_Resolve_ThrowingOrNullPolicy_IsAccessDeniedAndCancellationPassesThrough`,
 `FileReferenceResolver_Resolve_CachedFile_IsReCheckedOnEveryResolveButReadOnce`,
-`FileReferenceResolver_Resolve_UnderRootsPreCheck_DeniesBeforeTheOpen`
+`FileReferenceResolver_Resolve_UnderRootsPreCheck_DeniesBeforeTheOpen`,
+`FileReferenceResolver_Resolve_RealPathOnAVolumeWithoutADriveLetter_IsJudgedByNoSymlinks` (Windows)
 
 The request carries the reference, the configured referrer (top level) or the referring file's key, the base directory
 (the chain origin, also for the nested reference), the requested path, and the real path (the real location of the
@@ -125,7 +126,10 @@ folder plus the file name); a denial carries the reason, hint, policy name and b
 policy but neither the temporary directory nor the reason; a denial ends the search; a throwing or `null`-returning
 policy denies and a cancellation passes through; a cached file is opened once while the policy is asked on every resolve
 and a later denial wins; a roots policy refuses a path written outside its roots before the open, which does not count
-against the file limit.
+against the file limit. On Windows, with the starting folder and the real path of the file reported in the volume GUID
+form of a volume without a drive letter (injected through the `DirectoryLocationOf` and `RealPathOf` seams), the
+no-symlinks policy reads the file whose real path is that folder followed by the path as written, and denies the one
+whose real path lies in another folder of the volume, with that real path.
 
 ##### CanvasNet-Files-FileReferenceResolver-ChainOrigin: The Policy's Base Directory Is the Chain Origin
 
@@ -190,7 +194,8 @@ local path on every platform.
 `FileReferenceResolver_Resolve_InjectedOutsideRealPath_IsAccessDenied`,
 `FileReferenceResolver_Resolve_InjectedRealPath_IsTheOneInTheRequestAndTheResult`,
 `FileReferenceResolver_Resolve_RootReplacedByOutsideLinkBeforeTheOpen_IsAccessDenied` (Windows, Linux, macOS),
-`FileReferenceResolver_Resolve_AnchorLocationNotCaptured_IsAccessDeniedUnderNoSymlinks`
+`FileReferenceResolver_Resolve_AnchorLocationNotCaptured_IsAccessDeniedUnderNoSymlinks`,
+`FileReferenceResolver_Resolve_CaseVariantLinkCreatedBeforeTheOpen_IsDeniedUnderNoSymlinks` (Linux)
 
 After the open, the inside file is moved and its folder replaced by a link to the outside: the file is allowed, its
 original bytes are returned, its real path follows the moved file, and by name the path now reads the outside file.
@@ -201,7 +206,10 @@ root rename-and-replace race, the root itself is renamed away inside the `Before
 replaced by a junction or symbolic link to an outside folder, so the open reaches the outside file: under `UnderRoots`
 (whose root location was captured when the policy was created) and under `NoSymlinks` (whose starting folder was
 captured before the open) the file is denied with the outside real path. A starting folder whose location could not be
-captured (the `DirectoryLocationOf` seam reports none) is denied under `NoSymlinks`.
+captured (the `DirectoryLocationOf` seam reports none) is denied under `NoSymlinks`. In a case-sensitive folder holding
+`target.txt`, a symbolic link `Target.txt` to it created inside `BeforeOpen` (after the on-disk spelling of the written
+path was captured) is denied under `NoSymlinks`: `Target.txt` named no entry when its spelling was captured, so it was
+kept as written and the file the open reached through the link does not match it.
 
 ##### CanvasNet-Files-FileReferenceResolver-ExactCase: The Real Path in Its On-Disk Letter Case
 
@@ -262,11 +270,14 @@ the limit.
 ##### CanvasNet-Files-FileReferenceResolver-Cache: One Open per Path
 
 **Tests**: `FileReferenceResolver_Resolve_SameFileTwice_IsOpenedOnceAndReturnsTheSameInstance`,
-`FileReferenceResolver_KeyComparer_FollowsModeAndPlatform`
+`FileReferenceResolver_KeyComparer_IsOrdinalInBothModes`,
+`FileReferenceResolver_Resolve_CaseVariantSpelling_IsNotAnsweredFromTheCache`
 
 A file and a miss are opened once, the same instance is returned, and a change to the file after its first read is
-not seen; the key comparer is ordinal for logical paths and case-insensitive for full paths exactly on Windows and
-macOS.
+not seen; the key comparer is `StringComparer.Ordinal` in both modes, so `A.txt` and `a.txt` are two keys on every
+system. After `a.txt` was resolved, `A.txt` is opened on its own (the `Open` seam stands in for a case-sensitive
+folder by serving another file for it) and gives that file's bytes, never the cached bytes of `a.txt`; both keys are
+opened.
 
 ##### CanvasNet-Files-FileReferenceResolver-Callback: Callback Mode
 

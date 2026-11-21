@@ -19,7 +19,8 @@ namespace DemaConsulting.CanvasNet.Files;
 ///     </para>
 ///     <para>
 ///         <b>Windows</b> (<c>kernel32.dll</c>, loaded from System32 only): <c>GetFinalPathNameByHandleW</c>,
-///         <c>GetFileType</c>, <c>GetFileInformationByHandle</c>, <c>CreateFileW</c> and <c>GetLongPathNameW</c>.
+///         <c>GetFileType</c>, <c>GetFileInformationByHandleEx</c> (<c>FileIdInfo</c>), <c>GetFileInformationByHandle</c>,
+///         <c>CreateFileW</c> and <c>GetLongPathNameW</c>.
 ///         <b>Linux</b> (<c>libc</c>): <c>open</c> and <c>fstat</c> (with <c>__fxstat</c> for C libraries that predate
 ///         an exported <c>fstat</c>). <b>macOS</b> (<c>libc</c>, which re-exports <c>libSystem</c>): <c>open</c>,
 ///         <c>proc_pidfdinfo</c> (with <c>fstat</c> as a fallback for the file type) and <c>realpath</c>.
@@ -51,29 +52,14 @@ internal static class NativeMethods
     /// <summary>The <c>CreateFileW</c> access right <c>FILE_READ_ATTRIBUTES</c>, all the identity of a file needs.</summary>
     private const uint WindowsReadAttributes = 0x80;
 
-    /// <summary>The size of <c>BY_HANDLE_FILE_INFORMATION</c>, in bytes (seven 32-bit fields and three 64-bit file times).</summary>
-    private const int WindowsFileInformationSize = 52;
-
-    /// <summary>The offset of <c>dwVolumeSerialNumber</c> in <c>BY_HANDLE_FILE_INFORMATION</c>: 4 + three file times of 8.</summary>
-    private const int WindowsVolumeSerialOffset = 28;
-
-    /// <summary>The offset of <c>nFileIndexHigh</c> in <c>BY_HANDLE_FILE_INFORMATION</c>.</summary>
-    private const int WindowsFileIndexHighOffset = 44;
-
-    /// <summary>The offset of <c>nFileIndexLow</c> in <c>BY_HANDLE_FILE_INFORMATION</c>.</summary>
-    private const int WindowsFileIndexLowOffset = 48;
+    /// <summary>The <c>FILE_INFO_BY_HANDLE_CLASS</c> value <c>FileIdInfo</c>, which asks for a <c>FILE_ID_INFO</c>.</summary>
+    private const int WindowsFileIdInfoClass = 18;
 
     /// <summary>The first size of a path buffer, in characters; it grows when Windows asks for more.</summary>
     private const int WindowsInitialPathBuffer = 512;
 
     /// <summary>The largest path Windows can report, in characters (including the terminating NUL).</summary>
     private const int WindowsMaxPathBuffer = 32768;
-
-    /// <summary>The prefix Windows puts in front of a final path (<c>\\?\</c>).</summary>
-    private const string WindowsExtendedPrefix = @"\\?\";
-
-    /// <summary>The prefix Windows puts in front of the final path of a network file (<c>\\?\UNC\</c>).</summary>
-    private const string WindowsExtendedUncPrefix = @"\\?\UNC\";
 
     /// <summary>The <c>errno</c> value <c>EPERM</c> (Linux and macOS).</summary>
     private const int ErrorNotPermitted = 1;
@@ -117,6 +103,13 @@ internal static class NativeMethods
     ///     passed alone: the kernel refuses it together with <c>O_NOFOLLOW</c> (0x100) with <c>EINVAL</c>.
     /// </summary>
     private const int MacNoFollowAny = 0x20000000;
+
+    /// <summary>
+    ///     The macOS <c>open</c> flag <c>O_NOFOLLOW</c>: only a link at the last component refuses the open
+    ///     (<c>ELOOP</c>); links in the folders of the path are followed. Never passed together with
+    ///     <see cref="MacNoFollowAny"/>.
+    /// </summary>
+    private const int MacNoFollowLast = 0x100;
 
     /// <summary>The size of the buffer handed to <c>fstat</c>; larger than <c>struct stat</c> on every Linux architecture.</summary>
     private const int LinuxStatBufferSize = 256;
@@ -163,7 +156,11 @@ internal static class NativeMethods
     ///     short names resolved.
     /// </summary>
     /// <param name="handle">The open handle.</param>
-    /// <returns>The path (without the <c>\\?\</c> prefix; a network path starts with <c>\\</c>), or <see langword="null"/> when Windows cannot tell.</returns>
+    /// <returns>
+    ///     The path in the spelling of <see cref="RealPath.FromFinalPathName"/> (without the <c>\\?\</c> prefix, except a
+    ///     path on a volume without a drive letter, which keeps its <c>\\?\Volume{GUID}\</c> form; a network path starts
+    ///     with <c>\\</c>), or <see langword="null"/> when Windows cannot tell.
+    /// </returns>
     [SupportedOSPlatform("windows")]
     internal static string? TryGetFinalPathName(SafeFileHandle handle)
     {
@@ -179,7 +176,7 @@ internal static class NativeMethods
 
             if (length < buffer.Length)
             {
-                return StripExtendedPrefix(new string(buffer, 0, (int)length));
+                return RealPath.FromFinalPathName(new string(buffer, 0, (int)length));
             }
 
             buffer = new char[length + 1];
@@ -217,28 +214,35 @@ internal static class NativeMethods
     }
 
     /// <summary>
-    ///     Gets the identity of an open file on Windows: the serial number of its volume and its 64-bit file index, which
-    ///     together name one file whatever path reached it.
+    ///     Gets the identities of two open files on Windows, read the same way for both so they can be compared: the
+    ///     64-bit volume serial number and the 128-bit file identifier (<c>FileIdInfo</c>) when both volumes report
+    ///     them, else the 32-bit volume serial number and the 64-bit file index (<c>GetFileInformationByHandle</c>).
     /// </summary>
-    /// <param name="handle">The open handle.</param>
-    /// <returns>The identity, or <see langword="null"/> when Windows cannot tell.</returns>
+    /// <remarks>
+    ///     The 64-bit file index is not unique on every file system: on ReFS two files can share its low 64 bits, so
+    ///     the 128-bit identifier is preferred. A volume that does not report it (FAT, some network shares) makes
+    ///     both identities fall back, because a 128-bit identifier and a 64-bit index never compare.
+    /// </remarks>
+    /// <param name="first">The first open handle.</param>
+    /// <param name="second">The second open handle.</param>
+    /// <returns>Both identities, read the same way, or <see langword="null"/> when Windows cannot tell.</returns>
     [SupportedOSPlatform("windows")]
-    internal static (uint Volume, ulong Index)? TryGetWindowsFileId(SafeFileHandle handle)
+    internal static (WindowsFileId First, WindowsFileId Second)? TryGetWindowsFileIds(SafeFileHandle first, SafeFileHandle second)
     {
-        if (handle.IsInvalid || handle.IsClosed)
+        if (first.IsInvalid || first.IsClosed || second.IsInvalid || second.IsClosed)
         {
             return null;
         }
 
-        var information = new byte[WindowsFileInformationSize];
-        if (!GetFileInformationByHandle(handle, information))
+        // The 128-bit identifiers are used only when both handles report one, so the comparison is always like with like
+        if (TryGetFileIdInfo(first) is { } extendedFirst && TryGetFileIdInfo(second) is { } extendedSecond)
         {
-            return null;
+            return (extendedFirst, extendedSecond);
         }
 
-        var index = ((ulong)BitConverter.ToUInt32(information, WindowsFileIndexHighOffset) << 32)
-            | BitConverter.ToUInt32(information, WindowsFileIndexLowOffset);
-        return (BitConverter.ToUInt32(information, WindowsVolumeSerialOffset), index);
+        return TryGetByHandleId(first) is { } indexFirst && TryGetByHandleId(second) is { } indexSecond
+            ? (indexFirst, indexSecond)
+            : null;
     }
 
     /// <summary>
@@ -299,7 +303,13 @@ internal static class NativeMethods
     ///     <see langword="true"/> to read the identity of a name itself: on Linux a link at the last component is not
     ///     followed (<c>O_NOFOLLOW</c>; with <c>O_PATH</c> Linux opens the link itself), and on macOS a link at any
     ///     component, the last one included, refuses the open (<c>O_NOFOLLOW_ANY</c> alone, an
-    ///     <see cref="IOException"/> for <c>ELOOP</c>).
+    ///     <see cref="IOException"/> for <c>ELOOP</c>), or only one at the last component with
+    ///     <paramref name="lastComponentOnly"/>.
+    /// </param>
+    /// <param name="lastComponentOnly">
+    ///     With <paramref name="noFollow"/> on macOS, <see langword="true"/> to refuse only a link at the last component
+    ///     (<c>O_NOFOLLOW</c> instead of <c>O_NOFOLLOW_ANY</c>), so a path below a linked system folder (<c>/var</c>)
+    ///     can still be opened. Linux always refuses only the last component, so it is ignored there.
     /// </param>
     /// <returns>The handle, which owns the descriptor.</returns>
     /// <exception cref="FileNotFoundException">Thrown when the file does not exist.</exception>
@@ -312,7 +322,7 @@ internal static class NativeMethods
     /// </exception>
     [SupportedOSPlatform("linux")]
     [SupportedOSPlatform("macos")]
-    internal static SafeFileHandle OpenNonBlocking(string path, bool pathOnly, bool noFollow = false)
+    internal static SafeFileHandle OpenNonBlocking(string path, bool pathOnly, bool noFollow = false, bool lastComponentOnly = false)
     {
         // The variadic mode argument of open is only read with O_CREAT, which is never passed, so the two fixed
         // arguments are all the call needs on every ABI (Arm64 macOS included)
@@ -320,8 +330,10 @@ internal static class NativeMethods
         if (OperatingSystem.IsMacOS())
         {
             // O_NOFOLLOW_ANY alone: it refuses a link at every component, the last one included, and the kernel
-            // rejects it combined with O_NOFOLLOW (vn_open_auth returns EINVAL for the pair)
-            flags = MacOpenReadNonBlocking | (noFollow ? MacNoFollowAny : 0);
+            // rejects it combined with O_NOFOLLOW (vn_open_auth returns EINVAL for the pair); O_NOFOLLOW alone refuses
+            // only a link at the last component
+            var noFollowFlag = lastComponentOnly ? MacNoFollowLast : MacNoFollowAny;
+            flags = MacOpenReadNonBlocking | (noFollow ? noFollowFlag : 0);
         }
         else
         {
@@ -563,23 +575,29 @@ internal static class NativeMethods
     }
 
     /// <summary>
-    ///     Removes the <c>\\?\</c> prefix of a final path, mapping <c>\\?\UNC\server\share</c> to <c>\\server\share</c>
-    ///     and <c>\\?\C:\x</c> to <c>C:\x</c>. Any other spelling (a volume GUID or a device-namespace root, which the
-    ///     flags asked for should never yield) is no usable path, so it is reported as unknown (fail closed).
+    ///     Gets the 128-bit identity of an open file on Windows from <c>FILE_ID_INFO</c> (<c>FileIdInfo</c>).
     /// </summary>
-    /// <param name="path">The path as Windows reported it.</param>
-    /// <returns>The path in its usual spelling, or <see langword="null"/>.</returns>
-    private static string? StripExtendedPrefix(string path)
+    /// <param name="handle">The open handle.</param>
+    /// <returns>The identity, or <see langword="null"/> when the volume does not report it.</returns>
+    [SupportedOSPlatform("windows")]
+    private static WindowsFileId? TryGetFileIdInfo(SafeFileHandle handle)
     {
-        if (path.StartsWith(WindowsExtendedUncPrefix, StringComparison.OrdinalIgnoreCase))
-        {
-            return @"\\" + path[WindowsExtendedUncPrefix.Length..];
-        }
-
-        var stripped = path.StartsWith(WindowsExtendedPrefix, StringComparison.Ordinal) ? path[WindowsExtendedPrefix.Length..] : path;
-        return stripped.Length >= 3 && char.IsAsciiLetter(stripped[0]) && stripped[1] == ':' && stripped[2] == '\\'
-            ? stripped
+        var information = new byte[WindowsFileId.FileIdInfoSize];
+        return GetFileInformationByHandleEx(handle, WindowsFileIdInfoClass, information, (uint)information.Length)
+            ? WindowsFileId.FromFileIdInfo(information)
             : null;
+    }
+
+    /// <summary>
+    ///     Gets the 64-bit identity of an open file on Windows from <c>BY_HANDLE_FILE_INFORMATION</c>.
+    /// </summary>
+    /// <param name="handle">The open handle.</param>
+    /// <returns>The identity, or <see langword="null"/> when Windows cannot tell.</returns>
+    [SupportedOSPlatform("windows")]
+    private static WindowsFileId? TryGetByHandleId(SafeFileHandle handle)
+    {
+        var information = new byte[WindowsFileId.ByHandleInformationSize];
+        return GetFileInformationByHandle(handle, information) ? WindowsFileId.FromByHandleInformation(information) : null;
     }
 
     /// <summary>The Windows <c>GetFinalPathNameByHandleW</c> function.</summary>
@@ -610,6 +628,19 @@ internal static class NativeMethods
     [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool GetFileInformationByHandle(SafeFileHandle file, [Out] byte[] information);
+
+    /// <summary>The Windows <c>GetFileInformationByHandleEx</c> function.</summary>
+    /// <param name="file">The open handle.</param>
+    /// <param name="informationClass">The <c>FILE_INFO_BY_HANDLE_CLASS</c> value.</param>
+    /// <param name="information">The buffer for the structure of that class.</param>
+    /// <param name="bufferSize">The size of the buffer, in bytes.</param>
+    /// <returns><see langword="true"/> on success.</returns>
+    [SupportedOSPlatform("windows")]
+    [DllImport("kernel32.dll", EntryPoint = "GetFileInformationByHandleEx", ExactSpelling = true, SetLastError = true)]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetFileInformationByHandleEx(
+        SafeFileHandle file, int informationClass, [Out] byte[] information, uint bufferSize);
 
     /// <summary>The Windows <c>CreateFileW</c> function.</summary>
     /// <param name="fileName">The path.</param>

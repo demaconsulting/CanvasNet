@@ -27,12 +27,16 @@ sections:
               - id: CanvasNetMermaid-Rendering-NodeImages-NaturalSize
                 title: >-
                   The NodeImages unit shall take as the natural size of a picture the size of what the resolver
-                  returns when asked for it at 256 by 256 pixels, asking once per link in a rendering.
+                  returns when asked for it at 256 by 256 pixels, asking once per link in a rendering, through the
+                  resolver's probe when it offers one (a FolderImageResolver or a scope of one), so the measuring load
+                  is not listed as an embedded image.
                 justification: |
                   Mermaid sizes image nodes by the natural size of their pictures; asking once keeps the work and the
-                  resolver calls bounded.
+                  resolver calls bounded, and measuring through the probe lists each picture once, by the load that
+                  draws it.
                 tests:
                   - NodeImages_NaturalSize_Resolver_AsksOnce
+                  - NodeImages_NaturalSize_FolderImageResolver_ProbeIsNotListed
 
               - id: CanvasNetMermaid-Rendering-NodeImages-DeviceSize
                 title: >-

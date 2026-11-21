@@ -798,10 +798,11 @@ public static partial class SvgCodec
         var bounds = Rect.Empty;
         foreach (var child in markerElement.Elements())
         {
+            // Marker content sizes a buffer, so its painted box is what counts
             var childBounds = ComputeSubtreeLocalBounds(child, markerState, contentTransform, context, childScope, ref totalElements);
             if (childBounds != null)
             {
-                bounds = bounds.Union(childBounds.Value);
+                bounds = bounds.Union(childBounds.Value.Painted);
             }
         }
 

@@ -1,6 +1,6 @@
 ---
 title: Diagnostics of a drawing
-summary: Images and text that were not drawn, the fragment codes, and the errors of a drawing.
+summary: Images, text, and filters not drawn as written, the fragment codes, and the errors of a drawing.
 tags:
   - svg
   - diagnostics
@@ -42,6 +42,12 @@ see-also:
   alignment-baseline, text-decoration, an unsupported baseline-shift, or a
   character no font has (drawn as a box). One per drawing, like
   svg-text-not-drawn. In strict mode it is an unsupported-feature error.
+- `svg-filter-unsupported`: Unsupported: a filter drawn without a feature it
+  uses: primitiveUnits="objectBoundingBox" (not read; primitive values stay in
+  user units) or a primitive subregion (x, y, width, or height on an fe*
+  primitive, read as a fraction of the filter region). One per drawing; the
+  message counts the filters and names the first. In strict mode it is an
+  unsupported-feature error.
 - `image-fragment-unknown-parameter`: Warning: the fragment of an href names a
   parameter the linked file does not use (a typo such as pag=2, or any parameter
   on a raster or an SVG file). The picture is drawn without it. Strict mode does

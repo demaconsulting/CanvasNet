@@ -21,10 +21,16 @@ runs each of them, and the requirements link them with source filters, so only r
 | Device and directory are not regular files | null device; folder refused | `/dev/null`, folder | `/dev/null`, folder |
 | Named pipe opens without blocking (pins the mode offset) | skips | runs | runs |
 | Identity of an open file and of another spelling (pins the identity offsets) | runs | runs | runs |
+| Windows file identity structures decoded (pure bytes) | runs | runs | runs |
+| A file symbolic link to the opened file | runs (or skips without the link privilege) | skips | skips |
 | Case-insensitive temporary folder: stored letter case, same file in another case | runs | skips | runs |
-| Case-sensitive temporary folder: both case variants exist | skips | runs | skips |
-| Names with `*` and `?`; a symbolic link to the opened file | skips | runs | runs |
+| Case-sensitive temporary folder: both case variants exist; a lone case variant is kept | skips | runs | skips |
+| Same entry by identity: itself, another file, a missing name | runs | runs | runs |
+| Names with `*` and `?` | skips | skips | runs |
+| A symbolic link to the opened file or to an entry | skips | runs | runs |
 | Drive letter upper-cased | runs | skips | skips |
+| Final path conversion, volume GUID paths kept (pure text) | runs | runs | runs |
+| Volume GUID real paths compared exactly | runs | skips | skips |
 
 Whether the temporary folder ignores letter case is probed by creating a file and looking for it in upper case; no
 test changes a setting of the file system (no per-directory case sensitivity, no disk image), so the case-insensitive
@@ -57,11 +63,17 @@ file or a link constitutes a failure.
 
 **Tests**: `RealPath_Inspect_PlainFile_ReportsItsCanonicalPathAndARegularFile`,
 `RealPath_Inspect_FileThroughADirectoryLink_ReportsTheTarget`, `RealPath_Inspect_ShortNameSpelling_IsExpanded`
-(Windows), `RealPath_Inspect_TempFileOnMacOS_ReportsThePrivateLocation` (macOS)
+(Windows), `RealPath_Inspect_TempFileOnMacOS_ReportsThePrivateLocation` (macOS),
+`RealPath_FromFinalPathName_KeepsVolumeGuidPathsAndStripsDrivePrefixes`
 
 A plain file is a regular file whose fully qualified final path is the real location of its folder plus its name; a
 file opened through a directory link reports the target; a file opened by its short spelling reports the long one and
-short names expand; on macOS a temporary file under `/var` or `/tmp` reports its `/private` location.
+short names expand; on macOS a temporary file under `/var` or `/tmp` reports its `/private` location. The conversion
+of a final path as Windows reports it is pure text, so it runs on every system: `\\?\C:\a` gives `C:\a`,
+`\\?\UNC\srv\share\a` gives `\\srv\share\a`, a volume GUID path (`\\?\Volume{GUID}\a\b`, and one whose last name ends
+with a brace) is kept as reported, the bare volume root gets a trailing separator, and `\\?\GLOBALROOT\...`, a
+malformed GUID and `\\?\pipe\x` are unknown. A volume without a drive letter is not mounted by any test (no system
+change), so the conversion is verified on text and the policies on injected real paths.
 
 ##### CanvasNet-Files-RealPath-Unavailable: No Path Rather Than a Wrong One
 
@@ -113,39 +125,52 @@ A folder contains itself and what lies below its separator (also with a trailing
 shares its name as a prefix; the system root contains everything; trailing separators do not change equality; the
 deepest shared folder is found by whole components.
 
-**Tests**: `RealPath_IsUnder_ComparesLetterCaseExactly`, `RealPath_CommonAncestor_ComparesComponentsExactly`
+**Tests**: `RealPath_IsUnder_ComparesLetterCaseExactly`, `RealPath_CommonAncestor_ComparesComponentsExactly`,
+`RealPath_IsUnder_VolumeGuidPaths_ComparedExactly` (Windows)
 
 Pure text, on every system, with `C:\work\allowed` (Windows) or `/work/allowed` (elsewhere): `...\ALLOWED\x` is outside
 the root and `PathsEqual` of the two case variants is false, while `...\allowed\x`, the root itself, a root with a
 trailing separator and a path with a trailing separator are inside, and the sibling `allowed2` is outside. The
 written-path test (`IsUnderAsWritten`) of the case variant is inside on Windows and macOS and outside on Linux. The
 deepest shared folder of `...\ALLOWED\x` and `...\allowed` is the parent; on Windows a drive letter in either case is
-the same root.
+the same root. On Windows a file below `\\?\Volume{GUID}\Docs` is under that folder and under the volume root, and not
+under `\\?\Volume{GUID}\docs` or the same folder on another volume.
 
 ##### CanvasNet-Files-RealPath-ExactCase: The Letter Case Stored on Disk
 
-**Tests**: `RealPath_GetExactPathName_FolderAndFileInAnotherCase_GiveTheStoredCase`,
+**Tests**: `RealPath_GetExactPathName_FolderAndFileInAnotherCase_GiveTheStoredCase` (Windows, macOS),
 `RealPath_GetExactPathName_MissingTail_IsKeptAsWritten`,
 `RealPath_GetExactPathName_BothCaseVariantsExist_PrefersTheExactNameAndKeepsAnAmbiguousOne` (Linux),
-`RealPath_GetExactPathName_WildcardCharactersInAName_MatchOnlyThatName` (Linux, macOS),
+`RealPath_GetExactPathName_CaseVariantOfAnEntryInACaseSensitiveFolder_KeepsTheNameAsWritten` (Linux),
+`RealPath_IsSameEntry_SameEntryOtherFileAndMissingName_AreTold`,
+`RealPath_IsSameEntry_CaseVariantInACaseInsensitiveFolder_IsTheSameEntry` (Windows, macOS),
+`RealPath_IsSameEntry_LinkToAnEntry_IsNotTheSameEntryOrCapabilitySkipped` (Linux, macOS),
+`RealPath_GetExactPathName_WildcardCharactersInAName_MatchOnlyThatName` (macOS),
 `RealPath_GetExactPathName_DriveLetter_IsUpperCase` (Windows),
 `RealPath_ExactRoot_DriveRootsUpperCasedAndOtherRootsKept`,
 `RealPath_TryGetExactCanonicalDirectory_FolderWrittenInAnotherCase_GivesTheStoredCase` (Windows, macOS)
 
-A temporary `Docs/Readme.txt` asked as `docs/README.txt` is given as `Docs/Readme.txt` (the single entry that matches
-ignoring case, on every system); `docs/Missing/Sub.txt` keeps the missing tail as written after `Docs`. In a
-case-sensitive folder holding `Docs` and `docs`, `docs` is kept (the exact entry wins) and `DOCS` is kept as written
-(several matches). `A*B` next to `a*b` and `aXb` gives `a*b`, and `X?` next to `x?` and `xy` gives `x?` (wildcards match
-only themselves). A lower-case drive letter is upper-cased. The root rule (pure text) upper-cases `c:\` and `\\?\c:\`
-and keeps `\\server\share`, `\\?\Volume{GUID}\` and `/`. The real location of a folder `Stored` asked as `STORED` ends
-with `Stored`.
+In a case-insensitive folder a temporary `Docs/Readme.txt` asked as `docs/README.txt` is given as `Docs/Readme.txt` (the
+single entry that matches ignoring case, which is the same entry as the name as written); `Docs/Missing/Sub.txt` keeps
+the missing tail as written after `Docs`, on every system. In a case-sensitive folder holding `Docs` and `docs`, `docs`
+is kept (the exact entry wins) and `DOCS` is kept as written (several matches); in a case-sensitive folder holding only
+`target.txt`, `TARGET.txt` is kept as written (it names no entry, so it is not provably the same entry). An entry is the
+same entry as itself, another file is not, and a missing name is unknown, on every system; in a case-insensitive folder
+`TARGET.txt` and `target.txt` are the same entry; a symbolic link to an entry is not (Linux opens the link itself, macOS
+refuses to open it). In a case-insensitive folder `A*B` next to `a*b` and `aXb` gives `a*b`, and `X?` next to `x?` and
+`xy` gives `x?` (wildcards match only themselves). A lower-case drive letter is upper-cased. The root rule (pure text)
+upper-cases `c:\` and `\\?\c:\` and keeps `\\server\share`, `\\?\Volume{GUID}\` and `/`. The real location of a folder
+`Stored` asked as `STORED` ends with `Stored`.
 
 ##### CanvasNet-Files-RealPath-Identity: Confirming a Spelling Against the Open File
 
 **Tests**: `RealPath_TryConfirmExactPath_SpellingOfAnotherFile_IsUnconfirmed` (Windows, Linux, macOS),
 `RealPath_TryConfirmExactPath_StoredSpellingOfARealPathInAnotherCase_IsConfirmed` (Windows, macOS),
 `RealPath_TryConfirmExactPath_SpellingThroughALinkedFolder_IsUnconfirmed` (Windows, Linux, macOS),
-`RealPath_TryConfirmExactPath_LinkToTheOpenedFile_IsUnconfirmed` (Linux, macOS)
+`RealPath_TryConfirmExactPath_LinkToTheOpenedFile_IsUnconfirmed` (Linux, macOS),
+`RealPath_TryConfirmExactPath_WindowsFileSymbolicLink_IsUnconfirmedOrCapabilitySkipped` (Windows),
+`RealPath_WindowsFileId_IdsDifferingOnlyInTheHigh64Bits_AreDifferent`,
+`RealPath_WindowsFileId_ByHandleInformation_DecodesSerialAndIndex`
 
 With `a.txt` open, the path of `b.txt`, spelled through the real folder of `a.txt` (so the spelling has no link in it;
 on macOS the temporary folder is otherwise reached through the `/var` link), is not confirmed and `IsSameFile` is
@@ -156,4 +181,10 @@ which pins the identity fields and the open flags on each system; when it is not
 A spelling that reaches the open `target/a.txt` through a directory link (a junction on Windows) `link/a.txt` is not
 confirmed, although it is the same file, because a spelling must reach the file through no linked folder; a symbolic
 link to the open file is not confirmed either, because the spelling is opened without following a link at its last
-component.
+component. On Windows a file symbolic link to the open file is not confirmed and `IsSameFile` is false with a reason
+that names another file, which exercises the `FileIdInfo` identity on a real link; file links need Developer Mode or
+`SeCreateSymbolicLinkPrivilege` there, so the test skips with that reason when the host cannot create one. The Windows
+identity structures are decoded as pure bytes on every system: two `FILE_ID_INFO` structures with the same 64-bit
+volume serial number and the same low 64 bits of the identifier, differing only in its high 64 bits (as on ReFS), are
+different identities; a `BY_HANDLE_FILE_INFORMATION` gives the 32-bit serial number at offset 28 and the 64-bit file
+index from its high (44) and low (48) halves.

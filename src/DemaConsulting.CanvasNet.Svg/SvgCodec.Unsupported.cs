@@ -9,7 +9,9 @@ namespace DemaConsulting.CanvasNet.Svg;
 //
 // Text is the content a reader misses most when it silently disappears, so every way a text (or a part of one) is
 // dropped reports svg-text-not-drawn, and every feature a drawn text uses but the codec ignores reports
-// svg-text-unsupported. Detection never changes what is painted: the painter does exactly what it did before, and the
+// svg-text-unsupported. A filter that is applied with primitiveUnits="objectBoundingBox" or a primitive subregion, which
+// the codec draws differently from the specification, reports svg-filter-unsupported. Detection never changes what is
+// painted: the painter does exactly what it did before, and the
 // collector only records. The collector is created only when a handler is set, and the bounds and position-binding
 // pre-passes never report, so a document is reported once, for what is painted.
 public static partial class SvgCodec
@@ -51,6 +53,37 @@ public static partial class SvgCodec
     }
 
     /// <summary>
+    ///     Reports the features of a filter that is being applied which the codec draws differently from the
+    ///     specification: <c>primitiveUnits="objectBoundingBox"</c> (not read: primitive values stay in user units)
+    ///     and a primitive subregion (<c>x</c>, <c>y</c>, <c>width</c> or <c>height</c> on a direct <c>fe*</c> child,
+    ///     read as a fraction of the filter region).
+    /// </summary>
+    /// <param name="filterElement">The <c>filter</c> element being applied.</param>
+    /// <param name="context">The fixed per-document render context; nothing happens when it has no collector.</param>
+    /// <remarks>
+    ///     Called once per filter application, from the real render pass only, so the report counts the distinct
+    ///     <c>filter</c> elements that are applied. The scan reads only the filter's direct children, whose number the
+    ///     filter work budget already bounds before any application.
+    /// </remarks>
+    private static void ReportFilterUnsupportedFeatures(XElement filterElement, RenderContext context)
+    {
+        if (context.Unsupported is not { } collector)
+        {
+            return;
+        }
+
+        if (string.Equals((string?)filterElement.Attribute("primitiveUnits"), "objectBoundingBox", StringComparison.Ordinal))
+        {
+            collector.Add(SvgUnsupportedFeature.FilterUnsupportedCode, "primitiveUnits=\"objectBoundingBox\"", filterElement);
+        }
+
+        if (filterElement.Elements().Any(PrimitiveDeclaresSubregion))
+        {
+            collector.Add(SvgUnsupportedFeature.FilterUnsupportedCode, "primitive subregion (x, y, width, height)", filterElement);
+        }
+    }
+
+    /// <summary>
     ///     Collects the reports of one render and hands them to the host after painting, one per code.
     /// </summary>
     /// <param name="handler">The host callback.</param>
@@ -62,7 +95,12 @@ public static partial class SvgCodec
     private sealed class UnsupportedFeatureCollector(Action<SvgUnsupportedFeature> handler)
     {
         /// <summary>The codes in report order.</summary>
-        private static readonly string[] CodeOrder = [SvgUnsupportedFeature.TextNotDrawnCode, SvgUnsupportedFeature.TextUnsupportedCode];
+        private static readonly string[] CodeOrder =
+        [
+            SvgUnsupportedFeature.TextNotDrawnCode,
+            SvgUnsupportedFeature.TextUnsupportedCode,
+            SvgUnsupportedFeature.FilterUnsupportedCode
+        ];
 
         /// <summary>The collected entries per code.</summary>
         private readonly Dictionary<string, Entry> _entries = new(StringComparer.Ordinal);
@@ -80,7 +118,10 @@ public static partial class SvgCodec
         /// <summary>
         ///     Records one feature or reason for an element.
         /// </summary>
-        /// <param name="code">The code, <see cref="SvgUnsupportedFeature.TextNotDrawnCode"/> or <see cref="SvgUnsupportedFeature.TextUnsupportedCode"/>.</param>
+        /// <param name="code">
+        ///     The code: <see cref="SvgUnsupportedFeature.TextNotDrawnCode"/>, <see cref="SvgUnsupportedFeature.TextUnsupportedCode"/>
+        ///     or <see cref="SvgUnsupportedFeature.FilterUnsupportedCode"/>.
+        /// </param>
         /// <param name="feature">The feature or reason, for example <c>"rotate"</c> or <c>"textPath"</c>.</param>
         /// <param name="element">The element the report is about (counted once however often it is recorded).</param>
         public void Add(string code, string feature, XElement element)
@@ -117,7 +158,12 @@ public static partial class SvgCodec
                 var features = string.Join(", ", entry.Features) + (entry.MoreFeatures ? ", and more" : string.Empty);
                 var count = entry.Elements.Count;
                 var where = count == 1 ? "1 element" : $"{count.ToString(CultureInfo.InvariantCulture)} elements";
-                var what = code == SvgUnsupportedFeature.TextNotDrawnCode ? "text is not drawn" : "text is drawn without";
+                var what = code switch
+                {
+                    SvgUnsupportedFeature.TextNotDrawnCode => "text is not drawn",
+                    SvgUnsupportedFeature.TextUnsupportedCode => "text is drawn without",
+                    _ => "filter is drawn without"
+                };
                 handler(new SvgUnsupportedFeature
                 {
                     Code = code,

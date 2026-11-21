@@ -8,7 +8,8 @@ five internal source files in the `DemaConsulting.CanvasNet.Files` namespace:
 - `RealPath.cs` - `RealPath` (internal static partial class): the dispatch per operating system, the open, the handle
   facts (`HandleFacts`), the real location of a folder, short-name expansion, the on-disk letter case of a path and
   its confirmation against an open handle, and the path comparison rules
-- `RealPath.Windows.cs` - the Windows facts and identity of an open handle, and whether a path is a network location
+- `RealPath.Windows.cs` - the Windows facts and identity of an open handle (with `WindowsFileId`, the internal readonly
+  record struct of a Windows file identity and its pure decoders), and whether a path is a network location
 - `RealPath.Unix.cs` - the Linux facts of an open handle, and the Linux and macOS identity of a file
 - `NativeMethods.cs` - `NativeMethods` (internal static class): the private `DllImport` declarations and the wrappers
   that add buffer growth, prefix stripping, error translation, and structure offsets
@@ -32,13 +33,13 @@ The unit's behavior is specified by the `CanvasNet-Files-RealPath-*` requirement
 #### Data Model
 
 **`HandleFacts`** (readonly record struct): `IsRegularFile` (`bool?`) and `FinalPath` (`string?`); `null` means the
-platform cannot tell. **`PathComparison`** / **`PathComparer`**: `OrdinalIgnoreCase` on Windows and macOS, `Ordinal`
-elsewhere; used only for paths as written (the lexical pre-check of a policy, the lexical confinement of the sandbox,
-Windows drive roots) and for cache keys, never for a decision about a real path. Real paths are always compared with
-`StringComparison.Ordinal` (on macOS after both sides are brought into Unicode composed form), because Windows
-per-directory case sensitivity and case-sensitive APFS make two names that differ only in letter case two different
-folders. The unit is stateless except for one cached flag in `NativeMethods` that remembers
-whether the C library exports `fstat`.
+platform cannot tell. **`PathComparison`**: `OrdinalIgnoreCase` on Windows and macOS, `Ordinal` elsewhere; used only for
+paths as written (the lexical pre-check of a policy, the lexical confinement of the sandbox, Windows drive roots), never
+for a decision about a real path and never for cache keys (the resolver caches use ordinal keys). Real paths are
+always compared with `StringComparison.Ordinal` (on macOS after both sides are brought into Unicode composed form),
+because Windows per-directory case sensitivity and case-sensitive APFS make two names that differ only in letter case
+two different folders. The unit is stateless except for one cached flag in `NativeMethods` that remembers whether the C
+library exports `fstat`.
 
 #### Key Methods
 
@@ -69,17 +70,38 @@ whether the C library exports `fstat`.
   `FileSystemEnumerable` (options: `MatchCasing.CaseInsensitive`, `MatchType.Simple`, `IgnoreInaccessible`, no
   attribute skipped, no recursion) without a search pattern, keeping only the entries whose name equals the component
   under `OrdinalIgnoreCase` (on macOS both in Unicode composed form). An entry spelled exactly as written wins (the
-  component is kept); otherwise the single matching entry gives the stored name; with no match or several matches
-  (`Docs` and `docs` in a case-sensitive folder) the component is kept as written. A missing parent folder
+  component is kept); otherwise the single matching entry gives the stored name, but only when `IsSameEntry` confirms
+  that the name as written and that entry are the same directory entry (the folder ignores letter case); with no match,
+  several matches (`Docs` and `docs` in a case-sensitive folder), or a single match that is not provably the same
+  entry (`docs` alone in a case-sensitive folder, asked for `Docs`), the component is kept as written. Mapping a
+  name to a case variant in a case-sensitive folder would let a link created later under the written name (`Docs` to
+  `docs`) pass the no-symlinks match as the stored entry. A missing parent folder
   (`DirectoryNotFoundException`) keeps the rest of the path as written; a folder that cannot be listed
   (`UnauthorizedAccessException`, `IOException`, `SecurityException`, `ArgumentException`, `NotSupportedException`)
   keeps that component as written and goes on with the next. Because entries are compared as plain names, `*` and `?`
-  in a name (legal on Linux and macOS) match only themselves. A trailing separator of the input is kept. The real
-  paths a deciding comparison sees never carry the `\\?\` prefix (it is stripped from every final path); a written
-  path that does (only used as the NoSymlinks expected spelling) keeps its root (`\\?\C:\`, `\\?\Volume{GUID}\`) and
-  has the components below it corrected.
+  in a name (legal on Linux and macOS) match only themselves. A trailing separator of the input is kept. A path with
+  the `\\?\` prefix keeps its root (`\\?\C:\`, `\\?\Volume{GUID}\`) and has the components below it corrected: a
+  written path that has it (only used as the NoSymlinks expected spelling), and a real path or folder location on a
+  volume without a drive letter, the only real paths that carry the prefix (`FromFinalPathName`).
+- `FromFinalPathName` - pure text, the same on every platform: converts a final path as Windows reports it into the
+  spelling real paths are compared in. `\\?\UNC\` (any letter case) becomes `\\`; an ordinary extended-length volume
+  path (`IsOrdinaryExtendedPath` with `Volume{`, the 36-character GUID form) is kept as reported, the bare volume root
+  `\\?\Volume{GUID}` with a trailing `\` added so a file below it is joined and compared as below a drive root; the
+  `\\?\` prefix is stripped from a drive path (`\\?\C:\x` to `C:\x`); anything else (`\\?\GLOBALROOT\`, `\\?\pipe\`, a
+  malformed GUID) is `null` (unknown, fail closed). The roots and the files on a volume without a drive letter both
+  get their real paths from it, so both carry the GUID as Windows spells it and `IsUnder`/`PathsEqual` compare them
+  exactly; `ExactRoot` keeps the volume root, `IsNetworkLocation` classifies it as local, and `CommonAncestor` takes
+  it as the root (`Path.GetPathRoot`).
 - `ExactRoot` - pure text: a drive letter (`c:\`, `\\?\c:\`) is upper-cased, as Windows reports it in a final path; a
   UNC root, a volume GUID root and `/` are kept as they are.
+- `IsSameEntry(writtenPath, storedPath)` - whether two spellings name the same directory entry, by identity, opening
+  both without following a link at their last component: Windows `CreateFileW` as for `IsSameFile` and the
+  `TryGetWindowsFileIds` identities; Linux `O_PATH | O_CLOEXEC | O_NOFOLLOW` and `st_dev`/`st_ino`; macOS
+  `O_NOFOLLOW` (0x100, last component only, so the `/var` link of the temporary folder is followed alike for both;
+  a link at the last component fails with `ELOOP`) and `vst_dev`/`vst_ino`. A name that does not exist (the written
+  name in a case-sensitive folder), a link at the last component on macOS, or an identity that cannot be read is
+  `null` (unknown), and `GetExactPathName` then keeps the name as written. Two hard links to one file count as the same
+  entry (neither is a link). Never throws.
 - `TryGetExactCanonicalDirectory` - `TryGetCanonicalDirectory`, then `GetExactPathName`: the spelling a trusted folder
   (a root or an anchor) is compared in; a missing folder has no location.
 - `TryConfirmExactPath(handle, realPath, exactPath)` - returns `realPath` when the two are equal under `Ordinal` (no
@@ -109,14 +131,21 @@ whether the C library exports `fstat`.
 Per system:
 
 - **Windows**: the final path buffer starts at 512 characters and grows to the size the call asks for (at most 32,768);
-  `\\?\UNC\` becomes `\\` and the `\\?\` prefix is stripped from a drive path; any other spelling (which the
-  `VOLUME_NAME_DOS` flag should never yield) is no path (unknown, fail closed). The result resolves symbolic links,
+  `\\?\UNC\` becomes `\\`, the `\\?\` prefix is stripped from a drive path, and a path on a volume without a drive
+  letter (a volume mounted on a folder, or not mounted) keeps its `\\?\Volume{GUID}\` form (`FromFinalPathName`); any
+  other spelling is no path (unknown, fail closed). The result resolves symbolic links,
   junctions, substituted and mapped drives, and short (8.3) names. **Identity**: `CreateFileW` with
   `FILE_READ_ATTRIBUTES` (0x80), read, write and delete sharing, `OPEN_EXISTING`, and `FILE_FLAG_BACKUP_SEMANTICS |
   FILE_FLAG_OPEN_REPARSE_POINT` (0x02000000 | 0x00200000, so a link at the last component is opened itself); then
-  `GetFileInformationByHandle` for both handles into a 52-byte `BY_HANDLE_FILE_INFORMATION`, comparing
-  `dwVolumeSerialNumber` (offset 28) and the 64-bit file index `nFileIndexHigh` (44) and `nFileIndexLow` (48); the final
-  path of the identity handle must equal the spelling exactly (a junction or link in a folder changes it).
+  `NativeMethods.TryGetWindowsFileIds` reads both handles the same way, so the identities are always compared like
+  with like: `GetFileInformationByHandleEx(FileIdInfo = 18)` into a 24-byte `FILE_ID_INFO` (the 64-bit
+  `VolumeSerialNumber` at offset 0 and the 128-bit `FILE_ID_128` at offset 8) when it succeeds for both handles, else
+  `GetFileInformationByHandle` for both into a 52-byte `BY_HANDLE_FILE_INFORMATION` (`dwVolumeSerialNumber` at offset
+  28 and the 64-bit file index `nFileIndexHigh` (44) and `nFileIndexLow` (48)). The 128-bit identifier is preferred
+  because on ReFS the 64-bit index does not name one file; a volume that does not report it (FAT, some shares)
+  falls back. `WindowsFileId.FromFileIdInfo` and `FromByHandleInformation` decode the little-endian structures as pure
+  functions, so their layout is tested on every system. The final path of the identity handle must equal the spelling
+  exactly (a junction or link in a folder changes it).
 - **Linux**: `open` is imported without its optional mode argument, which is only read with `O_CREAT` (never passed),
   so the call is correct on every ABI; `EINTR` is retried. `errno` maps to the framework's exceptions (`ENOENT` to
   `FileNotFoundException`, `ENOTDIR` to `DirectoryNotFoundException`, `EACCES`/`EPERM` to
@@ -147,7 +176,8 @@ Per system:
   `vst_nlink`) from `proc_pidfdinfo` for both descriptors; the path is opened with `O_NOFOLLOW_ANY` (0x20000000,
   macOS 11 and later) alone, so a link at any component, the last one included, fails with `ELOOP` (unknown,
   unconfirmed). `O_NOFOLLOW` (0x100) is not added: the kernel refuses the two flags together with `EINVAL`
-  (`vn_open_auth`), which would leave every spelling unconfirmed.
+  (`vn_open_auth`), which would leave every spelling unconfirmed. `OpenNonBlocking` passes `O_NOFOLLOW` alone instead
+  when asked to refuse only a link at the last component (`IsSameEntry`).
 - **Other systems**: `File.OpenHandle` (blocking) and unknown facts; a restrictive policy then fails closed.
 - `NativeMethods.WithDescriptor` is the one place that reads the raw descriptor of a handle (for the C calls and the
   `/proc` link), inside `DangerousAddRef`/`DangerousRelease`, so the descriptor cannot be closed and reused meanwhile.
@@ -160,7 +190,8 @@ Strings for the C library are passed as NUL-terminated UTF-8 byte arrays; no uns
 #### Error Handling
 
 `OpenForRead` throws the framework's file exceptions so callers tell a missing file from an unreadable one. `Inspect`,
-`TryGetCanonicalDirectory`, `ExpandShortNames`, `GetExactPathName`, `IsSameFile` and `TryConfirmExactPath` never throw
+`TryGetCanonicalDirectory`, `ExpandShortNames`, `GetExactPathName`, `IsSameEntry`, `IsSameFile` and
+`TryConfirmExactPath` never throw
 for a platform failure: a failing or missing native call (`IOException`, `UnauthorizedAccessException`,
 `ExternalException`, `DllNotFoundException`, `EntryPointNotFoundException`) yields unknown facts, no location, the name
 as written, or an unconfirmed spelling, and the caller decides (fail closed for a restrictive policy). An unknown

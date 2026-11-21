@@ -75,9 +75,11 @@ sections:
                   - FileAccessPolicy_NoSymlinks_LinkAboveTheAnchor_IsTrusted
                   - "windows@FileAccessPolicy_NoSymlinks_ShortNameSpelling_IsAllowed"
                   - FileAccessPolicy_NoSymlinks_RealPathDifferingInLetterCaseBelowTheAnchor_IsDenied
-                  - FileAccessPolicy_NoSymlinks_WrittenPathInAnotherLetterCase_IsAllowed
+                  - "windows@FileAccessPolicy_NoSymlinks_WrittenPathInAnotherLetterCase_IsAllowed"
+                  - "macos@FileAccessPolicy_NoSymlinks_WrittenPathInAnotherLetterCase_IsAllowed"
                   - "ubuntu@FileAccessPolicy_NoSymlinks_LinkNamedLikeItsTargetInAnotherCase_IsDenied"
                   - "ubuntu@FileAccessPolicy_NoSymlinks_AnchorInAnotherLetterCaseThanTheBase_IsNotTrusted"
+                  - "windows@FileAccessPolicy_MatchesWithoutLinks_VolumeGuidAnchorAndRealPath_Match"
 
               - id: CanvasNet-Files-FileAccessPolicy-AnchoredAt
                 title: >-

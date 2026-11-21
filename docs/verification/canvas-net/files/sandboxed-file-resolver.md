@@ -185,7 +185,11 @@ verification (see the next scenario).
 `SandboxedFileResolverRaceTests.SandboxedFileResolver_Resolve_RootRenamedAfterTheOpen_IsRejectedAsThroughLink` (Linux,
 macOS),
 `SandboxedFileResolverRaceTests.SandboxedFileResolver_Resolve_RootRealLocationUnavailable_FailsClosedAsLinkCheckFailed`,
-`SandboxedFileResolverRaceTests.SandboxedFileResolver_Resolve_ExecuteOnlyRoot_ReadsTheFile` (Linux, macOS)
+`SandboxedFileResolverRaceTests.SandboxedFileResolver_Resolve_ExecuteOnlyRoot_ReadsTheFile` (Linux, macOS),
+`SandboxedFileResolverRaceTests.SandboxedFileResolver_Resolve_CaseVariantLinkCreatedBeforeTheOpen_IsThroughLink`
+(Linux),
+`SandboxedFileResolverRaceTests.SandboxedFileResolver_Resolve_RealPathOnAVolumeWithoutADriveLetter_IsJudgedByTheLinkRule`
+(Windows)
 
 The post-open verification is proven through the `FileOpenHooks` seams of the internal constructor, with no timing:
 inside `BeforeOpen` (after the link walk passed, before any handle exists, so Windows allows the rename) the folder of
@@ -204,7 +208,12 @@ handle is no longer below the captured root location; Windows does not allow ren
 the scenario does not exist there. A root whose real location could not be captured (the `DirectoryLocationOf` seam
 reports none) is `LinkCheckFailed`, not `ThroughLink`. A root made execute-only (mode 0100) still serves its file,
 because its real location needs no read permission; the test restores the mode afterwards and skips when permissions
-are not enforced (root).
+are not enforced (root). In a case-sensitive folder holding `target.txt`, a symbolic link `Target.txt` to it created
+inside `BeforeOpen` (after the on-disk spelling of `Target.txt` was captured and the walk passed) is `ThroughLink`: the
+written name named no entry when its spelling was captured, so it was kept as written and not mapped to `target.txt`.
+On Windows, with the root location and the real path of the file reported in the volume GUID form of a volume without a
+drive letter (injected through the `DirectoryLocationOf` and `RealPathOf` seams), the file whose real path is the root
+followed by the path below it is read, and one whose real path lies in another folder of the volume is `ThroughLink`.
 
 ##### CanvasNet-Files-SandboxedFileResolver-ResolverCallback: Callback Mode
 
@@ -282,7 +291,8 @@ counts.
 `SandboxedFileResolver_Resolve_FileSystemFilesAreCachedPerResolver`,
 `SandboxedFileResolver_Resolve_FileCachedUnderLinkedSearchRootIsCheckedAgainForAnotherRoot`,
 `SandboxedFileResolver_Resolve_CallbackSeesALogicalPathOnceAcrossRoots`,
-`SandboxedFileResolver_KeyComparer_FollowsModeAndPlatform`
+`SandboxedFileResolver_KeyComparer_IsOrdinalInBothModes`,
+`SandboxedFileResolver_Resolve_CaseVariantSpelling_IsNotAnsweredFromTheCache`
 
 Asserts that a file resolved twice is requested once and is the same object, that a miss is remembered (requested once
 per candidate), that a new resolver starts with an empty cache, that in file-system mode a file changed after its first
@@ -290,8 +300,9 @@ read is not read again, also when it is asked for under another spelling, that a
 search path that is itself a link (injected probe) is **not** served from the cache when the same file is requested
 again relative to a file under the base directory - the link check of that root runs and refuses it as `ThroughLink` -
 that in callback mode `lib/a.txt` and then `a.txt` with search path `lib` ask the callback for `lib/a.txt` once while
-the two results carry their own roots (empty and `lib`), and that the key comparer is ordinal for logical paths and
-case-insensitive for full paths exactly on Windows and macOS.
+the two results carry their own roots (empty and `lib`), and that the key comparer is `StringComparer.Ordinal` in both
+modes. After `a.txt` was resolved, `A.txt` is opened on its own (the stream seam stands in for a case-sensitive folder
+by serving other bytes for it) and gives those bytes, never the cached bytes of `a.txt`; both keys are opened.
 
 ##### CanvasNet-Files-SandboxedFileResolver-Cancellation: Cancellation
 

@@ -140,9 +140,10 @@ combinators, pseudo-classes, `@media`/other at-rules, and `!important` are expli
 scope - see that section for the per-construct rationale and failure-mode. Within the supported
 `marker` feature itself, `markerContentUnits` (a rarely-used SVG 2 attribute) and clipping marker
 content to its own `markerWidth`/`markerHeight` viewport (`overflow`) are both explicitly out of
-scope. Within the supported `filter` feature itself, `filterUnits="userSpaceOnUse"` (tolerantly falls back to
-the same objectBoundingBox-relative region computation as the default, rather than being
-interpreted as literal absolute user-space coordinates), a `filter` on a shape's own `marker`
+scope. Within the supported `filter` feature itself, `primitiveUnits` (not read: primitive values stay in user
+units) and the user-space reading of a primitive subregion (`x`/`y`/`width`/`height` on an `fe*` primitive is
+read as a fraction of the filter region), both reported as `svg-filter-unsupported` (see *Unsupported-Feature
+Reports*), a `filter` on a shape's own `marker`
 content (has no effect - `marker` content is never recursed into by the ordinary element walk, so
 a group-level filter on a `<g>` inside a `marker` is never reached) are explicitly out of
 scope. Encountering a genuinely unrecognized `fe*` primitive name (any type this codec does not
@@ -257,7 +258,7 @@ to the resolved `cx`/`cy`, `fr` to 0, and a pattern's omitted `x`, `y`, `width` 
 their initial value `0` (SVG 2: a zero `width`/`height` disables rendering) in either mode. This
 is an intended behavior change: a `userSpaceOnUse` gradient that omits those attributes used to be
 one user unit wide. A mask region's omitted `x`, `y`, `width` and `height` follow the same rule
-(`ReadMaskRegionValue`): their initial values `-10%`, `-10%`, `120%` and `120%` are percentages in
+(`ReadEffectRegionValue`): their initial values `-10%`, `-10%`, `120%` and `120%` are percentages in
 both units modes (CSS Masking 1), so under `maskUnits="userSpaceOnUse"` they are `-10%`/`120%` of
 the viewport width or height, not of the shape's bounds as before.
 
@@ -364,15 +365,23 @@ Not lengths, and unchanged: `viewBox`, `transform` arguments, path data, `points
 `stroke-miterlimit`, filter primitive parameters, `stdDeviation`, and the filter region and
 primitive subregion fractions.
 
-**Root width/height.** `ParseLength` resolves them with a throwaway state: a percentage or a
-viewport unit resolves against NaN and so counts as absent, `ex`/`ch` use their fallbacks, and
-`em`/`rem` use the root's own `font-size` from its attribute, inline `style` (including the `font`
-shorthand) or `font` attribute, else 16. `lh`/`rlh` use the root's own `line-height`
-(`ReadRootLineHeight`) from its inline `style` (including the `font` shorthand) or `font` attribute,
-else `normal`, resolved with the root's own font size through the same `ResolveComputedLineHeight`
-the element cascade uses; a `line-height` that needs the viewport (`vw`...) has no basis here and is
-dropped. Stylesheet rules are not consulted because the stylesheet
-is built after the size is known. `GetInfo` and `Load` therefore agree. A number-typed math result
+**Root width/height.** `ParseLength` resolves them with a throwaway state (`CreateRootSizeState`): a
+percentage or a viewport unit resolves against NaN and so counts as absent, `ex`/`ch` use their
+fallbacks, and `em`/`rem` use the root's own `font-size` from its CSS (inline `style`, then a
+stylesheet rule, including the `font` shorthand), attribute or `font` attribute, else 16
+(`ReadRootFontSize`). `lh`/`rlh` use the root's own `line-height` (`ReadRootLineHeight`) from its
+CSS or `font` attribute, else `normal`, resolved with the root's own font size through the same
+`ResolveComputedLineHeight` the element cascade uses. Both read the root's styling context
+(`CssStylesheet.BuildElementContext`), so `RenderRoot` builds the stylesheet before it sizes the root,
+and the root is sized with the font it is drawn with, as browsers do. CSS `width`/`height` are not
+read: browsers ignore them for the natural size of an SVG image (Edge reports 300x150 for
+`svg { width: 200px }` without attributes, and the attributes when present). A root `font-size` or
+`line-height` that depends on the viewport (`5vw`, `20vw`) cannot size the viewport it depends on:
+each is resolved against two very different probe viewports (`SmallProbeViewport`,
+`LargeProbeViewport`), and one that differs is NaN, so a `width`/`height` that depends on it counts
+as absent and the size falls back to the `viewBox` or 300x150 (decision D5; Edge gives such an image no
+natural size). `Load` then resolves the viewport unit against that same size. `GetInfo` and `Load`
+therefore agree. A number-typed math result
 in the root `width`/`height` is user units (px), like a literal (SVG 2 *Types* 4.2; *Coordinates*
 8.1); in the root's `font-size` it is accepted only from the `font-size` attribute, mirroring the
 element cascade. Intended behavior changes:
@@ -459,7 +468,10 @@ separate pre-existing limitation.
 `TryResolveLengthOrNumber`: a literal number or a number-typed math result (`calc(1 + 1)`) is a
 multiplier re-applied by each descendant's font size, a length/percentage result is an absolute
 length fixed at the declaring element, and a mixed expression (`calc(10% + 1)`) is invalid and
-ignored. `IsValidLineHeightSyntax` (the shorthand's `/ line-height` check) uses the same rule, so
+ignored. A negative literal (`-5px`, `-2`) is invalid and ignored, but a negative math result
+(`calc(10px - 20px)`, `calc(1 - 2)`) is clamped to 0, because CSS Values 4 (Range Checking) clamps an
+out-of-range math function instead of rejecting it, as Edge does.
+`IsValidLineHeightSyntax` (the shorthand's `/ line-height` check) uses the same rule, so
 `font: 10px/calc(1 + 1) Family` is accepted. `ResolveComputedLineHeight` picks the first valid of
 CSS and the `font` attribute, else inherits, and is shared by the element cascade and
 `ReadRootLineHeight`. Inside `line-height` itself `lh` resolves against the parent's line height and
@@ -498,8 +510,8 @@ resolved fit transform).
 
 ### XML Parsing Hardening (XXE)
 
-Both `LoadRootElement` (backing `Load`'s full-document parse) and `LoadRootElementAttributesOnly`
-(backing `GetInfo`'s root-start-tag-only parse) obtain their XML reader from the core `Packaging`
+Both `LoadRootElement` (backing `Load`'s full-document parse) and `LoadRootElementForInfo`
+(backing `GetInfo`'s bounded parse) obtain their XML reader from the core `Packaging`
 subsystem's `SafeXml` (`SafeXml.Load(stream, MaxDocumentCharacters)` and
 `SafeXml.CreateReader(stream, MaxDocumentCharacters)` respectively; see *SafeXml Unit Design*,
 `canvas-net/packaging/safe-xml.md`), which sets `DtdProcessing = DtdProcessing.Prohibit`,
@@ -620,17 +632,23 @@ legacy single-font-per-family overload directly above.
 
 #### GetInfo(Stream stream)
 
-Reads only the root `svg` start-tag's own attributes, using a forward-only `System.Xml.XmlReader`
-that advances no further than the root element's attributes and never walks into the document
-body. This reader is still bounded by the same fixed `MaxCharactersInDocument` character cap
+Reads the root `svg` start-tag's own attributes, using a forward-only `System.Xml.XmlReader`
+(`LoadRootElementForInfo`) that advances no further than the root element's attributes and never
+walks into the document body - unless the root has no `viewBox` and its `width` or `height`
+resolves differently against two different root fonts (`RootSizeDependsOnFont`: an `em`, `ex`,
+`ch`, `rem`, `lh` or `rlh` size, decision D4). Only then does the same reader read the whole root
+element (`XNode.ReadFrom`), so `BuildStylesheet` can give `CreateRootSizeState` the stylesheet's
+`font-size` and `line-height`; a body that is not well-formed (or over the character cap) gives the
+start-tag-only element instead, so such a document is still sized from its start tag (with the initial
+font) rather than failing. This reader is still bounded by the same fixed `MaxCharactersInDocument` character cap
 `Load`'s own parse enforces: even though the reader never advances into the document body, it
 still advances character-by-character through the root start-tag's own attribute values, so an
 oversized single attribute value alone could otherwise force an unbounded amount of data to be
 materialized. Resolves the intrinsic size per the three-tier fallback policy described in *GetInfo
 Fallback Policy* below. This is intentionally narrower than `Load`'s full `XDocument.Load` parse
 of the whole document: a document that is malformed only beyond the root `svg` element's own
-attributes is accepted by `GetInfo` (which never reads that far) even though `Load` would reject
-it. Always reports `Channels = 4` and `HasAlpha = true`, because every SVG document this codec
+attributes is accepted by `GetInfo` even though `Load` would reject it.
+Always reports `Channels = 4` and `HasAlpha = true`, because every SVG document this codec
 rasterizes produces an RGBA `Surface` regardless of what the source markup does or does not
 paint.
 
@@ -724,7 +742,8 @@ tolerant-skip convention for other overflow cases (see *Error Handling* below).
 tiers, in order: (1) the `viewBox` attribute, if present; (2) the `width`/`height` attributes, if
 both are present and resolve to positive numbers - each converted from its CSS unit to user units
 (see *Length Units and font-size* above; `1in` is 96, and a percentage or viewport unit counts as
-absent); (3) the CSS/UA default replaced-element
+absent, as does a font-relative size whose root `font-size` or `line-height` is in viewport units);
+(3) the CSS/UA default replaced-element
 intrinsic size of 300x150, if neither of the above is present. This mirrors how a web browser
 sizes an `<img src="...svg">` element with no size and no viewBox, and ensures `GetInfo` always returns
 a usable, positive size rather than failing on a document that omits explicit sizing information
@@ -972,103 +991,90 @@ exceeding it) but counted separately, since a marker chain and a `use` chain are
 `marker-start`/`marker-mid`/`marker-end` referencing a nonexistent id, or an id that does not resolve to a `marker`
 element, is tolerated as a silent no-op for that one vertex.
 
-**Filters.** A directly renderable shape or `text` element's own `filter` presentation attribute
-(`url(#id)`, resolved through the same id index and dangling-reference tolerance as a gradient
-`fill`/`stroke` reference above) identifies a `filter` element whose primitive children are
-evaluated against that one element's own rendered content - `filter` never cascades through
-`RenderState` (matching `transform`'s own non-cascading handling), so a filter on an ancestor
-element has no effect on its descendants' own, independent `filter` attributes. A `g`/`symbol`
-reference or `use` element's own `filter` attribute is resolved the same way but is instead
-evaluated against the *whole resolved subtree*'s combined rendered content, as one unit (see
-**Group-level filters** below); `marker` content is never recursed into by the ordinary element
-walk regardless of any `filter` attribute present there, so filters on marker content continue to
-have no effect. The filter region - the rectangular area, in the
-element's own local space, that the filter's temporary offscreen buffer covers - defaults to
--10%/-10%/120%/120% (`x`/`y`/`width`/`height`, objectBoundingBox units) of the element's own
-local-space bounding box, or uses the filter element's own explicit `x`/`y`/`width`/`height`
-attributes when present (still always interpreted as objectBoundingBox-relative fractions, even
-when `filterUnits="userSpaceOnUse"` is declared - a deliberate, tolerant simplification). This
-local-space region is transformed by the element's own accumulated transform, then rounded
-outward to an integer pixel bounding box; if that box is degenerate, non-finite, or exceeds
-`Surface.MaxDimension` on either axis, the filter is tolerantly skipped entirely and the element
-renders normally, exactly as if it had no `filter` attribute - the same bounded-resource
-philosophy as `Surface`'s own dimension cap, applied here to prevent an attacker-controlled
-filter region from driving an unbounded temporary allocation. The filter's own `fe*` primitive
-chain is additionally bounded by a fixed primitive-count cap (`MaxFilterPrimitivesPerFilter`,
-1,000) and a primitive-count-times-region-area work budget (`MaxFilterPrimitiveWorkUnits`,
-5,000,000), checked once, upfront, before `SourceGraphic` is even allocated, and tolerantly
-skipped the same way once either is exceeded - because, unlike the per-element costs
-`MaxTotalRenderedElements` already bounds (which assumes O(1)/O(perimeter) cost per element, not
-O(region-area) cost per primitive), a single filter's own primitive-chain cost is
-O(primitive count × region area), a cost dimension no pre-existing guard actually covers. That
-per-filter ceiling alone is enforced independently for every shape that references a filter, so a
-single `filter` definition referenced by many shapes could otherwise be charged the same ceiling
-once per reference with no bound on the total number of references - a document with enough
-shapes could drive total filter-evaluation work arbitrarily high even though every individual
-reference stayed within budget. A second, cumulative, per-`Load`-call `FilterWorkBudget` closes
-that gap: it charges each filter application's own region-weighted work unit into one running
-total across the whole document, and once that running total would exceed a fixed
-`MaxCumulativeFilterWorkUnits` ceiling (50,000,000 - ten times `MaxFilterPrimitiveWorkUnits`,
-generous enough that a real document reusing one filter across a modest number of shapes is never
-rejected, while still keeping worst-case total filter-evaluation work bounded to a small, fixed
-multiple of a single filter's own bound), every further filter application for the remainder of
-that `Load` call tolerantly falls back to unfiltered rendering instead - the same fallback
-behavior as every other filter resource bound, never a thrown exception. Deterministic work
-counters (`SvgCodec.RenderDiagnostics`: work units charged, charges rejected, effects surfaces and
-pixels allocated; the surfaces counter covers every effects-pipeline surface - content, clip
-coverage, mask source, `SourceAlpha` and each primitive output - while work units are charged
-separately) are updated by that same `FilterWorkBudget` through an internal-only
-`LoadWithDiagnostics` entry point (visible to the test assembly via `InternalsVisibleTo`; the
-public API is unchanged and the counters are per-call, never static), so resource-bound tests
-assert work performed instead of measuring elapsed time. A
-`filter` element with zero primitive children is likewise tolerantly skipped, identically to an
-out-of-budget chain and checked in the same guard, before `SourceGraphic` is allocated - because
-a filter with no primitives to evaluate can never change the rendered output, regardless of how
-large its filter region is. When the
-region is accepted and the chain's work stays within both the per-filter and cumulative budgets,
-the
-element's own content is rendered a second time - independently of its main render onto
-`context.Surface` - into a fresh, region-sized temporary `Surface` (this buffer is the filter's
-implicit `SourceGraphic` input; `SourceAlpha`, its alpha-only derivative, is built lazily only if
-some primitive actually references it). Each primitive in document order reads a named or
-default input (the previous primitive's own output, or `SourceGraphic` if it is first), and
-writes a named or default output, all buffers always exactly the temporary surface's own
-dimensions - this invariant is what lets `feComposite`'s `over` operator and `feMerge` both reuse
-`Surface.CompositeOver(Surface)` (which requires equal-size surfaces) unchanged, with no new
-per-pixel blending math. `feFlood` fills a buffer with a solid, alpha-scaled color
-(`flood-color`/`flood-opacity`). `feGaussianBlur` approximates a Gaussian blur with three passes
-of a sliding-window box blur (cost independent of the requested radius, unlike a naive
-per-pixel-kernel blur), reading only the first (isotropic) component of `stdDeviation` and
-clamping it to a fixed `MaxFilterBlurStdDeviationPixels` bound so a pathologically large
-requested radius cannot translate into unbounded per-pixel work. `feOffset` shifts a buffer's
-content by `dx`/`dy` (scaled by the element's own transform). `feComposite` implements Porter-Duff
-`over` by delegating to `Surface.CompositeOver`, implements `in`/`out`/`atop`/`xor` via one
-small, dedicated per-pixel premultiplied-alpha helper, and implements `arithmetic` via a second
-small per-pixel helper evaluating `result = k1*i1*i2 + k2*i1 + k3*i2 + k4` for each of R/G/B/A on
-premultiplied values (the one `feComposite` operator the spec itself defines on premultiplied
-rather than straight color), clamped to `[0, 1]` before being un-premultiplied for storage.
-`feMerge` layers each `feMergeNode` child's own resolved input over an
-initially transparent accumulator, in document order, via the same `CompositeOver`. `feBlend`
-evaluates one of fifteen CSS Compositing Level 1 blend modes - the twelve separable modes
-(`normal`, `multiply`, `screen`, `overlay`, `darken`, `lighten`, `color-dodge`, `color-burn`,
-`hard-light`, `soft-light`, `difference`, `exclusion`) per channel, and the four non-separable
-modes (`hue`, `saturation`, `color`, `luminosity`) via the spec's exact whole-triple `Lum`/
-`ClipColor`/`SetLum`/`Sat`/`SetSat` reference algorithm - then composites the blended `in` layer
-over `in2` using the standard simple-alpha ("source-over") formula, mirroring the same inline
-premultiply/un-premultiply pattern as the `arithmetic` operator above. `overlay` is defined as
-`hard-light` with its own backdrop/source arguments swapped (`Overlay(Cb, Cs) = HardLight(Cs,
-Cb)`), reusing that formula rather than duplicating its multiply/screen split. Any other, genuinely
-unrecognized primitive name is a
-tolerant no-op passthrough of its own input, still registered under its own `result` name so
-later primitives can still resolve it by name. The
-final primitive's own output buffer is composited onto `context.Surface` at the region's own
-pixel position via `Surface.CompositeOverSpan`, clipped to the canvas's own bounds - reusing the
-same offset-aware compositing primitive used elsewhere in this codec, rather than inventing new
-canvas-writing logic for filters. The element's own cascaded `opacity` (forced to `1.0` while
-`SourceGraphic` itself is rendered, so the filter chain always evaluates against a fully-opaque
-source) is applied at this same final compositing step, as a uniform per-pixel coverage
-multiplier passed to `CompositeOverSpan` - per SVG semantics, `opacity` applies to the filtered
-result as a whole, exactly once, not to the pre-filter source paint.
+**Filters.** A directly renderable shape or `text` element's own `filter` presentation attribute (`url(#id)`, resolved
+through the same id index and dangling-reference tolerance as a gradient `fill`/`stroke` reference above) identifies a
+`filter` element whose primitive children are evaluated against that one element's own rendered content - `filter` never
+cascades through `RenderState` (matching `transform`'s own non-cascading handling), so a filter on an ancestor element
+has no effect on its descendants' own, independent `filter` attributes. A `g`/`symbol` reference or `use` element's own
+`filter` attribute is resolved the same way but is instead evaluated against the *whole resolved subtree*'s combined
+rendered content, as one unit (see **Group-level filters** below); `marker` content is never recursed into by the
+ordinary element walk regardless of any `filter` attribute present there, so filters on marker content continue to have
+no effect. The filter region - the rectangular area, in the element's own local space, that the filter's temporary
+offscreen buffer covers - defaults to -10%/-10%/120%/120% (`x`/`y`/`width`/`height`, objectBoundingBox units) of the
+element's own local-space object bounding box - its fill geometry (`localPath.GetBounds()`, the union of the runs for a
+text), without stroke or markers, the same box gradients and patterns use - or uses the filter element's own explicit
+`x`/`y`/`width`/`height` attributes when present, as objectBoundingBox-relative fractions. Under
+`filterUnits="userSpaceOnUse"` the region is instead absolute user-space coordinates, with a percentage (plain, in a
+math function, or the `-10%`/`120%` initial value of an omitted attribute) of the current viewport on the
+attribute's axis - the same reader (`ReadEffectRegionValue`) as a `maskUnits="userSpaceOnUse"` region - and does
+not depend on the object bounding box, so an empty box does not stop it (`ComputeFilterRegionLocalBounds`, which
+the bounds pre-pass shares through `ApplyOwnFilterToLocalBounds`). This local-space region is
+transformed by the element's own accumulated transform, then rounded outward to an integer pixel bounding box; if that
+box is degenerate, non-finite, or exceeds `Surface.MaxDimension` on either axis, the filter is tolerantly skipped
+entirely and the element renders normally, exactly as if it had no `filter` attribute - the same bounded-resource
+philosophy as `Surface`'s own dimension cap, applied here to prevent an attacker-controlled filter region from driving
+an unbounded temporary allocation. An object bounding box with no width or no height (a stroked horizontal or vertical
+`line`) cannot map an objectBoundingBox region, so a filter there - and a mask with an objectBoundingBox region or
+content, or a clip path with `clipPathUnits="objectBoundingBox"` - makes the element draw nothing
+(`IsObjectBoundingBoxEffectOnEmptyBox`), as SVG 2 (Coordinate Systems, object bounding box units) and browsers do; the
+stroke never stands in for the box. The filter's own `fe*` primitive chain is additionally bounded by a fixed
+primitive-count cap (`MaxFilterPrimitivesPerFilter`, 1,000) and a primitive-count-times-region-area work budget
+(`MaxFilterPrimitiveWorkUnits`, 5,000,000), checked once, upfront, before `SourceGraphic` is even allocated, and
+tolerantly skipped the same way once either is exceeded - because, unlike the per-element costs
+`MaxTotalRenderedElements` already bounds (which assumes O(1)/O(perimeter) cost per element, not O(region-area) cost per
+primitive), a single filter's own primitive-chain cost is O(primitive count × region area), a cost dimension no
+pre-existing guard actually covers. That per-filter ceiling alone is enforced independently for every shape that
+references a filter, so a single `filter` definition referenced by many shapes could otherwise be charged the same
+ceiling once per reference with no bound on the total number of references - a document with enough shapes could drive
+total filter-evaluation work arbitrarily high even though every individual reference stayed within budget. A second,
+cumulative, per-`Load`-call `FilterWorkBudget` closes that gap: it charges each filter application's own region-weighted
+work unit into one running total across the whole document, and once that running total would exceed a fixed
+`MaxCumulativeFilterWorkUnits` ceiling (50,000,000 - ten times `MaxFilterPrimitiveWorkUnits`, generous enough that a
+real document reusing one filter across a modest number of shapes is never rejected, while still keeping worst-case
+total filter-evaluation work bounded to a small, fixed multiple of a single filter's own bound), every further filter
+application for the remainder of that `Load` call tolerantly falls back to unfiltered rendering instead - the same
+fallback behavior as every other filter resource bound, never a thrown exception. Deterministic work counters
+(`SvgCodec.RenderDiagnostics`: work units charged, charges rejected, effects surfaces and pixels allocated; the surfaces
+counter covers every effects-pipeline surface - content, clip coverage, mask source, `SourceAlpha` and each primitive
+output - while work units are charged separately) are updated by that same `FilterWorkBudget` through an internal-only
+`LoadWithDiagnostics` entry point (visible to the test assembly via `InternalsVisibleTo`; the public API is unchanged
+and the counters are per-call, never static), so resource-bound tests assert work performed instead of measuring elapsed
+time. A `filter` element with zero primitive children is likewise tolerantly skipped, identically to an out-of-budget
+chain and checked in the same guard, before `SourceGraphic` is allocated - because a filter with no primitives to
+evaluate can never change the rendered output, regardless of how large its filter region is. When the region is accepted
+and the chain's work stays within both the per-filter and cumulative budgets, the element's own content is rendered a
+second time - independently of its main render onto `context.Surface` - into a fresh, region-sized temporary `Surface`
+(this buffer is the filter's implicit `SourceGraphic` input; `SourceAlpha`, its alpha-only derivative, is built lazily
+only if some primitive actually references it). Each primitive in document order reads a named or default input (the
+previous primitive's own output, or `SourceGraphic` if it is first), and writes a named or default output, all buffers
+always exactly the temporary surface's own dimensions - this invariant is what lets `feComposite`'s `over` operator and
+`feMerge` both reuse `Surface.CompositeOver(Surface)` (which requires equal-size surfaces) unchanged, with no new
+per-pixel blending math. `feFlood` fills a buffer with a solid, alpha-scaled color (`flood-color`/`flood-opacity`).
+`feGaussianBlur` approximates a Gaussian blur with three passes of a sliding-window box blur (cost independent of the
+requested radius, unlike a naive per-pixel-kernel blur), reading only the first (isotropic) component of `stdDeviation`
+and clamping it to a fixed `MaxFilterBlurStdDeviationPixels` bound so a pathologically large requested radius cannot
+translate into unbounded per-pixel work. `feOffset` shifts a buffer's content by `dx`/`dy` (scaled by the element's own
+transform). `feComposite` implements Porter-Duff `over` by delegating to `Surface.CompositeOver`, implements
+`in`/`out`/`atop`/`xor` via one small, dedicated per-pixel premultiplied-alpha helper, and implements `arithmetic` via a
+second small per-pixel helper evaluating `result = k1*i1*i2 + k2*i1 + k3*i2 + k4` for each of R/G/B/A on premultiplied
+values (the one `feComposite` operator the spec itself defines on premultiplied rather than straight color), clamped to
+`[0, 1]` before being un-premultiplied for storage. `feMerge` layers each `feMergeNode` child's own resolved input over
+an initially transparent accumulator, in document order, via the same `CompositeOver`. `feBlend` evaluates one of
+fifteen CSS Compositing Level 1 blend modes - the twelve separable modes (`normal`, `multiply`, `screen`, `overlay`,
+`darken`, `lighten`, `color-dodge`, `color-burn`, `hard-light`, `soft-light`, `difference`, `exclusion`) per channel,
+and the four non-separable modes (`hue`, `saturation`, `color`, `luminosity`) via the spec's exact whole-triple `Lum`/
+`ClipColor`/`SetLum`/`Sat`/`SetSat` reference algorithm - then composites the blended `in` layer over `in2` using the
+standard simple-alpha ("source-over") formula, mirroring the same inline premultiply/un-premultiply pattern as the
+`arithmetic` operator above. `overlay` is defined as `hard-light` with its own backdrop/source arguments swapped
+(`Overlay(Cb, Cs) = HardLight(Cs, Cb)`), reusing that formula rather than duplicating its multiply/screen split. Any
+other, genuinely unrecognized primitive name is a tolerant no-op passthrough of its own input, still registered under
+its own `result` name so later primitives can still resolve it by name. The final primitive's own output buffer is
+composited onto `context.Surface` at the region's own pixel position via `Surface.CompositeOverSpan`, clipped to the
+canvas's own bounds - reusing the same offset-aware compositing primitive used elsewhere in this codec, rather than
+inventing new canvas-writing logic for filters. The element's own cascaded `opacity` (forced to `1.0` while
+`SourceGraphic` itself is rendered, so the filter chain always evaluates against a fully-opaque source) is applied at
+this same final compositing step, as a uniform per-pixel coverage multiplier passed to `CompositeOverSpan` - per SVG
+semantics, `opacity` applies to the filtered result as a whole, exactly once, not to the pre-filter source paint.
 
 Beyond that initial subset, `feColorMatrix` now implements SVG's `matrix`, `saturate`,
 `hueRotate`, and `luminanceToAlpha` modes. The `matrix` form applies the full 4x5 affine color
@@ -1177,7 +1183,12 @@ determines the temporary buffer's own size), and a group has no single `Path` to
 `RenderElement`'s own dispatch switch - recursing into the same element kinds
 (`g`/`symbol`/shapes/`text`/`use`), honoring the same `MaxElementDepth`/
 `MaxTotalRenderedElements`/`MaxUseDepth` guards - but only accumulates each descendant's own
-transformed bounding box (via `Rect.Union`) rather than painting anything. Because this pre-pass
+transformed boxes (via `Rect.Union`) rather than painting anything. It returns two boxes
+(`SubtreeBounds`): the painted box (stroke, marker content and nested filter regions included),
+which sizes a clip-only buffer, and the geometry box (the union of the descendants' fill geometry,
+without stroke, markers or nested filter regions - the group's object bounding box per SVG 2), on
+which the group's own filter or mask region and its objectBoundingBox clip or mask content are laid
+out. Because this pre-pass
 necessarily re-visits the same subtree the real render pass below visits again immediately
 afterward, `RenderFilteredGroup` always runs it against a fresh, local, independently bounded
 scratch `totalElements` counter and `GeometryWorkBudget` instance - never the real
@@ -1228,7 +1239,9 @@ own placed marker content (`marker-start`/`marker-mid`/`marker-end`) is folded i
 too (`ComputeMarkerContentLocalBounds`/`ComputeOneMarkerLocalBounds`, sharing
 `TryComputeMarkerContentTransform` with `RenderOneMarker`'s own placement math so the two can
 never diverge): the real render pass paints marker pixels onto whatever surface is current, which
-for a filtered group is the offscreen `SourceGraphic` buffer this pre-pass sizes, and a marker
+for a group with a clip path alone is the offscreen buffer this pre-pass's painted box sizes (a
+filter or mask region is laid out on the geometry box instead, and clips what lies outside it, as
+in browsers), and a marker
 commonly extends beyond its host shape's own stroke-expanded outline (arrowheads being the
 canonical example), so omitting that geometry would size the buffer too small and silently clip
 the marker's own pixels. A bare `marker` element encountered directly by the ordinary element walk
@@ -1245,7 +1258,7 @@ actually apply, or tolerantly fall back to unfiltered rendering instead" decisio
 `RenderFilteredShape`/`RenderFilteredGroup` themselves make - a zero-primitive filter, or a filter
 region that cannot be computed, falls back to that descendant's own raw bounds instead, so the
 pre-pass and the real render pass that follows it never disagree about whether a given
-descendant's filter will actually apply. Without this, an outer filtered group's own offscreen
+descendant's filter will actually apply. Without this, an outer clipped group's own offscreen
 buffer would be sized only from its descendants' raw geometry, silently clipping any nested
 filtered descendant's own filter output that extends beyond its raw geometry (for example a
 `feFlood` or an enlarged filter region) before the outer filter chain or final composite ever saw
@@ -1352,7 +1365,7 @@ attribute's own axis (width for `x`/`width`, height for `y`/`height`), as for gr
 resolved such a percentage against the reference bounds. An omitted, empty or unparseable attribute
 takes its initial value (`-10%`, `-10%`, `120%`, `120%`) on the same basis as an explicit
 percentage in the active mode: the reference bounds under `objectBoundingBox`, the current viewport
-under `userSpaceOnUse` (one reader, `ReadMaskRegionValue`, serves all four attributes).
+under `userSpaceOnUse` (one reader, `ReadEffectRegionValue`, serves all four attributes).
 
 *Resource safety.* Both clip and mask reuse `FilterWorkBudget` (not a separate budget class) for
 their own offscreen-buffer allocation charge - a deliberate judgment call rather than the
@@ -1378,11 +1391,15 @@ generalization filter regions already used, now shared via `ResolveEffectsRegion
 
 *Region precedence.* When more than one of `filter`/`clip-path`/`mask` are present on the same
 element, `ResolveEffectsRegionPixelBounds` decides whose region sizes the shared offscreen
-buffer(s): the filter's own region wins if a filter is present (unchanged pre-Phase-2 behavior -
-filter regions are always objectBoundingBox-relative, a pre-existing simplification); otherwise
+buffer(s): the filter's own region wins if a filter is present (`ComputeFilterRegionPixelBounds`, honoring
+`filterUnits`); otherwise
 the mask's own region (`ComputeMaskRegionPixelBounds`, properly honoring `maskUnits`) if a mask is
 present; otherwise (clip-only, no mask or filter) the plain painted/stroke-expanded content
-bounds with no `-10%/120%` filter-style expansion. Extracting this precedence into one shared
+bounds with no `-10%/120%` filter-style expansion. Filter and mask regions, and the
+`EffectsTarget.ReferenceBounds` that `objectBoundingBox` clip and mask content map onto, use the
+object bounding box (fill geometry, no stroke); only the clip-only buffer uses the painted box. A
+`maskUnits="userSpaceOnUse"` region does not depend on the box, so it is not rejected when the box
+has no width or no height. Extracting this precedence into one shared
 helper - rather than duplicating an equivalent three-way conditional at both the single-shape and
 group entry points - was also what resolved a `SonarAnalyzer` nested-ternary violation the
 straightforward inline version of this logic triggered at each call site.
@@ -1836,7 +1853,8 @@ call. Other texts pass their runs to `RenderShapeWithEffects` and `RenderShapeEf
 optional `runs` argument): the union of the runs is the shape for regions and effects, each run is
 painted with its own state, and `RenderShape`'s optional `boxPath` makes the whole text the object
 bounding box of a gradient or pattern on a `tspan`, as Blink does. `ComputeTextBounds` unions the
-runs, each expanded by its own stroke; `BuildClipChildTextPath` returns the union of the runs. The
+runs, each expanded by its own stroke, for the painted box, and the runs' outlines without stroke
+(`ComputeTextRunsGeometryBounds`) for the geometry box; `BuildClipChildTextPath` returns the union of the runs. The
 layout is linear in the characters and elements of the text: each character is visited a fixed
 number of times, and each run is measured and outlined once. The geometry work budget is charged
 with the character count before the layout, as before.
@@ -2035,7 +2053,8 @@ Passing the **scoped resolver of the request** on is what makes nesting work wit
 elements of the nested file resolve against the folder of that file, and the depth, cycle, and count limits of the whole
 render apply. When the request has no resolver the nested file's external links are not drawn. The notes of the result
 are the position bindings of the file that were not resolved, as `svg` warnings with their codes, and the features the
-codec reports through `SvgLoadOptions.UnsupportedFeatureHandler`, as `Unsupported` notes with their `svg-text-*` codes;
+codec reports through `SvgLoadOptions.UnsupportedFeatureHandler`, as `Unsupported` notes with their `svg-text-*` or
+`svg-filter-unsupported` codes;
 when the request sets `ThrowOnUnsupportedFeature`, the first such feature disposes the surface and throws
 `UnsupportedImageFeatureException` with its code instead. Content
 that is not an SVG document is `InvalidDataException` (from `GetInfo`), a request without a file
@@ -2153,9 +2172,15 @@ the first 24 characters of its text), the distinct elements (the count), and up 
   `direction: rtl`, a `dominant-baseline` and a `text-decoration` on a text
   content element or an ancestor of the `text`; and each code point that `GlyphFallback.FindMissing` finds no font
   for.
+- `svg-filter-unsupported` (`SvgUnsupportedFeature.FilterUnsupportedCode`): a `filter` that is applied (from
+  `EvaluateFilterChain`, through `ReportFilterUnsupportedFeatures`) with `primitiveUnits="objectBoundingBox"`,
+  which the codec does not read, or with a primitive subregion (`x`, `y`, `width` or `height` on a direct
+  `fe*` child), which it reads as a fraction of the filter region instead of in the primitive units; the element
+  counted is the `filter`, and the message reads "filter is drawn without: ...".
 
 **Reporting.** After the document is painted, `RenderDocument` calls `Report`, which calls the handler once per code,
-`svg-text-not-drawn` first, with the count and the message. Content that is not drawn by design (inside `defs`, a
+`svg-text-not-drawn` first, then `svg-text-unsupported` and `svg-filter-unsupported`, with the count and the message.
+Content that is not drawn by design (inside `defs`, a
 `switch` child that is not chosen, `title`/`desc`) reports nothing; content drawn through `use`, `marker`, `pattern`,
 `mask` and `clipPath` reports like any other.
 

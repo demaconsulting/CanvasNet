@@ -624,6 +624,107 @@ public class FolderImageResolverTests
     }
 
     /// <summary>
+    ///     Test that a picture loaded through the probe (<see cref="FolderImageResolver.IImageProbe"/>), of the resolver and
+    ///     of the scope a source receives, is returned but leaves no embedded image, request, note or printed line, not even
+    ///     for the pictures it embeds; the loads that draw the pictures are listed as usual.
+    /// </summary>
+    [Fact]
+    public void FolderImageResolver_Probe_DrawnPicture_LeavesNoEntryNoteOrRequest()
+    {
+        // Arrange: outer.stub embeds inner.stub, which its source measures through the probe of its scope before drawing
+        // it; every file reports a note and prints a line
+        using var folder = new ImageTestFolder();
+        folder.WriteText("outer.stub", "inner.stub");
+        folder.WriteText("inner.stub", "");
+        var stub = new StubImageSource(
+            "stub",
+            [Ext],
+            null,
+            request =>
+            {
+                var nested = Encoding.UTF8.GetString(request.Content.Span).Trim();
+                if (nested.Length > 0)
+                {
+                    ((FolderImageResolver.IImageProbe)request.Resolver!).Probe(nested, 256, 256)?.Dispose();
+                    request.Resolver.Resolve(nested, 10, 10)?.Dispose();
+                }
+
+                return new ImageSourceResult(StubImageSource.Solid(4, 4, StubImageSource.Green))
+                {
+                    Diagnostics = [new ImageSourceDiagnostic("stub", ImageDiagnosticSeverity.Unsupported, "note", "a note")],
+                    Echo = [$"printed by {request.Href}"]
+                };
+            });
+        var resolver = new FolderImageResolver(folder.Path, [stub]);
+
+        // Act: the document measures outer.stub through the probe of the resolver, then draws it
+        using var measured = ((FolderImageResolver.IImageProbe)resolver).Probe("outer.stub", 256, 256);
+        resolver.Resolve("outer.stub", 40, 40)?.Dispose();
+
+        // Assert: the probe returned the picture and every load reached the source (3 for the probe, 3 for the draw)
+        Assert.NotNull(measured);
+        Assert.Equal(6, stub.Requests.Count);
+
+        // Assert: only the draws are listed, the nested picture before the picture that embeds it
+        Assert.Equal([("inner.stub", 1), ("outer.stub", 0)], resolver.Embedded.Select(e => (e.Href, e.Depth)));
+        Assert.Equal(["outer.stub", "inner.stub"], resolver.Requested.Select(r => r.Href));
+        Assert.Equal(["printed by inner.stub", "printed by outer.stub"], resolver.Echo);
+        Assert.Equal(["inner.stub: a note", "outer.stub: a note"], resolver.Diagnostics.Select(d => d.Message));
+    }
+
+    /// <summary>
+    ///     Test that a link that the probe cannot load keeps its warning and its request, so a link that is never drawn
+    ///     afterwards is still reported.
+    /// </summary>
+    [Fact]
+    public void FolderImageResolver_Probe_UnresolvedLink_KeepsItsWarning()
+    {
+        // Arrange: a resolver over an empty folder
+        using var folder = new ImageTestFolder();
+        var resolver = new FolderImageResolver(folder.Path, [Stub()]);
+
+        // Act
+        var measured = ((FolderImageResolver.IImageProbe)resolver).Probe("missing.stub", 256, 256);
+
+        // Assert: nothing was loaded, and the warning and the request stay
+        Assert.Null(measured);
+        Assert.Empty(resolver.Embedded);
+        var note = Assert.Single(resolver.Diagnostics);
+        Assert.Equal(FolderImageResolver.UnresolvedCode, note.Code);
+        Assert.Contains("'missing.stub'", note.Message, StringComparison.Ordinal);
+        var request = Assert.Single(resolver.Requested);
+        Assert.Equal("missing.stub", request.Href);
+        Assert.Null(request.Name);
+    }
+
+    /// <summary>
+    ///     Test that a load through the probe counts against <see cref="FolderImageResolverOptions.MaxImages"/> like any
+    ///     other load, although it is not listed.
+    /// </summary>
+    [Fact]
+    public void FolderImageResolver_Probe_CountsAgainstMaxImages()
+    {
+        // Arrange: a limit of two images
+        using var folder = new ImageTestFolder();
+        folder.WriteText("p.stub", "x");
+        var stub = Stub();
+        var resolver = new FolderImageResolver(folder.Path, [stub], new FolderImageResolverOptions { MaxImages = 2 });
+
+        // Act: measure the picture, draw it, and draw it again
+        using var measured = ((FolderImageResolver.IImageProbe)resolver).Probe("p.stub", 256, 256);
+        using var first = resolver.Resolve("p.stub", 10, 10);
+        using var second = resolver.Resolve("p.stub", 10, 10);
+
+        // Assert: the probe and the first draw used the two images, so the second draw is refused at the limit
+        Assert.NotNull(measured);
+        Assert.NotNull(first);
+        Assert.Null(second);
+        Assert.Equal(2, stub.Requests.Count);
+        Assert.Single(resolver.Embedded);
+        Assert.Contains("more than 2", Assert.Single(resolver.Diagnostics).Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     ///     Test that a note about a link of the top-level document has an empty origin, and that a note a source reported
     ///     for a file embedded by another file lists the chain of files, outermost first.
     /// </summary>

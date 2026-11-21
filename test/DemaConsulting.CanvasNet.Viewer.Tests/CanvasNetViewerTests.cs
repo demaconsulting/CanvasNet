@@ -347,6 +347,52 @@ public class CanvasNetViewerTests
     }
 
     /// <summary>
+    ///     Test that a Mermaid diagram rendered by path lists each picture its nodes show once in
+    ///     <see cref="ViewerImage.Embedded"/>, although the diagram asks for each picture twice (once to learn its natural
+    ///     size, once to draw it).
+    /// </summary>
+    [Fact]
+    public void CanvasNetViewer_Render_MermaidNodePictures_AreListedOnceEach()
+    {
+        // Arrange: a raster and a vector picture, each shown by one node of a flowchart
+        using var folder = new ViewerTestFolder();
+        folder.WriteBytes("logo.png", ViewerFixtures.Png(4, 4, ViewerFixtures.Green));
+        folder.WriteText("inner.svg", ViewerFixtures.Svg(string.Empty));
+        var path = folder.WriteText(
+            "flow.mmd",
+            "flowchart LR\n    a@{ img: \"logo.png\", w: 40, h: 40 } --> b@{ img: \"inner.svg\", w: 40, h: 40 }\n");
+
+        // Act
+        using var image = CanvasNetViewer.Render(path);
+
+        // Assert: each picture is listed once, at the top level of the diagram, and nothing is reported
+        Assert.Equal("mermaid", image.Format);
+        Assert.Equal([("logo.png", 0), ("inner.svg", 0)], image.Embedded.Select(e => (e.Href, e.Depth)));
+        Assert.Empty(image.Diagnostics);
+    }
+
+    /// <summary>
+    ///     Test that an SVG document that shows a Mermaid diagram, whose node shows a picture, lists the picture once (one
+    ///     level down) and the diagram once in <see cref="ViewerImage.Embedded"/>.
+    /// </summary>
+    [Fact]
+    public void CanvasNetViewer_Render_SvgEmbeddingMermaidWithPicture_ListsThePictureOnce()
+    {
+        // Arrange: an SVG cell that shows a flowchart, whose single node shows a raster
+        using var folder = new ViewerTestFolder();
+        folder.WriteBytes("logo.png", ViewerFixtures.Png(4, 4, ViewerFixtures.Green));
+        folder.WriteText("flow.mmd", "flowchart LR\n    a@{ img: \"logo.png\", w: 40, h: 40 }\n");
+        var path = folder.WriteText("doc.svg", ViewerFixtures.Svg(ViewerFixtures.Cell("flow.mmd", 0)));
+
+        // Act
+        using var image = CanvasNetViewer.Render(path);
+
+        // Assert: the picture is listed once inside the diagram, then the diagram itself, and nothing is reported
+        Assert.Equal([("logo.png", 1), ("flow.mmd", 0)], image.Embedded.Select(e => (e.Href, e.Depth)));
+        Assert.Empty(image.Diagnostics);
+    }
+
+    /// <summary>
     ///     Test that, under a policy confined to its folder, a file rendered by path may not embed a file outside it (an
     ///     access-denied warning), and that an SVG file that embeds itself stops at once.
     /// </summary>

@@ -19,10 +19,14 @@ sections:
                 title: >-
                   The RealPath unit shall report, for an open file on Windows, Linux and macOS, the real path of the
                   file the handle refers to: the full path with symbolic links, junctions and (on Windows) short
-                  names resolved, and (on macOS) the real location of linked system folders.
+                  names resolved, and (on macOS) the real location of linked system folders; on Windows a drive path
+                  without its \\?\ prefix, a network path as a UNC path, a path on a volume without a drive letter in
+                  its volume GUID form (\\?\Volume{GUID}\...), and any other device-namespace spelling as unknown.
                 justification: |
                   A race-free decision needs the real path of the open file, which .NET does not provide; every
-                  supported operating system must supply it.
+                  supported operating system must supply it. A volume mounted on a folder, or not mounted at all, has
+                  no drive letter, so Windows reports its files by the volume GUID path; treating that as unknown
+                  would deny every file on it under a restrictive policy.
                 tests:
                   - "windows@RealPath_Inspect_PlainFile_ReportsItsCanonicalPathAndARegularFile"
                   - "ubuntu@RealPath_Inspect_PlainFile_ReportsItsCanonicalPathAndARegularFile"
@@ -32,6 +36,7 @@ sections:
                   - "macos@RealPath_Inspect_FileThroughADirectoryLink_ReportsTheTarget"
                   - "windows@RealPath_Inspect_ShortNameSpelling_IsExpanded"
                   - "macos@RealPath_Inspect_TempFileOnMacOS_ReportsThePrivateLocation"
+                  - RealPath_FromFinalPathName_KeepsVolumeGuidPathsAndStripsDrivePrefixes
 
               - id: CanvasNet-Files-RealPath-Unavailable
                 title: >-
@@ -119,25 +124,36 @@ sections:
                   - RealPath_IsUnder_BoundaryIsTheSeparator
                   - RealPath_IsUnder_ComparesLetterCaseExactly
                   - RealPath_CommonAncestor_ComparesComponentsExactly
+                  - "windows@RealPath_IsUnder_VolumeGuidPaths_ComparedExactly"
 
               - id: CanvasNet-Files-RealPath-ExactCase
                 title: >-
                   The RealPath unit shall give a full path in the letter case its folders and its name have on disk:
                   each existing component in the spelling of the folder entry spelled exactly as written, else of the
-                  single entry that matches it ignoring letter case, else as written (no entry, or several); the part
-                  below a missing folder and a component of a folder that cannot be listed as written; a wildcard
-                  character matching only itself; a drive letter in upper case and any other root unchanged; and
-                  shall give the real location of a folder in that letter case.
+                  single entry that matches it ignoring letter case and is the same directory entry as the name as
+                  written (by identity, without following a link at its last component), else as written (no entry,
+                  several, or a single one that is not provably the same entry); the part below a missing folder and
+                  a component of a folder that cannot be listed as written; a wildcard character matching only
+                  itself; a drive letter in upper case and any other root unchanged; and shall give the real location
+                  of a folder in that letter case.
                 justification: |
                   Real paths are compared exactly, so a real path and the real location of a root must both be in
                   the spelling stored on disk; otherwise a root or a reference written in another letter case on a
                   case-insensitive volume, or a file system that reports the spelling used to open a file, would deny
                   files that are inside. Where the spelling is ambiguous it is kept as written, which can only deny.
+                  In a case-sensitive folder a name in another letter case names no entry, and mapping it to the case
+                  variant would let a link created later under the written name pass as the stored entry.
                 tests:
-                  - RealPath_GetExactPathName_FolderAndFileInAnotherCase_GiveTheStoredCase
+                  - "windows@RealPath_GetExactPathName_FolderAndFileInAnotherCase_GiveTheStoredCase"
+                  - "macos@RealPath_GetExactPathName_FolderAndFileInAnotherCase_GiveTheStoredCase"
                   - RealPath_GetExactPathName_MissingTail_IsKeptAsWritten
                   - "ubuntu@RealPath_GetExactPathName_BothCaseVariantsExist_PrefersTheExactNameAndKeepsAnAmbiguousOne"
-                  - "ubuntu@RealPath_GetExactPathName_WildcardCharactersInAName_MatchOnlyThatName"
+                  - "ubuntu@RealPath_GetExactPathName_CaseVariantOfAnEntryInACaseSensitiveFolder_KeepsTheNameAsWritten"
+                  - RealPath_IsSameEntry_SameEntryOtherFileAndMissingName_AreTold
+                  - "windows@RealPath_IsSameEntry_CaseVariantInACaseInsensitiveFolder_IsTheSameEntry"
+                  - "macos@RealPath_IsSameEntry_CaseVariantInACaseInsensitiveFolder_IsTheSameEntry"
+                  - "ubuntu@RealPath_IsSameEntry_LinkToAnEntry_IsNotTheSameEntryOrCapabilitySkipped"
+                  - "macos@RealPath_IsSameEntry_LinkToAnEntry_IsNotTheSameEntryOrCapabilitySkipped"
                   - "macos@RealPath_GetExactPathName_WildcardCharactersInAName_MatchOnlyThatName"
                   - "windows@RealPath_GetExactPathName_DriveLetter_IsUpperCase"
                   - RealPath_ExactRoot_DriveRootsUpperCasedAndOtherRootsKept
@@ -147,8 +163,10 @@ sections:
               - id: CanvasNet-Files-RealPath-Identity
                 title: >-
                   The RealPath unit shall confirm the on-disk spelling of the real path of an open file only when it
-                  equals the reported real path or names the same file as the open handle (the volume serial number
-                  and file index on Windows, the device and inode on Linux and macOS) through no link (no link at its
+                  equals the reported real path or names the same file as the open handle (on Windows the 64-bit
+                  volume serial number and 128-bit file identifier when both volumes report them, else the 32-bit
+                  volume serial number and 64-bit file index of both, always compared like with like; the device and
+                  inode on Linux and macOS) through no link (no link at its
                   last component, and no junction or link in one of its folders: on Windows and Linux the final path of
                   the file opened by that spelling is the spelling itself, on macOS it is opened with O_NOFOLLOW_ANY),
                   and shall report it unconfirmed when it names another file, a link, a file reached through a linked
@@ -157,7 +175,8 @@ sections:
                   The on-disk spelling is found by name, after the open; another process could make it name another
                   file, or reach the open file through a linked folder from a place it is not. Confirming it against
                   the open handle, through no link, keeps the decision about the place of the file that is read, and an
-                  unconfirmed spelling lets the caller fail closed.
+                  unconfirmed spelling lets the caller fail closed. On ReFS the 64-bit file index does not name one
+                  file, so the 128-bit identifier is compared where it is reported.
                 tests:
                   - "windows@RealPath_TryConfirmExactPath_SpellingOfAnotherFile_IsUnconfirmed"
                   - "ubuntu@RealPath_TryConfirmExactPath_SpellingOfAnotherFile_IsUnconfirmed"
@@ -169,3 +188,6 @@ sections:
                   - "macos@RealPath_TryConfirmExactPath_SpellingThroughALinkedFolder_IsUnconfirmed"
                   - "ubuntu@RealPath_TryConfirmExactPath_LinkToTheOpenedFile_IsUnconfirmed"
                   - "macos@RealPath_TryConfirmExactPath_LinkToTheOpenedFile_IsUnconfirmed"
+                  - "windows@RealPath_TryConfirmExactPath_WindowsFileSymbolicLink_IsUnconfirmedOrCapabilitySkipped"
+                  - RealPath_WindowsFileId_IdsDifferingOnlyInTheHigh64Bits_AreDifferent
+                  - RealPath_WindowsFileId_ByHandleInformation_DecodesSerialAndIndex

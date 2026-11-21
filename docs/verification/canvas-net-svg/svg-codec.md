@@ -681,7 +681,9 @@ group requiring the `Extensibility` feature draws the next child only, not the o
 `SvgCodec_UnsupportedFeatureHandler_MissingGlyph_ReportsUnsupportedWithTheCodePoint`,
 `SvgCodec_UnsupportedFeatureHandler_SeveralElements_ReportsOnceWithTheCount`,
 `SvgCodec_UnsupportedFeatureHandler_PlainAndStyledText_ReportsNothing`,
-`SvgCodec_UnsupportedFeatureHandler_DoesNotChangeThePixels`, `SvgCodec_UnsupportedFeatureHandler_DefaultIsNull`
+`SvgCodec_UnsupportedFeatureHandler_DoesNotChangeThePixels`, `SvgCodec_UnsupportedFeatureHandler_DefaultIsNull`,
+`SvgCodec_UnsupportedFeatureHandler_FilterPrimitiveUnitsObjectBoundingBox_ReportsFilterUnsupported`,
+`SvgCodec_UnsupportedFeatureHandler_FilterPrimitiveSubregion_ReportsFilterUnsupported`
 
 Asserts that a `textPath` is one `svg-text-not-drawn` report naming `textPath` and the text; that `rotate`,
 `textLength`, a vertical `writing-mode`, `dominant-baseline`, `text-decoration`, an unknown `baseline-shift` and
@@ -695,6 +697,10 @@ not-drawn one first, with the count (a text drawn twice through `use` counts onc
 plain and styled text, letter and word spacing, an `x` list, a `switch` fallback, `title`, `defs` content and
 white-space-only text report
 nothing; that a render with a handler draws the same pixels as one without; and that the handler is `null` by default.
+A filter in `primitiveUnits="objectBoundingBox"` applied by two rects is one `svg-filter-unsupported` report with a
+count of 1, starting "filter is drawn without: primitiveUnits="objectBoundingBox"" and naming `<filter id="f">`, with
+the same pixels as a render without a handler; a filter with a primitive subregion is one such report naming the
+primitive subregion, while a `filterUnits="userSpaceOnUse"` filter without either reports nothing.
 
 #### CanvasNetSvg-SvgCodec-ImageSourceUnsupportedNotes: Unsupported Notes Of A Linked SVG File
 
@@ -881,7 +887,7 @@ error at all.
 `SvgCodec_GetInfo_OversizedRootAttributeValueExceedingCharacterBudget_ThrowsInvalidDataException`
 is a regression test for the unbounded `GetInfo` header-only parse finding: a single root-element
 attribute value padded well past the codec's fixed `MaxCharactersInDocument` bound is now rejected
-with `InvalidDataException`, since the reader used by `LoadRootElementAttributesOnly` is now
+with `InvalidDataException`, since the reader used by `LoadRootElementForInfo` is now
 bounded by the same character cap `LoadRootElement` already enforces — even though it never reads
 past the root start-tag, it still advances character-by-character through the tag's own attribute
 values.
@@ -921,8 +927,8 @@ documented framework behavior of `DtdProcessing.Prohibit` combined with the `nul
 This coverage is for external *general* entities only; external *parameter* entities are not
 separately tested, though the same `DtdProcessing.Prohibit` rejection applies equally to both.
 Separately, asserts `GetInfo` throws `InvalidDataException` for the same external-entity-declaring
-document, proving the hardening applies equally to `LoadRootElementAttributesOnly`'s
-root-start-tag-only `XmlReaderSettings`, not only to `LoadRootElement`'s full-document
+document, proving the hardening applies equally to `LoadRootElementForInfo`'s
+bounded `XmlReaderSettings`, not only to `LoadRootElement`'s full-document
 `XmlReaderSettings`.
 
 #### CanvasNetSvg-SvgCodec-MalformedPathDataRejected: Malformed Path "d" Data Rejected
@@ -1052,6 +1058,8 @@ a basis-1 fraction (or a fraction of the shape's bounds) under `userSpaceOnUse`.
 `SvgCodec_Load_RootSizeInInches_FitsContentToConvertedSize`,
 `SvgCodec_GetInfo_RootSizeInLineHeightUnits_UsesRootLineHeight`,
 `SvgCodec_Load_RootSizeInLineHeightUnits_FitsContentToReportedSize`,
+`SvgCodec_GetInfo_RootSizeInLineHeightUnitsFromStylesheet_UsesRule`,
+`SvgCodec_GetInfoAndLoad_RootFontSizeFromStylesheet_Agree`,
 `SvgCodec_Load_LineHeightInLineHeightUnits_ResolvesAgainstParent`,
 `SvgCodec_Load_LegacyNumberForms_StillParse`
 
@@ -1078,8 +1086,13 @@ font size (`2lh` by `3rlh` at `font-size='10'` and `line-height:2` is 40x60), an
 to fill exactly that size. `lh` and `rlh` inside `line-height` are asserted to resolve against the
 parent's line height (a `1lh` line height under a parent with `line-height:2` at size 10 is 20,
 even when the element's own size is 50) and, on the root, against the initial 1.2 x 16 = 19.2
-(`line-height:5lh` and `5rlh` both give 96, in `GetInfo` and in `Load`) without a cycle; a
-`line-height` in a viewport unit has no basis for the root size and leaves `normal`.
+(`line-height:5lh` and `5rlh` both give 96, in `GetInfo` and in `Load`) without a cycle; a root
+`line-height` (`10vw`) or `font-size` (`5vw`) in a viewport unit leaves a size that depends on it
+absent, so `GetInfo` reports 300x150. A stylesheet rule sizes the root as it draws it: `svg { line-height: 2 }`
+makes `10lh` x `5lh` at `font-size='10'` 200x100, and `svg { font-size: 20px }` makes `10em` x `5em`
+200x100 in `GetInfo`, with a `5em` rect drawn 100 wide by `Load` at that size, while `width`/`height`
+rules in the same stylesheet do not change the size. Edge headless reports the same natural size for each
+of these as an `<img>` and draws the same pixels; for the viewport-unit roots it reports no natural size.
 
 #### CanvasNetSvg-SvgCodec-FontSizeSourcesAndKeywords: font-size Sources, Keywords and the font Shorthand
 
@@ -1184,6 +1197,7 @@ presentation attribute, an inline style and a stylesheet rule.
 `SvgCodec_Load_MathResultIsLengthOrLiteralNumber_StillAccepted`,
 `SvgCodec_Load_LineHeightNumberMath_IsMultiplier`,
 `SvgCodec_Load_LineHeightLengthMathAndTypeMix_FollowsType`,
+`SvgCodec_Load_NegativeLineHeightMath_ClampsToZero`,
 `SvgCodec_Load_MaskRegionBoundingBoxMath_UsesFractionBasis`,
 `SvgCodec_Load_MaskRegionBoundingBoxMixedPercentAndNumber_FallsBackToDefault`,
 `SvgCodec_Load_GradientBoundingBoxNumberMath_IsAccepted`,
@@ -1210,7 +1224,10 @@ and a dash offset, while a literal `10`, `calc(2 * 10px)` and `max(10px, 2em)` s
 `min(2, 3)`, `max(1, 2)` and `font: 10px/calc(1 + 1) serif`) are asserted to be multipliers
 re-multiplied by a descendant's font size (`1lh` is 100 under a child `font-size` of 50, not a fixed
 2), a length result (`calc(1px + 1px)`, `calc(20% + 1px)`) stays a fixed length, and the invalid mix
-`calc(10% + 1)` is ignored. For an `objectBoundingBox` mask region on a non-square document,
+`calc(10% + 1)` is ignored. A negative math result (`calc(10px - 20px)`, `calc(1 - 2)`,
+`min(-1px, 2px)` and `font: 10px/calc(1px - 5px) serif`) is asserted to be clamped to 0, so a
+`calc(1lh + 30px)` bar under a child `font-size` of 50 measures 30 (Edge headless measures 30 too).
+For an `objectBoundingBox` mask region on a non-square document,
 `calc(10% + 5%)`, `calc(100% / 4)`, `min(10%, 20%)`, `calc(50% + 0px)` and `calc(0.1 + 0.2)` are
 asserted pixel-identical to `15%`, `25%`, `10%`, `50%` and `0.3` (and different from the default
 region), while `calc(10% + 0.1)` - a percentage mixed with a number - is asserted identical to the
@@ -1226,6 +1243,7 @@ default region; a number-typed `calc(0.5 + 0.25)` is accepted as a gradient's `x
 `SvgCodec_GetInfo_RootSize_ConvertsUnitsOrFallsBack`,
 `SvgCodec_Load_MalformedFontSize_IsIgnoredAndInherited`,
 `SvgCodec_Load_MalformedLineHeight_IsIgnored`,
+`SvgCodec_Load_NegativeLiteralLineHeight_IsIgnored`,
 `SvgCodec_Load_NonPositiveFontSize_RendersNoText`,
 `SvgCodec_Load_MalformedTextDxDy_IsIgnored`,
 `SvgCodec_Load_InvalidFontShorthand_IsDropped`,
@@ -1250,7 +1268,8 @@ Class T: a malformed gradient coordinate falls back to the default as if absent,
 mask-region value falls back to the default region, and a root size with an unknown unit or no
 basis counts as absent. Class F: a malformed `font-size` (attribute and inline style) is dropped
 and the next lower source applies, else the parent's size is inherited (see the fall-through tests
-under the font-size requirement); a malformed `line-height` and `dx`/`dy` are ignored, an invalid
+under the font-size requirement); a malformed `line-height` and `dx`/`dy` are ignored (a negative
+literal `line-height` of `-5px` or `-2` leaves the `calc(1lh + 30px)` bar at the normal 90), an invalid
 shorthand is dropped whole, and a zero or negative size still renders no text (existing behavior).
 A number-typed math result is user units where SVG 2 allows a number, so only a mixed expression is
 malformed there: `calc(1 + 1px)`, `calc(10% + 1)`, `calc(1px * 1px)` and `min(1, 1px)` are asserted to
@@ -1299,7 +1318,9 @@ for `filter`'s own dedicated coverage - it is no longer an out-of-scope construc
 `SvgCodec_Load_FilterUnsupportedPrimitive_PassesThroughSourceGraphicUnchanged`,
 `SvgCodec_Load_FilterDefaultRegion_ExpandsBoundingBoxByTenAndTwentyPercent`,
 `SvgCodec_Load_FilterExplicitRegion_UsesDeclaredXYWidthHeight`,
-`SvgCodec_Load_FilterUserSpaceOnUse_FallsBackToObjectBoundingBoxDefault`,
+`SvgCodec_Load_FilterUnitsUserSpaceOnUse_ReadsRegionAsAbsoluteCoordinates`,
+`SvgCodec_Load_FilterUnitsUserSpaceOnUsePercentages_ResolveAgainstViewport`,
+`SvgCodec_Load_FilterUnitsUserSpaceOnUseOnHorizontalLine_IsApplied`,
 `SvgCodec_Load_FeOffsetFilter_ShiftsSourceGraphicByDxDy`,
 `SvgCodec_Load_FeOffsetFilterWithHalfPixelDx_RoundsAwayFromZeroNotToEven`,
 `SvgCodec_Load_LabelHaloFixture_RendersWhiteHaloBehindLineMidpointLabel`,
@@ -1308,7 +1329,8 @@ for `filter`'s own dedicated coverage - it is no longer an out-of-scope construc
 `SvgCodec_Load_FeCompositeOperatorAtop_BlendsBothInputsWeightedByBothAlphas`,
 `SvgCodec_Load_FeCompositeOperatorXor_KeepsEachInputWhereTheOtherHasNoCoverage`,
 `SvgCodec_Load_FeCompositeOperatorXorWithHalfChannelValue_RoundsAwayFromZeroNotToEven`,
-`SvgCodec_Load_FilterOnStrokedHorizontalLine_UsesStrokeAwareBoundsNotDegenerate`,
+`SvgCodec_Load_FilterRegionOnStrokedShape_UsesGeometryBoundsNotStroke`,
+`SvgCodec_Load_ObjectBoundingBoxEffectsOnHorizontalLine_PaintNothing`,
 `SvgCodec_Load_OpacityWithFeFloodFilter_AppliesOpacityToFilteredResultNotSource`,
 `SvgCodec_Load_FeCompositeOperatorArithmetic_MatchesHandComputedFormula`,
 `SvgCodec_Load_FeCompositeOperatorArithmeticAlpha_MatchesFormulaNotHardcodedOrDropped`,
@@ -1329,10 +1351,14 @@ input rather than throwing or blanking the element's content; asserts the filter
 computation expands the referencing element's own bounding box by exactly -10%/-10%/120%/120%,
 verified at pixels just inside and just outside each computed edge; asserts an explicit `filter`
 `x`/`y`/`width`/`height` overrides the default region computation; asserts
-`filterUnits="userSpaceOnUse"` tolerantly falls back to the same objectBoundingBox-relative region
-computation as the default, rather than being interpreted as literal absolute user-space
-coordinates; and asserts `feOffset` shifts its input by `dx`/`dy` prior to compositing back onto
-the canvas. Two real fixture files corroborate this end to end:
+`filterUnits="userSpaceOnUse"` reads the region as absolute user-space coordinates (a 0,0 30x30 region floods
+only that corner, not the rect at 40,40), resolves a percentage against the viewport (10%/10%/20%/20% of 200x100 is
+20,10 40x20) and an omitted attribute as its initial value of the viewport (the whole canvas), and applies on a
+stroked horizontal `line` because the region does not need the object bounding box - each matching Edge headless;
+asserts the region on a stroked `rect` is laid out on its fill geometry box, so the
+stroke outside that box is not flooded, and that a filter on a stroked horizontal `line` (an object
+bounding box with no height) draws nothing, as in Edge; and asserts `feOffset` shifts its input by
+`dx`/`dy` prior to compositing back onto the canvas. Two real fixture files corroborate this end to end:
 `SvgFixtures/label-halo.svg` mirrors the reported real-world bug (a `filter="url(#label-bg)"`
 white halo behind a line's own midpoint label, previously invisible while `filter` was ignored),
 and the large, real, third-party `SvgFixtures/InkscapeFilters.svg` (see
@@ -1352,13 +1378,8 @@ documented formula produces. `feOffset`'s own `dx`/`dy`-to-pixel conversion and
 away-from-zero (matching `Surface.CompositeOverSpanCore`'s established convention), not the
 `MathF.Round` default of banker's/round-to-even rounding: a `dx` that scales to exactly 0.5
 pixels rounds up to a full 1-pixel shift, and an `xor` composite chosen to produce a computed
-channel value of exactly 126.5 rounds up to 127, not down to 126. Asserts a horizontal, stroked
-`line` with a `feFlood` filter is
-evaluated (not skipped as degenerate) despite its zero-height centerline/fill bounds - a
-regression test for a defect where the filter-region degeneracy guard used the bare
-centerline/fill bounds instead of the actually-painted (stroke-expanded) bounds, incorrectly
-treating a valid stroked line's filter as degenerate and silently falling back to unfiltered
-rendering. Asserts a `rect` with `opacity="0.5"` and a filter whose entire chain is a single,
+channel value of exactly 126.5 rounds up to 127, not down to 126. Asserts a `rect` with
+`opacity="0.5"` and a filter whose entire chain is a single,
 fully-opaque `feFlood` renders the flood at approximately 50% alpha, not fully opaque - a
 regression test for a defect where `opacity` was applied while painting the pre-filter
 `SourceGraphic` (so the filter chain, and the final compositing step, both then operated on
@@ -1472,8 +1493,10 @@ million units, and the subregion chain test compares the 4-to-7 unit ratio.
 `SvgCodec_Load_GroupFilterReferencedByManyUsesExceedingCumulativeBudget_FallsBackToUnfilteredForExcessUses`,
 `SvgCodec_Load_InkscapeFiltersFixture_ToleratesFiltersAndRendersFlowerContent`,
 `SvgCodec_Load_FilteredGroupNearTotalElementBudget_RendersWithoutThrowing`,
-`SvgCodec_Load_FilteredGroupWithLineMarkerExtendingBeyondLineBounds_MarkerPixelsSurviveFilter`,
-`SvgCodec_Load_GroupFilterWithNestedFilteredChildExpandingBeyondOwnBounds_PreservesFullNestedFilterOutput`,
+`SvgCodec_Load_ClippedGroupWithLineMarkerExtendingBeyondLineBounds_MarkerPixelsSurviveClip`,
+`SvgCodec_Load_ClippedGroupWithNestedFilteredChildExpandingBeyondOwnBounds_PreservesFullNestedFilterOutput`,
+`SvgCodec_Load_GroupFilterWithNestedFilteredChild_RegionUsesGroupGeometryBounds`,
+`SvgCodec_Load_EffectsOnStrokedGroup_UseGeometryBoundsNotStroke`,
 `SvgCodec_Load_DeeplyNestedFilteredGroupsExceedingCumulativeBoundsPrePassBudget_ThrowsInvalidDataException`,
 `SvgCodec_Load_ModestlyNestedFilteredGroups_RenderCorrectlyWithoutFalsePositiveFallback`,
 `SvgCodec_Load_OuterGroupFilterWithPathologicallyOversizedDescendantFilter_StillAppliesOuterFilter`,
@@ -1532,24 +1555,31 @@ double-charge (once from the bounds pre-pass, once again from the real render pa
 it) - now renders successfully (its `feFlood` fills the whole canvas red) instead of throwing
 `InvalidDataException`, matching what an equivalent *unfiltered* document of the same size would
 have done all along. Second,
-`SvgCodec_Load_FilteredGroupWithLineMarkerExtendingBeyondLineBounds_MarkerPixelsSurviveFilter`
+`SvgCodec_Load_ClippedGroupWithLineMarkerExtendingBeyondLineBounds_MarkerPixelsSurviveClip`
 proves the pre-pass now folds a `line`'s own placed marker content into the group's combined
-bounds: a 20x20 arrowhead-style marker centered on the line's end vertex extends far beyond the
+painted bounds: a 20x20 arrowhead-style marker centered on the line's end vertex extends far beyond the
 line's own tiny stroke-expanded outline, and a point deep inside the marker's own painted square
-(but well outside the line's own bounds) shows the marker's fill color surviving an identity
-(`feOffset dx="0" dy="0"`) group filter - proving the offscreen `SourceGraphic` buffer was sized
-large enough to avoid silently clipping the marker's pixels before the filter/composite step ever
-saw them.
+(but well outside the line's own bounds) shows the marker's fill color surviving a group clip that
+covers the whole canvas - proving the offscreen buffer (sized from the painted box when only a clip
+applies) was sized large enough to avoid silently clipping the marker's pixels before the
+clip/composite step ever saw them. A filter or mask region on a group is laid out on the group's
+geometry box instead (the union of its children's fill geometry, without stroke, markers or nested
+filter regions): `SvgCodec_Load_EffectsOnStrokedGroup_UseGeometryBoundsNotStroke` asserts that a
+mask, a filter and an objectBoundingBox clip on a group around a stroked `rect` all keep the left
+half of the fill box and nothing outside it, and
+`SvgCodec_Load_GroupFilterWithNestedFilteredChild_RegionUsesGroupGeometryBounds` asserts a child's
+own, much larger filter region does not enlarge the group's region, so the group filter clips it.
+Edge headless draws all of these the same way.
 
 A third regression test closes a further code-review finding in the same bounds pre-pass: a
 descendant that itself carries its own `filter` attribute whose own filter region extends beyond
 its raw geometry (an `feFlood` combined with a deliberately enlarged filter
 `x`/`y`/`width`/`height` region, in
-`SvgCodec_Load_GroupFilterWithNestedFilteredChildExpandingBeyondOwnBounds_PreservesFullNestedFilterOutput`)
+`SvgCodec_Load_ClippedGroupWithNestedFilteredChildExpandingBeyondOwnBounds_PreservesFullNestedFilterOutput`)
 used to have only its raw geometry bounds folded into the pre-pass, not its own filter's actual
 (larger) output extent. A tiny 4x4 rect carries an `innerFlood` filter whose region is expanded to
-roughly cover the whole 100x100 canvas, wrapped in an outer `<g>` with an identity
-(`feOffset dx="0" dy="0"`) pass-through filter; points far outside the rect's own raw bounds but
+roughly cover the whole 100x100 canvas, wrapped in an outer `<g>` with a user-space clip covering
+the whole canvas; points far outside the rect's own raw bounds but
 inside the inner filter's actual expanded region now show the inner `feFlood`'s red output
 surviving the outer group's own offscreen round-trip, proving the outer group's buffer is sized
 from the inner filter's own expanded output rather than merely the inner shape's raw geometry -
@@ -1829,7 +1859,11 @@ primitive-specific checks plug into the same broader bounded-work model rather t
 `SvgCodec_Load_DanglingClipPathReference_RendersUnclipped`,
 `SvgCodec_Load_ClipPathChildClipRuleEvenOdd_ProducesHoleAtOverlap`,
 `SvgCodec_Load_ClipPathOnGroup_ClipsCombinedGroupContent`,
-`SvgCodec_Load_ClipPathReferencesNonClipPathElement_RendersUnclipped`
+`SvgCodec_Load_ClipPathReferencesNonClipPathElement_RendersUnclipped`,
+`SvgCodec_Load_ClipPathObjectBoundingBoxOnStrokedShape_UsesGeometryBoundsNotStroke`,
+`SvgCodec_Load_EffectsOnStrokedGroup_UseGeometryBoundsNotStroke`,
+`SvgCodec_Load_ObjectBoundingBoxEffectsOnHorizontalLine_PaintNothing`,
+`SvgCodec_Load_UserSpaceOnUseEffectsOnHorizontalLine_AreDrawn`
 
 Asserts a `clip-path="url(#id)"` referencing a `clipPath` with the default (`userSpaceOnUse`)
 `clipPathUnits` clips a rect's own fill to a circle positioned in the referencing element's own
@@ -1849,6 +1883,11 @@ combined rendered content of all of its children as a single unit, the same
 establishes for group-level `filter`; and asserts a `clip-path` reference that resolves to a
 well-formed element which is not literally a `clipPath` (a plain `rect`) is tolerated as a no-op,
 rendering unclipped, mirroring this codec's existing `filter`/marker wrong-element-type tolerance.
+The object bounding box is the fill geometry without stroke: an `objectBoundingBox` clip of the
+left half on a stroked `rect` (alone or inside a `g`) keeps the fill and the inner half of the
+stroke and removes the stroke outside the fill box; on a stroked horizontal `line`, whose box has
+no height, it draws nothing, while a `userSpaceOnUse` clip still draws the line. Edge headless
+draws each of these cases the same way.
 
 #### CanvasNetSvg-SvgCodec-MaskRendering: `mask` Luminance Semantics and Independent Unit Attributes
 
@@ -1857,7 +1896,11 @@ rendering unclipped, mirroring this codec's existing `filter`/marker wrong-eleme
 `SvgCodec_Load_MaskUnitsUserSpaceOnUse_ReadsRegionAsAbsoluteCoordinates`,
 `SvgCodec_Load_MaskContentUnitsObjectBoundingBox_ScalesMaskContentToReferenceBounds`,
 `SvgCodec_Load_MaskOnUseElement_MasksResolvedTarget`,
-`SvgCodec_Load_MaskRegionUserSpaceOmittedAttribute_DefaultsAgainstViewport`
+`SvgCodec_Load_MaskRegionUserSpaceOmittedAttribute_DefaultsAgainstViewport`,
+`SvgCodec_Load_MaskObjectBoundingBoxOnStrokedShape_UsesGeometryBoundsNotStroke`,
+`SvgCodec_Load_EffectsOnStrokedGroup_UseGeometryBoundsNotStroke`,
+`SvgCodec_Load_ObjectBoundingBoxEffectsOnHorizontalLine_PaintNothing`,
+`SvgCodec_Load_UserSpaceOnUseEffectsOnHorizontalLine_AreDrawn`
 
 Asserts a `mask="url(#id)"` referencing a `mask` element with a white rect over half the
 referencing element's own bounds and a black rect over the other half fully reveals the element
@@ -1881,6 +1924,12 @@ quarter of a 200x100 document, and asserts the render is pixel-identical to the 
 value of the initial percentage (`-20`, `-10`, `240` and `120`: `-10%` or `120%` of the viewport
 width or height) and differs from the bounding-box reading (`90`, `45`, `120` and `60`), which
 clips the shape differently (CSS Masking 1: the initial values are percentages in both modes).
+`SvgCodec_Load_MaskObjectBoundingBoxOnStrokedShape_UsesGeometryBoundsNotStroke` asserts that both an
+`objectBoundingBox` region and `objectBoundingBox` content on a stroked `rect` are laid out on its
+fill geometry box, so the stroke outside that box is masked away (the group form is covered by
+`SvgCodec_Load_EffectsOnStrokedGroup_UseGeometryBoundsNotStroke`); a mask on a stroked horizontal
+`line` draws nothing, unless both its region and its content are in `userSpaceOnUse`. Edge headless
+draws each of these cases the same way.
 
 #### CanvasNetSvg-SvgCodec-EffectOrdering: Clip/Mask-Before-Filter Ordering and Regression Coverage
 
@@ -2486,12 +2535,15 @@ later resolved for that same element.
 
 #### Bounded GetInfo Header-Only Parsing
 
-**Test**: `SvgCodec_GetInfo_MalformedXmlAfterRootElement_DoesNotThrowAndReturnsViewBoxDimensions`
+**Tests**: `SvgCodec_GetInfo_MalformedXmlAfterRootElement_DoesNotThrowAndReturnsViewBoxDimensions`,
+`SvgCodec_GetInfo_FontRelativeRootSizeWithMalformedBody_UsesStartTagOnly`
 
 Asserts `GetInfo`'s bounded, root-start-tag-only `XmlReader` parse still resolves and returns
 `viewBox` dimensions for a document that is malformed only beyond the root element's own
 attributes - the same markup the `MalformedXmlRejected` scenario above proves `Load`'s
-full-document parse still correctly rejects.
+full-document parse still correctly rejects. A root sized in `em` without a `viewBox` makes `GetInfo`
+read the body for its stylesheet; when that body is not well-formed, `GetInfo` still returns the
+start-tag-only size (`10em` x `5em` at the initial 16 is 160x80) instead of failing.
 
 #### Non-Finite Numeric Attribute/Token Rejection or Tolerant Fallback
 

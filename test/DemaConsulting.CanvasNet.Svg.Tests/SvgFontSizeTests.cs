@@ -651,6 +651,33 @@ public class SvgFontSizeTests
         Assert.Equal(0, inlineSurface[31, 31].A);
     }
 
+    /// <summary>
+    ///     Proves a root <c>font-size</c> from a stylesheet rule sizes a root in <c>em</c> in
+    ///     <see cref="SvgCodec.GetInfo(Stream)"/> exactly as <see cref="SvgCodec.Load(Stream, int, int, IReadOnlyDictionary{string, TrueTypeFont}?)"/>
+    ///     draws it, as browsers do, while CSS <c>width</c> and <c>height</c> rules are ignored for the size, as browsers
+    ///     ignore them for an SVG image.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_GetInfoAndLoad_RootFontSizeFromStylesheet_Agree()
+    {
+        // Arrange: font-size 20 from the stylesheet makes 10em x 5em 200x100 (the initial 16 would give 160x80); the
+        // width and height rules do not apply to the size
+        const string Svg =
+            "<svg xmlns='http://www.w3.org/2000/svg' width='10em' height='5em'>" +
+            "<style>svg { font-size: 20px; width: 50px; height: 50px }</style>" +
+            "<rect width='5em' height='5em' fill='black'/></svg>";
+        using var infoStream = SvgLengthTestSupport.ToStream(Svg);
+
+        // Act
+        var info = SvgCodec.GetInfo(infoStream);
+        var measured = SvgLengthTestSupport.RowCoverage(SvgLengthTestSupport.Render(Svg, info.Width, info.Height), 50);
+
+        // Assert: the stylesheet size in both, so the 5em rect is half the width
+        Assert.Equal(200, info.Width);
+        Assert.Equal(100, info.Height);
+        Assert.Equal(100.0, measured, Tolerance);
+    }
+
     /// <summary>Proves a malformed <c>line-height</c> is ignored rather than failing the document.</summary>
     [Fact]
     public void SvgCodec_Load_MalformedLineHeight_IsIgnored()

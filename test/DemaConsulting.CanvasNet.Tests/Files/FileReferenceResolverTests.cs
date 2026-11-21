@@ -566,19 +566,53 @@ public class FileReferenceResolverTests
     }
 
     /// <summary>
-    ///     Validates that the key comparer is ordinal for logical paths and the platform's path comparison otherwise.
+    ///     Validates that the key comparer is <see cref="StringComparer.Ordinal"/> in both modes: two full paths that
+    ///     differ only in letter case are two keys on every platform, because a folder may be case-sensitive anywhere.
     /// </summary>
     [Fact]
-    public void FileReferenceResolver_KeyComparer_FollowsModeAndPlatform()
+    public void FileReferenceResolver_KeyComparer_IsOrdinalInBothModes()
     {
         // Arrange
         var logical = Create(new FileReferenceOptions { FileResolver = _ => null });
         var onDisk = Create(new FileReferenceOptions { BaseDirectory = "." });
-        var ignoresCase = OperatingSystem.IsWindows() || OperatingSystem.IsMacOS();
 
         // Act / Assert
         Assert.Same(StringComparer.Ordinal, logical.KeyComparer);
-        Assert.Equal(ignoresCase, onDisk.KeyComparer.Equals("A.txt", "a.txt"));
+        Assert.Same(StringComparer.Ordinal, onDisk.KeyComparer);
+        Assert.False(onDisk.KeyComparer.Equals("A.txt", "a.txt"));
+    }
+
+    /// <summary>
+    ///     Validates on every platform that a spelling that differs from a resolved one only in letter case is not
+    ///     answered from the cache: it is opened on its own (here the open seam stands in for a case-sensitive folder,
+    ///     where <c>A.txt</c> is another file than <c>a.txt</c>), so it never gets the bytes of the other file.
+    /// </summary>
+    [Fact]
+    public void FileReferenceResolver_Resolve_CaseVariantSpelling_IsNotAnsweredFromTheCache()
+    {
+        // Arrange: a.txt holds "lower"; the open seam serves upper.txt ("upper") for the key that ends in A.txt
+        using var directory = new SandboxTempDirectory();
+        directory.Write("a.txt", "lower");
+        var upper = Path.GetFullPath(directory.Write("upper.txt", "upper"));
+        var opened = new List<string>();
+        var resolver = Create(
+            new FileReferenceOptions { BaseDirectory = directory.Path },
+            new FileOpenHooks
+            {
+                BeforeOpen = opened.Add,
+                Open = path => OpenShared(path.EndsWith("A.txt", StringComparison.Ordinal) ? upper : path),
+            });
+
+        // Act
+        var lower = resolver.Resolve("a.txt");
+        var variant = resolver.Resolve("A.txt");
+
+        // Assert
+        Assert.Equal("lower", Text(lower));
+        Assert.Equal("upper", Text(variant));
+        Assert.Equal(
+            [Path.GetFullPath(directory.Combine("a.txt")), Path.GetFullPath(directory.Combine("A.txt"))],
+            opened);
     }
 
     /// <summary>
@@ -1201,6 +1235,40 @@ public class FileReferenceResolverTests
 
         // Assert
         Assert.Equal("a", Text(file));
+    }
+
+    /// <summary>
+    ///     Validates on Windows that a file on a volume without a drive letter, whose real path and whose starting folder
+    ///     Windows reports in the volume GUID form (<c>\\?\Volume{GUID}\...</c>, injected through the seams), is judged
+    ///     by the no-symlinks policy instead of failing closed as unknown: the real path below the folder as written is
+    ///     allowed, and one in another folder of the volume is denied.
+    /// </summary>
+    [Fact]
+    public void FileReferenceResolver_Resolve_RealPathOnAVolumeWithoutADriveLetter_IsJudgedByNoSymlinks()
+    {
+        // Arrange
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Skip(FileTestSupport.WindowsOnly);
+        }
+
+        const string Volume = @"\\?\Volume{67589fd6-ee90-4e7d-9ad7-a17168a66d75}\";
+        using var directory = new SandboxTempDirectory();
+        directory.Write("base/a.txt", "a");
+        var options = new FileReferenceOptions { BaseDirectory = directory.Combine("base"), FileAccess = FileAccessPolicy.NoSymlinks };
+        var inside = Create(options, new FileOpenHooks { DirectoryLocationOf = _ => Volume + "base", RealPathOf = _ => Volume + @"base\a.txt" });
+        var elsewhere = Create(options, new FileOpenHooks { DirectoryLocationOf = _ => Volume + "base", RealPathOf = _ => Volume + @"other\a.txt" });
+
+        // Act
+        var allowed = inside.Resolve("a.txt");
+        var denied = Assert.Throws<FileReferenceException>(() => elsewhere.Resolve("a.txt"));
+
+        // Assert
+        Assert.Equal("a", Text(allowed));
+        Assert.Equal(Volume + @"base\a.txt", allowed!.RealPath);
+        Assert.Equal(FileReferenceFailureKind.AccessDenied, denied.Kind);
+        Assert.Equal("no-symlinks", denied.PolicyName);
+        Assert.Equal(Volume + @"other\a.txt", denied.RealPath);
     }
 
     /// <summary>

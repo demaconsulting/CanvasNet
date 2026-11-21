@@ -1,0 +1,20 @@
+@startuml
+skinparam defaultFontSize 18
+skinparam activityFontSize 18
+skinparam activityDiamondFontSize 18
+skinparam arrowFontSize 18
+start
+fork
+  :Pick the items;
+fork again
+  :Print the label;
+fork again
+  :Send the invoice;
+end fork
+if (Express?) then
+  :Send by courier;
+else
+  :Send by post;
+endif
+stop
+@enduml

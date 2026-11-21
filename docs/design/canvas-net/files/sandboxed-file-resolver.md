@@ -141,7 +141,9 @@ a cancellation or an argument error is a `SandboxException`.
   (`RootLocation`), and the on-disk spelling of the candidate's path (`FileAccessPolicy.ExactSpelling`) before every
   walk and open; neither is resolved by name after the open, so a root renamed and replaced by a link in between is
   refused as `ThroughLink`. When the real location of the root could not be determined the file is `LinkCheckFailed`
-  (fail closed; a root the process may search but not read has a real location); when the real path differs the file is
+  (fail closed; a root the process may search but not read has a real location); on a volume without a drive letter the
+  real path and the root location are both in the volume GUID form (`\\?\Volume{GUID}\...`,
+  `RealPath.FromFinalPathName`) and are compared like any other; when the real path differs the file is
   `ThroughLink` with the root-relative path **of the file** as the detail (the handle cannot tell which component is the
   link). This repeats the walk's rule on the file that is actually read, so a component swapped for a link after the
   walk is refused. `ThroughLink` and `LinkCheckFailed` from this step are thrown like walk refusals: they are not cached
@@ -177,9 +179,13 @@ a cancellation or an argument error is a `SandboxException`.
   synchronized folder, are not rejected.
 - `ValidatePathText`, `TryDescribeInvalidPath`, `Candidates`, `Combine`, `CombineFileSystem`, `CombineLogical`,
   `IsUnder`, `EnsureRoots`, `FullRoot`, and `NormalizePrefix` - the path rules above.
-- `KeyComparer` - the comparer under which two keys name the same file: ordinal for logical paths, the platform's path
-  comparison for full paths. It is exposed so that callers can detect that two spellings reached one file (for example
-  an include cycle) without re-deriving the platform rule.
+- `KeyComparer` - the comparer under which two keys name the same file: `StringComparer.Ordinal` in both modes, for
+  logical and full paths alike, so the file cache, the read count and the link-probe cache never answer a spelling
+  that differs only in letter case from the result of another (in a case-sensitive folder, which may exist on every
+  platform, it is another file). On a case-insensitive volume each such spelling is checked, read and counted against
+  `MaxFiles` on its own, which fails safe. It is exposed so that callers can detect that two spellings reached one
+  file (for example an include cycle). Earlier releases compared full-path keys ignoring letter case on Windows and
+  macOS.
 
 **Preconditions and postconditions**: `path` is untrusted text; on return the file exists, is a regular file, is not
 behind a link (checked on the names before the open and on the open handle after it), is within the size limit, and

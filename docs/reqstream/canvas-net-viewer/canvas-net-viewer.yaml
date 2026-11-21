@@ -48,7 +48,8 @@ sections:
               are resolved from its own folder, or ViewerRenderOptions.Folder, under the policy), at its natural size or
               at the requested width and height (a vector drawn at that size, a raster fitted into the box or scaled
               to keep its aspect ratio), returns the picture with its format, notes, printed text, and embedded
-              images, honors ThrowOnUnsupportedFeature and cancellation, rejects a requested width or height outside
+              images (each picture listed once per drawing, also a picture a Mermaid diagram measures before it
+              draws it), honors ThrowOnUnsupportedFeature and cancellation, rejects a requested width or height outside
               1 to Surface.MaxDimension with ArgumentOutOfRangeException before reading the file, checks the final
               buffer of a resized render against what is left of the live MaxDecodedPixels budget (in addition to the
               surface of the source), and fails
@@ -67,6 +68,8 @@ sections:
               - CanvasNetViewer_Render_SizeAtBoundaries_IsAccepted
               - CanvasNetViewer_Render_ResizedFinalBuffer_IsChargedToTheBudget
               - CanvasNetViewer_Render_SvgWithEmbeds_SurfacesDiagnosticsEchoAndEmbedded
+              - CanvasNetViewer_Render_MermaidNodePictures_AreListedOnceEach
+              - CanvasNetViewer_Render_SvgEmbeddingMermaidWithPicture_ListsThePictureOnce
               - CanvasNetViewer_Render_SvgEscapingAndSelfEmbedding_AreWarnings
               - CanvasNetViewer_Render_SvgParentFolderLink_IsDrawnByDefault
               - CanvasNetViewer_Render_PathFailures_ThrowSpecificExceptions

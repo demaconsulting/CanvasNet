@@ -109,6 +109,10 @@
          (not duplicated) by FeatureCatalog.LocalPathOfFileUri and so by DataLoader, so that the file:
          URI rules of image links and data URLs cannot drift apart. -->
     <InternalsVisibleTo Include="DemaConsulting.CanvasNet.VegaLite" />
+    <!-- Grants DemaConsulting.CanvasNet.Mermaid access to FolderImageResolver.IImageProbe, through which
+         NodeImages.NaturalSize measures the picture of a node without the measuring load being listed in
+         FolderImageResolver.Embedded (the picture is listed once, by the load that draws it). -->
+    <InternalsVisibleTo Include="DemaConsulting.CanvasNet.Mermaid" />
   </ItemGroup>
 
   <ItemGroup>

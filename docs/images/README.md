@@ -15,17 +15,20 @@ and run the script, whenever a package or a project reference is added or remove
 ## composition-explained.png
 
 `composition-explained.png` (1600x900) explains composition: an exploded stack of three layers (the SVG page
-`composition-explained/page.svg`, the Mermaid diagram `flow.mmd` it embeds, and the OpenSCAD model `part.scad` and
-Vega-Lite chart `chart.vl.json` that the diagram's nodes embed), numbered cards with the markup of each link, and the
-finished page. It is referenced from the *Composition* section of the README by an absolute URL. The diagram and the
-model and chart layers are live drawings of their files under an SVG transform; the top layer is a manual copy of
-the content of `page.svg`, so a change to the page must be repeated there (the figure's header comment explains how
-its coordinates follow `page.svg`). `render-images.ps1` draws it with
-`--strict` on a transparent background, with file access confined to its folder.
+`composition-explained/page.svg`, the Mermaid diagram `flow.mmd` it embeds, and the PlantUML state diagram
+`release.puml`, OpenSCAD model `part.scad`, and Vega-Lite chart `chart.vl.json` that the diagram's nodes embed),
+numbered cards with the markup of each link, and the finished page. It is referenced from the *Composition* section of
+the README by an absolute URL. The diagram layer and the bottom layer (the PlantUML diagram, the model, and the chart)
+are live drawings of their files under an SVG transform; the top layer is a manual copy of the content of `page.svg`,
+so a change to the page must be repeated there (the figure's header comment explains how its coordinates follow
+`page.svg`). The slots of the picture nodes on the lower layers, and the end of the page's "Goal met" arrow, are taken
+from `canvasnet render "flow.mmd#theme=dark" --size 608x234 --positions "node:*" --json`, moved by the corner of the
+diagram in the page (16, 96). `render-images.ps1` draws it with `--strict` on a transparent background, with file
+access confined to its folder.
 
-Every file in `composition-explained/` is **original to this repository** (MIT): `composition-explained.svg` and
-`page.svg` were authored for it, `part.scad` is a copy of `showcase/explode.scad`, and `flow.mmd` and `chart.vl.json`
-are adapted from `showcase/pipeline.mmd` and `showcase/output.vl.json`.
+Every file in `composition-explained/` is **original to this repository** (MIT): `composition-explained.svg`,
+`page.svg`, and `release.puml` were authored for it, `part.scad` is a copy of `showcase/explode.scad`, and `flow.mmd`
+and `chart.vl.json` are adapted from `showcase/pipeline.mmd` and `showcase/output.vl.json`.
 
 ## showcase/composition.svg
 
@@ -66,7 +69,8 @@ the files beside it, so the banner is itself one composite SVG drawn by CanvasNe
 README by an absolute URL. Every file in `hero/` is licensed under this repository's MIT license, and none comes from a
 third party:
 
-- authored for the banner: `hero.svg`, `figure.svg`, `flow.mmd`, `bearing.scad`, `chart.vl.json`, and `vector.svg`;
+- authored for the banner: `hero.svg`, `figure.svg`, `flow.mmd`, `sequence.puml`, `bearing.scad`, `chart.vl.json`, and
+  `vector.svg`;
 - `dc-logo-dark.svg`: the DEMA Consulting "DC" monogram of the repository's `Icon.png`, redrawn as vector paths in
   colors for a dark background;
 - generated: `drawing.vsdx`, by `make-drawing.py` (Python standard library only; run `python make-drawing.py` in
@@ -82,6 +86,18 @@ and shown at 400x300. It is referenced from the README by an absolute URL, like 
 user guide examples `mermaid-sequence-arrows.mmd`, `mermaid-class-relations.mmd`, `mermaid-state-notes.mmd`,
 `mermaid-gantt.mmd`, `mermaid-mindmap.mmd`, and `mermaid-gitgraph.mmd` in `docs/user_guide/examples`, which are
 **original to this repository** (MIT). `render-images.ps1` draws and checks the montage like the other images.
+
+## plantuml-gallery.png
+
+`plantuml-gallery.png` (2496x1352) shows six PlantUML diagram types (a sequence diagram, an activity diagram, a class
+diagram, a state diagram, a use case diagram, and a component diagram) in a 3x2 grid laid out like
+`mermaid-gallery.png`, at twice its size so that the text stays sharp in the README. It is one SVG page,
+`plantuml/gallery.svg`, that links each diagram with `<image href>`, so every diagram is drawn as vector at the size of
+its 800x600 cell rather than scaled from a PNG. It is referenced from the README by an absolute URL. The diagrams are
+`sequence.puml`, `activity.puml`, `class.puml`, `state.puml`, `usecase.puml`, and `component.puml` in
+`docs/images/plantuml`, authored for the gallery with landscape layouts and larger fonts so that each fills its cell
+(the user guide examples are mostly tall). Every file in `docs/images/plantuml` is **original to this repository**
+(MIT). `render-images.ps1` draws it with `--strict` and checks it like the other images.
 
 ## montage-explode.png
 
@@ -107,14 +123,13 @@ chart shows, is **original to this repository** (MIT): the data is invented (a f
 ## showcase.png
 
 `showcase.png` (1340x560) is a montage of eight panels in a 4x2 grid, each rendered by the `canvasnet` command-line
-tool: SVG, OpenSCAD 3D, Vega-Lite, Mermaid, PDF, PowerPoint, Visio, and a composition of several formats on one SVG
+tool: SVG, OpenSCAD 3D, Vega-Lite, Mermaid, PDF, PowerPoint, PlantUML, and a composition of several formats on one SVG
 page. It is referenced from the README by an absolute URL, because the README is also shipped inside the
 NuGet packages.
 
 ### Provenance and Licensing
 
-Every input is either original to this repository (licensed under the repository's MIT license) or a
-permissively licensed third-party file that is credited below.
+Every input is original to this repository and licensed under the repository's MIT license.
 
 - **SVG**: `showcase/dashboard.svg` - original, authored for this repository (MIT)
 - **OpenSCAD 3D**: `showcase/hull.scad` - original, authored for this repository (MIT)
@@ -123,46 +138,10 @@ permissively licensed third-party file that is credited below.
 - **PDF**: `showcase/mesh-shading.pdf` - copy of the hand-authored test fixture
   `shading-mesh-types-4-5-6-7.pdf` (MIT)
 - **PowerPoint**: `showcase/slide.pptx` - original, generated by `showcase/make-slide.py` with python-pptx (MIT)
-- **Visio**: `davehoward-test4-connectors.vsdx` (not copied here) - third-party, BSD 3-Clause; see the notice below
+- **PlantUML**: `showcase/checkout.puml` - original, authored for this repository (MIT): a checkout sequence diagram
+  with an actor, a database, an entity, an activation, a group, and a note, restyled with `skinparam` colors
 - **Composition**: `showcase/composition.svg` and the files it links (see *showcase/composition.svg* above) - original,
   authored for this repository (MIT)
-
-The Visio panel renders `test4_connectors.vsdx` from the
-[dave-howard/vsdx](https://github.com/dave-howard/vsdx) project, which is kept unmodified as
-`test/DemaConsulting.CanvasNet.Vsdx.Tests/VsdxFixtures/davehoward-test4-connectors.vsdx`. That project is
-distributed under the BSD 3-Clause License:
-
-```text
-BSD 3-Clause License
-
-Copyright (c) 2020, Dave Howard
-All rights reserved.
-
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are met:
-
-1. Redistributions of source code must retain the above copyright notice, this
-   list of conditions and the following disclaimer.
-
-2. Redistributions in binary form must reproduce the above copyright notice,
-   this list of conditions and the following disclaimer in the documentation
-   and/or other materials provided with the distribution.
-
-3. Neither the name of the copyright holder nor the names of its
-   contributors may be used to endorse or promote products derived from
-   this software without specific prior written permission.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
-FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
-DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
-SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
-CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
-OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-```
 
 ### Regenerating
 
@@ -208,5 +187,5 @@ Notes:
 
 - The chart colors bars by region on the x axis, which already names each bar, so its legend is switched off with
   `legend: null`.
-- The Vega-Lite, Mermaid, PDF, PowerPoint, and Visio panels are padded with white to exactly 4:3 so that every cell
+- The Vega-Lite, Mermaid, PDF, PowerPoint, and PlantUML panels are padded with white to exactly 4:3 so that every cell
   has the same shape; the SVG, OpenSCAD, and Composition panels are drawn at 800x600 directly.

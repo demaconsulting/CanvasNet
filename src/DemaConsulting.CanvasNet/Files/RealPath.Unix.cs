@@ -82,6 +82,51 @@ internal static partial class RealPath
     }
 
     /// <summary>
+    ///     Determines on Linux whether two paths name the same directory entry: both are opened with
+    ///     <c>O_PATH | O_NOFOLLOW</c> (a link at the last component is opened itself; no read permission is needed) and
+    ///     their devices and inodes are compared.
+    /// </summary>
+    /// <param name="writtenPath">The full path as written.</param>
+    /// <param name="storedPath">The full path of an entry as stored.</param>
+    /// <returns>The answer, or <see langword="null"/> when an identity cannot be read.</returns>
+    /// <exception cref="IOException">Thrown when a path cannot be opened (the caller treats it as unknown).</exception>
+    /// <exception cref="UnauthorizedAccessException">Thrown when a path cannot be searched (treated as unknown).</exception>
+    [SupportedOSPlatform("linux")]
+    private static bool? IsSameEntryLinux(string writtenPath, string storedPath)
+    {
+        using var written = NativeMethods.OpenNonBlocking(writtenPath, pathOnly: true, noFollow: true);
+        using var stored = NativeMethods.OpenNonBlocking(storedPath, pathOnly: true, noFollow: true);
+        var writtenStat = NativeMethods.TryGetLinuxStat(written);
+        var storedStat = NativeMethods.TryGetLinuxStat(stored);
+        if (writtenStat is null || storedStat is null)
+        {
+            return null;
+        }
+
+        return writtenStat.Value.Device == storedStat.Value.Device && writtenStat.Value.Inode == storedStat.Value.Inode;
+    }
+
+    /// <summary>
+    ///     Determines on macOS whether two paths name the same directory entry: both are opened with <c>O_NOFOLLOW</c>
+    ///     (a link at the last component refuses the open, <c>ELOOP</c>, which leaves the answer unknown; links in the
+    ///     folders, such as <c>/var</c>, are followed alike for both) and their devices and inodes are compared.
+    /// </summary>
+    /// <param name="writtenPath">The full path as written.</param>
+    /// <param name="storedPath">The full path of an entry as stored.</param>
+    /// <returns>The answer, or <see langword="null"/> when an identity cannot be read.</returns>
+    /// <exception cref="IOException">Thrown when a path cannot be opened, a link included (the caller treats it as unknown).</exception>
+    /// <exception cref="UnauthorizedAccessException">Thrown when a path cannot be read (treated as unknown).</exception>
+    [SupportedOSPlatform("macos")]
+    private static bool? IsSameEntryMac(string writtenPath, string storedPath)
+    {
+        using var written = NativeMethods.OpenNonBlocking(writtenPath, pathOnly: false, noFollow: true, lastComponentOnly: true);
+        using var stored = NativeMethods.OpenNonBlocking(storedPath, pathOnly: false, noFollow: true, lastComponentOnly: true);
+        var writtenIdentity = NativeMethods.TryGetMacVnodeInfo(written).Identity;
+        var storedIdentity = NativeMethods.TryGetMacVnodeInfo(stored).Identity;
+        return writtenIdentity is null || storedIdentity is null ? null : writtenIdentity == storedIdentity;
+    }
+
+    /// <summary>
     ///     Reports the facts of an open Linux descriptor: the file type and link count from <c>fstat</c>, and the final
     ///     path from the <c>/proc/self/fd</c> link of the descriptor.
     /// </summary>

@@ -78,20 +78,23 @@ sections:
                   The FileReferenceResolver class shall ask the configured file-access policy about every file it
                   opens, before reading it, with the reference as written, the referring file (or the configured
                   referrer path), the host-chosen directory the chain of references started from, the path that was
-                  opened and the real path of the opened file;
+                  opened and the real path of the opened file (on a volume without a drive letter in its volume GUID
+                  form, \\?\Volume{GUID}\..., which the built-in policies compare like any other real path);
                   shall read the file only when the policy allows it; shall end the search on a denial; shall treat a
                   policy that throws or returns no decision as a denial while letting a cancellation pass through;
                   shall ask the policy again whenever a cached file is resolved again; and shall let a policy refuse
                   a path as written before the file is opened.
                 justification: |
                   The policy is the host's rule; it must see the facts of the file that would actually be read, a
-                  failing policy must never allow, and a policy may depend on which document references the file.
+                  failing policy must never allow, and a policy may depend on which document references the file. A
+                  volume mounted on a folder or without a drive letter must not make every file on it unknown.
                 tests:
                   - FileReferenceResolver_Resolve_PolicyDenial_IsAccessDeniedWithFactsAndNothingRead
                   - FileReferenceResolver_Resolve_PolicyDenial_StopsTheSearch
                   - FileReferenceResolver_Resolve_ThrowingOrNullPolicy_IsAccessDeniedAndCancellationPassesThrough
                   - FileReferenceResolver_Resolve_CachedFile_IsReCheckedOnEveryResolveButReadOnce
                   - FileReferenceResolver_Resolve_UnderRootsPreCheck_DeniesBeforeTheOpen
+                  - "windows@FileReferenceResolver_Resolve_RealPathOnAVolumeWithoutADriveLetter_IsJudgedByNoSymlinks"
 
               - id: CanvasNet-Files-FileReferenceResolver-ChainOrigin
                 title: >-
@@ -157,8 +160,9 @@ sections:
                   The FileReferenceResolver class shall take the real path it gives the policy from the open file,
                   not from its name, shall read the bytes from that same open file, and shall capture the real
                   location of every trusted folder a built-in policy compares against before the open, so that a
-                  file moved, a link added or removed, or a trusted folder renamed and replaced by a link around the
-                  open neither changes the decision nor what is read.
+                  file moved, a link added or removed (a link named like a file in another letter case included), or
+                  a trusted folder renamed and replaced by a link around the open neither changes the decision nor
+                  what is read.
                 justification: |
                   Another process that can change the directory tree must not be able to redirect a read after the
                   decision; deciding on the open file against folder locations fixed before the open closes that
@@ -170,6 +174,7 @@ sections:
                   - "windows@FileReferenceResolver_Resolve_RootReplacedByOutsideLinkBeforeTheOpen_IsAccessDenied"
                   - "ubuntu@FileReferenceResolver_Resolve_RootReplacedByOutsideLinkBeforeTheOpen_IsAccessDenied"
                   - "macos@FileReferenceResolver_Resolve_RootReplacedByOutsideLinkBeforeTheOpen_IsAccessDenied"
+                  - "ubuntu@FileReferenceResolver_Resolve_CaseVariantLinkCreatedBeforeTheOpen_IsDeniedUnderNoSymlinks"
                   - FileReferenceResolver_Resolve_AnchorLocationNotCaptured_IsAccessDeniedUnderNoSymlinks
                   - FileReferenceResolver_Resolve_InjectedOutsideRealPath_IsAccessDenied
                   - FileReferenceResolver_Resolve_InjectedRealPath_IsTheOneInTheRequestAndTheResult
@@ -256,15 +261,20 @@ sections:
                 title: >-
                   The FileReferenceResolver class shall open each distinct path at most once per instance,
                   remembering a miss and a failure as well as a file, shall return the same file instance for every
-                  spelling of one path, shall not read a file again after it changed, and shall expose the comparer
-                  under which two keys name the same path (ordinal for logical paths, the platform's path comparison
-                  for full paths).
+                  spelling of one path that is equal under the ordinal comparison, shall open a spelling that differs
+                  only in letter case on its own rather than answer it from the cache, shall not read a file again
+                  after it changed, and shall expose the comparer under which two keys name the same path (ordinal in
+                  both modes).
                 justification: |
                   Repeated reads would multiply the cost of a hostile input and let a file change between two reads
-                  of one operation; callers need the comparer and the real path to detect cycles.
+                  of one operation; callers need the comparer and the real path to detect cycles. A folder may be
+                  case-sensitive on every platform, where two spellings that differ in letter case are two files, so
+                  an ignore-case cache could hand out the bytes of the wrong file; on a case-insensitive volume the
+                  ordinal comparison only costs an extra read of the same file, counted against the file limit.
                 tests:
                   - FileReferenceResolver_Resolve_SameFileTwice_IsOpenedOnceAndReturnsTheSameInstance
-                  - FileReferenceResolver_KeyComparer_FollowsModeAndPlatform
+                  - FileReferenceResolver_KeyComparer_IsOrdinalInBothModes
+                  - FileReferenceResolver_Resolve_CaseVariantSpelling_IsNotAnsweredFromTheCache
 
               - id: CanvasNet-Files-FileReferenceResolver-Callback
                 title: >-

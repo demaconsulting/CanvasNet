@@ -113,8 +113,9 @@ public class CanvasNetViewerSystemIntegrationTests
 
     /// <summary>
     ///     Proves that a PlantUML diagram is drawn by the viewer directly (transparent, with the participant fill of
-    ///     PlantUML's default look), as the picture of an SVG <c>image</c>, and as the picture of a Mermaid node, with the
-    ///     <c>theme</c> fragment of a link reported as a parameter PlantUML does not take.
+    ///     PlantUML's default look), as the picture of an SVG <c>image</c>, and as the picture of a Mermaid node (listed
+    ///     once among the embedded images), with the <c>theme</c> fragment of a link reported as a parameter PlantUML
+    ///     does not take.
     /// </summary>
     [Fact]
     public void CanvasNetViewer_SystemIntegration_PlantUmlDiagram_RendersDirectlyAndEmbeddedInSvgAndMermaid()
@@ -144,12 +145,13 @@ public class CanvasNetViewerSystemIntegrationTests
         Assert.Equal(["plantuml"], resolver.Embedded.Select(e => e.Format).Distinct());
         Assert.Equal(FolderImageResolver.FragmentUnknownParameterCode, Assert.Single(resolver.Diagnostics).Code);
 
-        // Assert: the Mermaid node shows the diagram as its picture
+        // Assert: the Mermaid node shows the diagram as its picture, which is listed once (the measuring load is not)
         Assert.Equal("mermaid", inMermaid.Format);
         Assert.Contains(
             Enumerable.Range(0, inMermaid.Surface.Height),
             y => Enumerable.Range(0, inMermaid.Surface.Width).Any(x => inMermaid.Surface[x, y] == participantFill));
         Assert.Empty(inMermaid.Diagnostics);
+        Assert.Equal("seq.puml", Assert.Single(inMermaid.Embedded).Href);
     }
 
     /// <summary>

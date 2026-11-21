@@ -599,13 +599,17 @@ sections:
               for text drawn without a feature it uses (rotate, textLength, a vertical
               writing-mode, direction rtl, dominant-baseline,
               alignment-baseline, text-decoration, an unsupported baseline-shift, or a character no
-              font covers); it shall cover all drawn content, report nothing for content that is
+              font covers), and svg-filter-unsupported for a filter applied with
+              primitiveUnits="objectBoundingBox" or a primitive subregion (x, y, width or height on
+              an fe* primitive); it shall cover all drawn content, report nothing for content that is
               not drawn by design, skip the checks when no handler is set, and never change the
               pixels or fail the render.
             justification: |
               Text that silently disappears or loses its layout is the hardest rendering defect
               for a reader to notice; a report lets a host tell the author, or fail a strict
-              build, while the rest of the document is still drawn.
+              build, while the rest of the document is still drawn. The codec does not implement
+              primitiveUnits and reads a primitive subregion as a fraction of the filter region,
+              so a filter that uses either is drawn differently from a browser; the report says so.
             tests:
               - SvgCodec_UnsupportedFeatureHandler_TextPath_ReportsTextNotDrawn
               - SvgCodec_UnsupportedFeatureHandler_RotateTextLengthAndWritingMode_ReportsOneUnsupportedWithEveryFeature
@@ -616,6 +620,8 @@ sections:
               - SvgCodec_UnsupportedFeatureHandler_PlainAndStyledText_ReportsNothing
               - SvgCodec_UnsupportedFeatureHandler_DoesNotChangeThePixels
               - SvgCodec_UnsupportedFeatureHandler_DefaultIsNull
+              - SvgCodec_UnsupportedFeatureHandler_FilterPrimitiveUnitsObjectBoundingBox_ReportsFilterUnsupported
+              - SvgCodec_UnsupportedFeatureHandler_FilterPrimitiveSubregion_ReportsFilterUnsupported
 
           - id: CanvasNetSvg-SvgCodec-FontWeightStyleCascade
             title: >-
@@ -698,23 +704,40 @@ sections:
             title: >-
               The SvgCodec class shall report an SVG document's resolved intrinsic width,
               height, channel count (4), and alpha presence (true) via GetInfo, given a
-              stream or a file path, using its viewBox when present.
+              stream or a file path, using its viewBox when present, and reading past the root
+              start tag only when the root has no viewBox and a width or height in a
+              font-relative unit, so that a stylesheet font-size or line-height sizes the root as
+              Load draws it, falling back to the start-tag-only size when the rest of the document
+              is not well-formed.
             justification: |
               Callers need to inspect an SVG document's intrinsic size before choosing a
-              raster target size to load it into.
+              raster target size to load it into. Browsers size an em or lh root with the
+              stylesheet's font, so GetInfo must too, but reading the whole document only when the
+              size can depend on it keeps the common case as cheap as the start tag, and a
+              malformed body is a Load error, not a reason for GetInfo to fail.
             tests:
               - SvgCodec_GetInfo_ViewBoxPresent_ReturnsViewBoxDimensions
               - SvgCodec_GetInfo_FromFilePath_ReturnsExpectedInfo
+              - SvgCodec_GetInfoAndLoad_RootFontSizeFromStylesheet_Agree
+              - SvgCodec_GetInfo_RootSizeInLineHeightUnitsFromStylesheet_UsesRule
+              - SvgCodec_GetInfo_FontRelativeRootSizeWithMalformedBody_UsesStartTagOnly
 
           - id: CanvasNetSvg-SvgCodec-GetInfoFallback
             title: >-
               The SvgCodec class shall fall back to the document's width/height attributes
               when no viewBox is present, and to the CSS/UA default replaced-element
-              intrinsic size of 300x150 when neither a viewBox nor width/height are present.
+              intrinsic size of 300x150 when neither a viewBox nor width/height are present,
+              treating a width or height that depends on a root font-size or line-height in
+              viewport units as absent, in GetInfo and Load alike.
             justification: |
               Many real-world SVG documents omit a viewBox, or omit sizing information
-              entirely; GetInfo must still report a usable size rather than failing.
+              entirely; GetInfo must still report a usable size rather than failing. A root
+              font-size or line-height in viewport units depends on the size being decided
+              (browsers give such an image no natural size), so both entry points use the same
+              fallback and Load resolves the viewport unit against it.
             tests:
+              - SvgCodec_GetInfoAndLoad_RootSizeFromViewportRelativeLineHeight_FallsBackAndAgrees
+              - SvgCodec_GetInfo_RootSizeInLineHeightUnits_UsesRootLineHeight
               - SvgCodec_GetInfo_NoViewBoxWidthHeightPresent_ReturnsWidthHeight
               - SvgCodec_GetInfo_NoViewBoxNoWidthHeight_ReturnsCssDefault300x150
               - SvgCodec_GetInfo_WidthExceedsInt32Range_ClampsToInt32MaxValueWithoutThrowing
@@ -757,8 +780,9 @@ sections:
             title: >-
               The SvgCodec class shall explicitly disable DTD processing (DtdProcessing.Prohibit)
               and external entity/DTD resolution (a null XmlResolver) on every XmlReaderSettings
-              instance it constructs - both Load's full-document parse and GetInfo's root-start-tag-
-              only parse - and shall reject a document containing a DOCTYPE declaration (including
+              instance it constructs - both Load's full-document parse and GetInfo's bounded parse
+              (the root start tag, and the body only for a font-relative root size) - and shall reject
+              a document containing a DOCTYPE declaration (including
               one that declares an external or parameter entity) with InvalidDataException via
               either entry point.
             justification: |
@@ -841,8 +865,9 @@ sections:
               user units) - with ex measured as the height of the font's x glyph and ch as the
               advance of the glyph 0, each falling back to 0.5em when the font has no such
               glyph, and shall report a root width/height in these units from GetInfo converted
-              to user units rather than with the unit stripped, resolving lh and rlh there
-              against the root's own line-height and font-size exactly as Load does.
+              to user units rather than with the unit stripped, resolving em, rem, lh and rlh
+              there against the root's own font-size and line-height from its attributes, inline
+              style and stylesheet rules exactly as Load does.
             justification: |
               SVG 2 and CSS Values 4 define lengths with units, and real documents (Vega and
               Vega-Lite output with font-size="10px", Inkscape output in mm, hand-written SVG in
@@ -877,6 +902,8 @@ sections:
               - SvgCodec_Load_RootSizeInInches_FitsContentToConvertedSize
               - SvgCodec_GetInfo_RootSizeInLineHeightUnits_UsesRootLineHeight
               - SvgCodec_Load_RootSizeInLineHeightUnits_FitsContentToReportedSize
+              - SvgCodec_GetInfo_RootSizeInLineHeightUnitsFromStylesheet_UsesRule
+              - SvgCodec_GetInfoAndLoad_RootFontSizeFromStylesheet_Agree
               - SvgCodec_Load_LineHeightInLineHeightUnits_ResolvesAgainstParent
               - SvgCodec_Load_LegacyNumberForms_StillParse
 
@@ -962,7 +989,9 @@ sections:
               units, like a literal number, wherever SVG 2 allows a number (stroke-width,
               stroke-dasharray entries and stroke-dashoffset, and every length presentation
               attribute including the font-size attribute), shall be a multiplier for
-              line-height, and shall be ignored for a font-size declared in CSS (an inline style,
+              line-height (a negative math line-height, number or length, being clamped to 0,
+              while a negative literal line-height stays invalid), and shall be ignored for a
+              font-size declared in CSS (an inline style,
               a stylesheet, or the font shorthand or attribute), a mixed expression (a number
               combined with a length or percentage, for example calc(1 + 1px) or calc(10% + 1))
               being invalid everywhere.
@@ -976,8 +1005,10 @@ sections:
               4.2 (Attribute syntax) inserts number into length and length-percentage for
               presentation attributes, so a number-typed result is user units there; CSS Fonts 4
               font-size and the font shorthand have no number, and line-height names a number as
-              a multiplier. Browser behavior for a number-typed math function in an SVG attribute
-              has not been verified.
+              a multiplier. CSS Values 4 (Range Checking) clamps a math function whose result is
+              out of the property's range instead of rejecting it, so calc(10px - 20px) is a
+              line-height of 0 (Edge agrees), while a literal -5px is invalid. Browser behavior for
+              a number-typed math function in an SVG attribute has not been verified.
             tests:
               - SvgCodec_Load_MathFunction_Evaluates
               - SvgCodec_Load_DashArrayEntryMathFunction_IsOneEntry
@@ -988,6 +1019,7 @@ sections:
               - SvgCodec_Load_MathResultIsLengthOrLiteralNumber_StillAccepted
               - SvgCodec_Load_LineHeightNumberMath_IsMultiplier
               - SvgCodec_Load_LineHeightLengthMathAndTypeMix_FollowsType
+              - SvgCodec_Load_NegativeLineHeightMath_ClampsToZero
               - SvgCodec_Load_MaskRegionBoundingBoxMath_UsesFractionBasis
               - SvgCodec_Load_MaskRegionBoundingBoxMixedPercentAndNumber_FallsBackToDefault
               - SvgCodec_Load_GradientBoundingBoxNumberMath_IsAccepted
@@ -1022,6 +1054,7 @@ sections:
               - SvgCodec_GetInfo_RootSize_ConvertsUnitsOrFallsBack
               - SvgCodec_Load_MalformedFontSize_IsIgnoredAndInherited
               - SvgCodec_Load_MalformedLineHeight_IsIgnored
+              - SvgCodec_Load_NegativeLiteralLineHeight_IsIgnored
               - SvgCodec_Load_NonPositiveFontSize_RendersNoText
               - SvgCodec_Load_MalformedTextDxDy_IsIgnored
               - SvgCodec_Load_InvalidFontShorthand_IsDropped
@@ -1094,9 +1127,13 @@ sections:
               renderable shape or text element's filter presentation attribute, evaluating
               its feFlood/feGaussianBlur/feOffset/feComposite/feMerge primitive children in
               document order against that element's own SourceGraphic content, honoring the
-              filter region's default (-10%/-10%/120%/120% of the element's own bounding box)
-              or explicit x/y/width/height, and tolerating any other primitive type as a
-              no-op passthrough of its own input.
+              filter region's default (-10%/-10%/120%/120% of the element's own geometry
+              bounding box: its fill geometry, excluding stroke and markers) or explicit
+              x/y/width/height, drawing nothing when that box has no width or no height, and
+              honoring filterUnits (under userSpaceOnUse the region is in absolute user units,
+              a percentage or an omitted attribute's initial value being of the viewport, and an
+              empty box drawing the filter normally), and tolerating any other primitive type as
+              a no-op passthrough of its own input.
             justification: |
               Real-world SVG documents commonly use filter="url(#id)" for common effects
               such as a solid-color halo/background behind text labels (the reported
@@ -1111,7 +1148,9 @@ sections:
               - SvgCodec_Load_FilterUnsupportedPrimitive_PassesThroughSourceGraphicUnchanged
               - SvgCodec_Load_FilterDefaultRegion_ExpandsBoundingBoxByTenAndTwentyPercent
               - SvgCodec_Load_FilterExplicitRegion_UsesDeclaredXYWidthHeight
-              - SvgCodec_Load_FilterUserSpaceOnUse_FallsBackToObjectBoundingBoxDefault
+              - SvgCodec_Load_FilterUnitsUserSpaceOnUse_ReadsRegionAsAbsoluteCoordinates
+              - SvgCodec_Load_FilterUnitsUserSpaceOnUsePercentages_ResolveAgainstViewport
+              - SvgCodec_Load_FilterUnitsUserSpaceOnUseOnHorizontalLine_IsApplied
               - SvgCodec_Load_FeOffsetFilter_ShiftsSourceGraphicByDxDy
               - SvgCodec_Load_FeOffsetFilterWithHalfPixelDx_RoundsAwayFromZeroNotToEven
               - SvgCodec_Load_LabelHaloFixture_RendersWhiteHaloBehindLineMidpointLabel
@@ -1120,7 +1159,8 @@ sections:
               - SvgCodec_Load_FeCompositeOperatorAtop_BlendsBothInputsWeightedByBothAlphas
               - SvgCodec_Load_FeCompositeOperatorXor_KeepsEachInputWhereTheOtherHasNoCoverage
               - SvgCodec_Load_FeCompositeOperatorXorWithHalfChannelValue_RoundsAwayFromZeroNotToEven
-              - SvgCodec_Load_FilterOnStrokedHorizontalLine_UsesStrokeAwareBoundsNotDegenerate
+              - SvgCodec_Load_FilterRegionOnStrokedShape_UsesGeometryBoundsNotStroke
+              - SvgCodec_Load_ObjectBoundingBoxEffectsOnHorizontalLine_PaintNothing
               - SvgCodec_Load_OpacityWithFeFloodFilter_AppliesOpacityToFilteredResultNotSource
               - SvgCodec_Load_FeCompositeOperatorArithmetic_MatchesHandComputedFormula
               - SvgCodec_Load_FeCompositeOperatorArithmeticAlpha_MatchesFormulaNotHardcodedOrDropped
@@ -1193,7 +1233,9 @@ sections:
               The SvgCodec class shall render a filter="url(#id)" attribute on a g/symbol
               reference or use element by evaluating the referenced filter's primitive chain
               against the whole resolved subtree's own combined rendered content, as a single
-              unit, honoring the same filter-region computation, opacity-applies-to-filtered-
+              unit, honoring the same filter-region computation (on the subtree's geometry
+              bounding box: the union of its fill geometry, excluding stroke, markers and
+              nested filter regions), opacity-applies-to-filtered-
               result-once ordering, and resource-safety budgets already used for a single
               filtered shape, while continuing to have no effect on a filter attribute placed
               on marker content; shall bound the total bounds-only pre-pass work performed
@@ -1273,8 +1315,10 @@ sections:
               - SvgCodec_Load_GroupFilterReferencedByManyUsesExceedingCumulativeBudget_FallsBackToUnfilteredForExcessUses
               - SvgCodec_Load_InkscapeFiltersFixture_ToleratesFiltersAndRendersFlowerContent
               - SvgCodec_Load_FilteredGroupNearTotalElementBudget_RendersWithoutThrowing
-              - SvgCodec_Load_FilteredGroupWithLineMarkerExtendingBeyondLineBounds_MarkerPixelsSurviveFilter
-              - SvgCodec_Load_GroupFilterWithNestedFilteredChildExpandingBeyondOwnBounds_PreservesFullNestedFilterOutput
+              - SvgCodec_Load_ClippedGroupWithLineMarkerExtendingBeyondLineBounds_MarkerPixelsSurviveClip
+              - SvgCodec_Load_ClippedGroupWithNestedFilteredChildExpandingBeyondOwnBounds_PreservesFullNestedFilterOutput
+              - SvgCodec_Load_GroupFilterWithNestedFilteredChild_RegionUsesGroupGeometryBounds
+              - SvgCodec_Load_EffectsOnStrokedGroup_UseGeometryBoundsNotStroke
               - SvgCodec_Load_DeeplyNestedFilteredGroupsExceedingCumulativeBoundsPrePassBudget_ThrowsInvalidDataException
               - SvgCodec_Load_ModestlyNestedFilteredGroups_RenderCorrectlyWithoutFalsePositiveFallback
               - SvgCodec_Load_OuterGroupFilterWithPathologicallyOversizedDescendantFilter_StillAppliesOuterFilter
@@ -1533,7 +1577,9 @@ sections:
               direct rect/circle/ellipse/polyline/polygon/path/text children, honoring
               clipPathUnits (userSpaceOnUse, the default, resolving children in the
               referencing element's own local space; objectBoundingBox, resolving children as
-              fractions of the referencing element's own bounding box) and each clip child's
+              fractions of the referencing element's own geometry bounding box, its fill
+              geometry excluding stroke and markers, and drawing nothing when that box has no
+              width or no height) and each clip child's
               own clip-rule (nonzero, the default, or evenodd), while tolerating a dangling or
               wrong-element-type clip-path reference as a no-op (rendering unclipped).
             justification: |
@@ -1554,6 +1600,10 @@ sections:
               - SvgCodec_Load_ClipPathChildClipRuleEvenOdd_ProducesHoleAtOverlap
               - SvgCodec_Load_ClipPathOnGroup_ClipsCombinedGroupContent
               - SvgCodec_Load_ClipPathReferencesNonClipPathElement_RendersUnclipped
+              - SvgCodec_Load_ClipPathObjectBoundingBoxOnStrokedShape_UsesGeometryBoundsNotStroke
+              - SvgCodec_Load_EffectsOnStrokedGroup_UseGeometryBoundsNotStroke
+              - SvgCodec_Load_ObjectBoundingBoxEffectsOnHorizontalLine_PaintNothing
+              - SvgCodec_Load_UserSpaceOnUseEffectsOnHorizontalLine_AreDrawn
 
           - id: CanvasNetSvg-SvgCodec-MaskRendering
             title: >-
@@ -1567,8 +1617,10 @@ sections:
               defaulting to objectBoundingBox) independently from maskContentUnits (the mask
               content's own coordinate system, defaulting to userSpaceOnUse), with an omitted
               x, y, width or height taking its -10%, -10%, 120% or 120% initial value against
-              the referencing element's bounding box under objectBoundingBox and against the
-              current viewport under userSpaceOnUse, while tolerating a dangling or
+              the referencing element's geometry bounding box (its fill geometry, excluding
+              stroke and markers) under objectBoundingBox and against the current viewport
+              under userSpaceOnUse, drawing nothing when an objectBoundingBox region or content
+              meets a box with no width or no height, while tolerating a dangling or
               wrong-element-type mask reference as a no-op (rendering unmasked).
             justification: |
               mask is SVG's standard mechanism for a soft, gradient-capable reveal/hide effect
@@ -1590,6 +1642,10 @@ sections:
               - SvgCodec_Load_MaskContentUnitsObjectBoundingBox_ScalesMaskContentToReferenceBounds
               - SvgCodec_Load_MaskOnUseElement_MasksResolvedTarget
               - SvgCodec_Load_MaskRegionUserSpaceOmittedAttribute_DefaultsAgainstViewport
+              - SvgCodec_Load_MaskObjectBoundingBoxOnStrokedShape_UsesGeometryBoundsNotStroke
+              - SvgCodec_Load_EffectsOnStrokedGroup_UseGeometryBoundsNotStroke
+              - SvgCodec_Load_ObjectBoundingBoxEffectsOnHorizontalLine_PaintNothing
+              - SvgCodec_Load_UserSpaceOnUseEffectsOnHorizontalLine_AreDrawn
 
           - id: CanvasNetSvg-SvgCodec-EffectOrdering
             title: >-
@@ -2118,7 +2174,8 @@ sections:
           - id: CanvasNetSvg-SvgCodec-ImageSourceUnsupportedNotes
             title: >-
               The Svg package's image source shall return each feature of the linked SVG file that the
-              codec reports as not supported (svg-text-not-drawn, svg-text-unsupported) as an
+              codec reports as not supported (svg-text-not-drawn, svg-text-unsupported,
+              svg-filter-unsupported) as an
               Unsupported note of the result with that code, and, when the request asks to throw on an
               unsupported feature, shall fail with UnsupportedImageFeatureException naming the first code.
             justification: |

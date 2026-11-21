@@ -20,7 +20,7 @@ public static partial class SvgCodec
     /// <summary>
     ///     Parses <paramref name="stream"/> as XML and returns its validated <c>svg</c> root
     ///     element, including its full descendant tree. Used by <c>Load</c> only, which needs the
-    ///     complete document to render shape content - see <see cref="LoadRootElementAttributesOnly"/>
+    ///     complete document to render shape content - see <see cref="LoadRootElementForInfo"/>
     ///     for the bounded, header-only parse <c>GetInfo</c> uses instead.
     /// </summary>
     /// <param name="stream">The stream to parse.</param>
@@ -57,21 +57,24 @@ public static partial class SvgCodec
     }
 
     /// <summary>
-    ///     Parses only <paramref name="stream"/>'s root <c>svg</c> start-tag and its own
-    ///     attributes using a forward-only <see cref="XmlReader"/>, never reading past the root
-    ///     element's attributes into the document body. Used by <c>GetInfo</c> only, so that
-    ///     resolving intrinsic size costs time and memory proportional to the root start-tag alone
-    ///     - never the full document body, regardless of how large or deeply nested it is. The
-    ///     reader is still bounded by the same <see cref="MaxDocumentCharacters"/> character cap
-    ///     <c>LoadRootElement</c> applies, since even a parse that never reads past the root
-    ///     start-tag can still be forced to materialize an unbounded amount of data via a single
-    ///     oversized root-tag attribute value.
+    ///     Parses <paramref name="stream"/>'s root <c>svg</c> start-tag and its own attributes using a forward-only
+    ///     <see cref="XmlReader"/> and, only when the root size can depend on the document's stylesheet (see
+    ///     <see cref="RootSizeDependsOnFont"/>), the rest of the document with the same reader. Used by <c>GetInfo</c>
+    ///     only, so that resolving the intrinsic size of a typical document (a <c>viewBox</c>, or a size in absolute
+    ///     units) costs time and memory proportional to the root start-tag alone - never the full document body,
+    ///     regardless of how large or deeply nested it is. The reader is still bounded by the same
+    ///     <see cref="MaxDocumentCharacters"/> character cap <c>LoadRootElement</c> applies, since even a parse that
+    ///     never reads past the root start-tag can still be forced to materialize an unbounded amount of data via a
+    ///     single oversized root-tag attribute value.
     /// </summary>
     /// <param name="stream">The stream to parse.</param>
     /// <returns>
-    ///     A new, detached, childless <see cref="XElement"/> named <c>svg</c> carrying only the
-    ///     root element's own attributes. Namespace-declaration attributes (<c>xmlns</c> and
-    ///     <c>xmlns:*</c>) are omitted, since none of this class's attribute lookups need them.
+    ///     The whole root element when its size is font-relative and the document is well-formed; otherwise a new,
+    ///     detached, childless <see cref="XElement"/> named <c>svg</c> carrying only the root element's own attributes
+    ///     (namespace-declaration attributes, <c>xmlns</c> and <c>xmlns:*</c>, are omitted, since none of this class's
+    ///     attribute lookups need them). A document whose body is malformed (or over the character cap) also gives the
+    ///     start-tag-only element, so <c>GetInfo</c> keeps its start-tag-only contract for such a document; its size
+    ///     then ignores the stylesheet.
     /// </returns>
     /// <exception cref="InvalidDataException">
     ///     Thrown when <paramref name="stream"/> is not well-formed XML up to and including the
@@ -80,21 +83,19 @@ public static partial class SvgCodec
     ///     start-tag alone (including an oversized attribute value) exceeds
     ///     <see cref="MaxDocumentCharacters"/>.
     /// </exception>
-    private static XElement LoadRootElementAttributesOnly(Stream stream)
+    private static XElement LoadRootElementForInfo(Stream stream)
     {
         try
         {
             // A plain XmlReader, bounded only by MaxCharactersInDocument, is forward-only and
             // never buffers more than the current node, so advancing only as far as the root
-            // start-tag's attributes - and never calling Read() again - guarantees the rest of
-            // the document body is never parsed or walked, regardless of its size or
-            // well-formedness. The character cap is still required despite that: the reader
-            // still advances character-by-character through a single root-tag attribute value
-            // even though it never reads any further afterward, so an oversized attribute value
-            // alone (never mind the document body) could otherwise force this method to
-            // materialize an unbounded amount of data. SafeXml.CreateReader supplies that character
-            // cap and never processes a DOCTYPE declaration or resolves an external entity/DTD,
-            // hardening against XML External Entity (XXE) injection.
+            // start-tag's attributes - and reading on only for a font-relative root size - guarantees
+            // the rest of a typical document body is never parsed or walked. The character cap is
+            // still required: the reader still advances character-by-character through a single
+            // root-tag attribute value, so an oversized attribute value alone could otherwise force
+            // this method to materialize an unbounded amount of data. SafeXml.CreateReader supplies
+            // that character cap and never processes a DOCTYPE declaration or resolves an external
+            // entity/DTD, hardening against XML External Entity (XXE) injection.
             using var reader = SafeXml.CreateReader(stream, MaxDocumentCharacters);
             if (reader.MoveToContent() != XmlNodeType.Element || reader.LocalName != "svg")
             {
@@ -115,7 +116,7 @@ public static partial class SvgCodec
                 } while (reader.MoveToNextAttribute());
             }
 
-            return root;
+            return RootSizeDependsOnFont(root) ? ReadWholeRootOrStartTag(reader, root) : root;
         }
         catch (XmlException ex)
         {
@@ -124,11 +125,81 @@ public static partial class SvgCodec
     }
 
     /// <summary>
+    ///     Reads the whole root element from a reader positioned on its attributes, for a root size that needs the
+    ///     document's stylesheet.
+    /// </summary>
+    /// <param name="reader">The reader, positioned on the root start-tag or one of its attributes.</param>
+    /// <param name="startTag">The start-tag-only root element, returned when the rest of the document is malformed.</param>
+    /// <returns>The whole root element, or <paramref name="startTag"/> when the body cannot be read.</returns>
+    private static XElement ReadWholeRootOrStartTag(XmlReader reader, XElement startTag)
+    {
+        try
+        {
+            reader.MoveToElement();
+            return XNode.ReadFrom(reader) as XElement ?? startTag;
+        }
+        catch (XmlException)
+        {
+            // A malformed body is Load's concern: GetInfo still sizes the root from its start tag (decision D4)
+            return startTag;
+        }
+    }
+
+    /// <summary>
+    ///     Determines whether the root size depends on the root's font size or line height, which a stylesheet rule
+    ///     may set: no <c>viewBox</c>, and a <c>width</c> or <c>height</c> in a font-relative unit (<c>em</c>,
+    ///     <c>ex</c>, <c>ch</c>, <c>rem</c>, <c>lh</c>, <c>rlh</c>, also inside a math function).
+    /// </summary>
+    /// <param name="startTag">The root element (its attributes are read).</param>
+    /// <returns>
+    ///     <see langword="true"/> when the <c>width</c> or <c>height</c> resolves differently against two different root
+    ///     fonts; <see langword="false"/> when a <c>viewBox</c> is present or neither does.
+    /// </returns>
+    private static bool RootSizeDependsOnFont(XElement startTag)
+    {
+        if (!string.IsNullOrWhiteSpace((string?)startTag.Attribute("viewBox")))
+        {
+            return false;
+        }
+
+        // Two root fonts that differ in size and line height: an absolute, percentage or viewport length resolves the
+        // same against both (or not at all), a font-relative one does not
+        var small = CreateRootFontProbe(10f);
+        var large = CreateRootFontProbe(20f);
+        var width = (string?)startTag.Attribute("width");
+        var height = (string?)startTag.Attribute("height");
+        return ProbesDiffer(ParseLength(width, small), ParseLength(width, large)) ||
+            ProbesDiffer(ParseLength(height, small), ParseLength(height, large));
+    }
+
+    /// <summary>
+    ///     Builds a root-size state whose font size and line height are both <paramref name="size"/>, with no viewport,
+    ///     for <see cref="RootSizeDependsOnFont"/>.
+    /// </summary>
+    /// <param name="size">The font size and line height, in user units.</param>
+    /// <returns>The probe state.</returns>
+    private static RenderState CreateRootFontProbe(float size)
+    {
+        var lineHeight = new LineHeightSpec(size, IsMultiplier: false);
+        return RenderState.Initial with
+        {
+            FontSize = size,
+            RootFontSize = size,
+            LineHeight = lineHeight,
+            RootLineHeight = lineHeight,
+            ViewportWidth = float.NaN,
+            ViewportHeight = float.NaN,
+            RootViewportWidth = float.NaN,
+            RootViewportHeight = float.NaN
+        };
+    }
+
+    /// <summary>
     ///     Builds the <see cref="InvalidDataException"/> for a stream that is not well-formed XML,
     ///     naming where the reader found the first error.
     /// </summary>
     /// <remarks>
-    ///     Both <see cref="LoadRootElement"/> and <see cref="LoadRootElementAttributesOnly"/> use
+    ///     Both <see cref="LoadRootElement"/> and <see cref="LoadRootElementForInfo"/> use
     ///     this, so <c>Load</c> and <c>GetInfo</c> report the same message. The message names the
     ///     line and column of the error so a user can find the fault in a large drawing, and it says
     ///     that <c>--</c> is not allowed inside an XML comment when that is the error, since that
@@ -228,12 +299,18 @@ public static partial class SvgCodec
     ///     300x150 CSS/UA default).
     /// </summary>
     /// <param name="root">The document's root element.</param>
+    /// <param name="stylesheet">
+    ///     The document's stylesheet, whose root <c>font-size</c> and <c>line-height</c> rules size a font-relative
+    ///     <c>width</c>/<c>height</c> (see <see cref="CreateRootSizeState"/>); CSS <c>width</c>/<c>height</c> are not
+    ///     read, as browsers ignore them for the natural size of an SVG image.
+    /// </param>
     /// <returns>The resolved origin (viewBox top-left, or the zero vector) and size.</returns>
     /// <exception cref="InvalidDataException">
     ///     Thrown when a <c>viewBox</c> attribute is present but malformed (not exactly four
-    ///     numbers, or a non-positive width/height).
+    ///     numbers, or a non-positive width/height), or matching the stylesheet against the root exceeds the CSS
+    ///     matching budget.
     /// </exception>
-    private static (Vector2 Origin, Vector2 Size) ResolveViewBoxOrSize(XElement root)
+    private static (Vector2 Origin, Vector2 Size) ResolveViewBoxOrSize(XElement root, CssStylesheet stylesheet)
     {
         var viewBox = ParseViewBox((string?)root.Attribute("viewBox"));
         if (viewBox.HasValue)
@@ -241,7 +318,7 @@ public static partial class SvgCodec
             return viewBox.Value;
         }
 
-        var rootSizeState = CreateRootSizeState(root);
+        var rootSizeState = CreateRootSizeState(root, stylesheet);
         var width = ParseLength((string?)root.Attribute("width"), rootSizeState);
         var height = ParseLength((string?)root.Attribute("height"), rootSizeState);
         if (width is > 0f && height is > 0f)

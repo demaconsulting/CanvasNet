@@ -350,14 +350,16 @@ public class FileAccessPolicyTests
     }
 
     /// <summary>
-    ///     Validates that a path written in another letter case than the one stored on disk is compared in its on-disk
-    ///     spelling, so it is not mistaken for a link.
+    ///     Validates in a folder that ignores letter case that a path written in another letter case than the one stored
+    ///     on disk is compared in its on-disk spelling, so it is not mistaken for a link. Skips where the temporary folder
+    ///     compares letter case (there the written path names no file, so the case variant is kept as written).
     /// </summary>
     [Fact]
     public void FileAccessPolicy_NoSymlinks_WrittenPathInAnotherLetterCase_IsAllowed()
     {
         // Arrange: stored as sub/a.txt, written as SUB/A.TXT
         using var directory = new SandboxTempDirectory();
+        FileTestSupport.RequireCaseInsensitive(directory.Path);
         var baseDirectory = Directory.CreateDirectory(directory.Combine("base")).FullName;
         directory.Write("base/sub/a.txt", "a");
 
@@ -413,6 +415,33 @@ public class FileAccessPolicyTests
 
         // Assert
         Assert.False(decision.IsAllowed);
+    }
+
+    /// <summary>
+    ///     Validates on Windows that the link match accepts a trusted folder and a real path on a volume without a drive
+    ///     letter (both in the <c>\\?\Volume{GUID}\</c> form): the real path that is the anchor followed by the path
+    ///     as written matches, and one in another folder of that volume does not.
+    /// </summary>
+    [Fact]
+    public void FileAccessPolicy_MatchesWithoutLinks_VolumeGuidAnchorAndRealPath_Match()
+    {
+        // Arrange
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Skip(FileTestSupport.WindowsOnly);
+        }
+
+        const string Volume = @"\\?\Volume{67589fd6-ee90-4e7d-9ad7-a17168a66d75}\";
+        const string Anchor = @"D:\mounted\base";
+        const string Requested = @"D:\mounted\base\sub\a.txt";
+
+        // Act
+        var same = FileAccessPolicy.MatchesWithoutLinks(Anchor, Volume + "base", Requested, Requested, Volume + @"base\sub\a.txt");
+        var elsewhere = FileAccessPolicy.MatchesWithoutLinks(Anchor, Volume + "base", Requested, Requested, Volume + @"other\a.txt");
+
+        // Assert
+        Assert.True(same);
+        Assert.False(elsewhere);
     }
 
     /// <summary>

@@ -22,7 +22,9 @@ see-also:
   length attribute, including the font-size attribute), a mixed result such as
   calc(1 + 1px) or calc(10% + 1) is always invalid, a plain-number result in a
   font-size from a style declaration, stylesheet, or font shorthand is ignored,
-  and line-height treats it as a multiplier.
+  and line-height treats it as a multiplier. A negative math line-height (such
+  as calc(10px - 20px)) is clamped to 0, as in browsers; a negative literal
+  (-5px) is invalid.
 - font-size from an attribute, a style attribute, a style element, or the font
   shorthand (style, weight, size, / line-height, family): lengths, percent, the
   keywords xx-small to xxx-large (9, 10, 13, 16, 18, 24, 32, and 48 pixels),
@@ -65,8 +67,10 @@ see-also:
   the parent's line height and rlh on the root is the initial 1.2 times 16, so a
   line height never refers to itself. The root width and height can use
   font-relative units (against the root's own font-size and line-height from its
-  attributes or style, so lh and rlh there use the root's own line height), but
-  a percent or viewport unit there is ignored. The keyword sizes follow the
+  attributes, style, or a style element rule, as it is drawn and as browsers
+  size it), but a percent or viewport unit there, or a root font-size or
+  line-height in viewport units, is ignored (the viewBox or 300x150 is used).
+  CSS width and height do not size the root. The keyword sizes follow the
   browsers' table, not the CSS Fonts factors (9.6, 12, 14.2, 16, 19.2, 24, 32,
   and 48).
 - A length that is not valid (an unknown unit, a space between number and unit,

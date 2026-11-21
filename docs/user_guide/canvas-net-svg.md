@@ -112,9 +112,15 @@ the root `width`/`height` and the `viewBox` disagree.
 `font` shorthand (a number multiplies each element's own font size; a length, `em` or percentage is
 fixed where it is declared). Inside `line-height` itself, `lh` is the parent's line height and, on
 the root `svg`, `rlh` is the initial 1.2 x 16 = 19.2, as in CSS, so `line-height: 2lh` never refers
-to itself. A root `width`/`height` in `lh` or `rlh` uses the root's own line height and font size
-(from its `style` attribute, `font-size` attribute or `font` attribute), so `GetInfo` reports
-`width="2lh" height="3rlh" font-size="10" style="line-height: 2"` as 40 by 60.
+to itself. A root `width`/`height` in `em`, `rem`, `lh` or `rlh` uses the root's own font size and
+line height (from its `style` attribute, a `style` element rule, its `font-size` attribute or its `font`
+attribute), exactly as the root is drawn and as browsers size it, so `GetInfo` reports
+`width="2lh" height="3rlh" font-size="10" style="line-height: 2"` as 40 by 60, and
+`width="10em" height="5em"` with `<style>svg { font-size: 20px }</style>` as 200 by 100. CSS `width` and
+`height` rules do not size the root, as browsers ignore them for an SVG image. A root `font-size` or
+`line-height` in viewport units (`font-size: 5vw`) depends on the size it would decide, so a `width` or
+`height` that uses it counts as absent: `GetInfo` and `Load` both use the `viewBox` or 300 by 150, and
+the viewport unit is then resolved against that size (browsers give such an image no natural size).
 
 `calc()` supports `+`, `-`, `*` and `/` (with spaces around `+` and `-`, as CSS requires),
 parentheses and nested `calc()`, and `min()`, `max()` and `clamp()` take lengths or numbers (not
@@ -134,7 +140,9 @@ A mixed expression (`calc(1 + 1px)`, `calc(10% + 1)`) is always invalid. The one
 `font-size` declared in CSS (a `style` attribute, a `style` element rule, or the `font` shorthand or
 attribute), whose grammar has no number: a number-typed result there is ignored and the inherited
 size stays. `line-height` keeps treating a number-typed result as a multiplier like a bare number
-(`line-height: calc(1 + 1)` is twice each element's own font size). This follows the specification
+(`line-height: calc(1 + 1)` is twice each element's own font size). A negative math `line-height`
+(`calc(10px - 20px)`, `calc(1 - 2)`) is clamped to 0, as CSS and the browsers do, while a negative literal (`-5px`,
+`-2`) is invalid and dropped. This follows the specification
 text; browser behavior for a number-typed math function in an SVG attribute has not been verified.
 
 **Percentages in gradient, pattern and mask coordinates.** A plain percentage and a percentage
@@ -165,6 +173,14 @@ pattern. A fallback may be any color, including `rgb(...)`. A reference that nam
 names an element that is not a gradient or pattern, or points into another file (`url(other.svg#g) red`) also paints
 its fallback color, as SVG 2 and the browsers do, and nothing without one. A gradient without stops paints nothing,
 even with a fallback.
+
+**Effects use the fill box.** A `filter`, `mask` or `clip-path` in `objectBoundingBox` units (the default filter and
+mask region, `maskContentUnits="objectBoundingBox"` and `clipPathUnits="objectBoundingBox"`) is laid out on the
+element's fill geometry box, without its stroke, markers or nested filter effects, as SVG 2 and the browsers do: a
+filter region of `x="0" width="0.5"` on a stroked `rect` covers the left half of the fill, and the stroke outside the
+fill box is not drawn. On a group the box is the union of its children's fill geometry. On an element whose box has
+no width or no height, such as a stroked horizontal `line`, such an effect draws nothing; a `userSpaceOnUse` mask or
+clip path still draws it.
 
 `font-size` can be set by an attribute, a `style` attribute, a `style` element rule, or the `font`
 shorthand (for example `font: italic bold 12px/1.5 "Helvetica Neue", sans-serif`, which also resets
@@ -510,7 +526,8 @@ foreach (var hint in hints)
 
 ##### Unsupported Features: SvgLoadOptions.UnsupportedFeatureHandler
 
-Set `SvgLoadOptions.UnsupportedFeatureHandler` to learn about text the codec cannot draw. After the document is painted,
+Set `SvgLoadOptions.UnsupportedFeatureHandler` to learn about text and filters the codec cannot draw as written. After
+the document is painted,
 the codec calls the handler at most once per code with an `SvgUnsupportedFeature` (`Code`, `Message`, and `Count`, the
 number of elements); the message lists the features or reasons and names the first element (its name, `id`, and the
 start of its text). A report never changes the pixels and never fails the load, and no checks run when no handler is
@@ -525,6 +542,10 @@ set. Content drawn through `use`, `marker`, `pattern`, `mask`, and `clipPath` re
   `textLength`, a vertical `writing-mode`, `direction: rtl`, `dominant-baseline`,
   `alignment-baseline`, `text-decoration`, an unsupported `baseline-shift`, and a character that no font has a glyph
   for (drawn as the missing-glyph box, named by its code point).
+- `svg-filter-unsupported` (`SvgUnsupportedFeature.FilterUnsupportedCode`): a filter drawn without a feature it uses -
+  `primitiveUnits="objectBoundingBox"`, which is not read (primitive values stay in user units), or a primitive
+  subregion (`x`, `y`, `width` or `height` on an `fe*` primitive), which is read as a fraction of the filter
+  region; the element counted and named is the `filter`.
 
 ```csharp
 var unsupported = new List<SvgUnsupportedFeature>();
@@ -547,9 +568,9 @@ public sealed class SvgImageSource : IImageSource   // Name "svg"; Extensions ["
 resolves the file's own `image` elements through the resolver of the request, so relative links inside the
 nested file resolve against its own folder and the limits of the whole render apply: SVG files that embed each
 other stop with a warning instead of recursing without end. A position binding of the nested file that is not resolved
-is a warning of the result with its `svg-binding-*` code, and text the nested file cannot draw is an `Unsupported` note
-with its `svg-text-*` code; with `ThrowOnUnsupportedFeature` set on the request, such text throws
-`UnsupportedImageFeatureException` instead.
+is a warning of the result with its `svg-binding-*` code, and text or a filter the nested file cannot draw as written is
+an `Unsupported` note with its `svg-text-*` or `svg-filter-unsupported` code; with `ThrowOnUnsupportedFeature` set on
+the request, such a feature throws `UnsupportedImageFeatureException` instead.
 
 ##### SvgCodec Default Fonts
 
@@ -644,11 +665,13 @@ Decodes and rasterizes an SVG file at the specified path, as `Load(Stream, int, 
 public static ImageInfo GetInfo(Stream stream)
 ```
 
-Parses only the SVG document's root `svg` start-tag and its own attributes (never reading into
-the document body) and returns an `ImageInfo` describing its intrinsic size, without rasterizing
-pixel data. Uses `viewBox` when present; otherwise falls back to `width`/`height` attributes;
-otherwise falls back to the CSS/UA default replaced-element intrinsic size of 300x150. `Channels`
-is always 4 and `HasAlpha` is always true.
+Parses the SVG document's root `svg` start-tag and its own attributes and returns an `ImageInfo`
+describing its intrinsic size, without rasterizing pixel data. Uses `viewBox` when present; otherwise
+falls back to `width`/`height` attributes; otherwise falls back to the CSS/UA default replaced-element
+intrinsic size of 300x150. The document body is read only when the root has no `viewBox` and a
+`width` or `height` in `em`, `ex`, `ch`, `rem`, `lh` or `rlh`, so a `style` element's `font-size`
+or `line-height` sizes it as `Load` draws it; when that body is not well-formed, the size comes from
+the start-tag alone. `Channels` is always 4 and `HasAlpha` is always true.
 
 **Exceptions:**
 
@@ -658,7 +681,8 @@ is always 4 and `HasAlpha` is always true.
   named `svg`, or its `viewBox` attribute is present but malformed (not exactly four numbers, or
   non-positive width/height). A malformed or unparseable `width`/`height` attribute is **not**
   included in this list: such a value is treated as absent and falls back to the next sizing tier
-  (ultimately the 300x150 default size) rather than throwing.
+  (ultimately the 300x150 default size) rather than throwing. For a font-relative root size it is also
+  thrown when matching the document's stylesheet against the root exceeds the CSS matching budget.
 
 ##### SvgCodec.GetInfo(string path)
 

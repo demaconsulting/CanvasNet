@@ -2203,8 +2203,10 @@ Each distinct file is read **once per resolver** (per root it is reached through
 always run), and a miss or a too-large file is remembered too (it is not opened again), so a resolver serves one logical
 operation (one render, one document) and is then dropped. **An instance is not thread-safe**: use one per
 operation, or serialize access. `SandboxOptions` and the returned `SandboxedFile` are immutable and may be
-shared. Use `resolver.KeyComparer` to decide whether two `Key` values name the same file (it is ordinal for
-callback paths and case-insensitive for full paths on Windows and macOS).
+shared. Use `resolver.KeyComparer` to decide whether two `Key` values name the same file: it is ordinal in both
+modes (earlier releases ignored letter case for full paths on Windows and macOS). A folder may be case-sensitive on
+every system, so `a.txt` and `A.txt` are two keys; on a case-insensitive volume such spellings of one file are each
+checked, read, and counted against `MaxFiles` on their own, which costs an extra read and fails safe.
 
 **Security note.** The sandbox protects against path-based escapes and against a link swapped into the tree after
 its check: before a single byte is read, the **open file** is verified - its real path, asked of the operating
@@ -2379,15 +2381,18 @@ case-sensitive volume or directory (Linux, case-sensitive APFS on macOS, a Windo
 enabled) it is another folder. Every side of the comparison is in the letter case stored on disk: `UnderRoots` captures
 each folder's real location in that case, and the resolver hands the policy the real path of the open file
 (`FileAccessRequest.RealPath`) in that case too, after confirming that this spelling names the opened file through no
-link (by its volume serial number and file index on Windows, its device and inode on Linux and macOS). So on a
-case-insensitive volume (the default on Windows and macOS) a folder or a reference written in another letter case still
-works. The fail-closed cases: a file whose stored spelling cannot be confirmed to name the opened file - for example on
-a file system that reports the spelling a file was opened with and holds several names that differ only in letter case,
-or a spelling that reaches the file through a linked folder another process created meanwhile - is denied
-(`AccessDenied`, the letter case its real path has on disk cannot be confirmed to name the opened file); a folder whose
-entries cannot be listed keeps the name as written, which can only deny. Only the check of the path as written before
-the open keeps the system's rule (case-insensitive on Windows and macOS). A policy you call yourself with `Check` must
-get `RealPath` in its on-disk letter case.
+link (by its volume serial number and file identifier on Windows - the 128-bit identifier where the volume reports it,
+as ReFS does - and its device and inode on Linux and macOS). So on a case-insensitive volume (the default on Windows and
+macOS) a folder or a reference written in another letter case still works. The fail-closed cases: a file whose stored
+spelling cannot be confirmed to name the opened file - for example on a file system that reports the spelling a file was
+opened with and holds several names that differ only in letter case, or a spelling that reaches the file through a
+linked folder another process created meanwhile - is denied (`AccessDenied`, the letter case its real path has on disk
+cannot be confirmed to name the opened file); a folder whose entries cannot be listed keeps the name as written, which
+can only deny; and in a case-sensitive folder a name written in another letter case than a stored entry names no file,
+so it is kept as written (it is matched to the stored entry only when both spellings open the same entry, which is what
+a case-insensitive folder does). Only the check of the path as written before the open keeps the system's rule
+(case-insensitive on Windows and macOS). A policy you call yourself with `Check` must get `RealPath` in its on-disk
+letter case.
 
 Under **every** policy the resolver refuses a referenced network path (`\\server\share`, `//host`) as `NetworkPath`, a
 device path
@@ -2397,7 +2402,9 @@ such as `NUL.txt`, trailing spaces or dots), or an alternate data stream (any co
 `InvalidPath`, a control
 character, and anything that is not a regular file (a directory, a device such as `/dev/zero`, a named pipe, which never
 blocks the open) as `NotARegularFile`, and it keeps `MaxFileBytes` and `MaxFiles`. A policy other than `AllowAll` needs
-the real path of the open file: Windows, Linux (with `/proc` mounted), and macOS provide it; elsewhere such a policy
+the real path of the open file: Windows, Linux (with `/proc` mounted), and macOS provide it (on Windows also on a volume
+mounted on a folder or without a drive letter, where the real paths of the roots and the files are in the
+`\\?\Volume{GUID}\` form and are compared like any other); elsewhere such a policy
 refuses every file with `RealPathUnavailable`. A policy that throws or returns no decision denies the file. These
 refusals are about the files a document references; the top-level file you name yourself is opened as given.
 
@@ -2416,6 +2423,14 @@ nothing the author of the document did not write and is safe to show to that aut
 written). Show the other properties only to trusted users. With a `FileResolver` callback, the file system and the
 policy are not used at all: the callback
 is the policy. An instance is not thread-safe (one per operation); options and policies are immutable and may be shared.
+
+Each distinct `Key` is opened once per resolver, and `resolver.KeyComparer`, under which two keys name the same path,
+is ordinal in both modes (earlier releases ignored letter case for full paths on Windows and macOS). A folder may be
+case-sensitive on every system, where `a.txt` and `A.txt` are two files, so a cache that ignored letter case could hand
+out the bytes of the wrong file. On a case-insensitive volume two spellings of one file that differ only in letter
+case are therefore two keys: each is opened, checked, and counted against `MaxFiles` on its own, and whatever keys by
+`Key` treats them as two files (a PlantUML `!include_once`, the Vega-Lite data cache, OpenSCAD includes). This costs an
+extra read and fails safe; spell each reference to one file the same way to read it once.
 
 ```csharp
 using System.Text;

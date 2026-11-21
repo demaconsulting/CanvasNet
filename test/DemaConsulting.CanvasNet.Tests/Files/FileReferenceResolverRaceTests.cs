@@ -370,6 +370,36 @@ public class FileReferenceResolverRaceTests
     }
 
     /// <summary>
+    ///     Validates in a folder that compares letter case that a link named like a file in another letter case
+    ///     (<c>Target.txt</c> to <c>target.txt</c>), created after the on-disk spelling was captured and before the open,
+    ///     is denied under the no-symlinks policy: the written name named no entry when the spelling was captured, so it
+    ///     was kept as written, and the file the open reached through the link does not match it. Skips where the
+    ///     temporary folder ignores letter case.
+    /// </summary>
+    [Fact]
+    public void FileReferenceResolver_Resolve_CaseVariantLinkCreatedBeforeTheOpen_IsDeniedUnderNoSymlinks()
+    {
+        // Arrange
+        using var directory = new SandboxTempDirectory();
+        FileTestSupport.RequireCaseSensitive(directory.Path);
+        directory.Write("root/target.txt", "target");
+        var root = Path.GetFullPath(directory.Combine("root"));
+        var hooks = new FileOpenHooks
+        {
+            BeforeOpen = _ => File.CreateSymbolicLink(Path.Join(root, "Target.txt"), "target.txt"),
+        };
+        var resolver = new FileReferenceResolver(
+            new FileReferenceOptions { BaseDirectory = root, FileAccess = FileAccessPolicy.NoSymlinks }, Ct, hooks);
+
+        // Act
+        var ex = Assert.Throws<FileReferenceException>(() => resolver.Resolve("Target.txt"));
+
+        // Assert
+        Assert.Equal(FileReferenceFailureKind.AccessDenied, ex.Kind);
+        Assert.Equal("no-symlinks", ex.PolicyName);
+    }
+
+    /// <summary>
     ///     Builds the outside-to-inside swap: <c>root/sub</c> is a link to <c>outside</c> (which holds <c>a.txt</c>), and
     ///     after the open the link is removed and replaced by a real folder with a benign <c>a.txt</c>.
     /// </summary>

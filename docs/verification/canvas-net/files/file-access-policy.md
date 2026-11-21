@@ -71,18 +71,21 @@ captured in the stored letter case.
 `FileAccessPolicy_NoSymlinks_LinkAboveTheAnchor_IsTrusted`,
 `FileAccessPolicy_NoSymlinks_ShortNameSpelling_IsAllowed` (Windows),
 `FileAccessPolicy_NoSymlinks_RealPathDifferingInLetterCaseBelowTheAnchor_IsDenied`,
-`FileAccessPolicy_NoSymlinks_WrittenPathInAnotherLetterCase_IsAllowed`,
+`FileAccessPolicy_NoSymlinks_WrittenPathInAnotherLetterCase_IsAllowed` (Windows, macOS),
 `FileAccessPolicy_NoSymlinks_LinkNamedLikeItsTargetInAnotherCase_IsDenied` (Linux),
-`FileAccessPolicy_NoSymlinks_AnchorInAnotherLetterCaseThanTheBase_IsNotTrusted` (Linux)
+`FileAccessPolicy_NoSymlinks_AnchorInAnotherLetterCaseThanTheBase_IsNotTrusted` (Linux),
+`FileAccessPolicy_MatchesWithoutLinks_VolumeGuidAnchorAndRealPath_Match` (Windows)
 
 A real path equal to the written path below the base directory is allowed and the name is `no-symlinks`; a different
 real path below the anchor is denied with a reason naming a symbolic link or junction and a hint; a base directory that
 is itself a link is trusted; a path written with short (8.3) names is allowed when its long spelling matches. A real
 path that spells an existing folder below the anchor (`sub`) in another letter case (`SUB`) is denied; a path written as
-`SUB/A.TXT` whose stored spelling is `sub/a.txt` is allowed (compared in its on-disk spelling). In a case-sensitive
-folder a link `Docs` to `docs` is denied, and a link `ALLOWED` next to the base directory `allowed` is not trusted as
-the anchor, so a file reached through it is denied. That the base directory a resolver passes is the trusted chain
-origin, never a referring document's folder, is verified with the resolver
+`SUB/A.TXT` whose stored spelling is `sub/a.txt` is allowed in a case-insensitive folder (compared in its on-disk
+spelling). In a case-sensitive folder a link `Docs` to `docs` is denied, and a link `ALLOWED` next to the base directory
+`allowed` is not trusted as the anchor, so a file reached through it is denied. On Windows the link match accepts an
+anchor location and a real path on a volume without a drive letter (both `\\?\Volume{GUID}\...`): the anchor followed by
+the path as written matches, and another folder of that volume does not. That the base directory a resolver passes is
+the trusted chain origin, never a referring document's folder, is verified with the resolver
 (`CanvasNet-Files-FileReferenceResolver-ChainOrigin`).
 
 ##### CanvasNet-Files-FileAccessPolicy-AnchoredAt: A Nested Request Is Judged From the Outer Origin

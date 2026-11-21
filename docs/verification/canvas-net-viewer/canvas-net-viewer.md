@@ -64,28 +64,30 @@ null extra sources are rejected.
 `CanvasNetViewer_Render_SizeOutOfRange_ThrowsBeforeReading`, `CanvasNetViewer_Render_SizeAtBoundaries_IsAccepted`,
 `CanvasNetViewer_Render_ResizedFinalBuffer_IsChargedToTheBudget`,
 `CanvasNetViewer_Render_SvgWithEmbeds_SurfacesDiagnosticsEchoAndEmbedded`,
+`CanvasNetViewer_Render_MermaidNodePictures_AreListedOnceEach`,
+`CanvasNetViewer_Render_SvgEmbeddingMermaidWithPicture_ListsThePictureOnce`,
 `CanvasNetViewer_Render_SvgEscapingAndSelfEmbedding_AreWarnings`,
 `CanvasNetViewer_Render_PathFailures_ThrowSpecificExceptions`,
 `CanvasNetViewer_Render_ThrowOnUnsupportedFeature_FailsInsteadOfNote`,
 `CanvasNetViewer_Render_CanceledToken_ThrowsOperationCanceledException`
 
 Asserts the natural size and format name, that disposing the result disposes the surface, a vector drawn at the
-requested
-size and a raster fitted into the box (or scaled for one dimension), that `MaxDecodedPixels` reaches the resolver (null
-keeps the default, a cap that fits renders, a smaller cap throws `ImageSourceBudgetException`, a negative one is
-rejected), that a Mermaid diagram whose picture node without `w` and `h` (a 400 by 300 PNG) enlarges the layout is held
-to `MaxDecodedPixels` at its drawn size (300 000 pixels, enough for both picture loads and the probed size, throws
-`ImageSourceBudgetException` whose requested pixels are those of the drawn surface; 400 000 draws it larger than the
-probed size, about 416 by 316), that a width or height
-of 0, -1, or `Surface.MaxDimension + 1` throws `ArgumentOutOfRangeException`
-(parameter `options`, message naming `ViewerRenderOptions.Width` or `Height`) before the file is read while 1 and
-`Surface.MaxDimension` pass the validation, that the final buffer of a resized render is charged to the budget in
-addition to the surface of the source (a 10 by 10 picture resized to 1 by 1 needs 101 pixels: a cap of 100 throws
-`ImageSourceBudgetException`, 101 returns the 1 by 1 picture), the notes, printed text, and embedded images of an
-SVG that embeds files (and, under `UnderRoots(site)`, that a link to the parent folder is the `image-access-denied`
-warning and a self-embedding SVG the cycle warning), the exceptions for a missing file, an unknown extension, a corrupt
-file (with the original failure inside), and a null path (a folder option that holds the file works), the strict
-switch, and a canceled token.
+requested size and a raster fitted into the box (or scaled for one dimension), that `MaxDecodedPixels` reaches the
+resolver (null keeps the default, a cap that fits renders, a smaller cap throws `ImageSourceBudgetException`, a negative
+one is rejected), that a Mermaid diagram whose picture node without `w` and `h` (a 400 by 300 PNG) enlarges the layout
+is held to `MaxDecodedPixels` at its drawn size (300 000 pixels, enough for both picture loads and the probed size,
+throws `ImageSourceBudgetException` whose requested pixels are those of the drawn surface; 400 000 draws it larger than
+the probed size, about 416 by 316), that a width or height of 0, -1, or `Surface.MaxDimension + 1` throws
+`ArgumentOutOfRangeException` (parameter `options`, message naming `ViewerRenderOptions.Width` or `Height`) before the
+file is read while 1 and `Surface.MaxDimension` pass the validation, that the final buffer of a resized render is
+charged to the budget in addition to the surface of the source (a 10 by 10 picture resized to 1 by 1 needs 101 pixels: a
+cap of 100 throws `ImageSourceBudgetException`, 101 returns the 1 by 1 picture), the notes, printed text, and embedded
+images of an SVG that embeds files, that a Mermaid diagram whose two nodes show a PNG and an SVG file lists each picture
+once at depth 0 (although the diagram measures each picture before drawing it) and that an SVG document that shows such
+a diagram lists its picture once at depth 1 before the diagram (and, under `UnderRoots(site)`, that a link to the parent
+folder is the `image-access-denied` warning and a self-embedding SVG the cycle warning), the exceptions for a missing
+file, an unknown extension, a corrupt file (with the original failure inside), and a null path (a folder option that
+holds the file works), the strict switch, and a canceled token.
 
 #### CanvasNetViewer-CanvasNetViewer-FileAccess: The File-Access Policy Of A Render
 

@@ -32,6 +32,16 @@ public static partial class SvgCodec
     private const float RelativeFontSizeRatio = 1.2f;
 
     /// <summary>
+    ///     The small and the large square viewport, in user units, the root font size and line height are resolved
+    ///     against to find out whether they depend on the viewport (see <see cref="CreateRootSizeState"/>). They are far
+    ///     apart so a viewport unit inside <c>min()</c>, <c>max()</c> or <c>clamp()</c> still changes the result.
+    /// </summary>
+    private const float SmallProbeViewport = 1f;
+
+    /// <inheritdoc cref="SmallProbeViewport"/>
+    private const float LargeProbeViewport = 10_000f;
+
+    /// <summary>
     ///     The pixel size of each <c>&lt;absolute-size&gt;</c> keyword at the default <c>medium</c>
     ///     of 16 - the table used by the major browsers (<c>9/10/13/16/18/24/32/48</c>).
     /// </summary>
@@ -167,8 +177,9 @@ public static partial class SvgCodec
     /// </param>
     /// <returns>
     ///     <see langword="true"/> when the declaration sets a value; <see langword="false"/> for an
-    ///     invalid value, a negative value, <c>inherit</c>/<c>unset</c> (both inherit) or
-    ///     <c>revert</c>, meaning "keep the parent's line height". Never throws.
+    ///     invalid value, a negative literal value, <c>inherit</c>/<c>unset</c> (both inherit) or
+    ///     <c>revert</c>, meaning "keep the parent's line height". A negative math result
+    ///     (<c>calc(10px - 20px)</c>) is clamped to 0, as CSS does. Never throws.
     /// </returns>
     private static bool TryParseLineHeight(string raw, RenderState state, out LineHeightSpec? computed)
     {
@@ -199,13 +210,17 @@ public static partial class SvgCodec
 
         // A number-typed math result (calc(1 + 1)) is a multiplier like a bare number; a length or
         // percentage result is an absolute length (CSS Values 4, "Type Checking", which singles out
-        // line-height for this); the two are told apart by the type the evaluator preserved
-        if (!TryResolveLengthOrNumber(text, state, PercentageAxis.FontSize, out var length, out var isNumber, out _) || length < 0f)
+        // line-height for this); the two are told apart by the type the evaluator preserved. A
+        // negative literal is invalid, but a negative math result is clamped to 0 (CSS Values 4,
+        // "Range Checking": a math function's out-of-range result is clamped, not rejected)
+        var isMath = StartsWithMathFunction(text);
+        if (!TryResolveLengthOrNumber(text, state, PercentageAxis.FontSize, out var length, out var isNumber, out _) ||
+            (length < 0f && !isMath))
         {
             return false;
         }
 
-        computed = new LineHeightSpec(length, IsMultiplier: isNumber);
+        computed = new LineHeightSpec(MathF.Max(length, 0f), IsMultiplier: isNumber);
         return true;
     }
 
@@ -673,21 +688,23 @@ public static partial class SvgCodec
     ///     root <c>width</c>/<c>height</c>, which must be known before any render state exists.
     /// </summary>
     /// <param name="root">The root element.</param>
-    /// <returns>The root's font size: the first valid of its inline <c>style</c> (including the <c>font</c> shorthand), its <c>font-size</c> attribute, then its <c>font</c> attribute (an invalid one is dropped, not masking the next), else 16.</returns>
+    /// <param name="style">The root's styling context: its inline <c>style</c> and the matching stylesheet rules.</param>
+    /// <param name="parent">The state the size resolves against (the initial font, and the viewport of a probe).</param>
+    /// <returns>
+    ///     The root's font size: the first valid of its CSS (inline <c>style</c>, then a stylesheet rule, including the
+    ///     <c>font</c> shorthand), its <c>font-size</c> attribute, then its <c>font</c> attribute (an invalid one is
+    ///     dropped, not masking the next), else 16.
+    /// </returns>
     /// <remarks>
-    ///     Stylesheet rules are not consulted: the stylesheet is built after the document size is
-    ///     known. A root whose size depends on a <c>&lt;style&gt;</c>-declared font size therefore
-    ///     sizes against 16, a documented simplification that keeps <c>GetInfo</c> and <c>Load</c>
-    ///     in agreement. Only the <c>font-size</c> attribute accepts a number-typed math result
-    ///     (see <see cref="ParseFontSizeValue"/>), mirroring the element cascade so both entry
-    ///     points agree.
+    ///     The sources and their order are exactly those of the element cascade (<see cref="ApplyPresentationAttributes"/>),
+    ///     so <c>GetInfo</c> and <c>Load</c> size the root with the font size it is drawn with. Only the
+    ///     <c>font-size</c> attribute accepts a number-typed math result (see <see cref="ParseFontSizeValue"/>).
     /// </remarks>
-    private static float ReadRootFontSize(XElement root)
+    private static float ReadRootFontSize(XElement root, CssElementStyleContext style, RenderState parent)
     {
         string? fontAttributeSize = null;
         ExpandFontAttribute(root)?.TryGetValue("font-size", out fontAttributeSize);
-        return ResolveFontSize(
-            ReadRootInlineDeclaration(root, "font-size"), (string?)root.Attribute("font-size"), fontAttributeSize, RenderState.Initial);
+        return ResolveFontSize(ResolveStyledValue(style, "font-size"), (string?)root.Attribute("font-size"), fontAttributeSize, parent);
     }
 
     /// <summary>
@@ -696,51 +713,25 @@ public static partial class SvgCodec
     ///     render state exists.
     /// </summary>
     /// <param name="root">The root element.</param>
-    /// <param name="fontState">The root-size state carrying the root's own font size (see <see cref="CreateRootSizeState"/>).</param>
+    /// <param name="style">The root's styling context: its inline <c>style</c> and the matching stylesheet rules.</param>
+    /// <param name="fontState">
+    ///     The root-size state carrying the root's own font size and the viewport of a probe (see
+    ///     <see cref="CreateRootSizeState"/>).
+    /// </param>
     /// <returns>
-    ///     The root's line height from its inline <c>style</c> (including the <c>font</c> shorthand),
-    ///     else its <c>font</c> attribute, else <see langword="null"/> (<c>normal</c>).
+    ///     The root's line height from its CSS (inline <c>style</c>, then a stylesheet rule, including the <c>font</c>
+    ///     shorthand), else its <c>font</c> attribute, else <see langword="null"/> (<c>normal</c>).
     /// </returns>
     /// <remarks>
     ///     Shares <see cref="ResolveComputedLineHeight"/> with the element cascade so <c>GetInfo</c>
-    ///     and <c>Load</c> agree, and, like <see cref="ReadRootFontSize"/>, does not consult
-    ///     stylesheet rules. A value that needs the viewport (<c>vw</c>...) has no basis here and is
-    ///     dropped, so the root sizes against <c>normal</c>.
+    ///     and <c>Load</c> agree.
     /// </remarks>
-    private static LineHeightSpec? ReadRootLineHeight(XElement root, RenderState fontState)
+    private static LineHeightSpec? ReadRootLineHeight(XElement root, CssElementStyleContext style, RenderState fontState)
     {
         string? fontAttributeLineHeight = null;
         ExpandFontAttribute(root)?.TryGetValue("line-height", out fontAttributeLineHeight);
         return ResolveComputedLineHeight(
-            ReadRootInlineDeclaration(root, "line-height"), fontAttributeLineHeight, fontState, RenderState.Initial);
-    }
-
-    /// <summary>Reads the last declaration of <paramref name="property"/> in the root element's inline <c>style</c>.</summary>
-    /// <param name="root">The root element.</param>
-    /// <param name="property">The lower-cased property name.</param>
-    /// <returns>The value, or <see langword="null"/> when the inline style does not declare the property.</returns>
-    /// <remarks>
-    ///     The declaration parser expands the <c>font</c> shorthand and drops an invalid font
-    ///     declaration, so the last survivor wins.
-    /// </remarks>
-    private static string? ReadRootInlineDeclaration(XElement root, string property)
-    {
-        var inline = (string?)root.Attribute("style");
-        if (inline == null)
-        {
-            return null;
-        }
-
-        string? value = null;
-        foreach (var (name, declared) in ParseDeclarationBlock(inline))
-        {
-            if (name == property)
-            {
-                value = declared;
-            }
-        }
-
-        return value;
+            ResolveStyledValue(style, "line-height"), fontAttributeLineHeight, fontState, RenderState.Initial);
     }
 
     /// <summary>
@@ -893,10 +884,29 @@ public static partial class SvgCodec
     ///     their fallbacks.
     /// </summary>
     /// <param name="root">The root element.</param>
+    /// <param name="stylesheet">
+    ///     The document's stylesheet (<see cref="CssStylesheet.Empty"/> when only the root start tag was read), so a
+    ///     stylesheet <c>font-size</c> or <c>line-height</c> sizes the root exactly as it draws it.
+    /// </param>
     /// <returns>The root-size resolution state, whose <c>lh</c> and <c>rlh</c> are both the root's own line height.</returns>
-    private static RenderState CreateRootSizeState(XElement root)
+    /// <exception cref="InvalidDataException">Thrown when matching the stylesheet against the root exceeds the CSS matching budget.</exception>
+    /// <remarks>
+    ///     The root font size and line height are each resolved against two very different viewports. A value that
+    ///     differs depends on the viewport (<c>font-size: 5vw</c>, <c>line-height: 20vw</c>), which is itself what the
+    ///     root size decides, so it is unknown here (NaN), and a <c>width</c> or <c>height</c> that depends on it counts as
+    ///     absent: <c>GetInfo</c> and <c>Load</c> both fall back to the <c>viewBox</c> or 300x150, and <c>Load</c> then
+    ///     resolves the viewport unit against that same size. Browsers give such an image no natural size.
+    /// </remarks>
+    private static RenderState CreateRootSizeState(XElement root, CssStylesheet stylesheet)
     {
-        var fontSize = ReadRootFontSize(root);
+        var style = stylesheet.BuildElementContext(root, new CssMatchWorkBudget());
+
+        var fontSize = ReadRootFontSize(root, style, WithProbeViewport(RenderState.Initial, SmallProbeViewport));
+        if (ProbesDiffer(fontSize, ReadRootFontSize(root, style, WithProbeViewport(RenderState.Initial, LargeProbeViewport))))
+        {
+            fontSize = float.NaN;
+        }
+
         var fontState = RenderState.Initial with
         {
             FontSize = fontSize,
@@ -907,7 +917,48 @@ public static partial class SvgCodec
             RootViewportHeight = float.NaN
         };
 
-        var lineHeight = ReadRootLineHeight(root, fontState);
+        var lineHeight = ReadRootLineHeight(root, style, WithProbeViewport(fontState, SmallProbeViewport));
+        var largeLineHeight = ReadRootLineHeight(root, style, WithProbeViewport(fontState, LargeProbeViewport));
+        if (lineHeight?.IsMultiplier != largeLineHeight?.IsMultiplier || ProbesDiffer(lineHeight?.Value, largeLineHeight?.Value))
+        {
+            lineHeight = new LineHeightSpec(float.NaN, IsMultiplier: false);
+        }
+
         return fontState with { LineHeight = lineHeight, RootLineHeight = lineHeight };
+    }
+
+    /// <summary>
+    ///     Gives a state a square viewport of <paramref name="size"/> user units, both its own and the root's, for one of
+    ///     the two probes of <see cref="CreateRootSizeState"/>.
+    /// </summary>
+    /// <param name="state">The state.</param>
+    /// <param name="size">The probe viewport's width and height.</param>
+    /// <returns>The state with the probe viewport.</returns>
+    private static RenderState WithProbeViewport(RenderState state, float size) =>
+        state with { ViewportWidth = size, ViewportHeight = size, RootViewportWidth = size, RootViewportHeight = size };
+
+    /// <summary>
+    ///     Determines whether a value resolved against two probes (two viewports, or two fonts) differs, so it depends
+    ///     on what the probes vary.
+    /// </summary>
+    /// <param name="first">The value against the first probe, or <see langword="null"/> when it does not resolve.</param>
+    /// <param name="second">The value against the second probe, or <see langword="null"/> when it does not resolve.</param>
+    /// <returns>
+    ///     <see langword="true"/> when exactly one resolves, exactly one is NaN, or they differ by more than a
+    ///     thousandth of a user unit (a value that does not depend on the probes is computed identically against both).
+    /// </returns>
+    private static bool ProbesDiffer(float? first, float? second)
+    {
+        if (first is not { } a || second is not { } b)
+        {
+            return first.HasValue != second.HasValue;
+        }
+
+        if (float.IsNaN(a) || float.IsNaN(b))
+        {
+            return float.IsNaN(a) != float.IsNaN(b);
+        }
+
+        return MathF.Abs(a - b) > 1e-3f;
     }
 }

@@ -94,7 +94,8 @@ the direct render has the format `plantuml`, a transparent corner, the participa
 (`#E2E2F0`), and no note; that both cells of the SVG document show the participant fill, the embedded images are all
 of the format `plantuml`, and the theme of the second link is the one warning `image-fragment-unknown-parameter` (the
 PlantUML source takes no fragment parameter); and that the Mermaid flowchart shows the participant fill in its node
-with no note.
+with no note and lists the diagram once among its embedded images (the flowchart measures the picture before drawing
+it, and only the draw is listed).
 
 ### Integration: Custom Source For New Extension Is Embedded
 

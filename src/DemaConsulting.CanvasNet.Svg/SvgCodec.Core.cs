@@ -52,7 +52,7 @@ public static partial class SvgCodec
     ///     to the already-region-bounded buffer size, not the radius itself, but whose zero-padded
     ///     edge handling still becomes wastefully expensive for an absurdly large radius) to a
     ///     small, practical amount. Clamped rather than skipped/thrown, unlike an oversized filter
-    ///     region (see <see cref="ComputeFilterRegionPixelBounds(XElement, Rect, Matrix3x2)"/>): a clamped blur still produces
+    ///     region (see <see cref="ComputeFilterRegionPixelBounds(XElement, Rect, Matrix3x2, RenderState)"/>): a clamped blur still produces
     ///     a visually reasonable, just-less-blurred result, whereas a clamped-but-still-rendered
     ///     region would be silently mis-positioned.
     /// </summary>
@@ -299,7 +299,10 @@ public static partial class SvgCodec
     ///     operates on, together with the geometry needed to map it back to the referencing element.
     /// </summary>
     /// <param name="Content">The referencing element's own offscreen content buffer.</param>
-    /// <param name="ReferenceBounds">The referencing element's own local-space painted-content bounds.</param>
+    /// <param name="ReferenceBounds">
+    ///     The referencing element's own local-space object bounding box: the fill geometry, without stroke,
+    ///     markers or filter effects (the box <c>objectBoundingBox</c> units map onto).
+    /// </param>
     /// <param name="PixelX">The pixel-space X origin <paramref name="Content"/> was allocated at.</param>
     /// <param name="PixelY">The pixel-space Y origin <paramref name="Content"/> was allocated at.</param>
     /// <param name="Transform">The accumulated transform from the referencing element's own local space into pixel space.</param>
@@ -309,6 +312,21 @@ public static partial class SvgCodec
         int PixelX,
         int PixelY,
         Matrix3x2 Transform);
+
+    /// <summary>
+    ///     The two boxes the bounds pre-pass computes for a subtree: what it paints, which sizes an offscreen
+    ///     buffer, and its object bounding box, which <c>objectBoundingBox</c> units of an effect map onto.
+    /// </summary>
+    /// <param name="Painted">
+    ///     The painted bounds: stroke, marker content and the regions of nested filters included. Never
+    ///     <see cref="Rect.Empty"/> for a subtree that paints.
+    /// </param>
+    /// <param name="Geometry">
+    ///     The object bounding box: the union of the fill geometry of every shape and text, transformed, without
+    ///     stroke, markers or filter regions (SVG 2, "bounding box"). May have no width or height (a horizontal
+    ///     line), or be <see cref="Rect.Empty"/> when only marker content paints.
+    /// </param>
+    private readonly record struct SubtreeBounds(Rect Painted, Rect Geometry);
 
     /// <summary>
     ///     Tracks the cumulative "geometry parsing work" - path <c>d</c> data commands,

@@ -282,8 +282,8 @@ public static partial class SvgCodec
 
         // Resolve the same filter/clip-path/mask attributes, and the same effects-region
         // precedence, every other effects-capable element resolves - the placement rect itself
-        // stands in for a shape's own stroke-expanded painted bounds (an <image> has no stroke
-        // concept, so no ExpandBoundsForStroke call is needed)
+        // stands in for both a shape's object bounding box and its stroke-expanded painted bounds (an
+        // <image> has no stroke concept, so no ExpandBoundsForStroke call is needed)
         var effects = ResolveImageEffects(element, state, context, suppressEffects, new Rect(x, y, width, height), transform);
         return effects is { } resolved ? new ImagePaintPlan(x, y, width, height, resolved) : null;
     }
@@ -601,7 +601,7 @@ public static partial class SvgCodec
     /// <param name="state">The element's cascaded state, used to resolve a mask region written with CSS units.</param>
     /// <param name="context">The fixed per-document render context.</param>
     /// <param name="suppressEffects">Whether the element's own effects are never resolved (marker content).</param>
-    /// <param name="placementRect">The placement rect, standing in for a shape's painted bounds.</param>
+    /// <param name="placementRect">The placement rect, standing in for a shape's object bounding box and painted bounds.</param>
     /// <param name="transform">The accumulated local-to-pixel transform.</param>
     /// <returns>The resolved effects, or <see langword="null"/> for a degenerate/oversized region.</returns>
     private static ImageEffects? ResolveImageEffects(
@@ -616,7 +616,7 @@ public static partial class SvgCodec
         var clipPathElement = suppressEffects ? null : ResolveClipPathElement(element, context);
         var maskElement = suppressEffects ? null : ResolveMaskElement(element, context);
 
-        var region = ResolveEffectsRegionPixelBounds(filterElement, clipPathElement, maskElement, placementRect, transform, state);
+        var region = ResolveEffectsRegionPixelBounds(filterElement, clipPathElement, maskElement, placementRect, placementRect, transform, state);
         if (region == null)
         {
             return null;

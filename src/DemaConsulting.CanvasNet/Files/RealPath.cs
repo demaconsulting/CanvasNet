@@ -65,17 +65,12 @@ internal static partial class RealPath
     /// </summary>
     /// <remarks>
     ///     Used only for written paths (the lexical pre-check of a policy, the lexical confinement of the sandbox, Windows
-    ///     drive roots) and for cache keys; never for a decision about a real path, which is compared exactly (see
-    ///     <see cref="IsUnder"/>), because a folder may be case-sensitive even on Windows and macOS.
+    ///     drive roots); never for a decision about a real path, which is compared exactly (see <see cref="IsUnder"/>),
+    ///     and never for cache keys, which are ordinal (two spellings that differ in letter case may name two files),
+    ///     because a folder may be case-sensitive even on Windows and macOS.
     /// </remarks>
     internal static StringComparison PathComparison { get; } =
         OperatingSystem.IsWindows() || OperatingSystem.IsMacOS() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
-
-    /// <summary>
-    ///     Gets the comparer that matches <see cref="PathComparison"/>, for cache keys of written paths only.
-    /// </summary>
-    internal static StringComparer PathComparer { get; } =
-        PathComparison == StringComparison.OrdinalIgnoreCase ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
 
     /// <summary>
     ///     Determines whether two real paths name the same location, comparing them exactly (letter case included); on
@@ -221,6 +216,50 @@ internal static partial class RealPath
             && rest[close] == '}'
             && Guid.TryParseExact(rest.Slice(VolumePrefix.Length, GuidLength), "D", out _)
             && (rest.Length == close + 1 || rest[close + 1] == '\\');
+    }
+
+    /// <summary>
+    ///     Converts a final path as Windows reports it (<c>GetFinalPathNameByHandleW</c> with <c>VOLUME_NAME_DOS</c>) into
+    ///     the spelling real paths are compared in: <c>\\?\C:\x</c> becomes <c>C:\x</c>, <c>\\?\UNC\server\share</c>
+    ///     becomes <c>\\server\share</c>, and a path on a volume without a drive letter keeps its volume GUID form
+    ///     (<c>\\?\Volume{GUID}\x</c>, the prefix and the GUID as reported; the bare volume root gets its separator).
+    ///     A pure text rule, the same on every platform.
+    /// </summary>
+    /// <remarks>
+    ///     A volume mounted on a folder, or not mounted at all, has no drive letter, so Windows reports its files by the
+    ///     volume GUID path. That spelling is canonical: the roots and the files on such a volume both come from the
+    ///     final path of a handle, so both carry it in the same spelling and are compared exactly
+    ///     (<see cref="IsUnder(string, string)"/>). The GUID form is the one <see cref="IsOrdinaryExtendedPath"/>
+    ///     accepts; any other spelling (<c>\\?\GLOBALROOT\</c>, <c>\\?\pipe\</c>, a malformed GUID) is no usable path,
+    ///     so it is reported as unknown and a restrictive policy fails closed.
+    /// </remarks>
+    /// <param name="reported">The path as Windows reported it.</param>
+    /// <returns>The canonical spelling, or <see langword="null"/> when the spelling is not a usable path.</returns>
+    internal static string? FromFinalPathName(string reported)
+    {
+        const string ExtendedPrefix = @"\\?\";
+        const string ExtendedUncPrefix = @"\\?\UNC\";
+        const string VolumePrefix = @"\\?\Volume{";
+        const int VolumeRootLength = 48; // \\?\Volume{ (11 characters), the GUID (36) and the closing brace
+
+        // A network file: \\?\UNC\server\share is the UNC path \\server\share
+        if (reported.StartsWith(ExtendedUncPrefix, StringComparison.OrdinalIgnoreCase))
+        {
+            return @"\\" + reported[ExtendedUncPrefix.Length..];
+        }
+
+        // A volume without a drive letter: the volume GUID path is kept as reported; the bare root gets its separator so
+        // that a file below it is joined and compared like below a drive root
+        if (IsOrdinaryExtendedPath(reported) && reported.StartsWith(VolumePrefix, StringComparison.OrdinalIgnoreCase))
+        {
+            return reported.Length == VolumeRootLength ? reported + @"\" : reported;
+        }
+
+        // A drive: \\?\C:\x is C:\x
+        var stripped = reported.StartsWith(ExtendedPrefix, StringComparison.Ordinal) ? reported[ExtendedPrefix.Length..] : reported;
+        return stripped.Length >= 3 && char.IsAsciiLetter(stripped[0]) && stripped[1] == ':' && stripped[2] == '\\'
+            ? stripped
+            : null;
     }
 
     /// <summary>
@@ -375,18 +414,23 @@ internal static partial class RealPath
     ///         root and a <c>\\?\</c> volume root are kept as they are, see <see cref="ExactRoot"/>). Each component is
     ///         then looked up in its corrected parent folder, whose entries are listed and compared with the component
     ///         ignoring letter case (on macOS both in the composed Unicode form): an entry spelled exactly as written
-    ///         wins; otherwise the one entry that matches gives the stored spelling; when no entry or several entries
-    ///         match (a case-sensitive folder holding <c>Docs</c> and <c>docs</c>), the component is kept as written.
+    ///         wins; otherwise the one entry that matches gives the stored spelling, but only when it is the same entry
+    ///         as the name as written (<see cref="IsSameEntry"/>: the folder ignores letter case); when no entry or
+    ///         several entries match (a case-sensitive folder holding <c>Docs</c> and <c>docs</c>), or the single
+    ///         match is not provably the same entry (a case-sensitive folder holding only <c>docs</c>, asked for
+    ///         <c>Docs</c>), the component is kept as written.
     ///         Once a folder does not exist, the rest of the path is kept as written; a folder that cannot be listed
     ///         keeps its component as written. Entries are compared as plain names, so a <c>*</c> or <c>?</c> in a
     ///         name never matches another entry. A <c>\\?\</c> path keeps its root and has the components below it
-    ///         corrected; a real path from <see cref="Inspect"/> never carries the prefix.
+    ///         corrected; a real path from <see cref="Inspect"/> carries the prefix only on a volume without a drive
+    ///         letter (<c>\\?\Volume{GUID}\</c>, see <see cref="FromFinalPathName"/>).
     ///     </para>
     ///     <para>
     ///         <b>Not a decision.</b> The spelling is found by name, so it says nothing about the opened file on its
     ///         own: a caller that uses it for the real path of an open handle confirms it first
     ///         (<see cref="TryConfirmExactPath(SafeFileHandle, string, string)"/>). Reads the file system (one listing
-    ///         per folder of the path); safe to call from any thread.
+    ///         per folder of the path, and two identity opens per component found in another letter case); safe to
+    ///         call from any thread.
     ///     </para>
     /// </remarks>
     /// <param name="path">The path; a relative path is made full against the current directory.</param>
@@ -455,7 +499,7 @@ internal static partial class RealPath
     /// <remarks>
     ///     When the spelling equals the reported real path exactly, it needs no confirmation. Otherwise the spelling must
     ///     name the open file <b>through no link</b> (<see cref="IsSameFile(SafeFileHandle, string)"/>): the same volume
-    ///     serial number and file index on Windows, device and inode on Linux and macOS, with no link at its last
+    ///     serial number and file identifier on Windows, device and inode on Linux and macOS, with no link at its last
     ///     component and no junction or link in one of its folders. A spelling that names another file, a link, a file
     ///     reached through a linked folder (which would place the file where it is not), or a file whose identity cannot
     ///     be read is not confirmed (fail closed). Never throws.
@@ -495,7 +539,8 @@ internal static partial class RealPath
 
     /// <summary>
     ///     Determines whether a path names the same file as an open handle through no link, by identity: the volume
-    ///     serial number and the file index on Windows, the device and the inode on Linux and macOS. The last component
+    ///     serial number and the file identifier on Windows (128-bit where the volume reports it), the device and the
+    ///     inode on Linux and macOS. The last component
     ///     of the path is not followed when it is a link, so a link to the file is a different file; and the path must
     ///     reach the file through no linked folder (Windows and Linux: the final path of the file opened by the path is
     ///     the path itself; macOS: the path is opened with <c>O_NOFOLLOW_ANY</c>). Never throws.
@@ -555,6 +600,63 @@ internal static partial class RealPath
     }
 
     /// <summary>
+    ///     Determines whether a path as written and the path of a directory entry stored in another letter case name the
+    ///     same entry, by identity, without following a link at the last component of either: the volume serial number
+    ///     and the file identifier on Windows, the device and the inode on Linux and macOS. Never throws.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         <b>Why it exists.</b> <see cref="GetExactPathName"/> maps a name to the single entry that matches it
+    ///         ignoring letter case. That is right in a case-insensitive folder, where both spellings name one entry,
+    ///         but wrong in a case-sensitive one, where the written name names nothing (or another entry): mapping it
+    ///         there would let a link created later under the written name pass as the stored entry. Asking whether both
+    ///         spellings open the same entry tells the two kinds of folder apart, per folder.
+    ///     </para>
+    ///     <para>
+    ///         A written name that does not exist, a link at the last component on macOS (which refuses the open), or an
+    ///         identity that cannot be read is unknown; the caller then keeps the name as written (fail closed). Two hard
+    ///         links to one file are the same file, so they count as the same entry; neither is a link, and both name
+    ///         that file.
+    ///     </para>
+    /// </remarks>
+    /// <param name="writtenPath">The full path as written.</param>
+    /// <param name="storedPath">The full path of the entry as stored.</param>
+    /// <returns>
+    ///     <see langword="true"/> when both name the same entry, <see langword="false"/> when they do not, and
+    ///     <see langword="null"/> when a path cannot be opened or an identity cannot be read (including on a platform
+    ///     whose identity is not known here).
+    /// </returns>
+    internal static bool? IsSameEntry(string writtenPath, string storedPath)
+    {
+        try
+        {
+            if (OperatingSystem.IsWindows())
+            {
+                return IsSameEntryWindows(writtenPath, storedPath);
+            }
+
+            if (OperatingSystem.IsLinux())
+            {
+                return IsSameEntryLinux(writtenPath, storedPath);
+            }
+
+            if (OperatingSystem.IsMacOS())
+            {
+                return IsSameEntryMac(writtenPath, storedPath);
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ExternalException
+            or DllNotFoundException or EntryPointNotFoundException or ObjectDisposedException or ArgumentException
+            or NotSupportedException)
+        {
+            // A path that cannot be opened (the written name does not exist in a case-sensitive folder), or an identity
+            // that cannot be read, leaves the answer unknown
+        }
+
+        return null;
+    }
+
+    /// <summary>
     ///     Expands the short (8.3) names of an existing path into their long spelling (Windows); elsewhere, or when the
     ///     path cannot be expanded, returns it unchanged. Links are not resolved.
     /// </summary>
@@ -604,7 +706,8 @@ internal static partial class RealPath
 
     /// <summary>
     ///     Gets the on-disk spelling of one name in a folder, for <see cref="GetExactPathName"/>: the entry spelled
-    ///     exactly as written, else the single entry that matches it ignoring letter case, else the name as written.
+    ///     exactly as written, else the single entry that matches it ignoring letter case and is the same entry as the
+    ///     name as written (<see cref="IsSameEntry"/>), else the name as written.
     /// </summary>
     /// <remarks>
     ///     The folder is listed without a search pattern and every entry is compared as a plain name, so wildcard
@@ -653,7 +756,10 @@ internal static partial class RealPath
                 count++;
             }
 
-            return count == 1 ? single! : name;
+            // A single case variant gives the stored spelling only when the folder treats both spellings as one entry
+            // (a case-insensitive folder); in a case-sensitive folder the name as written names nothing (or another
+            // entry), so it is kept as written, and so is a name whose identity cannot be read (fail closed)
+            return count == 1 && IsSameEntry(Path.Join(folder, name), Path.Join(folder, single)) == true ? single! : name;
         }
         catch (DirectoryNotFoundException)
         {

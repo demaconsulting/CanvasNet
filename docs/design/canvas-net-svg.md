@@ -84,7 +84,9 @@ class:
 - **Unsupported-feature reports** (`SvgLoadOptions.UnsupportedFeatureHandler`, `Action<SvgUnsupportedFeature>?`, default
   `null`): after painting, the codec reports text it does not draw (`svg-text-not-drawn`, for example `textPath` or the
   HTML of a `foreignObject`) and text drawn without a feature it uses (`svg-text-unsupported`, for example `rotate` or
-  a character no font covers), at most once per code per document with the number of elements. Reports never change
+  a character no font covers), and a filter drawn without a feature it uses (`svg-filter-unsupported`,
+  `primitiveUnits="objectBoundingBox"` or a primitive subregion), at most once per code per document with the number
+  of elements. Reports never change
   the pixels or fail the render, and no checks run without a handler (see *SvgCodec Design*, *Unsupported-Feature
   Reports*).
 - **Text layout**: `tspan` and `a` inside a `text` are drawn as runs in their own cascaded style, placed by the
@@ -238,9 +240,10 @@ so this risk control is inherently contained within it (IEC 62304 §5.3.3).
 2. **Validation**: Rejects a null `stream`/`path` with `ArgumentNullException`, an empty/
    whitespace `path` with `ArgumentException`, and malformed SVG data (up to and including the
    root `svg` start-tag) with `InvalidDataException`
-3. **Processing**: Reads only the root `svg` start-tag's own attributes via a forward-only,
-   character-budget-capped `XmlReader`, resolving intrinsic size by falling back from `viewBox`
-   to `width`/`height` to a 300x150 CSS default
+3. **Processing**: Reads the root `svg` start-tag's own attributes via a forward-only,
+   character-budget-capped `XmlReader` (and the rest of the document only for a font-relative root
+   size without a `viewBox`, for its stylesheet font), resolving intrinsic size by falling back from
+   `viewBox` to `width`/`height` to a 300x150 CSS default
 4. **Output**: A `Codecs.ImageInfo` record struct reporting the resolved width, height,
    `Channels = 4`, and `HasAlpha = true`
 

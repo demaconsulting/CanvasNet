@@ -397,6 +397,18 @@ links in the order asked, each with the files that contain it (empty at the top 
 folder-relative names and the missing one with none; that two entries with equal origin entries are equal with equal
 hash codes and differ when the name differs; and that the list is read-only.
 
+##### CanvasNet-ImageSources-FolderImageResolver-Probe: A Load That Only Measures Is Not Listed
+
+**Tests**: `FolderImageResolver_Probe_DrawnPicture_LeavesNoEntryNoteOrRequest`,
+`FolderImageResolver_Probe_UnresolvedLink_KeepsItsWarning`, `FolderImageResolver_Probe_CountsAgainstMaxImages`
+
+Asserts that a file that embeds another file, measured through the probe of the resolver and then drawn, while its
+source measures the nested file through the probe of its scope before drawing it, reaches the source for every load,
+returns the measured picture, and leaves only the draws in `Embedded` (the nested picture first, one level down),
+`Requested`, `Echo`, and `Diagnostics`; that a probe of a missing file returns nothing and keeps its unresolved warning
+and its request; and that a probe counts against `MaxImages`, so a later draw past the limit is refused with the limit
+warning.
+
 ##### CanvasNet-ImageSources-FolderImageResolver-Failures: Failed Files
 
 **Tests**: `FolderImageResolver_Resolve_SourceThrows_WrapsInImageSourceException`,

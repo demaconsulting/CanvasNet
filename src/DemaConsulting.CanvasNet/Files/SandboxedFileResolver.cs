@@ -173,7 +173,7 @@ public sealed partial class SandboxedFileResolver
         _isLink = isLink ?? DefaultIsLink;
         _openFile = openFile;
         _hooks = hooks;
-        KeyComparer = options.FileResolver is null ? PlatformKeyComparer : StringComparer.Ordinal;
+        KeyComparer = StringComparer.Ordinal;
         _files = new Dictionary<string, SandboxedFile?>(KeyComparer);
         _contents = new Dictionary<string, Content?>(KeyComparer);
         _readKeys = new HashSet<string>(KeyComparer);
@@ -182,10 +182,18 @@ public sealed partial class SandboxedFileResolver
     }
 
     /// <summary>
-    ///     Gets the comparer under which two <see cref="SandboxedFile.Key"/> values name the same file: ordinal for
-    ///     logical paths, and the platform's path comparison (case-insensitive on Windows and macOS) for full paths.
-    ///     Use it to detect that two spellings reached one file, for example in an include-cycle check.
+    ///     Gets the comparer under which two <see cref="SandboxedFile.Key"/> values name the same file:
+    ///     <see cref="StringComparer.Ordinal"/> in both modes, for logical paths and for full paths alike. Use it to
+    ///     detect that two spellings reached one file, for example in an include-cycle check.
     /// </summary>
+    /// <remarks>
+    ///     Full paths are compared exactly, letter case included, on every platform, because a folder may be
+    ///     case-sensitive even on Windows and macOS, where <c>a.txt</c> and <c>A.txt</c> are two files; an ignore-case
+    ///     cache would answer one with the bytes (or the link check) of the other. On a case-insensitive volume two
+    ///     spellings of one file that differ in letter case are therefore two keys: each is checked, read and counted
+    ///     against <see cref="SandboxOptions.MaxFiles"/> on its own, which fails safe. Earlier releases ignored letter
+    ///     case for full paths on Windows and macOS.
+    /// </remarks>
     public StringComparer KeyComparer { get; }
 
     /// <summary>
