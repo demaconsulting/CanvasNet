@@ -45,15 +45,17 @@ sections:
                   first end of the edge first, drawn straight between them with the label above the middle, or as an
                   arc over a node or note that the straight line would cross, and shall draw the further links in a row
                   between the same two ends as arcs below and above in turn, each with its label at the middle of its
-                  curve.
+                  curve. Two neighbors joined by a labeled link shall be set apart by the label's width plus 20 pixels,
+                  so that the label is at least 8 pixels from each.
                 justification: |
                   A single dash puts two elements side by side in PlantUML; the layered layout cannot route such a link
-                  itself.
+                  itself. PlantUML leaves about 10 pixels between such a label and each element.
                 tests:
                   - PlantUmlSvekLayout_Run_LengthOne_SameRankStraightWithLabelAbove
                   - PlantUmlSvekLayout_Run_LengthOne_ChainAndCycle_OrderedRows
                   - PlantUmlSvekLayout_Run_LinkInOneRankAcrossANode_IsAnArc
                   - PlantUmlSvekLayout_Run_ParallelLinksInARow_AreSpreadApart
+                  - PlantUmlSvekLayout_Run_RowLabels_ClearOfBothBoxesAndTheLine
 
               - id: CanvasNetPlantUml-Svek-SvekLayout-Clusters
                 title: >-
@@ -97,16 +99,20 @@ sections:
                   its end labels near their ends, off the entities. A route that arrives at a rectangle across the
                   ranks shall end on the side that faces the ranks, at least 10 pixels (a quarter of the side) from its
                   corners, and a link without a label between neighboring ranks shall be drawn straight between the
-                  facing sides of its ends when that line crosses no other element.
+                  facing sides of its ends when that line crosses no other element. The label of a link shall keep at
+                  least 4 pixels from the drawn curve and the decorations of its link and overlap no unit, moved away
+                  from them by at most 32 pixels.
                 justification: |
                   Links must touch the shapes they connect and their labels must be readable. Graphviz ends PlantUML's
                   links on the side they cross; a link that ends at a corner, with its multiplicity far from its head,
-                  does not show which box it reaches.
+                  does not show which box it reaches. A label on or touching its line cannot be read; PlantUML leaves
+                  about 4 pixels.
                 tests:
                   - PlantUmlSvekLayout_Run_SelfAndParallelLinks_AreRouted
                   - PlantUmlSvekLayout_Run_ClipOutlines_RoutesEndOnThem
                   - PlantUmlSvekLayout_Run_Labels_PlacedBesideTheRoute
                   - PlantUmlSvekLayout_Run_LinksFromBelow_EndOnTheSidesNotTheCorners
+                  - PlantUmlSvekLayout_Run_LabelOfLinkIntoARow_ClearOfTheDrawnCurve
 
               - id: CanvasNetPlantUml-Svek-SvekLayout-Limits
                 title: >-

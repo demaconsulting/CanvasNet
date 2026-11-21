@@ -258,7 +258,8 @@ sections:
           pseudo-states of every composite state; choices, forks, joins, and junctions; composite states with
           concurrent regions; notes; hide empty description; page texts; the direction; and the supported skin
           parameters) with PlantUML's shapes, texts, colors, and decorations, laid out in ranks so that no two
-          elements overlap, so that every state, circle, diamond, and composite state of the reference fixtures has
+          elements overlap and the transition labels keep clear of the lines and the states, so that every state,
+          circle, diamond, and composite state of the reference fixtures has
           the size, texts, and colors of PlantUML's (positions may differ), and shall count states and pseudo-states
           as nodes, transitions as edges, and composite states as subgraphs.
         tags: [system]
@@ -280,6 +281,7 @@ sections:
           - CanvasNetPlantUml_State_Fixtures_RenderWithoutReports
           - CanvasNetPlantUml_State_Facts_CountStatesTransitionsAndComposites
           - CanvasNetPlantUml_State_ConcurrentRegions_DrawDashedSeparators
+          - CanvasNetPlantUml_State_TransitionLabels_ClearOfLinesAndStates
 
       - id: CanvasNetPlantUml-Component
         title: >-

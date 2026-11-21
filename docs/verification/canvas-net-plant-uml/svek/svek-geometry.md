@@ -30,11 +30,14 @@ than the stated tolerance, or a count, fill, or exception that differs from the 
 `SvekGeometryTests.PlantUmlSvekGeometry_Spline_ThreePoints_IsTheQuadraticCurve`,
 `SvekGeometryTests.PlantUmlSvekGeometry_Spline_FourPoints_IsTheBezierOfThePoints`,
 `SvekGeometryTests.PlantUmlSvekGeometry_Spline_LongRoute_IsSmoothAndClamped`,
-`SvekGeometryTests.PlantUmlSvekGeometry_Spline_OnePoint_Throws`
+`SvekGeometryTests.PlantUmlSvekGeometry_Spline_OnePoint_Throws`,
+`SvekGeometryTests.PlantUmlSvekGeometry_Flatten_FollowsTheCurve`
 
 Asserts a line for two points, the cubic raised from the quadratic curve of three points, and the Bezier curve of four
 points; for routes of 5, 6, and 9 points asserts one cubic per span, the start and end at the ends of the route, the
 first and last control points on the first and last legs, and C1 joins; asserts an `ArgumentException` for one point.
+Asserts the points along a line (its two ends) and along a curve of three points (8 steps: 9 points from the first end
+to the last, the middle step at the middle of the quadratic curve), and an `ArgumentOutOfRangeException` for no step.
 
 ##### CanvasNetPlantUml-Svek-SvekGeometry-Clipping: Clipping And Route Ends
 

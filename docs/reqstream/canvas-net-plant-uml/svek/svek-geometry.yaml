@@ -17,15 +17,18 @@ sections:
                 title: >-
                   The SvekGeometry unit shall draw a route as a straight line for two points, as the quadratic curve of
                   three points, and as the clamped uniform cubic B-spline of more points, starting and ending at the
-                  ends of the route, leaving them along the first and last legs, and smooth where its cubic pieces meet.
+                  ends of the route, leaving them along the first and last legs, and smooth where its cubic pieces meet,
+                  and shall give points along that curve at even steps of each cubic piece.
                 justification: |
-                  Graphviz draws PlantUML's links as splines; a smooth curve through the route looks like them.
+                  Graphviz draws PlantUML's links as splines; a smooth curve through the route looks like them. Labels
+                  are kept clear of the curve that is drawn, measured at its points.
                 tests:
                   - PlantUmlSvekGeometry_Spline_TwoPoints_IsALine
                   - PlantUmlSvekGeometry_Spline_ThreePoints_IsTheQuadraticCurve
                   - PlantUmlSvekGeometry_Spline_FourPoints_IsTheBezierOfThePoints
                   - PlantUmlSvekGeometry_Spline_LongRoute_IsSmoothAndClamped
                   - PlantUmlSvekGeometry_Spline_OnePoint_Throws
+                  - PlantUmlSvekGeometry_Flatten_FollowsTheCurve
 
               - id: CanvasNetPlantUml-Svek-SvekGeometry-Clipping
                 title: >-

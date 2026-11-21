@@ -30,8 +30,11 @@ specified by the `CanvasNetPlantUml-Svek-SvekLayout-*` requirements in
   note, or a cluster laid out on its own), the rows, the compound clusters, and the edges.
 - The constants of the engine: `MinNodeSep` 35 and `MinRankSep` 60 (PlantUML's `DotStringFactory`), `EdgeSep` 10,
   `NoteGap` 18 (measured from the reference pictures), `NoteStackGap` 10, `LabelMargin` 1 (PlantUML's `marginLabel`),
-  `LabelOffset` 2, the note margins 6, 15, and 5 (PlantUML's `Opale`), `RegionPadding` 10, `SeparatorInset` 5 (the space
-  between the sides of a cluster and the ends of its region separators), and `ParallelArcStep` 50.
+  `LabelOffset` 2 (dagre's label offset), `LabelClearance` 4 (the least space between a label and the lines of its
+  link, as PlantUML leaves about 4 pixels), `RowLabelSpace` 20 (the space a label between two neighbors of a row leaves
+  to them together, as PlantUML leaves about 10 pixels on each side), the note margins 6, 15, and 5 (PlantUML's
+  `Opale`), `RegionPadding` 10, `SeparatorInset` 5 (the space between the sides of a cluster and the ends of its
+  region separators), and `ParallelArcStep` 50.
 
 #### Key Methods
 
@@ -57,8 +60,8 @@ specified by the `CanvasNetPlantUml-Svek-SvekLayout-*` requirements in
   links of length 1 join (with the same compound parent) become one row node, side by side (stacked in a left to right
   diagram) in a topological order of the links (`OrderRow`: every first end before its second, the earliest unit of
   the diagram first among the free ones, the earliest remaining one when the links form a cycle; linear in the units
-  and links), `NodeSep` apart or as far as the label between them needs (`NoteGap` between a note and its entity,
-  `NoteStackGap` between two notes of one entity).
+  and links), `NodeSep` apart or as far as the label between them needs (its width plus `RowLabelSpace`; `NoteGap`
+  between a note and its entity, `NoteStackGap` between two notes of one entity).
 - `ClusterUnit` - lays a cluster out on its own (`LayoutScope`) and frames it: width `max(content + 2 padding,
   MinWidth)`, height `content + 2 padding + header`, content centered.
 - `ArrangeRegions` - lays out every region on its own and stacks them (or puts them side by side) across the widest
@@ -81,12 +84,14 @@ specified by the `CanvasNetPlantUml-Svek-SvekLayout-*` requirements in
   point in line with one end, is drawn straight between the facing sides of its two rectangles when that line crosses
   no other unit, as Graphviz draws a short edge (`StraightAims`: straight across the ranks at the middle of the narrower
   box where the two boxes face each other off their corners, else each end in line with the other box); the label slot
-  is placed at
-  dagre's label center, or beside the middle of the route (`BesideMiddle`: above a route that runs across, right of
-  one that runs down, at the middle of the curve
-  of an arc), and a label center that dagre puts inside a compound cluster the link leaves is replaced by the place
-  beside the middle of the route outside it; end labels go beside the line just off the end and are moved along the line
-  until they overlap no entity.
+  is placed at dagre's label center, or beside the middle of the route (`BesideMiddle`: `LabelClearance` above a
+  route that runs across, right of one that runs down, at the middle of the curve of an arc), and a label center that
+  dagre puts inside a compound cluster the link leaves is replaced by the place beside the middle of the route outside
+  it; the label is then moved away from the lines its link draws (`DrawnLines`: the curve of the route measured at 16
+  points per cubic piece, and the outlines of its decorations) until it keeps `LabelClearance` from them and overlaps
+  no unit (`ClearOfLink`: one pixel at a time, at most 32, away from the nearest point of the lines, each step
+  charging the meter), since dagre placed it beside its own route, which the drawn curve does not follow exactly; end
+  labels go beside the line just off the end and are moved along the line until they overlap no entity.
 - `BuildFrame` and `PointNotes` - the placements of the units (entities, attached notes with the pointer from the side
   of the note that faces the entity - the side with the widest gap between the two boxes, the note's own position on a
   tie - to the entity's border, floating notes, clusters with their content and separators), of the compound

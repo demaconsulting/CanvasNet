@@ -202,7 +202,7 @@ internal sealed partial class SvekLayout
     /// </summary>
     /// <param name="slot">The slot, or null.</param>
     /// <param name="leftToRight">Whether the row is stacked (a left to right diagram).</param>
-    /// <returns>The extent of the slot along the row plus 10, or zero.</returns>
+    /// <returns>The extent of the slot along the row plus <see cref="RowLabelSpace"/>, or zero.</returns>
     private static double SlotExtent(LabelSlot? slot, bool leftToRight)
     {
         if (slot is null)
@@ -210,7 +210,7 @@ internal sealed partial class SvekLayout
             return 0;
         }
 
-        return (leftToRight ? slot.Height : slot.Width) + 10;
+        return (leftToRight ? slot.Height : slot.Width) + RowLabelSpace;
     }
 
     /// <summary>
@@ -792,12 +792,13 @@ internal sealed partial class SvekLayout
 
     /// <summary>
     ///     Places the label slot of a link: at the center dagre gave it, or above the middle of the route of a link in one
-    ///     rank (which dagre gives no label place); the note on the link is placed in the slot.
+    ///     rank (which dagre gives no label place), then moved away from the drawn curve of the route until the label
+    ///     keeps <see cref="LabelClearance"/> from it and overlaps no unit; the note on the link is placed in the slot.
     /// </summary>
     /// <param name="work">The scope's work.</param>
     /// <param name="edge">The edge.</param>
     /// <param name="placed">The placed link.</param>
-    private static void PlaceLabel(ScopeWork work, EdgeWork edge, WLink placed)
+    private void PlaceLabel(ScopeWork work, EdgeWork edge, WLink placed)
     {
         if (edge.Slot is not { } slot || placed.Route.Count < 2)
         {
@@ -808,6 +809,9 @@ internal sealed partial class SvekLayout
         var (x, y) = (center.X - (slot.Width / 2), center.Y - (slot.Height / 2));
         if (slot.Text is { } text)
         {
+            // (dagre placed the label beside its own route, which the drawn curve no longer follows exactly)
+            var shift = ClearOfLink(work, DrawnLines(edge.Link, placed.Route), new SceneRect(x + slot.TextBox.X, y + slot.TextBox.Y, slot.TextBox.Width, slot.TextBox.Height));
+            (x, y) = (x + shift.X, y + shift.Y);
             var box = new SceneRect(x + slot.TextBox.X, y + slot.TextBox.Y, slot.TextBox.Width, slot.TextBox.Height);
             double? angle = null;
             if (slot.ArrowSize > 0)
@@ -823,6 +827,144 @@ internal sealed partial class SvekLayout
         {
             work.LinkNotes.Add(new WNote(note, slot.NoteText!, new SceneRect(x + slot.NoteBox.X, y + slot.NoteBox.Y, slot.NoteBox.Width, slot.NoteBox.Height)));
         }
+    }
+
+    /// <summary>
+    ///     Gets the lines a link draws: the curve of its route and the outlines of the decorations at its ends.
+    /// </summary>
+    /// <param name="link">The link.</param>
+    /// <param name="route">Its route.</param>
+    /// <returns>The lines, as polylines (closed outlines end at their first point).</returns>
+    private static List<List<SvekPoint>> DrawnLines(SvekLink link, IReadOnlyList<SvekPoint> route)
+    {
+        var lines = new List<List<SvekPoint>> { SvekGeometry.Flatten(route, CurveSteps) };
+        foreach (var (decor, atEnd) in new[] { (link.TailDecor, false), (link.HeadDecor, true) })
+        {
+            var extremity = SvekGeometry.Extremity(decor, atEnd ? route[^1] : route[0], SvekGeometry.ArrivalAngle(route, atEnd));
+            foreach (var segments in extremity?.Parts.Select(p => p.Segments) ?? [])
+            {
+                var outline = segments.Where(s => s.Kind != SceneSegmentKind.Close).Select(s => new SvekPoint(s.X, s.Y)).ToList();
+                if (outline.Count > 0 && segments[^1].Kind == SceneSegmentKind.Close)
+                {
+                    outline.Add(outline[0]);
+                }
+
+                lines.Add(outline);
+            }
+        }
+
+        return lines;
+    }
+
+    /// <summary>
+    ///     Gets how far a label must move, away from the lines its link draws, to keep <see cref="LabelClearance"/> from
+    ///     them and overlap no unit: one pixel at a time, at most <see cref="LabelClearSteps"/> pixels.
+    /// </summary>
+    /// <param name="work">The scope's work.</param>
+    /// <param name="lines">The lines of the link (<see cref="DrawnLines"/>); the first is its curve.</param>
+    /// <param name="box">The box of the label.</param>
+    /// <returns>The shift.</returns>
+    private SvekPoint ClearOfLink(ScopeWork work, List<List<SvekPoint>> lines, SceneRect box)
+    {
+        var center = new SvekPoint(box.X + (box.Width / 2), box.Y + (box.Height / 2));
+
+        // Away from the nearest point of the lines, or, for a label centered on the curve, above a curve that runs
+        // across and right of one that runs down
+        var nearest = lines[0][0];
+        foreach (var line in lines)
+        {
+            for (var k = 1; k < line.Count; k++)
+            {
+                var candidate = NearestOnSegment(center, line[k - 1], line[k]);
+                if (Distance(center, candidate) < Distance(center, nearest))
+                {
+                    nearest = candidate;
+                }
+            }
+        }
+
+        var (ax, ay) = (center.X - nearest.X, center.Y - nearest.Y);
+        var length = Math.Sqrt((ax * ax) + (ay * ay));
+        if (length < 1e-9)
+        {
+            var angle = NearestLegAngle(lines[0], center);
+            (ax, ay, length) = Math.Abs(Math.Sin(angle)) > Math.Abs(Math.Cos(angle)) ? (1.0, 0.0, 1.0) : (0.0, -1.0, 1.0);
+        }
+
+        (ax, ay) = (ax / length, ay / length);
+        var points = lines.Sum(l => l.Count);
+        var shift = 0;
+        for (; shift < LabelClearSteps; shift++)
+        {
+            _meter.Charge(points + work.Units.Count + 1);
+            var moved = new SceneRect(box.X + (ax * shift), box.Y + (ay * shift), box.Width, box.Height);
+            if (lines.All(l => DistanceToCurve(l, moved) >= LabelClearance - 1e-9) && !work.Units.Any(u => Overlaps(u.Box, moved)))
+            {
+                break;
+            }
+        }
+
+        return new SvekPoint(ax * shift, ay * shift);
+    }
+    /// <summary>
+    ///     Gets the distance from a rectangle to a polyline (zero when they touch or cross).
+    /// </summary>
+    /// <param name="curve">The points of the polyline.</param>
+    /// <param name="box">The rectangle.</param>
+    /// <returns>The distance.</returns>
+    private static double DistanceToCurve(List<SvekPoint> curve, SceneRect box)
+    {
+        var best = double.PositiveInfinity;
+        SvekPoint[] corners = [new(box.X, box.Y), new(box.Right, box.Y), new(box.X, box.Bottom), new(box.Right, box.Bottom)];
+        for (var k = 1; k < curve.Count; k++)
+        {
+            var (a, b) = (curve[k - 1], curve[k]);
+            if (SegmentHitsRect(a, b, box))
+            {
+                return 0;
+            }
+
+            best = Math.Min(best, Math.Min(DistanceToRect(a, box), DistanceToRect(b, box)));
+            foreach (var corner in corners)
+            {
+                best = Math.Min(best, Distance(corner, NearestOnSegment(corner, a, b)));
+            }
+        }
+
+        return best;
+    }
+
+    /// <summary>
+    ///     Gets the distance from a point to a rectangle (zero inside it).
+    /// </summary>
+    /// <param name="p">The point.</param>
+    /// <param name="box">The rectangle.</param>
+    /// <returns>The distance.</returns>
+    private static double DistanceToRect(SvekPoint p, SceneRect box)
+    {
+        var dx = Math.Max(0, Math.Max(box.X - p.X, p.X - box.Right));
+        var dy = Math.Max(0, Math.Max(box.Y - p.Y, p.Y - box.Bottom));
+        return Math.Sqrt((dx * dx) + (dy * dy));
+    }
+
+    /// <summary>
+    ///     Gets the point of a segment nearest to a point.
+    /// </summary>
+    /// <param name="p">The point.</param>
+    /// <param name="a">The start of the segment.</param>
+    /// <param name="b">The end of the segment.</param>
+    /// <returns>The nearest point (the start for a segment without length).</returns>
+    private static SvekPoint NearestOnSegment(SvekPoint p, SvekPoint a, SvekPoint b)
+    {
+        var (dx, dy) = (b.X - a.X, b.Y - a.Y);
+        var squared = (dx * dx) + (dy * dy);
+        if (squared == 0)
+        {
+            return a;
+        }
+
+        var t = Math.Clamp((((p.X - a.X) * dx) + ((p.Y - a.Y) * dy)) / squared, 0, 1);
+        return new SvekPoint(a.X + (t * dx), a.Y + (t * dy));
     }
 
     /// <summary>
@@ -872,8 +1014,8 @@ internal sealed partial class SvekLayout
         }
 
         return Math.Abs(dy) > Math.Abs(dx)
-            ? new SvekPoint(mid.X + (width / 2) + LabelOffset, mid.Y)
-            : new SvekPoint(mid.X, mid.Y - (height / 2) - LabelOffset);
+            ? new SvekPoint(mid.X + (width / 2) + LabelClearance, mid.Y)
+            : new SvekPoint(mid.X, mid.Y - (height / 2) - LabelClearance);
     }
 
     /// <summary>

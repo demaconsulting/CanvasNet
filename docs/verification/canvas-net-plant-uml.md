@@ -277,6 +277,12 @@ every fixture in strict mode with no report at its measured size; asserts the ti
 the composite, concurrent, notes, and page fixtures; and asserts that the separators of concurrent regions are dashed
 8 and 10, 1.5 wide, across the composite state for `--` and down it for `||`.
 
+**Tests**: `PlantUmlStateIntegrationTests.CanvasNetPlantUml_State_TransitionLabels_ClearOfLinesAndStates`
+
+Lays out a state diagram with a labeled transition into a state beside another, a labeled transition between two
+states of a row, and a labeled transition between two states of a composite state, and asserts that every transition
+label is at least 3 pixels from every drawn transition line and arrowhead and at least 8 pixels from every state.
+
 ### CanvasNetPlantUml-Component: Component Diagrams Are Drawn With PlantUML's Shapes
 
 **Tests**: `PlantUmlReferenceShapeTests.CanvasNetPlantUml_Graph_ReferenceGoldens_CoverEveryFixture`,

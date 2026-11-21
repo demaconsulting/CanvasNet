@@ -28,6 +28,8 @@ The unit holds no state. It returns scene segments and `SvekExtremity(Decor, Par
   the first and last legs, and is C2 where the pieces meet). Written from the mathematics: Graphviz draws the edges of
   PlantUML's diagrams as such splines, and no curve code of PlantUML, Graphviz, or d3 is ported. It lives here, not in
   the CanvasNetLayout system, because only this engine uses it and it emits PlantUML's scene segments.
+- `Flatten(route, steps)` - points along the curve of `Spline`: the ends of its lines, and each cubic piece measured at
+  `steps` even steps of its parameter (the layout keeps the labels clear of the drawn curve with them).
 - `Clip(shape, box, toward)` - where the direction from the center of the box toward a point leaves a rectangle
   (dagre's `intersectRect`), an ellipse (`t = 1 / sqrt(dx²/rx² + dy²/ry²)`), or a diamond (`t = 1 / (|dx|/rx +
   |dy|/ry)`); `Contains(shape, box, point)`.
