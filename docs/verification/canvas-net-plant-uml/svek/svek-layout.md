@@ -97,7 +97,8 @@ note with two links keeps them; asserts that a note on a link is in the link's l
 `SvekLayoutTests.PlantUmlSvekLayout_Run_ClipOutlines_RoutesEndOnThem`,
 `SvekLayoutTests.PlantUmlSvekLayout_Run_Labels_PlacedBesideTheRoute`,
 `SvekLayoutTests.PlantUmlSvekLayout_Run_LabelOfLinkIntoARow_ClearOfTheDrawnCurve`,
-`SvekLayoutTests.PlantUmlSvekLayout_Run_LabelWithNoClearPlace_StaysWhereItWasPlaced`
+`SvekLayoutTests.PlantUmlSvekLayout_Run_LabelWithNoClearPlace_StaysWhereItWasPlaced`,
+`SvekLayoutTests.PlantUmlSvekLayout_Run_LabelsOfTwoWayLinks_StayOffTheOtherLink`
 
 Asserts that a link from an entity to itself and two parallel links have routes that start and end on the borders and
 that the parallel routes differ; asserts that routes end on an ellipse outline and on a circle inside a larger box;
@@ -106,7 +107,8 @@ off the entities. Lays out the state-labels shape (a labeled link from an entity
 a row, whose drawn curve runs to the entity's place in the row) and asserts that the label is at least
 `LabelClearance` from the drawn curve, measured along it, and overlaps no entity. Lays out a labeled loop on an entity
 beside a large entity of its row, so that no position within 32 pixels is clear, and asserts that the label stays at
-its place right of the loop.
+its place right of the loop. Lays out two labeled links between the same two entities, one each way, and asserts that
+each label is off the drawn curve of the other link and that the two labels do not overlap.
 
 ##### CanvasNetPlantUml-Svek-SvekLayout-Limits: Work, Limits, And Failures
 

@@ -183,7 +183,7 @@ internal sealed partial class SvekLayout
     public const double LabelOffset = 2;
 
     /// <summary>
-    ///     The least space between a label and the drawn curve of its link (PlantUML leaves about 4 pixels), and the
+    ///     The least space between a label and the drawn curves of the links (PlantUML leaves about 4 pixels), and the
     ///     space above or beside the middle of a link that dagre gives no label place.
     /// </summary>
     public const double LabelClearance = 4;

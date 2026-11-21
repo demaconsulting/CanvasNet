@@ -446,10 +446,26 @@ internal sealed partial class SvekLayout
             points = route.ToList();
             ClipEnds(work, edge, points, self);
             var placed = new WLink(link, points) { Drawn = link.Style != LinkStyle.Hidden };
-            PlaceLabel(work, edge, placed);
             placed.Tail = EndLabel(work, link.TailLabel, link.Location, points, atEnd: false);
             placed.Head = EndLabel(work, link.HeadLabel, link.Location, points, atEnd: true);
             edge.Placed = placed;
+        }
+
+        // The labels are placed once every route is known, so that each keeps clear of the lines of the other drawn
+        // links as well as its own, and moves onto no other label: not onto the end labels, the places of the labels
+        // still to be placed, or the labels already placed
+        var routed = work.Edges.Where(e => e.Placed is not null).ToList();
+        var lines = routed.Select(e => DrawnLines(e.Link, e.Placed!.Route)).ToList();
+        var labels = routed.Select(e => LabelBox(e, e.Placed!.Route)).ToList();
+        var ends = routed.SelectMany(e => new[] { e.Placed!.Tail?.Box, e.Placed.Head?.Box }).OfType<SceneRect>().ToList();
+        for (var k = 0; k < routed.Count; k++)
+        {
+            _meter.Charge(routed.Count);
+            List<List<SvekPoint>> others = routed[k].Slot?.Text is null
+                ? []
+                : [.. routed.Select((e, i) => (e, i)).Where(p => p.i != k && p.e.Placed!.Drawn).SelectMany(p => lines[p.i])];
+            List<SceneRect> blocked = [.. ends, .. labels.Where((_, i) => i != k).OfType<SceneRect>()];
+            labels[k] = PlaceLabel(work, routed[k], lines[k], others, blocked);
         }
     }
 
@@ -739,24 +755,30 @@ internal sealed partial class SvekLayout
     /// <summary>
     ///     Places the label slot of a link: at the center dagre gave it, or above the middle of the route of a link in one
     ///     rank (which dagre gives no label place), then moved away from the drawn curve of the route until the label
-    ///     keeps <see cref="LabelClearance"/> from it and overlaps no unit; the note on the link is placed in the slot.
+    ///     keeps <see cref="LabelClearance"/> from the lines of every drawn link and overlaps no unit and no other label;
+    ///     the note on the link is placed in the slot.
     /// </summary>
     /// <param name="work">The scope's work.</param>
-    /// <param name="edge">The edge.</param>
-    /// <param name="placed">The placed link.</param>
-    private void PlaceLabel(ScopeWork work, EdgeWork edge, WLink placed)
+    /// <param name="edge">The edge, with its placed link.</param>
+    /// <param name="own">The lines of the link (<see cref="DrawnLines"/>).</param>
+    /// <param name="others">The lines of the other drawn links of the scope.</param>
+    /// <param name="blocked">The boxes of the other labels.</param>
+    /// <returns>The box of the label text, or null for a link without one.</returns>
+    private SceneRect? PlaceLabel(ScopeWork work, EdgeWork edge, List<List<SvekPoint>> own, List<List<SvekPoint>> others, List<SceneRect> blocked)
     {
+        var placed = edge.Placed!;
         if (edge.Slot is not { } slot || placed.Route.Count < 2)
         {
-            return;
+            return null;
         }
 
         var center = edge.LabelCenter ?? BesideMiddle(placed.Route, slot.Width, slot.Height);
         var (x, y) = (center.X - (slot.Width / 2), center.Y - (slot.Height / 2));
+        SceneRect? placedBox = null;
         if (slot.Text is { } text)
         {
             // (dagre placed the label beside its own route, which the drawn curve no longer follows exactly)
-            var shift = ClearOfLink(work, DrawnLines(edge.Link, placed.Route), new SceneRect(x + slot.TextBox.X, y + slot.TextBox.Y, slot.TextBox.Width, slot.TextBox.Height));
+            var shift = ClearOfLink(work, own, others, blocked, new SceneRect(x + slot.TextBox.X, y + slot.TextBox.Y, slot.TextBox.Width, slot.TextBox.Height));
             (x, y) = (x + shift.X, y + shift.Y);
             var box = new SceneRect(x + slot.TextBox.X, y + slot.TextBox.Y, slot.TextBox.Width, slot.TextBox.Height);
             double? angle = null;
@@ -767,12 +789,33 @@ internal sealed partial class SvekLayout
             }
 
             placed.Label = new WLabel(text, box) { ArrowAngle = angle };
+            placedBox = box;
         }
 
         if (slot.Note is { } note)
         {
             work.LinkNotes.Add(new WNote(note, slot.NoteText!, new SceneRect(x + slot.NoteBox.X, y + slot.NoteBox.Y, slot.NoteBox.Width, slot.NoteBox.Height)));
         }
+
+        return placedBox;
+    }
+
+    /// <summary>
+    ///     Gets the box of the label text of a link where it is first placed (<see cref="PlaceLabel"/>, before it is
+    ///     moved clear of the lines).
+    /// </summary>
+    /// <param name="edge">The edge.</param>
+    /// <param name="route">The route of its link.</param>
+    /// <returns>The box, or null for a link without a label text.</returns>
+    private static SceneRect? LabelBox(EdgeWork edge, List<SvekPoint> route)
+    {
+        if (edge.Slot is not { Text: not null } slot || route.Count < 2)
+        {
+            return null;
+        }
+
+        var center = edge.LabelCenter ?? BesideMiddle(route, slot.Width, slot.Height);
+        return new SceneRect(center.X - (slot.Width / 2) + slot.TextBox.X, center.Y - (slot.Height / 2) + slot.TextBox.Y, slot.TextBox.Width, slot.TextBox.Height);
     }
 
     /// <summary>
@@ -804,14 +847,17 @@ internal sealed partial class SvekLayout
 
     /// <summary>
     ///     Gets how far a label must move, away from the lines its link draws, to keep <see cref="LabelClearance"/> from
-    ///     them and overlap no unit: one pixel at a time, at most <see cref="LabelClearSteps"/> pixels; a label with no
-    ///     clear place within that distance stays where it was placed.
+    ///     them and from the lines of the other drawn links and overlap no unit and no other label: one pixel at a time,
+    ///     at most <see cref="LabelClearSteps"/> pixels; a label with no clear place within that distance stays where it
+    ///     was placed.
     /// </summary>
     /// <param name="work">The scope's work.</param>
     /// <param name="lines">The lines of the link (<see cref="DrawnLines"/>); the first is its curve.</param>
+    /// <param name="others">The lines of the other drawn links of the scope.</param>
+    /// <param name="blocked">The boxes of the other labels.</param>
     /// <param name="box">The box of the label.</param>
     /// <returns>The shift.</returns>
-    private SvekPoint ClearOfLink(ScopeWork work, List<List<SvekPoint>> lines, SceneRect box)
+    private SvekPoint ClearOfLink(ScopeWork work, List<List<SvekPoint>> lines, List<List<SvekPoint>> others, List<SceneRect> blocked, SceneRect box)
     {
         var center = new SvekPoint(box.X + (box.Width / 2), box.Y + (box.Height / 2));
 
@@ -839,12 +885,13 @@ internal sealed partial class SvekLayout
         }
 
         (ax, ay) = (ax / length, ay / length);
-        var points = lines.Sum(l => l.Count);
+        var points = lines.Sum(l => l.Count) + others.Sum(l => l.Count);
         for (var shift = 0; shift <= LabelClearSteps; shift++)
         {
-            _meter.Charge(points + work.Units.Count + 1);
+            _meter.Charge(points + work.Units.Count + blocked.Count + 1);
             var moved = new SceneRect(box.X + (ax * shift), box.Y + (ay * shift), box.Width, box.Height);
-            if (lines.All(l => DistanceToCurve(l, moved) >= LabelClearance - 1e-9) && !work.Units.Any(u => Overlaps(u.Box, moved)))
+            if (lines.Concat(others).All(l => DistanceToCurve(l, moved) >= LabelClearance - 1e-9)
+                && !work.Units.Any(u => Overlaps(u.Box, moved)) && !blocked.Any(b => Overlaps(b, moved)))
             {
                 return new SvekPoint(ax * shift, ay * shift);
             }

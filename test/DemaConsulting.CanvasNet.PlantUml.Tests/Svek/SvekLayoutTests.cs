@@ -336,6 +336,43 @@ public class SvekLayoutTests
     }
 
     /// <summary>
+    ///     Validates that the labels of two links between the same two entities, one each way, are not moved onto the
+    ///     other link or onto each other: each label keeps off the drawn curve of the other link and the two labels do
+    ///     not overlap.
+    /// </summary>
+    [Fact]
+    public void PlantUmlSvekLayout_Run_LabelsOfTwoWayLinks_StayOffTheOtherLink()
+    {
+        // Arrange
+        var (start, idle, running) = (Entity("Start", 20, 20), Entity("Idle", 50, 40), Entity("Running", 70, 40));
+        var diagram = new SvekDiagram
+        {
+            Entities = [start, idle, running],
+            Links =
+            [
+                new SvekLink("init", start, idle),
+                new SvekLink("start", idle, running) { Label = "start" },
+                new SvekLink("stop", running, idle) { Label = "stop" },
+            ],
+        };
+
+        // Act
+        var placement = Place(diagram);
+
+        // Assert
+        var (go, back) = (LinkOf(placement, "start"), LinkOf(placement, "stop"));
+        foreach (var (link, other) in new[] { (go, back), (back, go) })
+        {
+            var label = link.Label!.Box;
+            var curve = SvekGeometry.Flatten(other.Route, 16);
+            var nearest = Enumerable.Range(1, curve.Count - 1).Min(k => RectToSegment(label, curve[k - 1], curve[k]));
+            Assert.True(nearest > 0, $"label {label} touches the other link");
+        }
+
+        Assert.False(Overlap(go.Label!.Box, back.Label!.Box), "the labels overlap");
+    }
+
+    /// <summary>
     ///     Validates that the label of a link from a cluster that links cross, which dagre centers inside the cluster,
     ///     is placed beside the part of the route outside the cluster.
     /// </summary>
