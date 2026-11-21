@@ -76,6 +76,22 @@ public class SkinParamsTests
     }
 
     /// <summary>
+    ///     Validates that a block may hold nested blocks (<c>element {</c> lines with their own closing brace), whose
+    ///     names prefix their parameters after the names of the blocks around them, as in PlantUML.
+    /// </summary>
+    [Fact]
+    public void PlantUmlSkinParams_TryRead_NestedBlocks_PrefixEachName()
+    {
+        // Arrange / Act
+        var entries = Read("skinparam {\n  participant {\n    BackgroundColor red\n  }\n  ArrowColor blue\n}\nskinparam note {\n  FontSize 18\n}\n");
+
+        // Assert
+        Assert.Equal(["participantBackgroundColor", "ArrowColor", "noteFontSize"], entries.Select(e => e.Name));
+        Assert.Equal(["red", "blue", "18"], entries.Select(e => e.Value));
+        Assert.Equal([3, 5, 8], entries.Select(e => e.Location.Line));
+    }
+
+    /// <summary>
     ///     Validates the supported subset: document settings, sequence settings and element properties.
     /// </summary>
     [Fact]

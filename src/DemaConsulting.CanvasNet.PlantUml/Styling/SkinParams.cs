@@ -160,18 +160,33 @@ internal static partial class SkinParams
             return false;
         }
 
-        // skinparam name value, or skinparam name { ... }
+        // skinparam name value, or skinparam name { ... } whose lines may open nested blocks ('element {'), as in
+        // PlantUML, where the names of the open blocks prefix each parameter
         var rest = text["skinparam".Length..].Trim();
         if (rest.EndsWith('{'))
         {
-            var prefix = rest[..^1].Trim();
-            while (++index < statements.Count && statements[index].Text != "}")
+            var prefixes = new Stack<string>();
+            prefixes.Push(rest[..^1].Trim());
+            while (++index < statements.Count)
             {
                 var inner = statements[index];
-                if (inner.Text.Length > 0)
+                var innerText = inner.Text.Trim();
+                if (innerText == "}")
                 {
-                    var (name, value) = Split(inner.Text);
-                    entries.Add(new SkinParamEntry(prefix + name, value, inner.Location));
+                    prefixes.Pop();
+                    if (prefixes.Count == 0)
+                    {
+                        break;
+                    }
+                }
+                else if (innerText.EndsWith('{'))
+                {
+                    prefixes.Push(prefixes.Peek() + innerText[..^1].Trim());
+                }
+                else if (innerText.Length > 0)
+                {
+                    var (name, value) = Split(innerText);
+                    entries.Add(new SkinParamEntry(prefixes.Peek() + name, value, inner.Location));
                 }
             }
 

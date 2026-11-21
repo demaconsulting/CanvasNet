@@ -16,11 +16,13 @@ sections:
               - id: CanvasNetPlantUml-Styling-SkinParams-Forms
                 title: >-
                   The SkinParams unit shall read a skin parameter written on one line and the parameters of a block,
-                  whose inner names are joined to the block's name, each located at its statement.
+                  whose inner names are joined to the block's name (and to the names of the nested blocks around them),
+                  each located at its statement.
                 justification: |
-                  PlantUML accepts both forms, and a report about a parameter must point at its line.
+                  PlantUML accepts both forms and nested blocks, and a report about a parameter must point at its line.
                 tests:
                   - PlantUmlSkinParams_TryRead_LineAndBlockForms
+                  - PlantUmlSkinParams_TryRead_NestedBlocks_PrefixEachName
 
               - id: CanvasNetPlantUml-Styling-SkinParams-Subset
                 title: >-

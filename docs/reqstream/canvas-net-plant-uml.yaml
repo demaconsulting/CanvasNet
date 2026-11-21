@@ -417,9 +417,9 @@ sections:
 
       - id: CanvasNetPlantUml-DefaultLook
         title: >-
-          The library shall draw a diagram with PlantUML's default look, changed by its supported skin parameters,
-          with the fonts bundled with CanvasNet only, so that two renders of the same document and options have
-          identical pixels on every machine.
+          The library shall draw a diagram with PlantUML's default look, changed by its supported skin parameters
+          (written on one line or in a block, in every drawn type), with the fonts bundled with CanvasNet only, so
+          that two renders of the same document and options have identical pixels on every machine.
         tags: [system]
         justification: |
           Pictures are compared and checked into documentation; they must look like PlantUML's and must not depend on
@@ -444,6 +444,8 @@ sections:
           - CanvasNetPlantUml_Deployment_Render_IsDeterministicAndScaled
           - CanvasNetPlantUml_Gallery_HoldsEveryDrawnDiagramType
           - CanvasNetPlantUml_Gallery_RendersStrictWithoutWarnings
+          - CanvasNetPlantUml_SkinParamBlock_ColorsTheElementInEveryType
+          - CanvasNetPlantUml_Sequence_SkinParamBlock_ColorsTheParticipants
 
       - id: CanvasNetPlantUml-ImageSource
         title: >-

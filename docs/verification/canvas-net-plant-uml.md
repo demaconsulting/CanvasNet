@@ -469,6 +469,15 @@ that each is a supported sequence, activity, class, object, state, use case, com
 every drawn type is shown;
 renders each in strict mode and asserts no report, the measured size, and a picture that is not blank.
 
+**Tests**: `PlantUmlSystemIntegrationTests.CanvasNetPlantUml_SkinParamBlock_ColorsTheElementInEveryType`,
+`PlantUmlSequenceIntegrationTests.CanvasNetPlantUml_Sequence_SkinParamBlock_ColorsTheParticipants`
+
+Lays out a diagram of every drawn type (sequence, activity, class, object, state, use case, component, and deployment)
+that starts with a `skinparam element { BackgroundColor #DBEAFE }` block and asserts its type, no report in strict
+mode, and a shape filled with `#DBEAFE`; lays out a sequence diagram with that block for `participant`, with and
+without a participant declaration, and asserts the sequence type, no report, and every participant head filled with
+`#DBEAFE`.
+
 ### CanvasNetPlantUml-ImageSource: A Linked Diagram Is Drawn
 
 **Tests**: `PlantUmlIncludeTests.CanvasNetPlantUml_ImageSource_DrawsALinkedDiagram`

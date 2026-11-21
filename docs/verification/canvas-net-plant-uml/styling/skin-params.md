@@ -25,9 +25,12 @@ differs from the expected literal constitutes a failure.
 
 ##### CanvasNetPlantUml-Styling-SkinParams-Forms: Line And Block Forms
 
-**Tests**: `SkinParamsTests.PlantUmlSkinParams_TryRead_LineAndBlockForms`
+**Tests**: `SkinParamsTests.PlantUmlSkinParams_TryRead_LineAndBlockForms`,
+`SkinParamsTests.PlantUmlSkinParams_TryRead_NestedBlocks_PrefixEachName`
 
-Asserts the names, values, and lines of a one-line parameter and of a block of two parameters.
+Asserts the names, values, and lines of a one-line parameter and of a block of two parameters; asserts that a block
+without a name holding a nested `participant {` block and a parameter, followed by a `note` block, gives
+`participantBackgroundColor`, `ArrowColor`, and `noteFontSize` with their values and lines.
 
 ##### CanvasNetPlantUml-Styling-SkinParams-Subset: The Supported Subset Changes The Theme
 

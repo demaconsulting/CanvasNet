@@ -1,4 +1,5 @@
 using System.Text;
+using DemaConsulting.CanvasNet.PlantUml.Scenegraph;
 
 namespace DemaConsulting.CanvasNet.PlantUml.Tests;
 
@@ -108,5 +109,37 @@ public class PlantUmlSystemIntegrationTests
             Assert.Equal(pair.Key, pair.Value.DiagramType);
             Assert.False(pair.Value.IsSupported);
         });
+    }
+
+    /// <summary>
+    ///     Validates that a skin parameter block (<c>skinparam element { BackgroundColor ... }</c>) is read in every drawn
+    ///     type: the diagram keeps its type, renders without reports, and fills its element with the block's color.
+    /// </summary>
+    /// <param name="type">The expected type.</param>
+    /// <param name="element">The element the block styles.</param>
+    /// <param name="body">The statements after the block.</param>
+    [Theory]
+    [InlineData("sequence", "participant", "A -> B : x")]
+    [InlineData("activity", "activity", "start\n:a;\nstop")]
+    [InlineData("class", "class", "class A\nA --> B")]
+    [InlineData("object", "object", "object O")]
+    [InlineData("state", "state", "[*] --> S")]
+    [InlineData("usecase", "usecase", "actor A\nA --> (U)")]
+    [InlineData("component", "component", "[C] --> [D]")]
+    [InlineData("deployment", "node", "node N")]
+    public void CanvasNetPlantUml_SkinParamBlock_ColorsTheElementInEveryType(string type, string element, string body)
+    {
+        // Arrange
+        var document = PlantUmlDocument.Parse($"@startuml\nskinparam {element} {{\n  BackgroundColor #DBEAFE\n}}\n{body}\n@enduml\n");
+        var (options, warnings, unsupported) = PlantUmlTestHelpers.Collecting(strict: true);
+
+        // Act
+        var scene = document.LayoutScene(options, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(type, document.DiagramType);
+        Assert.Empty(warnings);
+        Assert.Empty(unsupported);
+        Assert.Contains(scene.Items.OfType<ScenePath>(), path => path.Fill == new Canvas.Rgba32(0xDB, 0xEA, 0xFE, 255));
     }
 }

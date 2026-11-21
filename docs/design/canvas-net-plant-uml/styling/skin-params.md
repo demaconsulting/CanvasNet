@@ -36,7 +36,9 @@ silently ignored, so an author learns which settings were not applied. The unit'
 #### Key Methods
 
 - `TryRead(statements, ref index, entries)` - a statement that starts with the keyword `skinparam` is one entry, or,
-  when it ends with `{`, a block whose inner statements up to `}` are entries named with the block's name first.
+  when it ends with `{`, a block whose inner statements up to its closing `}` are entries named with the block's name
+  first. A line that ends with `{` inside the block opens a nested block (as in PlantUML), whose name is appended to the
+  prefix until its own `}`.
 - `TrySkipStyle(statements, ref index, reports)` - a statement that starts with `<style` is reported once as
   `plantuml-style-unsupported` and skipped up to the statement that holds `</style>`.
 - `Apply(theme, entries, reports, graph, description)` - for each entry in order: a stereotyped name is ignored; in a

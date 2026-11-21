@@ -38,6 +38,33 @@ public class PlantUmlSequenceIntegrationTests
     }
 
     /// <summary>
+    ///     Validates that a sequence diagram with a skin parameter block (<c>skinparam participant { ... }</c>) is read as
+    ///     a sequence diagram, with or without a participant declaration, and fills every participant head with the
+    ///     block's color, without reports.
+    /// </summary>
+    /// <param name="declaration">The statements between the block and the message.</param>
+    [Theory]
+    [InlineData("participant A\n")]
+    [InlineData("")]
+    public void CanvasNetPlantUml_Sequence_SkinParamBlock_ColorsTheParticipants(string declaration)
+    {
+        // Arrange
+        var document = PlantUmlDocument.Parse($"@startuml\nskinparam participant {{\n  BackgroundColor #DBEAFE\n}}\n{declaration}A -> B : x\n@enduml\n");
+        var (options, warnings, unsupported) = PlantUmlTestHelpers.Collecting(strict: true);
+
+        // Act
+        var scene = document.LayoutScene(options, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal("sequence", document.DiagramType);
+        Assert.Empty(warnings);
+        Assert.Empty(unsupported);
+        var heads = scene.Items.OfType<ScenePath>().Where(p => p.Role == "participant-head").ToList();
+        Assert.NotEmpty(heads);
+        Assert.All(heads, head => Assert.Equal(new Canvas.Rgba32(0xDB, 0xEA, 0xFE, 255), head.Fill));
+    }
+
+    /// <summary>
     ///     Validates that every original fixture renders with the features it uses drawn: no unsupported feature, no
     ///     warning, a picture of its natural size.
     /// </summary>

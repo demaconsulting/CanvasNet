@@ -44,6 +44,9 @@ internal static partial class DiagramDetector
     /// <summary>The closer of a multi-line action (<c>:text</c> up to a line that ends with <c>;</c>).</summary>
     internal const string ActionCloser = ";";
 
+    /// <summary>The closer of a skin parameter block (<c>skinparam element {</c> up to its closing brace).</summary>
+    internal const string SkinParamCloser = "}";
+
     /// <summary>The <c>@start</c> tags PlantUML defines, other than <c>uml</c>, with the type each one starts.</summary>
     internal static readonly IReadOnlyDictionary<string, string> TagTypes = new Dictionary<string, string>(StringComparer.Ordinal)
     {
@@ -283,13 +286,14 @@ internal static partial class DiagramDetector
     internal static bool EndsInOpenAction(IReadOnlyList<SourceStatement> statements)
     {
         string? closer = null;
+        var depth = 0;
         foreach (var text in statements.Select(s => s.Text))
         {
             if (closer is null)
             {
                 closer = BlockCloser(text);
             }
-            else if (IsCloser(text, closer))
+            else if (ClosesBlock(text, closer, ref depth))
             {
                 closer = null;
             }
@@ -325,6 +329,7 @@ internal static partial class DiagramDetector
     {
         var outer = new List<SourceStatement>();
         string? closer = null;
+        var depth = 0;
         var opener = -1;
         var actionsClose = true;
         var i = -1;
@@ -336,10 +341,12 @@ internal static partial class DiagramDetector
             var text = statement.Text;
             if (closer is not null)
             {
-                if (IsCloser(text, closer))
+                if (ClosesBlock(text, closer, ref depth))
                 {
-                    // The last line of a multi-line action is text too; the closer of other blocks is a statement
-                    if (closer != ActionCloser)
+                    // The last line of a multi-line action is text too, and the brace that closes a skin parameter
+                    // block is part of the skinparam statement (every type accepts it); the closer of other blocks is
+                    // a statement
+                    if (closer is not (ActionCloser or SkinParamCloser))
                     {
                         outer.Add(statement);
                     }
@@ -360,6 +367,7 @@ internal static partial class DiagramDetector
 
             outer.Add(statement);
             closer = BlockCloser(text);
+            depth = 0;
             if (closer == ActionCloser && !actionsClose)
             {
                 closer = null;
@@ -401,7 +409,7 @@ internal static partial class DiagramDetector
             case "ref":
                 return text.Contains(':', StringComparison.Ordinal) ? null : "end ref";
             case "skinparam":
-                return text.TrimEnd().EndsWith('{') ? "}" : null;
+                return text.TrimEnd().EndsWith('{') ? SkinParamCloser : null;
             default:
                 return text.StartsWith("<style", StringComparison.OrdinalIgnoreCase) ? "</style>" : null;
         }
@@ -427,6 +435,36 @@ internal static partial class DiagramDetector
             "end ref" => compact is "end ref" or "endref",
             _ => compact == closer || (closer.StartsWith("end", StringComparison.Ordinal) && compact == "end " + closer[3..]),
         };
+    }
+
+    /// <summary>
+    ///     Checks whether a statement closes the open multi-line block, counting the nested blocks of a skin parameter
+    ///     block (<c>element {</c> lines, each closed by its own brace).
+    /// </summary>
+    /// <param name="text">The statement text.</param>
+    /// <param name="closer">The closing keyword of the open block.</param>
+    /// <param name="depth">The number of nested blocks open inside it; updated.</param>
+    /// <returns>True when the statement closes the open block.</returns>
+    private static bool ClosesBlock(string text, string closer, ref int depth)
+    {
+        if (closer == SkinParamCloser && text.TrimEnd().EndsWith('{'))
+        {
+            depth++;
+            return false;
+        }
+
+        if (!IsCloser(text, closer))
+        {
+            return false;
+        }
+
+        if (depth > 0)
+        {
+            depth--;
+            return false;
+        }
+
+        return true;
     }
 
     /// <summary>

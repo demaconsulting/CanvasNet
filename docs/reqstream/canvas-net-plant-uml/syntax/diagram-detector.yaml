@@ -33,17 +33,20 @@ sections:
                   by its own end keyword written with or without a space) is a sequence statement (a message to or
                   from the diagram border, written with [, ], or ? and an optional circle or cross at that end,
                   included), and otherwise an activity diagram of the new syntax when every statement is an activity
-                  statement.
+                  statement. A skin parameter block, with its nested blocks and its closing brace, is one statement
+                  that every type accepts.
                 justification: |
                   PlantUML tries the sequence diagram first, so a text both types could read is a sequence diagram; the
                   lines of a text block are text, not statements. PlantUML reads a found or lost message as a sequence
-                  statement, so a diagram that uses one is a sequence diagram.
+                  statement, so a diagram that uses one is a sequence diagram. A skinparam block styles any type, so
+                  its closing brace must not decide the type (a sequence diagram must not become a class diagram).
                 tests:
                   - PlantUmlDiagramDetector_Detect_SequenceStatements_IsSequence
                   - PlantUmlDiagramDetector_Detect_ActivityStatements_IsActivity
                   - PlantUmlDiagramDetector_BlockClosers_AreRecognized
                   - PlantUmlDiagramDetector_Detect_BorderMessages_IsSequence
                   - PlantUmlDiagramDetector_IsBorderMessage_ReadsTheBorderEnds
+                  - PlantUmlDiagramDetector_Detect_SkinParamBlock_KeepsTheType
 
               - id: CanvasNetPlantUml-Syntax-DiagramDetector-GraphFamilies
                 title: >-

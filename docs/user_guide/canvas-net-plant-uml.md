@@ -234,7 +234,8 @@ actions (`#F1F1F1`), pale yellow notes (`#FEFFDD`), dark lines and arrows, dashe
 at PlantUML's sizes (participants 14 pixels, messages 13, activity texts 12, titles 14 bold).
 
 `skinparam` changes that look, one setting per line (`skinparam arrowColor #2F6DB3`) or in a block
-(`skinparam participant { BackgroundColor #DDEEFF }`). The supported subset:
+(`skinparam participant { BackgroundColor #DDEEFF }`, one setting per line inside the braces; blocks may nest), in every
+diagram type. The supported subset:
 
 - Elements: the eight participant kinds (`participant`, `actor`, `boundary`, `control`, `entity`, `database`,
   `collections`, `queue`), `note`, `sequenceGroup` and `sequenceGroupHeader`, `sequenceBox`, `sequenceDivider`,

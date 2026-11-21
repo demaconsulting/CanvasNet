@@ -209,6 +209,35 @@ public class DiagramDetectorTests
     }
 
     /// <summary>
+    ///     Validates that a skin parameter block (<c>skinparam element {</c>, its lines, nested blocks, and its closing
+    ///     brace) is one statement that every type accepts, so it keeps the type the other statements give: a sequence
+    ///     diagram with or without a participant declaration, and every graph family.
+    /// </summary>
+    /// <param name="text">The statements.</param>
+    /// <param name="type">The expected type.</param>
+    [Theory]
+    [InlineData("skinparam participant {\n  BackgroundColor #DBEAFE\n}\nparticipant A\nA -> B : x", "sequence")]
+    [InlineData("skinparam participant {\n  BackgroundColor #DBEAFE\n}\nA -> B : x", "sequence")]
+    [InlineData("skinparam sequence {\n  ArrowColor red\n  participant {\n    FontSize 18\n  }\n}\nA -> B : x", "sequence")]
+    [InlineData("skinparam activity {\n  BackgroundColor #DBEAFE\n}\nstart\n:a;\nstop", "activity")]
+    [InlineData("skinparam class {\n  BackgroundColor #DBEAFE\n}\nclass A\nA --> B", "class")]
+    [InlineData("skinparam object {\n  BackgroundColor #DBEAFE\n}\nobject O", "object")]
+    [InlineData("skinparam state {\n  BackgroundColor #DBEAFE\n}\n[*] --> S", "state")]
+    [InlineData("skinparam usecase {\n  BackgroundColor #DBEAFE\n}\nactor A\nA --> (U)", "usecase")]
+    [InlineData("skinparam component {\n  BackgroundColor #DBEAFE\n}\n[C] --> [D]", "component")]
+    [InlineData("skinparam node {\n  BackgroundColor #DBEAFE\n}\nnode N", "deployment")]
+    public void PlantUmlDiagramDetector_Detect_SkinParamBlock_KeepsTheType(string text, string type)
+    {
+        // Arrange / Act
+        var detected = Detect($"@startuml\n{text}\n@enduml\n");
+
+        // Assert
+        Assert.Equal(type, detected.DiagramType);
+        Assert.True(detected.IsSupported);
+        Assert.NotEqual("skinparam", detected.Keyword);
+    }
+
+    /// <summary>
     ///     Validates that the statements after actions that are never closed are found in linear steps: 2,000 unclosed
     ///     actions are 2,000 statements, and each statement is visited at most twice (instead of once for every action
     ///     before it).
