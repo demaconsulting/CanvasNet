@@ -16,7 +16,8 @@ gradients (including `xlink:href`/`href` template inheritance), `use` references
 elements (referenced via `marker-start`/`marker-mid`/`marker-end`, with `markerWidth`/
 `markerHeight`, `refX`/`refY`, `markerUnits`, `orient`, and an optional `viewBox`; as in SVG 2 and browsers, the
 `marker-end` of a closed path or a `polygon` is drawn at its first point, oriented by bisecting the closing and
-the first segment), `filter`
+the first segment, and the marker content is clipped to its `markerWidth` by `markerHeight` viewport unless the
+marker sets `overflow="visible"` or `overflow="auto"`), `filter`
 elements (referenced via the `filter` presentation attribute on any directly renderable shape or
 `text` element, or on a `g`/`symbol` reference/`use` element - applied to the whole referenced
 subtree as a single unit - with `x`/`y`/`width`/`height` filter-region attributes and `feBlend`/

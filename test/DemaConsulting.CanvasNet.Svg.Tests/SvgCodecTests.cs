@@ -2406,7 +2406,7 @@ public class SvgCodecTests
         const string svg = """
             <svg viewBox='0 0 16 8'>
               <defs>
-                <marker id='bar' markerWidth='6' markerHeight='2' refX='0' refY='0' orient='auto' markerUnits='userSpaceOnUse'>
+                <marker id='bar' markerWidth='6' markerHeight='2' refX='0' refY='0' orient='auto' markerUnits='userSpaceOnUse' overflow='visible'>
                   <rect x='2' y='-0.5' width='2' height='1' fill='red'/>
                 </marker>
               </defs>
@@ -2436,7 +2436,7 @@ public class SvgCodecTests
         const string svg = """
             <svg viewBox='0 0 12 12'>
               <defs>
-                <marker id='bar' markerWidth='6' markerHeight='2' refX='0' refY='0' orient='auto' markerUnits='userSpaceOnUse'>
+                <marker id='bar' markerWidth='6' markerHeight='2' refX='0' refY='0' orient='auto' markerUnits='userSpaceOnUse' overflow='visible'>
                   <rect x='2' y='-0.5' width='2' height='1' fill='red'/>
                 </marker>
               </defs>
@@ -2465,7 +2465,7 @@ public class SvgCodecTests
         const string svg = """
             <svg viewBox='0 0 12 12'>
               <defs>
-                <marker id='bar' markerWidth='6' markerHeight='2' refX='0' refY='0' orient='auto' markerUnits='userSpaceOnUse'>
+                <marker id='bar' markerWidth='6' markerHeight='2' refX='0' refY='0' orient='auto' markerUnits='userSpaceOnUse' overflow='visible'>
                   <rect x='2' y='-0.5' width='2' height='1' fill='red'/>
                 </marker>
               </defs>
@@ -2506,7 +2506,7 @@ public class SvgCodecTests
         const string svg = """
             <svg viewBox='0 0 12 12'>
               <defs>
-                <marker id='bar' markerWidth='6' markerHeight='2' refX='0' refY='0' markerUnits='userSpaceOnUse'>
+                <marker id='bar' markerWidth='6' markerHeight='2' refX='0' refY='0' markerUnits='userSpaceOnUse' overflow='visible'>
                   <rect x='2' y='-0.5' width='2' height='1' fill='red'/>
                 </marker>
               </defs>
@@ -2537,7 +2537,7 @@ public class SvgCodecTests
         const string svg = """
             <svg viewBox='0 0 10 10'>
               <defs>
-                <marker id='bar' markerWidth='6' markerHeight='2' refX='0' refY='0' orient='auto' markerUnits='userSpaceOnUse'>
+                <marker id='bar' markerWidth='6' markerHeight='2' refX='0' refY='0' orient='auto' markerUnits='userSpaceOnUse' overflow='visible'>
                   <rect x='2' y='-0.5' width='2' height='1' fill='red'/>
                 </marker>
               </defs>
@@ -2568,7 +2568,7 @@ public class SvgCodecTests
         const string svg = """
             <svg viewBox='0 0 10 10'>
               <defs>
-                <marker id='bar' markerWidth='6' markerHeight='2' refX='0' refY='0' orient='auto-start-reverse' markerUnits='userSpaceOnUse'>
+                <marker id='bar' markerWidth='6' markerHeight='2' refX='0' refY='0' orient='auto-start-reverse' markerUnits='userSpaceOnUse' overflow='visible'>
                   <rect x='2' y='-0.5' width='2' height='1' fill='red'/>
                 </marker>
               </defs>
@@ -2733,6 +2733,159 @@ public class SvgCodecTests
         // Assert: a point that would only be covered by the unfitted, raw 10x10 content remains
         // transparent - proving the viewBox fit actually scaled the content down
         Assert.Equal(0, surface[9, 9].A);
+    }
+
+    /// <summary>
+    ///     Builds a 20x20 document whose line ends at (10,10) with a 4x4 <c>userSpaceOnUse</c> marker
+    ///     anchored at its top left, whose blue content (12x12, from -4 to 8) overflows the marker
+    ///     viewport on every side.
+    /// </summary>
+    /// <param name="markerAttributes">Extra attributes for the <c>marker</c> element.</param>
+    /// <returns>The SVG document.</returns>
+    private static string OverflowingMarkerSvg(string markerAttributes) =>
+        $"""
+        <svg viewBox='0 0 20 20'>
+          <defs>
+            <marker id='m' markerWidth='4' markerHeight='4' refX='0' refY='0' markerUnits='userSpaceOnUse' {markerAttributes}>
+              <rect x='-4' y='-4' width='12' height='12' fill='blue'/>
+            </marker>
+          </defs>
+          <line x1='2' y1='10' x2='10' y2='10' stroke='black' stroke-width='1' marker-end='url(#m)'/>
+        </svg>
+        """;
+
+    /// <summary>
+    ///     Proves a marker's content is clipped to its viewport (<c>markerWidth</c> by <c>markerHeight</c>
+    ///     at the anchor) by default, and with an explicit <c>overflow="hidden"</c>, as the SVG 2 user-agent
+    ///     style sheet makes <c>overflow</c> hidden for a marker. Edge (headless) draws only the 4x4 square
+    ///     from (10,10) to (14,14).
+    /// </summary>
+    /// <param name="markerAttributes">Extra attributes for the <c>marker</c> element.</param>
+    [Theory]
+    [InlineData("")]
+    [InlineData("overflow='hidden'")]
+    [InlineData("style='overflow: scroll'")]
+    public void SvgCodec_Load_MarkerContentBeyondViewport_IsClippedByDefault(string markerAttributes)
+    {
+        // Arrange
+        var svg = OverflowingMarkerSvg(markerAttributes);
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 20, 20);
+
+        // Assert: inside the viewport the content paints; outside it (but inside the content) nothing does
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[12, 12]);
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[13, 10]);
+        Assert.Equal(0, surface[16, 16].A);
+        Assert.Equal(0, surface[12, 16].A);
+        Assert.Equal(0, surface[16, 12].A);
+        Assert.Equal(0, surface[8, 8].A);
+    }
+
+    /// <summary>
+    ///     Proves <c>overflow="visible"</c> or <c>auto</c>, as an attribute or in a <c>style</c>, leaves
+    ///     a marker's content unclipped, as Edge (headless) draws it: the whole 12x12 square from (6,6) to
+    ///     (18,18).
+    /// </summary>
+    /// <param name="markerAttributes">Extra attributes for the <c>marker</c> element.</param>
+    [Theory]
+    [InlineData("overflow='visible'")]
+    [InlineData("style='overflow:visible'")]
+    [InlineData("overflow='auto'")]
+    public void SvgCodec_Load_MarkerOverflowVisible_IsNotClipped(string markerAttributes)
+    {
+        // Arrange
+        var svg = OverflowingMarkerSvg(markerAttributes);
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 20, 20);
+
+        // Assert: the content paints outside the viewport too
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[12, 12]);
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[16, 16]);
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[7, 7]);
+    }
+
+    /// <summary>
+    ///     Proves a marker with a <c>viewBox</c> clips to its viewport in user space: the 10x10 <c>viewBox</c>
+    ///     is fitted into a 4x4 marker (scale 0.4) anchored at its center (5,5), so the viewport covers
+    ///     (8,8) to (12,12) around the (10,10) vertex, while the 20x20 content (from -5 to 15 in the
+    ///     <c>viewBox</c>) would cover (6,6) to (14,14). Edge (headless) draws only the viewport square.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_MarkerWithViewBoxOverflowHidden_ClipsToTheFittedViewport()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 20 20'>
+              <defs>
+                <marker id='m' markerWidth='4' markerHeight='4' refX='5' refY='5' viewBox='0 0 10 10' markerUnits='userSpaceOnUse'>
+                  <rect x='-5' y='-5' width='20' height='20' fill='blue'/>
+                </marker>
+              </defs>
+              <line x1='2' y1='10' x2='10' y2='10' stroke='black' stroke-width='1' marker-end='url(#m)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 20, 20);
+
+        // Assert: the viewport paints, the overflowing content beyond it does not
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[8, 8]);
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[11, 11]);
+        Assert.Equal(0, surface[6, 6].A);
+        Assert.Equal(0, surface[13, 13].A);
+        Assert.Equal(0, surface[13, 8].A);
+    }
+
+    /// <summary>
+    ///     Proves a marker whose content fits its viewport draws exactly the same pixels whether
+    ///     <c>overflow</c> clips or not: clipping has nothing to remove. The cases cover a square
+    ///     <c>viewBox</c>, a <c>viewBox</c> with a negative origin (the common D3 arrowhead
+    ///     <c>0 -5 10 10</c>), and a <c>viewBox</c> centered in a wider marker, so the viewport honors the
+    ///     <c>viewBox</c> origin and the default <c>xMidYMid meet</c> alignment.
+    /// </summary>
+    /// <param name="markerAttributes">The marker's size, anchor and <c>viewBox</c>.</param>
+    /// <param name="pathData">The arrowhead outline in <c>viewBox</c> units.</param>
+    [Theory]
+    [InlineData("markerWidth='10' markerHeight='10' refX='10' refY='5' viewBox='0 0 10 10'", "M0,0 L10,5 L0,10 z")]
+    [InlineData("markerWidth='6' markerHeight='6' refX='10' refY='0' viewBox='0 -5 10 10'", "M0,-5 L10,0 L0,5 z")]
+    [InlineData("markerWidth='12' markerHeight='6' refX='10' refY='5' viewBox='0 0 10 10'", "M0,0 L10,5 L0,10 z")]
+    public void SvgCodec_Load_MarkerContentInsideViewport_DrawsTheSamePixelsClippedOrNot(string markerAttributes, string pathData)
+    {
+        // Arrange: an oriented arrowhead on a diagonal line, scaled by the stroke width
+        var template = $"""
+            <svg viewBox='0 0 40 40'>
+              <defs>
+                <marker id='a' {markerAttributes} orient='auto' OVERFLOW>
+                  <path d='{pathData}' fill='red'/>
+                </marker>
+              </defs>
+              <line x1='5' y1='5' x2='30' y2='25' stroke='black' stroke-width='2' marker-end='url(#a)'/>
+            </svg>
+            """;
+
+        // Act
+        using var hiddenStream = ToStream(template.Replace("OVERFLOW", string.Empty, StringComparison.Ordinal));
+        var hidden = SvgCodec.Load(hiddenStream, 40, 40);
+        using var visibleStream = ToStream(template.Replace("OVERFLOW", "overflow='visible'", StringComparison.Ordinal));
+        var visible = SvgCodec.Load(visibleStream, 40, 40);
+
+        // Assert: the arrowhead is drawn, and clipping removes none of it
+        var redPixels = 0;
+        for (var y = 0; y < 40; y++)
+        {
+            for (var x = 0; x < 40; x++)
+            {
+                Assert.Equal(visible[x, y], hidden[x, y]);
+                redPixels += hidden[x, y] == new Rgba32(255, 0, 0, 255) ? 1 : 0;
+            }
+        }
+
+        Assert.True(redPixels > 10, $"Expected a drawn arrowhead, found {redPixels} red pixels.");
     }
 
     /// <summary>
@@ -5632,9 +5785,9 @@ public class SvgCodecTests
     ///     shared <c>ComputePreserveAspectRatioFit</c> helper as the root <c>svg</c>/a <c>symbol</c>
     ///     - distinct from a marker with no explicit attribute at all, which always uses a "meet"
     ///     -equivalent scale (see <see cref="SvgCodec_Load_MarkerWithViewBox_FitsContentToMarkerWidthHeight"/>).
-    ///     Exercises <c>slice</c> specifically: because a marker's content is always anchored by
-    ///     its own <c>refX</c>/<c>refY</c> (never clipped to <c>markerWidth</c>/<c>markerHeight</c>
-    ///     - see this class's remarks), an <c>&lt;align&gt;</c>'s Min/Mid/Max offset has no visible
+    ///     Exercises <c>slice</c> specifically: the marker sets <c>overflow="visible"</c>, so its content
+    ///     is not clipped to <c>markerWidth</c>/<c>markerHeight</c>, and because a marker's content is
+    ///     always anchored by its own <c>refX</c>/<c>refY</c>, an <c>&lt;align&gt;</c>'s Min/Mid/Max offset has no visible
     ///     effect on an unclipped marker (the offset is a rigid translation that always cancels
     ///     out relative to the anchor point), so <c>meet</c> versus <c>slice</c>'s different
     ///     uniform scale factor is the one part of an explicit <c>preserveAspectRatio</c> that
@@ -5653,7 +5806,7 @@ public class SvgCodecTests
         const string svg = """
             <svg viewBox='0 0 20 20'>
               <defs>
-                <marker id='sl' markerWidth='8' markerHeight='8' refX='8' refY='4' viewBox='0 0 16 8' preserveAspectRatio='xMidYMid slice' markerUnits='userSpaceOnUse'>
+                <marker id='sl' markerWidth='8' markerHeight='8' refX='8' refY='4' viewBox='0 0 16 8' preserveAspectRatio='xMidYMid slice' markerUnits='userSpaceOnUse' overflow='visible'>
                   <rect x='0' y='0' width='16' height='8' fill='green'/>
                 </marker>
               </defs>

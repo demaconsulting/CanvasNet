@@ -266,6 +266,13 @@ public static partial class SvgCodec
         public CssMatchWorkBudget CssBudget { get; } = new();
 
         /// <summary>
+        ///     The painted bounds of each marker's content, in marker content space, keyed by the marker element
+        ///     and the viewport size its percentages resolve against: computed once by the marker viewport
+        ///     clipping check and shared by every <c>with</c> copy of the context.
+        /// </summary>
+        public Dictionary<(XElement Marker, float ViewportWidth, float ViewportHeight), Rect> MarkerContentBounds { get; } = new();
+
+        /// <summary>
         ///     Whether <c>text</c> rendering may consult fonts installed on the host (see
         ///     <see cref="SvgLoadOptions.UseSystemFonts"/>). Set once by <c>LoadCore</c>.
         /// </summary>

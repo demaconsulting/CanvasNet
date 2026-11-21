@@ -126,77 +126,62 @@ nor cacheable) - see *ViewBox Fitting Policy* below
 
 #### Out-of-scope subset (tolerated, skipped)
 
-A nested `svg`, `animate`/other SMIL
-animation elements, and `foreignObject` are all well-formed SVG
-constructs this codec does not implement. Encountering one of these does not fail the whole
-document: `SvgCodec` skips just that element (and, for a container element, everything
-nested inside it) and continues walking the rest of the tree; text inside it is reported (see
-*Unsupported-Feature Reports* below). This is a deliberate,
-tolerant-parsing policy distinct from the codec's malformed-input rejection policy (see
-*Error Handling* below) — a document using an out-of-scope construct is not itself invalid SVG,
-only partially outside this codec's supported feature set. Within a `style` element's own CSS
-engine (see *CSS `<style>` Element and Selector-Based Styling* below), sibling (`+`/`~`)
-combinators, pseudo-classes, `@media`/other at-rules, and `!important` are explicitly out of
-scope - see that section for the per-construct rationale and failure-mode. Within the supported
-`marker` feature itself, `markerContentUnits` (a rarely-used SVG 2 attribute) and clipping marker
-content to its own `markerWidth`/`markerHeight` viewport (`overflow`) are both explicitly out of
-scope. Within the supported `filter` feature itself, `primitiveUnits` (not read: primitive values stay in user
-units) and the user-space reading of a primitive subregion (`x`/`y`/`width`/`height` on an `fe*` primitive is
-read as a fraction of the filter region), both reported as `svg-filter-unsupported` (see *Unsupported-Feature
-Reports*), a `filter` on a shape's own `marker`
-content (has no effect - `marker` content is never recursed into by the ordinary element walk, so
-a group-level filter on a `<g>` inside a `marker` is never reached) are explicitly out of
-scope. Encountering a genuinely unrecognized `fe*` primitive name (any type this codec does not
-recognize by name) tolerantly passes through its resolved input rather than rejecting or
-skipping the whole filter. `feImage` is now supported in both its raster-href and
-element-reference forms; because the element-reference form can recurse back into the ordinary
-element walk, filter evaluation now reuses the existing `MaxUseDepth` guard that already bounds
-`use`/marker reference depth, declining the nested render once that limit is reached. Within the
-supported `text` feature itself, the `font-weight` relative keywords `bolder`/`lighter` (which
-resolve to a value relative to the inherited weight rather than an absolute one) are not
-implemented - encountering either keyword tolerantly falls back to the inherited weight - and the
-`font-style` keyword `oblique` is folded into the same `SvgFontStyle.Italic` value as `italic`
-rather than being distinguished as a third style (see
-`SvgFontStyle`'s remarks in the source for the rationale). Within the supported `clipPath`/`mask`
-features themselves, the following are explicitly out of scope (see *Clipping and Masking* below
-for the full rationale behind each): a nested `clip-path`/`mask`/`filter` applied to a `clipPath`
-element's own children (clip children are rasterized directly, not walked through the ordinary
-element-rendering recursion that resolves those attributes elsewhere); a `clip-path`/`mask`/
-`filter` attribute placed on the `clipPath`/`mask` element itself (both are `NonRenderingElements`
-never reached by the top-down walk, so any such attribute is inert); `<use>`/`<g>`/`<line>`
-children of a `clipPath` (only `rect`/`circle`/`ellipse`/`polyline`/`polygon`/`path`/`text` clip
-children are supported - `<line>` is excluded because a zero-area centerline contributes nothing
-to a union clip, matching the SVG specification); `mask-type`/`mask-mode: alpha` (only luminance
-mask semantics are implemented; an alpha-mode request tolerantly falls back to luminance); and a
-`clipPath`/`mask` `href`/`xlink:href` template-inheritance chain (mirroring the gradient
-chain-walk pattern) - an empty `clipPath`/`mask` with only an `href` resolves to "no children."
-Within the supported `pattern` feature itself, the following are explicitly out of scope (see
-*Pattern Paint-Server* below for the full rationale behind each): `href`/`xlink:href` inheritance
-of a pattern's own `x`/`y`/`width`/`height`/`patternUnits`/`patternContentUnits`/
-`patternTransform`/`viewBox`/`preserveAspectRatio` geometry attributes (only tile *content* is
-inherited through the chain, mirroring the gradient `href` chain's identical "geometry is never
-inherited, only stops/content are" simplification); a rendered tile-buffer cache (every pattern
-fill/stroke re-renders its own tile from scratch, since a tile's own pixel size depends on the
-referencing shape's own bounding box, not only the `pattern` element itself); a dedicated
-pattern-reference cycle-depth counter (a pattern-content cycle is instead caught for free by the
-pre-existing `MaxElementDepth` guard, mirroring `mask`'s identical reliance); and per-element
-control of tile resampling beyond the automatic magnified/minified smoothing described below. Within the supported
-`image` feature itself, the following are explicitly
-out of scope (see *Image* below for the full rationale behind each): an `href`/`xlink:href` that
-is not a base64-encoded `data:` URI - an external file path or URL is tolerantly rendered as
-nothing unless the caller opts in with `SvgLoadOptions.ImageResolver` (an `IImageResolver`; see *Image Resolver* below):
-the codec itself never opens a file or the network, since a base path inferred from the document
-would be an arbitrary-file-read vector, and what a resolver may reach is the caller's decision; a
-`data:image/svg+xml` payload (a
-nested SVG document, whether base64-encoded or not) - tolerantly rendered as nothing, for the
-same recursive-parsing-complexity reasoning that already excludes `feImage`'s own
-referenced-element case (an external `.svg` reference can be embedded only through a resolver); an
-external `feImage` `href`, which never uses the resolver; auto-sizing from the decoded raster's own intrinsic
-dimensions when
-`width`/`height` are absent (both default to `0`, rendering nothing, rather than inferring a size
-from the decoded content); and `image-rendering` values other than the recognized keywords
-(`auto`, `optimizeQuality`, `smooth` and `high-quality` select smooth sampling; `pixelated`,
-`crisp-edges` and `optimizeSpeed` select nearest-neighbor sampling), which are ignored.
+A nested `svg`, `animate`/other SMIL animation elements, and `foreignObject` are all well-formed SVG constructs this
+codec does not implement. Encountering one of these does not fail the whole document: `SvgCodec` skips just that element
+(and, for a container element, everything nested inside it) and continues walking the rest of the tree; text inside it
+is reported (see *Unsupported-Feature Reports* below). This is a deliberate, tolerant-parsing policy distinct from the
+codec's malformed-input rejection policy (see *Error Handling* below) — a document using an out-of-scope construct is
+not itself invalid SVG, only partially outside this codec's supported feature set. Within a `style` element's own CSS
+engine (see *CSS `<style>` Element and Selector-Based Styling* below), sibling (`+`/`~`) combinators, pseudo-classes,
+`@media`/other at-rules, and `!important` are explicitly out of scope - see that section for the per-construct rationale
+and failure-mode. Within the supported `marker` feature itself, `markerContentUnits` (a rarely-used SVG 2 attribute) is
+explicitly out of scope; marker content is clipped to its `markerWidth`/`markerHeight` viewport per `overflow` (see
+*Marker viewport clipping* below). Within the supported `filter` feature itself, `primitiveUnits` (not read: primitive
+values stay in user units) and the user-space reading of a primitive subregion (`x`/`y`/`width`/`height` on an `fe*`
+primitive is read as a fraction of the filter region), both reported as `svg-filter-unsupported` (see
+*Unsupported-Feature Reports*), a `filter` on a shape's own `marker` content (has no effect - `marker` content is never
+recursed into by the ordinary element walk, so a group-level filter on a `<g>` inside a `marker` is never reached) are
+explicitly out of scope. Encountering a genuinely unrecognized `fe*` primitive name (any type this codec does not
+recognize by name) tolerantly passes through its resolved input rather than rejecting or skipping the whole filter.
+`feImage` is now supported in both its raster-href and element-reference forms; because the element-reference form can
+recurse back into the ordinary element walk, filter evaluation now reuses the existing `MaxUseDepth` guard that already
+bounds `use`/marker reference depth, declining the nested render once that limit is reached. Within the supported `text`
+feature itself, the `font-weight` relative keywords `bolder`/`lighter` (which resolve to a value relative to the
+inherited weight rather than an absolute one) are not implemented - encountering either keyword tolerantly falls back to
+the inherited weight - and the `font-style` keyword `oblique` is folded into the same `SvgFontStyle.Italic` value as
+`italic` rather than being distinguished as a third style (see `SvgFontStyle`'s remarks in the source for the
+rationale). Within the supported `clipPath`/`mask` features themselves, the following are explicitly out of scope (see
+*Clipping and Masking* below for the full rationale behind each): a nested `clip-path`/`mask`/`filter` applied to a
+`clipPath` element's own children (clip children are rasterized directly, not walked through the ordinary
+element-rendering recursion that resolves those attributes elsewhere); a `clip-path`/`mask`/ `filter` attribute placed
+on the `clipPath`/`mask` element itself (both are `NonRenderingElements` never reached by the top-down walk, so any such
+attribute is inert); `<use>`/`<g>`/`<line>` children of a `clipPath` (only
+`rect`/`circle`/`ellipse`/`polyline`/`polygon`/`path`/`text` clip children are supported - `<line>` is excluded because
+a zero-area centerline contributes nothing to a union clip, matching the SVG specification);
+`mask-type`/`mask-mode: alpha` (only luminance mask semantics are implemented; an alpha-mode request tolerantly falls
+back to luminance); and a `clipPath`/`mask` `href`/`xlink:href` template-inheritance chain (mirroring the gradient
+chain-walk pattern) - an empty `clipPath`/`mask` with only an `href` resolves to "no children." Within the supported
+`pattern` feature itself, the following are explicitly out of scope (see *Pattern Paint-Server* below for the full
+rationale behind each): `href`/`xlink:href` inheritance of a pattern's own
+`x`/`y`/`width`/`height`/`patternUnits`/`patternContentUnits`/ `patternTransform`/`viewBox`/`preserveAspectRatio`
+geometry attributes (only tile *content* is inherited through the chain, mirroring the gradient `href` chain's identical
+"geometry is never inherited, only stops/content are" simplification); a rendered tile-buffer cache (every pattern
+fill/stroke re-renders its own tile from scratch, since a tile's own pixel size depends on the referencing shape's own
+bounding box, not only the `pattern` element itself); a dedicated pattern-reference cycle-depth counter (a
+pattern-content cycle is instead caught for free by the pre-existing `MaxElementDepth` guard, mirroring `mask`'s
+identical reliance); and per-element control of tile resampling beyond the automatic magnified/minified smoothing
+described below. Within the supported `image` feature itself, the following are explicitly out of scope (see *Image*
+below for the full rationale behind each): an `href`/`xlink:href` that is not a base64-encoded `data:` URI - an external
+file path or URL is tolerantly rendered as nothing unless the caller opts in with `SvgLoadOptions.ImageResolver` (an
+`IImageResolver`; see *Image Resolver* below): the codec itself never opens a file or the network, since a base path
+inferred from the document would be an arbitrary-file-read vector, and what a resolver may reach is the caller's
+decision; a `data:image/svg+xml` payload (a nested SVG document, whether base64-encoded or not) - tolerantly rendered as
+nothing, for the same recursive-parsing-complexity reasoning that already excludes `feImage`'s own referenced-element
+case (an external `.svg` reference can be embedded only through a resolver); an external `feImage` `href`, which never
+uses the resolver; auto-sizing from the decoded raster's own intrinsic dimensions when `width`/`height` are absent (both
+default to `0`, rendering nothing, rather than inferring a size from the decoded content); and `image-rendering` values
+other than the recognized keywords (`auto`, `optimizeQuality`, `smooth` and `high-quality` select smooth sampling;
+`pixelated`, `crisp-edges` and `optimizeSpeed` select nearest-neighbor sampling), which are ignored.
 
 A percentage value on a shape/text geometry attribute (`x`, `y`, `width`, `height`, `rx`, `ry`,
 `cx`, `cy`, `r`, `x1`/`y1`/`x2`/`y2`, `font-size`, `stroke-width`, `stroke-dasharray`,
@@ -713,17 +698,31 @@ both new capabilities:
   `preserveAspectRatio` attribute instead keeps its original, simpler fit (a plain "meet"-
   equivalent uniform scale-down with no centering step) completely unchanged, for two reasons:
   first, to guarantee this default path's pre-existing pixel output never regresses; second,
-  because a marker's content is always anchored by its own `refX`/`refY` (never clipped to
-  `markerWidth`/`markerHeight` - see *Out-of-scope subset* above), so once that anchoring is
+  because a marker's content is always anchored by its own `refX`/`refY`, so once that anchoring is
   applied, a viewBox's own origin and an `<align>`'s `Min`/`Mid`/`Max` offset both algebraically
-  cancel out of the final rendered position regardless of their value - only the uniform scale
+  cancel out of the final rendered position of the content regardless of their value - only the uniform scale
   factor itself (`meet`'s smaller ratio versus `slice`'s larger one) is ever visibly different
-  between the default path and an explicit `preserveAspectRatio`. Routing the default (no
-  attribute) case through the same origin/align-honoring formula would therefore be a purely
-  internal correctness improvement, not a visible behavior change - reserved for if marker-content
-  clipping is ever implemented - so it is deliberately kept as a distinct code path instead of
-  being unified, to avoid any incidental floating-point (ULP) difference in the default path's
-  output.
+  between the default path and an explicit `preserveAspectRatio`. The content transform is therefore
+  deliberately kept as a distinct code path instead of being unified, to avoid any incidental floating-point (ULP)
+  difference in the default path's output. The origin and alignment do not cancel for the marker viewport that
+  `overflow` clips to, so the viewport is always placed through the full SVG fit (see *Marker viewport clipping*).
+- **Marker viewport clipping.** A marker's `overflow` (inline `style`, stylesheet rule, or attribute, read with
+  `ResolveElementProperty`) defaults to `hidden` (the SVG 2 user-agent style sheet sets it on `marker`); `visible` and
+  `auto` leave the content unclipped, and `hidden`, `scroll`, `clip`, and any other value clip it to the viewport, the
+  `markerWidth` by `markerHeight` box. `TryComputeMarkerContentTransform` returns the viewport with the content
+  transform: its size, the fit from content (`viewBox`) space into viewport space (`ComputePreserveAspectRatioFit`
+  with the explicit `preserveAspectRatio`, else the default `xMidYMid meet`, so the `viewBox` origin and alignment
+  are honored), and the transform from viewport space into the shape's frame (the inverse fit composed with the
+  content transform). `RenderOneMarker` draws the content directly, exactly as before, when the marker does not clip
+  or when the content's painted bounds, mapped into viewport space, lie inside the viewport (within 1e-3), so an
+  arrowhead that fits its box keeps its pixels. Those bounds come from `ComputeChildrenLocalBounds` once per marker
+  element and viewport size and are cached on the render context (`MarkerContentBounds`), so a marker repeated along
+  many shapes runs the bounds pre-pass once. Otherwise `RenderMarkerClipped` renders the content into an offscreen
+  buffer covering the viewport's pixel bounds (cut to the target surface), multiplies its alpha by the antialiased
+  coverage of the viewport rectangle (`PathFiller.Fill`, `ApplyCoverageClip`), and composites it onto the target
+  (`CompositeFilterResultOntoCanvas`). The two buffers are charged to the shared `FilterWorkBudget`; when it is
+  exhausted, or the viewport's pixel bounds cannot be represented, the content is drawn directly (unclipped), and a
+  viewport entirely off the surface draws nothing.
 
 An intrinsic size that is positive and finite (passing the checks above) can still be small
 enough — a subnormal float, for example — that dividing the requested raster dimensions by it

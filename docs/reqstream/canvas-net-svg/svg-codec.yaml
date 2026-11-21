@@ -226,7 +226,8 @@ sections:
               markerWidth/markerHeight, refX/refY, markerUnits
               (strokeWidth or userSpaceOnUse), orient (auto, auto-start-reverse, a fixed
               angle in degrees, or the fixed 0-degree default when omitted/blank), and an
-              optional viewBox, while never rendering a marker for
+              optional viewBox, clipping the marker content to its markerWidth/markerHeight
+              viewport unless the marker's overflow property is visible or auto, while never rendering a marker for
               rect/circle/ellipse and never inheriting the referencing shape's own
               fill/stroke into the marker's own content.
             justification: |
@@ -235,7 +236,9 @@ sections:
               flowcharts, or annotated line art need these to render rather than silently
               vanish, with correct per-vertex placement, orientation, sizing, and an
               independent presentation-attribute cascade matching the SVG specification's
-              marker-content model.
+              marker-content model. The SVG 2 user-agent style sheet sets overflow: hidden on
+              marker, so browsers clip marker content to the marker viewport; content that fits
+              the viewport is drawn exactly as before.
             tests:
               - SvgCodec_Load_MarkerEndOnLine_RendersArrowheadPastLineEnd
               - SvgCodec_Load_MarkerStartMidEndOnPolyline_RendersDistinctMarkersAtEachVertex
@@ -247,6 +250,10 @@ sections:
               - SvgCodec_Load_MarkerStartOrientAutoStartReverse_PointsAwayFromLine
               - SvgCodec_Load_MarkerUnitsUserSpaceOnUseVsStrokeWidthDefault_ScalesDifferently
               - SvgCodec_Load_MarkerWithViewBox_FitsContentToMarkerWidthHeight
+              - SvgCodec_Load_MarkerContentBeyondViewport_IsClippedByDefault
+              - SvgCodec_Load_MarkerOverflowVisible_IsNotClipped
+              - SvgCodec_Load_MarkerWithViewBoxOverflowHidden_ClipsToTheFittedViewport
+              - SvgCodec_Load_MarkerContentInsideViewport_DrawsTheSamePixelsClippedOrNot
               - SvgCodec_Load_MarkerOnMultiSubpathPath_AppliesStartEndOnlyAtWholePathEnds
               - SvgCodec_Load_MarkerOnRectCircleEllipse_NeverRendersMarker
               - SvgCodec_Load_MarkerContent_DoesNotInheritReferencingShapeFillOrStroke

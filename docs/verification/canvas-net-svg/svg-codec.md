@@ -287,6 +287,10 @@ rejected with `InvalidDataException` once the bounded recursion guard is exceede
 `SvgCodec_Load_MarkerStartOrientAutoStartReverse_PointsAwayFromLine`,
 `SvgCodec_Load_MarkerUnitsUserSpaceOnUseVsStrokeWidthDefault_ScalesDifferently`,
 `SvgCodec_Load_MarkerWithViewBox_FitsContentToMarkerWidthHeight`,
+`SvgCodec_Load_MarkerContentBeyondViewport_IsClippedByDefault`,
+`SvgCodec_Load_MarkerOverflowVisible_IsNotClipped`,
+`SvgCodec_Load_MarkerWithViewBoxOverflowHidden_ClipsToTheFittedViewport`,
+`SvgCodec_Load_MarkerContentInsideViewport_DrawsTheSamePixelsClippedOrNot`,
 `SvgCodec_Load_MarkerOnMultiSubpathPath_AppliesStartEndOnlyAtWholePathEnds`,
 `SvgCodec_Load_MarkerOnRectCircleEllipse_NeverRendersMarker`,
 `SvgCodec_Load_MarkerContent_DoesNotInheritReferencingShapeFillOrStroke`,
@@ -340,7 +344,14 @@ shape inside a `marker` element's own content with a `filter="url(#id)"` attribu
 renders exactly as if that `filter` attribute were absent - the marker's own fill color, not the flood's - a regression
 test for a defect where marker-content rendering re-entered the same shape/text dispatch used everywhere else, which
 unconditionally resolved and evaluated a shape's own `filter` attribute, contradicting this codec's documented "filters
-on marker content have no effect" scope decision.
+on marker content have no effect" scope decision. The orientation tests whose bar extends past its 6 by 2 viewport set
+`overflow="visible"`, so they test orientation alone. Asserts a marker whose 12 by 12 content overflows its 4 by 4
+viewport on every side is clipped to the viewport by default and with `overflow="hidden"` or `overflow: scroll` (inside
+painted, outside transparent), and is drawn whole with `overflow="visible"`, `style="overflow:visible"`, or
+`overflow="auto"`; asserts a marker with a `viewBox` (10 by 10 into 4 by 4, anchored at its center) clips to the fitted
+viewport, not to the unscaled content; and asserts an oriented, stroke-scaled arrowhead that fits its viewport draws
+exactly the same pixels with clipping and with `overflow="visible"`. The expected pixels of the clipping tests were
+checked against Edge headless renders of the same documents at ten times the size.
 
 #### CanvasNetSvg-SvgCodec-MarkerPreserveAspectRatio: Marker Explicit preserveAspectRatio Fitting
 
@@ -353,14 +364,14 @@ explicit `preserveAspectRatio` keeps the unchanged default fit.
 test proving an explicit `preserveAspectRatio="... slice"` attribute on a marker with
 its own `viewBox` selects `slice`'s larger uniform scale (`max(...)`) rather than the pre-existing
 default path's `meet`-equivalent (`min(...)`) scale, exercised via a canvas point covered only by
-the wider `slice` fit. It deliberately does not exercise `<align>`/origin variation: because a
-marker's content is always anchored by its own `refX`/`refY` (never clipped to
-`markerWidth`/`markerHeight`), an `<align>`'s `Min`/`Mid`/`Max` offset and the viewBox's own
+the wider `slice` fit. The marker sets `overflow="visible"`. It deliberately does not exercise `<align>`/origin
+variation: because an unclipped marker's content is always anchored by its own `refX`/`refY`, an `<align>`'s
+`Min`/`Mid`/`Max` offset and the viewBox's own
 origin both algebraically cancel out of the final rendered position once that ref-anchoring is
 applied, regardless of their value - only the uniform scale factor itself is ever visibly
 different between the default (no attribute) path and an explicit `preserveAspectRatio`, making
-`meet` versus `slice` the only genuinely pixel-distinguishable part of this new capability given
-this codec's marker content is never clipped.
+`meet` versus `slice` the only genuinely pixel-distinguishable part of this new capability for
+unclipped content (the clipped viewport honors the origin and alignment; see the marker rendering tests above).
 
 #### CanvasNetSvg-SvgCodec-MarkerReferenceCycle: Marker Reference Dangling and Cycle Rejection
 

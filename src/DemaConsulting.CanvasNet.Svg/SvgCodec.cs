@@ -122,9 +122,9 @@ namespace DemaConsulting.CanvasNet.Svg;
 ///     the layout ignores (<c>textPath</c>, <c>rotate</c>, <c>textLength</c>, vertical
 ///     writing), are reported through <see cref="SvgLoadOptions.UnsupportedFeatureHandler"/> when the
 ///     caller sets one. Within the supported <c>marker</c> feature itself,
-///     <c>markerContentUnits</c> (a rarely-used SVG 2 attribute) is not read, and a marker's
-///     <c>overflow</c>/clipping-to-its-own-viewport behavior is not implemented (marker content is
-///     never clipped to <c>markerWidth</c>/<c>markerHeight</c>) - both explicitly out of scope.
+///     <c>markerContentUnits</c> (a rarely-used SVG 2 attribute) is not read - explicitly out of
+///     scope - while a marker's content is clipped to its <c>markerWidth</c>/<c>markerHeight</c>
+///     viewport unless its <c>overflow</c> is <c>visible</c> or <c>auto</c>.
 ///     Within the supported <c>filter</c> feature itself, <c>filterUnits</c> is honored but
 ///     <c>primitiveUnits</c> is not read and a primitive subregion is read as a fraction of the filter
 ///     region (both reported as <see cref="SvgUnsupportedFeature.FilterUnsupportedCode"/>); group-level (<c>g</c>/<c>symbol</c>)

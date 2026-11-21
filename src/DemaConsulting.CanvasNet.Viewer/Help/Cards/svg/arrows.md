@@ -74,6 +74,9 @@ with [[svg/arrows#arrows]].
   `stroke-width`: `markerWidth="6"` on a stroke of 2 is 12 units long.
   `markerUnits="userSpaceOnUse"` keeps it a fixed size in the drawing's user
   units.
+- The head is clipped to its `markerWidth` by `markerHeight` box, as in
+  browsers: keep the path inside the `viewBox`, or set `overflow="visible"` on
+  the marker.
 
 ## Check
 

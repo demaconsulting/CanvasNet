@@ -25,7 +25,8 @@ examples:
 
 - Shapes: rect, circle, ellipse, line, polyline, polygon, path.
 - Grouping with g and a, cascading presentation attributes; transform; use and
-  symbol; marker; switch draws its first child without foreignObject.
+  symbol; marker (clipped to its box unless overflow is visible); switch draws
+  its first child without foreignObject.
 - Linear and radial gradients (with href inheritance), pattern, clipPath, and
   mask. A paint may name a fallback color (url(#g) red). objectBoundingBox units
   use the fill box, without stroke, as in browsers; on a shape with no width or
@@ -55,8 +56,7 @@ examples:
   through; an embedded chart keeps its own background (white unless it names
   another).
 - text, best effort, with weight and style: an installed family is used; the
-  generic families and unknown families use the bundled Liberation Sans, Serif,
-  and Mono.
+  generic and unknown families use the bundled Liberation fonts.
 - tspan and a in text, as in browsers: a style per run, x, y, dx, and dy lists,
   a new chunk at an absolute x or y, text-anchor per chunk, baseline-shift,
   letter-spacing and word-spacing, and white space collapsed
@@ -65,8 +65,8 @@ examples:
   percent lengths.
 - CSS in a style element (type, class, id, universal, and compound selectors;
   descendant and child combinators; specificity) and inline style.
-- The intrinsic size is the viewBox, else width and height (converted from their
-  units to user units), else 300x150.
+- The intrinsic size is the viewBox, else width and height (in user units),
+  else 300x150.
 
 ## Unsupported
 
