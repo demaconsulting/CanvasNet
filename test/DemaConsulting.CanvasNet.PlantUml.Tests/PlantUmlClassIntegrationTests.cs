@@ -250,4 +250,55 @@ public class PlantUmlClassIntegrationTests
         var dy = Math.Max(0, Math.Max(label.Y - loanTip.Y, loanTip.Y - label.Bottom));
         Assert.True(Math.Sqrt((dx * dx) + (dy * dy)) <= 12, $"label {label} tip ({loanTip.X}, {loanTip.Y})");
     }
+
+    /// <summary>
+    ///     Validates that the arrows of four links that reach the bottom side of one class end at distinct points of
+    ///     that side, off its corners, and that the multiplicity of one of them stays next to its arrowhead and off the
+    ///     triangles of the others.
+    /// </summary>
+    [Fact]
+    public void CanvasNetPlantUml_Class_ArrowEndsOnOneSide_KeepApart()
+    {
+        // Arrange: Item above Loan (with the multiplicity 1 at Item) and three subclasses
+        var document = PlantUmlDocument.Parse("@startuml\nclass Item\nclass Loan\nclass Book\nclass Film\nclass Disc\nItem \"1\" <-- \"*\" Loan : borrows\nItem <|-- Book\nItem <|-- Film\nItem <|-- Disc\n@enduml\n");
+
+        // Act
+        var scene = document.LayoutScene(cancellationToken: TestContext.Current.CancellationToken);
+
+        // Assert: the four tips (the first point of each arrowhead) are on the bottom of Item, at least 10 pixels apart
+        var item = Scene.BoundsOf([scene.Items.OfType<ScenePath>().Single(p => p.Role == "class" && p.Id == "Item")])!.Value;
+        var heads = scene.Items.OfType<ScenePath>().Where(p => p.Role == "link-tail").ToList();
+        Assert.Equal(4, heads.Count);
+        var tips = heads.Select(h => h.Segments[0]).ToList();
+        Assert.All(tips, tip =>
+        {
+            Assert.Equal(item.Bottom, tip.Y, 2);
+            Assert.InRange(tip.X, item.X + 5, item.Right - 5);
+        });
+        for (var i = 0; i < tips.Count; i++)
+        {
+            for (var j = i + 1; j < tips.Count; j++)
+            {
+                Assert.True(Math.Abs(tips[i].X - tips[j].X) >= 10, $"tips {i} and {j}: {tips[i].X} {tips[j].X}");
+            }
+        }
+
+        // The multiplicity is on no other arrowhead and next to its own
+        var labelText = scene.Items.OfType<SceneText>().Single(t => t.Role == "link-tail-label");
+        var label = labelText.Box;
+        Assert.DoesNotContain(heads.Where(h => h.Id != labelText.Id), h => Overlaps(label, Scene.BoundsOf([h])!.Value));
+        var loanTip = tips[heads.FindIndex(h => h.Id == labelText.Id)];
+        var dx = Math.Max(0, Math.Max(label.X - loanTip.X, loanTip.X - label.Right));
+        var dy = Math.Max(0, Math.Max(label.Y - loanTip.Y, loanTip.Y - label.Bottom));
+        Assert.True(Math.Sqrt((dx * dx) + (dy * dy)) <= 12, $"label {label} tip ({loanTip.X}, {loanTip.Y})");
+    }
+
+    /// <summary>
+    ///     Decides whether two rectangles overlap with an area.
+    /// </summary>
+    /// <param name="a">The first.</param>
+    /// <param name="b">The second.</param>
+    /// <returns>True when they do.</returns>
+    private static bool Overlaps(SceneRect a, SceneRect b) =>
+        a.X < b.Right - 1e-6 && b.X < a.Right - 1e-6 && a.Y < b.Bottom - 1e-6 && b.Y < a.Bottom - 1e-6;
 }

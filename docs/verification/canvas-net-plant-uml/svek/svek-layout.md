@@ -99,8 +99,10 @@ note with two links keeps them; asserts that a note on a link is in the link's l
 `SvekLayoutTests.PlantUmlSvekLayout_Run_LinksFromBelow_EndOnTheSidesNotTheCorners`,
 `SvekLayoutTests.PlantUmlSvekLayout_Run_LabelOfLinkIntoARow_ClearOfTheDrawnCurve`,
 `SvekLayoutTests.PlantUmlSvekLayout_Run_UnlabeledLinksBetweenTheSameTwoNodes_AreKeptApart`,
-`SvekLayoutTests.PlantUmlSvekLayout_Run_LabelWithNoClearPlace_StaysWhereItWasPlaced`
-
+`SvekLayoutTests.PlantUmlSvekLayout_Run_LabelWithNoClearPlace_StaysWhereItWasPlaced`,
+`SvekLayoutTests.PlantUmlSvekLayout_Run_LinksCrowdingOneSide_EndApartWithTheMultiplicityClear`,
+`SvekLayoutTests.PlantUmlSvekLayout_Run_EndLabelBetweenTwoHeads_OverlapsNoHead`,
+`SvekLayoutTests.PlantUmlSvekLayout_Run_LeftToRightLinksBothWays_EndApartOnOneSide`
 Asserts that a link from an entity to itself and two parallel links have routes that start and end on the borders and
 that the parallel routes differ; asserts that routes end on an ellipse outline and on a circle inside a larger box;
 asserts the middle label beside its route with its triangle pointing along the link and the end labels near their ends
@@ -113,7 +115,14 @@ entity's place in the row) and asserts that the label is at least `LabelClearanc
 along it, and overlaps no entity. Lays out two unlabeled links from one entity to another and one back, and asserts
 distinct routes whose curve middles are at least 5 pixels apart and whose ends are on the borders. Lays out a labeled
 loop on an entity beside a large entity of its row, so that no position within 32 pixels is clear, and asserts that
-the label stays at its place right of the loop.
+the label stays at its place right of the loop. Lays out an entity above four entities wider than it, linked by an
+arrow with the multiplicity 1 and three extensions, and asserts that the four ends are on the bottom side of the entity
+above, at least 5 pixels from its corners and at least `EndSpacing` apart, and that the multiplicity is within 12
+pixels of its end and overlaps no triangle of the other links. Lays out the arrow with the multiplicity between four
+extensions on a side too short to keep them `EndSpacing` apart, and asserts that the multiplicity overlaps no
+triangle, is within 24 pixels of its end, and that the five ends are spread evenly over the part of the side the
+corner insets leave. Lays out, from left to right, three links leaving an entity and one arriving at it, and asserts
+that the four ends at the entity are on its border and at least 10 pixels apart.
 
 ##### CanvasNetPlantUml-Svek-SvekLayout-Limits: Work, Limits, And Failures
 

@@ -751,6 +751,98 @@ public class SvekLayoutTests
     }
 
     /// <summary>
+    ///     Validates that the ends of four links on the bottom side of a node, which all aim beyond its corners, are kept
+    ///     <see cref="SvekLayout.EndSpacing"/> apart on that side, off its corners, and that the multiplicity of one of
+    ///     them stays next to its end, off the triangles of the other links.
+    /// </summary>
+    [Fact]
+    public void PlantUmlSvekLayout_Run_LinksCrowdingOneSide_EndApartWithTheMultiplicityClear()
+    {
+        // Arrange: Item above Loan (an arrow with the multiplicity 1 at Item) and three extensions, all wider than it
+        var item = Entity("Item", 59, 48);
+        var below = new[] { Entity("Loan", 63, 48), Entity("Book", 64, 48), Entity("Film", 58, 48), Entity("Disc", 59, 48) };
+        var diagram = new SvekDiagram { Entities = [item, .. below], Links = LinksFrom(item, below) };
+
+        // Act
+        var placement = Place(diagram);
+
+        // Assert: every link starts on the bottom side of Item, off its corners, at least EndSpacing from the others
+        var top = BoxOf(placement, "Item");
+        var starts = below.Select(e => LinkOf(placement, e.Id).Route[0]).ToList();
+        Assert.All(starts, start =>
+        {
+            Assert.Equal(top.Bottom, start.Y, 6);
+            Assert.InRange(start.X, top.X + 5, top.Right - 5);
+        });
+        AssertApart(starts, SvekLayout.EndSpacing);
+
+        // The multiplicity is next to its end and on none of the triangles
+        var loan = LinkOf(placement, "Loan");
+        var label = loan.TailLabel!.Box;
+        Assert.DoesNotContain(TriangleBoundsOf(placement, below), head => Overlap(label, head));
+        Assert.True(DistanceTo(label, loan.Route[0]) <= 12, $"label {label} end {loan.Route[0]}");
+    }
+
+    /// <summary>
+    ///     Validates that the multiplicity of a link between the triangles of four other links on one side of a node
+    ///     overlaps none of them and stays near its end, and that the five ends are spread evenly over the side, which is
+    ///     too short to keep them <see cref="SvekLayout.EndSpacing"/> apart.
+    /// </summary>
+    [Fact]
+    public void PlantUmlSvekLayout_Run_EndLabelBetweenTwoHeads_OverlapsNoHead()
+    {
+        // Arrange: Item above four extensions with the arrow of Loan, with the multiplicity 1, in the middle
+        var item = Entity("Item", 59, 48);
+        var below = new[] { Entity("A", 41, 48), Entity("B", 41, 48), Entity("Loan", 63, 48), Entity("C", 42, 48), Entity("D", 42, 48) };
+        var diagram = new SvekDiagram { Entities = [item, .. below], Links = LinksFrom(item, below) };
+
+        // Act
+        var placement = Place(diagram);
+
+        // Assert: the multiplicity is on none of the triangles and near its end
+        var loan = LinkOf(placement, "Loan");
+        var label = loan.TailLabel!.Box;
+        Assert.DoesNotContain(TriangleBoundsOf(placement, below), head => Overlap(label, head));
+        Assert.True(DistanceTo(label, loan.Route[0]) <= 24, $"label {label} end {loan.Route[0]}");
+
+        // The five ends are spread evenly over the part of the side the corner insets leave
+        var top = BoxOf(placement, "Item");
+        AssertApart(below.Select(e => LinkOf(placement, e.Id).Route[0]).ToList(), (top.Width - 20) / 4);
+    }
+
+    /// <summary>
+    ///     Validates that, from left to right, the ends of three links leaving a node and of one link arriving at it on
+    ///     its right side are kept apart on that side.
+    /// </summary>
+    [Fact]
+    public void PlantUmlSvekLayout_Run_LeftToRightLinksBothWays_EndApartOnOneSide()
+    {
+        // Arrange: A links to B, C, and D (with a label), and B links back to A
+        var (a, b, c, d) = (Entity("A", 50, 50), Entity("B", 50, 50), Entity("C", 50, 50), Entity("D", 50, 50));
+        var diagram = new SvekDiagram
+        {
+            Entities = [a, b, c, d],
+            Links = [new SvekLink("ab", a, b), new SvekLink("ac", a, c), new SvekLink("ad", a, d) { Label = "go" }, new SvekLink("ba", b, a)],
+            RankDir = SvekRankDir.LeftToRight,
+        };
+
+        // Act
+        var placement = Place(diagram);
+
+        // Assert: the four ends at A are on its border and spread over the 30 pixels its corner insets leave
+        var boxA = BoxOf(placement, "A");
+        var ends = new List<SvekPoint>
+        {
+            LinkOf(placement, "ab").Route[0],
+            LinkOf(placement, "ac").Route[0],
+            LinkOf(placement, "ad").Route[0],
+            LinkOf(placement, "ba").Route[^1],
+        };
+        Assert.All(ends, end => Assert.True(OnBorder(boxA, end), $"{end} off A {boxA}"));
+        AssertApart(ends, 10);
+    }
+
+    /// <summary>
     ///     Validates the labels: the middle label beside its route with its direction triangle pointing along the link,
     ///     and the end labels near their ends, off the entities.
     /// </summary>
@@ -951,6 +1043,64 @@ public class SvekLayoutTests
         Assert.Contains("no route", failure.Message, StringComparison.Ordinal);
         Assert.True(meter.IsFailure(failure));
         Assert.False(meter.IsFailure(new InvalidOperationException("dagre")));
+    }
+
+    /// <summary>
+    ///     Gets the links from a node to the nodes below it: an arrow with the multiplicity 1 to Loan and extensions to
+    ///     the others.
+    /// </summary>
+    /// <param name="from">The node above.</param>
+    /// <param name="below">The nodes below.</param>
+    /// <returns>The links, named after the nodes below.</returns>
+    private static List<SvekLink> LinksFrom(SvekEntity from, SvekEntity[] below) =>
+        below.Select(e => e.Id == "Loan"
+            ? new SvekLink(e.Id, from, e) { TailDecor = LinkDecor.Arrow, TailLabel = "1" }
+            : new SvekLink(e.Id, from, e) { TailDecor = LinkDecor.Extends }).ToList();
+
+    /// <summary>
+    ///     Gets the bounds of the triangles at the first ends of the extension links to the nodes below (all but Loan).
+    /// </summary>
+    /// <param name="placement">The placement.</param>
+    /// <param name="below">The nodes below.</param>
+    /// <returns>The bounds.</returns>
+    private static List<SceneRect> TriangleBoundsOf(SvekPlacement placement, SvekEntity[] below) =>
+        below.Where(e => e.Id != "Loan").Select(e =>
+        {
+            var route = LinkOf(placement, e.Id).Route;
+            var head = SvekGeometry.Extremity(LinkDecor.Extends, route[0], SvekGeometry.ArrivalAngle(route, atEnd: false))!;
+            var points = head.Parts.SelectMany(p => p.Segments).Where(s => s.Kind != SceneSegmentKind.Close).ToList();
+            var (x0, y0) = (points.Min(s => s.X), points.Min(s => s.Y));
+            return new SceneRect(x0, y0, points.Max(s => s.X) - x0, points.Max(s => s.Y) - y0);
+        }).ToList();
+
+    /// <summary>
+    ///     Gets the distance from a box to a point (zero inside it).
+    /// </summary>
+    /// <param name="box">The box.</param>
+    /// <param name="point">The point.</param>
+    /// <returns>The distance.</returns>
+    private static double DistanceTo(SceneRect box, SvekPoint point)
+    {
+        var dx = Math.Max(0, Math.Max(box.X - point.X, point.X - box.Right));
+        var dy = Math.Max(0, Math.Max(box.Y - point.Y, point.Y - box.Bottom));
+        return Math.Sqrt((dx * dx) + (dy * dy));
+    }
+
+    /// <summary>
+    ///     Asserts that every two points are at least a distance apart.
+    /// </summary>
+    /// <param name="points">The points.</param>
+    /// <param name="spacing">The least distance.</param>
+    private static void AssertApart(List<SvekPoint> points, double spacing)
+    {
+        for (var i = 0; i < points.Count; i++)
+        {
+            for (var j = i + 1; j < points.Count; j++)
+            {
+                var distance = Math.Sqrt(Math.Pow(points[i].X - points[j].X, 2) + Math.Pow(points[i].Y - points[j].Y, 2));
+                Assert.True(distance >= spacing - 1e-6, $"ends {i} and {j}: {points[i]} {points[j]}");
+            }
+        }
     }
 
     /// <summary>

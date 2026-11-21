@@ -32,9 +32,10 @@ specified by the `CanvasNetPlantUml-Svek-SvekLayout-*` requirements in
   `NoteGap` 18 (measured from the reference pictures), `NoteStackGap` 10, `LabelMargin` 1 (PlantUML's `marginLabel`),
   `LabelOffset` 2 (dagre's label offset), `LabelClearance` 4 (the least space between a label and the lines of its
   link, as PlantUML leaves about 4 pixels), `RowLabelSpace` 20 (the space a label between two neighbors of a row leaves
-  to them together, as PlantUML leaves about 10 pixels on each side), the note margins 6, 15, and 5 (PlantUML's
-  `Opale`), `RegionPadding` 10, `SeparatorInset` 5 (the space between the sides of a cluster and the ends of its
-  region separators), and `ParallelArcStep` 50.
+  to them together, as PlantUML leaves about 10 pixels on each side), `EndSpacing` 12 (the least distance between the
+  ends of two links on one side of a box, the width of the widest decoration), the note margins 6, 15, and 5 (PlantUML's
+  `Opale`), `RegionPadding` 10, `SeparatorInset` 5 (the space between the sides of a cluster and the ends of its region
+  separators), and `ParallelArcStep` 50.
 
 #### Key Methods
 
@@ -85,16 +86,24 @@ specified by the `CanvasNetPlantUml-Svek-SvekLayout-*` requirements in
   no other unit and no other link joins the same two ends, as Graphviz draws a short edge (`SharesEnds`: the straight
   lines of links between the same two ends would coincide, so they keep dagre's routes, which dagre keeps apart;
   `StraightAims`: straight across the ranks at the middle of the narrower box where the two boxes face each other off
-  their corners, else each end in line with the other box); the label slot
-  is placed at dagre's label center, or beside the middle of the route (`BesideMiddle`: `LabelClearance` above a
-  route that runs across, right of one that runs down, at the middle of the curve of an arc), and a label center that
-  dagre puts inside a compound cluster the link leaves is replaced by the place beside the middle of the route outside
-  it; the label is then moved away from the lines its link draws (`DrawnLines`: the curve of the route measured at 16
-  points per cubic piece, and the outlines of its decorations) until it keeps `LabelClearance` from them and overlaps
-  no unit (`ClearOfLink`: one pixel at a time, at most 32, away from the nearest point of the lines, each step
-  charging the meter; a label with no clear position within 32 pixels stays where it was placed), since dagre placed
-  it beside its own route, which the drawn curve does not follow exactly; end
-  labels go beside the line just off the end and are moved along the line until they overlap no entity.
+  their corners, else each end in line with the other box), and `ClipEnds` reports such a straight route. When every
+  link is routed, the ends of different links on one side of a rectangle that faces the ranks are kept apart
+  (`SpreadEnds`): `ClipToFacingSide` puts every end that aims beyond the same corner at one point, so their decorations
+  would be drawn on top of each other; the ends of a side, ordered along it (then by the next points of their routes and
+  their far ends, so the links keep their order and do not cross), move along the side as little as needed to be
+  `EndSpacing` apart within the part of the side that the corner inset (`EndInset`) leaves, or are spread evenly over
+  that part when it is too short for that (`SpreadAlong`); a side whose ends are already far enough apart is left alone,
+  and a straight route keeps its middle point between its ends. Then the label slot of each link is placed at dagre's
+  label center, or beside the middle of the route (`BesideMiddle`: `LabelClearance` above a route that runs across,
+  right of one that runs down, at the middle of the curve of an arc), and a label center that dagre puts inside a
+  compound cluster the link leaves is replaced by the place beside the middle of the route outside it; the label is then
+  moved away from the lines its link draws (`DrawnLines`: the curve of the route measured at 16 points per cubic piece,
+  and the outlines of its decorations) until it keeps `LabelClearance` from them and overlaps no unit (`ClearOfLink`:
+  one pixel at a time, at most 32, away from the nearest point of the lines, each step charging the meter; a label with
+  no clear position within 32 pixels stays where it was placed), since dagre placed it beside its own route, which the
+  drawn curve does not follow exactly; end labels go beside the line just off the end and are moved along the line until
+  they overlap no entity and no decoration of another link (`HeadBoxes`: the bounds of the decorations of the drawn
+  links), or go to the other side of the line instead when they are on another link's decoration and that side is clear.
 - `BuildFrame` and `PointNotes` - the placements of the units (entities, attached notes with the pointer from the side
   of the note that faces the entity - the side with the widest gap between the two boxes, the note's own position on a
   tie - to the entity's border, floating notes, clusters with their content and separators), of the compound
